@@ -1,5 +1,6 @@
 import type { AuditLogEntry } from "./types";
 import { generateId } from "./utils";
+import { supabase } from "./supabase";
 
 export type AuditAction =
   | "lead.created"
@@ -43,7 +44,6 @@ export function logAudit(
 
   auditBuffer.push(entry);
 
-  // TODO: Flush to database in batches
   if (auditBuffer.length >= 50) {
     flushAuditLog();
   }
@@ -55,10 +55,55 @@ export async function flushAuditLog(): Promise<void> {
   const entries = auditBuffer.splice(0, auditBuffer.length);
   if (entries.length === 0) return;
 
-  // TODO: POST to /api/audit endpoint
-  console.debug(`[Audit] Flushing ${entries.length} entries`);
+  try {
+    const rows = entries.map((e) => ({
+      user_id: e.user_id,
+      action: e.action,
+      entity_type: e.entity_type,
+      entity_id: e.entity_id,
+      details: e.details,
+    }));
+
+    // TODO: Replace `as any` when types are auto-generated via `supabase gen types`
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { error } = await (supabase.from("event_log") as any)
+      .insert(rows) as { error: { message: string } | null };
+    if (error) {
+      console.warn("[Audit] Supabase flush failed:", error.message);
+      auditBuffer.unshift(...entries);
+    } else {
+      console.debug(`[Audit] Flushed ${entries.length} entries to Supabase`);
+    }
+  } catch {
+    console.warn("[Audit] Supabase not available — entries buffered locally");
+    auditBuffer.unshift(...entries);
+  }
 }
 
 export function getRecentAuditEntries(limit = 50): AuditLogEntry[] {
   return auditBuffer.slice(-limit);
+}
+
+export async function fetchAuditLog(
+  filters: { userId?: string; entityType?: string; action?: string; limit?: number } = {}
+) {
+  const { userId, entityType, action, limit = 100 } = filters;
+
+  // TODO: Replace `as any` when types are auto-generated via `supabase gen types`
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let query = (supabase.from("event_log") as any)
+    .select("*")
+    .order("created_at", { ascending: false })
+    .limit(limit);
+
+  if (userId) query = query.eq("user_id", userId);
+  if (entityType) query = query.eq("entity_type", entityType);
+  if (action) query = query.eq("action", action);
+
+  const { data, error } = await query as { data: Record<string, unknown>[] | null; error: { message: string } | null };
+  if (error) {
+    console.warn("[Audit] Failed to fetch:", error.message);
+    return [];
+  }
+  return data ?? [];
 }

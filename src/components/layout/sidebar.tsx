@@ -94,12 +94,12 @@ function NavLink({ item, depth = 0 }: { item: NavItem; depth?: number }) {
           )}
         >
           <Icon className="h-4 w-4 shrink-0" />
-          <span className="flex-1 text-left">{item.label}</span>
+          <span className="text-left">{item.label}</span>
           <motion.div
-            animate={{ rotate: expanded ? 180 : 0 }}
+            animate={{ rotate: expanded ? 90 : -90 }}
             transition={{ duration: 0.2 }}
           >
-            <ChevronDown className="h-3.5 w-3.5 opacity-50" />
+            <ChevronDown className="h-4 w-4 opacity-60" />
           </motion.div>
         </button>
         <AnimatePresence initial={false}>
