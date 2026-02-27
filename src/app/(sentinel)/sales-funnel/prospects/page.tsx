@@ -175,18 +175,12 @@ export default function ProspectsPage() {
   };
 
   const handleClaim = async (leadId: string) => {
+    const userId = "c0b4d733-607b-4c3c-8049-9e4ba207a258";
+
+    console.log(`[Prospects] CLAIM ATTEMPT for lead ${leadId} by user ${userId}`);
+
     setClaiming(leadId);
     try {
-      // === PRODUCTION USER ID (adam@cominionhomedeals.com) ===
-      const userId = "c0b4d733-607b-4c3c-8049-9e4ba207a258";
-
-      const { data: { user } } = await supabase.auth.getUser();
-      if (user) {
-        console.log(`[Prospects] Authenticated as: ${user.email || user.id}`);
-      } else {
-        console.warn("[Prospects] No auth session — using hardcoded dev user ID for testing");
-      }
-
       const expires = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
 
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -202,26 +196,25 @@ export default function ProspectsPage() {
         .single();
 
       if (claimError) {
-        console.error("[Prospects] Claim failed — FULL DETAILS:", {
-          message: claimError.message,
-          code: claimError.code,
-          details: claimError.details,
-        });
-        toast.error(`Claim failed: ${claimError.message}`);
+        console.error("[Prospects] CLAIM FAILED — FULL RAW ERROR OBJECT:", claimError);
+        console.error("Error Code:", claimError.code);
+        console.error("Error Message:", claimError.message);
+        console.error("Error Details:", claimError.details);
+        console.error("Error Hint:", claimError.hint);
+        alert(`Claim failed: ${claimError.message || "Check console for full details"}`);
       } else {
-        console.log("[Prospects] Claim SUCCESS — lead now owned by Adam");
+        console.log("[Prospects] CLAIM SUCCESS — lead now owned by Adam", data);
 
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         await (supabase.from("audit_log") as any).insert({
           lead_id: leadId,
           action: "CLAIMED",
           user_id: userId,
-          details: "Claimed from Prospects table (24-hour soft lock)",
+          details: "Claimed from Prospects modal (24h soft lock)",
         });
 
-        toast.success("Lead claimed successfully");
         setModalOpen(false);
-        refetch();
+        if (typeof refetch === "function") refetch();
       }
     } finally {
       setClaiming(null);
