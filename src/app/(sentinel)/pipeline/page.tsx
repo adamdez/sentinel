@@ -381,13 +381,8 @@ export default function PipelinePage() {
                         {...provided.droppableProps}
                         className={cn(
                           "flex-1 min-h-[500px] p-2 rounded-b-xl border border-glass-border bg-glass/30 backdrop-blur-xl overflow-y-auto transition-all duration-200 space-y-2",
-                          snapshot.isDraggingOver && "ring-1 bg-glass/50"
+                          snapshot.isDraggingOver && "ring-2 ring-offset-2 ring-white/60 bg-white/5"
                         )}
-                        style={
-                          snapshot.isDraggingOver
-                            ? { ringColor: stage.accent, borderColor: stage.border }
-                            : undefined
-                        }
                       >
                         <AnimatePresence mode="popLayout">
                           {leads.map((lead, index) => (
