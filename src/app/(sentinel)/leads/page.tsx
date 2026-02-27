@@ -31,8 +31,8 @@ export default function LeadsPage() {
 
   return (
     <PageShell
-      title="Leads"
-      description="Promoted prospects — acquisition pipeline and follow-up management"
+      title="Leads Hub"
+      description="All promoted prospects — My Leads, Team, Nathan's, and Logan's pipeline"
       actions={
         <div className="flex items-center gap-2">
           <Badge variant="outline" className="text-[10px] gap-1">

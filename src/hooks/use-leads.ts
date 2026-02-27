@@ -51,9 +51,7 @@ function matchesSearch(lead: LeadRow, q: string): boolean {
 export function useLeads() {
   const { currentUser } = useSentinelStore();
 
-  const defaultSegment: LeadSegment =
-    currentUser.role === "admin" ? "all" : "mine";
-  const [segment, setSegment] = useState<LeadSegment>(defaultSegment);
+  const [segment, setSegment] = useState<LeadSegment>("mine");
   const [filters, setFilters] = useState<LeadFilters>(DEFAULT_FILTERS);
   const [sortField, setSortField] = useState<SortField>("priority");
   const [sortDir, setSortDir] = useState<SortDir>("desc");

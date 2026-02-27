@@ -15,12 +15,25 @@ interface TickerItem {
   time: string;
 }
 
-const TICKER_DATA: TickerItem[] = [
-  { id: "1", name: "Henderson Estate", type: "Probate", score: 94, label: "fire", time: "2m ago" },
-  { id: "2", name: "Chen Property", type: "Pre-Foreclosure", score: 87, label: "hot", time: "8m ago" },
-  { id: "3", name: "Morales Lot", type: "Tax Lien + Vacant", score: 79, label: "hot", time: "14m ago" },
-  { id: "4", name: "Park Residence", type: "FSBO", score: 71, label: "hot", time: "22m ago" },
-  { id: "5", name: "Wright Duplex", type: "Bankruptcy", score: 68, label: "hot", time: "31m ago" },
+interface TickerSource {
+  label: string;
+  color: string;
+}
+
+const SOURCE_MAP: Record<string, TickerSource> = {
+  ranger: { label: "RANGER", color: "text-purple-400 bg-purple-500/10 border-purple-500/20" },
+  scraper: { label: "SCRAPER", color: "text-cyan-400 bg-cyan-500/10 border-cyan-500/20" },
+};
+
+const TICKER_DATA: (TickerItem & { source?: string })[] = [
+  { id: "r1", name: "Voss Property", type: "Probate + Vacant", score: 100, label: "fire", time: "12m ago", source: "ranger" },
+  { id: "r2", name: "Alcazar Property", type: "Pre-Foreclosure", score: 86, label: "fire", time: "25m ago", source: "ranger" },
+  { id: "r3", name: "Whitfield Property", type: "Tax Lien + Code Viol.", score: 79, label: "hot", time: "38m ago", source: "ranger" },
+  { id: "1", name: "Henderson Estate", type: "Probate", score: 94, label: "fire", time: "1h ago" },
+  { id: "2", name: "Chen Property", type: "Pre-Foreclosure", score: 87, label: "hot", time: "2h ago" },
+  { id: "3", name: "Morales Lot", type: "Tax Lien + Vacant", score: 79, label: "hot", time: "3h ago" },
+  { id: "4", name: "Park Residence", type: "FSBO", score: 71, label: "hot", time: "4h ago" },
+  { id: "5", name: "Wright Duplex", type: "Bankruptcy", score: 68, label: "hot", time: "5h ago" },
 ];
 
 export function BreakingLeadsTicker() {
@@ -78,6 +91,11 @@ export function BreakingLeadsTicker() {
               item.label === "fire" ? "text-orange-400" : "text-neon"
             )} style={item.label === "fire" ? { filter: "drop-shadow(0 0 3px rgba(255,107,53,0.5))" } : {}} />
             <span className="font-medium truncate flex-1">{item.name}</span>
+            {item.source && SOURCE_MAP[item.source] && (
+              <span className={cn("text-[7px] px-1 py-0 rounded border font-semibold shrink-0", SOURCE_MAP[item.source].color)}>
+                {SOURCE_MAP[item.source].label}
+              </span>
+            )}
             <Badge variant={item.label === "fire" ? "fire" : "hot"} className="text-[8px] gap-0.5">
               <ArrowUp className="h-2 w-2" />{item.score}
             </Badge>

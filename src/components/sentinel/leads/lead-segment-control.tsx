@@ -29,8 +29,8 @@ export function LeadSegmentControl({
   currentUserRole,
 }: LeadSegmentControlProps) {
   const tabs: Tab[] = [
-    { id: "all", label: "All Leads", icon: Users, count: counts.all },
     { id: "mine", label: "My Leads", icon: UserCheck, count: counts.mine },
+    { id: "all", label: "Team Leads", icon: Users, count: counts.all },
   ];
 
   if (currentUserRole === "admin") {
@@ -38,7 +38,7 @@ export function LeadSegmentControl({
       if (member.id === currentUserId) continue;
       tabs.push({
         id: member.id,
-        label: `${member.name.split(" ")[0]}'s`,
+        label: `${member.name.split(" ")[0]}'s Leads`,
         icon: User,
         count: counts.byMember[member.id] ?? 0,
       });
