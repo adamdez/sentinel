@@ -42,7 +42,7 @@ export function TopBar() {
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
-    window.location.href = "/dashboard";
+    window.location.href = "/login";
   };
 
   return (
