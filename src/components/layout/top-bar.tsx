@@ -27,6 +27,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { useSentinelStore } from "@/lib/store";
 import { useRealtime } from "@/providers/realtime-provider";
+import { supabase } from "@/lib/supabase";
 import { GlobalSearch } from "./global-search";
 
 export function TopBar() {
@@ -38,6 +39,11 @@ export function TopBar() {
     currentUser,
   } = useSentinelStore();
   const { connected } = useRealtime();
+
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
+    window.location.href = "/login";
+  };
 
   return (
     <motion.header
@@ -138,7 +144,7 @@ export function TopBar() {
             <DropdownMenuItem>Settings</DropdownMenuItem>
             <DropdownMenuItem>Audit Log</DropdownMenuItem>
             <DropdownMenuSeparator />
-            <DropdownMenuItem className="text-destructive">
+            <DropdownMenuItem className="text-destructive" onClick={handleLogout}>
               Log out
             </DropdownMenuItem>
           </DropdownMenuContent>
