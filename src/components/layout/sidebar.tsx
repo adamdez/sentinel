@@ -33,29 +33,50 @@ import { Separator } from "@/components/ui/separator";
 import { useSentinelStore } from "@/lib/store";
 import { supabase } from "@/lib/supabase";
 
-function useProspectCount() {
-  const [count, setCount] = useState(0);
+interface SidebarBadges {
+  prospects: number;
+  fbCraigslist: number;
+  ppl: number;
+}
+
+function useSidebarBadges(): SidebarBadges {
+  const [badges, setBadges] = useState<SidebarBadges>({ prospects: 0, fbCraigslist: 0, ppl: 0 });
 
   useEffect(() => {
-    const fetch = async () => {
+    const fetchCounts = async () => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { count: c } = await (supabase.from("leads") as any)
+      const { count: prospects } = await (supabase.from("leads") as any)
         .select("id", { count: "exact", head: true })
         .eq("status", "prospect");
-      setCount(c ?? 0);
+
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { count: fbCl } = await (supabase.from("leads") as any)
+        .select("id", { count: "exact", head: true })
+        .in("source", ["facebook", "craigslist", "fb", "fb_craigslist"]);
+
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { count: ppl } = await (supabase.from("leads") as any)
+        .select("id", { count: "exact", head: true })
+        .eq("source", "ppl");
+
+      setBadges({
+        prospects: prospects ?? 0,
+        fbCraigslist: fbCl ?? 0,
+        ppl: ppl ?? 0,
+      });
     };
 
-    fetch();
+    fetchCounts();
 
     const channel = supabase
-      .channel("sidebar_prospect_count")
-      .on("postgres_changes", { event: "*", schema: "public", table: "leads" }, () => fetch())
+      .channel("sidebar_badges")
+      .on("postgres_changes", { event: "*", schema: "public", table: "leads" }, () => fetchCounts())
       .subscribe();
 
     return () => { supabase.removeChannel(channel); };
   }, []);
 
-  return count;
+  return badges;
 }
 
 interface NavItem {
@@ -96,8 +117,8 @@ const sections: NavSection[] = [
   {
     title: "Marketing Sources",
     items: [
-      { label: "Facebook/Craigslist", href: "/sales-funnel/facebook-craigslist", icon: Share2 },
-      { label: "PPL", href: "/sales-funnel/ppl", icon: DollarSign },
+      { label: "Facebook/Craigslist", href: "/sales-funnel/facebook-craigslist", icon: Share2, badge: "fb-dot" },
+      { label: "PPL", href: "/sales-funnel/ppl", icon: DollarSign, badge: "ppl-dot" },
     ],
   },
   {
@@ -122,7 +143,7 @@ const sections: NavSection[] = [
   },
 ];
 
-function NavLink({ item, depth = 0, prospectCount = 0 }: { item: NavItem; depth?: number; prospectCount?: number }) {
+function NavLink({ item, depth = 0, badges }: { item: NavItem; depth?: number; badges?: SidebarBadges }) {
   const pathname = usePathname();
   const hasActiveChild = item.children?.some(
     (c) => pathname === c.href || pathname.startsWith(c.href + "/")
@@ -191,7 +212,11 @@ function NavLink({ item, depth = 0, prospectCount = 0 }: { item: NavItem; depth?
       )}
       <Icon className={cn("h-4 w-4 shrink-0", isActive && "text-neon")} />
       <span>{item.label}</span>
-      {item.badge === "prospect-dot" && prospectCount > 0 && (
+      {item.badge && badges && (
+        (item.badge === "prospect-dot" && badges.prospects > 0) ||
+        (item.badge === "fb-dot" && badges.fbCraigslist > 0) ||
+        (item.badge === "ppl-dot" && badges.ppl > 0)
+      ) && (
         <span className="relative flex h-2.5 w-2.5 ml-auto">
           <span className="absolute inline-flex h-full w-full rounded-full bg-red-500 animate-ping opacity-75" />
           <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-red-500" />
@@ -201,7 +226,7 @@ function NavLink({ item, depth = 0, prospectCount = 0 }: { item: NavItem; depth?
   );
 }
 
-function SidebarSection({ section, prospectCount = 0 }: { section: NavSection; prospectCount?: number }) {
+function SidebarSection({ section, badges }: { section: NavSection; badges?: SidebarBadges }) {
   const pathname = usePathname();
   const hasActiveItem = section.items.some(
     (item) =>
@@ -250,7 +275,7 @@ function SidebarSection({ section, prospectCount = 0 }: { section: NavSection; p
           >
             <div className="space-y-0.5">
               {section.items.map((item) => (
-                <NavLink key={item.href} item={item} prospectCount={prospectCount} />
+                <NavLink key={item.href} item={item} badges={badges} />
               ))}
             </div>
           </motion.div>
@@ -262,7 +287,7 @@ function SidebarSection({ section, prospectCount = 0 }: { section: NavSection; p
 
 export function Sidebar() {
   const { sidebarOpen } = useSentinelStore();
-  const prospectCount = useProspectCount();
+  const badges = useSidebarBadges();
 
   return (
     <AnimatePresence mode="wait">
@@ -293,7 +318,7 @@ export function Sidebar() {
           <ScrollArea className="flex-1 px-3 py-1">
             <nav>
               {sections.map((section) => (
-                <SidebarSection key={section.title} section={section} prospectCount={prospectCount} />
+                <SidebarSection key={section.title} section={section} badges={badges} />
               ))}
             </nav>
           </ScrollArea>
