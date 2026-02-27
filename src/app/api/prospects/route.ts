@@ -1,5 +1,32 @@
 import { NextRequest, NextResponse } from "next/server";
+import { createHash } from "crypto";
 import { createServerClient } from "@/lib/supabase";
+import { computeScore, SCORING_MODEL_VERSION, type ScoringInput } from "@/lib/scoring";
+import type { DistressType } from "@/lib/types";
+
+const PR_API_BASE = "https://api.propertyradar.com/v1/properties";
+const US_STATES: Record<string, string> = {
+  AL: "AL", AK: "AK", AZ: "AZ", AR: "AR", CA: "CA", CO: "CO", CT: "CT",
+  DE: "DE", DC: "DC", FL: "FL", GA: "GA", HI: "HI", ID: "ID", IL: "IL",
+  IN: "IN", IA: "IA", KS: "KS", KY: "KY", LA: "LA", ME: "ME", MD: "MD",
+  MA: "MA", MI: "MI", MN: "MN", MS: "MS", MO: "MO", MT: "MT", NE: "NE",
+  NV: "NV", NH: "NH", NJ: "NJ", NM: "NM", NY: "NY", NC: "NC", ND: "ND",
+  OH: "OH", OK: "OK", OR: "OR", PA: "PA", RI: "RI", SC: "SC", SD: "SD",
+  TN: "TN", TX: "TX", UT: "UT", VT: "VT", VA: "VA", WA: "WA", WV: "WV",
+  WI: "WI", WY: "WY",
+  ALABAMA: "AL", ALASKA: "AK", ARIZONA: "AZ", ARKANSAS: "AR", CALIFORNIA: "CA",
+  COLORADO: "CO", CONNECTICUT: "CT", DELAWARE: "DE", FLORIDA: "FL", GEORGIA: "GA",
+  HAWAII: "HI", IDAHO: "ID", ILLINOIS: "IL", INDIANA: "IN", IOWA: "IA",
+  KANSAS: "KS", KENTUCKY: "KY", LOUISIANA: "LA", MAINE: "ME", MARYLAND: "MD",
+  MASSACHUSETTS: "MA", MICHIGAN: "MI", MINNESOTA: "MN", MISSISSIPPI: "MS",
+  MISSOURI: "MO", MONTANA: "MT", NEBRASKA: "NE", NEVADA: "NV",
+  "NEW HAMPSHIRE": "NH", "NEW JERSEY": "NJ", "NEW MEXICO": "NM", "NEW YORK": "NY",
+  "NORTH CAROLINA": "NC", "NORTH DAKOTA": "ND", OHIO: "OH", OKLAHOMA: "OK",
+  OREGON: "OR", PENNSYLVANIA: "PA", "RHODE ISLAND": "RI", "SOUTH CAROLINA": "SC",
+  "SOUTH DAKOTA": "SD", TENNESSEE: "TN", TEXAS: "TX", UTAH: "UT", VERMONT: "VT",
+  VIRGINIA: "VA", WASHINGTON: "WA", "WEST VIRGINIA": "WV", WISCONSIN: "WI",
+  WYOMING: "WY",
+};
 
 // ── PATCH /api/prospects — Claim or update a lead's status ─────────────
 
@@ -54,7 +81,7 @@ export async function PATCH(req: NextRequest) {
   }
 }
 
-// ── POST /api/prospects — Create a new prospect ───────────────────────
+// ── POST /api/prospects — Create prospect + auto-enrich from PropertyRadar ──
 
 export async function POST(req: NextRequest) {
   try {
@@ -82,6 +109,8 @@ export async function POST(req: NextRequest) {
     const toInt = (v: unknown) => { const n = parseInt(String(v), 10); return isNaN(n) ? null : n; };
     const toFloat = (v: unknown) => { const n = parseFloat(String(v)); return isNaN(n) ? null : n; };
 
+    // ── Step 1: Save basic property ──────────────────────────────────
+
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { data: property, error: propErr } = await (sb.from("properties") as any)
       .upsert({
@@ -102,7 +131,7 @@ export async function POST(req: NextRequest) {
         sqft: toInt(sqft),
         year_built: toInt(year_built),
         lot_size: toFloat(lot_size),
-        owner_flags: { manual_entry: true },
+        owner_flags: { manual_entry: true, enrichment_pending: true },
         updated_at: new Date().toISOString(),
       }, { onConflict: "apn,county" })
       .select("id")
@@ -115,6 +144,8 @@ export async function POST(req: NextRequest) {
         { status: 500 }
       );
     }
+
+    // ── Step 2: Save basic lead ──────────────────────────────────────
 
     const tags = distress_tags ?? [];
     const baseScore = Math.min(30 + tags.length * 12, 100);
@@ -169,12 +200,20 @@ export async function POST(req: NextRequest) {
       },
     });
 
+    // ── Step 3: Auto-enrich from PropertyRadar ───────────────────────
+
+    const enrichResult = await enrichFromPropertyRadar(
+      sb, property.id, lead.id, address.trim(), city, state, zip
+    );
+
     return NextResponse.json({
       success: true,
       lead_id: lead.id,
       property_id: property.id,
-      score: compositeScore,
+      score: enrichResult?.score ?? compositeScore,
       status: leadRow.status,
+      enriched: enrichResult?.enriched ?? false,
+      enrichment: enrichResult?.summary ?? "PropertyRadar not attempted",
     });
   } catch (err) {
     console.error("[API/prospects] Unexpected error:", err);
@@ -182,5 +221,395 @@ export async function POST(req: NextRequest) {
       { error: "Server error", detail: err instanceof Error ? err.message : String(err) },
       { status: 500 }
     );
+  }
+}
+
+// ── PropertyRadar Enrichment ────────────────────────────────────────────
+
+interface EnrichResult {
+  enriched: boolean;
+  score: number | null;
+  summary: string;
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function enrichFromPropertyRadar(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  sb: any,
+  propertyId: string,
+  leadId: string,
+  address: string,
+  city?: string,
+  state?: string,
+  zip?: string,
+): Promise<EnrichResult> {
+  const apiKey = process.env.PROPERTYRADAR_API_KEY;
+  if (!apiKey) {
+    console.log("[Enrich] No PROPERTYRADAR_API_KEY — skipping enrichment");
+    return { enriched: false, score: null, summary: "No API key configured" };
+  }
+
+  try {
+    console.log("[Enrich] Starting PropertyRadar enrichment for:", address);
+
+    // Build criteria from the address
+    const criteria: { name: string; value: (string | number)[] }[] = [];
+    const parsed = parseAddress(address);
+
+    criteria.push({ name: "Address", value: [parsed.street] });
+    if (parsed.city || city) criteria.push({ name: "City", value: [parsed.city || city!] });
+    if (parsed.state || state) criteria.push({ name: "State", value: [parsed.state || state!] });
+    if (parsed.zip || zip) criteria.push({ name: "ZipFive", value: [parsed.zip || zip!] });
+
+    if (criteria.length < 2) {
+      console.log("[Enrich] Insufficient address info for PropertyRadar search");
+      return { enriched: false, score: null, summary: "Address too vague for lookup" };
+    }
+
+    console.log("[Enrich] Criteria:", JSON.stringify(criteria));
+
+    // Call PropertyRadar
+    const prUrl = `${PR_API_BASE}?Purchase=1&Limit=1&Fields=All`;
+    const prResponse = await fetch(prUrl, {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+        "Accept": "application/json",
+      },
+      body: JSON.stringify({ Criteria: criteria }),
+    });
+
+    if (!prResponse.ok) {
+      console.error("[Enrich] PropertyRadar HTTP", prResponse.status);
+      return { enriched: false, score: null, summary: `PropertyRadar HTTP ${prResponse.status}` };
+    }
+
+    const prData = await prResponse.json();
+    const pr = prData.results?.[0];
+
+    if (!pr) {
+      console.log("[Enrich] No property found in PropertyRadar");
+      return { enriched: false, score: null, summary: "No match found in PropertyRadar" };
+    }
+
+    console.log("[Enrich] Found property:", pr.RadarID, pr.APN, pr.Owner);
+
+    // ── Build enriched property data ───────────────────────────────
+
+    const ownerFlags: Record<string, unknown> = { source: "propertyradar", radar_id: pr.RadarID };
+    if (isTruthy(pr.isNotSameMailingOrExempt)) ownerFlags.absentee = true;
+    if (isTruthy(pr.isSiteVacant)) ownerFlags.vacant = true;
+    if (isTruthy(pr.isHighEquity)) ownerFlags.highEquity = true;
+    if (isTruthy(pr.isFreeAndClear)) ownerFlags.freeAndClear = true;
+    if (isTruthy(pr.isCashBuyer)) ownerFlags.cashBuyer = true;
+
+    const realApn = pr.APN ?? null;
+    const enrichedCounty = normalizeCounty(pr.County ?? "");
+
+    const propertyUpdate: Record<string, unknown> = {
+      owner_name: pr.Owner ?? pr.Taxpayer ?? null,
+      estimated_value: toNumber(pr.AVM) != null ? Math.round(toNumber(pr.AVM)!) : null,
+      equity_percent: toNumber(pr.EquityPercent) ?? null,
+      bedrooms: toIntHelper(pr.Beds) ?? null,
+      bathrooms: toNumber(pr.Baths) ?? null,
+      sqft: toIntHelper(pr.SqFt) ?? null,
+      year_built: toIntHelper(pr.YearBuilt) ?? null,
+      lot_size: toIntHelper(pr.LotSize) ?? null,
+      property_type: pr.PType ?? null,
+      owner_flags: ownerFlags,
+      updated_at: new Date().toISOString(),
+    };
+
+    // Update the real APN if PropertyRadar returned one
+    if (realApn) {
+      propertyUpdate.apn = realApn;
+      if (enrichedCounty) propertyUpdate.county = enrichedCounty.toLowerCase();
+    }
+    if (pr.City) propertyUpdate.city = pr.City;
+    if (pr.State) propertyUpdate.state = pr.State;
+    if (pr.ZipFive) propertyUpdate.zip = pr.ZipFive;
+    if (pr.Address) {
+      propertyUpdate.address = [
+        pr.Address, pr.City, pr.State, pr.ZipFive,
+      ].filter(Boolean).join(", ");
+    }
+
+    // Update property record with enriched data
+    const { error: updateErr } = await sb.from("properties")
+      .update(propertyUpdate)
+      .eq("id", propertyId);
+
+    if (updateErr) {
+      console.error("[Enrich] Property update failed:", updateErr);
+      return { enriched: false, score: null, summary: `DB update failed: ${updateErr.message}` };
+    }
+
+    console.log("[Enrich] Property enriched with PropertyRadar data");
+
+    // ── Detect distress signals ────────────────────────────────────
+
+    const signals = detectDistressSignals(pr);
+    console.log("[Enrich] Distress signals:", signals.map((s) => s.type));
+
+    // Append distress events (dedup by fingerprint)
+    const apnForFingerprint = realApn ?? propertyId;
+    for (const signal of signals) {
+      const fingerprint = createHash("sha256")
+        .update(`${apnForFingerprint}:${enrichedCounty}:${signal.type}:propertyradar`)
+        .digest("hex");
+
+      await sb.from("distress_events").insert({
+        property_id: propertyId,
+        event_type: signal.type,
+        source: "propertyradar",
+        severity: signal.severity,
+        fingerprint,
+        raw_data: { detected_from: signal.detectedFrom, radar_id: pr.RadarID },
+        confidence: signal.severity >= 7 ? "0.900" : signal.severity >= 4 ? "0.750" : "0.600",
+      }).then(({ error: evtErr }: { error: { code?: string } | null }) => {
+        if (evtErr && evtErr.code !== "23505") {
+          console.error("[Enrich] Event insert error:", evtErr);
+        }
+      });
+    }
+
+    // ── Run AI scoring engine ──────────────────────────────────────
+
+    const equityPct = toNumber(pr.EquityPercent) ?? 50;
+    const avm = toNumber(pr.AVM) ?? 0;
+    const loanBal = toNumber(pr.TotalLoanBalance) ?? 0;
+    const compRatio = avm > 0 && loanBal > 0 ? avm / loanBal : 1.1;
+
+    const scoringInput: ScoringInput = {
+      signals: signals.map((s) => ({
+        type: s.type,
+        severity: s.severity,
+        daysSinceEvent: s.daysSinceEvent,
+      })),
+      ownerFlags: {
+        absentee: ownerFlags.absentee === true,
+        corporate: false,
+        inherited: isTruthy(pr.isDeceasedProperty),
+        elderly: false,
+        outOfState: ownerFlags.absentee === true,
+      },
+      equityPercent: equityPct,
+      compRatio: Math.min(compRatio, 3.0),
+      historicalConversionRate: 0.5,
+    };
+
+    const scoreResult = computeScore(scoringInput);
+    console.log("[Enrich] AI Score:", scoreResult.composite, scoreResult.label);
+
+    // Insert scoring record (append-only)
+    await sb.from("scoring_records").insert({
+      property_id: propertyId,
+      model_version: SCORING_MODEL_VERSION,
+      composite_score: scoreResult.composite,
+      motivation_score: scoreResult.motivationScore,
+      deal_score: scoreResult.dealScore,
+      severity_multiplier: scoreResult.severityMultiplier,
+      recency_decay: scoreResult.recencyDecay,
+      stacking_bonus: scoreResult.stackingBonus,
+      owner_factor_score: scoreResult.ownerFactorScore,
+      equity_factor_score: scoreResult.equityFactorScore,
+      ai_boost: scoreResult.aiBoost,
+      factors: scoreResult.factors,
+    });
+
+    // Update lead with real score and distress tags
+    await sb.from("leads")
+      .update({
+        priority: scoreResult.composite,
+        tags: signals.map((s) => s.type),
+        notes: `PropertyRadar enriched. Score: ${scoreResult.composite} (${scoreResult.label}). RadarID: ${pr.RadarID}`,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", leadId);
+
+    // Audit log
+    await sb.from("event_log").insert({
+      entity_type: "lead",
+      entity_id: leadId,
+      action: "ENRICHED",
+      details: {
+        source: "propertyradar",
+        radar_id: pr.RadarID,
+        apn: realApn,
+        signals: signals.length,
+        score: scoreResult.composite,
+        label: scoreResult.label,
+      },
+    });
+
+    const summary = `Enriched: ${pr.Owner ?? "Unknown"} | APN: ${realApn} | Score: ${scoreResult.composite} (${scoreResult.label}) | ${signals.length} signal(s)`;
+    console.log("[Enrich]", summary);
+
+    return { enriched: true, score: scoreResult.composite, summary };
+  } catch (err) {
+    console.error("[Enrich] Error during PropertyRadar enrichment:", err);
+    return {
+      enriched: false,
+      score: null,
+      summary: `Enrichment error: ${err instanceof Error ? err.message : String(err)}`,
+    };
+  }
+}
+
+// ── Helpers ────────────────────────────────────────────────────────────
+
+interface ParsedAddress {
+  street: string;
+  city: string;
+  state: string;
+  zip: string;
+}
+
+function parseAddress(raw: string): ParsedAddress {
+  const result: ParsedAddress = { street: "", city: "", state: "", zip: "" };
+
+  const zipMatch = raw.match(/\b(\d{5})(?:-\d{4})?\s*$/);
+  if (zipMatch) {
+    result.zip = zipMatch[1];
+    raw = raw.slice(0, zipMatch.index).trim();
+  }
+
+  const parts = raw.split(",").map((p) => p.trim()).filter(Boolean);
+
+  if (parts.length >= 2) {
+    result.street = parts[0];
+    const rest = parts.slice(1).join(" ").trim();
+
+    const stateMatch = rest.match(/\b([A-Z]{2})\s*$/i) || rest.match(/\b(\w[\w\s]*?)\s*$/i);
+    if (stateMatch) {
+      const candidate = stateMatch[1].toUpperCase();
+      if (US_STATES[candidate]) {
+        result.state = US_STATES[candidate];
+        result.city = rest.slice(0, stateMatch.index).trim();
+      } else {
+        result.city = rest;
+      }
+    } else {
+      result.city = rest;
+    }
+  } else {
+    const stateMatch = raw.match(/\b([A-Z]{2})\s*$/i);
+    if (stateMatch && US_STATES[stateMatch[1].toUpperCase()]) {
+      result.state = US_STATES[stateMatch[1].toUpperCase()];
+      result.street = raw.slice(0, stateMatch.index).trim();
+    } else {
+      result.street = raw;
+    }
+  }
+
+  return result;
+}
+
+function normalizeCounty(raw: string): string {
+  if (!raw) return "";
+  return raw
+    .replace(/\s+county$/i, "")
+    .replace(/^\s+|\s+$/g, "")
+    .split(" ")
+    .map((w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
+    .join(" ");
+}
+
+function isTruthy(val: unknown): boolean {
+  return val === true || val === 1 || val === "1" || val === "Yes" || val === "True" || val === "true";
+}
+
+function toNumber(val: unknown): number | undefined {
+  if (val === null || val === undefined || val === "") return undefined;
+  const n = typeof val === "number" ? val : parseFloat(String(val).replace(/[$,%]/g, ""));
+  return isNaN(n) ? undefined : n;
+}
+
+function toIntHelper(val: unknown): number | undefined {
+  const n = toNumber(val);
+  return n != null ? Math.round(n) : undefined;
+}
+
+// ── Distress Signal Detection ─────────────────────────────────────────
+
+interface DetectedSignal {
+  type: DistressType;
+  severity: number;
+  daysSinceEvent: number;
+  detectedFrom: string;
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function detectDistressSignals(pr: any): DetectedSignal[] {
+  const signals: DetectedSignal[] = [];
+
+  if (isTruthy(pr.isDeceasedProperty)) {
+    signals.push({ type: "probate", severity: 9, daysSinceEvent: 30, detectedFrom: "isDeceasedProperty" });
+  }
+
+  if (isTruthy(pr.isPreforeclosure) || isTruthy(pr.inForeclosure)) {
+    const defaultAmt = toNumber(pr.DefaultAmount) ?? 0;
+    signals.push({
+      type: "pre_foreclosure",
+      severity: defaultAmt > 50000 ? 9 : 7,
+      daysSinceEvent: pr.ForeclosureRecDate ? daysBetween(pr.ForeclosureRecDate) : 30,
+      detectedFrom: isTruthy(pr.isPreforeclosure) ? "isPreforeclosure" : "inForeclosure",
+    });
+  }
+
+  if (isTruthy(pr.inTaxDelinquency)) {
+    const delAmt = toNumber(pr.DelinquentAmount) ?? 0;
+    signals.push({
+      type: "tax_lien",
+      severity: delAmt > 10000 ? 8 : 6,
+      daysSinceEvent: pr.DelinquentYear
+        ? Math.max(365 * (new Date().getFullYear() - Number(pr.DelinquentYear)), 30)
+        : 90,
+      detectedFrom: "inTaxDelinquency",
+    });
+  }
+
+  if (isTruthy(pr.inBankruptcyProperty)) {
+    signals.push({ type: "bankruptcy", severity: 8, daysSinceEvent: 60, detectedFrom: "inBankruptcyProperty" });
+  }
+
+  if (isTruthy(pr.inDivorce)) {
+    signals.push({ type: "divorce", severity: 7, daysSinceEvent: 60, detectedFrom: "inDivorce" });
+  }
+
+  if (isTruthy(pr.isSiteVacant) || isTruthy(pr.isMailVacant)) {
+    signals.push({
+      type: "vacant",
+      severity: 5,
+      daysSinceEvent: 60,
+      detectedFrom: isTruthy(pr.isSiteVacant) ? "isSiteVacant" : "isMailVacant",
+    });
+  }
+
+  if (isTruthy(pr.isNotSameMailingOrExempt)) {
+    signals.push({ type: "absentee", severity: 4, daysSinceEvent: 90, detectedFrom: "isNotSameMailingOrExempt" });
+  }
+
+  if (isTruthy(pr.PropertyHasOpenLiens) || isTruthy(pr.PropertyHasOpenPersonLiens)) {
+    if (!signals.some((s) => s.type === "tax_lien")) {
+      signals.push({ type: "tax_lien", severity: 5, daysSinceEvent: 90, detectedFrom: "PropertyHasOpenLiens" });
+    }
+  }
+
+  if (signals.length === 0) {
+    signals.push({ type: "vacant", severity: 3, daysSinceEvent: 180, detectedFrom: "no_distress_default" });
+  }
+
+  return signals;
+}
+
+function daysBetween(dateStr: string): number {
+  try {
+    const d = new Date(dateStr).getTime();
+    if (isNaN(d)) return 90;
+    return Math.max(Math.round((Date.now() - d) / 86400000), 1);
+  } catch {
+    return 90;
   }
 }
