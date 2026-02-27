@@ -116,7 +116,7 @@ function isClaimExpired(expires?: string | null) {
 
 export default function PipelinePage() {
   const [leadsByStage, setLeadsByStage] = useState<Record<StageId, Lead[]>>(
-    () => Object.fromEntries(STAGES.map((s) => [s.id, []])) as Record<StageId, Lead[]>
+    () => Object.fromEntries(STAGES.map((s) => [s.id, []])) as unknown as Record<StageId, Lead[]>
   );
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
