@@ -7,6 +7,40 @@ interface ProfileLayout {
 }
 
 /**
+ * Ensure a user_profiles row exists for the given userId.
+ * Uses service role to bypass RLS. Returns true if profile exists/created.
+ */
+async function ensureProfile(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  sb: any,
+  userId: string
+): Promise<boolean> {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data } = await (sb.from("user_profiles") as any)
+    .select("id")
+    .eq("id", userId)
+    .single();
+
+  if (data) return true;
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { error: insertErr } = await (sb.from("user_profiles") as any).insert({
+    id: userId,
+    full_name: "Sentinel User",
+    email: `${userId}@sentinel.local`,
+    role: "agent",
+    is_active: true,
+    preferences: {},
+  });
+
+  if (insertErr) {
+    console.error("[Dashboard] ensureProfile insert failed:", insertErr);
+    return false;
+  }
+  return true;
+}
+
+/**
  * GET /api/dashboard/layout?userId=xxx
  *
  * Load the user's saved dashboard layout from Supabase user_profiles.
@@ -21,7 +55,20 @@ export async function GET(request: NextRequest) {
 
   try {
     const sb = createServerClient();
-    // TODO: Replace `as any` when types are auto-generated via `supabase gen types`
+
+    const {
+      data: { user },
+    } = await sb.auth.getUser();
+
+    if (!user) {
+      return NextResponse.json(
+        { layout: null, source: "default", message: "Not authenticated" },
+        { status: 401 }
+      );
+    }
+
+    await ensureProfile(sb, userId);
+
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { data, error } = await (sb.from("user_profiles") as any)
       .select("saved_dashboard_layout")
@@ -79,18 +126,44 @@ export async function PUT(request: NextRequest) {
     }
 
     const sb = createServerClient();
-    // TODO: Replace `as any` when types are auto-generated via `supabase gen types`
+
+    const {
+      data: { user },
+    } = await sb.auth.getUser();
+
+    if (!user) {
+      return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
+    }
+
+    if (user.id !== userId) {
+      return NextResponse.json(
+        { error: "Cannot modify another user's layout" },
+        { status: 403 }
+      );
+    }
+
+    await ensureProfile(sb, userId);
+
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { error } = await (sb.from("user_profiles") as any)
       .update({ saved_dashboard_layout: layout })
       .eq("id", userId) as { error: { message: string } | null };
 
     if (error) {
-      return NextResponse.json({
-        success: false,
-        error: error.message,
-      }, { status: 500 });
+      return NextResponse.json(
+        { success: false, error: error.message },
+        { status: 500 }
+      );
     }
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    await (sb.from("event_log") as any).insert({
+      user_id: userId,
+      action: "settings.changed",
+      entity_type: "dashboard_layout",
+      entity_id: userId,
+      details: { tileCount: layout.tiles.length },
+    });
 
     return NextResponse.json({
       success: true,

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   LayoutDashboard,
@@ -10,7 +10,6 @@ import {
   Mail,
   Calendar,
   CalendarDays,
-  Filter,
   UserPlus,
   Users,
   UserCheck,
@@ -25,8 +24,9 @@ import {
   Settings,
   DollarSign,
   Share2,
-  ChevronDown,
+  ChevronRight,
   Zap,
+  type LucideIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -36,23 +36,31 @@ import { useSentinelStore } from "@/lib/store";
 interface NavItem {
   label: string;
   href: string;
-  icon: React.ComponentType<{ className?: string }>;
+  icon: LucideIcon;
   children?: NavItem[];
 }
 
-const navigation: NavItem[] = [
-  { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
-  { label: "Dialer", href: "/dialer", icon: Phone },
-  { label: "Gmail", href: "/gmail", icon: Mail },
-  { label: "Team Calendar", href: "/team-calendar", icon: Calendar },
-  { label: "My Calendar", href: "/my-calendar", icon: CalendarDays },
+interface NavSection {
+  title: string;
+  items: NavItem[];
+}
+
+const sections: NavSection[] = [
   {
-    label: "Deal Funnel",
-    href: "/sales-funnel",
-    icon: Filter,
-    children: [
+    title: "Main",
+    items: [
+      { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
+      { label: "Leads", href: "/leads", icon: Users },
+      { label: "Dialer", href: "/dialer", icon: Phone },
+      { label: "Gmail", href: "/gmail", icon: Mail },
+      { label: "Team Calendar", href: "/team-calendar", icon: Calendar },
+      { label: "My Calendar", href: "/my-calendar", icon: CalendarDays },
+    ],
+  },
+  {
+    title: "Deal Funnel",
+    items: [
       { label: "Prospects", href: "/sales-funnel/prospects", icon: UserPlus },
-      { label: "Facebook/Craigslist", href: "/sales-funnel/facebook-craigslist", icon: Share2 },
       {
         label: "Leads",
         href: "/sales-funnel/leads",
@@ -61,25 +69,47 @@ const navigation: NavItem[] = [
           { label: "My Leads", href: "/sales-funnel/leads/my-leads", icon: UserCheck },
         ],
       },
-      { label: "PPL", href: "/sales-funnel/ppl", icon: DollarSign },
       { label: "Negotiation", href: "/sales-funnel/negotiation", icon: Handshake },
       { label: "Disposition", href: "/sales-funnel/disposition", icon: FileCheck },
       { label: "Nurture", href: "/sales-funnel/nurture", icon: Heart },
       { label: "Dead", href: "/sales-funnel/dead", icon: Skull },
     ],
   },
-  { label: "Contacts", href: "/contacts", icon: Contact },
-  { label: "DocuSign", href: "/docusign", icon: FileSignature },
-  { label: "Campaigns", href: "/campaigns", icon: Megaphone },
-  { label: "Analytics", href: "/analytics", icon: BarChart3 },
-  { label: "Settings", href: "/settings", icon: Settings },
+  {
+    title: "Marketing Sources",
+    items: [
+      { label: "Facebook/Craigslist", href: "/sales-funnel/facebook-craigslist", icon: Share2 },
+      { label: "PPL", href: "/sales-funnel/ppl", icon: DollarSign },
+    ],
+  },
+  {
+    title: "Operations",
+    items: [
+      { label: "Contacts", href: "/contacts", icon: Contact },
+      { label: "DocuSign", href: "/docusign", icon: FileSignature },
+      { label: "Campaigns", href: "/campaigns", icon: Megaphone },
+    ],
+  },
+  {
+    title: "Insights",
+    items: [
+      { label: "Analytics", href: "/analytics", icon: BarChart3 },
+    ],
+  },
+  {
+    title: "Admin",
+    items: [
+      { label: "Settings", href: "/settings", icon: Settings },
+    ],
+  },
 ];
 
 function NavLink({ item, depth = 0 }: { item: NavItem; depth?: number }) {
   const pathname = usePathname();
-  const [expanded, setExpanded] = useState(
-    item.children?.some((c) => pathname.startsWith(c.href)) ?? false
+  const hasActiveChild = item.children?.some(
+    (c) => pathname === c.href || pathname.startsWith(c.href + "/")
   );
+  const [expanded, setExpanded] = useState(hasActiveChild ?? false);
   const isActive = pathname === item.href || pathname.startsWith(item.href + "/");
   const Icon = item.icon;
 
@@ -87,19 +117,20 @@ function NavLink({ item, depth = 0 }: { item: NavItem; depth?: number }) {
     return (
       <div>
         <button
-          onClick={() => setExpanded(!expanded)}
+          onClick={() => setExpanded((prev) => !prev)}
           className={cn(
             "flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm transition-all duration-200 hover:bg-sidebar-accent group",
             isActive && "text-sidebar-accent-foreground"
           )}
         >
-          <Icon className="h-4 w-4 shrink-0" />
-          <span className="text-left">{item.label}</span>
+          <Icon className={cn("h-4 w-4 shrink-0", isActive && "text-neon")} />
+          <span className="flex-1 text-left">{item.label}</span>
           <motion.div
-            animate={{ rotate: expanded ? 90 : -90 }}
+            animate={{ rotate: expanded ? 90 : 0 }}
             transition={{ duration: 0.2 }}
+            className="ml-auto"
           >
-            <ChevronDown className="h-4 w-4 opacity-60" />
+            <ChevronRight className="h-3.5 w-3.5 opacity-50" />
           </motion.div>
         </button>
         <AnimatePresence initial={false}>
@@ -146,6 +177,65 @@ function NavLink({ item, depth = 0 }: { item: NavItem; depth?: number }) {
   );
 }
 
+function SidebarSection({ section }: { section: NavSection }) {
+  const pathname = usePathname();
+  const hasActiveItem = section.items.some(
+    (item) =>
+      pathname === item.href ||
+      pathname.startsWith(item.href + "/") ||
+      item.children?.some(
+        (c) => pathname === c.href || pathname.startsWith(c.href + "/")
+      )
+  );
+  const [collapsed, setCollapsed] = useState(false);
+
+  const toggle = useCallback(() => setCollapsed((prev) => !prev), []);
+
+  return (
+    <div>
+      <button
+        onClick={toggle}
+        className="flex w-full items-center gap-2 px-3 pt-4 pb-1.5 group cursor-pointer"
+      >
+        <span
+          className={cn(
+            "text-[10px] font-semibold uppercase tracking-[0.12em] transition-colors duration-200",
+            hasActiveItem
+              ? "text-neon/80"
+              : "text-muted-foreground/60 group-hover:text-muted-foreground"
+          )}
+        >
+          {section.title}
+        </span>
+        <div className="flex-1 h-px bg-sidebar-border/50 ml-1" />
+        <motion.div
+          animate={{ rotate: collapsed ? 0 : 90 }}
+          transition={{ duration: 0.15 }}
+        >
+          <ChevronRight className="h-3 w-3 text-muted-foreground/40 group-hover:text-muted-foreground/70 transition-colors" />
+        </motion.div>
+      </button>
+      <AnimatePresence initial={false}>
+        {!collapsed && (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: "auto", opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.2 }}
+            className="overflow-hidden"
+          >
+            <div className="space-y-0.5">
+              {section.items.map((item) => (
+                <NavLink key={item.href} item={item} />
+              ))}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}
+
 export function Sidebar() {
   const { sidebarOpen } = useSentinelStore();
 
@@ -175,10 +265,10 @@ export function Sidebar() {
 
           <Separator className="bg-sidebar-border" />
 
-          <ScrollArea className="flex-1 px-3 py-3">
-            <nav className="space-y-0.5">
-              {navigation.map((item) => (
-                <NavLink key={item.href} item={item} />
+          <ScrollArea className="flex-1 px-3 py-1">
+            <nav>
+              {sections.map((section) => (
+                <SidebarSection key={section.title} section={section} />
               ))}
             </nav>
           </ScrollArea>

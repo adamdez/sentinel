@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import {
   DEFAULT_LAYOUT,
   MAX_DASHBOARD_TILES,
@@ -10,7 +10,7 @@ import {
   type WidgetSize,
 } from "@/lib/dashboard-config";
 import { useSentinelStore } from "@/lib/store";
-import { supabase } from "@/lib/supabase";
+import { supabase, getCurrentUser } from "@/lib/supabase";
 import { logAudit } from "@/lib/audit";
 
 const STORAGE_KEY = "sentinel_dashboard_layout";
@@ -30,41 +30,46 @@ function saveToStorage(userId: string, layout: DashboardLayout) {
   localStorage.setItem(`${STORAGE_KEY}_${userId}`, JSON.stringify(layout));
 }
 
-let saveTimer: ReturnType<typeof setTimeout> | null = null;
-
 async function saveToSupabase(userId: string, layout: DashboardLayout) {
-  if (saveTimer) clearTimeout(saveTimer);
-  saveTimer = setTimeout(async () => {
-    try {
-      // TODO: Replace `as any` when types are auto-generated via `supabase gen types`
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { error } = await (supabase.from("user_profiles") as any)
-        .update({ saved_dashboard_layout: layout })
-        .eq("id", userId) as { error: { message: string } | null };
+  try {
+    const user = await getCurrentUser();
+    if (!user) return;
 
-      if (error) {
-        console.warn("[Dashboard] Supabase save failed (table may not exist yet):", error.message);
-      }
-    } catch {
-      // Supabase not connected yet — localStorage persists
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { error } = await (supabase.from("user_profiles") as any)
+      .update({ saved_dashboard_layout: layout })
+      .eq("id", userId);
+
+    if (error) {
+      console.warn("[Dashboard] Supabase save failed:", error.message ?? error);
     }
-  }, 1500);
+  } catch {
+    // Supabase not connected — localStorage is the fallback
+  }
 }
 
 async function loadFromSupabase(userId: string): Promise<DashboardLayout | null> {
   try {
-    // TODO: Replace `as any` when types are auto-generated via `supabase gen types`
+    const user = await getCurrentUser();
+    if (!user) return null;
+
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { data, error } = await (supabase.from("user_profiles") as any)
       .select("saved_dashboard_layout")
       .eq("id", userId)
       .single() as {
         data: { saved_dashboard_layout: DashboardLayout | null } | null;
-        error: unknown;
+        error: { code?: string; message?: string } | null;
       };
 
-    if (error || !data?.saved_dashboard_layout) return null;
-    return data.saved_dashboard_layout;
+    if (error) {
+      if (error.code === "PGRST116") {
+        console.debug("[Dashboard] No profile found — will use defaults");
+      }
+      return null;
+    }
+
+    return data?.saved_dashboard_layout ?? null;
   } catch {
     return null;
   }
@@ -74,6 +79,7 @@ export function useDashboardLayout() {
   const { currentUser } = useSentinelStore();
   const [layout, setLayout] = useState<DashboardLayout>(DEFAULT_LAYOUT);
   const [isDirty, setIsDirty] = useState(false);
+  const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     const localLayout = loadFromStorage(currentUser.id);
@@ -96,7 +102,11 @@ export function useDashboardLayout() {
       setIsDirty(true);
 
       saveToStorage(currentUser.id, stamped);
-      saveToSupabase(currentUser.id, stamped);
+
+      if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+      saveTimerRef.current = setTimeout(() => {
+        saveToSupabase(currentUser.id, stamped);
+      }, 1500);
 
       logAudit(currentUser.id, "settings.changed", "dashboard_layout", currentUser.id, {
         tileCount: stamped.tiles.length,

@@ -44,25 +44,53 @@ export function createServerClient() {
  * Returns null if not authenticated.
  */
 export async function getCurrentUser() {
-  const { data: { user }, error } = await supabase.auth.getUser();
+  const {
+    data: { user },
+    error,
+  } = await supabase.auth.getUser();
   if (error || !user) return null;
   return user;
 }
 
 /**
- * Helper to get a user's profile from user_profiles table.
+ * Get or create a user's profile.
+ * Uses service role to bypass RLS so the upsert always succeeds.
  */
-export async function getUserProfile(userId: string) {
-  // TODO: Replace `as any` when types are auto-generated via `supabase gen types`
+export async function getOrCreateProfile(userId: string, fallback?: { email?: string; name?: string }) {
+  const sb = createServerClient();
+
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { data, error } = await (supabase.from("user_profiles") as any)
+  const { data, error } = await (sb.from("user_profiles") as any)
     .select("*")
     .eq("id", userId)
     .single();
 
-  if (error) {
-    console.error("[Supabase] Error fetching user profile:", error);
-    return null;
+  if (data && !error) return data;
+
+  if (error && (error as { code?: string }).code === "PGRST116") {
+    const email = fallback?.email ?? `${userId}@sentinel.local`;
+    const fullName = fallback?.name ?? email;
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: created, error: createError } = await (sb.from("user_profiles") as any)
+      .insert({
+        id: userId,
+        full_name: fullName,
+        email,
+        role: "agent",
+        is_active: true,
+        preferences: {},
+      })
+      .select("*")
+      .single();
+
+    if (createError) {
+      console.error("[Supabase] Failed to create profile:", createError);
+      return null;
+    }
+    return created;
   }
-  return data;
+
+  console.error("[Supabase] Error fetching user profile:", error);
+  return null;
 }
