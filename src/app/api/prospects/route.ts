@@ -1,6 +1,61 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@/lib/supabase";
 
+// ── PATCH /api/prospects — Claim or update a lead's status ─────────────
+
+export async function PATCH(req: NextRequest) {
+  try {
+    const body = await req.json();
+    const sb = createServerClient();
+
+    const { lead_id, status, assigned_to, actor_id } = body;
+
+    if (!lead_id) {
+      return NextResponse.json({ error: "lead_id is required" }, { status: 400 });
+    }
+
+    const updateData: Record<string, unknown> = {};
+    if (status) updateData.status = status;
+    if (assigned_to) {
+      updateData.assigned_to = assigned_to;
+      updateData.claimed_at = new Date().toISOString();
+      updateData.claim_expires_at = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
+    }
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { error } = await (sb.from("leads") as any)
+      .update(updateData)
+      .eq("id", lead_id);
+
+    if (error) {
+      console.error("[API/prospects PATCH] Update failed:", error);
+      return NextResponse.json(
+        { error: "Update failed", detail: error.message },
+        { status: 500 }
+      );
+    }
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    await (sb.from("event_log") as any).insert({
+      entity_type: "lead",
+      entity_id: lead_id,
+      action: status === "my_lead" ? "CLAIMED" : "STATUS_CHANGED",
+      actor_id: actor_id || null,
+      details: { status, assigned_to },
+    });
+
+    return NextResponse.json({ success: true, lead_id, status });
+  } catch (err) {
+    console.error("[API/prospects PATCH] Error:", err);
+    return NextResponse.json(
+      { error: "Server error", detail: err instanceof Error ? err.message : String(err) },
+      { status: 500 }
+    );
+  }
+}
+
+// ── POST /api/prospects — Create a new prospect ───────────────────────
+
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();

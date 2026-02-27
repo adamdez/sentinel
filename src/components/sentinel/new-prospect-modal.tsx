@@ -17,7 +17,6 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
-import { supabase } from "@/lib/supabase";
 import { useSentinelStore } from "@/lib/store";
 import { useModal } from "@/providers/modal-provider";
 import { cn } from "@/lib/utils";
@@ -210,22 +209,28 @@ export function NewProspectModal() {
     if (!createdLeadId || !currentUser.id) return;
     setSaving(true);
 
-    const expires = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
+    try {
+      const res = await fetch("/api/prospects", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          lead_id: createdLeadId,
+          status: "my_lead",
+          assigned_to: currentUser.id,
+          actor_id: currentUser.id,
+        }),
+      });
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { error } = await (supabase.from("leads") as any)
-      .update({
-        status: "my_lead",
-        assigned_to: currentUser.id,
-        claimed_at: new Date().toISOString(),
-        claim_expires_at: expires,
-      })
-      .eq("id", createdLeadId);
+      const data = await res.json();
 
-    if (error) {
-      toast.error("Claim failed: " + error.message);
-    } else {
-      toast.success("Claimed — moved to My Leads");
+      if (!res.ok || !data.success) {
+        toast.error("Claim failed: " + (data.error ?? "Unknown error"));
+      } else {
+        toast.success("Claimed — moved to My Leads. Check Pipeline to see it.");
+      }
+    } catch (err) {
+      console.error("[NewProspect] Claim error:", err);
+      toast.error("Network error during claim");
     }
 
     setSaving(false);
@@ -567,7 +572,7 @@ export function NewProspectModal() {
                     ) : (
                       <UserPlus className="h-4 w-4" />
                     )}
-                    Claim This Lead
+                    Claim This Prospect
                   </Button>
                 )}
               </div>
