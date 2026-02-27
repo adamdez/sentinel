@@ -25,6 +25,7 @@ import {
   Share2,
   ChevronRight,
   Zap,
+  Kanban,
   type LucideIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -58,6 +59,7 @@ const sections: NavSection[] = [
   {
     title: "Deal Funnel",
     items: [
+      { label: "Pipeline", href: "/pipeline", icon: Kanban },
       { label: "Prospects", href: "/sales-funnel/prospects", icon: UserPlus },
       { label: "Leads", href: "/leads", icon: Users },
       { label: "Negotiation", href: "/sales-funnel/negotiation", icon: Handshake },

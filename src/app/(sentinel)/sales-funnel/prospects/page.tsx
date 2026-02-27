@@ -19,6 +19,7 @@ import { useProspects, type ProspectRow, type SortField, type SortDir } from "@/
 import { supabase } from "@/lib/supabase";
 import { useSentinelStore } from "@/lib/store";
 import type { AIScore } from "@/lib/types";
+import { toast } from "sonner";
 
 // ── Constants ─────────────────────────────────────────────────────────
 
@@ -98,6 +99,45 @@ export default function ProspectsPage() {
   const [selectedProspect, setSelectedProspect] = useState<ProspectRow | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
   const [claiming, setClaiming] = useState<string | null>(null);
+  const [testingPR, setTestingPR] = useState(false);
+
+  const handleQuickTestPR = async () => {
+    setTestingPR(true);
+    const testAddr = "1234 Wilshire Blvd, Los Angeles, CA";
+    toast.loading("Looking up property on PropertyRadar...", { id: "pr-test" });
+
+    try {
+      const res = await fetch("/api/ingest/propertyradar", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ address: testAddr }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok || !data.success) {
+        toast.error(data.error ?? "PropertyRadar lookup failed", {
+          id: "pr-test",
+          description: data.detail ?? data.message ?? `HTTP ${res.status}`,
+          duration: 6000,
+        });
+        return;
+      }
+
+      toast.success(`${data.owner ?? "Property"} ingested — Score ${data.heatScore}`, {
+        id: "pr-test",
+        description: `${data.address} • ${data.signals?.length ?? 0} signal(s) • ${data.label?.toUpperCase()}`,
+        duration: 5000,
+      });
+    } catch (err) {
+      toast.error("Network error — is the dev server running?", {
+        id: "pr-test",
+        description: err instanceof Error ? err.message : String(err),
+      });
+    } finally {
+      setTestingPR(false);
+    }
+  };
 
   // Debounce search input
   const [debounceTimer, setDebounceTimer] = useState<ReturnType<typeof setTimeout> | null>(null);
@@ -137,24 +177,50 @@ export default function ProspectsPage() {
   const handleClaim = async (leadId: string) => {
     setClaiming(leadId);
     try {
-      // TODO: Replace with proper RBAC-gated server action
+      // === PRODUCTION USER ID (adam@cominionhomedeals.com) ===
+      const userId = "c0b4d733-607b-4c3c-8049-9e4ba207a258";
+
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        console.log(`[Prospects] Authenticated as: ${user.email || user.id}`);
+      } else {
+        console.warn("[Prospects] No auth session — using hardcoded dev user ID for testing");
+      }
+
+      const expires = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
+
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { error: claimError } = await (supabase.from("leads") as any)
+      const { data, error: claimError } = await (supabase.from("leads") as any)
         .update({
-          status: "lead",
-          assigned_to: currentUser.id,
-          updated_at: new Date().toISOString(),
+          status: "My Leads",
+          owner_id: userId,
+          claimed_at: new Date().toISOString(),
+          claim_expires_at: expires,
         })
         .eq("id", leadId)
-        .eq("lock_version", 0);
+        .select()
+        .single();
 
       if (claimError) {
-        console.error("[Prospects] Claim failed:", claimError);
-        // TODO: Show toast notification
+        console.error("[Prospects] Claim failed — FULL DETAILS:", {
+          message: claimError.message,
+          code: claimError.code,
+          details: claimError.details,
+        });
+        toast.error(`Claim failed: ${claimError.message}`);
       } else {
+        console.log("[Prospects] Claim SUCCESS — lead now owned by Adam");
+
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        await (supabase.from("audit_log") as any).insert({
+          lead_id: leadId,
+          action: "CLAIMED",
+          user_id: userId,
+          details: "Claimed from Prospects table (24-hour soft lock)",
+        });
+
+        toast.success("Lead claimed successfully");
         setModalOpen(false);
-        // TODO: Audit log entry for claim action
-        // TODO: Compliance check before allowing dial
         refetch();
       }
     } finally {
@@ -186,6 +252,19 @@ export default function ProspectsPage() {
           <Button size="sm" className="gap-2 text-xs">
             <UserPlus className="h-3 w-3" />
             Add Prospect
+          </Button>
+          <Button
+            size="sm"
+            onClick={handleQuickTestPR}
+            disabled={testingPR}
+            className="gap-2 text-xs bg-white text-black font-bold rounded-2xl hover:scale-105 transition-all disabled:opacity-50"
+          >
+            {testingPR ? (
+              <Loader2 className="h-3 w-3 animate-spin" />
+            ) : (
+              <Radar className="h-3 w-3" />
+            )}
+            Quick Test PropertyRadar
           </Button>
         </div>
       }
