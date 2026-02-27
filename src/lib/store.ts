@@ -40,12 +40,12 @@ export const useSentinelStore = create<SentinelState>((set) => ({
   setChatOpen: (open) => set({ chatOpen: open }),
 
   currentUser: {
-    id: "user-adam",
-    name: "Adam D.",
-    email: "adam@sentinel.io",
-    role: "admin",
+    id: "",
+    name: "",
+    email: "",
+    role: "agent",
     avatar_url: undefined,
-    is_active: true,
+    is_active: false,
   },
   setCurrentUser: (user) => set({ currentUser: user }),
 

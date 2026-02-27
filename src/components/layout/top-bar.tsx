@@ -127,12 +127,14 @@ export function TopBar() {
               <Avatar className="h-6 w-6">
                 <AvatarFallback className="text-[10px] bg-neon/10 text-neon">
                   {currentUser.name
-                    .split(" ")
-                    .map((n) => n[0])
-                    .join("")}
+                    ? currentUser.name
+                        .split(" ")
+                        .map((n) => n[0])
+                        .join("")
+                    : "?"}
                 </AvatarFallback>
               </Avatar>
-              <span className="text-sm font-medium">{currentUser.name}</span>
+              <span className="text-sm font-medium">{currentUser.name || "..."}</span>
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-48">

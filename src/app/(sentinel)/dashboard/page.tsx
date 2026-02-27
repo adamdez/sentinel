@@ -13,7 +13,7 @@ export default function DashboardPage() {
 
   return (
     <PageShell
-      title={`Welcome back, ${currentUser.name.split(" ")[0]}`}
+      title={`Welcome back, ${currentUser.name ? currentUser.name.split(" ")[0] : "..."}`}
       description="Sentinel command center — your personalized acquisition intelligence"
       actions={
         <div className="flex items-center gap-2">
