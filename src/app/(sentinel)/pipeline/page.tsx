@@ -130,7 +130,7 @@ function normalizeStatus(raw: string | null | undefined): StageId {
 
 export default function PipelinePage() {
   const [leadsByStage, setLeadsByStage] = useState<Record<StageId, Lead[]>>(
-    () => Object.fromEntries(STAGES.map((s) => [s.id, []])) as Record<StageId, Lead[]>
+    () => Object.fromEntries(STAGES.map((s) => [s.id, []])) as unknown as Record<StageId, Lead[]>
   );
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -173,7 +173,7 @@ export default function PipelinePage() {
         }
       }
 
-      const grouped = Object.fromEntries(STAGES.map((s) => [s.id, []])) as Record<StageId, Lead[]>;
+      const grouped = Object.fromEntries(STAGES.map((s) => [s.id, []])) as unknown as Record<StageId, Lead[]>;
 
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       for (const raw of leadsRaw as any[]) {

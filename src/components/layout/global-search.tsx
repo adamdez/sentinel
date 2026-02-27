@@ -3,10 +3,8 @@
 import {
   useState,
   useRef,
-  useMemo,
   useCallback,
   useEffect,
-  forwardRef,
 } from "react";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
@@ -19,76 +17,23 @@ import {
   Users,
   User,
   MapPin,
-  Phone,
   type LucideIcon,
 } from "lucide-react";
-import { DUMMY_LEADS } from "@/lib/leads-data";
+import { supabase } from "@/lib/supabase";
 import { cn } from "@/lib/utils";
+
+// ── Types ──────────────────────────────────────────────────────────────
 
 interface SearchRecord {
   id: string;
   kind: "prospect" | "lead" | "contact";
   primary: string;
   secondary: string;
-  tertiary?: string;
   href: string;
   score?: number;
   scoreLabel?: "fire" | "hot" | "warm" | "cold";
   status?: string;
 }
-
-const CONTACT_DATA = [
-  { id: "c1", name: "Sarah Kim", company: "AZ Realty Group", phone: "(602) 555-0100", role: "Title Agent" },
-  { id: "c2", name: "Mike Reynolds", company: "Desert Title Co", phone: "(480) 555-0200", role: "Closer" },
-  { id: "c3", name: "Jennifer Torres", company: "Pinal County Records", phone: "(520) 555-0300", role: "County Clerk" },
-  { id: "c4", name: "Brian Patterson", company: "Phoenix Appraisals", phone: "(602) 555-0400", role: "Appraiser" },
-  { id: "c5", name: "Amanda Walsh", company: "Southwest Escrow", phone: "(480) 555-0500", role: "Escrow Officer" },
-];
-
-const SEARCH_INDEX: SearchRecord[] = (() => {
-  const records: SearchRecord[] = [];
-
-  for (const lead of DUMMY_LEADS) {
-    const isProspect = lead.status === "prospect";
-    records.push({
-      id: lead.id,
-      kind: isProspect ? "prospect" : "lead",
-      primary: lead.ownerName,
-      secondary: `${lead.address}, ${lead.city} ${lead.state} ${lead.zip}`,
-      tertiary: [
-        lead.apn,
-        lead.county,
-        lead.ownerPhone ?? "",
-        lead.ownerEmail ?? "",
-        lead.source,
-        ...lead.tags,
-        ...lead.distressSignals,
-        lead.notes ?? "",
-        lead.assignedName ?? "",
-        lead.ownerBadge ?? "",
-      ]
-        .filter(Boolean)
-        .join(" "),
-      href: isProspect ? "/sales-funnel/prospects" : "/leads",
-      score: lead.score.composite,
-      scoreLabel: lead.score.label,
-      status: lead.status,
-    });
-  }
-
-  for (const c of CONTACT_DATA) {
-    records.push({
-      id: c.id,
-      kind: "contact",
-      primary: c.name,
-      secondary: `${c.role} — ${c.company}`,
-      tertiary: `${c.phone} ${c.company}`,
-      href: "/contacts",
-    });
-  }
-
-  return records;
-})();
 
 const SCORE_COLORS: Record<string, string> = {
   fire: "text-orange-400 bg-orange-500/15 border-orange-500/30",
@@ -100,7 +45,9 @@ const SCORE_COLORS: Record<string, string> = {
 const STATUS_LABELS: Record<string, string> = {
   prospect: "Prospect",
   lead: "Lead",
+  my_lead: "My Lead",
   negotiation: "Negotiation",
+  disposition: "Disposition",
   nurture: "Nurture",
   dead: "Dead",
   closed: "Closed",
@@ -118,26 +65,72 @@ const KIND_COLORS: Record<string, string> = {
   contact: "bg-purple-500/10 border-purple-500/20 text-purple-400",
 };
 
-function matchScore(record: SearchRecord, query: string): number {
-  const q = query.toLowerCase();
-  const fields = [record.primary, record.secondary, record.tertiary ?? ""];
-  let best = 0;
+function labelFromScore(n: number): "fire" | "hot" | "warm" | "cold" {
+  if (n >= 85) return "fire";
+  if (n >= 65) return "hot";
+  if (n >= 40) return "warm";
+  return "cold";
+}
 
-  for (const field of fields) {
-    const lower = field.toLowerCase();
-    if (lower === q) return 100;
-    if (lower.startsWith(q)) best = Math.max(best, 80);
-    else if (lower.includes(q)) best = Math.max(best, 50);
+// ── Live search function ───────────────────────────────────────────────
 
-    const words = lower.split(/[\s,\-—]+/);
-    for (const word of words) {
-      if (word === q) best = Math.max(best, 90);
-      else if (word.startsWith(q)) best = Math.max(best, 70);
+async function searchSupabase(q: string): Promise<SearchRecord[]> {
+  if (q.length < 2) return [];
+  const pattern = `%${q}%`;
+
+  // Search properties by address, owner_name, apn
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: props } = await (supabase.from("properties") as any)
+    .select("id, apn, address, city, state, zip, owner_name")
+    .or(`address.ilike.${pattern},owner_name.ilike.${pattern},apn.ilike.${pattern}`)
+    .limit(20);
+
+  if (!props || props.length === 0) return [];
+
+  // Get property IDs, then fetch their leads
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const propIds = (props as any[]).map((p) => p.id);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: leads } = await (supabase.from("leads") as any)
+    .select("id, property_id, status, priority, source")
+    .in("property_id", propIds);
+
+  // Build a map: property_id → lead
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const leadMap: Record<string, any> = {};
+  if (leads) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    for (const l of leads as any[]) {
+      if (!leadMap[l.property_id] || (l.priority ?? 0) > (leadMap[l.property_id].priority ?? 0)) {
+        leadMap[l.property_id] = l;
+      }
     }
   }
 
-  return best;
+  const records: SearchRecord[] = [];
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  for (const p of props as any[]) {
+    const lead = leadMap[p.id];
+    const isProspect = !lead || lead.status === "prospect";
+    const score = lead?.priority ?? 0;
+
+    records.push({
+      id: lead?.id ?? p.id,
+      kind: isProspect ? "prospect" : "lead",
+      primary: p.owner_name ?? "Unknown",
+      secondary: [p.address, p.city, p.state, p.zip].filter(Boolean).join(", "),
+      href: isProspect ? "/sales-funnel/prospects" : "/leads",
+      score: score > 0 ? score : undefined,
+      scoreLabel: score > 0 ? labelFromScore(score) : undefined,
+      status: lead?.status ?? "prospect",
+    });
+  }
+
+  return records;
 }
+
+// ── Component ──────────────────────────────────────────────────────────
 
 export function GlobalSearch() {
   const router = useRouter();
@@ -146,20 +139,31 @@ export function GlobalSearch() {
   const [query, setQuery] = useState("");
   const [focused, setFocused] = useState(false);
   const [activeIndex, setActiveIndex] = useState(-1);
+  const [results, setResults] = useState<SearchRecord[]>([]);
+  const [searching, setSearching] = useState(false);
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const isOpen = focused && query.length > 0;
 
-  const results = useMemo(() => {
-    if (!query) return [];
-    return SEARCH_INDEX
-      .map((rec) => ({ rec, relevance: matchScore(rec, query) }))
-      .filter((r) => r.relevance > 0)
-      .sort((a, b) => {
-        if (b.relevance !== a.relevance) return b.relevance - a.relevance;
-        return (b.rec.score ?? 0) - (a.rec.score ?? 0);
-      })
-      .slice(0, 10)
-      .map((r) => r.rec);
+  // Debounced search
+  useEffect(() => {
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+
+    if (query.length < 2) {
+      setResults([]);
+      return;
+    }
+
+    setSearching(true);
+    debounceRef.current = setTimeout(async () => {
+      const r = await searchSupabase(query);
+      setResults(r);
+      setSearching(false);
+    }, 250);
+
+    return () => {
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+    };
   }, [query]);
 
   const handleSelect = useCallback(
@@ -176,6 +180,7 @@ export function GlobalSearch() {
     setActiveIndex(-1);
   }, [query]);
 
+  // Ctrl+K hotkey
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key === "k") {
@@ -188,6 +193,7 @@ export function GlobalSearch() {
     return () => document.removeEventListener("keydown", handler);
   }, []);
 
+  // Click outside to close
   useEffect(() => {
     if (!isOpen) return;
     const handler = (e: MouseEvent) => {
@@ -265,7 +271,11 @@ export function GlobalSearch() {
             style={{ transformOrigin: "top" }}
             className="absolute top-full left-0 right-0 mt-1.5 z-50 rounded-xl glass-strong border border-glass-border shadow-2xl overflow-hidden min-w-[400px]"
           >
-            {results.length === 0 ? (
+            {searching ? (
+              <div className="px-4 py-6 text-center text-sm text-muted-foreground">
+                Searching...
+              </div>
+            ) : results.length === 0 ? (
               <div className="px-4 py-6 text-center text-sm text-muted-foreground">
                 No results for &ldquo;{query}&rdquo;
               </div>

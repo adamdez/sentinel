@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useCallback } from "react";
+import { useState, useMemo, useCallback, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { Command } from "cmdk";
 import { motion, AnimatePresence } from "framer-motion";
@@ -28,7 +28,7 @@ import {
 } from "lucide-react";
 import { useSentinelStore } from "@/lib/store";
 import { useCommandPalette } from "@/hooks/use-command-palette";
-import { DUMMY_LEADS } from "@/lib/leads-data";
+import { supabase } from "@/lib/supabase";
 import { cn } from "@/lib/utils";
 
 interface NavCommand {
@@ -119,47 +119,76 @@ export function CommandPalette() {
     router.push(href);
   }, [setCommandPaletteOpen, router]);
 
-  const dataResults = useMemo((): DataResult[] => {
-    if (query.length < 2) return [];
-    const results: DataResult[] = [];
+  const [dataResults, setDataResults] = useState<DataResult[]>([]);
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-    for (const lead of DUMMY_LEADS) {
-      const haystack = [
-        lead.ownerName, lead.address, lead.apn, lead.city,
-        lead.county, lead.notes ?? "", lead.source,
-        ...lead.tags, ...lead.distressSignals,
-      ].join(" ");
+  useEffect(() => {
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    if (query.length < 2) { setDataResults([]); return; }
 
-      if (matchesQuery(haystack, query)) {
-        const isProspect = lead.status === "prospect";
-        results.push({
-          kind: isProspect ? "prospect" : "lead",
-          id: lead.id,
-          primary: lead.ownerName,
-          secondary: `${lead.address}, ${lead.city} ${lead.state} — ${lead.apn}`,
-          href: isProspect ? "/sales-funnel/prospects" : "/leads",
-          score: lead.score.composite,
-          scoreLabel: lead.score.label,
-          status: lead.status,
-          source: lead.source,
-        });
+    debounceRef.current = setTimeout(async () => {
+      const pattern = `%${query}%`;
+      const results: DataResult[] = [];
+
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data: props } = await (supabase.from("properties") as any)
+        .select("id, apn, address, city, state, zip, owner_name")
+        .or(`address.ilike.${pattern},owner_name.ilike.${pattern},apn.ilike.${pattern}`)
+        .limit(15);
+
+      if (props && props.length > 0) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const propIds = (props as any[]).map((p) => p.id);
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const { data: leads } = await (supabase.from("leads") as any)
+          .select("id, property_id, status, priority, source")
+          .in("property_id", propIds);
+
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const leadMap: Record<string, any> = {};
+        if (leads) {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          for (const l of leads as any[]) leadMap[l.property_id] = l;
+        }
+
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        for (const p of props as any[]) {
+          const lead = leadMap[p.id];
+          const isProspect = !lead || lead.status === "prospect";
+          const score = lead?.priority ?? 0;
+          const label = score >= 85 ? "fire" : score >= 65 ? "hot" : score >= 40 ? "warm" : "cold";
+
+          results.push({
+            kind: isProspect ? "prospect" : "lead",
+            id: lead?.id ?? p.id,
+            primary: p.owner_name ?? "Unknown",
+            secondary: [p.address, p.city, p.state, p.apn].filter(Boolean).join(", "),
+            href: isProspect ? "/sales-funnel/prospects" : "/leads",
+            score: score > 0 ? score : undefined,
+            scoreLabel: score > 0 ? label as DataResult["scoreLabel"] : undefined,
+            status: lead?.status ?? "prospect",
+            source: lead?.source,
+          });
+        }
       }
-    }
 
-    for (const contact of CONTACT_DATA) {
-      const haystack = [contact.name, contact.company, contact.phone, contact.role].join(" ");
-      if (matchesQuery(haystack, query)) {
-        results.push({
-          kind: "contact",
-          id: contact.id,
-          primary: contact.name,
-          secondary: `${contact.role} — ${contact.company}`,
-          href: "/contacts",
-        });
+      for (const contact of CONTACT_DATA) {
+        const haystack = [contact.name, contact.company, contact.phone, contact.role].join(" ");
+        if (matchesQuery(haystack, query)) {
+          results.push({
+            kind: "contact",
+            id: contact.id,
+            primary: contact.name,
+            secondary: `${contact.role} — ${contact.company}`,
+            href: "/contacts",
+          });
+        }
       }
-    }
 
-    return results.slice(0, 12);
+      setDataResults(results.slice(0, 12));
+    }, 250);
+
+    return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
   }, [query]);
 
   const navResults = useMemo(() => {

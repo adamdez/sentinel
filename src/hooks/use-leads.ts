@@ -1,23 +1,16 @@
 "use client";
 
-import { useState, useMemo, useCallback, useEffect } from "react";
+import { useState, useMemo, useCallback, useEffect, useRef } from "react";
 import {
-  DUMMY_LEADS,
   TEAM_MEMBERS,
   type LeadRow,
   type LeadSegment,
 } from "@/lib/leads-data";
-import type { DistressType, LeadStatus } from "@/lib/types";
+import type { DistressType, LeadStatus, AIScore } from "@/lib/types";
 import { useSentinelStore } from "@/lib/store";
 import { supabase } from "@/lib/supabase";
 
-export type SortField =
-  | "score"
-  | "priority"
-  | "followUp"
-  | "address"
-  | "owner"
-  | "status";
+export type SortField = "score" | "priority" | "followUp" | "address" | "owner" | "status";
 export type SortDir = "asc" | "desc";
 
 export interface LeadFilters {
@@ -36,6 +29,13 @@ const DEFAULT_FILTERS: LeadFilters = {
   complianceOnly: false,
 };
 
+function scoreLabel(n: number): AIScore["label"] {
+  if (n >= 85) return "fire";
+  if (n >= 65) return "hot";
+  if (n >= 40) return "warm";
+  return "cold";
+}
+
 function matchesSearch(lead: LeadRow, q: string): boolean {
   const lower = q.toLowerCase();
   return (
@@ -48,6 +48,48 @@ function matchesSearch(lead: LeadRow, q: string): boolean {
   );
 }
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function mapToLeadRow(raw: any, prop: any): LeadRow {
+  const composite = raw.priority ?? 0;
+  return {
+    id: raw.id,
+    propertyId: raw.property_id ?? "",
+    apn: prop.apn ?? "",
+    county: prop.county ?? "",
+    address: prop.address ?? "Unknown",
+    city: prop.city ?? "",
+    state: prop.state ?? "",
+    zip: prop.zip ?? "",
+    ownerName: prop.owner_name ?? "Unknown",
+    ownerPhone: prop.owner_phone ?? null,
+    ownerEmail: prop.owner_email ?? null,
+    ownerBadge: prop.owner_flags?.absentee ? "absentee" : null,
+    distressSignals: (raw.tags ?? []) as DistressType[],
+    status: raw.status ?? "prospect",
+    assignedTo: raw.assigned_to ?? null,
+    assignedName: null,
+    score: {
+      composite,
+      motivation: Math.round(composite * 0.85),
+      equityVelocity: Math.round((prop.equity_percent ?? 50) * 0.8),
+      urgency: Math.min(composite + 5, 100),
+      historicalConversion: Math.round(composite * 0.7),
+      aiBoost: 0,
+      label: scoreLabel(composite),
+    },
+    predictivePriority: composite,
+    estimatedValue: prop.estimated_value ?? null,
+    equityPercent: prop.equity_percent != null ? Number(prop.equity_percent) : null,
+    followUpDate: raw.follow_up_date ?? null,
+    lastContactAt: raw.last_contact_at ?? null,
+    promotedAt: raw.promoted_at ?? raw.created_at ?? new Date().toISOString(),
+    source: raw.source ?? "unknown",
+    tags: raw.tags ?? [],
+    complianceClean: true,
+    notes: raw.notes ?? null,
+  };
+}
+
 export function useLeads() {
   const { currentUser } = useSentinelStore();
 
@@ -56,32 +98,88 @@ export function useLeads() {
   const [sortField, setSortField] = useState<SortField>("priority");
   const [sortDir, setSortDir] = useState<SortDir>("desc");
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [leads, setLeads] = useState<LeadRow[]>([]);
+  const [loading, setLoading] = useState(true);
+  const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
 
-  // TODO: Replace with TanStack Query + Supabase fetch
-  const [leads] = useState<LeadRow[]>(DUMMY_LEADS);
+  const fetchLeads = useCallback(async () => {
+    setLoading(true);
+    try {
+      // Fetch leads that are NOT prospects (prospects live on the Prospects page)
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data: leadsRaw, error: leadsErr } = await (supabase.from("leads") as any)
+        .select("*")
+        .neq("status", "prospect")
+        .order("priority", { ascending: false });
 
-  // Real-time subscription stub
-  useEffect(() => {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const channel = supabase.channel("leads_changes").on(
-      "postgres_changes" as any,
-      { event: "*", schema: "public", table: "leads" },
-      (payload: unknown) => {
-        console.debug("[Leads] Realtime update:", payload);
-        // TODO: Merge into local state or invalidate TanStack Query cache
+      if (leadsErr) {
+        console.error("[useLeads] Fetch failed:", leadsErr);
+        setLoading(false);
+        return;
       }
-    ).subscribe();
 
-    return () => {
-      supabase.removeChannel(channel);
-    };
+      if (!leadsRaw || leadsRaw.length === 0) {
+        setLeads([]);
+        setLoading(false);
+        return;
+      }
+
+      // Fetch properties
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const propIds: string[] = [...new Set((leadsRaw as any[]).map((l: any) => l.property_id).filter(Boolean))];
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const propsMap: Record<string, any> = {};
+
+      if (propIds.length > 0) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const { data: propsData } = await (supabase.from("properties") as any)
+          .select("*")
+          .in("id", propIds);
+
+        if (propsData) {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          for (const p of propsData as any[]) propsMap[p.id] = p;
+        }
+      }
+
+      // Map to LeadRow
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const rows = (leadsRaw as any[]).map((raw) => {
+        const prop = propsMap[raw.property_id] ?? {};
+        return mapToLeadRow(raw, prop);
+      });
+
+      setLeads(rows);
+    } catch (err) {
+      console.error("[useLeads] Error:", err);
+    } finally {
+      setLoading(false);
+    }
   }, []);
+
+  useEffect(() => {
+    fetchLeads();
+
+    const channel = supabase
+      .channel("leads_hub_realtime")
+      .on("postgres_changes", { event: "*", schema: "public", table: "leads" }, () => fetchLeads())
+      .subscribe();
+
+    channelRef.current = channel;
+    return () => {
+      if (channelRef.current) supabase.removeChannel(channelRef.current);
+    };
+  }, [fetchLeads]);
+
+  // ── Segment filter ───────────────────────────────────────────────────
 
   const segmentedLeads = useMemo(() => {
     if (segment === "all") return leads;
     if (segment === "mine") return leads.filter((l) => l.assignedTo === currentUser.id);
     return leads.filter((l) => l.assignedTo === segment);
   }, [leads, segment, currentUser.id]);
+
+  // ── Filters ──────────────────────────────────────────────────────────
 
   const filteredLeads = useMemo(() => {
     let result = segmentedLeads;
@@ -106,6 +204,8 @@ export function useLeads() {
 
     return result;
   }, [segmentedLeads, filters]);
+
+  // ── Sort ─────────────────────────────────────────────────────────────
 
   const sortedLeads = useMemo(() => {
     const copy = [...filteredLeads];
@@ -164,6 +264,7 @@ export function useLeads() {
 
   return {
     leads: sortedLeads,
+    loading,
     segment,
     setSegment,
     filters,
@@ -181,5 +282,6 @@ export function useLeads() {
     totalFiltered: filteredLeads.length,
     currentUser,
     teamMembers: TEAM_MEMBERS,
+    refetch: fetchLeads,
   };
 }

@@ -203,7 +203,7 @@ export default function LoginPage() {
                       onChange={(e) => setPassword(e.target.value)}
                       autoFocus
                       className="w-full pl-10 pr-4 py-3 rounded-xl border border-glass-border bg-glass/50 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:border-neon/40 backdrop-blur-xl"
-                      style={{ focusRingColor: selectedMember.color }}
+                      style={{ outlineColor: selectedMember.color }}
                     />
                   </div>
 

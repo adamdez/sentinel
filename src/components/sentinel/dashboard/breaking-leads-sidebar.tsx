@@ -1,9 +1,10 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Zap, ArrowUp, Radio, ExternalLink } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { supabase } from "@/lib/supabase";
 import { cn } from "@/lib/utils";
 import Link from "next/link";
 
@@ -15,24 +16,27 @@ interface TickerItem {
   label: "fire" | "hot";
   time: string;
   source?: string;
-  apn?: string;
 }
 
 const SOURCE_CONFIG: Record<string, { label: string; color: string }> = {
-  ranger: { label: "RANGER", color: "text-purple-400 bg-purple-500/10 border-purple-500/20" },
-  scraper: { label: "SCRAPER", color: "text-cyan-400 bg-cyan-500/10 border-cyan-500/20" },
+  ranger_push: { label: "RANGER", color: "text-purple-400 bg-purple-500/10 border-purple-500/20" },
+  propertyradar: { label: "PROPRADAR", color: "text-emerald-400 bg-emerald-500/10 border-emerald-500/20" },
+  manual: { label: "MANUAL", color: "text-sky-400 bg-sky-500/10 border-sky-500/20" },
 };
 
-const FEED_DATA: TickerItem[] = [
-  { id: "r1", name: "Voss Property", type: "Probate + Vacant + Inherited", score: 100, label: "fire", time: "12m ago", source: "ranger", apn: "SPK-2025-001" },
-  { id: "r2", name: "Alcazar Property", type: "Pre-Foreclosure + Absentee", score: 86, label: "fire", time: "25m ago", source: "ranger", apn: "SPK-2025-002" },
-  { id: "r3", name: "Whitfield Property", type: "Tax Lien + Code Viol.", score: 79, label: "hot", time: "38m ago", source: "ranger", apn: "SPK-2025-003" },
-  { id: "1", name: "Henderson Estate", type: "Probate", score: 94, label: "fire", time: "1h ago", source: "scraper" },
-  { id: "2", name: "Chen Property", type: "Pre-Foreclosure", score: 87, label: "hot", time: "2h ago", source: "scraper" },
-  { id: "3", name: "Morales Lot", type: "Tax Lien + Vacant", score: 79, label: "hot", time: "3h ago" },
-  { id: "4", name: "Park Residence", type: "FSBO", score: 71, label: "hot", time: "4h ago" },
-  { id: "5", name: "Wright Duplex", type: "Bankruptcy", score: 68, label: "hot", time: "5h ago" },
-];
+function timeAgo(dateStr: string): string {
+  const diff = Date.now() - new Date(dateStr).getTime();
+  const mins = Math.floor(diff / 60000);
+  if (mins < 1) return "just now";
+  if (mins < 60) return `${mins}m ago`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `${hrs}h ago`;
+  return `${Math.floor(hrs / 24)}d ago`;
+}
+
+function scoreLabel(n: number): "fire" | "hot" {
+  return n >= 65 ? "fire" : "hot";
+}
 
 function TickerRow({ item, index }: { item: TickerItem; index: number }) {
   const isFire = item.label === "fire";
@@ -100,19 +104,86 @@ function TickerRow({ item, index }: { item: TickerItem; index: number }) {
 }
 
 export function BreakingLeadsSidebar() {
-  const [cycleOffset, setCycleOffset] = useState(0);
+  const [items, setItems] = useState<TickerItem[]>([]);
   const [newPulse, setNewPulse] = useState(false);
+  const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
 
-  useEffect(() => {
-    const timer = setInterval(() => {
-      setCycleOffset((prev) => (prev + 1) % FEED_DATA.length);
-      setNewPulse(true);
-      setTimeout(() => setNewPulse(false), 600);
-    }, 5000);
-    return () => clearInterval(timer);
+  const fetchRecent = useCallback(async () => {
+    // Fetch recent prospects (score >= 40) ordered by creation
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: leads } = await (supabase.from("leads") as any)
+      .select("id, property_id, priority, source, tags, created_at")
+      .eq("status", "prospect")
+      .gte("priority", 40)
+      .order("created_at", { ascending: false })
+      .limit(10);
+
+    if (!leads || leads.length === 0) {
+      setItems([]);
+      return;
+    }
+
+    // Fetch properties
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const propIds = [...new Set((leads as any[]).map((l: any) => l.property_id).filter(Boolean))];
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const propsMap: Record<string, any> = {};
+
+    if (propIds.length > 0) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data: props } = await (supabase.from("properties") as any)
+        .select("id, address, owner_name")
+        .in("id", propIds);
+
+      if (props) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        for (const p of props as any[]) propsMap[p.id] = p;
+      }
+    }
+
+    const DISTRESS_LABELS: Record<string, string> = {
+      probate: "Probate", pre_foreclosure: "Pre-Foreclosure", tax_lien: "Tax Lien",
+      code_violation: "Code Viol.", vacant: "Vacant", divorce: "Divorce",
+      bankruptcy: "Bankruptcy", fsbo: "FSBO", absentee: "Absentee", inherited: "Inherited",
+    };
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const mapped: TickerItem[] = (leads as any[]).map((l) => {
+      const prop = propsMap[l.property_id] ?? {};
+      const tags = (l.tags ?? []) as string[];
+      const typeStr = tags.slice(0, 3).map((t: string) => DISTRESS_LABELS[t] ?? t).join(" + ") || "New Lead";
+
+      return {
+        id: l.id,
+        name: prop.owner_name ?? prop.address ?? "Unknown",
+        type: typeStr,
+        score: l.priority ?? 0,
+        label: scoreLabel(l.priority ?? 0),
+        time: timeAgo(l.created_at),
+        source: l.source ?? undefined,
+      };
+    });
+
+    setItems(mapped);
   }, []);
 
-  const visibleItems = [...FEED_DATA.slice(cycleOffset), ...FEED_DATA.slice(0, cycleOffset)].slice(0, 6);
+  useEffect(() => {
+    fetchRecent();
+
+    const channel = supabase
+      .channel("breaking_leads_sidebar")
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "leads" }, () => {
+        setNewPulse(true);
+        setTimeout(() => setNewPulse(false), 600);
+        fetchRecent();
+      })
+      .subscribe();
+
+    channelRef.current = channel;
+    return () => {
+      if (channelRef.current) supabase.removeChannel(channelRef.current);
+    };
+  }, [fetchRecent]);
 
   return (
     <div className="hidden lg:flex w-[300px] shrink-0 flex-col">
@@ -138,11 +209,17 @@ export function BreakingLeadsSidebar() {
         </div>
 
         <div className="p-2.5 space-y-1.5 max-h-[calc(100vh-280px)] overflow-y-auto scrollbar-thin">
-          <AnimatePresence mode="popLayout">
-            {visibleItems.map((item, i) => (
-              <TickerRow key={item.id} item={item} index={i} />
-            ))}
-          </AnimatePresence>
+          {items.length === 0 ? (
+            <div className="py-8 text-center text-[11px] text-muted-foreground/50">
+              No recent prospects
+            </div>
+          ) : (
+            <AnimatePresence mode="popLayout">
+              {items.map((item, i) => (
+                <TickerRow key={item.id} item={item} index={i} />
+              ))}
+            </AnimatePresence>
+          )}
         </div>
 
         <div className="px-4 py-2 border-t border-glass-border/50">

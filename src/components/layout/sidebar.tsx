@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   LayoutDashboard,
@@ -25,19 +25,45 @@ import {
   Share2,
   ChevronRight,
   Zap,
-  Kanban,
   type LucideIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import { useSentinelStore } from "@/lib/store";
+import { supabase } from "@/lib/supabase";
+
+function useProspectCount() {
+  const [count, setCount] = useState(0);
+
+  useEffect(() => {
+    const fetch = async () => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { count: c } = await (supabase.from("leads") as any)
+        .select("id", { count: "exact", head: true })
+        .eq("status", "prospect");
+      setCount(c ?? 0);
+    };
+
+    fetch();
+
+    const channel = supabase
+      .channel("sidebar_prospect_count")
+      .on("postgres_changes", { event: "*", schema: "public", table: "leads" }, () => fetch())
+      .subscribe();
+
+    return () => { supabase.removeChannel(channel); };
+  }, []);
+
+  return count;
+}
 
 interface NavItem {
   label: string;
   href: string;
   icon: LucideIcon;
   children?: NavItem[];
+  badge?: string;
 }
 
 interface NavSection {
@@ -59,8 +85,7 @@ const sections: NavSection[] = [
   {
     title: "Deal Funnel",
     items: [
-      { label: "Pipeline", href: "/pipeline", icon: Kanban },
-      { label: "Prospects", href: "/sales-funnel/prospects", icon: UserPlus },
+      { label: "Prospects", href: "/sales-funnel/prospects", icon: UserPlus, badge: "prospect-dot" },
       { label: "Leads", href: "/leads", icon: Users },
       { label: "Negotiation", href: "/sales-funnel/negotiation", icon: Handshake },
       { label: "Disposition", href: "/sales-funnel/disposition", icon: FileCheck },
@@ -97,7 +122,7 @@ const sections: NavSection[] = [
   },
 ];
 
-function NavLink({ item, depth = 0 }: { item: NavItem; depth?: number }) {
+function NavLink({ item, depth = 0, prospectCount = 0 }: { item: NavItem; depth?: number; prospectCount?: number }) {
   const pathname = usePathname();
   const hasActiveChild = item.children?.some(
     (c) => pathname === c.href || pathname.startsWith(c.href + "/")
@@ -166,11 +191,17 @@ function NavLink({ item, depth = 0 }: { item: NavItem; depth?: number }) {
       )}
       <Icon className={cn("h-4 w-4 shrink-0", isActive && "text-neon")} />
       <span>{item.label}</span>
+      {item.badge === "prospect-dot" && prospectCount > 0 && (
+        <span className="relative flex h-2.5 w-2.5 ml-auto">
+          <span className="absolute inline-flex h-full w-full rounded-full bg-red-500 animate-ping opacity-75" />
+          <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-red-500" />
+        </span>
+      )}
     </Link>
   );
 }
 
-function SidebarSection({ section }: { section: NavSection }) {
+function SidebarSection({ section, prospectCount = 0 }: { section: NavSection; prospectCount?: number }) {
   const pathname = usePathname();
   const hasActiveItem = section.items.some(
     (item) =>
@@ -219,7 +250,7 @@ function SidebarSection({ section }: { section: NavSection }) {
           >
             <div className="space-y-0.5">
               {section.items.map((item) => (
-                <NavLink key={item.href} item={item} />
+                <NavLink key={item.href} item={item} prospectCount={prospectCount} />
               ))}
             </div>
           </motion.div>
@@ -231,6 +262,7 @@ function SidebarSection({ section }: { section: NavSection }) {
 
 export function Sidebar() {
   const { sidebarOpen } = useSentinelStore();
+  const prospectCount = useProspectCount();
 
   return (
     <AnimatePresence mode="wait">
@@ -261,7 +293,7 @@ export function Sidebar() {
           <ScrollArea className="flex-1 px-3 py-1">
             <nav>
               {sections.map((section) => (
-                <SidebarSection key={section.title} section={section} />
+                <SidebarSection key={section.title} section={section} prospectCount={prospectCount} />
               ))}
             </nav>
           </ScrollArea>
