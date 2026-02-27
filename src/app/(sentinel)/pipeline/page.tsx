@@ -158,7 +158,10 @@ export default function PipelinePage() {
     }
 
     // Step 3: merge and group by stage
-    const grouped = Object.fromEntries(STAGES.map((s) => [s.id, []])) as Record<StageId, Lead[]>;
+    const grouped: Record<StageId, Lead[]> = STAGES.reduce((acc, stage) => {
+      acc[stage.id] = [];
+      return acc;
+    }, {} as Record<StageId, Lead[]>);
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     for (const raw of leadsRaw as any[]) {
