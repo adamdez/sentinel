@@ -2,7 +2,6 @@
 
 import { Sidebar } from "@/components/layout/sidebar";
 import { TopBar } from "@/components/layout/top-bar";
-import { FloatingActionButton } from "@/components/layout/floating-action-button";
 import { TeamChat } from "@/components/layout/team-chat";
 import { NewProspectModal } from "@/components/sentinel/new-prospect-modal";
 
@@ -18,7 +17,6 @@ export default function SentinelLayout({
         <TopBar />
         <main className="flex-1 overflow-auto">{children}</main>
       </div>
-      <FloatingActionButton />
       <TeamChat />
       <NewProspectModal />
     </div>

@@ -146,112 +146,59 @@ export function NewProspectModal() {
     setSaving(true);
 
     try {
-      const apn = form.apn.trim() || `MANUAL-${Date.now()}`;
-      const county = form.county.trim().toLowerCase();
-
-      // Step 1: Upsert property
-      const toInt = (v: string) => { const n = parseInt(v, 10); return isNaN(n) ? null : n; };
-      const toFloat = (v: string) => { const n = parseFloat(v); return isNaN(n) ? null : n; };
-
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { data: property, error: propErr } = await (supabase.from("properties") as any)
-        .upsert({
-          apn,
-          county,
-          address: form.address.trim(),
-          city: form.city.trim(),
-          state: form.state.trim().toUpperCase(),
-          zip: form.zip.trim(),
-          owner_name: form.owner_name.trim() || null,
-          owner_phone: form.phone.trim() || null,
-          owner_email: form.email.trim() || null,
-          estimated_value: toInt(form.estimated_value),
-          equity_percent: toFloat(form.equity_percent),
-          property_type: form.property_type || null,
-          bedrooms: toInt(form.bedrooms),
-          bathrooms: toFloat(form.bathrooms),
-          sqft: toInt(form.sqft),
-          year_built: toInt(form.year_built),
-          lot_size: toFloat(form.lot_size),
-          owner_flags: { manual_entry: true },
-          updated_at: new Date().toISOString(),
-        }, { onConflict: "apn,county" })
-        .select("id")
-        .single();
-
-      if (propErr || !property) {
-        console.error("[NewProspect] Property upsert failed:", propErr);
-        toast.error("Failed to save property: " + (propErr?.message ?? "Unknown error"));
-        setSaving(false);
-        return;
-      }
-
-      // Step 2: Compute simple score from distress tags
-      const baseScore = Math.min(30 + form.distress_tags.length * 12, 100);
-      const equityBonus = toFloat(form.equity_percent) ?? 0;
-      const compositeScore = Math.min(Math.round(baseScore + equityBonus * 0.2), 100);
-
-      // Step 3: Determine status and assignment
-      const isAssigned = assignTo !== "unassigned";
       const assignedMember = TEAM_MEMBERS.find((m) => m.id === assignTo);
 
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const leadInsert: any = {
-        property_id: property.id,
-        status: isAssigned ? "my_lead" : "prospect",
-        priority: compositeScore,
-        source: "manual",
-        tags: form.distress_tags,
-        notes: form.notes.trim() || `Manually added prospect`,
-        promoted_at: new Date().toISOString(),
-      };
+      const res = await fetch("/api/prospects", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          apn: form.apn,
+          county: form.county,
+          address: form.address,
+          city: form.city,
+          state: form.state,
+          zip: form.zip,
+          owner_name: form.owner_name,
+          owner_phone: form.phone,
+          owner_email: form.email,
+          estimated_value: form.estimated_value,
+          equity_percent: form.equity_percent,
+          property_type: form.property_type,
+          bedrooms: form.bedrooms,
+          bathrooms: form.bathrooms,
+          sqft: form.sqft,
+          year_built: form.year_built,
+          lot_size: form.lot_size,
+          distress_tags: form.distress_tags,
+          notes: form.notes,
+          source: "manual",
+          assign_to: assignTo === "unassigned" ? null : currentUser.id,
+          actor_id: currentUser.id || null,
+        }),
+      });
 
-      if (isAssigned) {
-        leadInsert.assigned_to = currentUser.id;
-        leadInsert.claimed_at = new Date().toISOString();
-        leadInsert.claim_expires_at = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
-      }
+      const data = await res.json();
 
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { data: lead, error: leadErr } = await (supabase.from("leads") as any)
-        .insert(leadInsert)
-        .select("id")
-        .single();
-
-      if (leadErr || !lead) {
-        console.error("[NewProspect] Lead insert failed:", leadErr);
-        toast.error("Failed to create lead: " + (leadErr?.message ?? "Unknown error"));
+      if (!res.ok || !data.success) {
+        console.error("[NewProspect] API error:", data);
+        toast.error("Failed to save: " + (data.error ?? "Unknown error"), {
+          description: data.detail ?? undefined,
+        });
         setSaving(false);
         return;
       }
 
-      // Step 4: Audit log
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      await (supabase.from("event_log") as any).insert({
-        entity_type: "lead",
-        entity_id: lead.id,
-        action: "CREATED",
-        actor_id: currentUser.id || null,
-        details: {
-          source: "manual",
-          address: form.address,
-          owner: form.owner_name,
-          score: compositeScore,
-          assigned_to: assignedMember?.label ?? "unassigned",
-        },
-      });
-
-      setCreatedLeadId(lead.id);
+      setCreatedLeadId(data.lead_id);
       setStep("confirm");
       toast.success(
-        isAssigned
+        assignTo !== "unassigned"
           ? `Prospect created and assigned to ${assignedMember?.label}`
           : "Prospect created in pipeline",
-        { description: `${form.address} — Score ${compositeScore}` }
+        { description: `${form.address} — Score ${data.score}` }
       );
     } catch (err) {
-      console.error("[NewProspect] Unexpected error:", err);
-      toast.error("Unexpected error — check console");
+      console.error("[NewProspect] Network error:", err);
+      toast.error("Network error — check console");
     } finally {
       setSaving(false);
     }
