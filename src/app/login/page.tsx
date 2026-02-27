@@ -11,26 +11,26 @@ const TEAM = [
     initials: "AD",
     email: "adam@dominionhomedeals.com",
     password: "Dominion2026!",
-    role: "Admin",
     color: "#00ff88",
+    role: "Admin",
   },
   {
     name: "Nathan",
-    initials: "NR",
+    initials: "NJ",
     email: "nathan@dominionhomedeals.com",
     password: "Dominion2026!",
-    role: "Agent",
     color: "#0099ff",
+    role: "Admin",
   },
   {
     name: "Logan",
-    initials: "LR",
+    initials: "LD",
     email: "logan@dominionhomedeals.com",
     password: "Dominion2026!",
-    role: "Agent",
     color: "#a855f7",
+    role: "Admin",
   },
-] as const;
+];
 
 export default function LoginPage() {
   const [signingIn, setSigningIn] = useState<string | null>(null);
