@@ -18,6 +18,7 @@ import { cn } from "@/lib/utils";
 import { useProspects, type ProspectRow, type SortField, type SortDir } from "@/hooks/use-prospects";
 import { supabase } from "@/lib/supabase";
 import { useSentinelStore } from "@/lib/store";
+import { useModal } from "@/providers/modal-provider";
 import type { AIScore } from "@/lib/types";
 import { toast } from "sonner";
 
@@ -90,6 +91,7 @@ function buildAIScore(p: ProspectRow): AIScore {
 
 export default function ProspectsPage() {
   const { currentUser } = useSentinelStore();
+  const { openModal } = useModal();
 
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
@@ -242,7 +244,7 @@ export default function ProspectsPage() {
             <RefreshCw className={cn("h-3 w-3", loading && "animate-spin")} />
             Refresh
           </Button>
-          <Button size="sm" className="gap-2 text-xs">
+          <Button size="sm" className="gap-2 text-xs" onClick={() => openModal("new-prospect")}>
             <UserPlus className="h-3 w-3" />
             Add Prospect
           </Button>
@@ -502,7 +504,6 @@ export default function ProspectsPage() {
         onClaim={handleClaim}
       />
 
-      {/* TODO: NewProspectModal for manual add */}
       {/* TODO: Compliance gating — DNC/litigant check before enabling Call button */}
       {/* TODO: RBAC — only admin/agent can claim, viewers read-only */}
       {/* TODO: Pagination for 200k+ properties (virtual scroll or server-side) */}
