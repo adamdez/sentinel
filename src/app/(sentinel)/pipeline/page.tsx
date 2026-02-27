@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import {
   DragDropContext,
   Droppable,
@@ -18,7 +18,9 @@ import {
   RefreshCw,
   GripVertical,
   Sparkles,
+  Plus,
 } from "lucide-react";
+import { toast } from "sonner";
 import { supabase, getCurrentUser } from "@/lib/supabase";
 import { cn } from "@/lib/utils";
 
@@ -85,6 +87,8 @@ const STAGES = [
 
 type StageId = (typeof STAGES)[number]["id"];
 
+const VALID_STAGE_IDS = new Set<string>(STAGES.map((s) => s.id));
+
 interface Lead {
   id: string;
   apn: string;
@@ -112,81 +116,95 @@ function isClaimExpired(expires?: string | null) {
   return expires ? new Date(expires) < new Date() : false;
 }
 
+function normalizeStatus(raw: string | null | undefined): StageId {
+  if (!raw) return "prospect";
+  const lower = raw.toLowerCase().replace(/\s+/g, "_");
+  if (VALID_STAGE_IDS.has(lower)) return lower as StageId;
+  if (lower === "prospects") return "prospect";
+  if (lower === "leads") return "lead";
+  if (lower === "my_leads" || lower === "my leads") return "my_lead";
+  return "prospect";
+}
+
 // ── Main component ─────────────────────────────────────────────────────
 
 export default function PipelinePage() {
   const [leadsByStage, setLeadsByStage] = useState<Record<StageId, Lead[]>>(
-    () => Object.fromEntries(STAGES.map((s) => [s.id, []])) as unknown as Record<StageId, Lead[]>
+    () => Object.fromEntries(STAGES.map((s) => [s.id, []])) as Record<StageId, Lead[]>
   );
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
+  const [adding, setAdding] = useState(false);
+  const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
+
+  // ── Fetch all leads + properties, group by stage ─────────────────────
 
   const fetchLeads = useCallback(async () => {
+    console.log("[Pipeline] fetchLeads triggered");
     setLoading(true);
 
-    // Step 1: fetch leads
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data: leadsRaw, error: leadsErr } = await (supabase.from("leads") as any)
-      .select("*")
-      .order("priority", { ascending: false });
-
-    if (leadsErr) {
-      console.error("[Pipeline] Leads fetch failed:", leadsErr);
-      setLoading(false);
-      return;
-    }
-
-    // Step 2: fetch properties for those leads
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const propertyIds: string[] = [...new Set((leadsRaw as any[]).map((l: any) => l.property_id).filter(Boolean))];
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    let propsMap: Record<string, any> = {};
-
-    if (propertyIds.length > 0) {
+    try {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { data: propsData } = await (supabase.from("properties") as any)
+      const { data: leadsRaw, error: leadsErr } = await (supabase.from("leads") as any)
         .select("*")
-        .in("id", propertyIds);
+        .order("priority", { ascending: false });
 
-      if (propsData) {
+      if (leadsErr) {
+        console.error("[Pipeline] Leads fetch failed:", leadsErr);
+        setLoading(false);
+        return;
+      }
+
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const propertyIds: string[] = [...new Set((leadsRaw as any[]).map((l: any) => l.property_id).filter(Boolean))];
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const propsMap: Record<string, any> = {};
+
+      if (propertyIds.length > 0) {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        for (const p of propsData as any[]) {
-          propsMap[p.id] = p;
+        const { data: propsData } = await (supabase.from("properties") as any)
+          .select("*")
+          .in("id", propertyIds);
+
+        if (propsData) {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          for (const p of propsData as any[]) propsMap[p.id] = p;
         }
       }
+
+      const grouped = Object.fromEntries(STAGES.map((s) => [s.id, []])) as Record<StageId, Lead[]>;
+
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      for (const raw of leadsRaw as any[]) {
+        const prop = propsMap[raw.property_id] ?? {};
+        const status = normalizeStatus(raw.status);
+
+        grouped[status].push({
+          id: raw.id,
+          apn: prop.apn ?? raw.property_id?.slice(0, 12) ?? "—",
+          address: prop.address ?? "Unknown address",
+          owner_name: prop.owner_name ?? "Unknown",
+          heat_score: raw.priority ?? 0,
+          status,
+          owner_id: raw.assigned_to ?? null,
+          claimed_at: raw.claimed_at ?? null,
+          claim_expires_at: raw.claim_expires_at ?? null,
+          tags: raw.tags ?? [],
+          source: raw.source ?? null,
+        });
+      }
+
+      console.log("[Pipeline] Grouped:", Object.fromEntries(Object.entries(grouped).map(([k, v]) => [k, v.length])));
+      setLeadsByStage(grouped);
+    } catch (err) {
+      console.error("[Pipeline] fetchLeads error:", err);
+    } finally {
+      setLoading(false);
     }
-
-    // Step 3: merge and group by stage
-    const grouped: Record<StageId, Lead[]> = STAGES.reduce((acc, stage) => {
-      acc[stage.id] = [];
-      return acc;
-    }, {} as Record<StageId, Lead[]>);
-
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    for (const raw of leadsRaw as any[]) {
-      const prop = propsMap[raw.property_id] ?? {};
-      const status: StageId = raw.status || "prospect";
-      if (!grouped[status]) continue;
-
-      grouped[status].push({
-        id: raw.id,
-        apn: prop.apn ?? raw.property_id?.slice(0, 12) ?? "—",
-        address: prop.address ?? "Unknown address",
-        owner_name: prop.owner_name ?? "Unknown",
-        heat_score: raw.priority ?? 0,
-        status,
-        owner_id: raw.assigned_to ?? null,
-        claimed_at: raw.claimed_at ?? null,
-        claim_expires_at: raw.claim_expires_at ?? null,
-        tags: raw.tags ?? [],
-        source: raw.source ?? null,
-      });
-    }
-
-    setLeadsByStage(grouped);
-    setLoading(false);
   }, []);
+
+  // ── Init + realtime ──────────────────────────────────────────────────
 
   useEffect(() => {
     getCurrentUser().then((u) => setCurrentUserId(u?.id ?? null));
@@ -194,18 +212,26 @@ export default function PipelinePage() {
 
     const channel = supabase
       .channel("pipeline-kanban")
-      .on("postgres_changes", { event: "*", schema: "public", table: "leads" }, () => fetchLeads())
+      .on("postgres_changes", { event: "*", schema: "public", table: "leads" }, () => {
+        console.log("[Pipeline] Realtime event on leads table");
+        fetchLeads();
+      })
       .subscribe();
 
+    channelRef.current = channel;
     return () => {
-      supabase.removeChannel(channel);
+      if (channelRef.current) supabase.removeChannel(channelRef.current);
     };
   }, [fetchLeads]);
 
-  // ── Claim ────────────────────────────────────────────────────────────
+  // ── Claim lead ───────────────────────────────────────────────────────
 
-  const claimLead = async (leadId: string) => {
-    if (!currentUserId) return;
+  const claimLead = useCallback(async (leadId: string) => {
+    if (!currentUserId) {
+      toast.error("Not authenticated — cannot claim");
+      return;
+    }
+
     const expires = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -218,28 +244,36 @@ export default function PipelinePage() {
       })
       .eq("id", leadId);
 
-    if (!error) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      await (supabase.from("event_log") as any).insert({
-        entity_type: "lead",
-        entity_id: leadId,
-        action: "CLAIMED",
-        actor_id: currentUserId,
-        details: { note: "24-hour soft lock applied via Pipeline" },
-      });
+    if (error) {
+      console.error("[Pipeline] Claim failed:", error);
+      toast.error("Claim failed: " + error.message);
+      await fetchLeads();
+      return;
     }
-  };
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    await (supabase.from("event_log") as any).insert({
+      entity_type: "lead",
+      entity_id: leadId,
+      action: "CLAIMED",
+      actor_id: currentUserId,
+      details: { note: "24-hour soft lock applied via Pipeline" },
+    });
+
+    toast.success("Lead claimed — moved to My Leads");
+    await fetchLeads();
+  }, [currentUserId, fetchLeads]);
 
   // ── Drag end ─────────────────────────────────────────────────────────
 
-  const onDragEnd = async (result: DropResult) => {
+  const onDragEnd = useCallback(async (result: DropResult) => {
     const { destination, source, draggableId } = result;
     if (!destination || destination.droppableId === source.droppableId) return;
 
     const newStatus = destination.droppableId as StageId;
     const leadId = draggableId;
 
-    // Optimistic update
+    // Optimistic move
     setLeadsByStage((prev) => {
       const next = { ...prev };
       const srcStage = source.droppableId as StageId;
@@ -254,13 +288,10 @@ export default function PipelinePage() {
       return next;
     });
 
+    // Auto-claim if dragging to My Leads and unclaimed
     if (newStatus === "my_lead") {
-      const allLeads = Object.values(leadsByStage).flat();
-      const lead = allLeads.find((l) => l.id === leadId);
-      if (lead && !lead.owner_id) {
-        await claimLead(leadId);
-        return;
-      }
+      await claimLead(leadId);
+      return;
     }
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -268,7 +299,14 @@ export default function PipelinePage() {
       .update({ status: newStatus })
       .eq("id", leadId);
 
-    if (!error && currentUserId) {
+    if (error) {
+      console.error("[Pipeline] Status update failed:", error);
+      toast.error("Move failed — reverting");
+      await fetchLeads();
+      return;
+    }
+
+    if (currentUserId) {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       await (supabase.from("event_log") as any).insert({
         entity_type: "lead",
@@ -279,8 +317,73 @@ export default function PipelinePage() {
       });
     }
 
-    if (error) fetchLeads();
-  };
+    toast.success(`Moved to ${STAGES.find((s) => s.id === newStatus)?.title ?? newStatus}`);
+    await fetchLeads();
+  }, [claimLead, currentUserId, fetchLeads]);
+
+  // ── Quick Add Test Prospect ──────────────────────────────────────────
+
+  const addTestProspect = useCallback(async () => {
+    setAdding(true);
+    try {
+      const ts = Date.now();
+      const testApn = `TEST-${ts}`;
+
+      // Step 1: create a property
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data: prop, error: propErr } = await (supabase.from("properties") as any)
+        .upsert(
+          {
+            apn: testApn,
+            county: "spokane",
+            address: "1234 Test Prospect Lane",
+            city: "Spokane",
+            state: "WA",
+            zip: "99201",
+            owner_name: "Test Owner",
+            estimated_value: 285000,
+            equity_percent: 42,
+            property_type: "SFR",
+            owner_flags: { test: true },
+          },
+          { onConflict: "apn,county" }
+        )
+        .select("id")
+        .single();
+
+      if (propErr || !prop) {
+        console.error("[Pipeline] Test property insert failed:", propErr);
+        toast.error("Failed to create test property: " + (propErr?.message ?? "no data"));
+        return;
+      }
+
+      // Step 2: create lead linked to that property
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { error: leadErr } = await (supabase.from("leads") as any).insert({
+        property_id: prop.id,
+        status: "prospect",
+        priority: 92,
+        source: "manual-test",
+        tags: ["manual-test", "high-priority"],
+        notes: "Quick add test prospect from Pipeline",
+        promoted_at: new Date().toISOString(),
+      });
+
+      if (leadErr) {
+        console.error("[Pipeline] Test lead insert failed:", leadErr);
+        toast.error("Failed to create test lead: " + leadErr.message);
+        return;
+      }
+
+      toast.success("Test Prospect created (score 92 FIRE) — check Prospects column");
+      await fetchLeads();
+    } catch (err) {
+      console.error("[Pipeline] addTestProspect error:", err);
+      toast.error("Unexpected error creating test prospect");
+    } finally {
+      setAdding(false);
+    }
+  }, [fetchLeads]);
 
   // ── Filter by search ─────────────────────────────────────────────────
 
@@ -309,7 +412,7 @@ export default function PipelinePage() {
   return (
     <div className="flex flex-col h-full">
       {/* Header */}
-      <div className="flex items-center justify-between px-6 py-5 border-b border-glass-border">
+      <div className="flex items-center justify-between px-6 py-5 border-b border-glass-border flex-wrap gap-3">
         <div>
           <h1 className="text-2xl font-bold text-foreground flex items-center gap-2.5">
             <Zap className="h-6 w-6 text-neon" />
@@ -331,6 +434,16 @@ export default function PipelinePage() {
               className="pl-9 pr-4 py-2 w-56 rounded-lg border border-glass-border bg-glass/50 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-neon/40 focus:border-neon/40 backdrop-blur-xl"
             />
           </div>
+
+          <button
+            onClick={addTestProspect}
+            disabled={adding}
+            className="flex items-center gap-2 px-4 py-2 bg-emerald-500/90 hover:bg-emerald-500 text-black text-sm font-semibold rounded-lg transition-all active:scale-95 disabled:opacity-50 shadow-[0_0_12px_rgba(16,185,129,0.3)]"
+          >
+            <Plus className={cn("h-4 w-4", adding && "animate-spin")} />
+            {adding ? "Adding..." : "Quick Add Test Prospect"}
+          </button>
+
           <button
             onClick={fetchLeads}
             className="flex items-center gap-2 px-3 py-2 rounded-lg border border-glass-border bg-glass/50 text-sm text-muted-foreground hover:text-foreground hover:border-neon/30 transition-all backdrop-blur-xl"
@@ -454,7 +567,6 @@ function LeadCard({
             snapshot.isDragging && "scale-[1.03] shadow-[0_0_24px_rgba(0,255,136,0.15)] border-neon/30 z-50"
           )}
         >
-          {/* Drag handle + score */}
           <div className="flex items-start justify-between gap-2">
             <div className="flex items-start gap-2 flex-1 min-w-0">
               <div
@@ -491,7 +603,6 @@ function LeadCard({
             </div>
           </div>
 
-          {/* Tags */}
           {lead.tags.length > 0 && (
             <div className="flex flex-wrap gap-1 mt-2">
               {lead.tags.slice(0, 3).map((tag, i) => (
@@ -510,7 +621,6 @@ function LeadCard({
             </div>
           )}
 
-          {/* Source badge */}
           {lead.source && (
             <div className="mt-2">
               <span className="text-[9px] font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded bg-neon/10 text-neon/70 border border-neon/20">
@@ -519,7 +629,6 @@ function LeadCard({
             </div>
           )}
 
-          {/* Footer: ownership + claim */}
           <div className="mt-3 flex items-center justify-between">
             {lead.owner_id && !expired ? (
               <div className="flex items-center gap-1.5 text-[11px] text-emerald-400">
