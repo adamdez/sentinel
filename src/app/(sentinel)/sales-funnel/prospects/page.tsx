@@ -502,6 +502,7 @@ export default function ProspectsPage() {
         open={modalOpen}
         onClose={() => setModalOpen(false)}
         onClaim={handleClaim}
+        onRefresh={refetch}
       />
 
       {/* TODO: Compliance gating — DNC/litigant check before enabling Call button */}

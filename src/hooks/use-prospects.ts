@@ -36,6 +36,24 @@ export interface ProspectRow {
   year_built: number | null;
   lot_size: number | null;
   owner_flags: Record<string, unknown>;
+  // financial (from PropertyRadar enrichment)
+  available_equity: number | null;
+  total_loan_balance: number | null;
+  last_sale_price: number | null;
+  last_sale_date: string | null;
+  // distress detail
+  foreclosure_stage: string | null;
+  default_amount: number | null;
+  delinquent_amount: number | null;
+  // ownership flags
+  is_vacant: boolean;
+  is_absentee: boolean;
+  is_free_clear: boolean;
+  is_high_equity: boolean;
+  is_cash_buyer: boolean;
+  // enrichment
+  radar_id: string | null;
+  enriched: boolean;
   // scoring (derived from priority)
   composite_score: number;
   motivation_score: number;
@@ -149,6 +167,16 @@ export function useProspects(opts: UseProspectsOptions = {}) {
       const rows: ProspectRow[] = (leadsData as any[]).map((lead) => {
         const prop = propertiesMap[lead.property_id] ?? {};
         const composite = lead.priority ?? 0;
+        const flags = prop.owner_flags ?? {};
+        const prRaw = (flags.pr_raw ?? {}) as Record<string, unknown>;
+
+        const toNum = (v: unknown): number | null => {
+          if (v == null || v === "") return null;
+          const n = typeof v === "number" ? v : parseFloat(String(v).replace(/[$,%]/g, ""));
+          return isNaN(n) ? null : n;
+        };
+        const toBool = (v: unknown): boolean =>
+          v === true || v === 1 || v === "1" || v === "Yes" || v === "True" || v === "true";
 
         return {
           id: lead.id,
@@ -178,7 +206,26 @@ export function useProspects(opts: UseProspectsOptions = {}) {
           sqft: prop.sqft ?? null,
           year_built: prop.year_built ?? null,
           lot_size: prop.lot_size ?? null,
-          owner_flags: prop.owner_flags ?? {},
+          owner_flags: flags,
+          // Financial (from PR enrichment stored in owner_flags.pr_raw)
+          available_equity: toNum(prRaw.AvailableEquity) ?? toNum(flags.available_equity),
+          total_loan_balance: toNum(prRaw.TotalLoanBalance) ?? toNum(flags.total_loan_balance),
+          last_sale_price: toNum(prRaw.LastTransferValue) ?? toNum(flags.last_sale_price),
+          last_sale_date: (prRaw.LastTransferRecDate as string) ?? (flags.last_sale_date as string) ?? null,
+          // Distress detail
+          foreclosure_stage: (prRaw.ForeclosureStage as string) ?? null,
+          default_amount: toNum(prRaw.DefaultAmount),
+          delinquent_amount: toNum(prRaw.DelinquentAmount),
+          // Ownership flags
+          is_vacant: toBool(flags.vacant) || toBool(prRaw.isSiteVacant),
+          is_absentee: toBool(flags.absentee) || toBool(prRaw.isNotSameMailingOrExempt),
+          is_free_clear: toBool(flags.freeAndClear) || toBool(prRaw.isFreeAndClear),
+          is_high_equity: toBool(flags.highEquity) || toBool(prRaw.isHighEquity),
+          is_cash_buyer: toBool(flags.cashBuyer) || toBool(prRaw.isCashBuyer),
+          // Enrichment
+          radar_id: (flags.radar_id as string) ?? null,
+          enriched: flags.source === "propertyradar" || !!flags.radar_id,
+          // Scoring
           composite_score: composite,
           motivation_score: Math.round(composite * 0.85),
           deal_score: Math.round(composite * 0.75),
