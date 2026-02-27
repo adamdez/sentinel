@@ -212,9 +212,22 @@ export function LeadTable({
 
             {/* Address + Owner */}
             <div className="flex flex-col justify-center min-w-0">
-              <span className="text-sm font-medium truncate">{lead.address}</span>
+              <span
+                className="text-sm font-semibold truncate text-foreground"
+                style={{
+                  textShadow: "0 0 8px rgba(0,255,136,0.12), 0 0 16px rgba(0,255,136,0.05)",
+                  WebkitFontSmoothing: "antialiased",
+                }}
+              >
+                {lead.address}
+              </span>
               <div className="flex items-center gap-2">
-                <span className="text-xs text-muted-foreground truncate">{lead.ownerName}</span>
+                <span
+                  className="text-xs font-medium text-muted-foreground/90 truncate"
+                  style={{ WebkitFontSmoothing: "antialiased" }}
+                >
+                  {lead.ownerName}
+                </span>
                 {isMine && (
                   <span className="text-[9px] px-1.5 py-0 rounded bg-neon/10 text-neon border border-neon/20">
                     You

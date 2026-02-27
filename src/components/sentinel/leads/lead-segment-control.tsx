@@ -1,7 +1,7 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { Users, UserCheck, User } from "lucide-react";
+import { Users, UserCheck, User, Shield } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { TEAM_MEMBERS, type LeadSegment } from "@/lib/leads-data";
 import type { Role } from "@/lib/types";
@@ -35,11 +35,12 @@ export function LeadSegmentControl({
 
   if (currentUserRole === "admin") {
     for (const member of TEAM_MEMBERS) {
-      if (member.id === currentUserId) continue;
+      const firstName = member.name.split(" ")[0];
+      const isSelf = member.id === currentUserId;
       tabs.push({
         id: member.id,
-        label: `${member.name.split(" ")[0]}'s Leads`,
-        icon: User,
+        label: `${firstName}'s Leads`,
+        icon: isSelf ? Shield : User,
         count: counts.byMember[member.id] ?? 0,
       });
     }

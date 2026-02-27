@@ -1,5 +1,6 @@
 "use client";
 
+import { useState, useMemo, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { Command } from "cmdk";
 import { motion, AnimatePresence } from "framer-motion";
@@ -19,45 +20,157 @@ import {
   Megaphone,
   DollarSign,
   Share2,
+  MapPin,
+  ArrowRight,
+  Flame,
+  User,
+  type LucideIcon,
 } from "lucide-react";
 import { useSentinelStore } from "@/lib/store";
 import { useCommandPalette } from "@/hooks/use-command-palette";
+import { DUMMY_LEADS } from "@/lib/leads-data";
+import { cn } from "@/lib/utils";
 
-const commands = [
-  { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard, group: "Navigation" },
-  { label: "Dialer", href: "/dialer", icon: Phone, group: "Navigation" },
-  { label: "Gmail", href: "/gmail", icon: Mail, group: "Navigation" },
-  { label: "Team Calendar", href: "/team-calendar", icon: Calendar, group: "Navigation" },
-  { label: "Prospects", href: "/sales-funnel/prospects", icon: UserPlus, group: "Deal Funnel" },
-  { label: "Leads", href: "/sales-funnel/leads", icon: Users, group: "Deal Funnel" },
-  { label: "My Leads", href: "/sales-funnel/leads/my-leads", icon: UserPlus, group: "Deal Funnel" },
-  { label: "Negotiation", href: "/sales-funnel/negotiation", icon: Zap, group: "Deal Funnel" },
-  { label: "Contacts", href: "/contacts", icon: Contact, group: "Navigation" },
-  { label: "DocuSign", href: "/docusign", icon: FileSignature, group: "Navigation" },
-  { label: "Campaigns", href: "/campaigns", icon: Megaphone, group: "Navigation" },
-  { label: "Analytics", href: "/analytics", icon: BarChart3, group: "Navigation" },
-  { label: "Settings", href: "/settings", icon: Settings, group: "Navigation" },
-  { label: "PPL", href: "/sales-funnel/ppl", icon: DollarSign, group: "Deal Funnel" },
-  { label: "Facebook/Craigslist", href: "/sales-funnel/facebook-craigslist", icon: Share2, group: "Deal Funnel" },
-  { label: "New Prospect", href: "#new-prospect", icon: UserPlus, group: "Actions" },
-  { label: "Quick Search Contacts", href: "#search-contacts", icon: Search, group: "Actions" },
+interface NavCommand {
+  kind: "nav";
+  label: string;
+  href: string;
+  icon: LucideIcon;
+  group: string;
+}
+
+interface DataResult {
+  kind: "lead" | "prospect" | "contact";
+  id: string;
+  primary: string;
+  secondary: string;
+  href: string;
+  score?: number;
+  scoreLabel?: "fire" | "hot" | "warm" | "cold";
+  status?: string;
+  source?: string;
+}
+
+type SearchResult = NavCommand | DataResult;
+
+const NAV_COMMANDS: NavCommand[] = [
+  { kind: "nav", label: "Dashboard", href: "/dashboard", icon: LayoutDashboard, group: "Pages" },
+  { kind: "nav", label: "Dialer", href: "/dialer", icon: Phone, group: "Pages" },
+  { kind: "nav", label: "Gmail", href: "/gmail", icon: Mail, group: "Pages" },
+  { kind: "nav", label: "Team Calendar", href: "/team-calendar", icon: Calendar, group: "Pages" },
+  { kind: "nav", label: "My Calendar", href: "/my-calendar", icon: Calendar, group: "Pages" },
+  { kind: "nav", label: "Prospects", href: "/sales-funnel/prospects", icon: UserPlus, group: "Deal Funnel" },
+  { kind: "nav", label: "Leads Hub", href: "/leads", icon: Users, group: "Deal Funnel" },
+  { kind: "nav", label: "Negotiation", href: "/sales-funnel/negotiation", icon: Zap, group: "Deal Funnel" },
+  { kind: "nav", label: "Disposition", href: "/sales-funnel/disposition", icon: Zap, group: "Deal Funnel" },
+  { kind: "nav", label: "Contacts", href: "/contacts", icon: Contact, group: "Pages" },
+  { kind: "nav", label: "DocuSign", href: "/docusign", icon: FileSignature, group: "Pages" },
+  { kind: "nav", label: "Campaigns", href: "/campaigns", icon: Megaphone, group: "Pages" },
+  { kind: "nav", label: "Analytics", href: "/analytics", icon: BarChart3, group: "Pages" },
+  { kind: "nav", label: "Settings", href: "/settings", icon: Settings, group: "Pages" },
+  { kind: "nav", label: "PPL", href: "/sales-funnel/ppl", icon: DollarSign, group: "Deal Funnel" },
+  { kind: "nav", label: "Facebook/Craigslist", href: "/sales-funnel/facebook-craigslist", icon: Share2, group: "Deal Funnel" },
 ];
+
+const CONTACT_DATA = [
+  { id: "c1", name: "Sarah Kim", company: "AZ Realty Group", phone: "(602) 555-0100", role: "Title Agent" },
+  { id: "c2", name: "Mike Reynolds", company: "Desert Title Co", phone: "(480) 555-0200", role: "Closer" },
+  { id: "c3", name: "Jennifer Torres", company: "Pinal County Records", phone: "(520) 555-0300", role: "County Clerk" },
+  { id: "c4", name: "Brian Patterson", company: "Phoenix Appraisals", phone: "(602) 555-0400", role: "Appraiser" },
+  { id: "c5", name: "Amanda Walsh", company: "Southwest Escrow", phone: "(480) 555-0500", role: "Escrow Officer" },
+];
+
+function matchesQuery(text: string, query: string): boolean {
+  const lower = query.toLowerCase();
+  return text.toLowerCase().includes(lower);
+}
+
+const SCORE_COLORS: Record<string, string> = {
+  fire: "text-orange-400 bg-orange-500/15 border-orange-500/30",
+  hot: "text-red-400 bg-red-500/15 border-red-500/30",
+  warm: "text-yellow-400 bg-yellow-500/15 border-yellow-500/30",
+  cold: "text-blue-400 bg-blue-500/15 border-blue-500/30",
+};
+
+const STATUS_LABELS: Record<string, string> = {
+  prospect: "Prospect",
+  lead: "Lead",
+  negotiation: "Negotiation",
+  nurture: "Nurture",
+  dead: "Dead",
+  closed: "Closed",
+};
 
 export function CommandPalette() {
   const router = useRouter();
   const { open, setOpen } = useCommandPalette();
   const { setCommandPaletteOpen } = useSentinelStore();
+  const [query, setQuery] = useState("");
 
-  const handleSelect = (href: string) => {
+  const handleClose = useCallback(() => {
+    setOpen(false);
+    setQuery("");
+  }, [setOpen]);
+
+  const handleSelect = useCallback((href: string) => {
     setCommandPaletteOpen(false);
-    if (href.startsWith("#")) {
-      // TODO: Handle actions
-      return;
-    }
+    setQuery("");
+    if (href.startsWith("#")) return;
     router.push(href);
-  };
+  }, [setCommandPaletteOpen, router]);
 
-  const groups = Array.from(new Set(commands.map((c) => c.group)));
+  const dataResults = useMemo((): DataResult[] => {
+    if (query.length < 2) return [];
+    const results: DataResult[] = [];
+
+    for (const lead of DUMMY_LEADS) {
+      const haystack = [
+        lead.ownerName, lead.address, lead.apn, lead.city,
+        lead.county, lead.notes ?? "", lead.source,
+        ...lead.tags, ...lead.distressSignals,
+      ].join(" ");
+
+      if (matchesQuery(haystack, query)) {
+        const isProspect = lead.status === "prospect";
+        results.push({
+          kind: isProspect ? "prospect" : "lead",
+          id: lead.id,
+          primary: lead.ownerName,
+          secondary: `${lead.address}, ${lead.city} ${lead.state} — ${lead.apn}`,
+          href: isProspect ? "/sales-funnel/prospects" : "/leads",
+          score: lead.score.composite,
+          scoreLabel: lead.score.label,
+          status: lead.status,
+          source: lead.source,
+        });
+      }
+    }
+
+    for (const contact of CONTACT_DATA) {
+      const haystack = [contact.name, contact.company, contact.phone, contact.role].join(" ");
+      if (matchesQuery(haystack, query)) {
+        results.push({
+          kind: "contact",
+          id: contact.id,
+          primary: contact.name,
+          secondary: `${contact.role} — ${contact.company}`,
+          href: "/contacts",
+        });
+      }
+    }
+
+    return results.slice(0, 12);
+  }, [query]);
+
+  const navResults = useMemo(() => {
+    if (!query) return NAV_COMMANDS;
+    return NAV_COMMANDS.filter((c) => matchesQuery(c.label, query));
+  }, [query]);
+
+  const hasData = dataResults.length > 0;
+  const prospects = dataResults.filter((r) => r.kind === "prospect");
+  const leads = dataResults.filter((r) => r.kind === "lead");
+  const contacts = dataResults.filter((r) => r.kind === "contact");
 
   return (
     <AnimatePresence>
@@ -68,76 +181,175 @@ export function CommandPalette() {
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm"
-            onClick={() => setOpen(false)}
+            onClick={handleClose}
           />
           <motion.div
             initial={{ opacity: 0, scale: 0.96, y: -10 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.96, y: -10 }}
             transition={{ duration: 0.15 }}
-            className="fixed left-1/2 top-[20%] z-50 w-full max-w-lg -translate-x-1/2"
+            className="fixed left-1/2 top-[15%] z-50 w-full max-w-2xl -translate-x-1/2"
           >
-            <Command className="rounded-xl glass-strong border border-glass-border shadow-2xl overflow-hidden">
+            <Command
+              className="rounded-xl glass-strong border border-glass-border shadow-2xl overflow-hidden"
+              shouldFilter={false}
+            >
               <div className="flex items-center border-b border-glass-border px-3">
-                <Search className="mr-2 h-4 w-4 shrink-0 text-muted-foreground" />
+                <Search className="mr-2 h-4 w-4 shrink-0 text-neon/70" />
                 <Command.Input
-                  placeholder="Search commands, pages, leads..."
+                  placeholder="Search owners, addresses, APNs, contacts, pages..."
                   className="flex h-12 w-full bg-transparent py-3 text-sm outline-none placeholder:text-muted-foreground"
+                  value={query}
+                  onValueChange={setQuery}
                 />
-              </div>
-              <Command.List className="max-h-[300px] overflow-y-auto p-2">
-                <Command.Empty className="py-6 text-center text-sm text-muted-foreground">
-                  No results found.
-                </Command.Empty>
-                {groups.map((group) => (
-                  <Command.Group
-                    key={group}
-                    heading={group}
-                    className="[&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:py-1.5 [&_[cmdk-group-heading]]:text-xs [&_[cmdk-group-heading]]:font-medium [&_[cmdk-group-heading]]:text-muted-foreground"
+                {query && (
+                  <button
+                    onClick={() => setQuery("")}
+                    className="text-[10px] text-muted-foreground hover:text-foreground px-2 py-1 rounded border border-glass-border"
                   >
-                    {commands
-                      .filter((c) => c.group === group)
-                      .map((cmd) => {
-                        const Icon = cmd.icon;
-                        return (
-                          <Command.Item
-                            key={cmd.href}
-                            value={cmd.label}
-                            onSelect={() => handleSelect(cmd.href)}
-                            className="flex items-center gap-3 rounded-lg px-2 py-2 text-sm cursor-pointer aria-selected:bg-accent aria-selected:text-accent-foreground transition-colors"
-                          >
-                            <Icon className="h-4 w-4 text-muted-foreground" />
-                            <span>{cmd.label}</span>
-                          </Command.Item>
-                        );
-                      })}
+                    Clear
+                  </button>
+                )}
+              </div>
+              <Command.List className="max-h-[420px] overflow-y-auto p-2">
+                <Command.Empty className="py-8 text-center text-sm text-muted-foreground">
+                  {query.length < 2
+                    ? "Type at least 2 characters to search records..."
+                    : "No matching records found."}
+                </Command.Empty>
+
+                {prospects.length > 0 && (
+                  <Command.Group
+                    heading="Prospects"
+                    className="[&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:py-1.5 [&_[cmdk-group-heading]]:text-[10px] [&_[cmdk-group-heading]]:font-semibold [&_[cmdk-group-heading]]:text-neon/70 [&_[cmdk-group-heading]]:uppercase [&_[cmdk-group-heading]]:tracking-wider"
+                  >
+                    {prospects.map((r) => (
+                      <DataResultItem key={r.id} result={r} onSelect={handleSelect} />
+                    ))}
                   </Command.Group>
-                ))}
+                )}
+
+                {leads.length > 0 && (
+                  <Command.Group
+                    heading="Leads"
+                    className="[&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:py-1.5 [&_[cmdk-group-heading]]:text-[10px] [&_[cmdk-group-heading]]:font-semibold [&_[cmdk-group-heading]]:text-neon/70 [&_[cmdk-group-heading]]:uppercase [&_[cmdk-group-heading]]:tracking-wider"
+                  >
+                    {leads.map((r) => (
+                      <DataResultItem key={r.id} result={r} onSelect={handleSelect} />
+                    ))}
+                  </Command.Group>
+                )}
+
+                {contacts.length > 0 && (
+                  <Command.Group
+                    heading="Contacts"
+                    className="[&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:py-1.5 [&_[cmdk-group-heading]]:text-[10px] [&_[cmdk-group-heading]]:font-semibold [&_[cmdk-group-heading]]:text-neon/70 [&_[cmdk-group-heading]]:uppercase [&_[cmdk-group-heading]]:tracking-wider"
+                  >
+                    {contacts.map((r) => (
+                      <DataResultItem key={r.id} result={r} onSelect={handleSelect} />
+                    ))}
+                  </Command.Group>
+                )}
+
+                {navResults.length > 0 && (
+                  <Command.Group
+                    heading="Pages"
+                    className="[&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:py-1.5 [&_[cmdk-group-heading]]:text-[10px] [&_[cmdk-group-heading]]:font-semibold [&_[cmdk-group-heading]]:text-muted-foreground [&_[cmdk-group-heading]]:uppercase [&_[cmdk-group-heading]]:tracking-wider"
+                  >
+                    {navResults.map((cmd) => {
+                      const Icon = cmd.icon;
+                      return (
+                        <Command.Item
+                          key={cmd.href}
+                          value={cmd.label}
+                          onSelect={() => handleSelect(cmd.href)}
+                          className="flex items-center gap-3 rounded-lg px-2 py-2 text-sm cursor-pointer aria-selected:bg-accent aria-selected:text-accent-foreground transition-colors"
+                        >
+                          <Icon className="h-4 w-4 text-muted-foreground shrink-0" />
+                          <span className="flex-1">{cmd.label}</span>
+                          <ArrowRight className="h-3 w-3 text-muted-foreground/40" />
+                        </Command.Item>
+                      );
+                    })}
+                  </Command.Group>
+                )}
               </Command.List>
               <div className="border-t border-glass-border px-3 py-2 flex items-center gap-4 text-[11px] text-muted-foreground">
                 <span>
-                  <kbd className="font-mono bg-background/50 px-1 py-0.5 rounded border border-glass-border">
-                    ↑↓
-                  </kbd>{" "}
+                  <kbd className="font-mono bg-background/50 px-1 py-0.5 rounded border border-glass-border">↑↓</kbd>{" "}
                   Navigate
                 </span>
                 <span>
-                  <kbd className="font-mono bg-background/50 px-1 py-0.5 rounded border border-glass-border">
-                    ↵
-                  </kbd>{" "}
-                  Select
+                  <kbd className="font-mono bg-background/50 px-1 py-0.5 rounded border border-glass-border">↵</kbd>{" "}
+                  Open
                 </span>
                 <span>
-                  <kbd className="font-mono bg-background/50 px-1 py-0.5 rounded border border-glass-border">
-                    Esc
-                  </kbd>{" "}
+                  <kbd className="font-mono bg-background/50 px-1 py-0.5 rounded border border-glass-border">Esc</kbd>{" "}
                   Close
                 </span>
+                {hasData && (
+                  <span className="ml-auto text-neon/60">
+                    {dataResults.length} record{dataResults.length !== 1 ? "s" : ""} found
+                  </span>
+                )}
               </div>
             </Command>
           </motion.div>
         </>
       )}
     </AnimatePresence>
+  );
+}
+
+function DataResultItem({ result, onSelect }: { result: DataResult; onSelect: (href: string) => void }) {
+  const kindIcon: Record<string, LucideIcon> = {
+    prospect: UserPlus,
+    lead: Users,
+    contact: User,
+  };
+  const Icon = kindIcon[result.kind] ?? MapPin;
+
+  return (
+    <Command.Item
+      value={`${result.primary} ${result.secondary}`}
+      onSelect={() => onSelect(result.href)}
+      className="flex items-center gap-3 rounded-lg px-2 py-2.5 text-sm cursor-pointer aria-selected:bg-accent aria-selected:text-accent-foreground transition-colors group"
+    >
+      <div className={cn(
+        "h-7 w-7 rounded-md flex items-center justify-center shrink-0 border",
+        result.kind === "prospect" ? "bg-neon/10 border-neon/20 text-neon" :
+        result.kind === "lead" ? "bg-blue-500/10 border-blue-500/20 text-blue-400" :
+        "bg-secondary/40 border-glass-border text-muted-foreground"
+      )}>
+        <Icon className="h-3.5 w-3.5" />
+      </div>
+      <div className="flex-1 min-w-0">
+        <p
+          className="text-sm font-semibold truncate text-foreground"
+          style={{
+            textShadow: "0 0 8px rgba(0,255,136,0.1)",
+            WebkitFontSmoothing: "antialiased",
+          }}
+        >
+          {result.primary}
+        </p>
+        <p className="text-[11px] text-muted-foreground truncate">{result.secondary}</p>
+      </div>
+      {result.score != null && result.scoreLabel && (
+        <span className={cn(
+          "text-[9px] px-1.5 py-0.5 rounded border font-bold shrink-0",
+          SCORE_COLORS[result.scoreLabel]
+        )}>
+          {result.scoreLabel === "fire" && <Flame className="h-2 w-2 inline mr-0.5" />}
+          {result.score}
+        </span>
+      )}
+      {result.status && (
+        <span className="text-[9px] px-1.5 py-0.5 rounded bg-secondary/40 text-muted-foreground border border-glass-border shrink-0">
+          {STATUS_LABELS[result.status] ?? result.status}
+        </span>
+      )}
+      <ArrowRight className="h-3 w-3 text-muted-foreground/30 group-aria-selected:text-neon/50 shrink-0" />
+    </Command.Item>
   );
 }

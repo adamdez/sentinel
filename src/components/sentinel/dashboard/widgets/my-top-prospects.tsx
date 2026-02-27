@@ -100,8 +100,21 @@ export function MyTopProspects() {
             {i + 1}
           </span>
           <div className="flex-1 min-w-0">
-            <p className="text-xs font-medium truncate">{prospect.name}</p>
-            <p className="text-[10px] text-muted-foreground truncate">{prospect.address}</p>
+            <p
+              className="text-xs font-semibold truncate text-foreground"
+              style={{
+                textShadow: "0 0 8px rgba(0,255,136,0.15), 0 0 16px rgba(0,255,136,0.06)",
+                WebkitFontSmoothing: "antialiased",
+              }}
+            >
+              {prospect.name}
+            </p>
+            <p
+              className="text-[10px] font-medium text-muted-foreground/90 truncate"
+              style={{ WebkitFontSmoothing: "antialiased" }}
+            >
+              {prospect.address}
+            </p>
           </div>
           <Badge variant="outline" className="text-[9px] shrink-0 hidden sm:flex">
             {prospect.distressLabel}

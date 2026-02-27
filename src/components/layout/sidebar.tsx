@@ -12,7 +12,6 @@ import {
   CalendarDays,
   UserPlus,
   Users,
-  UserCheck,
   Handshake,
   FileCheck,
   Heart,
@@ -60,14 +59,7 @@ const sections: NavSection[] = [
     title: "Deal Funnel",
     items: [
       { label: "Prospects", href: "/sales-funnel/prospects", icon: UserPlus },
-      {
-        label: "Leads",
-        href: "/leads",
-        icon: Users,
-        children: [
-          { label: "My Leads", href: "/sales-funnel/leads/my-leads", icon: UserCheck },
-        ],
-      },
+      { label: "Leads", href: "/leads", icon: Users },
       { label: "Negotiation", href: "/sales-funnel/negotiation", icon: Handshake },
       { label: "Disposition", href: "/sales-funnel/disposition", icon: FileCheck },
       { label: "Nurture", href: "/sales-funnel/nurture", icon: Heart },

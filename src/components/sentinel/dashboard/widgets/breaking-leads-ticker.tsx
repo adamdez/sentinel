@@ -90,7 +90,15 @@ export function BreakingLeadsTicker() {
               "h-3 w-3 shrink-0",
               item.label === "fire" ? "text-orange-400" : "text-neon"
             )} style={item.label === "fire" ? { filter: "drop-shadow(0 0 3px rgba(255,107,53,0.5))" } : {}} />
-            <span className="font-medium truncate flex-1">{item.name}</span>
+            <span
+              className="font-semibold truncate flex-1 text-foreground"
+              style={{
+                textShadow: "0 0 8px rgba(0,255,136,0.15), 0 0 16px rgba(0,255,136,0.06)",
+                WebkitFontSmoothing: "antialiased",
+              }}
+            >
+              {item.name}
+            </span>
             {item.source && SOURCE_MAP[item.source] && (
               <span className={cn("text-[7px] px-1 py-0 rounded border font-semibold shrink-0", SOURCE_MAP[item.source].color)}>
                 {SOURCE_MAP[item.source].label}

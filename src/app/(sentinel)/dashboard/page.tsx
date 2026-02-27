@@ -1,11 +1,10 @@
 "use client";
 
-import { motion } from "framer-motion";
 import { Zap, Shield } from "lucide-react";
 import { PageShell } from "@/components/sentinel/page-shell";
 import { DashboardGrid } from "@/components/sentinel/dashboard/dashboard-grid";
+import { BreakingLeadsSidebar } from "@/components/sentinel/dashboard/breaking-leads-sidebar";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { useSentinelStore } from "@/lib/store";
 import { SCORING_MODEL_VERSION } from "@/lib/scoring";
 
@@ -34,7 +33,12 @@ export default function DashboardPage() {
         </div>
       }
     >
-      <DashboardGrid />
+      <div className="flex gap-4">
+        <div className="flex-1 min-w-0">
+          <DashboardGrid />
+        </div>
+        <BreakingLeadsSidebar />
+      </div>
     </PageShell>
   );
 }

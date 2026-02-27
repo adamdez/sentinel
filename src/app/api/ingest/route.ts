@@ -162,5 +162,18 @@ export async function GET() {
         },
       ],
     },
+    sub_endpoints: {
+      "/api/ingest/propertyradar": {
+        method: "POST",
+        description: "Single-property ingestion from PropertyRadar with automatic AI scoring",
+        body: "{ address: string } or { apn: string }",
+        requires: "PROPERTYRADAR_API_KEY env var",
+      },
+      "/api/ranger-push": {
+        method: "POST",
+        description: "Dominion Ranger prowler push — receives scored leads from Dominion",
+        body: "Charter Section 7 payload",
+      },
+    },
   });
 }

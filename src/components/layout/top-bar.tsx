@@ -2,7 +2,6 @@
 
 import { motion } from "framer-motion";
 import {
-  Search,
   Ghost,
   PanelLeftClose,
   PanelLeft,
@@ -28,6 +27,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { useSentinelStore } from "@/lib/store";
 import { useRealtime } from "@/providers/realtime-provider";
+import { GlobalSearch } from "./global-search";
 
 export function TopBar() {
   const {
@@ -35,7 +35,6 @@ export function TopBar() {
     toggleSidebar,
     ghostMode,
     setGhostMode,
-    setCommandPaletteOpen,
     currentUser,
   } = useSentinelStore();
   const { connected } = useRealtime();
@@ -65,16 +64,7 @@ export function TopBar() {
           <TooltipContent>Toggle sidebar</TooltipContent>
         </Tooltip>
 
-        <button
-          onClick={() => setCommandPaletteOpen(true)}
-          className="flex items-center gap-2 h-8 px-3 rounded-lg bg-secondary/50 border border-glass-border text-muted-foreground text-sm hover:bg-secondary/80 transition-colors min-w-[240px]"
-        >
-          <Search className="h-3.5 w-3.5" />
-          <span>Search Sentinel...</span>
-          <kbd className="ml-auto text-[10px] bg-background/50 px-1.5 py-0.5 rounded border border-glass-border font-mono">
-            Ctrl+K
-          </kbd>
-        </button>
+        <GlobalSearch />
       </div>
 
       <div className="flex items-center gap-3">

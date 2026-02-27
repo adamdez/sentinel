@@ -1,117 +1,59 @@
 "use client";
 
-import { motion } from "framer-motion";
-import { UserPlus, Search, Filter, ArrowUpDown, Phone, MoreHorizontal, Radar, Zap } from "lucide-react";
+import { useCallback, useState } from "react";
+import { motion, AnimatePresence } from "framer-motion";
+import {
+  UserPlus, Search, Filter, ArrowUpDown, ArrowUp, ArrowDown,
+  Phone, MoreHorizontal, Radar, Loader2, AlertCircle,
+  RefreshCw, Shield, UserCheck,
+} from "lucide-react";
 import { PageShell } from "@/components/sentinel/page-shell";
 import { GlassCard } from "@/components/sentinel/glass-card";
 import { AIScoreBadge } from "@/components/sentinel/ai-score-badge";
+import { ProspectDetailModal } from "@/components/sentinel/prospects/prospect-detail-modal";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
+import { useProspects, type ProspectRow, type SortField, type SortDir } from "@/hooks/use-prospects";
+import { supabase } from "@/lib/supabase";
+import { useSentinelStore } from "@/lib/store";
 import type { AIScore } from "@/lib/types";
 
-interface Prospect {
-  name: string;
-  address: string;
-  apn: string;
-  county: string;
-  type: string;
-  phone: string;
-  score: AIScore;
-  source: "ranger_push" | "scraper" | "manual";
-  pushedAt?: string;
-}
+// ── Constants ─────────────────────────────────────────────────────────
 
-const prospects: Prospect[] = [
-  {
-    name: "Eleanor Voss",
-    address: "4201 E Camelback Rd, Phoenix AZ 85018",
-    apn: "SPK-2025-001",
-    county: "Maricopa",
-    type: "Probate + Vacant + Inherited",
-    phone: "(602) 555-9001",
-    score: { composite: 100, motivation: 96, equityVelocity: 88, urgency: 98, historicalConversion: 90, aiBoost: 15, label: "fire" },
-    source: "ranger_push",
-    pushedAt: "12m ago",
-  },
-  {
-    name: "Raymond Alcazar",
-    address: "1910 N Scottsdale Rd, Tempe AZ 85281",
-    apn: "SPK-2025-002",
-    county: "Maricopa",
-    type: "Pre-Foreclosure + Absentee",
-    phone: "(480) 555-9002",
-    score: { composite: 86, motivation: 82, equityVelocity: 74, urgency: 85, historicalConversion: 70, aiBoost: 8, label: "fire" },
-    source: "ranger_push",
-    pushedAt: "25m ago",
-  },
-  {
-    name: "Theresa Whitfield",
-    address: "7340 W Indian School Rd, Mesa AZ 85210",
-    apn: "SPK-2025-003",
-    county: "Maricopa",
-    type: "Tax Lien + Code Violation",
-    phone: "(480) 555-9003",
-    score: { composite: 79, motivation: 70, equityVelocity: 65, urgency: 76, historicalConversion: 62, aiBoost: 4, label: "hot" },
-    source: "ranger_push",
-    pushedAt: "38m ago",
-  },
-  {
-    name: "Margaret Henderson",
-    address: "1423 Oak Valley Dr, Phoenix AZ 85004",
-    apn: "123-45-678",
-    county: "Maricopa",
-    type: "Probate",
-    phone: "(602) 555-0142",
-    score: { composite: 94, motivation: 88, equityVelocity: 92, urgency: 96, historicalConversion: 85, aiBoost: 12, label: "fire" },
-    source: "scraper",
-  },
-  {
-    name: "Robert Chen",
-    address: "890 Maple St, Mesa AZ 85201",
-    apn: "234-56-789",
-    county: "Maricopa",
-    type: "Pre-Foreclosure",
-    phone: "(480) 555-0198",
-    score: { composite: 82, motivation: 78, equityVelocity: 85, urgency: 80, historicalConversion: 72, aiBoost: 8, label: "hot" },
-    source: "scraper",
-  },
-  {
-    name: "Lisa Morales",
-    address: "2100 Desert Ridge, Scottsdale AZ 85255",
-    apn: "345-67-890",
-    county: "Maricopa",
-    type: "Tax Lien",
-    phone: "(602) 555-0267",
-    score: { composite: 67, motivation: 62, equityVelocity: 70, urgency: 55, historicalConversion: 68, aiBoost: 5, label: "warm" },
-    source: "scraper",
-  },
-  {
-    name: "James Walker",
-    address: "445 Central Ave, Tempe AZ 85281",
-    apn: "456-78-901",
-    county: "Maricopa",
-    type: "Vacant",
-    phone: "(480) 555-0334",
-    score: { composite: 43, motivation: 40, equityVelocity: 50, urgency: 35, historicalConversion: 45, aiBoost: 0, label: "cold" },
-    source: "manual",
-  },
+const DISTRESS_LABELS: Record<string, string> = {
+  probate: "Probate", pre_foreclosure: "Pre-Foreclosure", tax_lien: "Tax Lien",
+  code_violation: "Code Violation", vacant: "Vacant", divorce: "Divorce",
+  bankruptcy: "Bankruptcy", fsbo: "FSBO", absentee: "Absentee", inherited: "Inherited",
+};
+
+const SOURCE_FILTERS = [
+  { value: "", label: "All Sources" },
+  { value: "propertyradar", label: "PropertyRadar" },
+  { value: "ranger_push", label: "Ranger" },
+  { value: "manual", label: "Manual" },
 ];
 
-const rangerCount = prospects.filter((p) => p.source === "ranger_push").length;
+// ── Subcomponents ─────────────────────────────────────────────────────
 
-function SourceBadge({ source, pushedAt }: { source: string; pushedAt?: string }) {
+function SourceBadge({ source }: { source: string }) {
   if (source === "ranger_push") {
     return (
       <span className="inline-flex items-center gap-1 text-[9px] px-1.5 py-0.5 rounded border font-semibold text-purple-400 bg-purple-500/10 border-purple-500/20">
         <Radar className="h-2.5 w-2.5" />
         RANGER
-        {pushedAt && <span className="text-purple-400/60 font-normal ml-0.5">{pushedAt}</span>}
       </span>
     );
   }
-  if (source === "scraper") {
+  if (source === "propertyradar") {
+    return (
+      <span className="text-[9px] px-1.5 py-0.5 rounded border font-semibold text-emerald-400 bg-emerald-500/10 border-emerald-500/20">
+        PROPRADAR
+      </span>
+    );
+  }
+  if (source.includes("scraper") || source.includes("api")) {
     return (
       <span className="text-[9px] px-1.5 py-0.5 rounded border text-cyan-400 bg-cyan-500/10 border-cyan-500/20">
         SCRAPER
@@ -125,19 +67,122 @@ function SourceBadge({ source, pushedAt }: { source: string; pushedAt?: string }
   );
 }
 
+function formatDistress(signals: string[]): string {
+  if (signals.length === 0) return "—";
+  return signals.slice(0, 3).map((s) => DISTRESS_LABELS[s] ?? s).join(" + ")
+    + (signals.length > 3 ? ` +${signals.length - 3}` : "");
+}
+
+function buildAIScore(p: ProspectRow): AIScore {
+  return {
+    composite: p.composite_score,
+    motivation: p.motivation_score,
+    equityVelocity: Math.round((p.equity_percent ?? 50) * 0.8),
+    urgency: Math.min(p.composite_score + 5, 100),
+    historicalConversion: Math.round(p.deal_score * 0.9),
+    aiBoost: p.ai_boost,
+    label: p.score_label,
+  };
+}
+
+// ── Page ──────────────────────────────────────────────────────────────
+
 export default function ProspectsPage() {
+  const { currentUser } = useSentinelStore();
+
+  const [search, setSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+  const [sortField, setSortField] = useState<SortField>("composite_score");
+  const [sortDir, setSortDir] = useState<SortDir>("desc");
+  const [sourceFilter, setSourceFilter] = useState("");
+  const [selectedProspect, setSelectedProspect] = useState<ProspectRow | null>(null);
+  const [modalOpen, setModalOpen] = useState(false);
+  const [claiming, setClaiming] = useState<string | null>(null);
+
+  // Debounce search input
+  const [debounceTimer, setDebounceTimer] = useState<ReturnType<typeof setTimeout> | null>(null);
+  const handleSearchChange = useCallback((value: string) => {
+    setSearch(value);
+    if (debounceTimer) clearTimeout(debounceTimer);
+    const timer = setTimeout(() => setDebouncedSearch(value), 300);
+    setDebounceTimer(timer);
+  }, [debounceTimer]);
+
+  const { prospects, loading, error, totalCount, refetch } = useProspects({
+    search: debouncedSearch,
+    sortField,
+    sortDir,
+    sourceFilter: sourceFilter || undefined,
+  });
+
+  const rangerCount = prospects.filter((p) => p.source === "ranger_push").length;
+  const prCount = prospects.filter((p) => p.source === "propertyradar").length;
+
+  const toggleSort = (field: SortField) => {
+    if (sortField === field) {
+      setSortDir((d) => (d === "desc" ? "asc" : "desc"));
+    } else {
+      setSortField(field);
+      setSortDir("desc");
+    }
+  };
+
+  const SortIcon = sortDir === "desc" ? ArrowDown : ArrowUp;
+
+  const openDetail = (p: ProspectRow) => {
+    setSelectedProspect(p);
+    setModalOpen(true);
+  };
+
+  const handleClaim = async (leadId: string) => {
+    setClaiming(leadId);
+    try {
+      // TODO: Replace with proper RBAC-gated server action
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { error: claimError } = await (supabase.from("leads") as any)
+        .update({
+          status: "lead",
+          assigned_to: currentUser.id,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", leadId)
+        .eq("lock_version", 0);
+
+      if (claimError) {
+        console.error("[Prospects] Claim failed:", claimError);
+        // TODO: Show toast notification
+      } else {
+        setModalOpen(false);
+        // TODO: Audit log entry for claim action
+        // TODO: Compliance check before allowing dial
+        refetch();
+      }
+    } finally {
+      setClaiming(null);
+    }
+  };
+
   return (
     <PageShell
       title="Prospects"
-      description="Incoming property prospects scored by AI — Ranger pushes land here first"
+      description="Live property prospects scored by AI — new leads appear in real-time"
       actions={
         <div className="flex items-center gap-2">
           {rangerCount > 0 && (
             <Badge variant="neon" className="text-[10px] gap-1">
               <Radar className="h-2.5 w-2.5" />
-              {rangerCount} Ranger {rangerCount === 1 ? "Push" : "Pushes"}
+              {rangerCount} Ranger
             </Badge>
           )}
+          {prCount > 0 && (
+            <Badge variant="outline" className="text-[10px] gap-1 text-emerald-400 border-emerald-500/30">
+              {prCount} PropRadar
+            </Badge>
+          )}
+          <Button size="sm" variant="outline" className="gap-2 text-xs" onClick={refetch}>
+            <RefreshCw className={cn("h-3 w-3", loading && "animate-spin")} />
+            Refresh
+          </Button>
           <Button size="sm" className="gap-2 text-xs">
             <UserPlus className="h-3 w-3" />
             Add Prospect
@@ -146,82 +191,250 @@ export default function ProspectsPage() {
       }
     >
       <GlassCard hover={false}>
-        <div className="flex items-center gap-3 mb-4">
-          <div className="relative flex-1 max-w-sm">
+        {/* Search + Filters */}
+        <div className="flex items-center gap-3 mb-4 flex-wrap">
+          <div className="relative flex-1 min-w-[200px] max-w-sm">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input placeholder="Search prospects by name, APN, address..." className="pl-9" />
+            <Input
+              placeholder="Search by name, APN, address..."
+              className="pl-9"
+              value={search}
+              onChange={(e) => handleSearchChange(e.target.value)}
+            />
           </div>
-          <Button variant="outline" size="sm" className="gap-2 text-xs">
-            <Filter className="h-3 w-3" />
-            Filter
-          </Button>
-          <Button variant="outline" size="sm" className="gap-2 text-xs">
-            <ArrowUpDown className="h-3 w-3" />
-            Sort by Score
-          </Button>
-          <Badge variant="outline" className="text-[10px] ml-auto">
-            {prospects.length} prospects
+
+          {/* Source filter */}
+          <div className="flex items-center gap-1">
+            <Filter className="h-3 w-3 text-muted-foreground" />
+            {SOURCE_FILTERS.map((sf) => (
+              <button
+                key={sf.value}
+                onClick={() => setSourceFilter(sf.value)}
+                className={cn(
+                  "text-[10px] px-2 py-1 rounded border transition-all",
+                  sourceFilter === sf.value
+                    ? "text-neon border-neon/30 bg-neon/10"
+                    : "text-muted-foreground border-glass-border hover:text-foreground hover:border-white/10"
+                )}
+              >
+                {sf.label}
+              </button>
+            ))}
+          </div>
+
+          {/* Sort controls */}
+          <div className="flex items-center gap-1 ml-auto">
+            <ArrowUpDown className="h-3 w-3 text-muted-foreground" />
+            {(["composite_score", "promoted_at", "owner_name"] as SortField[]).map((field) => (
+              <button
+                key={field}
+                onClick={() => toggleSort(field)}
+                className={cn(
+                  "text-[10px] px-2 py-1 rounded border transition-all inline-flex items-center gap-1",
+                  sortField === field
+                    ? "text-neon border-neon/30 bg-neon/10"
+                    : "text-muted-foreground border-glass-border hover:text-foreground"
+                )}
+              >
+                {field === "composite_score" ? "Score" : field === "promoted_at" ? "Date" : "Name"}
+                {sortField === field && <SortIcon className="h-2.5 w-2.5" />}
+              </button>
+            ))}
+          </div>
+
+          <Badge variant="outline" className="text-[10px] shrink-0">
+            {totalCount} prospects
           </Badge>
         </div>
 
-        <div className="overflow-hidden rounded-lg border border-glass-border">
-          <table className="w-full">
-            <thead>
-              <tr className="border-b border-glass-border bg-secondary/20">
-                <th className="text-left p-3 text-xs font-medium text-muted-foreground">Owner / Property</th>
-                <th className="text-left p-3 text-xs font-medium text-muted-foreground">APN</th>
-                <th className="text-left p-3 text-xs font-medium text-muted-foreground">Source</th>
-                <th className="text-left p-3 text-xs font-medium text-muted-foreground">Type</th>
-                <th className="text-left p-3 text-xs font-medium text-muted-foreground">AI Score</th>
-                <th className="text-right p-3 text-xs font-medium text-muted-foreground">Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {prospects.map((p, i) => (
-                <motion.tr
-                  key={p.apn}
-                  initial={{ opacity: 0, y: 4 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: i * 0.03 }}
-                  className={cn(
-                    "border-b border-glass-border hover:bg-secondary/10 transition-colors",
-                    p.source === "ranger_push" && "bg-purple-500/[0.02] hover:bg-purple-500/[0.05]"
-                  )}
-                >
-                  <td className="p-3">
-                    <p className="text-sm font-medium">{p.name}</p>
-                    <p className="text-xs text-muted-foreground">{p.address}</p>
-                  </td>
-                  <td className="p-3 text-sm font-mono text-muted-foreground">{p.apn}</td>
-                  <td className="p-3">
-                    <SourceBadge source={p.source} pushedAt={p.pushedAt} />
-                  </td>
-                  <td className="p-3">
-                    <Badge variant="outline" className="text-[10px]">{p.type}</Badge>
-                  </td>
-                  <td className="p-3">
-                    <AIScoreBadge score={p.score} size="sm" />
-                  </td>
-                  <td className="p-3">
-                    <div className="flex items-center justify-end gap-1">
-                      <Button variant="ghost" size="icon" className="h-7 w-7">
-                        <Phone className="h-3 w-3" />
-                      </Button>
-                      <Button variant="ghost" size="icon" className="h-7 w-7">
-                        <MoreHorizontal className="h-3 w-3" />
-                      </Button>
-                    </div>
-                  </td>
-                </motion.tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-        {/* TODO: Paginated with cursor-based pagination */}
-        {/* TODO: Optimistic updates on status change */}
-        {/* TODO: Bulk actions (promote, suppress, assign) */}
-        {/* TODO: Real-time subscription — new Ranger pushes appear instantly */}
+        {/* Error state */}
+        {error && (
+          <div className="p-4 mb-4 rounded-lg border border-red-500/20 bg-red-500/5 space-y-2">
+            <div className="flex items-center gap-3 text-red-400 text-sm">
+              <AlertCircle className="h-4 w-4 shrink-0" />
+              <span className="flex-1">{error}</span>
+              <Button size="sm" variant="outline" className="text-xs" onClick={refetch}>
+                Retry
+              </Button>
+            </div>
+            <p className="text-[10px] text-red-400/60 font-mono">
+              Query: leads.select(&apos;*, properties(*)&apos;).eq(&apos;status&apos;, &apos;prospect&apos;) — Check browser console for full error
+            </p>
+          </div>
+        )}
+
+        {/* Loading state */}
+        {loading && prospects.length === 0 && (
+          <div className="flex items-center justify-center py-20 text-muted-foreground gap-3">
+            <Loader2 className="h-5 w-5 animate-spin" />
+            <span className="text-sm">Loading prospects from Supabase...</span>
+          </div>
+        )}
+
+        {/* Empty state */}
+        {!loading && !error && prospects.length === 0 && (
+          <div className="flex flex-col items-center justify-center py-20 text-muted-foreground gap-3">
+            <UserPlus className="h-8 w-8 opacity-30" />
+            <p className="text-sm">No prospects found</p>
+            <p className="text-xs">Ingest a property from PropertyRadar or push from Ranger to get started.</p>
+          </div>
+        )}
+
+        {/* Table */}
+        {prospects.length > 0 && (
+          <div className="overflow-hidden rounded-lg border border-glass-border">
+            <table className="w-full">
+              <thead>
+                <tr className="border-b border-glass-border bg-secondary/20">
+                  <th className="text-left p-3 text-xs font-medium text-muted-foreground">Property / Owner</th>
+                  <th className="text-left p-3 text-xs font-medium text-muted-foreground">APN</th>
+                  <th className="text-left p-3 text-xs font-medium text-muted-foreground">Source</th>
+                  <th className="text-left p-3 text-xs font-medium text-muted-foreground">Type</th>
+                  <th className="text-right p-3 text-xs font-medium text-muted-foreground">ARV</th>
+                  <th className="text-right p-3 text-xs font-medium text-muted-foreground">Equity %</th>
+                  <th
+                    className="text-left p-3 text-xs font-medium text-muted-foreground cursor-pointer hover:text-foreground transition-colors"
+                    onClick={() => toggleSort("composite_score")}
+                  >
+                    <span className="inline-flex items-center gap-1">
+                      AI Score
+                      {sortField === "composite_score" && <SortIcon className="h-2.5 w-2.5 text-neon" />}
+                    </span>
+                  </th>
+                  <th className="text-right p-3 text-xs font-medium text-muted-foreground">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                <AnimatePresence mode="popLayout">
+                  {prospects.map((p, i) => (
+                    <motion.tr
+                      key={p.id}
+                      layout
+                      initial={{ opacity: 0, y: 4 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, x: -20 }}
+                      transition={{ delay: Math.min(i * 0.02, 0.5) }}
+                      onClick={() => openDetail(p)}
+                      className={cn(
+                        "border-b border-glass-border hover:bg-secondary/10 transition-colors cursor-pointer",
+                        p.source === "ranger_push" && "bg-purple-500/[0.02] hover:bg-purple-500/[0.05]",
+                        p.source === "propertyradar" && "bg-emerald-500/[0.02] hover:bg-emerald-500/[0.05]"
+                      )}
+                    >
+                      <td className="p-3">
+                        <p
+                          className="text-sm font-semibold text-foreground"
+                          style={{
+                            textShadow: "0 0 8px rgba(0,255,136,0.15), 0 0 16px rgba(0,255,136,0.06)",
+                            WebkitFontSmoothing: "antialiased",
+                          }}
+                        >
+                          {p.address}{p.city ? `, ${p.city}` : ""} {p.state} {p.zip}
+                        </p>
+                        <p
+                          className="text-xs font-medium text-muted-foreground/90"
+                          style={{ WebkitFontSmoothing: "antialiased" }}
+                        >
+                          {p.owner_name}
+                        </p>
+                      </td>
+                      <td className="p-3 text-sm font-mono text-muted-foreground">{p.apn}</td>
+                      <td className="p-3">
+                        <SourceBadge source={p.source} />
+                      </td>
+                      <td className="p-3">
+                        <Badge variant="outline" className="text-[10px] max-w-[180px] truncate">
+                          {formatDistress(p.tags)}
+                        </Badge>
+                      </td>
+                      <td className="p-3 text-right">
+                        {p.estimated_value ? (
+                          <span className="text-sm font-semibold text-foreground" style={{ WebkitFontSmoothing: "antialiased" }}>
+                            ${p.estimated_value.toLocaleString()}
+                          </span>
+                        ) : (
+                          <span className="text-xs text-muted-foreground/50">—</span>
+                        )}
+                      </td>
+                      <td className="p-3 text-right">
+                        {p.equity_percent != null ? (
+                          <span className={cn(
+                            "text-sm font-semibold",
+                            p.equity_percent >= 60 ? "text-neon" : p.equity_percent >= 30 ? "text-yellow-400" : "text-muted-foreground"
+                          )} style={{ WebkitFontSmoothing: "antialiased" }}>
+                            {Math.round(p.equity_percent)}%
+                          </span>
+                        ) : (
+                          <span className="text-xs text-muted-foreground/50">—</span>
+                        )}
+                      </td>
+                      <td className="p-3">
+                        <AIScoreBadge score={buildAIScore(p)} size="sm" />
+                      </td>
+                      <td className="p-3">
+                        <div className="flex items-center justify-end gap-1" onClick={(e) => e.stopPropagation()}>
+                          {p.owner_phone && (
+                            <Button variant="ghost" size="icon" className="h-7 w-7" title="Call">
+                              <Phone className="h-3 w-3" />
+                            </Button>
+                          )}
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-7 w-7"
+                            title="Claim"
+                            disabled={claiming === p.id}
+                            onClick={() => handleClaim(p.id)}
+                          >
+                            {claiming === p.id ? (
+                              <Loader2 className="h-3 w-3 animate-spin" />
+                            ) : (
+                              <UserCheck className="h-3 w-3" />
+                            )}
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-7 w-7"
+                            title="Skip Trace"
+                          >
+                            <Shield className="h-3 w-3" />
+                          </Button>
+                          <Button variant="ghost" size="icon" className="h-7 w-7" title="More">
+                            <MoreHorizontal className="h-3 w-3" />
+                          </Button>
+                        </div>
+                      </td>
+                    </motion.tr>
+                  ))}
+                </AnimatePresence>
+              </tbody>
+            </table>
+          </div>
+        )}
+
+        {/* Loading overlay for refetch */}
+        {loading && prospects.length > 0 && (
+          <div className="flex items-center justify-center py-3 text-muted-foreground gap-2">
+            <Loader2 className="h-3 w-3 animate-spin" />
+            <span className="text-[10px]">Refreshing...</span>
+          </div>
+        )}
       </GlassCard>
+
+      {/* Detail modal */}
+      <ProspectDetailModal
+        prospect={selectedProspect}
+        open={modalOpen}
+        onClose={() => setModalOpen(false)}
+        onClaim={handleClaim}
+      />
+
+      {/* TODO: NewProspectModal for manual add */}
+      {/* TODO: Compliance gating — DNC/litigant check before enabling Call button */}
+      {/* TODO: RBAC — only admin/agent can claim, viewers read-only */}
+      {/* TODO: Pagination for 200k+ properties (virtual scroll or server-side) */}
+      {/* TODO: Bulk actions — select multiple, claim all, export */}
     </PageShell>
   );
 }

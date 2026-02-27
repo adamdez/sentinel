@@ -80,21 +80,48 @@ export function MyTopLeads() {
         >
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 mb-0.5">
-              <p className="text-xs font-medium truncate">{lead.name}</p>
+              <p
+                className="text-xs font-semibold truncate text-foreground"
+                style={{
+                  textShadow: lead.isOverdue
+                    ? "0 0 8px rgba(255,68,68,0.2), 0 0 16px rgba(255,68,68,0.08)"
+                    : "0 0 8px rgba(0,255,136,0.15), 0 0 16px rgba(0,255,136,0.06)",
+                  WebkitFontSmoothing: "antialiased",
+                }}
+              >
+                {lead.name}
+              </p>
               {lead.isOverdue && (
                 <Badge variant="destructive" className="text-[8px] px-1 py-0 gap-0.5">
                   <AlertTriangle className="h-2 w-2" /> OVERDUE
                 </Badge>
               )}
             </div>
-            <p className="text-[10px] text-muted-foreground truncate">{lead.reason}</p>
-            <div className="flex items-center gap-2 mt-1 text-[10px] text-muted-foreground">
+            <p
+              className="text-[10px] font-medium text-muted-foreground/90 truncate"
+              style={{ WebkitFontSmoothing: "antialiased" }}
+            >
+              {lead.reason}
+            </p>
+            <div
+              className="flex items-center gap-2 mt-1 text-[10px] font-medium"
+              style={{ WebkitFontSmoothing: "antialiased" }}
+            >
               <Clock className="h-2.5 w-2.5" />
-              {lead.isOverdue
-                ? `${Math.abs(lead.daysUntilFollowUp)}d overdue`
-                : lead.daysUntilFollowUp === 0
-                  ? "Due today"
-                  : `Due in ${lead.daysUntilFollowUp}d`}
+              <span
+                className={cn(
+                  lead.isOverdue ? "text-red-400" : "text-muted-foreground"
+                )}
+                style={lead.isOverdue ? {
+                  textShadow: "0 0 8px rgba(255,68,68,0.3), 0 0 16px rgba(255,68,68,0.1)",
+                } : {}}
+              >
+                {lead.isOverdue
+                  ? `${Math.abs(lead.daysUntilFollowUp)}d overdue`
+                  : lead.daysUntilFollowUp === 0
+                    ? "Due today"
+                    : `Due in ${lead.daysUntilFollowUp}d`}
+              </span>
             </div>
           </div>
           <AIScoreBadge score={lead.aiScore} size="sm" />
