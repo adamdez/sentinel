@@ -4,16 +4,16 @@ import { motion } from "framer-motion";
 import { cn } from "@/lib/utils";
 
 const stages = [
-  { name: "Prospects", count: 147, value: "$0", pct: 100, color: "from-blue-500 to-blue-400" },
-  { name: "Leads", count: 68, value: "$1.2M", pct: 46, color: "from-cyan-500 to-cyan-400" },
-  { name: "Negotiation", count: 12, value: "$890k", pct: 18, color: "from-neon to-neon-dim" },
-  { name: "Disposition", count: 5, value: "$425k", pct: 8, color: "from-yellow-500 to-yellow-400" },
-  { name: "Closed", count: 3, value: "$186k", pct: 4, color: "from-purple-500 to-purple-400" },
+  { name: "Prospects", count: 147, value: "$0", pct: 100, color: "from-blue-500 to-blue-400", glow: "rgba(59,130,246,0.3)" },
+  { name: "Leads", count: 68, value: "$1.2M", pct: 46, color: "from-cyan-500 to-cyan-400", glow: "rgba(6,182,212,0.3)" },
+  { name: "Negotiation", count: 12, value: "$890k", pct: 18, color: "from-neon to-neon-dim", glow: "rgba(0,255,136,0.3)" },
+  { name: "Disposition", count: 5, value: "$425k", pct: 8, color: "from-yellow-500 to-yellow-400", glow: "rgba(234,179,8,0.3)" },
+  { name: "Closed", count: 3, value: "$186k", pct: 4, color: "from-purple-500 to-purple-400", glow: "rgba(168,85,247,0.3)" },
 ];
 
 export function FunnelValue() {
   return (
-    <div className="space-y-2.5">
+    <div className="space-y-2.5 particle-container">
       {stages.map((stage, i) => (
         <motion.div
           key={stage.name}
@@ -35,13 +35,21 @@ export function FunnelValue() {
               animate={{ width: `${stage.pct}%` }}
               transition={{ duration: 0.6, delay: 0.2 + i * 0.08 }}
               className={cn("h-full rounded-full bg-gradient-to-r", stage.color)}
+              style={{ boxShadow: `0 0 8px ${stage.glow}, 0 0 2px ${stage.glow}` }}
             />
           </div>
         </motion.div>
       ))}
       <div className="flex items-center justify-between pt-1 border-t border-glass-border text-xs">
         <span className="text-muted-foreground">Total Pipeline</span>
-        <span className="font-bold text-neon">$2.7M</span>
+        <motion.span
+          className="font-bold text-neon"
+          style={{ textShadow: "0 0 10px rgba(0,255,136,0.4)" }}
+          animate={{ textShadow: ["0 0 10px rgba(0,255,136,0.3)", "0 0 20px rgba(0,255,136,0.5)", "0 0 10px rgba(0,255,136,0.3)"] }}
+          transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }}
+        >
+          $2.7M
+        </motion.span>
       </div>
       {/* TODO: Pull from lead_instances aggregated by status with estimated values */}
       {/* TODO: Click stage → navigate to funnel page */}

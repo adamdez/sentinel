@@ -1,8 +1,6 @@
 @import "tailwindcss";
 @import "tw-animate-css";
-
 @custom-variant dark (&:is(.dark *));
-
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
@@ -49,7 +47,6 @@
   --animate-neon-pulse: neon-pulse 2s ease-in-out infinite;
   --animate-float: float 3s ease-in-out infinite;
 }
-
 :root {
   --radius: 0.625rem;
   --background: #07070d;
@@ -89,31 +86,60 @@
   --glass: rgba(15, 15, 25, 0.6);
   --glass-border: rgba(255, 255, 255, 0.06);
 }
-
 @keyframes accordion-down {
   from { height: 0; }
   to { height: var(--radix-accordion-content-height); }
 }
-
 @keyframes accordion-up {
   from { height: var(--radix-accordion-content-height); }
   to { height: 0; }
 }
-
 @keyframes neon-pulse {
   0%, 100% { box-shadow: 0 0 15px rgba(0, 255, 136, 0.15), 0 0 30px rgba(0, 255, 136, 0.05); }
   50% { box-shadow: 0 0 25px rgba(0, 255, 136, 0.3), 0 0 50px rgba(0, 255, 136, 0.1); }
 }
-
 @keyframes float {
   0%, 100% { transform: translateY(0); }
   50% { transform: translateY(-4px); }
 }
-
+@keyframes holo-shimmer {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+@keyframes orb-pulse {
+  0%, 100% {
+    transform: scale(1);
+    opacity: 0.6;
+    box-shadow: 0 0 20px rgba(0, 255, 136, 0.3), 0 0 60px rgba(0, 255, 136, 0.1);
+  }
+  50% {
+    transform: scale(1.15);
+    opacity: 1;
+    box-shadow: 0 0 30px rgba(0, 255, 136, 0.5), 0 0 80px rgba(0, 255, 136, 0.2), 0 0 120px rgba(0, 255, 136, 0.05);
+  }
+}
+@keyframes particle-drift {
+  0% { transform: translateY(0) translateX(0) scale(1); opacity: 0; }
+  10% { opacity: 1; }
+  90% { opacity: 1; }
+  100% { transform: translateY(-40px) translateX(10px) scale(0); opacity: 0; }
+}
+@keyframes bar-glow-pulse {
+  0%, 100% { filter: brightness(1) drop-shadow(0 0 2px currentColor); }
+  50% { filter: brightness(1.2) drop-shadow(0 0 6px currentColor); }
+}
+@keyframes scanline {
+  0% { transform: translateY(-100%); }
+  100% { transform: translateY(100%); }
+}
+@keyframes ring-expand {
+  0% { transform: scale(1); opacity: 0.6; }
+  100% { transform: scale(2.5); opacity: 0; }
+}
 * {
   border-color: var(--border);
 }
-
 body {
   background: var(--background);
   color: var(--foreground);
@@ -121,61 +147,197 @@ body {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
-
 .glass {
   background: var(--glass);
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
   border: 1px solid var(--glass-border);
 }
-
 .glass-strong {
   background: rgba(15, 15, 25, 0.85);
   backdrop-filter: blur(30px);
   -webkit-backdrop-filter: blur(30px);
   border: 1px solid rgba(255, 255, 255, 0.08);
 }
-
 .neon-glow {
   box-shadow: 0 0 20px rgba(0, 255, 136, 0.15), 0 0 40px rgba(0, 255, 136, 0.05);
   border-color: rgba(0, 255, 136, 0.3) !important;
 }
-
 .neon-glow-strong {
   box-shadow: 0 0 20px rgba(0, 255, 136, 0.25), 0 0 60px rgba(0, 255, 136, 0.1);
   border-color: rgba(0, 255, 136, 0.5) !important;
 }
-
 .neon-text {
   color: #00ff88;
   text-shadow: 0 0 10px rgba(0, 255, 136, 0.5);
 }
-
 .sentinel-gradient {
   background: linear-gradient(135deg, #07070d 0%, #0d1117 50%, #0a0f14 100%);
 }
-
 .sentinel-grid-bg {
   background-image:
     linear-gradient(rgba(255, 255, 255, 0.02) 1px, transparent 1px),
     linear-gradient(90deg, rgba(255, 255, 255, 0.02) 1px, transparent 1px);
   background-size: 60px 60px;
 }
+.holo-border {
+  position: relative;
+}
+.holo-border::before {
+  content: "";
+  position: absolute;
+  inset: -1px;
+  border-radius: inherit;
+  padding: 1px;
+  background: linear-gradient(
+    135deg,
+    rgba(0, 255, 136, 0.0) 0%,
+    rgba(0, 255, 136, 0.12) 25%,
+    rgba(0, 153, 255, 0.08) 50%,
+    rgba(168, 85, 247, 0.08) 75%,
+    rgba(0, 255, 136, 0.0) 100%
+  );
+  background-size: 300% 300%;
+  animation: holo-shimmer 8s ease-in-out infinite;
+  mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  mask-composite: exclude;
+  -webkit-mask-composite: xor;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.4s ease;
+  z-index: 1;
+}
+.holo-border:hover::before {
+  opacity: 1;
+}
+.holo-border-always::before {
+  opacity: 1;
+}
+.tile-perspective {
+  perspective: 800px;
+}
+.tile-3d {
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
+  transform-style: preserve-3d;
+  will-change: transform;
+}
+.tile-3d:hover {
+  transform: rotateX(-1deg) rotateY(1.5deg) translateY(-3px);
+  box-shadow:
+    0 8px 30px rgba(0, 0, 0, 0.3),
+    0 0 15px rgba(0, 255, 136, 0.06);
+}
+.glow-bar {
+  position: relative;
+  overflow: visible;
+}
+.glow-bar::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  box-shadow: 0 0 8px currentColor;
+  opacity: 0.3;
+  pointer-events: none;
+}
+.particle-container {
+  position: relative;
+  overflow: hidden;
+}
+.particle-container::before,
+.particle-container::after {
+  content: "";
+  position: absolute;
+  width: 2px;
+  height: 2px;
+  border-radius: 50%;
+  background: rgba(0, 255, 136, 0.6);
+  pointer-events: none;
+}
+.particle-container::before {
+  bottom: 20%;
+  left: 30%;
+  animation: particle-drift 3s ease-in-out infinite;
+}
+.particle-container::after {
+  bottom: 10%;
+  left: 60%;
+  animation: particle-drift 4s ease-in-out 1s infinite;
+}
+.scanline-overlay {
+  position: relative;
+  overflow: hidden;
+}
+.scanline-overlay::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    transparent 0%,
+    rgba(0, 255, 136, 0.015) 50%,
+    transparent 100%
+  );
+  height: 200%;
+  animation: scanline 6s linear infinite;
+  pointer-events: none;
+}
+.map-pin-ring::after {
+  content: "";
+  position: absolute;
+  inset: -2px;
+  border-radius: 50%;
+  border: 1px solid currentColor;
+  animation: ring-expand 2s ease-out infinite;
+  pointer-events: none;
+}
+
+/* ────────────────────────────────────────────────────────────── */
+/* CRISP-TEXT OPTIMIZATION – fixes fuzzy small text on holo/3D   */
+/* Added Feb 26 2026 per your field report – zero performance hit */
+/* Targets every futuristic element introduced in Concept 3       */
+/* ────────────────────────────────────────────────────────────── */
+.holo-border,
+.holo-border-always,
+.tile-perspective,
+.tile-3d,
+.glass,
+.glass-strong,
+.glass-card,
+.widget-wrapper,
+.glow-bar,
+.particle-container,
+.scanline-overlay,
+.map-pin-ring,
+.ai-score-badge,
+.neon-glow,
+.neon-glow-strong {
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+  transform: translateZ(0);
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+}
+
+/* Extra GPU force for backdrop-filter layers */
+.glass::before,
+.glass-strong::before,
+.scanline-overlay::after {
+  transform: translateZ(0);
+}
 
 ::-webkit-scrollbar {
   width: 6px;
   height: 6px;
 }
-
 ::-webkit-scrollbar-track {
   background: transparent;
 }
-
 ::-webkit-scrollbar-thumb {
   background: #1a1b2e;
   border-radius: 3px;
 }
-
 ::-webkit-scrollbar-thumb:hover {
   background: #2a2b3e;
 }

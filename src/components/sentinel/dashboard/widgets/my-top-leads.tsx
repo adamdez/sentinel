@@ -74,6 +74,9 @@ export function MyTopLeads() {
               ? "bg-destructive/5 border border-destructive/15 hover:bg-destructive/10"
               : "bg-secondary/20 hover:bg-secondary/30"
           )}
+          style={lead.isOverdue ? {
+            boxShadow: "inset 0 0 15px rgba(255,68,68,0.04), 0 0 6px rgba(255,68,68,0.06)",
+          } : {}}
         >
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 mb-0.5">

@@ -68,13 +68,14 @@ function SortableTile({
     transform: CSS.Transform.toString(transform),
     transition,
     zIndex: isDragging ? 50 : undefined,
-    opacity: isDragging ? 0.7 : 1,
+    opacity: isDragging ? 0.85 : 1,
+    filter: isDragging ? "brightness(1.1) drop-shadow(0 0 20px rgba(0, 255, 136, 0.2))" : undefined,
   };
 
   const Component = WIDGET_COMPONENTS[widgetId];
 
   return (
-    <div ref={setNodeRef} style={style}>
+    <div ref={setNodeRef} style={style} className="tile-perspective">
       <WidgetWrapper
         widgetId={widgetId}
         size={size}

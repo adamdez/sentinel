@@ -10,6 +10,8 @@ const metrics = [
   { label: "Total YTD", value: "$186,000", change: null, trend: null },
 ];
 
+const barData = [35, 28, 45, 42, 38, 55, 62, 48, 72, 68, 58, 80];
+
 export function RevenueImpact() {
   return (
     <div className="space-y-2.5">
@@ -25,27 +27,42 @@ export function RevenueImpact() {
           <div className="flex items-center gap-1.5">
             <span className="text-sm font-bold">{m.value}</span>
             {m.change && (
-              <span className="text-[9px] text-neon flex items-center gap-0.5">
+              <motion.span
+                className="text-[9px] text-neon flex items-center gap-0.5"
+                style={{ textShadow: "0 0 6px rgba(0,255,136,0.4)" }}
+              >
                 <ArrowUpRight className="h-2.5 w-2.5" />
                 {m.change}
-              </span>
+              </motion.span>
             )}
           </div>
         </motion.div>
       ))}
-      <div className="h-16 rounded-lg bg-secondary/20 flex items-end px-1 pb-1 gap-0.5">
-        {[35, 28, 45, 42, 38, 55, 62, 48, 72, 68, 58, 80].map((h, i) => (
-          <motion.div
-            key={i}
-            initial={{ height: 0 }}
-            animate={{ height: `${h}%` }}
-            transition={{ delay: 0.3 + i * 0.03, duration: 0.4 }}
-            className={cn(
-              "flex-1 rounded-t-sm",
-              i === 11 ? "bg-neon" : "bg-neon/20"
-            )}
-          />
-        ))}
+      <div className="h-16 rounded-lg bg-secondary/20 flex items-end px-1 pb-1 gap-0.5 relative overflow-hidden">
+        <div
+          className="absolute inset-0 pointer-events-none"
+          style={{
+            background: "linear-gradient(to top, rgba(0,255,136,0.03) 0%, transparent 60%)",
+          }}
+        />
+        {barData.map((h, i) => {
+          const isLast = i === barData.length - 1;
+          return (
+            <motion.div
+              key={i}
+              initial={{ height: 0 }}
+              animate={{ height: `${h}%` }}
+              transition={{ delay: 0.3 + i * 0.03, duration: 0.4 }}
+              className={cn(
+                "flex-1 rounded-t-sm relative",
+                isLast ? "bg-neon" : "bg-neon/20"
+              )}
+              style={isLast ? {
+                boxShadow: "0 0 10px rgba(0,255,136,0.4), 0 -4px 15px rgba(0,255,136,0.2)",
+              } : {}}
+            />
+          );
+        })}
       </div>
       {/* TODO: Pull from closed deals with assignment_fee */}
       {/* TODO: Period comparison (MoM, YoY) */}

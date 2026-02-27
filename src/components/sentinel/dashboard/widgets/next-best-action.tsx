@@ -5,16 +5,52 @@ import { Zap, ArrowRight, Phone, Clock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 
+function GlowingOrb() {
+  return (
+    <div className="relative flex items-center justify-center">
+      <motion.div
+        className="absolute h-8 w-8 rounded-full"
+        style={{
+          background: "radial-gradient(circle, rgba(0,255,136,0.4) 0%, rgba(0,255,136,0.1) 50%, transparent 70%)",
+        }}
+        animate={{
+          scale: [1, 1.3, 1],
+          opacity: [0.5, 0.8, 0.5],
+        }}
+        transition={{ duration: 2.5, repeat: Infinity, ease: "easeInOut" }}
+      />
+      <motion.div
+        className="absolute h-5 w-5 rounded-full"
+        style={{
+          background: "radial-gradient(circle, rgba(0,255,136,0.6) 0%, rgba(0,255,136,0.2) 60%, transparent 80%)",
+        }}
+        animate={{
+          scale: [1, 1.15, 1],
+          opacity: [0.7, 1, 0.7],
+        }}
+        transition={{ duration: 2, repeat: Infinity, ease: "easeInOut", delay: 0.3 }}
+      />
+      <Zap className="h-3.5 w-3.5 text-neon relative z-10" style={{ filter: "drop-shadow(0 0 4px rgba(0,255,136,0.6))" }} />
+    </div>
+  );
+}
+
 export function NextBestAction() {
   return (
     <div className="space-y-3">
       <motion.div
         initial={{ opacity: 0, y: 6 }}
         animate={{ opacity: 1, y: 0 }}
-        className="p-3 rounded-lg bg-neon/5 border border-neon/15"
+        className="p-3 rounded-lg bg-neon/5 border border-neon/15 relative overflow-hidden"
       >
+        <div
+          className="absolute top-0 right-0 w-24 h-24 pointer-events-none"
+          style={{
+            background: "radial-gradient(circle at top right, rgba(0,255,136,0.06) 0%, transparent 70%)",
+          }}
+        />
         <div className="flex items-center gap-2 mb-2">
-          <Zap className="h-3.5 w-3.5 text-neon" />
+          <GlowingOrb />
           <span className="text-[10px] font-semibold text-neon uppercase tracking-wider">
             AI Recommendation
           </span>

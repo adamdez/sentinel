@@ -53,16 +53,30 @@ export function BreakingLeadsTicker() {
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: i * 0.05 }}
             className={cn(
-              "flex items-center gap-2.5 p-2 rounded-md text-xs transition-all",
+              "flex items-center gap-2.5 p-2 rounded-md text-xs transition-all relative",
               item.label === "fire"
                 ? "bg-orange-500/5 border border-orange-500/10"
                 : "bg-secondary/20"
             )}
+            style={item.label === "fire" ? {
+              boxShadow: "inset 0 0 20px rgba(255,107,53,0.04), 0 0 8px rgba(255,107,53,0.08)",
+            } : {}}
           >
+            {item.label === "fire" && (
+              <motion.div
+                className="absolute inset-0 rounded-md pointer-events-none"
+                style={{
+                  background: "linear-gradient(90deg, transparent 0%, rgba(255,107,53,0.03) 50%, transparent 100%)",
+                  backgroundSize: "200% 100%",
+                }}
+                animate={{ backgroundPosition: ["0% 0%", "200% 0%"] }}
+                transition={{ duration: 3, repeat: Infinity, ease: "linear" }}
+              />
+            )}
             <Zap className={cn(
               "h-3 w-3 shrink-0",
               item.label === "fire" ? "text-orange-400" : "text-neon"
-            )} />
+            )} style={item.label === "fire" ? { filter: "drop-shadow(0 0 3px rgba(255,107,53,0.5))" } : {}} />
             <span className="font-medium truncate flex-1">{item.name}</span>
             <Badge variant={item.label === "fire" ? "fire" : "hot"} className="text-[8px] gap-0.5">
               <ArrowUp className="h-2 w-2" />{item.score}

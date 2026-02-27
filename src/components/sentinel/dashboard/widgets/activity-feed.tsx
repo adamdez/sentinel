@@ -33,7 +33,7 @@ export function ActivityFeed() {
             transition={{ delay: i * 0.04 }}
             className="flex items-start gap-2.5 py-1.5"
           >
-            <div className={cn("mt-0.5 shrink-0", item.color)}>
+            <div className={cn("mt-0.5 shrink-0", item.color)} style={{ filter: `drop-shadow(0 0 3px currentColor)` }}>
               <Icon className="h-3 w-3" />
             </div>
             <div className="flex-1 min-w-0">

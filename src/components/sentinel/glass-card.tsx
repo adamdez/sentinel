@@ -24,14 +24,15 @@ export function GlassCard({
       initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.3, delay }}
-      whileHover={hover ? { y: -2, transition: { duration: 0.2 } } : undefined}
+      whileHover={hover ? { y: -3, rotateX: -0.5, rotateY: 0.5, transition: { duration: 0.25 } } : undefined}
       className={cn(
-        "rounded-xl border border-glass-border bg-glass backdrop-blur-xl p-5 transition-all duration-300",
-        glow && "neon-glow animate-neon-pulse",
-        glowStrong && "neon-glow-strong",
+        "rounded-xl border border-glass-border bg-glass backdrop-blur-xl p-5 transition-all duration-300 holo-border",
+        glow && "neon-glow animate-neon-pulse holo-border-always",
+        glowStrong && "neon-glow-strong holo-border-always",
         hover && "hover:border-white/10 hover:bg-glass/80",
         className
       )}
+      style={{ transformStyle: "preserve-3d", perspective: 800 }}
       {...props}
     >
       {children}

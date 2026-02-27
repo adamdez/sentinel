@@ -20,7 +20,8 @@ export function ActiveDrips() {
           initial={{ opacity: 0, y: 4 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: i * 0.06 }}
-          className="p-2 rounded-lg bg-secondary/20 space-y-1.5"
+          className="p-2 rounded-lg bg-secondary/20 space-y-1.5 transition-all hover:bg-secondary/25"
+          style={drip.status === "active" ? { boxShadow: "inset 0 0 15px rgba(0,255,136,0.02)" } : {}}
         >
           <div className="flex items-center justify-between">
             <span className="text-[11px] font-medium truncate">{drip.name}</span>

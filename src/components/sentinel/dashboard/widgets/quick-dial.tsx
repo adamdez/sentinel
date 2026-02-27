@@ -48,8 +48,8 @@ export function QuickDial() {
           className="space-y-2"
         >
           <div className="flex items-center justify-center gap-2 py-2">
-            <span className="h-2 w-2 rounded-full bg-neon animate-pulse" />
-            <span className="text-xs text-neon font-medium">Calling...</span>
+            <span className="h-2 w-2 rounded-full bg-neon animate-pulse" style={{ boxShadow: "0 0 8px rgba(0,255,136,0.5), 0 0 16px rgba(0,255,136,0.2)" }} />
+            <span className="text-xs text-neon font-medium" style={{ textShadow: "0 0 8px rgba(0,255,136,0.4)" }}>Calling...</span>
           </div>
           <Button
             variant="destructive"

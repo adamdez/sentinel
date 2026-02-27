@@ -18,10 +18,10 @@ interface AIScoreBadgeProps {
 }
 
 const labelConfig = {
-  fire: { variant: "fire" as const, text: "FIRE", color: "text-orange-400" },
-  hot: { variant: "hot" as const, text: "HOT", color: "text-red-400" },
-  warm: { variant: "warm" as const, text: "WARM", color: "text-yellow-400" },
-  cold: { variant: "cold" as const, text: "COLD", color: "text-blue-400" },
+  fire: { variant: "fire" as const, text: "FIRE", color: "text-orange-400", glow: "drop-shadow(0 0 4px rgba(255,107,53,0.5))" },
+  hot: { variant: "hot" as const, text: "HOT", color: "text-red-400", glow: "drop-shadow(0 0 3px rgba(255,68,68,0.4))" },
+  warm: { variant: "warm" as const, text: "WARM", color: "text-yellow-400", glow: "" },
+  cold: { variant: "cold" as const, text: "COLD", color: "text-blue-400", glow: "" },
 };
 
 function ScoreBar({ label, value, max = 100 }: { label: string; value: number; max?: number }) {
@@ -64,6 +64,7 @@ export function AIScoreBadge({ score, size = "md" }: AIScoreBadgeProps) {
               size === "sm" && "text-[10px] px-1.5 py-0",
               size === "lg" && "text-sm px-3 py-1"
             )}
+            style={config.glow ? { filter: config.glow } : {}}
           >
             <Sparkles
               className={cn(

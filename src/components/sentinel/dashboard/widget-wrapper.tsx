@@ -1,5 +1,6 @@
 "use client";
 
+import { useRef, useCallback } from "react";
 import { motion } from "framer-motion";
 import { GripVertical, X, Maximize2, Minimize2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -32,6 +33,22 @@ export function WidgetWrapper({
   const colSpan = getColSpan(size);
   const rowSpan = getRowSpan(size);
   const isWide = colSpan === 2;
+  const tileRef = useRef<HTMLDivElement>(null);
+
+  const handleMouseMove = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
+    const el = tileRef.current;
+    if (!el) return;
+    const rect = el.getBoundingClientRect();
+    const x = (e.clientX - rect.left) / rect.width - 0.5;
+    const y = (e.clientY - rect.top) / rect.height - 0.5;
+    el.style.transform = `perspective(800px) rotateY(${x * 3}deg) rotateX(${y * -3}deg) translateY(-2px)`;
+  }, []);
+
+  const handleMouseLeave = useCallback(() => {
+    const el = tileRef.current;
+    if (!el) return;
+    el.style.transform = "perspective(800px) rotateY(0deg) rotateX(0deg) translateY(0px)";
+  }, []);
 
   const toggleSize = () => {
     if (size === "1x1") onResize(widgetId, "2x1");
@@ -42,16 +59,20 @@ export function WidgetWrapper({
 
   return (
     <motion.div
+      ref={tileRef}
       layout
       initial={{ opacity: 0, scale: 0.95 }}
       animate={{ opacity: 1, scale: 1 }}
       exit={{ opacity: 0, scale: 0.95 }}
       transition={{ duration: 0.2 }}
+      onMouseMove={handleMouseMove}
+      onMouseLeave={handleMouseLeave}
       className={cn(
-        "rounded-xl border border-glass-border bg-glass backdrop-blur-xl overflow-hidden group transition-all duration-300 hover:border-white/10",
+        "rounded-xl border border-glass-border bg-glass backdrop-blur-xl overflow-hidden group transition-all duration-300 hover:border-white/10 holo-border scanline-overlay",
         colSpan === 2 && "col-span-2",
         rowSpan === 2 && "row-span-2"
       )}
+      style={{ transformStyle: "preserve-3d", willChange: "transform", transition: "transform 0.25s ease, box-shadow 0.3s ease" }}
     >
       <div className="flex items-center justify-between px-4 pt-3 pb-1">
         <div className="flex items-center gap-2">
@@ -83,7 +104,7 @@ export function WidgetWrapper({
           </Tooltip>
         </div>
       </div>
-      <div className="px-4 pb-4">{children}</div>
+      <div className="px-4 pb-4 relative z-[2]">{children}</div>
     </motion.div>
   );
 }

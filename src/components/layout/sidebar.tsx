@@ -50,7 +50,6 @@ const sections: NavSection[] = [
     title: "Main",
     items: [
       { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
-      { label: "Leads", href: "/leads", icon: Users },
       { label: "Dialer", href: "/dialer", icon: Phone },
       { label: "Gmail", href: "/gmail", icon: Mail },
       { label: "Team Calendar", href: "/team-calendar", icon: Calendar },
@@ -63,7 +62,7 @@ const sections: NavSection[] = [
       { label: "Prospects", href: "/sales-funnel/prospects", icon: UserPlus },
       {
         label: "Leads",
-        href: "/sales-funnel/leads",
+        href: "/leads",
         icon: Users,
         children: [
           { label: "My Leads", href: "/sales-funnel/leads/my-leads", icon: UserCheck },
