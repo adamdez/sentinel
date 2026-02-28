@@ -114,29 +114,34 @@ export async function POST(req: NextRequest) {
 
     // ── Step 1: Save basic property ──────────────────────────────────
 
+    const baseProperty: Record<string, unknown> = {
+      apn: finalApn,
+      county: finalCounty,
+      address: address.trim(),
+      city: city?.trim() || "Unknown",
+      state: state?.trim().toUpperCase() || "WA",
+      zip: zip?.trim() || null,
+      owner_name: owner_name?.trim() || "Unknown Owner",
+      owner_phone: owner_phone?.trim() || null,
+      owner_email: owner_email?.trim() || null,
+      property_type: property_type || "SFR",
+      owner_flags: { manual_entry: true, enrichment_pending: true },
+      updated_at: new Date().toISOString(),
+    };
+
+    if (estimated_value) baseProperty.estimated_value = toInt(estimated_value);
+    if (equity_percent) baseProperty.equity_percent = toFloat(equity_percent);
+    if (bedrooms) baseProperty.bedrooms = toInt(bedrooms);
+    if (bathrooms) baseProperty.bathrooms = toFloat(bathrooms);
+    if (sqft) baseProperty.sqft = toInt(sqft);
+    if (year_built) baseProperty.year_built = toInt(year_built);
+    if (lot_size) baseProperty.lot_size = toFloat(lot_size);
+
+    console.log("[API/prospects POST] Upserting property:", JSON.stringify(baseProperty));
+
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { data: property, error: propErr } = await (sb.from("properties") as any)
-      .upsert({
-        apn: finalApn,
-        county: finalCounty,
-        address: address.trim(),
-        city: city?.trim() || null,
-        state: state?.trim().toUpperCase() || null,
-        zip: zip?.trim() || null,
-        owner_name: owner_name?.trim() || null,
-        owner_phone: owner_phone?.trim() || null,
-        owner_email: owner_email?.trim() || null,
-        estimated_value: toInt(estimated_value),
-        equity_percent: toFloat(equity_percent),
-        property_type: property_type || null,
-        bedrooms: toInt(bedrooms),
-        bathrooms: toFloat(bathrooms),
-        sqft: toInt(sqft),
-        year_built: toInt(year_built),
-        lot_size: toFloat(lot_size),
-        owner_flags: { manual_entry: true, enrichment_pending: true },
-        updated_at: new Date().toISOString(),
-      }, { onConflict: "apn,county" })
+      .upsert(baseProperty, { onConflict: "apn,county" })
       .select("id")
       .single();
 
