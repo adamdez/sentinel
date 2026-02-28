@@ -62,6 +62,15 @@ export interface ProspectRow {
   model_version: string | null;
   ai_boost: number;
   factors: unknown[];
+  _prediction?: {
+    predictiveScore: number;
+    daysUntilDistress: number;
+    confidence: number;
+    label: "imminent" | "likely" | "possible" | "unlikely";
+    ownerAgeInference: number | null;
+    equityBurnRate: number | null;
+    lifeEventProbability: number | null;
+  } | null;
 }
 
 export type SortField = "composite_score" | "promoted_at" | "owner_name" | "address";
@@ -161,6 +170,23 @@ export function useProspects(opts: UseProspectsOptions = {}) {
         }
       }
 
+      // ── Step 2b: Fetch latest predictions ──────────────────────────
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const predictionsMap: Record<string, any> = {};
+      if (propertyIds.length > 0) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const { data: predsData } = await (supabase.from("scoring_predictions") as any)
+          .select("property_id, predictive_score, days_until_distress, confidence, owner_age_inference, equity_burn_rate, life_event_probability")
+          .in("property_id", propertyIds)
+          .order("created_at", { ascending: false });
+        if (predsData) {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          for (const p of predsData as any[]) {
+            if (!(p.property_id in predictionsMap)) predictionsMap[p.property_id] = p;
+          }
+        }
+      }
+
       // ── Step 3: Merge leads + properties ───────────────────────────
 
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -233,6 +259,21 @@ export function useProspects(opts: UseProspectsOptions = {}) {
           model_version: null,
           ai_boost: 0,
           factors: [],
+          // Predictive intelligence
+          _prediction: (() => {
+            const pred = predictionsMap[lead.property_id];
+            if (!pred) return null;
+            const ps = Number(pred.predictive_score) || 0;
+            return {
+              predictiveScore: ps,
+              daysUntilDistress: Number(pred.days_until_distress) || 365,
+              confidence: Number(pred.confidence) || 0,
+              label: (ps >= 80 ? "imminent" : ps >= 55 ? "likely" : ps >= 30 ? "possible" : "unlikely") as "imminent" | "likely" | "possible" | "unlikely",
+              ownerAgeInference: pred.owner_age_inference != null ? Number(pred.owner_age_inference) : null,
+              equityBurnRate: pred.equity_burn_rate != null ? Number(pred.equity_burn_rate) : null,
+              lifeEventProbability: pred.life_event_probability != null ? Number(pred.life_event_probability) : null,
+            };
+          })(),
         };
       });
 

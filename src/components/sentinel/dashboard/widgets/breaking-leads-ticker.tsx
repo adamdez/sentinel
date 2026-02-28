@@ -16,6 +16,7 @@ interface TickerItem {
   label: "fire" | "hot";
   time: string;
   source?: string;
+  daysUntilDistress?: number | null;
 }
 
 const SOURCE_MAP: Record<string, { label: string; color: string }> = {
@@ -71,6 +72,22 @@ export function BreakingLeadsTicker() {
       }
     }
 
+    // Fetch latest predictions for these properties
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const predMap: Record<string, number> = {};
+    if (propIds.length > 0) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data: preds } = await (supabase.from("scoring_predictions") as any)
+        .select("property_id, days_until_distress")
+        .in("property_id", propIds)
+        .order("created_at", { ascending: false });
+      if (preds) {
+        for (const p of preds as { property_id: string; days_until_distress: number }[]) {
+          if (!(p.property_id in predMap)) predMap[p.property_id] = p.days_until_distress;
+        }
+      }
+    }
+
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const mapped: TickerItem[] = (leads as any[]).map((l) => {
       const prop = propsMap[l.property_id];
@@ -83,6 +100,7 @@ export function BreakingLeadsTicker() {
         label: (l.priority ?? 0) >= 65 ? "fire" as const : "hot" as const,
         time: timeAgo(l.created_at),
         source: l.source ?? undefined,
+        daysUntilDistress: predMap[l.property_id] ?? null,
       };
     });
 
@@ -122,10 +140,10 @@ export function BreakingLeadsTicker() {
     <div className="space-y-2">
       <div className="flex items-center gap-2 mb-1">
         <span className="relative flex h-2 w-2">
-          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-neon opacity-75" />
-          <span className="relative inline-flex rounded-full h-2 w-2 bg-neon" />
+          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-cyan opacity-75" />
+          <span className="relative inline-flex rounded-full h-2 w-2 bg-cyan" />
         </span>
-        <span className="text-[10px] text-neon font-medium">LIVE</span>
+        <span className="text-[10px] text-cyan font-medium">LIVE</span>
       </div>
 
       {visible.length === 0 ? (
@@ -168,18 +186,23 @@ export function BreakingLeadsTicker() {
                     />
                   )}
                   <Zap
-                    className={cn("h-3 w-3 shrink-0", isFire ? "text-orange-400" : "text-neon")}
+                    className={cn("h-3 w-3 shrink-0", isFire ? "text-orange-400" : "text-cyan")}
                     style={isFire ? { filter: "drop-shadow(0 0 3px rgba(255,107,53,0.5))" } : {}}
                   />
                   <span
                     className="font-semibold truncate flex-1 text-foreground"
                     style={{
-                      textShadow: "0 0 8px rgba(0,255,136,0.15), 0 0 16px rgba(0,255,136,0.06)",
+                      textShadow: "0 0 8px rgba(0,212,255,0.15), 0 0 16px rgba(0,212,255,0.06)",
                       WebkitFontSmoothing: "antialiased",
                     }}
                   >
                     {item.name}
                   </span>
+                  {item.daysUntilDistress != null && (
+                    <span className="text-[7px] px-1 py-0 rounded border font-semibold shrink-0 text-orange-400 bg-orange-500/10 border-orange-500/20">
+                      {item.daysUntilDistress}d
+                    </span>
+                  )}
                   {src && (
                     <span className={cn("text-[7px] px-1 py-0 rounded border font-semibold shrink-0", src.color)}>
                       {src.label}

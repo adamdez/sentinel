@@ -7,7 +7,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useProspects, type ProspectRow } from "@/hooks/use-prospects";
 
 function scoreColor(composite: number): { bg: string; ring: string } {
-  if (composite >= 85) return { bg: "bg-neon", ring: "rgba(0,255,136,0.4)" };
+  if (composite >= 85) return { bg: "bg-cyan", ring: "rgba(0,212,255,0.4)" };
   if (composite >= 65) return { bg: "bg-red-400", ring: "rgba(255,68,68,0.35)" };
   if (composite >= 40) return { bg: "bg-yellow-400", ring: "rgba(234,179,8,0.3)" };
   return { bg: "bg-blue-400", ring: "rgba(59,130,246,0.3)" };
@@ -88,7 +88,7 @@ export function LiveMap() {
         <div
           className="absolute inset-0 pointer-events-none"
           style={{
-            background: "radial-gradient(ellipse at 45% 40%, rgba(0,255,136,0.04) 0%, transparent 50%), radial-gradient(ellipse at 60% 55%, rgba(255,68,68,0.03) 0%, transparent 40%)",
+            background: "radial-gradient(ellipse at 45% 40%, rgba(0,212,255,0.04) 0%, transparent 50%), radial-gradient(ellipse at 60% 55%, rgba(255,68,68,0.03) 0%, transparent 40%)",
           }}
         />
 

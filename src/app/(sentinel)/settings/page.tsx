@@ -66,8 +66,8 @@ export default function SettingsPage() {
             const Icon = section.icon;
             return (
               <GlassCard key={section.title} className="flex items-center gap-4 cursor-pointer hover:neon-glow transition-all">
-                <div className="p-2 rounded-[10px] bg-white/[0.08]">
-                  <Icon className="h-5 w-5 text-neon" />
+                <div className="p-2 rounded-[12px] bg-secondary/50">
+                  <Icon className="h-5 w-5 text-cyan" />
                 </div>
                 <div className="flex-1">
                   <div className="flex items-center gap-2">
@@ -86,7 +86,7 @@ export default function SettingsPage() {
         <div className="space-y-4">
           <GlassCard hover={false}>
             <h3 className="text-sm font-semibold mb-4 flex items-center gap-2">
-              <Settings className="h-4 w-4 text-neon" />
+              <Settings className="h-4 w-4 text-cyan" />
               Feature Flags
             </h3>
             <div className="space-y-3">

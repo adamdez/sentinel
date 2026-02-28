@@ -66,8 +66,8 @@ export default function LoginPage() {
   return (
     <div className="min-h-screen sentinel-gradient sentinel-grid-bg flex flex-col items-center justify-center p-4 relative overflow-hidden">
       <div
-        className="absolute top-1/4 left-1/4 w-[500px] h-[500px] rounded-full opacity-[0.03] pointer-events-none"
-        style={{ background: "radial-gradient(circle, #00E5FF, transparent 70%)", filter: "blur(40px)" }}
+        className="absolute top-1/4 left-1/4 w-[400px] h-[400px] rounded-full opacity-[0.04] pointer-events-none"
+        style={{ background: "radial-gradient(circle, #00d4ff, transparent 70%)" }}
       />
       <div
         className="absolute bottom-1/4 right-1/4 w-[400px] h-[400px] rounded-full opacity-[0.025] pointer-events-none"
@@ -85,12 +85,15 @@ export default function LoginPage() {
             initial={{ scale: 0.8, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
             transition={{ delay: 0.1, type: "spring", stiffness: 200 }}
-            className="h-16 w-16 rounded-[16px] bg-cyan/[0.08] flex items-center justify-center border border-cyan/15 mb-4"
-            style={{ boxShadow: "0 0 40px rgba(0,229,255,0.12), 0 0 80px rgba(0,229,255,0.04)" }}
+            className="h-16 w-16 rounded-2xl bg-cyan/8 flex items-center justify-center border border-cyan/15 mb-4"
+            style={{ boxShadow: "0 0 40px rgba(0,212,255,0.15), 0 0 80px rgba(0,212,255,0.05)" }}
           >
-            <Zap className="h-8 w-8 text-cyan" style={{ filter: "drop-shadow(0 0 8px rgba(0,229,255,0.5))" }} />
+            <Zap className="h-8 w-8 text-cyan" />
           </motion.div>
-          <h1 className="text-2xl font-bold tracking-tight text-foreground title-glow">
+          <h1
+            className="text-2xl font-bold tracking-tight text-foreground"
+            style={{ textShadow: "0 0 20px rgba(0,212,255,0.15)" }}
+          >
             SENTINEL
           </h1>
           <p className="text-xs text-muted-foreground/50 tracking-[0.2em] uppercase mt-1">
@@ -126,12 +129,13 @@ export default function LoginPage() {
                       animate={{ opacity: 1, x: 0 }}
                       transition={{ delay: 0.1 + i * 0.08 }}
                       onClick={() => setSelectedMember(member)}
-                      className="w-full group relative flex items-center gap-4 rounded-[12px] px-5 py-4 transition-all duration-200 border border-transparent hover:border-white/[0.08] bg-white/[0.02] hover:bg-white/[0.04]"
+                      className="w-full group relative flex items-center gap-4 rounded-[14px] px-5 py-4 transition-all duration-200 border border-transparent hover:border-white/10"
+                      style={{ background: "rgba(255,255,255,0.03)" }}
                       whileHover={{ scale: 1.01, x: 4 }}
                       whileTap={{ scale: 0.99 }}
                     >
                       <div
-                        className="h-12 w-12 rounded-[12px] flex items-center justify-center text-sm font-bold shrink-0"
+                        className="h-12 w-12 rounded-[14px] flex items-center justify-center text-sm font-bold shrink-0"
                         style={{
                           background: `${member.color}12`,
                           color: member.color,
@@ -173,7 +177,7 @@ export default function LoginPage() {
 
                 <div className="flex items-center gap-3 mb-6">
                   <div
-                    className="h-12 w-12 rounded-[12px] flex items-center justify-center text-sm font-bold shrink-0"
+                    className="h-12 w-12 rounded-[14px] flex items-center justify-center text-sm font-bold shrink-0"
                     style={{
                       background: `${selectedMember.color}12`,
                       color: selectedMember.color,
@@ -200,14 +204,15 @@ export default function LoginPage() {
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
                       autoFocus
-                      className="w-full pl-10 pr-4 py-3 rounded-[12px] border border-white/[0.07] bg-white/[0.03] text-sm text-foreground placeholder:text-muted-foreground/40 focus:outline-none focus:ring-1 focus:ring-cyan/25 focus:border-cyan/20 backdrop-blur-xl transition-all"
+                      className="w-full pl-10 pr-4 py-3 rounded-[12px] border border-glass-border bg-glass/50 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:border-cyan/40 backdrop-blur-xl"
+                      style={{ outlineColor: selectedMember.color }}
                     />
                   </div>
 
                   <button
                     type="submit"
                     disabled={signingIn || !password}
-                    className="w-full py-3 rounded-[12px] text-sm font-semibold text-[#0A0A0F] transition-all active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                    className="w-full py-3 rounded-[12px] text-sm font-semibold text-black transition-all active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                     style={{
                       background: selectedMember.color,
                       boxShadow: `0 0 25px ${selectedMember.color}25, 0 0 50px ${selectedMember.color}10`,
@@ -233,7 +238,7 @@ export default function LoginPage() {
                 initial={{ opacity: 0, y: -4 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -4 }}
-                className="mt-4 p-3 rounded-[10px] border border-red-500/15 bg-red-500/[0.04] text-red-400 text-xs"
+                className="mt-4 p-3 rounded-[12px] border border-red-500/20 bg-red-500/5 text-red-400 text-xs"
               >
                 {error}
               </motion.div>

@@ -92,7 +92,7 @@ function SortableCard({ item }: { item: PipelineItem }) {
       ref={setNodeRef}
       style={style}
       className={cn(
-        "group rounded-[14px] border border-white/[0.06] bg-[rgba(12,12,22,0.4)] backdrop-blur-xl p-4 transition-all duration-200",
+        "group rounded-[14px] border border-glass-border bg-glass backdrop-blur-xl p-4 transition-all duration-200",
         isDragging && "opacity-50 shadow-2xl neon-glow",
         item.score.label === "fire" && "neon-glow animate-neon-pulse"
       )}
@@ -191,7 +191,7 @@ export function PipelineBoard() {
       <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
         <div className="flex gap-4 overflow-x-auto pb-2">
           <PipelineColumn title="Prospects" items={prospects} count={prospects.length} color="bg-blue-400" />
-          <PipelineColumn title="Leads" items={leads} count={leads.length} color="bg-neon" />
+          <PipelineColumn title="Leads" items={leads} count={leads.length} color="bg-cyan" />
           <PipelineColumn title="Negotiation" items={[]} count={0} color="bg-yellow-400" />
           <PipelineColumn title="Disposition" items={[]} count={0} color="bg-orange-400" />
           <PipelineColumn title="Closed" items={[]} count={0} color="bg-purple-400" />

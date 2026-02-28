@@ -1,21 +1,27 @@
 import { NextResponse } from "next/server";
+import { runAllCrawlers, type CrawlRunResult } from "@/lib/crawlers/predictive-crawler";
+import { obituaryCrawler } from "@/lib/crawlers/obituary-crawler";
+import { courtDocketCrawler } from "@/lib/crawlers/court-docket-crawler";
+
+export const dynamic = "force-dynamic";
+export const maxDuration = 120;
 
 /**
  * GET /api/ingest/daily-poll
  *
- * Vercel Cron ready — call this every 4 hours.
+ * Vercel Cron ready — call this once daily (6 AM PT recommended).
  *
- * Phase 2 stub: triggers the Elite Seed top10 pull for both target
- * counties, then logs completion. When Vercel Cron is configured,
- * add to vercel.json:
+ * Pipeline:
+ *   1. PropertyRadar Elite Seed top10 pull (existing)
+ *   2. Predictive Crawler Framework v2.0:
+ *      a. Obituary crawler (Spokane/Kootenai — pre-probate upstream signals)
+ *      b. Court docket crawler (divorce & bankruptcy filings)
+ *   3. All results scored; only ≥60 promoted to Sentinel
+ *   4. Audit logged to event_log
  *
- *   { "crons": [{ "path": "/api/ingest/daily-poll", "schedule": "0 *\/4 * * *" }] }
- *
- * Future enhancements (Phase 3):
- *   - Incremental scoring (only re-score changed properties)
- *   - FSBO / Obituary adapters
- *   - Bulk PropertyRadar import with pagination
- *   - Predictive scoring model refresh
+ * vercel.json:
+ *   { "crons": [{ "path": "/api/ingest/daily-poll", "schedule": "0 13 * * *" }] }
+ *   (13:00 UTC = 6 AM PT)
  */
 export async function GET(req: Request) {
   const cronSecret = req.headers.get("authorization");
@@ -34,8 +40,9 @@ export async function GET(req: Request) {
       ? `https://${process.env.VERCEL_URL}`
       : "http://localhost:3000");
 
-  let result: Record<string, unknown> = {};
-  let success = false;
+  // ── Phase 1: PropertyRadar Elite Seed ─────────────────────────────
+  let prResult: Record<string, unknown> = {};
+  let prSuccess = false;
 
   try {
     const res = await fetch(`${baseUrl}/api/ingest/propertyradar/top10`, {
@@ -44,36 +51,62 @@ export async function GET(req: Request) {
       body: JSON.stringify({ counties }),
     });
 
-    result = await res.json();
-    success = res.ok && result.success === true;
+    prResult = await res.json();
+    prSuccess = res.ok && prResult.success === true;
 
     console.log("[DailyPoll] Top10 result:", {
-      success,
-      count: result.count,
-      newInserts: result.newInserts,
-      updated: result.updated,
-      elapsed_ms: result.elapsed_ms,
+      success: prSuccess,
+      count: prResult.count,
+      newInserts: prResult.newInserts,
+      updated: prResult.updated,
+      elapsed_ms: prResult.elapsed_ms,
     });
   } catch (err) {
     console.error("[DailyPoll] Top10 call failed:", err);
-    result = { error: String(err) };
+    prResult = { error: String(err) };
+  }
+
+  // ── Phase 2: Predictive Crawler Framework ─────────────────────────
+  let crawlerResults: CrawlRunResult[] = [];
+  let crawlerSuccess = false;
+
+  try {
+    console.log("[DailyPoll] Starting predictive crawlers...");
+    crawlerResults = await runAllCrawlers([obituaryCrawler, courtDocketCrawler]);
+    crawlerSuccess = true;
+
+    const totalPromoted = crawlerResults.reduce((s, r) => s + r.promoted, 0);
+    const totalCrawled = crawlerResults.reduce((s, r) => s + r.crawled, 0);
+    console.log(`[DailyPoll] Crawlers complete — ${totalCrawled} crawled, ${totalPromoted} promoted`);
+  } catch (err) {
+    console.error("[DailyPoll] Crawler framework error:", err);
   }
 
   const elapsed = Date.now() - startTime;
   console.log(`[DailyPoll] === DAILY POLL COMPLETE in ${elapsed}ms ===`);
 
+  const totalPromoted = crawlerResults.reduce((s, r) => s + r.promoted, 0);
+
   return NextResponse.json({
-    success,
-    message: success
-      ? `Daily poll complete — ${result.count ?? 0} prospects processed`
-      : "Daily poll encountered errors — check server logs",
+    success: prSuccess || crawlerSuccess,
+    message: `Daily poll complete — ${prResult.count ?? 0} PR prospects + ${totalPromoted} crawler promotions`,
     counties,
-    top10Result: {
-      count: result.count ?? 0,
-      newInserts: result.newInserts ?? 0,
-      updated: result.updated ?? 0,
-      prCost: result.prCost ?? "?",
+    propertyRadar: {
+      success: prSuccess,
+      count: prResult.count ?? 0,
+      newInserts: prResult.newInserts ?? 0,
+      updated: prResult.updated ?? 0,
+      prCost: prResult.prCost ?? "?",
     },
+    crawlers: crawlerResults.map((r) => ({
+      id: r.crawlerId,
+      crawled: r.crawled,
+      scored: r.scored,
+      promoted: r.promoted,
+      duplicates: r.duplicates,
+      errors: r.errors,
+      elapsed_ms: r.elapsed_ms,
+    })),
     elapsed_ms: elapsed,
     timestamp: new Date().toISOString(),
   });

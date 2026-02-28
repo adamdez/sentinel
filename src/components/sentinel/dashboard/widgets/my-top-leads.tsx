@@ -88,7 +88,7 @@ export function MyTopLeads() {
                 style={{
                   textShadow: lead.isOverdue
                     ? "0 0 8px rgba(255,68,68,0.2), 0 0 16px rgba(255,68,68,0.08)"
-                    : "0 0 8px rgba(0,255,136,0.15), 0 0 16px rgba(0,255,136,0.06)",
+                    : "0 0 8px rgba(0,212,255,0.15), 0 0 16px rgba(0,212,255,0.06)",
                   WebkitFontSmoothing: "antialiased",
                 }}
               >

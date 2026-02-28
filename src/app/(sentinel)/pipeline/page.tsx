@@ -102,6 +102,8 @@ interface Lead {
   claim_expires_at: string | null;
   tags: string[];
   source: string | null;
+  daysUntilDistress: number | null;
+  predictiveLabel: string | null;
 }
 
 // ── Helpers ────────────────────────────────────────────────────────────
@@ -178,6 +180,30 @@ export default function PipelinePage() {
         }
       }
 
+      // Fetch latest predictions
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const predsMap: Record<string, { days: number; label: string; score: number; confidence: number }> = {};
+      if (propertyIds.length > 0) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const { data: predsData } = await (supabase.from("scoring_predictions") as any)
+          .select("property_id, days_until_distress, predictive_score, confidence")
+          .in("property_id", propertyIds)
+          .order("created_at", { ascending: false });
+        if (predsData) {
+          for (const p of predsData as { property_id: string; days_until_distress: number; predictive_score: number; confidence: number }[]) {
+            if (!(p.property_id in predsMap)) {
+              const ps = p.predictive_score;
+              predsMap[p.property_id] = {
+                days: p.days_until_distress,
+                score: ps,
+                confidence: Number(p.confidence) || 0,
+                label: ps >= 80 ? "imminent" : ps >= 55 ? "likely" : ps >= 30 ? "possible" : "unlikely",
+              };
+            }
+          }
+        }
+      }
+
       const grouped = Object.fromEntries(STAGES.map((s) => [s.id, []])) as unknown as Record<StageId, Lead[]>;
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const rawMap: Record<string, { lead: any; prop: any }> = {};
@@ -186,6 +212,18 @@ export default function PipelinePage() {
       for (const raw of leadsRaw as any[]) {
         const prop = propsMap[raw.property_id] ?? {};
         const status = normalizeStatus(raw.status);
+        const pred = predsMap[raw.property_id];
+        if (pred) {
+          raw._prediction = {
+            predictiveScore: pred.score,
+            daysUntilDistress: pred.days,
+            confidence: pred.confidence,
+            label: pred.label,
+            ownerAgeInference: null,
+            equityBurnRate: null,
+            lifeEventProbability: null,
+          };
+        }
         rawMap[raw.id] = { lead: raw, prop };
 
         grouped[status].push({
@@ -200,6 +238,8 @@ export default function PipelinePage() {
           claim_expires_at: raw.claim_expires_at ?? null,
           tags: raw.tags ?? [],
           source: raw.source ?? null,
+          daysUntilDistress: pred?.days ?? null,
+          predictiveLabel: pred?.label ?? null,
         });
       }
       rawDataRef.current = rawMap;
@@ -424,7 +464,7 @@ export default function PipelinePage() {
       <div className="flex items-center justify-between px-6 py-5 border-b border-white/[0.06] flex-wrap gap-3">
         <div>
           <h1 className="text-2xl font-bold text-foreground flex items-center gap-2.5">
-            <Zap className="h-6 w-6 text-neon" />
+            <Zap className="h-6 w-6 text-cyan" />
             Pipeline
           </h1>
           <p className="text-sm text-muted-foreground mt-0.5">
@@ -440,14 +480,14 @@ export default function PipelinePage() {
               placeholder="Filter pipeline..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="pl-9 pr-4 py-2 w-56 rounded-[10px] border border-white/[0.06] bg-[rgba(12,12,22,0.5)] text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-neon/40 focus:border-neon/40 backdrop-blur-xl"
+              className="pl-9 pr-4 py-2 w-56 rounded-[12px] border border-glass-border bg-glass/50 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-cyan/40 focus:border-cyan/40 backdrop-blur-xl"
             />
           </div>
 
           <button
             onClick={addTestProspect}
             disabled={adding}
-            className="flex items-center gap-2 px-4 py-2 bg-emerald-500/90 hover:bg-emerald-500 text-black text-sm font-semibold rounded-[10px] transition-all active:scale-95 disabled:opacity-50 shadow-[0_0_12px_rgba(16,185,129,0.3)]"
+            className="flex items-center gap-2 px-4 py-2 bg-emerald-500/90 hover:bg-emerald-500 text-black text-sm font-semibold rounded-[12px] transition-all active:scale-95 disabled:opacity-50 shadow-[0_0_12px_rgba(16,185,129,0.3)]"
           >
             <Plus className={cn("h-4 w-4", adding && "animate-spin")} />
             {adding ? "Adding..." : "Quick Add Test Prospect"}
@@ -455,7 +495,7 @@ export default function PipelinePage() {
 
           <button
             onClick={fetchLeads}
-            className="flex items-center gap-2 px-3 py-2 rounded-[10px] border border-white/[0.06] bg-[rgba(12,12,22,0.5)] text-sm text-muted-foreground hover:text-foreground hover:border-cyan/20 transition-all backdrop-blur-xl"
+            className="flex items-center gap-2 px-3 py-2 rounded-[12px] border border-glass-border bg-glass/50 text-sm text-muted-foreground hover:text-foreground hover:border-cyan/20 transition-all backdrop-blur-xl"
           >
             <RefreshCw className={cn("h-4 w-4", loading && "animate-spin")} />
             Refresh
@@ -474,7 +514,7 @@ export default function PipelinePage() {
                 <div key={stage.id} className="flex flex-col w-[280px] shrink-0">
                   {/* Column header */}
                   <div
-                    className="flex items-center justify-between px-3 py-2.5 rounded-t-xl border border-b-0"
+                    className="flex items-center justify-between px-3 py-2.5 rounded-t-[14px] border border-b-0"
                     style={{
                       background: stage.bg,
                       borderColor: stage.border,
@@ -502,7 +542,7 @@ export default function PipelinePage() {
                         ref={provided.innerRef}
                         {...provided.droppableProps}
                         className={cn(
-                          "flex-1 min-h-[500px] p-2 rounded-b-xl border border-white/[0.06] bg-[rgba(12,12,22,0.3)] backdrop-blur-xl overflow-y-auto transition-all duration-200 space-y-2",
+                          "flex-1 min-h-[500px] p-2 rounded-b-[14px] border border-glass-border bg-glass/30 backdrop-blur-xl overflow-y-auto transition-all duration-200 space-y-2",
                           snapshot.isDraggingOver && "ring-2 ring-offset-2 ring-white/60 bg-white/5"
                         )}
                       >
@@ -590,8 +630,8 @@ function LeadCard({
           transition={{ duration: 0.15 }}
           onClick={() => onOpenDetail(lead.id)}
           className={cn(
-            "rounded-[14px] border border-white/[0.06] bg-[rgba(12,12,22,0.55)] backdrop-blur-2xl p-3 transition-all duration-150 group holo-border cursor-pointer",
-            snapshot.isDragging && "scale-[1.03] shadow-[0_0_24px_rgba(0,255,136,0.15)] border-cyan/20 z-50"
+            "rounded-[14px] border border-glass-border bg-glass/60 backdrop-blur-2xl p-3 transition-all duration-150 group holo-border cursor-pointer",
+            snapshot.isDragging && "scale-[1.03] shadow-[0_0_24px_rgba(0,212,255,0.15)] border-cyan/20 z-50"
           )}
         >
           <div className="flex items-start justify-between gap-2">
@@ -608,7 +648,7 @@ function LeadCard({
                 </div>
                 <div
                   className="font-semibold text-sm text-foreground leading-tight mt-0.5 truncate"
-                  style={{ textShadow: "0 0 8px rgba(0,255,136,0.15)" }}
+                  style={{ textShadow: "0 0 8px rgba(0,212,255,0.15)" }}
                 >
                   {lead.address}
                 </div>
@@ -620,7 +660,7 @@ function LeadCard({
 
             <div
               className={cn(
-                "shrink-0 flex items-center gap-1 px-2 py-1 rounded-[10px] text-[11px] font-bold border",
+                "shrink-0 flex items-center gap-1 px-2 py-1 rounded-[12px] text-[11px] font-bold border",
                 sc.class
               )}
             >
@@ -648,13 +688,24 @@ function LeadCard({
             </div>
           )}
 
-          {lead.source && (
-            <div className="mt-2">
-              <span className="text-[9px] font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded bg-cyan/[0.08] text-neon/70 border border-cyan/15">
+          <div className="flex items-center gap-1.5 mt-2 flex-wrap">
+            {lead.daysUntilDistress != null && (
+              <span className={cn(
+                "text-[9px] font-bold px-1.5 py-0.5 rounded border inline-flex items-center gap-0.5",
+                lead.predictiveLabel === "imminent" ? "text-red-400 bg-red-500/10 border-red-500/25" :
+                lead.predictiveLabel === "likely" ? "text-orange-400 bg-orange-500/10 border-orange-500/25" :
+                lead.predictiveLabel === "possible" ? "text-yellow-400 bg-yellow-500/10 border-yellow-500/25" :
+                "text-blue-400 bg-blue-500/10 border-blue-500/25"
+              )}>
+                ⚡ {lead.daysUntilDistress}d
+              </span>
+            )}
+            {lead.source && (
+              <span className="text-[9px] font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded bg-cyan/8 text-cyan/70 border border-cyan/15">
                 {lead.source}
               </span>
-            </div>
-          )}
+            )}
+          </div>
 
           <div className="mt-3 flex items-center justify-between">
             {lead.owner_id && !expired ? (
@@ -677,7 +728,7 @@ function LeadCard({
                   e.stopPropagation();
                   onClaim(lead.id);
                 }}
-                className="text-[11px] px-3 py-1 bg-neon/90 hover:bg-neon text-black font-semibold rounded-[10px] flex items-center gap-1.5 transition-all active:scale-95 shadow-[0_0_8px_rgba(0,255,136,0.3)]"
+                className="text-[11px] px-3 py-1 bg-cyan/90 hover:bg-cyan text-black font-semibold rounded-[12px] flex items-center gap-1.5 transition-all active:scale-95 shadow-[0_0_8px_rgba(0,212,255,0.3)]"
               >
                 <User className="h-3 w-3" />
                 CLAIM

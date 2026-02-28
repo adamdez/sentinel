@@ -73,9 +73,15 @@ function TickerRow({ item, index }: { item: TickerItem; index: number }) {
       <div className="flex items-center gap-2 relative">
         <Zap
           className={cn("h-3 w-3 shrink-0", isFire ? "text-orange-400" : "text-cyan")}
-          style={isFire ? { filter: "drop-shadow(0 0 4px rgba(255,107,53,0.5))" } : { filter: "drop-shadow(0 0 4px rgba(0,229,255,0.4))" }}
+          style={isFire ? { filter: "drop-shadow(0 0 3px rgba(255,107,53,0.5))" } : { filter: "drop-shadow(0 0 3px rgba(0,212,255,0.4))" }}
         />
-        <span className="font-semibold truncate flex-1 text-foreground">
+        <span
+          className="font-semibold truncate flex-1 text-foreground"
+          style={{
+            textShadow: "0 0 8px rgba(0,212,255,0.15), 0 0 16px rgba(0,212,255,0.06)",
+            WebkitFontSmoothing: "antialiased",
+          }}
+        >
           {item.name}
         </span>
         <Badge variant={isFire ? "fire" : "hot"} className="text-[8px] gap-0.5 shrink-0">
@@ -180,11 +186,8 @@ export function BreakingLeadsSidebar() {
   return (
     <div className="hidden lg:flex w-[300px] shrink-0 flex-col">
       <div
-        className="rounded-[14px] border border-white/[0.07] bg-[rgba(12,12,22,0.45)] backdrop-blur-[24px] overflow-hidden holo-border"
-        style={{
-          transformStyle: "preserve-3d",
-          boxShadow: "0 12px 40px rgba(0,0,0,0.45), inset 0 1px 0 rgba(255,255,255,0.05)",
-        }}
+        className="rounded-[14px] border border-glass-border bg-glass backdrop-blur-2xl overflow-hidden holo-border inner-glow-card"
+        style={{ transformStyle: "preserve-3d" }}
       >
         <div className="flex items-center justify-between px-4 pt-3 pb-2 border-b border-white/[0.04]">
           <div className="flex items-center gap-2">
@@ -192,14 +195,14 @@ export function BreakingLeadsSidebar() {
               <span className={cn(
                 "absolute inline-flex h-full w-full rounded-full bg-cyan",
                 newPulse ? "animate-ping opacity-75" : "animate-pulse opacity-50"
-              )} style={{ boxShadow: "0 0 8px rgba(0,229,255,0.5)" }} />
-              <span className="relative inline-flex rounded-full h-2 w-2 bg-cyan shadow-[0_0_6px_rgba(0,229,255,0.5)]" />
+              )} />
+              <span className="relative inline-flex rounded-full h-2 w-2 bg-cyan shadow-[0_0_6px_rgba(0,212,255,0.5)]" />
             </span>
-            <span className="text-[10px] text-cyan font-semibold tracking-wider" style={{ textShadow: "0 0 10px rgba(0,229,255,0.3)" }}>BREAKING LEADS</span>
+            <span className="text-[10px] text-cyan font-semibold tracking-wider">BREAKING LEADS</span>
           </div>
           <div className="flex items-center gap-1.5">
-            <Radio className="h-3 w-3 text-cyan/50" />
-            <span className="text-[9px] text-muted-foreground/50">LIVE</span>
+            <Radio className="h-3 w-3 text-cyan/60" />
+            <span className="text-[9px] text-muted-foreground">LIVE</span>
           </div>
         </div>
 
@@ -220,7 +223,7 @@ export function BreakingLeadsSidebar() {
         <div className="px-4 py-2 border-t border-white/[0.04]">
           <Link
             href="/sales-funnel/prospects"
-            className="flex items-center justify-center gap-1.5 text-[10px] text-cyan/60 hover:text-cyan transition-colors font-medium"
+            className="flex items-center justify-center gap-1.5 text-[10px] text-cyan/70 hover:text-cyan transition-colors font-medium"
           >
             View All Prospects
             <ExternalLink className="h-2.5 w-2.5" />

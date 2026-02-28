@@ -26,15 +26,15 @@ interface DispoOption {
 }
 
 const DISPOSITIONS: DispoOption[] = [
-  { key: "voicemail",   label: "Voicemail",    hotkey: "1", icon: Voicemail,      color: "text-blue-400",   bgColor: "bg-blue-500/[0.06] hover:bg-blue-500/[0.12] border-blue-500/15" },
-  { key: "no_answer",   label: "No Answer",    hotkey: "2", icon: PhoneOff,       color: "text-zinc-400",   bgColor: "bg-zinc-500/[0.06] hover:bg-zinc-500/[0.12] border-zinc-500/15" },
-  { key: "interested",  label: "Interested",   hotkey: "3", icon: Sparkles,       color: "text-neon",       bgColor: "bg-neon/[0.06] hover:bg-neon/[0.12] border-neon/15" },
-  { key: "appointment", label: "Appointment",  hotkey: "4", icon: CalendarCheck,  color: "text-emerald-400",bgColor: "bg-emerald-500/[0.06] hover:bg-emerald-500/[0.12] border-emerald-500/15" },
-  { key: "contract",    label: "Contract",     hotkey: "5", icon: FileSignature,  color: "text-orange",     bgColor: "bg-orange-500/[0.06] hover:bg-orange-500/[0.12] border-orange-500/15" },
-  { key: "dead",        label: "Dead",         hotkey: "6", icon: Skull,          color: "text-red-400",    bgColor: "bg-red-500/[0.06] hover:bg-red-500/[0.12] border-red-500/15" },
-  { key: "nurture",     label: "Nurture",      hotkey: "7", icon: Heart,          color: "text-pink-400",   bgColor: "bg-pink-500/[0.06] hover:bg-pink-500/[0.12] border-pink-500/15" },
-  { key: "skip_trace",  label: "Skip Trace",   hotkey: "8", icon: Search,         color: "text-cyan",       bgColor: "bg-cyan-500/[0.06] hover:bg-cyan-500/[0.12] border-cyan-500/15" },
-  { key: "ghost",       label: "Ghost Research", hotkey: "9", icon: Ghost,        color: "text-yellow-400", bgColor: "bg-yellow-500/[0.06] hover:bg-yellow-500/[0.12] border-yellow-500/15" },
+  { key: "voicemail",   label: "Voicemail",    hotkey: "1", icon: Voicemail,      color: "text-blue-400",   bgColor: "bg-blue-500/10 hover:bg-blue-500/20 border-blue-500/20" },
+  { key: "no_answer",   label: "No Answer",    hotkey: "2", icon: PhoneOff,       color: "text-zinc-400",   bgColor: "bg-zinc-500/10 hover:bg-zinc-500/20 border-zinc-500/20" },
+  { key: "interested",  label: "Interested",   hotkey: "3", icon: Sparkles,       color: "text-cyan",       bgColor: "bg-cyan/8 hover:bg-cyan/15 border-cyan/15" },
+  { key: "appointment", label: "Appointment",  hotkey: "4", icon: CalendarCheck,  color: "text-emerald-400",bgColor: "bg-emerald-500/10 hover:bg-emerald-500/20 border-emerald-500/20" },
+  { key: "contract",    label: "Contract",     hotkey: "5", icon: FileSignature,  color: "text-orange-400", bgColor: "bg-orange-500/10 hover:bg-orange-500/20 border-orange-500/20" },
+  { key: "dead",        label: "Dead",         hotkey: "6", icon: Skull,          color: "text-red-400",    bgColor: "bg-red-500/10 hover:bg-red-500/20 border-red-500/20" },
+  { key: "nurture",     label: "Nurture",      hotkey: "7", icon: Heart,          color: "text-pink-400",   bgColor: "bg-pink-500/10 hover:bg-pink-500/20 border-pink-500/20" },
+  { key: "skip_trace",  label: "Skip Trace",   hotkey: "8", icon: Search,         color: "text-cyan-400",   bgColor: "bg-cyan-500/10 hover:bg-cyan-500/20 border-cyan-500/20" },
+  { key: "ghost",       label: "Ghost Research", hotkey: "9", icon: Ghost,        color: "text-yellow-400", bgColor: "bg-yellow-500/10 hover:bg-yellow-500/20 border-yellow-500/20" },
 ];
 
 type CallState = "idle" | "dialing" | "connected" | "ended";
@@ -202,12 +202,12 @@ export default function DialerPage() {
   }, [callState, currentLead, handleDial, handleDisposition, handleHangup]);
 
   const statCards = [
-    { label: "My Calls", value: stats.myCalls, icon: PhoneForwarded, color: "text-neon", glowColor: "rgba(0,255,136,0.12)" },
-    { label: "Team Calls", value: stats.teamCalls, icon: Users, color: "text-cyan", glowColor: "rgba(0,229,255,0.12)" },
-    { label: "Connect %", value: `${stats.connectRate}%`, icon: BarChart3, color: "text-purple", glowColor: "rgba(168,85,247,0.12)" },
-    { label: "Appts", value: stats.appointments, icon: CalendarCheck, color: "text-emerald-400", glowColor: "rgba(52,211,153,0.12)" },
-    { label: "Contracts", value: stats.contracts, icon: FileSignature, color: "text-orange", glowColor: "rgba(255,107,53,0.12)" },
-    { label: "Fees Earned", value: formatCurrency(stats.feesEarned), icon: DollarSign, color: "text-yellow-400", glowColor: "rgba(250,204,21,0.12)" },
+    { label: "My Calls", value: stats.myCalls, icon: PhoneForwarded, color: "text-cyan" },
+    { label: "Team Calls", value: stats.teamCalls, icon: Users, color: "text-blue-400" },
+    { label: "Connect %", value: `${stats.connectRate}%`, icon: BarChart3, color: "text-purple-400" },
+    { label: "Appts", value: stats.appointments, icon: CalendarCheck, color: "text-emerald-400" },
+    { label: "Contracts", value: stats.contracts, icon: FileSignature, color: "text-orange-400" },
+    { label: "Fees Earned", value: formatCurrency(stats.feesEarned), icon: DollarSign, color: "text-yellow-400" },
   ];
 
   return (
@@ -251,8 +251,8 @@ export default function DialerPage() {
         <div className="lg:col-span-3">
           <GlassCard hover={false} className="!p-3">
             <div className="flex items-center justify-between mb-3">
-              <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground/70 flex items-center gap-1.5">
-                <Users className="h-3.5 w-3.5 text-cyan drop-shadow-[0_0_6px_rgba(0,229,255,0.5)]" />
+              <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+                <Users className="h-3.5 w-3.5 text-cyan" />
                 Dial Queue
               </h2>
               <button
@@ -266,7 +266,7 @@ export default function DialerPage() {
             {queueLoading ? (
               <div className="space-y-2">
                 {[1, 2, 3, 4].map((i) => (
-                  <div key={i} className="h-14 rounded-[10px] bg-white/[0.02] animate-pulse" />
+                  <div key={i} className="h-14 rounded-[12px] bg-secondary/20 animate-pulse" />
                 ))}
               </div>
             ) : queue.length === 0 ? (
@@ -282,10 +282,10 @@ export default function DialerPage() {
                     <button
                       key={lead.id}
                       onClick={() => setCurrentLead(lead)}
-                      className={`w-full text-left rounded-[10px] p-2.5 transition-all duration-200 border ${
+                      className={`w-full text-left rounded-[12px] p-2.5 transition-all duration-200 border ${
                         isActive
-                          ? "bg-cyan/[0.05] border-cyan/20 shadow-[0_0_14px_rgba(0,229,255,0.08)]"
-                          : "bg-white/[0.02] border-transparent hover:bg-white/[0.04]"
+                          ? "bg-cyan/5 border-cyan/20 shadow-[0_0_12px_rgba(0,212,255,0.1)]"
+                          : "bg-secondary/10 border-transparent hover:bg-secondary/20"
                       }`}
                     >
                       <div className="flex items-center gap-2">
@@ -325,14 +325,14 @@ export default function DialerPage() {
                   glowCyan={callState === "dialing"}
                 >
                   {callState !== "idle" && (
-                    <div className={`flex items-center gap-2 mb-3 text-xs px-3 py-1.5 rounded-[10px] ${
-                      callState === "dialing" ? "bg-cyan/[0.06] text-cyan border border-cyan/15" :
-                      callState === "connected" ? "bg-neon/[0.06] text-neon border border-neon/15" :
-                      "bg-red-500/[0.06] text-red-400 border border-red-500/15"
+                    <div className={`flex items-center gap-2 mb-3 text-xs px-3 py-1.5 rounded-lg ${
+                      callState === "dialing" ? "bg-yellow-500/10 text-yellow-400" :
+                      callState === "connected" ? "bg-cyan/8 text-cyan" :
+                      "bg-red-500/10 text-red-400"
                     }`}>
                       <span className={`h-2 w-2 rounded-full ${
-                        callState === "dialing" ? "bg-cyan animate-pulse shadow-[0_0_6px_rgba(0,229,255,0.5)]" :
-                        callState === "connected" ? "bg-neon animate-pulse shadow-[0_0_6px_rgba(0,255,136,0.5)]" :
+                        callState === "dialing" ? "bg-yellow-400 animate-pulse" :
+                        callState === "connected" ? "bg-cyan animate-pulse" :
                         "bg-red-400"
                       }`} />
                       {callState === "dialing" && "Dialing..."}
@@ -410,8 +410,7 @@ export default function DialerPage() {
                         <Button
                           onClick={() => handleDial()}
                           disabled={!currentLead.compliant && !ghostMode}
-                          className="flex-1 gap-2"
-                          variant="neon"
+                          className="flex-1 gap-2 bg-cyan/15 hover:bg-cyan/25 text-cyan border border-cyan/25"
                         >
                           <Phone className="h-4 w-4" />
                           Dial {currentLead.properties?.owner_phone ? "" : "(No Phone)"}
@@ -470,8 +469,8 @@ export default function DialerPage() {
 
         <div className="lg:col-span-4">
           <GlassCard hover={false} className="!p-3">
-            <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground/70 mb-3 flex items-center gap-1.5">
-              <BarChart3 className="h-3.5 w-3.5 text-purple drop-shadow-[0_0_6px_rgba(168,85,247,0.5)]" />
+            <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3 flex items-center gap-1.5">
+              <BarChart3 className="h-3.5 w-3.5 text-cyan" />
               Disposition
               <span className="text-[9px] opacity-40 ml-auto">Keyboard shortcuts active</span>
             </h2>
@@ -486,8 +485,8 @@ export default function DialerPage() {
                     key={d.key}
                     onClick={() => handleDisposition(d.key)}
                     disabled={disabled}
-                    className={`flex items-center gap-3 rounded-[10px] px-3 py-2.5 text-left transition-all duration-200 border
-                      ${disabled ? "opacity-25 cursor-not-allowed" : d.bgColor}
+                    className={`flex items-center gap-3 rounded-[12px] px-3 py-2.5 text-left transition-all duration-150 border
+                      ${disabled ? "opacity-30 cursor-not-allowed" : d.bgColor}
                     `}
                   >
                     <span className="text-[10px] font-mono text-muted-foreground/40 w-3">{d.hotkey}</span>
@@ -523,9 +522,9 @@ export default function DialerPage() {
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: 10 }}
               >
-                <GlassCard glowCyan hover={false} className="!p-5 mt-3 text-center glow-ring">
-                  <Clock className="h-5 w-5 mx-auto mb-1 text-cyan drop-shadow-[0_0_8px_rgba(0,229,255,0.5)]" />
-                  <p className="text-3xl font-bold font-mono tracking-wider live-number" style={{ color: "#00E5FF", textShadow: "0 0 20px rgba(0,229,255,0.4), 0 0 40px rgba(0,229,255,0.15)" }}>
+                <GlassCard glow hover={false} className="!p-4 mt-3 text-center">
+                  <Clock className="h-5 w-5 mx-auto mb-1 text-cyan" />
+                  <p className="text-3xl font-bold font-mono tracking-wider text-neon">
                     {timer.formatted}
                   </p>
                   <p className="text-[10px] text-muted-foreground/50 mt-1 uppercase">

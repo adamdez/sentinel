@@ -91,7 +91,7 @@ function SortHeader({
       onClick={() => onSort(field)}
       className={cn(
         "flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wider hover:text-foreground transition-colors",
-        active ? "text-neon" : "text-muted-foreground",
+        active ? "text-cyan" : "text-muted-foreground",
         className
       )}
     >
@@ -135,7 +135,7 @@ function PriorityBar({ value }: { value: number }) {
                 pct >= 85
                   ? "bg-orange-400"
                   : pct >= 65
-                    ? "bg-neon"
+                    ? "bg-cyan"
                     : pct >= 40
                       ? "bg-yellow-400"
                       : "bg-muted-foreground"
@@ -146,7 +146,7 @@ function PriorityBar({ value }: { value: number }) {
         </div>
       </TooltipTrigger>
       <TooltipContent className="text-[11px]">
-        <Sparkles className="inline h-3 w-3 mr-1 text-neon" />
+        <Sparkles className="inline h-3 w-3 mr-1 text-cyan" />
         Predictive Priority: {value}/100
       </TooltipContent>
     </Tooltip>
@@ -163,7 +163,7 @@ export function LeadTable({
 }: LeadTableProps) {
   if (leads.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center py-16 text-center rounded-[14px] border border-white/[0.06] bg-[rgba(12,12,22,0.3)]">
+      <div className="flex flex-col items-center justify-center py-16 text-center rounded-[14px] border border-glass-border bg-glass/30">
         <AlertTriangle className="h-8 w-8 text-muted-foreground mb-3" />
         <p className="text-sm text-muted-foreground">
           No leads match your current filters.
@@ -173,8 +173,9 @@ export function LeadTable({
   }
 
   return (
-    <div className="rounded-[14px] border border-white/[0.06] bg-[rgba(12,12,22,0.3)] overflow-hidden">
-      <div className="grid grid-cols-[90px_1fr_100px_80px_minmax(120px,1fr)_100px_100px_40px] gap-3 px-4 py-2.5 border-b border-white/[0.05] bg-[rgba(12,12,22,0.5)]">
+    <div className="rounded-[14px] border border-glass-border bg-glass/30 overflow-hidden">
+      {/* Header */}
+      <div className="grid grid-cols-[90px_1fr_100px_80px_minmax(120px,1fr)_100px_100px_40px] gap-3 px-4 py-2.5 border-b border-glass-border bg-glass/50">
         <SortHeader label="APN" field="address" currentField={sortField} currentDir={sortDir} onSort={onSort} />
         <SortHeader label="Address / Owner" field="owner" currentField={sortField} currentDir={sortDir} onSort={onSort} />
         <SortHeader label="Heat" field="score" currentField={sortField} currentDir={sortDir} onSort={onSort} />
@@ -214,7 +215,7 @@ export function LeadTable({
               <span
                 className="text-sm font-semibold truncate text-foreground"
                 style={{
-                  textShadow: "0 0 8px rgba(0,255,136,0.12), 0 0 16px rgba(0,255,136,0.05)",
+                  textShadow: "0 0 8px rgba(0,212,255,0.12), 0 0 16px rgba(0,212,255,0.05)",
                   WebkitFontSmoothing: "antialiased",
                 }}
               >
@@ -228,7 +229,7 @@ export function LeadTable({
                   {lead.ownerName}
                 </span>
                 {isMine && (
-                  <span className="text-[9px] px-1.5 py-0 rounded-[4px] bg-cyan/[0.08] text-neon border border-cyan/15">
+                  <span className="text-[9px] px-1.5 py-0 rounded bg-cyan/8 text-cyan border border-cyan/15">
                     You
                   </span>
                 )}

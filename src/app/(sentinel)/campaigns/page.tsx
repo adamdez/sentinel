@@ -27,7 +27,7 @@ export default function CampaignsPage() {
     >
       <div className="grid grid-cols-3 gap-4 mb-4">
         <GlassCard className="p-4 text-center">
-          <Mail className="h-5 w-5 text-neon mx-auto mb-2" />
+          <Mail className="h-5 w-5 text-cyan mx-auto mb-2" />
           <p className="text-xl font-bold">850</p>
           <p className="text-[10px] text-muted-foreground">Total Sent</p>
         </GlassCard>
@@ -46,11 +46,11 @@ export default function CampaignsPage() {
       <GlassCard hover={false}>
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-sm font-semibold flex items-center gap-2">
-            <Megaphone className="h-4 w-4 text-neon" />
+            <Megaphone className="h-4 w-4 text-cyan" />
             Active Campaigns
           </h2>
         </div>
-        <div className="overflow-hidden rounded-[10px] border border-white/[0.06]">
+        <div className="overflow-hidden rounded-[12px] border border-glass-border">
           <table className="w-full">
             <thead>
               <tr className="border-b border-white/[0.06] bg-white/[0.02]">

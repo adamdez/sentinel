@@ -68,9 +68,7 @@ export function WidgetWrapper({
       onMouseMove={handleMouseMove}
       onMouseLeave={handleMouseLeave}
       className={cn(
-        "rounded-[14px] border border-white/[0.07] bg-[rgba(12,12,22,0.45)] backdrop-blur-[24px] overflow-hidden group transition-all duration-300 holo-border",
-        "shadow-[0_12px_40px_rgba(0,0,0,0.45),inset_0_1px_0_rgba(255,255,255,0.05)]",
-        "hover:border-white/[0.1] hover:shadow-[0_16px_50px_rgba(0,0,0,0.5),0_0_25px_rgba(0,229,255,0.03)]",
+        "rounded-[14px] border border-glass-border bg-glass backdrop-blur-2xl overflow-hidden group transition-all duration-300 hover:border-cyan/10 holo-border scanline-overlay inner-glow-card",
         colSpan === 2 && "col-span-2",
         rowSpan === 2 && "row-span-2"
       )}
@@ -84,7 +82,7 @@ export function WidgetWrapper({
           >
             <GripVertical className="h-3.5 w-3.5" />
           </button>
-          <def.icon className="h-3.5 w-3.5 text-cyan drop-shadow-[0_0_6px_rgba(0,229,255,0.4)]" />
+          <def.icon className="h-3.5 w-3.5 text-cyan" />
           <span className="text-xs font-semibold tracking-tight">{def.label}</span>
         </div>
         <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">

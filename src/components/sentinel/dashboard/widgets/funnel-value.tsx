@@ -19,7 +19,7 @@ interface FunnelStage {
 const STAGE_META: Record<string, { label: string; color: string; glow: string; order: number }> = {
   prospect:    { label: "Prospects",   color: "from-blue-500 to-blue-400",   glow: "rgba(59,130,246,0.3)",  order: 0 },
   lead:        { label: "Leads",       color: "from-cyan-500 to-cyan-400",   glow: "rgba(6,182,212,0.3)",   order: 1 },
-  negotiation: { label: "Negotiation", color: "from-neon to-neon-dim",       glow: "rgba(0,255,136,0.3)",   order: 2 },
+  negotiation: { label: "Negotiation", color: "from-cyan to-cyan/80",       glow: "rgba(0,212,255,0.3)",   order: 2 },
   disposition: { label: "Disposition", color: "from-yellow-500 to-yellow-400", glow: "rgba(234,179,8,0.3)", order: 3 },
   nurture:     { label: "Nurture",     color: "from-orange-500 to-orange-400", glow: "rgba(249,115,22,0.3)", order: 4 },
   closed:      { label: "Closed",      color: "from-purple-500 to-purple-400", glow: "rgba(168,85,247,0.3)", order: 5 },
@@ -182,8 +182,8 @@ export function FunnelValue() {
         <span className="text-muted-foreground">Total Pipeline</span>
         <motion.span
           className="font-bold text-neon"
-          style={{ textShadow: "0 0 10px rgba(0,255,136,0.4)" }}
-          animate={{ textShadow: ["0 0 10px rgba(0,255,136,0.3)", "0 0 20px rgba(0,255,136,0.5)", "0 0 10px rgba(0,255,136,0.3)"] }}
+          style={{ textShadow: "0 0 10px rgba(0,212,255,0.4)" }}
+          animate={{ textShadow: ["0 0 10px rgba(0,212,255,0.3)", "0 0 20px rgba(0,212,255,0.5)", "0 0 10px rgba(0,212,255,0.3)"] }}
           transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }}
         >
           {formatValue(totalValue)}

@@ -47,7 +47,7 @@ export function LeadSegmentControl({
   }
 
   return (
-    <div className="flex items-center gap-1 p-1 rounded-[14px] bg-white/[0.02] border border-white/[0.06] w-fit backdrop-blur-xl">
+    <div className="flex items-center gap-1 p-1 rounded-[12px] bg-secondary/40 border border-glass-border w-fit">
       {tabs.map((tab) => {
         const active = value === tab.id;
         return (
@@ -76,7 +76,7 @@ export function LeadSegmentControl({
                   "text-[10px] px-1.5 py-0 rounded-full",
                   active
                     ? "bg-cyan/12 text-cyan"
-                    : "bg-white/[0.03] text-muted-foreground"
+                    : "bg-secondary text-muted-foreground"
                 )}
               >
                 {tab.count}

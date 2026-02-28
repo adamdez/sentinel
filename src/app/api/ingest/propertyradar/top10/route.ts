@@ -1,6 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@/lib/supabase";
 import { computeScore, SCORING_MODEL_VERSION, type ScoringInput } from "@/lib/scoring";
+import {
+  computePredictiveScore,
+  buildPredictionRecord,
+  blendHeatScore,
+  type PredictiveInput,
+} from "@/lib/scoring-predictive";
 import type { DistressType } from "@/lib/types";
 import {
   normalizeCounty, distressFingerprint, isDuplicateError,
@@ -349,7 +355,49 @@ export async function POST(req: NextRequest) {
       factors: score.factors,
     });
 
-    // 6d. Lead — check existing, create or update
+    // 3b. Predictive scoring (v2.0)
+    const predInput: PredictiveInput = {
+      propertyId: property.id,
+      ownerName,
+      ownershipYears: null,
+      lastSaleDate: pr.LastTransferRecDate ? String(pr.LastTransferRecDate) : null,
+      lastSalePrice: toNumber(pr.LastTransferValue) ?? null,
+      estimatedValue: toNumber(pr.AVM) ?? null,
+      equityPercent: toNumber(pr.EquityPercent) ?? null,
+      previousEquityPercent: null,
+      equityDeltaMonths: null,
+      totalLoanBalance: toNumber(pr.TotalLoanBalance) ?? null,
+      isAbsentee: isTruthy(pr.isNotSameMailingOrExempt),
+      absenteeSinceDate: null,
+      isVacant: isTruthy(pr.isSiteVacant) || isTruthy(pr.isMailVacant),
+      isCorporateOwner: false,
+      isFreeClear: isTruthy(pr.isFreeAndClear),
+      ownerAgeKnown: null,
+      delinquentAmount: toNumber(pr.DelinquentAmount) ?? null,
+      previousDelinquentAmount: null,
+      delinquentYears: toNumber(pr.DelinquentYear) != null
+        ? Math.max(new Date().getFullYear() - Number(pr.DelinquentYear), 0)
+        : 0,
+      taxAssessedValue: null,
+      activeSignals: signals.map((s) => ({
+        type: s.type,
+        severity: s.severity,
+        daysSinceEvent: s.daysSinceEvent,
+      })),
+      historicalScores: [],
+      foreclosureStage: pr.ForeclosureStage ? String(pr.ForeclosureStage) : null,
+      defaultAmount: toNumber(pr.DefaultAmount) ?? null,
+    };
+
+    const predOutput = computePredictiveScore(predInput);
+    const blendedScore = blendHeatScore(score.composite, predOutput.predictiveScore);
+
+    // Persist prediction (append-only)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    await (sb.from("scoring_predictions") as any)
+      .insert(buildPredictionRecord(property.id, predOutput));
+
+    // 4. Lead (prospect, unassigned) — uses blended score
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { data: existingLead } = await (sb.from("leads") as any)
       .select("id")
@@ -362,35 +410,26 @@ export async function POST(req: NextRequest) {
       await (sb.from("leads") as any).insert({
         property_id: property.id,
         status: "prospect",
-        priority: score.composite,
+        priority: blendedScore,
         source: SOURCE_TAG,
         tags: signals.map((s) => s.type),
-        notes: `Elite Seed — Score ${score.composite} (${score.label}). ${signals.length} signal(s). RadarID: ${pr.RadarID ?? "N/A"}`,
+        notes: `Elite Seed — Heat ${blendedScore} (det:${score.composite} + pred:${predOutput.predictiveScore}). Distress in ~${predOutput.daysUntilDistress}d (${predOutput.confidence}% conf). ${signals.length} signal(s). RadarID: ${pr.RadarID ?? "N/A"}`,
         promoted_at: new Date().toISOString(),
       });
       newInserts.push({ address: fullAddr, score: score.composite, label: score.label, apn });
     } else {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       await (sb.from("leads") as any)
-        .update({ priority: score.composite, tags: signals.map((s) => s.type), updated_at: new Date().toISOString() })
+        .update({ priority: blendedScore, tags: signals.map((s) => s.type) })
         .eq("id", existingLead.id);
       updated.push({ address: fullAddr, score: score.composite, apn });
     }
 
-    // 6e. Per-APN audit log entry
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    await (sb.from("event_log") as any).insert({
-      user_id: SYSTEM_USER_ID,
-      action: "elite_seed.property",
-      entity_type: "property",
-      entity_id: property.id,
-      details: {
-        apn, county, address: fullAddr,
-        score: score.composite, label: score.label,
-        signals: signals.map((s) => s.type),
-        is_new: !existingLead,
-        source: SOURCE_TAG,
-      },
+    inserted.push({
+      address: `${address}, ${city} ${state} ${zip}`.trim(),
+      score: blendedScore,
+      label: score.label,
+      apn,
     });
   }
 

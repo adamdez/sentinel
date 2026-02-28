@@ -139,7 +139,7 @@ export function LeadFilters({
             transition={{ duration: 0.2 }}
             className="overflow-hidden"
           >
-            <div className="rounded-[14px] border border-white/[0.06] bg-[rgba(12,12,22,0.4)] backdrop-blur-xl p-4 space-y-4">
+            <div className="rounded-[12px] border border-glass-border bg-glass/50 p-4 space-y-4">
               {/* Status */}
               <div>
                 <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-2">
@@ -176,8 +176,8 @@ export function LeadFilters({
                       className={cn(
                         "text-[11px] px-2.5 py-1 rounded-md border transition-all",
                         filters.distressTypes.includes(opt.value)
-                          ? "bg-cyan/[0.1] text-neon border-cyan/20"
-                          : "border-white/[0.06] text-muted-foreground hover:text-foreground hover:border-white/15"
+                          ? "bg-cyan/12 text-cyan border-cyan/20"
+                          : "border-glass-border text-muted-foreground hover:text-foreground hover:border-white/15"
                       )}
                     >
                       {opt.label}
@@ -201,8 +201,8 @@ export function LeadFilters({
                         className={cn(
                           "text-[11px] px-2.5 py-1 rounded-md border transition-all",
                           filters.minScore === p.value
-                            ? "bg-cyan/[0.1] text-neon border-cyan/20"
-                            : "border-white/[0.06] text-muted-foreground hover:text-foreground hover:border-white/15"
+                            ? "bg-cyan/12 text-cyan border-cyan/20"
+                            : "border-glass-border text-muted-foreground hover:text-foreground hover:border-white/15"
                         )}
                       >
                         {p.label}

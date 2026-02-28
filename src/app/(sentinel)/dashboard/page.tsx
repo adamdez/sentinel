@@ -83,7 +83,7 @@ export default function DashboardPage() {
             <button
               onClick={handleEliteSeed}
               disabled={eliteLoading}
-              className="relative px-4 py-1.5 rounded-[14px] font-bold text-[11px] uppercase tracking-wider
+              className="relative px-4 py-1.5 rounded-[12px] font-bold text-[11px] uppercase tracking-wider
                 bg-red-600 hover:bg-red-500 text-white border border-red-400/40
                 shadow-[0_0_14px_rgba(255,60,60,0.45)] hover:shadow-[0_0_22px_rgba(255,60,60,0.6)]
                 transition-all active:scale-95 disabled:opacity-50 disabled:cursor-wait

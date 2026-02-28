@@ -7,7 +7,7 @@ import { useSentinelStore } from "@/lib/store";
 import { cn } from "@/lib/utils";
 
 const userColors: Record<string, string> = {
-  "user-adam": "bg-cyan/[0.08] text-neon",
+  "user-adam": "bg-cyan/8 text-cyan",
   "user-sarah": "bg-purple-500/10 text-purple-400",
   "user-mike": "bg-blue-500/10 text-blue-400",
 };
@@ -39,7 +39,7 @@ export function TeamChatPreview() {
       ))}
       <button
         onClick={() => setChatOpen(true)}
-        className="w-full text-center text-[10px] text-neon hover:underline cursor-pointer pt-1"
+        className="w-full text-center text-[10px] text-cyan hover:underline cursor-pointer pt-1"
       >
         Open Chat
       </button>

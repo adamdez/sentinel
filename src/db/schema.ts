@@ -250,6 +250,33 @@ export const offers = pgTable("offers", {
   index("idx_offers_status").on(table.status),
 ]);
 
+// ── Scoring Predictions ─────────────────────────────────────────────
+// Predictive Scoring Domain: append-only, versioned, deterministic.
+// Stores forward-looking distress probability from the v2.0 model.
+
+export const scoringPredictions = pgTable("scoring_predictions", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  propertyId: uuid("property_id").notNull().references(() => properties.id, { onDelete: "cascade" }),
+  modelVersion: varchar("model_version", { length: 20 }).notNull(),
+  predictiveScore: integer("predictive_score").notNull(),
+  daysUntilDistress: integer("days_until_distress").notNull(),
+  confidence: numeric("confidence", { precision: 5, scale: 2 }).notNull(),
+  ownerAgeInference: integer("owner_age_inference"),
+  equityBurnRate: numeric("equity_burn_rate", { precision: 8, scale: 4 }),
+  absenteeDurationDays: integer("absentee_duration_days"),
+  taxDelinquencyTrend: numeric("tax_delinquency_trend", { precision: 8, scale: 4 }),
+  lifeEventProbability: numeric("life_event_probability", { precision: 5, scale: 2 }),
+  features: jsonb("features").notNull().default({}),
+  factors: jsonb("factors").notNull().default([]),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (table) => [
+  index("idx_predictions_property").on(table.propertyId),
+  index("idx_predictions_score").on(table.predictiveScore),
+  index("idx_predictions_days").on(table.daysUntilDistress),
+  index("idx_predictions_version").on(table.modelVersion),
+  index("idx_predictions_created").on(table.createdAt),
+]);
+
 // ── Event Log ───────────────────────────────────────────────────────
 // Append-only audit trail. No updates or deletes allowed.
 

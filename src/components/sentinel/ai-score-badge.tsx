@@ -8,11 +8,17 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { Brain } from "lucide-react";
 import type { AIScore } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
 interface AIScoreBadgeProps {
   score: AIScore;
+  prediction?: {
+    predictiveScore: number;
+    daysUntilDistress: number;
+    confidence: number;
+  } | null;
   showBreakdown?: boolean;
   size?: "sm" | "md" | "lg";
 }
@@ -39,7 +45,7 @@ function ScoreBar({ label, value, max = 100 }: { label: string; value: number; m
           transition={{ duration: 0.6, delay: 0.1 }}
           className={cn(
             "h-full rounded-full",
-            pct >= 80 ? "bg-neon" : pct >= 60 ? "bg-yellow-400" : pct >= 40 ? "bg-blue-400" : "bg-muted-foreground"
+            pct >= 80 ? "bg-cyan" : pct >= 60 ? "bg-yellow-400" : pct >= 40 ? "bg-blue-400" : "bg-muted-foreground"
           )}
         />
       </div>
@@ -47,7 +53,7 @@ function ScoreBar({ label, value, max = 100 }: { label: string; value: number; m
   );
 }
 
-export function AIScoreBadge({ score, size = "md" }: AIScoreBadgeProps) {
+export function AIScoreBadge({ score, prediction, size = "md" }: AIScoreBadgeProps) {
   const config = labelConfig[score.label];
 
   return (
@@ -76,7 +82,7 @@ export function AIScoreBadge({ score, size = "md" }: AIScoreBadgeProps) {
             <span className="opacity-75 text-[10px]">{config.text}</span>
           </Badge>
           {score.aiBoost > 0 && (
-            <span className="text-[9px] font-medium text-neon bg-cyan/[0.08] px-1 py-0.5 rounded-[4px] border border-cyan/15">
+            <span className="text-[9px] font-medium text-cyan bg-cyan/8 px-1 py-0.5 rounded border border-cyan/15">
               AI +{score.aiBoost}
             </span>
           )}
@@ -97,11 +103,29 @@ export function AIScoreBadge({ score, size = "md" }: AIScoreBadgeProps) {
             <ScoreBar label="Historical Conv." value={score.historicalConversion} />
           </div>
           {score.aiBoost > 0 && (
-            <div className="flex items-center gap-1 pt-1 border-t border-white/[0.06]">
-              <Sparkles className="h-3 w-3 text-neon" />
-              <span className="text-[10px] text-neon font-medium">
+            <div className="flex items-center gap-1 pt-1 border-t border-glass-border">
+              <Sparkles className="h-3 w-3 text-cyan" />
+              <span className="text-[10px] text-cyan font-medium">
                 AI Boost: +{score.aiBoost} from predictive model
               </span>
+            </div>
+          )}
+          {prediction && (
+            <div className="pt-1 border-t border-glass-border space-y-1">
+              <div className="flex items-center gap-1">
+                <Brain className="h-3 w-3 text-purple-400" />
+                <span className="text-[10px] text-purple-400 font-medium">
+                  Predictive: {prediction.predictiveScore}/100
+                </span>
+              </div>
+              <div className="flex items-center justify-between text-[10px]">
+                <span className="text-muted-foreground">Distress in</span>
+                <span className="text-orange-400 font-semibold">~{prediction.daysUntilDistress}d</span>
+              </div>
+              <div className="flex items-center justify-between text-[10px]">
+                <span className="text-muted-foreground">Confidence</span>
+                <span className="text-foreground font-medium">{prediction.confidence}%</span>
+              </div>
             </div>
           )}
         </div>

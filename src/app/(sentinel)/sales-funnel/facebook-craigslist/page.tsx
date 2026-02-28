@@ -55,7 +55,7 @@ export default function FacebookCraigslistPage() {
       <div className="grid grid-cols-2 gap-4 mb-4">
         <GlassCard className="p-4">
           <div className="flex items-center gap-3 mb-2">
-            <div className="p-2 rounded-[10px] bg-blue-500/10">
+            <div className="p-2 rounded-[12px] bg-blue-500/10">
               <Facebook className="h-5 w-5 text-blue-400" />
             </div>
             <div>
@@ -70,7 +70,7 @@ export default function FacebookCraigslistPage() {
         </GlassCard>
         <GlassCard className="p-4">
           <div className="flex items-center gap-3 mb-2">
-            <div className="p-2 rounded-[10px] bg-orange-500/10">
+            <div className="p-2 rounded-[12px] bg-orange-500/10">
               <Globe className="h-5 w-5 text-orange-400" />
             </div>
             <div>
@@ -88,7 +88,7 @@ export default function FacebookCraigslistPage() {
       <GlassCard hover={false}>
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-sm font-semibold flex items-center gap-2">
-            <Share2 className="h-4 w-4 text-neon" />
+            <Share2 className="h-4 w-4 text-cyan" />
             All Listings
           </h2>
         </div>
@@ -96,7 +96,7 @@ export default function FacebookCraigslistPage() {
           {listings.map((listing) => (
             <div
               key={listing.title}
-              className="flex items-center gap-4 p-3 rounded-[10px] bg-white/[0.02] hover:bg-white/[0.03] transition-colors"
+              className="flex items-center gap-4 p-3 rounded-[12px] bg-secondary/20 hover:bg-secondary/30 transition-colors"
             >
               <Badge variant="outline" className="text-[10px] shrink-0">
                 {listing.platform}

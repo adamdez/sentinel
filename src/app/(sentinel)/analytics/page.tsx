@@ -25,16 +25,16 @@ interface KPIConfig {
 }
 
 const KPI_CARDS: KPIConfig[] = [
-  { key: "totalDials",     label: "Total Dials",      icon: Phone,          color: "text-neon",        glowColor: "rgba(0,255,136,0.15)", format: (v) => String(v) },
-  { key: "connects",       label: "Connects",         icon: PhoneForwarded, color: "text-cyan",        glowColor: "rgba(0,229,255,0.15)", format: (v) => String(v) },
-  { key: "connectRate",    label: "Connect Rate",     icon: BarChart3,      color: "text-purple",      glowColor: "rgba(168,85,247,0.15)", format: (v) => `${v}%` },
-  { key: "voicemails",     label: "Voicemails",       icon: Voicemail,      color: "text-sky-400",     glowColor: "rgba(56,189,248,0.15)", format: (v) => String(v) },
-  { key: "appointments",   label: "Appointments",     icon: CalendarCheck,  color: "text-emerald-400", glowColor: "rgba(52,211,153,0.15)", format: (v) => String(v) },
-  { key: "contracts",      label: "Contracts",        icon: FileSignature,  color: "text-orange",      glowColor: "rgba(255,107,53,0.15)", format: (v) => String(v) },
-  { key: "deadLeads",      label: "Dead Leads",       icon: Skull,          color: "text-red-400",     glowColor: "rgba(248,113,113,0.15)", format: (v) => String(v) },
-  { key: "nurtures",       label: "Nurtures",         icon: Heart,          color: "text-pink-400",    glowColor: "rgba(244,114,182,0.15)", format: (v) => String(v) },
-  { key: "avgCallDuration",label: "Avg Duration",     icon: Clock,          color: "text-cyan",        glowColor: "rgba(0,229,255,0.15)", format: formatDuration },
-  { key: "revenue",        label: "Revenue",          icon: DollarSign,     color: "text-yellow-400",  glowColor: "rgba(250,204,21,0.15)", format: (v) => v >= 1000 ? `$${(v / 1000).toFixed(0)}K` : `$${v}` },
+  { key: "totalDials",     label: "Total Dials",      icon: Phone,          color: "text-cyan",        format: (v) => String(v) },
+  { key: "connects",       label: "Connects",         icon: PhoneForwarded, color: "text-blue-400",    format: (v) => String(v) },
+  { key: "connectRate",    label: "Connect Rate",     icon: BarChart3,      color: "text-purple-400",  format: (v) => `${v}%` },
+  { key: "voicemails",     label: "Voicemails",       icon: Voicemail,      color: "text-sky-400",     format: (v) => String(v) },
+  { key: "appointments",   label: "Appointments",     icon: CalendarCheck,  color: "text-emerald-400", format: (v) => String(v) },
+  { key: "contracts",      label: "Contracts",        icon: FileSignature,  color: "text-orange-400",  format: (v) => String(v) },
+  { key: "deadLeads",      label: "Dead Leads",       icon: Skull,          color: "text-red-400",     format: (v) => String(v) },
+  { key: "nurtures",       label: "Nurtures",         icon: Heart,          color: "text-pink-400",    format: (v) => String(v) },
+  { key: "avgCallDuration",label: "Avg Duration",     icon: Clock,          color: "text-cyan-400",    format: formatDuration },
+  { key: "revenue",        label: "Revenue",          icon: DollarSign,     color: "text-yellow-400",  format: (v) => v >= 1000 ? `$${(v / 1000).toFixed(0)}K` : `$${v}` },
 ];
 
 const PERIODS: { key: TimePeriod; label: string }[] = [
@@ -106,7 +106,7 @@ function ChangeBadge({ current, previous }: { current: number; previous: number 
   return (
     <span className={cn(
       "inline-flex items-center gap-0.5 text-[10px] font-medium",
-      positive ? "text-neon" : "text-red-400"
+      positive ? "text-cyan" : "text-red-400"
     )}>
       <Icon className="h-3 w-3" />
       {positive ? "+" : ""}{change}%
@@ -151,9 +151,9 @@ function BarChart({ data, height = 180, barColor }: { data: { label: string; val
                 transition={{ duration: 0.6, delay: i * 0.1 }}
                 x={x}
                 width={barWidth}
-                rx={6}
-                fill={`url(#barGrad${i})`}
-                filter="url(#barGlow)"
+                rx={4}
+                fill={d.color ?? barColor ?? "#00d4ff"}
+                opacity={0.8}
               />
               <text
                 x={x + barWidth / 2}
@@ -260,8 +260,8 @@ function LineChart({ data }: { data: { date: string; dials: number; connects: nu
       <motion.path
         d={dialsPath}
         fill="none"
-        stroke="#00E5FF"
-        strokeWidth={2.5}
+        stroke="#00d4ff"
+        strokeWidth={2}
         strokeLinecap="round"
         initial={{ pathLength: 0 }}
         animate={{ pathLength: 1 }}
@@ -292,7 +292,8 @@ function LineChart({ data }: { data: { date: string; dials: number; connects: nu
         );
       })}
 
-      <circle cx={padX} cy={height + 14} r={3} fill="#00E5FF" filter="url(#lineGlow)" />
+      {/* Legend */}
+      <circle cx={padX} cy={height + 14} r={3} fill="#00d4ff" />
       <text x={padX + 8} y={height + 17} className="text-[8px] fill-muted-foreground">Dials</text>
       <circle cx={padX + 50} cy={height + 14} r={3} fill="#A855F7" filter="url(#lineGlowPurple)" />
       <text x={padX + 58} y={height + 17} className="text-[8px] fill-muted-foreground">Rate %</text>
@@ -322,16 +323,17 @@ export default function AnalyticsPage() {
         </Badge>
       }
     >
-      <div className="flex items-center gap-1 p-1 rounded-[14px] bg-white/[0.02] border border-white/[0.06] w-fit backdrop-blur-xl">
+      {/* ── Period Tabs ──────────────────────────────────────────── */}
+      <div className="flex items-center gap-1 p-1 rounded-[14px] bg-secondary/20 border border-glass-border w-fit">
         {PERIODS.map((p) => (
           <button
             key={p.key}
             onClick={() => setPeriod(p.key)}
             className={cn(
-              "px-4 py-1.5 rounded-[10px] text-xs font-medium transition-all duration-250",
+              "px-4 py-1.5 rounded-[12px] text-xs font-medium transition-all duration-200",
               period === p.key
-                ? "bg-cyan/[0.1] text-cyan border border-cyan/20 shadow-[0_0_12px_rgba(0,229,255,0.1)]"
-                : "text-muted-foreground hover:text-foreground hover:bg-white/[0.03]"
+                ? "bg-cyan/10 text-cyan border border-cyan/20 shadow-[0_0_10px_rgba(0,212,255,0.1)]"
+                : "text-muted-foreground hover:text-foreground hover:bg-secondary/30"
             )}
           >
             {p.label}
@@ -366,7 +368,7 @@ export default function AnalyticsPage() {
                     <div className="mt-1.5">
                       <Sparkline
                         data={sparkData}
-                        color={card.color.includes("neon") ? "#00ff88" : card.color.includes("cyan") ? "#00E5FF" : "#A855F7"}
+                        color={card.color.includes("neon") || card.color.includes("cyan") ? "#00d4ff" : card.color.includes("blue") ? "#0099ff" : "#a855f7"}
                       />
                     </div>
                   )}
@@ -380,8 +382,8 @@ export default function AnalyticsPage() {
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mt-4">
         <GlassCard hover={false} className="lg:col-span-2 !p-4">
-          <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground/70 mb-3 flex items-center gap-1.5">
-            <BarChart3 className="h-3.5 w-3.5 text-cyan drop-shadow-[0_0_6px_rgba(0,229,255,0.5)]" />
+          <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3 flex items-center gap-1.5">
+            <BarChart3 className="h-3.5 w-3.5 text-cyan" />
             Daily Dials & Connect Rate — Last 30 Days
           </h3>
           {loading ? (
@@ -394,8 +396,8 @@ export default function AnalyticsPage() {
         </GlassCard>
 
         <GlassCard hover={false} className="!p-4">
-          <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground/70 mb-3 flex items-center gap-1.5">
-            <TrendingUp className="h-3.5 w-3.5 text-purple drop-shadow-[0_0_6px_rgba(168,85,247,0.5)]" />
+          <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3 flex items-center gap-1.5">
+            <TrendingUp className="h-3.5 w-3.5 text-cyan" />
             Conversion Funnel
           </h3>
           {loading ? (
@@ -483,7 +485,7 @@ export default function AnalyticsPage() {
                       ))}
 
                     {agents.length > 0 && (
-                      <tr className="bg-cyan/[0.04] border-t-2 border-cyan/15 font-semibold">
+                      <tr className="bg-cyan/5 border-t-2 border-cyan/20 font-semibold">
                         <td className="px-4 py-2.5" />
                         <td className="px-4 py-2.5 text-cyan" style={{ textShadow: "0 0 10px rgba(0,229,255,0.3)" }}>TEAM TOTAL</td>
                         {KPI_CARDS.map((c) => {

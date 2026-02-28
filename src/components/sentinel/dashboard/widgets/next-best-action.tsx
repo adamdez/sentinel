@@ -14,7 +14,7 @@ function GlowingOrb() {
       <motion.div
         className="absolute h-8 w-8 rounded-full"
         style={{
-          background: "radial-gradient(circle, rgba(0,229,255,0.3) 0%, rgba(0,229,255,0.08) 50%, transparent 70%)",
+          background: "radial-gradient(circle, rgba(0,212,255,0.4) 0%, rgba(0,212,255,0.1) 50%, transparent 70%)",
         }}
         animate={{
           scale: [1, 1.3, 1],
@@ -25,7 +25,7 @@ function GlowingOrb() {
       <motion.div
         className="absolute h-5 w-5 rounded-full"
         style={{
-          background: "radial-gradient(circle, rgba(0,229,255,0.5) 0%, rgba(0,229,255,0.15) 60%, transparent 80%)",
+          background: "radial-gradient(circle, rgba(0,212,255,0.6) 0%, rgba(0,212,255,0.2) 60%, transparent 80%)",
         }}
         animate={{
           scale: [1, 1.15, 1],
@@ -33,7 +33,7 @@ function GlowingOrb() {
         }}
         transition={{ duration: 2, repeat: Infinity, ease: "easeInOut", delay: 0.3 }}
       />
-      <Zap className="h-3.5 w-3.5 text-cyan relative z-10" style={{ filter: "drop-shadow(0 0 6px rgba(0,229,255,0.6))" }} />
+      <Zap className="h-3.5 w-3.5 text-cyan relative z-10" style={{ filter: "drop-shadow(0 0 4px rgba(0,212,255,0.6))" }} />
     </div>
   );
 }
@@ -105,7 +105,7 @@ export function NextBestAction() {
   if (loading) {
     return (
       <div className="space-y-3">
-        <div className="p-3 rounded-[10px] bg-cyan/[0.04] border border-cyan/10">
+        <div className="p-3 rounded-[12px] bg-cyan/4 border border-cyan/12">
           <div className="flex items-center gap-2 mb-2">
             <Skeleton className="h-4 w-4 rounded-full" />
             <Skeleton className="h-3 w-28" />
@@ -124,8 +124,8 @@ export function NextBestAction() {
   if (!primary) {
     return (
       <div className="space-y-3">
-        <div className="p-3 rounded-[10px] bg-cyan/[0.04] border border-cyan/10 text-center">
-          <Zap className="h-6 w-6 text-cyan mx-auto mb-2" style={{ filter: "drop-shadow(0 0 6px rgba(0,229,255,0.5))" }} />
+        <div className="p-3 rounded-[12px] bg-cyan/4 border border-cyan/12 text-center">
+          <Zap className="h-6 w-6 text-cyan mx-auto mb-2" style={{ filter: "drop-shadow(0 0 4px rgba(0,212,255,0.6))" }} />
           <p className="text-xs text-muted-foreground">
             No actions queued — waiting for new leads to flow in from Ranger Push.
           </p>
@@ -139,17 +139,17 @@ export function NextBestAction() {
       <motion.div
         initial={{ opacity: 0, y: 6 }}
         animate={{ opacity: 1, y: 0 }}
-        className="p-3 rounded-[10px] bg-cyan/[0.04] border border-cyan/10 relative overflow-hidden"
+        className="p-3 rounded-[12px] bg-cyan/4 border border-cyan/12 relative overflow-hidden"
       >
         <div
           className="absolute top-0 right-0 w-24 h-24 pointer-events-none"
           style={{
-            background: "radial-gradient(circle at top right, rgba(0,255,136,0.06) 0%, transparent 70%)",
+            background: "radial-gradient(circle at top right, rgba(0,212,255,0.06) 0%, transparent 70%)",
           }}
         />
         <div className="flex items-center gap-2 mb-2">
           <GlowingOrb />
-          <span className="text-[10px] font-semibold text-cyan uppercase tracking-wider" style={{ textShadow: "0 0 8px rgba(0,229,255,0.3)" }}>
+          <span className="text-[10px] font-semibold text-cyan uppercase tracking-wider">
             AI Recommendation
           </span>
         </div>

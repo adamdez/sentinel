@@ -287,8 +287,8 @@ export default function ProspectsPage() {
                 className={cn(
                   "text-[10px] px-2 py-1 rounded border transition-all",
                   sourceFilter === sf.value
-                    ? "text-neon border-cyan/20 bg-cyan/[0.08]"
-                    : "text-muted-foreground border-white/[0.06] hover:text-foreground hover:border-white/10"
+                    ? "text-cyan border-cyan/20 bg-cyan/8"
+                    : "text-muted-foreground border-glass-border hover:text-foreground hover:border-white/10"
                 )}
               >
                 {sf.label}
@@ -306,8 +306,8 @@ export default function ProspectsPage() {
                 className={cn(
                   "text-[10px] px-2 py-1 rounded border transition-all inline-flex items-center gap-1",
                   sortField === field
-                    ? "text-neon border-cyan/20 bg-cyan/[0.08]"
-                    : "text-muted-foreground border-white/[0.06] hover:text-foreground"
+                    ? "text-cyan border-cyan/20 bg-cyan/8"
+                    : "text-muted-foreground border-glass-border hover:text-foreground"
                 )}
               >
                 {field === "composite_score" ? "Score" : field === "promoted_at" ? "Date" : "Name"}
@@ -323,7 +323,7 @@ export default function ProspectsPage() {
 
         {/* Error state */}
         {error && (
-          <div className="p-4 mb-4 rounded-[10px] border border-red-500/20 bg-red-500/5 space-y-2">
+          <div className="p-4 mb-4 rounded-[12px] border border-red-500/20 bg-red-500/5 space-y-2">
             <div className="flex items-center gap-3 text-red-400 text-sm">
               <AlertCircle className="h-4 w-4 shrink-0" />
               <span className="flex-1">{error}</span>
@@ -356,7 +356,7 @@ export default function ProspectsPage() {
 
         {/* Table */}
         {prospects.length > 0 && (
-          <div className="overflow-hidden rounded-[10px] border border-white/[0.06]">
+          <div className="overflow-hidden rounded-[12px] border border-glass-border">
             <table className="w-full">
               <thead>
                 <tr className="border-b border-white/[0.06] bg-white/[0.02]">
@@ -372,7 +372,7 @@ export default function ProspectsPage() {
                   >
                     <span className="inline-flex items-center gap-1">
                       AI Score
-                      {sortField === "composite_score" && <SortIcon className="h-2.5 w-2.5 text-neon" />}
+                      {sortField === "composite_score" && <SortIcon className="h-2.5 w-2.5 text-cyan" />}
                     </span>
                   </th>
                   <th className="text-right p-3 text-xs font-medium text-muted-foreground">Actions</th>
@@ -399,7 +399,7 @@ export default function ProspectsPage() {
                         <p
                           className="text-sm font-semibold text-foreground"
                           style={{
-                            textShadow: "0 0 8px rgba(0,255,136,0.15), 0 0 16px rgba(0,255,136,0.06)",
+                            textShadow: "0 0 8px rgba(0,212,255,0.15), 0 0 16px rgba(0,212,255,0.06)",
                             WebkitFontSmoothing: "antialiased",
                           }}
                         >
