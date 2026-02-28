@@ -147,47 +147,71 @@ export function NewProspectModal() {
     try {
       const assignedMember = TEAM_MEMBERS.find((m) => m.id === assignTo);
 
+      const payload = {
+        apn: form.apn,
+        county: form.county,
+        address: form.address,
+        city: form.city,
+        state: form.state,
+        zip: form.zip,
+        owner_name: form.owner_name,
+        owner_phone: form.phone,
+        owner_email: form.email,
+        estimated_value: form.estimated_value,
+        equity_percent: form.equity_percent,
+        property_type: form.property_type,
+        bedrooms: form.bedrooms,
+        bathrooms: form.bathrooms,
+        sqft: form.sqft,
+        year_built: form.year_built,
+        lot_size: form.lot_size,
+        distress_tags: form.distress_tags,
+        notes: form.notes,
+        source: "manual",
+        assign_to: assignTo === "unassigned" ? null : currentUser.id,
+        actor_id: currentUser.id || null,
+      };
+
+      console.log("[NewProspect] Sending POST /api/prospects:", payload);
+
       const res = await fetch("/api/prospects", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          apn: form.apn,
-          county: form.county,
-          address: form.address,
-          city: form.city,
-          state: form.state,
-          zip: form.zip,
-          owner_name: form.owner_name,
-          owner_phone: form.phone,
-          owner_email: form.email,
-          estimated_value: form.estimated_value,
-          equity_percent: form.equity_percent,
-          property_type: form.property_type,
-          bedrooms: form.bedrooms,
-          bathrooms: form.bathrooms,
-          sqft: form.sqft,
-          year_built: form.year_built,
-          lot_size: form.lot_size,
-          distress_tags: form.distress_tags,
-          notes: form.notes,
-          source: "manual",
-          assign_to: assignTo === "unassigned" ? null : currentUser.id,
-          actor_id: currentUser.id || null,
-        }),
+        body: JSON.stringify(payload),
       });
 
-      const data = await res.json();
+      console.log("[NewProspect] Response status:", res.status, res.statusText);
 
-      if (!res.ok || !data.success) {
-        console.error("[NewProspect] API error:", data);
-        toast.error("Failed to save: " + (data.error ?? "Unknown error"), {
-          description: data.detail ?? undefined,
+      const rawText = await res.text();
+      console.log("[NewProspect] Raw response body:", rawText.slice(0, 2000));
+
+      let data: Record<string, unknown>;
+      try {
+        data = JSON.parse(rawText);
+      } catch {
+        console.error("[NewProspect] Response is NOT JSON:", rawText.slice(0, 500));
+        toast.error(`Server returned non-JSON (HTTP ${res.status})`, {
+          description: rawText.slice(0, 200),
         });
         setSaving(false);
         return;
       }
 
-      setCreatedLeadId(data.lead_id);
+      if (!res.ok || !data.success) {
+        console.error("[NewProspect] API error:", {
+          httpStatus: res.status,
+          body: data,
+          error: data.error,
+          detail: data.detail,
+        });
+        toast.error("Failed to save: " + (data.error ?? `HTTP ${res.status}`), {
+          description: (data.detail as string) ?? undefined,
+        });
+        setSaving(false);
+        return;
+      }
+
+      setCreatedLeadId(data.lead_id as string);
       setStep("confirm");
       toast.success(
         assignTo !== "unassigned"

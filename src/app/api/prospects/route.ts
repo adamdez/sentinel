@@ -65,10 +65,10 @@ export async function PATCH(req: NextRequest) {
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     await (sb.from("event_log") as any).insert({
-      user_id: actor_id || SYSTEM_USER_ID,
-      action: status === "my_lead" ? "CLAIMED" : "STATUS_CHANGED",
       entity_type: "lead",
       entity_id: lead_id,
+      action: status === "my_lead" ? "CLAIMED" : "STATUS_CHANGED",
+      actor_id: actor_id || null,
       details: { status, assigned_to },
     }).then(({ error: auditErr }: { error: unknown }) => {
       if (auditErr) console.error("[API/prospects PATCH] Audit log insert failed (non-fatal):", auditErr);
@@ -188,12 +188,13 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    // Non-blocking audit log — must not prevent save response
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    await (sb.from("event_log") as any).insert({
-      user_id: body.actor_id || SYSTEM_USER_ID,
-      action: "CREATED",
+    (sb.from("event_log") as any).insert({
       entity_type: "lead",
       entity_id: lead.id,
+      action: "CREATED",
+      actor_id: body.actor_id || null,
       details: {
         source: "manual",
         address,
@@ -202,23 +203,20 @@ export async function POST(req: NextRequest) {
         assigned: isAssigned ? assign_to : "unassigned",
       },
     }).then(({ error: auditErr }: { error: unknown }) => {
-      if (auditErr) console.error("[API/prospects POST] Audit log insert failed (non-fatal):", auditErr);
+      if (auditErr) console.error("[API/prospects POST] Audit log failed (non-fatal):", auditErr);
     });
 
-    // ── Step 3: Auto-enrich from PropertyRadar ───────────────────────
-
-    const enrichResult = await enrichFromPropertyRadar(
-      sb, property.id, lead.id, address.trim(), city, state, zip
-    );
+    // Enrichment is NOT done inline — it was causing Vercel timeouts.
+    // User triggers enrichment via "Enrich + Skip Trace" button in the modal.
 
     return NextResponse.json({
       success: true,
       lead_id: lead.id,
       property_id: property.id,
-      score: enrichResult?.score ?? compositeScore,
+      score: compositeScore,
       status: leadRow.status,
-      enriched: enrichResult?.enriched ?? false,
-      enrichment: enrichResult?.summary ?? "PropertyRadar not attempted",
+      enriched: false,
+      enrichment: "Use Skip Trace to pull PropertyRadar data",
     });
   } catch (err) {
     console.error("[API/prospects] Unexpected error:", err);
