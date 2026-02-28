@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createHash } from "crypto";
 import type { IngestPayload } from "@/lib/types";
 import { createServerClient } from "@/lib/supabase";
+import { distressFingerprint, isDuplicateError } from "@/lib/dedup";
 
 type SbResult<T> = { data: T | null; error: { code?: string; message: string } | null };
 
@@ -72,9 +72,7 @@ export async function POST(request: NextRequest) {
       }
       upserted++;
 
-      const fingerprint = createHash("sha256")
-        .update(`${record.apn}:${record.county}:${record.distress_type}:${payload.source}`)
-        .digest("hex");
+      const fingerprint = distressFingerprint(record.apn, record.county, record.distress_type, payload.source);
 
       // Append distress event (dedup by fingerprint unique index)
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -90,7 +88,7 @@ export async function POST(request: NextRequest) {
         }) as SbResult<unknown>;
 
       if (eventError) {
-        if (eventError.code === "23505") {
+        if (isDuplicateError(eventError)) {
           deduped++;
           results.push({ apn: record.apn, county: record.county, status: "duplicate", fingerprint });
         } else {

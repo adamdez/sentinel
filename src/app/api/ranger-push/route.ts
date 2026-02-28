@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createHash } from "crypto";
 import { createServerClient } from "@/lib/supabase";
+import { distressFingerprint, isDuplicateError } from "@/lib/dedup";
 
 type SbResult<T> = { data: T | null; error: { code?: string; message: string } | null };
 
@@ -101,9 +101,7 @@ export async function POST(request: NextRequest) {
     const primaryTag = payload.tags?.[0] ?? "ranger_push";
     const distressType = mapTagToDistressType(primaryTag);
 
-    const fingerprint = createHash("sha256")
-      .update(`${payload.apn}:${county}:${distressType}:ranger:${payload.prowler_id}`)
-      .digest("hex");
+    const fingerprint = distressFingerprint(payload.apn, county, distressType, `ranger:${payload.prowler_id}`);
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { error: eventError } = await (sb.from("distress_events") as any)
@@ -125,7 +123,7 @@ export async function POST(request: NextRequest) {
         confidence: payload.heat_score >= 80 ? "0.950" : payload.heat_score >= 60 ? "0.800" : "0.650",
       }) as SbResult<unknown>;
 
-    const eventDeduped = eventError?.code === "23505";
+    const eventDeduped = isDuplicateError(eventError);
     if (eventError && !eventDeduped) {
       console.error("[RangerPush] Event insert failed:", eventError);
     }

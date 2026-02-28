@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@/lib/supabase";
-import { createHash } from "crypto";
 import { computeScore, SCORING_MODEL_VERSION, type ScoringInput } from "@/lib/scoring";
 import type { DistressType } from "@/lib/types";
+import { distressFingerprint, normalizeCounty as globalNormalizeCounty } from "@/lib/dedup";
 
 const PR_API_BASE = "https://api.propertyradar.com/v1/properties";
 
@@ -325,6 +325,7 @@ async function enrichProperty(sb: any, apiKey: string, property: any, leadId?: s
     source: "propertyradar",
     radar_id: pr.RadarID,
     pr_raw: pr,
+    last_enriched: new Date().toISOString(),
   };
   if (isTruthy(pr.isNotSameMailingOrExempt)) ownerFlags.absentee = true;
   if (isTruthy(pr.isSiteVacant)) ownerFlags.vacant = true;
@@ -352,8 +353,7 @@ async function enrichProperty(sb: any, apiKey: string, property: any, leadId?: s
   if (pr.State) update.state = pr.State;
   if (pr.ZipFive) update.zip = pr.ZipFive;
   if (pr.County) {
-    update.county = pr.County.replace(/\s+county$/i, "").trim().split(" ")
-      .map((w: string) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(" ").toLowerCase();
+    update.county = globalNormalizeCounty(pr.County);
   }
   if (pr.Address) {
     update.address = [pr.Address, pr.City, pr.State, pr.ZipFive].filter(Boolean).join(", ");
@@ -403,7 +403,9 @@ async function enrichProperty(sb: any, apiKey: string, property: any, leadId?: s
     }),
 
     ...signals.map((signal) => {
-      const fp = createHash("sha256").update(`${pr.APN ?? property.id}:${signal.type}:propertyradar`).digest("hex");
+      const apn = pr.APN ?? property.apn ?? property.id;
+      const county = globalNormalizeCounty(pr.County ?? property.county ?? "", "Unknown");
+      const fp = distressFingerprint(apn, county, signal.type, "propertyradar");
       return sb.from("distress_events").insert({
         property_id: property.id,
         event_type: signal.type,

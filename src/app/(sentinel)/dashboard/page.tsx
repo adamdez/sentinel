@@ -24,24 +24,50 @@ export default function DashboardPage() {
   async function handleEliteSeed() {
     setEliteLoading(true);
     try {
-      const res = await fetch("/api/ingest/propertyradar/top10", { method: "POST" });
-      const data = await res.json();
+      const res = await fetch("/api/ingest/propertyradar/top10", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ counties: ["Spokane", "Kootenai"] }),
+      });
 
-      if (!res.ok || !data.success) {
-        toast.error(data.error ?? "Elite seed failed — check console");
-        console.error("[EliteSeed]", data);
+      let data: Record<string, unknown>;
+      try {
+        data = await res.json();
+      } catch {
+        toast.error("Elite seed returned non-JSON — check server logs");
         return;
       }
 
-      const leads: { address: string; score: number; label: string }[] = data.leads ?? [];
-      leads.forEach((l) => toast.success(`${l.score} ${l.label.toUpperCase()} — ${l.address}`));
-      toast.success(`${data.eliteInserted} elite prospects seeded! PR cost: ${data.prCost ?? "?"}`);
+      if (!res.ok || !data.success) {
+        const msg = typeof data.error === "string" ? data.error : "Elite seed failed";
+        toast.error(msg);
+        if (data.topScores) {
+          console.table(data.topScores);
+        }
+        console.error("[EliteSeed] Response:", data);
+        return;
+      }
+
+      const prospects = (data.prospects ?? []) as { address: string; score: number; label: string }[];
+      const count = typeof data.count === "number" ? data.count : prospects.length;
+      const newCount = typeof data.newInserts === "number" ? data.newInserts : count;
+      const updCount = typeof data.updated === "number" ? data.updated : 0;
+      const dedupEvents = typeof data.eventsDeduped === "number" ? data.eventsDeduped : 0;
+
+      toast.success(`🔥 ${count} Elite Prospects Processed!`, {
+        description: `${newCount} new · ${updCount} updated · ${dedupEvents} events deduped. Fetched ${data.totalFetched ?? "?"} → scored ${data.totalScored ?? "?"} → kept ${count}. PR cost: ${data.prCost ?? "?"}`,
+        duration: 8000,
+      });
+
+      prospects.slice(0, 10).forEach((p, i) =>
+        toast.info(`${i + 1}/${count} — ${p.score} ${String(p.label).toUpperCase()} — ${p.address}`, { duration: 5000 }),
+      );
 
       localStorage.setItem(ELITE_SEED_FLAG, "1");
       setEliteDone(true);
     } catch (err) {
-      console.error("[EliteSeed] catch:", err);
-      toast.error("Network error — see console");
+      console.error("[EliteSeed] Network error:", err);
+      toast.error("Network error reaching /api/ingest/propertyradar/top10");
     } finally {
       setEliteLoading(false);
     }

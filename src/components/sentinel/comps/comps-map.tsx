@@ -4,12 +4,14 @@ import { useEffect, useState, useCallback, useRef, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Home, DollarSign, Calendar, Ruler, Plus, X,
-  Loader2, Filter, TrendingUp, Eye,
+  Loader2, Filter, TrendingUp, Eye, MapPin,
+  RotateCcw,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn, formatCurrency } from "@/lib/utils";
+import { toast } from "sonner";
 import dynamic from "next/dynamic";
 import type { Map as LMap } from "leaflet";
 
@@ -100,6 +102,55 @@ interface CompFilters {
   propertyType: boolean;
 }
 
+// ── 5-Minute Result Cache (module-level, survives re-renders) ────────
+
+const CACHE_TTL = 5 * 60 * 1000;
+const compsCache = new Map<string, { comps: CompProperty[]; ts: number }>();
+
+function makeCacheKey(
+  lat: number, lng: number, radius: number,
+  filters: CompFilters, subject: SubjectProperty,
+): string {
+  return JSON.stringify({
+    la: lat.toFixed(4), lo: lng.toFixed(4), r: radius,
+    f: filters,
+    b: subject.beds, ba: subject.baths, sq: subject.sqft,
+    yb: subject.yearBuilt, pt: subject.propertyType,
+  });
+}
+
+function getCached(key: string): CompProperty[] | null {
+  const entry = compsCache.get(key);
+  if (!entry) return null;
+  if (Date.now() - entry.ts > CACHE_TTL) {
+    compsCache.delete(key);
+    return null;
+  }
+  return entry.comps;
+}
+
+function setCache(key: string, comps: CompProperty[]) {
+  compsCache.set(key, { comps, ts: Date.now() });
+  if (compsCache.size > 30) {
+    const oldest = [...compsCache.entries()].sort((a, b) => a[1].ts - b[1].ts)[0];
+    if (oldest) compsCache.delete(oldest[0]);
+  }
+}
+
+// ── Haversine distance (miles) ───────────────────────────────────────
+
+function haversine(lat1: number, lng1: number, lat2: number, lng2: number): number {
+  const R = 3959;
+  const dLat = ((lat2 - lat1) * Math.PI) / 180;
+  const dLng = ((lng2 - lng1) * Math.PI) / 180;
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos((lat1 * Math.PI) / 180) *
+    Math.cos((lat2 * Math.PI) / 180) *
+    Math.sin(dLng / 2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
 // ── Comp quality classification ───────────────────────────────────────
 
 function classifyComp(comp: CompProperty, subject: SubjectProperty): "good" | "marginal" | "outlier" {
@@ -137,25 +188,68 @@ const QUALITY_COLORS = {
   outlier: { fill: "#f87171", stroke: "#dc2626", label: "Outlier" },
 };
 
+const NO_FILTERS: CompFilters = { beds: false, baths: false, sqft: false, yearBuilt: false, propertyType: false };
+
 // ── Main Component ────────────────────────────────────────────────────
 
 export function CompsMap({ subject, selectedComps, onAddComp, onRemoveComp }: CompsMapProps) {
   const [comps, setComps] = useState<CompProperty[]>([]);
   const [loading, setLoading] = useState(false);
   const [radiusMiles, setRadiusMiles] = useState(4);
+  const [searchRadius, setSearchRadius] = useState(4);
   const [selectedComp, setSelectedComp] = useState<CompProperty | null>(null);
   const [filtersOpen, setFiltersOpen] = useState(true);
-  const [filters, setFilters] = useState<CompFilters>({
-    beds: true, baths: true, sqft: true, yearBuilt: false, propertyType: false,
-  });
+  const [filters, setFilters] = useState<CompFilters>(NO_FILTERS);
   const [mapReady, setMapReady] = useState(false);
   const mapRef = useRef<LMap | null>(null);
   const fetchIdRef = useRef(0);
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const selectedApns = useMemo(
     () => new Set(selectedComps.map((c) => c.apn)),
     [selectedComps]
   );
+
+  // Debounce radius slider → actual search radius (400ms)
+  useEffect(() => {
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => setSearchRadius(radiusMiles), 400);
+    return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
+  }, [radiusMiles]);
+
+  // Core fetch with cache
+  const doFetch = useCallback(async (
+    overrideFilters?: CompFilters,
+  ): Promise<CompProperty[]> => {
+    const f = overrideFilters ?? filters;
+    const key = makeCacheKey(subject.lat, subject.lng, searchRadius, f, subject);
+
+    const cached = getCached(key);
+    if (cached) return cached;
+
+    const res = await fetch("/api/comps/search", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        lat: subject.lat,
+        lng: subject.lng,
+        radiusMiles: searchRadius,
+        beds: f.beds ? subject.beds : undefined,
+        baths: f.baths ? subject.baths : undefined,
+        sqft: f.sqft ? subject.sqft : undefined,
+        yearBuilt: f.yearBuilt ? subject.yearBuilt : undefined,
+        propertyType: f.propertyType ? subject.propertyType : undefined,
+        limit: 100,
+      }),
+    });
+    const data = await res.json();
+    if (data.success) {
+      const results = (data.comps as CompProperty[]).filter((c) => c.lat != null && c.lng != null);
+      setCache(key, results);
+      return results;
+    }
+    return [];
+  }, [subject.lat, subject.lng, subject.beds, subject.baths, subject.sqft, subject.yearBuilt, subject.propertyType, searchRadius, filters]);
 
   const fetchComps = useCallback(async () => {
     fetchIdRef.current++;
@@ -163,34 +257,25 @@ export function CompsMap({ subject, selectedComps, onAddComp, onRemoveComp }: Co
     setLoading(true);
 
     try {
-      const res = await fetch("/api/comps/search", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          lat: subject.lat,
-          lng: subject.lng,
-          radiusMiles,
-          beds: filters.beds ? subject.beds : undefined,
-          baths: filters.baths ? subject.baths : undefined,
-          sqft: filters.sqft ? subject.sqft : undefined,
-          yearBuilt: filters.yearBuilt ? subject.yearBuilt : undefined,
-          propertyType: filters.propertyType ? subject.propertyType : undefined,
-          limit: 80,
-        }),
-      });
-
-      const data = await res.json();
+      let results = await doFetch();
       if (thisId !== fetchIdRef.current) return;
 
-      if (data.success) {
-        setComps(data.comps.filter((c: CompProperty) => c.lat != null && c.lng != null));
+      const anyFilterActive = Object.values(filters).some(Boolean);
+      if (results.length === 0 && anyFilterActive) {
+        results = await doFetch(NO_FILTERS);
+        if (thisId !== fetchIdRef.current) return;
+        if (results.length > 0) {
+          toast.info("Showing all properties — filters loosened");
+        }
       }
+
+      setComps(results);
     } catch (err) {
       console.error("[CompsMap] Fetch error:", err);
     } finally {
       if (thisId === fetchIdRef.current) setLoading(false);
     }
-  }, [subject.lat, subject.lng, subject.beds, subject.baths, subject.sqft, subject.yearBuilt, subject.propertyType, radiusMiles, filters]);
+  }, [doFetch, filters]);
 
   useEffect(() => {
     if (subject.lat && subject.lng) fetchComps();
@@ -201,6 +286,25 @@ export function CompsMap({ subject, selectedComps, onAddComp, onRemoveComp }: Co
   }, []);
 
   const radiusMeters = radiusMiles * 1609.34;
+
+  // Sort comps: good first, then marginal, then outlier — cap visible markers
+  const MAX_MARKERS = 80;
+  const sortedComps = useMemo(() => {
+    const qualityOrder = { good: 0, marginal: 1, outlier: 2 };
+    return [...comps]
+      .sort((a, b) => {
+        const qa = qualityOrder[classifyComp(a, subject)];
+        const qb = qualityOrder[classifyComp(b, subject)];
+        if (qa !== qb) return qa - qb;
+        return (b.avm ?? 0) - (a.avm ?? 0);
+      });
+  }, [comps, subject]);
+
+  const visibleComps = useMemo(
+    () => sortedComps.slice(0, MAX_MARKERS),
+    [sortedComps]
+  );
+  const hiddenCount = Math.max(0, comps.length - MAX_MARKERS);
 
   return (
     <div className="space-y-3">
@@ -233,7 +337,7 @@ export function CompsMap({ subject, selectedComps, onAddComp, onRemoveComp }: Co
         <div className="flex items-center gap-2">
           {loading && <Loader2 className="h-3 w-3 animate-spin text-neon" />}
           <Badge variant="outline" className="text-[10px]">
-            {comps.length} properties
+            {comps.length} properties{hiddenCount > 0 && ` (${MAX_MARKERS} shown)`}
           </Badge>
           <Badge variant="neon" className="text-[10px]">
             {selectedComps.length} comps selected
@@ -277,7 +381,8 @@ export function CompsMap({ subject, selectedComps, onAddComp, onRemoveComp }: Co
                   )}
                 </button>
               ))}
-              <Button size="sm" variant="ghost" className="text-[10px] h-6 ml-auto" onClick={fetchComps}>
+              <Button size="sm" variant="ghost" className="text-[10px] h-6 ml-auto gap-1" onClick={fetchComps}>
+                <RotateCcw className="h-2.5 w-2.5" />
                 Re-search
               </Button>
             </div>
@@ -286,7 +391,7 @@ export function CompsMap({ subject, selectedComps, onAddComp, onRemoveComp }: Co
       </AnimatePresence>
 
       {/* Map + detail panel side by side */}
-      <div className="flex gap-3" style={{ height: 420 }}>
+      <div className="flex gap-3" style={{ height: 440 }}>
         {/* Leaflet map */}
         <div className="flex-1 rounded-lg overflow-hidden border border-glass-border relative">
           {mapReady ? (
@@ -299,10 +404,14 @@ export function CompsMap({ subject, selectedComps, onAddComp, onRemoveComp }: Co
               scrollWheelZoom={true}
               dragging={true}
               doubleClickZoom={true}
+              preferCanvas={true}
             >
               <TileLayer
                 url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
                 attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a> &copy; <a href="https://carto.com/">CARTO</a>'
+                updateWhenIdle={false}
+                updateWhenZooming={false}
+                keepBuffer={6}
               />
 
               {/* Radius circle */}
@@ -342,8 +451,8 @@ export function CompsMap({ subject, selectedComps, onAddComp, onRemoveComp }: Co
                 </Tooltip>
               </CircleMarker>
 
-              {/* Comp markers */}
-              {comps.map((comp) => {
+              {/* Comp markers (capped for performance) */}
+              {visibleComps.map((comp) => {
                 if (!comp.lat || !comp.lng) return null;
                 const quality = classifyComp(comp, subject);
                 const colors = QUALITY_COLORS[quality];
@@ -382,6 +491,23 @@ export function CompsMap({ subject, selectedComps, onAddComp, onRemoveComp }: Co
             <Skeleton className="h-full w-full" />
           )}
 
+          {/* Loading overlay */}
+          <AnimatePresence>
+            {loading && (
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                className="absolute inset-0 z-[1000] bg-black/30 backdrop-blur-[1px] flex items-center justify-center pointer-events-none"
+              >
+                <div className="flex items-center gap-2 bg-glass/90 border border-glass-border rounded-lg px-3 py-2 backdrop-blur-xl">
+                  <Loader2 className="h-4 w-4 animate-spin text-neon" />
+                  <span className="text-xs text-neon font-medium">Searching radius…</span>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+
           {/* Map legend overlay */}
           <div className="absolute bottom-2 left-2 z-[1000] flex gap-1.5 pointer-events-none">
             {Object.entries(QUALITY_COLORS).map(([key, val]) => (
@@ -391,6 +517,15 @@ export function CompsMap({ subject, selectedComps, onAddComp, onRemoveComp }: Co
               </div>
             ))}
           </div>
+
+          {/* Cached indicator */}
+          {!loading && comps.length > 0 && (
+            <div className="absolute top-2 right-2 z-[1000] pointer-events-none">
+              <div className="bg-glass/70 backdrop-blur-sm border border-glass-border rounded px-1.5 py-0.5 text-[8px] text-muted-foreground">
+                {comps.length} results • 5m cache
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Detail side panel */}
@@ -401,7 +536,8 @@ export function CompsMap({ subject, selectedComps, onAddComp, onRemoveComp }: Co
               initial={{ opacity: 0, x: 20 }}
               animate={{ opacity: 1, x: 0 }}
               exit={{ opacity: 0, x: 20 }}
-              className="w-[280px] shrink-0 rounded-lg border border-glass-border bg-glass/50 backdrop-blur-xl overflow-y-auto"
+              transition={{ duration: 0.15 }}
+              className="w-[290px] shrink-0 rounded-lg border border-glass-border bg-glass/50 backdrop-blur-xl overflow-y-auto scrollbar-none"
             >
               <CompDetailPanel
                 comp={selectedComp}
@@ -416,12 +552,15 @@ export function CompsMap({ subject, selectedComps, onAddComp, onRemoveComp }: Co
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
-              className="w-[280px] shrink-0 rounded-lg border border-glass-border bg-glass/50 backdrop-blur-xl flex items-center justify-center"
+              className="w-[290px] shrink-0 rounded-lg border border-glass-border bg-glass/50 backdrop-blur-xl flex items-center justify-center"
             >
               <div className="text-center p-4">
                 <Eye className="h-6 w-6 text-muted-foreground mx-auto mb-2" />
                 <p className="text-xs text-muted-foreground">
                   Click any marker on the map to view property details
+                </p>
+                <p className="text-[10px] text-muted-foreground/50 mt-1">
+                  All properties in {radiusMiles}mi radius are clickable
                 </p>
               </div>
             </motion.div>
@@ -432,7 +571,7 @@ export function CompsMap({ subject, selectedComps, onAddComp, onRemoveComp }: Co
   );
 }
 
-// ── Comp detail panel ─────────────────────────────────────────────────
+// ── Comp detail panel (enhanced with distance, $/sqft, distress) ─────
 
 function CompDetailPanel({
   comp, subject, isSelected, onAdd, onRemove, onClose,
@@ -446,6 +585,19 @@ function CompDetailPanel({
 }) {
   const quality = classifyComp(comp, subject);
   const colors = QUALITY_COLORS[quality];
+  const distance = comp.lat && comp.lng
+    ? haversine(subject.lat, subject.lng, comp.lat, comp.lng)
+    : null;
+  const pricePerSqft = comp.avm && comp.sqft ? Math.round(comp.avm / comp.sqft) : null;
+  const subjectPpsf = subject.avm && subject.sqft ? Math.round(subject.avm / subject.sqft) : null;
+
+  const distressSignals: { label: string; color: string }[] = [];
+  if (comp.isForeclosure) distressSignals.push({ label: "Foreclosure", color: "text-red-400 border-red-400/30 bg-red-500/10" });
+  if (comp.isTaxDelinquent) distressSignals.push({ label: "Tax Delinquent", color: "text-amber-400 border-amber-400/30 bg-amber-500/10" });
+  if (comp.isVacant) distressSignals.push({ label: "Vacant", color: "text-purple-400 border-purple-400/30 bg-purple-500/10" });
+  if (comp.isAbsentee) distressSignals.push({ label: "Absentee", color: "text-blue-400 border-blue-400/30 bg-blue-500/10" });
+  if (comp.isFreeAndClear) distressSignals.push({ label: "Free & Clear", color: "text-green-400 border-green-400/30 bg-green-500/10" });
+  if (comp.isHighEquity) distressSignals.push({ label: "High Equity", color: "text-neon border-neon/30 bg-neon/10" });
 
   return (
     <div className="p-3 space-y-3 text-xs">
@@ -464,8 +616,8 @@ function CompDetailPanel({
         </button>
       </div>
 
-      {/* Quality badge */}
-      <div className="flex items-center gap-2">
+      {/* Quality + distance + badges row */}
+      <div className="flex flex-wrap items-center gap-1.5">
         <Badge
           className="text-[9px] gap-1"
           style={{
@@ -477,6 +629,12 @@ function CompDetailPanel({
           <div className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: colors.fill }} />
           {colors.label}
         </Badge>
+        {distance != null && (
+          <Badge variant="outline" className="text-[9px] gap-0.5">
+            <MapPin className="h-2.5 w-2.5" />
+            {distance.toFixed(1)}mi
+          </Badge>
+        )}
         {comp.isRecentSale && (
           <Badge variant="outline" className="text-[9px] gap-0.5 text-blue-400 border-blue-400/30">
             Recent Sale
@@ -489,13 +647,42 @@ function CompDetailPanel({
         )}
       </div>
 
+      {/* Distress signals (prominent) */}
+      {distressSignals.length > 0 && (
+        <div className="flex flex-wrap gap-1">
+          {distressSignals.map((s) => (
+            <span key={s.label} className={cn("text-[8px] px-1.5 py-0.5 rounded border font-medium", s.color)}>
+              {s.label}
+            </span>
+          ))}
+        </div>
+      )}
+
       {/* Key stats grid */}
-      <div className="grid grid-cols-2 gap-2">
+      <div className="grid grid-cols-2 gap-1.5">
         <StatBox icon={Home} label="Beds" value={comp.beds != null ? String(comp.beds) : "—"} match={subject.beds != null && comp.beds != null && Math.abs(comp.beds - subject.beds) <= 1} />
         <StatBox icon={Home} label="Baths" value={comp.baths != null ? String(comp.baths) : "—"} match={subject.baths != null && comp.baths != null && Math.abs(comp.baths - subject.baths) <= 0.5} />
         <StatBox icon={Ruler} label="Sqft" value={comp.sqft ? comp.sqft.toLocaleString() : "—"} match={subject.sqft != null && comp.sqft != null && Math.abs(comp.sqft - subject.sqft) / subject.sqft <= 0.15} />
         <StatBox icon={Calendar} label="Year" value={comp.yearBuilt ? String(comp.yearBuilt) : "—"} match={subject.yearBuilt != null && comp.yearBuilt != null && Math.abs(comp.yearBuilt - subject.yearBuilt) <= 10} />
       </div>
+
+      {/* $/sqft comparison */}
+      {pricePerSqft != null && (
+        <div className="flex items-center justify-between p-1.5 rounded-md border border-glass-border bg-secondary/10">
+          <span className="text-[10px] text-muted-foreground">$/sqft</span>
+          <div className="flex items-center gap-2">
+            <span className="font-semibold text-neon">${pricePerSqft}</span>
+            {subjectPpsf != null && (
+              <span className={cn(
+                "text-[9px]",
+                pricePerSqft > subjectPpsf ? "text-red-400" : "text-green-400"
+              )}>
+                vs ${subjectPpsf} subj
+              </span>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Financials */}
       <div className="space-y-1.5 p-2 rounded-md border border-glass-border bg-secondary/10">
@@ -515,12 +702,26 @@ function CompDetailPanel({
         )}
         <div className="flex justify-between">
           <span className="text-muted-foreground">Equity</span>
-          <span className="font-medium">{comp.equityPercent != null ? `${comp.equityPercent}%` : "—"}</span>
+          <span className={cn("font-medium", comp.equityPercent != null && comp.equityPercent >= 50 && "text-neon")}>
+            {comp.equityPercent != null ? `${comp.equityPercent}%` : "—"}
+          </span>
         </div>
+        {comp.availableEquity != null && (
+          <div className="flex justify-between">
+            <span className="text-muted-foreground">Avail. Equity</span>
+            <span className="font-medium">{formatCurrency(comp.availableEquity)}</span>
+          </div>
+        )}
         <div className="flex justify-between">
           <span className="text-muted-foreground">Assessed</span>
           <span className="font-medium">{comp.assessedValue ? formatCurrency(comp.assessedValue) : "—"}</span>
         </div>
+        {comp.totalLoanBalance != null && (
+          <div className="flex justify-between">
+            <span className="text-muted-foreground">Loan Bal.</span>
+            <span className="font-medium">{formatCurrency(comp.totalLoanBalance)}</span>
+          </div>
+        )}
       </div>
 
       {/* Property details */}
@@ -541,18 +742,13 @@ function CompDetailPanel({
           <span className="text-muted-foreground">County</span>
           <span>{comp.county}</span>
         </div>
+        {comp.lastSaleType && (
+          <div className="flex justify-between">
+            <span className="text-muted-foreground">Sale Type</span>
+            <span>{comp.lastSaleType}</span>
+          </div>
+        )}
       </div>
-
-      {/* Owner flags */}
-      {(comp.isVacant || comp.isAbsentee || comp.isFreeAndClear || comp.isForeclosure || comp.isTaxDelinquent) && (
-        <div className="flex flex-wrap gap-1">
-          {comp.isVacant && <MicroBadge text="Vacant" color="text-purple-400" />}
-          {comp.isAbsentee && <MicroBadge text="Absentee" color="text-blue-400" />}
-          {comp.isFreeAndClear && <MicroBadge text="Free & Clear" color="text-green-400" />}
-          {comp.isForeclosure && <MicroBadge text="Foreclosure" color="text-red-400" />}
-          {comp.isTaxDelinquent && <MicroBadge text="Tax Delinquent" color="text-amber-400" />}
-        </div>
-      )}
 
       {/* Action button */}
       {isSelected ? (
@@ -581,13 +777,5 @@ function StatBox({ icon: Icon, label, value, match }: {
       <p className="text-[9px] text-muted-foreground">{label}</p>
       <p className={cn("text-sm font-semibold", match && "text-neon")}>{value}</p>
     </div>
-  );
-}
-
-function MicroBadge({ text, color }: { text: string; color: string }) {
-  return (
-    <span className={cn("text-[8px] px-1.5 py-0.5 rounded border border-glass-border bg-secondary/20", color)}>
-      {text}
-    </span>
   );
 }

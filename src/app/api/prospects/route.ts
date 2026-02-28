@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createHash } from "crypto";
 import { createServerClient } from "@/lib/supabase";
 import { computeScore, SCORING_MODEL_VERSION, type ScoringInput } from "@/lib/scoring";
 import type { DistressType, LeadStatus } from "@/lib/types";
 import { validateStatusTransition, incrementLockVersion } from "@/lib/lead-guardrails";
 import { scrubLead } from "@/lib/compliance";
+import { distressFingerprint, normalizeCounty as globalNormalizeCounty, isDuplicateError } from "@/lib/dedup";
 
 const SYSTEM_USER_ID = "00000000-0000-0000-0000-000000000000";
 const PR_API_BASE = "https://api.propertyradar.com/v1/properties";
@@ -373,7 +373,7 @@ async function enrichFromPropertyRadar(
 
     // ── Build enriched property data ───────────────────────────────
 
-    const ownerFlags: Record<string, unknown> = { source: "propertyradar", radar_id: pr.RadarID };
+    const ownerFlags: Record<string, unknown> = { source: "propertyradar", radar_id: pr.RadarID, last_enriched: new Date().toISOString() };
     if (isTruthy(pr.isNotSameMailingOrExempt)) ownerFlags.absentee = true;
     if (isTruthy(pr.isSiteVacant)) ownerFlags.vacant = true;
     if (isTruthy(pr.isHighEquity)) ownerFlags.highEquity = true;
@@ -381,7 +381,7 @@ async function enrichFromPropertyRadar(
     if (isTruthy(pr.isCashBuyer)) ownerFlags.cashBuyer = true;
 
     const realApn = pr.APN ?? null;
-    const enrichedCounty = normalizeCounty(pr.County ?? "");
+    const enrichedCounty = globalNormalizeCounty(pr.County ?? "", "");
 
     const propertyUpdate: Record<string, unknown> = {
       owner_name: pr.Owner ?? pr.Taxpayer ?? null,
@@ -400,7 +400,7 @@ async function enrichFromPropertyRadar(
     // Update the real APN if PropertyRadar returned one
     if (realApn) {
       propertyUpdate.apn = realApn;
-      if (enrichedCounty) propertyUpdate.county = enrichedCounty.toLowerCase();
+      if (enrichedCounty) propertyUpdate.county = enrichedCounty;
     }
     if (pr.City) propertyUpdate.city = pr.City;
     if (pr.State) propertyUpdate.state = pr.State;
@@ -431,9 +431,7 @@ async function enrichFromPropertyRadar(
     // Append distress events (dedup by fingerprint)
     const apnForFingerprint = realApn ?? propertyId;
     for (const signal of signals) {
-      const fingerprint = createHash("sha256")
-        .update(`${apnForFingerprint}:${enrichedCounty}:${signal.type}:propertyradar`)
-        .digest("hex");
+      const fingerprint = distressFingerprint(apnForFingerprint, enrichedCounty, signal.type, "propertyradar");
 
       await sb.from("distress_events").insert({
         property_id: propertyId,
@@ -444,7 +442,7 @@ async function enrichFromPropertyRadar(
         raw_data: { detected_from: signal.detectedFrom, radar_id: pr.RadarID },
         confidence: signal.severity >= 7 ? "0.900" : signal.severity >= 4 ? "0.750" : "0.600",
       }).then(({ error: evtErr }: { error: { code?: string } | null }) => {
-        if (evtErr && evtErr.code !== "23505") {
+        if (evtErr && !isDuplicateError(evtErr)) {
           console.error("[Enrich] Event insert error:", evtErr);
         }
       });
@@ -585,15 +583,6 @@ function parseAddress(raw: string): ParsedAddress {
   return result;
 }
 
-function normalizeCounty(raw: string): string {
-  if (!raw) return "";
-  return raw
-    .replace(/\s+county$/i, "")
-    .replace(/^\s+|\s+$/g, "")
-    .split(" ")
-    .map((w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
-    .join(" ");
-}
 
 function isTruthy(val: unknown): boolean {
   return val === true || val === 1 || val === "1" || val === "Yes" || val === "True" || val === "true";

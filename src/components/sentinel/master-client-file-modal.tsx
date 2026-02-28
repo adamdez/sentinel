@@ -7,7 +7,7 @@ import {
   Calendar, Tag, Shield, Zap, ExternalLink, Clock, AlertTriangle,
   Copy, CheckCircle2, Search, Loader2, Building, Ruler, LandPlot,
   Banknote, Scale, UserX, Eye, FileText, Calculator, Globe, Send,
-  Radar, LayoutDashboard, Map, Printer,
+  Radar, LayoutDashboard, Map, Printer, ImageIcon, ChevronLeft, ChevronRight,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -486,6 +486,7 @@ function OverviewTab({ cf, skipTracing, skipTraceResult, skipTraceMs, overlay, o
           <InfoRow icon={Calendar} label="Follow-Up" value={cf.followUpDate ? new Date(cf.followUpDate).toLocaleDateString() : null} />
           <InfoRow icon={Copy} label="Model Version" value={cf.modelVersion} />
           <InfoRow icon={ExternalLink} label="Radar ID" value={cf.radarId} mono />
+          <InfoRow icon={Clock} label="Last Enriched" value={cf.ownerFlags?.last_enriched ? new Date(cf.ownerFlags.last_enriched as string).toLocaleString() : (cf.enriched ? "Enriched (time unknown)" : null)} highlight={!!cf.ownerFlags?.last_enriched} />
         </div>
         {cf.notes && (
           <div className="mt-2">
@@ -629,16 +630,97 @@ function CountyRecordsTab({ cf }: { cf: ClientFile }) {
 // Tab: Comps & ARV — Interactive Leaflet Map + PropertyRadar Search
 // ═══════════════════════════════════════════════════════════════════════
 
-function CompsTab({ cf, selectedComps, onAddComp, onRemoveComp }: {
+function SubjectPhotoCarousel({ photos, onSkipTrace }: { photos: string[]; onSkipTrace?: () => void }) {
+  const [idx, setIdx] = useState(0);
+
+  if (photos.length === 0) {
+    return (
+      <div className="h-full flex flex-col items-center justify-center text-center p-2">
+        <ImageIcon className="h-5 w-5 text-muted-foreground/40 mb-1" />
+        {onSkipTrace ? (
+          <button
+            onClick={onSkipTrace}
+            className="text-[9px] text-neon hover:underline font-medium mt-0.5"
+          >
+            Run Skip Trace for photos
+          </button>
+        ) : (
+          <p className="text-[9px] text-muted-foreground leading-tight">
+            Enrich via Skip Trace<br />for photos
+          </p>
+        )}
+      </div>
+    );
+  }
+
+  return (
+    <div className="relative h-full group">
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src={photos[idx]}
+        alt={`Property photo ${idx + 1}`}
+        className="h-full w-full object-cover"
+      />
+      {photos.length > 1 && (
+        <>
+          <button
+            onClick={() => setIdx((i) => (i - 1 + photos.length) % photos.length)}
+            className="absolute left-1 top-1/2 -translate-y-1/2 p-0.5 rounded bg-black/50 text-white opacity-0 group-hover:opacity-100 transition-opacity"
+          >
+            <ChevronLeft className="h-3.5 w-3.5" />
+          </button>
+          <button
+            onClick={() => setIdx((i) => (i + 1) % photos.length)}
+            className="absolute right-1 top-1/2 -translate-y-1/2 p-0.5 rounded bg-black/50 text-white opacity-0 group-hover:opacity-100 transition-opacity"
+          >
+            <ChevronRight className="h-3.5 w-3.5" />
+          </button>
+          <div className="absolute bottom-1 left-1/2 -translate-x-1/2 flex gap-1">
+            {photos.map((_, i) => (
+              <div key={i} className={cn("h-1 w-1 rounded-full transition-colors", i === idx ? "bg-neon" : "bg-white/40")} />
+            ))}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+// ── ARV adjustment helpers ────────────────────────────────────────────
+
+const CONDITION_LABELS: Record<number, string> = {
+  [-15]: "Poor (–15%)",
+  [-10]: "Below Avg (–10%)",
+  [-5]: "Fair (–5%)",
+  [0]: "Average",
+  [5]: "Good (+5%)",
+};
+
+function CompsTab({ cf, selectedComps, onAddComp, onRemoveComp, onSkipTrace }: {
   cf: ClientFile;
   selectedComps: CompProperty[];
   onAddComp: (comp: CompProperty) => void;
   onRemoveComp: (apn: string) => void;
+  onSkipTrace?: () => void;
 }) {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const prRaw = (cf.ownerFlags?.pr_raw ?? {}) as Record<string, any>;
   const lat = prRaw.Latitude ? parseFloat(String(prRaw.Latitude)) : null;
   const lng = prRaw.Longitude ? parseFloat(String(prRaw.Longitude)) : null;
+
+  // ARV adjustment state
+  const [conditionAdj, setConditionAdj] = useState(0);
+  const [offerPct, setOfferPct] = useState(65);
+  const [rehabEst, setRehabEst] = useState(15000);
+
+  const photos = useMemo(() => {
+    const urls: string[] = [];
+    if (Array.isArray(prRaw.Photos)) urls.push(...prRaw.Photos.filter((u: unknown) => typeof u === "string"));
+    if (Array.isArray(prRaw.photos)) urls.push(...prRaw.photos.filter((u: unknown) => typeof u === "string"));
+    if (typeof prRaw.PropertyImageUrl === "string" && prRaw.PropertyImageUrl) urls.push(prRaw.PropertyImageUrl);
+    if (typeof prRaw.StreetViewUrl === "string" && prRaw.StreetViewUrl) urls.push(prRaw.StreetViewUrl);
+    return urls;
+  }, [prRaw]);
 
   if (!lat || !lng) {
     return (
@@ -660,24 +742,54 @@ function CompsTab({ cf, selectedComps, onAddComp, onRemoveComp }: {
     propertyType: cf.propertyType, avm: cf.estimatedValue,
   };
 
-  // ARV from selected comps
+  // ARV from selected comps + adjustments
   const avms = selectedComps.map((c) => c.avm).filter((v): v is number => v != null);
   const lastSales = selectedComps.map((c) => c.lastSalePrice).filter((v): v is number => v != null);
   const avgAvm = avms.length > 0 ? Math.round(avms.reduce((a, b) => a + b, 0) / avms.length) : null;
   const avgLastSale = lastSales.length > 0 ? Math.round(lastSales.reduce((a, b) => a + b, 0) / lastSales.length) : null;
-  const arv = avgAvm ?? avgLastSale ?? cf.estimatedValue ?? 0;
+  const baseArv = avgAvm ?? avgLastSale ?? cf.estimatedValue ?? 0;
+  const arv = Math.round(baseArv * (1 + conditionAdj / 100));
 
-  // Profit projection
-  const offer = Math.round(arv * 0.65);
-  const rehab = 15000;
+  // Profit projection with editable inputs
+  const offer = Math.round(arv * (offerPct / 100));
   const holdingCosts = Math.round(arv * 0.03);
   const sellingCosts = Math.round(arv * 0.08);
-  const totalCost = offer + rehab + holdingCosts + sellingCosts;
+  const totalCost = offer + rehabEst + holdingCosts + sellingCosts;
   const profit = arv - totalCost;
   const roi = totalCost > 0 ? Math.round((profit / totalCost) * 100) : 0;
 
   return (
     <div className="space-y-4">
+      {/* Subject property header with photo carousel */}
+      <div className="rounded-lg border border-glass-border bg-glass/50 backdrop-blur-xl p-0 flex overflow-hidden">
+        <div className="w-44 h-28 shrink-0 border-r border-glass-border bg-secondary/10">
+          <SubjectPhotoCarousel photos={photos} onSkipTrace={onSkipTrace} />
+        </div>
+        <div className="flex-1 p-3 flex flex-col justify-center min-w-0">
+          <p className="text-sm font-bold truncate" style={{ textShadow: "0 0 8px rgba(0,255,136,0.12)" }}>
+            {cf.fullAddress}
+          </p>
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-1.5 text-[11px] text-muted-foreground">
+            {cf.bedrooms != null && <span className="flex items-center gap-1"><Home className="h-3 w-3" />{cf.bedrooms} bd</span>}
+            {cf.bathrooms != null && <span className="flex items-center gap-1"><Home className="h-3 w-3" />{cf.bathrooms} ba</span>}
+            {cf.sqft != null && <span className="flex items-center gap-1"><Ruler className="h-3 w-3" />{cf.sqft.toLocaleString()} sqft</span>}
+            {cf.yearBuilt != null && <span className="flex items-center gap-1"><Calendar className="h-3 w-3" />{cf.yearBuilt}</span>}
+            {cf.propertyType && <span className="flex items-center gap-1"><Building className="h-3 w-3" />{cf.propertyType}</span>}
+          </div>
+          <div className="flex items-center gap-3 mt-1.5 text-[11px]">
+            {cf.estimatedValue != null && (
+              <span className="font-semibold text-neon">{formatCurrency(cf.estimatedValue)} AVM</span>
+            )}
+            {cf.equityPercent != null && (
+              <span className="text-muted-foreground">{cf.equityPercent}% equity</span>
+            )}
+            {cf.sqft != null && cf.estimatedValue != null && (
+              <span className="text-muted-foreground">${Math.round(cf.estimatedValue / cf.sqft)}/sqft</span>
+            )}
+          </div>
+        </div>
+      </div>
+
       {/* Interactive map */}
       <CompsMap
         subject={subject}
@@ -732,54 +844,109 @@ function CompsTab({ cf, selectedComps, onAddComp, onRemoveComp }: {
         </div>
       )}
 
-      {/* Live ARV + Profit projection */}
-      <div className="grid grid-cols-2 gap-4">
-        <div className="rounded-lg border border-neon/20 bg-neon/5 p-4">
-          <p className="text-[10px] font-semibold text-neon uppercase tracking-wider mb-3 flex items-center gap-1.5">
+      {/* Live ARV + ARV Adjustments + Profit Projection — 3-column */}
+      <div className="grid grid-cols-3 gap-3">
+        {/* Live ARV */}
+        <div className="rounded-lg border border-neon/20 bg-neon/5 p-3">
+          <p className="text-[10px] font-semibold text-neon uppercase tracking-wider mb-2 flex items-center gap-1.5">
             <TrendingUp className="h-3 w-3" />
-            Live ARV Estimate
+            Live ARV
           </p>
           {selectedComps.length > 0 ? (
-            <div className="space-y-2 text-xs">
+            <div className="space-y-1.5 text-xs">
               <div className="flex justify-between">
-                <span className="text-muted-foreground">Avg AVM ({selectedComps.length} comps)</span>
-                <span className="font-bold text-neon text-lg">{avgAvm ? formatCurrency(avgAvm) : "—"}</span>
+                <span className="text-muted-foreground">Avg AVM</span>
+                <span className="font-bold text-neon">{avgAvm ? formatCurrency(avgAvm) : "—"}</span>
               </div>
               {avgLastSale && (
                 <div className="flex justify-between">
-                  <span className="text-muted-foreground">Avg Last Sale</span>
+                  <span className="text-muted-foreground">Avg Sale</span>
                   <span className="font-semibold">{formatCurrency(avgLastSale)}</span>
                 </div>
               )}
-              <div className="pt-2 mt-2 border-t border-neon/20 flex justify-between">
-                <span className="font-medium">Estimated ARV</span>
-                <span className="font-bold text-neon text-xl" style={{ textShadow: "0 0 10px rgba(0,255,136,0.4)" }}>
+              {conditionAdj !== 0 && (
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Condition</span>
+                  <span className={cn("font-medium", conditionAdj > 0 ? "text-green-400" : "text-red-400")}>
+                    {conditionAdj > 0 ? "+" : ""}{conditionAdj}%
+                  </span>
+                </div>
+              )}
+              <div className="pt-1.5 mt-1.5 border-t border-neon/20 flex justify-between">
+                <span className="font-medium">ARV</span>
+                <span className="font-bold text-neon text-lg" style={{ textShadow: "0 0 10px rgba(0,255,136,0.4)" }}>
                   {formatCurrency(arv)}
                 </span>
               </div>
             </div>
           ) : (
-            <p className="text-xs text-muted-foreground">Click markers on the map and &ldquo;Add as Comp&rdquo; to calculate ARV</p>
+            <p className="text-[10px] text-muted-foreground">Add comps to calculate</p>
           )}
         </div>
 
-        <div className="rounded-lg border border-glass-border bg-secondary/10 p-4">
-          <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-3 flex items-center gap-1.5">
+        {/* ARV Adjustments */}
+        <div className="rounded-lg border border-glass-border bg-secondary/10 p-3">
+          <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-2 flex items-center gap-1.5">
+            <Scale className="h-3 w-3" />
+            Adjustments
+          </p>
+          <div className="space-y-2.5">
+            <div>
+              <div className="flex justify-between text-[10px] mb-1">
+                <span className="text-muted-foreground">Condition</span>
+                <span className={cn("font-medium", conditionAdj !== 0 && (conditionAdj > 0 ? "text-green-400" : "text-red-400"))}>
+                  {CONDITION_LABELS[conditionAdj] ?? `${conditionAdj > 0 ? "+" : ""}${conditionAdj}%`}
+                </span>
+              </div>
+              <input
+                type="range" min={-15} max={5} step={5} value={conditionAdj}
+                onChange={(e) => setConditionAdj(Number(e.target.value))}
+                className="w-full h-1 accent-[#00ff88] bg-secondary rounded-full"
+              />
+            </div>
+            <div>
+              <div className="flex justify-between text-[10px] mb-1">
+                <span className="text-muted-foreground">Offer %</span>
+                <span className="font-medium text-neon">{offerPct}%</span>
+              </div>
+              <input
+                type="range" min={50} max={80} step={1} value={offerPct}
+                onChange={(e) => setOfferPct(Number(e.target.value))}
+                className="w-full h-1 accent-[#00ff88] bg-secondary rounded-full"
+              />
+            </div>
+            <div>
+              <div className="flex justify-between text-[10px] mb-1">
+                <span className="text-muted-foreground">Rehab</span>
+                <span className="font-medium">{formatCurrency(rehabEst)}</span>
+              </div>
+              <input
+                type="range" min={0} max={75000} step={2500} value={rehabEst}
+                onChange={(e) => setRehabEst(Number(e.target.value))}
+                className="w-full h-1 accent-[#00ff88] bg-secondary rounded-full"
+              />
+            </div>
+          </div>
+        </div>
+
+        {/* Profit Projection */}
+        <div className="rounded-lg border border-glass-border bg-secondary/10 p-3">
+          <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-2 flex items-center gap-1.5">
             <DollarSign className="h-3 w-3" />
             Profit Projection
           </p>
-          <div className="space-y-1.5 text-xs">
+          <div className="space-y-1 text-xs">
             <div className="flex justify-between">
               <span className="text-muted-foreground">ARV</span>
               <span className="font-medium">{formatCurrency(arv)}</span>
             </div>
             <div className="flex justify-between">
-              <span className="text-muted-foreground">Offer (65% ARV)</span>
+              <span className="text-muted-foreground">Offer ({offerPct}%)</span>
               <span className="font-medium text-red-400">-{formatCurrency(offer)}</span>
             </div>
             <div className="flex justify-between">
-              <span className="text-muted-foreground">Rehab est.</span>
-              <span className="font-medium text-red-400">-{formatCurrency(rehab)}</span>
+              <span className="text-muted-foreground">Rehab</span>
+              <span className="font-medium text-red-400">-{formatCurrency(rehabEst)}</span>
             </div>
             <div className="flex justify-between">
               <span className="text-muted-foreground">Holding (3%)</span>
@@ -789,9 +956,9 @@ function CompsTab({ cf, selectedComps, onAddComp, onRemoveComp }: {
               <span className="text-muted-foreground">Selling (8%)</span>
               <span className="font-medium text-red-400">-{formatCurrency(sellingCosts)}</span>
             </div>
-            <div className="pt-2 mt-2 border-t border-glass-border flex justify-between">
+            <div className="pt-1.5 mt-1.5 border-t border-glass-border flex justify-between">
               <span className="font-semibold">Net Profit</span>
-              <span className={cn("font-bold text-lg", profit >= 0 ? "text-neon" : "text-red-400")} style={profit >= 0 ? { textShadow: "0 0 10px rgba(0,255,136,0.3)" } : {}}>
+              <span className={cn("font-bold text-base", profit >= 0 ? "text-neon" : "text-red-400")} style={profit >= 0 ? { textShadow: "0 0 10px rgba(0,255,136,0.3)" } : {}}>
                 {formatCurrency(profit)}
               </span>
             </div>
@@ -1148,7 +1315,7 @@ export function MasterClientFileModal({ clientFile, open, onClose, onClaim, onRe
                     )}
                     {activeTab === "propertyradar" && <PropertyRadarTab cf={clientFile} />}
                     {activeTab === "county" && <CountyRecordsTab cf={clientFile} />}
-                    {activeTab === "comps" && <CompsTab cf={clientFile} selectedComps={selectedComps} onAddComp={handleAddComp} onRemoveComp={handleRemoveComp} />}
+                    {activeTab === "comps" && <CompsTab cf={clientFile} selectedComps={selectedComps} onAddComp={handleAddComp} onRemoveComp={handleRemoveComp} onSkipTrace={handleSkipTrace} />}
                     {activeTab === "calculator" && <OfferCalcTab cf={clientFile} />}
                     {activeTab === "documents" && <DocumentsTab cf={clientFile} />}
                   </motion.div>

@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createHash } from "crypto";
 import { createServerClient } from "@/lib/supabase";
 import { computeScore, SCORING_MODEL_VERSION, type ScoringInput } from "@/lib/scoring";
 import type { DistressType } from "@/lib/types";
+import { distressFingerprint, normalizeCounty as globalNormalizeCounty, isDuplicateError } from "@/lib/dedup";
 
 type SbResult<T> = { data: T | null; error: { code?: string; message: string } | null };
 
@@ -396,7 +396,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const county = normalizeCounty(prProperty.County ?? body.county ?? "");
+    const county = globalNormalizeCounty(prProperty.County ?? body.county ?? "", "Unknown");
     const address = prProperty.Address ?? prProperty.FullAddress ?? body.address ?? "";
     const city = prProperty.City ?? "";
     const state = prProperty.State ?? "AZ";
@@ -423,7 +423,7 @@ export async function POST(request: NextRequest) {
     const sb = createServerClient();
     log("Step 8a — Supabase service-role client created");
 
-    const ownerFlags: Record<string, unknown> = {};
+    const ownerFlags: Record<string, unknown> = { source: "propertyradar", last_enriched: new Date().toISOString() };
     if (isTruthy(prProperty.isNotSameMailingOrExempt)) ownerFlags.absentee = true;
     if (isTruthy(prProperty.isSiteVacant)) ownerFlags.vacant = true;
     if (isTruthy(prProperty.isHighEquity)) ownerFlags.highEquity = true;
@@ -511,9 +511,7 @@ export async function POST(request: NextRequest) {
     let eventsDeduped = 0;
 
     for (const signal of signals) {
-      const fingerprint = createHash("sha256")
-        .update(`${apn}:${county}:${signal.type}:propertyradar`)
-        .digest("hex");
+      const fingerprint = distressFingerprint(apn, county, signal.type, "propertyradar");
 
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { error: eventError } = await (sb.from("distress_events") as any)
@@ -530,7 +528,7 @@ export async function POST(request: NextRequest) {
           confidence: signal.severity >= 7 ? "0.900" : signal.severity >= 4 ? "0.750" : "0.600",
         }) as SbResult<unknown>;
 
-      if (eventError?.code === "23505") {
+      if (isDuplicateError(eventError)) {
         eventsDeduped++;
       } else if (eventError) {
         logError(`Step 9 — Event insert failed for ${signal.type}`, eventError);
@@ -899,15 +897,6 @@ function parseAddress(raw: string): ParsedAddress {
 
 // ── Helpers ────────────────────────────────────────────────────────────
 
-function normalizeCounty(raw: string): string {
-  if (!raw) return "Maricopa";
-  return raw
-    .replace(/\s+county$/i, "")
-    .replace(/^\s+|\s+$/g, "")
-    .split(" ")
-    .map((w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
-    .join(" ");
-}
 
 function isTruthy(val: unknown): boolean {
   if (val === true || val === 1 || val === "1" || val === "Yes" || val === "True" || val === "true") return true;
