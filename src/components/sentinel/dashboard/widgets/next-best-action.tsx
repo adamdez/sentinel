@@ -1,9 +1,12 @@
 "use client";
 
+import { useMemo } from "react";
 import { motion } from "framer-motion";
 import { Zap, ArrowRight, Phone, Clock } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
+import { Skeleton } from "@/components/ui/skeleton";
+import { useProspects } from "@/hooks/use-prospects";
+import { useLeads } from "@/hooks/use-leads";
 
 function GlowingOrb() {
   return (
@@ -36,6 +39,101 @@ function GlowingOrb() {
 }
 
 export function NextBestAction() {
+  const { prospects, loading: prospectsLoading } = useProspects({
+    sortField: "composite_score",
+    sortDir: "desc",
+  });
+  const { leads, loading: leadsLoading } = useLeads();
+
+  const loading = prospectsLoading || leadsLoading;
+
+  const { primary, secondary } = useMemo(() => {
+    const now = new Date();
+
+    const overdue = leads
+      .filter((l) => l.followUpDate && new Date(l.followUpDate) < now)
+      .sort((a, b) => b.score.composite - a.score.composite);
+
+    if (overdue.length > 0) {
+      const top = overdue[0];
+      const daysOverdue = Math.floor((now.getTime() - new Date(top.followUpDate!).getTime()) / 86400000);
+      return {
+        primary: {
+          name: top.ownerName,
+          reason: `Follow-up ${daysOverdue}d overdue — scored ${top.score.composite} (${top.score.label.toUpperCase()}). ${top.status} stage.`,
+          action: "Call Now",
+        },
+        secondary: overdue[1]
+          ? `Next: Follow up with ${overdue[1].ownerName} (${overdue[1].score.composite} — ${overdue[1].status})`
+          : prospects.length > 0
+            ? `Next: Contact new prospect ${prospects[0].owner_name} (scored ${prospects[0].composite_score})`
+            : null,
+      };
+    }
+
+    const topLead = leads[0];
+    if (topLead) {
+      return {
+        primary: {
+          name: topLead.ownerName,
+          reason: `Highest-priority ${topLead.status} lead — scored ${topLead.score.composite} (${topLead.score.label.toUpperCase()}). ${topLead.address}.`,
+          action: "Call Now",
+        },
+        secondary: leads[1]
+          ? `Next: ${leads[1].ownerName} — ${leads[1].status} (${leads[1].score.composite})`
+          : null,
+      };
+    }
+
+    const topProspect = prospects[0];
+    if (topProspect) {
+      return {
+        primary: {
+          name: topProspect.owner_name,
+          reason: `New FIRE prospect scored ${topProspect.composite_score} — ${topProspect.address}. First-to-contact window open.`,
+          action: "Call Now",
+        },
+        secondary: prospects[1]
+          ? `Next: Contact ${prospects[1].owner_name} (scored ${prospects[1].composite_score})`
+          : null,
+      };
+    }
+
+    return { primary: null, secondary: null };
+  }, [prospects, leads]);
+
+  if (loading) {
+    return (
+      <div className="space-y-3">
+        <div className="p-3 rounded-lg bg-neon/5 border border-neon/15">
+          <div className="flex items-center gap-2 mb-2">
+            <Skeleton className="h-4 w-4 rounded-full" />
+            <Skeleton className="h-3 w-28" />
+          </div>
+          <Skeleton className="h-4 w-40 mb-1" />
+          <Skeleton className="h-3 w-56 mb-2.5" />
+          <div className="flex gap-2">
+            <Skeleton className="h-7 flex-1" />
+            <Skeleton className="h-7 w-20" />
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (!primary) {
+    return (
+      <div className="space-y-3">
+        <div className="p-3 rounded-lg bg-neon/5 border border-neon/15 text-center">
+          <Zap className="h-6 w-6 text-neon mx-auto mb-2" style={{ filter: "drop-shadow(0 0 4px rgba(0,255,136,0.6))" }} />
+          <p className="text-xs text-muted-foreground">
+            No actions queued — waiting for new leads to flow in from Ranger Push.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-3">
       <motion.div
@@ -56,15 +154,15 @@ export function NextBestAction() {
           </span>
         </div>
         <p className="text-xs font-medium mb-1">
-          Call Margaret Henderson now
+          {primary.action === "Call Now" ? "Call" : "Contact"} {primary.name} now
         </p>
         <p className="text-[10px] text-muted-foreground mb-2.5">
-          Probate lead scored 94 — callback requested 2h ago. Highest conversion probability window closing.
+          {primary.reason}
         </p>
         <div className="flex items-center gap-2">
           <Button size="sm" className="h-7 text-[10px] gap-1 flex-1">
             <Phone className="h-3 w-3" />
-            Call Now
+            {primary.action}
           </Button>
           <Button size="sm" variant="outline" className="h-7 text-[10px] gap-1">
             <Clock className="h-3 w-3" />
@@ -73,13 +171,12 @@ export function NextBestAction() {
         </div>
       </motion.div>
 
-      <div className="text-[9px] text-muted-foreground flex items-center gap-1">
-        <ArrowRight className="h-2.5 w-2.5" />
-        Next: Follow up with R. Chen on counter offer
-      </div>
-      {/* TODO: ML model for optimal contact timing */}
-      {/* TODO: Queue of ranked next-best-actions */}
-      {/* TODO: Snooze persists to user preferences */}
+      {secondary && (
+        <div className="text-[9px] text-muted-foreground flex items-center gap-1">
+          <ArrowRight className="h-2.5 w-2.5" />
+          {secondary}
+        </div>
+      )}
     </div>
   );
 }

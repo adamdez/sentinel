@@ -1,70 +1,73 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { Phone, Clock, AlertTriangle, ArrowRight } from "lucide-react";
+import { Phone, Clock, AlertTriangle } from "lucide-react";
 import { AIScoreBadge } from "@/components/sentinel/ai-score-badge";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
+import { useLeads } from "@/hooks/use-leads";
 import { computeFollowUpPriority } from "@/lib/scoring";
-import type { AIScore } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
-interface LeadToCall {
-  name: string;
-  phone: string;
-  reason: string;
-  daysSinceContact: number;
-  daysUntilFollowUp: number;
-  isOverdue: boolean;
-  aiScore: AIScore;
-}
-
-const LEADS: LeadToCall[] = [
-  {
-    name: "Margaret Henderson",
-    phone: "(602) 555-0142",
-    reason: "Callback requested — probate motivated",
-    daysSinceContact: 0,
-    daysUntilFollowUp: 0,
-    isOverdue: true,
-    aiScore: { composite: 94, motivation: 88, equityVelocity: 92, urgency: 96, historicalConversion: 85, aiBoost: 12, label: "fire" },
-  },
-  {
-    name: "Robert Chen",
-    phone: "(480) 555-0198",
-    reason: "Follow-up on offer — counter expected",
-    daysSinceContact: 2,
-    daysUntilFollowUp: -1,
-    isOverdue: true,
-    aiScore: { composite: 82, motivation: 78, equityVelocity: 85, urgency: 80, historicalConversion: 72, aiBoost: 8, label: "hot" },
-  },
-  {
-    name: "Lisa Morales",
-    phone: "(602) 555-0267",
-    reason: "Initial contact — high stacking score",
-    daysSinceContact: 5,
-    daysUntilFollowUp: 1,
-    isOverdue: false,
-    aiScore: { composite: 67, motivation: 62, equityVelocity: 70, urgency: 55, historicalConversion: 68, aiBoost: 5, label: "warm" },
-  },
-];
-
 export function MyTopLeads() {
-  const prioritized = LEADS.map((lead) => ({
-    ...lead,
-    priority: computeFollowUpPriority(
-      lead.aiScore.composite,
-      lead.daysSinceContact,
-      Math.max(lead.daysUntilFollowUp, 0),
-      lead.isOverdue
-    ),
-  })).sort((a, b) => b.priority - a.priority);
+  const { leads, loading } = useLeads();
+
+  if (loading) {
+    return (
+      <div className="space-y-2">
+        {Array.from({ length: 3 }).map((_, i) => (
+          <div key={i} className="flex items-center gap-3 p-2.5">
+            <div className="flex-1 space-y-1">
+              <Skeleton className="h-3 w-28" />
+              <Skeleton className="h-2.5 w-44" />
+              <Skeleton className="h-2.5 w-20" />
+            </div>
+            <Skeleton className="h-5 w-14" />
+            <Skeleton className="h-7 w-16" />
+          </div>
+        ))}
+      </div>
+    );
+  }
+
+  if (leads.length === 0) {
+    return (
+      <div className="text-center py-6 text-xs text-muted-foreground">
+        No active leads — promote prospects to start building your pipeline.
+      </div>
+    );
+  }
+
+  const now = new Date();
+  const prioritized = leads.slice(0, 10).map((lead) => {
+    const daysSinceContact = lead.lastContactAt
+      ? Math.floor((now.getTime() - new Date(lead.lastContactAt).getTime()) / 86400000)
+      : 999;
+    const daysUntilFollowUp = lead.followUpDate
+      ? Math.floor((new Date(lead.followUpDate).getTime() - now.getTime()) / 86400000)
+      : 0;
+    const isOverdue = lead.followUpDate ? new Date(lead.followUpDate) < now : false;
+
+    return {
+      ...lead,
+      daysSinceContact,
+      daysUntilFollowUp,
+      isOverdue,
+      followUpPriority: computeFollowUpPriority(
+        lead.score.composite,
+        daysSinceContact,
+        Math.max(daysUntilFollowUp, 0),
+        isOverdue
+      ),
+    };
+  }).sort((a, b) => b.followUpPriority - a.followUpPriority).slice(0, 5);
 
   return (
     <div className="space-y-2">
       {prioritized.map((lead, i) => (
         <motion.div
-          key={lead.name}
+          key={lead.id}
           initial={{ opacity: 0, x: -8 }}
           animate={{ opacity: 1, x: 0 }}
           transition={{ delay: i * 0.08 }}
@@ -89,7 +92,7 @@ export function MyTopLeads() {
                   WebkitFontSmoothing: "antialiased",
                 }}
               >
-                {lead.name}
+                {lead.ownerName}
               </p>
               {lead.isOverdue && (
                 <Badge variant="destructive" className="text-[8px] px-1 py-0 gap-0.5">
@@ -101,7 +104,8 @@ export function MyTopLeads() {
               className="text-[10px] font-medium text-muted-foreground/90 truncate"
               style={{ WebkitFontSmoothing: "antialiased" }}
             >
-              {lead.reason}
+              {lead.address}
+              {lead.city ? `, ${lead.city}` : ""} — {lead.status}
             </p>
             <div
               className="flex items-center gap-2 mt-1 text-[10px] font-medium"
@@ -124,7 +128,7 @@ export function MyTopLeads() {
               </span>
             </div>
           </div>
-          <AIScoreBadge score={lead.aiScore} size="sm" />
+          <AIScoreBadge score={lead.score} size="sm" />
           <Button
             size="sm"
             className={cn(
@@ -140,10 +144,6 @@ export function MyTopLeads() {
       <p className="text-[9px] text-muted-foreground text-center pt-1">
         Priority = score × urgency × contact recency — overdue leads surface first
       </p>
-      {/* TODO: Filter to current user's assigned leads only (owner_id = auth.uid) */}
-      {/* TODO: Compliance gating — DNC/litigant check before dial */}
-      {/* TODO: Optimistic locking — prevent double-dial */}
-      {/* TODO: One-click call via Twilio Client JS */}
     </div>
   );
 }

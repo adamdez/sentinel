@@ -10,7 +10,7 @@ import {
 import { PageShell } from "@/components/sentinel/page-shell";
 import { GlassCard } from "@/components/sentinel/glass-card";
 import { AIScoreBadge } from "@/components/sentinel/ai-score-badge";
-import { ProspectDetailModal } from "@/components/sentinel/prospects/prospect-detail-modal";
+import { MasterClientFileModal, clientFileFromProspect } from "@/components/sentinel/master-client-file-modal";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -497,8 +497,8 @@ export default function ProspectsPage() {
       </GlassCard>
 
       {/* Detail modal */}
-      <ProspectDetailModal
-        prospect={selectedProspect}
+      <MasterClientFileModal
+        clientFile={selectedProspect ? clientFileFromProspect(selectedProspect) : null}
         open={modalOpen}
         onClose={() => setModalOpen(false)}
         onClaim={handleClaim}
