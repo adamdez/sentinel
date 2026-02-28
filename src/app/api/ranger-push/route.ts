@@ -6,6 +6,7 @@ import {
   blendHeatScore,
   type PredictiveInput,
 } from "@/lib/scoring-predictive";
+import { distressFingerprint, isDuplicateError } from "@/lib/dedup";
 
 type SbResult<T> = { data: T | null; error: { code?: string; message: string } | null };
 

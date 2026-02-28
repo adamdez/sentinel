@@ -12,16 +12,14 @@ interface GmailPrefs {
 
 export async function GET(req: NextRequest) {
   try {
-    const userId = req.nextUrl.searchParams.get("user_id");
-
-    if (!userId) {
-      return NextResponse.json(
-        { error: "user_id query param is required" },
-        { status: 400 },
-      );
-    }
-
     const sb = createServerClient();
+    const authHeader = req.headers.get("authorization");
+    const token = authHeader?.replace("Bearer ", "");
+    const { data: { user } } = await sb.auth.getUser(token);
+    if (!user) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+    const userId = user.id;
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { data: profile, error: profileErr } = await (
@@ -79,10 +77,7 @@ export async function GET(req: NextRequest) {
   } catch (err: unknown) {
     console.error("[gmail/status] Error:", err);
     return NextResponse.json(
-      {
-        error: "Status check failed",
-        detail: err instanceof Error ? err.message : String(err),
-      },
+      { error: "Internal server error" },
       { status: 500 },
     );
   }

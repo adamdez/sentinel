@@ -6,7 +6,6 @@ import { GlassCard } from "@/components/sentinel/glass-card";
 import { AIScoreBadge } from "@/components/sentinel/ai-score-badge";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Skeleton } from "@/components/ui/skeleton";
 import type { AIScore } from "@/lib/types";
 
 const negotiations = [

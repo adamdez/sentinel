@@ -172,16 +172,35 @@ export function CommandPalette() {
         }
       }
 
-      for (const contact of CONTACT_DATA) {
-        const haystack = [contact.name, contact.company, contact.phone, contact.role].join(" ");
-        if (matchesQuery(haystack, query)) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data: contactRows } = await (supabase.from("contacts") as any)
+        .select("id, first_name, last_name, phone, email, contact_type")
+        .or(`first_name.ilike.${pattern},last_name.ilike.${pattern},phone.ilike.${pattern}`)
+        .limit(5);
+
+      if (contactRows && contactRows.length > 0) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        for (const c of contactRows as any[]) {
           results.push({
             kind: "contact",
-            id: contact.id,
-            primary: contact.name,
-            secondary: `${contact.role} — ${contact.company}`,
+            id: c.id,
+            primary: `${c.first_name} ${c.last_name}`.trim(),
+            secondary: [c.phone, c.email, c.contact_type].filter(Boolean).join(" — "),
             href: "/contacts",
           });
+        }
+      } else {
+        for (const contact of CONTACT_DATA) {
+          const haystack = [contact.name, contact.company, contact.phone, contact.role].join(" ");
+          if (matchesQuery(haystack, query)) {
+            results.push({
+              kind: "contact",
+              id: contact.id,
+              primary: contact.name,
+              secondary: `${contact.role} — ${contact.company}`,
+              href: "/contacts",
+            });
+          }
         }
       }
 

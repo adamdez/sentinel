@@ -1,6 +1,7 @@
 "use client";
 
 import { motion } from "framer-motion";
+import { useRouter } from "next/navigation";
 import {
   Ghost,
   PanelLeftClose,
@@ -31,6 +32,7 @@ import { supabase } from "@/lib/supabase";
 import { GlobalSearch } from "./global-search";
 
 export function TopBar() {
+  const router = useRouter();
   const {
     sidebarOpen,
     toggleSidebar,
@@ -109,17 +111,22 @@ export function TopBar() {
           </TooltipContent>
         </Tooltip>
 
-        <Tooltip>
-          <TooltipTrigger asChild>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
             <Button variant="ghost" size="icon" className="h-8 w-8 relative">
               <Bell className="h-4 w-4" />
-              <span className="absolute -top-0.5 -right-0.5 h-3 w-3 rounded-full bg-cyan border-2 border-background text-[8px] flex items-center justify-center text-primary-foreground font-bold">
-                3
-              </span>
             </Button>
-          </TooltipTrigger>
-          <TooltipContent>Notifications</TooltipContent>
-        </Tooltip>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-56">
+            <DropdownMenuLabel className="text-xs text-muted-foreground">
+              Notifications
+            </DropdownMenuLabel>
+            <DropdownMenuSeparator />
+            <div className="py-4 text-center text-xs text-muted-foreground">
+              No new notifications
+            </div>
+          </DropdownMenuContent>
+        </DropdownMenu>
 
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
@@ -142,9 +149,9 @@ export function TopBar() {
               {currentUser.email}
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
-            <DropdownMenuItem>Profile</DropdownMenuItem>
-            <DropdownMenuItem>Settings</DropdownMenuItem>
-            <DropdownMenuItem>Audit Log</DropdownMenuItem>
+            <DropdownMenuItem onClick={() => router.push("/settings")}>Profile</DropdownMenuItem>
+            <DropdownMenuItem onClick={() => router.push("/settings")}>Settings</DropdownMenuItem>
+            <DropdownMenuItem onClick={() => router.push("/analytics")}>Audit Log</DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuItem className="text-destructive" onClick={handleLogout}>
               Log out

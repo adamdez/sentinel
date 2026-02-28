@@ -20,17 +20,24 @@ interface SendBody {
 
 export async function POST(req: NextRequest) {
   try {
-    const body = (await req.json()) as Partial<SendBody>;
-    const { user_id, to, subject, html_body, attachments, lead_id } = body;
+    const sb = createServerClient();
+    const authHeader = req.headers.get("authorization");
+    const token = authHeader?.replace("Bearer ", "");
+    const { data: { user } } = await sb.auth.getUser(token);
+    if (!user) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
 
-    if (!user_id || !to || !subject || !html_body) {
+    const body = (await req.json()) as Partial<SendBody>;
+    const { to, subject, html_body, attachments, lead_id } = body;
+    const user_id = user.id;
+
+    if (!to || !subject || !html_body) {
       return NextResponse.json(
-        { error: "user_id, to, subject, and html_body are required" },
+        { error: "to, subject, and html_body are required" },
         { status: 400 },
       );
     }
-
-    const sb = createServerClient();
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { data: profile, error: profileErr } = await (
@@ -105,10 +112,7 @@ export async function POST(req: NextRequest) {
   } catch (err: unknown) {
     console.error("[gmail/send] Error:", err);
     return NextResponse.json(
-      {
-        error: "Send failed",
-        detail: err instanceof Error ? err.message : String(err),
-      },
+      { error: "Internal server error" },
       { status: 500 },
     );
   }

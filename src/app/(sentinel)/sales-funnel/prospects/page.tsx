@@ -177,35 +177,34 @@ export default function ProspectsPage() {
   };
 
   const handleClaim = async (leadId: string) => {
-    const userId = "c0b4d733-607b-4c3c-8049-9e4ba207a258";
+    const userId = currentUser.id;
+    if (!userId) {
+      toast.error("Not logged in — cannot claim");
+      return;
+    }
 
     console.log(`[Prospects] CLAIM ATTEMPT for lead ${leadId} by user ${userId}`);
 
     setClaiming(leadId);
     try {
-      const expires = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
+      const res = await fetch("/api/prospects", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          lead_id: leadId,
+          status: "my_lead",
+          assigned_to: userId,
+          actor_id: userId,
+        }),
+      });
 
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { data, error: claimError } = await (supabase.from("leads") as any)
-        .update({
-          status: "My Leads",
-          owner_id: userId,
-          claimed_at: new Date().toISOString(),
-          claim_expires_at: expires,
-        })
-        .eq("id", leadId)
-        .select()
-        .single();
+      const data = await res.json();
 
-      if (claimError) {
-        console.error("[Prospects] CLAIM FAILED — FULL RAW ERROR OBJECT:", claimError);
-        console.error("Error Code:", claimError.code);
-        console.error("Error Message:", claimError.message);
-        console.error("Error Details:", claimError.details);
-        console.error("Error Hint:", claimError.hint);
-        alert(`Claim failed: ${claimError.message || "Check console for full details"}`);
+      if (!res.ok) {
+        console.error("[Prospects] CLAIM FAILED:", data);
+        toast.error(`Claim failed: ${data.error || "Unknown error"}`);
       } else {
-        console.log("[Prospects] CLAIM SUCCESS — lead now owned by Adam", data);
+        console.log("[Prospects] CLAIM SUCCESS — lead now owned", data);
 
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         await (supabase.from("audit_log") as any).insert({

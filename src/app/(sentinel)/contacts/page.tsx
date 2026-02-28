@@ -6,7 +6,6 @@ import { GlassCard } from "@/components/sentinel/glass-card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Skeleton } from "@/components/ui/skeleton";
 
 const contacts = [
   { name: "Margaret Henderson", phone: "(602) 555-0142", email: "m.henderson@email.com", type: "Owner", leads: 2 },

@@ -1322,7 +1322,7 @@ export function MasterClientFileModal({ clientFile, open, onClose, onClaim, onRe
                   </Button>
                 )}
                 {displayPhone && (
-                  <Button size="sm" variant="outline" className="gap-2">
+                  <Button size="sm" variant="outline" className="gap-2" onClick={() => window.open(`tel:${displayPhone.replace(/\D/g, "")}`)}>
                     <Phone className="h-3.5 w-3.5" />Call {displayPhone.slice(-4)}
                   </Button>
                 )}

@@ -128,6 +128,12 @@ interface IngestRequest {
  *   - Idempotent upserts (no SELECT-then-INSERT)
  */
 export async function POST(request: NextRequest) {
+  const cronSecret = process.env.CRON_SECRET;
+  const cronAuth = request.headers.get("authorization");
+  if (cronSecret && cronAuth !== `Bearer ${cronSecret}`) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
   console.log("=== PROPERTYRADAR ENDPOINT HIT ===");
   console.log("Timestamp:", new Date().toISOString());
   console.log("API Key configured:", !!process.env.PROPERTYRADAR_API_KEY, "Length:", process.env.PROPERTYRADAR_API_KEY?.length || 0);

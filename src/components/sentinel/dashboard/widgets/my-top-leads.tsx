@@ -135,6 +135,7 @@ export function MyTopLeads() {
               "h-7 text-[10px] gap-1 shrink-0",
               lead.isOverdue && "bg-destructive hover:bg-destructive/90 shadow-[0_0_15px_rgba(255,68,68,0.2)]"
             )}
+            onClick={() => { const phone = lead.ownerPhone; if (phone) window.open(`tel:${phone.replace(/\D/g, "")}`); }}
           >
             <Phone className="h-3 w-3" />
             Call

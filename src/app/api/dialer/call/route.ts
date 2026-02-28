@@ -19,6 +19,14 @@ const SYSTEM_USER_ID = "00000000-0000-0000-0000-000000000000";
  *   5. Return call SID
  */
 export async function POST(req: NextRequest) {
+  const sb = createServerClient();
+  const reqAuthHeader = req.headers.get("authorization");
+  const bearerToken = reqAuthHeader?.replace("Bearer ", "");
+  const { data: { user } } = await sb.auth.getUser(bearerToken);
+  if (!user) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
   const sid = process.env.TWILIO_ACCOUNT_SID;
   const token = process.env.TWILIO_AUTH_TOKEN;
   const from = process.env.TWILIO_PHONE_NUMBER;
@@ -103,7 +111,6 @@ export async function POST(req: NextRequest) {
   }
 
   // 3. Log call to calls_log
-  const sb = createServerClient();
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data: callLog, error: logErr } = await (sb.from("calls_log") as any)
@@ -194,7 +201,7 @@ export async function PATCH(req: NextRequest) {
 
   if (error) {
     console.error("[Dialer] calls_log update failed:", error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
 
   // Audit log (non-blocking)

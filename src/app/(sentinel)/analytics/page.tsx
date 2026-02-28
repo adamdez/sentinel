@@ -20,7 +20,7 @@ interface KPIConfig {
   label: string;
   icon: LucideIcon;
   color: string;
-  glowColor: string;
+  glowColor?: string;
   format: (v: number) => string;
 }
 
@@ -353,7 +353,7 @@ export default function AnalyticsPage() {
               <div className="flex items-start justify-between mb-1">
                 <div
                   className="h-7 w-7 rounded-[8px] flex items-center justify-center"
-                  style={{ background: card.glowColor, boxShadow: `0 0 12px ${card.glowColor}` }}
+                  style={{ background: card.glowColor ?? "rgba(0, 212, 255, 0.1)", boxShadow: `0 0 12px ${card.glowColor ?? "rgba(0, 212, 255, 0.1)"}` }}
                 >
                   <Icon className={`h-3.5 w-3.5 ${card.color}`} />
                 </div>

@@ -6,8 +6,6 @@ import { cn } from "@/lib/utils";
 interface GlassCardProps extends HTMLMotionProps<"div"> {
   glow?: boolean;
   glowStrong?: boolean;
-  glowCyan?: boolean;
-  glowPurple?: boolean;
   hover?: boolean;
   delay?: number;
 }
@@ -15,8 +13,6 @@ interface GlassCardProps extends HTMLMotionProps<"div"> {
 export function GlassCard({
   glow,
   glowStrong,
-  glowCyan,
-  glowPurple,
   hover = true,
   delay = 0,
   className,

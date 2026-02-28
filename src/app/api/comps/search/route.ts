@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { createServerClient } from "@/lib/supabase";
 
 const PR_API_BASE = "https://api.propertyradar.com/v1/properties";
 
@@ -16,6 +17,14 @@ const PR_API_BASE = "https://api.propertyradar.com/v1/properties";
  * }
  */
 export async function POST(req: NextRequest) {
+  const sb = createServerClient();
+  const authHeader = req.headers.get("authorization");
+  const token = authHeader?.replace("Bearer ", "");
+  const { data: { user } } = await sb.auth.getUser(token);
+  if (!user) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
   const apiKey = process.env.PROPERTYRADAR_API_KEY;
   if (!apiKey) {
     return NextResponse.json({ error: "PROPERTYRADAR_API_KEY not configured" }, { status: 500 });
@@ -138,7 +147,7 @@ export async function POST(req: NextRequest) {
   } catch (err) {
     console.error("[Comps] Error:", err);
     return NextResponse.json(
-      { error: "Comps search failed", detail: err instanceof Error ? err.message : String(err) },
+      { error: "Internal server error" },
       { status: 500 }
     );
   }

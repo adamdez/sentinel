@@ -202,12 +202,12 @@ export default function DialerPage() {
   }, [callState, currentLead, handleDial, handleDisposition, handleHangup]);
 
   const statCards = [
-    { label: "My Calls", value: stats.myCalls, icon: PhoneForwarded, color: "text-cyan" },
-    { label: "Team Calls", value: stats.teamCalls, icon: Users, color: "text-blue-400" },
-    { label: "Connect %", value: `${stats.connectRate}%`, icon: BarChart3, color: "text-purple-400" },
-    { label: "Appts", value: stats.appointments, icon: CalendarCheck, color: "text-emerald-400" },
-    { label: "Contracts", value: stats.contracts, icon: FileSignature, color: "text-orange-400" },
-    { label: "Fees Earned", value: formatCurrency(stats.feesEarned), icon: DollarSign, color: "text-yellow-400" },
+    { label: "My Calls", value: stats.myCalls, icon: PhoneForwarded, color: "text-cyan", glowColor: "rgba(0, 212, 255, 0.12)" },
+    { label: "Team Calls", value: stats.teamCalls, icon: Users, color: "text-blue-400", glowColor: "rgba(59, 130, 246, 0.12)" },
+    { label: "Connect %", value: `${stats.connectRate}%`, icon: BarChart3, color: "text-purple-400", glowColor: "rgba(168, 85, 247, 0.12)" },
+    { label: "Appts", value: stats.appointments, icon: CalendarCheck, color: "text-cyan", glowColor: "rgba(0, 212, 255, 0.12)" },
+    { label: "Contracts", value: stats.contracts, icon: FileSignature, color: "text-orange-400", glowColor: "rgba(255, 107, 53, 0.12)" },
+    { label: "Fees Earned", value: formatCurrency(stats.feesEarned), icon: DollarSign, color: "text-yellow-400", glowColor: "rgba(234, 179, 8, 0.12)" },
   ];
 
   return (
@@ -321,8 +321,7 @@ export default function DialerPage() {
               >
                 <GlassCard
                   hover={false}
-                  glow={callState === "connected"}
-                  glowCyan={callState === "dialing"}
+                  glow={callState === "connected" || callState === "dialing"}
                 >
                   {callState !== "idle" && (
                     <div className={`flex items-center gap-2 mb-3 text-xs px-3 py-1.5 rounded-lg ${

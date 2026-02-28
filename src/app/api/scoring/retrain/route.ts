@@ -35,7 +35,7 @@ export async function POST(req: NextRequest) {
   } catch (err: unknown) {
     console.error("[Retrain]", err);
     return NextResponse.json(
-      { error: "Retrain failed", detail: err instanceof Error ? err.message : "Unknown" },
+      { error: "Internal server error" },
       { status: 500 }
     );
   }

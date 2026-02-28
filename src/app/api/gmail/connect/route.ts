@@ -31,10 +31,7 @@ export async function POST(req: NextRequest) {
   } catch (err: unknown) {
     console.error("[gmail/connect] Error:", err);
     return NextResponse.json(
-      {
-        error: "Failed to generate OAuth URL",
-        detail: err instanceof Error ? err.message : String(err),
-      },
+      { error: "Internal server error" },
       { status: 500 },
     );
   }

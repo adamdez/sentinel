@@ -76,10 +76,11 @@ export async function GET(request: NextRequest) {
       .single() as { data: ProfileLayout | null; error: { message: string } | null };
 
     if (error) {
+      console.error("[dashboard/layout GET]", error);
       return NextResponse.json({
         layout: null,
         source: "default",
-        message: error.message,
+        message: "Failed to load layout",
       });
     }
 
@@ -150,8 +151,9 @@ export async function PUT(request: NextRequest) {
       .eq("id", userId) as { error: { message: string } | null };
 
     if (error) {
+      console.error("[dashboard/layout PUT]", error);
       return NextResponse.json(
-        { success: false, error: error.message },
+        { success: false, error: "Internal server error" },
         { status: 500 }
       );
     }

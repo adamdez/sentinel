@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { motion } from "framer-motion";
 import { Zap, ArrowRight, Phone, Clock, Brain } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -46,6 +46,7 @@ export function NextBestAction() {
   const { leads, loading: leadsLoading } = useLeads();
 
   const loading = prospectsLoading || leadsLoading;
+  const [snoozed, setSnoozed] = useState(false);
 
   const { primary, secondary, hasPredictive } = useMemo(() => {
     const now = new Date();
@@ -62,6 +63,7 @@ export function NextBestAction() {
       return {
         primary: {
           name: top.ownerName,
+          phone: top.ownerPhone,
           reason: `Follow-up ${daysOverdue}d overdue — predictive priority ${top.predictivePriority} (${top.score.label.toUpperCase()})${predLabel}. ${top.status} stage.`,
           action: "Call Now",
         },
@@ -82,6 +84,7 @@ export function NextBestAction() {
       return {
         primary: {
           name: topLead.ownerName,
+          phone: topLead.ownerPhone,
           reason: `Highest-priority ${topLead.status} lead — predictive priority ${topLead.predictivePriority} (${topLead.score.label.toUpperCase()})${predLabel}. ${topLead.address}.`,
           action: "Call Now",
         },
@@ -97,6 +100,7 @@ export function NextBestAction() {
       return {
         primary: {
           name: topProspect.owner_name,
+          phone: topProspect.owner_phone,
           reason: `New FIRE prospect scored ${topProspect.composite_score} — ${topProspect.address}. First-to-contact window open.`,
           action: "Call Now",
         },
@@ -107,7 +111,7 @@ export function NextBestAction() {
       };
     }
 
-    return { primary: null, secondary: null, hasPredictive: false };
+    return { primary: null as null, secondary: null as string | null, hasPredictive: false };
   }, [prospects, leads]);
 
   if (loading) {
@@ -124,6 +128,19 @@ export function NextBestAction() {
             <Skeleton className="h-7 flex-1" />
             <Skeleton className="h-7 w-20" />
           </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (snoozed) {
+    return (
+      <div className="space-y-3">
+        <div className="p-3 rounded-[12px] bg-cyan/4 border border-cyan/12 text-center">
+          <Clock className="h-6 w-6 text-muted-foreground mx-auto mb-2" />
+          <p className="text-xs text-muted-foreground">
+            Snoozed — check back later
+          </p>
         </div>
       </div>
     );
@@ -174,11 +191,11 @@ export function NextBestAction() {
           {primary.reason}
         </p>
         <div className="flex items-center gap-2">
-          <Button size="sm" className="h-7 text-[10px] gap-1 flex-1">
+          <Button size="sm" className="h-7 text-[10px] gap-1 flex-1" onClick={() => { if (primary.phone) window.open(`tel:${primary.phone.replace(/\D/g, "")}`); }}>
             <Phone className="h-3 w-3" />
             {primary.action}
           </Button>
-          <Button size="sm" variant="outline" className="h-7 text-[10px] gap-1">
+          <Button size="sm" variant="outline" className="h-7 text-[10px] gap-1" onClick={() => setSnoozed(true)}>
             <Clock className="h-3 w-3" />
             Snooze
           </Button>

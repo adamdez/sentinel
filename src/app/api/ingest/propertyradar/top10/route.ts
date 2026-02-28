@@ -93,6 +93,12 @@ interface ScoredCandidate {
  *  8. Returns detailed summary with new/updated/skipped counts
  */
 export async function POST(req: NextRequest) {
+  const cronSecret = process.env.CRON_SECRET;
+  const authHeader = req.headers.get("authorization");
+  if (cronSecret && authHeader !== `Bearer ${cronSecret}`) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
   const apiKey = process.env.PROPERTYRADAR_API_KEY;
   if (!apiKey) {
     return NextResponse.json(
@@ -256,6 +262,7 @@ export async function POST(req: NextRequest) {
 
   const newInserts: { address: string; score: number; label: string; apn: string }[] = [];
   const updated: { address: string; score: number; apn: string }[] = [];
+  const inserted: { address: string; score: number; label: string; apn: string }[] = [];
   const errors: string[] = [];
   let eventsInserted = 0;
   let eventsDeduped = 0;

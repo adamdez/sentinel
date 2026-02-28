@@ -5,7 +5,6 @@ import { PageShell } from "@/components/sentinel/page-shell";
 import { GlassCard } from "@/components/sentinel/glass-card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Skeleton } from "@/components/ui/skeleton";
 
 const pplSources = [
   { name: "PropStream", leads: 45, cost: "$225", cpl: "$5.00", status: "Active" },

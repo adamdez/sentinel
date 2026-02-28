@@ -240,7 +240,7 @@ export async function POST(req: NextRequest) {
   } catch (err) {
     console.error("[SkipTrace] Error:", err);
     return NextResponse.json(
-      { error: "Skip trace failed", detail: err instanceof Error ? err.message : String(err) },
+      { error: "Internal server error" },
       { status: 500 }
     );
   }

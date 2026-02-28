@@ -92,6 +92,7 @@ export function QuickDial() {
 
   const handleCall = () => {
     setCalling(true);
+    if (lead?.phone) window.open(`tel:${lead.phone.replace(/\D/g, "")}`);
     setTimeout(() => setCalling(false), 3000);
   };
 

@@ -19,7 +19,6 @@ interface AIScoreBadgeProps {
     daysUntilDistress: number;
     confidence: number;
   } | null;
-  showBreakdown?: boolean;
   size?: "sm" | "md" | "lg";
 }
 

@@ -1,87 +1,84 @@
 import { NextRequest, NextResponse } from "next/server";
-import type { AuditLogEntry } from "@/lib/types";
+import { createServerClient } from "@/lib/supabase";
+
+export const dynamic = "force-dynamic";
+export const runtime = "nodejs";
 
 /**
  * GET /api/audit
  *
- * Returns recent audit log entries. Supports pagination.
- * Domain: Analytics Domain — read-only, never mutates operational data.
+ * Returns recent audit log entries from event_log. Supports pagination.
  */
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   const limit = parseInt(searchParams.get("limit") ?? "50", 10);
   const offset = parseInt(searchParams.get("offset") ?? "0", 10);
 
-  // TODO: Query audit_log table with pagination
-  // TODO: RBAC check — only admin and viewer with audit:read permission
+  try {
+    const sb = createServerClient();
 
-  const stubEntries: AuditLogEntry[] = [
-    {
-      id: "audit-001",
-      user_id: "user-adam",
-      action: "lead.promoted",
-      entity_type: "lead_instance",
-      entity_id: "lead-001",
-      details: { property_id: "prop-001", score: 94, model_version: "v1.1" },
-      created_at: new Date(Date.now() - 3600000).toISOString(),
-    },
-    {
-      id: "audit-002",
-      user_id: "user-adam",
-      action: "call.initiated",
-      entity_type: "lead_instance",
-      entity_id: "lead-001",
-      details: { phone: "+16025550142", duration_seconds: 145 },
-      created_at: new Date(Date.now() - 7200000).toISOString(),
-    },
-    {
-      id: "audit-003",
-      user_id: "system",
-      action: "ingest.processed",
-      entity_type: "distress_event",
-      entity_id: "event-batch-001",
-      details: { source: "probate_scraper", records_processed: 12 },
-      created_at: new Date(Date.now() - 10800000).toISOString(),
-    },
-  ];
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data, error, count } = await (sb.from("event_log") as any)
+      .select("*", { count: "exact" })
+      .order("created_at", { ascending: false })
+      .range(offset, offset + limit - 1);
 
-  return NextResponse.json({
-    entries: stubEntries.slice(offset, offset + limit),
-    total: stubEntries.length,
-    limit,
-    offset,
-  });
+    if (error) {
+      console.error("[Audit] Query failed:", error);
+      return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+    }
+
+    return NextResponse.json({
+      entries: data ?? [],
+      total: count ?? 0,
+      limit,
+      offset,
+    });
+  } catch (err) {
+    console.error("[Audit] Error:", err);
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+  }
 }
 
 /**
  * POST /api/audit
  *
- * Receives audit log entries in batch for persistence.
+ * Inserts audit log entries (append-only).
  */
 export async function POST(request: NextRequest) {
   try {
-    const { entries } = (await request.json()) as { entries: AuditLogEntry[] };
+    const body = await request.json();
+    const { user_id, action, entity_type, entity_id, details } = body;
 
-    if (!Array.isArray(entries) || entries.length === 0) {
+    if (!action || !entity_type || !entity_id) {
       return NextResponse.json(
-        { error: "entries[] required" },
+        { error: "action, entity_type, and entity_id are required" },
         { status: 400 }
       );
     }
 
-    // TODO: Bulk insert into audit_log table
-    // TODO: Append-only — no updates or deletes allowed
+    const sb = createServerClient();
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { error } = await (sb.from("event_log") as any).insert({
+      user_id: user_id || "00000000-0000-0000-0000-000000000000",
+      action,
+      entity_type,
+      entity_id,
+      details: details ?? {},
+    });
+
+    if (error) {
+      console.error("[Audit] Insert failed:", error);
+      return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+    }
 
     return NextResponse.json({
       success: true,
-      persisted: entries.length,
       timestamp: new Date().toISOString(),
     });
-  } catch (error) {
-    console.error("[Audit] Error persisting entries:", error);
-    return NextResponse.json(
-      { error: "Internal server error" },
-      { status: 500 }
-    );
+  } catch (err) {
+    console.error("[Audit] Error:", err);
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
 }

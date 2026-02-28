@@ -24,6 +24,14 @@ const SYSTEM_USER_ID = "00000000-0000-0000-0000-000000000000";
  */
 export async function POST(request: NextRequest) {
   try {
+    const sbAuth = createServerClient();
+    const authHeader = request.headers.get("authorization");
+    const token = authHeader?.replace("Bearer ", "");
+    const { data: { user } } = await sbAuth.auth.getUser(token);
+    if (!user) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
     const body = await request.json();
     const propertyIds: string[] = body.property_ids ?? (body.property_id ? [body.property_id] : []);
 

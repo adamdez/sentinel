@@ -126,7 +126,7 @@ export async function PATCH(req: NextRequest) {
     if (error) {
       console.error("[API/prospects PATCH] Update failed:", error);
       return NextResponse.json(
-        { error: "Update failed", detail: error.message },
+        { error: "Internal server error" },
         { status: 500 }
       );
     }
@@ -146,7 +146,7 @@ export async function PATCH(req: NextRequest) {
   } catch (err) {
     console.error("[API/prospects PATCH] Error:", err);
     return NextResponse.json(
-      { error: "Server error", detail: err instanceof Error ? err.message : String(err) },
+      { error: "Internal server error" },
       { status: 500 }
     );
   }
@@ -216,7 +216,7 @@ export async function POST(req: NextRequest) {
     if (propErr || !property) {
       console.error("[API/prospects] Property upsert failed:", propErr);
       return NextResponse.json(
-        { error: "Property save failed", detail: propErr?.message ?? "No data returned" },
+        { error: "Internal server error" },
         { status: 500 }
       );
     }
@@ -256,7 +256,7 @@ export async function POST(req: NextRequest) {
     if (leadErr || !lead) {
       console.error("[API/prospects] Lead insert failed:", leadErr);
       return NextResponse.json(
-        { error: "Lead creation failed", detail: leadErr?.message ?? "No data returned" },
+        { error: "Internal server error" },
         { status: 500 }
       );
     }
@@ -294,7 +294,7 @@ export async function POST(req: NextRequest) {
   } catch (err) {
     console.error("[API/prospects] Unexpected error:", err);
     return NextResponse.json(
-      { error: "Server error", detail: err instanceof Error ? err.message : String(err) },
+      { error: "Internal server error" },
       { status: 500 }
     );
   }

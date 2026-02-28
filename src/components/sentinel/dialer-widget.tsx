@@ -9,20 +9,25 @@ import { cn } from "@/lib/utils";
 
 type DialerState = "idle" | "dialing" | "connected" | "ended";
 
-export function DialerWidget() {
+interface DialerWidgetProps {
+  contactName?: string;
+  contactPhone?: string;
+}
+
+export function DialerWidget({ contactName, contactPhone }: DialerWidgetProps) {
   const [state, setState] = useState<DialerState>("idle");
   const [muted, setMuted] = useState(false);
   const [elapsed, setElapsed] = useState(0);
 
   const handleDial = () => {
+    if (!contactPhone) return;
     setState("dialing");
-    // TODO: Integrate Twilio Client JS
+    window.open(`tel:${contactPhone.replace(/\D/g, "")}`);
     setTimeout(() => {
       setState("connected");
       const timer = setInterval(() => {
         setElapsed((e) => e + 1);
       }, 1000);
-      // Auto-end after 5s for demo
       setTimeout(() => {
         clearInterval(timer);
         setState("ended");
@@ -90,8 +95,8 @@ export function DialerWidget() {
           <User className="h-4 w-4 text-muted-foreground" />
         </div>
         <div>
-          <p className="text-sm font-medium">Margaret Henderson</p>
-          <p className="text-xs text-muted-foreground">(602) 555-0142</p>
+          <p className="text-sm font-medium">{contactName ?? "No contact selected"}</p>
+          <p className="text-xs text-muted-foreground">{contactPhone ?? ""}</p>
         </div>
         {state === "connected" && (
           <div className="ml-auto flex items-center gap-1 text-xs text-muted-foreground">
@@ -103,7 +108,7 @@ export function DialerWidget() {
 
       <div className="flex items-center gap-2">
         {state === "idle" && (
-          <Button onClick={handleDial} className="flex-1 gap-2">
+          <Button onClick={handleDial} className="flex-1 gap-2" disabled={!contactPhone}>
             <Phone className="h-4 w-4" />
             Call
           </Button>
