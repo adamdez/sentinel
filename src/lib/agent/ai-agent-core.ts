@@ -27,6 +27,7 @@ import { createServerClient } from "@/lib/supabase";
 import { runAllCrawlers, type CrawlRunResult } from "@/lib/crawlers/predictive-crawler";
 import { obituaryCrawler } from "@/lib/crawlers/obituary-crawler";
 import { courtDocketCrawler } from "@/lib/crawlers/court-docket-crawler";
+import { runGrokReasoning, type GrokDirective } from "@/lib/agent/grok-reasoning-agent";
 import {
   pullDailyDelta,
   COUNTY_FIPS,
@@ -82,6 +83,7 @@ export interface AttomPhaseResult {
 
 export interface AgentCycleResult {
   success: boolean;
+  grokDirective: GrokDirective | null;
   phases: {
     propertyRadar: { success: boolean; count: number; newInserts: number; updated: number; prCost: string };
     crawlers: CrawlRunResult[];
@@ -189,43 +191,92 @@ export async function runAgentCycle(
   const startTime = Date.now();
   console.log("[Agent] === CYCLE STARTED ===", new Date().toISOString());
 
+  // ── Phase 0: Grok Reasoning (Observe → Reason → Act) ─────────────
+  let grokDirective: GrokDirective | null = null;
+  try {
+    console.log("[Agent] Phase 0: Grok reasoning layer...");
+    grokDirective = await runGrokReasoning();
+    console.log(`[Agent] Phase 0 complete — run: [${grokDirective.nextCrawlersToRun.join(", ")}]`);
+  } catch (err) {
+    console.error("[Agent] Phase 0 (Grok) error — falling back to run-all:", err);
+  }
+
+  const shouldRun = (crawler: string) =>
+    !grokDirective || grokDirective.nextCrawlersToRun.includes(crawler);
+
   // ── Phase 1: PropertyRadar ───────────────────────────────────────
   let prResult: Record<string, unknown> = {};
   let prSuccess = false;
 
-  try {
-    console.log("[Agent] Phase 1: PropertyRadar Elite Seed...");
-    const res = await fetch(`${baseUrl}/api/ingest/propertyradar/top10`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ counties }),
-    });
+  if (shouldRun("propertyradar")) {
+    try {
+      console.log("[Agent] Phase 1: PropertyRadar Elite Seed...");
+      const res = await fetch(`${baseUrl}/api/ingest/propertyradar/top10`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ counties }),
+      });
 
-    prResult = await res.json();
-    prSuccess = res.ok && prResult.success === true;
+      prResult = await res.json();
+      prSuccess = res.ok && prResult.success === true;
 
-    console.log("[Agent] Phase 1 result:", {
-      success: prSuccess,
-      count: prResult.count,
-      newInserts: prResult.newInserts,
-      updated: prResult.updated,
-    });
-  } catch (err) {
-    console.error("[Agent] Phase 1 error:", err);
-    prResult = { error: String(err) };
+      console.log("[Agent] Phase 1 result:", {
+        success: prSuccess,
+        count: prResult.count,
+        newInserts: prResult.newInserts,
+        updated: prResult.updated,
+      });
+    } catch (err) {
+      console.error("[Agent] Phase 1 error:", err);
+      prResult = { error: String(err) };
+    }
+  } else {
+    console.log("[Agent] Phase 1: PropertyRadar skipped by Grok directive");
   }
 
   // ── Phase 2: Predictive Crawlers ─────────────────────────────────
-  const crawlerPhase = await runCrawlerPhase();
+  const runObits = shouldRun("obituary");
+  const runCourts = shouldRun("court_docket");
+  let crawlerPhase: { results: CrawlRunResult[]; success: boolean };
+
+  if (runObits || runCourts) {
+    const crawlers = [
+      ...(runObits ? [obituaryCrawler] : []),
+      ...(runCourts ? [courtDocketCrawler] : []),
+    ];
+    try {
+      console.log(`[Agent] Phase 2: Running ${crawlers.length} crawler(s)...`);
+      const results = await runAllCrawlers(crawlers);
+      crawlerPhase = { results, success: true };
+    } catch (err) {
+      console.error("[Agent] Phase 2 error:", err);
+      crawlerPhase = { results: [], success: false };
+    }
+  } else {
+    console.log("[Agent] Phase 2: Crawlers skipped by Grok directive");
+    crawlerPhase = { results: [], success: true };
+  }
 
   // ── Phase 3: ATTOM Daily Delta ───────────────────────────────────
-  const attomPhase = await runAttomPhase();
+  let attomPhase: AttomPhaseResult;
+  if (shouldRun("attom")) {
+    attomPhase = await runAttomPhase();
+  } else {
+    console.log("[Agent] Phase 3: ATTOM skipped by Grok directive");
+    attomPhase = {
+      success: true, skipped: true,
+      reason: "Skipped by Grok directive",
+      counties: [], totalApiCalls: 0,
+      estimatedCost: "$0.00", elapsed_ms: 0,
+    };
+  }
 
   const elapsed = Date.now() - startTime;
   console.log(`[Agent] === CYCLE COMPLETE in ${elapsed}ms ===`);
 
   return {
     success: prSuccess || crawlerPhase.success || attomPhase.success,
+    grokDirective,
     phases: {
       propertyRadar: {
         success: prSuccess,

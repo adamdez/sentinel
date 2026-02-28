@@ -44,10 +44,17 @@ export async function GET(req: Request) {
     success: result.success,
     message: [
       `Agent cycle complete`,
+      result.grokDirective ? `Grok: [${result.grokDirective.nextCrawlersToRun.join(",")}]` : "Grok: off",
       `PR: ${result.phases.propertyRadar.count} prospects`,
       `Crawlers: ${crawlerPromoted} promoted`,
       `ATTOM: ${result.phases.attom.skipped ? "skipped (no key)" : `${result.phases.attom.totalApiCalls} API calls (${result.phases.attom.estimatedCost})`}`,
     ].join(" | "),
+    grok: result.grokDirective ? {
+      reasoning: result.grokDirective.reasoning,
+      crawlersSelected: result.grokDirective.nextCrawlersToRun,
+      adjustments: result.grokDirective.priorityAdjustments.length,
+      suggestions: result.grokDirective.newCrawlerSuggestions,
+    } : null,
     counties,
     propertyRadar: result.phases.propertyRadar,
     crawlers: result.phases.crawlers.map((r) => ({
