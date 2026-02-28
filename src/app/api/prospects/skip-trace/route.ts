@@ -61,9 +61,11 @@ export async function POST(req: NextRequest) {
       console.log("[SkipTrace] No radar_id — auto-enriching from PropertyRadar first");
       const enrichResult = await enrichProperty(sb, apiKey, property, lead_id);
       if (!enrichResult.success) {
+        console.error("[SkipTrace] Enrichment failed:", enrichResult.error);
         return NextResponse.json({
           error: enrichResult.error ?? "PropertyRadar enrichment failed",
           enriched: false,
+          hint: "Check server logs for details. Common issues: address format, API key, or property not in PropertyRadar coverage.",
         }, { status: 422 });
       }
       radarId = enrichResult.radar_id;
@@ -234,30 +236,57 @@ async function enrichProperty(sb: any, apiKey: string, property: any, leadId?: s
   const address = property.address ?? "";
   if (!address) return { success: false, error: "No address on property" };
 
-  // Parse address into street + city + state + zip
-  const parsed = parseAddress(address);
-  const criteria: { name: string; value: string[] }[] = [];
+  console.log("[Enrich] Property record:", {
+    id: property.id,
+    address: property.address,
+    city: property.city,
+    state: property.state,
+    zip: property.zip,
+  });
 
-  if (parsed.street) criteria.push({ name: "Address", value: [parsed.street] });
-  if (parsed.city || property.city) criteria.push({ name: "City", value: [parsed.city || property.city] });
-  if (parsed.state || property.state) criteria.push({ name: "State", value: [parsed.state || property.state] });
-  if (parsed.zip || property.zip) criteria.push({ name: "ZipFive", value: [parsed.zip || property.zip] });
+  // Use the property's stored fields first (entered separately in the form),
+  // only fall back to parsing the concatenated address string
+  const parsed = parseAddress(address);
+
+  // Street: take just the first part before any comma from the address
+  const street = parsed.street || address.split(",")[0]?.trim() || "";
+
+  // City/State/Zip: prefer separately stored fields over parsed values
+  const city = property.city || parsed.city || "";
+  const state = property.state || parsed.state || "";
+  const zip = property.zip || parsed.zip || "";
+
+  const criteria: { name: string; value: string[] }[] = [];
+  if (street) criteria.push({ name: "Address", value: [street] });
+  if (city) criteria.push({ name: "City", value: [city.replace(/\s+(WA|OR|CA|AZ|ID|TX|FL|NY)\s*$/i, "").trim()] });
+  if (state) criteria.push({ name: "State", value: [state.replace(/[^A-Z]/gi, "").slice(0, 2).toUpperCase()] });
+  if (zip) criteria.push({ name: "ZipFive", value: [zip.replace(/\D/g, "").slice(0, 5)] });
 
   if (criteria.length < 2) return { success: false, error: "Insufficient address info" };
 
-  console.log("[Enrich] Criteria:", JSON.stringify(criteria));
+  console.log("[Enrich] Final criteria:", JSON.stringify(criteria, null, 2));
 
-  const prRes = await fetch(`${PR_API_BASE}?Purchase=1&Limit=1&Fields=All`, {
+  const prBody = { Criteria: criteria };
+  const prUrl = `${PR_API_BASE}?Purchase=1&Limit=1&Fields=All`;
+
+  console.log("[Enrich] Calling PropertyRadar:", prUrl);
+  console.log("[Enrich] Request body:", JSON.stringify(prBody));
+
+  const prRes = await fetch(prUrl, {
     method: "POST",
     headers: {
       "Authorization": `Bearer ${apiKey}`,
       "Content-Type": "application/json",
       "Accept": "application/json",
     },
-    body: JSON.stringify({ Criteria: criteria }),
+    body: JSON.stringify(prBody),
   });
 
-  if (!prRes.ok) return { success: false, error: `PropertyRadar HTTP ${prRes.status}` };
+  if (!prRes.ok) {
+    const errText = await prRes.text().catch(() => "");
+    console.error("[Enrich] PropertyRadar HTTP", prRes.status, errText.slice(0, 500));
+    return { success: false, error: `PropertyRadar HTTP ${prRes.status}: ${errText.slice(0, 200)}` };
+  }
 
   const prData = await prRes.json();
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
