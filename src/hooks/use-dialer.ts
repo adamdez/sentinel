@@ -29,6 +29,8 @@ export interface QueueLead {
     county: string;
     owner_flags: Record<string, unknown> | null;
   } | null;
+  predictiveScore: number | null;
+  blendedPriority: number;
   compliant?: boolean;
   scrubbing?: boolean;
 }
@@ -59,13 +61,51 @@ export function useDialerQueue(limit = 8) {
       return;
     }
 
-    const withPhone = (data ?? [])
-      .filter((l: QueueLead) => l.properties?.owner_phone)
+    const rows = (data ?? []) as QueueLead[];
+
+    // Batch-fetch predictive scores for these leads' properties
+    const propertyIds = rows
+      .map((l) => l.property_id)
+      .filter(Boolean);
+
+    let predMap: Record<string, number> = {};
+    if (propertyIds.length > 0) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data: predData } = await (supabase.from("scoring_predictions") as any)
+        .select("property_id, predictive_score")
+        .in("property_id", propertyIds)
+        .order("created_at", { ascending: false });
+
+      if (predData) {
+        const seen = new Set<string>();
+        for (const p of predData as { property_id: string; predictive_score: number }[]) {
+          if (!seen.has(p.property_id)) {
+            predMap[p.property_id] = p.predictive_score;
+            seen.add(p.property_id);
+          }
+        }
+      }
+    }
+
+    // Blend: 60% existing priority + 40% predictive score
+    const enriched = rows.map((lead) => {
+      const predScore = predMap[lead.property_id] ?? null;
+      const blendedPriority = predScore !== null
+        ? Math.round(lead.priority * 0.6 + predScore * 0.4)
+        : lead.priority;
+      return { ...lead, predictiveScore: predScore, blendedPriority };
+    });
+
+    // Sort by blended priority (higher = first)
+    enriched.sort((a, b) => b.blendedPriority - a.blendedPriority);
+
+    const withPhone = enriched
+      .filter((l) => l.properties?.owner_phone)
       .slice(0, limit);
 
     // Run compliance scrub in parallel
     const scrubbed = await Promise.all(
-      withPhone.map(async (lead: QueueLead) => {
+      withPhone.map(async (lead) => {
         const phone = lead.properties?.owner_phone;
         if (!phone) return { ...lead, compliant: true, scrubbing: false };
 

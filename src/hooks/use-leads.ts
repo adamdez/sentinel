@@ -142,11 +142,36 @@ export function useLeads() {
         }
       }
 
-      // Map to LeadRow
+      // Batch-fetch predictive scores for blended priority
+      const predMap: Record<string, number> = {};
+      if (propIds.length > 0) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const { data: predData } = await (supabase.from("scoring_predictions") as any)
+          .select("property_id, predictive_score")
+          .in("property_id", propIds)
+          .order("created_at", { ascending: false });
+
+        if (predData) {
+          const seen = new Set<string>();
+          for (const p of predData as { property_id: string; predictive_score: number }[]) {
+            if (!seen.has(p.property_id)) {
+              predMap[p.property_id] = p.predictive_score;
+              seen.add(p.property_id);
+            }
+          }
+        }
+      }
+
+      // Map to LeadRow with predictive blend
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const rows = (leadsRaw as any[]).map((raw) => {
         const prop = propsMap[raw.property_id] ?? {};
-        return mapToLeadRow(raw, prop);
+        const lead = mapToLeadRow(raw, prop);
+        const pred = predMap[raw.property_id] ?? null;
+        if (pred !== null) {
+          lead.predictivePriority = Math.round(lead.score.composite * 0.6 + pred * 0.4);
+        }
+        return lead;
       });
 
       setLeads(rows);

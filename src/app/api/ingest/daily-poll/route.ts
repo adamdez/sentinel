@@ -4,24 +4,24 @@ import { obituaryCrawler } from "@/lib/crawlers/obituary-crawler";
 import { courtDocketCrawler } from "@/lib/crawlers/court-docket-crawler";
 
 export const dynamic = "force-dynamic";
-export const maxDuration = 120;
+export const maxDuration = 300;
 
 /**
  * GET /api/ingest/daily-poll
  *
- * Vercel Cron ready — call this once daily (6 AM PT recommended).
+ * Vercel Cron ready — call this every 4 hours.
  *
  * Pipeline:
  *   1. PropertyRadar Elite Seed top10 pull (existing)
  *   2. Predictive Crawler Framework v2.0:
  *      a. Obituary crawler (Spokane/Kootenai — pre-probate upstream signals)
  *      b. Court docket crawler (divorce & bankruptcy filings)
- *   3. All results scored; only ≥60 promoted to Sentinel
- *   4. Audit logged to event_log
+ *   3. ATTOM Data API daily delta pull (Spokane + Kootenai)
+ *   4. All results scored; only ≥60 (crawlers) / ≥75 (ATTOM) promoted
+ *   5. Audit logged to event_log
  *
  * vercel.json:
- *   { "crons": [{ "path": "/api/ingest/daily-poll", "schedule": "0 13 * * *" }] }
- *   (13:00 UTC = 6 AM PT)
+ *   { "crons": [{ "path": "/api/ingest/daily-poll", "schedule": "0 *\/4 * * *" }] }
  */
 export async function GET(req: Request) {
   const cronSecret = req.headers.get("authorization");
@@ -82,14 +82,49 @@ export async function GET(req: Request) {
     console.error("[DailyPoll] Crawler framework error:", err);
   }
 
+  // ── Phase 3: ATTOM Data API Daily Delta ─────────────────────────────
+  let attomResult: Record<string, unknown> = {};
+  let attomSuccess = false;
+
+  if (process.env.ATTOM_API_KEY) {
+    try {
+      console.log("[DailyPoll] Starting ATTOM daily delta pull...");
+      const attomRes = await fetch(`${baseUrl}/api/ingest/attom/daily`, {
+        method: "GET",
+        headers: {
+          "Content-Type": "application/json",
+          ...(process.env.CRON_SECRET
+            ? { Authorization: `Bearer ${process.env.CRON_SECRET}` }
+            : {}),
+        },
+      });
+
+      attomResult = await attomRes.json();
+      attomSuccess = attomRes.ok && attomResult.success === true;
+
+      console.log("[DailyPoll] ATTOM result:", {
+        success: attomSuccess,
+        apiCalls: attomResult.apiCalls,
+        estimatedCost: attomResult.estimatedCost,
+        elapsed_ms: attomResult.elapsed_ms,
+      });
+    } catch (err) {
+      console.error("[DailyPoll] ATTOM call failed:", err);
+      attomResult = { error: String(err) };
+    }
+  } else {
+    console.log("[DailyPoll] ATTOM_API_KEY not set — skipping ATTOM phase");
+    attomResult = { skipped: true, reason: "ATTOM_API_KEY not configured" };
+  }
+
   const elapsed = Date.now() - startTime;
   console.log(`[DailyPoll] === DAILY POLL COMPLETE in ${elapsed}ms ===`);
 
   const totalPromoted = crawlerResults.reduce((s, r) => s + r.promoted, 0);
 
   return NextResponse.json({
-    success: prSuccess || crawlerSuccess,
-    message: `Daily poll complete — ${prResult.count ?? 0} PR prospects + ${totalPromoted} crawler promotions`,
+    success: prSuccess || crawlerSuccess || attomSuccess,
+    message: `Daily poll complete — ${prResult.count ?? 0} PR prospects + ${totalPromoted} crawler promotions + ATTOM ${attomSuccess ? "OK" : "skip/fail"}`,
     counties,
     propertyRadar: {
       success: prSuccess,
@@ -107,6 +142,13 @@ export async function GET(req: Request) {
       errors: r.errors,
       elapsed_ms: r.elapsed_ms,
     })),
+    attom: {
+      success: attomSuccess,
+      apiCalls: attomResult.apiCalls ?? 0,
+      estimatedCost: attomResult.estimatedCost ?? "N/A",
+      counties: attomResult.counties ?? [],
+      elapsed_ms: attomResult.elapsed_ms ?? 0,
+    },
     elapsed_ms: elapsed,
     timestamp: new Date().toISOString(),
   });

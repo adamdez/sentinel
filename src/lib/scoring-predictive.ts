@@ -25,22 +25,25 @@
  */
 
 import type { DistressType, PredictiveScore } from "./types";
+import { computeSkipTrace, type SkipTraceInput, type SkipTraceOutput } from "./predictive-skiptrace";
 
-export const PREDICTIVE_MODEL_VERSION = "pred-v2.0";
+export const PREDICTIVE_MODEL_VERSION = "pred-v2.1";
 
 // ── Feature Weight Configuration ────────────────────────────────────
 // Tuned for Pacific NW wholesale market (Spokane/Kootenai).
 // Sum of all feature weights = 1.0 for normalized scoring.
+// v2.1: Added skipTrace at 15%, rebalanced remaining 85%.
 
 const FEATURE_WEIGHTS = {
-  ownerAge: 0.12,
-  equityBurnRate: 0.18,
-  absenteeDuration: 0.10,
-  taxDelinquencyTrend: 0.16,
-  lifeEventProbability: 0.20,
-  signalVelocity: 0.10,
-  ownershipStress: 0.08,
-  marketExposure: 0.06,
+  ownerAge: 0.10,
+  equityBurnRate: 0.15,
+  absenteeDuration: 0.08,
+  taxDelinquencyTrend: 0.14,
+  lifeEventProbability: 0.17,
+  signalVelocity: 0.09,
+  ownershipStress: 0.07,
+  marketExposure: 0.05,
+  skipTrace: 0.15,
 } as const;
 
 // ── Life-Event Base Probabilities ───────────────────────────────────
@@ -127,6 +130,12 @@ export interface PredictiveInput {
   // Foreclosure context
   foreclosureStage: string | null;
   defaultAmount: number | null;
+
+  // Skip-trace enrichment (optional — computed inline if absent)
+  hasPhone: boolean;
+  hasEmail: boolean;
+  hasProbateSignal: boolean;
+  hasInheritedSignal: boolean;
 }
 
 export interface PredictiveOutput {
@@ -145,7 +154,10 @@ export interface PredictiveOutput {
     signalVelocity: number;
     ownershipStress: number;
     marketExposure: number;
+    skipTraceScore: number;
   };
+
+  skipTrace: SkipTraceOutput | null;
 
   factors: { name: string; weight: number; rawValue: number; contribution: number }[];
 }
@@ -238,6 +250,34 @@ export function computePredictiveScore(input: PredictiveInput): PredictiveOutput
     contribution: Math.round(marketExposure * FEATURE_WEIGHTS.marketExposure),
   });
 
+  // ── 9. Skip-Trace Intelligence ─────────────────────────────────────
+  const skipTraceInput: SkipTraceInput = {
+    ownerName: input.ownerName,
+    ownershipYears: input.ownershipYears,
+    isAbsentee: input.isAbsentee,
+    isCorporateOwner: input.isCorporateOwner,
+    isFreeClear: input.isFreeClear,
+    isVacant: input.isVacant,
+    county: "",
+    hasPhone: input.hasPhone ?? false,
+    hasEmail: input.hasEmail ?? false,
+    ownerAgeKnown: input.ownerAgeKnown,
+    activeSignalCount: input.activeSignals.length,
+    hasProbateSignal: input.hasProbateSignal ?? input.activeSignals.some((s) => s.type === "probate"),
+    hasInheritedSignal: input.hasInheritedSignal ?? input.activeSignals.some((s) => s.type === "inherited"),
+    delinquentAmount: input.delinquentAmount,
+    estimatedValue: input.estimatedValue,
+  };
+
+  const skipTrace = computeSkipTrace(skipTraceInput);
+  const skipTraceScoreVal = skipTrace.skipTraceScore;
+  factors.push({
+    name: "skip_trace",
+    weight: FEATURE_WEIGHTS.skipTrace,
+    rawValue: skipTraceScoreVal,
+    contribution: Math.round(skipTraceScoreVal * FEATURE_WEIGHTS.skipTrace),
+  });
+
   // ── Aggregate Predictive Score ────────────────────────────────────
   const rawPredictive = factors.reduce((sum, f) => sum + f.contribution, 0);
   const predictiveScore = clamp(Math.round(rawPredictive), 0, 100);
@@ -263,7 +303,9 @@ export function computePredictiveScore(input: PredictiveInput): PredictiveOutput
       signalVelocity: Math.round(signalVelocity * 100) / 100,
       ownershipStress,
       marketExposure,
+      skipTraceScore: skipTraceScoreVal,
     },
+    skipTrace,
     factors,
   };
 }
@@ -552,19 +594,22 @@ function computeConfidence(input: PredictiveInput): number {
   let maxPoints = 0;
 
   const checks: [boolean, number][] = [
-    [input.ownerAgeKnown !== null || input.ownershipYears !== null, 12],
-    [input.equityPercent !== null, 10],
-    [input.previousEquityPercent !== null, 8],
-    [input.estimatedValue !== null, 10],
-    [input.totalLoanBalance !== null, 8],
-    [input.lastSaleDate !== null, 6],
-    [input.lastSalePrice !== null, 6],
+    [input.ownerAgeKnown !== null || input.ownershipYears !== null, 10],
+    [input.equityPercent !== null, 9],
+    [input.previousEquityPercent !== null, 7],
+    [input.estimatedValue !== null, 9],
+    [input.totalLoanBalance !== null, 7],
+    [input.lastSaleDate !== null, 5],
+    [input.lastSalePrice !== null, 5],
     [input.isAbsentee, 4],
-    [input.delinquentAmount !== null && input.delinquentAmount > 0, 8],
-    [input.activeSignals.length > 0, 10],
-    [input.activeSignals.length >= 2, 6],
-    [input.historicalScores.length >= 2, 8],
+    [input.delinquentAmount !== null && input.delinquentAmount > 0, 7],
+    [input.activeSignals.length > 0, 8],
+    [input.activeSignals.length >= 2, 5],
+    [input.historicalScores.length >= 2, 7],
     [input.foreclosureStage !== null, 4],
+    [input.hasPhone, 7],
+    [input.hasEmail, 3],
+    [input.hasProbateSignal || input.hasInheritedSignal, 3],
   ];
 
   for (const [present, weight] of checks) {
@@ -626,6 +671,9 @@ export function buildPredictionRecord(
     life_event_probability: output.features.lifeEventProbability != null
       ? String(output.features.lifeEventProbability)
       : null,
+    skip_trace_score: output.features.skipTraceScore,
+    heir_probability: output.skipTrace?.heirProbability ?? null,
+    contact_probability: output.skipTrace?.contactProbability ?? null,
     features: output.features as unknown as Record<string, unknown>,
     factors: output.factors as unknown as Record<string, unknown>[],
   };
@@ -706,6 +754,10 @@ export function buildPredictiveInput(
     historicalScores,
     foreclosureStage: (prRaw.ForeclosureStage as string) ?? null,
     defaultAmount: toNum(prRaw.DefaultAmount) ?? toNum(flags.default_amount),
+    hasPhone: !!(property.owner_phone || flags.phone),
+    hasEmail: !!(property.owner_email || flags.email),
+    hasProbateSignal: events.some((e) => e.event_type === "probate"),
+    hasInheritedSignal: events.some((e) => e.event_type === "inherited"),
   };
 }
 

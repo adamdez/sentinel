@@ -2,7 +2,7 @@
 
 import { useMemo } from "react";
 import { motion } from "framer-motion";
-import { Zap, ArrowRight, Phone, Clock } from "lucide-react";
+import { Zap, ArrowRight, Phone, Clock, Brain } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useProspects } from "@/hooks/use-prospects";
@@ -47,41 +47,48 @@ export function NextBestAction() {
 
   const loading = prospectsLoading || leadsLoading;
 
-  const { primary, secondary } = useMemo(() => {
+  const { primary, secondary, hasPredictive } = useMemo(() => {
     const now = new Date();
 
+    // Sort overdue leads by blended predictive priority (higher = more urgent)
     const overdue = leads
       .filter((l) => l.followUpDate && new Date(l.followUpDate) < now)
-      .sort((a, b) => b.score.composite - a.score.composite);
+      .sort((a, b) => b.predictivePriority - a.predictivePriority);
 
     if (overdue.length > 0) {
       const top = overdue[0];
       const daysOverdue = Math.floor((now.getTime() - new Date(top.followUpDate!).getTime()) / 86400000);
+      const predLabel = top.predictivePriority > top.score.composite ? " [AI-boosted]" : "";
       return {
         primary: {
           name: top.ownerName,
-          reason: `Follow-up ${daysOverdue}d overdue — scored ${top.score.composite} (${top.score.label.toUpperCase()}). ${top.status} stage.`,
+          reason: `Follow-up ${daysOverdue}d overdue — predictive priority ${top.predictivePriority} (${top.score.label.toUpperCase()})${predLabel}. ${top.status} stage.`,
           action: "Call Now",
         },
         secondary: overdue[1]
-          ? `Next: Follow up with ${overdue[1].ownerName} (${overdue[1].score.composite} — ${overdue[1].status})`
+          ? `Next: Follow up with ${overdue[1].ownerName} (priority ${overdue[1].predictivePriority} — ${overdue[1].status})`
           : prospects.length > 0
             ? `Next: Contact new prospect ${prospects[0].owner_name} (scored ${prospects[0].composite_score})`
             : null,
+        hasPredictive: top.predictivePriority !== top.score.composite,
       };
     }
 
-    const topLead = leads[0];
+    // Sort all leads by predictive priority
+    const ranked = [...leads].sort((a, b) => b.predictivePriority - a.predictivePriority);
+    const topLead = ranked[0];
     if (topLead) {
+      const predLabel = topLead.predictivePriority > topLead.score.composite ? " [AI-boosted]" : "";
       return {
         primary: {
           name: topLead.ownerName,
-          reason: `Highest-priority ${topLead.status} lead — scored ${topLead.score.composite} (${topLead.score.label.toUpperCase()}). ${topLead.address}.`,
+          reason: `Highest-priority ${topLead.status} lead — predictive priority ${topLead.predictivePriority} (${topLead.score.label.toUpperCase()})${predLabel}. ${topLead.address}.`,
           action: "Call Now",
         },
-        secondary: leads[1]
-          ? `Next: ${leads[1].ownerName} — ${leads[1].status} (${leads[1].score.composite})`
+        secondary: ranked[1]
+          ? `Next: ${ranked[1].ownerName} — ${ranked[1].status} (priority ${ranked[1].predictivePriority})`
           : null,
+        hasPredictive: topLead.predictivePriority !== topLead.score.composite,
       };
     }
 
@@ -96,10 +103,11 @@ export function NextBestAction() {
         secondary: prospects[1]
           ? `Next: Contact ${prospects[1].owner_name} (scored ${prospects[1].composite_score})`
           : null,
+        hasPredictive: false,
       };
     }
 
-    return { primary: null, secondary: null };
+    return { primary: null, secondary: null, hasPredictive: false };
   }, [prospects, leads]);
 
   if (loading) {
@@ -152,6 +160,12 @@ export function NextBestAction() {
           <span className="text-[10px] font-semibold text-cyan uppercase tracking-wider">
             AI Recommendation
           </span>
+          {hasPredictive && (
+            <span className="flex items-center gap-0.5 text-[9px] text-purple-400 font-medium">
+              <Brain className="h-2.5 w-2.5" />
+              Predictive
+            </span>
+          )}
         </div>
         <p className="text-xs font-medium mb-1">
           {primary.action === "Call Now" ? "Call" : "Contact"} {primary.name} now

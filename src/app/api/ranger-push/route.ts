@@ -186,6 +186,10 @@ export async function POST(request: NextRequest) {
       historicalScores: [],
       foreclosureStage: (payload.breakdown?.foreclosure_stage as string) ?? null,
       defaultAmount: (payload.breakdown?.default_amount as number) ?? null,
+      hasPhone: !!(payload.breakdown?.phone),
+      hasEmail: false,
+      hasProbateSignal: distressType === "probate",
+      hasInheritedSignal: distressType === "inherited",
     };
 
     const predOutput = computePredictiveScore(predInput);

@@ -387,6 +387,10 @@ export async function POST(req: NextRequest) {
       historicalScores: [],
       foreclosureStage: pr.ForeclosureStage ? String(pr.ForeclosureStage) : null,
       defaultAmount: toNumber(pr.DefaultAmount) ?? null,
+      hasPhone: !!(pr.Phone1 || pr.Phone2),
+      hasEmail: !!pr.Email,
+      hasProbateSignal: signals.some((s) => s.type === "probate"),
+      hasInheritedSignal: signals.some((s) => s.type === "inherited"),
     };
 
     const predOutput = computePredictiveScore(predInput);
