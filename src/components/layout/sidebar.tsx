@@ -316,7 +316,7 @@ export function Sidebar() {
       {sidebarOpen && (
         <motion.aside
           initial={{ width: 0, opacity: 0 }}
-          animate={{ width: 260, opacity: 1 }}
+          animate={{ width: 208, opacity: 1 }}
           exit={{ width: 0, opacity: 0 }}
           transition={{ duration: 0.2, ease: "easeInOut" }}
           className="h-screen bg-sidebar border-r border-sidebar-border flex flex-col overflow-hidden shrink-0 glass-strong"
