@@ -27,7 +27,7 @@ export default function PPLPage() {
     >
       <div className="grid grid-cols-3 gap-4 mb-4">
         <GlassCard className="p-4 text-center">
-          <DollarSign className="h-5 w-5 text-neon mx-auto mb-2" />
+          <DollarSign className="h-5 w-5 text-cyan mx-auto mb-2" />
           <p className="text-xl font-bold">$457</p>
           <p className="text-[10px] text-muted-foreground">Total Spend</p>
         </GlassCard>
@@ -39,7 +39,7 @@ export default function PPLPage() {
         <GlassCard className="p-4 text-center">
           <TrendingUp className="h-5 w-5 text-purple-400 mx-auto mb-2" />
           <p className="text-xl font-bold flex items-center justify-center gap-1">
-            $4.81 <ArrowUpRight className="h-3 w-3 text-neon" />
+            $4.81 <ArrowUpRight className="h-3 w-3 text-cyan" />
           </p>
           <p className="text-[10px] text-muted-foreground">Avg Cost Per Lead</p>
         </GlassCard>
@@ -47,10 +47,10 @@ export default function PPLPage() {
 
       <GlassCard hover={false}>
         <h2 className="text-sm font-semibold mb-4 flex items-center gap-2">
-          <DollarSign className="h-4 w-4 text-neon" />
+          <DollarSign className="h-4 w-4 text-cyan" />
           Lead Sources
         </h2>
-        <div className="overflow-hidden rounded-lg border border-glass-border">
+        <div className="overflow-hidden rounded-[12px] border border-glass-border">
           <table className="w-full">
             <thead>
               <tr className="border-b border-glass-border bg-secondary/20">

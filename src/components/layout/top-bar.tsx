@@ -49,7 +49,7 @@ export function TopBar() {
     <motion.header
       initial={{ y: -10, opacity: 0 }}
       animate={{ y: 0, opacity: 1 }}
-      className="h-14 border-b border-glass-border glass-strong flex items-center justify-between px-4 shrink-0 z-30"
+      className="h-14 border-b border-glass-border glass-strong flex items-center justify-between px-4 shrink-0 z-30 shadow-[0_4px_20px_rgba(0,0,0,0.3)]"
     >
       <div className="flex items-center gap-3">
         <Tooltip>
@@ -78,7 +78,7 @@ export function TopBar() {
           <TooltipTrigger asChild>
             <div className="flex items-center gap-2">
               {connected ? (
-                <Wifi className="h-3.5 w-3.5 text-neon" />
+                <Wifi className="h-3.5 w-3.5 text-cyan" />
               ) : (
                 <WifiOff className="h-3.5 w-3.5 text-destructive" />
               )}
@@ -91,10 +91,10 @@ export function TopBar() {
 
         <Tooltip>
           <TooltipTrigger asChild>
-            <div className="flex items-center gap-2 px-2 py-1 rounded-lg bg-secondary/30">
+            <div className="flex items-center gap-2 px-2 py-1 rounded-[10px] bg-secondary/30 border border-glass-border">
               <Ghost
                 className={`h-3.5 w-3.5 transition-colors ${
-                  ghostMode ? "text-neon" : "text-muted-foreground"
+                  ghostMode ? "text-purple" : "text-muted-foreground"
                 }`}
               />
               <span className="text-xs text-muted-foreground">Ghost</span>
@@ -113,7 +113,7 @@ export function TopBar() {
           <TooltipTrigger asChild>
             <Button variant="ghost" size="icon" className="h-8 w-8 relative">
               <Bell className="h-4 w-4" />
-              <span className="absolute -top-0.5 -right-0.5 h-3 w-3 rounded-full bg-neon border-2 border-background text-[8px] flex items-center justify-center text-primary-foreground font-bold">
+              <span className="absolute -top-0.5 -right-0.5 h-3 w-3 rounded-full bg-cyan border-2 border-background text-[8px] flex items-center justify-center text-primary-foreground font-bold">
                 3
               </span>
             </Button>

@@ -57,7 +57,7 @@ export function WidgetLibrary({
       <DialogContent className="sm:max-w-[560px]">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <Plus className="h-5 w-5 text-neon" />
+            <Plus className="h-5 w-5 text-cyan" />
             Widget Library
           </DialogTitle>
           <DialogDescription>
@@ -87,19 +87,19 @@ export function WidgetLibrary({
                       key={widget.id}
                       whileHover={!isDisabled ? { x: 2 } : undefined}
                       className={cn(
-                        "flex items-center gap-3 p-3 rounded-lg border transition-all",
+                        "flex items-center gap-3 p-3 rounded-[12px] border transition-all",
                         isActive
-                          ? "border-neon/20 bg-neon/5"
+                          ? "border-cyan/15 bg-cyan/4"
                           : isDisabled
                             ? "border-glass-border bg-glass/30 opacity-50"
-                            : "border-glass-border bg-glass hover:border-neon/10 cursor-pointer"
+                            : "border-glass-border bg-glass hover:border-cyan/8 cursor-pointer"
                       )}
                     >
                       <div className={cn(
                         "p-1.5 rounded-md",
-                        isActive ? "bg-neon/10" : "bg-secondary/50"
+                        isActive ? "bg-cyan/8" : "bg-secondary/50"
                       )}>
-                        <Icon className={cn("h-4 w-4", isActive ? "text-neon" : "text-muted-foreground")} />
+                        <Icon className={cn("h-4 w-4", isActive ? "text-cyan" : "text-muted-foreground")} />
                       </div>
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-medium">{widget.label}</p>

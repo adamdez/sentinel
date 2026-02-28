@@ -72,13 +72,13 @@ function TickerRow({ item, index }: { item: TickerItem; index: number }) {
 
       <div className="flex items-center gap-2 relative">
         <Zap
-          className={cn("h-3 w-3 shrink-0", isFire ? "text-orange-400" : "text-neon")}
-          style={isFire ? { filter: "drop-shadow(0 0 3px rgba(255,107,53,0.5))" } : { filter: "drop-shadow(0 0 3px rgba(0,255,136,0.4))" }}
+          className={cn("h-3 w-3 shrink-0", isFire ? "text-orange-400" : "text-cyan")}
+          style={isFire ? { filter: "drop-shadow(0 0 3px rgba(255,107,53,0.5))" } : { filter: "drop-shadow(0 0 3px rgba(0,212,255,0.4))" }}
         />
         <span
           className="font-semibold truncate flex-1 text-foreground"
           style={{
-            textShadow: "0 0 8px rgba(0,255,136,0.15), 0 0 16px rgba(0,255,136,0.06)",
+            textShadow: "0 0 8px rgba(0,212,255,0.15), 0 0 16px rgba(0,212,255,0.06)",
             WebkitFontSmoothing: "antialiased",
           }}
         >
@@ -188,22 +188,22 @@ export function BreakingLeadsSidebar() {
   return (
     <div className="hidden lg:flex w-[300px] shrink-0 flex-col">
       <div
-        className="rounded-xl border border-glass-border bg-glass backdrop-blur-xl overflow-hidden holo-border"
+        className="rounded-[14px] border border-glass-border bg-glass backdrop-blur-2xl overflow-hidden holo-border inner-glow-card"
         style={{ transformStyle: "preserve-3d" }}
       >
         <div className="flex items-center justify-between px-4 pt-3 pb-2 border-b border-glass-border/50">
           <div className="flex items-center gap-2">
             <span className="relative flex h-2 w-2">
               <span className={cn(
-                "absolute inline-flex h-full w-full rounded-full bg-neon",
+                "absolute inline-flex h-full w-full rounded-full bg-cyan",
                 newPulse ? "animate-ping opacity-75" : "animate-pulse opacity-50"
               )} />
-              <span className="relative inline-flex rounded-full h-2 w-2 bg-neon" />
+              <span className="relative inline-flex rounded-full h-2 w-2 bg-cyan shadow-[0_0_6px_rgba(0,212,255,0.5)]" />
             </span>
-            <span className="text-[10px] text-neon font-semibold tracking-wider">BREAKING LEADS</span>
+            <span className="text-[10px] text-cyan font-semibold tracking-wider">BREAKING LEADS</span>
           </div>
           <div className="flex items-center gap-1.5">
-            <Radio className="h-3 w-3 text-neon/60" />
+            <Radio className="h-3 w-3 text-cyan/60" />
             <span className="text-[9px] text-muted-foreground">LIVE</span>
           </div>
         </div>
@@ -225,7 +225,7 @@ export function BreakingLeadsSidebar() {
         <div className="px-4 py-2 border-t border-glass-border/50">
           <Link
             href="/sales-funnel/prospects"
-            className="flex items-center justify-center gap-1.5 text-[10px] text-neon/70 hover:text-neon transition-colors font-medium"
+            className="flex items-center justify-center gap-1.5 text-[10px] text-cyan/70 hover:text-cyan transition-colors font-medium"
           >
             View All Prospects
             <ExternalLink className="h-2.5 w-2.5" />

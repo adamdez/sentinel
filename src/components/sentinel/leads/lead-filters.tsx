@@ -104,13 +104,13 @@ export function LeadFilters({
         <Button
           variant="outline"
           size="sm"
-          className={cn("gap-1.5 text-xs", expanded && "border-neon/30 text-neon")}
+          className={cn("gap-1.5 text-xs", expanded && "border-cyan/20 text-cyan")}
           onClick={() => setExpanded(!expanded)}
         >
           <SlidersHorizontal className="h-3 w-3" />
           Filters
           {hasFilters && (
-            <span className="bg-neon/20 text-neon text-[10px] px-1.5 rounded-full">
+            <span className="bg-cyan/15 text-cyan text-[10px] px-1.5 rounded-full">
               active
             </span>
           )}
@@ -139,7 +139,7 @@ export function LeadFilters({
             transition={{ duration: 0.2 }}
             className="overflow-hidden"
           >
-            <div className="rounded-lg border border-glass-border bg-glass/50 p-4 space-y-4">
+            <div className="rounded-[12px] border border-glass-border bg-glass/50 p-4 space-y-4">
               {/* Status */}
               <div>
                 <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-2">
@@ -176,7 +176,7 @@ export function LeadFilters({
                       className={cn(
                         "text-[11px] px-2.5 py-1 rounded-md border transition-all",
                         filters.distressTypes.includes(opt.value)
-                          ? "bg-neon/15 text-neon border-neon/30"
+                          ? "bg-cyan/12 text-cyan border-cyan/20"
                           : "border-glass-border text-muted-foreground hover:text-foreground hover:border-white/15"
                       )}
                     >
@@ -201,7 +201,7 @@ export function LeadFilters({
                         className={cn(
                           "text-[11px] px-2.5 py-1 rounded-md border transition-all",
                           filters.minScore === p.value
-                            ? "bg-neon/15 text-neon border-neon/30"
+                            ? "bg-cyan/12 text-cyan border-cyan/20"
                             : "border-glass-border text-muted-foreground hover:text-foreground hover:border-white/15"
                         )}
                       >

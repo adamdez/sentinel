@@ -25,7 +25,7 @@ export default function TeamCalendarPage() {
       <GlassCard hover={false}>
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-sm font-semibold flex items-center gap-2">
-            <Calendar className="h-4 w-4 text-neon" />
+            <Calendar className="h-4 w-4 text-cyan" />
             Today — {new Date().toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" })}
           </h2>
           <div className="flex items-center gap-2">
@@ -55,8 +55,8 @@ export default function TeamCalendarPage() {
                   className="h-16 border-t border-glass-border hover:bg-secondary/20 transition-colors rounded-sm relative"
                 >
                   {h === 10 && member === "Adam D." && (
-                    <div className="absolute inset-1 rounded bg-neon/10 border border-neon/20 p-1">
-                      <p className="text-[9px] font-medium text-neon">Follow-up Calls</p>
+                    <div className="absolute inset-1 rounded bg-cyan/8 border border-cyan/15 p-1">
+                      <p className="text-[9px] font-medium text-cyan">Follow-up Calls</p>
                       <p className="text-[8px] text-muted-foreground">10 - 11 AM</p>
                     </div>
                   )}

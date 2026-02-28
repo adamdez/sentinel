@@ -115,6 +115,19 @@ export interface AIScore {
   label: "cold" | "warm" | "hot" | "fire";
 }
 
+export interface PredictiveScore {
+  predictiveScore: number;
+  daysUntilDistress: number;
+  confidence: number;
+  ownerAgeInference: number | null;
+  equityBurnRate: number | null;
+  absenteeDurationDays: number | null;
+  taxDelinquencyTrend: number | null;
+  lifeEventProbability: number | null;
+  label: "imminent" | "likely" | "possible" | "unlikely";
+  modelVersion: string;
+}
+
 export interface ChatMessage {
   id: string;
   user_id: string;

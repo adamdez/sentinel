@@ -67,11 +67,11 @@ export function MyTopProspects() {
             initial={{ opacity: 0, x: -8 }}
             animate={{ opacity: 1, x: 0 }}
             transition={{ delay: i * 0.06 }}
-            className={`flex items-center gap-3 p-2.5 rounded-lg bg-secondary/20 hover:bg-secondary/30 transition-all group relative ${
+            className={`flex items-center gap-3 p-2.5 rounded-[12px] bg-secondary/20 hover:bg-secondary/30 transition-all group relative ${
               aiScore.label === "fire" ? "neon-glow" : ""
             }`}
             style={aiScore.label === "fire" ? {
-              boxShadow: "0 0 15px rgba(0,255,136,0.12), inset 0 0 20px rgba(0,255,136,0.03)",
+              boxShadow: "0 0 15px rgba(0,212,255,0.12), inset 0 0 20px rgba(0,212,255,0.03)",
             } : {}}
           >
             <span className="text-[10px] text-muted-foreground font-mono w-3 shrink-0">
@@ -81,7 +81,7 @@ export function MyTopProspects() {
               <p
                 className="text-xs font-semibold truncate text-foreground"
                 style={{
-                  textShadow: "0 0 8px rgba(0,255,136,0.15), 0 0 16px rgba(0,255,136,0.06)",
+                  textShadow: "0 0 8px rgba(0,212,255,0.15), 0 0 16px rgba(0,212,255,0.06)",
                   WebkitFontSmoothing: "antialiased",
                 }}
               >

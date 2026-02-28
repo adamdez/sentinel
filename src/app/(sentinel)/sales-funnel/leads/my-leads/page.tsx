@@ -35,7 +35,7 @@ export default function MyLeadsPage() {
     >
       <div className="grid grid-cols-3 gap-4 mb-4">
         <GlassCard className="p-4 text-center">
-          <UserCheck className="h-5 w-5 text-neon mx-auto mb-2" />
+          <UserCheck className="h-5 w-5 text-cyan mx-auto mb-2" />
           <p className="text-xl font-bold">{myLeads.length}</p>
           <p className="text-[10px] text-muted-foreground">Assigned to You</p>
         </GlassCard>
@@ -68,7 +68,7 @@ export default function MyLeadsPage() {
               <Badge variant="outline" className="text-[10px]">{lead.status}</Badge>
             </div>
             <div className="flex items-center justify-between">
-              <p className="text-xs text-neon">{lead.nextAction}</p>
+              <p className="text-xs text-cyan">{lead.nextAction}</p>
               <div className="flex gap-2">
                 <Button variant="outline" size="sm" className="h-7 text-xs">
                   Log Note

@@ -125,21 +125,21 @@ export function QuickDial() {
 
   return (
     <div className="space-y-3">
-      <div className="flex items-center gap-2.5 p-2.5 rounded-lg bg-secondary/20">
+      <div className="flex items-center gap-2.5 p-2.5 rounded-[12px] bg-secondary/20">
         <div className="h-8 w-8 rounded-full bg-secondary flex items-center justify-center shrink-0">
           <User className="h-4 w-4 text-muted-foreground" />
         </div>
         <div className="min-w-0">
           <p className="text-xs font-medium truncate">{lead.name}</p>
           <p className="text-[10px] text-muted-foreground">{lead.phone}</p>
-          <p className="text-[9px] text-neon">{lead.reason}</p>
+          <p className="text-[9px] text-cyan">{lead.reason}</p>
         </div>
       </div>
 
       <div className="flex items-center gap-1.5 text-[9px] text-muted-foreground">
         {lead.scrubLoading ? (
           <>
-            <div className="h-3 w-3 rounded-full border-2 border-neon/40 border-t-neon animate-spin" />
+            <div className="h-3 w-3 rounded-full border-2 border-cyan/40 border-t-cyan animate-spin" />
             <span>Running compliance scrub...</span>
           </>
         ) : ghostMode ? (
@@ -149,7 +149,7 @@ export function QuickDial() {
           </>
         ) : (
           <>
-            <Shield className={cn("h-3 w-3", lead.compliant ? "text-neon" : "text-destructive")} />
+            <Shield className={cn("h-3 w-3", lead.compliant ? "text-cyan" : "text-destructive")} />
             {lead.compliant
               ? "Compliance cleared — DNC clean"
               : `BLOCKED — ${lead.blockedReasons.join(", ")}`}
@@ -160,8 +160,8 @@ export function QuickDial() {
       {calling ? (
         <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-2">
           <div className="flex items-center justify-center gap-2 py-2">
-            <span className="h-2 w-2 rounded-full bg-neon animate-pulse" style={{ boxShadow: "0 0 8px rgba(0,255,136,0.5), 0 0 16px rgba(0,255,136,0.2)" }} />
-            <span className="text-xs text-neon font-medium" style={{ textShadow: "0 0 8px rgba(0,255,136,0.4)" }}>Calling...</span>
+            <span className="h-2 w-2 rounded-full bg-cyan animate-pulse" style={{ boxShadow: "0 0 8px rgba(0,212,255,0.5), 0 0 16px rgba(0,212,255,0.2)" }} />
+            <span className="text-xs text-cyan font-medium" style={{ textShadow: "0 0 8px rgba(0,212,255,0.4)" }}>Calling...</span>
           </div>
           <Button variant="destructive" className="w-full h-8 text-xs gap-1" onClick={() => setCalling(false)}>
             <PhoneOff className="h-3 w-3" />

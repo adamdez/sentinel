@@ -11,14 +11,14 @@ const DashboardGridInner = dynamic(
     loading: () => (
       <div className="space-y-4">
         <div className="flex items-center gap-2">
-          <LayoutGrid className="h-4 w-4 text-neon" />
+          <LayoutGrid className="h-4 w-4 text-cyan" />
           <span className="text-sm font-semibold">Your Dashboard</span>
         </div>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {Array.from({ length: 4 }).map((_, i) => (
             <Skeleton
               key={i}
-              className="h-52 rounded-xl bg-glass border border-glass-border"
+              className="h-52 rounded-[14px] bg-glass border border-glass-border"
             />
           ))}
         </div>

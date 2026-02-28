@@ -216,7 +216,7 @@ function ComposeModal({
       <DialogContent className="max-w-2xl">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <Send className="h-4 w-4 text-neon" />
+            <Send className="h-4 w-4 text-cyan" />
             Compose Email
           </DialogTitle>
           <DialogDescription>Send emails directly from Sentinel via Gmail.</DialogDescription>
@@ -233,7 +233,7 @@ function ComposeModal({
                 <button
                   key={key}
                   onClick={() => applyTemplate(key)}
-                  className="text-[10px] px-2.5 py-1 rounded-md border border-glass-border bg-glass hover:bg-neon/10 hover:border-neon/30 hover:text-neon transition-all"
+                  className="text-[10px] px-2.5 py-1 rounded-md border border-glass-border bg-glass hover:bg-cyan/8 hover:border-cyan/20 hover:text-cyan transition-all"
                 >
                   {tpl.name}
                 </button>
@@ -249,7 +249,7 @@ function ComposeModal({
               value={to}
               onChange={(e) => setTo(e.target.value)}
               placeholder="recipient@example.com"
-              className="w-full rounded-lg border border-glass-border bg-glass/50 px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-neon/50"
+              className="w-full rounded-[12px] border border-glass-border bg-glass/50 px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-cyan/50"
             />
           </div>
 
@@ -261,7 +261,7 @@ function ComposeModal({
               value={subject}
               onChange={(e) => setSubject(e.target.value)}
               placeholder="Subject line"
-              className="w-full rounded-lg border border-glass-border bg-glass/50 px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-neon/50"
+              className="w-full rounded-[12px] border border-glass-border bg-glass/50 px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-cyan/50"
             />
           </div>
 
@@ -273,13 +273,13 @@ function ComposeModal({
               onChange={(e) => setBody(e.target.value)}
               rows={8}
               placeholder="Compose your email..."
-              className="w-full rounded-lg border border-glass-border bg-glass/50 px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-neon/50 resize-none font-mono"
+              className="w-full rounded-[12px] border border-glass-border bg-glass/50 px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-cyan/50 resize-none font-mono"
             />
           </div>
 
           {/* Attachment */}
           <div className="flex items-center gap-3">
-            <label className="flex items-center gap-2 text-xs text-muted-foreground cursor-pointer hover:text-neon transition-colors">
+            <label className="flex items-center gap-2 text-xs text-muted-foreground cursor-pointer hover:text-cyan transition-colors">
               <Paperclip className="h-3.5 w-3.5" />
               {attachmentName ?? "Attach file (PDF, DOCX)"}
               <input type="file" accept=".pdf,.docx,.doc" onChange={handleFileUpload} className="hidden" />
@@ -428,7 +428,7 @@ export default function GmailPage() {
     return (
       <PageShell title="Gmail" description="Loading Gmail integration…">
         <div className="flex items-center justify-center min-h-[400px]">
-          <Loader2 className="h-8 w-8 animate-spin text-neon/50" />
+          <Loader2 className="h-8 w-8 animate-spin text-cyan/50" />
         </div>
       </PageShell>
     );
@@ -447,8 +447,8 @@ export default function GmailPage() {
               transition={{ type: "spring", stiffness: 200, damping: 20 }}
               className="mx-auto mb-6"
             >
-              <div className="h-20 w-20 mx-auto rounded-2xl bg-neon/10 border border-neon/20 flex items-center justify-center shadow-[0_0_40px_rgba(0,255,136,0.15)]">
-                <Mail className="h-10 w-10 text-neon" />
+              <div className="h-20 w-20 mx-auto rounded-2xl bg-cyan/8 border border-cyan/15 flex items-center justify-center shadow-[0_0_40px_rgba(0,212,255,0.15)]">
+                <Mail className="h-10 w-10 text-cyan" />
               </div>
             </motion.div>
 
@@ -462,7 +462,7 @@ export default function GmailPage() {
               size="lg"
               onClick={handleConnect}
               disabled={connecting}
-              className="gap-3 px-8 py-6 text-base font-semibold shadow-[0_0_30px_rgba(0,255,136,0.25)] hover:shadow-[0_0_50px_rgba(0,255,136,0.4)] transition-all"
+              className="gap-3 px-8 py-6 text-base font-semibold shadow-[0_0_30px_rgba(0,212,255,0.25)] hover:shadow-[0_0_50px_rgba(0,212,255,0.4)] transition-all"
             >
               {connecting ? (
                 <Loader2 className="h-5 w-5 animate-spin" />
@@ -498,7 +498,7 @@ export default function GmailPage() {
       actions={
         <div className="flex items-center gap-2">
           <Badge variant="neon" className="gap-1.5 text-[10px]">
-            <span className="h-1.5 w-1.5 rounded-full bg-neon animate-pulse" />
+            <span className="h-1.5 w-1.5 rounded-full bg-cyan animate-pulse" />
             Connected
           </Badge>
           <Button
@@ -534,9 +534,9 @@ export default function GmailPage() {
                 <button
                   key={f.id}
                   onClick={() => setActiveFolder(f.id)}
-                  className={`flex items-center gap-2 w-full px-3 py-2 rounded-lg text-sm transition-colors ${
+                  className={`flex items-center gap-2 w-full px-3 py-2 rounded-[12px] text-sm transition-colors ${
                     activeFolder === f.id
-                      ? "bg-neon/10 text-neon border border-neon/20"
+                      ? "bg-cyan/8 text-cyan border border-cyan/15"
                       : "text-muted-foreground hover:bg-secondary/50"
                   }`}
                 >
@@ -564,14 +564,14 @@ export default function GmailPage() {
                   <div key={member.id} className="flex items-center gap-2 text-xs">
                     <span
                       className={`h-2 w-2 rounded-full shrink-0 ${
-                        member.gmail_connected ? "bg-neon" : "bg-muted-foreground/30"
+                        member.gmail_connected ? "bg-cyan" : "bg-muted-foreground/30"
                       }`}
                     />
                     <span className="truncate flex-1">
                       {member.name}
                     </span>
                     {member.gmail_connected ? (
-                      <CheckCircle2 className="h-3 w-3 text-neon shrink-0" />
+                      <CheckCircle2 className="h-3 w-3 text-cyan shrink-0" />
                     ) : (
                       <span className="text-muted-foreground/40 text-[10px]">—</span>
                     )}
@@ -598,7 +598,7 @@ export default function GmailPage() {
                       window.dispatchEvent(evt);
                     }, 100);
                   }}
-                  className="flex items-center gap-2 w-full px-3 py-2 rounded-lg text-xs text-muted-foreground hover:bg-neon/5 hover:text-neon transition-colors"
+                  className="flex items-center gap-2 w-full px-3 py-2 rounded-[12px] text-xs text-muted-foreground hover:bg-cyan/4 hover:text-cyan transition-colors"
                 >
                   <Send className="h-3 w-3" />
                   {tpl.name}
@@ -616,7 +616,7 @@ export default function GmailPage() {
                 <div className="flex items-center gap-2 mb-4">
                   <button
                     onClick={() => setSelectedMessage(null)}
-                    className="text-xs text-muted-foreground hover:text-neon transition-colors"
+                    className="text-xs text-muted-foreground hover:text-cyan transition-colors"
                   >
                     ← Back
                   </button>
@@ -624,7 +624,7 @@ export default function GmailPage() {
                 <div className="space-y-3">
                   <h2 className="text-lg font-semibold">{selectedMessage.subject || "(No Subject)"}</h2>
                   <div className="flex items-center gap-3 text-sm text-muted-foreground">
-                    <div className="h-8 w-8 rounded-full bg-neon/10 border border-neon/20 flex items-center justify-center text-xs font-semibold text-neon">
+                    <div className="h-8 w-8 rounded-full bg-cyan/8 border border-cyan/15 flex items-center justify-center text-xs font-semibold text-cyan">
                       {extractInitials(selectedMessage.from)}
                     </div>
                     <div>
@@ -665,14 +665,14 @@ export default function GmailPage() {
               <GlassCard hover={false} key="list">
                 <div className="flex items-center justify-between mb-4">
                   <h2 className="text-sm font-semibold flex items-center gap-2">
-                    <Mail className="h-4 w-4 text-neon" />
+                    <Mail className="h-4 w-4 text-cyan" />
                     {activeFolder.charAt(0).toUpperCase() + activeFolder.slice(1)}
                   </h2>
                   <div className="flex items-center gap-2">
                     <span className="text-[10px] text-muted-foreground">
                       {messages.length} message{messages.length !== 1 ? "s" : ""}
                     </span>
-                    {syncing && <Loader2 className="h-3 w-3 animate-spin text-neon" />}
+                    {syncing && <Loader2 className="h-3 w-3 animate-spin text-cyan" />}
                   </div>
                 </div>
 
@@ -681,7 +681,7 @@ export default function GmailPage() {
                     {Array.from({ length: 5 }).map((_, i) => (
                       <div
                         key={i}
-                        className="flex items-center gap-3 p-3 rounded-lg bg-secondary/20 animate-pulse"
+                        className="flex items-center gap-3 p-3 rounded-[12px] bg-secondary/20 animate-pulse"
                       >
                         <div className="h-8 w-8 rounded-full bg-secondary/40 shrink-0" />
                         <div className="flex-1 space-y-1.5">
@@ -706,16 +706,16 @@ export default function GmailPage() {
                         animate={{ opacity: 1, y: 0 }}
                         transition={{ delay: i * 0.03 }}
                         onClick={() => setSelectedMessage(msg)}
-                        className={`flex items-center gap-3 w-full text-left p-3 rounded-lg transition-colors cursor-pointer ${
+                        className={`flex items-center gap-3 w-full text-left p-3 rounded-[12px] transition-colors cursor-pointer ${
                           msg.unread
-                            ? "bg-neon/5 border border-neon/10 hover:bg-neon/10"
+                            ? "bg-cyan/4 border border-cyan/8 hover:bg-cyan/8"
                             : "bg-secondary/20 hover:bg-secondary/30"
                         }`}
                       >
                         <div
                           className={`h-8 w-8 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0 ${
                             msg.unread
-                              ? "bg-neon/15 border border-neon/30 text-neon"
+                              ? "bg-cyan/12 border border-cyan/20 text-cyan"
                               : "bg-secondary/40 text-muted-foreground"
                           }`}
                         >
@@ -731,7 +731,7 @@ export default function GmailPage() {
                               {extractName(msg.from)}
                             </span>
                             {msg.unread && (
-                              <span className="h-1.5 w-1.5 rounded-full bg-neon shrink-0" />
+                              <span className="h-1.5 w-1.5 rounded-full bg-cyan shrink-0" />
                             )}
                           </div>
                           <p className={`text-xs truncate ${msg.unread ? "text-foreground/80" : "text-muted-foreground/70"}`}>

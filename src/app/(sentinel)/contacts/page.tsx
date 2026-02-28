@@ -47,7 +47,7 @@ export default function ContactsPage() {
           <Badge variant="outline" className="text-xs">{contacts.length} contacts</Badge>
         </div>
 
-        <div className="overflow-hidden rounded-lg border border-glass-border">
+        <div className="overflow-hidden rounded-[12px] border border-glass-border">
           <table className="w-full">
             <thead>
               <tr className="border-b border-glass-border bg-secondary/20">

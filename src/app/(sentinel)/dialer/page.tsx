@@ -30,7 +30,7 @@ interface DispoOption {
 const DISPOSITIONS: DispoOption[] = [
   { key: "voicemail",   label: "Voicemail",    hotkey: "1", icon: Voicemail,      color: "text-blue-400",   bgColor: "bg-blue-500/10 hover:bg-blue-500/20 border-blue-500/20" },
   { key: "no_answer",   label: "No Answer",    hotkey: "2", icon: PhoneOff,       color: "text-zinc-400",   bgColor: "bg-zinc-500/10 hover:bg-zinc-500/20 border-zinc-500/20" },
-  { key: "interested",  label: "Interested",   hotkey: "3", icon: Sparkles,       color: "text-neon",       bgColor: "bg-neon/10 hover:bg-neon/20 border-neon/20" },
+  { key: "interested",  label: "Interested",   hotkey: "3", icon: Sparkles,       color: "text-cyan",       bgColor: "bg-cyan/8 hover:bg-cyan/15 border-cyan/15" },
   { key: "appointment", label: "Appointment",  hotkey: "4", icon: CalendarCheck,  color: "text-emerald-400",bgColor: "bg-emerald-500/10 hover:bg-emerald-500/20 border-emerald-500/20" },
   { key: "contract",    label: "Contract",     hotkey: "5", icon: FileSignature,  color: "text-orange-400", bgColor: "bg-orange-500/10 hover:bg-orange-500/20 border-orange-500/20" },
   { key: "dead",        label: "Dead",         hotkey: "6", icon: Skull,          color: "text-red-400",    bgColor: "bg-red-500/10 hover:bg-red-500/20 border-red-500/20" },
@@ -220,7 +220,7 @@ export default function DialerPage() {
   // ── Stats Cards ──────────────────────────────────────────────────
 
   const statCards = [
-    { label: "My Calls", value: stats.myCalls, icon: PhoneForwarded, color: "text-neon" },
+    { label: "My Calls", value: stats.myCalls, icon: PhoneForwarded, color: "text-cyan" },
     { label: "Team Calls", value: stats.teamCalls, icon: Users, color: "text-blue-400" },
     { label: "Connect %", value: `${stats.connectRate}%`, icon: BarChart3, color: "text-purple-400" },
     { label: "Appts", value: stats.appointments, icon: CalendarCheck, color: "text-emerald-400" },
@@ -268,7 +268,7 @@ export default function DialerPage() {
           <GlassCard hover={false} className="!p-3">
             <div className="flex items-center justify-between mb-3">
               <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
-                <Users className="h-3.5 w-3.5 text-neon" />
+                <Users className="h-3.5 w-3.5 text-cyan" />
                 Dial Queue
               </h2>
               <button
@@ -282,7 +282,7 @@ export default function DialerPage() {
             {queueLoading ? (
               <div className="space-y-2">
                 {[1, 2, 3, 4].map((i) => (
-                  <div key={i} className="h-14 rounded-lg bg-secondary/20 animate-pulse" />
+                  <div key={i} className="h-14 rounded-[12px] bg-secondary/20 animate-pulse" />
                 ))}
               </div>
             ) : queue.length === 0 ? (
@@ -298,9 +298,9 @@ export default function DialerPage() {
                     <button
                       key={lead.id}
                       onClick={() => setCurrentLead(lead)}
-                      className={`w-full text-left rounded-lg p-2.5 transition-all duration-200 border ${
+                      className={`w-full text-left rounded-[12px] p-2.5 transition-all duration-200 border ${
                         isActive
-                          ? "bg-neon/5 border-neon/30 shadow-[0_0_12px_rgba(0,255,136,0.1)]"
+                          ? "bg-cyan/5 border-cyan/20 shadow-[0_0_12px_rgba(0,212,255,0.1)]"
                           : "bg-secondary/10 border-transparent hover:bg-secondary/20"
                       }`}
                     >
@@ -345,12 +345,12 @@ export default function DialerPage() {
                   {callState !== "idle" && (
                     <div className={`flex items-center gap-2 mb-3 text-xs px-3 py-1.5 rounded-lg ${
                       callState === "dialing" ? "bg-yellow-500/10 text-yellow-400" :
-                      callState === "connected" ? "bg-neon/10 text-neon" :
+                      callState === "connected" ? "bg-cyan/8 text-cyan" :
                       "bg-red-500/10 text-red-400"
                     }`}>
                       <span className={`h-2 w-2 rounded-full ${
                         callState === "dialing" ? "bg-yellow-400 animate-pulse" :
-                        callState === "connected" ? "bg-neon animate-pulse" :
+                        callState === "connected" ? "bg-cyan animate-pulse" :
                         "bg-red-400"
                       }`} />
                       {callState === "dialing" && "Dialing..."}
@@ -444,7 +444,7 @@ export default function DialerPage() {
                         <Button
                           onClick={() => handleDial()}
                           disabled={!currentLead.compliant && !ghostMode}
-                          className="flex-1 gap-2 bg-neon/20 hover:bg-neon/30 text-neon border border-neon/30"
+                          className="flex-1 gap-2 bg-cyan/15 hover:bg-cyan/25 text-cyan border border-cyan/25"
                         >
                           <Phone className="h-4 w-4" />
                           Dial {currentLead.properties?.owner_phone ? "" : "(No Phone)"}
@@ -506,7 +506,7 @@ export default function DialerPage() {
         <div className="lg:col-span-4">
           <GlassCard hover={false} className="!p-3">
             <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3 flex items-center gap-1.5">
-              <BarChart3 className="h-3.5 w-3.5 text-neon" />
+              <BarChart3 className="h-3.5 w-3.5 text-cyan" />
               Disposition
               <span className="text-[9px] opacity-50 ml-auto">Keyboard shortcuts active</span>
             </h2>
@@ -521,7 +521,7 @@ export default function DialerPage() {
                     key={d.key}
                     onClick={() => handleDisposition(d.key)}
                     disabled={disabled}
-                    className={`flex items-center gap-3 rounded-lg px-3 py-2.5 text-left transition-all duration-150 border
+                    className={`flex items-center gap-3 rounded-[12px] px-3 py-2.5 text-left transition-all duration-150 border
                       ${disabled ? "opacity-30 cursor-not-allowed" : d.bgColor}
                     `}
                   >
@@ -561,7 +561,7 @@ export default function DialerPage() {
                 exit={{ opacity: 0, y: 10 }}
               >
                 <GlassCard glow hover={false} className="!p-4 mt-3 text-center">
-                  <Clock className="h-5 w-5 mx-auto mb-1 text-neon" />
+                  <Clock className="h-5 w-5 mx-auto mb-1 text-cyan" />
                   <p className="text-3xl font-bold font-mono tracking-wider text-neon">
                     {timer.formatted}
                   </p>

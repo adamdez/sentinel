@@ -33,7 +33,7 @@ export default function DispositionPage() {
     >
       <div className="grid grid-cols-3 gap-4 mb-4">
         <GlassCard className="p-4 text-center">
-          <FileCheck className="h-5 w-5 text-neon mx-auto mb-2" />
+          <FileCheck className="h-5 w-5 text-cyan mx-auto mb-2" />
           <p className="text-xl font-bold">{dispositions.length}</p>
           <p className="text-[10px] text-muted-foreground">Active Dispositions</p>
         </GlassCard>
@@ -64,7 +64,7 @@ export default function DispositionPage() {
               <p className="text-sm font-medium">{d.contractPrice}</p>
             </div>
             <div className="flex items-center">
-              <ArrowRight className="h-4 w-4 text-neon mx-auto" />
+              <ArrowRight className="h-4 w-4 text-cyan mx-auto" />
             </div>
             <div>
               <p className="text-[10px] text-muted-foreground">Target</p>

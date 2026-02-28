@@ -8,6 +8,13 @@
 
 import { supabase, createServerClient } from "./supabase";
 import { computeScore, SCORING_MODEL_VERSION, type ScoringInput, type ScoringOutput } from "./scoring";
+import {
+  computePredictiveScore,
+  buildPredictiveInput,
+  buildPredictionRecord,
+  blendHeatScore,
+  type PredictiveOutput,
+} from "./scoring-predictive";
 
 export interface StoredScoringRecord {
   id: string;
@@ -118,6 +125,90 @@ export async function getTopScoredProperties(options: {
     return [];
   }
   return data ?? [];
+}
+
+/**
+ * Get the latest prediction for a property.
+ */
+export async function getLatestPrediction(
+  propertyId: string
+): Promise<{
+  predictive_score: number;
+  days_until_distress: number;
+  confidence: number;
+  owner_age_inference: number | null;
+  equity_burn_rate: number | null;
+  life_event_probability: number | null;
+  model_version: string;
+  created_at: string;
+} | null> {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data, error } = await (supabase.from("scoring_predictions") as any)
+    .select("*")
+    .eq("property_id", propertyId)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .single();
+
+  if (error || !data) return null;
+  return data;
+}
+
+/**
+ * Score a property with both deterministic + predictive engines,
+ * persist both records, and return blended result.
+ */
+export async function scoreWithPrediction(
+  propertyId: string,
+  input: ScoringInput,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  property: Record<string, any>,
+  events: { event_type: string; severity: number; created_at: string }[],
+  scores: { composite_score: number; created_at: string }[],
+  options: { useServerClient?: boolean } = {}
+): Promise<{
+  deterministicOutput: ScoringOutput;
+  predictiveOutput: PredictiveOutput;
+  blendedComposite: number;
+  persisted: boolean;
+}> {
+  const deterministicOutput = computeScore(input);
+  const predInput = buildPredictiveInput(propertyId, property, events, scores);
+  const predictiveOutput = computePredictiveScore(predInput);
+  const blendedComposite = blendHeatScore(deterministicOutput.composite, predictiveOutput.predictiveScore);
+
+  const client = options.useServerClient ? createServerClient() : supabase;
+  let persisted = false;
+
+  try {
+    // Persist deterministic scoring record
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    await (client.from("scoring_records") as any).insert({
+      property_id: propertyId,
+      model_version: deterministicOutput.modelVersion,
+      composite_score: deterministicOutput.composite,
+      motivation_score: deterministicOutput.motivationScore,
+      deal_score: deterministicOutput.dealScore,
+      severity_multiplier: deterministicOutput.severityMultiplier,
+      recency_decay: deterministicOutput.recencyDecay,
+      stacking_bonus: deterministicOutput.stackingBonus,
+      owner_factor_score: deterministicOutput.ownerFactorScore,
+      equity_factor_score: deterministicOutput.equityFactorScore,
+      ai_boost: deterministicOutput.aiBoost,
+      factors: deterministicOutput.factors as unknown as Record<string, unknown>[],
+    });
+
+    // Persist predictive scoring record
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    await (client.from("scoring_predictions") as any)
+      .insert(buildPredictionRecord(propertyId, predictiveOutput));
+
+    persisted = true;
+  } catch (err) {
+    console.warn("[Scoring] Persistence failed:", err);
+  }
+
+  return { deterministicOutput, predictiveOutput, blendedComposite, persisted };
 }
 
 /**

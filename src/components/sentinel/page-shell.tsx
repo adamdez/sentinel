@@ -23,7 +23,7 @@ export function PageShell({ title, description, children, actions }: PageShellPr
             <motion.h1
               initial={{ opacity: 0, x: -10 }}
               animate={{ opacity: 1, x: 0 }}
-              className="text-2xl font-bold tracking-tight"
+              className="text-2xl font-bold tracking-tight title-holo"
             >
               {title}
             </motion.h1>

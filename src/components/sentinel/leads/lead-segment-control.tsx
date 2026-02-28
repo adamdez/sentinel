@@ -47,7 +47,7 @@ export function LeadSegmentControl({
   }
 
   return (
-    <div className="flex items-center gap-1 p-1 rounded-lg bg-secondary/40 border border-glass-border w-fit">
+    <div className="flex items-center gap-1 p-1 rounded-[12px] bg-secondary/40 border border-glass-border w-fit">
       {tabs.map((tab) => {
         const active = value === tab.id;
         return (
@@ -75,7 +75,7 @@ export function LeadSegmentControl({
                 className={cn(
                   "text-[10px] px-1.5 py-0 rounded-full",
                   active
-                    ? "bg-neon/15 text-neon"
+                    ? "bg-cyan/12 text-cyan"
                     : "bg-secondary text-muted-foreground"
                 )}
               >

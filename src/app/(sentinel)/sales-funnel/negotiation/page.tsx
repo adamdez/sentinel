@@ -30,7 +30,7 @@ export default function NegotiationPage() {
     >
       <div className="grid grid-cols-4 gap-4 mb-4">
         <GlassCard className="p-4 text-center">
-          <Handshake className="h-5 w-5 text-neon mx-auto mb-2" />
+          <Handshake className="h-5 w-5 text-cyan mx-auto mb-2" />
           <p className="text-xl font-bold">{negotiations.length}</p>
           <p className="text-[10px] text-muted-foreground">Active</p>
         </GlassCard>

@@ -1,6 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createHash } from "crypto";
 import { createServerClient } from "@/lib/supabase";
+import {
+  computePredictiveScore,
+  buildPredictionRecord,
+  blendHeatScore,
+  type PredictiveInput,
+} from "@/lib/scoring-predictive";
 
 type SbResult<T> = { data: T | null; error: { code?: string; message: string } | null };
 
@@ -152,7 +158,47 @@ export async function POST(request: NextRequest) {
       factors: payload.breakdown ?? {},
     });
 
-    // ── 4. Promote to lead at prospect status ──
+    // ── 3b. Predictive scoring (v2.0) ──
+
+    const predInput: PredictiveInput = {
+      propertyId: property.id,
+      ownerName: payload.owner_name ?? "Unknown",
+      ownershipYears: null,
+      lastSaleDate: null,
+      lastSalePrice: null,
+      estimatedValue: null,
+      equityPercent: null,
+      previousEquityPercent: null,
+      equityDeltaMonths: null,
+      totalLoanBalance: null,
+      isAbsentee: (payload.tags ?? []).includes("absentee"),
+      absenteeSinceDate: null,
+      isVacant: (payload.tags ?? []).includes("vacant"),
+      isCorporateOwner: false,
+      isFreeClear: false,
+      ownerAgeKnown: null,
+      delinquentAmount: null,
+      previousDelinquentAmount: null,
+      delinquentYears: 0,
+      taxAssessedValue: null,
+      activeSignals: [{
+        type: distressType as PredictiveInput["activeSignals"][0]["type"],
+        severity: Math.round(payload.heat_score / 10),
+        daysSinceEvent: 0,
+      }],
+      historicalScores: [],
+      foreclosureStage: (payload.breakdown?.foreclosure_stage as string) ?? null,
+      defaultAmount: (payload.breakdown?.default_amount as number) ?? null,
+    };
+
+    const predOutput = computePredictiveScore(predInput);
+    const blendedScore = blendHeatScore(composite, predOutput.predictiveScore);
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    await (sb.from("scoring_predictions") as any)
+      .insert(buildPredictionRecord(property.id, predOutput));
+
+    // ── 4. Promote to lead at prospect status (blended score) ──
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { data: existingLead } = await (sb.from("leads") as any)
@@ -169,10 +215,10 @@ export async function POST(request: NextRequest) {
         .insert({
           property_id: property.id,
           status: "prospect",
-          priority: composite,
+          priority: blendedScore,
           source: "ranger_push",
           tags: payload.tags ?? [],
-          notes: `Ranger push from prowler ${payload.prowler_id}. Audit: ${payload.audit_url}`,
+          notes: `Ranger push from prowler ${payload.prowler_id}. Heat ${blendedScore} (det:${composite} + pred:${predOutput.predictiveScore}). Distress ~${predOutput.daysUntilDistress}d. Audit: ${payload.audit_url}`,
           promoted_at: payload.pushed_at ?? new Date().toISOString(),
         })
         .select("id")
@@ -190,9 +236,9 @@ export async function POST(request: NextRequest) {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       await (sb.from("leads") as any)
         .update({
-          priority: composite,
+          priority: blendedScore,
           tags: payload.tags ?? [],
-          notes: `Ranger push from prowler ${payload.prowler_id}. Audit: ${payload.audit_url}`,
+          notes: `Ranger push from prowler ${payload.prowler_id}. Heat ${blendedScore} (det:${composite} + pred:${predOutput.predictiveScore}). Distress ~${predOutput.daysUntilDistress}d. Audit: ${payload.audit_url}`,
           updated_at: new Date().toISOString(),
         })
         .eq("id", leadId);

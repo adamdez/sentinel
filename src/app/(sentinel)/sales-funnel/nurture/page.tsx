@@ -41,7 +41,7 @@ export default function NurturePage() {
     >
       <GlassCard hover={false} className="mb-4">
         <div className="flex items-center gap-4 text-sm">
-          <Heart className="h-4 w-4 text-neon" />
+          <Heart className="h-4 w-4 text-cyan" />
           <span>{nurtureLeads.length} leads in nurture pipeline</span>
           <Badge variant="outline" className="text-[10px] ml-auto">Auto-drip active</Badge>
         </div>
@@ -63,7 +63,7 @@ export default function NurturePage() {
                 <span className="flex items-center gap-1">
                   <Clock className="h-3 w-3" /> Last: {lead.lastContact}
                 </span>
-                <span className="flex items-center gap-1 text-neon">
+                <span className="flex items-center gap-1 text-cyan">
                   Next: {lead.nextFollow}
                 </span>
               </div>

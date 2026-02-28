@@ -220,11 +220,11 @@ export function CommandPalette() {
             className="fixed left-1/2 top-[15%] z-50 w-full max-w-2xl -translate-x-1/2"
           >
             <Command
-              className="rounded-xl glass-strong border border-glass-border shadow-2xl overflow-hidden"
+              className="rounded-[14px] glass-strong border border-glass-border shadow-2xl overflow-hidden"
               shouldFilter={false}
             >
               <div className="flex items-center border-b border-glass-border px-3">
-                <Search className="mr-2 h-4 w-4 shrink-0 text-neon/70" />
+                <Search className="mr-2 h-4 w-4 shrink-0 text-cyan/70" />
                 <Command.Input
                   placeholder="Search owners, addresses, APNs, contacts, pages..."
                   className="flex h-12 w-full bg-transparent py-3 text-sm outline-none placeholder:text-muted-foreground"
@@ -250,7 +250,7 @@ export function CommandPalette() {
                 {prospects.length > 0 && (
                   <Command.Group
                     heading="Prospects"
-                    className="[&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:py-1.5 [&_[cmdk-group-heading]]:text-[10px] [&_[cmdk-group-heading]]:font-semibold [&_[cmdk-group-heading]]:text-neon/70 [&_[cmdk-group-heading]]:uppercase [&_[cmdk-group-heading]]:tracking-wider"
+                    className="[&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:py-1.5 [&_[cmdk-group-heading]]:text-[10px] [&_[cmdk-group-heading]]:font-semibold [&_[cmdk-group-heading]]:text-cyan/70 [&_[cmdk-group-heading]]:uppercase [&_[cmdk-group-heading]]:tracking-wider"
                   >
                     {prospects.map((r) => (
                       <DataResultItem key={r.id} result={r} onSelect={handleSelect} />
@@ -261,7 +261,7 @@ export function CommandPalette() {
                 {leads.length > 0 && (
                   <Command.Group
                     heading="Leads"
-                    className="[&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:py-1.5 [&_[cmdk-group-heading]]:text-[10px] [&_[cmdk-group-heading]]:font-semibold [&_[cmdk-group-heading]]:text-neon/70 [&_[cmdk-group-heading]]:uppercase [&_[cmdk-group-heading]]:tracking-wider"
+                    className="[&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:py-1.5 [&_[cmdk-group-heading]]:text-[10px] [&_[cmdk-group-heading]]:font-semibold [&_[cmdk-group-heading]]:text-cyan/70 [&_[cmdk-group-heading]]:uppercase [&_[cmdk-group-heading]]:tracking-wider"
                   >
                     {leads.map((r) => (
                       <DataResultItem key={r.id} result={r} onSelect={handleSelect} />
@@ -272,7 +272,7 @@ export function CommandPalette() {
                 {contacts.length > 0 && (
                   <Command.Group
                     heading="Contacts"
-                    className="[&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:py-1.5 [&_[cmdk-group-heading]]:text-[10px] [&_[cmdk-group-heading]]:font-semibold [&_[cmdk-group-heading]]:text-neon/70 [&_[cmdk-group-heading]]:uppercase [&_[cmdk-group-heading]]:tracking-wider"
+                    className="[&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:py-1.5 [&_[cmdk-group-heading]]:text-[10px] [&_[cmdk-group-heading]]:font-semibold [&_[cmdk-group-heading]]:text-cyan/70 [&_[cmdk-group-heading]]:uppercase [&_[cmdk-group-heading]]:tracking-wider"
                   >
                     {contacts.map((r) => (
                       <DataResultItem key={r.id} result={r} onSelect={handleSelect} />
@@ -317,7 +317,7 @@ export function CommandPalette() {
                   Close
                 </span>
                 {hasData && (
-                  <span className="ml-auto text-neon/60">
+                  <span className="ml-auto text-cyan/60">
                     {dataResults.length} record{dataResults.length !== 1 ? "s" : ""} found
                   </span>
                 )}
@@ -346,7 +346,7 @@ function DataResultItem({ result, onSelect }: { result: DataResult; onSelect: (h
     >
       <div className={cn(
         "h-7 w-7 rounded-md flex items-center justify-center shrink-0 border",
-        result.kind === "prospect" ? "bg-neon/10 border-neon/20 text-neon" :
+        result.kind === "prospect" ? "bg-cyan/8 border-cyan/15 text-cyan" :
         result.kind === "lead" ? "bg-blue-500/10 border-blue-500/20 text-blue-400" :
         "bg-secondary/40 border-glass-border text-muted-foreground"
       )}>
@@ -356,7 +356,7 @@ function DataResultItem({ result, onSelect }: { result: DataResult; onSelect: (h
         <p
           className="text-sm font-semibold truncate text-foreground"
           style={{
-            textShadow: "0 0 8px rgba(0,255,136,0.1)",
+            textShadow: "0 0 8px rgba(0,212,255,0.1)",
             WebkitFontSmoothing: "antialiased",
           }}
         >
@@ -378,7 +378,7 @@ function DataResultItem({ result, onSelect }: { result: DataResult; onSelect: (h
           {STATUS_LABELS[result.status] ?? result.status}
         </span>
       )}
-      <ArrowRight className="h-3 w-3 text-muted-foreground/30 group-aria-selected:text-neon/50 shrink-0" />
+      <ArrowRight className="h-3 w-3 text-muted-foreground/30 group-aria-selected:text-cyan/50 shrink-0" />
     </Command.Item>
   );
 }

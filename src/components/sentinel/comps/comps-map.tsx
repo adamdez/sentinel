@@ -132,7 +132,7 @@ function classifyComp(comp: CompProperty, subject: SubjectProperty): "good" | "m
 }
 
 const QUALITY_COLORS = {
-  good: { fill: "#00ff88", stroke: "#00cc6a", label: "Good Comp" },
+  good: { fill: "#00d4ff", stroke: "#00a8cc", label: "Good Comp" },
   marginal: { fill: "#facc15", stroke: "#ca8a04", label: "Marginal" },
   outlier: { fill: "#f87171", stroke: "#dc2626", label: "Outlier" },
 };
@@ -225,13 +225,13 @@ export function CompsMap({ subject, selectedComps, onAddComp, onRemoveComp }: Co
               step={0.5}
               value={radiusMiles}
               onChange={(e) => setRadiusMiles(Number(e.target.value))}
-              className="w-24 h-1 accent-[#00ff88] bg-secondary rounded-full"
+              className="w-24 h-1 accent-[#00d4ff] bg-secondary rounded-full"
             />
-            <span className="font-mono text-neon font-semibold w-10">{radiusMiles}mi</span>
+            <span className="font-mono text-cyan font-semibold w-10">{radiusMiles}mi</span>
           </div>
         </div>
         <div className="flex items-center gap-2">
-          {loading && <Loader2 className="h-3 w-3 animate-spin text-neon" />}
+          {loading && <Loader2 className="h-3 w-3 animate-spin text-cyan" />}
           <Badge variant="outline" className="text-[10px]">
             {comps.length} properties
           </Badge>
@@ -250,7 +250,7 @@ export function CompsMap({ subject, selectedComps, onAddComp, onRemoveComp }: Co
             exit={{ height: 0, opacity: 0 }}
             className="overflow-hidden"
           >
-            <div className="flex flex-wrap items-center gap-2 p-2.5 rounded-lg border border-glass-border bg-glass/50 text-[11px]">
+            <div className="flex flex-wrap items-center gap-2 p-2.5 rounded-[12px] border border-glass-border bg-glass/50 text-[11px]">
               <span className="text-muted-foreground font-medium">Match subject on:</span>
               {([
                 ["beds", "Beds ±1"],
@@ -265,7 +265,7 @@ export function CompsMap({ subject, selectedComps, onAddComp, onRemoveComp }: Co
                   className={cn(
                     "px-2 py-1 rounded-md border transition-all",
                     filters[key]
-                      ? "border-neon/40 bg-neon/10 text-neon"
+                      ? "border-cyan/20 bg-cyan/8 text-cyan"
                       : "border-glass-border bg-secondary/20 text-muted-foreground hover:border-white/20"
                   )}
                 >
@@ -310,10 +310,10 @@ export function CompsMap({ subject, selectedComps, onAddComp, onRemoveComp }: Co
                 center={[subject.lat, subject.lng]}
                 radius={radiusMeters}
                 pathOptions={{
-                  color: "#00ff88",
+                  color: "#00d4ff",
                   weight: 1.5,
                   opacity: 0.5,
-                  fillColor: "#00ff88",
+                  fillColor: "#00d4ff",
                   fillOpacity: 0.04,
                   dashArray: "6 4",
                 }}
@@ -324,9 +324,9 @@ export function CompsMap({ subject, selectedComps, onAddComp, onRemoveComp }: Co
                 center={[subject.lat, subject.lng]}
                 radius={10}
                 pathOptions={{
-                  color: "#00ff88",
+                  color: "#00d4ff",
                   weight: 3,
-                  fillColor: "#00ff88",
+                  fillColor: "#00d4ff",
                   fillOpacity: 0.9,
                 }}
               >
@@ -336,7 +336,7 @@ export function CompsMap({ subject, selectedComps, onAddComp, onRemoveComp }: Co
                   offset={[0, -12]}
                   className="!bg-transparent !border-0 !shadow-none !p-0"
                 >
-                  <div className="bg-glass border border-neon/40 rounded px-2 py-0.5 text-[10px] text-neon font-bold backdrop-blur-sm whitespace-nowrap">
+                  <div className="bg-glass border border-cyan/20 rounded px-2 py-0.5 text-[10px] text-cyan font-bold backdrop-blur-sm whitespace-nowrap">
                     ★ SUBJECT
                   </div>
                 </Tooltip>
@@ -355,9 +355,9 @@ export function CompsMap({ subject, selectedComps, onAddComp, onRemoveComp }: Co
                     center={[comp.lat, comp.lng]}
                     radius={isSelected ? 8 : 6}
                     pathOptions={{
-                      color: isSelected ? "#00ff88" : colors.stroke,
-                      weight: isSelected ? 3 : 1.5,
-                      fillColor: isSelected ? "#00ff88" : colors.fill,
+color: isSelected ? "#00d4ff" : colors.stroke,
+                    weight: isSelected ? 3 : 1.5,
+                    fillColor: isSelected ? "#00d4ff" : colors.fill,
                       fillOpacity: isSelected ? 1 : 0.7,
                     }}
                     eventHandlers={{
@@ -452,7 +452,7 @@ function CompDetailPanel({
       {/* Header */}
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">
-          <p className="font-semibold text-sm truncate" style={{ textShadow: "0 0 8px rgba(0,255,136,0.12)" }}>
+          <p className="font-semibold text-sm truncate" style={{ textShadow: "0 0 8px rgba(0,212,255,0.12)" }}>
             {comp.streetAddress || comp.address}
           </p>
           <p className="text-[10px] text-muted-foreground truncate">
@@ -576,10 +576,10 @@ function StatBox({ icon: Icon, label, value, match }: {
   return (
     <div className={cn(
       "p-1.5 rounded-md border text-center",
-      match ? "border-neon/30 bg-neon/5" : "border-glass-border bg-secondary/10"
+      match ? "border-cyan/20 bg-cyan/4" : "border-glass-border bg-secondary/10"
     )}>
       <p className="text-[9px] text-muted-foreground">{label}</p>
-      <p className={cn("text-sm font-semibold", match && "text-neon")}>{value}</p>
+      <p className={cn("text-sm font-semibold", match && "text-cyan")}>{value}</p>
     </div>
   );
 }

@@ -17,6 +17,7 @@ import type { ProspectRow } from "@/hooks/use-prospects";
 import type { LeadRow } from "@/lib/leads-data";
 import type { AIScore, DistressType } from "@/lib/types";
 import { CompsMap, type CompProperty, type SubjectProperty } from "@/components/sentinel/comps/comps-map";
+import { PredictiveDistressBadge, type PredictiveDistressData } from "@/components/sentinel/predictive-distress-badge";
 
 // ═══════════════════════════════════════════════════════════════════════
 // ClientFile — single unified shape for every funnel stage
@@ -75,6 +76,15 @@ export interface ClientFile {
   radarId: string | null;
   enriched: boolean;
   lockVersion?: number;
+  prediction?: {
+    predictiveScore: number;
+    daysUntilDistress: number;
+    confidence: number;
+    label: "imminent" | "likely" | "possible" | "unlikely";
+    ownerAgeInference: number | null;
+    equityBurnRate: number | null;
+    lifeEventProbability: number | null;
+  } | null;
 }
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -107,6 +117,7 @@ export function clientFileFromProspect(p: ProspectRow): ClientFile {
     isAbsentee: p.is_absentee, isFreeClear: p.is_free_clear,
     isHighEquity: p.is_high_equity, isCashBuyer: p.is_cash_buyer,
     ownerFlags: p.owner_flags, radarId: p.radar_id, enriched: p.enriched,
+    prediction: p._prediction ?? null,
   };
 }
 
@@ -132,6 +143,7 @@ export function clientFileFromLead(l: LeadRow): ClientFile {
     isVacant: false, isAbsentee: l.ownerBadge === "absentee",
     isFreeClear: false, isHighEquity: false, isCashBuyer: false,
     ownerFlags: {}, radarId: null, enriched: false,
+    prediction: null,
   };
 }
 
@@ -180,6 +192,7 @@ export function clientFileFromRaw(lead: Record<string, any>, prop: Record<string
     ownerFlags: flags, radarId: (flags.radar_id as string) ?? null,
     enriched: flags.source === "propertyradar" || !!flags.radar_id,
     lockVersion: lead.lock_version ?? 0,
+    prediction: lead._prediction ?? null,
   };
 }
 
@@ -242,7 +255,7 @@ function InfoRow({ icon: Icon, label, value, mono, highlight }: {
   if (value == null || value === "") return null;
   return (
     <div className="flex items-start gap-3 py-1.5">
-      <Icon className={cn("h-3.5 w-3.5 mt-0.5 shrink-0", highlight ? "text-neon" : "text-muted-foreground")} />
+      <Icon className={cn("h-3.5 w-3.5 mt-0.5 shrink-0", highlight ? "text-cyan" : "text-muted-foreground")} />
       <div className="flex-1 min-w-0">
         <p className="text-[10px] text-muted-foreground uppercase tracking-wider">{label}</p>
         <p className={cn("text-sm truncate", mono && "font-mono", highlight ? "text-neon font-semibold" : "text-foreground")}>{value}</p>
@@ -253,7 +266,7 @@ function InfoRow({ icon: Icon, label, value, mono, highlight }: {
 
 function Section({ title, icon: Icon, children }: { title: string; icon: typeof Home; children: React.ReactNode }) {
   return (
-    <div className="rounded-lg border border-glass-border bg-secondary/10 p-4">
+    <div className="rounded-[12px] border border-glass-border bg-secondary/10 p-4">
       <div className="flex items-center gap-2 mb-3">
         <Icon className="h-3.5 w-3.5 text-muted-foreground" />
         <p className="text-[11px] text-muted-foreground uppercase tracking-wider font-semibold">{title}</p>
@@ -268,7 +281,7 @@ function ScoreCard({ label, value }: { label: string; value: number }) {
   return (
     <div className="rounded-lg border border-glass-border bg-secondary/10 p-3 text-center">
       <p className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1">{label}</p>
-      <p className="text-xl font-bold" style={{ textShadow: pct >= 80 ? "0 0 10px rgba(0,255,136,0.3)" : undefined }}>{value}</p>
+      <p className="text-xl font-bold" style={{ textShadow: pct >= 80 ? "0 0 10px rgba(0,212,255,0.3)" : undefined }}>{value}</p>
       <div className="h-1 rounded-full bg-secondary mt-2 overflow-hidden">
         <div className={cn("h-full rounded-full transition-all", pct >= 85 ? "bg-orange-400" : pct >= 65 ? "bg-red-400" : pct >= 40 ? "bg-yellow-400" : "bg-blue-400")} style={{ width: `${pct}%` }} />
       </div>
@@ -311,6 +324,37 @@ function OverviewTab({ cf, skipTracing, skipTraceResult, skipTraceMs, overlay, o
         <ScoreCard label="Motivation" value={cf.motivationScore} />
         <ScoreCard label="Deal Score" value={cf.dealScore} />
       </div>
+
+      {/* Predictive Distress Intelligence */}
+      {cf.prediction && (
+        <Section title="Predictive Intelligence (v2.0)" icon={Zap}>
+          <div className="flex items-center gap-3 mb-3">
+            <PredictiveDistressBadge data={cf.prediction as PredictiveDistressData} size="lg" />
+          </div>
+          <div className="grid grid-cols-3 gap-3">
+            <div className="rounded-lg border border-glass-border bg-secondary/10 p-3 text-center">
+              <p className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1">Distress In</p>
+              <p className="text-xl font-bold text-orange-400">~{cf.prediction.daysUntilDistress}d</p>
+            </div>
+            <div className="rounded-lg border border-glass-border bg-secondary/10 p-3 text-center">
+              <p className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1">Confidence</p>
+              <p className="text-xl font-bold text-cyan">{cf.prediction.confidence}%</p>
+            </div>
+            <div className="rounded-lg border border-glass-border bg-secondary/10 p-3 text-center">
+              <p className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1">Pred Score</p>
+              <p className="text-xl font-bold">{cf.prediction.predictiveScore}</p>
+            </div>
+          </div>
+          {cf.prediction.ownerAgeInference && (
+            <p className="text-[11px] text-muted-foreground mt-2">
+              Est. owner age: <span className="text-foreground font-medium">{cf.prediction.ownerAgeInference}</span>
+              {cf.prediction.lifeEventProbability != null && cf.prediction.lifeEventProbability > 0.10 && (
+                <> &middot; <span className="text-orange-400">Elevated life-event probability ({Math.round(cf.prediction.lifeEventProbability * 100)}%)</span></>
+              )}
+            </p>
+          )}
+        </Section>
+      )}
 
       {/* Distress Signals */}
       {cf.tags.length > 0 && (
@@ -391,7 +435,7 @@ function OverviewTab({ cf, skipTracing, skipTraceResult, skipTraceMs, overlay, o
             <p className="text-[10px] text-muted-foreground uppercase tracking-wider">All Phone Numbers</p>
             {allPhones.map((ph: string, i: number) => (
               <div key={i} className="flex items-center gap-2 text-sm">
-                <Phone className="h-3 w-3 text-neon/60" /><span className="font-mono">{ph}</span>
+                <Phone className="h-3 w-3 text-cyan/60" /><span className="font-mono">{ph}</span>
                 {i === 0 && <Badge variant="outline" className="text-[8px] py-0">PRIMARY</Badge>}
               </div>
             ))}
@@ -403,7 +447,7 @@ function OverviewTab({ cf, skipTracing, skipTraceResult, skipTraceMs, overlay, o
             <p className="text-[10px] text-muted-foreground uppercase tracking-wider">All Emails</p>
             {allEmails.map((em: string, i: number) => (
               <div key={i} className="flex items-center gap-2 text-sm">
-                <Mail className="h-3 w-3 text-neon/60" /><span>{em}</span>
+                <Mail className="h-3 w-3 text-cyan/60" /><span>{em}</span>
                 {i === 0 && <Badge variant="outline" className="text-[8px] py-0">PRIMARY</Badge>}
               </div>
             ))}
@@ -444,11 +488,11 @@ function OverviewTab({ cf, skipTracing, skipTraceResult, skipTraceMs, overlay, o
         )}
 
         {skipTraceResult && (
-          <div className={cn("mt-2 text-xs px-3 py-2 rounded-md border", skipTraceResult.startsWith("Found") ? "text-neon bg-neon/5 border-neon/20" : "text-red-400 bg-red-500/5 border-red-500/20")}>
+          <div className={cn("mt-2 text-xs px-3 py-2 rounded-md border", skipTraceResult.startsWith("Found") ? "text-cyan bg-cyan/4 border-cyan/15" : "text-red-400 bg-red-500/5 border-red-500/20")}>
             <div className="flex items-center justify-between gap-2">
               <span>{skipTraceResult}</span>
               {skipTraceMs != null && (
-                <span className={cn("font-mono text-[10px] shrink-0 px-1.5 py-0.5 rounded", skipTraceMs <= 2000 ? "text-neon bg-neon/10" : "text-amber-400 bg-amber-500/10")}>
+                <span className={cn("font-mono text-[10px] shrink-0 px-1.5 py-0.5 rounded", skipTraceMs <= 2000 ? "text-cyan bg-cyan/8" : "text-amber-400 bg-amber-500/10")}>
                   {(skipTraceMs / 1000).toFixed(2)}s
                 </span>
               )}
@@ -496,7 +540,7 @@ function OverviewTab({ cf, skipTracing, skipTraceResult, skipTraceMs, overlay, o
       </Section>
 
       {cf.radarId && (
-        <a href={`https://app.propertyradar.com/properties/${cf.radarId}`} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 text-xs text-neon/70 hover:text-neon transition-colors">
+        <a href={`https://app.propertyradar.com/properties/${cf.radarId}`} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 text-xs text-cyan/70 hover:text-cyan transition-colors">
           <ExternalLink className="h-3 w-3" />View on PropertyRadar
         </a>
       )}
@@ -553,7 +597,7 @@ function PropertyRadarTab({ cf }: { cf: ClientFile }) {
       )}
 
       {cf.enriched && (
-        <div className="flex items-center gap-2 text-xs text-neon/70">
+        <div className="flex items-center gap-2 text-xs text-cyan/70">
           <CheckCircle2 className="h-3.5 w-3.5" />
           <span>Enriched from PropertyRadar{cf.radarId ? ` — RadarID: ${cf.radarId}` : ""}</span>
         </div>
@@ -586,20 +630,20 @@ function CountyRecordsTab({ cf }: { cf: ClientFile }) {
           <div className="space-y-2">
             <a href={countyInfo.gis} target="_blank" rel="noopener noreferrer">
               <Button size="sm" variant="outline" className="gap-2 text-xs w-full justify-start">
-                <Map className="h-3.5 w-3.5 text-neon" />GIS / Parcel Map — {countyInfo.name}
+                <Map className="h-3.5 w-3.5 text-cyan" />GIS / Parcel Map — {countyInfo.name}
                 <ExternalLink className="h-3 w-3 ml-auto text-muted-foreground" />
               </Button>
             </a>
             <a href={countyInfo.assessor} target="_blank" rel="noopener noreferrer">
               <Button size="sm" variant="outline" className="gap-2 text-xs w-full justify-start">
-                <Building className="h-3.5 w-3.5 text-neon" />Assessor&apos;s Office — {countyInfo.name}
+                <Building className="h-3.5 w-3.5 text-cyan" />Assessor&apos;s Office — {countyInfo.name}
                 <ExternalLink className="h-3 w-3 ml-auto text-muted-foreground" />
               </Button>
             </a>
             {countyInfo.treasurer && (
               <a href={countyInfo.treasurer} target="_blank" rel="noopener noreferrer">
                 <Button size="sm" variant="outline" className="gap-2 text-xs w-full justify-start">
-                  <DollarSign className="h-3.5 w-3.5 text-neon" />Treasurer / Tax Records — {countyInfo.name}
+                  <DollarSign className="h-3.5 w-3.5 text-cyan" />Treasurer / Tax Records — {countyInfo.name}
                   <ExternalLink className="h-3 w-3 ml-auto text-muted-foreground" />
                 </Button>
               </a>
@@ -610,7 +654,7 @@ function CountyRecordsTab({ cf }: { cf: ClientFile }) {
             <p className="text-xs text-muted-foreground/70">No pre-configured links for this county. Use the search below.</p>
             <a href={googleSearch} target="_blank" rel="noopener noreferrer">
               <Button size="sm" variant="outline" className="gap-2 text-xs w-full justify-start">
-                <Search className="h-3.5 w-3.5 text-neon" />Search County Records (Google)
+                <Search className="h-3.5 w-3.5 text-cyan" />Search County Records (Google)
                 <ExternalLink className="h-3 w-3 ml-auto text-muted-foreground" />
               </Button>
             </a>
@@ -691,7 +735,7 @@ function CompsTab({ cf, selectedComps, onAddComp, onRemoveComp }: {
         <div className="rounded-lg border border-glass-border overflow-hidden">
           <div className="flex items-center justify-between px-4 py-2 bg-glass/50 border-b border-glass-border">
             <p className="text-xs font-semibold flex items-center gap-1.5">
-              <CheckCircle2 className="h-3 w-3 text-neon" />
+              <CheckCircle2 className="h-3 w-3 text-cyan" />
               Selected Comps ({selectedComps.length})
             </p>
           </div>
@@ -734,8 +778,8 @@ function CompsTab({ cf, selectedComps, onAddComp, onRemoveComp }: {
 
       {/* Live ARV + Profit projection */}
       <div className="grid grid-cols-2 gap-4">
-        <div className="rounded-lg border border-neon/20 bg-neon/5 p-4">
-          <p className="text-[10px] font-semibold text-neon uppercase tracking-wider mb-3 flex items-center gap-1.5">
+        <div className="rounded-lg border border-cyan/15 bg-cyan/4 p-4">
+          <p className="text-[10px] font-semibold text-cyan uppercase tracking-wider mb-3 flex items-center gap-1.5">
             <TrendingUp className="h-3 w-3" />
             Live ARV Estimate
           </p>
@@ -751,9 +795,9 @@ function CompsTab({ cf, selectedComps, onAddComp, onRemoveComp }: {
                   <span className="font-semibold">{formatCurrency(avgLastSale)}</span>
                 </div>
               )}
-              <div className="pt-2 mt-2 border-t border-neon/20 flex justify-between">
+              <div className="pt-2 mt-2 border-t border-cyan/15 flex justify-between">
                 <span className="font-medium">Estimated ARV</span>
-                <span className="font-bold text-neon text-xl" style={{ textShadow: "0 0 10px rgba(0,255,136,0.4)" }}>
+                <span className="font-bold text-neon text-xl" style={{ textShadow: "0 0 10px rgba(0,212,255,0.4)" }}>
                   {formatCurrency(arv)}
                 </span>
               </div>
@@ -763,7 +807,7 @@ function CompsTab({ cf, selectedComps, onAddComp, onRemoveComp }: {
           )}
         </div>
 
-        <div className="rounded-lg border border-glass-border bg-secondary/10 p-4">
+        <div className="rounded-[12px] border border-glass-border bg-secondary/10 p-4">
           <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-3 flex items-center gap-1.5">
             <DollarSign className="h-3 w-3" />
             Profit Projection
@@ -791,7 +835,7 @@ function CompsTab({ cf, selectedComps, onAddComp, onRemoveComp }: {
             </div>
             <div className="pt-2 mt-2 border-t border-glass-border flex justify-between">
               <span className="font-semibold">Net Profit</span>
-              <span className={cn("font-bold text-lg", profit >= 0 ? "text-neon" : "text-red-400")} style={profit >= 0 ? { textShadow: "0 0 10px rgba(0,255,136,0.3)" } : {}}>
+              <span className={cn("font-bold text-lg", profit >= 0 ? "text-neon" : "text-red-400")} style={profit >= 0 ? { textShadow: "0 0 10px rgba(0,212,255,0.3)" } : {}}>
                 {formatCurrency(profit)}
               </span>
             </div>
@@ -860,9 +904,9 @@ function OfferCalcTab({ cf }: { cf: ClientFile }) {
 
       <Section title="Profit Projection" icon={TrendingUp}>
         <div className="grid grid-cols-2 gap-3">
-          <div className="rounded-lg border border-neon/30 bg-neon/5 p-3 text-center">
+          <div className="rounded-lg border border-cyan/20 bg-cyan/4 p-3 text-center">
             <p className="text-[10px] text-muted-foreground uppercase">MAO (70% Rule)</p>
-            <p className="text-xl font-bold text-neon" style={{ textShadow: "0 0 10px rgba(0,255,136,0.3)" }}>
+            <p className="text-xl font-bold text-neon" style={{ textShadow: "0 0 10px rgba(0,212,255,0.3)" }}>
               {mao > 0 ? formatCurrency(mao) : "—"}
             </p>
             <p className="text-[10px] text-muted-foreground mt-0.5">ARV × 0.70 − Rehab</p>
@@ -879,9 +923,9 @@ function OfferCalcTab({ cf }: { cf: ClientFile }) {
             </p>
             <p className="text-[10px] text-muted-foreground mt-0.5">ROI: {roi}%</p>
           </div>
-          <div className={cn("rounded-lg border p-3 text-center", netProfit > 0 ? "border-neon/30 bg-neon/5" : "border-red-500/30 bg-red-500/5")}>
+          <div className={cn("rounded-lg border p-3 text-center", netProfit > 0 ? "border-cyan/20 bg-cyan/4" : "border-red-500/30 bg-red-500/5")}>
             <p className="text-[10px] text-muted-foreground uppercase">Net After Assignment</p>
-            <p className={cn("text-xl font-bold", netProfit > 0 ? "text-neon" : "text-red-400")} style={netProfit > 0 ? { textShadow: "0 0 10px rgba(0,255,136,0.3)" } : undefined}>
+            <p className={cn("text-xl font-bold", netProfit > 0 ? "text-neon" : "text-red-400")} style={netProfit > 0 ? { textShadow: "0 0 10px rgba(0,212,255,0.3)" } : undefined}>
               {arvNum > 0 && purchaseNum > 0 ? formatCurrency(netProfit) : "—"}
             </p>
             <p className="text-[10px] text-muted-foreground mt-0.5">Gross − Assignment Fee</p>
@@ -969,7 +1013,7 @@ function DocumentsTab({ cf }: { cf: ClientFile }) {
 
       {/* Actions */}
       <div className="grid grid-cols-2 gap-3">
-        <Button onClick={handlePrint} className="gap-2 h-14 text-base font-bold" style={{ boxShadow: "0 0 30px rgba(0,255,136,0.25)" }}>
+        <Button onClick={handlePrint} className="gap-2 h-14 text-base font-bold" style={{ boxShadow: "0 0 30px rgba(0,212,255,0.25)" }}>
           <Printer className="h-5 w-5" />
           CREATE PSA
         </Button>
@@ -981,7 +1025,7 @@ function DocumentsTab({ cf }: { cf: ClientFile }) {
         </a>
       </div>
 
-      <div className="flex items-center gap-2 text-xs text-neon/70 bg-neon/5 border border-neon/20 rounded-md px-3 py-2">
+      <div className="flex items-center gap-2 text-xs text-cyan/70 bg-cyan/4 border border-cyan/15 rounded-md px-3 py-2">
         <Shield className="h-3.5 w-3.5 shrink-0" />
         RCW 61.40.010 compliant — wholesaler disclosure included in all documents.
       </div>
@@ -1094,14 +1138,17 @@ export function MasterClientFileModal({ clientFile, open, onClose, onClaim, onRe
                   <div className={cn("flex items-center gap-1.5 px-2.5 py-1 rounded-md border text-xs font-bold", lbl.bg, lbl.color)}>
                     <Zap className="h-3 w-3" />{clientFile.compositeScore} {lbl.text}
                   </div>
+                  {clientFile.prediction && (
+                    <PredictiveDistressBadge data={clientFile.prediction as PredictiveDistressData} size="sm" />
+                  )}
                   <div className="min-w-0">
-                    <h2 className="text-lg font-bold truncate" style={{ textShadow: "0 0 12px rgba(0,255,136,0.12)" }}>{clientFile.ownerName}</h2>
+                    <h2 className="text-lg font-bold truncate" style={{ textShadow: "0 0 12px rgba(0,212,255,0.12)" }}>{clientFile.ownerName}</h2>
                     <p className="text-xs text-muted-foreground truncate">{clientFile.fullAddress}</p>
                   </div>
                 </div>
                 <div className="flex items-center gap-2 shrink-0">
                   {clientFile.enriched && (
-                    <Badge variant="outline" className="text-[9px] gap-1 text-neon border-neon/30">
+                    <Badge variant="outline" className="text-[9px] gap-1 text-cyan border-cyan/20">
                       <CheckCircle2 className="h-2.5 w-2.5" />Enriched
                     </Badge>
                   )}
@@ -1121,13 +1168,13 @@ export function MasterClientFileModal({ clientFile, open, onClose, onClaim, onRe
                     className={cn(
                       "flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-medium transition-all whitespace-nowrap",
                       activeTab === tab.id
-                        ? "text-neon bg-neon/10 border border-neon/30 shadow-[0_0_8px_rgba(0,255,136,0.1)]"
+                        ? "text-cyan bg-cyan/8 border border-cyan/20 shadow-[0_0_8px_rgba(0,212,255,0.1)]"
                         : "text-muted-foreground hover:text-foreground border border-transparent hover:border-glass-border"
                     )}
                   >
                     <tab.icon className="h-3 w-3" />{tab.label}
                     {tab.id === "comps" && selectedComps.length > 0 && (
-                      <span className="ml-1 bg-neon/20 text-neon text-[9px] px-1.5 rounded-full font-semibold">{selectedComps.length}</span>
+                      <span className="ml-1 bg-cyan/15 text-cyan text-[9px] px-1.5 rounded-full font-semibold">{selectedComps.length}</span>
                     )}
                   </button>
                 ))}

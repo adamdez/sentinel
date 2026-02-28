@@ -159,6 +159,23 @@ interface OfferRow {
   created_at: string;
 }
 
+interface ScoringPredictionRow {
+  id: string;
+  property_id: string;
+  model_version: string;
+  predictive_score: number;
+  days_until_distress: number;
+  confidence: number;
+  owner_age_inference: number | null;
+  equity_burn_rate: number | null;
+  absentee_duration_days: number | null;
+  tax_delinquency_trend: number | null;
+  life_event_probability: number | null;
+  features: Json;
+  factors: Json;
+  created_at: string;
+}
+
 interface EventLogRow {
   id: string;
   user_id: string;
@@ -232,6 +249,11 @@ export interface Database {
         Row: OfferRow;
         Insert: Omit<OfferRow, "id" | "created_at"> & { id?: string; created_at?: string };
         Update: Partial<Omit<OfferRow, "id" | "created_at">>;
+      };
+      scoring_predictions: {
+        Row: ScoringPredictionRow;
+        Insert: Omit<ScoringPredictionRow, "id" | "created_at"> & { id?: string; created_at?: string };
+        Update: never;
       };
       event_log: {
         Row: EventLogRow;

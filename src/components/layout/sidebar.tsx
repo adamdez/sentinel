@@ -178,7 +178,7 @@ function NavLink({ item, depth = 0, badges }: { item: NavItem; depth?: number; b
             isActive && "text-sidebar-accent-foreground"
           )}
         >
-          <Icon className={cn("h-4 w-4 shrink-0", isActive && "text-neon")} />
+          <Icon className={cn("h-4 w-4 shrink-0", isActive && "text-cyan")} />
           <span className="flex-1 text-left">{item.label}</span>
           <motion.div
             animate={{ rotate: expanded ? 90 : 0 }}
@@ -226,12 +226,12 @@ function NavLink({ item, depth = 0, badges }: { item: NavItem; depth?: number; b
           transition={{ type: "spring", stiffness: 350, damping: 30 }}
         />
       )}
-      <Icon className={cn("h-4 w-4 shrink-0", isActive && "text-neon")} />
+      <Icon className={cn("h-4 w-4 shrink-0", isActive && "text-cyan")} />
       <span>{item.label}</span>
       {(() => {
         if (!item.badge || !badges) return null;
         const dot =
-          item.badge === "gmail-connected" && badges.gmailConnected ? "bg-neon" :
+          item.badge === "gmail-connected" && badges.gmailConnected ? "bg-cyan" :
           item.badge === "prospect-dot" && badges.prospects > 0 ? "bg-red-500" :
           item.badge === "fb-dot" && badges.fbCraigslist > 0 ? "bg-red-500" :
           item.badge === "ppl-dot" && badges.ppl > 0 ? "bg-red-500" :
@@ -272,7 +272,7 @@ function SidebarSection({ section, badges }: { section: NavSection; badges?: Sid
           className={cn(
             "text-[10px] font-semibold uppercase tracking-[0.12em] transition-colors duration-200",
             hasActiveItem
-              ? "text-neon/80"
+              ? "text-cyan/80"
               : "text-muted-foreground/60 group-hover:text-muted-foreground"
           )}
         >
@@ -319,11 +319,11 @@ export function Sidebar() {
           animate={{ width: 260, opacity: 1 }}
           exit={{ width: 0, opacity: 0 }}
           transition={{ duration: 0.2, ease: "easeInOut" }}
-          className="h-screen bg-sidebar border-r border-sidebar-border flex flex-col overflow-hidden shrink-0"
+          className="h-screen bg-sidebar border-r border-sidebar-border flex flex-col overflow-hidden shrink-0 glass-strong"
         >
           <div className="p-4 flex items-center gap-2.5">
-            <div className="h-8 w-8 rounded-lg bg-neon/10 flex items-center justify-center border border-neon/20">
-              <Zap className="h-4 w-4 text-neon" />
+            <div className="h-8 w-8 rounded-[10px] bg-cyan/8 flex items-center justify-center border border-cyan/15 shadow-[0_0_12px_rgba(0,212,255,0.1)]">
+              <Zap className="h-4 w-4 text-cyan" />
             </div>
             <div>
               <h1 className="text-sm font-bold tracking-tight text-foreground">
@@ -348,8 +348,8 @@ export function Sidebar() {
           <Separator className="bg-sidebar-border" />
 
           <div className="p-3">
-            <div className="flex items-center gap-2 rounded-lg px-3 py-2 bg-neon/5 border border-neon/10">
-              <div className="h-2 w-2 rounded-full bg-neon animate-pulse" />
+            <div className="flex items-center gap-2 rounded-[10px] px-3 py-2 bg-cyan/4 border border-cyan/8">
+              <div className="h-2 w-2 rounded-full bg-cyan animate-pulse shadow-[0_0_6px_rgba(0,212,255,0.4)]" />
               <span className="text-[11px] text-muted-foreground">
                 System Online
               </span>

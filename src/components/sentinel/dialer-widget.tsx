@@ -58,7 +58,7 @@ export function DialerWidget() {
     >
       <div className="flex items-center justify-between mb-3">
         <h3 className="text-sm font-semibold flex items-center gap-2">
-          <Phone className="h-4 w-4 text-neon" />
+          <Phone className="h-4 w-4 text-cyan" />
           Dialer
         </h3>
         {state !== "idle" && (
@@ -66,7 +66,7 @@ export function DialerWidget() {
             className={cn(
               "flex items-center gap-1.5 text-xs px-2 py-0.5 rounded-full",
               state === "dialing" && "bg-yellow-500/10 text-yellow-400",
-              state === "connected" && "bg-neon/10 text-neon",
+              state === "connected" && "bg-cyan/8 text-cyan",
               state === "ended" && "bg-destructive/10 text-destructive"
             )}
           >
@@ -74,7 +74,7 @@ export function DialerWidget() {
               className={cn(
                 "h-1.5 w-1.5 rounded-full",
                 state === "dialing" && "bg-yellow-400 animate-pulse",
-                state === "connected" && "bg-neon animate-pulse",
+                state === "connected" && "bg-cyan animate-pulse",
                 state === "ended" && "bg-destructive"
               )}
             />
@@ -85,7 +85,7 @@ export function DialerWidget() {
         )}
       </div>
 
-      <div className="flex items-center gap-3 mb-3 p-3 rounded-lg bg-secondary/30">
+      <div className="flex items-center gap-3 mb-3 p-3 rounded-[12px] bg-secondary/30">
         <div className="h-8 w-8 rounded-full bg-secondary flex items-center justify-center">
           <User className="h-4 w-4 text-muted-foreground" />
         </div>

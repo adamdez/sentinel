@@ -9,8 +9,9 @@
  */
 
 import type { DistressType, AIScore } from "./types";
+import { blendHeatScore, PREDICTIVE_WEIGHT, DETERMINISTIC_WEIGHT } from "./scoring-predictive";
 
-export const SCORING_MODEL_VERSION = "v1.1";
+export const SCORING_MODEL_VERSION = "v2.0";
 
 // ── Signal Base Weights ─────────────────────────────────────────────
 export const SIGNAL_WEIGHTS: Record<DistressType, number> = {
@@ -213,6 +214,43 @@ export function getScoreLabel(score: number): AIScore["label"] {
   if (score >= 65) return "hot";
   if (score >= 40) return "warm";
   return "cold";
+}
+
+// ── Enhanced V2 Score (with predictive blend) ───────────────────────
+
+export interface ScoringOutputV2 extends ScoringOutput {
+  predictiveBlend: number | null;
+  blendedComposite: number;
+  blendWeights: { deterministic: number; predictive: number };
+}
+
+/**
+ * Compute the deterministic score and optionally blend with a
+ * predictive score from the v2.0 model. If no predictive score is
+ * supplied, the deterministic composite is used as-is.
+ */
+export function computeScoreV2(
+  input: ScoringInput,
+  predictiveScore: number | null = null
+): ScoringOutputV2 {
+  const base = computeScore(input);
+
+  const blendedComposite = predictiveScore !== null
+    ? blendHeatScore(base.composite, predictiveScore)
+    : base.composite;
+
+  return {
+    ...base,
+    composite: blendedComposite,
+    label: getScoreLabel(blendedComposite),
+    modelVersion: SCORING_MODEL_VERSION,
+    predictiveBlend: predictiveScore,
+    blendedComposite,
+    blendWeights: {
+      deterministic: DETERMINISTIC_WEIGHT,
+      predictive: PREDICTIVE_WEIGHT,
+    },
+  };
 }
 
 // ── Follow-up Priority (for My Top Leads) ───────────────────────────

@@ -11,7 +11,7 @@ import { useSentinelStore } from "@/lib/store";
 import { generateId } from "@/lib/utils";
 
 const userColors: Record<string, string> = {
-  "user-adam": "text-neon",
+  "user-adam": "text-cyan",
   "user-sarah": "text-purple-400",
   "user-mike": "text-blue-400",
 };
@@ -47,7 +47,7 @@ export function TeamChat() {
             className="fixed bottom-6 right-20 z-40 h-10 w-10 rounded-full bg-secondary border border-glass-border flex items-center justify-center hover:bg-accent transition-colors cursor-pointer"
           >
             <MessageCircle className="h-4 w-4 text-muted-foreground" />
-            <span className="absolute -top-1 -right-1 h-3 w-3 rounded-full bg-neon border-2 border-background" />
+            <span className="absolute -top-1 -right-1 h-3 w-3 rounded-full bg-cyan border-2 border-background" />
           </motion.button>
         )}
       </AnimatePresence>
@@ -59,13 +59,13 @@ export function TeamChat() {
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 20, scale: 0.95 }}
             transition={{ duration: 0.2 }}
-            className="fixed bottom-6 right-6 z-40 w-80 h-96 rounded-xl glass-strong border border-glass-border flex flex-col overflow-hidden shadow-2xl"
+            className="fixed bottom-6 right-6 z-40 w-80 h-96 rounded-[14px] glass-strong border border-glass-border flex flex-col overflow-hidden shadow-2xl"
           >
             <div className="flex items-center justify-between px-4 py-3 border-b border-glass-border">
               <div className="flex items-center gap-2">
-                <MessageCircle className="h-4 w-4 text-neon" />
+                <MessageCircle className="h-4 w-4 text-cyan" />
                 <span className="text-sm font-medium">Team Chat</span>
-                <span className="h-2 w-2 rounded-full bg-neon animate-pulse" />
+                <span className="h-2 w-2 rounded-full bg-cyan animate-pulse" />
               </div>
               <div className="flex items-center gap-1">
                 <Button
@@ -109,7 +109,7 @@ export function TeamChat() {
                       <div
                         className={`rounded-lg px-3 py-1.5 text-xs max-w-[200px] ${
                           isMe
-                            ? "bg-neon/10 border border-neon/20"
+                            ? "bg-cyan/8 border border-cyan/15"
                             : "bg-secondary/50 border border-glass-border"
                         }`}
                       >

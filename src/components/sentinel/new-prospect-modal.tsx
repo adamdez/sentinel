@@ -266,7 +266,7 @@ export function NewProspectModal() {
       <DialogContent className="sm:max-w-[640px] max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <UserPlus className="h-5 w-5 text-neon" />
+            <UserPlus className="h-5 w-5 text-cyan" />
             {step === "form" ? "Add New Prospect" : "Prospect Created"}
           </DialogTitle>
           <DialogDescription>
@@ -287,7 +287,7 @@ export function NewProspectModal() {
             >
               {/* ── Section: Property Address ─────────────── */}
               <div>
-                <p className="text-[10px] font-semibold uppercase tracking-widest text-neon/70 mb-3">
+                <p className="text-[10px] font-semibold uppercase tracking-widest text-cyan/70 mb-3">
                   Property Address
                 </p>
                 <div className="space-y-3">
@@ -345,7 +345,7 @@ export function NewProspectModal() {
 
               {/* ── Section: Owner Info ───────────────────── */}
               <div>
-                <p className="text-[10px] font-semibold uppercase tracking-widest text-neon/70 mb-3">
+                <p className="text-[10px] font-semibold uppercase tracking-widest text-cyan/70 mb-3">
                   Owner Information
                 </p>
                 <div className="space-y-3">
@@ -378,7 +378,7 @@ export function NewProspectModal() {
 
               {/* ── Section: Property Details ─────────────── */}
               <div>
-                <p className="text-[10px] font-semibold uppercase tracking-widest text-neon/70 mb-3">
+                <p className="text-[10px] font-semibold uppercase tracking-widest text-cyan/70 mb-3">
                   Property Details
                 </p>
                 <div className="space-y-3">
@@ -405,7 +405,7 @@ export function NewProspectModal() {
                       <select
                         value={form.property_type}
                         onChange={(e) => update("property_type", e.target.value)}
-                        className="w-full h-9 rounded-md border border-input bg-transparent px-3 py-1 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-neon/40"
+                        className="w-full h-9 rounded-md border border-input bg-transparent px-3 py-1 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-cyan/40"
                       >
                         {PROPERTY_TYPES.map((t) => (
                           <option key={t} value={t}>{t}</option>
@@ -462,7 +462,7 @@ export function NewProspectModal() {
 
               {/* ── Section: Distress Signals ─────────────── */}
               <div>
-                <p className="text-[10px] font-semibold uppercase tracking-widest text-neon/70 mb-3">
+                <p className="text-[10px] font-semibold uppercase tracking-widest text-cyan/70 mb-3">
                   Distress Signals
                 </p>
                 <div className="flex flex-wrap gap-1.5">
@@ -481,8 +481,8 @@ export function NewProspectModal() {
                           className={cn(
                             "cursor-pointer transition-colors",
                             active
-                              ? "bg-neon/20 text-neon border-neon/40"
-                              : "hover:bg-neon/10 hover:border-neon/30 hover:text-neon"
+                              ? "bg-cyan/15 text-cyan border-cyan/20"
+                              : "hover:bg-cyan/8 hover:border-cyan/15 hover:text-cyan"
                           )}
                         >
                           {active && <Check className="h-2.5 w-2.5 mr-1" />}
@@ -496,7 +496,7 @@ export function NewProspectModal() {
 
               {/* ── Section: Assignment ───────────────────── */}
               <div>
-                <p className="text-[10px] font-semibold uppercase tracking-widest text-neon/70 mb-3">
+                <p className="text-[10px] font-semibold uppercase tracking-widest text-cyan/70 mb-3">
                   Assignment
                 </p>
                 <div className="flex flex-wrap gap-2">
@@ -506,9 +506,9 @@ export function NewProspectModal() {
                       type="button"
                       onClick={() => setAssignTo(member.id)}
                       className={cn(
-                        "text-xs px-3 py-1.5 rounded-lg border transition-all flex items-center gap-1.5",
+                        "text-xs px-3 py-1.5 rounded-[12px] border transition-all flex items-center gap-1.5",
                         assignTo === member.id
-                          ? "text-neon border-neon/40 bg-neon/10"
+                          ? "text-cyan border-cyan/20 bg-cyan/8"
                           : "text-muted-foreground border-glass-border hover:border-white/20 hover:text-foreground"
                       )}
                     >
@@ -526,7 +526,7 @@ export function NewProspectModal() {
                   value={form.notes}
                   onChange={(e) => update("notes", e.target.value)}
                   rows={2}
-                  className="w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-neon/40 resize-none"
+                  className="w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-cyan/40 resize-none"
                 />
               </Field>
 
@@ -559,8 +559,8 @@ export function NewProspectModal() {
               className="py-6 space-y-5"
             >
               <div className="flex flex-col items-center text-center space-y-3">
-                <div className="h-14 w-14 rounded-2xl bg-neon/10 flex items-center justify-center border border-neon/20">
-                  <Check className="h-7 w-7 text-neon" />
+                <div className="h-14 w-14 rounded-2xl bg-cyan/8 flex items-center justify-center border border-cyan/15">
+                  <Check className="h-7 w-7 text-cyan" />
                 </div>
                 <div>
                   <p className="text-sm font-semibold text-foreground">

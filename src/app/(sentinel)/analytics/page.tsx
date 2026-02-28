@@ -26,7 +26,7 @@ interface KPIConfig {
 }
 
 const KPI_CARDS: KPIConfig[] = [
-  { key: "totalDials",     label: "Total Dials",      icon: Phone,          color: "text-neon",        format: (v) => String(v) },
+  { key: "totalDials",     label: "Total Dials",      icon: Phone,          color: "text-cyan",        format: (v) => String(v) },
   { key: "connects",       label: "Connects",         icon: PhoneForwarded, color: "text-blue-400",    format: (v) => String(v) },
   { key: "connectRate",    label: "Connect Rate",     icon: BarChart3,      color: "text-purple-400",  format: (v) => `${v}%` },
   { key: "voicemails",     label: "Voicemails",       icon: Voicemail,      color: "text-sky-400",     format: (v) => String(v) },
@@ -88,7 +88,7 @@ function ChangeBadge({ current, previous }: { current: number; previous: number 
   return (
     <span className={cn(
       "inline-flex items-center gap-0.5 text-[10px] font-medium",
-      positive ? "text-neon" : "text-red-400"
+      positive ? "text-cyan" : "text-red-400"
     )}>
       <Icon className="h-3 w-3" />
       {positive ? "+" : ""}{change}%
@@ -121,7 +121,7 @@ function BarChart({ data, height = 180, barColor }: { data: { label: string; val
                 x={x}
                 width={barWidth}
                 rx={4}
-                fill={d.color ?? barColor ?? "#00ff88"}
+                fill={d.color ?? barColor ?? "#00d4ff"}
                 opacity={0.8}
               />
               <text
@@ -193,7 +193,7 @@ function LineChart({ data }: { data: { date: string; dials: number; connects: nu
       <motion.path
         d={dialsPath}
         fill="none"
-        stroke="#00ff88"
+        stroke="#00d4ff"
         strokeWidth={2}
         strokeLinecap="round"
         initial={{ pathLength: 0 }}
@@ -226,7 +226,7 @@ function LineChart({ data }: { data: { date: string; dials: number; connects: nu
       })}
 
       {/* Legend */}
-      <circle cx={padX} cy={height + 14} r={3} fill="#00ff88" />
+      <circle cx={padX} cy={height + 14} r={3} fill="#00d4ff" />
       <text x={padX + 8} y={height + 17} className="text-[8px] fill-muted-foreground">Dials</text>
       <circle cx={padX + 50} cy={height + 14} r={3} fill="#0099ff" />
       <text x={padX + 58} y={height + 17} className="text-[8px] fill-muted-foreground">Rate %</text>
@@ -260,15 +260,15 @@ export default function AnalyticsPage() {
       }
     >
       {/* ── Period Tabs ──────────────────────────────────────────── */}
-      <div className="flex items-center gap-1 p-1 rounded-xl bg-secondary/20 border border-glass-border w-fit">
+      <div className="flex items-center gap-1 p-1 rounded-[14px] bg-secondary/20 border border-glass-border w-fit">
         {PERIODS.map((p) => (
           <button
             key={p.key}
             onClick={() => setPeriod(p.key)}
             className={cn(
-              "px-4 py-1.5 rounded-lg text-xs font-medium transition-all duration-200",
+              "px-4 py-1.5 rounded-[12px] text-xs font-medium transition-all duration-200",
               period === p.key
-                ? "bg-neon/15 text-neon border border-neon/25 shadow-[0_0_10px_rgba(0,255,136,0.1)]"
+                ? "bg-cyan/10 text-cyan border border-cyan/20 shadow-[0_0_10px_rgba(0,212,255,0.1)]"
                 : "text-muted-foreground hover:text-foreground hover:bg-secondary/30"
             )}
           >
@@ -300,7 +300,7 @@ export default function AnalyticsPage() {
                     <div className="mt-1.5">
                       <Sparkline
                         data={sparkData}
-                        color={card.color.includes("neon") ? "#00ff88" : card.color.includes("blue") ? "#0099ff" : "#a855f7"}
+                        color={card.color.includes("neon") || card.color.includes("cyan") ? "#00d4ff" : card.color.includes("blue") ? "#0099ff" : "#a855f7"}
                       />
                     </div>
                   )}
@@ -317,7 +317,7 @@ export default function AnalyticsPage() {
         {/* Daily Dials & Connect Rate (2/3 width) */}
         <GlassCard hover={false} className="lg:col-span-2 !p-4">
           <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3 flex items-center gap-1.5">
-            <BarChart3 className="h-3.5 w-3.5 text-neon" />
+            <BarChart3 className="h-3.5 w-3.5 text-cyan" />
             Daily Dials & Connect Rate — Last 30 Days
           </h3>
           {loading ? (
@@ -332,7 +332,7 @@ export default function AnalyticsPage() {
         {/* Conversion Funnel (1/3 width) */}
         <GlassCard hover={false} className="!p-4">
           <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3 flex items-center gap-1.5">
-            <TrendingUp className="h-3.5 w-3.5 text-neon" />
+            <TrendingUp className="h-3.5 w-3.5 text-cyan" />
             Conversion Funnel
           </h3>
           {loading ? (
@@ -418,7 +418,7 @@ export default function AnalyticsPage() {
 
                     {/* Team total row */}
                     {agents.length > 0 && (
-                      <tr className="bg-neon/5 border-t-2 border-neon/20 font-semibold">
+                      <tr className="bg-cyan/5 border-t-2 border-cyan/20 font-semibold">
                         <td className="px-4 py-2.5" />
                         <td className="px-4 py-2.5 text-neon">TEAM TOTAL</td>
                         {KPI_CARDS.map((c) => {
