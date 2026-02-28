@@ -68,7 +68,7 @@ export async function PATCH(req: NextRequest) {
       entity_type: "lead",
       entity_id: lead_id,
       action: status === "my_lead" ? "CLAIMED" : "STATUS_CHANGED",
-      actor_id: actor_id || null,
+      user_id: actor_id || null,
       details: { status, assigned_to },
     }).then(({ error: auditErr }: { error: unknown }) => {
       if (auditErr) console.error("[API/prospects PATCH] Audit log insert failed (non-fatal):", auditErr);
@@ -199,7 +199,7 @@ export async function POST(req: NextRequest) {
       entity_type: "lead",
       entity_id: lead.id,
       action: "CREATED",
-      actor_id: body.actor_id || null,
+      user_id: body.actor_id || null,
       details: {
         source: "manual",
         address,

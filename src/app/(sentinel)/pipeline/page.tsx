@@ -256,7 +256,7 @@ export default function PipelinePage() {
       entity_type: "lead",
       entity_id: leadId,
       action: "CLAIMED",
-      actor_id: currentUserId,
+      user_id: currentUserId,
       details: { note: "24-hour soft lock applied via Pipeline" },
     });
 
@@ -312,7 +312,7 @@ export default function PipelinePage() {
         entity_type: "lead",
         entity_id: leadId,
         action: "STATUS_CHANGED",
-        actor_id: currentUserId,
+        user_id: currentUserId,
         details: { from: source.droppableId, to: newStatus },
       });
     }
