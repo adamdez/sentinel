@@ -93,7 +93,13 @@ export function ProspectDetailModal({ prospect, open, onClose, onClaim, onRefres
       const data = await res.json();
 
       if (data.success) {
-        const msg = `Found ${data.phones?.length ?? 0} phone(s), ${data.emails?.length ?? 0} email(s)`;
+        const parts = [];
+        if (data.phones?.length) parts.push(`${data.phones.length} phone(s)`);
+        if (data.emails?.length) parts.push(`${data.emails.length} email(s)`);
+        if (data.persons?.length) parts.push(`${data.persons.length} person(s)`);
+        const msg = parts.length > 0
+          ? `Found ${parts.join(", ")} — refreshing...`
+          : "Complete — no contact info found in PropertyRadar";
         setSkipTraceResult(msg);
         onRefresh?.();
       } else {
@@ -222,8 +228,12 @@ export function ProspectDetailModal({ prospect, open, onClose, onClaim, onRefres
                     <InfoRow icon={DollarSign} label="Last Sale Price" value={prospect.last_sale_price ? formatCurrency(prospect.last_sale_price) : null} />
                     <InfoRow icon={Calendar} label="Last Sale Date" value={prospect.last_sale_date ? new Date(prospect.last_sale_date).toLocaleDateString() : null} />
                   </div>
-                  {!prospect.estimated_value && !prospect.enriched && (
-                    <p className="text-[11px] text-muted-foreground/60 mt-1 italic">Financial data populates after PropertyRadar enrichment</p>
+                  {!prospect.estimated_value && !prospect.available_equity && !prospect.total_loan_balance && (
+                    <p className="text-[11px] text-muted-foreground/60 mt-1 italic">
+                      {prospect.enriched
+                        ? "No financial data available from PropertyRadar"
+                        : "Financial data populates after enrichment — click Skip Trace below"}
+                    </p>
                   )}
                 </Section>
 
@@ -313,7 +323,15 @@ export function ProspectDetailModal({ prospect, open, onClose, onClaim, onRefres
                   {!prospect.owner_phone && !prospect.owner_email && !skipTraced && (
                     <div className="flex items-center gap-2 py-2 text-xs text-muted-foreground bg-amber-500/5 border border-amber-500/10 rounded-md px-3 mt-2">
                       <Search className="h-3.5 w-3.5 text-amber-400" />
-                      No contact info yet &mdash; click <strong className="text-amber-400 mx-1">Skip Trace</strong> to pull phone & email
+                      No contact info yet &mdash; click <strong className="text-amber-400 mx-1">Skip Trace</strong> to pull all data from PropertyRadar
+                    </div>
+                  )}
+
+                  {/* Not enriched hint */}
+                  {!prospect.enriched && (
+                    <div className="flex items-center gap-2 py-2 text-xs text-muted-foreground bg-blue-500/5 border border-blue-500/10 rounded-md px-3 mt-2">
+                      <Zap className="h-3.5 w-3.5 text-blue-400" />
+                      Property not yet enriched &mdash; Skip Trace will auto-pull property data, scoring, and contact info
                     </div>
                   )}
 
@@ -397,7 +415,7 @@ export function ProspectDetailModal({ prospect, open, onClose, onClaim, onRefres
                   ) : (
                     <Search className="h-3.5 w-3.5" />
                   )}
-                  {skipTracing ? "Tracing..." : skipTraced ? "Re-Trace" : "Skip Trace"}
+                  {skipTracing ? "Pulling data..." : skipTraced ? "Re-Trace" : prospect.enriched ? "Skip Trace" : "Enrich + Skip Trace"}
                 </Button>
               </div>
             </div>
