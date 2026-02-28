@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { useSearchParams } from "next/navigation";
 import {
   Mail,
   Inbox,
@@ -30,6 +31,15 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { useSentinelStore } from "@/lib/store";
+import { supabase } from "@/lib/supabase";
+
+// ── Auth helper ─────────────────────────────────────────────────────────
+
+async function getAuthHeaders(): Promise<Record<string, string>> {
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session?.access_token) return {};
+  return { Authorization: `Bearer ${session.access_token}` };
+}
 
 // ── Types ────────────────────────────────────────────────────────────────
 
@@ -186,9 +196,10 @@ function ComposeModal({
         payload.attachments = [{ filename: attachmentName, mimeType, data: attachmentData }];
       }
 
+      const authHeaders = await getAuthHeaders();
       const res = await fetch("/api/gmail/send", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...authHeaders },
         body: JSON.stringify(payload),
       });
 
@@ -331,11 +342,23 @@ export default function GmailPage() {
   const [activeFolder, setActiveFolder] = useState<Folder>("inbox");
   const [syncing, setSyncing] = useState(false);
   const [selectedMessage, setSelectedMessage] = useState<GmailMessage | null>(null);
+  const [connectError, setConnectError] = useState<string | null>(null);
+  const searchParams = useSearchParams();
+
+  // Read OAuth callback errors from URL params
+  useEffect(() => {
+    const err = searchParams.get("error");
+    if (err) {
+      setConnectError(decodeURIComponent(err));
+      setConnecting(false);
+    }
+  }, [searchParams]);
 
   const fetchStatus = useCallback(async () => {
     if (!userId) return;
     try {
-      const res = await fetch(`/api/gmail/status?user_id=${userId}`);
+      const headers = await getAuthHeaders();
+      const res = await fetch(`/api/gmail/status?user_id=${userId}`, { headers });
       if (res.ok) {
         const data = await res.json();
         setStatus(data);
@@ -351,7 +374,8 @@ export default function GmailPage() {
     if (!userId) return;
     setInboxLoading(true);
     try {
-      const res = await fetch(`/api/gmail/inbox?user_id=${userId}`);
+      const headers = await getAuthHeaders();
+      const res = await fetch(`/api/gmail/inbox?user_id=${userId}`, { headers });
       if (res.ok) {
         const data = await res.json();
         setMessages(data.messages ?? []);
@@ -374,6 +398,7 @@ export default function GmailPage() {
   const handleConnect = async () => {
     if (!userId) return;
     setConnecting(true);
+    setConnectError(null);
     try {
       const res = await fetch("/api/gmail/connect", {
         method: "POST",
@@ -383,8 +408,12 @@ export default function GmailPage() {
       const data = await res.json();
       if (data.url) {
         window.location.href = data.url;
+      } else {
+        setConnectError(data.error || data.detail || "Failed to generate OAuth URL");
+        setConnecting(false);
       }
-    } catch {
+    } catch (err) {
+      setConnectError(err instanceof Error ? err.message : "Connection failed");
       setConnecting(false);
     }
   };
@@ -471,6 +500,13 @@ export default function GmailPage() {
               )}
               {connecting ? "Redirecting…" : "Connect Gmail"}
             </Button>
+
+            {connectError && (
+              <div className="mt-4 flex items-center gap-2 text-sm text-destructive bg-destructive/10 border border-destructive/20 rounded-lg px-4 py-2.5 max-w-sm mx-auto">
+                <AlertCircle className="h-4 w-4 shrink-0" />
+                <span>{connectError}</span>
+              </div>
+            )}
 
             <div className="mt-6 text-[11px] text-muted-foreground/60 space-y-1">
               <p>Scopes: gmail.send, gmail.readonly, openid, email</p>

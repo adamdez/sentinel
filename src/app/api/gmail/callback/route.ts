@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createServerClient } from "@/lib/supabase";
+import { createServerClient, getOrCreateProfile } from "@/lib/supabase";
 import { exchangeCodeForTokens, encryptToken } from "@/lib/gmail";
 
 export const dynamic = "force-dynamic";
@@ -39,6 +39,9 @@ export async function GET(req: NextRequest) {
 
     const encryptedRefresh = encryptToken(tokens.refresh_token);
     const sb = createServerClient();
+
+    // Ensure profile exists (auto-create if needed)
+    await getOrCreateProfile(uid, { email: tokens.email });
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { data: profile } = await (sb.from("user_profiles") as any)

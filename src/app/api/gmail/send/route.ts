@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createServerClient } from "@/lib/supabase";
+import { createServerClient, getOrCreateProfile } from "@/lib/supabase";
 import {
   refreshAccessToken,
   sendEmail,
@@ -40,7 +40,7 @@ export async function POST(req: NextRequest) {
     }
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data: profile, error: profileErr } = await (
+    let { data: profile, error: profileErr } = await (
       sb.from("user_profiles") as any
     )
       .select("preferences")
@@ -48,10 +48,14 @@ export async function POST(req: NextRequest) {
       .single();
 
     if (profileErr || !profile) {
-      return NextResponse.json(
-        { error: "User profile not found" },
-        { status: 404 },
-      );
+      const created = await getOrCreateProfile(user_id, { email: user.email });
+      if (!created) {
+        return NextResponse.json(
+          { error: "User profile not found" },
+          { status: 404 },
+        );
+      }
+      profile = created;
     }
 
     const prefs = profile.preferences as Record<string, unknown> | null;
