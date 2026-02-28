@@ -6,7 +6,7 @@ import {
   Phone, PhoneOff, PhoneForwarded, Clock, Users, BarChart3,
   Mic, MicOff, Voicemail, CalendarCheck, FileSignature,
   Skull, Heart, Search, Ghost, Zap, ChevronRight,
-  Sparkles, DollarSign, Loader2, SkipForward,
+  Sparkles, DollarSign, Loader2, SkipForward, MessageSquare,
 } from "lucide-react";
 import { toast } from "sonner";
 import { PageShell } from "@/components/sentinel/page-shell";
@@ -64,6 +64,8 @@ export default function DialerPage() {
   const [muted, setMuted] = useState(false);
   const [callNotes, setCallNotes] = useState("");
   const [dispositionPending, setDispositionPending] = useState(false);
+  const [smsLoading, setSmsLoading] = useState(false);
+  const [transferStatus, setTransferStatus] = useState<string | null>(null);
 
   useEffect(() => {
     if (!currentLead && queue.length > 0) {
@@ -114,8 +116,9 @@ export default function DialerPage() {
       }
 
       setCurrentCallLogId(data.callLogId);
+      setTransferStatus(`Warm transfer to ${currentUser.name || "Agent"}'s cell...`);
       setCallState("connected");
-      toast.success("Connected via Twilio");
+      toast.success("Connected — Caller ID: Dominion Homes");
     } catch (err) {
       console.error("[Dialer]", err);
       toast.error("Network error — call not placed");
@@ -124,8 +127,44 @@ export default function DialerPage() {
     }
   }, [currentLead, currentUser.id, ghostMode, timer]);
 
+  const handleSendText = useCallback(async () => {
+    if (!currentLead) return;
+    const phone = currentLead.properties?.owner_phone;
+    if (!phone) {
+      toast.error("No phone number for this lead");
+      return;
+    }
+
+    setSmsLoading(true);
+    try {
+      const res = await fetch("/api/dialer/sms", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          phone,
+          message: `Hi ${currentLead.properties?.owner_name?.split(" ")[0] ?? "there"}, this is Dominion Homes. We're interested in your property at ${currentLead.properties?.address ?? "your address"}. Would you have a few minutes to chat? Reply STOP to opt out.`,
+          leadId: currentLead.id,
+          propertyId: currentLead.property_id,
+          userId: currentUser.id,
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        toast.error(data.error ?? "SMS failed");
+      } else {
+        toast.success("Text sent via Dominion Homes");
+      }
+    } catch {
+      toast.error("Network error — SMS not sent");
+    } finally {
+      setSmsLoading(false);
+    }
+  }, [currentLead, currentUser.id]);
+
   const handleHangup = useCallback(() => {
     setCallState("ended");
+    setTransferStatus(null);
     timer.stop();
   }, [timer]);
 
@@ -165,6 +204,7 @@ export default function DialerPage() {
     setCallState("idle");
     setCurrentCallLogId(null);
     setCallNotes("");
+    setTransferStatus(null);
     timer.reset();
     setDispositionPending(false);
 
@@ -223,7 +263,7 @@ export default function DialerPage() {
           )}
           <Badge variant="cyan" className="text-[10px] gap-1">
             <Zap className="h-2.5 w-2.5" />
-            Twilio {callState === "connected" ? "LIVE" : "Ready"}
+            {callState === "connected" ? "LIVE — Dominion Homes" : "Twilio Ready"}
           </Badge>
         </div>
       }
@@ -334,8 +374,8 @@ export default function DialerPage() {
                         callState === "connected" ? "bg-cyan animate-pulse" :
                         "bg-red-400"
                       }`} />
-                      {callState === "dialing" && "Dialing..."}
-                      {callState === "connected" && `Connected — ${timer.formatted}`}
+                      {callState === "dialing" && (transferStatus ?? "Dialing...")}
+                      {callState === "connected" && `Connected — ${timer.formatted} — Caller ID: Dominion Homes`}
                       {callState === "ended" && `Ended — ${timer.formatted}`}
                     </div>
                   )}
@@ -406,15 +446,26 @@ export default function DialerPage() {
 
                     <div className="flex items-center gap-2 pt-2">
                       {callState === "idle" && (
-                        <Button
-                          onClick={() => handleDial()}
-                          disabled={!currentLead.compliant && !ghostMode}
-                          className="flex-1 gap-2 bg-cyan/15 hover:bg-cyan/25 text-cyan border border-cyan/25"
-                        >
-                          <Phone className="h-4 w-4" />
-                          Dial {currentLead.properties?.owner_phone ? "" : "(No Phone)"}
-                          <span className="text-[10px] opacity-50 ml-1">Enter</span>
-                        </Button>
+                        <>
+                          <Button
+                            onClick={() => handleDial()}
+                            disabled={!currentLead.compliant && !ghostMode}
+                            className="flex-1 gap-2 bg-cyan/15 hover:bg-cyan/25 text-cyan border border-cyan/25"
+                          >
+                            <Phone className="h-4 w-4" />
+                            Dial {currentLead.properties?.owner_phone ? "" : "(No Phone)"}
+                            <span className="text-[10px] opacity-50 ml-1">Enter</span>
+                          </Button>
+                          <Button
+                            onClick={handleSendText}
+                            disabled={(!currentLead.compliant && !ghostMode) || smsLoading || !currentLead.properties?.owner_phone}
+                            variant="outline"
+                            className="gap-2 border-purple/25 text-purple hover:bg-purple/10"
+                          >
+                            {smsLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <MessageSquare className="h-4 w-4" />}
+                            Text
+                          </Button>
+                        </>
                       )}
                       {(callState === "dialing" || callState === "connected") && (
                         <>

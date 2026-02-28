@@ -73,14 +73,41 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  // 2. Twilio REST API — create call
+  // 2. Twilio REST API — create call with warm transfer webhook
   const twilioUrl = `https://api.twilio.com/2010-04-01/Accounts/${sid}/Calls.json`;
   const authHeader = "Basic " + Buffer.from(`${sid}:${token}`).toString("base64");
+
+  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL
+    ?? (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "http://localhost:3000");
+
+  // Insert calls_log first so we have the ID for the webhook URL
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: callLog, error: logErr } = await (sb.from("calls_log") as any)
+    .insert({
+      lead_id: body.leadId || null,
+      property_id: body.propertyId || null,
+      user_id: userId,
+      phone_dialed: e164,
+      disposition: "initiating",
+      started_at: new Date().toISOString(),
+    })
+    .select("id")
+    .single();
+
+  if (logErr) {
+    console.error("[Dialer] calls_log insert failed:", logErr);
+  }
+
+  const voiceWebhookUrl = `${siteUrl}/api/twilio/voice?agentId=${encodeURIComponent(userId)}&callLogId=${encodeURIComponent(callLog?.id ?? "")}`;
+  const statusCallbackUrl = `${siteUrl}/api/twilio/voice/status?callLogId=${encodeURIComponent(callLog?.id ?? "")}&type=call_status`;
 
   const formData = new URLSearchParams({
     To: e164,
     From: from,
-    Twiml: `<Response><Say voice="alice">Connecting you now.</Say><Dial>${e164}</Dial></Response>`,
+    Url: voiceWebhookUrl,
+    StatusCallback: statusCallbackUrl,
+    StatusCallbackEvent: "initiated ringing answered completed",
+    CallerIdName: "Dominion Homes",
   });
 
   let twilioSid: string | null = null;
@@ -110,24 +137,12 @@ export async function POST(req: NextRequest) {
     console.error("[Dialer] Twilio fetch failed:", err);
   }
 
-  // 3. Log call to calls_log
-
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { data: callLog, error: logErr } = await (sb.from("calls_log") as any)
-    .insert({
-      lead_id: body.leadId || null,
-      property_id: body.propertyId || null,
-      user_id: userId,
-      phone_dialed: e164,
-      twilio_sid: twilioSid,
-      disposition: "in_progress",
-      started_at: new Date().toISOString(),
-    })
-    .select("id")
-    .single();
-
-  if (logErr) {
-    console.error("[Dialer] calls_log insert failed:", logErr);
+  // 3. Update calls_log with Twilio SID
+  if (callLog?.id && twilioSid) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    await (sb.from("calls_log") as any)
+      .update({ twilio_sid: twilioSid, disposition: "in_progress" })
+      .eq("id", callLog.id);
   }
 
   // 4. Audit log (non-blocking)
