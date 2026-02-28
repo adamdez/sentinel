@@ -342,6 +342,40 @@ body {
   background: #2a2b3e;
 }
 
+/* Leaflet dark-mode overrides for Sentinel */
+.leaflet-container {
+  background: #0a0a14 !important;
+  font-family: inherit;
+}
+.leaflet-control-zoom a {
+  background: rgba(24, 24, 27, 0.9) !important;
+  color: #00ff88 !important;
+  border-color: rgba(255, 255, 255, 0.08) !important;
+}
+.leaflet-control-zoom a:hover {
+  background: rgba(0, 255, 136, 0.1) !important;
+}
+.leaflet-control-attribution {
+  background: rgba(7, 7, 13, 0.7) !important;
+  color: rgba(255, 255, 255, 0.3) !important;
+  font-size: 8px !important;
+}
+.leaflet-control-attribution a {
+  color: rgba(0, 255, 136, 0.4) !important;
+}
+.leaflet-tooltip {
+  background: transparent !important;
+  border: 0 !important;
+  box-shadow: none !important;
+  padding: 0 !important;
+}
+.leaflet-tooltip-top::before,
+.leaflet-tooltip-bottom::before,
+.leaflet-tooltip-left::before,
+.leaflet-tooltip-right::before {
+  display: none !important;
+}
+
 /* Dominion Glassmorphism – Pipeline & Card Styling */
 .glass-card {
   background: rgba(24, 24, 27, 0.85);

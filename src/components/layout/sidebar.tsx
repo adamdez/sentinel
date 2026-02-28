@@ -37,10 +37,12 @@ interface SidebarBadges {
   prospects: number;
   fbCraigslist: number;
   ppl: number;
+  gmailConnected: boolean;
 }
 
 function useSidebarBadges(): SidebarBadges {
-  const [badges, setBadges] = useState<SidebarBadges>({ prospects: 0, fbCraigslist: 0, ppl: 0 });
+  const { currentUser } = useSentinelStore();
+  const [badges, setBadges] = useState<SidebarBadges>({ prospects: 0, fbCraigslist: 0, ppl: 0, gmailConnected: false });
 
   useEffect(() => {
     const fetchCounts = async () => {
@@ -59,10 +61,23 @@ function useSidebarBadges(): SidebarBadges {
         .select("id", { count: "exact", head: true })
         .eq("source", "ppl");
 
+      let gmailConnected = false;
+      if (currentUser?.id) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const { data: profile } = await (supabase.from("user_profiles") as any)
+          .select("preferences")
+          .eq("id", currentUser.id)
+          .single();
+        const prefs = profile?.preferences as Record<string, unknown> | undefined;
+        const gmail = prefs?.gmail as { connected?: boolean } | undefined;
+        gmailConnected = gmail?.connected === true;
+      }
+
       setBadges({
         prospects: prospects ?? 0,
         fbCraigslist: fbCl ?? 0,
         ppl: ppl ?? 0,
+        gmailConnected,
       });
     };
 
@@ -71,10 +86,11 @@ function useSidebarBadges(): SidebarBadges {
     const channel = supabase
       .channel("sidebar_badges")
       .on("postgres_changes", { event: "*", schema: "public", table: "leads" }, () => fetchCounts())
+      .on("postgres_changes", { event: "*", schema: "public", table: "user_profiles" }, () => fetchCounts())
       .subscribe();
 
     return () => { supabase.removeChannel(channel); };
-  }, []);
+  }, [currentUser?.id]);
 
   return badges;
 }
@@ -98,7 +114,7 @@ const sections: NavSection[] = [
     items: [
       { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
       { label: "Dialer", href: "/dialer", icon: Phone },
-      { label: "Gmail", href: "/gmail", icon: Mail },
+      { label: "Gmail", href: "/gmail", icon: Mail, badge: "gmail-connected" },
       { label: "Team Calendar", href: "/team-calendar", icon: Calendar },
       { label: "My Calendar", href: "/my-calendar", icon: CalendarDays },
     ],
@@ -212,16 +228,22 @@ function NavLink({ item, depth = 0, badges }: { item: NavItem; depth?: number; b
       )}
       <Icon className={cn("h-4 w-4 shrink-0", isActive && "text-neon")} />
       <span>{item.label}</span>
-      {item.badge && badges && (
-        (item.badge === "prospect-dot" && badges.prospects > 0) ||
-        (item.badge === "fb-dot" && badges.fbCraigslist > 0) ||
-        (item.badge === "ppl-dot" && badges.ppl > 0)
-      ) && (
-        <span className="relative flex h-2.5 w-2.5 ml-auto">
-          <span className="absolute inline-flex h-full w-full rounded-full bg-red-500 animate-ping opacity-75" />
-          <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-red-500" />
-        </span>
-      )}
+      {(() => {
+        if (!item.badge || !badges) return null;
+        const dot =
+          item.badge === "gmail-connected" && badges.gmailConnected ? "bg-neon" :
+          item.badge === "prospect-dot" && badges.prospects > 0 ? "bg-red-500" :
+          item.badge === "fb-dot" && badges.fbCraigslist > 0 ? "bg-red-500" :
+          item.badge === "ppl-dot" && badges.ppl > 0 ? "bg-red-500" :
+          null;
+        if (!dot) return null;
+        return (
+          <span className="relative flex h-2.5 w-2.5 ml-auto">
+            <span className={`absolute inline-flex h-full w-full rounded-full ${dot} animate-ping opacity-75`} />
+            <span className={`relative inline-flex rounded-full h-2.5 w-2.5 ${dot}`} />
+          </span>
+        );
+      })()}
     </Link>
   );
 }

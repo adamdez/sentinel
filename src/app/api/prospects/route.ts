@@ -2,7 +2,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { createHash } from "crypto";
 import { createServerClient } from "@/lib/supabase";
 import { computeScore, SCORING_MODEL_VERSION, type ScoringInput } from "@/lib/scoring";
-import type { DistressType } from "@/lib/types";
+import type { DistressType, LeadStatus } from "@/lib/types";
+import { validateStatusTransition, incrementLockVersion } from "@/lib/lead-guardrails";
+import { scrubLead } from "@/lib/compliance";
 
 const SYSTEM_USER_ID = "00000000-0000-0000-0000-000000000000";
 const PR_API_BASE = "https://api.propertyradar.com/v1/properties";
@@ -37,12 +39,69 @@ export async function PATCH(req: NextRequest) {
     const sb = createServerClient();
 
     const { lead_id, status, assigned_to, actor_id } = body;
+    const clientLockVersion = req.headers.get("x-lock-version");
 
     if (!lead_id) {
       return NextResponse.json({ error: "lead_id is required" }, { status: 400 });
     }
 
-    const updateData: Record<string, unknown> = {};
+    // Fetch current lead for transition validation
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: currentLead, error: fetchErr } = await (sb.from("leads") as any)
+      .select("status, lock_version")
+      .eq("id", lead_id)
+      .single();
+
+    if (fetchErr || !currentLead) {
+      return NextResponse.json({ error: "Lead not found", detail: fetchErr?.message }, { status: 404 });
+    }
+
+    if (status && !validateStatusTransition(currentLead.status as LeadStatus, status as LeadStatus)) {
+      return NextResponse.json(
+        { error: "Invalid transition", detail: `Cannot move from "${currentLead.status}" to "${status}"` },
+        { status: 422 }
+      );
+    }
+
+    // Charter §VIII: Compliance gating before dial eligibility / claim
+    const requiresScrub = assigned_to || status === "lead" || status === "negotiation";
+    const ghostMode = req.headers.get("x-ghost-mode") === "true";
+
+    if (requiresScrub) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data: prop } = await (sb.from("leads") as any)
+        .select("property_id")
+        .eq("id", lead_id)
+        .single();
+
+      if (prop?.property_id) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const { data: property } = await (sb.from("properties") as any)
+          .select("owner_phone")
+          .eq("id", prop.property_id)
+          .single();
+
+        if (property?.owner_phone) {
+          const scrub = await scrubLead(property.owner_phone, actor_id, ghostMode);
+          if (!scrub.allowed) {
+            return NextResponse.json(
+              { error: "Compliance blocked", detail: scrub.reason, blockedReasons: scrub.blockedReasons },
+              { status: 403 }
+            );
+          }
+        }
+      }
+    }
+
+    // Use client-supplied lock version when provided (true optimistic locking),
+    // otherwise fall back to the version we just read (legacy callers).
+    const expectedVersion = clientLockVersion != null
+      ? parseInt(clientLockVersion, 10)
+      : (currentLead.lock_version ?? 0);
+
+    const updateData: Record<string, unknown> = {
+      lock_version: incrementLockVersion(expectedVersion),
+    };
     if (status) updateData.status = status;
     if (assigned_to) {
       updateData.assigned_to = assigned_to;
@@ -50,10 +109,19 @@ export async function PATCH(req: NextRequest) {
       updateData.claim_expires_at = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
     }
 
+    // Optimistic locking: only update if lock_version matches what the client expects
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { error } = await (sb.from("leads") as any)
+    const { error, count } = await (sb.from("leads") as any)
       .update(updateData)
-      .eq("id", lead_id);
+      .eq("id", lead_id)
+      .eq("lock_version", expectedVersion);
+
+    if (count === 0 && !error) {
+      return NextResponse.json(
+        { error: "Conflict", detail: "Lead was modified by another user. Refresh and try again." },
+        { status: 409 }
+      );
+    }
 
     if (error) {
       console.error("[API/prospects PATCH] Update failed:", error);

@@ -28,6 +28,7 @@ const US_STATES: Record<string, string> = {
  * If no radar_id, falls back to re-enriching from the address first.
  */
 export async function POST(req: NextRequest) {
+  const t0 = Date.now();
   const apiKey = process.env.PROPERTYRADAR_API_KEY;
   if (!apiKey) {
     return NextResponse.json({ error: "PROPERTYRADAR_API_KEY not configured" }, { status: 500 });
@@ -50,6 +51,9 @@ export async function POST(req: NextRequest) {
       .eq("id", property_id)
       .single();
 
+    const tFetch = Date.now();
+    console.log(`[SkipTrace Perf] Property fetch: ${tFetch - t0}ms`);
+
     if (propErr || !property) {
       return NextResponse.json({ error: "Property not found" }, { status: 404 });
     }
@@ -59,7 +63,9 @@ export async function POST(req: NextRequest) {
     // If no radar_id, auto-enrich from PropertyRadar first
     if (!radarId) {
       console.log("[SkipTrace] No radar_id — auto-enriching from PropertyRadar first");
+      const tEnrichStart = Date.now();
       const enrichResult = await enrichProperty(sb, apiKey, property, lead_id);
+      console.log(`[SkipTrace Perf] Enrichment: ${Date.now() - tEnrichStart}ms`);
       if (!enrichResult.success) {
         console.error("[SkipTrace] Enrichment failed:", enrichResult.error);
         return NextResponse.json({
@@ -80,6 +86,7 @@ export async function POST(req: NextRequest) {
     }
 
     console.log("[SkipTrace] Fetching Persons for RadarID:", radarId);
+    const tPersonsStart = Date.now();
 
     // Call PropertyRadar Persons endpoint
     const personsUrl = `${PR_API_BASE}/${radarId}/persons?Fields=All`;
@@ -99,6 +106,7 @@ export async function POST(req: NextRequest) {
     }
 
     const personsData = await personsRes.json();
+    console.log(`[SkipTrace Perf] Persons API: ${Date.now() - tPersonsStart}ms`);
     console.log("[SkipTrace] Persons response:", JSON.stringify(personsData).slice(0, 2000));
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -184,31 +192,40 @@ export async function POST(req: NextRequest) {
       all_emails: emails,
     };
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    await (sb.from("properties") as any)
-      .update({
-        owner_phone: primaryPhone,
-        owner_email: primaryEmail,
-        owner_flags: updatedFlags,
-        updated_at: new Date().toISOString(),
-      })
-      .eq("id", property_id);
-
-    // Audit log
-    if (lead_id) {
+    // Property update + audit log are independent — run in parallel
+    const writes: Promise<unknown>[] = [
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      await (sb.from("event_log") as any).insert({
-        entity_type: "lead",
-        entity_id: lead_id,
-        action: "SKIP_TRACED",
-        details: {
-          radar_id: radarId,
-          phones_found: phones.length,
-          emails_found: emails.length,
-          persons_found: persons.length,
-        },
-      });
+      (sb.from("properties") as any)
+        .update({
+          owner_phone: primaryPhone,
+          owner_email: primaryEmail,
+          owner_flags: updatedFlags,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", property_id),
+    ];
+
+    if (lead_id) {
+      writes.push(
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (sb.from("event_log") as any).insert({
+          entity_type: "lead",
+          entity_id: lead_id,
+          action: "SKIP_TRACED",
+          details: {
+            radar_id: radarId,
+            phones_found: phones.length,
+            emails_found: emails.length,
+            persons_found: persons.length,
+          },
+        })
+      );
     }
+
+    const tWriteStart = Date.now();
+    await Promise.all(writes);
+    console.log(`[SkipTrace Perf] DB writes: ${Date.now() - tWriteStart}ms`);
+    console.log(`[SkipTrace Perf] TOTAL: ${Date.now() - t0}ms`);
 
     return NextResponse.json({
       success: true,
@@ -342,25 +359,8 @@ async function enrichProperty(sb: any, apiKey: string, property: any, leadId?: s
     update.address = [pr.Address, pr.City, pr.State, pr.ZipFive].filter(Boolean).join(", ");
   }
 
-  await sb.from("properties").update(update).eq("id", property.id);
-
-  // Detect distress signals + run scoring
+  // Detect distress signals + compute score in parallel with property update
   const signals = detectDistressSignals(pr, isTruthy, toNum);
-
-  for (const signal of signals) {
-    const fp = createHash("sha256").update(`${pr.APN ?? property.id}:${signal.type}:propertyradar`).digest("hex");
-    await sb.from("distress_events").insert({
-      property_id: property.id,
-      event_type: signal.type,
-      source: "propertyradar",
-      severity: signal.severity,
-      fingerprint: fp,
-      raw_data: { detected_from: signal.from, radar_id: pr.RadarID },
-      confidence: signal.severity >= 7 ? "0.900" : "0.600",
-    }).then(({ error: e }: { error: { code?: string } | null }) => {
-      if (e && e.code !== "23505") console.error("[Enrich] Event insert err:", e);
-    });
-  }
 
   const equityPct = toNum(pr.EquityPercent) ?? 50;
   const avm = toNum(pr.AVM) ?? 0;
@@ -383,36 +383,60 @@ async function enrichProperty(sb: any, apiKey: string, property: any, leadId?: s
 
   const score = computeScore(scoringInput);
 
-  await sb.from("scoring_records").insert({
-    property_id: property.id,
-    model_version: SCORING_MODEL_VERSION,
-    composite_score: score.composite,
-    motivation_score: score.motivationScore,
-    deal_score: score.dealScore,
-    severity_multiplier: score.severityMultiplier,
-    recency_decay: score.recencyDecay,
-    stacking_bonus: score.stackingBonus,
-    owner_factor_score: score.ownerFactorScore,
-    equity_factor_score: score.equityFactorScore,
-    ai_boost: score.aiBoost,
-    factors: score.factors,
-  });
+  // All DB writes are independent — fire them all in parallel
+  const enrichWrites: Promise<unknown>[] = [
+    sb.from("properties").update(update).eq("id", property.id),
+
+    sb.from("scoring_records").insert({
+      property_id: property.id,
+      model_version: SCORING_MODEL_VERSION,
+      composite_score: score.composite,
+      motivation_score: score.motivationScore,
+      deal_score: score.dealScore,
+      severity_multiplier: score.severityMultiplier,
+      recency_decay: score.recencyDecay,
+      stacking_bonus: score.stackingBonus,
+      owner_factor_score: score.ownerFactorScore,
+      equity_factor_score: score.equityFactorScore,
+      ai_boost: score.aiBoost,
+      factors: score.factors,
+    }),
+
+    ...signals.map((signal) => {
+      const fp = createHash("sha256").update(`${pr.APN ?? property.id}:${signal.type}:propertyradar`).digest("hex");
+      return sb.from("distress_events").insert({
+        property_id: property.id,
+        event_type: signal.type,
+        source: "propertyradar",
+        severity: signal.severity,
+        fingerprint: fp,
+        raw_data: { detected_from: signal.from, radar_id: pr.RadarID },
+        confidence: signal.severity >= 7 ? "0.900" : "0.600",
+      }).then(({ error: e }: { error: { code?: string } | null }) => {
+        if (e && e.code !== "23505") console.error("[Enrich] Event insert err:", e);
+      });
+    }),
+  ];
 
   if (leadId) {
-    await sb.from("leads").update({
-      priority: score.composite,
-      tags: signals.map((s) => s.type),
-      notes: `PropertyRadar enriched via Skip Trace. Score: ${score.composite} (${score.label}). RadarID: ${pr.RadarID}`,
-      updated_at: new Date().toISOString(),
-    }).eq("id", leadId);
+    enrichWrites.push(
+      sb.from("leads").update({
+        priority: score.composite,
+        tags: signals.map((s) => s.type),
+        notes: `PropertyRadar enriched via Skip Trace. Score: ${score.composite} (${score.label}). RadarID: ${pr.RadarID}`,
+        updated_at: new Date().toISOString(),
+      }).eq("id", leadId),
 
-    await sb.from("event_log").insert({
-      entity_type: "lead",
-      entity_id: leadId,
-      action: "ENRICHED",
-      details: { source: "propertyradar", radar_id: pr.RadarID, score: score.composite },
-    });
+      sb.from("event_log").insert({
+        entity_type: "lead",
+        entity_id: leadId,
+        action: "ENRICHED",
+        details: { source: "propertyradar", radar_id: pr.RadarID, score: score.composite },
+      }),
+    );
   }
+
+  await Promise.all(enrichWrites);
 
   return { success: true, radar_id: pr.RadarID as string };
 }

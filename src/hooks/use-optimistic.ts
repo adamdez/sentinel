@@ -1,31 +1,52 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 
-export function useOptimistic<T>(
-  initialValue: T,
-  updateFn: (current: T, optimistic: T) => T = (_, o) => o
-) {
-  const [value, setValue] = useState(initialValue);
-  const [pending, setPending] = useState(false);
+export interface OptimisticUpdateParams {
+  id: string;
+  payload: Record<string, unknown>;
+  lockVersion: number;
+}
 
-  const setOptimistic = useCallback(
-    async (optimisticValue: T, serverAction: () => Promise<T>) => {
-      const previous = value;
-      setValue(updateFn(value, optimisticValue));
-      setPending(true);
+interface PatchResponse {
+  success: boolean;
+  lead_id: string;
+  status?: string;
+  error?: string;
+  detail?: string;
+}
 
-      try {
-        const result = await serverAction();
-        setValue(result);
-      } catch {
-        setValue(previous);
-      } finally {
-        setPending(false);
-      }
+async function patchProspect({
+  id,
+  payload,
+  lockVersion,
+}: OptimisticUpdateParams): Promise<PatchResponse> {
+  const res = await fetch("/api/prospects", {
+    method: "PATCH",
+    headers: {
+      "Content-Type": "application/json",
+      "x-lock-version": String(lockVersion),
     },
-    [value, updateFn]
-  );
+    body: JSON.stringify({ lead_id: id, ...payload }),
+  });
 
-  return [value, setOptimistic, pending] as const;
+  const data: PatchResponse = await res.json();
+
+  if (!res.ok) {
+    throw new Error(data.detail ?? data.error ?? `PATCH failed (${res.status})`);
+  }
+
+  return data;
+}
+
+export function useOptimisticUpdate() {
+  const queryClient = useQueryClient();
+
+  return useMutation<PatchResponse, Error, OptimisticUpdateParams>({
+    mutationFn: patchProspect,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["leads"] });
+      queryClient.invalidateQueries({ queryKey: ["prospects"] });
+    },
+  });
 }

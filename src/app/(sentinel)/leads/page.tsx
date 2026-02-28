@@ -6,7 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { LeadSegmentControl } from "@/components/sentinel/leads/lead-segment-control";
 import { LeadFilters } from "@/components/sentinel/leads/lead-filters";
 import { LeadTable } from "@/components/sentinel/leads/lead-table";
-import { LeadDetailModal } from "@/components/sentinel/leads/lead-detail-modal";
+import { MasterClientFileModal, clientFileFromLead } from "@/components/sentinel/master-client-file-modal";
 import { useLeads } from "@/hooks/use-leads";
 import { SCORING_MODEL_VERSION } from "@/lib/scoring";
 
@@ -81,11 +81,10 @@ export default function LeadsPage() {
       </div>
 
       {/* Detail modal */}
-      <LeadDetailModal
-        lead={selectedLead}
+      <MasterClientFileModal
+        clientFile={selectedLead ? clientFileFromLead(selectedLead) : null}
         open={selectedId !== null}
-        onOpenChange={(open) => { if (!open) setSelectedId(null); }}
-        isOwner={selectedLead?.assignedTo === currentUser.id}
+        onClose={() => setSelectedId(null)}
       />
 
       {/* TODO: Real-time Supabase subscription for lead updates (channel: leads_changes) */}

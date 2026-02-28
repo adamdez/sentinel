@@ -23,6 +23,7 @@ import {
 import { toast } from "sonner";
 import { supabase, getCurrentUser } from "@/lib/supabase";
 import { cn } from "@/lib/utils";
+import { MasterClientFileModal, clientFileFromRaw, type ClientFile } from "@/components/sentinel/master-client-file-modal";
 
 // ── Stage definitions ──────────────────────────────────────────────────
 
@@ -137,6 +138,10 @@ export default function PipelinePage() {
   const [search, setSearch] = useState("");
   const [adding, setAdding] = useState(false);
   const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const rawDataRef = useRef<Record<string, { lead: any; prop: any }>>({});
+  const [selectedClientFile, setSelectedClientFile] = useState<ClientFile | null>(null);
+  const [modalOpen, setModalOpen] = useState(false);
 
   // ── Fetch all leads + properties, group by stage ─────────────────────
 
@@ -174,11 +179,14 @@ export default function PipelinePage() {
       }
 
       const grouped = Object.fromEntries(STAGES.map((s) => [s.id, []])) as unknown as Record<StageId, Lead[]>;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const rawMap: Record<string, { lead: any; prop: any }> = {};
 
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       for (const raw of leadsRaw as any[]) {
         const prop = propsMap[raw.property_id] ?? {};
         const status = normalizeStatus(raw.status);
+        rawMap[raw.id] = { lead: raw, prop };
 
         grouped[status].push({
           id: raw.id,
@@ -194,6 +202,7 @@ export default function PipelinePage() {
           source: raw.source ?? null,
         });
       }
+      rawDataRef.current = rawMap;
 
       console.log("[Pipeline] Grouped:", Object.fromEntries(Object.entries(grouped).map(([k, v]) => [k, v.length])));
       setLeadsByStage(grouped);
@@ -506,6 +515,13 @@ export default function PipelinePage() {
                               stageId={stage.id}
                               currentUserId={currentUserId}
                               onClaim={claimLead}
+                              onOpenDetail={(id) => {
+                                const raw = rawDataRef.current[id];
+                                if (raw) {
+                                  setSelectedClientFile(clientFileFromRaw(raw.lead, raw.prop));
+                                  setModalOpen(true);
+                                }
+                              }}
                             />
                           ))}
                         </AnimatePresence>
@@ -527,6 +543,14 @@ export default function PipelinePage() {
           </div>
         </DragDropContext>
       </div>
+
+      <MasterClientFileModal
+        clientFile={selectedClientFile}
+        open={modalOpen}
+        onClose={() => { setModalOpen(false); setSelectedClientFile(null); }}
+        onClaim={claimLead}
+        onRefresh={fetchLeads}
+      />
     </div>
   );
 }
@@ -539,12 +563,14 @@ function LeadCard({
   stageId,
   currentUserId,
   onClaim,
+  onOpenDetail,
 }: {
   lead: Lead;
   index: number;
   stageId: StageId;
   currentUserId: string | null;
   onClaim: (id: string) => Promise<void>;
+  onOpenDetail: (id: string) => void;
 }) {
   const sc = scoreColor(lead.heat_score);
   const expired = isClaimExpired(lead.claim_expires_at);
@@ -562,8 +588,9 @@ function LeadCard({
           animate={{ opacity: 1, scale: 1 }}
           exit={{ opacity: 0, scale: 0.95 }}
           transition={{ duration: 0.15 }}
+          onClick={() => onOpenDetail(lead.id)}
           className={cn(
-            "rounded-xl border border-glass-border bg-glass/60 backdrop-blur-2xl p-3 transition-all duration-150 group holo-border",
+            "rounded-xl border border-glass-border bg-glass/60 backdrop-blur-2xl p-3 transition-all duration-150 group holo-border cursor-pointer",
             snapshot.isDragging && "scale-[1.03] shadow-[0_0_24px_rgba(0,255,136,0.15)] border-neon/30 z-50"
           )}
         >
