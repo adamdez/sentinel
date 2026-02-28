@@ -4,6 +4,7 @@ import { createServerClient } from "@/lib/supabase";
 import { computeScore, SCORING_MODEL_VERSION, type ScoringInput } from "@/lib/scoring";
 import type { DistressType } from "@/lib/types";
 
+const SYSTEM_USER_ID = "00000000-0000-0000-0000-000000000000";
 const PR_API_BASE = "https://api.propertyradar.com/v1/properties";
 const US_STATES: Record<string, string> = {
   AL: "AL", AK: "AK", AZ: "AZ", AR: "AR", CA: "CA", CO: "CO", CT: "CT",
@@ -64,11 +65,13 @@ export async function PATCH(req: NextRequest) {
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     await (sb.from("event_log") as any).insert({
+      user_id: actor_id || SYSTEM_USER_ID,
+      action: status === "my_lead" ? "CLAIMED" : "STATUS_CHANGED",
       entity_type: "lead",
       entity_id: lead_id,
-      action: status === "my_lead" ? "CLAIMED" : "STATUS_CHANGED",
-      actor_id: actor_id || null,
       details: { status, assigned_to },
+    }).then(({ error: auditErr }: { error: unknown }) => {
+      if (auditErr) console.error("[API/prospects PATCH] Audit log insert failed (non-fatal):", auditErr);
     });
 
     return NextResponse.json({ success: true, lead_id, status });
@@ -187,10 +190,10 @@ export async function POST(req: NextRequest) {
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     await (sb.from("event_log") as any).insert({
+      user_id: body.actor_id || SYSTEM_USER_ID,
+      action: "CREATED",
       entity_type: "lead",
       entity_id: lead.id,
-      action: "CREATED",
-      actor_id: body.actor_id || null,
       details: {
         source: "manual",
         address,
@@ -198,6 +201,8 @@ export async function POST(req: NextRequest) {
         score: compositeScore,
         assigned: isAssigned ? assign_to : "unassigned",
       },
+    }).then(({ error: auditErr }: { error: unknown }) => {
+      if (auditErr) console.error("[API/prospects POST] Audit log insert failed (non-fatal):", auditErr);
     });
 
     // ── Step 3: Auto-enrich from PropertyRadar ───────────────────────
@@ -430,9 +435,10 @@ async function enrichFromPropertyRadar(
 
     // Audit log
     await sb.from("event_log").insert({
+      user_id: SYSTEM_USER_ID,
+      action: "ENRICHED",
       entity_type: "lead",
       entity_id: leadId,
-      action: "ENRICHED",
       details: {
         source: "propertyradar",
         radar_id: pr.RadarID,
@@ -441,6 +447,8 @@ async function enrichFromPropertyRadar(
         score: scoreResult.composite,
         label: scoreResult.label,
       },
+    }).then(({ error: auditErr }: { error: unknown }) => {
+      if (auditErr) console.error("[Enrich] Audit log insert failed (non-fatal):", auditErr);
     });
 
     const summary = `Enriched: ${pr.Owner ?? "Unknown"} | APN: ${realApn} | Score: ${scoreResult.composite} (${scoreResult.label}) | ${signals.length} signal(s)`;
