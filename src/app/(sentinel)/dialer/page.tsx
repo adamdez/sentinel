@@ -116,7 +116,16 @@ export default function DialerPage() {
       }
 
       setCurrentCallLogId(data.callLogId);
-      setTransferStatus(`Warm transfer to ${currentUser.name || "Agent"}'s cell...`);
+      const cellDisplay = data.transferTo
+        ? `***${(data.transferTo as string).slice(-4)}`
+        : currentUser.personal_cell
+          ? `***${currentUser.personal_cell.slice(-4)}`
+          : null;
+      setTransferStatus(
+        cellDisplay
+          ? `Warm transfer to ${currentUser.name || "Agent"}'s cell (${cellDisplay})`
+          : `Connected — no personal cell configured`
+      );
       setCallState("connected");
       toast.success("Connected — Caller ID: Dominion Homes");
     } catch (err) {
@@ -125,7 +134,7 @@ export default function DialerPage() {
       setCallState("idle");
       timer.reset();
     }
-  }, [currentLead, currentUser.id, ghostMode, timer]);
+  }, [currentLead, currentUser.id, currentUser.name, currentUser.personal_cell, ghostMode, timer]);
 
   const handleSendText = useCallback(async () => {
     if (!currentLead) return;
@@ -494,6 +503,19 @@ export default function DialerPage() {
                         </div>
                       )}
                     </div>
+
+                    {callState === "idle" && currentUser.personal_cell && (
+                      <p className="text-[10px] text-muted-foreground/40 flex items-center gap-1.5 pt-1">
+                        <PhoneForwarded className="h-3 w-3 text-cyan/40" />
+                        Will transfer to your cell (***{currentUser.personal_cell.slice(-4)}) — Caller ID: Dominion Homes
+                      </p>
+                    )}
+                    {callState === "idle" && !currentUser.personal_cell && (
+                      <p className="text-[10px] text-yellow-400/60 flex items-center gap-1.5 pt-1">
+                        <PhoneForwarded className="h-3 w-3" />
+                        No personal cell set — <a href="/settings" className="underline hover:text-yellow-400">configure in Settings</a>
+                      </p>
+                    )}
                   </div>
                 </GlassCard>
 

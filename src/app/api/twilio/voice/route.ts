@@ -23,17 +23,18 @@ export async function POST(req: NextRequest) {
 
   const sb = createServerClient();
 
-  // Look up agent's personal cell from user_profiles
+  // Look up agent's personal cell from user_profiles.personal_cell column
   let personalCell = "";
+  let agentName = "";
   if (agentId) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { data: profile } = await (sb.from("user_profiles") as any)
-      .select("preferences")
+      .select("personal_cell, full_name")
       .eq("id", agentId)
       .single();
 
-    const prefs = profile?.preferences as Record<string, unknown> | undefined;
-    personalCell = (prefs?.personal_cell as string) ?? "";
+    personalCell = (profile?.personal_cell as string) ?? "";
+    agentName = (profile?.full_name as string) ?? "";
   }
 
   const callerIdName = "Dominion Homes";
@@ -67,6 +68,8 @@ export async function POST(req: NextRequest) {
     details: {
       has_personal_cell: !!personalCell,
       warm_transfer: !!personalCell,
+      agent_name: agentName,
+      transferred_to: personalCell ? `***${personalCell.slice(-4)}` : null,
       timestamp: new Date().toISOString(),
     },
   });

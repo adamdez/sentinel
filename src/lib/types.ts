@@ -102,6 +102,7 @@ export interface User {
   email: string;
   role: Role;
   avatar_url?: string;
+  personal_cell?: string;
   is_active: boolean;
 }
 

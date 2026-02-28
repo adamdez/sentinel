@@ -194,6 +194,7 @@ interface UserProfileRow {
   role: string;
   avatar_url: string | null;
   phone: string | null;
+  personal_cell: string | null;
   is_active: boolean;
   saved_dashboard_layout: Json | null;
   preferences: Json;

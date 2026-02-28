@@ -73,7 +73,16 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  // 2. Twilio REST API — create call with warm transfer webhook
+  // 2. Lookup agent's personal cell for warm transfer
+  let agentCell = "";
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: agentProfile } = await (sb.from("user_profiles") as any)
+    .select("personal_cell")
+    .eq("id", userId)
+    .single();
+  agentCell = (agentProfile?.personal_cell as string) ?? "";
+
+  // 3. Twilio REST API — create call with warm transfer webhook
   const twilioUrl = `https://api.twilio.com/2010-04-01/Accounts/${sid}/Calls.json`;
   const authHeader = "Basic " + Buffer.from(`${sid}:${token}`).toString("base64");
 
@@ -88,6 +97,7 @@ export async function POST(req: NextRequest) {
       property_id: body.propertyId || null,
       user_id: userId,
       phone_dialed: e164,
+      transferred_to_cell: agentCell || null,
       disposition: "initiating",
       started_at: new Date().toISOString(),
     })
@@ -156,6 +166,7 @@ export async function POST(req: NextRequest) {
       phone: `***${phone.slice(-4)}`,
       lead_id: body.leadId,
       twilio_sid: twilioSid,
+      transferred_to: agentCell ? `***${agentCell.slice(-4)}` : null,
       ghost_mode: body.ghostMode ?? false,
     },
   });
@@ -173,6 +184,7 @@ export async function POST(req: NextRequest) {
     callSid: twilioSid,
     callLogId: callLog?.id ?? null,
     phone: e164,
+    transferTo: agentCell || null,
   });
 }
 
