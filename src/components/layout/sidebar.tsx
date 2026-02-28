@@ -174,18 +174,18 @@ function NavLink({ item, depth = 0, badges }: { item: NavItem; depth?: number; b
         <button
           onClick={() => setExpanded((prev) => !prev)}
           className={cn(
-            "flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm transition-all duration-200 hover:bg-sidebar-accent group",
+            "flex w-full items-center gap-3 rounded-[10px] px-3 py-2 text-sm transition-all duration-200 hover:bg-white/[0.03] group",
             isActive && "text-sidebar-accent-foreground"
           )}
         >
-          <Icon className={cn("h-4 w-4 shrink-0", isActive && "text-neon")} />
+          <Icon className={cn("h-4 w-4 shrink-0 transition-colors", isActive && "text-cyan drop-shadow-[0_0_6px_rgba(0,229,255,0.5)]")} />
           <span className="flex-1 text-left">{item.label}</span>
           <motion.div
             animate={{ rotate: expanded ? 90 : 0 }}
             transition={{ duration: 0.2 }}
             className="ml-auto"
           >
-            <ChevronRight className="h-3.5 w-3.5 opacity-50" />
+            <ChevronRight className="h-3.5 w-3.5 opacity-40" />
           </motion.div>
         </button>
         <AnimatePresence initial={false}>
@@ -197,7 +197,7 @@ function NavLink({ item, depth = 0, badges }: { item: NavItem; depth?: number; b
               transition={{ duration: 0.2 }}
               className="overflow-hidden"
             >
-              <div className="ml-3 border-l border-sidebar-border pl-2 mt-1 space-y-0.5">
+              <div className="ml-3 border-l border-white/[0.04] pl-2 mt-1 space-y-0.5">
                 {item.children.map((child) => (
                   <NavLink key={child.href} item={child} depth={depth + 1} />
                 ))}
@@ -213,28 +213,31 @@ function NavLink({ item, depth = 0, badges }: { item: NavItem; depth?: number; b
     <Link
       href={item.href}
       className={cn(
-        "flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-all duration-200 hover:bg-sidebar-accent group relative",
+        "flex items-center gap-3 rounded-[10px] px-3 py-2 text-sm transition-all duration-200 group relative",
         isActive
-          ? "bg-sidebar-accent text-sidebar-accent-foreground font-medium"
-          : "text-sidebar-foreground hover:text-sidebar-accent-foreground"
+          ? "bg-cyan/[0.06] text-cyan font-medium"
+          : "text-sidebar-foreground hover:text-foreground hover:bg-white/[0.03]"
       )}
     >
       {isActive && (
         <motion.div
           layoutId="sidebar-active"
-          className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-5 rounded-r-full bg-neon shadow-[0_0_10px_rgba(0,255,136,0.5)]"
+          className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-5 rounded-r-full bg-cyan shadow-[0_0_12px_rgba(0,229,255,0.5),0_0_24px_rgba(0,229,255,0.2)]"
           transition={{ type: "spring", stiffness: 350, damping: 30 }}
         />
       )}
-      <Icon className={cn("h-4 w-4 shrink-0", isActive && "text-neon")} />
+      <Icon className={cn(
+        "h-4 w-4 shrink-0 transition-all duration-200",
+        isActive && "text-cyan drop-shadow-[0_0_6px_rgba(0,229,255,0.5)]"
+      )} />
       <span>{item.label}</span>
       {(() => {
         if (!item.badge || !badges) return null;
         const dot =
-          item.badge === "gmail-connected" && badges.gmailConnected ? "bg-neon" :
-          item.badge === "prospect-dot" && badges.prospects > 0 ? "bg-red-500" :
-          item.badge === "fb-dot" && badges.fbCraigslist > 0 ? "bg-red-500" :
-          item.badge === "ppl-dot" && badges.ppl > 0 ? "bg-red-500" :
+          item.badge === "gmail-connected" && badges.gmailConnected ? "bg-neon shadow-[0_0_6px_rgba(0,255,136,0.5)]" :
+          item.badge === "prospect-dot" && badges.prospects > 0 ? "bg-red-500 shadow-[0_0_6px_rgba(239,68,68,0.5)]" :
+          item.badge === "fb-dot" && badges.fbCraigslist > 0 ? "bg-red-500 shadow-[0_0_6px_rgba(239,68,68,0.5)]" :
+          item.badge === "ppl-dot" && badges.ppl > 0 ? "bg-red-500 shadow-[0_0_6px_rgba(239,68,68,0.5)]" :
           null;
         if (!dot) return null;
         return (
@@ -270,20 +273,20 @@ function SidebarSection({ section, badges }: { section: NavSection; badges?: Sid
       >
         <span
           className={cn(
-            "text-[10px] font-semibold uppercase tracking-[0.12em] transition-colors duration-200",
+            "text-[10px] font-semibold uppercase tracking-[0.14em] transition-colors duration-200",
             hasActiveItem
-              ? "text-neon/80"
-              : "text-muted-foreground/60 group-hover:text-muted-foreground"
+              ? "text-cyan/70"
+              : "text-muted-foreground/50 group-hover:text-muted-foreground/80"
           )}
         >
           {section.title}
         </span>
-        <div className="flex-1 h-px bg-sidebar-border/50 ml-1" />
+        <div className="flex-1 h-px bg-white/[0.03] ml-1" />
         <motion.div
           animate={{ rotate: collapsed ? 0 : 90 }}
           transition={{ duration: 0.15 }}
         >
-          <ChevronRight className="h-3 w-3 text-muted-foreground/40 group-hover:text-muted-foreground/70 transition-colors" />
+          <ChevronRight className="h-3 w-3 text-muted-foreground/30 group-hover:text-muted-foreground/60 transition-colors" />
         </motion.div>
       </button>
       <AnimatePresence initial={false}>
@@ -319,23 +322,23 @@ export function Sidebar() {
           animate={{ width: 260, opacity: 1 }}
           exit={{ width: 0, opacity: 0 }}
           transition={{ duration: 0.2, ease: "easeInOut" }}
-          className="h-screen bg-sidebar border-r border-sidebar-border flex flex-col overflow-hidden shrink-0"
+          className="h-screen bg-[rgba(6,6,12,0.92)] backdrop-blur-[30px] border-r border-white/[0.04] flex flex-col overflow-hidden shrink-0"
         >
           <div className="p-4 flex items-center gap-2.5">
-            <div className="h-8 w-8 rounded-lg bg-neon/10 flex items-center justify-center border border-neon/20">
-              <Zap className="h-4 w-4 text-neon" />
+            <div className="h-8 w-8 rounded-[10px] bg-cyan/[0.08] flex items-center justify-center border border-cyan/15 shadow-[0_0_12px_rgba(0,229,255,0.1)]">
+              <Zap className="h-4 w-4 text-cyan drop-shadow-[0_0_6px_rgba(0,229,255,0.5)]" />
             </div>
             <div>
-              <h1 className="text-sm font-bold tracking-tight text-foreground">
+              <h1 className="text-sm font-bold tracking-tight text-foreground title-glow">
                 SENTINEL
               </h1>
-              <p className="text-[10px] text-muted-foreground tracking-widest uppercase">
+              <p className="text-[10px] text-muted-foreground/60 tracking-[0.2em] uppercase">
                 Unified ERP
               </p>
             </div>
           </div>
 
-          <Separator className="bg-sidebar-border" />
+          <Separator className="bg-white/[0.04]" />
 
           <ScrollArea className="flex-1 px-3 py-1">
             <nav>
@@ -345,12 +348,12 @@ export function Sidebar() {
             </nav>
           </ScrollArea>
 
-          <Separator className="bg-sidebar-border" />
+          <Separator className="bg-white/[0.04]" />
 
           <div className="p-3">
-            <div className="flex items-center gap-2 rounded-lg px-3 py-2 bg-neon/5 border border-neon/10">
-              <div className="h-2 w-2 rounded-full bg-neon animate-pulse" />
-              <span className="text-[11px] text-muted-foreground">
+            <div className="flex items-center gap-2 rounded-[10px] px-3 py-2 bg-cyan/[0.04] border border-cyan/[0.08]">
+              <div className="h-2 w-2 rounded-full bg-cyan animate-pulse shadow-[0_0_8px_rgba(0,229,255,0.5)]" />
+              <span className="text-[11px] text-muted-foreground/70">
                 System Online
               </span>
             </div>

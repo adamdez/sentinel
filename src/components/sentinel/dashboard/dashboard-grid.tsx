@@ -18,7 +18,7 @@ const DashboardGridInner = dynamic(
           {Array.from({ length: 4 }).map((_, i) => (
             <Skeleton
               key={i}
-              className="h-52 rounded-xl bg-glass border border-glass-border"
+              className="h-52 rounded-[14px] bg-[rgba(12,12,22,0.4)] border border-white/[0.06]"
             />
           ))}
         </div>

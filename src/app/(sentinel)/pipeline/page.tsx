@@ -421,7 +421,7 @@ export default function PipelinePage() {
   return (
     <div className="flex flex-col h-full">
       {/* Header */}
-      <div className="flex items-center justify-between px-6 py-5 border-b border-glass-border flex-wrap gap-3">
+      <div className="flex items-center justify-between px-6 py-5 border-b border-white/[0.06] flex-wrap gap-3">
         <div>
           <h1 className="text-2xl font-bold text-foreground flex items-center gap-2.5">
             <Zap className="h-6 w-6 text-neon" />
@@ -440,14 +440,14 @@ export default function PipelinePage() {
               placeholder="Filter pipeline..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="pl-9 pr-4 py-2 w-56 rounded-lg border border-glass-border bg-glass/50 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-neon/40 focus:border-neon/40 backdrop-blur-xl"
+              className="pl-9 pr-4 py-2 w-56 rounded-[10px] border border-white/[0.06] bg-[rgba(12,12,22,0.5)] text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-neon/40 focus:border-neon/40 backdrop-blur-xl"
             />
           </div>
 
           <button
             onClick={addTestProspect}
             disabled={adding}
-            className="flex items-center gap-2 px-4 py-2 bg-emerald-500/90 hover:bg-emerald-500 text-black text-sm font-semibold rounded-lg transition-all active:scale-95 disabled:opacity-50 shadow-[0_0_12px_rgba(16,185,129,0.3)]"
+            className="flex items-center gap-2 px-4 py-2 bg-emerald-500/90 hover:bg-emerald-500 text-black text-sm font-semibold rounded-[10px] transition-all active:scale-95 disabled:opacity-50 shadow-[0_0_12px_rgba(16,185,129,0.3)]"
           >
             <Plus className={cn("h-4 w-4", adding && "animate-spin")} />
             {adding ? "Adding..." : "Quick Add Test Prospect"}
@@ -455,7 +455,7 @@ export default function PipelinePage() {
 
           <button
             onClick={fetchLeads}
-            className="flex items-center gap-2 px-3 py-2 rounded-lg border border-glass-border bg-glass/50 text-sm text-muted-foreground hover:text-foreground hover:border-neon/30 transition-all backdrop-blur-xl"
+            className="flex items-center gap-2 px-3 py-2 rounded-[10px] border border-white/[0.06] bg-[rgba(12,12,22,0.5)] text-sm text-muted-foreground hover:text-foreground hover:border-cyan/20 transition-all backdrop-blur-xl"
           >
             <RefreshCw className={cn("h-4 w-4", loading && "animate-spin")} />
             Refresh
@@ -502,7 +502,7 @@ export default function PipelinePage() {
                         ref={provided.innerRef}
                         {...provided.droppableProps}
                         className={cn(
-                          "flex-1 min-h-[500px] p-2 rounded-b-xl border border-glass-border bg-glass/30 backdrop-blur-xl overflow-y-auto transition-all duration-200 space-y-2",
+                          "flex-1 min-h-[500px] p-2 rounded-b-xl border border-white/[0.06] bg-[rgba(12,12,22,0.3)] backdrop-blur-xl overflow-y-auto transition-all duration-200 space-y-2",
                           snapshot.isDraggingOver && "ring-2 ring-offset-2 ring-white/60 bg-white/5"
                         )}
                       >
@@ -590,8 +590,8 @@ function LeadCard({
           transition={{ duration: 0.15 }}
           onClick={() => onOpenDetail(lead.id)}
           className={cn(
-            "rounded-xl border border-glass-border bg-glass/60 backdrop-blur-2xl p-3 transition-all duration-150 group holo-border cursor-pointer",
-            snapshot.isDragging && "scale-[1.03] shadow-[0_0_24px_rgba(0,255,136,0.15)] border-neon/30 z-50"
+            "rounded-[14px] border border-white/[0.06] bg-[rgba(12,12,22,0.55)] backdrop-blur-2xl p-3 transition-all duration-150 group holo-border cursor-pointer",
+            snapshot.isDragging && "scale-[1.03] shadow-[0_0_24px_rgba(0,255,136,0.15)] border-cyan/20 z-50"
           )}
         >
           <div className="flex items-start justify-between gap-2">
@@ -620,7 +620,7 @@ function LeadCard({
 
             <div
               className={cn(
-                "shrink-0 flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] font-bold border",
+                "shrink-0 flex items-center gap-1 px-2 py-1 rounded-[10px] text-[11px] font-bold border",
                 sc.class
               )}
             >
@@ -635,7 +635,7 @@ function LeadCard({
               {lead.tags.slice(0, 3).map((tag, i) => (
                 <span
                   key={i}
-                  className="text-[9px] px-1.5 py-0.5 rounded-full bg-white/5 text-muted-foreground border border-glass-border"
+                  className="text-[9px] px-1.5 py-0.5 rounded-full bg-white/5 text-muted-foreground border border-white/[0.06]"
                 >
                   {tag}
                 </span>
@@ -650,7 +650,7 @@ function LeadCard({
 
           {lead.source && (
             <div className="mt-2">
-              <span className="text-[9px] font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded bg-neon/10 text-neon/70 border border-neon/20">
+              <span className="text-[9px] font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded bg-cyan/[0.08] text-neon/70 border border-cyan/15">
                 {lead.source}
               </span>
             </div>
@@ -677,7 +677,7 @@ function LeadCard({
                   e.stopPropagation();
                   onClaim(lead.id);
                 }}
-                className="text-[11px] px-3 py-1 bg-neon/90 hover:bg-neon text-black font-semibold rounded-lg flex items-center gap-1.5 transition-all active:scale-95 shadow-[0_0_8px_rgba(0,255,136,0.3)]"
+                className="text-[11px] px-3 py-1 bg-neon/90 hover:bg-neon text-black font-semibold rounded-[10px] flex items-center gap-1.5 transition-all active:scale-95 shadow-[0_0_8px_rgba(0,255,136,0.3)]"
               >
                 <User className="h-3 w-3" />
                 CLAIM

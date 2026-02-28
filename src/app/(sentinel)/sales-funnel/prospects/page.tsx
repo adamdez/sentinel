@@ -63,7 +63,7 @@ function SourceBadge({ source }: { source: string }) {
     );
   }
   return (
-    <span className="text-[9px] px-1.5 py-0.5 rounded border text-muted-foreground border-glass-border">
+    <span className="text-[9px] px-1.5 py-0.5 rounded border text-muted-foreground border-white/[0.06]">
       MANUAL
     </span>
   );
@@ -287,8 +287,8 @@ export default function ProspectsPage() {
                 className={cn(
                   "text-[10px] px-2 py-1 rounded border transition-all",
                   sourceFilter === sf.value
-                    ? "text-neon border-neon/30 bg-neon/10"
-                    : "text-muted-foreground border-glass-border hover:text-foreground hover:border-white/10"
+                    ? "text-neon border-cyan/20 bg-cyan/[0.08]"
+                    : "text-muted-foreground border-white/[0.06] hover:text-foreground hover:border-white/10"
                 )}
               >
                 {sf.label}
@@ -306,8 +306,8 @@ export default function ProspectsPage() {
                 className={cn(
                   "text-[10px] px-2 py-1 rounded border transition-all inline-flex items-center gap-1",
                   sortField === field
-                    ? "text-neon border-neon/30 bg-neon/10"
-                    : "text-muted-foreground border-glass-border hover:text-foreground"
+                    ? "text-neon border-cyan/20 bg-cyan/[0.08]"
+                    : "text-muted-foreground border-white/[0.06] hover:text-foreground"
                 )}
               >
                 {field === "composite_score" ? "Score" : field === "promoted_at" ? "Date" : "Name"}
@@ -323,7 +323,7 @@ export default function ProspectsPage() {
 
         {/* Error state */}
         {error && (
-          <div className="p-4 mb-4 rounded-lg border border-red-500/20 bg-red-500/5 space-y-2">
+          <div className="p-4 mb-4 rounded-[10px] border border-red-500/20 bg-red-500/5 space-y-2">
             <div className="flex items-center gap-3 text-red-400 text-sm">
               <AlertCircle className="h-4 w-4 shrink-0" />
               <span className="flex-1">{error}</span>
@@ -356,10 +356,10 @@ export default function ProspectsPage() {
 
         {/* Table */}
         {prospects.length > 0 && (
-          <div className="overflow-hidden rounded-lg border border-glass-border">
+          <div className="overflow-hidden rounded-[10px] border border-white/[0.06]">
             <table className="w-full">
               <thead>
-                <tr className="border-b border-glass-border bg-secondary/20">
+                <tr className="border-b border-white/[0.06] bg-white/[0.02]">
                   <th className="text-left p-3 text-xs font-medium text-muted-foreground">Property / Owner</th>
                   <th className="text-left p-3 text-xs font-medium text-muted-foreground">APN</th>
                   <th className="text-left p-3 text-xs font-medium text-muted-foreground">Source</th>
@@ -390,7 +390,7 @@ export default function ProspectsPage() {
                       transition={{ delay: Math.min(i * 0.02, 0.5) }}
                       onClick={() => openDetail(p)}
                       className={cn(
-                        "border-b border-glass-border hover:bg-secondary/10 transition-colors cursor-pointer",
+                        "border-b border-white/[0.06] hover:bg-white/[0.04] transition-colors cursor-pointer",
                         p.source === "ranger_push" && "bg-purple-500/[0.02] hover:bg-purple-500/[0.05]",
                         p.source === "propertyradar" && "bg-emerald-500/[0.02] hover:bg-emerald-500/[0.05]"
                       )}

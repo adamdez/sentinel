@@ -71,7 +71,7 @@ export function RevenueImpact() {
         <Skeleton className="h-5 w-full" />
         <Skeleton className="h-5 w-full" />
         <Skeleton className="h-5 w-full" />
-        <Skeleton className="h-16 w-full rounded-lg" />
+        <Skeleton className="h-16 w-full rounded-[10px]" />
       </div>
     );
   }
@@ -113,11 +113,11 @@ export function RevenueImpact() {
         </motion.div>
       ))}
 
-      <div className="h-16 rounded-lg bg-secondary/20 flex items-end px-1 pb-1 gap-0.5 relative overflow-hidden">
+      <div className="h-16 rounded-[10px] bg-white/[0.02] border border-white/[0.04] flex items-end px-1 pb-1 gap-0.5 relative overflow-hidden">
         <div
           className="absolute inset-0 pointer-events-none"
           style={{
-            background: "linear-gradient(to top, rgba(0,255,136,0.03) 0%, transparent 60%)",
+            background: "linear-gradient(to top, rgba(0,229,255,0.03) 0%, transparent 60%)",
           }}
         />
         {d.monthlyTotals.map((val, i) => {
@@ -131,10 +131,10 @@ export function RevenueImpact() {
               transition={{ delay: 0.3 + i * 0.03, duration: 0.4 }}
               className={cn(
                 "flex-1 rounded-t-sm relative",
-                isCurrentMonth ? "bg-neon" : val > 0 ? "bg-neon/30" : "bg-neon/10"
+                isCurrentMonth ? "bg-cyan" : val > 0 ? "bg-cyan/25" : "bg-cyan/8"
               )}
               style={isCurrentMonth ? {
-                boxShadow: "0 0 10px rgba(0,255,136,0.4), 0 -4px 15px rgba(0,255,136,0.2)",
+                boxShadow: "0 0 12px rgba(0,229,255,0.4), 0 -4px 15px rgba(0,229,255,0.15)",
               } : {}}
             />
           );

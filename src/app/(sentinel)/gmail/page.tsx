@@ -233,7 +233,7 @@ function ComposeModal({
                 <button
                   key={key}
                   onClick={() => applyTemplate(key)}
-                  className="text-[10px] px-2.5 py-1 rounded-md border border-glass-border bg-glass hover:bg-neon/10 hover:border-neon/30 hover:text-neon transition-all"
+                  className="text-[10px] px-2.5 py-1 rounded-md border border-white/[0.06] bg-[rgba(12,12,22,0.4)] hover:bg-cyan/[0.08] hover:border-cyan/20 hover:text-neon transition-all"
                 >
                   {tpl.name}
                 </button>
@@ -249,7 +249,7 @@ function ComposeModal({
               value={to}
               onChange={(e) => setTo(e.target.value)}
               placeholder="recipient@example.com"
-              className="w-full rounded-lg border border-glass-border bg-glass/50 px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-neon/50"
+              className="w-full rounded-[10px] border border-white/[0.06] bg-[rgba(12,12,22,0.5)] px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-neon/50"
             />
           </div>
 
@@ -261,7 +261,7 @@ function ComposeModal({
               value={subject}
               onChange={(e) => setSubject(e.target.value)}
               placeholder="Subject line"
-              className="w-full rounded-lg border border-glass-border bg-glass/50 px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-neon/50"
+              className="w-full rounded-[10px] border border-white/[0.06] bg-[rgba(12,12,22,0.5)] px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-neon/50"
             />
           </div>
 
@@ -273,7 +273,7 @@ function ComposeModal({
               onChange={(e) => setBody(e.target.value)}
               rows={8}
               placeholder="Compose your email..."
-              className="w-full rounded-lg border border-glass-border bg-glass/50 px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-neon/50 resize-none font-mono"
+              className="w-full rounded-[10px] border border-white/[0.06] bg-[rgba(12,12,22,0.5)] px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-neon/50 resize-none font-mono"
             />
           </div>
 
@@ -447,7 +447,7 @@ export default function GmailPage() {
               transition={{ type: "spring", stiffness: 200, damping: 20 }}
               className="mx-auto mb-6"
             >
-              <div className="h-20 w-20 mx-auto rounded-2xl bg-neon/10 border border-neon/20 flex items-center justify-center shadow-[0_0_40px_rgba(0,255,136,0.15)]">
+              <div className="h-20 w-20 mx-auto rounded-2xl bg-cyan/[0.08] border border-cyan/15 flex items-center justify-center shadow-[0_0_40px_rgba(0,255,136,0.15)]">
                 <Mail className="h-10 w-10 text-neon" />
               </div>
             </motion.div>
@@ -534,10 +534,10 @@ export default function GmailPage() {
                 <button
                   key={f.id}
                   onClick={() => setActiveFolder(f.id)}
-                  className={`flex items-center gap-2 w-full px-3 py-2 rounded-lg text-sm transition-colors ${
+                  className={`flex items-center gap-2 w-full px-3 py-2 rounded-[10px] text-sm transition-colors ${
                     activeFolder === f.id
-                      ? "bg-neon/10 text-neon border border-neon/20"
-                      : "text-muted-foreground hover:bg-secondary/50"
+                      ? "bg-cyan/[0.08] text-neon border border-cyan/15"
+                      : "text-muted-foreground hover:bg-white/[0.08]"
                   }`}
                 >
                   <f.icon className="h-4 w-4" />
@@ -598,7 +598,7 @@ export default function GmailPage() {
                       window.dispatchEvent(evt);
                     }, 100);
                   }}
-                  className="flex items-center gap-2 w-full px-3 py-2 rounded-lg text-xs text-muted-foreground hover:bg-neon/5 hover:text-neon transition-colors"
+                  className="flex items-center gap-2 w-full px-3 py-2 rounded-[10px] text-xs text-muted-foreground hover:bg-cyan/[0.04] hover:text-neon transition-colors"
                 >
                   <Send className="h-3 w-3" />
                   {tpl.name}
@@ -624,7 +624,7 @@ export default function GmailPage() {
                 <div className="space-y-3">
                   <h2 className="text-lg font-semibold">{selectedMessage.subject || "(No Subject)"}</h2>
                   <div className="flex items-center gap-3 text-sm text-muted-foreground">
-                    <div className="h-8 w-8 rounded-full bg-neon/10 border border-neon/20 flex items-center justify-center text-xs font-semibold text-neon">
+                    <div className="h-8 w-8 rounded-full bg-cyan/[0.08] border border-cyan/15 flex items-center justify-center text-xs font-semibold text-neon">
                       {extractInitials(selectedMessage.from)}
                     </div>
                     <div>
@@ -632,7 +632,7 @@ export default function GmailPage() {
                       <p className="text-[11px]">{selectedMessage.date}</p>
                     </div>
                   </div>
-                  <div className="border-t border-glass-border pt-4 text-sm text-muted-foreground leading-relaxed">
+                  <div className="border-t border-white/[0.06] pt-4 text-sm text-muted-foreground leading-relaxed">
                     {selectedMessage.snippet}
                   </div>
                   <div className="flex gap-2 pt-2">
@@ -681,14 +681,14 @@ export default function GmailPage() {
                     {Array.from({ length: 5 }).map((_, i) => (
                       <div
                         key={i}
-                        className="flex items-center gap-3 p-3 rounded-lg bg-secondary/20 animate-pulse"
+                        className="flex items-center gap-3 p-3 rounded-[10px] bg-white/[0.02] animate-pulse"
                       >
-                        <div className="h-8 w-8 rounded-full bg-secondary/40 shrink-0" />
+                        <div className="h-8 w-8 rounded-full bg-white/[0.04] shrink-0" />
                         <div className="flex-1 space-y-1.5">
-                          <div className="h-3 w-1/3 rounded bg-secondary/40" />
-                          <div className="h-2 w-2/3 rounded bg-secondary/30" />
+                          <div className="h-3 w-1/3 rounded bg-white/[0.04]" />
+                          <div className="h-2 w-2/3 rounded bg-white/[0.03]" />
                         </div>
-                        <div className="h-3 w-10 rounded bg-secondary/30" />
+                        <div className="h-3 w-10 rounded bg-white/[0.03]" />
                       </div>
                     ))}
                   </div>
@@ -706,17 +706,17 @@ export default function GmailPage() {
                         animate={{ opacity: 1, y: 0 }}
                         transition={{ delay: i * 0.03 }}
                         onClick={() => setSelectedMessage(msg)}
-                        className={`flex items-center gap-3 w-full text-left p-3 rounded-lg transition-colors cursor-pointer ${
+                        className={`flex items-center gap-3 w-full text-left p-3 rounded-[10px] transition-colors cursor-pointer ${
                           msg.unread
-                            ? "bg-neon/5 border border-neon/10 hover:bg-neon/10"
-                            : "bg-secondary/20 hover:bg-secondary/30"
+                            ? "bg-cyan/[0.04] border border-neon/10 hover:bg-cyan/[0.08]"
+                            : "bg-white/[0.02] hover:bg-white/[0.03]"
                         }`}
                       >
                         <div
                           className={`h-8 w-8 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0 ${
                             msg.unread
-                              ? "bg-neon/15 border border-neon/30 text-neon"
-                              : "bg-secondary/40 text-muted-foreground"
+                              ? "bg-cyan/[0.1] border border-cyan/20 text-neon"
+                              : "bg-white/[0.04] text-muted-foreground"
                           }`}
                         >
                           {extractInitials(msg.from)}

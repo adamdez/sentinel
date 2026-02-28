@@ -220,10 +220,10 @@ export function CommandPalette() {
             className="fixed left-1/2 top-[15%] z-50 w-full max-w-2xl -translate-x-1/2"
           >
             <Command
-              className="rounded-xl glass-strong border border-glass-border shadow-2xl overflow-hidden"
+              className="rounded-[14px] glass-strong border border-white/[0.06] shadow-2xl overflow-hidden"
               shouldFilter={false}
             >
-              <div className="flex items-center border-b border-glass-border px-3">
+              <div className="flex items-center border-b border-white/[0.06] px-3">
                 <Search className="mr-2 h-4 w-4 shrink-0 text-neon/70" />
                 <Command.Input
                   placeholder="Search owners, addresses, APNs, contacts, pages..."
@@ -234,7 +234,7 @@ export function CommandPalette() {
                 {query && (
                   <button
                     onClick={() => setQuery("")}
-                    className="text-[10px] text-muted-foreground hover:text-foreground px-2 py-1 rounded border border-glass-border"
+                    className="text-[10px] text-muted-foreground hover:text-foreground px-2 py-1 rounded border border-white/[0.06]"
                   >
                     Clear
                   </button>
@@ -292,7 +292,7 @@ export function CommandPalette() {
                           key={cmd.href}
                           value={cmd.label}
                           onSelect={() => handleSelect(cmd.href)}
-                          className="flex items-center gap-3 rounded-lg px-2 py-2 text-sm cursor-pointer aria-selected:bg-accent aria-selected:text-accent-foreground transition-colors"
+                          className="flex items-center gap-3 rounded-[10px] px-2 py-2 text-sm cursor-pointer aria-selected:bg-accent aria-selected:text-accent-foreground transition-colors"
                         >
                           <Icon className="h-4 w-4 text-muted-foreground shrink-0" />
                           <span className="flex-1">{cmd.label}</span>
@@ -303,17 +303,17 @@ export function CommandPalette() {
                   </Command.Group>
                 )}
               </Command.List>
-              <div className="border-t border-glass-border px-3 py-2 flex items-center gap-4 text-[11px] text-muted-foreground">
+              <div className="border-t border-white/[0.06] px-3 py-2 flex items-center gap-4 text-[11px] text-muted-foreground">
                 <span>
-                  <kbd className="font-mono bg-background/50 px-1 py-0.5 rounded border border-glass-border">↑↓</kbd>{" "}
+                  <kbd className="font-mono bg-background/50 px-1 py-0.5 rounded border border-white/[0.06]">↑↓</kbd>{" "}
                   Navigate
                 </span>
                 <span>
-                  <kbd className="font-mono bg-background/50 px-1 py-0.5 rounded border border-glass-border">↵</kbd>{" "}
+                  <kbd className="font-mono bg-background/50 px-1 py-0.5 rounded border border-white/[0.06]">↵</kbd>{" "}
                   Open
                 </span>
                 <span>
-                  <kbd className="font-mono bg-background/50 px-1 py-0.5 rounded border border-glass-border">Esc</kbd>{" "}
+                  <kbd className="font-mono bg-background/50 px-1 py-0.5 rounded border border-white/[0.06]">Esc</kbd>{" "}
                   Close
                 </span>
                 {hasData && (
@@ -342,13 +342,13 @@ function DataResultItem({ result, onSelect }: { result: DataResult; onSelect: (h
     <Command.Item
       value={`${result.primary} ${result.secondary}`}
       onSelect={() => onSelect(result.href)}
-      className="flex items-center gap-3 rounded-lg px-2 py-2.5 text-sm cursor-pointer aria-selected:bg-accent aria-selected:text-accent-foreground transition-colors group"
+      className="flex items-center gap-3 rounded-[10px] px-2 py-2.5 text-sm cursor-pointer aria-selected:bg-accent aria-selected:text-accent-foreground transition-colors group"
     >
       <div className={cn(
         "h-7 w-7 rounded-md flex items-center justify-center shrink-0 border",
-        result.kind === "prospect" ? "bg-neon/10 border-neon/20 text-neon" :
+        result.kind === "prospect" ? "bg-cyan/[0.08] border-cyan/15 text-neon" :
         result.kind === "lead" ? "bg-blue-500/10 border-blue-500/20 text-blue-400" :
-        "bg-secondary/40 border-glass-border text-muted-foreground"
+        "bg-white/[0.04] border-white/[0.06] text-muted-foreground"
       )}>
         <Icon className="h-3.5 w-3.5" />
       </div>
@@ -374,7 +374,7 @@ function DataResultItem({ result, onSelect }: { result: DataResult; onSelect: (h
         </span>
       )}
       {result.status && (
-        <span className="text-[9px] px-1.5 py-0.5 rounded bg-secondary/40 text-muted-foreground border border-glass-border shrink-0">
+        <span className="text-[9px] px-1.5 py-0.5 rounded bg-white/[0.08] text-muted-foreground border border-white/[0.06] shrink-0">
           {STATUS_LABELS[result.status] ?? result.status}
         </span>
       )}

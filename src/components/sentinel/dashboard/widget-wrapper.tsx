@@ -41,13 +41,13 @@ export function WidgetWrapper({
     const rect = el.getBoundingClientRect();
     const x = (e.clientX - rect.left) / rect.width - 0.5;
     const y = (e.clientY - rect.top) / rect.height - 0.5;
-    el.style.transform = `perspective(800px) rotateY(${x * 3}deg) rotateX(${y * -3}deg) translateY(-2px)`;
+    el.style.transform = `perspective(1000px) rotateY(${x * 3}deg) rotateX(${y * -3}deg) translateY(-3px)`;
   }, []);
 
   const handleMouseLeave = useCallback(() => {
     const el = tileRef.current;
     if (!el) return;
-    el.style.transform = "perspective(800px) rotateY(0deg) rotateX(0deg) translateY(0px)";
+    el.style.transform = "perspective(1000px) rotateY(0deg) rotateX(0deg) translateY(0px)";
   }, []);
 
   const toggleSize = () => {
@@ -61,14 +61,16 @@ export function WidgetWrapper({
     <motion.div
       ref={tileRef}
       layout
-      initial={{ opacity: 0, scale: 0.95 }}
-      animate={{ opacity: 1, scale: 1 }}
+      initial={{ opacity: 0, scale: 0.95, filter: "blur(4px)" }}
+      animate={{ opacity: 1, scale: 1, filter: "blur(0px)" }}
       exit={{ opacity: 0, scale: 0.95 }}
-      transition={{ duration: 0.2 }}
+      transition={{ duration: 0.25 }}
       onMouseMove={handleMouseMove}
       onMouseLeave={handleMouseLeave}
       className={cn(
-        "rounded-xl border border-glass-border bg-glass backdrop-blur-xl overflow-hidden group transition-all duration-300 hover:border-white/10 holo-border scanline-overlay",
+        "rounded-[14px] border border-white/[0.07] bg-[rgba(12,12,22,0.45)] backdrop-blur-[24px] overflow-hidden group transition-all duration-300 holo-border",
+        "shadow-[0_12px_40px_rgba(0,0,0,0.45),inset_0_1px_0_rgba(255,255,255,0.05)]",
+        "hover:border-white/[0.1] hover:shadow-[0_16px_50px_rgba(0,0,0,0.5),0_0_25px_rgba(0,229,255,0.03)]",
         colSpan === 2 && "col-span-2",
         rowSpan === 2 && "row-span-2"
       )}
@@ -78,11 +80,11 @@ export function WidgetWrapper({
         <div className="flex items-center gap-2">
           <button
             {...dragHandleProps}
-            className="cursor-grab active:cursor-grabbing opacity-0 group-hover:opacity-40 hover:!opacity-70 transition-opacity"
+            className="cursor-grab active:cursor-grabbing opacity-0 group-hover:opacity-30 hover:!opacity-60 transition-opacity"
           >
             <GripVertical className="h-3.5 w-3.5" />
           </button>
-          <def.icon className="h-3.5 w-3.5 text-neon" />
+          <def.icon className="h-3.5 w-3.5 text-cyan drop-shadow-[0_0_6px_rgba(0,229,255,0.4)]" />
           <span className="text-xs font-semibold tracking-tight">{def.label}</span>
         </div>
         <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">

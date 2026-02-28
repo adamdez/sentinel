@@ -85,8 +85,8 @@ export function DialerWidget() {
         )}
       </div>
 
-      <div className="flex items-center gap-3 mb-3 p-3 rounded-lg bg-secondary/30">
-        <div className="h-8 w-8 rounded-full bg-secondary flex items-center justify-center">
+      <div className="flex items-center gap-3 mb-3 p-3 rounded-[10px] bg-white/[0.06]">
+        <div className="h-8 w-8 rounded-full bg-[rgba(18,18,32,0.6)] flex items-center justify-center">
           <User className="h-4 w-4 text-muted-foreground" />
         </div>
         <div>

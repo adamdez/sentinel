@@ -47,10 +47,10 @@ export default function ContactsPage() {
           <Badge variant="outline" className="text-xs">{contacts.length} contacts</Badge>
         </div>
 
-        <div className="overflow-hidden rounded-lg border border-glass-border">
+        <div className="overflow-hidden rounded-[10px] border border-white/[0.06]">
           <table className="w-full">
             <thead>
-              <tr className="border-b border-glass-border bg-secondary/20">
+              <tr className="border-b border-white/[0.06] bg-white/[0.02]">
                 <th className="text-left p-3 text-xs font-medium text-muted-foreground">Name</th>
                 <th className="text-left p-3 text-xs font-medium text-muted-foreground">Phone</th>
                 <th className="text-left p-3 text-xs font-medium text-muted-foreground">Email</th>
@@ -61,7 +61,7 @@ export default function ContactsPage() {
             </thead>
             <tbody>
               {contacts.map((contact) => (
-                <tr key={contact.name} className="border-b border-glass-border hover:bg-secondary/10 transition-colors">
+                <tr key={contact.name} className="border-b border-white/[0.06] hover:bg-white/[0.04] transition-colors">
                   <td className="p-3">
                     <div className="flex items-center gap-2">
                       <Contact className="h-4 w-4 text-muted-foreground" />

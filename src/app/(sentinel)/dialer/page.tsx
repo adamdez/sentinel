@@ -16,8 +16,6 @@ import { Button } from "@/components/ui/button";
 import { useSentinelStore } from "@/lib/store";
 import { useDialerQueue, useDialerStats, useCallTimer, type QueueLead } from "@/hooks/use-dialer";
 
-// ── Disposition Config ────────────────────────────────────────────────
-
 interface DispoOption {
   key: string;
   label: string;
@@ -28,15 +26,15 @@ interface DispoOption {
 }
 
 const DISPOSITIONS: DispoOption[] = [
-  { key: "voicemail",   label: "Voicemail",    hotkey: "1", icon: Voicemail,      color: "text-blue-400",   bgColor: "bg-blue-500/10 hover:bg-blue-500/20 border-blue-500/20" },
-  { key: "no_answer",   label: "No Answer",    hotkey: "2", icon: PhoneOff,       color: "text-zinc-400",   bgColor: "bg-zinc-500/10 hover:bg-zinc-500/20 border-zinc-500/20" },
-  { key: "interested",  label: "Interested",   hotkey: "3", icon: Sparkles,       color: "text-neon",       bgColor: "bg-neon/10 hover:bg-neon/20 border-neon/20" },
-  { key: "appointment", label: "Appointment",  hotkey: "4", icon: CalendarCheck,  color: "text-emerald-400",bgColor: "bg-emerald-500/10 hover:bg-emerald-500/20 border-emerald-500/20" },
-  { key: "contract",    label: "Contract",     hotkey: "5", icon: FileSignature,  color: "text-orange-400", bgColor: "bg-orange-500/10 hover:bg-orange-500/20 border-orange-500/20" },
-  { key: "dead",        label: "Dead",         hotkey: "6", icon: Skull,          color: "text-red-400",    bgColor: "bg-red-500/10 hover:bg-red-500/20 border-red-500/20" },
-  { key: "nurture",     label: "Nurture",      hotkey: "7", icon: Heart,          color: "text-pink-400",   bgColor: "bg-pink-500/10 hover:bg-pink-500/20 border-pink-500/20" },
-  { key: "skip_trace",  label: "Skip Trace",   hotkey: "8", icon: Search,         color: "text-cyan-400",   bgColor: "bg-cyan-500/10 hover:bg-cyan-500/20 border-cyan-500/20" },
-  { key: "ghost",       label: "Ghost Research", hotkey: "9", icon: Ghost,        color: "text-yellow-400", bgColor: "bg-yellow-500/10 hover:bg-yellow-500/20 border-yellow-500/20" },
+  { key: "voicemail",   label: "Voicemail",    hotkey: "1", icon: Voicemail,      color: "text-blue-400",   bgColor: "bg-blue-500/[0.06] hover:bg-blue-500/[0.12] border-blue-500/15" },
+  { key: "no_answer",   label: "No Answer",    hotkey: "2", icon: PhoneOff,       color: "text-zinc-400",   bgColor: "bg-zinc-500/[0.06] hover:bg-zinc-500/[0.12] border-zinc-500/15" },
+  { key: "interested",  label: "Interested",   hotkey: "3", icon: Sparkles,       color: "text-neon",       bgColor: "bg-neon/[0.06] hover:bg-neon/[0.12] border-neon/15" },
+  { key: "appointment", label: "Appointment",  hotkey: "4", icon: CalendarCheck,  color: "text-emerald-400",bgColor: "bg-emerald-500/[0.06] hover:bg-emerald-500/[0.12] border-emerald-500/15" },
+  { key: "contract",    label: "Contract",     hotkey: "5", icon: FileSignature,  color: "text-orange",     bgColor: "bg-orange-500/[0.06] hover:bg-orange-500/[0.12] border-orange-500/15" },
+  { key: "dead",        label: "Dead",         hotkey: "6", icon: Skull,          color: "text-red-400",    bgColor: "bg-red-500/[0.06] hover:bg-red-500/[0.12] border-red-500/15" },
+  { key: "nurture",     label: "Nurture",      hotkey: "7", icon: Heart,          color: "text-pink-400",   bgColor: "bg-pink-500/[0.06] hover:bg-pink-500/[0.12] border-pink-500/15" },
+  { key: "skip_trace",  label: "Skip Trace",   hotkey: "8", icon: Search,         color: "text-cyan",       bgColor: "bg-cyan-500/[0.06] hover:bg-cyan-500/[0.12] border-cyan-500/15" },
+  { key: "ghost",       label: "Ghost Research", hotkey: "9", icon: Ghost,        color: "text-yellow-400", bgColor: "bg-yellow-500/[0.06] hover:bg-yellow-500/[0.12] border-yellow-500/15" },
 ];
 
 type CallState = "idle" | "dialing" | "connected" | "ended";
@@ -54,8 +52,6 @@ function getScoreLabel(score: number): { label: string; variant: "fire" | "hot" 
   return { label: "COLD", variant: "cold" };
 }
 
-// ── Main Dialer Page ──────────────────────────────────────────────────
-
 export default function DialerPage() {
   const { currentUser, ghostMode } = useSentinelStore();
   const { queue, loading: queueLoading, refetch: refetchQueue } = useDialerQueue(8);
@@ -69,14 +65,11 @@ export default function DialerPage() {
   const [callNotes, setCallNotes] = useState("");
   const [dispositionPending, setDispositionPending] = useState(false);
 
-  // Auto-select first lead if none selected
   useEffect(() => {
     if (!currentLead && queue.length > 0) {
       setCurrentLead(queue[0]);
     }
   }, [queue, currentLead]);
-
-  // ── Dial ──────────────────────────────────────────────────────────
 
   const handleDial = useCallback(async (lead?: QueueLead) => {
     const target = lead ?? currentLead;
@@ -131,14 +124,10 @@ export default function DialerPage() {
     }
   }, [currentLead, currentUser.id, ghostMode, timer]);
 
-  // ── Hang Up ──────────────────────────────────────────────────────
-
   const handleHangup = useCallback(() => {
     setCallState("ended");
     timer.stop();
   }, [timer]);
-
-  // ── Disposition ──────────────────────────────────────────────────
 
   const handleDisposition = useCallback(async (dispoKey: string) => {
     if (!currentCallLogId && callState !== "idle") {
@@ -148,7 +137,6 @@ export default function DialerPage() {
 
     setDispositionPending(true);
 
-    // If there's a call in progress, end it first
     if (callState === "connected") {
       handleHangup();
     }
@@ -174,7 +162,6 @@ export default function DialerPage() {
     const dispo = DISPOSITIONS.find((d) => d.key === dispoKey);
     toast.success(`${dispo?.label ?? dispoKey} logged`);
 
-    // Advance to next lead
     setCallState("idle");
     setCurrentCallLogId(null);
     setCallNotes("");
@@ -187,11 +174,8 @@ export default function DialerPage() {
     refetchQueue();
   }, [currentCallLogId, callState, callNotes, currentLead, currentUser.id, handleHangup, queue, refetchQueue, timer]);
 
-  // ── Keyboard Hotkeys ─────────────────────────────────────────────
-
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
-      // Ignore if typing in textarea
       if (e.target instanceof HTMLTextAreaElement || e.target instanceof HTMLInputElement) return;
 
       const dispo = DISPOSITIONS.find((d) => d.hotkey === e.key);
@@ -217,15 +201,13 @@ export default function DialerPage() {
     return () => window.removeEventListener("keydown", handler);
   }, [callState, currentLead, handleDial, handleDisposition, handleHangup]);
 
-  // ── Stats Cards ──────────────────────────────────────────────────
-
   const statCards = [
-    { label: "My Calls", value: stats.myCalls, icon: PhoneForwarded, color: "text-neon" },
-    { label: "Team Calls", value: stats.teamCalls, icon: Users, color: "text-blue-400" },
-    { label: "Connect %", value: `${stats.connectRate}%`, icon: BarChart3, color: "text-purple-400" },
-    { label: "Appts", value: stats.appointments, icon: CalendarCheck, color: "text-emerald-400" },
-    { label: "Contracts", value: stats.contracts, icon: FileSignature, color: "text-orange-400" },
-    { label: "Fees Earned", value: formatCurrency(stats.feesEarned), icon: DollarSign, color: "text-yellow-400" },
+    { label: "My Calls", value: stats.myCalls, icon: PhoneForwarded, color: "text-neon", glowColor: "rgba(0,255,136,0.12)" },
+    { label: "Team Calls", value: stats.teamCalls, icon: Users, color: "text-cyan", glowColor: "rgba(0,229,255,0.12)" },
+    { label: "Connect %", value: `${stats.connectRate}%`, icon: BarChart3, color: "text-purple", glowColor: "rgba(168,85,247,0.12)" },
+    { label: "Appts", value: stats.appointments, icon: CalendarCheck, color: "text-emerald-400", glowColor: "rgba(52,211,153,0.12)" },
+    { label: "Contracts", value: stats.contracts, icon: FileSignature, color: "text-orange", glowColor: "rgba(255,107,53,0.12)" },
+    { label: "Fees Earned", value: formatCurrency(stats.feesEarned), icon: DollarSign, color: "text-yellow-400", glowColor: "rgba(250,204,21,0.12)" },
   ];
 
   return (
@@ -235,45 +217,47 @@ export default function DialerPage() {
       actions={
         <div className="flex items-center gap-2">
           {ghostMode && (
-            <Badge variant="outline" className="text-[10px] gap-1 border-yellow-500/30 text-yellow-400">
+            <Badge variant="outline" className="text-[10px] gap-1 border-yellow-500/20 text-yellow-400">
               <Ghost className="h-2.5 w-2.5" /> Ghost Mode
             </Badge>
           )}
-          <Badge variant="neon" className="text-[10px] gap-1">
+          <Badge variant="cyan" className="text-[10px] gap-1">
             <Zap className="h-2.5 w-2.5" />
             Twilio {callState === "connected" ? "LIVE" : "Ready"}
           </Badge>
         </div>
       }
     >
-      {/* ── Top Stats Bar ──────────────────────────────────────────── */}
       <div className="grid grid-cols-3 md:grid-cols-6 gap-3">
         {statCards.map((s) => (
           <GlassCard key={s.label} className="!p-3 text-center" hover={false} delay={0.05}>
-            <s.icon className={`h-4 w-4 mx-auto mb-1 ${s.color}`} />
+            <div
+              className="h-7 w-7 rounded-[8px] flex items-center justify-center mx-auto mb-1"
+              style={{ background: s.glowColor, boxShadow: `0 0 10px ${s.glowColor}` }}
+            >
+              <s.icon className={`h-3.5 w-3.5 ${s.color}`} />
+            </div>
             {statsLoading ? (
               <Loader2 className="h-4 w-4 animate-spin mx-auto" />
             ) : (
-              <p className="text-lg font-bold tracking-tight">{s.value}</p>
+              <p className="text-lg font-bold tracking-tight live-number">{s.value}</p>
             )}
-            <p className="text-[10px] text-muted-foreground uppercase tracking-wider">{s.label}</p>
+            <p className="text-[10px] text-muted-foreground/60 uppercase tracking-wider">{s.label}</p>
           </GlassCard>
         ))}
       </div>
 
-      {/* ── Main 3-Column Layout ───────────────────────────────────── */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 mt-4">
-        {/* LEFT: Queue */}
         <div className="lg:col-span-3">
           <GlassCard hover={false} className="!p-3">
             <div className="flex items-center justify-between mb-3">
-              <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
-                <Users className="h-3.5 w-3.5 text-neon" />
+              <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground/70 flex items-center gap-1.5">
+                <Users className="h-3.5 w-3.5 text-cyan drop-shadow-[0_0_6px_rgba(0,229,255,0.5)]" />
                 Dial Queue
               </h2>
               <button
                 onClick={refetchQueue}
-                className="text-[10px] text-muted-foreground hover:text-foreground transition-colors"
+                className="text-[10px] text-muted-foreground/50 hover:text-foreground transition-colors"
               >
                 Refresh
               </button>
@@ -282,11 +266,11 @@ export default function DialerPage() {
             {queueLoading ? (
               <div className="space-y-2">
                 {[1, 2, 3, 4].map((i) => (
-                  <div key={i} className="h-14 rounded-lg bg-secondary/20 animate-pulse" />
+                  <div key={i} className="h-14 rounded-[10px] bg-white/[0.02] animate-pulse" />
                 ))}
               </div>
             ) : queue.length === 0 ? (
-              <p className="text-xs text-muted-foreground text-center py-6">No leads with phone numbers in queue</p>
+              <p className="text-xs text-muted-foreground/50 text-center py-6">No leads with phone numbers in queue</p>
             ) : (
               <div className="space-y-1.5">
                 {queue.map((lead, idx) => {
@@ -298,23 +282,23 @@ export default function DialerPage() {
                     <button
                       key={lead.id}
                       onClick={() => setCurrentLead(lead)}
-                      className={`w-full text-left rounded-lg p-2.5 transition-all duration-200 border ${
+                      className={`w-full text-left rounded-[10px] p-2.5 transition-all duration-200 border ${
                         isActive
-                          ? "bg-neon/5 border-neon/30 shadow-[0_0_12px_rgba(0,255,136,0.1)]"
-                          : "bg-secondary/10 border-transparent hover:bg-secondary/20"
+                          ? "bg-cyan/[0.05] border-cyan/20 shadow-[0_0_14px_rgba(0,229,255,0.08)]"
+                          : "bg-white/[0.02] border-transparent hover:bg-white/[0.04]"
                       }`}
                     >
                       <div className="flex items-center gap-2">
-                        <span className="text-[10px] text-muted-foreground font-mono w-3">{idx + 1}</span>
+                        <span className="text-[10px] text-muted-foreground/40 font-mono w-3">{idx + 1}</span>
                         <div className="flex-1 min-w-0">
                           <p className="text-xs font-medium truncate">{lead.properties?.owner_name ?? "Unknown"}</p>
-                          <p className="text-[10px] text-muted-foreground truncate">{lead.properties?.address ?? "No address"}</p>
+                          <p className="text-[10px] text-muted-foreground/50 truncate">{lead.properties?.address ?? "No address"}</p>
                         </div>
                         <Badge variant={sl.variant} className="text-[9px] px-1.5 py-0 shrink-0">
                           {score}
                         </Badge>
                         {!lead.compliant && !ghostMode && (
-                          <span className="h-2 w-2 rounded-full bg-red-500 shrink-0" title="Compliance blocked" />
+                          <span className="h-2 w-2 rounded-full bg-red-500 shadow-[0_0_6px_rgba(239,68,68,0.5)] shrink-0" title="Compliance blocked" />
                         )}
                       </div>
                     </button>
@@ -325,7 +309,6 @@ export default function DialerPage() {
           </GlassCard>
         </div>
 
-        {/* CENTER: Current Lead Card */}
         <div className="lg:col-span-5">
           <AnimatePresence mode="wait">
             {currentLead ? (
@@ -339,18 +322,17 @@ export default function DialerPage() {
                 <GlassCard
                   hover={false}
                   glow={callState === "connected"}
-                  className={callState === "dialing" ? "!border-yellow-500/30" : ""}
+                  glowCyan={callState === "dialing"}
                 >
-                  {/* Call state indicator */}
                   {callState !== "idle" && (
-                    <div className={`flex items-center gap-2 mb-3 text-xs px-3 py-1.5 rounded-lg ${
-                      callState === "dialing" ? "bg-yellow-500/10 text-yellow-400" :
-                      callState === "connected" ? "bg-neon/10 text-neon" :
-                      "bg-red-500/10 text-red-400"
+                    <div className={`flex items-center gap-2 mb-3 text-xs px-3 py-1.5 rounded-[10px] ${
+                      callState === "dialing" ? "bg-cyan/[0.06] text-cyan border border-cyan/15" :
+                      callState === "connected" ? "bg-neon/[0.06] text-neon border border-neon/15" :
+                      "bg-red-500/[0.06] text-red-400 border border-red-500/15"
                     }`}>
                       <span className={`h-2 w-2 rounded-full ${
-                        callState === "dialing" ? "bg-yellow-400 animate-pulse" :
-                        callState === "connected" ? "bg-neon animate-pulse" :
+                        callState === "dialing" ? "bg-cyan animate-pulse shadow-[0_0_6px_rgba(0,229,255,0.5)]" :
+                        callState === "connected" ? "bg-neon animate-pulse shadow-[0_0_6px_rgba(0,255,136,0.5)]" :
                         "bg-red-400"
                       }`} />
                       {callState === "dialing" && "Dialing..."}
@@ -359,17 +341,16 @@ export default function DialerPage() {
                     </div>
                   )}
 
-                  {/* Lead info */}
                   <div className="space-y-3">
                     <div className="flex items-start justify-between">
                       <div>
-                        <h3 className="text-lg font-bold tracking-tight">
+                        <h3 className="text-lg font-bold tracking-tight title-glow">
                           {currentLead.properties?.owner_name ?? "Unknown Owner"}
                         </h3>
-                        <p className="text-sm text-muted-foreground">
+                        <p className="text-sm text-muted-foreground/70">
                           {currentLead.properties?.address ?? "No address"}
                         </p>
-                        <p className="text-xs text-muted-foreground mt-0.5">
+                        <p className="text-xs text-muted-foreground/50 mt-0.5">
                           {currentLead.properties?.city}, {currentLead.properties?.state} — {currentLead.properties?.county} County
                         </p>
                       </div>
@@ -391,64 +372,50 @@ export default function DialerPage() {
                       </div>
                     </div>
 
-                    {/* Property details grid */}
                     <div className="grid grid-cols-2 gap-2">
-                      <div className="rounded-lg bg-secondary/20 p-2.5">
-                        <p className="text-[10px] text-muted-foreground uppercase">Phone</p>
-                        <p className="text-sm font-medium font-mono">
-                          {currentLead.properties?.owner_phone ?? "—"}
-                        </p>
-                      </div>
-                      <div className="rounded-lg bg-secondary/20 p-2.5">
-                        <p className="text-[10px] text-muted-foreground uppercase">ARV</p>
-                        <p className="text-sm font-medium">
-                          {currentLead.properties?.estimated_value
-                            ? `$${currentLead.properties.estimated_value.toLocaleString()}`
-                            : "—"}
-                        </p>
-                      </div>
-                      <div className="rounded-lg bg-secondary/20 p-2.5">
-                        <p className="text-[10px] text-muted-foreground uppercase">Equity</p>
-                        <p className="text-sm font-medium">
-                          {currentLead.properties?.equity_percent != null
-                            ? `${currentLead.properties.equity_percent}%`
-                            : "—"}
-                        </p>
-                      </div>
-                      <div className="rounded-lg bg-secondary/20 p-2.5">
-                        <p className="text-[10px] text-muted-foreground uppercase">Distress</p>
+                      {[
+                        { label: "Phone", value: currentLead.properties?.owner_phone ?? "—", mono: true },
+                        { label: "ARV", value: currentLead.properties?.estimated_value ? `$${currentLead.properties.estimated_value.toLocaleString()}` : "—" },
+                        { label: "Equity", value: currentLead.properties?.equity_percent != null ? `${currentLead.properties.equity_percent}%` : "—" },
+                      ].map((item) => (
+                        <div key={item.label} className="rounded-[10px] bg-white/[0.03] border border-white/[0.04] p-2.5">
+                          <p className="text-[10px] text-muted-foreground/50 uppercase">{item.label}</p>
+                          <p className={`text-sm font-medium ${item.mono ? "font-mono" : ""}`}>{item.value}</p>
+                        </div>
+                      ))}
+                      <div className="rounded-[10px] bg-white/[0.03] border border-white/[0.04] p-2.5">
+                        <p className="text-[10px] text-muted-foreground/50 uppercase">Distress</p>
                         <div className="flex flex-wrap gap-1 mt-0.5">
                           {(currentLead.tags ?? []).slice(0, 3).map((t) => (
-                            <span key={t} className="text-[9px] px-1.5 py-0.5 rounded bg-red-500/10 text-red-400 border border-red-500/20">
+                            <span key={t} className="text-[9px] px-1.5 py-0.5 rounded-[6px] bg-red-500/[0.08] text-red-400 border border-red-500/15">
                               {t}
                             </span>
                           ))}
                           {(!currentLead.tags || currentLead.tags.length === 0) && (
-                            <span className="text-[10px] text-muted-foreground">—</span>
+                            <span className="text-[10px] text-muted-foreground/40">—</span>
                           )}
                         </div>
                       </div>
                     </div>
 
-                    {/* Source + notes */}
-                    <div className="rounded-lg bg-secondary/20 p-2.5">
-                      <p className="text-[10px] text-muted-foreground uppercase mb-1">Source & Notes</p>
-                      <p className="text-xs text-muted-foreground">
+                    <div className="rounded-[10px] bg-white/[0.03] border border-white/[0.04] p-2.5">
+                      <p className="text-[10px] text-muted-foreground/50 uppercase mb-1">Source & Notes</p>
+                      <p className="text-xs text-muted-foreground/60">
                         {currentLead.source ?? "unknown"} — {currentLead.notes ?? "No notes"}
                       </p>
                     </div>
 
-                    {/* Call controls */}
                     <div className="flex items-center gap-2 pt-2">
                       {callState === "idle" && (
                         <Button
                           onClick={() => handleDial()}
                           disabled={!currentLead.compliant && !ghostMode}
-                          className="flex-1 gap-2 bg-neon/20 hover:bg-neon/30 text-neon border border-neon/30"
+                          className="flex-1 gap-2"
+                          variant="neon"
                         >
                           <Phone className="h-4 w-4" />
                           Dial {currentLead.properties?.owner_phone ? "" : "(No Phone)"}
-                          <span className="text-[10px] opacity-60 ml-1">Enter</span>
+                          <span className="text-[10px] opacity-50 ml-1">Enter</span>
                         </Button>
                       )}
                       {(callState === "dialing" || callState === "connected") && (
@@ -468,12 +435,12 @@ export default function DialerPage() {
                           >
                             <PhoneOff className="h-4 w-4" />
                             Hang Up
-                            <span className="text-[10px] opacity-60 ml-1">Esc</span>
+                            <span className="text-[10px] opacity-50 ml-1">Esc</span>
                           </Button>
                         </>
                       )}
                       {callState === "ended" && (
-                        <div className="flex-1 text-center text-sm text-muted-foreground py-2">
+                        <div className="flex-1 text-center text-sm text-muted-foreground/60 py-2">
                           Call ended — {timer.formatted} — select disposition below
                         </div>
                       )}
@@ -481,19 +448,18 @@ export default function DialerPage() {
                   </div>
                 </GlassCard>
 
-                {/* Notes textarea */}
                 <GlassCard hover={false} className="!p-3 mt-3">
                   <textarea
                     value={callNotes}
                     onChange={(e) => setCallNotes(e.target.value)}
                     placeholder="Call notes... (saved with disposition)"
-                    className="w-full bg-transparent text-sm resize-none h-16 outline-none placeholder:text-muted-foreground/40"
+                    className="w-full bg-transparent text-sm resize-none h-16 outline-none placeholder:text-muted-foreground/30"
                   />
                 </GlassCard>
               </motion.div>
             ) : (
               <GlassCard hover={false} className="flex items-center justify-center h-64">
-                <div className="text-center text-muted-foreground">
+                <div className="text-center text-muted-foreground/40">
                   <Phone className="h-8 w-8 mx-auto mb-2 opacity-30" />
                   <p className="text-sm">Select a lead from the queue to begin</p>
                 </div>
@@ -502,13 +468,12 @@ export default function DialerPage() {
           </AnimatePresence>
         </div>
 
-        {/* RIGHT: Disposition Panel */}
         <div className="lg:col-span-4">
           <GlassCard hover={false} className="!p-3">
-            <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3 flex items-center gap-1.5">
-              <BarChart3 className="h-3.5 w-3.5 text-neon" />
+            <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground/70 mb-3 flex items-center gap-1.5">
+              <BarChart3 className="h-3.5 w-3.5 text-purple drop-shadow-[0_0_6px_rgba(168,85,247,0.5)]" />
               Disposition
-              <span className="text-[9px] opacity-50 ml-auto">Keyboard shortcuts active</span>
+              <span className="text-[9px] opacity-40 ml-auto">Keyboard shortcuts active</span>
             </h2>
 
             <div className="grid grid-cols-1 gap-1.5">
@@ -521,20 +486,19 @@ export default function DialerPage() {
                     key={d.key}
                     onClick={() => handleDisposition(d.key)}
                     disabled={disabled}
-                    className={`flex items-center gap-3 rounded-lg px-3 py-2.5 text-left transition-all duration-150 border
-                      ${disabled ? "opacity-30 cursor-not-allowed" : d.bgColor}
+                    className={`flex items-center gap-3 rounded-[10px] px-3 py-2.5 text-left transition-all duration-200 border
+                      ${disabled ? "opacity-25 cursor-not-allowed" : d.bgColor}
                     `}
                   >
-                    <span className="text-[10px] font-mono text-muted-foreground w-3">{d.hotkey}</span>
+                    <span className="text-[10px] font-mono text-muted-foreground/40 w-3">{d.hotkey}</span>
                     <Icon className={`h-4 w-4 ${d.color}`} />
                     <span className="text-sm font-medium flex-1">{d.label}</span>
-                    <ChevronRight className="h-3 w-3 text-muted-foreground/40" />
+                    <ChevronRight className="h-3 w-3 text-muted-foreground/30" />
                   </button>
                 );
               })}
             </div>
 
-            {/* Next Lead button */}
             <Button
               variant="outline"
               className="w-full mt-3 gap-2 text-xs"
@@ -552,7 +516,6 @@ export default function DialerPage() {
             </Button>
           </GlassCard>
 
-          {/* Live timer card (visible during calls) */}
           <AnimatePresence>
             {callState !== "idle" && (
               <motion.div
@@ -560,12 +523,12 @@ export default function DialerPage() {
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: 10 }}
               >
-                <GlassCard glow hover={false} className="!p-4 mt-3 text-center">
-                  <Clock className="h-5 w-5 mx-auto mb-1 text-neon" />
-                  <p className="text-3xl font-bold font-mono tracking-wider text-neon">
+                <GlassCard glowCyan hover={false} className="!p-5 mt-3 text-center glow-ring">
+                  <Clock className="h-5 w-5 mx-auto mb-1 text-cyan drop-shadow-[0_0_8px_rgba(0,229,255,0.5)]" />
+                  <p className="text-3xl font-bold font-mono tracking-wider live-number" style={{ color: "#00E5FF", textShadow: "0 0 20px rgba(0,229,255,0.4), 0 0 40px rgba(0,229,255,0.15)" }}>
                     {timer.formatted}
                   </p>
-                  <p className="text-[10px] text-muted-foreground mt-1 uppercase">
+                  <p className="text-[10px] text-muted-foreground/50 mt-1 uppercase">
                     {callState === "dialing" ? "Ringing..." :
                      callState === "connected" ? "Live Call" :
                      "Call Ended"}

@@ -41,7 +41,7 @@ export default function DocuSignPage() {
                 return (
                   <div
                     key={env.title}
-                    className="flex items-center gap-4 p-3 rounded-lg bg-secondary/20 hover:bg-secondary/30 transition-colors"
+                    className="flex items-center gap-4 p-3 rounded-[10px] bg-white/[0.02] hover:bg-white/[0.03] transition-colors"
                   >
                     <Icon className={`h-4 w-4 ${env.color}`} />
                     <div className="flex-1 min-w-0">
@@ -68,7 +68,7 @@ export default function DocuSignPage() {
             <h3 className="text-sm font-semibold mb-3">Templates</h3>
             <div className="space-y-2">
               {["Purchase Agreement", "Assignment Contract", "LOI", "Addendum"].map((t) => (
-                <div key={t} className="flex items-center gap-2 p-2 rounded-lg hover:bg-secondary/30 transition-colors cursor-pointer">
+                <div key={t} className="flex items-center gap-2 p-2 rounded-[10px] hover:bg-white/[0.03] transition-colors cursor-pointer">
                   <FileSignature className="h-3 w-3 text-muted-foreground" />
                   <span className="text-xs">{t}</span>
                 </div>

@@ -7,7 +7,7 @@ import { useSentinelStore } from "@/lib/store";
 import { cn } from "@/lib/utils";
 
 const userColors: Record<string, string> = {
-  "user-adam": "bg-neon/10 text-neon",
+  "user-adam": "bg-cyan/[0.08] text-neon",
   "user-sarah": "bg-purple-500/10 text-purple-400",
   "user-mike": "bg-blue-500/10 text-blue-400",
 };
@@ -27,7 +27,7 @@ export function TeamChatPreview() {
           className="flex items-start gap-2"
         >
           <Avatar className="h-5 w-5 shrink-0 mt-0.5">
-            <AvatarFallback className={cn("text-[8px]", userColors[msg.user_id] || "bg-secondary")}>
+            <AvatarFallback className={cn("text-[8px]", userColors[msg.user_id] || "bg-[rgba(18,18,32,0.6)]")}>
               {msg.user_name.split(" ").map((n) => n[0]).join("")}
             </AvatarFallback>
           </Avatar>

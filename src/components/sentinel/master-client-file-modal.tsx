@@ -253,7 +253,7 @@ function InfoRow({ icon: Icon, label, value, mono, highlight }: {
 
 function Section({ title, icon: Icon, children }: { title: string; icon: typeof Home; children: React.ReactNode }) {
   return (
-    <div className="rounded-lg border border-glass-border bg-secondary/10 p-4">
+    <div className="rounded-[10px] border border-white/[0.06] bg-white/[0.04] p-4">
       <div className="flex items-center gap-2 mb-3">
         <Icon className="h-3.5 w-3.5 text-muted-foreground" />
         <p className="text-[11px] text-muted-foreground uppercase tracking-wider font-semibold">{title}</p>
@@ -266,10 +266,10 @@ function Section({ title, icon: Icon, children }: { title: string; icon: typeof 
 function ScoreCard({ label, value }: { label: string; value: number }) {
   const pct = Math.min(value, 100);
   return (
-    <div className="rounded-lg border border-glass-border bg-secondary/10 p-3 text-center">
+    <div className="rounded-[10px] border border-white/[0.06] bg-white/[0.04] p-3 text-center">
       <p className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1">{label}</p>
       <p className="text-xl font-bold" style={{ textShadow: pct >= 80 ? "0 0 10px rgba(0,255,136,0.3)" : undefined }}>{value}</p>
-      <div className="h-1 rounded-full bg-secondary mt-2 overflow-hidden">
+      <div className="h-1 rounded-full bg-[rgba(18,18,32,0.6)] mt-2 overflow-hidden">
         <div className={cn("h-full rounded-full transition-all", pct >= 85 ? "bg-orange-400" : pct >= 65 ? "bg-red-400" : pct >= 40 ? "bg-yellow-400" : "bg-blue-400")} style={{ width: `${pct}%` }} />
       </div>
     </div>
@@ -320,7 +320,7 @@ function OverviewTab({ cf, skipTracing, skipTraceResult, skipTraceMs, overlay, o
               const cfg = DISTRESS_CFG[tag];
               const TagIcon = cfg?.icon ?? Tag;
               return (
-                <div key={tag} className={cn("flex items-center gap-1.5 px-2.5 py-1 rounded-md border text-[11px] font-medium", cfg?.color ?? "text-muted-foreground bg-secondary/20 border-glass-border")}>
+                <div key={tag} className={cn("flex items-center gap-1.5 px-2.5 py-1 rounded-md border text-[11px] font-medium", cfg?.color ?? "text-muted-foreground bg-white/[0.02] border-white/[0.06]")}>
                   <TagIcon className="h-3 w-3" />{cfg?.label ?? tag}
                 </div>
               );
@@ -415,7 +415,7 @@ function OverviewTab({ cf, skipTracing, skipTraceResult, skipTraceMs, overlay, o
             <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Associated Persons</p>
             {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
             {persons.map((p: any, i: number) => (
-              <div key={i} className="rounded-md border border-glass-border bg-secondary/10 p-2.5 text-xs space-y-0.5">
+              <div key={i} className="rounded-md border border-white/[0.06] bg-white/[0.04] p-2.5 text-xs space-y-0.5">
                 <div className="flex items-center gap-2">
                   <User className="h-3 w-3 text-muted-foreground" />
                   <span className="font-semibold text-foreground">{p.name}</span>
@@ -444,11 +444,11 @@ function OverviewTab({ cf, skipTracing, skipTraceResult, skipTraceMs, overlay, o
         )}
 
         {skipTraceResult && (
-          <div className={cn("mt-2 text-xs px-3 py-2 rounded-md border", skipTraceResult.startsWith("Found") ? "text-neon bg-neon/5 border-neon/20" : "text-red-400 bg-red-500/5 border-red-500/20")}>
+          <div className={cn("mt-2 text-xs px-3 py-2 rounded-md border", skipTraceResult.startsWith("Found") ? "text-neon bg-cyan/[0.04] border-cyan/15" : "text-red-400 bg-red-500/5 border-red-500/20")}>
             <div className="flex items-center justify-between gap-2">
               <span>{skipTraceResult}</span>
               {skipTraceMs != null && (
-                <span className={cn("font-mono text-[10px] shrink-0 px-1.5 py-0.5 rounded", skipTraceMs <= 2000 ? "text-neon bg-neon/10" : "text-amber-400 bg-amber-500/10")}>
+                <span className={cn("font-mono text-[10px] shrink-0 px-1.5 py-0.5 rounded", skipTraceMs <= 2000 ? "text-neon bg-cyan/[0.08]" : "text-amber-400 bg-amber-500/10")}>
                   {(skipTraceMs / 1000).toFixed(2)}s
                 </span>
               )}
@@ -761,8 +761,8 @@ function CompsTab({ cf, selectedComps, onAddComp, onRemoveComp, onSkipTrace }: {
   return (
     <div className="space-y-4">
       {/* Subject property header with photo carousel */}
-      <div className="rounded-lg border border-glass-border bg-glass/50 backdrop-blur-xl p-0 flex overflow-hidden">
-        <div className="w-44 h-28 shrink-0 border-r border-glass-border bg-secondary/10">
+      <div className="rounded-[10px] border border-white/[0.06] bg-[rgba(12,12,22,0.5)] backdrop-blur-xl p-0 flex overflow-hidden">
+        <div className="w-44 h-28 shrink-0 border-r border-white/[0.06] bg-white/[0.04]">
           <SubjectPhotoCarousel photos={photos} onSkipTrace={onSkipTrace} />
         </div>
         <div className="flex-1 p-3 flex flex-col justify-center min-w-0">
@@ -800,8 +800,8 @@ function CompsTab({ cf, selectedComps, onAddComp, onRemoveComp, onSkipTrace }: {
 
       {/* Selected comps table */}
       {selectedComps.length > 0 && (
-        <div className="rounded-lg border border-glass-border overflow-hidden">
-          <div className="flex items-center justify-between px-4 py-2 bg-glass/50 border-b border-glass-border">
+        <div className="rounded-[10px] border border-white/[0.06] overflow-hidden">
+          <div className="flex items-center justify-between px-4 py-2 bg-[rgba(12,12,22,0.5)] border-b border-white/[0.06]">
             <p className="text-xs font-semibold flex items-center gap-1.5">
               <CheckCircle2 className="h-3 w-3 text-neon" />
               Selected Comps ({selectedComps.length})
@@ -810,7 +810,7 @@ function CompsTab({ cf, selectedComps, onAddComp, onRemoveComp, onSkipTrace }: {
           <div className="overflow-x-auto">
             <table className="w-full text-[11px]">
               <thead>
-                <tr className="border-b border-glass-border bg-secondary/10">
+                <tr className="border-b border-white/[0.06] bg-white/[0.04]">
                   <th className="text-left px-3 py-2 font-medium text-muted-foreground">Address</th>
                   <th className="text-right px-3 py-2 font-medium text-muted-foreground">Beds</th>
                   <th className="text-right px-3 py-2 font-medium text-muted-foreground">Baths</th>
@@ -823,7 +823,7 @@ function CompsTab({ cf, selectedComps, onAddComp, onRemoveComp, onSkipTrace }: {
               </thead>
               <tbody>
                 {selectedComps.map((comp) => (
-                  <tr key={comp.apn} className="border-b border-glass-border/50 hover:bg-secondary/10">
+                  <tr key={comp.apn} className="border-b border-white/[0.06]/50 hover:bg-white/[0.04]">
                     <td className="px-3 py-2 max-w-[180px] truncate">{comp.streetAddress}</td>
                     <td className="px-3 py-2 text-right">{comp.beds ?? "—"}</td>
                     <td className="px-3 py-2 text-right">{comp.baths ?? "—"}</td>
@@ -847,7 +847,7 @@ function CompsTab({ cf, selectedComps, onAddComp, onRemoveComp, onSkipTrace }: {
       {/* Live ARV + ARV Adjustments + Profit Projection — 3-column */}
       <div className="grid grid-cols-3 gap-3">
         {/* Live ARV */}
-        <div className="rounded-lg border border-neon/20 bg-neon/5 p-3">
+        <div className="rounded-[10px] border border-cyan/15 bg-cyan/[0.04] p-3">
           <p className="text-[10px] font-semibold text-neon uppercase tracking-wider mb-2 flex items-center gap-1.5">
             <TrendingUp className="h-3 w-3" />
             Live ARV
@@ -872,7 +872,7 @@ function CompsTab({ cf, selectedComps, onAddComp, onRemoveComp, onSkipTrace }: {
                   </span>
                 </div>
               )}
-              <div className="pt-1.5 mt-1.5 border-t border-neon/20 flex justify-between">
+              <div className="pt-1.5 mt-1.5 border-t border-cyan/15 flex justify-between">
                 <span className="font-medium">ARV</span>
                 <span className="font-bold text-neon text-lg" style={{ textShadow: "0 0 10px rgba(0,255,136,0.4)" }}>
                   {formatCurrency(arv)}
@@ -885,7 +885,7 @@ function CompsTab({ cf, selectedComps, onAddComp, onRemoveComp, onSkipTrace }: {
         </div>
 
         {/* ARV Adjustments */}
-        <div className="rounded-lg border border-glass-border bg-secondary/10 p-3">
+        <div className="rounded-[10px] border border-white/[0.06] bg-white/[0.04] p-3">
           <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-2 flex items-center gap-1.5">
             <Scale className="h-3 w-3" />
             Adjustments
@@ -901,7 +901,7 @@ function CompsTab({ cf, selectedComps, onAddComp, onRemoveComp, onSkipTrace }: {
               <input
                 type="range" min={-15} max={5} step={5} value={conditionAdj}
                 onChange={(e) => setConditionAdj(Number(e.target.value))}
-                className="w-full h-1 accent-[#00ff88] bg-secondary rounded-full"
+                className="w-full h-1 accent-[#00ff88] bg-[rgba(18,18,32,0.6)] rounded-full"
               />
             </div>
             <div>
@@ -912,7 +912,7 @@ function CompsTab({ cf, selectedComps, onAddComp, onRemoveComp, onSkipTrace }: {
               <input
                 type="range" min={50} max={80} step={1} value={offerPct}
                 onChange={(e) => setOfferPct(Number(e.target.value))}
-                className="w-full h-1 accent-[#00ff88] bg-secondary rounded-full"
+                className="w-full h-1 accent-[#00ff88] bg-[rgba(18,18,32,0.6)] rounded-full"
               />
             </div>
             <div>
@@ -923,14 +923,14 @@ function CompsTab({ cf, selectedComps, onAddComp, onRemoveComp, onSkipTrace }: {
               <input
                 type="range" min={0} max={75000} step={2500} value={rehabEst}
                 onChange={(e) => setRehabEst(Number(e.target.value))}
-                className="w-full h-1 accent-[#00ff88] bg-secondary rounded-full"
+                className="w-full h-1 accent-[#00ff88] bg-[rgba(18,18,32,0.6)] rounded-full"
               />
             </div>
           </div>
         </div>
 
         {/* Profit Projection */}
-        <div className="rounded-lg border border-glass-border bg-secondary/10 p-3">
+        <div className="rounded-[10px] border border-white/[0.06] bg-white/[0.04] p-3">
           <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-2 flex items-center gap-1.5">
             <DollarSign className="h-3 w-3" />
             Profit Projection
@@ -956,7 +956,7 @@ function CompsTab({ cf, selectedComps, onAddComp, onRemoveComp, onSkipTrace }: {
               <span className="text-muted-foreground">Selling (8%)</span>
               <span className="font-medium text-red-400">-{formatCurrency(sellingCosts)}</span>
             </div>
-            <div className="pt-1.5 mt-1.5 border-t border-glass-border flex justify-between">
+            <div className="pt-1.5 mt-1.5 border-t border-white/[0.06] flex justify-between">
               <span className="font-semibold">Net Profit</span>
               <span className={cn("font-bold text-base", profit >= 0 ? "text-neon" : "text-red-400")} style={profit >= 0 ? { textShadow: "0 0 10px rgba(0,255,136,0.3)" } : {}}>
                 {formatCurrency(profit)}
@@ -1027,26 +1027,26 @@ function OfferCalcTab({ cf }: { cf: ClientFile }) {
 
       <Section title="Profit Projection" icon={TrendingUp}>
         <div className="grid grid-cols-2 gap-3">
-          <div className="rounded-lg border border-neon/30 bg-neon/5 p-3 text-center">
+          <div className="rounded-[10px] border border-cyan/20 bg-cyan/[0.04] p-3 text-center">
             <p className="text-[10px] text-muted-foreground uppercase">MAO (70% Rule)</p>
             <p className="text-xl font-bold text-neon" style={{ textShadow: "0 0 10px rgba(0,255,136,0.3)" }}>
               {mao > 0 ? formatCurrency(mao) : "—"}
             </p>
             <p className="text-[10px] text-muted-foreground mt-0.5">ARV × 0.70 − Rehab</p>
           </div>
-          <div className="rounded-lg border border-glass-border bg-secondary/10 p-3 text-center">
+          <div className="rounded-[10px] border border-white/[0.06] bg-white/[0.04] p-3 text-center">
             <p className="text-[10px] text-muted-foreground uppercase">Total Costs</p>
             <p className="text-xl font-bold">{totalCosts > 0 ? formatCurrency(totalCosts) : "—"}</p>
             <p className="text-[10px] text-muted-foreground mt-0.5">Purchase + Rehab + Hold + Close</p>
           </div>
-          <div className={cn("rounded-lg border p-3 text-center", grossProfit > 0 ? "border-emerald-500/30 bg-emerald-500/5" : "border-red-500/30 bg-red-500/5")}>
+          <div className={cn("rounded-[10px] border p-3 text-center", grossProfit > 0 ? "border-emerald-500/30 bg-emerald-500/5" : "border-red-500/30 bg-red-500/5")}>
             <p className="text-[10px] text-muted-foreground uppercase">Gross Profit</p>
             <p className={cn("text-xl font-bold", grossProfit > 0 ? "text-emerald-400" : "text-red-400")}>
               {arvNum > 0 && purchaseNum > 0 ? formatCurrency(grossProfit) : "—"}
             </p>
             <p className="text-[10px] text-muted-foreground mt-0.5">ROI: {roi}%</p>
           </div>
-          <div className={cn("rounded-lg border p-3 text-center", netProfit > 0 ? "border-neon/30 bg-neon/5" : "border-red-500/30 bg-red-500/5")}>
+          <div className={cn("rounded-[10px] border p-3 text-center", netProfit > 0 ? "border-cyan/20 bg-cyan/[0.04]" : "border-red-500/30 bg-red-500/5")}>
             <p className="text-[10px] text-muted-foreground uppercase">Net After Assignment</p>
             <p className={cn("text-xl font-bold", netProfit > 0 ? "text-neon" : "text-red-400")} style={netProfit > 0 ? { textShadow: "0 0 10px rgba(0,255,136,0.3)" } : undefined}>
               {arvNum > 0 && purchaseNum > 0 ? formatCurrency(netProfit) : "—"}
@@ -1129,7 +1129,7 @@ function DocumentsTab({ cf }: { cf: ClientFile }) {
     <div className="space-y-4">
       {/* PSA Preview */}
       <Section title="Purchase & Sale Agreement (RCW 61.40.010)" icon={FileText}>
-        <pre className="text-[11px] leading-relaxed text-foreground/80 bg-secondary/20 rounded-lg p-4 border border-glass-border overflow-auto max-h-64 whitespace-pre-wrap font-mono">
+        <pre className="text-[11px] leading-relaxed text-foreground/80 bg-white/[0.02] rounded-[10px] p-4 border border-white/[0.06] overflow-auto max-h-64 whitespace-pre-wrap font-mono">
           {psaBody}
         </pre>
       </Section>
@@ -1148,7 +1148,7 @@ function DocumentsTab({ cf }: { cf: ClientFile }) {
         </a>
       </div>
 
-      <div className="flex items-center gap-2 text-xs text-neon/70 bg-neon/5 border border-neon/20 rounded-md px-3 py-2">
+      <div className="flex items-center gap-2 text-xs text-neon/70 bg-cyan/[0.04] border border-cyan/15 rounded-md px-3 py-2">
         <Shield className="h-3.5 w-3.5 shrink-0" />
         RCW 61.40.010 compliant — wholesaler disclosure included in all documents.
       </div>
@@ -1254,9 +1254,9 @@ export function MasterClientFileModal({ clientFile, open, onClose, onClaim, onRe
             transition={{ type: "spring", damping: 25, stiffness: 300 }}
             className={cn("fixed inset-x-4 top-[2%] bottom-[2%] md:inset-x-auto md:left-1/2 md:-translate-x-1/2 z-50 flex flex-col transition-all duration-300", activeTab === "comps" ? "md:w-[1060px]" : "md:w-[860px]")}
           >
-            <div className="flex-1 overflow-hidden rounded-xl border border-glass-border bg-glass backdrop-blur-xl shadow-2xl holo-border flex flex-col">
+            <div className="flex-1 overflow-hidden rounded-[14px] border border-white/[0.06] bg-[rgba(12,12,22,0.4)] backdrop-blur-xl shadow-2xl holo-border flex flex-col">
               {/* Header */}
-              <div className="shrink-0 flex items-center justify-between px-6 py-4 border-b border-glass-border bg-glass/90 backdrop-blur-xl rounded-t-xl">
+              <div className="shrink-0 flex items-center justify-between px-6 py-4 border-b border-white/[0.06] bg-[rgba(12,12,22,0.85)] backdrop-blur-xl rounded-t-xl">
                 <div className="flex items-center gap-3 min-w-0">
                   <div className={cn("flex items-center gap-1.5 px-2.5 py-1 rounded-md border text-xs font-bold", lbl.bg, lbl.color)}>
                     <Zap className="h-3 w-3" />{clientFile.compositeScore} {lbl.text}
@@ -1268,28 +1268,28 @@ export function MasterClientFileModal({ clientFile, open, onClose, onClaim, onRe
                 </div>
                 <div className="flex items-center gap-2 shrink-0">
                   {clientFile.enriched && (
-                    <Badge variant="outline" className="text-[9px] gap-1 text-neon border-neon/30">
+                    <Badge variant="outline" className="text-[9px] gap-1 text-neon border-cyan/20">
                       <CheckCircle2 className="h-2.5 w-2.5" />Enriched
                     </Badge>
                   )}
                   <Badge variant="outline" className="text-[9px] capitalize">{clientFile.status.replace(/_/g, " ")}</Badge>
-                  <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-secondary/40 transition-colors text-muted-foreground hover:text-foreground">
+                  <button onClick={onClose} className="p-1.5 rounded-[10px] hover:bg-white/[0.04] transition-colors text-muted-foreground hover:text-foreground">
                     <X className="h-4 w-4" />
                   </button>
                 </div>
               </div>
 
               {/* Tabs */}
-              <div className="shrink-0 flex items-center gap-1 px-4 py-2 border-b border-glass-border bg-glass/50 overflow-x-auto scrollbar-none">
+              <div className="shrink-0 flex items-center gap-1 px-4 py-2 border-b border-white/[0.06] bg-[rgba(12,12,22,0.5)] overflow-x-auto scrollbar-none">
                 {TABS.map((tab) => (
                   <button
                     key={tab.id}
                     onClick={() => setActiveTab(tab.id)}
                     className={cn(
-                      "flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-medium transition-all whitespace-nowrap",
+                      "flex items-center gap-1.5 px-3 py-1.5 rounded-[10px] text-[11px] font-medium transition-all whitespace-nowrap",
                       activeTab === tab.id
-                        ? "text-neon bg-neon/10 border border-neon/30 shadow-[0_0_8px_rgba(0,255,136,0.1)]"
-                        : "text-muted-foreground hover:text-foreground border border-transparent hover:border-glass-border"
+                        ? "text-neon bg-cyan/[0.08] border border-cyan/20 shadow-[0_0_8px_rgba(0,255,136,0.1)]"
+                        : "text-muted-foreground hover:text-foreground border border-transparent hover:border-white/[0.06]"
                     )}
                   >
                     <tab.icon className="h-3 w-3" />{tab.label}
@@ -1323,7 +1323,7 @@ export function MasterClientFileModal({ clientFile, open, onClose, onClaim, onRe
               </div>
 
               {/* Footer */}
-              <div className="shrink-0 flex items-center gap-3 px-6 py-3 border-t border-glass-border bg-glass/90 backdrop-blur-xl rounded-b-xl">
+              <div className="shrink-0 flex items-center gap-3 px-6 py-3 border-t border-white/[0.06] bg-[rgba(12,12,22,0.85)] backdrop-blur-xl rounded-b-xl">
                 {onClaim && (
                   <Button size="sm" className="gap-2" onClick={() => onClaim(clientFile.id)}>
                     <CheckCircle2 className="h-3.5 w-3.5" />Claim Lead

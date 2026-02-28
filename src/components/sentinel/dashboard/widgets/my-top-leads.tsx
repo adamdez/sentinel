@@ -72,10 +72,10 @@ export function MyTopLeads() {
           animate={{ opacity: 1, x: 0 }}
           transition={{ delay: i * 0.08 }}
           className={cn(
-            "flex items-center gap-3 p-2.5 rounded-lg transition-all group",
+            "flex items-center gap-3 p-2.5 rounded-[10px] transition-all group",
             lead.isOverdue
               ? "bg-destructive/5 border border-destructive/15 hover:bg-destructive/10"
-              : "bg-secondary/20 hover:bg-secondary/30"
+              : "bg-white/[0.02] hover:bg-white/[0.03]"
           )}
           style={lead.isOverdue ? {
             boxShadow: "inset 0 0 15px rgba(255,68,68,0.04), 0 0 6px rgba(255,68,68,0.06)",

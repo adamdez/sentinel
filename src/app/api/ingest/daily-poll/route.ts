@@ -30,9 +30,9 @@ export async function GET(req: Request) {
 
   const counties = ["Spokane", "Kootenai"];
   const baseUrl = process.env.NEXT_PUBLIC_SITE_URL
-    ?? process.env.VERCEL_URL
+    ?? (process.env.VERCEL_URL
       ? `https://${process.env.VERCEL_URL}`
-      : "http://localhost:3000";
+      : "http://localhost:3000");
 
   let result: Record<string, unknown> = {};
   let success = false;

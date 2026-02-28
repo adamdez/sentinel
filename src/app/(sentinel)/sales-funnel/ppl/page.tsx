@@ -50,10 +50,10 @@ export default function PPLPage() {
           <DollarSign className="h-4 w-4 text-neon" />
           Lead Sources
         </h2>
-        <div className="overflow-hidden rounded-lg border border-glass-border">
+        <div className="overflow-hidden rounded-[10px] border border-white/[0.06]">
           <table className="w-full">
             <thead>
-              <tr className="border-b border-glass-border bg-secondary/20">
+              <tr className="border-b border-white/[0.06] bg-white/[0.02]">
                 <th className="text-left p-3 text-xs font-medium text-muted-foreground">Source</th>
                 <th className="text-right p-3 text-xs font-medium text-muted-foreground">Leads</th>
                 <th className="text-right p-3 text-xs font-medium text-muted-foreground">Cost</th>
@@ -63,7 +63,7 @@ export default function PPLPage() {
             </thead>
             <tbody>
               {pplSources.map((s) => (
-                <tr key={s.name} className="border-b border-glass-border hover:bg-secondary/10 transition-colors">
+                <tr key={s.name} className="border-b border-white/[0.06] hover:bg-white/[0.04] transition-colors">
                   <td className="p-3 text-sm font-medium">{s.name}</td>
                   <td className="p-3 text-sm text-right">{s.leads}</td>
                   <td className="p-3 text-sm text-right">{s.cost}</td>

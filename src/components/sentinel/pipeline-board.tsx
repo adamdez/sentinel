@@ -92,7 +92,7 @@ function SortableCard({ item }: { item: PipelineItem }) {
       ref={setNodeRef}
       style={style}
       className={cn(
-        "group rounded-xl border border-glass-border bg-glass backdrop-blur-xl p-4 transition-all duration-200",
+        "group rounded-[14px] border border-white/[0.06] bg-[rgba(12,12,22,0.4)] backdrop-blur-xl p-4 transition-all duration-200",
         isDragging && "opacity-50 shadow-2xl neon-glow",
         item.score.label === "fire" && "neon-glow animate-neon-pulse"
       )}
@@ -146,7 +146,7 @@ function PipelineColumn({ title, items, count, color }: PipelineColumnProps) {
       <div className="flex items-center gap-2 mb-3 px-1">
         <div className={cn("h-2 w-2 rounded-full", color)} />
         <h3 className="text-sm font-semibold">{title}</h3>
-        <span className="text-xs text-muted-foreground bg-secondary/50 px-1.5 py-0.5 rounded-full">
+        <span className="text-xs text-muted-foreground bg-white/[0.05] px-1.5 py-0.5 rounded-full">
           {count}
         </span>
       </div>

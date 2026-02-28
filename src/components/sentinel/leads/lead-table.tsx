@@ -125,7 +125,7 @@ function PriorityBar({ value }: { value: number }) {
     <Tooltip>
       <TooltipTrigger asChild>
         <div className="flex items-center gap-2 cursor-default">
-          <div className="w-16 h-1.5 rounded-full bg-secondary overflow-hidden">
+          <div className="w-16 h-1.5 rounded-full bg-white/[0.06] overflow-hidden">
             <motion.div
               initial={{ width: 0 }}
               animate={{ width: `${pct}%` }}
@@ -163,7 +163,7 @@ export function LeadTable({
 }: LeadTableProps) {
   if (leads.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center py-16 text-center rounded-xl border border-glass-border bg-glass/30">
+      <div className="flex flex-col items-center justify-center py-16 text-center rounded-[14px] border border-white/[0.06] bg-[rgba(12,12,22,0.3)]">
         <AlertTriangle className="h-8 w-8 text-muted-foreground mb-3" />
         <p className="text-sm text-muted-foreground">
           No leads match your current filters.
@@ -173,9 +173,8 @@ export function LeadTable({
   }
 
   return (
-    <div className="rounded-xl border border-glass-border bg-glass/30 overflow-hidden">
-      {/* Header */}
-      <div className="grid grid-cols-[90px_1fr_100px_80px_minmax(120px,1fr)_100px_100px_40px] gap-3 px-4 py-2.5 border-b border-glass-border bg-glass/50">
+    <div className="rounded-[14px] border border-white/[0.06] bg-[rgba(12,12,22,0.3)] overflow-hidden">
+      <div className="grid grid-cols-[90px_1fr_100px_80px_minmax(120px,1fr)_100px_100px_40px] gap-3 px-4 py-2.5 border-b border-white/[0.05] bg-[rgba(12,12,22,0.5)]">
         <SortHeader label="APN" field="address" currentField={sortField} currentDir={sortDir} onSort={onSort} />
         <SortHeader label="Address / Owner" field="owner" currentField={sortField} currentDir={sortDir} onSort={onSort} />
         <SortHeader label="Heat" field="score" currentField={sortField} currentDir={sortDir} onSort={onSort} />
@@ -199,7 +198,7 @@ export function LeadTable({
             transition={{ duration: 0.15, delay: i * 0.02 }}
             onClick={() => onSelect(lead.id)}
             className={cn(
-              "grid grid-cols-[90px_1fr_100px_80px_minmax(120px,1fr)_100px_100px_40px] gap-3 px-4 py-3 border-b border-glass-border/50 cursor-pointer transition-all hover:bg-white/[0.03]",
+              "grid grid-cols-[90px_1fr_100px_80px_minmax(120px,1fr)_100px_100px_40px] gap-3 px-4 py-3 border-b border-white/[0.03] cursor-pointer transition-all hover:bg-white/[0.03]",
               lead.score.label === "fire" && "bg-orange-500/[0.03] hover:bg-orange-500/[0.06]",
               !lead.complianceClean && "opacity-60"
             )}
@@ -229,7 +228,7 @@ export function LeadTable({
                   {lead.ownerName}
                 </span>
                 {isMine && (
-                  <span className="text-[9px] px-1.5 py-0 rounded bg-neon/10 text-neon border border-neon/20">
+                  <span className="text-[9px] px-1.5 py-0 rounded-[4px] bg-cyan/[0.08] text-neon border border-cyan/15">
                     You
                   </span>
                 )}
@@ -257,7 +256,7 @@ export function LeadTable({
                 <span
                   className={cn(
                     "text-[10px] px-1.5 py-0.5 rounded border",
-                    OWNER_BADGE_MAP[lead.ownerBadge]?.color ?? "text-muted-foreground border-glass-border"
+                    OWNER_BADGE_MAP[lead.ownerBadge]?.color ?? "text-muted-foreground border-white/[0.06]"
                   )}
                 >
                   {OWNER_BADGE_MAP[lead.ownerBadge]?.label ?? lead.ownerBadge}
@@ -274,7 +273,7 @@ export function LeadTable({
                   key={d}
                   className={cn(
                     "text-[10px] px-1.5 py-0.5 rounded border",
-                    DISTRESS_COLORS[d] ?? "border-glass-border text-muted-foreground"
+                    DISTRESS_COLORS[d] ?? "border-white/[0.06] text-muted-foreground"
                   )}
                 >
                   {DISTRESS_LABELS[d]}

@@ -125,8 +125,8 @@ export function QuickDial() {
 
   return (
     <div className="space-y-3">
-      <div className="flex items-center gap-2.5 p-2.5 rounded-lg bg-secondary/20">
-        <div className="h-8 w-8 rounded-full bg-secondary flex items-center justify-center shrink-0">
+      <div className="flex items-center gap-2.5 p-2.5 rounded-[10px] bg-white/[0.02]">
+        <div className="h-8 w-8 rounded-full bg-[rgba(18,18,32,0.6)] flex items-center justify-center shrink-0">
           <User className="h-4 w-4 text-muted-foreground" />
         </div>
         <div className="min-w-0">

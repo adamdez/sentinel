@@ -150,7 +150,7 @@ export function BreakingLeadsTicker() {
                     "flex items-center gap-2.5 p-2 rounded-md text-xs transition-all relative",
                     isFire
                       ? "bg-orange-500/5 border border-orange-500/10"
-                      : "bg-secondary/20"
+                      : "bg-white/[0.02]"
                   )}
                   style={isFire ? {
                     boxShadow: "inset 0 0 20px rgba(255,107,53,0.04), 0 0 8px rgba(255,107,53,0.08)",

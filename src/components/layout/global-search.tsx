@@ -60,7 +60,7 @@ const KIND_ICONS: Record<string, LucideIcon> = {
 };
 
 const KIND_COLORS: Record<string, string> = {
-  prospect: "bg-neon/10 border-neon/20 text-neon",
+  prospect: "bg-cyan/[0.08] border-cyan/15 text-neon",
   lead: "bg-blue-500/10 border-blue-500/20 text-blue-400",
   contact: "bg-purple-500/10 border-purple-500/20 text-purple-400",
 };
@@ -230,13 +230,13 @@ export function GlobalSearch() {
     <div ref={containerRef} className="relative">
       <div
         className={cn(
-          "flex items-center gap-2 h-9 px-3 rounded-lg border text-sm transition-all duration-200 min-w-[320px]",
+          "flex items-center gap-2 h-9 px-3 rounded-[12px] border text-sm transition-all duration-200 min-w-[320px]",
           focused
-            ? "bg-secondary/80 border-neon/30 shadow-[0_0_12px_rgba(0,255,136,0.08)]"
-            : "bg-secondary/50 border-glass-border hover:bg-secondary/70"
+            ? "bg-white/[0.04] border-cyan/20 shadow-[0_0_15px_rgba(0,229,255,0.06)]"
+            : "bg-white/[0.02] border-white/[0.06] hover:bg-white/[0.04]"
         )}
       >
-        <Search className={cn("h-3.5 w-3.5 shrink-0 transition-colors", focused ? "text-neon" : "text-muted-foreground")} />
+        <Search className={cn("h-3.5 w-3.5 shrink-0 transition-colors", focused ? "text-cyan" : "text-muted-foreground/60")} />
         <input
           ref={inputRef}
           type="text"
@@ -255,7 +255,7 @@ export function GlobalSearch() {
             <X className="h-3.5 w-3.5" />
           </button>
         ) : (
-          <kbd className="text-[10px] bg-background/50 px-1.5 py-0.5 rounded border border-glass-border font-mono text-muted-foreground">
+          <kbd className="text-[10px] bg-white/[0.03] px-1.5 py-0.5 rounded-[6px] border border-white/[0.06] font-mono text-muted-foreground/50">
             Ctrl+K
           </kbd>
         )}
@@ -269,7 +269,7 @@ export function GlobalSearch() {
             exit={{ opacity: 0, y: -4, scaleY: 0.96 }}
             transition={{ duration: 0.12 }}
             style={{ transformOrigin: "top" }}
-            className="absolute top-full left-0 right-0 mt-1.5 z-50 rounded-xl glass-strong border border-glass-border shadow-2xl overflow-hidden min-w-[400px]"
+            className="absolute top-full left-0 right-0 mt-1.5 z-50 rounded-[14px] bg-[rgba(10,10,18,0.88)] backdrop-blur-[40px] border border-white/[0.08] shadow-[0_20px_60px_rgba(0,0,0,0.5),0_0_30px_rgba(0,229,255,0.03)] overflow-hidden min-w-[400px]"
           >
             {searching ? (
               <div className="px-4 py-6 text-center text-sm text-muted-foreground">
@@ -301,7 +301,7 @@ export function GlobalSearch() {
                       <div
                         className={cn(
                           "h-7 w-7 rounded-md flex items-center justify-center shrink-0 border",
-                          KIND_COLORS[rec.kind] ?? "bg-secondary/40 border-glass-border text-muted-foreground"
+                          KIND_COLORS[rec.kind] ?? "bg-white/[0.04] border-white/[0.06] text-muted-foreground"
                         )}
                       >
                         <Icon className="h-3.5 w-3.5" />
@@ -337,7 +337,7 @@ export function GlobalSearch() {
                       )}
 
                       {rec.status && (
-                        <span className="text-[9px] px-1.5 py-0.5 rounded bg-secondary/40 text-muted-foreground border border-glass-border shrink-0">
+                        <span className="text-[9px] px-1.5 py-0.5 rounded bg-white/[0.04] text-muted-foreground border border-white/[0.06] shrink-0">
                           {STATUS_LABELS[rec.status] ?? rec.status}
                         </span>
                       )}
@@ -354,17 +354,17 @@ export function GlobalSearch() {
               </div>
             )}
 
-            <div className="border-t border-glass-border/50 px-3 py-1.5 flex items-center gap-4 text-[10px] text-muted-foreground/60">
+            <div className="border-t border-white/[0.04] px-3 py-1.5 flex items-center gap-4 text-[10px] text-muted-foreground/40">
               <span>
-                <kbd className="font-mono bg-background/40 px-1 py-0.5 rounded border border-glass-border/50">↑↓</kbd> Navigate
+                <kbd className="font-mono bg-white/[0.03] px-1 py-0.5 rounded-[4px] border border-white/[0.06]">↑↓</kbd> Navigate
               </span>
               <span>
-                <kbd className="font-mono bg-background/40 px-1 py-0.5 rounded border border-glass-border/50">↵</kbd> Open
+                <kbd className="font-mono bg-white/[0.03] px-1 py-0.5 rounded-[4px] border border-white/[0.06]">↵</kbd> Open
               </span>
               <span>
-                <kbd className="font-mono bg-background/40 px-1 py-0.5 rounded border border-glass-border/50">Esc</kbd> Close
+                <kbd className="font-mono bg-white/[0.03] px-1 py-0.5 rounded-[4px] border border-white/[0.06]">Esc</kbd> Close
               </span>
-              <span className="ml-auto text-neon/40">
+              <span className="ml-auto text-cyan/30">
                 {results.length} result{results.length !== 1 ? "s" : ""}
               </span>
             </div>
@@ -391,7 +391,7 @@ function HighlightMatch({ text, query }: { text: string; query: string }) {
   return (
     <>
       {before}
-      <span className="text-neon font-bold">{match}</span>
+      <span className="text-cyan font-bold">{match}</span>
       {after}
     </>
   );

@@ -481,8 +481,8 @@ export function NewProspectModal() {
                           className={cn(
                             "cursor-pointer transition-colors",
                             active
-                              ? "bg-neon/20 text-neon border-neon/40"
-                              : "hover:bg-neon/10 hover:border-neon/30 hover:text-neon"
+                              ? "bg-cyan/[0.08] text-neon border-cyan/20"
+                              : "hover:bg-cyan/[0.08] hover:border-cyan/20 hover:text-neon"
                           )}
                         >
                           {active && <Check className="h-2.5 w-2.5 mr-1" />}
@@ -506,10 +506,10 @@ export function NewProspectModal() {
                       type="button"
                       onClick={() => setAssignTo(member.id)}
                       className={cn(
-                        "text-xs px-3 py-1.5 rounded-lg border transition-all flex items-center gap-1.5",
+                        "text-xs px-3 py-1.5 rounded-[10px] border transition-all flex items-center gap-1.5",
                         assignTo === member.id
-                          ? "text-neon border-neon/40 bg-neon/10"
-                          : "text-muted-foreground border-glass-border hover:border-white/20 hover:text-foreground"
+                          ? "text-neon border-cyan/20 bg-cyan/[0.08]"
+                          : "text-muted-foreground border-white/[0.06] hover:border-white/20 hover:text-foreground"
                       )}
                     >
                       <Users className="h-3 w-3" />
@@ -531,7 +531,7 @@ export function NewProspectModal() {
               </Field>
 
               {/* ── Footer buttons ────────────────────────── */}
-              <div className="flex items-center justify-between pt-2 border-t border-glass-border">
+              <div className="flex items-center justify-between pt-2 border-t border-white/[0.06]">
                 <Button variant="outline" onClick={handleClose} className="gap-2">
                   <X className="h-3.5 w-3.5" />
                   Cancel
@@ -559,7 +559,7 @@ export function NewProspectModal() {
               className="py-6 space-y-5"
             >
               <div className="flex flex-col items-center text-center space-y-3">
-                <div className="h-14 w-14 rounded-2xl bg-neon/10 flex items-center justify-center border border-neon/20">
+                <div className="h-14 w-14 rounded-2xl bg-cyan/[0.08] flex items-center justify-center border border-cyan/15">
                   <Check className="h-7 w-7 text-neon" />
                 </div>
                 <div>

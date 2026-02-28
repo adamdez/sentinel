@@ -47,7 +47,7 @@ export function LeadSegmentControl({
   }
 
   return (
-    <div className="flex items-center gap-1 p-1 rounded-lg bg-secondary/40 border border-glass-border w-fit">
+    <div className="flex items-center gap-1 p-1 rounded-[14px] bg-white/[0.02] border border-white/[0.06] w-fit backdrop-blur-xl">
       {tabs.map((tab) => {
         const active = value === tab.id;
         return (
@@ -55,7 +55,7 @@ export function LeadSegmentControl({
             key={tab.id}
             onClick={() => onChange(tab.id)}
             className={cn(
-              "relative flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md transition-colors",
+              "relative flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-[10px] transition-all duration-200",
               active
                 ? "text-foreground"
                 : "text-muted-foreground hover:text-foreground/80"
@@ -64,7 +64,7 @@ export function LeadSegmentControl({
             {active && (
               <motion.div
                 layoutId="lead-segment-pill"
-                className="absolute inset-0 rounded-md bg-glass border border-glass-border shadow-sm"
+                className="absolute inset-0 rounded-[10px] bg-cyan/[0.08] border border-cyan/15 shadow-[0_0_10px_rgba(0,229,255,0.06)]"
                 transition={{ type: "spring", bounce: 0.15, duration: 0.4 }}
               />
             )}
@@ -75,8 +75,8 @@ export function LeadSegmentControl({
                 className={cn(
                   "text-[10px] px-1.5 py-0 rounded-full",
                   active
-                    ? "bg-neon/15 text-neon"
-                    : "bg-secondary text-muted-foreground"
+                    ? "bg-cyan/12 text-cyan"
+                    : "bg-white/[0.03] text-muted-foreground"
                 )}
               >
                 {tab.count}

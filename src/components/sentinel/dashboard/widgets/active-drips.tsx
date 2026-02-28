@@ -43,7 +43,7 @@ export function ActiveDrips() {
     return (
       <div className="space-y-2">
         {Array.from({ length: 3 }).map((_, i) => (
-          <Skeleton key={i} className="h-14 w-full rounded-lg" />
+          <Skeleton key={i} className="h-14 w-full rounded-[10px]" />
         ))}
       </div>
     );
@@ -59,7 +59,7 @@ export function ActiveDrips() {
           initial={{ opacity: 0, y: 4 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: i * 0.06 }}
-          className="p-2 rounded-lg bg-secondary/20 space-y-1.5 transition-all hover:bg-secondary/25"
+          className="p-2 rounded-[10px] bg-white/[0.02] space-y-1.5 transition-all hover:bg-white/[0.06]"
           style={drip.status === "active" ? { boxShadow: "inset 0 0 15px rgba(0,255,136,0.02)" } : {}}
         >
           <div className="flex items-center justify-between">

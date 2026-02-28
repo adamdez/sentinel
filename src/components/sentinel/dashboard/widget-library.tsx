@@ -57,7 +57,7 @@ export function WidgetLibrary({
       <DialogContent className="sm:max-w-[560px]">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <Plus className="h-5 w-5 text-neon" />
+            <Plus className="h-5 w-5 text-cyan" style={{ filter: "drop-shadow(0 0 6px rgba(0,229,255,0.4))" }} />
             Widget Library
           </DialogTitle>
           <DialogDescription>
@@ -87,26 +87,26 @@ export function WidgetLibrary({
                       key={widget.id}
                       whileHover={!isDisabled ? { x: 2 } : undefined}
                       className={cn(
-                        "flex items-center gap-3 p-3 rounded-lg border transition-all",
+                        "flex items-center gap-3 p-3 rounded-[12px] border transition-all",
                         isActive
-                          ? "border-neon/20 bg-neon/5"
+                          ? "border-cyan/15 bg-cyan/[0.04]"
                           : isDisabled
-                            ? "border-glass-border bg-glass/30 opacity-50"
-                            : "border-glass-border bg-glass hover:border-neon/10 cursor-pointer"
+                            ? "border-white/[0.04] bg-white/[0.02] opacity-50"
+                            : "border-white/[0.06] bg-white/[0.02] hover:border-cyan/10 cursor-pointer"
                       )}
                     >
                       <div className={cn(
-                        "p-1.5 rounded-md",
-                        isActive ? "bg-neon/10" : "bg-secondary/50"
+                        "p-1.5 rounded-[8px]",
+                        isActive ? "bg-cyan/[0.08]" : "bg-white/[0.03]"
                       )}>
-                        <Icon className={cn("h-4 w-4", isActive ? "text-neon" : "text-muted-foreground")} />
+                        <Icon className={cn("h-4 w-4", isActive ? "text-cyan" : "text-muted-foreground")} />
                       </div>
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-medium">{widget.label}</p>
                         <p className="text-[10px] text-muted-foreground truncate">{widget.description}</p>
                       </div>
                       {isActive ? (
-                        <Badge variant="neon" className="text-[9px] gap-1">
+                        <Badge variant="cyan" className="text-[9px] gap-1">
                           <Check className="h-2.5 w-2.5" /> Active
                         </Badge>
                       ) : isDisabled ? (

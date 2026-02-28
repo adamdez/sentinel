@@ -52,10 +52,10 @@ export default function TeamCalendarPage() {
               {hours.map((h) => (
                 <div
                   key={h}
-                  className="h-16 border-t border-glass-border hover:bg-secondary/20 transition-colors rounded-sm relative"
+                  className="h-16 border-t border-white/[0.06] hover:bg-white/[0.02] transition-colors rounded-sm relative"
                 >
                   {h === 10 && member === "Adam D." && (
-                    <div className="absolute inset-1 rounded bg-neon/10 border border-neon/20 p-1">
+                    <div className="absolute inset-1 rounded bg-cyan/[0.08] border border-cyan/15 p-1">
                       <p className="text-[9px] font-medium text-neon">Follow-up Calls</p>
                       <p className="text-[8px] text-muted-foreground">10 - 11 AM</p>
                     </div>

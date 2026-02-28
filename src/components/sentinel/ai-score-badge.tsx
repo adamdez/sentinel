@@ -32,7 +32,7 @@ function ScoreBar({ label, value, max = 100 }: { label: string; value: number; m
         <span className="text-muted-foreground">{label}</span>
         <span className="text-foreground font-medium">{value}</span>
       </div>
-      <div className="h-1 rounded-full bg-secondary overflow-hidden">
+      <div className="h-1 rounded-full bg-white/[0.06] overflow-hidden">
         <motion.div
           initial={{ width: 0 }}
           animate={{ width: `${pct}%` }}
@@ -76,7 +76,7 @@ export function AIScoreBadge({ score, size = "md" }: AIScoreBadgeProps) {
             <span className="opacity-75 text-[10px]">{config.text}</span>
           </Badge>
           {score.aiBoost > 0 && (
-            <span className="text-[9px] font-medium text-neon bg-neon/10 px-1 py-0.5 rounded border border-neon/20">
+            <span className="text-[9px] font-medium text-neon bg-cyan/[0.08] px-1 py-0.5 rounded-[4px] border border-cyan/15">
               AI +{score.aiBoost}
             </span>
           )}
@@ -97,7 +97,7 @@ export function AIScoreBadge({ score, size = "md" }: AIScoreBadgeProps) {
             <ScoreBar label="Historical Conv." value={score.historicalConversion} />
           </div>
           {score.aiBoost > 0 && (
-            <div className="flex items-center gap-1 pt-1 border-t border-glass-border">
+            <div className="flex items-center gap-1 pt-1 border-t border-white/[0.06]">
               <Sparkles className="h-3 w-3 text-neon" />
               <span className="text-[10px] text-neon font-medium">
                 AI Boost: +{score.aiBoost} from predictive model

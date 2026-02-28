@@ -167,7 +167,7 @@ export function FunnelValue() {
               <span className="font-semibold text-foreground">{formatValue(stage.value)}</span>
             </div>
           </div>
-          <div className="h-2 rounded-full bg-secondary/30 overflow-hidden">
+          <div className="h-2 rounded-full bg-white/[0.03] overflow-hidden">
             <motion.div
               initial={{ width: 0 }}
               animate={{ width: `${stage.pct}%` }}
@@ -178,7 +178,7 @@ export function FunnelValue() {
           </div>
         </motion.div>
       ))}
-      <div className="flex items-center justify-between pt-1 border-t border-glass-border text-xs">
+      <div className="flex items-center justify-between pt-1 border-t border-white/[0.06] text-xs">
         <span className="text-muted-foreground">Total Pipeline</span>
         <motion.span
           className="font-bold text-neon"

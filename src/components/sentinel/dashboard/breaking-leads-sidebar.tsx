@@ -19,9 +19,9 @@ interface TickerItem {
 }
 
 const SOURCE_CONFIG: Record<string, { label: string; color: string }> = {
-  ranger_push: { label: "RANGER", color: "text-purple-400 bg-purple-500/10 border-purple-500/20" },
-  propertyradar: { label: "PROPRADAR", color: "text-emerald-400 bg-emerald-500/10 border-emerald-500/20" },
-  manual: { label: "MANUAL", color: "text-sky-400 bg-sky-500/10 border-sky-500/20" },
+  ranger_push: { label: "RANGER", color: "text-purple bg-purple/[0.08] border-purple/15" },
+  propertyradar: { label: "PROPRADAR", color: "text-emerald-400 bg-emerald-500/[0.08] border-emerald-500/15" },
+  manual: { label: "MANUAL", color: "text-cyan bg-cyan/[0.08] border-cyan/15" },
 };
 
 function timeAgo(dateStr: string): string {
@@ -49,20 +49,20 @@ function TickerRow({ item, index }: { item: TickerItem; index: number }) {
       exit={{ opacity: 0, x: -12 }}
       transition={{ delay: index * 0.04, duration: 0.2 }}
       className={cn(
-        "flex flex-col gap-1.5 p-2.5 rounded-lg text-xs transition-all relative cursor-pointer hover:brightness-110",
+        "flex flex-col gap-1.5 p-2.5 rounded-[10px] text-xs transition-all relative cursor-pointer",
         isFire
-          ? "bg-orange-500/5 border border-orange-500/10"
-          : "bg-secondary/20 border border-transparent hover:border-glass-border"
+          ? "bg-orange-500/[0.04] border border-orange-500/[0.1]"
+          : "bg-white/[0.02] border border-transparent hover:border-white/[0.06]"
       )}
       style={isFire ? {
-        boxShadow: "inset 0 0 20px rgba(255,107,53,0.04), 0 0 8px rgba(255,107,53,0.08)",
+        boxShadow: "inset 0 0 20px rgba(255,107,53,0.03), 0 0 10px rgba(255,107,53,0.06)",
       } : {}}
     >
       {isFire && (
         <motion.div
-          className="absolute inset-0 rounded-lg pointer-events-none"
+          className="absolute inset-0 rounded-[10px] pointer-events-none"
           style={{
-            background: "linear-gradient(90deg, transparent 0%, rgba(255,107,53,0.04) 50%, transparent 100%)",
+            background: "linear-gradient(90deg, transparent 0%, rgba(255,107,53,0.03) 50%, transparent 100%)",
             backgroundSize: "200% 100%",
           }}
           animate={{ backgroundPosition: ["0% 0%", "200% 0%"] }}
@@ -72,16 +72,10 @@ function TickerRow({ item, index }: { item: TickerItem; index: number }) {
 
       <div className="flex items-center gap-2 relative">
         <Zap
-          className={cn("h-3 w-3 shrink-0", isFire ? "text-orange-400" : "text-neon")}
-          style={isFire ? { filter: "drop-shadow(0 0 3px rgba(255,107,53,0.5))" } : { filter: "drop-shadow(0 0 3px rgba(0,255,136,0.4))" }}
+          className={cn("h-3 w-3 shrink-0", isFire ? "text-orange-400" : "text-cyan")}
+          style={isFire ? { filter: "drop-shadow(0 0 4px rgba(255,107,53,0.5))" } : { filter: "drop-shadow(0 0 4px rgba(0,229,255,0.4))" }}
         />
-        <span
-          className="font-semibold truncate flex-1 text-foreground"
-          style={{
-            textShadow: "0 0 8px rgba(0,255,136,0.15), 0 0 16px rgba(0,255,136,0.06)",
-            WebkitFontSmoothing: "antialiased",
-          }}
-        >
+        <span className="font-semibold truncate flex-1 text-foreground">
           {item.name}
         </span>
         <Badge variant={isFire ? "fire" : "hot"} className="text-[8px] gap-0.5 shrink-0">
@@ -90,14 +84,14 @@ function TickerRow({ item, index }: { item: TickerItem; index: number }) {
       </div>
 
       <div className="flex items-center gap-1.5 pl-5 relative">
-        <span className="text-[10px] text-muted-foreground truncate">{item.type}</span>
+        <span className="text-[10px] text-muted-foreground/60 truncate">{item.type}</span>
         <span className="flex-1" />
         {src && (
-          <span className={cn("text-[7px] px-1 py-0 rounded border font-semibold shrink-0", src.color)}>
+          <span className={cn("text-[7px] px-1 py-0 rounded-[4px] border font-semibold shrink-0", src.color)}>
             {src.label}
           </span>
         )}
-        <span className="text-[9px] text-muted-foreground shrink-0">{item.time}</span>
+        <span className="text-[9px] text-muted-foreground/50 shrink-0">{item.time}</span>
       </div>
     </motion.div>
   );
@@ -109,7 +103,6 @@ export function BreakingLeadsSidebar() {
   const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
 
   const fetchRecent = useCallback(async () => {
-    // Fetch recent prospects (score >= 40) ordered by creation
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { data: leads } = await (supabase.from("leads") as any)
       .select("id, property_id, priority, source, tags, created_at")
@@ -123,7 +116,6 @@ export function BreakingLeadsSidebar() {
       return;
     }
 
-    // Fetch properties
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const propIds = [...new Set((leads as any[]).map((l: any) => l.property_id).filter(Boolean))];
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -188,29 +180,32 @@ export function BreakingLeadsSidebar() {
   return (
     <div className="hidden lg:flex w-[300px] shrink-0 flex-col">
       <div
-        className="rounded-xl border border-glass-border bg-glass backdrop-blur-xl overflow-hidden holo-border"
-        style={{ transformStyle: "preserve-3d" }}
+        className="rounded-[14px] border border-white/[0.07] bg-[rgba(12,12,22,0.45)] backdrop-blur-[24px] overflow-hidden holo-border"
+        style={{
+          transformStyle: "preserve-3d",
+          boxShadow: "0 12px 40px rgba(0,0,0,0.45), inset 0 1px 0 rgba(255,255,255,0.05)",
+        }}
       >
-        <div className="flex items-center justify-between px-4 pt-3 pb-2 border-b border-glass-border/50">
+        <div className="flex items-center justify-between px-4 pt-3 pb-2 border-b border-white/[0.04]">
           <div className="flex items-center gap-2">
             <span className="relative flex h-2 w-2">
               <span className={cn(
-                "absolute inline-flex h-full w-full rounded-full bg-neon",
+                "absolute inline-flex h-full w-full rounded-full bg-cyan",
                 newPulse ? "animate-ping opacity-75" : "animate-pulse opacity-50"
-              )} />
-              <span className="relative inline-flex rounded-full h-2 w-2 bg-neon" />
+              )} style={{ boxShadow: "0 0 8px rgba(0,229,255,0.5)" }} />
+              <span className="relative inline-flex rounded-full h-2 w-2 bg-cyan shadow-[0_0_6px_rgba(0,229,255,0.5)]" />
             </span>
-            <span className="text-[10px] text-neon font-semibold tracking-wider">BREAKING LEADS</span>
+            <span className="text-[10px] text-cyan font-semibold tracking-wider" style={{ textShadow: "0 0 10px rgba(0,229,255,0.3)" }}>BREAKING LEADS</span>
           </div>
           <div className="flex items-center gap-1.5">
-            <Radio className="h-3 w-3 text-neon/60" />
-            <span className="text-[9px] text-muted-foreground">LIVE</span>
+            <Radio className="h-3 w-3 text-cyan/50" />
+            <span className="text-[9px] text-muted-foreground/50">LIVE</span>
           </div>
         </div>
 
         <div className="p-2.5 space-y-1.5 max-h-[calc(100vh-280px)] overflow-y-auto scrollbar-thin">
           {items.length === 0 ? (
-            <div className="py-8 text-center text-[11px] text-muted-foreground/50">
+            <div className="py-8 text-center text-[11px] text-muted-foreground/40">
               No recent prospects
             </div>
           ) : (
@@ -222,10 +217,10 @@ export function BreakingLeadsSidebar() {
           )}
         </div>
 
-        <div className="px-4 py-2 border-t border-glass-border/50">
+        <div className="px-4 py-2 border-t border-white/[0.04]">
           <Link
             href="/sales-funnel/prospects"
-            className="flex items-center justify-center gap-1.5 text-[10px] text-neon/70 hover:text-neon transition-colors font-medium"
+            className="flex items-center justify-center gap-1.5 text-[10px] text-cyan/60 hover:text-cyan transition-colors font-medium"
           >
             View All Prospects
             <ExternalLink className="h-2.5 w-2.5" />

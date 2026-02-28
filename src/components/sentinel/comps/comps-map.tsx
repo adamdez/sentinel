@@ -329,7 +329,7 @@ export function CompsMap({ subject, selectedComps, onAddComp, onRemoveComp }: Co
               step={0.5}
               value={radiusMiles}
               onChange={(e) => setRadiusMiles(Number(e.target.value))}
-              className="w-24 h-1 accent-[#00ff88] bg-secondary rounded-full"
+              className="w-24 h-1 accent-[#00ff88] bg-[rgba(18,18,32,0.6)] rounded-full"
             />
             <span className="font-mono text-neon font-semibold w-10">{radiusMiles}mi</span>
           </div>
@@ -354,7 +354,7 @@ export function CompsMap({ subject, selectedComps, onAddComp, onRemoveComp }: Co
             exit={{ height: 0, opacity: 0 }}
             className="overflow-hidden"
           >
-            <div className="flex flex-wrap items-center gap-2 p-2.5 rounded-lg border border-glass-border bg-glass/50 text-[11px]">
+            <div className="flex flex-wrap items-center gap-2 p-2.5 rounded-[10px] border border-white/[0.06] bg-[rgba(12,12,22,0.5)] text-[11px]">
               <span className="text-muted-foreground font-medium">Match subject on:</span>
               {([
                 ["beds", "Beds ±1"],
@@ -369,8 +369,8 @@ export function CompsMap({ subject, selectedComps, onAddComp, onRemoveComp }: Co
                   className={cn(
                     "px-2 py-1 rounded-md border transition-all",
                     filters[key]
-                      ? "border-neon/40 bg-neon/10 text-neon"
-                      : "border-glass-border bg-secondary/20 text-muted-foreground hover:border-white/20"
+                      ? "border-cyan/20 bg-cyan/[0.08] text-neon"
+                      : "border-white/[0.06] bg-white/[0.02] text-muted-foreground hover:border-white/20"
                   )}
                 >
                   {label}
@@ -393,7 +393,7 @@ export function CompsMap({ subject, selectedComps, onAddComp, onRemoveComp }: Co
       {/* Map + detail panel side by side */}
       <div className="flex gap-3" style={{ height: 440 }}>
         {/* Leaflet map */}
-        <div className="flex-1 rounded-lg overflow-hidden border border-glass-border relative">
+        <div className="flex-1 rounded-[10px] overflow-hidden border border-white/[0.06] relative">
           {mapReady ? (
             <MapContainer
               center={[subject.lat, subject.lng]}
@@ -445,7 +445,7 @@ export function CompsMap({ subject, selectedComps, onAddComp, onRemoveComp }: Co
                   offset={[0, -12]}
                   className="!bg-transparent !border-0 !shadow-none !p-0"
                 >
-                  <div className="bg-glass border border-neon/40 rounded px-2 py-0.5 text-[10px] text-neon font-bold backdrop-blur-sm whitespace-nowrap">
+                  <div className="bg-[rgba(12,12,22,0.4)] border border-cyan/20 rounded px-2 py-0.5 text-[10px] text-neon font-bold backdrop-blur-sm whitespace-nowrap">
                     ★ SUBJECT
                   </div>
                 </Tooltip>
@@ -478,7 +478,7 @@ export function CompsMap({ subject, selectedComps, onAddComp, onRemoveComp }: Co
                       offset={[0, -8]}
                       className="!bg-transparent !border-0 !shadow-none !p-0"
                     >
-                      <div className="bg-glass border border-glass-border rounded px-1.5 py-0.5 text-[9px] backdrop-blur-sm whitespace-nowrap max-w-[200px] truncate">
+                      <div className="bg-[rgba(12,12,22,0.4)] border border-white/[0.06] rounded px-1.5 py-0.5 text-[9px] backdrop-blur-sm whitespace-nowrap max-w-[200px] truncate">
                         {comp.streetAddress} — {comp.avm ? formatCurrency(comp.avm) : "N/A"}
                       </div>
                     </Tooltip>
@@ -500,7 +500,7 @@ export function CompsMap({ subject, selectedComps, onAddComp, onRemoveComp }: Co
                 exit={{ opacity: 0 }}
                 className="absolute inset-0 z-[1000] bg-black/30 backdrop-blur-[1px] flex items-center justify-center pointer-events-none"
               >
-                <div className="flex items-center gap-2 bg-glass/90 border border-glass-border rounded-lg px-3 py-2 backdrop-blur-xl">
+                <div className="flex items-center gap-2 bg-[rgba(12,12,22,0.9)] border border-white/[0.06] rounded-[10px] px-3 py-2 backdrop-blur-xl">
                   <Loader2 className="h-4 w-4 animate-spin text-neon" />
                   <span className="text-xs text-neon font-medium">Searching radius…</span>
                 </div>
@@ -511,7 +511,7 @@ export function CompsMap({ subject, selectedComps, onAddComp, onRemoveComp }: Co
           {/* Map legend overlay */}
           <div className="absolute bottom-2 left-2 z-[1000] flex gap-1.5 pointer-events-none">
             {Object.entries(QUALITY_COLORS).map(([key, val]) => (
-              <div key={key} className="flex items-center gap-1 bg-glass/80 backdrop-blur-sm border border-glass-border rounded px-1.5 py-0.5 text-[8px]">
+              <div key={key} className="flex items-center gap-1 bg-[rgba(12,12,22,0.8)] backdrop-blur-sm border border-white/[0.06] rounded px-1.5 py-0.5 text-[8px]">
                 <div className="h-2 w-2 rounded-full" style={{ backgroundColor: val.fill }} />
                 {val.label}
               </div>
@@ -521,7 +521,7 @@ export function CompsMap({ subject, selectedComps, onAddComp, onRemoveComp }: Co
           {/* Cached indicator */}
           {!loading && comps.length > 0 && (
             <div className="absolute top-2 right-2 z-[1000] pointer-events-none">
-              <div className="bg-glass/70 backdrop-blur-sm border border-glass-border rounded px-1.5 py-0.5 text-[8px] text-muted-foreground">
+              <div className="bg-[rgba(12,12,22,0.7)] backdrop-blur-sm border border-white/[0.06] rounded px-1.5 py-0.5 text-[8px] text-muted-foreground">
                 {comps.length} results • 5m cache
               </div>
             </div>
@@ -537,7 +537,7 @@ export function CompsMap({ subject, selectedComps, onAddComp, onRemoveComp }: Co
               animate={{ opacity: 1, x: 0 }}
               exit={{ opacity: 0, x: 20 }}
               transition={{ duration: 0.15 }}
-              className="w-[290px] shrink-0 rounded-lg border border-glass-border bg-glass/50 backdrop-blur-xl overflow-y-auto scrollbar-none"
+              className="w-[290px] shrink-0 rounded-[10px] border border-white/[0.06] bg-[rgba(12,12,22,0.5)] backdrop-blur-xl overflow-y-auto scrollbar-none"
             >
               <CompDetailPanel
                 comp={selectedComp}
@@ -552,7 +552,7 @@ export function CompsMap({ subject, selectedComps, onAddComp, onRemoveComp }: Co
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
-              className="w-[290px] shrink-0 rounded-lg border border-glass-border bg-glass/50 backdrop-blur-xl flex items-center justify-center"
+              className="w-[290px] shrink-0 rounded-[10px] border border-white/[0.06] bg-[rgba(12,12,22,0.5)] backdrop-blur-xl flex items-center justify-center"
             >
               <div className="text-center p-4">
                 <Eye className="h-6 w-6 text-muted-foreground mx-auto mb-2" />
@@ -597,7 +597,7 @@ function CompDetailPanel({
   if (comp.isVacant) distressSignals.push({ label: "Vacant", color: "text-purple-400 border-purple-400/30 bg-purple-500/10" });
   if (comp.isAbsentee) distressSignals.push({ label: "Absentee", color: "text-blue-400 border-blue-400/30 bg-blue-500/10" });
   if (comp.isFreeAndClear) distressSignals.push({ label: "Free & Clear", color: "text-green-400 border-green-400/30 bg-green-500/10" });
-  if (comp.isHighEquity) distressSignals.push({ label: "High Equity", color: "text-neon border-neon/30 bg-neon/10" });
+  if (comp.isHighEquity) distressSignals.push({ label: "High Equity", color: "text-neon border-cyan/20 bg-cyan/[0.08]" });
 
   return (
     <div className="p-3 space-y-3 text-xs">
@@ -611,7 +611,7 @@ function CompDetailPanel({
             {comp.city}, {comp.state} {comp.zip}
           </p>
         </div>
-        <button onClick={onClose} className="p-1 rounded hover:bg-secondary/40 shrink-0">
+        <button onClick={onClose} className="p-1 rounded hover:bg-white/[0.08] shrink-0">
           <X className="h-3 w-3" />
         </button>
       </div>
@@ -668,7 +668,7 @@ function CompDetailPanel({
 
       {/* $/sqft comparison */}
       {pricePerSqft != null && (
-        <div className="flex items-center justify-between p-1.5 rounded-md border border-glass-border bg-secondary/10">
+        <div className="flex items-center justify-between p-1.5 rounded-md border border-white/[0.06] bg-white/[0.04]">
           <span className="text-[10px] text-muted-foreground">$/sqft</span>
           <div className="flex items-center gap-2">
             <span className="font-semibold text-neon">${pricePerSqft}</span>
@@ -685,7 +685,7 @@ function CompDetailPanel({
       )}
 
       {/* Financials */}
-      <div className="space-y-1.5 p-2 rounded-md border border-glass-border bg-secondary/10">
+      <div className="space-y-1.5 p-2 rounded-md border border-white/[0.06] bg-white/[0.04]">
         <div className="flex justify-between">
           <span className="text-muted-foreground">AVM / ARV</span>
           <span className="font-semibold text-neon">{comp.avm ? formatCurrency(comp.avm) : "—"}</span>
@@ -772,7 +772,7 @@ function StatBox({ icon: Icon, label, value, match }: {
   return (
     <div className={cn(
       "p-1.5 rounded-md border text-center",
-      match ? "border-neon/30 bg-neon/5" : "border-glass-border bg-secondary/10"
+      match ? "border-cyan/20 bg-cyan/[0.04]" : "border-white/[0.06] bg-white/[0.04]"
     )}>
       <p className="text-[9px] text-muted-foreground">{label}</p>
       <p className={cn("text-sm font-semibold", match && "text-neon")}>{value}</p>

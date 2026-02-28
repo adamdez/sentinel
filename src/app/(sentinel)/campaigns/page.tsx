@@ -50,10 +50,10 @@ export default function CampaignsPage() {
             Active Campaigns
           </h2>
         </div>
-        <div className="overflow-hidden rounded-lg border border-glass-border">
+        <div className="overflow-hidden rounded-[10px] border border-white/[0.06]">
           <table className="w-full">
             <thead>
-              <tr className="border-b border-glass-border bg-secondary/20">
+              <tr className="border-b border-white/[0.06] bg-white/[0.02]">
                 <th className="text-left p-3 text-xs font-medium text-muted-foreground">Campaign</th>
                 <th className="text-left p-3 text-xs font-medium text-muted-foreground">Type</th>
                 <th className="text-left p-3 text-xs font-medium text-muted-foreground">Status</th>
@@ -64,7 +64,7 @@ export default function CampaignsPage() {
             </thead>
             <tbody>
               {campaigns.map((c) => (
-                <tr key={c.name} className="border-b border-glass-border hover:bg-secondary/10 transition-colors">
+                <tr key={c.name} className="border-b border-white/[0.06] hover:bg-white/[0.04] transition-colors">
                   <td className="p-3 text-sm font-medium">{c.name}</td>
                   <td className="p-3">
                     <Badge variant="outline" className="text-[10px]">{c.type}</Badge>

@@ -101,16 +101,16 @@ export function LeadFilters({
           )}
         </div>
 
-        <Button
+          <Button
           variant="outline"
           size="sm"
-          className={cn("gap-1.5 text-xs", expanded && "border-neon/30 text-neon")}
+          className={cn("gap-1.5 text-xs", expanded && "border-cyan/20 text-cyan")}
           onClick={() => setExpanded(!expanded)}
         >
           <SlidersHorizontal className="h-3 w-3" />
           Filters
           {hasFilters && (
-            <span className="bg-neon/20 text-neon text-[10px] px-1.5 rounded-full">
+            <span className="bg-cyan/15 text-cyan text-[10px] px-1.5 rounded-full">
               active
             </span>
           )}
@@ -139,7 +139,7 @@ export function LeadFilters({
             transition={{ duration: 0.2 }}
             className="overflow-hidden"
           >
-            <div className="rounded-lg border border-glass-border bg-glass/50 p-4 space-y-4">
+            <div className="rounded-[14px] border border-white/[0.06] bg-[rgba(12,12,22,0.4)] backdrop-blur-xl p-4 space-y-4">
               {/* Status */}
               <div>
                 <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-2">
@@ -154,7 +154,7 @@ export function LeadFilters({
                         "text-[11px] px-2.5 py-1 rounded-md border transition-all",
                         filters.statuses.includes(opt.value)
                           ? opt.color
-                          : "border-glass-border text-muted-foreground hover:text-foreground hover:border-white/15"
+                          : "border-white/[0.06] text-muted-foreground hover:text-foreground hover:border-white/15"
                       )}
                     >
                       {opt.label}
@@ -176,8 +176,8 @@ export function LeadFilters({
                       className={cn(
                         "text-[11px] px-2.5 py-1 rounded-md border transition-all",
                         filters.distressTypes.includes(opt.value)
-                          ? "bg-neon/15 text-neon border-neon/30"
-                          : "border-glass-border text-muted-foreground hover:text-foreground hover:border-white/15"
+                          ? "bg-cyan/[0.1] text-neon border-cyan/20"
+                          : "border-white/[0.06] text-muted-foreground hover:text-foreground hover:border-white/15"
                       )}
                     >
                       {opt.label}
@@ -201,8 +201,8 @@ export function LeadFilters({
                         className={cn(
                           "text-[11px] px-2.5 py-1 rounded-md border transition-all",
                           filters.minScore === p.value
-                            ? "bg-neon/15 text-neon border-neon/30"
-                            : "border-glass-border text-muted-foreground hover:text-foreground hover:border-white/15"
+                            ? "bg-cyan/[0.1] text-neon border-cyan/20"
+                            : "border-white/[0.06] text-muted-foreground hover:text-foreground hover:border-white/15"
                         )}
                       >
                         {p.label}
@@ -217,7 +217,7 @@ export function LeadFilters({
                     "flex items-center gap-1.5 text-[11px] px-3 py-1 rounded-md border transition-all",
                     filters.complianceOnly
                       ? "bg-green-500/15 text-green-400 border-green-500/30"
-                      : "border-glass-border text-muted-foreground hover:text-foreground hover:border-white/15"
+                      : "border-white/[0.06] text-muted-foreground hover:text-foreground hover:border-white/15"
                   )}
                 >
                   <ShieldCheck className="h-3 w-3" />
