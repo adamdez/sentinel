@@ -25,6 +25,7 @@ import {
   Share2,
   ChevronRight,
   Zap,
+  Brain,
   type LucideIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -113,6 +114,7 @@ const sections: NavSection[] = [
     title: "Main",
     items: [
       { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
+      { label: "Grok AI", href: "/grok", icon: Brain },
       { label: "Dialer", href: "/dialer", icon: Phone },
       { label: "Gmail", href: "/gmail", icon: Mail, badge: "gmail-connected" },
       { label: "Team Calendar", href: "/team-calendar", icon: Calendar },
