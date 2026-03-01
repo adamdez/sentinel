@@ -37,24 +37,20 @@ export interface QueueLead {
 
 // ── Dialer Queue Hook ─────────────────────────────────────────────────
 
-export function useDialerQueue(limit = 8) {
+export function useDialerQueue(limit = 7) {
   const [queue, setQueue] = useState<QueueLead[]>([]);
   const [loading, setLoading] = useState(true);
   const { currentUser, ghostMode } = useSentinelStore();
 
   const fetchQueue = useCallback(async () => {
+    // Personal queue: only claimed leads assigned to this agent
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    let query = (supabase.from("leads") as any)
+    const { data, error } = await (supabase.from("leads") as any)
       .select("*, properties(*)")
-      .in("status", ["prospect", "lead"])
+      .eq("status", "lead")
+      .eq("assigned_to", currentUser.id)
       .order("priority", { ascending: false })
-      .limit(limit + 10); // over-fetch to filter out phoneless
-
-    if (currentUser.role !== "admin") {
-      query = query.or(`assigned_to.is.null,assigned_to.eq.${currentUser.id}`);
-    }
-
-    const { data, error } = await query;
+      .limit(limit + 10);
     if (error) {
       console.error("[DialerQueue]", error);
       setLoading(false);

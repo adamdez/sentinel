@@ -256,7 +256,7 @@ function toE164(digits: string): string {
 
 export default function DialerPage() {
   const { currentUser, ghostMode } = useSentinelStore();
-  const { queue, loading: queueLoading, refetch: refetchQueue } = useDialerQueue(8);
+  const { queue, loading: queueLoading, refetch: refetchQueue } = useDialerQueue(7);
   const { stats, loading: statsLoading } = useDialerStats();
   const timer = useCallTimer();
 
@@ -730,7 +730,18 @@ export default function DialerPage() {
                 ))}
               </div>
             ) : queue.length === 0 ? (
-              <p className="text-xs text-muted-foreground/50 text-center py-6">No leads with phone numbers in queue</p>
+              <div className="text-center py-6 space-y-3">
+                <Phone className="h-6 w-6 mx-auto text-muted-foreground/20" />
+                <p className="text-xs text-muted-foreground/50">No leads in your folder</p>
+                <a href="/sales-funnel/prospects">
+                  <button className="px-4 py-1.5 rounded-[10px] text-[11px] font-semibold text-cyan bg-cyan/[0.08] border border-cyan/20
+                    hover:bg-cyan/[0.14] hover:border-cyan/30 shadow-[0_0_10px_rgba(0,212,255,0.06)]
+                    hover:shadow-[0_0_18px_rgba(0,212,255,0.12)] transition-all">
+                    Go to Prospects — Claim Leads
+                  </button>
+                </a>
+                <p className="text-[10px] text-muted-foreground/30">Claimed leads appear here automatically</p>
+              </div>
             ) : (
               <div className="space-y-1.5">
                 {queue.map((lead, idx) => {
