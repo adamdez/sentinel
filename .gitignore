@@ -26,6 +26,9 @@ nul
 # internal audit/agent files
 cursor-*.md
 
+# Claude Code worktrees (local workspace data)
+.claude/worktrees/
+
 # playwright
 e2e/.auth/
 e2e/test-results/
