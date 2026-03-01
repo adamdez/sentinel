@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@/lib/supabase";
 import { scrubLead } from "@/lib/compliance";
+import { scheduleNextCall } from "@/lib/call-scheduler";
 
 const SYSTEM_USER_ID = "00000000-0000-0000-0000-000000000000";
 
@@ -221,19 +222,57 @@ export async function PATCH(req: NextRequest) {
     return NextResponse.json({ error: "callLogId and disposition required" }, { status: 400 });
   }
 
+  const endedAt = body.endedAt ?? new Date().toISOString();
+
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { error } = await (sb.from("calls_log") as any)
     .update({
       disposition: body.disposition,
       duration_sec: body.durationSec ?? 0,
       notes: body.notes ?? null,
-      ended_at: body.endedAt ?? new Date().toISOString(),
+      ended_at: endedAt,
     })
     .eq("id", body.callLogId);
 
   if (error) {
     console.error("[Dialer] calls_log update failed:", error);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+  }
+
+  // ── 7-Day Power Sequence: update lead counters + schedule next call ──
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: callRow } = await (sb.from("calls_log") as any)
+    .select("lead_id")
+    .eq("id", body.callLogId)
+    .single();
+
+  if (callRow?.lead_id) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: lead } = await (sb.from("leads") as any)
+      .select("call_sequence_step, total_calls, live_answers, voicemails_left")
+      .eq("id", callRow.lead_id)
+      .single();
+
+    if (lead) {
+      const step: number = lead.call_sequence_step ?? 1;
+      const isLive = !["no_answer", "voicemail", "ghost", "skip_trace", "in_progress", "initiating", "sms_outbound"].includes(body.disposition);
+      const isVM = body.disposition === "voicemail";
+
+      const sched = scheduleNextCall(step, endedAt, body.disposition);
+
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      await (sb.from("leads") as any)
+        .update({
+          total_calls: (lead.total_calls ?? 0) + 1,
+          live_answers: (lead.live_answers ?? 0) + (isLive ? 1 : 0),
+          voicemails_left: (lead.voicemails_left ?? 0) + (isVM ? 1 : 0),
+          call_sequence_step: sched.sequenceStep,
+          next_call_scheduled_at: sched.nextCallAt,
+          last_contact_at: endedAt,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", callRow.lead_id);
+    }
   }
 
   // Audit log (non-blocking)

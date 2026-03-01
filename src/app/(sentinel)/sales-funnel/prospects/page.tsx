@@ -5,7 +5,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import {
   UserPlus, Search, Filter, ArrowUpDown, ArrowUp, ArrowDown,
   Phone, MoreHorizontal, Radar, Loader2, AlertCircle,
-  RefreshCw, Shield, UserCheck,
+  RefreshCw, Shield, UserCheck, Home,
 } from "lucide-react";
 import { PageShell } from "@/components/sentinel/page-shell";
 import { GlassCard } from "@/components/sentinel/glass-card";
@@ -36,6 +36,13 @@ const SOURCE_FILTERS = [
   { value: "propertyradar", label: "PropertyRadar" },
   { value: "ranger_push", label: "Ranger" },
   { value: "manual", label: "Manual" },
+];
+
+const TIER_FILTERS = [
+  { value: "", label: "All Tiers", color: "text-muted-foreground" },
+  { value: "tier-a", label: "A-Tier", color: "text-red-400", desc: "75+ Elite" },
+  { value: "tier-b", label: "B-Tier", color: "text-orange-400", desc: "50-74 Warm" },
+  { value: "tier-c", label: "C-Tier", color: "text-yellow-400", desc: "30-49 Watch" },
 ];
 
 // ── Subcomponents ─────────────────────────────────────────────────────
@@ -99,6 +106,7 @@ export default function ProspectsPage() {
   const [sortField, setSortField] = useState<SortField>("composite_score");
   const [sortDir, setSortDir] = useState<SortDir>("desc");
   const [sourceFilter, setSourceFilter] = useState("");
+  const [tierFilter, setTierFilter] = useState("");
   const [selectedProspect, setSelectedProspect] = useState<ProspectRow | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
   const [claiming, setClaiming] = useState<string | null>(null);
@@ -158,8 +166,16 @@ export default function ProspectsPage() {
     sourceFilter: sourceFilter || undefined,
   });
 
+  // Apply tier filter client-side (tier tag is in prospects[].tags)
+  const filteredProspects = tierFilter
+    ? prospects.filter((p) => p.tags.includes(tierFilter))
+    : prospects;
+
   const rangerCount = prospects.filter((p) => p.source === "ranger_push").length;
   const prCount = prospects.filter((p) => p.source === "propertyradar").length;
+  const tierACnt = prospects.filter((p) => p.tags.includes("tier-a")).length;
+  const tierBCnt = prospects.filter((p) => p.tags.includes("tier-b")).length;
+  const tierCCnt = prospects.filter((p) => p.tags.includes("tier-c")).length;
 
   const toggleSort = (field: SortField) => {
     if (sortField === field) {
@@ -296,6 +312,29 @@ export default function ProspectsPage() {
             ))}
           </div>
 
+          {/* Tier filter */}
+          <div className="flex items-center gap-1">
+            <span className="text-[10px] text-muted-foreground font-medium">Tier:</span>
+            {TIER_FILTERS.map((tf) => {
+              const count = tf.value === "tier-a" ? tierACnt : tf.value === "tier-b" ? tierBCnt : tf.value === "tier-c" ? tierCCnt : prospects.length;
+              return (
+                <button
+                  key={tf.value}
+                  onClick={() => setTierFilter(tf.value)}
+                  className={cn(
+                    "text-[10px] px-2 py-1 rounded border transition-all inline-flex items-center gap-1",
+                    tierFilter === tf.value
+                      ? `${tf.color} border-current/20 bg-current/8`
+                      : "text-muted-foreground border-glass-border hover:text-foreground hover:border-white/10"
+                  )}
+                >
+                  {tf.label}
+                  <span className="opacity-60">({count})</span>
+                </button>
+              );
+            })}
+          </div>
+
           {/* Sort controls */}
           <div className="flex items-center gap-1 ml-auto">
             <ArrowUpDown className="h-3 w-3 text-muted-foreground" />
@@ -338,7 +377,7 @@ export default function ProspectsPage() {
         )}
 
         {/* Loading state */}
-        {loading && prospects.length === 0 && (
+        {loading && filteredProspects.length === 0 && (
           <div className="flex items-center justify-center py-20 text-muted-foreground gap-3">
             <Loader2 className="h-5 w-5 animate-spin" />
             <span className="text-sm">Loading prospects from Supabase...</span>
@@ -346,7 +385,7 @@ export default function ProspectsPage() {
         )}
 
         {/* Empty state */}
-        {!loading && !error && prospects.length === 0 && (
+        {!loading && !error && filteredProspects.length === 0 && (
           <div className="flex flex-col items-center justify-center py-20 text-muted-foreground gap-3">
             <UserPlus className="h-8 w-8 opacity-30" />
             <p className="text-sm">No prospects found</p>
@@ -355,7 +394,7 @@ export default function ProspectsPage() {
         )}
 
         {/* Table */}
-        {prospects.length > 0 && (
+        {filteredProspects.length > 0 && (
           <div className="overflow-hidden rounded-[12px] border border-glass-border">
             <table className="w-full">
               <thead>
@@ -380,7 +419,7 @@ export default function ProspectsPage() {
               </thead>
               <tbody>
                 <AnimatePresence mode="popLayout">
-                  {prospects.map((p, i) => (
+                  {filteredProspects.map((p, i) => (
                     <motion.tr
                       key={p.id}
                       layout
@@ -396,26 +435,48 @@ export default function ProspectsPage() {
                       )}
                     >
                       <td className="p-3">
-                        <p
-                          className="text-sm font-semibold text-foreground"
-                          style={{
-                            textShadow: "0 0 8px rgba(0,212,255,0.15), 0 0 16px rgba(0,212,255,0.06)",
-                            WebkitFontSmoothing: "antialiased",
-                          }}
-                        >
-                          {p.address}{p.city ? `, ${p.city}` : ""} {p.state} {p.zip}
-                        </p>
-                        <p
-                          className="text-xs font-medium text-muted-foreground/90 flex items-center gap-1.5"
-                          style={{ WebkitFontSmoothing: "antialiased" }}
-                        >
-                          {p.owner_name}
-                          <RelationshipBadgeCompact data={{
-                            ownerAgeInference: p._prediction?.ownerAgeInference,
-                            lifeEventProbability: p._prediction?.lifeEventProbability,
-                            tags: p.tags,
-                          }} />
-                        </p>
+                        <div className="flex items-start gap-2">
+                          {/* Tier + Absentee indicators */}
+                          <div className="flex flex-col items-center gap-0.5 pt-0.5 shrink-0">
+                            {p.tags.includes("tier-a") && (
+                              <span className="text-[8px] font-black px-1 rounded bg-red-500/15 text-red-400 border border-red-500/20">A</span>
+                            )}
+                            {p.tags.includes("tier-b") && (
+                              <span className="text-[8px] font-black px-1 rounded bg-orange-500/15 text-orange-400 border border-orange-500/20">B</span>
+                            )}
+                            {p.tags.includes("tier-c") && (
+                              <span className="text-[8px] font-black px-1 rounded bg-yellow-500/15 text-yellow-400 border border-yellow-500/20">C</span>
+                            )}
+                            {p.is_absentee && (
+                              <Home className="h-3 w-3 text-purple-400" />
+                            )}
+                          </div>
+                          <div className="min-w-0">
+                            <p
+                              className="text-sm font-semibold text-foreground"
+                              style={{
+                                textShadow: "0 0 8px rgba(0,212,255,0.15), 0 0 16px rgba(0,212,255,0.06)",
+                                WebkitFontSmoothing: "antialiased",
+                              }}
+                            >
+                              {p.address}{p.city ? `, ${p.city}` : ""} {p.state} {p.zip}
+                            </p>
+                            <p
+                              className="text-xs font-medium text-muted-foreground/90 flex items-center gap-1.5"
+                              style={{ WebkitFontSmoothing: "antialiased" }}
+                            >
+                              {p.owner_name}
+                              {p.is_absentee && (
+                                <span className="text-[9px] px-1 py-0 rounded border text-purple-400 border-purple-500/20 bg-purple-500/10">ABSENTEE</span>
+                              )}
+                              <RelationshipBadgeCompact data={{
+                                ownerAgeInference: p._prediction?.ownerAgeInference,
+                                lifeEventProbability: p._prediction?.lifeEventProbability,
+                                tags: p.tags,
+                              }} />
+                            </p>
+                          </div>
+                        </div>
                       </td>
                       <td className="p-3 text-sm font-mono text-muted-foreground">{p.apn}</td>
                       <td className="p-3">
@@ -493,7 +554,7 @@ export default function ProspectsPage() {
         )}
 
         {/* Loading overlay for refetch */}
-        {loading && prospects.length > 0 && (
+        {loading && filteredProspects.length > 0 && (
           <div className="flex items-center justify-center py-3 text-muted-foreground gap-2">
             <Loader2 className="h-3 w-3 animate-spin" />
             <span className="text-[10px]">Refreshing...</span>

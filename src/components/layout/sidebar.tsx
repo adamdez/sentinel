@@ -30,9 +30,9 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import { useSentinelStore } from "@/lib/store";
+import { useHydrated } from "@/providers/hydration-provider";
 import { supabase } from "@/lib/supabase";
 
 interface SidebarBadges {
@@ -315,12 +315,13 @@ function SidebarSection({ section, badges }: { section: NavSection; badges?: Sid
 export function Sidebar() {
   const { sidebarOpen } = useSentinelStore();
   const badges = useSidebarBadges();
+  const hydrated = useHydrated();
 
   return (
     <AnimatePresence mode="wait">
       {sidebarOpen && (
         <motion.aside
-          initial={{ width: 0, opacity: 0 }}
+          initial={hydrated ? { width: 0, opacity: 0 } : false}
           animate={{ width: 208, opacity: 1 }}
           exit={{ width: 0, opacity: 0 }}
           transition={{ duration: 0.2, ease: "easeInOut" }}
@@ -342,17 +343,15 @@ export function Sidebar() {
 
           <Separator className="bg-white/[0.04]" />
 
-          <ScrollArea className="flex-1 px-3 py-1">
-            <nav>
-              {sections.map((section) => (
-                <SidebarSection key={section.title} section={section} badges={badges} />
-              ))}
-            </nav>
-          </ScrollArea>
+          <nav className="flex-1 min-h-0 overflow-y-auto px-3 py-1 scrollbar-thin scrollbar-thumb-white/10 scrollbar-track-transparent">
+            {sections.map((section) => (
+              <SidebarSection key={section.title} section={section} badges={badges} />
+            ))}
+          </nav>
 
-          <Separator className="bg-white/[0.04]" />
+          <Separator className="mt-auto bg-white/[0.04] shrink-0" />
 
-          <div className="p-3">
+          <div className="p-3 shrink-0">
             <div className="flex items-center gap-2 rounded-[12px] px-3 py-2 bg-cyan/4 border border-cyan/10" style={{ boxShadow: "inset 0 0 16px rgba(0,229,255,0.03), 0 0 1px rgba(0,229,255,0.3)" }}>
               <div className="h-2 w-2 rounded-full bg-cyan animate-pulse" style={{ boxShadow: "0 0 1px rgba(0,229,255,1), 0 0 4px rgba(0,229,255,0.5), 0 0 8px rgba(0,229,255,0.25)" }} />
               <span className="text-[11px] text-muted-foreground">

@@ -3,6 +3,7 @@
 import { useRef, useCallback } from "react";
 import { motion, type HTMLMotionProps } from "framer-motion";
 import { cn } from "@/lib/utils";
+import { useHydrated } from "@/providers/hydration-provider";
 
 interface GlassCardProps extends HTMLMotionProps<"div"> {
   glow?: boolean;
@@ -27,6 +28,8 @@ export function GlassCard({
     variant === "strong" ? "glass-strong" :
     "glass-card";
 
+  const hydrated = useHydrated();
+
   const tileRef = useRef<HTMLDivElement>(null);
 
   const handleMouseMove = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
@@ -48,7 +51,7 @@ export function GlassCard({
   return (
     <motion.div
       ref={tileRef}
-      initial={{ opacity: 0, y: 8, filter: "blur(3px)" }}
+      initial={hydrated ? { opacity: 0, y: 8, filter: "blur(3px)" } : false}
       animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
       transition={{ duration: 0.12, delay, ease: "easeOut" }}
       onMouseMove={handleMouseMove}

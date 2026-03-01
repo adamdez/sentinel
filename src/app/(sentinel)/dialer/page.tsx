@@ -7,7 +7,7 @@ import {
   Mic, MicOff, Voicemail, CalendarCheck, FileSignature,
   Skull, Heart, Search, Ghost, Zap, ChevronRight, Timer,
   Sparkles, DollarSign, Loader2, SkipForward, MessageSquare,
-  X, Send,
+  X, Send, Shield, CheckCircle2,
 } from "lucide-react";
 import { toast } from "sonner";
 import { PageShell } from "@/components/sentinel/page-shell";
@@ -19,6 +19,9 @@ import { useSentinelStore } from "@/lib/store";
 import { supabase } from "@/lib/supabase";
 import { useDialerQueue, useDialerStats, useCallTimer, fetchDialerKpis, type QueueLead, type DialerStats } from "@/hooks/use-dialer";
 import { RelationshipBadgeCompact } from "@/components/sentinel/relationship-badge";
+import { getSequenceLabel } from "@/lib/call-scheduler";
+import { useCallNotes } from "@/hooks/use-call-notes";
+import { CallSequenceGuide } from "@/components/sentinel/call-sequence-guide";
 
 async function authHeaders(): Promise<Record<string, string>> {
   const { data: { session } } = await supabase.auth.getSession();
@@ -267,6 +270,9 @@ export default function DialerPage() {
   const [dispositionPending, setDispositionPending] = useState(false);
   const [smsLoading, setSmsLoading] = useState(false);
   const [transferStatus, setTransferStatus] = useState<string | null>(null);
+  const [consentPending, setConsentPending] = useState(false);
+  const [consentGranted, setConsentGranted] = useState(false);
+  const { latestSummary, latestSummaryTime } = useCallNotes(currentLead?.id);
 
   // Quick Manual Dial state
   const [manualPhone, setManualPhone] = useState("");
@@ -283,6 +289,25 @@ export default function DialerPage() {
     }
   }, [queue, currentLead]);
 
+  // Auto-dial after consent granted
+  useEffect(() => {
+    if (consentGranted && currentLead) {
+      setConsentGranted(false);
+      handleDial(currentLead);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [consentGranted]);
+
+  const grantConsent = useCallback(async () => {
+    if (!currentLead) return;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    await (supabase.from("leads") as any)
+      .update({ call_consent: true, call_consent_at: new Date().toISOString() })
+      .eq("id", currentLead.id);
+    setConsentPending(false);
+    setConsentGranted(true);
+  }, [currentLead]);
+
   const handleDial = useCallback(async (lead?: QueueLead) => {
     const target = lead ?? currentLead;
     if (!target) return;
@@ -296,6 +321,20 @@ export default function DialerPage() {
     if (!target.compliant && !ghostMode) {
       toast.error("Compliance blocked — cannot dial");
       return;
+    }
+
+    // Check consent for first call — query lead record
+    if (target.total_calls === 0) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data: leadCheck } = await (supabase.from("leads") as any)
+        .select("call_consent")
+        .eq("id", target.id)
+        .single();
+      if (!leadCheck?.call_consent) {
+        setCurrentLead(target);
+        setConsentPending(true);
+        return;
+      }
     }
 
     setCurrentLead(target);
@@ -511,6 +550,30 @@ export default function DialerPage() {
     const dispo = DISPOSITIONS.find((d) => d.key === dispoKey);
     toast.success(`${dispo?.label ?? dispoKey} logged`);
 
+    // Trigger AI summary in background (non-blocking)
+    if (currentCallLogId && callNotes && callNotes.trim().length >= 5) {
+      const summaryCallLogId = currentCallLogId;
+      const summaryLeadId = currentLead?.id;
+      const summaryNotes = callNotes;
+      authHeaders().then((hdrs) =>
+        fetch("/api/dialer/summarize", {
+          method: "POST",
+          headers: hdrs,
+          body: JSON.stringify({
+            callLogId: summaryCallLogId,
+            notes: summaryNotes,
+            leadId: summaryLeadId,
+            disposition: dispoKey,
+            duration: timer.elapsed,
+            ownerName: currentLead?.properties?.owner_name,
+            address: currentLead?.properties?.address,
+          }),
+        })
+      ).then((res) => {
+        if (res.ok) toast.success("AI call summary saved", { duration: 2000 });
+      }).catch(() => {});
+    }
+
     setCallState("idle");
     setCurrentCallLogId(null);
     setCallNotes("");
@@ -713,6 +776,7 @@ export default function DialerPage() {
               <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
                 <Users className="h-3.5 w-3.5 text-cyan" />
                 Dial Queue
+                <CallSequenceGuide />
               </h2>
               <button
                 onClick={refetchQueue}
@@ -767,6 +831,7 @@ export default function DialerPage() {
                           </p>
                           <p className="text-[11px] text-muted-foreground/60 truncate">{lead.properties?.address ?? "No address"}</p>
                         </div>
+                        <span className="text-[8px] text-muted-foreground/40 font-mono shrink-0">{lead.call_sequence_step ?? 1}/7</span>
                         <Badge variant={sl.variant} className="text-[9px] px-1.5 py-0 shrink-0">
                           {score}
                         </Badge>
@@ -783,6 +848,47 @@ export default function DialerPage() {
         </div>
 
         <div className="lg:col-span-5">
+          {/* One-time consent banner */}
+          <AnimatePresence>
+            {consentPending && currentLead && (
+              <motion.div
+                initial={{ opacity: 0, y: -8 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -8 }}
+                className="mb-3 rounded-[12px] border border-yellow-500/20 bg-yellow-500/5 p-4"
+              >
+                <div className="flex items-start gap-3">
+                  <Shield className="h-5 w-5 text-yellow-400 shrink-0 mt-0.5" />
+                  <div className="flex-1">
+                    <p className="text-sm font-semibold text-yellow-400">Agent Consent Acknowledgment</p>
+                    <p className="text-[11px] text-muted-foreground/70 mt-1 leading-relaxed">
+                      This call may be recorded for quality, training, and AI note summarization purposes
+                      as permitted under Washington law (RCW 9.73.030). Do you consent to continue?
+                    </p>
+                    <div className="flex items-center gap-2 mt-3">
+                      <Button
+                        size="sm"
+                        onClick={grantConsent}
+                        className="text-[11px] h-7 px-4 gap-1.5 bg-cyan/15 hover:bg-cyan/25 text-cyan border border-cyan/20"
+                      >
+                        <CheckCircle2 className="h-3 w-3" />
+                        Confirm & Dial
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => setConsentPending(false)}
+                        className="text-[11px] h-7 px-3"
+                      >
+                        Cancel
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+
           <AnimatePresence mode="wait">
             {currentLead ? (
               <motion.div
@@ -839,6 +945,10 @@ export default function DialerPage() {
                             </Badge>
                           );
                         })()}
+                        <Badge variant="outline" className="text-[9px] gap-1 border-cyan/20 text-cyan/70">
+                          <Phone className="h-2.5 w-2.5" />
+                          {getSequenceLabel(currentLead.call_sequence_step ?? 1)}
+                        </Badge>
                         {!currentLead.compliant && !ghostMode && (
                           <Badge variant="destructive" className="text-[10px]">
                             COMPLIANCE BLOCKED
@@ -967,6 +1077,24 @@ export default function DialerPage() {
         </div>
 
         <div className="lg:col-span-4">
+          {/* Last Call AI Summary */}
+          {currentLead && latestSummary && (
+            <GlassCard hover={false} className="!p-3 mb-3">
+              <div className="flex items-center gap-1.5 mb-2">
+                <Sparkles className="h-3 w-3 text-purple-400" />
+                <span className="text-[10px] font-semibold uppercase tracking-wider text-purple-400/80">AI Call Summary</span>
+                {latestSummaryTime && (
+                  <span className="text-[9px] text-muted-foreground/40 ml-auto">
+                    {new Date(latestSummaryTime).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
+                  </span>
+                )}
+              </div>
+              <div className="text-[11px] text-muted-foreground/80 leading-relaxed whitespace-pre-line max-h-28 overflow-y-auto scrollbar-thin">
+                {latestSummary}
+              </div>
+            </GlassCard>
+          )}
+
           <GlassCard hover={false} className="!p-3">
             <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3 flex items-center gap-1.5">
               <BarChart3 className="h-3.5 w-3.5 text-cyan" />

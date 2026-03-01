@@ -31,6 +31,82 @@ const US_STATES: Record<string, string> = {
   WYOMING: "WY",
 };
 
+// ── GET /api/prospects — Fetch all prospects (server-side, bypasses RLS) ──
+
+export async function GET() {
+  try {
+    const sb = createServerClient();
+
+    // Step 1: Fetch leads where status = 'prospect'
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: leadsData, error: leadsError } = await (sb.from("leads") as any)
+      .select("*")
+      .eq("status", "prospect")
+      .order("priority", { ascending: false });
+
+    if (leadsError) {
+      console.error("[API/prospects GET] Leads query failed:", leadsError);
+      return NextResponse.json({ error: leadsError.message, leads: [], properties: {}, predictions: {} }, { status: 500 });
+    }
+
+    if (!leadsData || leadsData.length === 0) {
+      return NextResponse.json({ leads: [], properties: {}, predictions: {} });
+    }
+
+    // Step 2: Fetch properties for those leads
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const propertyIds: string[] = [...new Set((leadsData as any[]).map((l) => l.property_id).filter(Boolean))];
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    let propertiesMap: Record<string, any> = {};
+    if (propertyIds.length > 0) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data: propsData } = await (sb.from("properties") as any)
+        .select("*")
+        .in("id", propertyIds);
+
+      if (propsData) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        for (const p of propsData as any[]) {
+          propertiesMap[p.id] = p;
+        }
+      }
+    }
+
+    // Step 3: Fetch latest predictions
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const predictionsMap: Record<string, any> = {};
+    if (propertyIds.length > 0) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data: predsData } = await (sb.from("scoring_predictions") as any)
+        .select("property_id, predictive_score, days_until_distress, confidence, owner_age_inference, equity_burn_rate, life_event_probability")
+        .in("property_id", propertyIds)
+        .order("created_at", { ascending: false });
+
+      if (predsData) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        for (const p of predsData as any[]) {
+          if (!(p.property_id in predictionsMap)) predictionsMap[p.property_id] = p;
+        }
+      }
+    }
+
+    console.log(`[API/prospects GET] ${leadsData.length} leads, ${Object.keys(propertiesMap).length} properties, ${Object.keys(predictionsMap).length} predictions`);
+
+    return NextResponse.json({
+      leads: leadsData,
+      properties: propertiesMap,
+      predictions: predictionsMap,
+    });
+  } catch (err) {
+    console.error("[API/prospects GET] Error:", err);
+    return NextResponse.json(
+      { error: "Internal server error", leads: [], properties: {}, predictions: {} },
+      { status: 500 },
+    );
+  }
+}
+
 // ── PATCH /api/prospects — Claim or update a lead's status ─────────────
 
 export async function PATCH(req: NextRequest) {

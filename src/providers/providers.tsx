@@ -4,12 +4,14 @@ import { QueryProvider } from "./query-provider";
 import { ModalProvider } from "./modal-provider";
 import { RealtimeProvider } from "./realtime-provider";
 import { AuthSyncProvider } from "./auth-sync-provider";
+import { HydrationProvider } from "./hydration-provider";
 import { TooltipProvider } from "@radix-ui/react-tooltip";
 import { Toaster } from "sonner";
 
 export function Providers({ children }: { children: React.ReactNode }) {
   return (
     <QueryProvider>
+      <HydrationProvider>
       <AuthSyncProvider>
         <RealtimeProvider>
           <TooltipProvider delayDuration={200}>
@@ -31,6 +33,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
           </TooltipProvider>
         </RealtimeProvider>
       </AuthSyncProvider>
+      </HydrationProvider>
     </QueryProvider>
   );
 }

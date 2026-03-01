@@ -1,8 +1,14 @@
 /**
- * Sentinel AI Distress Scoring Engine v1.1
+ * Sentinel AI Distress Scoring Engine v2.1
  *
- * Composite = (BaseSignalScore × SeverityMultiplier × RecencyDecay)
+ * Composite = (BaseSignalScore × AbsenteeAmplifier × SeverityMultiplier × RecencyDecay)
  *           + StackingBonus + OwnerFactors + EquityFactors + AIBoost
+ *
+ * v2.1 changes:
+ *   - Absentee weight raised 10 → 22 (on par with tax_lien)
+ *   - Absentee owner factor raised 5 → 10 (highest positive factor)
+ *   - Absentee amplifier: 1.3× on base signal when absentee + other signals
+ *   - Tier labels: A (75+), B (50-74), C (30-49), D (<30)
  *
  * Domain: Scoring Domain — config-driven, versioned, deterministic, replayable.
  * Writes only scoring_records. Never mutates workflow.
@@ -11,9 +17,11 @@
 import type { DistressType, AIScore } from "./types";
 import { blendHeatScore, PREDICTIVE_WEIGHT, DETERMINISTIC_WEIGHT } from "./scoring-predictive";
 
-export const SCORING_MODEL_VERSION = "v2.0";
+export const SCORING_MODEL_VERSION = "v2.1";
 
 // ── Signal Base Weights ─────────────────────────────────────────────
+// v2.1: Absentee raised from 10 → 22 — absentee is the precondition
+// that makes every other distress signal convert.
 export const SIGNAL_WEIGHTS: Record<DistressType, number> = {
   probate: 28,
   pre_foreclosure: 26,
@@ -23,7 +31,7 @@ export const SIGNAL_WEIGHTS: Record<DistressType, number> = {
   divorce: 20,
   bankruptcy: 24,
   fsbo: 16,
-  absentee: 10,
+  absentee: 22,
   inherited: 25,
   water_shutoff: 35,
 };
@@ -49,13 +57,20 @@ const STACKING_THRESHOLDS = [
 ];
 
 // ── Owner Factor Weights ────────────────────────────────────────────
+// v2.1: Absentee raised from 5 → 10 — strongest positive owner factor.
 const OWNER_FACTORS = {
-  absentee: 5,
+  absentee: 10,
   corporate: -3,
   inherited: 8,
   elderly: 4,
   outOfState: 6,
 };
+
+// ── Absentee Amplifier ──────────────────────────────────────────────
+// When absentee combines with ANY other distress signal, the entire
+// base signal score is multiplied by this factor. Absentee is the
+// precondition that makes all other signals convert at higher rates.
+const ABSENTEE_AMPLIFIER = 1.3;
 
 // ── Equity Factor Weights ───────────────────────────────────────────
 const EQUITY_WEIGHT = 0.15;
@@ -148,6 +163,17 @@ export function computeScore(input: ScoringInput): ScoringOutput {
     factors.push({ name: "stacking_bonus", value: input.signals.length, contribution: stackingBonus });
   }
 
+  // ── 2b. Absentee Amplifier ──────────────────────────────────────
+  // When absentee is flagged AND there's at least one OTHER distress
+  // signal, amplify the base signal score by 1.3×. Absentee alone
+  // doesn't get the amplifier — it needs a co-occurring signal.
+  const hasNonAbsenteeSignal = input.signals.some((s) => s.type !== "absentee");
+  const absenteeAmplifier =
+    input.ownerFlags.absentee && hasNonAbsenteeSignal ? ABSENTEE_AMPLIFIER : 1.0;
+  if (absenteeAmplifier > 1.0) {
+    factors.push({ name: "absentee_amplifier", value: absenteeAmplifier, contribution: Math.round(baseSignalScore * (absenteeAmplifier - 1)) });
+  }
+
   // ── 3. Owner Factors ──────────────────────────────────────────────
   let ownerFactorScore = 0;
   if (input.ownerFlags.absentee) ownerFactorScore += OWNER_FACTORS.absentee;
@@ -175,7 +201,7 @@ export function computeScore(input: ScoringInput): ScoringOutput {
 
   // ── 6. Composite Score ────────────────────────────────────────────
   const raw =
-    baseSignalScore * weightedSeverity * weightedRecency +
+    baseSignalScore * absenteeAmplifier * weightedSeverity * weightedRecency +
     stackingBonus +
     ownerFactorScore +
     equityFactorScore +
@@ -216,6 +242,24 @@ export function getScoreLabel(score: number): AIScore["label"] {
   if (score >= 40) return "warm";
   return "cold";
 }
+
+// ── Tier Classification (v2.1) ────────────────────────────────────
+// Used by ingest routes to determine storage tier for prospects.
+export type ProspectTier = "A" | "B" | "C" | "D";
+
+export function getTierLabel(score: number): ProspectTier {
+  if (score >= 75) return "A";
+  if (score >= 50) return "B";
+  if (score >= 30) return "C";
+  return "D";
+}
+
+export const TIER_CUTOFFS = {
+  A: 75,  // Elite — agents work immediately
+  B: 50,  // Warm — work when A-tier thins out
+  C: 30,  // Watch — nurture campaigns, monthly call, mailers
+  D: 0,   // Cold — not stored
+} as const;
 
 // ── Enhanced V2 Score (with predictive blend) ───────────────────────
 

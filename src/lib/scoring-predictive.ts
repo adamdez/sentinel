@@ -32,17 +32,19 @@ export const PREDICTIVE_MODEL_VERSION = "pred-v2.1";
 // ── Feature Weight Configuration ────────────────────────────────────
 // Tuned for Pacific NW wholesale market (Spokane/Kootenai).
 // Sum of all feature weights = 1.0 for normalized scoring.
-// v2.1: Added skipTrace at 15%, rebalanced remaining 85%.
+// v2.1: skipTrace 15%. Absentee raised 0.08 → 0.14 (absentee is the
+// precondition that makes all other signals convert). Rebalanced
+// signalVelocity, ownershipStress, marketExposure down proportionally.
 
 const FEATURE_WEIGHTS = {
   ownerAge: 0.10,
   equityBurnRate: 0.15,
-  absenteeDuration: 0.08,
+  absenteeDuration: 0.14,
   taxDelinquencyTrend: 0.14,
   lifeEventProbability: 0.17,
-  signalVelocity: 0.09,
-  ownershipStress: 0.07,
-  marketExposure: 0.05,
+  signalVelocity: 0.07,
+  ownershipStress: 0.05,
+  marketExposure: 0.03,
   skipTrace: 0.15,
 } as const;
 
@@ -191,10 +193,12 @@ export function computePredictiveScore(input: PredictiveInput): PredictiveOutput
   });
 
   // ── 3. Absentee Duration ──────────────────────────────────────────
+  // v2.1: Raised base scores — absentee is the strongest lead qualifier.
+  // Known duration scales up to 100, vacant bonus 30, base absentee = 50.
   const absenteeDays = computeAbsenteeDuration(input);
   const absenteeScore = absenteeDays !== null
-    ? Math.min(Math.round((absenteeDays / 365) * 30 + (input.isVacant ? 25 : 0)), 100)
-    : input.isAbsentee ? 35 : 5;
+    ? Math.min(Math.round((absenteeDays / 365) * 35 + (input.isVacant ? 30 : 0)), 100)
+    : input.isAbsentee ? 50 : 5;
   factors.push({
     name: "absentee_duration",
     weight: FEATURE_WEIGHTS.absenteeDuration,

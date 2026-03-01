@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useSentinelStore } from "@/lib/store";
+import { useHydrated } from "@/providers/hydration-provider";
 import { generateId } from "@/lib/utils";
 
 const userColors: Record<string, string> = {
@@ -19,6 +20,7 @@ const userColors: Record<string, string> = {
 export function TeamChat() {
   const { chatOpen, setChatOpen, chatMessages, addChatMessage, currentUser } =
     useSentinelStore();
+  const hydrated = useHydrated();
   const [message, setMessage] = useState("");
 
   const handleSend = () => {
@@ -38,7 +40,7 @@ export function TeamChat() {
       <AnimatePresence>
         {!chatOpen && (
           <motion.button
-            initial={{ scale: 0, opacity: 0 }}
+            initial={hydrated ? { scale: 0, opacity: 0 } : false}
             animate={{ scale: 1, opacity: 1 }}
             exit={{ scale: 0, opacity: 0 }}
             whileHover={{ scale: 1.05 }}
@@ -58,7 +60,7 @@ export function TeamChat() {
       <AnimatePresence>
         {chatOpen && (
           <motion.div
-            initial={{ opacity: 0, y: 20, scale: 0.95 }}
+            initial={hydrated ? { opacity: 0, y: 20, scale: 0.95 } : false}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 20, scale: 0.95 }}
             transition={{ duration: 0.2 }}

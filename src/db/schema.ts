@@ -155,6 +155,13 @@ export const leads = pgTable("leads", {
   notes: text("notes"),
   tags: text("tags").array().notNull().default([]),
   lockVersion: integer("lock_version").notNull().default(0),
+  nextCallScheduledAt: timestamp("next_call_scheduled_at", { withTimezone: true }),
+  callSequenceStep: integer("call_sequence_step").notNull().default(1),
+  totalCalls: integer("total_calls").notNull().default(0),
+  liveAnswers: integer("live_answers").notNull().default(0),
+  voicemailsLeft: integer("voicemails_left").notNull().default(0),
+  callConsent: boolean("call_consent").notNull().default(false),
+  callConsentAt: timestamp("call_consent_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 }, (table) => [
@@ -163,6 +170,7 @@ export const leads = pgTable("leads", {
   index("idx_leads_status").on(table.status),
   index("idx_leads_priority").on(table.priority),
   index("idx_leads_follow_up").on(table.nextFollowUpAt),
+  index("idx_leads_next_call").on(table.nextCallScheduledAt),
 ]);
 
 // ── Deals ───────────────────────────────────────────────────────────

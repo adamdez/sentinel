@@ -8,7 +8,7 @@ import {
   Copy, CheckCircle2, Search, Loader2, Building, Ruler, LandPlot,
   Banknote, Scale, UserX, Eye, FileText, Calculator, Globe, Send,
   Radar, LayoutDashboard, Map, Printer, ImageIcon, ChevronLeft, ChevronRight,
-  Pencil, Save,
+  Pencil, Save, Voicemail, PhoneForwarded,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -17,6 +17,8 @@ import type { ProspectRow } from "@/hooks/use-prospects";
 import type { LeadRow } from "@/lib/leads-data";
 import type { AIScore, DistressType } from "@/lib/types";
 import { SIGNAL_WEIGHTS } from "@/lib/scoring";
+import { getSequenceLabel, getSequenceProgress } from "@/lib/call-scheduler";
+import { useCallNotes, type CallNote } from "@/hooks/use-call-notes";
 import { CompsMap, type CompProperty, type SubjectProperty } from "@/components/sentinel/comps/comps-map";
 import { PredictiveDistressBadge, type PredictiveDistressData } from "@/components/sentinel/predictive-distress-badge";
 import { RelationshipBadge } from "@/components/sentinel/relationship-badge";
@@ -79,6 +81,11 @@ export interface ClientFile {
   radarId: string | null;
   enriched: boolean;
   lockVersion?: number;
+  nextCallScheduledAt: string | null;
+  callSequenceStep: number;
+  totalCalls: number;
+  liveAnswers: number;
+  voicemailsLeft: number;
   prediction?: {
     predictiveScore: number;
     daysUntilDistress: number;
@@ -120,6 +127,7 @@ export function clientFileFromProspect(p: ProspectRow): ClientFile {
     isAbsentee: p.is_absentee, isFreeClear: p.is_free_clear,
     isHighEquity: p.is_high_equity, isCashBuyer: p.is_cash_buyer,
     ownerFlags: p.owner_flags, radarId: p.radar_id, enriched: p.enriched,
+    nextCallScheduledAt: null, callSequenceStep: 1, totalCalls: 0, liveAnswers: 0, voicemailsLeft: 0,
     prediction: p._prediction ?? null,
   };
 }
@@ -146,6 +154,7 @@ export function clientFileFromLead(l: LeadRow): ClientFile {
     isVacant: false, isAbsentee: l.ownerBadge === "absentee",
     isFreeClear: false, isHighEquity: false, isCashBuyer: false,
     ownerFlags: {}, radarId: null, enriched: false,
+    nextCallScheduledAt: null, callSequenceStep: 1, totalCalls: 0, liveAnswers: 0, voicemailsLeft: 0,
     prediction: null,
   };
 }
@@ -195,6 +204,11 @@ export function clientFileFromRaw(lead: Record<string, any>, prop: Record<string
     ownerFlags: flags, radarId: (flags.radar_id as string) ?? null,
     enriched: flags.source === "propertyradar" || !!flags.radar_id,
     lockVersion: lead.lock_version ?? 0,
+    nextCallScheduledAt: lead.next_call_scheduled_at ?? null,
+    callSequenceStep: lead.call_sequence_step ?? 1,
+    totalCalls: lead.total_calls ?? 0,
+    liveAnswers: lead.live_answers ?? 0,
+    voicemailsLeft: lead.voicemails_left ?? 0,
     prediction: lead._prediction ?? null,
   };
 }
@@ -938,6 +952,9 @@ function OverviewTab({ cf, skipTracing, skipTraceResult, skipTraceMs, overlay, s
   const skipTraced = !!overlay || !!cf.ownerFlags?.skip_traced;
   const displayPhone = overlay?.primaryPhone ?? cf.ownerPhone;
   const displayEmail = overlay?.primaryEmail ?? cf.ownerEmail;
+  const { notes: callHistory } = useCallNotes(cf.id, 5);
+  const [notesExpanded, setNotesExpanded] = useState(false);
+  const summaryNotes = callHistory.filter((n) => n.ai_summary);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const persons = overlay?.persons ?? (cf.ownerFlags?.persons as any[]) ?? [];
   const allPhones = overlay?.phones ?? (cf.ownerFlags?.all_phones as string[]) ?? [];
@@ -972,6 +989,112 @@ function OverviewTab({ cf, skipTracing, skipTraceResult, skipTraceMs, overlay, s
 
       {scoreBreakdown && (
         <ScoreBreakdownModal cf={cf} scoreType={scoreBreakdown} onClose={() => setScoreBreakdown(null)} />
+      )}
+
+      {/* ── Call History Summary — 7-Day Power Sequence ── */}
+      {(cf.totalCalls > 0 || cf.nextCallScheduledAt) && (
+        <div className="rounded-[12px] border border-white/[0.06] bg-white/[0.02] p-4 space-y-3">
+          <div className="flex items-center gap-2 mb-1">
+            <PhoneForwarded className="h-3.5 w-3.5 text-cyan" />
+            <p className="text-[11px] text-muted-foreground uppercase tracking-wider font-semibold">Call History</p>
+            <span className="text-[10px] text-cyan/60 ml-auto font-medium">{getSequenceLabel(cf.callSequenceStep)}</span>
+          </div>
+
+          {/* Progress bar */}
+          <div className="relative h-1.5 rounded-full bg-white/[0.06] overflow-hidden">
+            <div
+              className="absolute inset-y-0 left-0 rounded-full transition-all duration-500"
+              style={{
+                width: `${getSequenceProgress(cf.callSequenceStep) * 100}%`,
+                background: "linear-gradient(90deg, rgba(0,229,255,0.6), rgba(0,255,136,0.6))",
+                boxShadow: "0 0 8px rgba(0,229,255,0.3)",
+              }}
+            />
+          </div>
+
+          {/* Stats grid */}
+          <div className="grid grid-cols-3 gap-2">
+            <div className="rounded-[10px] border border-white/[0.06] bg-white/[0.03] p-2.5 text-center">
+              <Phone className="h-3 w-3 text-cyan mx-auto mb-1" />
+              <p className="text-lg font-bold text-foreground text-glow-number">{cf.totalCalls}</p>
+              <p className="text-[9px] text-muted-foreground/60 uppercase tracking-wider">Total Calls</p>
+            </div>
+            <div className="rounded-[10px] border border-white/[0.06] bg-white/[0.03] p-2.5 text-center">
+              <PhoneForwarded className="h-3 w-3 text-emerald-400 mx-auto mb-1" />
+              <p className="text-lg font-bold text-emerald-400 text-glow-number">{cf.liveAnswers}</p>
+              <p className="text-[9px] text-muted-foreground/60 uppercase tracking-wider">Live Answers</p>
+            </div>
+            <div className="rounded-[10px] border border-white/[0.06] bg-white/[0.03] p-2.5 text-center">
+              <Voicemail className="h-3 w-3 text-blue-400 mx-auto mb-1" />
+              <p className="text-lg font-bold text-blue-400 text-glow-number">{cf.voicemailsLeft}</p>
+              <p className="text-[9px] text-muted-foreground/60 uppercase tracking-wider">Voicemails</p>
+            </div>
+          </div>
+
+          {/* Last / Next call */}
+          <div className="flex items-center gap-3">
+            {cf.lastContactAt && (
+              <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground/60">
+                <Clock className="h-3 w-3" />
+                <span>Last: {new Date(cf.lastContactAt).toLocaleDateString("en-US", { month: "short", day: "numeric" })} {new Date(cf.lastContactAt).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}</span>
+              </div>
+            )}
+            {cf.nextCallScheduledAt && (
+              <div className="flex items-center gap-1.5 text-[10px] text-cyan/70 ml-auto">
+                <Calendar className="h-3 w-3" />
+                <span>Next: {new Date(cf.nextCallScheduledAt).toLocaleDateString("en-US", { month: "short", day: "numeric" })} {new Date(cf.nextCallScheduledAt).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}</span>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ── Call Notes History (AI Summaries) ── */}
+      {summaryNotes.length > 0 && (
+        <div className="rounded-[12px] border border-white/[0.06] bg-white/[0.02] p-4 space-y-3">
+          <button
+            onClick={() => setNotesExpanded(!notesExpanded)}
+            className="w-full flex items-center gap-2 mb-1 text-left"
+          >
+            <Zap className="h-3.5 w-3.5 text-purple-400" />
+            <p className="text-[11px] text-muted-foreground uppercase tracking-wider font-semibold">AI Call Notes</p>
+            <Badge variant="outline" className="text-[9px] ml-1 border-purple-500/20 text-purple-400/70">{summaryNotes.length}</Badge>
+            <ChevronRight className={cn("h-3.5 w-3.5 text-muted-foreground/40 ml-auto transition-transform", notesExpanded && "rotate-90")} />
+          </button>
+
+          <AnimatePresence>
+            {notesExpanded && (
+              <motion.div
+                initial={{ height: 0, opacity: 0 }}
+                animate={{ height: "auto", opacity: 1 }}
+                exit={{ height: 0, opacity: 0 }}
+                transition={{ duration: 0.2 }}
+                className="overflow-hidden space-y-2"
+              >
+                {summaryNotes.map((note) => (
+                  <div key={note.id} className="rounded-[10px] border border-white/[0.06] bg-white/[0.03] p-3 space-y-1.5">
+                    <div className="flex items-center gap-2">
+                      <span className="text-[9px] font-semibold uppercase text-purple-400/60">{note.disposition}</span>
+                      <span className="text-[9px] text-muted-foreground/40">
+                        {new Date(note.started_at).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
+                        {" "}
+                        {new Date(note.started_at).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}
+                      </span>
+                      {note.duration_sec > 0 && (
+                        <span className="text-[9px] text-muted-foreground/40 ml-auto">{Math.floor(note.duration_sec / 60)}:{(note.duration_sec % 60).toString().padStart(2, "0")}</span>
+                      )}
+                    </div>
+                    <p className="text-[11px] text-muted-foreground/80 leading-relaxed whitespace-pre-line">{note.ai_summary}</p>
+                  </div>
+                ))}
+              </motion.div>
+            )}
+          </AnimatePresence>
+
+          {!notesExpanded && summaryNotes[0] && (
+            <p className="text-[11px] text-muted-foreground/60 leading-relaxed line-clamp-3 whitespace-pre-line">{summaryNotes[0].ai_summary}</p>
+          )}
+        </div>
       )}
 
       {/* ── Property Details — High-Density Wholesaler Grid ── */}

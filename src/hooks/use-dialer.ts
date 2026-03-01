@@ -17,6 +17,11 @@ export interface QueueLead {
   notes: string | null;
   assigned_to: string | null;
   lock_version: number;
+  next_call_scheduled_at: string | null;
+  call_sequence_step: number;
+  total_calls: number;
+  live_answers: number;
+  voicemails_left: number;
   properties: {
     id: string;
     address: string;
@@ -43,21 +48,42 @@ export function useDialerQueue(limit = 7) {
   const { currentUser, ghostMode } = useSentinelStore();
 
   const fetchQueue = useCallback(async () => {
-    // Personal queue: only claimed leads assigned to this agent
+    const now = new Date().toISOString();
+    // Personal queue: claimed leads where next call is due (or unscheduled)
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data, error } = await (supabase.from("leads") as any)
+    const { data: scheduled, error: err1 } = await (supabase.from("leads") as any)
       .select("*, properties(*)")
       .eq("status", "lead")
       .eq("assigned_to", currentUser.id)
-      .order("priority", { ascending: false })
+      .lte("next_call_scheduled_at", now)
+      .order("next_call_scheduled_at", { ascending: true })
       .limit(limit + 10);
-    if (error) {
-      console.error("[DialerQueue]", error);
+
+    // Also fetch leads with no schedule (legacy or newly claimed)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: unscheduled, error: err2 } = await (supabase.from("leads") as any)
+      .select("*, properties(*)")
+      .eq("status", "lead")
+      .eq("assigned_to", currentUser.id)
+      .is("next_call_scheduled_at", null)
+      .order("priority", { ascending: false })
+      .limit(limit);
+
+    if (err1 || err2) {
+      console.error("[DialerQueue]", err1 ?? err2);
       setLoading(false);
       return;
     }
 
-    const rows = (data ?? []) as QueueLead[];
+    const seen = new Set<string>();
+    const merged: QueueLead[] = [];
+    for (const row of [...(scheduled ?? []), ...(unscheduled ?? [])]) {
+      if (!seen.has(row.id)) {
+        seen.add(row.id);
+        merged.push(row);
+      }
+    }
+    const rows = merged;
 
     // Batch-fetch predictive scores for these leads' properties
     const propertyIds = rows

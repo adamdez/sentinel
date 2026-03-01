@@ -49,29 +49,7 @@ export const useSentinelStore = create<SentinelState>((set) => ({
   },
   setCurrentUser: (user) => set({ currentUser: user }),
 
-  chatMessages: [
-    {
-      id: "msg-1",
-      user_id: "user-sarah",
-      user_name: "Sarah K.",
-      content: "Just closed the Henderson deal — $42k assignment fee 🔥",
-      timestamp: new Date(Date.now() - 3600000).toISOString(),
-    },
-    {
-      id: "msg-2",
-      user_id: "user-adam",
-      user_name: "Adam D.",
-      content: "Nice! That probate lead scored 94. AI nailed it.",
-      timestamp: new Date(Date.now() - 3000000).toISOString(),
-    },
-    {
-      id: "msg-3",
-      user_id: "user-mike",
-      user_name: "Mike R.",
-      content: "Got 3 new prospects from the tax lien batch — all high equity.",
-      timestamp: new Date(Date.now() - 1800000).toISOString(),
-    },
-  ],
+  chatMessages: [],
   addChatMessage: (msg) =>
     set((s) => ({ chatMessages: [...s.chatMessages, msg] })),
 

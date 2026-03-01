@@ -27,6 +27,7 @@ export async function POST(req: NextRequest) {
         voicemail_url: recordingUrl,
         voicemail_duration: parseInt(recordingDuration) || 0,
         voicemail_dropped: true,
+        recording_url: recordingUrl,
       })
       .eq("id", callLogId);
   }

@@ -41,7 +41,7 @@ import {
   type AttomForeclosure,
 } from "@/lib/attom";
 import { normalizeCounty, distressFingerprint, isDuplicateError } from "@/lib/dedup";
-import { computeScore, SCORING_MODEL_VERSION, type ScoringInput } from "@/lib/scoring";
+import { computeScore, SCORING_MODEL_VERSION, getTierLabel, TIER_CUTOFFS, type ScoringInput } from "@/lib/scoring";
 import {
   computePredictiveScore,
   buildPredictionRecord,
@@ -52,7 +52,7 @@ import type { DistressType } from "@/lib/types";
 
 const SYSTEM_USER_ID = "00000000-0000-0000-0000-000000000000";
 const ATTOM_SOURCE_TAG = "ATTOM_Daily";
-const ATTOM_PROMOTION_THRESHOLD = 75;
+const ATTOM_STORE_CUTOFF = TIER_CUTOFFS.C; // 30 — store A+B+C tier prospects
 const MAX_PAGES_PER_COUNTY = 2;
 
 // ── Result Types ─────────────────────────────────────────────────────
@@ -508,25 +508,29 @@ async function processAttomProperty(
   await (sb.from("scoring_predictions") as any).insert(buildPredictionRecord(property.id, predOutput));
   result.scored++;
 
-  if (blendedScore >= ATTOM_PROMOTION_THRESHOLD) {
+  if (blendedScore >= ATTOM_STORE_CUTOFF) {
+    const tier = getTierLabel(blendedScore);
+    const tierTag = `tier-${tier.toLowerCase()}`;
+    const signalTags = signals.map((s) => s.type);
+
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { data: existingLead } = await (sb.from("leads") as any)
       .select("id").eq("property_id", property.id)
-      .in("status", ["prospect", "lead", "negotiation"]).maybeSingle();
+      .in("status", ["prospect", "lead", "negotiation", "nurture"]).maybeSingle();
 
     if (!existingLead) {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       await (sb.from("leads") as any).insert({
         property_id: property.id, status: "prospect", priority: blendedScore,
-        source: ATTOM_SOURCE_TAG, tags: signals.map((s) => s.type),
-        notes: `ATTOM Delta — Heat ${blendedScore} (det:${score.composite} + pred:${predOutput.predictiveScore}). Distress ~${predOutput.daysUntilDistress}d (${predOutput.confidence}% conf). ${signals.length} signal(s). ATTOM ID: ${prop.identifier?.attomId ?? "N/A"}`,
+        source: ATTOM_SOURCE_TAG, tags: [tierTag, ...signalTags],
+        notes: `ATTOM Delta [${tier}] — Heat ${blendedScore} (det:${score.composite} + pred:${predOutput.predictiveScore}). Distress ~${predOutput.daysUntilDistress}d (${predOutput.confidence}% conf). ${signals.length} signal(s). ATTOM ID: ${prop.identifier?.attomId ?? "N/A"}`,
         promoted_at: new Date().toISOString(),
       });
       result.promoted++;
     } else {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       await (sb.from("leads") as any)
-        .update({ priority: blendedScore, tags: signals.map((s) => s.type) })
+        .update({ priority: blendedScore, tags: [tierTag, ...signalTags] })
         .eq("id", existingLead.id);
       result.updated++;
     }
@@ -631,25 +635,28 @@ async function processAttomForeclosure(
   await (sb.from("scoring_predictions") as any).insert(buildPredictionRecord(property.id, predOutput));
   result.scored++;
 
-  if (blendedScore >= ATTOM_PROMOTION_THRESHOLD) {
+  if (blendedScore >= ATTOM_STORE_CUTOFF) {
+    const tier = getTierLabel(blendedScore);
+    const tierTag = `tier-${tier.toLowerCase()}`;
+
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { data: existingLead } = await (sb.from("leads") as any)
       .select("id").eq("property_id", property.id)
-      .in("status", ["prospect", "lead", "negotiation"]).maybeSingle();
+      .in("status", ["prospect", "lead", "negotiation", "nurture"]).maybeSingle();
 
     if (!existingLead) {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       await (sb.from("leads") as any).insert({
         property_id: property.id, status: "prospect", priority: blendedScore,
-        source: ATTOM_SOURCE_TAG, tags: ["pre_foreclosure"],
-        notes: `ATTOM Foreclosure — Heat ${blendedScore} (det:${score.composite} + pred:${predOutput.predictiveScore}). ${fc.FC?.FCType ?? "Unknown"} stage. Default: $${fc.FC?.defaultAmount ?? "?"}. Lender: ${fc.FC?.lenderName ?? "N/A"}`,
+        source: ATTOM_SOURCE_TAG, tags: [tierTag, "pre_foreclosure"],
+        notes: `ATTOM Foreclosure [${tier}] — Heat ${blendedScore} (det:${score.composite} + pred:${predOutput.predictiveScore}). ${fc.FC?.FCType ?? "Unknown"} stage. Default: $${fc.FC?.defaultAmount ?? "?"}. Lender: ${fc.FC?.lenderName ?? "N/A"}`,
         promoted_at: new Date().toISOString(),
       });
       result.promoted++;
     } else {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       await (sb.from("leads") as any)
-        .update({ priority: blendedScore, tags: ["pre_foreclosure"] })
+        .update({ priority: blendedScore, tags: [tierTag, "pre_foreclosure"] })
         .eq("id", existingLead.id);
       result.updated++;
     }

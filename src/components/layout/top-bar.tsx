@@ -28,6 +28,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { useSentinelStore } from "@/lib/store";
 import { useRealtime } from "@/providers/realtime-provider";
+import { useHydrated } from "@/providers/hydration-provider";
 import { supabase } from "@/lib/supabase";
 import { GlobalSearch } from "./global-search";
 
@@ -41,6 +42,7 @@ export function TopBar() {
     currentUser,
   } = useSentinelStore();
   const { connected } = useRealtime();
+  const hydrated = useHydrated();
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
@@ -49,7 +51,7 @@ export function TopBar() {
 
   return (
     <motion.header
-      initial={{ y: -10, opacity: 0 }}
+      initial={hydrated ? { y: -10, opacity: 0 } : false}
       animate={{ y: 0, opacity: 1 }}
       className="h-14 border-b border-glass-border topbar-glass flex items-center justify-between px-4 shrink-0 z-30"
     >

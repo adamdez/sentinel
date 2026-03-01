@@ -48,6 +48,32 @@ export async function streamGrokChat(opts: GrokStreamOptions): Promise<ReadableS
   return res.body;
 }
 
+export async function completeGrokChat(opts: GrokStreamOptions): Promise<string> {
+  const { messages, temperature = 0, apiKey } = opts;
+
+  const res = await fetch(GROK_ENDPOINT, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${apiKey}`,
+    },
+    body: JSON.stringify({
+      model: GROK_MODEL,
+      temperature,
+      stream: false,
+      messages,
+    }),
+  });
+
+  if (!res.ok) {
+    const body = await res.text().catch(() => "");
+    throw new Error(`Grok API ${res.status}: ${body.slice(0, 300)}`);
+  }
+
+  const data = await res.json();
+  return data.choices?.[0]?.message?.content ?? "";
+}
+
 export function buildSentinelSystemPrompt(metrics?: {
   activeLeads?: number;
   closedDeals30d?: number;

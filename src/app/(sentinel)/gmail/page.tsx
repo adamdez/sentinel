@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, Suspense } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useSearchParams } from "next/navigation";
 import {
   Mail,
@@ -31,15 +31,6 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { useSentinelStore } from "@/lib/store";
-import { supabase } from "@/lib/supabase";
-
-// ── Auth helper ─────────────────────────────────────────────────────────
-
-async function getAuthHeaders(): Promise<Record<string, string>> {
-  const { data: { session } } = await supabase.auth.getSession();
-  if (!session?.access_token) return {};
-  return { Authorization: `Bearer ${session.access_token}` };
-}
 
 // ── Types ────────────────────────────────────────────────────────────────
 
@@ -196,10 +187,9 @@ function ComposeModal({
         payload.attachments = [{ filename: attachmentName, mimeType, data: attachmentData }];
       }
 
-      const authHeaders = await getAuthHeaders();
       const res = await fetch("/api/gmail/send", {
         method: "POST",
-        headers: { "Content-Type": "application/json", ...authHeaders },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
 
@@ -330,14 +320,6 @@ function ComposeModal({
 // ── Main Page ────────────────────────────────────────────────────────────
 
 export default function GmailPage() {
-  return (
-    <Suspense fallback={<div className="flex items-center justify-center h-64"><Loader2 className="h-8 w-8 animate-spin text-cyan" /></div>}>
-      <GmailPageContent />
-    </Suspense>
-  );
-}
-
-function GmailPageContent() {
   const { currentUser } = useSentinelStore();
   const userId = currentUser?.id;
 
@@ -365,8 +347,7 @@ function GmailPageContent() {
   const fetchStatus = useCallback(async () => {
     if (!userId) return;
     try {
-      const headers = await getAuthHeaders();
-      const res = await fetch(`/api/gmail/status?user_id=${userId}`, { headers });
+      const res = await fetch(`/api/gmail/status?user_id=${userId}`);
       if (res.ok) {
         const data = await res.json();
         setStatus(data);
@@ -382,8 +363,7 @@ function GmailPageContent() {
     if (!userId) return;
     setInboxLoading(true);
     try {
-      const headers = await getAuthHeaders();
-      const res = await fetch(`/api/gmail/inbox?user_id=${userId}`, { headers });
+      const res = await fetch(`/api/gmail/inbox?user_id=${userId}`);
       if (res.ok) {
         const data = await res.json();
         setMessages(data.messages ?? []);

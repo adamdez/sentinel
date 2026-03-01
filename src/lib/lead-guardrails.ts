@@ -15,12 +15,14 @@
 import type { LeadStatus } from "@/lib/types";
 
 const ALLOWED_TRANSITIONS: Record<LeadStatus, ReadonlyArray<LeadStatus>> = {
-  prospect: ["lead", "dead"],
+  prospect: ["lead", "nurture", "dead"],
   lead: ["negotiation", "nurture", "dead"],
   negotiation: ["disposition", "nurture", "dead"],
   disposition: ["closed", "nurture", "dead"],
   nurture: ["lead", "dead"],
-  dead: [],
+  // v2.1: Dead leads can be resurrected to nurture when new distress
+  // signals appear — keeps the funnel alive for drip campaigns.
+  dead: ["nurture"],
   closed: [],
 };
 

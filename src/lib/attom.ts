@@ -588,12 +588,12 @@ export function detectAttomDistressSignals(
     prop.summary?.absenteeInd === "Y" ||
     prop.assessment?.owner?.absenteeOwnerStatus === "O"
   ) {
-    signals.push({ type: "absentee", severity: 5, source: "attom_absentee" });
+    signals.push({ type: "absentee", severity: 6, source: "attom_absentee" });
   }
 
-  // Corporate owner
+  // Corporate owner (also absentee signal but lower severity)
   if (prop.assessment?.owner?.corporateIndicator === "Y") {
-    signals.push({ type: "absentee", severity: 3, source: "attom_corporate" });
+    signals.push({ type: "absentee", severity: 5, source: "attom_corporate" });
   }
 
   // Tax delinquency (assessed but no payment signals)

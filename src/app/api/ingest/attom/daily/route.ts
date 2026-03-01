@@ -19,7 +19,7 @@
 
 import { NextResponse } from "next/server";
 import { createServerClient } from "@/lib/supabase";
-import { computeScore, SCORING_MODEL_VERSION, type ScoringInput } from "@/lib/scoring";
+import { computeScore, SCORING_MODEL_VERSION, getTierLabel, TIER_CUTOFFS, type ScoringInput } from "@/lib/scoring";
 import {
   computePredictiveScore,
   buildPredictionRecord,
@@ -47,7 +47,7 @@ export const maxDuration = 120;
 
 const SYSTEM_USER_ID = "00000000-0000-0000-0000-000000000000";
 const SOURCE_TAG = "ATTOM_Daily";
-const PROMOTION_THRESHOLD = 75;
+const STORE_CUTOFF = TIER_CUTOFFS.C; // 30 — store A+B+C tier prospects
 const MAX_PAGES_PER_COUNTY = 2;
 
 interface IngestCountyResult {
@@ -450,13 +450,17 @@ async function processProperty(
 
   result.scored++;
 
-  // 5. Promote to lead if blended ≥ threshold
-  if (blendedScore >= PROMOTION_THRESHOLD) {
+  // 5. Tiered lead storage — A/B/C tiers stored, D discarded
+  if (blendedScore >= STORE_CUTOFF) {
+    const tier = getTierLabel(blendedScore);
+    const tierTag = `tier-${tier.toLowerCase()}`;
+    const signalTags = signals.map((s) => s.type);
+
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { data: existingLead } = await (sb.from("leads") as any)
       .select("id")
       .eq("property_id", property.id)
-      .in("status", ["prospect", "lead", "negotiation"])
+      .in("status", ["prospect", "lead", "negotiation", "nurture"])
       .maybeSingle();
 
     if (!existingLead) {
@@ -466,15 +470,15 @@ async function processProperty(
         status: "prospect",
         priority: blendedScore,
         source: SOURCE_TAG,
-        tags: signals.map((s) => s.type),
-        notes: `ATTOM Delta — Heat ${blendedScore} (det:${score.composite} + pred:${predOutput.predictiveScore}). Distress ~${predOutput.daysUntilDistress}d (${predOutput.confidence}% conf). ${signals.length} signal(s). ATTOM ID: ${prop.identifier?.attomId ?? "N/A"}`,
+        tags: [tierTag, ...signalTags],
+        notes: `ATTOM Delta [${tier}] — Heat ${blendedScore} (det:${score.composite} + pred:${predOutput.predictiveScore}). Distress ~${predOutput.daysUntilDistress}d (${predOutput.confidence}% conf). ${signals.length} signal(s). ATTOM ID: ${prop.identifier?.attomId ?? "N/A"}`,
         promoted_at: new Date().toISOString(),
       });
       result.promoted++;
     } else {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       await (sb.from("leads") as any)
-        .update({ priority: blendedScore, tags: signals.map((s) => s.type) })
+        .update({ priority: blendedScore, tags: [tierTag, ...signalTags] })
         .eq("id", existingLead.id);
       result.updated++;
     }
@@ -634,13 +638,16 @@ async function processForeclosureOnly(
 
   result.scored++;
 
-  // Promote if meets threshold
-  if (blendedScore >= PROMOTION_THRESHOLD) {
+  // Tiered lead storage — A/B/C tiers stored, D discarded
+  if (blendedScore >= STORE_CUTOFF) {
+    const tier = getTierLabel(blendedScore);
+    const tierTag = `tier-${tier.toLowerCase()}`;
+
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { data: existingLead } = await (sb.from("leads") as any)
       .select("id")
       .eq("property_id", property.id)
-      .in("status", ["prospect", "lead", "negotiation"])
+      .in("status", ["prospect", "lead", "negotiation", "nurture"])
       .maybeSingle();
 
     if (!existingLead) {
@@ -650,15 +657,15 @@ async function processForeclosureOnly(
         status: "prospect",
         priority: blendedScore,
         source: SOURCE_TAG,
-        tags: ["pre_foreclosure"],
-        notes: `ATTOM Foreclosure — Heat ${blendedScore} (det:${score.composite} + pred:${predOutput.predictiveScore}). ${fc.FC?.FCType ?? "Unknown"} stage. Default: $${fc.FC?.defaultAmount ?? "?"} . Lender: ${fc.FC?.lenderName ?? "N/A"}`,
+        tags: [tierTag, "pre_foreclosure"],
+        notes: `ATTOM Foreclosure [${tier}] — Heat ${blendedScore} (det:${score.composite} + pred:${predOutput.predictiveScore}). ${fc.FC?.FCType ?? "Unknown"} stage. Default: $${fc.FC?.defaultAmount ?? "?"}. Lender: ${fc.FC?.lenderName ?? "N/A"}`,
         promoted_at: new Date().toISOString(),
       });
       result.promoted++;
     } else {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       await (sb.from("leads") as any)
-        .update({ priority: blendedScore, tags: ["pre_foreclosure"] })
+        .update({ priority: blendedScore, tags: [tierTag, "pre_foreclosure"] })
         .eq("id", existingLead.id);
       result.updated++;
     }

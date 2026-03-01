@@ -101,32 +101,24 @@ export function useProspects(opts: UseProspectsOptions = {}) {
   const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
 
   const fetchProspects = useCallback(async () => {
-    console.log("=== [useProspects] FETCH START ===");
+    console.log("=== [useProspects] FETCH START (server API) ===");
     const t0 = Date.now();
 
     try {
       setLoading(true);
       setError(null);
 
-      // ── Step 1: Fetch leads where status = prospect ────────────────
+      // ── Fetch all prospect data via server-side API (bypasses RLS) ──
 
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      let leadsQuery = (supabase.from("leads") as any)
-        .select("*", { count: "exact" })
-        .eq("status", "prospect")
-        .order("priority", { ascending: false });
-
-      if (sourceFilter) {
-        leadsQuery = leadsQuery.eq("source", sourceFilter);
-      }
-
-      const { data: leadsData, error: leadsError, count } = await leadsQuery;
-
-      if (leadsError) {
-        console.error("[useProspects] Leads query FAILED:", JSON.stringify(leadsError, null, 2));
-        setError(leadsError.message);
+      const res = await fetch("/api/prospects");
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({ error: `HTTP ${res.status}` }));
+        console.error("[useProspects] API fetch FAILED:", res.status, body);
+        setError(body.error || `Server error ${res.status}`);
         return;
       }
+
+      const { leads: leadsData, properties: propertiesMap, predictions: predictionsMap } = await res.json();
 
       if (!leadsData || leadsData.length === 0) {
         console.log("[useProspects] No prospect leads found");
@@ -135,59 +127,11 @@ export function useProspects(opts: UseProspectsOptions = {}) {
         return;
       }
 
-      console.log("[useProspects] Step 1 — Fetched", leadsData.length, "leads");
-      console.log("[useProspects] Sample lead:", JSON.stringify(leadsData[0], null, 2).slice(0, 500));
+      console.log("[useProspects] API returned", leadsData.length, "leads,",
+        Object.keys(propertiesMap || {}).length, "properties,",
+        Object.keys(predictionsMap || {}).length, "predictions");
 
-      // ── Step 2: Fetch properties for those leads ───────────────────
-      // Separate query avoids PostgREST FK/join issues entirely.
-
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const propertyIds: string[] = [...new Set((leadsData as any[]).map((l) => l.property_id).filter(Boolean))];
-
-      console.log("[useProspects] Step 2 — Fetching", propertyIds.length, "properties by ID");
-
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      let propertiesMap: Record<string, any> = {};
-
-      if (propertyIds.length > 0) {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const { data: propsData, error: propsError } = await (supabase.from("properties") as any)
-          .select("*")
-          .in("id", propertyIds);
-
-        if (propsError) {
-          console.error("[useProspects] Properties query FAILED:", JSON.stringify(propsError, null, 2));
-          console.error("[useProspects] Continuing without property data...");
-        } else if (propsData) {
-          console.log("[useProspects] Step 2 — Fetched", propsData.length, "properties");
-          if (propsData.length > 0) {
-            console.log("[useProspects] Sample property:", JSON.stringify(propsData[0], null, 2).slice(0, 800));
-          }
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          for (const p of propsData as any[]) {
-            propertiesMap[p.id] = p;
-          }
-        }
-      }
-
-      // ── Step 2b: Fetch latest predictions ──────────────────────────
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const predictionsMap: Record<string, any> = {};
-      if (propertyIds.length > 0) {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const { data: predsData } = await (supabase.from("scoring_predictions") as any)
-          .select("property_id, predictive_score, days_until_distress, confidence, owner_age_inference, equity_burn_rate, life_event_probability")
-          .in("property_id", propertyIds)
-          .order("created_at", { ascending: false });
-        if (predsData) {
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          for (const p of predsData as any[]) {
-            if (!(p.property_id in predictionsMap)) predictionsMap[p.property_id] = p;
-          }
-        }
-      }
-
-      // ── Step 3: Merge leads + properties ───────────────────────────
+      // ── Merge leads + properties ───────────────────────────────
 
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const rows: ProspectRow[] = (leadsData as any[]).map((lead) => {
@@ -287,9 +231,13 @@ export function useProspects(opts: UseProspectsOptions = {}) {
         hasPropertyData: !!propertiesMap[rows[0]?.property_id],
       });
 
-      // ── Step 4: Client-side search ─────────────────────────────────
+      // ── Client-side filtering (search, source, score) ──────────────
 
       let filtered = rows;
+
+      if (sourceFilter) {
+        filtered = filtered.filter((r) => r.source === sourceFilter);
+      }
 
       if (search.length >= 2) {
         const q = search.toLowerCase();
@@ -324,7 +272,7 @@ export function useProspects(opts: UseProspectsOptions = {}) {
       });
 
       setProspects(filtered);
-      setTotalCount(count ?? filtered.length);
+      setTotalCount(leadsData.length);
 
       console.log("[useProspects] DONE:", {
         leads: leadsData.length,

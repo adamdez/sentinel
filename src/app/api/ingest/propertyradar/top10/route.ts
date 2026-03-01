@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@/lib/supabase";
-import { computeScore, SCORING_MODEL_VERSION, type ScoringInput } from "@/lib/scoring";
+import { computeScore, SCORING_MODEL_VERSION, getTierLabel, TIER_CUTOFFS, type ScoringInput } from "@/lib/scoring";
 import {
   computePredictiveScore,
   buildPredictionRecord,
@@ -12,15 +12,130 @@ import {
   normalizeCounty, distressFingerprint, isDuplicateError,
   isTruthy, toNumber, toInt, daysSince,
 } from "@/lib/dedup";
+import { COUNTY_FIPS } from "@/lib/attom";
 
 const SYSTEM_USER_ID = "00000000-0000-0000-0000-000000000000";
 const PR_API = "https://api.propertyradar.com/v1/properties";
-const SOURCE_TAG = "EliteSeed_Top10_20260228";
+const SOURCE_TAG = "EliteSeed_Top10_20260301";
 const MAX_PR_PULL = 60;
-const ELITE_CUTOFF = 75;
+const ELITE_CUTOFF = TIER_CUTOFFS.A; // 75 — A-tier
+const STORE_CUTOFF = TIER_CUTOFFS.C; // 30 — minimum to store (C-tier)
 const ELITE_COUNT = 10;
 
 const DEFAULT_COUNTIES = ["Spokane", "Kootenai"];
+
+// ── Targeting Waterfall ───────────────────────────────────────────────
+// Two-phase priority system:
+//
+// PHASE 1 — PLATINUM: Free & Clear (100% equity) + Absentee + Distress
+//   These are the best leads in any market. No mortgage = no lender
+//   complications. Absentee = less emotional attachment. Distress =
+//   motivated to sell. ~10K exist per county — work these FIRST.
+//
+// PHASE 2 — GOLD: Absentee + 80%+ equity (any/no distress)
+//   Once Platinum pool thins, broaden to high-equity absentee owners.
+//   Still excellent leads, just slightly lower conversion rate.
+//
+// PropertyRadar criteria are AND-based, so each lens is a separate
+// API call. Results are deduped by APN across all lenses.
+
+interface DistressLens {
+  name: string;
+  phase: 1 | 2;
+  /** Extra criteria to add to the base State filter */
+  criteria: { name: string; value: (string | number | boolean | string[])[] }[];
+  /** How many records to pull for this lens */
+  limit: number;
+}
+
+const DISTRESS_LENSES: DistressLens[] = [
+  // ═══════════════════════════════════════════════════════════════════
+  // PHASE 1 — PLATINUM: Free & Clear + Absentee + Active Distress
+  // ═══════════════════════════════════════════════════════════════════
+
+  // 1a: Free & Clear + Absentee + Pre-Foreclosure (severity 7-9)
+  {
+    name: "platinum_foreclosure",
+    phase: 1,
+    criteria: [
+      { name: "isFreeAndClear", value: ["Yes"] },
+      { name: "isNotSameMailingOrExempt", value: ["Yes"] },
+      { name: "isPreforeclosure", value: ["Yes"] },
+    ],
+    limit: 15,
+  },
+  // 1b: Free & Clear + Absentee + Probate/Deceased (severity 9)
+  {
+    name: "platinum_probate",
+    phase: 1,
+    criteria: [
+      { name: "isFreeAndClear", value: ["Yes"] },
+      { name: "isNotSameMailingOrExempt", value: ["Yes"] },
+      { name: "isDeceasedProperty", value: ["Yes"] },
+    ],
+    limit: 15,
+  },
+  // 1c: Free & Clear + Absentee + Tax Delinquent (severity 6-8)
+  {
+    name: "platinum_tax",
+    phase: 1,
+    criteria: [
+      { name: "isFreeAndClear", value: ["Yes"] },
+      { name: "isNotSameMailingOrExempt", value: ["Yes"] },
+      { name: "inTaxDelinquency", value: ["Yes"] },
+    ],
+    limit: 10,
+  },
+  // 1d: Free & Clear + Absentee + Vacant (stacking bonus)
+  {
+    name: "platinum_vacant",
+    phase: 1,
+    criteria: [
+      { name: "isFreeAndClear", value: ["Yes"] },
+      { name: "isNotSameMailingOrExempt", value: ["Yes"] },
+      { name: "isSiteVacant", value: ["Yes"] },
+    ],
+    limit: 10,
+  },
+  // 1e: Free & Clear + Absentee + Divorce/Bankruptcy (severity 7-8)
+  {
+    name: "platinum_divorce",
+    phase: 1,
+    criteria: [
+      { name: "isFreeAndClear", value: ["Yes"] },
+      { name: "isNotSameMailingOrExempt", value: ["Yes"] },
+      { name: "inDivorce", value: ["Yes"] },
+    ],
+    limit: 10,
+  },
+
+  // ═══════════════════════════════════════════════════════════════════
+  // PHASE 2 — GOLD: Absentee + High Equity (80%+), no distress req'd
+  // Only used when Phase 1 doesn't fill the quota.
+  // ═══════════════════════════════════════════════════════════════════
+
+  // 2a: Absentee + 80%+ equity + Vacant (best of Gold)
+  {
+    name: "gold_absentee_vacant",
+    phase: 2,
+    criteria: [
+      { name: "isNotSameMailingOrExempt", value: ["Yes"] },
+      { name: "isSiteVacant", value: ["Yes"] },
+      { name: "EquityPercent", value: [["80", "100"]] },
+    ],
+    limit: 15,
+  },
+  // 2b: Absentee + 80%+ equity (broad catch-all)
+  {
+    name: "gold_absentee_high_equity",
+    phase: 2,
+    criteria: [
+      { name: "isNotSameMailingOrExempt", value: ["Yes"] },
+      { name: "EquityPercent", value: [["80", "100"]] },
+    ],
+    limit: 15,
+  },
+];
 
 // ── PropertyRadar response shape ─────────────────────────────────────
 
@@ -243,16 +358,14 @@ export async function POST(req: NextRequest) {
   };
   const states = [...new Set(counties.map((c) => COUNTY_STATE_MAP[c.toLowerCase()] ?? "WA"))];
 
-  console.log("[Top10] Counties:", counties, "States:", states);
+  // Convert county names to FIPS codes for PropertyRadar API
+  const fipsCodes = counties
+    .map((c) => COUNTY_FIPS[c] ?? COUNTY_FIPS[c.charAt(0).toUpperCase() + c.slice(1).toLowerCase()])
+    .filter(Boolean);
 
-  // ── 2. PropertyRadar criteria ───────────────────────────────────────
+  console.log("[Top10] Counties:", counties, "States:", states, "FIPS:", fipsCodes);
 
-  const criteria = [
-    { name: "State", value: states },
-    { name: "County", value: counties },
-    { name: "isNotSameMailingOrExempt", value: ["1"] },
-    { name: "EquityPercent", value: [["50", "100"]] },
-  ];
+  // ── 2. PropertyRadar fields ────────────────────────────────────────
 
   const fields = [
     "RadarID", "APN", "Address", "FullAddress", "City", "State", "ZipFive",
@@ -269,60 +382,157 @@ export async function POST(req: NextRequest) {
     "DelinquentYear", "DelinquentAmount",
   ].join(",");
 
-  const url = `${PR_API}?Purchase=1&Limit=${MAX_PR_PULL}&Fields=${fields}`;
+  // ── 3. Waterfall Targeting ──────────────────────────────────────────
+  // Phase 1 (Platinum): Free & Clear + Absentee + Distress
+  //   → These are the slam-dunk deals. Run ALL Phase 1 lenses first.
+  // Phase 2 (Gold): Absentee + 80%+ equity
+  //   → Only if Phase 1 didn't produce enough storable results.
+  //
+  // Base criteria: State + County (with auto-fallback if FIPS rejected).
+  // Each lens adds its own equity + distress filters on top.
 
-  // ── 3. Call PropertyRadar ───────────────────────────────────────────
+  const geoCriteria = [
+    { name: "State", value: states },
+    ...(fipsCodes.length > 0 ? [{ name: "County", value: fipsCodes }] : []),
+  ];
 
-  const requestBody = JSON.stringify({ Criteria: criteria });
-  console.log("[Top10] >>> PR Request body:", requestBody);
+  const fallbackGeoCriteria = [
+    { name: "State", value: states },
+  ];
 
-  let prResponse: Response;
-  try {
-    prResponse = await fetch(url, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        "Content-Type": "application/json",
-        Accept: "application/json",
-      },
-      body: requestBody,
-    });
-  } catch (err) {
-    console.error("[Top10] Network error:", err);
-    return NextResponse.json(
-      { success: false, error: "Failed to reach PropertyRadar — check network/VPN", detail: String(err) },
-      { status: 502 },
-    );
+  const allResults: PRProperty[] = [];
+  const seenApns = new Set<string>();
+  const lensResults: { lens: string; phase: number; count: number; cost: string }[] = [];
+  let totalCost = "0";
+  let useCountyFilter = fipsCodes.length > 0;
+
+  // Separate phases
+  const phase1Lenses = DISTRESS_LENSES.filter((l) => l.phase === 1);
+  const phase2Lenses = DISTRESS_LENSES.filter((l) => l.phase === 2);
+
+  // Run a set of lenses and collect results
+  async function runLenses(lenses: DistressLens[], phaseLabel: string): Promise<void> {
+    for (const lens of lenses) {
+      const geo = useCountyFilter ? geoCriteria : fallbackGeoCriteria;
+      const criteria = [...geo, ...lens.criteria];
+      const url = `${PR_API}?Purchase=1&Limit=${lens.limit}&Fields=${fields}`;
+      const requestBody = JSON.stringify({ Criteria: criteria });
+
+      console.log(`[Top10] >>> ${phaseLabel} Lens "${lens.name}" (limit ${lens.limit}):`, requestBody);
+
+      let lensResponse: Response;
+      let lensText: string;
+      try {
+        lensResponse = await fetch(url, {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${apiKey}`,
+            "Content-Type": "application/json",
+            Accept: "application/json",
+          },
+          body: requestBody,
+        });
+        lensText = await lensResponse.text();
+      } catch (err) {
+        console.warn(`[Top10] Lens "${lens.name}" network error — skipping:`, String(err));
+        lensResults.push({ lens: lens.name, phase: lens.phase, count: 0, cost: "0" });
+        continue;
+      }
+
+      if (!lensResponse.ok) {
+        // If County filter caused the failure, disable it for remaining lenses
+        if (useCountyFilter && lensResponse.status === 400) {
+          console.warn(`[Top10] Lens "${lens.name}" failed with County filter (${lensResponse.status}) — retrying without County...`);
+          useCountyFilter = false;
+
+          // Retry this lens without County
+          const retryGeo = fallbackGeoCriteria;
+          const retryCriteria = [...retryGeo, ...lens.criteria];
+          const retryBody = JSON.stringify({ Criteria: retryCriteria });
+          try {
+            const retryResp = await fetch(url, {
+              method: "POST",
+              headers: {
+                Authorization: `Bearer ${apiKey}`,
+                "Content-Type": "application/json",
+                Accept: "application/json",
+              },
+              body: retryBody,
+            });
+            if (retryResp.ok) {
+              lensText = await retryResp.text();
+            } else {
+              console.warn(`[Top10] Lens "${lens.name}" retry also failed (${retryResp.status}) — skipping`);
+              lensResults.push({ lens: lens.name, phase: lens.phase, count: 0, cost: "0" });
+              continue;
+            }
+          } catch {
+            lensResults.push({ lens: lens.name, phase: lens.phase, count: 0, cost: "0" });
+            continue;
+          }
+        } else {
+          console.warn(`[Top10] Lens "${lens.name}" failed (HTTP ${lensResponse.status}): ${lensText.slice(0, 200)} — skipping`);
+          lensResults.push({ lens: lens.name, phase: lens.phase, count: 0, cost: "0" });
+          continue;
+        }
+      }
+
+      let parsed: { results?: PRProperty[]; totalCost?: string };
+      try {
+        parsed = JSON.parse(lensText);
+      } catch {
+        console.warn(`[Top10] Lens "${lens.name}" returned non-JSON — skipping`);
+        lensResults.push({ lens: lens.name, phase: lens.phase, count: 0, cost: "0" });
+        continue;
+      }
+
+      const lensProps = parsed.results ?? [];
+      let newCount = 0;
+      for (const prop of lensProps) {
+        const apn = prop.APN;
+        if (!apn || seenApns.has(apn)) continue;
+        seenApns.add(apn);
+        allResults.push(prop);
+        newCount++;
+      }
+
+      totalCost = String(
+        parseFloat(totalCost) + parseFloat(parsed.totalCost?.replace(/[^0-9.]/g, "") ?? "0")
+      );
+      lensResults.push({ lens: lens.name, phase: lens.phase, count: newCount, cost: parsed.totalCost ?? "0" });
+      console.log(`[Top10] ${phaseLabel} Lens "${lens.name}": ${lensProps.length} raw → ${newCount} new (deduped). Cost: ${parsed.totalCost ?? "?"}`);
+    }
   }
 
-  const rawText = await prResponse.text();
+  // ── Execute Phase 1 (Platinum) ─────────────────────────────────────
+  console.log(`[Top10] === PHASE 1: PLATINUM (Free & Clear + Absentee + Distress) — ${phase1Lenses.length} lenses ===`);
+  await runLenses(phase1Lenses, "P1");
 
-  if (!prResponse.ok) {
-    console.error("[Top10] PR HTTP", prResponse.status, rawText.slice(0, 500));
-    return NextResponse.json(
-      { success: false, error: `PropertyRadar HTTP ${prResponse.status}`, detail: rawText.slice(0, 2000) },
-      { status: 502 },
-    );
+  const phase1Count = allResults.length;
+  console.log(`[Top10] Phase 1 complete: ${phase1Count} unique Platinum properties`);
+
+  // ── Execute Phase 2 (Gold) only if Phase 1 didn't fill quota ───────
+  // "Fill quota" = at least MAX_PR_PULL storable results from Phase 1.
+  // If Platinum pool is rich, skip Gold entirely to save API credits.
+  if (phase1Count < MAX_PR_PULL) {
+    console.log(`[Top10] === PHASE 2: GOLD (Absentee + 80%+ Equity) — Phase 1 only got ${phase1Count}/${MAX_PR_PULL}, running ${phase2Lenses.length} Gold lenses ===`);
+    await runLenses(phase2Lenses, "P2");
+    console.log(`[Top10] Phase 2 complete: ${allResults.length - phase1Count} additional Gold properties`);
+  } else {
+    console.log(`[Top10] Phase 1 filled quota (${phase1Count} >= ${MAX_PR_PULL}) — skipping Phase 2 Gold lenses to save credits`);
   }
 
-  let prData: { results?: PRProperty[]; resultCount?: number; totalCost?: string };
-  try {
-    prData = JSON.parse(rawText);
-  } catch {
-    return NextResponse.json(
-      { success: false, error: "PropertyRadar returned non-JSON response", detail: rawText.slice(0, 500) },
-      { status: 502 },
-    );
-  }
-
-  const results = prData.results ?? [];
-  console.log(`[Top10] Got ${results.length} raw results (cost: ${prData.totalCost ?? "?"})`);
+  const results = allResults;
+  console.log(`[Top10] All phases complete: ${results.length} unique properties (P1: ${phase1Count}, P2: ${results.length - phase1Count}, cost: ${totalCost})`);
+  console.log(`[Top10] Lens breakdown:`, lensResults);
 
   if (results.length === 0) {
     return NextResponse.json({
       success: false,
-      error: "PropertyRadar returned 0 results. Try loosening equity % or adding counties.",
-      counties, criteria,
+      error: "Both Platinum (free & clear + absentee + distress) and Gold (absentee + 80%+ equity) phases returned 0 results. Try expanding to more counties.",
+      counties,
+      lensResults,
+      phase1Count: 0,
     });
   }
 
@@ -355,17 +565,25 @@ export async function POST(req: NextRequest) {
     candidates.push({ pr, score: computeScore(input), signals });
   }
 
-  // ── 5. Sort DESC, keep top 10 >= 75 ────────────────────────────────
+  // ── 5. Sort DESC → Tiered storage (v2.1) ──────────────────────────
+  //
+  // A-tier (75+): Elite — agents work immediately (top 10 returned)
+  // B-tier (50-74): Warm — worked when A-tier thins, drip campaigns
+  // C-tier (30-49): Watch — nurture, monthly call, mailers
+  // D-tier (<30): Discarded — not stored
 
   candidates.sort((a, b) => b.score.composite - a.score.composite);
   const elite = candidates.filter((c) => c.score.composite >= ELITE_CUTOFF).slice(0, ELITE_COUNT);
+  const bTier = candidates.filter((c) => c.score.composite >= TIER_CUTOFFS.B && c.score.composite < ELITE_CUTOFF);
+  const cTier = candidates.filter((c) => c.score.composite >= STORE_CUTOFF && c.score.composite < TIER_CUTOFFS.B);
+  const allStorable = [...elite, ...bTier, ...cTier];
 
-  console.log(`[Top10] ${candidates.length} scored → ${elite.length} elite (>= ${ELITE_CUTOFF})`);
+  console.log(`[Top10] ${candidates.length} scored → ${elite.length} A-tier, ${bTier.length} B-tier, ${cTier.length} C-tier (${candidates.length - allStorable.length} discarded D-tier)`);
 
-  if (elite.length === 0) {
+  if (allStorable.length === 0) {
     return NextResponse.json({
       success: false,
-      error: `No properties scored >= ${ELITE_CUTOFF}. Highest: ${candidates[0]?.score.composite ?? 0}.`,
+      error: `No properties scored >= ${STORE_CUTOFF}. Highest: ${candidates[0]?.score.composite ?? 0}.`,
       totalScored: candidates.length,
       topScores: candidates.slice(0, 5).map((c) => ({
         address: c.pr.Address ?? c.pr.FullAddress ?? "?",
@@ -374,17 +592,19 @@ export async function POST(req: NextRequest) {
     });
   }
 
-  // ── 6. Insert elite into Supabase ──────────────────────────────────
+  // ── 6. Insert ALL tiers into Supabase ─────────────────────────────
 
-  const newInserts: { address: string; score: number; label: string; apn: string }[] = [];
-  const updated: { address: string; score: number; apn: string }[] = [];
-  const inserted: { address: string; score: number; label: string; apn: string }[] = [];
+  const newInserts: { address: string; score: number; label: string; apn: string; tier: string }[] = [];
+  const updated: { address: string; score: number; apn: string; tier: string }[] = [];
+  const inserted: { address: string; score: number; label: string; apn: string; tier: string }[] = [];
   const errors: string[] = [];
   let eventsInserted = 0;
   let eventsDeduped = 0;
+  const tierCounts = { A: 0, B: 0, C: 0 };
 
-  for (let i = 0; i < elite.length; i++) {
-    const { pr, score, signals } = elite[i];
+  for (let i = 0; i < allStorable.length; i++) {
+    const { pr, score, signals } = allStorable[i];
+    const tier = getTierLabel(score.composite);
     const apn = pr.APN!;
     const county = normalizeCounty(pr.County ?? counties[0], "Spokane");
     const address = pr.Address ?? pr.FullAddress ?? "";
@@ -394,7 +614,7 @@ export async function POST(req: NextRequest) {
     const ownerName = pr.Owner ?? pr.Taxpayer ?? "Unknown Owner";
     const fullAddr = [address, city, state, zip].filter(Boolean).join(", ");
 
-    console.log(`[Top10] Processing ${i + 1}/${elite.length}: ${address} (${apn})`);
+    console.log(`[Top10] Processing ${i + 1}/${allStorable.length}: ${address} (${apn}) [Tier ${tier}]`);
 
     const ownerFlags: Record<string, unknown> = {
       source: "propertyradar",
@@ -524,12 +744,16 @@ export async function POST(req: NextRequest) {
     await (sb.from("scoring_predictions") as any)
       .insert(buildPredictionRecord(property.id, predOutput));
 
-    // 4. Lead (prospect, unassigned) — uses blended score
+    // 4. Lead (prospect, unassigned) — uses blended score + tier tag
+    const tierTag = `tier-${tier.toLowerCase()}`;
+    const signalTags = signals.map((s) => s.type);
+    const allTags = [tierTag, ...signalTags];
+
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { data: existingLead } = await (sb.from("leads") as any)
       .select("id")
       .eq("property_id", property.id)
-      .in("status", ["prospect", "lead", "negotiation"])
+      .in("status", ["prospect", "lead", "negotiation", "nurture"])
       .maybeSingle();
 
     if (!existingLead) {
@@ -539,24 +763,26 @@ export async function POST(req: NextRequest) {
         status: "prospect",
         priority: blendedScore,
         source: SOURCE_TAG,
-        tags: signals.map((s) => s.type),
-        notes: `Elite Seed — Heat ${blendedScore} (det:${score.composite} + pred:${predOutput.predictiveScore}). Distress in ~${predOutput.daysUntilDistress}d (${predOutput.confidence}% conf). ${signals.length} signal(s). RadarID: ${pr.RadarID ?? "N/A"}`,
+        tags: allTags,
+        notes: `Elite Seed [Tier ${tier}] — Heat ${blendedScore} (det:${score.composite} + pred:${predOutput.predictiveScore}). Distress in ~${predOutput.daysUntilDistress}d (${predOutput.confidence}% conf). ${signals.length} signal(s). RadarID: ${pr.RadarID ?? "N/A"}`,
         promoted_at: new Date().toISOString(),
       });
-      newInserts.push({ address: fullAddr, score: score.composite, label: score.label, apn });
+      newInserts.push({ address: fullAddr, score: score.composite, label: score.label, apn, tier });
     } else {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       await (sb.from("leads") as any)
-        .update({ priority: blendedScore, tags: signals.map((s) => s.type) })
+        .update({ priority: blendedScore, tags: allTags })
         .eq("id", existingLead.id);
-      updated.push({ address: fullAddr, score: score.composite, apn });
+      updated.push({ address: fullAddr, score: score.composite, apn, tier });
     }
 
+    tierCounts[tier as keyof typeof tierCounts]++;
     inserted.push({
       address: `${address}, ${city} ${state} ${zip}`.trim(),
       score: blendedScore,
       label: score.label,
       apn,
+      tier,
     });
   }
 
@@ -579,13 +805,15 @@ export async function POST(req: NextRequest) {
       errors: errors.length,
       events_inserted: eventsInserted,
       events_deduped: eventsDeduped,
-      pr_cost: prData.totalCost,
+      pr_cost: totalCost,
+      lensResults,
       elapsed_ms: elapsed,
     },
   });
 
   const allProspects = [...newInserts, ...updated.map((u) => ({ ...u, label: "updated" }))];
   console.log(`[Top10] === COMPLETE: ${newInserts.length} new, ${updated.length} updated, ${errors.length} errors in ${elapsed}ms ===`);
+  console.log(`[Top10] Tier breakdown: A=${tierCounts.A}, B=${tierCounts.B}, C=${tierCounts.C}`);
 
   // ── 8. Detailed response ───────────────────────────────────────────
 
@@ -601,10 +829,16 @@ export async function POST(req: NextRequest) {
     counties,
     totalFetched: results.length,
     totalScored: candidates.length,
+    tierBreakdown: tierCounts,
+    phaseBreakdown: {
+      platinum: phase1Count,
+      gold: results.length - phase1Count,
+    },
     aboveCutoff: elite.length,
     topScore: elite[0]?.score.composite ?? 0,
     topAddress: elite[0]?.pr.Address ?? "—",
-    prCost: prData.totalCost,
+    prCost: totalCost,
+    lensResults,
     elapsed_ms: elapsed,
     prospects: allProspects,
     ...(errors.length > 0 ? { warnings: errors } : {}),
@@ -653,14 +887,17 @@ function detectDistressSignals(pr: PRProperty): DetectedSignal[] {
 
   if (isTruthy(pr.isSiteVacant) || isTruthy(pr.isMailVacant))
     signals.push({ type: "vacant", severity: 5, daysSinceEvent: 60, detectedFrom: isTruthy(pr.isSiteVacant) ? "isSiteVacant" : "isMailVacant" });
+  // v2.1: Absentee severity raised 4 → 6 (was severely underweighted)
   if (isTruthy(pr.isNotSameMailingOrExempt))
-    signals.push({ type: "absentee", severity: 4, daysSinceEvent: 90, detectedFrom: "isNotSameMailingOrExempt" });
+    signals.push({ type: "absentee", severity: 6, daysSinceEvent: 90, detectedFrom: "isNotSameMailingOrExempt" });
 
   if ((isTruthy(pr.PropertyHasOpenLiens) || isTruthy(pr.PropertyHasOpenPersonLiens)) && !signals.some((s) => s.type === "tax_lien"))
     signals.push({ type: "tax_lien", severity: 5, daysSinceEvent: 90, detectedFrom: "PropertyHasOpenLiens" });
 
+  // v2.1: Default absentee severity raised 3 → 5 (all high-equity PR results
+  // are worth storing even without explicit absentee flag)
   if (signals.length === 0)
-    signals.push({ type: "absentee", severity: 3, daysSinceEvent: 180, detectedFrom: "default_absentee" });
+    signals.push({ type: "absentee", severity: 5, daysSinceEvent: 180, detectedFrom: "default_absentee" });
 
   return signals;
 }

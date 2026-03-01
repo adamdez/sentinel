@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@/lib/supabase";
-import { computeScore, SCORING_MODEL_VERSION, type ScoringInput } from "@/lib/scoring";
+import { computeScore, SCORING_MODEL_VERSION, getTierLabel, TIER_CUTOFFS, type ScoringInput } from "@/lib/scoring";
 import {
   computePredictiveScore,
   buildPredictionRecord,
@@ -12,10 +12,11 @@ import {
   normalizeCounty, distressFingerprint, isDuplicateError,
   isTruthy, toNumber, toInt, daysSince,
 } from "@/lib/dedup";
+import { COUNTY_FIPS } from "@/lib/attom";
 
 const SYSTEM_USER_ID = "00000000-0000-0000-0000-000000000000";
 const PR_API = "https://api.propertyradar.com/v1/properties";
-const ELITE_CUTOFF = 75;
+const STORE_CUTOFF = TIER_CUTOFFS.C; // 30 — minimum to store (C-tier for nurture)
 const SOURCE_TAG = "BulkSeed_1000_20260301";
 
 const DEFAULT_COUNTIES = ["Spokane", "Kootenai"];
@@ -124,14 +125,16 @@ function detectDistressSignals(pr: PRProperty): DetectedSignal[] {
 
   if (isTruthy(pr.isSiteVacant) || isTruthy(pr.isMailVacant))
     signals.push({ type: "vacant", severity: 5, daysSinceEvent: 60, detectedFrom: isTruthy(pr.isSiteVacant) ? "isSiteVacant" : "isMailVacant" });
+  // v2.1: Absentee severity raised 4 → 6
   if (isTruthy(pr.isNotSameMailingOrExempt))
-    signals.push({ type: "absentee", severity: 4, daysSinceEvent: 90, detectedFrom: "isNotSameMailingOrExempt" });
+    signals.push({ type: "absentee", severity: 6, daysSinceEvent: 90, detectedFrom: "isNotSameMailingOrExempt" });
 
   if ((isTruthy(pr.PropertyHasOpenLiens) || isTruthy(pr.PropertyHasOpenPersonLiens)) && !signals.some((s) => s.type === "tax_lien"))
     signals.push({ type: "tax_lien", severity: 5, daysSinceEvent: 90, detectedFrom: "PropertyHasOpenLiens" });
 
+  // v2.1: Default absentee severity raised 3 → 5
   if (signals.length === 0)
-    signals.push({ type: "absentee", severity: 3, daysSinceEvent: 180, detectedFrom: "default_absentee" });
+    signals.push({ type: "absentee", severity: 5, daysSinceEvent: 180, detectedFrom: "default_absentee" });
 
   return signals;
 }
@@ -185,13 +188,20 @@ export async function POST(req: NextRequest) {
   const counties: string[] = Array.isArray(body.counties) ? body.counties.map(String) : DEFAULT_COUNTIES;
   const states = [...new Set(counties.map((c) => COUNTY_STATE_MAP[c.toLowerCase()] ?? "WA"))];
 
+  // Convert county names to FIPS codes for PropertyRadar API
+  const fipsCodes = counties
+    .map((c) => COUNTY_FIPS[c] ?? COUNTY_FIPS[c.charAt(0).toUpperCase() + c.slice(1).toLowerCase()])
+    .filter(Boolean);
+
   const startTime = Date.now();
-  console.log(`[BulkSeed] === STARTED: limit=${pullLimit}, counties=[${counties}] ===`);
+  console.log(`[BulkSeed] === STARTED: limit=${pullLimit}, counties=[${counties}], fips=[${fipsCodes}] ===`);
 
   // PropertyRadar pulls in pages of 200
+  // Auto-fallback: if County criterion fails, retry with State-only
   const PAGE_SIZE = 200;
   const pages = Math.ceil(pullLimit / PAGE_SIZE);
   const allResults: PRProperty[] = [];
+  let useCountyFilter = fipsCodes.length > 0;
 
   for (let page = 0; page < pages; page++) {
     const offset = page * PAGE_SIZE;
@@ -200,8 +210,7 @@ export async function POST(req: NextRequest) {
 
     const criteria = [
       { name: "State", value: states },
-      { name: "County", value: counties },
-      { name: "isNotSameMailingOrExempt", value: ["1"] },
+      ...(useCountyFilter ? [{ name: "County", value: fipsCodes }] : []),
       { name: "EquityPercent", value: [["40", "100"]] },
     ];
 
@@ -217,6 +226,39 @@ export async function POST(req: NextRequest) {
       });
 
       if (!prRes.ok) {
+        // If County filter caused the error on first page, retry without it
+        if (page === 0 && useCountyFilter) {
+          const errText = await prRes.text();
+          console.warn(`[BulkSeed] County filter rejected (HTTP ${prRes.status}): ${errText.slice(0, 200)} — retrying without County...`);
+          useCountyFilter = false;
+
+          const fallbackCriteria = [
+            { name: "State", value: states },
+            { name: "EquityPercent", value: [["40", "100"]] },
+          ];
+          const retryRes = await fetch(url, {
+            method: "POST",
+            headers: {
+              Authorization: `Bearer ${apiKey}`,
+              "Content-Type": "application/json",
+              Accept: "application/json",
+            },
+            body: JSON.stringify({ Criteria: fallbackCriteria }),
+          });
+
+          if (!retryRes.ok) {
+            console.error(`[BulkSeed] Fallback also failed (HTTP ${retryRes.status})`);
+            break;
+          }
+
+          const retryData = await retryRes.json();
+          const retryResults: PRProperty[] = retryData.results ?? [];
+          allResults.push(...retryResults);
+          console.log(`[BulkSeed] Fallback page 1/${pages}: ${retryResults.length} records (total: ${allResults.length}, cost: ${retryData.totalCost ?? "?"})`);
+          if (retryResults.length < thisLimit) break;
+          continue;
+        }
+
         console.error(`[BulkSeed] PR page ${page} HTTP ${prRes.status}`);
         break;
       }
@@ -273,11 +315,12 @@ export async function POST(req: NextRequest) {
   }
 
   candidates.sort((a, b) => b.score.composite - a.score.composite);
-  const elite = candidates.filter((c) => c.score.composite >= ELITE_CUTOFF);
+  const storable = candidates.filter((c) => c.score.composite >= STORE_CUTOFF);
+  const tierCounts = { A: 0, B: 0, C: 0 };
 
-  console.log(`[BulkSeed] ${candidates.length} scored → ${elite.length} above cutoff (>= ${ELITE_CUTOFF})`);
+  console.log(`[BulkSeed] ${candidates.length} scored → ${storable.length} storable (>= ${STORE_CUTOFF}), ${candidates.length - storable.length} discarded`);
 
-  // Insert elite into Supabase
+  // Insert all storable tiers into Supabase
   let newInserts = 0;
   let updated = 0;
   let errored = 0;
@@ -286,8 +329,9 @@ export async function POST(req: NextRequest) {
   let topScore = 0;
   let topAddress = "";
 
-  for (let i = 0; i < elite.length; i++) {
-    const { pr, score, signals } = elite[i];
+  for (let i = 0; i < storable.length; i++) {
+    const { pr, score, signals } = storable[i];
+    const tier = getTierLabel(score.composite);
     const apn = pr.APN!;
     const county = normalizeCounty(pr.County ?? counties[0], "Spokane");
     const address = pr.Address ?? pr.FullAddress ?? "";
@@ -298,7 +342,7 @@ export async function POST(req: NextRequest) {
     const fullAddr = [address, city, state, zip].filter(Boolean).join(", ");
 
     if (i < 5 || i % 50 === 0) {
-      console.log(`[BulkSeed] Processing ${i + 1}/${elite.length}: ${address} (${apn}) — score ${score.composite}`);
+      console.log(`[BulkSeed] Processing ${i + 1}/${storable.length}: ${address} (${apn}) — score ${score.composite} [Tier ${tier}]`);
     }
 
     const ownerFlags: Record<string, unknown> = {
@@ -412,11 +456,16 @@ export async function POST(req: NextRequest) {
     await (sb.from("scoring_predictions") as any)
       .insert(buildPredictionRecord(property.id, predOutput));
 
+    // Lead with tier tag
+    const tierTag = `tier-${tier.toLowerCase()}`;
+    const signalTags = signals.map((s) => s.type);
+    const allTags = [tierTag, ...signalTags];
+
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { data: existingLead } = await (sb.from("leads") as any)
       .select("id")
       .eq("property_id", property.id)
-      .in("status", ["prospect", "lead", "negotiation"])
+      .in("status", ["prospect", "lead", "negotiation", "nurture"])
       .maybeSingle();
 
     if (!existingLead) {
@@ -426,19 +475,20 @@ export async function POST(req: NextRequest) {
         status: "prospect",
         priority: blendedScore,
         source: SOURCE_TAG,
-        tags: signals.map((s) => s.type),
-        notes: `Bulk Seed — Heat ${blendedScore} (det:${score.composite} + pred:${predOutput.predictiveScore}). ${signals.length} signal(s).`,
+        tags: allTags,
+        notes: `Bulk Seed [Tier ${tier}] — Heat ${blendedScore} (det:${score.composite} + pred:${predOutput.predictiveScore}). ${signals.length} signal(s).`,
         promoted_at: new Date().toISOString(),
       });
       newInserts++;
     } else {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       await (sb.from("leads") as any)
-        .update({ priority: blendedScore, tags: signals.map((s) => s.type) })
+        .update({ priority: blendedScore, tags: allTags })
         .eq("id", existingLead.id);
       updated++;
     }
 
+    tierCounts[tier as keyof typeof tierCounts]++;
     if (blendedScore > topScore) {
       topScore = blendedScore;
       topAddress = fullAddr;
@@ -458,7 +508,8 @@ export async function POST(req: NextRequest) {
       pull_limit: pullLimit,
       total_fetched: allResults.length,
       total_scored: candidates.length,
-      above_cutoff: elite.length,
+      above_cutoff: storable.length,
+      tier_breakdown: tierCounts,
       new_inserts: newInserts,
       updated,
       errored,
@@ -470,6 +521,7 @@ export async function POST(req: NextRequest) {
   });
 
   console.log(`[BulkSeed] === COMPLETE: ${newInserts} new, ${updated} updated, ${errored} errors in ${elapsed}ms ===`);
+  console.log(`[BulkSeed] Tier breakdown: A=${tierCounts.A}, B=${tierCounts.B}, C=${tierCounts.C}`);
 
   return NextResponse.json({
     success: true,
@@ -478,7 +530,8 @@ export async function POST(req: NextRequest) {
     errored,
     totalFetched: allResults.length,
     totalScored: candidates.length,
-    aboveCutoff: elite.length,
+    aboveCutoff: storable.length,
+    tierBreakdown: tierCounts,
     eventsInserted,
     eventsDeduped,
     topScore,
