@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useProspects } from "@/hooks/use-prospects";
 import { useLeads } from "@/hooks/use-leads";
+import { RelationshipBadgeCompact } from "@/components/sentinel/relationship-badge";
 
 function GlowingOrb() {
   return (
@@ -64,6 +65,7 @@ export function NextBestAction() {
         primary: {
           name: top.ownerName,
           phone: top.ownerPhone,
+          tags: top.tags ?? [],
           reason: `Follow-up ${daysOverdue}d overdue — predictive priority ${top.predictivePriority} (${top.score.label.toUpperCase()})${predLabel}. ${top.status} stage.`,
           action: "Call Now",
         },
@@ -85,6 +87,7 @@ export function NextBestAction() {
         primary: {
           name: topLead.ownerName,
           phone: topLead.ownerPhone,
+          tags: topLead.tags ?? [],
           reason: `Highest-priority ${topLead.status} lead — predictive priority ${topLead.predictivePriority} (${topLead.score.label.toUpperCase()})${predLabel}. ${topLead.address}.`,
           action: "Call Now",
         },
@@ -101,6 +104,7 @@ export function NextBestAction() {
         primary: {
           name: topProspect.owner_name,
           phone: topProspect.owner_phone,
+          tags: topProspect.tags ?? [],
           reason: `New FIRE prospect scored ${topProspect.composite_score} — ${topProspect.address}. First-to-contact window open.`,
           action: "Call Now",
         },
@@ -184,8 +188,9 @@ export function NextBestAction() {
             </span>
           )}
         </div>
-        <p className="text-xs font-medium mb-1">
-          {primary.action === "Call Now" ? "Call" : "Contact"} {primary.name} now
+        <p className="text-xs font-medium mb-1 flex items-center gap-1.5 flex-wrap">
+          <span>{primary.action === "Call Now" ? "Call" : "Contact"} {primary.name} now</span>
+          <RelationshipBadgeCompact data={{ tags: primary.tags }} />
         </p>
         <p className="text-[10px] text-muted-foreground mb-2.5">
           {primary.reason}

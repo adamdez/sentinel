@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/lib/supabase";
 import { cn } from "@/lib/utils";
 import Link from "next/link";
+import { RelationshipBadgeCompact } from "@/components/sentinel/relationship-badge";
 
 interface TickerItem {
   id: string;
@@ -16,6 +17,7 @@ interface TickerItem {
   label: "fire" | "hot";
   time: string;
   source?: string;
+  tags?: string[];
 }
 
 const SOURCE_CONFIG: Record<string, { label: string; color: string }> = {
@@ -84,6 +86,7 @@ function TickerRow({ item, index }: { item: TickerItem; index: number }) {
         >
           {item.name}
         </span>
+        <RelationshipBadgeCompact data={{ tags: item.tags }} />
         <Badge variant={isFire ? "fire" : "hot"} className="text-[8px] gap-0.5 shrink-0">
           <ArrowUp className="h-2 w-2" />{item.score}
         </Badge>
@@ -159,6 +162,7 @@ export function BreakingLeadsSidebar() {
         label: scoreLabel(l.priority ?? 0),
         time: timeAgo(l.created_at),
         source: l.source ?? undefined,
+        tags: l.tags ?? [],
       };
     });
 

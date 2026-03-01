@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { supabase } from "@/lib/supabase";
 import { cn } from "@/lib/utils";
+import { RelationshipBadgeCompact } from "@/components/sentinel/relationship-badge";
 
 interface TickerItem {
   id: string;
@@ -17,6 +18,7 @@ interface TickerItem {
   time: string;
   source?: string;
   daysUntilDistress?: number | null;
+  tags?: string[];
 }
 
 const SOURCE_MAP: Record<string, { label: string; color: string }> = {
@@ -101,6 +103,7 @@ export function BreakingLeadsTicker() {
         time: timeAgo(l.created_at),
         source: l.source ?? undefined,
         daysUntilDistress: predMap[l.property_id] ?? null,
+        tags: l.tags ?? [],
       };
     });
 
@@ -198,6 +201,7 @@ export function BreakingLeadsTicker() {
                   >
                     {item.name}
                   </span>
+                  <RelationshipBadgeCompact data={{ tags: item.tags }} />
                   {item.daysUntilDistress != null && (
                     <span className="text-[7px] px-1 py-0 rounded border font-semibold shrink-0 text-orange-400 bg-orange-500/10 border-orange-500/20">
                       {item.daysUntilDistress}d

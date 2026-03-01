@@ -18,6 +18,7 @@ import type { LeadRow } from "@/lib/leads-data";
 import type { AIScore, DistressType } from "@/lib/types";
 import { CompsMap, type CompProperty, type SubjectProperty } from "@/components/sentinel/comps/comps-map";
 import { PredictiveDistressBadge, type PredictiveDistressData } from "@/components/sentinel/predictive-distress-badge";
+import { RelationshipBadge } from "@/components/sentinel/relationship-badge";
 
 // ═══════════════════════════════════════════════════════════════════════
 // ClientFile — single unified shape for every funnel stage
@@ -1254,7 +1255,15 @@ export function MasterClientFileModal({ clientFile, open, onClose, onClaim, onRe
                     <PredictiveDistressBadge data={clientFile.prediction as PredictiveDistressData} size="sm" />
                   )}
                   <div className="min-w-0">
-                    <h2 className="text-lg font-bold truncate" style={{ textShadow: "0 0 12px rgba(0,212,255,0.12)" }}>{clientFile.ownerName}</h2>
+                    <div className="flex items-center gap-2">
+                      <h2 className="text-lg font-bold truncate" style={{ textShadow: "0 0 12px rgba(0,212,255,0.12)" }}>{clientFile.ownerName}</h2>
+                      <RelationshipBadge data={{
+                        ownerAgeInference: clientFile.prediction?.ownerAgeInference,
+                        lifeEventProbability: clientFile.prediction?.lifeEventProbability,
+                        tags: clientFile.tags,
+                        bestAddress: clientFile.fullAddress,
+                      }} />
+                    </div>
                     <p className="text-xs text-muted-foreground truncate">{clientFile.fullAddress}</p>
                   </div>
                 </div>

@@ -21,6 +21,7 @@ import { useSentinelStore } from "@/lib/store";
 import { useModal } from "@/providers/modal-provider";
 import type { AIScore } from "@/lib/types";
 import { toast } from "sonner";
+import { RelationshipBadgeCompact } from "@/components/sentinel/relationship-badge";
 
 // ── Constants ─────────────────────────────────────────────────────────
 
@@ -405,10 +406,15 @@ export default function ProspectsPage() {
                           {p.address}{p.city ? `, ${p.city}` : ""} {p.state} {p.zip}
                         </p>
                         <p
-                          className="text-xs font-medium text-muted-foreground/90"
+                          className="text-xs font-medium text-muted-foreground/90 flex items-center gap-1.5"
                           style={{ WebkitFontSmoothing: "antialiased" }}
                         >
                           {p.owner_name}
+                          <RelationshipBadgeCompact data={{
+                            ownerAgeInference: p._prediction?.ownerAgeInference,
+                            lifeEventProbability: p._prediction?.lifeEventProbability,
+                            tags: p.tags,
+                          }} />
                         </p>
                       </td>
                       <td className="p-3 text-sm font-mono text-muted-foreground">{p.apn}</td>

@@ -17,6 +17,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useSentinelStore } from "@/lib/store";
 import { useDialerQueue, useDialerStats, useCallTimer, type QueueLead } from "@/hooks/use-dialer";
+import { RelationshipBadgeCompact } from "@/components/sentinel/relationship-badge";
 
 interface DispoOption {
   key: string;
@@ -574,7 +575,10 @@ export default function DialerPage() {
                       <div className="flex items-center gap-2">
                         <span className="text-[10px] text-muted-foreground/40 font-mono w-3">{idx + 1}</span>
                         <div className="flex-1 min-w-0">
-                          <p className="text-xs font-medium truncate">{lead.properties?.owner_name ?? "Unknown"}</p>
+                          <p className="text-xs font-medium truncate flex items-center gap-1">
+                            {lead.properties?.owner_name ?? "Unknown"}
+                            <RelationshipBadgeCompact data={{ tags: lead.tags }} />
+                          </p>
                           <p className="text-[10px] text-muted-foreground/50 truncate">{lead.properties?.address ?? "No address"}</p>
                         </div>
                         <Badge variant={sl.variant} className="text-[9px] px-1.5 py-0 shrink-0">
@@ -626,9 +630,12 @@ export default function DialerPage() {
                   <div className="space-y-3">
                     <div className="flex items-start justify-between">
                       <div>
-                        <h3 className="text-lg font-bold tracking-tight title-glow">
-                          {currentLead.properties?.owner_name ?? "Unknown Owner"}
-                        </h3>
+                        <div className="flex items-center gap-2">
+                          <h3 className="text-lg font-bold tracking-tight title-glow">
+                            {currentLead.properties?.owner_name ?? "Unknown Owner"}
+                          </h3>
+                          <RelationshipBadgeCompact data={{ tags: currentLead.tags }} />
+                        </div>
                         <p className="text-sm text-muted-foreground/70">
                           {currentLead.properties?.address ?? "No address"}
                         </p>
