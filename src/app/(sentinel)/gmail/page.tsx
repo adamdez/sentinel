@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import {
   Mail,
@@ -320,6 +320,22 @@ function ComposeModal({
 // ── Main Page ────────────────────────────────────────────────────────────
 
 export default function GmailPage() {
+  return (
+    <Suspense
+      fallback={
+        <PageShell title="Gmail" description="Loading Gmail integration…">
+          <div className="flex items-center justify-center min-h-[400px]">
+            <Loader2 className="h-8 w-8 animate-spin text-cyan/50" />
+          </div>
+        </PageShell>
+      }
+    >
+      <GmailPageInner />
+    </Suspense>
+  );
+}
+
+function GmailPageInner() {
   const { currentUser } = useSentinelStore();
   const userId = currentUser?.id;
 
