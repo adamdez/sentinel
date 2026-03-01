@@ -237,10 +237,10 @@ export function computeScore(input: ScoringInput): ScoringOutput {
 }
 
 export function getScoreLabel(score: number): AIScore["label"] {
-  if (score >= 85) return "fire";
-  if (score >= 65) return "hot";
-  if (score >= 40) return "warm";
-  return "cold";
+  if (score >= 85) return "platinum";
+  if (score >= 65) return "gold";
+  if (score >= 40) return "silver";
+  return "bronze";
 }
 
 // ── Tier Classification (v2.1) ────────────────────────────────────

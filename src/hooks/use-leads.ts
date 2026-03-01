@@ -30,10 +30,10 @@ const DEFAULT_FILTERS: LeadFilters = {
 };
 
 function scoreLabel(n: number): AIScore["label"] {
-  if (n >= 85) return "fire";
-  if (n >= 65) return "hot";
-  if (n >= 40) return "warm";
-  return "cold";
+  if (n >= 85) return "platinum";
+  if (n >= 65) return "gold";
+  if (n >= 40) return "silver";
+  return "bronze";
 }
 
 function matchesSearch(lead: LeadRow, q: string): boolean {

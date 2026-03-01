@@ -171,7 +171,7 @@ export function clientFileFromRaw(lead: Record<string, any>, prop: Record<string
     return isNaN(n) ? null : n;
   };
   const toBool = (v: unknown) => v === true || v === 1 || v === "1" || v === "Yes" || v === "True" || v === "true";
-  const sl = (n: number): AIScore["label"] => n >= 85 ? "fire" : n >= 65 ? "hot" : n >= 40 ? "warm" : "cold";
+  const sl = (n: number): AIScore["label"] => n >= 85 ? "platinum" : n >= 65 ? "gold" : n >= 40 ? "silver" : "bronze";
 
   return {
     id: lead.id, propertyId: lead.property_id ?? "", apn: prop.apn ?? "", county: prop.county ?? "",
@@ -243,10 +243,10 @@ const DISTRESS_CFG: Record<string, { label: string; icon: typeof AlertTriangle; 
 };
 
 const SCORE_LABEL_CFG: Record<AIScore["label"], { text: string; color: string; bg: string }> = {
-  fire: { text: "FIRE", color: "text-orange-400", bg: "bg-orange-500/10 border-orange-500/30" },
-  hot:  { text: "HOT",  color: "text-red-400",    bg: "bg-red-500/10 border-red-500/30" },
-  warm: { text: "WARM", color: "text-yellow-400",  bg: "bg-yellow-500/10 border-yellow-500/30" },
-  cold: { text: "COLD", color: "text-blue-400",    bg: "bg-blue-500/10 border-blue-500/30" },
+  platinum: { text: "PLATINUM", color: "text-cyan-300",    bg: "bg-cyan-400/10 border-cyan-400/30" },
+  gold:     { text: "GOLD",    color: "text-amber-400",   bg: "bg-amber-500/10 border-amber-500/30" },
+  silver:   { text: "SILVER",  color: "text-slate-300",   bg: "bg-slate-400/10 border-slate-400/30" },
+  bronze:   { text: "BRONZE",  color: "text-orange-500",  bg: "bg-orange-600/10 border-orange-600/30" },
 };
 
 const COUNTY_LINKS: Record<string, { name: string; gis: string; assessor: string; treasurer?: string }> = {

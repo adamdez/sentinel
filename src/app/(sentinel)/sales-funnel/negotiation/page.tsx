@@ -17,7 +17,7 @@ const negotiations = [
     arv: "$245,000",
     stage: "Counter Offer",
     daysInStage: 3,
-    score: { composite: 94, motivation: 88, equityVelocity: 92, urgency: 96, historicalConversion: 85, aiBoost: 12, label: "fire" } as AIScore,
+    score: { composite: 94, motivation: 88, equityVelocity: 92, urgency: 96, historicalConversion: 85, aiBoost: 12, label: "platinum" } as AIScore,
   },
 ];
 

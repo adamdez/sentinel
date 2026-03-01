@@ -15,7 +15,7 @@ const myLeads = [
     status: "Follow-up needed",
     lastContact: "2 hours ago",
     nextAction: "Call back at 3 PM",
-    score: { composite: 94, motivation: 88, equityVelocity: 92, urgency: 96, historicalConversion: 85, aiBoost: 12, label: "fire" } as AIScore,
+    score: { composite: 94, motivation: 88, equityVelocity: 92, urgency: 96, historicalConversion: 85, aiBoost: 12, label: "platinum" } as AIScore,
   },
   {
     name: "Robert Chen",
@@ -23,7 +23,7 @@ const myLeads = [
     status: "Appointment set",
     lastContact: "Yesterday",
     nextAction: "Property walkthrough tomorrow",
-    score: { composite: 82, motivation: 78, equityVelocity: 85, urgency: 80, historicalConversion: 72, aiBoost: 8, label: "hot" } as AIScore,
+    score: { composite: 82, motivation: 78, equityVelocity: 85, urgency: 80, historicalConversion: 72, aiBoost: 8, label: "gold" } as AIScore,
   },
 ];
 
@@ -53,7 +53,7 @@ export default function MyLeadsPage() {
 
       <div className="space-y-3">
         {myLeads.map((lead) => (
-          <GlassCard key={lead.name} glow={lead.score.label === "fire"}>
+          <GlassCard key={lead.name} glow={lead.score.label === "platinum"}>
             <div className="flex items-start justify-between mb-3">
               <div>
                 <p className="font-medium">{lead.name}</p>

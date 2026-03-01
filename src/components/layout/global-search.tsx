@@ -31,15 +31,15 @@ interface SearchRecord {
   secondary: string;
   href: string;
   score?: number;
-  scoreLabel?: "fire" | "hot" | "warm" | "cold";
+  scoreLabel?: "platinum" | "gold" | "silver" | "bronze";
   status?: string;
 }
 
 const SCORE_COLORS: Record<string, string> = {
-  fire: "text-orange-400 bg-orange-500/15 border-orange-500/30",
-  hot: "text-red-400 bg-red-500/15 border-red-500/30",
-  warm: "text-yellow-400 bg-yellow-500/15 border-yellow-500/30",
-  cold: "text-blue-400 bg-blue-500/15 border-blue-500/30",
+  platinum: "text-cyan-300 bg-cyan-400/15 border-cyan-400/30",
+  gold: "text-amber-400 bg-amber-500/15 border-amber-500/30",
+  silver: "text-slate-300 bg-slate-400/15 border-slate-400/30",
+  bronze: "text-orange-500 bg-orange-600/15 border-orange-600/30",
 };
 
 const STATUS_LABELS: Record<string, string> = {
@@ -65,11 +65,11 @@ const KIND_COLORS: Record<string, string> = {
   contact: "bg-purple-500/10 border-purple-500/20 text-purple-400",
 };
 
-function labelFromScore(n: number): "fire" | "hot" | "warm" | "cold" {
-  if (n >= 85) return "fire";
-  if (n >= 65) return "hot";
-  if (n >= 40) return "warm";
-  return "cold";
+function labelFromScore(n: number): "platinum" | "gold" | "silver" | "bronze" {
+  if (n >= 85) return "platinum";
+  if (n >= 65) return "gold";
+  if (n >= 40) return "silver";
+  return "bronze";
 }
 
 // ── Live search function ───────────────────────────────────────────────
@@ -329,7 +329,7 @@ export function GlobalSearch() {
                             SCORE_COLORS[rec.scoreLabel]
                           )}
                         >
-                          {rec.scoreLabel === "fire" && (
+                          {rec.scoreLabel === "platinum" && (
                             <Flame className="h-2 w-2 inline mr-0.5" />
                           )}
                           {rec.score}

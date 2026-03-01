@@ -114,7 +114,7 @@ export interface AIScore {
   urgency: number;
   historicalConversion: number;
   aiBoost: number;
-  label: "cold" | "warm" | "hot" | "fire";
+  label: "bronze" | "silver" | "gold" | "platinum";
 }
 
 export interface PredictiveScore {

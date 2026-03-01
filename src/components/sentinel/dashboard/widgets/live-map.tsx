@@ -8,9 +8,9 @@ import { useProspects, type ProspectRow } from "@/hooks/use-prospects";
 
 function scoreColor(composite: number): { bg: string; ring: string } {
   if (composite >= 85) return { bg: "bg-cyan", ring: "rgba(0,212,255,0.4)" };
-  if (composite >= 65) return { bg: "bg-red-400", ring: "rgba(255,68,68,0.35)" };
-  if (composite >= 40) return { bg: "bg-yellow-400", ring: "rgba(234,179,8,0.3)" };
-  return { bg: "bg-blue-400", ring: "rgba(59,130,246,0.3)" };
+  if (composite >= 65) return { bg: "bg-amber-400", ring: "rgba(245,158,11,0.35)" };
+  if (composite >= 40) return { bg: "bg-slate-400", ring: "rgba(148,163,184,0.3)" };
+  return { bg: "bg-orange-500", ring: "rgba(249,115,22,0.3)" };
 }
 
 function hashToPosition(str: string, seed: number): { top: string; left: string } {

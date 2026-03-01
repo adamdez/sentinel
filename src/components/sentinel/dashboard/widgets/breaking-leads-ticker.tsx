@@ -14,7 +14,7 @@ interface TickerItem {
   name: string;
   type: string;
   score: number;
-  label: "fire" | "hot";
+  label: "platinum" | "gold";
   time: string;
   source?: string;
   daysUntilDistress?: number | null;
@@ -99,7 +99,7 @@ export function BreakingLeadsTicker() {
         name: prop?.owner_name ?? "Unknown",
         type: tag,
         score: l.priority ?? 0,
-        label: (l.priority ?? 0) >= 65 ? "fire" as const : "hot" as const,
+        label: (l.priority ?? 0) >= 65 ? "platinum" as const : "gold" as const,
         time: timeAgo(l.created_at),
         source: l.source ?? undefined,
         daysUntilDistress: predMap[l.property_id] ?? null,
@@ -162,7 +162,7 @@ export function BreakingLeadsTicker() {
         <div className="space-y-1.5">
           <AnimatePresence mode="popLayout">
             {visible.map((item, i) => {
-              const isFire = item.label === "fire";
+              const isPlatinum = item.label === "platinum";
               const src = item.source ? SOURCE_MAP[item.source] : null;
               return (
                 <motion.div
@@ -173,19 +173,19 @@ export function BreakingLeadsTicker() {
                   transition={{ delay: i * 0.05 }}
                   className={cn(
                     "flex items-center gap-2.5 p-2 rounded-md text-xs transition-all relative",
-                    isFire
-                      ? "bg-orange-500/5 border border-orange-500/10"
+                    isPlatinum
+                      ? "bg-cyan-500/5 border border-cyan-500/10"
                       : "bg-white/[0.02]"
                   )}
-                  style={isFire ? {
-                    boxShadow: "inset 0 0 20px rgba(255,107,53,0.04), 0 0 8px rgba(255,107,53,0.08)",
+                  style={isPlatinum ? {
+                    boxShadow: "inset 0 0 20px rgba(0,212,255,0.04), 0 0 8px rgba(0,212,255,0.08)",
                   } : {}}
                 >
-                  {isFire && (
+                  {isPlatinum && (
                     <motion.div
                       className="absolute inset-0 rounded-md pointer-events-none"
                       style={{
-                        background: "linear-gradient(90deg, transparent 0%, rgba(255,107,53,0.03) 50%, transparent 100%)",
+                        background: "linear-gradient(90deg, transparent 0%, rgba(0,212,255,0.03) 50%, transparent 100%)",
                         backgroundSize: "200% 100%",
                       }}
                       animate={{ backgroundPosition: ["0% 0%", "200% 0%"] }}
@@ -193,8 +193,8 @@ export function BreakingLeadsTicker() {
                     />
                   )}
                   <Zap
-                    className={cn("h-3 w-3 shrink-0", isFire ? "text-orange-400" : "text-cyan")}
-                    style={isFire ? { filter: "drop-shadow(0 0 3px rgba(255,107,53,0.5))" } : {}}
+                    className={cn("h-3 w-3 shrink-0", isPlatinum ? "text-cyan-300" : "text-amber-400")}
+                    style={isPlatinum ? { filter: "drop-shadow(0 0 3px rgba(0,212,255,0.5))" } : {}}
                   />
                   <span
                     className="font-semibold truncate flex-1 text-foreground"
@@ -207,7 +207,7 @@ export function BreakingLeadsTicker() {
                   </span>
                   <RelationshipBadgeCompact data={{ tags: item.tags }} />
                   {item.daysUntilDistress != null && (
-                    <span className="text-[7px] px-1 py-0 rounded border font-semibold shrink-0 text-orange-400 bg-orange-500/10 border-orange-500/20">
+                    <span className="text-[7px] px-1 py-0 rounded border font-semibold shrink-0 text-cyan-300 bg-cyan-500/10 border-cyan-500/20">
                       {item.daysUntilDistress}d
                     </span>
                   )}
@@ -216,7 +216,7 @@ export function BreakingLeadsTicker() {
                       {src.label}
                     </span>
                   )}
-                  <Badge variant={isFire ? "fire" : "hot"} className="text-[8px] gap-0.5">
+                  <Badge variant={isPlatinum ? "platinum" : "gold"} className="text-[8px] gap-0.5">
                     <ArrowUp className="h-2 w-2" />{item.score}
                   </Badge>
                   <span className="text-[10px] text-muted-foreground shrink-0">{item.time}</span>

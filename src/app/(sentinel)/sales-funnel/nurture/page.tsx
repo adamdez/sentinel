@@ -15,7 +15,7 @@ const nurtureLeads = [
     reason: "Not ready to sell yet — revisit in 60 days",
     lastContact: "3 weeks ago",
     nextFollow: "Mar 15, 2026",
-    score: { composite: 52, motivation: 35, equityVelocity: 60, urgency: 25, historicalConversion: 55, aiBoost: 3, label: "warm" } as AIScore,
+    score: { composite: 52, motivation: 35, equityVelocity: 60, urgency: 25, historicalConversion: 55, aiBoost: 3, label: "silver" } as AIScore,
   },
   {
     name: "Karen Wright",
@@ -23,7 +23,7 @@ const nurtureLeads = [
     reason: "Interested but exploring options",
     lastContact: "1 week ago",
     nextFollow: "Mar 5, 2026",
-    score: { composite: 61, motivation: 55, equityVelocity: 65, urgency: 50, historicalConversion: 60, aiBoost: 4, label: "warm" } as AIScore,
+    score: { composite: 61, motivation: 55, equityVelocity: 65, urgency: 50, historicalConversion: 60, aiBoost: 4, label: "silver" } as AIScore,
   },
 ];
 

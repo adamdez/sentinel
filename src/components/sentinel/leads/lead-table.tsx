@@ -202,7 +202,7 @@ export function LeadTable({
             onClick={() => onSelect(lead.id)}
             className={cn(
               "grid grid-cols-[90px_1fr_100px_80px_minmax(120px,1fr)_100px_100px_40px] gap-3 px-4 py-3 border-b border-white/[0.03] cursor-pointer transition-all hover:bg-white/[0.03]",
-              lead.score.label === "fire" && "bg-orange-500/[0.03] hover:bg-orange-500/[0.06]",
+              lead.score.label === "platinum" && "bg-cyan-500/[0.03] hover:bg-cyan-500/[0.06]",
               !lead.complianceClean && "opacity-60"
             )}
           >

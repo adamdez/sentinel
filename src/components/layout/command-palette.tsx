@@ -46,7 +46,7 @@ interface DataResult {
   secondary: string;
   href: string;
   score?: number;
-  scoreLabel?: "fire" | "hot" | "warm" | "cold";
+  scoreLabel?: "platinum" | "gold" | "silver" | "bronze";
   status?: string;
   source?: string;
 }
@@ -86,10 +86,10 @@ function matchesQuery(text: string, query: string): boolean {
 }
 
 const SCORE_COLORS: Record<string, string> = {
-  fire: "text-orange-400 bg-orange-500/15 border-orange-500/30",
-  hot: "text-red-400 bg-red-500/15 border-red-500/30",
-  warm: "text-yellow-400 bg-yellow-500/15 border-yellow-500/30",
-  cold: "text-blue-400 bg-blue-500/15 border-blue-500/30",
+  platinum: "text-cyan-300 bg-cyan-400/15 border-cyan-400/30",
+  gold: "text-amber-400 bg-amber-500/15 border-amber-500/30",
+  silver: "text-slate-300 bg-slate-400/15 border-slate-400/30",
+  bronze: "text-orange-500 bg-orange-600/15 border-orange-600/30",
 };
 
 const STATUS_LABELS: Record<string, string> = {
@@ -156,7 +156,7 @@ export function CommandPalette() {
           const lead = leadMap[p.id];
           const isProspect = !lead || lead.status === "prospect";
           const score = lead?.priority ?? 0;
-          const label = score >= 85 ? "fire" : score >= 65 ? "hot" : score >= 40 ? "warm" : "cold";
+          const label = score >= 85 ? "platinum" : score >= 65 ? "gold" : score >= 40 ? "silver" : "bronze";
 
           results.push({
             kind: isProspect ? "prospect" : "lead",
@@ -388,7 +388,7 @@ function DataResultItem({ result, onSelect }: { result: DataResult; onSelect: (h
           "text-[9px] px-1.5 py-0.5 rounded border font-bold shrink-0",
           SCORE_COLORS[result.scoreLabel]
         )}>
-          {result.scoreLabel === "fire" && <Flame className="h-2 w-2 inline mr-0.5" />}
+          {result.scoreLabel === "platinum" && <Flame className="h-2 w-2 inline mr-0.5" />}
           {result.score}
         </span>
       )}

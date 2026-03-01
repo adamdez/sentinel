@@ -238,11 +238,11 @@ function formatCurrency(n: number): string {
   return `$${n}`;
 }
 
-function getScoreLabel(score: number): { label: string; variant: "fire" | "hot" | "warm" | "cold" } {
-  if (score >= 85) return { label: "FIRE", variant: "fire" };
-  if (score >= 70) return { label: "HOT", variant: "hot" };
-  if (score >= 50) return { label: "WARM", variant: "warm" };
-  return { label: "COLD", variant: "cold" };
+function getScoreLabel(score: number): { label: string; variant: "platinum" | "gold" | "silver" | "bronze" } {
+  if (score >= 85) return { label: "PLATINUM", variant: "platinum" };
+  if (score >= 70) return { label: "GOLD", variant: "gold" };
+  if (score >= 50) return { label: "SILVER", variant: "silver" };
+  return { label: "BRONZE", variant: "bronze" };
 }
 
 function formatUsPhone(digits: string): string {

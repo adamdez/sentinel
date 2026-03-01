@@ -70,7 +70,7 @@ function SortableCard({ item, onCall }: { item: PipelineItem; onCall?: (phone: s
       className={cn(
         "group rounded-[14px] border border-glass-border glass-card p-4 transition-all duration-100 holo-border holo-ring wet-shine",
         isDragging && "drag-active",
-        item.score.label === "fire" && "neon-glow animate-neon-pulse holo-border-always"
+        item.score.label === "platinum" && "neon-glow animate-neon-pulse holo-border-always"
       )}
     >
       <div className="flex items-start gap-3">
@@ -150,7 +150,7 @@ function PipelineColumn({ title, items, count, color, onCall }: PipelineColumnPr
 }
 
 function mapToScore(priority: number): AIScore {
-  const label = priority >= 85 ? "fire" : priority >= 65 ? "hot" : priority >= 40 ? "warm" : "cold";
+  const label = priority >= 85 ? "platinum" : priority >= 65 ? "gold" : priority >= 40 ? "silver" : "bronze";
   return {
     composite: priority,
     motivation: Math.round(priority * 0.85),

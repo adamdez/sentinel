@@ -15,14 +15,14 @@ const badgeVariants = cva(
           "border-destructive/20 bg-destructive/10 text-destructive",
         outline:
           "border-white/[0.08] text-foreground bg-white/[0.02]",
-        fire:
-          "border-orange-500/25 bg-orange-500/10 text-orange-400 shadow-[0_0_10px_rgba(255,107,53,0.15)]",
-        hot:
-          "border-red-500/25 bg-red-500/10 text-red-400 shadow-[0_0_10px_rgba(255,68,68,0.15)]",
-        warm:
-          "border-yellow-500/25 bg-yellow-500/10 text-yellow-400",
-        cold:
-          "border-blue-500/25 bg-blue-500/10 text-blue-400",
+        platinum:
+          "border-cyan-400/25 bg-cyan-400/10 text-cyan-300 shadow-[0_0_10px_rgba(0,212,255,0.2)]",
+        gold:
+          "border-amber-500/25 bg-amber-500/10 text-amber-400 shadow-[0_0_10px_rgba(245,158,11,0.15)]",
+        silver:
+          "border-slate-400/25 bg-slate-400/10 text-slate-300",
+        bronze:
+          "border-orange-600/25 bg-orange-600/10 text-orange-500",
         neon:
           "border-neon/20 bg-neon/8 text-neon shadow-[0_0_8px_rgba(0,255,136,0.1)]",
         cyan:

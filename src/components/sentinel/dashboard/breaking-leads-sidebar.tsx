@@ -14,7 +14,7 @@ interface TickerItem {
   name: string;
   type: string;
   score: number;
-  label: "fire" | "hot";
+  label: "platinum" | "gold";
   time: string;
   source?: string;
   tags?: string[];
@@ -36,12 +36,12 @@ function timeAgo(dateStr: string): string {
   return `${Math.floor(hrs / 24)}d ago`;
 }
 
-function scoreLabel(n: number): "fire" | "hot" {
-  return n >= 65 ? "fire" : "hot";
+function scoreLabel(n: number): "platinum" | "gold" {
+  return n >= 65 ? "platinum" : "gold";
 }
 
 function TickerRow({ item, index }: { item: TickerItem; index: number }) {
-  const isFire = item.label === "fire";
+  const isPlatinum = item.label === "platinum";
   const src = item.source ? SOURCE_CONFIG[item.source] : null;
 
   return (
@@ -52,19 +52,19 @@ function TickerRow({ item, index }: { item: TickerItem; index: number }) {
       transition={{ delay: index * 0.03, duration: 0.1 }}
       className={cn(
         "flex flex-col gap-1.5 p-2.5 rounded-[10px] text-xs transition-all relative cursor-pointer",
-        isFire
-          ? "bg-orange-500/[0.04] border border-orange-500/[0.1]"
+        isPlatinum
+          ? "bg-cyan-500/[0.04] border border-cyan-500/[0.1]"
           : "bg-white/[0.02] border border-transparent hover:border-white/[0.06]"
       )}
-      style={isFire ? {
-        boxShadow: "inset 0 0 20px rgba(255,107,53,0.03), 0 0 10px rgba(255,107,53,0.06)",
+      style={isPlatinum ? {
+        boxShadow: "inset 0 0 20px rgba(0,212,255,0.03), 0 0 10px rgba(0,212,255,0.06)",
       } : {}}
     >
-      {isFire && (
+      {isPlatinum && (
         <motion.div
           className="absolute inset-0 rounded-[10px] pointer-events-none"
           style={{
-            background: "linear-gradient(90deg, transparent 0%, rgba(255,107,53,0.03) 50%, transparent 100%)",
+            background: "linear-gradient(90deg, transparent 0%, rgba(0,212,255,0.03) 50%, transparent 100%)",
             backgroundSize: "200% 100%",
           }}
           animate={{ backgroundPosition: ["0% 0%", "200% 0%"] }}
@@ -74,8 +74,8 @@ function TickerRow({ item, index }: { item: TickerItem; index: number }) {
 
       <div className="flex items-center gap-2 relative">
         <Zap
-          className={cn("h-3 w-3 shrink-0", isFire ? "text-orange-400" : "text-cyan")}
-          style={isFire ? { filter: "drop-shadow(0 0 3px rgba(255,107,53,0.5))" } : { filter: "drop-shadow(0 0 3px rgba(0,212,255,0.4))" }}
+          className={cn("h-3 w-3 shrink-0", isPlatinum ? "text-cyan-300" : "text-amber-400")}
+          style={isPlatinum ? { filter: "drop-shadow(0 0 3px rgba(0,212,255,0.5))" } : { filter: "drop-shadow(0 0 3px rgba(245,158,11,0.4))" }}
         />
         <span
           className="font-semibold truncate flex-1 text-foreground"
@@ -87,7 +87,7 @@ function TickerRow({ item, index }: { item: TickerItem; index: number }) {
           {item.name}
         </span>
         <RelationshipBadgeCompact data={{ tags: item.tags }} />
-        <Badge variant={isFire ? "fire" : "hot"} className="text-[8px] gap-0.5 shrink-0">
+        <Badge variant={isPlatinum ? "platinum" : "gold"} className="text-[8px] gap-0.5 shrink-0">
           <ArrowUp className="h-2 w-2" />{item.score}
         </Badge>
       </div>

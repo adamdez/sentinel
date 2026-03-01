@@ -85,10 +85,10 @@ interface UseProspectsOptions {
 }
 
 function scoreLabel(composite: number): AIScore["label"] {
-  if (composite >= 85) return "fire";
-  if (composite >= 65) return "hot";
-  if (composite >= 40) return "warm";
-  return "cold";
+  if (composite >= 85) return "platinum";
+  if (composite >= 65) return "gold";
+  if (composite >= 40) return "silver";
+  return "bronze";
 }
 
 export function useProspects(opts: UseProspectsOptions = {}) {

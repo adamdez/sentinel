@@ -23,10 +23,10 @@ interface AIScoreBadgeProps {
 }
 
 const labelConfig = {
-  fire: { variant: "fire" as const, text: "FIRE", color: "text-orange-400", glow: "drop-shadow(0 0 1px rgba(255,107,53,1)) drop-shadow(0 0 3.5px rgba(255,107,53,0.48)) drop-shadow(0 0 7px rgba(255,107,53,0.24)) drop-shadow(0 0 11px rgba(255,107,53,0.11))" },
-  hot: { variant: "hot" as const, text: "HOT", color: "text-red-400", glow: "drop-shadow(0 0 1px rgba(255,68,68,1)) drop-shadow(0 0 3.5px rgba(255,68,68,0.48)) drop-shadow(0 0 7px rgba(255,68,68,0.24))" },
-  warm: { variant: "warm" as const, text: "WARM", color: "text-yellow-400", glow: "drop-shadow(0 0 1px rgba(250,204,21,0.8)) drop-shadow(0 0 3.5px rgba(250,204,21,0.35))" },
-  cold: { variant: "cold" as const, text: "COLD", color: "text-blue-400", glow: "" },
+  platinum: { variant: "platinum" as const, text: "PLATINUM", color: "text-cyan-300", glow: "drop-shadow(0 0 1px rgba(0,212,255,1)) drop-shadow(0 0 3.5px rgba(0,212,255,0.48)) drop-shadow(0 0 7px rgba(0,212,255,0.24)) drop-shadow(0 0 11px rgba(0,212,255,0.11))" },
+  gold: { variant: "gold" as const, text: "GOLD", color: "text-amber-400", glow: "drop-shadow(0 0 1px rgba(245,158,11,1)) drop-shadow(0 0 3.5px rgba(245,158,11,0.48)) drop-shadow(0 0 7px rgba(245,158,11,0.24))" },
+  silver: { variant: "silver" as const, text: "SILVER", color: "text-slate-300", glow: "drop-shadow(0 0 1px rgba(148,163,184,0.8)) drop-shadow(0 0 3.5px rgba(148,163,184,0.35))" },
+  bronze: { variant: "bronze" as const, text: "BRONZE", color: "text-orange-500", glow: "" },
 };
 
 function ScoreBar({ label, value, max = 100 }: { label: string; value: number; max?: number }) {
