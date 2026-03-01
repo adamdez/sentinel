@@ -150,13 +150,13 @@ export function BreakingLeadsTicker() {
           <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-cyan opacity-75" />
           <span className="relative inline-flex rounded-full h-2 w-2 bg-cyan" />
         </span>
-        <span className="text-[10px] text-cyan font-medium">LIVE</span>
+        <span className="text-[11px] text-cyan font-medium">LIVE</span>
       </div>
 
       {visible.length === 0 ? (
         <div className="text-center py-4">
           <Zap className="h-5 w-5 text-muted-foreground mx-auto mb-1" />
-          <p className="text-[10px] text-muted-foreground">No breaking leads yet</p>
+          <p className="text-[11px] text-muted-foreground">No breaking leads yet</p>
         </div>
       ) : (
         <div className="space-y-1.5">
@@ -219,7 +219,7 @@ export function BreakingLeadsTicker() {
                   <Badge variant={isFire ? "fire" : "hot"} className="text-[8px] gap-0.5">
                     <ArrowUp className="h-2 w-2" />{item.score}
                   </Badge>
-                  <span className="text-[9px] text-muted-foreground shrink-0">{item.time}</span>
+                  <span className="text-[10px] text-muted-foreground shrink-0">{item.time}</span>
                 </motion.div>
               );
             })}
@@ -227,7 +227,7 @@ export function BreakingLeadsTicker() {
         </div>
       )}
 
-      <p className="text-[9px] text-muted-foreground text-center pt-1">
+      <p className="text-[10px] text-muted-foreground text-center pt-1">
         {items.length > 0
           ? `${items.length} breaking leads — real-time feed`
           : "Waiting for high-score prospects"}

@@ -5,7 +5,7 @@ import { PageShell } from "@/components/sentinel/page-shell";
 import { GlassCard } from "@/components/sentinel/glass-card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Skeleton } from "@/components/ui/skeleton";
+
 
 const envelopes = [
   { title: "Purchase Agreement — Henderson", status: "Awaiting Signature", date: "Feb 25", icon: Clock, color: "text-yellow-400" },
@@ -77,9 +77,15 @@ export default function DocuSignPage() {
           </GlassCard>
           <GlassCard>
             <h3 className="text-sm font-semibold mb-3">Quick Stats</h3>
-            <div className="space-y-2">
-              <Skeleton className="h-8 w-full" />
-              <Skeleton className="h-8 w-full" />
+            <div className="space-y-3">
+              <div className="flex items-center justify-between text-xs">
+                <span className="text-muted-foreground">Pending Signatures</span>
+                <span className="font-bold text-cyan text-glow-number">0</span>
+              </div>
+              <div className="flex items-center justify-between text-xs">
+                <span className="text-muted-foreground">Completed This Month</span>
+                <span className="font-bold text-neon text-glow-number">0</span>
+              </div>
             </div>
           </GlassCard>
         </div>

@@ -46,7 +46,7 @@ function PinWithRing({ top, left, size, color, ringColor, delay = 0, label }: {
       </div>
       {label && (
         <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1 opacity-0 group-hover/pin:opacity-100 transition-opacity pointer-events-none z-10">
-          <div className="bg-[rgba(12,12,22,0.4)] border border-white/[0.06] rounded px-1.5 py-0.5 text-[8px] whitespace-nowrap backdrop-blur-sm">
+          <div className="bg-[rgba(12,12,22,0.4)] border border-white/[0.06] rounded px-1.5 py-0.5 text-[9px] whitespace-nowrap backdrop-blur-sm">
             {label}
           </div>
         </div>

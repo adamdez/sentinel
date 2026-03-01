@@ -114,8 +114,8 @@ export function QuickDial() {
   if (!lead) {
     return (
       <div className="flex flex-col items-center justify-center py-6 text-center">
-        <Phone className="h-6 w-6 text-muted-foreground mb-2" />
-        <p className="text-xs text-muted-foreground">
+        <Phone className="h-6 w-6 text-muted-foreground/70 mb-2" />
+        <p className="text-sm text-muted-foreground">
           No leads with phone numbers — skip trace a prospect to get started.
         </p>
       </div>
@@ -132,12 +132,12 @@ export function QuickDial() {
         </div>
         <div className="min-w-0">
           <p className="text-xs font-medium truncate">{lead.name}</p>
-          <p className="text-[10px] text-muted-foreground">{lead.phone}</p>
-          <p className="text-[9px] text-cyan">{lead.reason}</p>
+          <p className="text-[11px] text-muted-foreground">{lead.phone}</p>
+          <p className="text-[10px] text-cyan">{lead.reason}</p>
         </div>
       </div>
 
-      <div className="flex items-center gap-1.5 text-[9px] text-muted-foreground">
+      <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
         {lead.scrubLoading ? (
           <>
             <div className="h-3 w-3 rounded-full border-2 border-cyan/40 border-t-cyan animate-spin" />

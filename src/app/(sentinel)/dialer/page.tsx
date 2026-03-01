@@ -55,9 +55,9 @@ function KpiCard({ kpiKey, value, loading, onClick }: { kpiKey: KpiKey; value: n
   return (
     <button
       onClick={onClick}
-      className="rounded-[14px] border border-white/[0.07] bg-white/[0.02] backdrop-blur-xl p-3 text-center
+      className="rounded-[14px] glass-card p-3 text-center
         transition-all duration-100 cursor-pointer hover:border-cyan/24 hover:bg-cyan/[0.04]
-        hover:shadow-[0_0_1px_rgba(0,229,255,0.6),0_0_4px_rgba(0,229,255,0.25),0_0_10px_rgba(0,229,255,0.1),inset_0_0_12px_rgba(0,229,255,0.03)] active:scale-[0.97] group relative overflow-hidden w-full holo-border wet-shine"
+        hover:shadow-[0_0_1px_rgba(0,229,255,0.6),0_0_4px_rgba(0,229,255,0.25),0_0_10px_rgba(0,229,255,0.1),0_18px_52px_rgba(0,0,0,0.5)] active:scale-[0.97] group relative overflow-hidden w-full holo-border wet-shine"
     >
       <div className="absolute inset-x-0 top-0 h-[1px] bg-gradient-to-r from-transparent via-white/[0.06] to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
       <div
@@ -69,10 +69,10 @@ function KpiCard({ kpiKey, value, loading, onClick }: { kpiKey: KpiKey; value: n
       {loading ? (
         <Loader2 className="h-4 w-4 animate-spin mx-auto" />
       ) : (
-        <p className={`text-lg font-bold tracking-tight ${meta.color}`} style={{ textShadow: `0 0 8px ${meta.glow}` }}>{display}</p>
+        <p className={`text-lg font-bold tracking-tight text-glow-number ${meta.color}`} style={{ textShadow: `0 0 8px ${meta.glow}` }}>{display}</p>
       )}
-      <p className="text-[10px] text-muted-foreground/60 uppercase tracking-wider">{meta.label}</p>
-      <p className="text-[8px] text-muted-foreground/30 mt-0.5 opacity-0 group-hover:opacity-100 transition-opacity uppercase tracking-widest">Click for details</p>
+      <p className="text-[11px] text-muted-foreground/60 uppercase tracking-wider">{meta.label}</p>
+      <p className="text-[9px] text-muted-foreground/50 mt-0.5 opacity-0 group-hover:opacity-100 transition-opacity uppercase tracking-widest">Click for details</p>
     </button>
   );
 }
@@ -155,13 +155,13 @@ function StatDetailModal({ kpiKey, userId, onClose }: { kpiKey: KpiKey; userId: 
                 {/* Big comparison */}
                 <div className="grid grid-cols-2 gap-3">
                   <div className="rounded-[12px] border border-cyan/15 bg-cyan/[0.04] p-4 text-center">
-                    <p className="text-[9px] text-muted-foreground/50 uppercase tracking-widest mb-1">You</p>
+                    <p className="text-[10px] text-muted-foreground/60 uppercase tracking-widest mb-1">You</p>
                     <p className="text-3xl font-bold text-cyan" style={{ textShadow: "0 0 14px rgba(0,212,255,0.3)" }}>
                       {fmt(myVal)}
                     </p>
                   </div>
                   <div className="rounded-[12px] border border-purple-500/15 bg-purple-500/[0.04] p-4 text-center">
-                    <p className="text-[9px] text-muted-foreground/50 uppercase tracking-widest mb-1">Team Total</p>
+                    <p className="text-[10px] text-muted-foreground/60 uppercase tracking-widest mb-1">Team Total</p>
                     <p className="text-3xl font-bold text-purple-400" style={{ textShadow: "0 0 14px rgba(168,85,247,0.3)" }}>
                       {fmt(teamVal)}
                     </p>
@@ -171,7 +171,7 @@ function StatDetailModal({ kpiKey, userId, onClose }: { kpiKey: KpiKey; userId: 
                 {/* Ratio bar */}
                 {teamVal > 0 && (
                   <div className="space-y-1">
-                    <div className="flex items-center justify-between text-[10px] text-muted-foreground/50">
+                    <div className="flex items-center justify-between text-[11px] text-muted-foreground/60">
                       <span>Your share</span>
                       <span>{teamVal > 0 ? Math.round((myVal / teamVal) * 100) : 0}%</span>
                     </div>
@@ -192,7 +192,7 @@ function StatDetailModal({ kpiKey, userId, onClose }: { kpiKey: KpiKey; userId: 
                     { label: "Avg Talk", val: data?.my.myAvgTalkTime ?? 0, color: "text-orange-400", fmt: (v: number) => `${Math.floor(v / 60)}:${(v % 60).toString().padStart(2, "0")}` },
                   ].map((s) => (
                     <div key={s.label} className="rounded-[10px] border border-white/[0.06] bg-white/[0.02] p-2.5 text-center">
-                      <p className="text-[9px] text-muted-foreground/40 uppercase tracking-widest">{s.label}</p>
+                      <p className="text-[10px] text-muted-foreground/55 uppercase tracking-widest">{s.label}</p>
                       <p className={`text-sm font-bold font-mono ${s.color}`}>{s.fmt ? s.fmt(s.val) : s.val}</p>
                     </div>
                   ))}
@@ -664,7 +664,7 @@ export default function DialerPage() {
             >
               <div className="mt-3 rounded-[12px] bg-white/[0.03] border border-purple/15 p-3 space-y-2">
                 <div className="flex items-center justify-between">
-                  <p className="text-[10px] text-muted-foreground/60 uppercase tracking-wider">
+                  <p className="text-[11px] text-muted-foreground/60 uppercase tracking-wider">
                     SMS to {formatUsPhone(manualPhone)}
                   </p>
                   <button onClick={() => setSmsComposeOpen(false)} className="text-muted-foreground/40 hover:text-foreground">
@@ -679,7 +679,7 @@ export default function DialerPage() {
                   maxLength={500}
                 />
                 <div className="flex items-center justify-between">
-                  <span className="text-[10px] text-muted-foreground/30">{smsComposeMsg.length}/500</span>
+                  <span className="text-[10px] text-muted-foreground/50">{smsComposeMsg.length}/500</span>
                   <Button
                     onClick={handleManualSms}
                     disabled={smsComposeSending || !smsComposeMsg.trim()}
@@ -716,7 +716,7 @@ export default function DialerPage() {
               </h2>
               <button
                 onClick={refetchQueue}
-                className="text-[10px] text-muted-foreground/50 hover:text-foreground transition-colors"
+                className="text-[11px] text-muted-foreground/60 hover:text-foreground transition-colors"
               >
                 Refresh
               </button>
@@ -739,7 +739,7 @@ export default function DialerPage() {
                     Go to Prospects — Claim Leads
                   </button>
                 </a>
-                <p className="text-[10px] text-muted-foreground/30">Claimed leads appear here automatically</p>
+                <p className="text-[11px] text-muted-foreground/60">Claimed leads appear here automatically</p>
               </div>
             ) : (
               <div className="space-y-1.5">
@@ -759,13 +759,13 @@ export default function DialerPage() {
                       }`}
                     >
                       <div className="flex items-center gap-2">
-                        <span className="text-[10px] text-muted-foreground/40 font-mono w-3">{idx + 1}</span>
+                        <span className="text-[10px] text-muted-foreground/55 font-mono w-3">{idx + 1}</span>
                         <div className="flex-1 min-w-0">
                           <p className="text-xs font-medium truncate flex items-center gap-1">
                             {lead.properties?.owner_name ?? "Unknown"}
                             <RelationshipBadgeCompact data={{ tags: lead.tags }} />
                           </p>
-                          <p className="text-[10px] text-muted-foreground/50 truncate">{lead.properties?.address ?? "No address"}</p>
+                          <p className="text-[11px] text-muted-foreground/60 truncate">{lead.properties?.address ?? "No address"}</p>
                         </div>
                         <Badge variant={sl.variant} className="text-[9px] px-1.5 py-0 shrink-0">
                           {score}
@@ -854,12 +854,12 @@ export default function DialerPage() {
                         { label: "Equity", value: currentLead.properties?.equity_percent != null ? `${currentLead.properties.equity_percent}%` : "—" },
                       ].map((item) => (
                         <div key={item.label} className="rounded-[10px] bg-white/[0.03] border border-white/[0.04] p-2.5">
-                          <p className="text-[10px] text-muted-foreground/50 uppercase">{item.label}</p>
+                          <p className="text-[11px] text-muted-foreground/60 uppercase">{item.label}</p>
                           <p className={`text-sm font-medium ${item.mono ? "font-mono" : ""}`}>{item.value}</p>
                         </div>
                       ))}
                       <div className="rounded-[10px] bg-white/[0.03] border border-white/[0.04] p-2.5">
-                        <p className="text-[10px] text-muted-foreground/50 uppercase">Distress</p>
+                        <p className="text-[11px] text-muted-foreground/60 uppercase">Distress</p>
                         <div className="flex flex-wrap gap-1 mt-0.5">
                           {(currentLead.tags ?? []).slice(0, 3).map((t) => (
                             <span key={t} className="text-[9px] px-1.5 py-0.5 rounded-[6px] bg-red-500/[0.08] text-red-400 border border-red-500/15">
@@ -867,14 +867,14 @@ export default function DialerPage() {
                             </span>
                           ))}
                           {(!currentLead.tags || currentLead.tags.length === 0) && (
-                            <span className="text-[10px] text-muted-foreground/40">—</span>
+                            <span className="text-[10px] text-muted-foreground/55">—</span>
                           )}
                         </div>
                       </div>
                     </div>
 
                     <div className="rounded-[10px] bg-white/[0.03] border border-white/[0.04] p-2.5">
-                      <p className="text-[10px] text-muted-foreground/50 uppercase mb-1">Source & Notes</p>
+                        <p className="text-[11px] text-muted-foreground/60 uppercase mb-1">Source & Notes</p>
                       <p className="text-xs text-muted-foreground/60">
                         {currentLead.source ?? "unknown"} — {currentLead.notes ?? "No notes"}
                       </p>
@@ -932,7 +932,7 @@ export default function DialerPage() {
                     </div>
 
                     {callState === "idle" && currentUser.personal_cell && (
-                      <p className="text-[10px] text-muted-foreground/40 flex items-center gap-1.5 pt-1">
+                      <p className="text-[11px] text-muted-foreground/55 flex items-center gap-1.5 pt-1">
                         <PhoneForwarded className="h-3 w-3 text-cyan/40" />
                         Will transfer to your cell (***{currentUser.personal_cell.slice(-4)}) — Caller ID: Dominion Homes
                       </p>
@@ -971,7 +971,7 @@ export default function DialerPage() {
             <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3 flex items-center gap-1.5">
               <BarChart3 className="h-3.5 w-3.5 text-cyan" />
               Disposition
-              <span className="text-[9px] opacity-40 ml-auto">Keyboard shortcuts active</span>
+              <span className="text-[10px] opacity-40 ml-auto">Keyboard shortcuts active</span>
             </h2>
 
             <div className="grid grid-cols-1 gap-1.5">
@@ -988,7 +988,7 @@ export default function DialerPage() {
                       ${disabled ? "opacity-30 cursor-not-allowed" : d.bgColor}
                     `}
                   >
-                    <span className="text-[10px] font-mono text-muted-foreground/40 w-3">{d.hotkey}</span>
+                    <span className="text-[10px] font-mono text-muted-foreground/55 w-3">{d.hotkey}</span>
                     <Icon className={`h-4 w-4 ${d.color}`} />
                     <span className="text-sm font-medium flex-1">{d.label}</span>
                     <ChevronRight className="h-3 w-3 text-muted-foreground/30" />
@@ -1023,10 +1023,10 @@ export default function DialerPage() {
               >
                 <GlassCard glow hover={false} className="!p-4 mt-3 text-center">
                   <Clock className="h-5 w-5 mx-auto mb-1 text-cyan" />
-                  <p className="text-3xl font-bold font-mono tracking-wider text-neon">
+                  <p className="text-3xl font-bold font-mono tracking-wider text-neon text-glow-number">
                     {timer.formatted}
                   </p>
-                  <p className="text-[10px] text-muted-foreground/50 mt-1 uppercase">
+                  <p className="text-[11px] text-muted-foreground/60 mt-1 uppercase">
                     {callState === "dialing" ? "Ringing..." :
                      callState === "connected" ? "Live Call" :
                      "Call Ended"}

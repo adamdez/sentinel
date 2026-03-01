@@ -151,7 +151,7 @@ export function FunnelValue() {
   }
 
   return (
-    <div className="space-y-2.5 particle-container">
+    <div className="space-y-2.5">
       {stages.map((stage, i) => (
         <motion.div
           key={stage.status}

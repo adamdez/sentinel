@@ -176,19 +176,13 @@ export function NextBestAction() {
         animate={{ opacity: 1, y: 0 }}
         className="p-3 rounded-[12px] bg-cyan/4 border border-cyan/12 relative overflow-hidden"
       >
-        <div
-          className="absolute top-0 right-0 w-24 h-24 pointer-events-none"
-          style={{
-            background: "radial-gradient(circle at top right, rgba(0,212,255,0.06) 0%, transparent 70%)",
-          }}
-        />
         <div className="flex items-center gap-2 mb-2">
           <GlowingOrb />
-          <span className="text-[10px] font-semibold text-cyan uppercase tracking-wider">
+          <span className="text-[11px] font-semibold text-cyan uppercase tracking-wider">
             AI Recommendation
           </span>
           {hasPredictive && (
-            <span className="flex items-center gap-0.5 text-[9px] text-purple-400 font-medium">
+            <span className="flex items-center gap-0.5 text-[10px] text-purple-400 font-medium">
               <Brain className="h-2.5 w-2.5" />
               Predictive
             </span>
@@ -198,7 +192,7 @@ export function NextBestAction() {
           <span>{primary.action === "Call Now" ? "Call" : "Contact"} {primary.name} now</span>
           <RelationshipBadgeCompact data={{ tags: primary.tags }} />
         </p>
-        <p className="text-[10px] text-muted-foreground mb-2.5">
+        <p className="text-[11px] text-muted-foreground mb-2.5">
           {primary.reason}
         </p>
         <div className="flex items-center gap-2">
@@ -214,7 +208,7 @@ export function NextBestAction() {
       </motion.div>
 
       {secondary && (
-        <div className="text-[9px] text-muted-foreground flex items-center gap-1">
+        <div className="text-[10px] text-muted-foreground flex items-center gap-1">
           <ArrowRight className="h-2.5 w-2.5" />
           {secondary}
         </div>

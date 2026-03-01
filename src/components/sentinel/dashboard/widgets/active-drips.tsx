@@ -71,12 +71,12 @@ export function ActiveDrips() {
               {drip.status}
             </Badge>
           </div>
-          <div className="flex items-center gap-3 text-[10px] text-muted-foreground">
+          <div className="flex items-center gap-3 text-[11px] text-muted-foreground">
             <span className="flex items-center gap-1"><Users className="h-2.5 w-2.5" /> {drip.count} leads</span>
           </div>
         </motion.div>
       ))}
-      <p className="text-[9px] text-muted-foreground text-center pt-1">
+      <p className="text-[10px] text-muted-foreground text-center pt-1">
         {totalActive > 0
           ? `${totalActive} leads across active pipelines`
           : "No leads in nurture or drip sequences yet"}

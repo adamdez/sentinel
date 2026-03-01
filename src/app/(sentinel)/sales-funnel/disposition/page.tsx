@@ -5,7 +5,7 @@ import { PageShell } from "@/components/sentinel/page-shell";
 import { GlassCard } from "@/components/sentinel/glass-card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Skeleton } from "@/components/ui/skeleton";
+
 
 const dispositions = [
   {
@@ -77,13 +77,9 @@ export default function DispositionPage() {
           </div>
           <div className="space-y-2">
             <p className="text-xs font-medium text-muted-foreground">Buyer Interest ({d.buyerInterest})</p>
-            {[1, 2, 3, 4].map((i) => (
-              <div key={i} className="flex items-center gap-3">
-                <Skeleton className="h-6 w-6 rounded-full" />
-                <Skeleton className="h-3 flex-1 max-w-[200px]" />
-                <Skeleton className="h-5 w-16" />
-              </div>
-            ))}
+            <p className="text-[11px] text-muted-foreground/60 py-3 text-center">
+              No buyers matched yet — blast marketing to activate buyer list.
+            </p>
           </div>
           {/* TODO: Buyer list management */}
           {/* TODO: Blast marketing to buyer list */}

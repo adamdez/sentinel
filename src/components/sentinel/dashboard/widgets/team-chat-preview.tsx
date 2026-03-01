@@ -32,8 +32,8 @@ export function TeamChatPreview() {
             </AvatarFallback>
           </Avatar>
           <div className="min-w-0">
-            <span className="text-[10px] font-medium">{msg.user_name}</span>
-            <p className="text-[10px] text-muted-foreground truncate">{msg.content}</p>
+            <span className="text-[11px] font-medium">{msg.user_name}</span>
+            <p className="text-[11px] text-muted-foreground truncate">{msg.content}</p>
           </div>
         </motion.div>
       ))}

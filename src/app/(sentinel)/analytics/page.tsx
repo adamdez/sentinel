@@ -349,7 +349,7 @@ export default function AnalyticsPage() {
           const sparkData = sparklineMap[card.key];
 
           return (
-            <GlassCard key={card.key} hover={false} delay={idx * 0.03} className="!p-3 particle-container">
+            <GlassCard key={card.key} hover={false} delay={idx * 0.03} className="!p-3">
               <div className="flex items-start justify-between mb-1">
                 <div
                   className="h-7 w-7 rounded-[8px] flex items-center justify-center"

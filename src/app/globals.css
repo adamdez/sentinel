@@ -81,7 +81,7 @@
   --secondary-foreground: #e6e6f2;
 
   --muted: #06061a;
-  --muted-foreground: #6a6a8a;
+  --muted-foreground: #8a8aab;
 
   --accent: rgba(179, 136, 255, 0.1);
   --accent-foreground: #d4bfff;
@@ -179,12 +179,6 @@
     opacity: 0.8;
     box-shadow: 0 0 40px rgba(0, 229, 255, 0.5), 0 0 100px rgba(179, 136, 255, 0.2), 0 0 150px rgba(0, 229, 255, 0.06);
   }
-}
-@keyframes particle-drift {
-  0% { transform: translateY(0) translateX(0) scale(1); opacity: 0; }
-  10% { opacity: 0.8; }
-  90% { opacity: 0.8; }
-  100% { transform: translateY(-50px) translateX(12px) scale(0); opacity: 0; }
 }
 @keyframes bar-glow-pulse {
   0%, 100% { filter: brightness(1) drop-shadow(0 0 5px currentColor); }
@@ -689,36 +683,6 @@ body {
   pointer-events: none;
 }
 
-/* ── Particle System (CSS fallback) ──────────────────────────────── */
-
-.particle-container {
-  position: relative;
-  overflow: hidden;
-}
-
-.particle-container::before,
-.particle-container::after {
-  content: "";
-  position: absolute;
-  width: 2px;
-  height: 2px;
-  border-radius: 50%;
-  background: rgba(0, 229, 255, 0.5);
-  pointer-events: none;
-}
-
-.particle-container::before {
-  bottom: 20%;
-  left: 30%;
-  animation: particle-drift 3s ease-in-out infinite;
-}
-
-.particle-container::after {
-  bottom: 10%;
-  left: 65%;
-  animation: particle-drift 4.5s ease-in-out 1.2s infinite;
-}
-
 /* ── Scanline Overlay ──────────────────────────────────────────── */
 
 .scanline-overlay {
@@ -1153,7 +1117,6 @@ body {
 .modal-glass,
 .widget-wrapper,
 .glow-bar,
-.particle-container,
 .scanline-overlay,
 .map-pin-ring,
 .ai-score-badge,
@@ -1269,6 +1232,15 @@ body {
   border: 1px solid rgba(0, 255, 136, 0.2);
   color: #00ff88;
   box-shadow: 0 0 1px rgba(0, 255, 136, 0.6), 0 0 4px rgba(0, 255, 136, 0.2);
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   SUBTEXT READABILITY — Global contrast + size bump for secondary text
+   Fractional-opacity muted text gets minimum brightness floor
+   ═══════════════════════════════════════════════════════════════════ */
+
+.text-muted-foreground {
+  color: var(--muted-foreground);
 }
 
 /* ── Scrollbar ─────────────────────────────────────────────────── */

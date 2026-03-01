@@ -101,14 +101,14 @@ export function MyTopLeads() {
               )}
             </div>
             <p
-              className="text-[10px] font-medium text-muted-foreground/90 truncate"
+              className="text-[11px] font-medium text-muted-foreground/90 truncate"
               style={{ WebkitFontSmoothing: "antialiased" }}
             >
               {lead.address}
               {lead.city ? `, ${lead.city}` : ""} — {lead.status}
             </p>
             <div
-              className="flex items-center gap-2 mt-1 text-[10px] font-medium"
+              className="flex items-center gap-2 mt-1 text-[11px] font-medium"
               style={{ WebkitFontSmoothing: "antialiased" }}
             >
               <Clock className="h-2.5 w-2.5" />
@@ -142,7 +142,7 @@ export function MyTopLeads() {
           </Button>
         </motion.div>
       ))}
-      <p className="text-[9px] text-muted-foreground text-center pt-1">
+      <p className="text-[10px] text-muted-foreground text-center pt-1">
         Priority = score × urgency × contact recency — overdue leads surface first
       </p>
     </div>

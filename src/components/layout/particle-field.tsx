@@ -2,10 +2,10 @@
 
 import { useEffect, useRef } from "react";
 
-const PARTICLE_COUNT = 52;
-const LINE_DISTANCE = 12;
-const LINE_OPACITY_MAX = 0.11;
-const LINE_OPACITY_MIN = 0.06;
+const PARTICLE_COUNT = 56;
+const LINE_DISTANCE = 10;
+const LINE_OPACITY_MAX = 0.07;
+const LINE_OPACITY_MIN = 0.04;
 const TARGET_FPS = 30;
 const FRAME_INTERVAL = 1000 / TARGET_FPS;
 const SWAY_AMP = 3.5;
@@ -31,7 +31,11 @@ export function ParticleField() {
       const w = window.innerWidth;
       const h = window.innerHeight;
 
-      const renderer = new THREE.WebGLRenderer({ alpha: true, antialias: false, powerPreference: "low-power" });
+      const renderer = new THREE.WebGLRenderer({
+        alpha: true,
+        antialias: false,
+        powerPreference: "low-power",
+      });
       renderer.setSize(w, h);
       renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
       renderer.setClearColor(0x000000, 0);
@@ -52,12 +56,12 @@ export function ParticleField() {
 
       for (let i = 0; i < PARTICLE_COUNT; i++) {
         const i3 = i * 3;
-        positions[i3] = (Math.random() - 0.5) * 55;
-        positions[i3 + 1] = (Math.random() - 0.5) * 40;
-        positions[i3 + 2] = (Math.random() - 0.5) * 18;
+        positions[i3] = (Math.random() - 0.5) * 60;
+        positions[i3 + 1] = (Math.random() - 0.5) * 44;
+        positions[i3 + 2] = (Math.random() - 0.5) * 22;
         speeds[i] = 0.0025 + Math.random() * 0.003;
         phases[i] = Math.random() * Math.PI * 2;
-        sizes[i] = 1.4 + Math.random() * 1.2;
+        sizes[i] = 1.8 + Math.random() * 1.6;
 
         const mix = Math.random();
         colors[i3] = cyanR * (1 - mix) + purpleR * mix;
@@ -68,16 +72,38 @@ export function ParticleField() {
       const pointGeo = new THREE.BufferGeometry();
       pointGeo.setAttribute("position", new THREE.BufferAttribute(positions, 3));
       pointGeo.setAttribute("color", new THREE.BufferAttribute(colors, 3));
-      pointGeo.setAttribute("size", new THREE.BufferAttribute(sizes, 1));
+      pointGeo.setAttribute("aSize", new THREE.BufferAttribute(sizes, 1));
 
-      const pointMat = new THREE.PointsMaterial({
-        size: 2.0,
+      const pointMat = new THREE.ShaderMaterial({
         vertexColors: true,
         transparent: true,
-        opacity: 0.3,
         blending: THREE.AdditiveBlending,
         depthWrite: false,
-        sizeAttenuation: true,
+        uniforms: {
+          uPixelRatio: { value: Math.min(window.devicePixelRatio, 1.5) },
+        },
+        vertexShader: `
+          attribute float aSize;
+          varying vec3 vColor;
+          uniform float uPixelRatio;
+          void main() {
+            vColor = color;
+            vec4 mvp = modelViewMatrix * vec4(position, 1.0);
+            gl_Position = projectionMatrix * mvp;
+            gl_PointSize = aSize * uPixelRatio * (280.0 / -mvp.z);
+          }
+        `,
+        fragmentShader: `
+          varying vec3 vColor;
+          void main() {
+            float d = length(gl_PointCoord - 0.5) * 2.0;
+            if (d > 1.0) discard;
+            float core = exp(-d * d * 8.0);
+            float bloom = exp(-d * d * 2.0) * 0.35;
+            float alpha = (core + bloom) * 0.45;
+            gl_FragColor = vec4(vColor, alpha);
+          }
+        `,
       });
 
       const points = new THREE.Points(pointGeo, pointMat);
@@ -94,7 +120,7 @@ export function ParticleField() {
       const lineMat = new THREE.LineBasicMaterial({
         vertexColors: true,
         transparent: true,
-        opacity: 0.6,
+        opacity: 0.35,
         blending: THREE.AdditiveBlending,
         depthWrite: false,
         linewidth: 1,
@@ -103,7 +129,7 @@ export function ParticleField() {
       const lines = new THREE.LineSegments(lineGeo, lineMat);
       scene.add(lines);
 
-      const nebulaGeo = new THREE.PlaneGeometry(80, 60);
+      const nebulaGeo = new THREE.PlaneGeometry(90, 70);
       const nebulaMat = new THREE.ShaderMaterial({
         transparent: true,
         depthWrite: false,
@@ -115,15 +141,16 @@ export function ParticleField() {
           void main() {
             vec2 c = vUv - 0.5;
             float d = length(c);
-            float cyan = 0.035 * exp(-d * d * 6.0);
-            float purple = 0.018 * exp(-(d - 0.5) * (d - 0.5) * 4.0);
-            gl_FragColor = vec4(0.0, 0.9, 1.0, cyan) + vec4(0.7, 0.53, 1.0, purple);
+            float cyan = 0.035 * exp(-d * d * 5.5);
+            float purple = 0.018 * exp(-(d - 0.45) * (d - 0.45) * 3.5);
+            float haze = 0.008 * exp(-d * d * 2.0);
+            gl_FragColor = vec4(0.0, 0.9, 1.0, cyan + haze * 0.5) + vec4(0.7, 0.53, 1.0, purple + haze * 0.3);
           }
         `,
       });
 
       const nebula = new THREE.Mesh(nebulaGeo, nebulaMat);
-      nebula.position.z = -8;
+      nebula.position.z = -10;
       scene.add(nebula);
 
       let lastFrameTime = 0;
@@ -145,10 +172,10 @@ export function ParticleField() {
           posArr[i3 + 1] += speeds[i];
           posArr[i3] += Math.sin(swayT + phases[i]) * (SWAY_AMP * speeds[i]);
 
-          if (posArr[i3 + 1] > 20) {
-            posArr[i3 + 1] = -20;
-            posArr[i3] = (Math.random() - 0.5) * 55;
-            posArr[i3 + 2] = (Math.random() - 0.5) * 18;
+          if (posArr[i3 + 1] > 22) {
+            posArr[i3 + 1] = -22;
+            posArr[i3] = (Math.random() - 0.5) * 60;
+            posArr[i3 + 2] = (Math.random() - 0.5) * 22;
           }
         }
         pointGeo.attributes.position.needsUpdate = true;
@@ -186,7 +213,7 @@ export function ParticleField() {
         lineGeo.attributes.position.needsUpdate = true;
         lineGeo.attributes.color.needsUpdate = true;
 
-        points.rotation.y = timestamp * 0.000025;
+        points.rotation.y = timestamp * 0.000018;
 
         renderer.render(scene, camera);
       }
@@ -199,6 +226,7 @@ export function ParticleField() {
         camera.aspect = nw / nh;
         camera.updateProjectionMatrix();
         renderer.setSize(nw, nh);
+        pointMat.uniforms.uPixelRatio.value = Math.min(window.devicePixelRatio, 1.5);
       }
 
       window.addEventListener("resize", handleResize);

@@ -202,7 +202,7 @@ export async function POST(req: NextRequest) {
       { name: "State", value: states },
       { name: "County", value: counties },
       { name: "isNotSameMailingOrExempt", value: ["1"] },
-      { name: "EquityPercent", value: ["40", "100"] },
+      { name: "EquityPercent", value: [["40", "100"]] },
     ];
 
     try {

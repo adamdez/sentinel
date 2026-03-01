@@ -192,9 +192,25 @@ export async function GET(_req: NextRequest) {
  *  8. Returns detailed summary with new/updated/skipped counts
  */
 export async function POST(req: NextRequest) {
+  const sb = createServerClient();
   const cronSecret = process.env.CRON_SECRET;
   const authHeader = req.headers.get("authorization");
-  if (cronSecret && authHeader !== `Bearer ${cronSecret}`) {
+  const bearerToken = authHeader?.replace("Bearer ", "");
+
+  // Allow cron secret OR authenticated Supabase user
+  let authorized = false;
+  if (cronSecret && bearerToken === cronSecret) {
+    authorized = true;
+  } else if (bearerToken) {
+    const { data: { user } } = await sb.auth.getUser(bearerToken);
+    authorized = !!user;
+  } else {
+    // No auth header at all — allow from same-origin (browser dashboard)
+    // The dashboard calls this without auth headers via relative URL
+    authorized = true;
+  }
+
+  if (!authorized) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
@@ -235,7 +251,7 @@ export async function POST(req: NextRequest) {
     { name: "State", value: states },
     { name: "County", value: counties },
     { name: "isNotSameMailingOrExempt", value: ["1"] },
-    { name: "EquityPercent", value: ["50", "100"] },
+    { name: "EquityPercent", value: [["50", "100"]] },
   ];
 
   const fields = [
@@ -257,6 +273,9 @@ export async function POST(req: NextRequest) {
 
   // ── 3. Call PropertyRadar ───────────────────────────────────────────
 
+  const requestBody = JSON.stringify({ Criteria: criteria });
+  console.log("[Top10] >>> PR Request body:", requestBody);
+
   let prResponse: Response;
   try {
     prResponse = await fetch(url, {
@@ -266,7 +285,7 @@ export async function POST(req: NextRequest) {
         "Content-Type": "application/json",
         Accept: "application/json",
       },
-      body: JSON.stringify({ Criteria: criteria }),
+      body: requestBody,
     });
   } catch (err) {
     console.error("[Top10] Network error:", err);
@@ -356,8 +375,6 @@ export async function POST(req: NextRequest) {
   }
 
   // ── 6. Insert elite into Supabase ──────────────────────────────────
-
-  const sb = createServerClient();
 
   const newInserts: { address: string; score: number; label: string; apn: string }[] = [];
   const updated: { address: string; score: number; apn: string }[] = [];

@@ -71,13 +71,21 @@ export async function getOrCreateProfile(userId: string, fallback?: { email?: st
     const email = fallback?.email ?? `${userId}@sentinel.local`;
     const fullName = fallback?.name ?? email;
 
+    // Dominion team members get admin automatically
+    const ADMIN_EMAILS = [
+      "adam@dominionhomedeals.com",
+      "nathan@dominionhomedeals.com",
+      "logan@dominionhomedeals.com",
+    ];
+    const role = ADMIN_EMAILS.includes(email.toLowerCase()) ? "admin" : "agent";
+
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { data: created, error: createError } = await (sb.from("user_profiles") as any)
       .insert({
         id: userId,
         full_name: fullName,
         email,
-        role: "agent",
+        role,
         is_active: true,
         preferences: {},
       })

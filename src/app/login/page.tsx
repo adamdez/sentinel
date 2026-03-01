@@ -65,15 +65,6 @@ export default function LoginPage() {
 
   return (
     <div className="min-h-screen sentinel-gradient sentinel-grid-bg flex flex-col items-center justify-center p-4 relative overflow-hidden">
-      <div
-        className="absolute top-1/4 left-1/4 w-[400px] h-[400px] rounded-full opacity-[0.04] pointer-events-none"
-        style={{ background: "radial-gradient(circle, #00d4ff, transparent 70%)" }}
-      />
-      <div
-        className="absolute bottom-1/4 right-1/4 w-[400px] h-[400px] rounded-full opacity-[0.025] pointer-events-none"
-        style={{ background: "radial-gradient(circle, #A855F7, transparent 70%)", filter: "blur(40px)" }}
-      />
-
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}

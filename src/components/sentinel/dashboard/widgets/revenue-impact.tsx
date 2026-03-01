@@ -102,7 +102,7 @@ export function RevenueImpact() {
             <span className="text-sm font-bold">{m.value}</span>
             {m.change && (
               <motion.span
-                className="text-[9px] text-cyan flex items-center gap-0.5"
+                className="text-[10px] text-cyan flex items-center gap-0.5"
                 style={{ textShadow: "0 0 6px rgba(0,212,255,0.4)" }}
               >
                 <ArrowUpRight className="h-2.5 w-2.5" />
@@ -141,7 +141,7 @@ export function RevenueImpact() {
         })}
       </div>
 
-      <p className="text-[9px] text-muted-foreground text-center">
+      <p className="text-[10px] text-muted-foreground text-center">
         {d.closedCount > 0
           ? `${d.closedCount} closed deal${d.closedCount > 1 ? "s" : ""} YTD — assignment fees`
           : "No closed deals yet — revenue will appear as deals close"}

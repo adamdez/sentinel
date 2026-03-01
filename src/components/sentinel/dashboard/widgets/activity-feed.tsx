@@ -137,7 +137,7 @@ export function ActivityFeed() {
             </div>
             <div className="flex-1 min-w-0">
               <p className="text-[11px] leading-tight truncate">{formatEventText(event)}</p>
-              <p className="text-[9px] text-muted-foreground">{timeAgo(event.created_at)}</p>
+              <p className="text-[10px] text-muted-foreground">{timeAgo(event.created_at)}</p>
             </div>
           </motion.div>
         );

@@ -88,7 +88,7 @@ export function MyTopProspects() {
                 {prospect.owner_name}
               </p>
               <p
-                className="text-[10px] font-medium text-muted-foreground/90 truncate"
+                className="text-[11px] font-medium text-muted-foreground/90 truncate"
                 style={{ WebkitFontSmoothing: "antialiased" }}
               >
                 {prospect.address}
@@ -111,7 +111,7 @@ export function MyTopProspects() {
           </motion.div>
         );
       })}
-      <p className="text-[9px] text-muted-foreground text-center pt-1">
+      <p className="text-[10px] text-muted-foreground text-center pt-1">
         Scored by Dominion Heat Score v1.1 — top {top5.length} of {prospects.length} prospects
       </p>
     </div>
