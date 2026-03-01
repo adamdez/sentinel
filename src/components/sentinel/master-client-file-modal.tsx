@@ -225,6 +225,7 @@ const DISTRESS_CFG: Record<string, { label: string; icon: typeof AlertTriangle; 
   fsbo:             { label: "FSBO",              icon: Building,      color: "text-emerald-400 bg-emerald-500/10 border-emerald-500/20" },
   absentee:         { label: "Absentee",          icon: UserX,         color: "text-blue-400 bg-blue-500/10 border-blue-500/20" },
   inherited:        { label: "Inherited",         icon: User,          color: "text-violet-400 bg-violet-500/10 border-violet-500/20" },
+  water_shutoff:    { label: "Water Shut-Off",   icon: AlertTriangle, color: "text-red-400 bg-red-500/10 border-red-500/20" },
 };
 
 const SCORE_LABEL_CFG: Record<AIScore["label"], { text: string; color: string; bg: string }> = {
@@ -276,6 +277,19 @@ function Section({ title, icon: Icon, children }: { title: string; icon: typeof 
       </div>
       {children}
     </div>
+  );
+}
+
+function CopyBtn({ text }: { text: string }) {
+  const [copied, setCopied] = useState(false);
+  return (
+    <button
+      onClick={(e) => { e.stopPropagation(); navigator.clipboard.writeText(text); setCopied(true); setTimeout(() => setCopied(false), 1200); }}
+      className="p-0.5 rounded hover:bg-white/[0.06] transition-colors shrink-0"
+      title="Copy"
+    >
+      {copied ? <CheckCircle2 className="h-3 w-3 text-cyan" /> : <Copy className="h-3 w-3 text-muted-foreground/50 hover:text-muted-foreground" />}
+    </button>
   );
 }
 
@@ -962,104 +976,180 @@ function OverviewTab({ cf, skipTracing, skipTraceResult, skipTraceMs, overlay, s
         <ScoreBreakdownModal cf={cf} scoreType={scoreBreakdown} onClose={() => setScoreBreakdown(null)} />
       )}
 
-      {/* Predictive Distress Intelligence */}
-      {cf.prediction && (
-        <Section title="Predictive Intelligence (v2.0)" icon={Zap}>
-          <div className="flex items-center gap-3 mb-3">
-            <PredictiveDistressBadge data={cf.prediction as PredictiveDistressData} size="lg" />
-          </div>
-          <div className="grid grid-cols-3 gap-3">
-            <div className="rounded-lg border border-glass-border bg-secondary/10 p-3 text-center">
-              <p className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1">Distress In</p>
-              <p className="text-xl font-bold text-orange-400">~{cf.prediction.daysUntilDistress}d</p>
-            </div>
-            <div className="rounded-lg border border-glass-border bg-secondary/10 p-3 text-center">
-              <p className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1">Confidence</p>
-              <p className="text-xl font-bold text-cyan">{cf.prediction.confidence}%</p>
-            </div>
-            <div className="rounded-lg border border-glass-border bg-secondary/10 p-3 text-center">
-              <p className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1">Pred Score</p>
-              <p className="text-xl font-bold">{cf.prediction.predictiveScore}</p>
-            </div>
-          </div>
-          {cf.prediction.ownerAgeInference && (
-            <p className="text-[11px] text-muted-foreground mt-2">
-              Est. owner age: <span className="text-foreground font-medium">{cf.prediction.ownerAgeInference}</span>
-              {cf.prediction.lifeEventProbability != null && cf.prediction.lifeEventProbability > 0.10 && (
-                <> &middot; <span className="text-orange-400">Elevated life-event probability ({Math.round(cf.prediction.lifeEventProbability * 100)}%)</span></>
-              )}
-            </p>
-          )}
-        </Section>
-      )}
+      {/* ── Property Details — High-Density Wholesaler Grid ── */}
+      <div className="rounded-[12px] border border-white/[0.06] bg-white/[0.02] p-4 space-y-3">
+        <div className="flex items-center gap-2 mb-1">
+          <Home className="h-3.5 w-3.5 text-muted-foreground" />
+          <p className="text-[11px] text-muted-foreground uppercase tracking-wider font-semibold">Property Details</p>
+        </div>
 
-      {/* Distress Signals */}
-      {cf.tags.length > 0 && (
-        <Section title="Distress Signals" icon={AlertTriangle}>
-          <div className="flex flex-wrap gap-1.5">
-            {cf.tags.map((tag) => {
-              const cfg = DISTRESS_CFG[tag];
-              const TagIcon = cfg?.icon ?? Tag;
-              return (
-                <div key={tag} className={cn("flex items-center gap-1.5 px-2.5 py-1 rounded-md border text-[11px] font-medium", cfg?.color ?? "text-muted-foreground bg-white/[0.02] border-white/[0.06]")}>
-                  <TagIcon className="h-3 w-3" />{cfg?.label ?? tag}
+        <div className="grid grid-cols-2 gap-2.5">
+          {/* 1. Full Address + County */}
+          <div className="rounded-[10px] border border-white/[0.06] bg-white/[0.03] p-2.5 col-span-2">
+            <div className="flex items-start gap-2">
+              <MapPin className="h-3.5 w-3.5 text-cyan/60 mt-0.5 shrink-0" />
+              <div className="flex-1 min-w-0">
+                <p className="text-[9px] text-muted-foreground/60 uppercase tracking-widest mb-0.5">Address</p>
+                <div className="flex items-center gap-1.5">
+                  <p className="text-sm font-semibold text-foreground truncate">{cf.fullAddress || "—"}</p>
+                  {cf.fullAddress && <CopyBtn text={cf.fullAddress} />}
                 </div>
-              );
-            })}
-          </div>
-          {cf.foreclosureStage && (
-            <div className="mt-2 text-xs text-orange-400">
-              Foreclosure Stage: <span className="font-semibold">{cf.foreclosureStage}</span>
-              {cf.defaultAmount ? <> &mdash; Default: {formatCurrency(cf.defaultAmount)}</> : null}
+                {cf.county && <p className="text-[10px] text-muted-foreground mt-0.5">{cf.county} County</p>}
+              </div>
             </div>
-          )}
-          {cf.delinquentAmount != null && cf.delinquentAmount > 0 && (
-            <div className="text-xs text-amber-400">Tax Delinquent: <span className="font-semibold">{formatCurrency(cf.delinquentAmount)}</span></div>
-          )}
-        </Section>
-      )}
+          </div>
 
-      {/* Owner Flags */}
-      {(cf.isVacant || cf.isAbsentee || cf.isFreeClear || cf.isHighEquity || cf.isCashBuyer) && (
-        <div className="flex flex-wrap gap-2">
-          <OwnerFlag active={cf.isAbsentee} label="Absentee Owner" icon={UserX} />
-          <OwnerFlag active={cf.isVacant} label="Vacant Property" icon={Home} />
-          <OwnerFlag active={cf.isFreeClear} label="Free & Clear" icon={CheckCircle2} />
-          <OwnerFlag active={cf.isHighEquity} label="High Equity" icon={TrendingUp} />
-          <OwnerFlag active={cf.isCashBuyer} label="Cash Buyer" icon={DollarSign} />
-        </div>
-      )}
+          {/* 2. APN */}
+          <div className="rounded-[10px] border border-white/[0.06] bg-white/[0.03] p-2.5">
+            <div className="flex items-start gap-2">
+              <LandPlot className="h-3.5 w-3.5 text-cyan/60 mt-0.5 shrink-0" />
+              <div className="flex-1 min-w-0">
+                <p className="text-[9px] text-muted-foreground/60 uppercase tracking-widest mb-0.5">APN</p>
+                <div className="flex items-center gap-1.5">
+                  <p className="text-sm font-mono font-semibold text-foreground truncate">{cf.apn || "—"}</p>
+                  {cf.apn && <CopyBtn text={cf.apn} />}
+                </div>
+              </div>
+            </div>
+          </div>
 
-      {/* Financial Overview */}
-      <Section title="Financial Overview" icon={DollarSign}>
-        <div className="grid grid-cols-2 gap-x-6">
-          <InfoRow icon={DollarSign} label="ARV / AVM" value={cf.estimatedValue ? formatCurrency(cf.estimatedValue) : null} highlight />
-          <InfoRow icon={TrendingUp} label="Equity %" value={cf.equityPercent != null ? `${cf.equityPercent}%` : null} highlight={cf.equityPercent != null && cf.equityPercent > 40} />
-          <InfoRow icon={Banknote} label="Available Equity" value={cf.availableEquity ? formatCurrency(cf.availableEquity) : null} />
-          <InfoRow icon={Banknote} label="Total Loans" value={cf.totalLoanBalance ? formatCurrency(cf.totalLoanBalance) : null} />
-          <InfoRow icon={DollarSign} label="Last Sale Price" value={cf.lastSalePrice ? formatCurrency(cf.lastSalePrice) : null} />
-          <InfoRow icon={Calendar} label="Last Sale Date" value={cf.lastSaleDate ? new Date(cf.lastSaleDate).toLocaleDateString() : null} />
-        </div>
-        {!cf.estimatedValue && !cf.availableEquity && !cf.totalLoanBalance && (
-          <p className="text-[11px] text-muted-foreground/60 mt-1 italic">
-            {cf.enriched ? "No financial data available from PropertyRadar" : "Financial data populates after enrichment — click Skip Trace below"}
-          </p>
-        )}
-      </Section>
+          {/* 3. Property Type + Beds/Baths/SqFt */}
+          <div className="rounded-[10px] border border-white/[0.06] bg-white/[0.03] p-2.5">
+            <div className="flex items-start gap-2">
+              <Building className="h-3.5 w-3.5 text-cyan/60 mt-0.5 shrink-0" />
+              <div className="flex-1 min-w-0">
+                <p className="text-[9px] text-muted-foreground/60 uppercase tracking-widest mb-0.5">Type / Size</p>
+                <p className="text-sm font-semibold text-foreground">
+                  {cf.propertyType || "Unknown"}
+                  {cf.bedrooms != null && <span className="text-muted-foreground font-normal text-xs ml-1.5">{cf.bedrooms}bd/{cf.bathrooms ?? "?"}ba</span>}
+                </p>
+                {cf.sqft != null && <p className="text-[10px] text-muted-foreground mt-0.5">{cf.sqft.toLocaleString()} sqft{cf.yearBuilt ? ` • Built ${cf.yearBuilt}` : ""}{cf.lotSize ? ` • ${cf.lotSize.toLocaleString()} lot` : ""}</p>}
+              </div>
+            </div>
+          </div>
 
-      {/* Property Details */}
-      <Section title="Property Details" icon={Home}>
-        <div className="grid grid-cols-2 gap-x-6">
-          <InfoRow icon={MapPin} label="Full Address" value={cf.fullAddress} />
-          <InfoRow icon={Copy} label="APN" value={cf.apn} mono />
-          <InfoRow icon={MapPin} label="County" value={cf.county} />
-          <InfoRow icon={Building} label="Property Type" value={cf.propertyType} />
-          <InfoRow icon={Home} label="Beds / Baths" value={cf.bedrooms ? `${cf.bedrooms} bd / ${cf.bathrooms ?? "?"} ba` : null} />
-          <InfoRow icon={Ruler} label="Sq Ft" value={cf.sqft ? cf.sqft.toLocaleString() : null} />
-          <InfoRow icon={LandPlot} label="Lot Size" value={cf.lotSize ? `${cf.lotSize.toLocaleString()} sqft` : null} />
-          <InfoRow icon={Calendar} label="Year Built" value={cf.yearBuilt} />
+          {/* 4. Owner Name + Relationship Badge */}
+          <div className="rounded-[10px] border border-white/[0.06] bg-white/[0.03] p-2.5">
+            <div className="flex items-start gap-2">
+              <User className="h-3.5 w-3.5 text-cyan/60 mt-0.5 shrink-0" />
+              <div className="flex-1 min-w-0">
+                <p className="text-[9px] text-muted-foreground/60 uppercase tracking-widest mb-0.5">Owner</p>
+                <p className="text-sm font-semibold text-foreground truncate">{cf.ownerName || "—"}</p>
+                <div className="mt-1">
+                  <RelationshipBadge data={{
+                    ownerAgeInference: cf.prediction?.ownerAgeInference,
+                    lifeEventProbability: cf.prediction?.lifeEventProbability,
+                    tags: cf.tags,
+                    bestAddress: cf.fullAddress,
+                  }} />
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* 5. Equity % + Estimated Value */}
+          <div className="rounded-[10px] border border-white/[0.06] bg-white/[0.03] p-2.5">
+            <div className="flex items-start gap-2">
+              <TrendingUp className="h-3.5 w-3.5 text-cyan/60 mt-0.5 shrink-0" />
+              <div className="flex-1 min-w-0">
+                <p className="text-[9px] text-muted-foreground/60 uppercase tracking-widest mb-0.5">Equity</p>
+                <p className="text-lg font-bold" style={{ color: (cf.equityPercent ?? 0) >= 40 ? "rgb(0,212,255)" : undefined, textShadow: (cf.equityPercent ?? 0) >= 40 ? "0 0 10px rgba(0,212,255,0.3)" : undefined }}>
+                  {cf.equityPercent != null ? `${cf.equityPercent}%` : "—"}
+                </p>
+                {cf.availableEquity != null && <p className="text-[10px] text-muted-foreground">{formatCurrency(cf.availableEquity)} available</p>}
+                {cf.totalLoanBalance != null && <p className="text-[10px] text-muted-foreground/60">Loans: {formatCurrency(cf.totalLoanBalance)}</p>}
+              </div>
+            </div>
+          </div>
+
+          {/* 6. AVM / ARV */}
+          <div className="rounded-[10px] border border-white/[0.06] bg-white/[0.03] p-2.5">
+            <div className="flex items-start gap-2">
+              <DollarSign className="h-3.5 w-3.5 text-cyan/60 mt-0.5 shrink-0" />
+              <div className="flex-1 min-w-0">
+                <p className="text-[9px] text-muted-foreground/60 uppercase tracking-widest mb-0.5">AVM / ARV</p>
+                <p className="text-lg font-bold" style={{ color: cf.estimatedValue ? "rgb(0,212,255)" : undefined, textShadow: cf.estimatedValue ? "0 0 10px rgba(0,212,255,0.3)" : undefined }}>
+                  {cf.estimatedValue ? formatCurrency(cf.estimatedValue) : "—"}
+                </p>
+                {cf.lastSalePrice != null && <p className="text-[10px] text-muted-foreground">Last sale: {formatCurrency(cf.lastSalePrice)}{cf.lastSaleDate ? ` (${new Date(cf.lastSaleDate).toLocaleDateString()})` : ""}</p>}
+                {cf.ownerFlags?.last_enriched && <p className="text-[9px] text-muted-foreground/40 mt-0.5">Updated {new Date(cf.ownerFlags.last_enriched as string).toLocaleDateString()}</p>}
+              </div>
+            </div>
+          </div>
+
+          {/* 7. Distress Signals with point values */}
+          <div className="rounded-[10px] border border-white/[0.06] bg-white/[0.03] p-2.5 col-span-2">
+            <div className="flex items-start gap-2">
+              <AlertTriangle className="h-3.5 w-3.5 text-orange-400/70 mt-0.5 shrink-0" />
+              <div className="flex-1 min-w-0">
+                <p className="text-[9px] text-muted-foreground/60 uppercase tracking-widest mb-1">Active Distress Signals</p>
+                {cf.tags.length > 0 ? (
+                  <div className="flex flex-wrap gap-1.5">
+                    {cf.tags.map((tag) => {
+                      const cfg = DISTRESS_CFG[tag];
+                      const pts = SIGNAL_WEIGHTS[tag as keyof typeof SIGNAL_WEIGHTS];
+                      const TagIcon = cfg?.icon ?? Tag;
+                      return (
+                        <div key={tag} className={cn("flex items-center gap-1 px-2 py-0.5 rounded-md border text-[10px] font-medium", cfg?.color ?? "text-muted-foreground bg-white/[0.02] border-white/[0.06]")}>
+                          <TagIcon className="h-2.5 w-2.5" />{cfg?.label ?? tag}
+                          {pts != null && <span className="text-[8px] ml-0.5 opacity-60 font-mono">+{pts}</span>}
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <p className="text-[11px] text-muted-foreground/40 italic">No active distress signals</p>
+                )}
+                {cf.foreclosureStage && (
+                  <p className="text-[10px] text-orange-400 mt-1.5">Foreclosure: <span className="font-semibold">{cf.foreclosureStage}</span>{cf.defaultAmount ? ` — ${formatCurrency(cf.defaultAmount)} default` : ""}</p>
+                )}
+                {cf.delinquentAmount != null && cf.delinquentAmount > 0 && (
+                  <p className="text-[10px] text-amber-400 mt-0.5">Tax Delinquent: <span className="font-semibold">{formatCurrency(cf.delinquentAmount)}</span></p>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* 8. Predictive Days Until Distress + Contact Probability */}
+          <div className="rounded-[10px] border border-white/[0.06] bg-white/[0.03] p-2.5 col-span-2">
+            <div className="flex items-start gap-2">
+              <Zap className="h-3.5 w-3.5 text-purple-400/70 mt-0.5 shrink-0" />
+              <div className="flex-1 min-w-0">
+                <p className="text-[9px] text-muted-foreground/60 uppercase tracking-widest mb-1">Predictive Intelligence</p>
+                {cf.prediction ? (
+                  <div className="flex items-center gap-4">
+                    <div>
+                      <p className="text-[9px] text-muted-foreground/50 uppercase tracking-widest">Distress In</p>
+                      <p className="text-lg font-bold text-orange-400" style={{ textShadow: "0 0 10px rgba(251,146,60,0.3)" }}>~{cf.prediction.daysUntilDistress}d</p>
+                    </div>
+                    <div className="h-8 w-px bg-white/[0.06]" />
+                    <div>
+                      <p className="text-[9px] text-muted-foreground/50 uppercase tracking-widest">Confidence</p>
+                      <p className="text-lg font-bold text-cyan" style={{ textShadow: "0 0 10px rgba(0,212,255,0.3)" }}>{cf.prediction.confidence}%</p>
+                    </div>
+                    <div className="h-8 w-px bg-white/[0.06]" />
+                    <div>
+                      <p className="text-[9px] text-muted-foreground/50 uppercase tracking-widest">Pred Score</p>
+                      <p className="text-lg font-bold text-foreground">{cf.prediction.predictiveScore}</p>
+                    </div>
+                    {cf.prediction.lifeEventProbability != null && cf.prediction.lifeEventProbability > 0.10 && (
+                      <>
+                        <div className="h-8 w-px bg-white/[0.06]" />
+                        <div>
+                          <p className="text-[9px] text-muted-foreground/50 uppercase tracking-widest">Life Event</p>
+                          <p className="text-lg font-bold text-purple-400" style={{ textShadow: "0 0 10px rgba(168,85,247,0.3)" }}>{Math.round(cf.prediction.lifeEventProbability * 100)}%</p>
+                        </div>
+                      </>
+                    )}
+                  </div>
+                ) : (
+                  <p className="text-[11px] text-muted-foreground/40 italic">Predictive data not yet available — enrich to generate</p>
+                )}
+              </div>
+            </div>
+          </div>
         </div>
-      </Section>
+      </div>
 
       {/* Owner & Contact */}
       <Section title="Owner & Contact" icon={User}>
