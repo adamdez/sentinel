@@ -12,7 +12,6 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Input } from "@/components/ui/input";
 import { cn, formatCurrency } from "@/lib/utils";
 import type { ProspectRow } from "@/hooks/use-prospects";
 import type { LeadRow } from "@/lib/leads-data";
@@ -21,6 +20,7 @@ import { SIGNAL_WEIGHTS } from "@/lib/scoring";
 import { CompsMap, type CompProperty, type SubjectProperty } from "@/components/sentinel/comps/comps-map";
 import { PredictiveDistressBadge, type PredictiveDistressData } from "@/components/sentinel/predictive-distress-badge";
 import { RelationshipBadge } from "@/components/sentinel/relationship-badge";
+import { NumericInput } from "@/components/sentinel/numeric-input";
 
 // ═══════════════════════════════════════════════════════════════════════
 // ClientFile — single unified shape for every funnel stage
@@ -1760,29 +1760,17 @@ function OfferCalcTab({ cf }: { cf: ClientFile }) {
   const netProfit = grossProfit - feeNum;
   const roi = totalCosts > 0 ? ((grossProfit / totalCosts) * 100).toFixed(1) : "0";
 
-  function CalcField({ label, value, onChange, prefix }: { label: string; value: string; onChange: (v: string) => void; prefix?: string }) {
-    return (
-      <div className="space-y-1">
-        <label className="text-[10px] text-muted-foreground uppercase tracking-wider">{label}</label>
-        <div className="relative">
-          {prefix && <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">{prefix}</span>}
-          <Input className={cn("font-mono text-sm", prefix && "pl-7")} value={value} onChange={(e) => onChange(e.target.value)} />
-        </div>
-      </div>
-    );
-  }
-
   return (
     <div className="space-y-4">
       <Section title="Deal Inputs" icon={Calculator}>
         <div className="grid grid-cols-2 gap-3">
-          <CalcField label="ARV (After Repair Value)" value={arv} onChange={setArv} prefix="$" />
-          <CalcField label="Purchase Price" value={purchase} onChange={setPurchase} prefix="$" />
-          <CalcField label="Rehab Estimate" value={rehab} onChange={setRehab} prefix="$" />
-          <CalcField label="Closing Costs" value={closing} onChange={setClosing} prefix="$" />
-          <CalcField label="Holding Period (months)" value={holdMonths} onChange={setHoldMonths} />
-          <CalcField label="Monthly Holding Cost" value={monthlyHold} onChange={setMonthlyHold} prefix="$" />
-          <CalcField label="Assignment Fee Target" value={assignmentFee} onChange={setAssignmentFee} prefix="$" />
+          <NumericInput label="ARV (After Repair Value)" value={arv} onChange={setArv} prefix="$" min={0} />
+          <NumericInput label="Purchase Price" value={purchase} onChange={setPurchase} prefix="$" min={0} />
+          <NumericInput label="Rehab Estimate" value={rehab} onChange={setRehab} prefix="$" min={0} />
+          <NumericInput label="Closing Costs" value={closing} onChange={setClosing} prefix="$" min={0} />
+          <NumericInput label="Holding Period (months)" value={holdMonths} onChange={setHoldMonths} min={0} max={60} allowDecimals={false} />
+          <NumericInput label="Monthly Holding Cost" value={monthlyHold} onChange={setMonthlyHold} prefix="$" min={0} />
+          <NumericInput label="Assignment Fee Target" value={assignmentFee} onChange={setAssignmentFee} prefix="$" min={0} />
         </div>
       </Section>
 
