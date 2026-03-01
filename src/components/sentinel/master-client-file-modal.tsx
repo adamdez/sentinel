@@ -8,6 +8,7 @@ import {
   Copy, CheckCircle2, Search, Loader2, Building, Ruler, LandPlot,
   Banknote, Scale, UserX, Eye, FileText, Calculator, Globe, Send,
   Radar, LayoutDashboard, Map, Printer, ImageIcon, ChevronLeft, ChevronRight,
+  Pencil, Save,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -716,6 +717,194 @@ function OwnerFlag({ active, label, icon: Icon }: { active: boolean; label: stri
 }
 
 // ═══════════════════════════════════════════════════════════════════════
+// Edit Details Modal — inline property editing from MCF
+// ═══════════════════════════════════════════════════════════════════════
+
+interface EditFields {
+  address: string;
+  city: string;
+  state: string;
+  zip: string;
+  owner_name: string;
+  apn: string;
+  property_type: string;
+  notes: string;
+}
+
+function EditField({ label, value, onChange, placeholder, mono }: {
+  label: string; value: string; onChange: (v: string) => void; placeholder?: string; mono?: boolean;
+}) {
+  return (
+    <div className="space-y-1">
+      <label className="text-[10px] text-muted-foreground uppercase tracking-wider font-medium">{label}</label>
+      <input
+        type="text"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder={placeholder}
+        className={cn(
+          "w-full px-3 py-2 rounded-[10px] text-sm bg-white/[0.04] border border-white/[0.08] text-foreground",
+          "placeholder:text-muted-foreground/40 focus:outline-none focus:border-cyan/30 focus:ring-1 focus:ring-cyan/20",
+          "transition-all hover:border-white/[0.12]",
+          mono && "font-mono",
+        )}
+      />
+    </div>
+  );
+}
+
+function EditDetailsModal({ cf, onClose, onSaved }: { cf: ClientFile; onClose: () => void; onSaved: () => void }) {
+  const [fields, setFields] = useState<EditFields>({
+    address: cf.address?.split(",")[0]?.trim() ?? "",
+    city: cf.city || "",
+    state: cf.state || "",
+    zip: cf.zip || "",
+    owner_name: cf.ownerName || "",
+    apn: cf.apn || "",
+    property_type: cf.propertyType || "",
+    notes: cf.notes || "",
+  });
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const set = (key: keyof EditFields) => (v: string) => setFields((p) => ({ ...p, [key]: v }));
+
+  const handleSave = async () => {
+    setSaving(true);
+    setError(null);
+    try {
+      const fullAddr = [fields.address, fields.city, fields.state, fields.zip].filter(Boolean).join(", ");
+      const res = await fetch("/api/properties/update", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          property_id: cf.propertyId,
+          lead_id: cf.id,
+          fields: {
+            address: fullAddr,
+            city: fields.city,
+            state: fields.state,
+            zip: fields.zip,
+            owner_name: fields.owner_name,
+            apn: fields.apn,
+            property_type: fields.property_type || null,
+            notes: fields.notes || null,
+          },
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        setError(data.error ?? "Update failed");
+        return;
+      }
+      window.dispatchEvent(new CustomEvent("sentinel:refresh-dashboard"));
+      onSaved();
+      onClose();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Network error");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <AnimatePresence>
+      <motion.div
+        initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+        className="fixed inset-0 z-[60] bg-black/70 backdrop-blur-md flex items-center justify-center"
+        onClick={onClose}
+      >
+        <motion.div
+          initial={{ opacity: 0, scale: 0.92, y: 24 }}
+          animate={{ opacity: 1, scale: 1, y: 0 }}
+          exit={{ opacity: 0, scale: 0.92, y: 24 }}
+          transition={{ type: "spring", damping: 26, stiffness: 320 }}
+          onClick={(e) => e.stopPropagation()}
+          className="relative max-w-lg w-full mx-4 max-h-[85vh] overflow-hidden rounded-[16px] border border-white/[0.08]
+            bg-[rgba(8,8,18,0.88)] backdrop-blur-2xl shadow-[0_0_60px_rgba(0,212,255,0.08),0_0_120px_rgba(139,92,246,0.04)]
+            flex flex-col holo-border"
+        >
+          {/* Holographic accent */}
+          <div className="absolute top-0 inset-x-0 h-[1px] bg-gradient-to-r from-transparent via-cyan/40 to-transparent" />
+          <div className="absolute top-0 inset-x-0 h-12 bg-gradient-to-b from-cyan/[0.03] to-transparent pointer-events-none" />
+
+          {/* Header */}
+          <div className="shrink-0 flex items-center justify-between px-5 py-3.5 border-b border-white/[0.06]">
+            <div className="flex items-center gap-2.5">
+              <div className="h-8 w-8 rounded-[10px] bg-cyan/10 flex items-center justify-center">
+                <Pencil className="h-4 w-4 text-cyan" />
+              </div>
+              <div>
+                <h3 className="text-sm font-bold text-white">Edit Property Details</h3>
+                <p className="text-[10px] text-muted-foreground">{cf.fullAddress}</p>
+              </div>
+            </div>
+            <button onClick={onClose} className="p-1.5 rounded-[10px] hover:bg-white/[0.06] transition-colors text-muted-foreground hover:text-foreground">
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+
+          {/* Form */}
+          <div className="flex-1 overflow-y-auto p-5 space-y-3.5">
+            <EditField label="Street Address" value={fields.address} onChange={set("address")} placeholder="123 Main St" />
+            <div className="grid grid-cols-3 gap-3">
+              <EditField label="City" value={fields.city} onChange={set("city")} placeholder="Spokane" />
+              <EditField label="State" value={fields.state} onChange={set("state")} placeholder="WA" />
+              <EditField label="ZIP" value={fields.zip} onChange={set("zip")} placeholder="99201" mono />
+            </div>
+            <EditField label="Owner Name" value={fields.owner_name} onChange={set("owner_name")} placeholder="John Smith" />
+            <div className="grid grid-cols-2 gap-3">
+              <EditField label="APN" value={fields.apn} onChange={set("apn")} placeholder="12345-678-9" mono />
+              <EditField label="Property Type" value={fields.property_type} onChange={set("property_type")} placeholder="SFR" />
+            </div>
+            <div className="space-y-1">
+              <label className="text-[10px] text-muted-foreground uppercase tracking-wider font-medium">Notes</label>
+              <textarea
+                value={fields.notes}
+                onChange={(e) => set("notes")(e.target.value)}
+                rows={3}
+                placeholder="Add notes about this property..."
+                className="w-full px-3 py-2 rounded-[10px] text-sm bg-white/[0.04] border border-white/[0.08] text-foreground
+                  placeholder:text-muted-foreground/40 focus:outline-none focus:border-cyan/30 focus:ring-1 focus:ring-cyan/20
+                  transition-all hover:border-white/[0.12] resize-none"
+              />
+            </div>
+
+            {error && (
+              <div className="flex items-center gap-2 text-xs text-red-400 bg-red-500/5 border border-red-500/20 rounded-[10px] px-3 py-2">
+                <AlertTriangle className="h-3.5 w-3.5 shrink-0" />{error}
+              </div>
+            )}
+          </div>
+
+          {/* Footer */}
+          <div className="shrink-0 flex items-center justify-between px-5 py-3 border-t border-white/[0.06]">
+            <p className="text-[9px] text-muted-foreground/40 font-mono">
+              Property: {cf.propertyId.slice(0, 8)}
+            </p>
+            <div className="flex items-center gap-2">
+              <Button size="sm" variant="outline" onClick={onClose} className="text-[11px] h-8 px-4">
+                Cancel
+              </Button>
+              <Button
+                size="sm"
+                onClick={handleSave}
+                disabled={saving}
+                className="text-[11px] h-8 px-4 gap-1.5 bg-cyan/15 hover:bg-cyan/25 text-cyan border border-cyan/20
+                  shadow-[0_0_14px_rgba(0,212,255,0.15)] hover:shadow-[0_0_22px_rgba(0,212,255,0.25)] transition-all"
+              >
+                {saving ? <Loader2 className="h-3 w-3 animate-spin" /> : <Save className="h-3 w-3" />}
+                {saving ? "Saving..." : "Save Changes"}
+              </Button>
+            </div>
+          </div>
+        </motion.div>
+      </motion.div>
+    </AnimatePresence>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════
 // Tab: Overview
 // ═══════════════════════════════════════════════════════════════════════
 
@@ -729,10 +918,10 @@ interface SkipTraceError {
   address_issues?: string[];
 }
 
-function OverviewTab({ cf, skipTracing, skipTraceResult, skipTraceMs, overlay, skipTraceError, onSkipTrace, onManualSkipTrace }: {
+function OverviewTab({ cf, skipTracing, skipTraceResult, skipTraceMs, overlay, skipTraceError, onSkipTrace, onManualSkipTrace, onEdit }: {
   cf: ClientFile; skipTracing: boolean; skipTraceResult: string | null; skipTraceMs: number | null;
   overlay: SkipTraceOverlay | null; skipTraceError: SkipTraceError | null;
-  onSkipTrace: () => void; onManualSkipTrace: () => void;
+  onSkipTrace: () => void; onManualSkipTrace: () => void; onEdit: () => void;
 }) {
   const skipTraced = !!overlay || !!cf.ownerFlags?.skip_traced;
   const displayPhone = overlay?.primaryPhone ?? cf.ownerPhone;
@@ -743,9 +932,25 @@ function OverviewTab({ cf, skipTracing, skipTraceResult, skipTraceMs, overlay, s
   const allEmails = overlay?.emails ?? (cf.ownerFlags?.all_emails as string[]) ?? [];
 
   const [scoreBreakdown, setScoreBreakdown] = useState<ScoreType | null>(null);
+  const canEdit = ["prospect", "lead"].includes(cf.status);
 
   return (
     <div className="space-y-5">
+      {/* Edit Details button */}
+      {canEdit && (
+        <div className="flex justify-end">
+          <button
+            onClick={onEdit}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-[10px] text-[11px] font-semibold
+              text-cyan bg-cyan/[0.06] border border-cyan/20 hover:bg-cyan/[0.12] hover:border-cyan/30
+              shadow-[0_0_10px_rgba(0,212,255,0.06)] hover:shadow-[0_0_18px_rgba(0,212,255,0.12)]
+              transition-all active:scale-[0.97]"
+          >
+            <Pencil className="h-3 w-3" />Edit Details
+          </button>
+        </div>
+      )}
+
       {/* Score Dashboard */}
       <div className="grid grid-cols-3 gap-3">
         <ScoreCard label="Composite" value={cf.compositeScore} onClick={() => setScoreBreakdown("composite")} />
@@ -1648,6 +1853,7 @@ export function MasterClientFileModal({ clientFile, open, onClose, onClaim, onRe
   const [overlay, setOverlay] = useState<SkipTraceOverlay | null>(null);
   const [skipTraceError, setSkipTraceError] = useState<SkipTraceError | null>(null);
   const [selectedComps, setSelectedComps] = useState<CompProperty[]>([]);
+  const [editOpen, setEditOpen] = useState(false);
 
   const handleAddComp = useCallback((comp: CompProperty) => {
     setSelectedComps((prev) => prev.some((c) => c.apn === comp.apn) ? prev : [...prev, comp]);
@@ -1803,7 +2009,7 @@ export function MasterClientFileModal({ clientFile, open, onClose, onClaim, onRe
                     transition={{ duration: 0.15 }}
                   >
                     {activeTab === "overview" && (
-                      <OverviewTab cf={clientFile} skipTracing={skipTracing} skipTraceResult={skipTraceResult} skipTraceMs={skipTraceMs} overlay={overlay} skipTraceError={skipTraceError} onSkipTrace={handleSkipTrace} onManualSkipTrace={handleManualSkipTrace} />
+                      <OverviewTab cf={clientFile} skipTracing={skipTracing} skipTraceResult={skipTraceResult} skipTraceMs={skipTraceMs} overlay={overlay} skipTraceError={skipTraceError} onSkipTrace={handleSkipTrace} onManualSkipTrace={handleManualSkipTrace} onEdit={() => setEditOpen(true)} />
                     )}
                     {activeTab === "propertyradar" && <PropertyRadarTab cf={clientFile} />}
                     {activeTab === "county" && <CountyRecordsTab cf={clientFile} />}
@@ -1837,6 +2043,14 @@ export function MasterClientFileModal({ clientFile, open, onClose, onClaim, onRe
               </div>
             </div>
           </motion.div>
+
+          {editOpen && (
+            <EditDetailsModal
+              cf={clientFile}
+              onClose={() => setEditOpen(false)}
+              onSaved={() => onRefresh?.()}
+            />
+          )}
         </Fragment>
       )}
     </AnimatePresence>
