@@ -45,12 +45,14 @@ export function WidgetWrapper({
     const x = (e.clientX - rect.left) / rect.width - 0.5;
     const y = (e.clientY - rect.top) / rect.height - 0.5;
     el.style.transform = `perspective(1200px) rotateY(${x * 3}deg) rotateX(${y * -3}deg) translateY(-6px) translateZ(8px)`;
+    el.style.filter = "brightness(1.15)";
   }, [isDragging]);
 
   const handleMouseLeave = useCallback(() => {
     const el = tileRef.current;
     if (!el) return;
     el.style.transform = "perspective(1200px) rotateY(0deg) rotateX(0deg) translateY(0px) translateZ(0px)";
+    el.style.filter = "brightness(1)";
   }, []);
 
   const toggleSize = () => {
@@ -76,7 +78,7 @@ export function WidgetWrapper({
         rowSpan === 2 && "row-span-2",
         isDragging && "drag-active"
       )}
-      style={{ transformStyle: "preserve-3d", willChange: "transform", transition: "transform 0.1s ease, box-shadow 0.1s ease" }}
+      style={{ transformStyle: "preserve-3d", willChange: "transform, filter", transition: "transform 0.12s ease, box-shadow 0.12s ease, filter 0.12s ease" }}
     >
       <div className="flex items-center justify-between px-4 pt-3 pb-1 relative z-[6]">
         <div className="flex items-center gap-2">

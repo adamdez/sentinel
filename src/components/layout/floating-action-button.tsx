@@ -19,7 +19,7 @@ export function FloatingActionButton() {
           whileHover={{ scale: 1.08 }}
           whileTap={{ scale: 0.95 }}
           onClick={() => openModal("new-prospect")}
-          className="fixed bottom-6 right-6 z-40 h-12 w-12 rounded-full bg-cyan text-primary-foreground flex items-center justify-center shadow-[0_0_30px_rgba(0,212,255,0.3)] hover:shadow-[0_0_40px_rgba(0,212,255,0.5)] transition-shadow cursor-pointer"
+          className="fixed bottom-6 right-6 z-40 h-12 w-12 rounded-full bg-cyan text-primary-foreground flex items-center justify-center shadow-[0_0_1px_rgba(0,229,255,1),0_0_3.5px_rgba(0,229,255,0.48),0_0_7px_rgba(0,229,255,0.24),0_0_11px_rgba(0,229,255,0.11)] hover:shadow-[0_0_1px_rgba(15,238,255,1),0_0_4px_rgba(15,238,255,0.56),0_0_8px_rgba(15,238,255,0.3),0_0_13px_rgba(15,238,255,0.14)] transition-shadow cursor-pointer"
         >
           <Plus className="h-5 w-5" />
         </motion.button>

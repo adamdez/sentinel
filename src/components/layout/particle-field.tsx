@@ -3,9 +3,9 @@
 import { useEffect, useRef } from "react";
 
 const PARTICLE_COUNT = 56;
-const LINE_DISTANCE = 10;
+const LINE_DISTANCE = 7;
 const LINE_OPACITY_MAX = 0.07;
-const LINE_OPACITY_MIN = 0.04;
+const LINE_OPACITY_MIN = 0.03;
 const TARGET_FPS = 30;
 const FRAME_INTERVAL = 1000 / TARGET_FPS;
 const SWAY_AMP = 3.5;
@@ -59,9 +59,9 @@ export function ParticleField() {
         positions[i3] = (Math.random() - 0.5) * 60;
         positions[i3 + 1] = (Math.random() - 0.5) * 44;
         positions[i3 + 2] = (Math.random() - 0.5) * 22;
-        speeds[i] = 0.0025 + Math.random() * 0.003;
+        speeds[i] = 0.003 + Math.random() * 0.0035;
         phases[i] = Math.random() * Math.PI * 2;
-        sizes[i] = 1.8 + Math.random() * 1.6;
+        sizes[i] = 1.6 + Math.random() * 1.8;
 
         const mix = Math.random();
         colors[i3] = cyanR * (1 - mix) + purpleR * mix;
@@ -98,10 +98,12 @@ export function ParticleField() {
           void main() {
             float d = length(gl_PointCoord - 0.5) * 2.0;
             if (d > 1.0) discard;
-            float core = exp(-d * d * 8.0);
-            float bloom = exp(-d * d * 2.0) * 0.35;
-            float alpha = (core + bloom) * 0.45;
-            gl_FragColor = vec4(vColor, alpha);
+            float core = exp(-d * d * 10.0);
+            float bloom = exp(-d * d * 1.8) * 0.3;
+            float diffuse = exp(-d * d * 0.8) * 0.08;
+            float alpha = (core + bloom + diffuse) * 0.42;
+            vec3 warmColor = mix(vColor, vec3(1.0), 0.08);
+            gl_FragColor = vec4(warmColor, alpha);
           }
         `,
       });
@@ -120,7 +122,7 @@ export function ParticleField() {
       const lineMat = new THREE.LineBasicMaterial({
         vertexColors: true,
         transparent: true,
-        opacity: 0.35,
+        opacity: 0.28,
         blending: THREE.AdditiveBlending,
         depthWrite: false,
         linewidth: 1,
@@ -141,10 +143,13 @@ export function ParticleField() {
           void main() {
             vec2 c = vUv - 0.5;
             float d = length(c);
-            float cyan = 0.035 * exp(-d * d * 5.5);
-            float purple = 0.018 * exp(-(d - 0.45) * (d - 0.45) * 3.5);
-            float haze = 0.008 * exp(-d * d * 2.0);
-            gl_FragColor = vec4(0.0, 0.9, 1.0, cyan + haze * 0.5) + vec4(0.7, 0.53, 1.0, purple + haze * 0.3);
+            float cyan = 0.04 * exp(-d * d * 5.0);
+            float purple = 0.02 * exp(-(d - 0.4) * (d - 0.4) * 3.0);
+            float haze = 0.012 * exp(-d * d * 1.5);
+            float warmFog = 0.006 * exp(-(d - 0.6) * (d - 0.6) * 2.5);
+            gl_FragColor = vec4(0.0, 0.9, 1.0, cyan + haze * 0.5)
+              + vec4(0.7, 0.53, 1.0, purple + haze * 0.3)
+              + vec4(1.0, 0.57, 0.0, warmFog * 0.3);
           }
         `,
       });

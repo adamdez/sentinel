@@ -39,13 +39,15 @@ export function GlassCard({
     const rect = el.getBoundingClientRect();
     const x = (e.clientX - rect.left) / rect.width - 0.5;
     const y = (e.clientY - rect.top) / rect.height - 0.5;
-    el.style.transform = `perspective(1200px) rotateY(${x * 2}deg) rotateX(${y * -2}deg) translateY(-4px) translateZ(6px)`;
+    el.style.transform = `perspective(1200px) rotateY(${x * 3}deg) rotateX(${y * -3}deg) translateY(-6px) translateZ(8px)`;
+    el.style.filter = "brightness(1.15)";
   }, [hover]);
 
   const handleMouseLeave = useCallback(() => {
     const el = tileRef.current;
     if (!el) return;
     el.style.transform = "perspective(1200px) rotateY(0deg) rotateX(0deg) translateY(0px) translateZ(0px)";
+    el.style.filter = "brightness(1)";
   }, []);
 
   return (
@@ -63,7 +65,7 @@ export function GlassCard({
         hover && "hover:border-cyan/12",
         className
       )}
-      style={{ transformStyle: "preserve-3d", willChange: "transform", transition: "transform 0.1s ease, box-shadow 0.1s ease" }}
+      style={{ transformStyle: "preserve-3d", willChange: "transform, filter", transition: "transform 0.12s ease, box-shadow 0.12s ease, filter 0.12s ease" }}
       {...props}
     >
       <div className="relative z-[6]">{children as React.ReactNode}</div>
