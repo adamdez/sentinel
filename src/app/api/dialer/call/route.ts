@@ -260,17 +260,27 @@ export async function PATCH(req: NextRequest) {
 
       const sched = scheduleNextCall(step, endedAt, body.disposition);
 
+      const updatePayload: Record<string, unknown> = {
+        total_calls: (lead.total_calls ?? 0) + 1,
+        live_answers: (lead.live_answers ?? 0) + (isLive ? 1 : 0),
+        voicemails_left: (lead.voicemails_left ?? 0) + (isVM ? 1 : 0),
+        call_sequence_step: sched.sequenceStep,
+        next_call_scheduled_at: sched.nextCallAt,
+        last_contact_at: endedAt,
+        updated_at: new Date().toISOString(),
+      };
+
+      // Auto-revert to prospect after 7-day sequence with no live answer
+      if (sched.isComplete && !isLive) {
+        updatePayload.status = "prospect";
+        updatePayload.assigned_to = null;
+        updatePayload.call_sequence_step = 1;
+        updatePayload.next_call_scheduled_at = null;
+      }
+
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       await (sb.from("leads") as any)
-        .update({
-          total_calls: (lead.total_calls ?? 0) + 1,
-          live_answers: (lead.live_answers ?? 0) + (isLive ? 1 : 0),
-          voicemails_left: (lead.voicemails_left ?? 0) + (isVM ? 1 : 0),
-          call_sequence_step: sched.sequenceStep,
-          next_call_scheduled_at: sched.nextCallAt,
-          last_contact_at: endedAt,
-          updated_at: new Date().toISOString(),
-        })
+        .update(updatePayload)
         .eq("id", callRow.lead_id);
     }
   }

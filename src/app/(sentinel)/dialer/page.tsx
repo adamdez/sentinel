@@ -795,11 +795,11 @@ export default function DialerPage() {
             ) : queue.length === 0 ? (
               <div className="text-center py-6 space-y-3">
                 <Phone className="h-6 w-6 mx-auto text-muted-foreground/20" />
-                <p className="text-xs text-muted-foreground/50">No leads in your folder</p>
+                <p className="text-xs text-muted-foreground/50">No leads ready — go to Prospects and claim some</p>
                 <a href="/sales-funnel/prospects">
-                  <button className="px-4 py-1.5 rounded-[10px] text-[11px] font-semibold text-cyan bg-cyan/[0.08] border border-cyan/20
-                    hover:bg-cyan/[0.14] hover:border-cyan/30 shadow-[0_0_10px_rgba(0,212,255,0.06)]
-                    hover:shadow-[0_0_18px_rgba(0,212,255,0.12)] transition-all">
+                  <button className="px-5 py-2 rounded-[10px] text-xs font-bold text-cyan bg-cyan/[0.10] border border-cyan/25
+                    hover:bg-cyan/[0.18] hover:border-cyan/35 shadow-[0_0_14px_rgba(0,212,255,0.08)]
+                    hover:shadow-[0_0_22px_rgba(0,212,255,0.16)] transition-all">
                     Go to Prospects — Claim Leads
                   </button>
                 </a>
