@@ -16,8 +16,16 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useSentinelStore } from "@/lib/store";
+import { supabase } from "@/lib/supabase";
 import { useDialerQueue, useDialerStats, useCallTimer, type QueueLead } from "@/hooks/use-dialer";
 import { RelationshipBadgeCompact } from "@/components/sentinel/relationship-badge";
+
+async function authHeaders(): Promise<Record<string, string>> {
+  const { data: { session } } = await supabase.auth.getSession();
+  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  if (session?.access_token) headers["Authorization"] = `Bearer ${session.access_token}`;
+  return headers;
+}
 
 interface DispoOption {
   key: string;
@@ -119,7 +127,7 @@ export default function DialerPage() {
     try {
       const res = await fetch("/api/dialer/call", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: await authHeaders(),
         body: JSON.stringify({
           phone,
           leadId: target.id,
@@ -171,7 +179,7 @@ export default function DialerPage() {
     try {
       const res = await fetch("/api/dialer/sms", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: await authHeaders(),
         body: JSON.stringify({
           phone,
           message: `Hi ${currentLead.properties?.owner_name?.split(" ")[0] ?? "there"}, this is Dominion Homes. We're interested in your property at ${currentLead.properties?.address ?? "your address"}. Would you have a few minutes to chat? Reply STOP to opt out.`,
@@ -207,7 +215,7 @@ export default function DialerPage() {
     try {
       const res = await fetch("/api/dialer/call", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: await authHeaders(),
         body: JSON.stringify({
           phone: toE164(manualPhone),
           userId: currentUser.id,
@@ -237,11 +245,13 @@ export default function DialerPage() {
 
   const handleManualHangup = useCallback(() => {
     if (manualCallLogId) {
-      fetch("/api/dialer/call", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ callLogId: manualCallLogId, disposition: "manual_hangup", userId: currentUser.id }),
-      }).catch(() => {});
+      authHeaders().then((hdrs) =>
+        fetch("/api/dialer/call", {
+          method: "PATCH",
+          headers: hdrs,
+          body: JSON.stringify({ callLogId: manualCallLogId, disposition: "manual_hangup", userId: currentUser.id }),
+        }),
+      ).catch(() => {});
     }
     setManualStatus("idle");
     setManualCallLogId(null);
@@ -261,7 +271,7 @@ export default function DialerPage() {
     try {
       const res = await fetch("/api/dialer/sms", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: await authHeaders(),
         body: JSON.stringify({
           phone: toE164(manualPhone),
           message: smsComposeMsg.trim(),
@@ -305,7 +315,7 @@ export default function DialerPage() {
       try {
         await fetch("/api/dialer/call", {
           method: "PATCH",
-          headers: { "Content-Type": "application/json" },
+          headers: await authHeaders(),
           body: JSON.stringify({
             callLogId: currentCallLogId,
             disposition: dispoKey,

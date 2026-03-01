@@ -62,7 +62,7 @@ export async function POST(req: NextRequest) {
   }
 
   const e164 = phone.length === 10 ? `+1${phone}` : `+${phone}`;
-  const userId = body.userId || SYSTEM_USER_ID;
+  const userId = user.id;
 
   // 1. Compliance scrub
   const scrub = await scrubLead(body.phone, userId, body.ghostMode ?? false);
@@ -195,6 +195,13 @@ export async function POST(req: NextRequest) {
  * Body: { callLogId, disposition, durationSec?, notes?, endedAt? }
  */
 export async function PATCH(req: NextRequest) {
+  const sb = createServerClient();
+  const patchToken = req.headers.get("authorization")?.replace("Bearer ", "");
+  const { data: { user: patchUser } } = await sb.auth.getUser(patchToken);
+  if (!patchUser) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
   let body: {
     callLogId: string;
     disposition: string;
@@ -214,8 +221,6 @@ export async function PATCH(req: NextRequest) {
     return NextResponse.json({ error: "callLogId and disposition required" }, { status: 400 });
   }
 
-  const sb = createServerClient();
-
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { error } = await (sb.from("calls_log") as any)
     .update({
@@ -234,7 +239,7 @@ export async function PATCH(req: NextRequest) {
   // Audit log (non-blocking)
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   (sb.from("event_log") as any).insert({
-    user_id: body.userId || SYSTEM_USER_ID,
+    user_id: patchUser.id,
     action: "dialer.call_dispositioned",
     entity_type: "call",
     entity_id: body.callLogId,
