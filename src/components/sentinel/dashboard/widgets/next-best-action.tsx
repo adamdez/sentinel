@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import { Zap, ArrowRight, Phone, Clock, Brain } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -40,11 +40,17 @@ function GlowingOrb() {
 }
 
 export function NextBestAction() {
-  const { prospects, loading: prospectsLoading } = useProspects({
+  const { prospects, loading: prospectsLoading, refetch: refetchProspects } = useProspects({
     sortField: "composite_score",
     sortDir: "desc",
   });
-  const { leads, loading: leadsLoading } = useLeads();
+  const { leads, loading: leadsLoading, refetch: refetchLeads } = useLeads();
+
+  useEffect(() => {
+    const onRefresh = () => { refetchProspects(); refetchLeads(); };
+    window.addEventListener("sentinel:refresh-dashboard", onRefresh);
+    return () => window.removeEventListener("sentinel:refresh-dashboard", onRefresh);
+  }, [refetchProspects, refetchLeads]);
 
   const loading = prospectsLoading || leadsLoading;
   const [snoozed, setSnoozed] = useState(false);

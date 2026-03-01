@@ -17,15 +17,43 @@ const US_STATES: Record<string, string> = {
   WY: "WY",
 };
 
+// ── ZIP-to-City lookup for Spokane / Kootenai market area ────────────
+const ZIP_TO_CITY: Record<string, string> = {
+  "99201": "Spokane", "99202": "Spokane", "99203": "Spokane", "99204": "Spokane",
+  "99205": "Spokane", "99206": "Spokane", "99207": "Spokane", "99208": "Spokane",
+  "99209": "Spokane", "99210": "Spokane", "99211": "Spokane", "99212": "Spokane",
+  "99213": "Spokane", "99214": "Spokane", "99216": "Spokane", "99217": "Spokane",
+  "99218": "Spokane", "99219": "Spokane", "99220": "Spokane", "99223": "Spokane",
+  "99224": "Spokane", "99228": "Spokane",
+  "99001": "Airway Heights", "99003": "Chattaroy", "99004": "Cheney",
+  "99005": "Colbert", "99006": "Deer Park", "99009": "Elk",
+  "99011": "Fairchild AFB", "99012": "Fairfield", "99016": "Greenacres",
+  "99018": "Latah", "99019": "Liberty Lake", "99020": "Marshall",
+  "99021": "Mead", "99022": "Medical Lake", "99023": "Mica",
+  "99025": "Newman Lake", "99026": "Nine Mile Falls", "99027": "Otis Orchards",
+  "99029": "Reardan", "99030": "Rockford", "99031": "Spangle",
+  "99036": "Valleyford", "99037": "Veradale", "99039": "Waverly",
+  "99170": "Sprague",
+  "99215": "Spokane Valley", "99016b": "Spokane Valley",
+  "83814": "Coeur d'Alene", "83815": "Coeur d'Alene", "83816": "Coeur d'Alene",
+  "83854": "Post Falls", "83858": "Rathdrum", "83835": "Hayden",
+  "83836": "Hayden Lake", "83869": "Spirit Lake", "83864": "Sandpoint",
+  "83876": "Worley", "83801": "Athol",
+};
+
 /**
  * POST /api/prospects/skip-trace
  *
  * Pulls owner contact info from PropertyRadar Persons endpoint.
  * Requires the property to have been enriched first (needs radar_id).
  *
- * Body: { property_id: string, lead_id: string }
+ * Body: { property_id: string, lead_id: string, manual?: boolean }
  *
- * If no radar_id, falls back to re-enriching from the address first.
+ * If no radar_id, falls back to multi-tier enrichment:
+ *   Tier 1: Full address + city + state + zip
+ *   Tier 2: Street + ZIP + state only
+ *   Tier 3: APN lookup
+ *   Tier 4: Manual mode (force partial data, requires manual=true)
  */
 export async function POST(req: NextRequest) {
   const t0 = Date.now();
@@ -36,7 +64,7 @@ export async function POST(req: NextRequest) {
 
   try {
     const body = await req.json();
-    const { property_id, lead_id } = body;
+    const { property_id, lead_id, manual = false } = body;
 
     if (!property_id) {
       return NextResponse.json({ error: "property_id is required" }, { status: 400 });
@@ -44,7 +72,6 @@ export async function POST(req: NextRequest) {
 
     const sb = createServerClient();
 
-    // Fetch current property record
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { data: property, error: propErr } = await (sb.from("properties") as any)
       .select("*")
@@ -60,27 +87,31 @@ export async function POST(req: NextRequest) {
 
     let radarId = property.owner_flags?.radar_id as string | undefined;
 
-    // If no radar_id, auto-enrich from PropertyRadar first
     if (!radarId) {
-      console.log("[SkipTrace] No radar_id — auto-enriching from PropertyRadar first");
+      console.log("[SkipTrace] No radar_id — auto-enriching via multi-tier fallback");
       const tEnrichStart = Date.now();
-      const enrichResult = await enrichProperty(sb, apiKey, property, lead_id);
+      const enrichResult = await enrichProperty(sb, apiKey, property, lead_id, manual);
       console.log(`[SkipTrace Perf] Enrichment: ${Date.now() - tEnrichStart}ms`);
       if (!enrichResult.success) {
-        console.error("[SkipTrace] Enrichment failed:", enrichResult.error);
+        console.error("[SkipTrace] Enrichment failed:", enrichResult.error, "| tier:", enrichResult.tier);
         return NextResponse.json({
-          error: enrichResult.error ?? "PropertyRadar enrichment failed",
+          error: "Enrichment failed",
+          reason: enrichResult.reason ?? enrichResult.error ?? "PropertyRadar enrichment failed",
+          suggestion: enrichResult.suggestion ?? "Try Manual Skip Trace or correct the address fields",
+          tier_reached: enrichResult.tier ?? "unknown",
+          address_issues: enrichResult.addressIssues ?? [],
           enriched: false,
-          hint: "Check server logs for details. Common issues: address format, API key, or property not in PropertyRadar coverage.",
         }, { status: 422 });
       }
       radarId = enrichResult.radar_id;
-      console.log("[SkipTrace] Enrichment complete, got RadarID:", radarId);
+      console.log("[SkipTrace] Enrichment complete via tier", enrichResult.tier, "— RadarID:", radarId);
     }
 
     if (!radarId) {
       return NextResponse.json({
-        error: "Could not find this property in PropertyRadar — check address",
+        error: "Enrichment failed",
+        reason: "No matching property found in PropertyRadar after all lookup tiers",
+        suggestion: "Verify the address is correct or try Manual Skip Trace with corrected city/ZIP",
         enriched: false,
       }, { status: 422 });
     }
@@ -246,69 +277,181 @@ export async function POST(req: NextRequest) {
   }
 }
 
-// ── Auto-enrich from PropertyRadar ──────────────────────────────────────
+// ── Smart address helpers ────────────────────────────────────────────
 
+function isUnknownCity(city: string | null | undefined): boolean {
+  if (!city) return true;
+  const c = city.trim().toLowerCase();
+  return c === "" || c === "unknown" || c === "n/a" || c === "none" || c === "null";
+}
+
+function resolveCity(city: string | null | undefined, zip: string | null | undefined): { city: string; source: "original" | "zip_lookup" | "none" } {
+  if (!isUnknownCity(city)) return { city: city!.trim(), source: "original" };
+  const z5 = (zip ?? "").replace(/\D/g, "").slice(0, 5);
+  if (z5 && ZIP_TO_CITY[z5]) return { city: ZIP_TO_CITY[z5], source: "zip_lookup" };
+  return { city: "", source: "none" };
+}
+
+interface EnrichResult {
+  success: boolean;
+  radar_id?: string;
+  error?: string;
+  reason?: string;
+  suggestion?: string;
+  tier?: string;
+  addressIssues?: string[];
+}
+
+// ── PropertyRadar single-tier query helper ──────────────────────────
+
+async function prLookup(
+  apiKey: string,
+  criteria: { name: string; value: string[] }[],
+  tierLabel: string,
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function enrichProperty(sb: any, apiKey: string, property: any, leadId?: string): Promise<{ success: boolean; radar_id?: string; error?: string }> {
-  const address = property.address ?? "";
-  if (!address) return { success: false, error: "No address on property" };
+): Promise<{ hit: any | null; error?: string }> {
+  if (criteria.length < 1) return { hit: null, error: "No criteria for " + tierLabel };
 
-  console.log("[Enrich] Property record:", {
-    id: property.id,
-    address: property.address,
-    city: property.city,
-    state: property.state,
-    zip: property.zip,
-  });
-
-  // Use the property's stored fields first (entered separately in the form),
-  // only fall back to parsing the concatenated address string
-  const parsed = parseAddress(address);
-
-  // Street: take just the first part before any comma from the address
-  const street = parsed.street || address.split(",")[0]?.trim() || "";
-
-  // City/State/Zip: prefer separately stored fields over parsed values
-  const city = property.city || parsed.city || "";
-  const state = property.state || parsed.state || "";
-  const zip = property.zip || parsed.zip || "";
-
-  const criteria: { name: string; value: string[] }[] = [];
-  if (street) criteria.push({ name: "Address", value: [street] });
-  if (city) criteria.push({ name: "City", value: [city.replace(/\s+(WA|OR|CA|AZ|ID|TX|FL|NY)\s*$/i, "").trim()] });
-  if (state) criteria.push({ name: "State", value: [state.replace(/[^A-Z]/gi, "").slice(0, 2).toUpperCase()] });
-  if (zip) criteria.push({ name: "ZipFive", value: [zip.replace(/\D/g, "").slice(0, 5)] });
-
-  if (criteria.length < 2) return { success: false, error: "Insufficient address info" };
-
-  console.log("[Enrich] Final criteria:", JSON.stringify(criteria, null, 2));
-
-  const prBody = { Criteria: criteria };
   const prUrl = `${PR_API_BASE}?Purchase=1&Limit=1&Fields=All`;
-
-  console.log("[Enrich] Calling PropertyRadar:", prUrl);
-  console.log("[Enrich] Request body:", JSON.stringify(prBody));
+  console.log(`[Enrich/${tierLabel}] Criteria:`, JSON.stringify(criteria));
 
   const prRes = await fetch(prUrl, {
     method: "POST",
     headers: {
-      "Authorization": `Bearer ${apiKey}`,
+      Authorization: `Bearer ${apiKey}`,
       "Content-Type": "application/json",
-      "Accept": "application/json",
+      Accept: "application/json",
     },
-    body: JSON.stringify(prBody),
+    body: JSON.stringify({ Criteria: criteria }),
   });
 
   if (!prRes.ok) {
     const errText = await prRes.text().catch(() => "");
-    console.error("[Enrich] PropertyRadar HTTP", prRes.status, errText.slice(0, 500));
-    return { success: false, error: `PropertyRadar HTTP ${prRes.status}: ${errText.slice(0, 200)}` };
+    console.error(`[Enrich/${tierLabel}] HTTP ${prRes.status}`, errText.slice(0, 300));
+    return { hit: null, error: `PropertyRadar HTTP ${prRes.status}` };
   }
 
   const prData = await prRes.json();
+  const result = prData.results?.[0] ?? null;
+  console.log(`[Enrich/${tierLabel}] ${result ? "HIT — RadarID " + result.RadarID : "MISS"}`);
+  return { hit: result };
+}
+
+// ── Auto-enrich from PropertyRadar (multi-tier fallback) ─────────────
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function enrichProperty(sb: any, apiKey: string, property: any, leadId?: string, manual = false): Promise<EnrichResult> {
+  const address = property.address ?? "";
+  if (!address && !property.apn) {
+    return { success: false, error: "No address on property", reason: "Property has no address or APN", suggestion: "Add an address or APN before skip-tracing", tier: "none" };
+  }
+
+  const parsed = parseAddress(address);
+  const street = parsed.street || address.split(",")[0]?.trim() || "";
+  const rawCity = property.city || parsed.city || "";
+  const state = property.state || parsed.state || "";
+  const zip = property.zip || parsed.zip || "";
+  const apn = property.apn || "";
+
+  const cityResolution = resolveCity(rawCity, zip);
+  const city = cityResolution.city;
+
+  const addressIssues: string[] = [];
+  if (isUnknownCity(rawCity)) {
+    if (cityResolution.source === "zip_lookup") {
+      addressIssues.push(`City was "${rawCity || "empty"}" — auto-resolved to "${city}" from ZIP ${zip}`);
+      console.log(`[Enrich] Smart city fix: "${rawCity}" → "${city}" via ZIP ${zip}`);
+    } else {
+      addressIssues.push(`City is "${rawCity || "empty"}" and could not be resolved from ZIP "${zip}"`);
+    }
+  }
+
+  console.log("[Enrich] Property record:", { id: property.id, address, city: rawCity, resolvedCity: city, state, zip, apn, manual });
+
+  const cleanState = state.replace(/[^A-Z]/gi, "").slice(0, 2).toUpperCase();
+  const cleanZip = zip.replace(/\D/g, "").slice(0, 5);
+  const cleanCity = city.replace(/\s+(WA|OR|CA|AZ|ID|TX|FL|NY)\s*$/i, "").trim();
+
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const pr: any = prData.results?.[0];
-  if (!pr) return { success: false, error: "No property found in PropertyRadar for this address" };
+  let pr: any = null;
+  let winningTier = "none";
+
+  // ─── Tier 1: Full address + city + state + zip ───
+  if (street && cleanCity && cleanState && cleanZip) {
+    const tier1: { name: string; value: string[] }[] = [
+      { name: "Address", value: [street] },
+      { name: "City", value: [cleanCity] },
+      { name: "State", value: [cleanState] },
+      { name: "ZipFive", value: [cleanZip] },
+    ];
+    const r1 = await prLookup(apiKey, tier1, "Tier1-FullAddr");
+    if (r1.hit) { pr = r1.hit; winningTier = "tier1_full_address"; }
+  }
+
+  // ─── Tier 2: Street + ZIP + state only (no city) ───
+  if (!pr && street && cleanZip && cleanState) {
+    const tier2: { name: string; value: string[] }[] = [
+      { name: "Address", value: [street] },
+      { name: "ZipFive", value: [cleanZip] },
+      { name: "State", value: [cleanState] },
+    ];
+    const r2 = await prLookup(apiKey, tier2, "Tier2-StreetZip");
+    if (r2.hit) { pr = r2.hit; winningTier = "tier2_street_zip"; }
+  }
+
+  // ─── Tier 3: APN lookup ───
+  if (!pr && apn) {
+    const tier3: { name: string; value: string[] }[] = [
+      { name: "APN", value: [apn] },
+    ];
+    if (cleanState) tier3.push({ name: "State", value: [cleanState] });
+    const r3 = await prLookup(apiKey, tier3, "Tier3-APN");
+    if (r3.hit) { pr = r3.hit; winningTier = "tier3_apn"; }
+  }
+
+  // ─── Tier 4: Manual mode — force with whatever partial data we have ───
+  if (!pr && manual) {
+    const tier4: { name: string; value: string[] }[] = [];
+    if (street) tier4.push({ name: "Address", value: [street] });
+    if (cleanCity) tier4.push({ name: "City", value: [cleanCity] });
+    if (cleanState) tier4.push({ name: "State", value: [cleanState] });
+    if (cleanZip) tier4.push({ name: "ZipFive", value: [cleanZip] });
+    if (tier4.length >= 1) {
+      const r4 = await prLookup(apiKey, tier4, "Tier4-Manual");
+      if (r4.hit) { pr = r4.hit; winningTier = "tier4_manual"; }
+    }
+  }
+
+  if (!pr) {
+    const missingParts: string[] = [];
+    if (!street) missingParts.push("street address");
+    if (isUnknownCity(rawCity) && cityResolution.source === "none") missingParts.push("city");
+    if (!cleanState) missingParts.push("state");
+    if (!cleanZip) missingParts.push("ZIP code");
+
+    const reason = missingParts.length > 0
+      ? `Missing or invalid: ${missingParts.join(", ")}. City was "${rawCity || "empty"}".`
+      : `No matching property found in PropertyRadar for "${street}, ${rawCity || city}, ${cleanState} ${cleanZip}"`;
+
+    const suggestion = isUnknownCity(rawCity) && !cleanZip
+      ? "Add a valid ZIP code or correct city name, then retry"
+      : isUnknownCity(rawCity)
+        ? `City is "${rawCity || "empty"}" — enter the correct city name or use Manual Skip Trace`
+        : !manual
+          ? "Try Manual Skip Trace to force a partial-data lookup"
+          : "Verify the property address is correct in the source system";
+
+    return {
+      success: false,
+      error: "PropertyRadar lookup failed across all tiers",
+      reason,
+      suggestion,
+      tier: manual ? "tier4_manual" : apn ? "tier3_apn" : "tier2_street_zip",
+      addressIssues,
+    };
+  }
+
+  console.log(`[Enrich] Winner: ${winningTier} — RadarID ${pr.RadarID}, APN ${pr.APN}`);
 
   console.log("[Enrich] Found:", pr.RadarID, pr.APN, pr.Owner);
 
@@ -440,7 +583,7 @@ async function enrichProperty(sb: any, apiKey: string, property: any, leadId?: s
 
   await Promise.all(enrichWrites);
 
-  return { success: true, radar_id: pr.RadarID as string };
+  return { success: true, radar_id: pr.RadarID as string, tier: winningTier, addressIssues };
 }
 
 // ── Address parser ──────────────────────────────────────────────────────

@@ -79,6 +79,105 @@ interface ScoredCandidate {
 }
 
 /**
+ * GET /api/ingest/propertyradar/top10
+ *
+ * Returns the top 10 predictive leads from existing Supabase data.
+ * No external API calls. Joins leads + properties + scoring_predictions.
+ * Pass ?existingOnly=true to skip the count-based hint (always returns DB state).
+ * Without that flag, response includes `needsSeed: true` when count < 10.
+ */
+export async function GET(_req: NextRequest) {
+  const existingOnly = new URL(_req.url).searchParams.get("existingOnly") === "true";
+  const sb = createServerClient();
+
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: leads, error: leadsErr } = await (sb.from("leads") as any)
+      .select("id, property_id, status, priority, tags, source, notes, properties(id, apn, address, city, state, county, owner_name, owner_phone, estimated_value, equity_percent)")
+      .in("status", ["prospect", "lead"])
+      .gte("priority", ELITE_CUTOFF)
+      .order("priority", { ascending: false })
+      .limit(50);
+
+    if (leadsErr) {
+      console.error("[Top10/GET] Leads query failed:", leadsErr);
+      return NextResponse.json({ success: false, error: "Database query failed" }, { status: 500 });
+    }
+
+    if (!leads || leads.length === 0) {
+      return NextResponse.json({
+        success: true,
+        count: 0,
+        topScores: [],
+        ...(!existingOnly ? { needsSeed: true } : {}),
+        message: "No leads with blended score >= 75 found.",
+      });
+    }
+
+    const propertyIds = leads.map((l: { property_id: string }) => l.property_id).filter(Boolean);
+
+    // Fetch latest predictions for these properties
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: predictions } = await (sb.from("scoring_predictions") as any)
+      .select("property_id, predictive_score, days_until_distress, confidence, owner_age_inference, life_event_probability")
+      .in("property_id", propertyIds)
+      .order("created_at", { ascending: false });
+
+    const predMap: Record<string, {
+      predictive_score: number;
+      days_until_distress: number;
+      confidence: number;
+      owner_age_inference: number | null;
+      life_event_probability: number | null;
+    }> = {};
+    if (predictions) {
+      for (const p of predictions) {
+        if (!predMap[p.property_id]) predMap[p.property_id] = p;
+      }
+    }
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const topScores = leads.slice(0, ELITE_COUNT).map((l: any) => {
+      const prop = l.properties;
+      const pred = predMap[l.property_id];
+      const heirProb = pred?.life_event_probability != null ? Number(pred.life_event_probability) : null;
+
+      return {
+        id: l.id,
+        apn: prop?.apn ?? "—",
+        address: prop?.address ?? "—",
+        owner_name: prop?.owner_name ?? "Unknown",
+        county: prop?.county ?? "—",
+        composite_score: l.priority,
+        predictive_score: pred ? Number(pred.predictive_score) : null,
+        days_until_distress: pred ? Number(pred.days_until_distress) : null,
+        confidence: pred ? Number(pred.confidence) : null,
+        heir_probability: heirProb != null ? Math.round(heirProb * 100) : null,
+        owner_age_inference: pred?.owner_age_inference != null ? Number(pred.owner_age_inference) : null,
+        bestPhone: prop?.owner_phone ?? null,
+        estimated_value: prop?.estimated_value ?? null,
+        equity_percent: prop?.equity_percent != null ? Number(prop.equity_percent) : null,
+        tags: l.tags ?? [],
+        source: l.source ?? "unknown",
+      };
+    });
+
+    const needsSeed = !existingOnly && topScores.length < ELITE_COUNT;
+    console.log(`[Top10/GET] Returning ${topScores.length} elite leads (needsSeed: ${needsSeed})`);
+
+    return NextResponse.json({
+      success: true,
+      count: topScores.length,
+      topScores,
+      ...(needsSeed ? { needsSeed: true } : {}),
+    });
+  } catch (err) {
+    console.error("[Top10/GET] Unexpected error:", err);
+    return NextResponse.json({ success: false, error: "Internal server error" }, { status: 500 });
+  }
+}
+
+/**
  * POST /api/ingest/propertyradar/top10
  *
  * Elite Seed pull — production-bulletproof:

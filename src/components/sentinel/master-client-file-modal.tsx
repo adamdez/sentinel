@@ -16,6 +16,7 @@ import { cn, formatCurrency } from "@/lib/utils";
 import type { ProspectRow } from "@/hooks/use-prospects";
 import type { LeadRow } from "@/lib/leads-data";
 import type { AIScore, DistressType } from "@/lib/types";
+import { SIGNAL_WEIGHTS } from "@/lib/scoring";
 import { CompsMap, type CompProperty, type SubjectProperty } from "@/components/sentinel/comps/comps-map";
 import { PredictiveDistressBadge, type PredictiveDistressData } from "@/components/sentinel/predictive-distress-badge";
 import { RelationshipBadge } from "@/components/sentinel/relationship-badge";
@@ -277,15 +278,430 @@ function Section({ title, icon: Icon, children }: { title: string; icon: typeof 
   );
 }
 
-function ScoreCard({ label, value }: { label: string; value: number }) {
+type ScoreType = "composite" | "motivation" | "deal";
+
+function ScoreCard({ label, value, onClick }: { label: string; value: number; onClick?: () => void }) {
   const pct = Math.min(value, 100);
   return (
-    <div className="rounded-[10px] border border-white/[0.06] bg-white/[0.04] p-3 text-center">
-      <p className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1">{label}</p>
-      <p className="text-xl font-bold" style={{ textShadow: pct >= 80 ? "0 0 10px rgba(0,212,255,0.3)" : undefined }}>{value}</p>
-      <div className="h-1 rounded-full bg-secondary mt-2 overflow-hidden">
+    <button
+      type="button"
+      onClick={onClick}
+      className={cn(
+        "rounded-[10px] border border-white/[0.06] bg-white/[0.04] p-3 text-center transition-all duration-200 w-full",
+        "cursor-pointer hover:border-cyan/30 hover:bg-cyan/[0.04] hover:shadow-[0_0_20px_rgba(0,212,255,0.12)] active:scale-[0.97]",
+        "group relative overflow-hidden"
+      )}
+    >
+      <div className="absolute inset-0 bg-gradient-to-b from-cyan/[0.03] to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+      <p className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1 group-hover:text-cyan/80 transition-colors relative z-10">{label}</p>
+      <p className="text-xl font-bold relative z-10 group-hover:drop-shadow-[0_0_8px_rgba(0,212,255,0.3)] transition-all" style={{ textShadow: pct >= 80 ? "0 0 10px rgba(0,212,255,0.3)" : undefined }}>{value}</p>
+      <div className="h-1 rounded-full bg-secondary mt-2 overflow-hidden relative z-10">
         <div className={cn("h-full rounded-full transition-all", pct >= 85 ? "bg-orange-400" : pct >= 65 ? "bg-red-400" : pct >= 40 ? "bg-yellow-400" : "bg-blue-400")} style={{ width: `${pct}%` }} />
       </div>
+      <p className="text-[8px] text-muted-foreground/40 mt-1.5 group-hover:text-cyan/50 transition-colors relative z-10 uppercase tracking-widest">Click for breakdown</p>
+    </button>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// Score Breakdown Modal — full score intelligence overlay
+// ═══════════════════════════════════════════════════════════════════════
+
+const SIGNAL_WEIGHT_LABELS: Record<string, string> = {
+  probate: "Probate Filing", pre_foreclosure: "Pre-Foreclosure", tax_lien: "Tax Lien",
+  code_violation: "Code Violation", vacant: "Vacant Property", divorce: "Divorce",
+  bankruptcy: "Bankruptcy", fsbo: "FSBO", absentee: "Absentee Owner",
+  inherited: "Inherited Property", water_shutoff: "Water Shut-Off",
+  stacking_bonus: "Signal Stacking Bonus", owner_factors: "Owner Profile Factors",
+  equity: "Equity Factor", comp_ratio: "Comp Ratio Factor", ai_boost: "AI Historical Boost",
+};
+
+function ScoreBreakdownModal({ cf, scoreType, onClose }: { cf: ClientFile; scoreType: ScoreType; onClose: () => void }) {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const factors = (cf.factors ?? []) as { name: string; value: number; contribution: number }[];
+  const pred = cf.prediction;
+
+  const signalFactors = factors.filter((f) => f.name in SIGNAL_WEIGHTS);
+  const bonusFactors = factors.filter((f) => !(f.name in SIGNAL_WEIGHTS));
+
+  const totalSignalPts = signalFactors.reduce((s, f) => s + f.contribution, 0);
+  const totalBonusPts = bonusFactors.reduce((s, f) => s + f.contribution, 0);
+
+  const arv = cf.estimatedValue ?? 0;
+  const eqPct = cf.equityPercent ?? 0;
+  const availableEquity = cf.availableEquity ?? (arv > 0 ? Math.round(arv * eqPct / 100) : 0);
+  const rehabEst = 15000;
+  const offerPct = 65;
+  const offer = Math.round(arv * (offerPct / 100));
+  const holdingCosts = Math.round(arv * 0.03);
+  const sellingCosts = Math.round(arv * 0.08);
+  const totalCost = offer + rehabEst + holdingCosts + sellingCosts;
+  const profit = arv - totalCost;
+  const roi = totalCost > 0 ? Math.round((profit / totalCost) * 100) : 0;
+
+  return (
+    <AnimatePresence>
+      <motion.div
+        initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+        className="fixed inset-0 z-[60] bg-black/70 backdrop-blur-md flex items-center justify-center"
+        onClick={onClose}
+      >
+        <motion.div
+          initial={{ opacity: 0, scale: 0.92, y: 24 }}
+          animate={{ opacity: 1, scale: 1, y: 0 }}
+          exit={{ opacity: 0, scale: 0.92, y: 24 }}
+          transition={{ type: "spring", damping: 26, stiffness: 320 }}
+          onClick={(e) => e.stopPropagation()}
+          className="relative max-w-lg w-full mx-4 max-h-[85vh] overflow-hidden rounded-[16px] border border-white/[0.08]
+            bg-[rgba(8,8,18,0.85)] backdrop-blur-2xl shadow-[0_0_60px_rgba(0,212,255,0.08),0_0_120px_rgba(139,92,246,0.04)]
+            flex flex-col holo-border"
+        >
+          {/* Holographic top accent */}
+          <div className="absolute top-0 inset-x-0 h-[1px] bg-gradient-to-r from-transparent via-cyan/40 to-transparent" />
+          <div className="absolute top-0 inset-x-0 h-12 bg-gradient-to-b from-cyan/[0.03] to-transparent pointer-events-none" />
+
+          {/* Header */}
+          <div className="shrink-0 flex items-center justify-between px-5 py-3.5 border-b border-white/[0.06]">
+            <div className="flex items-center gap-2.5">
+              <div className={cn(
+                "h-8 w-8 rounded-[10px] flex items-center justify-center",
+                scoreType === "composite" ? "bg-cyan/10 text-cyan" :
+                scoreType === "motivation" ? "bg-orange-500/10 text-orange-400" :
+                "bg-emerald-500/10 text-emerald-400"
+              )}>
+                {scoreType === "composite" ? <Zap className="h-4 w-4" /> :
+                 scoreType === "motivation" ? <AlertTriangle className="h-4 w-4" /> :
+                 <DollarSign className="h-4 w-4" />}
+              </div>
+              <div>
+                <h3 className="text-sm font-bold text-white">
+                  {scoreType === "composite" ? "Composite Score" : scoreType === "motivation" ? "Motivation Score" : "Deal Score"} Breakdown
+                </h3>
+                <p className="text-[10px] text-muted-foreground">
+                  {cf.ownerName} — {cf.fullAddress}
+                </p>
+              </div>
+            </div>
+            <button onClick={onClose} className="p-1.5 rounded-[10px] hover:bg-white/[0.06] transition-colors text-muted-foreground hover:text-foreground">
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+
+          {/* Content */}
+          <div className="flex-1 overflow-y-auto p-5 space-y-4">
+            {scoreType === "composite" && (
+              <>
+                {/* Big score hero */}
+                <div className="text-center py-3">
+                  <p className="text-5xl font-black tabular-nums" style={{ textShadow: "0 0 24px rgba(0,212,255,0.3), 0 0 60px rgba(0,212,255,0.1)" }}>{cf.compositeScore}</p>
+                  <p className="text-[10px] text-muted-foreground uppercase tracking-widest mt-1">
+                    {cf.scoreLabel.toUpperCase()} — Model {cf.modelVersion ?? "v2.0"}
+                  </p>
+                </div>
+
+                {/* Blend weights */}
+                {pred && (
+                  <div className="rounded-[10px] border border-purple-500/15 bg-purple-500/[0.04] p-3">
+                    <p className="text-[10px] font-semibold text-purple-400 uppercase tracking-wider mb-2">Predictive Blend (v2.1)</p>
+                    <div className="grid grid-cols-2 gap-3 text-xs">
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">Deterministic Weight</span>
+                        <span className="font-mono font-semibold text-foreground">70%</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">Predictive Weight</span>
+                        <span className="font-mono font-semibold text-purple-400">30%</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">Predictive Score</span>
+                        <span className="font-mono font-semibold">{pred.predictiveScore}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">Confidence</span>
+                        <span className="font-mono font-semibold text-cyan">{pred.confidence}%</span>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Signal contributions */}
+                {signalFactors.length > 0 && (
+                  <div className="space-y-1.5">
+                    <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
+                      <AlertTriangle className="h-3 w-3" />Distress Signals — {Math.round(totalSignalPts)} pts
+                    </p>
+                    {signalFactors.map((f, i) => {
+                      const maxPts = (SIGNAL_WEIGHTS[f.name as DistressType] ?? 10) * 1.8;
+                      const fillPct = Math.min((f.contribution / maxPts) * 100, 100);
+                      const cfg = DISTRESS_CFG[f.name];
+                      return (
+                        <div key={i} className="rounded-[8px] border border-white/[0.04] bg-white/[0.02] px-3 py-2">
+                          <div className="flex items-center justify-between text-xs mb-1">
+                            <span className={cn("font-medium", cfg?.color?.split(" ")[0] ?? "text-foreground")}>
+                              {SIGNAL_WEIGHT_LABELS[f.name] ?? f.name}
+                            </span>
+                            <span className="font-mono font-bold text-foreground">+{f.contribution}</span>
+                          </div>
+                          <div className="flex items-center gap-2 text-[10px] text-muted-foreground">
+                            <span>Base: {f.value}</span>
+                            <span className="text-muted-foreground/40">|</span>
+                            <span>w/ severity + recency</span>
+                          </div>
+                          <div className="h-1 rounded-full bg-secondary/50 mt-1.5 overflow-hidden">
+                            <div className={cn("h-full rounded-full", cfg?.color?.split(" ")[0]?.replace("text-", "bg-") ?? "bg-cyan")} style={{ width: `${fillPct}%` }} />
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+
+                {/* Bonus factors */}
+                {bonusFactors.length > 0 && (
+                  <div className="space-y-1.5">
+                    <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
+                      <TrendingUp className="h-3 w-3" />Adjustments — {Math.round(totalBonusPts)} pts
+                    </p>
+                    {bonusFactors.map((f, i) => (
+                      <div key={i} className="flex items-center justify-between text-xs px-3 py-1.5 rounded-[8px] bg-white/[0.02] border border-white/[0.04]">
+                        <span className="text-muted-foreground">{SIGNAL_WEIGHT_LABELS[f.name] ?? f.name}</span>
+                        <span className={cn("font-mono font-bold", f.contribution >= 0 ? "text-cyan" : "text-red-400")}>
+                          {f.contribution >= 0 ? "+" : ""}{f.contribution}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {factors.length === 0 && (
+                  <div className="text-center py-6 text-xs text-muted-foreground/60">
+                    No detailed factor breakdown available — run enrichment to populate
+                  </div>
+                )}
+              </>
+            )}
+
+            {scoreType === "motivation" && (
+              <>
+                <div className="text-center py-3">
+                  <p className="text-5xl font-black tabular-nums text-orange-400" style={{ textShadow: "0 0 24px rgba(249,115,22,0.3)" }}>{cf.motivationScore}</p>
+                  <p className="text-[10px] text-muted-foreground uppercase tracking-widest mt-1">Motivation Score — Owner Distress Intensity</p>
+                </div>
+
+                <div className="rounded-[10px] border border-orange-500/15 bg-orange-500/[0.03] p-3">
+                  <p className="text-[10px] font-semibold text-orange-400 uppercase tracking-wider mb-2">Formula</p>
+                  <p className="text-xs text-muted-foreground font-mono leading-relaxed">
+                    BaseSignalScore × RecencyDecay × 1.2 (capped at 100)
+                  </p>
+                </div>
+
+                {/* Per-signal detailed breakdown */}
+                {cf.tags.length > 0 ? (
+                  <div className="space-y-1.5">
+                    <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Active Distress Signals</p>
+                    {cf.tags.map((tag) => {
+                      const cfg = DISTRESS_CFG[tag];
+                      const TagIcon = cfg?.icon ?? Tag;
+                      const baseWeight = SIGNAL_WEIGHTS[tag as DistressType] ?? 10;
+                      const factor = factors.find((f) => f.name === tag);
+                      return (
+                        <div key={tag} className="rounded-[8px] border border-white/[0.04] bg-white/[0.02] px-3 py-2.5">
+                          <div className="flex items-center gap-2 mb-1.5">
+                            <TagIcon className={cn("h-3.5 w-3.5", cfg?.color?.split(" ")[0] ?? "text-muted-foreground")} />
+                            <span className={cn("text-xs font-semibold", cfg?.color?.split(" ")[0] ?? "text-foreground")}>{cfg?.label ?? tag}</span>
+                            {factor && <span className="ml-auto font-mono text-xs font-bold text-foreground">+{factor.contribution}</span>}
+                          </div>
+                          <div className="grid grid-cols-3 gap-2 text-[10px]">
+                            <div>
+                              <span className="text-muted-foreground/60">Base Weight</span>
+                              <p className="font-mono font-semibold">{baseWeight}</p>
+                            </div>
+                            <div>
+                              <span className="text-muted-foreground/60">Source</span>
+                              <p className="font-medium">{cf.source}</p>
+                            </div>
+                            <div>
+                              <span className="text-muted-foreground/60">Severity</span>
+                              <p className="font-mono font-semibold">{factor ? Math.round(factor.contribution / baseWeight * 10) / 10 : "—"}×</p>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <div className="text-center py-6 text-xs text-muted-foreground/60">
+                    No active distress signals detected
+                  </div>
+                )}
+
+                {/* Predictive life-event overlay */}
+                {pred && pred.lifeEventProbability != null && pred.lifeEventProbability > 0.05 && (
+                  <div className="rounded-[10px] border border-purple-500/15 bg-purple-500/[0.03] p-3">
+                    <p className="text-[10px] font-semibold text-purple-400 uppercase tracking-wider mb-2">Predictive Life-Event Intelligence</p>
+                    <div className="grid grid-cols-2 gap-2 text-xs">
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">Life-Event Probability</span>
+                        <span className="font-mono font-bold text-purple-400">{Math.round(pred.lifeEventProbability * 100)}%</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">Est. Distress In</span>
+                        <span className="font-mono font-bold text-orange-400">~{pred.daysUntilDistress}d</span>
+                      </div>
+                      {pred.ownerAgeInference && (
+                        <div className="flex justify-between">
+                          <span className="text-muted-foreground">Owner Age (inferred)</span>
+                          <span className="font-mono font-semibold">{pred.ownerAgeInference}</span>
+                        </div>
+                      )}
+                      {pred.equityBurnRate != null && (
+                        <div className="flex justify-between">
+                          <span className="text-muted-foreground">Equity Burn Rate</span>
+                          <span className="font-mono font-semibold text-red-400">{Math.round(pred.equityBurnRate * 100)}%/yr</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {/* Owner flags impact */}
+                {(cf.isAbsentee || cf.isVacant || cf.isFreeClear || cf.isHighEquity) && (
+                  <div className="space-y-1">
+                    <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Owner Profile Impact</p>
+                    {cf.isAbsentee && <BreakdownRow label="Absentee Owner" value="+5 pts" color="text-amber-400" />}
+                    {cf.isVacant && <BreakdownRow label="Vacant Property" value="+4 pts" color="text-purple-400" />}
+                    {cf.isFreeClear && <BreakdownRow label="Free & Clear (no mortgage pressure)" value="+0 pts" color="text-emerald-400" />}
+                    {cf.isHighEquity && <BreakdownRow label="High Equity" value="Equity factor boost" color="text-cyan" />}
+                  </div>
+                )}
+              </>
+            )}
+
+            {scoreType === "deal" && (
+              <>
+                <div className="text-center py-3">
+                  <p className="text-5xl font-black tabular-nums text-emerald-400" style={{ textShadow: "0 0 24px rgba(16,185,129,0.3)" }}>{cf.dealScore}</p>
+                  <p className="text-[10px] text-muted-foreground uppercase tracking-widest mt-1">Deal Score — Investment Viability Index</p>
+                </div>
+
+                <div className="rounded-[10px] border border-emerald-500/15 bg-emerald-500/[0.03] p-3">
+                  <p className="text-[10px] font-semibold text-emerald-400 uppercase tracking-wider mb-2">Formula</p>
+                  <p className="text-xs text-muted-foreground font-mono leading-relaxed">
+                    EquityFactor × 2 + AIBoost + StackingBonus × 0.5 (capped at 100)
+                  </p>
+                </div>
+
+                {/* Deal assumptions */}
+                <div className="space-y-1.5">
+                  <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Property Financials</p>
+                  <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs">
+                    <div className="flex justify-between px-3 py-1.5 rounded-[8px] bg-white/[0.02] border border-white/[0.04]">
+                      <span className="text-muted-foreground">ARV / AVM</span>
+                      <span className="font-mono font-bold text-neon">{arv > 0 ? formatCurrency(arv) : "—"}</span>
+                    </div>
+                    <div className="flex justify-between px-3 py-1.5 rounded-[8px] bg-white/[0.02] border border-white/[0.04]">
+                      <span className="text-muted-foreground">Equity %</span>
+                      <span className="font-mono font-bold">{eqPct > 0 ? `${eqPct}%` : "—"}</span>
+                    </div>
+                    <div className="flex justify-between px-3 py-1.5 rounded-[8px] bg-white/[0.02] border border-white/[0.04]">
+                      <span className="text-muted-foreground">Available Equity</span>
+                      <span className="font-mono font-semibold">{availableEquity > 0 ? formatCurrency(availableEquity) : "—"}</span>
+                    </div>
+                    <div className="flex justify-between px-3 py-1.5 rounded-[8px] bg-white/[0.02] border border-white/[0.04]">
+                      <span className="text-muted-foreground">Total Loans</span>
+                      <span className="font-mono font-semibold">{cf.totalLoanBalance ? formatCurrency(cf.totalLoanBalance) : "—"}</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Profit projection */}
+                {arv > 0 && (
+                  <div className="space-y-1.5">
+                    <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Quick Profit Projection</p>
+                    <div className="rounded-[10px] border border-white/[0.06] bg-white/[0.02] p-3 space-y-1.5 text-xs">
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">ARV</span>
+                        <span className="font-mono font-medium">{formatCurrency(arv)}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">Offer @ {offerPct}%</span>
+                        <span className="font-mono text-red-400">-{formatCurrency(offer)}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">Rehab Est.</span>
+                        <span className="font-mono text-red-400">-{formatCurrency(rehabEst)}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">Holding (3%)</span>
+                        <span className="font-mono text-red-400">-{formatCurrency(holdingCosts)}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">Selling (8%)</span>
+                        <span className="font-mono text-red-400">-{formatCurrency(sellingCosts)}</span>
+                      </div>
+                      <div className="border-t border-white/[0.06] pt-1.5 mt-1.5 flex justify-between">
+                        <span className="font-semibold">Net Profit</span>
+                        <span className={cn("font-mono font-bold text-lg", profit >= 0 ? "text-neon" : "text-red-400")} style={profit >= 0 ? { textShadow: "0 0 10px rgba(0,212,255,0.25)" } : {}}>
+                          {formatCurrency(profit)}
+                        </span>
+                      </div>
+                      <div className="flex justify-between text-[10px]">
+                        <span className="text-muted-foreground">ROI</span>
+                        <span className={cn("font-mono font-semibold", roi >= 0 ? "text-neon" : "text-red-400")}>{roi}%</span>
+                      </div>
+                    </div>
+                    <p className="text-[9px] text-muted-foreground/40 italic">
+                      Assumptions: {offerPct}% MAO, ${(rehabEst / 1000).toFixed(0)}k rehab, 3% holding, 8% selling costs. Adjust in Offer Calculator tab.
+                    </p>
+                  </div>
+                )}
+
+                {/* Deal score components */}
+                <div className="space-y-1">
+                  <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Score Components</p>
+                  {bonusFactors.filter((f) => f.name === "equity" || f.name === "comp_ratio" || f.name === "ai_boost" || f.name === "stacking_bonus").map((f, i) => (
+                    <div key={i} className="flex items-center justify-between text-xs px-3 py-1.5 rounded-[8px] bg-white/[0.02] border border-white/[0.04]">
+                      <span className="text-muted-foreground">{SIGNAL_WEIGHT_LABELS[f.name] ?? f.name}</span>
+                      <span className="font-mono font-bold text-cyan">+{f.contribution}</span>
+                    </div>
+                  ))}
+                  {cf.aiBoost > 0 && !bonusFactors.some((f) => f.name === "ai_boost") && (
+                    <div className="flex items-center justify-between text-xs px-3 py-1.5 rounded-[8px] bg-white/[0.02] border border-white/[0.04]">
+                      <span className="text-muted-foreground">AI Historical Boost</span>
+                      <span className="font-mono font-bold text-cyan">+{cf.aiBoost}</span>
+                    </div>
+                  )}
+                </div>
+
+                {arv === 0 && (
+                  <div className="text-center py-4 text-xs text-muted-foreground/60">
+                    No property value data — run enrichment to populate ARV and financial details
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+
+          {/* Footer */}
+          <div className="shrink-0 px-5 py-3 border-t border-white/[0.06] flex items-center justify-between">
+            <p className="text-[9px] text-muted-foreground/40 font-mono">
+              Scoring Engine {cf.modelVersion ?? "v2.0"} • {cf.tags.length} signal(s) • {cf.source}
+            </p>
+            <Button size="sm" variant="outline" onClick={onClose} className="text-[10px] h-7 px-3">
+              Close
+            </Button>
+          </div>
+        </motion.div>
+      </motion.div>
+    </AnimatePresence>
+  );
+}
+
+function BreakdownRow({ label, value, color }: { label: string; value: string; color: string }) {
+  return (
+    <div className="flex items-center justify-between text-xs px-3 py-1.5 rounded-[8px] bg-white/[0.02] border border-white/[0.04]">
+      <span className="text-muted-foreground">{label}</span>
+      <span className={cn("font-mono font-semibold", color)}>{value}</span>
     </div>
   );
 }
@@ -305,9 +721,18 @@ function OwnerFlag({ active, label, icon: Icon }: { active: boolean; label: stri
 
 interface SkipTraceOverlay { phones: string[]; emails: string[]; persons: Record<string, unknown>[]; primaryPhone: string | null; primaryEmail: string | null; }
 
-function OverviewTab({ cf, skipTracing, skipTraceResult, skipTraceMs, overlay, onSkipTrace }: {
+interface SkipTraceError {
+  error: string;
+  reason?: string;
+  suggestion?: string;
+  tier_reached?: string;
+  address_issues?: string[];
+}
+
+function OverviewTab({ cf, skipTracing, skipTraceResult, skipTraceMs, overlay, skipTraceError, onSkipTrace, onManualSkipTrace }: {
   cf: ClientFile; skipTracing: boolean; skipTraceResult: string | null; skipTraceMs: number | null;
-  overlay: SkipTraceOverlay | null; onSkipTrace: () => void;
+  overlay: SkipTraceOverlay | null; skipTraceError: SkipTraceError | null;
+  onSkipTrace: () => void; onManualSkipTrace: () => void;
 }) {
   const skipTraced = !!overlay || !!cf.ownerFlags?.skip_traced;
   const displayPhone = overlay?.primaryPhone ?? cf.ownerPhone;
@@ -317,14 +742,20 @@ function OverviewTab({ cf, skipTracing, skipTraceResult, skipTraceMs, overlay, o
   const allPhones = overlay?.phones ?? (cf.ownerFlags?.all_phones as string[]) ?? [];
   const allEmails = overlay?.emails ?? (cf.ownerFlags?.all_emails as string[]) ?? [];
 
+  const [scoreBreakdown, setScoreBreakdown] = useState<ScoreType | null>(null);
+
   return (
     <div className="space-y-5">
       {/* Score Dashboard */}
       <div className="grid grid-cols-3 gap-3">
-        <ScoreCard label="Composite" value={cf.compositeScore} />
-        <ScoreCard label="Motivation" value={cf.motivationScore} />
-        <ScoreCard label="Deal Score" value={cf.dealScore} />
+        <ScoreCard label="Composite" value={cf.compositeScore} onClick={() => setScoreBreakdown("composite")} />
+        <ScoreCard label="Motivation" value={cf.motivationScore} onClick={() => setScoreBreakdown("motivation")} />
+        <ScoreCard label="Deal Score" value={cf.dealScore} onClick={() => setScoreBreakdown("deal")} />
       </div>
+
+      {scoreBreakdown && (
+        <ScoreBreakdownModal cf={cf} scoreType={scoreBreakdown} onClose={() => setScoreBreakdown(null)} />
+      )}
 
       {/* Predictive Distress Intelligence */}
       {cf.prediction && (
@@ -488,7 +919,7 @@ function OverviewTab({ cf, skipTracing, skipTraceResult, skipTraceMs, overlay, o
           </div>
         )}
 
-        {skipTraceResult && (
+        {skipTraceResult && !skipTraceError && (
           <div className={cn("mt-2 text-xs px-3 py-2 rounded-md border", skipTraceResult.startsWith("Found") ? "text-cyan bg-cyan/4 border-cyan/15" : "text-red-400 bg-red-500/5 border-red-500/20")}>
             <div className="flex items-center justify-between gap-2">
               <span>{skipTraceResult}</span>
@@ -501,10 +932,55 @@ function OverviewTab({ cf, skipTracing, skipTraceResult, skipTraceMs, overlay, o
           </div>
         )}
 
-        <Button size="sm" variant="outline" className={cn("mt-3 gap-2", skipTracing && "opacity-70 pointer-events-none")} onClick={onSkipTrace} disabled={skipTracing}>
-          {skipTracing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Search className="h-3.5 w-3.5" />}
-          {skipTracing ? "Pulling data..." : skipTraced ? "Re-Trace" : cf.enriched ? "Skip Trace" : "Enrich + Skip Trace"}
-        </Button>
+        {skipTraceError && (
+          <div className="mt-2 rounded-[10px] border border-red-500/20 bg-red-500/5 p-3 space-y-2">
+            <div className="flex items-start gap-2">
+              <AlertTriangle className="h-4 w-4 text-red-400 shrink-0 mt-0.5" />
+              <div className="flex-1 min-w-0 space-y-1">
+                <p className="text-xs font-semibold text-red-400">{skipTraceError.error}</p>
+                {skipTraceError.reason && (
+                  <p className="text-[11px] text-red-300/80">{skipTraceError.reason}</p>
+                )}
+                {skipTraceError.address_issues && skipTraceError.address_issues.length > 0 && (
+                  <div className="space-y-0.5">
+                    {skipTraceError.address_issues.map((issue, i) => (
+                      <p key={i} className="text-[10px] text-amber-400/80 flex items-center gap-1">
+                        <span className="text-amber-400">&#9679;</span>{issue}
+                      </p>
+                    ))}
+                  </div>
+                )}
+                {skipTraceError.suggestion && (
+                  <p className="text-[11px] text-cyan/70 italic">{skipTraceError.suggestion}</p>
+                )}
+                {skipTraceError.tier_reached && (
+                  <p className="text-[10px] text-muted-foreground/50 font-mono">Lookup stopped at: {skipTraceError.tier_reached}</p>
+                )}
+              </div>
+              {skipTraceMs != null && (
+                <span className="font-mono text-[10px] shrink-0 px-1.5 py-0.5 rounded text-red-400 bg-red-500/10">
+                  {(skipTraceMs / 1000).toFixed(2)}s
+                </span>
+              )}
+            </div>
+            <Button
+              size="sm"
+              onClick={onManualSkipTrace}
+              disabled={skipTracing}
+              className="w-full gap-2 bg-amber-600 hover:bg-amber-500 text-white border-0 shadow-[0_0_14px_rgba(245,158,11,0.25)] hover:shadow-[0_0_22px_rgba(245,158,11,0.4)] transition-all"
+            >
+              {skipTracing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Zap className="h-3.5 w-3.5" />}
+              Manual Skip Trace — Force Partial Lookup
+            </Button>
+          </div>
+        )}
+
+        <div className="flex items-center gap-2 mt-3">
+          <Button size="sm" variant="outline" className={cn("gap-2 flex-1", skipTracing && "opacity-70 pointer-events-none")} onClick={onSkipTrace} disabled={skipTracing}>
+            {skipTracing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Search className="h-3.5 w-3.5" />}
+            {skipTracing ? "Pulling data..." : skipTraced ? "Re-Trace" : cf.enriched ? "Skip Trace" : "Enrich + Skip Trace"}
+          </Button>
+        </div>
       </Section>
 
       {/* AI Scoring Factors */}
@@ -1170,6 +1646,7 @@ export function MasterClientFileModal({ clientFile, open, onClose, onClaim, onRe
   const [skipTraceResult, setSkipTraceResult] = useState<string | null>(null);
   const [skipTraceMs, setSkipTraceMs] = useState<number | null>(null);
   const [overlay, setOverlay] = useState<SkipTraceOverlay | null>(null);
+  const [skipTraceError, setSkipTraceError] = useState<SkipTraceError | null>(null);
   const [selectedComps, setSelectedComps] = useState<CompProperty[]>([]);
 
   const handleAddComp = useCallback((comp: CompProperty) => {
@@ -1180,18 +1657,19 @@ export function MasterClientFileModal({ clientFile, open, onClose, onClaim, onRe
     setSelectedComps((prev) => prev.filter((c) => c.apn !== apn));
   }, []);
 
-  const handleSkipTrace = useCallback(async () => {
+  const executeSkipTrace = useCallback(async (manual: boolean) => {
     if (!clientFile) return;
     setSkipTracing(true);
     setSkipTraceResult(null);
     setSkipTraceMs(null);
+    setSkipTraceError(null);
     const t0 = performance.now();
 
     try {
       const res = await fetch("/api/prospects/skip-trace", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ property_id: clientFile.propertyId, lead_id: clientFile.id }),
+        body: JSON.stringify({ property_id: clientFile.propertyId, lead_id: clientFile.id, manual }),
       });
       const tApi = performance.now();
       const data = await res.json();
@@ -1212,8 +1690,18 @@ export function MasterClientFileModal({ clientFile, open, onClose, onClaim, onRe
         console.log(`[SkipTrace Perf] Total: ${total}ms | API: ${Math.round(tApi - t0)}ms`);
         onRefresh?.();
       } else {
-        setSkipTraceResult(data.error ?? "Skip trace failed");
         setSkipTraceMs(Math.round(performance.now() - t0));
+        if (data.reason || data.suggestion || data.address_issues) {
+          setSkipTraceError({
+            error: data.error ?? "Skip trace failed",
+            reason: data.reason,
+            suggestion: data.suggestion,
+            tier_reached: data.tier_reached,
+            address_issues: data.address_issues,
+          });
+        } else {
+          setSkipTraceResult(data.error ?? "Skip trace failed");
+        }
       }
     } catch (err) {
       setSkipTraceResult(err instanceof Error ? err.message : "Network error");
@@ -1222,6 +1710,9 @@ export function MasterClientFileModal({ clientFile, open, onClose, onClaim, onRe
       setSkipTracing(false);
     }
   }, [clientFile, onRefresh]);
+
+  const handleSkipTrace = useCallback(() => executeSkipTrace(false), [executeSkipTrace]);
+  const handleManualSkipTrace = useCallback(() => executeSkipTrace(true), [executeSkipTrace]);
 
   if (!clientFile) return null;
 
@@ -1312,7 +1803,7 @@ export function MasterClientFileModal({ clientFile, open, onClose, onClaim, onRe
                     transition={{ duration: 0.15 }}
                   >
                     {activeTab === "overview" && (
-                      <OverviewTab cf={clientFile} skipTracing={skipTracing} skipTraceResult={skipTraceResult} skipTraceMs={skipTraceMs} overlay={overlay} onSkipTrace={handleSkipTrace} />
+                      <OverviewTab cf={clientFile} skipTracing={skipTracing} skipTraceResult={skipTraceResult} skipTraceMs={skipTraceMs} overlay={overlay} skipTraceError={skipTraceError} onSkipTrace={handleSkipTrace} onManualSkipTrace={handleManualSkipTrace} />
                     )}
                     {activeTab === "propertyradar" && <PropertyRadarTab cf={clientFile} />}
                     {activeTab === "county" && <CountyRecordsTab cf={clientFile} />}

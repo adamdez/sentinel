@@ -13,7 +13,7 @@ export const maxDuration = 300;
  *
  * Delegates to the AI Agent Core orchestrator which runs:
  *   Phase 1 — PropertyRadar Elite Seed top10 pull
- *   Phase 2 — Predictive Crawlers (obituaries, court dockets)
+ *   Phase 2 — Predictive Crawlers (obituaries, court dockets, utility shut-offs)
  *   Phase 3 — ATTOM Data API daily delta (if ATTOM_API_KEY present)
  *
  * All phases are fault-isolated: one failure does not block others.

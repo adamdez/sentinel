@@ -78,7 +78,7 @@ async function callGrok(prompt: string): Promise<string> {
             "You analyse recent crawl results and closed-deal feedback to decide which data sources to prioritise next.",
             "Always respond with valid JSON matching this schema:",
             '{ "nextCrawlersToRun": string[], "priorityAdjustments": [{ "signalType": string, "adjustment": "increase"|"decrease"|"neutral", "reason": string }], "newCrawlerSuggestions": string[], "reasoning": string }',
-            "Be concise. Only recommend crawlers that exist: obituary, court_docket, propertyradar, attom.",
+            "Be concise. Only recommend crawlers that exist: obituary, court_docket, utility_shutoff, propertyradar, attom.",
             "Only suggest new crawler ideas if you see a clear gap. Compliance is sacred — only public data, no messaging.",
           ].join(" "),
         },
@@ -100,7 +100,7 @@ async function callGrok(prompt: string): Promise<string> {
 
 function parseGrokDirective(raw: string): GrokDirective {
   const fallback: GrokDirective = {
-    nextCrawlersToRun: ["obituary", "court_docket", "propertyradar", "attom"],
+    nextCrawlersToRun: ["obituary", "court_docket", "utility_shutoff", "propertyradar", "attom"],
     priorityAdjustments: [],
     newCrawlerSuggestions: [],
     reasoning: "Fallback: run all crawlers (Grok response unparseable)",
@@ -220,7 +220,7 @@ export async function runGrokReasoning(): Promise<GrokDirective> {
   if (!apiKey) {
     console.log("[Grok] GROK_API_KEY not set — using default run-all directive");
     return {
-      nextCrawlersToRun: ["obituary", "court_docket", "propertyradar", "attom"],
+      nextCrawlersToRun: ["obituary", "court_docket", "utility_shutoff", "propertyradar", "attom"],
       priorityAdjustments: [],
       newCrawlerSuggestions: [],
       reasoning: "GROK_API_KEY not configured — running all crawlers by default",

@@ -27,6 +27,7 @@ import { createServerClient } from "@/lib/supabase";
 import { runAllCrawlers, type CrawlRunResult } from "@/lib/crawlers/predictive-crawler";
 import { obituaryCrawler } from "@/lib/crawlers/obituary-crawler";
 import { courtDocketCrawler } from "@/lib/crawlers/court-docket-crawler";
+import { utilityShutoffCrawler } from "@/lib/crawlers/utility-shutoff-crawler";
 import { runGrokReasoning, type GrokDirective } from "@/lib/agent/grok-reasoning-agent";
 import {
   pullDailyDelta,
@@ -98,7 +99,7 @@ export interface AgentCycleResult {
 export async function runCrawlerPhase(): Promise<{ results: CrawlRunResult[]; success: boolean }> {
   try {
     console.log("[Agent] Phase 2: Starting predictive crawlers...");
-    const results = await runAllCrawlers([obituaryCrawler, courtDocketCrawler]);
+    const results = await runAllCrawlers([obituaryCrawler, courtDocketCrawler, utilityShutoffCrawler]);
 
     const totalPromoted = results.reduce((s, r) => s + r.promoted, 0);
     const totalCrawled = results.reduce((s, r) => s + r.crawled, 0);
@@ -237,12 +238,14 @@ export async function runAgentCycle(
   // ── Phase 2: Predictive Crawlers ─────────────────────────────────
   const runObits = shouldRun("obituary");
   const runCourts = shouldRun("court_docket");
+  const runUtility = shouldRun("utility_shutoff");
   let crawlerPhase: { results: CrawlRunResult[]; success: boolean };
 
-  if (runObits || runCourts) {
+  if (runObits || runCourts || runUtility) {
     const crawlers = [
       ...(runObits ? [obituaryCrawler] : []),
       ...(runCourts ? [courtDocketCrawler] : []),
+      ...(runUtility ? [utilityShutoffCrawler] : []),
     ];
     try {
       console.log(`[Agent] Phase 2: Running ${crawlers.length} crawler(s)...`);

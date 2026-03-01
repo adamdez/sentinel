@@ -181,9 +181,13 @@ export function BreakingLeadsSidebar() {
       })
       .subscribe();
 
+    const onRefresh = () => fetchRecent();
+    window.addEventListener("sentinel:refresh-dashboard", onRefresh);
+
     channelRef.current = channel;
     return () => {
       if (channelRef.current) supabase.removeChannel(channelRef.current);
+      window.removeEventListener("sentinel:refresh-dashboard", onRefresh);
     };
   }, [fetchRecent]);
 

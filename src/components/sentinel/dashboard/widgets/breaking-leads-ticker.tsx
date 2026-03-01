@@ -121,8 +121,12 @@ export function BreakingLeadsTicker() {
       })
       .subscribe();
 
+    const onRefresh = () => fetchRecent();
+    window.addEventListener("sentinel:refresh-dashboard", onRefresh);
+
     return () => {
       if (channelRef.current) supabase.removeChannel(channelRef.current);
+      window.removeEventListener("sentinel:refresh-dashboard", onRefresh);
     };
   }, [fetchRecent]);
 
