@@ -72,86 +72,58 @@ export default function DashboardPage() {
 
   async function handleEliteSeed() {
     setEliteLoading(true);
-    toast.loading("Checking existing elite leads...", { id: "elite-seed" });
+    toast.loading("Pulling 10 fresh elite predictive leads from PropertyRadar...", { id: "elite-seed" });
     try {
-      // Step 1 — check existing leads in DB
-      const check = await fetchEliteJson();
-      if (!check.ok || !check.data.success) {
-        toast.error(String(check.data.error ?? "Failed to check existing leads"), { id: "elite-seed" });
-        console.error("[EliteSeed] Check failed:", check.data);
+      // Always POST — pull fresh from PropertyRadar, score, and insert
+      const seedRes = await fetch("/api/ingest/propertyradar/top10", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ counties: ["Spokane", "Kootenai"] }),
+      });
+
+      let seedData: Record<string, unknown>;
+      try {
+        seedData = await seedRes.json();
+      } catch {
+        seedData = {};
+      }
+
+      if (!seedRes.ok || !seedData.success) {
+        const msg = typeof seedData.error === "string" ? seedData.error : "PropertyRadar seed failed";
+        toast.error(msg, {
+          id: "elite-seed",
+          description: "Check PROPERTYRADAR_API_KEY in environment variables and verify API credits.",
+          duration: 8000,
+        });
+        console.error("[EliteSeed] POST seed failed:", seedData);
         return;
       }
 
-      const existingCount = typeof check.data.count === "number" ? check.data.count : 0;
-      const needsSeed = check.data.needsSeed === true;
+      const newCount = typeof seedData.newInserts === "number" ? seedData.newInserts : 0;
+      const updCount = typeof seedData.updated === "number" ? seedData.updated : 0;
+      console.log(`[EliteSeed] Seeded ${newCount} new, ${updCount} updated from PropertyRadar`);
 
-      // Step 2 — if fewer than 10, pull fresh from PropertyRadar
-      if (needsSeed) {
-        toast.loading(
-          `Only ${existingCount} elite leads in DB — pulling fresh from PropertyRadar...`,
-          { id: "elite-seed" },
-        );
-
-        const seedRes = await fetch("/api/ingest/propertyradar/top10", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ counties: ["Spokane", "Kootenai"] }),
-        });
-
-        let seedData: Record<string, unknown>;
-        try {
-          seedData = await seedRes.json();
-        } catch {
-          seedData = {};
-        }
-
-        if (!seedRes.ok || !seedData.success) {
-          const msg = typeof seedData.error === "string" ? seedData.error : "PropertyRadar seed failed";
-          toast.error(msg, { id: "elite-seed" });
-          console.error("[EliteSeed] POST seed failed:", seedData);
-
-          if (existingCount > 0) {
-            toast.info(`Showing ${existingCount} existing leads instead`, { duration: 4000 });
-            displayEliteResults((check.data.topScores ?? []) as EliteScore[], false);
-            window.dispatchEvent(new CustomEvent("sentinel:refresh-dashboard"));
-          }
-          return;
-        }
-
-        const newCount = typeof seedData.count === "number" ? seedData.count : 0;
-        console.log(`[EliteSeed] Seeded ${newCount} leads from PropertyRadar`);
-
-        // Step 3 — re-query to get the full enriched top 10
-        toast.loading("Scoring and ranking top 10...", { id: "elite-seed" });
-        const final = await fetchEliteJson("?existingOnly=true");
-        if (!final.ok || !final.data.success) {
-          toast.error("Re-query after seed failed", { id: "elite-seed" });
-          return;
-        }
-
-        const topScores = (final.data.topScores ?? []) as EliteScore[];
-        if (topScores.length === 0) {
-          toast.info("Seed completed but no leads scored >= 75. Try loosening criteria.", { id: "elite-seed", duration: 6000 });
-          return;
-        }
-
-        displayEliteResults(topScores, true);
-      } else {
-        // DB already has >= 10 — display directly
-        const topScores = (check.data.topScores ?? []) as EliteScore[];
-        if (topScores.length === 0) {
-          toast.info("No elite leads found — run ingest first.", { id: "elite-seed", duration: 6000 });
-          return;
-        }
-        displayEliteResults(topScores, false);
+      // Re-query to get full enriched top 10 with predictions
+      toast.loading("Scoring and ranking top 10...", { id: "elite-seed" });
+      const final = await fetchEliteJson("?existingOnly=true");
+      if (!final.ok || !final.data.success) {
+        toast.error("Re-query after seed failed", { id: "elite-seed" });
+        return;
       }
 
+      const topScores = (final.data.topScores ?? []) as EliteScore[];
+      if (topScores.length === 0) {
+        toast.info("Seed completed but no leads scored >= 75. Try loosening criteria.", { id: "elite-seed", duration: 6000 });
+        return;
+      }
+
+      displayEliteResults(topScores, true);
       localStorage.setItem(ELITE_SEED_FLAG, "1");
       setEliteDone(true);
       window.dispatchEvent(new CustomEvent("sentinel:refresh-dashboard"));
     } catch (err) {
       console.error("[EliteSeed] Network error:", err);
-      toast.error("Network error reaching EliteSeed API", { id: "elite-seed" });
+      toast.error("Network error reaching EliteSeed API — check connection", { id: "elite-seed" });
     } finally {
       setEliteLoading(false);
     }
@@ -215,20 +187,18 @@ export default function DashboardPage() {
       description="Sentinel command center — your personalized acquisition intelligence"
       actions={
         <div className="flex items-center gap-2">
-          {!eliteDone && (
-            <button
-              onClick={handleEliteSeed}
-              disabled={eliteLoading || bulkLoading}
-              className="relative px-4 py-1.5 rounded-[12px] font-bold text-[11px] uppercase tracking-wider
-                bg-red-600 hover:bg-red-500 text-white border border-red-400/40
-                shadow-[0_0_14px_rgba(255,60,60,0.45)] hover:shadow-[0_0_22px_rgba(255,60,60,0.6)]
-                transition-all active:scale-95 disabled:opacity-50 disabled:cursor-wait
-                flex items-center gap-1.5"
-            >
-              <Flame className="h-3.5 w-3.5" />
-              {eliteLoading ? "Pulling…" : "TEMP — TOP 10 ELITE SEED"}
-            </button>
-          )}
+          <button
+            onClick={handleEliteSeed}
+            disabled={eliteLoading || bulkLoading}
+            className="relative px-4 py-1.5 rounded-[12px] font-bold text-[11px] uppercase tracking-wider
+              bg-red-600 hover:bg-red-500 text-white border border-red-400/40
+              shadow-[0_0_14px_rgba(255,60,60,0.45)] hover:shadow-[0_0_22px_rgba(255,60,60,0.6)]
+              transition-all active:scale-95 disabled:opacity-50 disabled:cursor-wait
+              flex items-center gap-1.5"
+          >
+            {eliteLoading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Flame className="h-3.5 w-3.5" />}
+            {eliteLoading ? "Pulling…" : "TOP 10 ELITE SEED"}
+          </button>
           {currentUser.role === "admin" && (
             <button
               onClick={() => setBulkConfirmOpen(true)}
