@@ -43,7 +43,7 @@ interface DistressLens {
   name: string;
   phase: 1 | 2;
   /** Extra criteria to add to the base State filter */
-  criteria: { name: string; value: (string | number | boolean | string[])[] }[];
+  criteria: { name: string; value: (string | number | boolean | string[] | number[])[] }[];
   /** How many records to pull for this lens */
   limit: number;
 }
@@ -121,7 +121,7 @@ const DISTRESS_LENSES: DistressLens[] = [
     criteria: [
       { name: "isNotSameMailingOrExempt", value: ["Yes"] },
       { name: "isSiteVacant", value: ["Yes"] },
-      { name: "EquityPercent", value: [["80", "100"]] },
+      { name: "EquityPercent", value: [[80, 100]] },
     ],
     limit: 15,
   },
@@ -131,7 +131,7 @@ const DISTRESS_LENSES: DistressLens[] = [
     phase: 2,
     criteria: [
       { name: "isNotSameMailingOrExempt", value: ["Yes"] },
-      { name: "EquityPercent", value: [["80", "100"]] },
+      { name: "EquityPercent", value: [[80, 100]] },
     ],
     limit: 15,
   },

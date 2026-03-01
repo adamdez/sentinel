@@ -211,7 +211,7 @@ export async function POST(req: NextRequest) {
     const criteria = [
       { name: "State", value: states },
       ...(useCountyFilter ? [{ name: "County", value: fipsCodes }] : []),
-      { name: "EquityPercent", value: [["40", "100"]] },
+      { name: "EquityPercent", value: [[40, 100]] },
     ];
 
     try {
@@ -234,7 +234,7 @@ export async function POST(req: NextRequest) {
 
           const fallbackCriteria = [
             { name: "State", value: states },
-            { name: "EquityPercent", value: [["40", "100"]] },
+            { name: "EquityPercent", value: [[40, 100]] },
           ];
           const retryRes = await fetch(url, {
             method: "POST",
