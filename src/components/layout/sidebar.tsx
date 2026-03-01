@@ -322,7 +322,7 @@ export function Sidebar() {
       {sidebarOpen && (
         <motion.aside
           initial={hydrated ? { width: 0, opacity: 0 } : false}
-          animate={{ width: 208, opacity: 1 }}
+          animate={{ width: 166, opacity: 1 }}
           exit={{ width: 0, opacity: 0 }}
           transition={{ duration: 0.2, ease: "easeInOut" }}
           className="h-screen bg-sidebar border-r border-sidebar-border flex flex-col overflow-hidden shrink-0 sidebar-glass relative z-20"
