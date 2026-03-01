@@ -3,9 +3,9 @@
 import { useState, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
-  Phone, PhoneOff, PhoneForwarded, Clock, Users, BarChart3,
+  Phone, PhoneOff, PhoneForwarded, PhoneIncoming, Clock, Users, BarChart3,
   Mic, MicOff, Voicemail, CalendarCheck, FileSignature,
-  Skull, Heart, Search, Ghost, Zap, ChevronRight,
+  Skull, Heart, Search, Ghost, Zap, ChevronRight, Timer,
   Sparkles, DollarSign, Loader2, SkipForward, MessageSquare,
   X, Send,
 } from "lucide-react";
@@ -17,7 +17,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useSentinelStore } from "@/lib/store";
 import { supabase } from "@/lib/supabase";
-import { useDialerQueue, useDialerStats, useCallTimer, type QueueLead } from "@/hooks/use-dialer";
+import { useDialerQueue, useDialerStats, useCallTimer, fetchDialerKpis, type QueueLead, type DialerStats } from "@/hooks/use-dialer";
 import { RelationshipBadgeCompact } from "@/components/sentinel/relationship-badge";
 
 async function authHeaders(): Promise<Record<string, string>> {
@@ -25,6 +25,186 @@ async function authHeaders(): Promise<Record<string, string>> {
   const headers: Record<string, string> = { "Content-Type": "application/json" };
   if (session?.access_token) headers["Authorization"] = `Bearer ${session.access_token}`;
   return headers;
+}
+
+// ── KPI Card + Detail Modal (defined outside render to avoid focus issues) ──
+
+type KpiKey = "myOutbound" | "myInbound" | "myLiveAnswers" | "myAvgTalkTime" | "teamOutbound" | "teamInbound";
+type Period = "today" | "week" | "month" | "all";
+
+const KPI_META: Record<KpiKey, { label: string; icon: React.ElementType; color: string; glow: string; teamKey: KpiKey; format?: (v: number) => string }> = {
+  myOutbound:    { label: "My Outbound",    icon: PhoneForwarded, color: "text-cyan",        glow: "rgba(0,212,255,0.12)",  teamKey: "teamOutbound" },
+  myInbound:     { label: "My Inbound",     icon: PhoneIncoming,  color: "text-purple-400",  glow: "rgba(168,85,247,0.12)", teamKey: "teamInbound" },
+  myLiveAnswers: { label: "My Live Answers", icon: Phone,         color: "text-emerald-400", glow: "rgba(16,185,129,0.12)", teamKey: "myLiveAnswers" },
+  myAvgTalkTime: { label: "Avg Talk Time",  icon: Timer,          color: "text-orange-400",  glow: "rgba(251,146,60,0.12)", teamKey: "myAvgTalkTime", format: (s) => s > 0 ? `${Math.floor(s / 60)}:${(s % 60).toString().padStart(2, "0")}` : "0:00" },
+  teamOutbound:  { label: "Team Outbound",  icon: Users,          color: "text-blue-400",    glow: "rgba(59,130,246,0.12)", teamKey: "teamOutbound" },
+  teamInbound:   { label: "Team Inbound",   icon: Users,          color: "text-pink-400",    glow: "rgba(236,72,153,0.12)", teamKey: "teamInbound" },
+};
+
+const PERIOD_LABELS: { key: Period; label: string }[] = [
+  { key: "today", label: "Today" },
+  { key: "week",  label: "This Week" },
+  { key: "month", label: "This Month" },
+  { key: "all",   label: "All Time" },
+];
+
+function KpiCard({ kpiKey, value, loading, onClick }: { kpiKey: KpiKey; value: number; loading: boolean; onClick: () => void }) {
+  const meta = KPI_META[kpiKey];
+  const Icon = meta.icon;
+  const display = meta.format ? meta.format(value) : value;
+  return (
+    <button
+      onClick={onClick}
+      className="rounded-[12px] border border-white/[0.06] bg-white/[0.02] backdrop-blur-sm p-3 text-center
+        transition-all duration-200 cursor-pointer hover:border-cyan/20 hover:bg-cyan/[0.03]
+        hover:shadow-[0_0_20px_rgba(0,212,255,0.08)] active:scale-[0.97] group relative overflow-hidden w-full"
+    >
+      <div className="absolute inset-x-0 top-0 h-[1px] bg-gradient-to-r from-transparent via-white/[0.06] to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+      <div
+        className="h-7 w-7 rounded-[8px] flex items-center justify-center mx-auto mb-1"
+        style={{ background: meta.glow, boxShadow: `0 0 10px ${meta.glow}` }}
+      >
+        <Icon className={`h-3.5 w-3.5 ${meta.color}`} />
+      </div>
+      {loading ? (
+        <Loader2 className="h-4 w-4 animate-spin mx-auto" />
+      ) : (
+        <p className={`text-lg font-bold tracking-tight ${meta.color}`} style={{ textShadow: `0 0 8px ${meta.glow}` }}>{display}</p>
+      )}
+      <p className="text-[10px] text-muted-foreground/60 uppercase tracking-wider">{meta.label}</p>
+      <p className="text-[8px] text-muted-foreground/30 mt-0.5 opacity-0 group-hover:opacity-100 transition-opacity uppercase tracking-widest">Click for details</p>
+    </button>
+  );
+}
+
+function StatDetailModal({ kpiKey, userId, onClose }: { kpiKey: KpiKey; userId: string; onClose: () => void }) {
+  const [period, setPeriod] = useState<Period>("today");
+  const [data, setData] = useState<{ my: DialerStats; team: DialerStats } | null>(null);
+  const [loading, setLoading] = useState(true);
+  const meta = KPI_META[kpiKey];
+
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    fetchDialerKpis(userId, period).then((d) => {
+      if (!cancelled) { setData(d); setLoading(false); }
+    });
+    return () => { cancelled = true; };
+  }, [userId, period]);
+
+  const myVal = data ? data.my[kpiKey] : 0;
+  const teamVal = data ? data.team[meta.teamKey] : 0;
+  const fmt = meta.format ?? ((v: number) => String(v));
+
+  return (
+    <AnimatePresence>
+      <motion.div
+        initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+        className="fixed inset-0 z-[60] bg-black/70 backdrop-blur-md flex items-center justify-center"
+        onClick={onClose}
+      >
+        <motion.div
+          initial={{ opacity: 0, scale: 0.92, y: 24 }}
+          animate={{ opacity: 1, scale: 1, y: 0 }}
+          exit={{ opacity: 0, scale: 0.92, y: 24 }}
+          transition={{ type: "spring", damping: 26, stiffness: 320 }}
+          onClick={(e) => e.stopPropagation()}
+          className="relative max-w-md w-full mx-4 rounded-[16px] border border-white/[0.08]
+            bg-[rgba(8,8,18,0.92)] backdrop-blur-2xl shadow-[0_0_60px_rgba(0,212,255,0.08),0_0_120px_rgba(139,92,246,0.04)]
+            flex flex-col overflow-hidden"
+        >
+          <div className="absolute top-0 inset-x-0 h-[1px] bg-gradient-to-r from-transparent via-cyan/40 to-transparent" />
+
+          {/* Header */}
+          <div className="flex items-center justify-between px-5 py-3.5 border-b border-white/[0.06]">
+            <div className="flex items-center gap-2.5">
+              <div className="h-8 w-8 rounded-[10px] flex items-center justify-center" style={{ background: meta.glow }}>
+                <meta.icon className={`h-4 w-4 ${meta.color}`} />
+              </div>
+              <h3 className="text-sm font-bold text-white">{meta.label} — Breakdown</h3>
+            </div>
+            <button onClick={onClose} className="p-1.5 rounded-[10px] hover:bg-white/[0.06] transition-colors text-muted-foreground hover:text-foreground">
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+
+          {/* Period tabs */}
+          <div className="flex items-center gap-1 px-4 py-2 border-b border-white/[0.06]">
+            {PERIOD_LABELS.map((p) => (
+              <button
+                key={p.key}
+                onClick={() => setPeriod(p.key)}
+                className={`px-3 py-1 rounded-[8px] text-[11px] font-medium transition-all ${
+                  period === p.key
+                    ? "text-cyan bg-cyan/8 border border-cyan/20"
+                    : "text-muted-foreground hover:text-foreground border border-transparent"
+                }`}
+              >
+                {p.label}
+              </button>
+            ))}
+          </div>
+
+          {/* Content */}
+          <div className="p-5 space-y-4">
+            {loading ? (
+              <div className="flex items-center justify-center py-8">
+                <Loader2 className="h-5 w-5 animate-spin text-cyan/50" />
+              </div>
+            ) : (
+              <>
+                {/* Big comparison */}
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="rounded-[12px] border border-cyan/15 bg-cyan/[0.04] p-4 text-center">
+                    <p className="text-[9px] text-muted-foreground/50 uppercase tracking-widest mb-1">You</p>
+                    <p className="text-3xl font-bold text-cyan" style={{ textShadow: "0 0 14px rgba(0,212,255,0.3)" }}>
+                      {fmt(myVal)}
+                    </p>
+                  </div>
+                  <div className="rounded-[12px] border border-purple-500/15 bg-purple-500/[0.04] p-4 text-center">
+                    <p className="text-[9px] text-muted-foreground/50 uppercase tracking-widest mb-1">Team Total</p>
+                    <p className="text-3xl font-bold text-purple-400" style={{ textShadow: "0 0 14px rgba(168,85,247,0.3)" }}>
+                      {fmt(teamVal)}
+                    </p>
+                  </div>
+                </div>
+
+                {/* Ratio bar */}
+                {teamVal > 0 && (
+                  <div className="space-y-1">
+                    <div className="flex items-center justify-between text-[10px] text-muted-foreground/50">
+                      <span>Your share</span>
+                      <span>{teamVal > 0 ? Math.round((myVal / teamVal) * 100) : 0}%</span>
+                    </div>
+                    <div className="h-2 rounded-full bg-white/[0.04] overflow-hidden">
+                      <div
+                        className="h-full rounded-full bg-gradient-to-r from-cyan to-purple-400 transition-all duration-500"
+                        style={{ width: `${teamVal > 0 ? Math.min((myVal / teamVal) * 100, 100) : 0}%` }}
+                      />
+                    </div>
+                  </div>
+                )}
+
+                {/* Extra stats */}
+                <div className="grid grid-cols-3 gap-2">
+                  {[
+                    { label: "Outbound", val: data?.my.myOutbound ?? 0, color: "text-cyan" },
+                    { label: "Live Answers", val: data?.my.myLiveAnswers ?? 0, color: "text-emerald-400" },
+                    { label: "Avg Talk", val: data?.my.myAvgTalkTime ?? 0, color: "text-orange-400", fmt: (v: number) => `${Math.floor(v / 60)}:${(v % 60).toString().padStart(2, "0")}` },
+                  ].map((s) => (
+                    <div key={s.label} className="rounded-[10px] border border-white/[0.06] bg-white/[0.02] p-2.5 text-center">
+                      <p className="text-[9px] text-muted-foreground/40 uppercase tracking-widest">{s.label}</p>
+                      <p className={`text-sm font-bold font-mono ${s.color}`}>{s.fmt ? s.fmt(s.val) : s.val}</p>
+                    </div>
+                  ))}
+                </div>
+              </>
+            )}
+          </div>
+        </motion.div>
+      </motion.div>
+    </AnimatePresence>
+  );
 }
 
 interface DispoOption {
@@ -372,14 +552,9 @@ export default function DialerPage() {
     return () => window.removeEventListener("keydown", handler);
   }, [callState, currentLead, handleDial, handleDisposition, handleHangup]);
 
-  const statCards = [
-    { label: "My Calls", value: stats.myCalls, icon: PhoneForwarded, color: "text-cyan", glowColor: "rgba(0, 212, 255, 0.12)" },
-    { label: "Team Calls", value: stats.teamCalls, icon: Users, color: "text-blue-400", glowColor: "rgba(59, 130, 246, 0.12)" },
-    { label: "Connect %", value: `${stats.connectRate}%`, icon: BarChart3, color: "text-purple-400", glowColor: "rgba(168, 85, 247, 0.12)" },
-    { label: "Appts", value: stats.appointments, icon: CalendarCheck, color: "text-cyan", glowColor: "rgba(0, 212, 255, 0.12)" },
-    { label: "Contracts", value: stats.contracts, icon: FileSignature, color: "text-orange-400", glowColor: "rgba(255, 107, 53, 0.12)" },
-    { label: "Fees Earned", value: formatCurrency(stats.feesEarned), icon: DollarSign, color: "text-yellow-400", glowColor: "rgba(234, 179, 8, 0.12)" },
-  ];
+  const [activeKpi, setActiveKpi] = useState<KpiKey | null>(null);
+
+  const kpiKeys: KpiKey[] = ["myOutbound", "myInbound", "myLiveAnswers", "myAvgTalkTime", "teamOutbound", "teamInbound"];
 
   return (
     <PageShell
@@ -523,23 +698,14 @@ export default function DialerPage() {
       </GlassCard>
 
       <div className="grid grid-cols-3 md:grid-cols-6 gap-3">
-        {statCards.map((s) => (
-          <GlassCard key={s.label} className="!p-3 text-center" hover={false} delay={0.05}>
-            <div
-              className="h-7 w-7 rounded-[8px] flex items-center justify-center mx-auto mb-1"
-              style={{ background: s.glowColor, boxShadow: `0 0 10px ${s.glowColor}` }}
-            >
-              <s.icon className={`h-3.5 w-3.5 ${s.color}`} />
-            </div>
-            {statsLoading ? (
-              <Loader2 className="h-4 w-4 animate-spin mx-auto" />
-            ) : (
-              <p className="text-lg font-bold tracking-tight live-number">{s.value}</p>
-            )}
-            <p className="text-[10px] text-muted-foreground/60 uppercase tracking-wider">{s.label}</p>
-          </GlassCard>
+        {kpiKeys.map((k) => (
+          <KpiCard key={k} kpiKey={k} value={stats[k]} loading={statsLoading} onClick={() => setActiveKpi(k)} />
         ))}
       </div>
+
+      {activeKpi && (
+        <StatDetailModal kpiKey={activeKpi} userId={currentUser.id} onClose={() => setActiveKpi(null)} />
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 mt-4">
         <div className="lg:col-span-3">

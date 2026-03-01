@@ -137,77 +137,85 @@ export function useDialerQueue(limit = 8) {
 // ── Dialer Stats Hook ─────────────────────────────────────────────────
 
 export interface DialerStats {
-  myCalls: number;
-  teamCalls: number;
-  connectRate: number;
-  appointments: number;
-  contracts: number;
-  feesEarned: number;
+  myOutbound: number;
+  myInbound: number;
+  myLiveAnswers: number;
+  myAvgTalkTime: number;
+  teamOutbound: number;
+  teamInbound: number;
+}
+
+const OUTBOUND_FILTER = "no_answer,voicemail,interested,appointment,contract,dead,nurture,skip_trace,ghost,manual_hangup,in_progress,initiating";
+const LIVE_ANSWER_EXCLUDE = "no_answer,voicemail,in_progress,initiating,sms_outbound";
+
+function periodStart(period: "today" | "week" | "month" | "all"): string | null {
+  if (period === "all") return null;
+  const d = new Date();
+  if (period === "today") d.setHours(0, 0, 0, 0);
+  else if (period === "week") { d.setHours(0, 0, 0, 0); d.setDate(d.getDate() - d.getDay()); }
+  else if (period === "month") { d.setHours(0, 0, 0, 0); d.setDate(1); }
+  return d.toISOString();
+}
+
+export async function fetchDialerKpis(
+  userId: string,
+  period: "today" | "week" | "month" | "all" = "today",
+): Promise<{ my: DialerStats; team: DialerStats }> {
+  const since = periodStart(period);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const tbl = () => supabase.from("calls_log") as any;
+
+  function applyPeriod(q: ReturnType<typeof tbl>) {
+    return since ? q.gte("started_at", since) : q;
+  }
+
+  const [myOut, myIn, myLive, myDur, teamOut, teamIn, teamLive, teamDur] = await Promise.all([
+    applyPeriod(tbl().select("id", { count: "exact", head: true }).eq("user_id", userId).neq("disposition", "sms_outbound")),
+    applyPeriod(tbl().select("id", { count: "exact", head: true }).eq("user_id", userId).eq("disposition", "inbound")),
+    applyPeriod(tbl().select("id", { count: "exact", head: true }).eq("user_id", userId).not("disposition", "in", `(${LIVE_ANSWER_EXCLUDE})`)),
+    applyPeriod(tbl().select("duration_sec").eq("user_id", userId).gt("duration_sec", 0)),
+    applyPeriod(tbl().select("id", { count: "exact", head: true }).neq("disposition", "sms_outbound")),
+    applyPeriod(tbl().select("id", { count: "exact", head: true }).eq("disposition", "inbound")),
+    applyPeriod(tbl().select("id", { count: "exact", head: true }).not("disposition", "in", `(${LIVE_ANSWER_EXCLUDE})`)),
+    applyPeriod(tbl().select("duration_sec").gt("duration_sec", 0)),
+  ]);
+
+  function avgSec(rows: { duration_sec: number }[] | null): number {
+    if (!rows || rows.length === 0) return 0;
+    return Math.round(rows.reduce((s, r) => s + (r.duration_sec ?? 0), 0) / rows.length);
+  }
+
+  const my: DialerStats = {
+    myOutbound: myOut.count ?? 0,
+    myInbound: myIn.count ?? 0,
+    myLiveAnswers: myLive.count ?? 0,
+    myAvgTalkTime: avgSec(myDur.data),
+    teamOutbound: teamOut.count ?? 0,
+    teamInbound: teamIn.count ?? 0,
+  };
+
+  const team: DialerStats = {
+    myOutbound: teamOut.count ?? 0,
+    myInbound: teamIn.count ?? 0,
+    myLiveAnswers: teamLive.count ?? 0,
+    myAvgTalkTime: avgSec(teamDur.data),
+    teamOutbound: teamOut.count ?? 0,
+    teamInbound: teamIn.count ?? 0,
+  };
+
+  return { my, team };
 }
 
 export function useDialerStats() {
   const [stats, setStats] = useState<DialerStats>({
-    myCalls: 0, teamCalls: 0, connectRate: 0, appointments: 0, contracts: 0, feesEarned: 0,
+    myOutbound: 0, myInbound: 0, myLiveAnswers: 0, myAvgTalkTime: 0, teamOutbound: 0, teamInbound: 0,
   });
   const [loading, setLoading] = useState(true);
   const { currentUser } = useSentinelStore();
 
   const fetchStats = useCallback(async () => {
-    const todayStart = new Date();
-    todayStart.setHours(0, 0, 0, 0);
-    const todayISO = todayStart.toISOString();
-
-    // My calls today
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { count: myCalls } = await (supabase.from("calls_log") as any)
-      .select("id", { count: "exact", head: true })
-      .eq("user_id", currentUser.id)
-      .gte("started_at", todayISO);
-
-    // Team calls today
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { count: teamCalls } = await (supabase.from("calls_log") as any)
-      .select("id", { count: "exact", head: true })
-      .gte("started_at", todayISO);
-
-    // Connected calls today (for connect rate)
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { count: connected } = await (supabase.from("calls_log") as any)
-      .select("id", { count: "exact", head: true })
-      .eq("user_id", currentUser.id)
-      .gte("started_at", todayISO)
-      .not("disposition", "in", '("no_answer","voicemail","in_progress")');
-
-    // Appointments today
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { count: appointments } = await (supabase.from("calls_log") as any)
-      .select("id", { count: "exact", head: true })
-      .eq("user_id", currentUser.id)
-      .eq("disposition", "appointment")
-      .gte("started_at", todayISO);
-
-    // Contracts (all time from leads)
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { count: contracts } = await (supabase.from("leads") as any)
-      .select("id", { count: "exact", head: true })
-      .eq("status", "closed")
-      .eq("assigned_to", currentUser.id);
-
-    // Fees earned (from closed leads — would need a deal value column; approximate with count * avg)
-    const feesEarned = (contracts ?? 0) * 15000;
-
-    const myCallsN = myCalls ?? 0;
-    const connectedN = connected ?? 0;
-    const rate = myCallsN > 0 ? Math.round((connectedN / myCallsN) * 100) : 0;
-
-    setStats({
-      myCalls: myCallsN,
-      teamCalls: teamCalls ?? 0,
-      connectRate: rate,
-      appointments: appointments ?? 0,
-      contracts: contracts ?? 0,
-      feesEarned,
-    });
+    const { my } = await fetchDialerKpis(currentUser.id, "today");
+    setStats(my);
     setLoading(false);
   }, [currentUser.id]);
 
@@ -217,7 +225,6 @@ export function useDialerStats() {
     return () => clearInterval(interval);
   }, [fetchStats]);
 
-  // Realtime refresh on new calls
   useEffect(() => {
     const channel = supabase
       .channel("dialer-stats")
