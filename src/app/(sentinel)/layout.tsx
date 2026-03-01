@@ -3,6 +3,7 @@
 import { Sidebar } from "@/components/layout/sidebar";
 import { TopBar } from "@/components/layout/top-bar";
 import { TeamChat } from "@/components/layout/team-chat";
+import { ParticleField } from "@/components/layout/particle-field";
 import { NewProspectModal } from "@/components/sentinel/new-prospect-modal";
 
 export default function SentinelLayout({
@@ -11,9 +12,10 @@ export default function SentinelLayout({
   children: React.ReactNode;
 }) {
   return (
-    <div className="flex h-screen overflow-hidden sentinel-gradient sentinel-grid-bg relative z-10">
+    <div className="flex h-screen overflow-hidden sentinel-gradient sentinel-grid-bg relative">
+      <ParticleField />
       <Sidebar />
-      <div className="flex flex-col flex-1 min-w-0">
+      <div className="flex flex-col flex-1 min-w-0 relative z-10">
         <TopBar />
         <main className="flex-1 overflow-auto">{children}</main>
       </div>

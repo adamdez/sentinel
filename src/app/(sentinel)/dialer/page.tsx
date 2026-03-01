@@ -55,9 +55,9 @@ function KpiCard({ kpiKey, value, loading, onClick }: { kpiKey: KpiKey; value: n
   return (
     <button
       onClick={onClick}
-      className="rounded-[12px] border border-white/[0.06] bg-white/[0.02] backdrop-blur-sm p-3 text-center
-        transition-all duration-200 cursor-pointer hover:border-cyan/20 hover:bg-cyan/[0.03]
-        hover:shadow-[0_0_20px_rgba(0,212,255,0.08)] active:scale-[0.97] group relative overflow-hidden w-full"
+      className="rounded-[14px] border border-white/[0.07] bg-white/[0.02] backdrop-blur-xl p-3 text-center
+        transition-all duration-100 cursor-pointer hover:border-cyan/24 hover:bg-cyan/[0.04]
+        hover:shadow-[0_0_1px_rgba(0,229,255,0.6),0_0_4px_rgba(0,229,255,0.25),0_0_10px_rgba(0,229,255,0.1),inset_0_0_12px_rgba(0,229,255,0.03)] active:scale-[0.97] group relative overflow-hidden w-full holo-border wet-shine"
     >
       <div className="absolute inset-x-0 top-0 h-[1px] bg-gradient-to-r from-transparent via-white/[0.06] to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
       <div
@@ -100,7 +100,7 @@ function StatDetailModal({ kpiKey, userId, onClose }: { kpiKey: KpiKey; userId: 
     <AnimatePresence>
       <motion.div
         initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-        className="fixed inset-0 z-[60] bg-black/70 backdrop-blur-md flex items-center justify-center"
+        className="fixed inset-0 z-[60] modal-backdrop flex items-center justify-center"
         onClick={onClose}
       >
         <motion.div
@@ -110,8 +110,7 @@ function StatDetailModal({ kpiKey, userId, onClose }: { kpiKey: KpiKey; userId: 
           transition={{ type: "spring", damping: 26, stiffness: 320 }}
           onClick={(e) => e.stopPropagation()}
           className="relative max-w-md w-full mx-4 rounded-[16px] border border-white/[0.08]
-            bg-[rgba(8,8,18,0.92)] backdrop-blur-2xl shadow-[0_0_60px_rgba(0,212,255,0.08),0_0_120px_rgba(139,92,246,0.04)]
-            flex flex-col overflow-hidden"
+            modal-glass holo-border wet-shine flex flex-col overflow-hidden"
         >
           <div className="absolute top-0 inset-x-0 h-[1px] bg-gradient-to-r from-transparent via-cyan/40 to-transparent" />
 

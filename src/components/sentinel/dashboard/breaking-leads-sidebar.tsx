@@ -49,7 +49,7 @@ function TickerRow({ item, index }: { item: TickerItem; index: number }) {
       initial={{ opacity: 0, x: 12 }}
       animate={{ opacity: 1, x: 0 }}
       exit={{ opacity: 0, x: -12 }}
-      transition={{ delay: index * 0.04, duration: 0.2 }}
+      transition={{ delay: index * 0.03, duration: 0.1 }}
       className={cn(
         "flex flex-col gap-1.5 p-2.5 rounded-[10px] text-xs transition-all relative cursor-pointer",
         isFire
@@ -194,7 +194,7 @@ export function BreakingLeadsSidebar() {
   return (
     <div className="hidden lg:flex w-[300px] shrink-0 flex-col">
       <div
-        className="rounded-[14px] border border-glass-border bg-glass backdrop-blur-2xl overflow-hidden holo-border inner-glow-card"
+        className="rounded-[14px] border border-glass-border glass-card overflow-hidden holo-border holo-ring wet-shine"
         style={{ transformStyle: "preserve-3d" }}
       >
         <div className="flex items-center justify-between px-4 pt-3 pb-2 border-b border-white/[0.04]">

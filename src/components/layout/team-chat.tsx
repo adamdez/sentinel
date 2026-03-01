@@ -44,7 +44,10 @@ export function TeamChat() {
             whileHover={{ scale: 1.05 }}
             whileTap={{ scale: 0.95 }}
             onClick={() => setChatOpen(true)}
-            className="fixed bottom-6 right-20 z-40 h-10 w-10 rounded-full bg-[rgba(18,18,32,0.6)] border border-white/[0.06] flex items-center justify-center hover:bg-accent transition-colors cursor-pointer"
+            className="fixed bottom-6 right-20 z-40 h-10 w-10 rounded-full bg-[rgba(4,4,14,0.55)] backdrop-blur-xl border border-white/[0.08] flex items-center justify-center hover:bg-cyan/[0.06] hover:border-cyan/22 transition-all duration-100 cursor-pointer"
+            style={{ boxShadow: "0 0 1px rgba(0,229,255,0.3), 0 4px 16px rgba(0,0,0,0.3)" }}
+            onMouseEnter={(e) => { e.currentTarget.style.boxShadow = "0 0 1px rgba(0,229,255,0.6), 0 0 4px rgba(0,229,255,0.25), 0 0 10px rgba(0,229,255,0.1), 0 4px 16px rgba(0,0,0,0.3)"; }}
+            onMouseLeave={(e) => { e.currentTarget.style.boxShadow = "0 0 1px rgba(0,229,255,0.3), 0 4px 16px rgba(0,0,0,0.3)"; }}
           >
             <MessageCircle className="h-4 w-4 text-muted-foreground" />
             <span className="absolute -top-1 -right-1 h-3 w-3 rounded-full bg-cyan border-2 border-background" />
@@ -59,7 +62,7 @@ export function TeamChat() {
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 20, scale: 0.95 }}
             transition={{ duration: 0.2 }}
-            className="fixed bottom-6 right-6 z-40 w-80 h-96 rounded-[14px] glass-strong border border-glass-border flex flex-col overflow-hidden shadow-2xl"
+            className="fixed bottom-6 right-6 z-40 w-80 h-96 rounded-[14px] glass-strong border border-glass-border flex flex-col overflow-hidden holo-border wet-shine"
           >
             <div className="flex items-center justify-between px-4 py-3 border-b border-white/[0.06]">
               <div className="flex items-center gap-2">

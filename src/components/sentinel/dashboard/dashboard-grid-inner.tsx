@@ -68,8 +68,10 @@ function SortableTile({
     transform: CSS.Transform.toString(transform),
     transition,
     zIndex: isDragging ? 50 : undefined,
-    opacity: isDragging ? 0.85 : 1,
-    filter: isDragging ? "brightness(1.1) drop-shadow(0 0 20px rgba(0, 212, 255, 0.2))" : undefined,
+    opacity: isDragging ? 0.92 : 1,
+    filter: isDragging
+      ? "brightness(1.15) drop-shadow(0 0 24px rgba(0, 229, 255, 0.3))"
+      : undefined,
   };
 
   const Component = WIDGET_COMPONENTS[widgetId];
@@ -82,6 +84,7 @@ function SortableTile({
         onRemove={onRemove}
         onResize={onResize}
         dragHandleProps={{ ...attributes, ...listeners }}
+        isDragging={isDragging}
       >
         <Component />
       </WidgetWrapper>

@@ -68,9 +68,9 @@ function SortableCard({ item, onCall }: { item: PipelineItem; onCall?: (phone: s
       ref={setNodeRef}
       style={style}
       className={cn(
-        "group rounded-[14px] border border-glass-border bg-glass backdrop-blur-xl p-4 transition-all duration-200",
-        isDragging && "opacity-50 shadow-2xl neon-glow",
-        item.score.label === "fire" && "neon-glow animate-neon-pulse"
+        "group rounded-[14px] border border-glass-border glass-card p-4 transition-all duration-100 holo-border holo-ring wet-shine",
+        isDragging && "drag-active",
+        item.score.label === "fire" && "neon-glow animate-neon-pulse holo-border-always"
       )}
     >
       <div className="flex items-start gap-3">

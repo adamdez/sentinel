@@ -358,7 +358,7 @@ function ScoreBreakdownModal({ cf, scoreType, onClose }: { cf: ClientFile; score
     <AnimatePresence>
       <motion.div
         initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-        className="fixed inset-0 z-[60] bg-black/70 backdrop-blur-md flex items-center justify-center"
+        className="fixed inset-0 z-[60] modal-backdrop flex items-center justify-center"
         onClick={onClose}
       >
         <motion.div
@@ -368,8 +368,7 @@ function ScoreBreakdownModal({ cf, scoreType, onClose }: { cf: ClientFile; score
           transition={{ type: "spring", damping: 26, stiffness: 320 }}
           onClick={(e) => e.stopPropagation()}
           className="relative max-w-lg w-full mx-4 max-h-[85vh] overflow-hidden rounded-[16px] border border-white/[0.08]
-            bg-[rgba(8,8,18,0.85)] backdrop-blur-2xl shadow-[0_0_60px_rgba(0,212,255,0.08),0_0_120px_rgba(139,92,246,0.04)]
-            flex flex-col holo-border"
+            modal-glass holo-border wet-shine flex flex-col"
         >
           {/* Holographic top accent */}
           <div className="absolute top-0 inset-x-0 h-[1px] bg-gradient-to-r from-transparent via-cyan/40 to-transparent" />
@@ -825,7 +824,7 @@ function EditDetailsModal({ cf, onClose, onSaved }: { cf: ClientFile; onClose: (
     <AnimatePresence>
       <motion.div
         initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-        className="fixed inset-0 z-[60] bg-black/70 backdrop-blur-md flex items-center justify-center"
+        className="fixed inset-0 z-[60] modal-backdrop flex items-center justify-center"
         onClick={onClose}
       >
         <motion.div
@@ -835,8 +834,7 @@ function EditDetailsModal({ cf, onClose, onSaved }: { cf: ClientFile; onClose: (
           transition={{ type: "spring", damping: 26, stiffness: 320 }}
           onClick={(e) => e.stopPropagation()}
           className="relative max-w-lg w-full mx-4 max-h-[85vh] overflow-hidden rounded-[16px] border border-white/[0.08]
-            bg-[rgba(8,8,18,0.88)] backdrop-blur-2xl shadow-[0_0_60px_rgba(0,212,255,0.08),0_0_120px_rgba(139,92,246,0.04)]
-            flex flex-col holo-border"
+            modal-glass holo-border wet-shine flex flex-col"
         >
           {/* Holographic accent */}
           <div className="absolute top-0 inset-x-0 h-[1px] bg-gradient-to-r from-transparent via-cyan/40 to-transparent" />
@@ -1072,7 +1070,7 @@ function OverviewTab({ cf, skipTracing, skipTraceResult, skipTraceMs, overlay, s
                   {cf.estimatedValue ? formatCurrency(cf.estimatedValue) : "—"}
                 </p>
                 {cf.lastSalePrice != null && <p className="text-[10px] text-muted-foreground">Last sale: {formatCurrency(cf.lastSalePrice)}{cf.lastSaleDate ? ` (${new Date(cf.lastSaleDate).toLocaleDateString()})` : ""}</p>}
-                {cf.ownerFlags?.last_enriched && <p className="text-[9px] text-muted-foreground/40 mt-0.5">Updated {new Date(cf.ownerFlags.last_enriched as string).toLocaleDateString()}</p>}
+                {cf.ownerFlags?.last_enriched ? <p className="text-[9px] text-muted-foreground/40 mt-0.5">Updated {new Date(cf.ownerFlags.last_enriched as string).toLocaleDateString()}</p> : null}
               </div>
             </div>
           </div>
@@ -2009,7 +2007,7 @@ export function MasterClientFileModal({ clientFile, open, onClose, onClaim, onRe
         <Fragment>
           <motion.div
             initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm"
+            className="fixed inset-0 z-50 modal-backdrop"
             onClick={onClose}
           />
           <motion.div
@@ -2019,9 +2017,9 @@ export function MasterClientFileModal({ clientFile, open, onClose, onClaim, onRe
             transition={{ type: "spring", damping: 25, stiffness: 300 }}
             className={cn("fixed inset-x-4 top-[2%] bottom-[2%] md:inset-x-auto md:left-1/2 md:-translate-x-1/2 z-50 flex flex-col transition-all duration-300", activeTab === "comps" ? "md:w-[1060px]" : "md:w-[860px]")}
           >
-            <div className="flex-1 overflow-hidden rounded-[14px] border border-white/[0.06] bg-[rgba(12,12,22,0.4)] backdrop-blur-xl shadow-2xl holo-border flex flex-col">
+            <div className="flex-1 overflow-hidden rounded-[16px] border border-white/[0.08] modal-glass holo-border wet-shine flex flex-col">
               {/* Header */}
-              <div className="shrink-0 flex items-center justify-between px-6 py-4 border-b border-white/[0.06] bg-[rgba(12,12,22,0.85)] backdrop-blur-xl rounded-t-xl">
+              <div className="shrink-0 flex items-center justify-between px-6 py-4 border-b border-white/[0.06] bg-[rgba(4,4,12,0.88)] backdrop-blur-2xl rounded-t-[16px]">
                 <div className="flex items-center gap-3 min-w-0">
                   <div className={cn("flex items-center gap-1.5 px-2.5 py-1 rounded-md border text-xs font-bold", lbl.bg, lbl.color)}>
                     <Zap className="h-3 w-3" />{clientFile.compositeScore} {lbl.text}
@@ -2099,7 +2097,7 @@ export function MasterClientFileModal({ clientFile, open, onClose, onClaim, onRe
               </div>
 
               {/* Footer */}
-              <div className="shrink-0 flex items-center gap-3 px-6 py-3 border-t border-white/[0.06] bg-[rgba(12,12,22,0.85)] backdrop-blur-xl rounded-b-xl">
+              <div className="shrink-0 flex items-center gap-3 px-6 py-3 border-t border-white/[0.06] bg-[rgba(4,4,12,0.88)] backdrop-blur-2xl rounded-b-[16px]">
                 {onClaim && (
                   <Button size="sm" className="gap-2" onClick={() => onClaim(clientFile.id)}>
                     <CheckCircle2 className="h-3.5 w-3.5" />Claim Lead

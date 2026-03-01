@@ -161,8 +161,8 @@ export function QuickDial() {
       {calling ? (
         <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-2">
           <div className="flex items-center justify-center gap-2 py-2">
-            <span className="h-2 w-2 rounded-full bg-cyan animate-pulse" style={{ boxShadow: "0 0 8px rgba(0,212,255,0.5), 0 0 16px rgba(0,212,255,0.2)" }} />
-            <span className="text-xs text-cyan font-medium" style={{ textShadow: "0 0 8px rgba(0,212,255,0.4)" }}>Calling...</span>
+            <span className="h-2 w-2 rounded-full bg-cyan animate-pulse orbit-ring-container" style={{ boxShadow: "0 0 1px rgba(0,229,255,1), 0 0 4px rgba(0,229,255,0.5), 0 0 10px rgba(0,229,255,0.25)" }} />
+            <span className="text-xs text-cyan font-medium text-glow-number">Calling...</span>
           </div>
           <Button variant="destructive" className="w-full h-8 text-xs gap-1" onClick={() => setCalling(false)}>
             <PhoneOff className="h-3 w-3" />

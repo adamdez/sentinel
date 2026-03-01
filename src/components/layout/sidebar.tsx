@@ -178,7 +178,7 @@ function NavLink({ item, depth = 0, badges }: { item: NavItem; depth?: number; b
         <button
           onClick={() => setExpanded((prev) => !prev)}
           className={cn(
-            "flex w-full items-center gap-3 rounded-[10px] px-3 py-2 text-sm transition-all duration-200 hover:bg-white/[0.03] group",
+            "flex w-full items-center gap-3 rounded-[12px] px-3 py-2 text-sm transition-all duration-100 hover:bg-white/[0.03] group",
             isActive && "text-sidebar-accent-foreground"
           )}
         >
@@ -217,16 +217,17 @@ function NavLink({ item, depth = 0, badges }: { item: NavItem; depth?: number; b
     <Link
       href={item.href}
       className={cn(
-        "flex items-center gap-3 rounded-[10px] px-3 py-2 text-sm transition-all duration-200 group relative",
+        "flex items-center gap-3 rounded-[12px] px-3 py-2 text-sm transition-all duration-100 group relative",
         isActive
-          ? "bg-cyan/[0.06] text-cyan font-medium"
+          ? "sidebar-active-item text-cyan font-medium"
           : "text-sidebar-foreground hover:text-foreground hover:bg-white/[0.03]"
       )}
     >
       {isActive && (
         <motion.div
           layoutId="sidebar-active"
-          className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-5 rounded-r-full bg-cyan shadow-[0_0_12px_rgba(0,229,255,0.5),0_0_24px_rgba(0,229,255,0.2)]"
+          className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-5 rounded-r-full bg-cyan"
+          style={{ boxShadow: "0 0 1px rgba(0,229,255,1), 0 0 4px rgba(0,229,255,0.5), 0 0 10px rgba(0,229,255,0.25), 0 0 18px rgba(0,229,255,0.1)" }}
           transition={{ type: "spring", stiffness: 350, damping: 30 }}
         />
       )}
@@ -274,7 +275,7 @@ function SidebarSection({ section, badges }: { section: NavSection; badges?: Sid
       >
         <span
           className={cn(
-            "text-[10px] font-semibold uppercase tracking-[0.14em] transition-colors duration-200",
+            "text-[10px] font-semibold uppercase tracking-[0.14em] transition-colors duration-100",
             hasActiveItem
               ? "text-cyan/80"
               : "text-muted-foreground/60 group-hover:text-muted-foreground"
@@ -323,11 +324,11 @@ export function Sidebar() {
           animate={{ width: 208, opacity: 1 }}
           exit={{ width: 0, opacity: 0 }}
           transition={{ duration: 0.2, ease: "easeInOut" }}
-          className="h-screen bg-sidebar border-r border-sidebar-border flex flex-col overflow-hidden shrink-0 glass-strong"
+          className="h-screen bg-sidebar border-r border-sidebar-border flex flex-col overflow-hidden shrink-0 sidebar-glass relative z-20"
         >
           <div className="p-4 flex items-center gap-2.5">
-            <div className="h-8 w-8 rounded-[10px] bg-cyan/8 flex items-center justify-center border border-cyan/15 shadow-[0_0_12px_rgba(0,212,255,0.1)]">
-              <Zap className="h-4 w-4 text-cyan" />
+            <div className="h-8 w-8 rounded-[12px] bg-cyan/8 flex items-center justify-center border border-cyan/18" style={{ boxShadow: "0 0 1px rgba(0,229,255,0.8), 0 0 4px rgba(0,229,255,0.35), 0 0 12px rgba(0,229,255,0.15), 0 0 20px rgba(0,229,255,0.06)" }}>
+              <Zap className="h-4 w-4 text-cyan drop-shadow-[0_0_8px_rgba(0,229,255,0.6)]" />
             </div>
             <div>
               <h1 className="text-sm font-bold tracking-tight text-foreground title-glow">
@@ -352,8 +353,8 @@ export function Sidebar() {
           <Separator className="bg-white/[0.04]" />
 
           <div className="p-3">
-            <div className="flex items-center gap-2 rounded-[10px] px-3 py-2 bg-cyan/4 border border-cyan/8">
-              <div className="h-2 w-2 rounded-full bg-cyan animate-pulse shadow-[0_0_6px_rgba(0,212,255,0.4)]" />
+            <div className="flex items-center gap-2 rounded-[12px] px-3 py-2 bg-cyan/4 border border-cyan/10" style={{ boxShadow: "inset 0 0 16px rgba(0,229,255,0.03), 0 0 1px rgba(0,229,255,0.3)" }}>
+              <div className="h-2 w-2 rounded-full bg-cyan animate-pulse" style={{ boxShadow: "0 0 1px rgba(0,229,255,1), 0 0 4px rgba(0,229,255,0.5), 0 0 8px rgba(0,229,255,0.25)" }} />
               <span className="text-[11px] text-muted-foreground">
                 System Online
               </span>

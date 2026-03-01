@@ -230,9 +230,9 @@ export function GlobalSearch() {
     <div ref={containerRef} className="relative">
       <div
         className={cn(
-          "flex items-center gap-2 h-9 px-3 rounded-[12px] border text-sm transition-all duration-200 min-w-[320px]",
+          "flex items-center gap-2 h-9 px-3 rounded-[12px] border text-sm transition-all duration-100 min-w-[320px] search-scan-line",
           focused
-            ? "bg-secondary/80 border-cyan/20 shadow-[0_0_12px_rgba(0,212,255,0.08)]"
+            ? "bg-secondary/80 border-cyan/22 shadow-[0_0_1px_rgba(0,229,255,0.6),0_0_4px_rgba(0,229,255,0.2),0_0_8px_rgba(0,229,255,0.08)]"
             : "bg-secondary/50 border-glass-border hover:bg-secondary/70"
         )}
       >

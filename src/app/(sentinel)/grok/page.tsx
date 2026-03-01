@@ -203,19 +203,19 @@ export default function GrokPage() {
         <div className="flex items-center justify-between px-4 py-3 border-b border-glass-border">
           <div className="flex items-center gap-3">
             <div
-              className="h-9 w-9 rounded-xl flex items-center justify-center"
+              className="h-9 w-9 rounded-[12px] flex items-center justify-center"
               style={{
-                background: "rgba(0, 212, 255, 0.08)",
-                border: "1px solid rgba(0, 212, 255, 0.2)",
-                boxShadow: "0 0 20px rgba(0, 212, 255, 0.15)",
+                background: "rgba(0, 229, 255, 0.08)",
+                border: "1px solid rgba(0, 229, 255, 0.22)",
+                boxShadow: "0 0 1px rgba(0,229,255,0.8), 0 0 4px rgba(0,229,255,0.35), 0 0 10px rgba(0,229,255,0.15), 0 0 20px rgba(0,229,255,0.06), inset 0 0 14px rgba(0,229,255,0.04)",
               }}
             >
-              <Brain className="h-5 w-5 text-cyan" />
+              <Brain className="h-5 w-5 text-cyan drop-shadow-[0_0_10px_rgba(0,229,255,0.6)]" />
             </div>
             <div>
               <h2
                 className="text-sm font-bold tracking-tight"
-                style={{ textShadow: "0 0 15px rgba(0,212,255,0.2)" }}
+                style={{ textShadow: "0 0 0.8px rgba(255,255,255,0.5), 0 0 6px rgba(0,229,255,0.25), 0 0 16px rgba(0,229,255,0.1)" }}
               >
                 GROK COMMAND CENTER
               </h2>
@@ -250,14 +250,14 @@ export default function GrokPage() {
               className="flex flex-col items-center justify-center h-full text-center px-4"
             >
               <div
-                className="h-16 w-16 rounded-2xl flex items-center justify-center mb-6"
+                className="h-16 w-16 rounded-[16px] flex items-center justify-center mb-6"
                 style={{
-                  background: "rgba(0, 212, 255, 0.06)",
-                  border: "1px solid rgba(0, 212, 255, 0.12)",
-                  boxShadow: "0 0 40px rgba(0, 212, 255, 0.1), 0 0 80px rgba(0, 212, 255, 0.04)",
+                  background: "rgba(0, 229, 255, 0.06)",
+                  border: "1px solid rgba(0, 229, 255, 0.15)",
+                  boxShadow: "0 0 1px rgba(0,229,255,0.6), 0 0 8px rgba(0,229,255,0.25), 0 0 24px rgba(0,229,255,0.12), 0 0 52px rgba(0,229,255,0.05), 0 0 100px rgba(179,136,255,0.03), inset 0 0 28px rgba(0,229,255,0.04)",
                 }}
               >
-                <Sparkles className="h-8 w-8 text-cyan/70" />
+                <Sparkles className="h-8 w-8 text-cyan/70 drop-shadow-[0_0_14px_rgba(0,229,255,0.5)]" />
               </div>
               <h3
                 className="text-lg font-bold mb-2"
@@ -279,8 +279,8 @@ export default function GrokPage() {
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: 0.1 + i * 0.05 }}
                     onClick={() => sendMessage(s)}
-                    className="text-left px-3 py-2.5 rounded-xl text-xs text-muted-foreground/80 hover:text-foreground border border-glass-border hover:border-cyan/20 bg-glass/30 hover:bg-cyan/5 transition-all duration-200"
-                    style={{ backdropFilter: "blur(10px)" }}
+                    className="text-left px-3 py-2.5 rounded-[12px] text-xs text-muted-foreground/80 hover:text-foreground border border-glass-border hover:border-cyan/22 bg-glass/30 hover:bg-cyan/5 transition-all duration-100"
+                    style={{ backdropFilter: "blur(20px) saturate(1.3)", boxShadow: "inset 0 1px 0 rgba(255,255,255,0.025), inset 0 0 12px rgba(0,229,255,0.01)" }}
                   >
                     <Zap className="h-3 w-3 text-cyan/50 inline mr-1.5" />
                     {s}
@@ -300,16 +300,16 @@ export default function GrokPage() {
                 className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}
               >
                 <div
-                  className={`max-w-[85%] rounded-2xl px-4 py-3 text-sm leading-relaxed ${
+                  className={`max-w-[85%] rounded-[14px] px-4 py-3 text-sm leading-relaxed ${
                     msg.role === "user"
-                      ? "bg-cyan/10 border border-cyan/15 text-foreground"
+                      ? "bg-cyan/10 border border-cyan/20 text-foreground"
                       : "bg-glass/40 border border-glass-border text-foreground/90"
                   }`}
                   style={{
-                    backdropFilter: "blur(16px)",
+                    backdropFilter: "blur(52px) saturate(1.5) brightness(0.93)",
                     boxShadow: msg.role === "assistant"
-                      ? "0 4px 20px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.03)"
-                      : "0 4px 16px rgba(0,212,255,0.08)",
+                      ? "inset 0 0 4px rgba(0,229,255,0.04), inset 0 0 14px rgba(179,136,255,0.02), 0 4px 20px rgba(0,0,0,0.35), inset 0 1px 0 rgba(255,255,255,0.04)"
+                      : "inset 0 0 4px rgba(0,229,255,0.06), 0 4px 20px rgba(0,229,255,0.1), inset 0 1px 0 rgba(0,229,255,0.05)",
                   }}
                 >
                   {msg.role === "assistant" && (
@@ -370,10 +370,10 @@ export default function GrokPage() {
         {/* Input */}
         <div className="px-4 pb-4 pt-2">
           <div
-            className="flex items-end gap-2 rounded-2xl px-4 py-3 border border-glass-border bg-glass/40"
+            className="flex items-end gap-2 rounded-[14px] px-4 py-3 border border-glass-border bg-glass/40"
             style={{
-              backdropFilter: "blur(20px)",
-              boxShadow: "0 -4px 20px rgba(0,0,0,0.2), inset 0 1px 0 rgba(255,255,255,0.04)",
+              backdropFilter: "blur(52px) saturate(1.5) brightness(0.93)",
+              boxShadow: "inset 0 0 4px rgba(0,229,255,0.04), inset 0 0 14px rgba(179,136,255,0.02), 0 -4px 24px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.04)",
             }}
           >
             <textarea

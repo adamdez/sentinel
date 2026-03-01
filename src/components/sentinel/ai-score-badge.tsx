@@ -23,9 +23,9 @@ interface AIScoreBadgeProps {
 }
 
 const labelConfig = {
-  fire: { variant: "fire" as const, text: "FIRE", color: "text-orange-400", glow: "drop-shadow(0 0 4px rgba(255,107,53,0.5))" },
-  hot: { variant: "hot" as const, text: "HOT", color: "text-red-400", glow: "drop-shadow(0 0 3px rgba(255,68,68,0.4))" },
-  warm: { variant: "warm" as const, text: "WARM", color: "text-yellow-400", glow: "" },
+  fire: { variant: "fire" as const, text: "FIRE", color: "text-orange-400", glow: "drop-shadow(0 0 1px rgba(255,107,53,1)) drop-shadow(0 0 3.5px rgba(255,107,53,0.48)) drop-shadow(0 0 7px rgba(255,107,53,0.24)) drop-shadow(0 0 11px rgba(255,107,53,0.11))" },
+  hot: { variant: "hot" as const, text: "HOT", color: "text-red-400", glow: "drop-shadow(0 0 1px rgba(255,68,68,1)) drop-shadow(0 0 3.5px rgba(255,68,68,0.48)) drop-shadow(0 0 7px rgba(255,68,68,0.24))" },
+  warm: { variant: "warm" as const, text: "WARM", color: "text-yellow-400", glow: "drop-shadow(0 0 1px rgba(250,204,21,0.8)) drop-shadow(0 0 3.5px rgba(250,204,21,0.35))" },
   cold: { variant: "cold" as const, text: "COLD", color: "text-blue-400", glow: "" },
 };
 

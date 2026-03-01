@@ -240,12 +240,13 @@ export default function DashboardPage() {
       {bulkConfirmOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center">
           <div
-            className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+            className="absolute inset-0 modal-backdrop"
             onClick={() => setBulkConfirmOpen(false)}
           />
           <div
             className="relative rounded-[16px] border border-red-500/20 p-6 max-w-md w-full mx-4
-              bg-[#0a0a12]/95 backdrop-blur-xl shadow-[0_0_40px_rgba(255,40,40,0.15)]"
+              modal-glass holo-border wet-shine"
+            style={{ boxShadow: "0 0 48px rgba(255,40,40,0.12), 0 0 96px rgba(255,40,40,0.04)" }}
           >
             <div className="flex items-center gap-2 mb-3">
               <div className="h-8 w-8 rounded-[10px] bg-red-600/15 flex items-center justify-center">

@@ -51,7 +51,7 @@ export function TopBar() {
     <motion.header
       initial={{ y: -10, opacity: 0 }}
       animate={{ y: 0, opacity: 1 }}
-      className="h-14 border-b border-glass-border glass-strong flex items-center justify-between px-4 shrink-0 z-30 shadow-[0_4px_20px_rgba(0,0,0,0.3)]"
+      className="h-14 border-b border-glass-border topbar-glass flex items-center justify-between px-4 shrink-0 z-30"
     >
       <div className="flex items-center gap-3">
         <Tooltip>
@@ -93,7 +93,11 @@ export function TopBar() {
 
         <Tooltip>
           <TooltipTrigger asChild>
-            <div className="flex items-center gap-2 px-2 py-1 rounded-[10px] bg-secondary/30 border border-glass-border">
+            <div
+              className={`flex items-center gap-2 px-2 py-1 rounded-[10px] bg-secondary/30 border border-glass-border transition-all duration-100 ${
+                ghostMode ? "ghost-active" : ""
+              }`}
+            >
               <Ghost
                 className={`h-3.5 w-3.5 transition-colors ${
                   ghostMode ? "text-purple" : "text-muted-foreground"
@@ -113,7 +117,7 @@ export function TopBar() {
 
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="icon" className="h-8 w-8 relative">
+            <Button variant="ghost" size="icon" className="h-8 w-8 relative bell-pulse-ring">
               <Bell className="h-4 w-4" />
             </Button>
           </DropdownMenuTrigger>
@@ -130,9 +134,9 @@ export function TopBar() {
 
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="ghost" className="h-8 gap-2 px-2">
-              <Avatar className="h-6 w-6">
-                <AvatarFallback className="text-[10px] bg-cyan/[0.08] text-cyan border border-cyan/15">
+            <Button variant="ghost" className="h-8 gap-2 px-2 group">
+              <Avatar className="h-6 w-6 avatar-holo">
+                <AvatarFallback className="text-[10px] bg-cyan/[0.08] text-cyan border-0">
                   {currentUser.name
                     ? currentUser.name
                         .split(" ")
