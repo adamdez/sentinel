@@ -26,6 +26,7 @@ import {
   ChevronRight,
   Zap,
   Brain,
+  Target,
   type LucideIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -135,6 +136,7 @@ const sections: NavSection[] = [
   {
     title: "Marketing Sources",
     items: [
+      { label: "Google Ads", href: "/ads", icon: Target },
       { label: "Facebook/Craigslist", href: "/sales-funnel/facebook-craigslist", icon: Share2, badge: "fb-dot" },
       { label: "PPL", href: "/sales-funnel/ppl", icon: DollarSign, badge: "ppl-dot" },
     ],

@@ -296,6 +296,93 @@ export const eventLog = pgTable("event_log", {
   index("idx_event_log_created").on(table.createdAt),
 ]);
 
+// ── Google Ads: Enums ────────────────────────────────────────────────
+
+export const adReviewTypeEnum = pgEnum("ad_review_type", [
+  "copy", "performance", "landing_page", "strategy",
+]);
+
+export const adActionTypeEnum = pgEnum("ad_action_type", [
+  "bid_adjust", "pause_keyword", "enable_keyword", "update_copy",
+  "add_keyword", "budget_adjust", "pause_ad", "enable_ad",
+]);
+
+export const adActionStatusEnum = pgEnum("ad_action_status", [
+  "suggested", "approved", "applied", "rejected",
+]);
+
+// ── Google Ads: Snapshots ───────────────────────────────────────────
+// Daily performance snapshot pulled from Google Ads API.
+
+export const adSnapshots = pgTable("ad_snapshots", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  campaignId: varchar("campaign_id", { length: 50 }).notNull(),
+  campaignName: varchar("campaign_name", { length: 255 }).notNull(),
+  adGroupId: varchar("ad_group_id", { length: 50 }),
+  adGroupName: varchar("ad_group_name", { length: 255 }),
+  adId: varchar("ad_id", { length: 50 }),
+  headline1: text("headline1"),
+  headline2: text("headline2"),
+  headline3: text("headline3"),
+  description1: text("description1"),
+  description2: text("description2"),
+  impressions: integer("impressions").notNull().default(0),
+  clicks: integer("clicks").notNull().default(0),
+  ctr: numeric("ctr", { precision: 8, scale: 4 }),
+  avgCpc: numeric("avg_cpc", { precision: 10, scale: 2 }),
+  conversions: numeric("conversions", { precision: 10, scale: 2 }).default("0"),
+  cost: numeric("cost", { precision: 12, scale: 2 }).notNull().default("0"),
+  roas: numeric("roas", { precision: 10, scale: 2 }),
+  qualityScore: integer("quality_score"),
+  snapshotDate: timestamp("snapshot_date", { withTimezone: true }).notNull(),
+  rawJson: jsonb("raw_json").notNull().default({}),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (table) => [
+  index("idx_ad_snapshots_campaign").on(table.campaignId),
+  index("idx_ad_snapshots_date").on(table.snapshotDate),
+  index("idx_ad_snapshots_ad").on(table.adId),
+]);
+
+// ── Google Ads: AI Reviews ──────────────────────────────────────────
+// Claude/Grok analysis of ad performance, copy quality, landing page.
+
+export const adReviews = pgTable("ad_reviews", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  snapshotDate: timestamp("snapshot_date", { withTimezone: true }).notNull(),
+  reviewType: adReviewTypeEnum("review_type").notNull(),
+  summary: text("summary").notNull(),
+  findings: jsonb("findings").notNull().default([]),
+  suggestions: jsonb("suggestions").notNull().default([]),
+  aiEngine: varchar("ai_engine", { length: 20 }).notNull(),
+  modelUsed: varchar("model_used", { length: 50 }),
+  tokensUsed: integer("tokens_used"),
+  approvedBy: uuid("approved_by"),
+  approvedAt: timestamp("approved_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (table) => [
+  index("idx_ad_reviews_date").on(table.snapshotDate),
+  index("idx_ad_reviews_type").on(table.reviewType),
+]);
+
+// ── Google Ads: Actions ─────────────────────────────────────────────
+// Concrete actions (approve/reject) — bid changes, copy edits, etc.
+
+export const adActions = pgTable("ad_actions", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  reviewId: uuid("review_id").references(() => adReviews.id, { onDelete: "cascade" }),
+  actionType: adActionTypeEnum("action_type").notNull(),
+  targetEntity: varchar("target_entity", { length: 50 }).notNull(),
+  targetId: varchar("target_id", { length: 100 }).notNull(),
+  oldValue: text("old_value"),
+  newValue: text("new_value"),
+  status: adActionStatusEnum("status").notNull().default("suggested"),
+  appliedAt: timestamp("applied_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (table) => [
+  index("idx_ad_actions_review").on(table.reviewId),
+  index("idx_ad_actions_status").on(table.status),
+]);
+
 // ── User Profiles ───────────────────────────────────────────────────
 // Links to Supabase auth.users. Stores dashboard layout as JSONB.
 
