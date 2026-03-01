@@ -55,16 +55,15 @@ function getScoreLabel(score: number): { label: string; variant: "fire" | "hot" 
   return { label: "COLD", variant: "cold" };
 }
 
-function formatPhoneDisplay(raw: string): string {
-  const digits = raw.replace(/\D/g, "");
+function formatUsPhone(digits: string): string {
   if (digits.length === 0) return "";
-  if (digits.length <= 1) return `+${digits}`;
-  const hasCountry = digits.length > 10;
-  const cc = hasCountry ? digits.slice(0, digits.length - 10) : "1";
-  const nat = hasCountry ? digits.slice(-10) : digits;
-  if (nat.length <= 3) return `+${cc} (${nat}`;
-  if (nat.length <= 6) return `+${cc} (${nat.slice(0, 3)}) ${nat.slice(3)}`;
-  return `+${cc} (${nat.slice(0, 3)}) ${nat.slice(3, 6)}-${nat.slice(6, 10)}`;
+  if (digits.length <= 3) return `(${digits}`;
+  if (digits.length <= 6) return `(${digits.slice(0, 3)}) ${digits.slice(3)}`;
+  return `(${digits.slice(0, 3)}) ${digits.slice(3, 6)}-${digits.slice(6, 10)}`;
+}
+
+function toE164(digits: string): string {
+  return `+1${digits.slice(0, 10)}`;
 }
 
 export default function DialerPage() {
@@ -197,9 +196,8 @@ export default function DialerPage() {
 
   // ── Quick Manual Dial handler ──────────────────────────────────────
   const handleManualDial = useCallback(async () => {
-    const digits = manualPhone.replace(/\D/g, "");
-    if (digits.length < 10) {
-      toast.error("Enter a valid 10+ digit phone number");
+    if (manualPhone.length < 10) {
+      toast.error("Enter a valid 10-digit phone number");
       return;
     }
 
@@ -211,7 +209,7 @@ export default function DialerPage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          phone: digits,
+          phone: toE164(manualPhone),
           userId: currentUser.id,
           ghostMode,
         }),
@@ -228,7 +226,7 @@ export default function DialerPage() {
       setManualCallLogId(data.callLogId);
       setManualStatus("connected");
       const cellHint = data.transferTo ? ` → ***${(data.transferTo as string).slice(-4)}` : "";
-      toast.success(`Calling ${formatPhoneDisplay(manualPhone)}${cellHint} — Caller ID: Dominion Homes`);
+      toast.success(`Calling ${formatUsPhone(manualPhone)}${cellHint} — Caller ID: Dominion Homes`);
     } catch {
       toast.error("Network error — call not placed");
       setManualStatus("idle");
@@ -250,8 +248,7 @@ export default function DialerPage() {
   }, [manualCallLogId, currentUser.id]);
 
   const handleManualSms = useCallback(async () => {
-    const digits = manualPhone.replace(/\D/g, "");
-    if (digits.length < 10) {
+    if (manualPhone.length < 10) {
       toast.error("Enter a valid phone number first");
       return;
     }
@@ -266,7 +263,7 @@ export default function DialerPage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          phone: digits,
+          phone: toE164(manualPhone),
           message: smsComposeMsg.trim(),
           userId: currentUser.id,
         }),
@@ -407,9 +404,12 @@ export default function DialerPage() {
         <div className="flex items-center gap-3">
           <div className="flex-1 relative">
             <Input
-              value={formatPhoneDisplay(manualPhone)}
-              onChange={(e) => setManualPhone(e.target.value.replace(/[^\d+]/g, ""))}
-              placeholder="+1 (509) 555-1234"
+              value={formatUsPhone(manualPhone)}
+              onChange={(e) => {
+                const raw = e.target.value.replace(/\D/g, "");
+                setManualPhone(raw.slice(0, 10));
+              }}
+              placeholder="(509) 555-1234"
               className="text-lg font-mono tracking-wide bg-white/[0.03] border-white/[0.06] focus:border-cyan/30 focus:ring-cyan/10 h-12 pr-24"
               onKeyDown={(e) => {
                 if (e.key === "Enter" && manualStatus === "idle") {
@@ -432,7 +432,7 @@ export default function DialerPage() {
             <>
               <Button
                 onClick={handleManualDial}
-                disabled={manualDialing || manualPhone.replace(/\D/g, "").length < 10}
+                disabled={manualDialing || manualPhone.length < 10}
                 className="gap-2 h-12 px-6 bg-cyan/15 hover:bg-cyan/25 text-cyan border border-cyan/25 text-sm font-semibold"
                 style={{ boxShadow: "0 0 20px rgba(0,212,255,0.1)" }}
               >
@@ -441,13 +441,13 @@ export default function DialerPage() {
               </Button>
               <Button
                 onClick={() => {
-                  if (manualPhone.replace(/\D/g, "").length < 10) {
+                  if (manualPhone.length < 10) {
                     toast.error("Enter a valid phone number first");
                     return;
                   }
                   setSmsComposeOpen(!smsComposeOpen);
                 }}
-                disabled={manualPhone.replace(/\D/g, "").length < 10}
+                disabled={manualPhone.length < 10}
                 variant="outline"
                 className="gap-2 h-12 px-6 border-purple/25 text-purple hover:bg-purple/10 text-sm font-semibold"
                 style={{ boxShadow: "0 0 20px rgba(168,85,247,0.08)" }}
@@ -481,7 +481,7 @@ export default function DialerPage() {
               <div className="mt-3 rounded-[12px] bg-white/[0.03] border border-purple/15 p-3 space-y-2">
                 <div className="flex items-center justify-between">
                   <p className="text-[10px] text-muted-foreground/60 uppercase tracking-wider">
-                    SMS to {formatPhoneDisplay(manualPhone)}
+                    SMS to {formatUsPhone(manualPhone)}
                   </p>
                   <button onClick={() => setSmsComposeOpen(false)} className="text-muted-foreground/40 hover:text-foreground">
                     <X className="h-3.5 w-3.5" />
