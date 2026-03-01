@@ -7,12 +7,14 @@ import {
   Mic, MicOff, Voicemail, CalendarCheck, FileSignature,
   Skull, Heart, Search, Ghost, Zap, ChevronRight,
   Sparkles, DollarSign, Loader2, SkipForward, MessageSquare,
+  X, Send,
 } from "lucide-react";
 import { toast } from "sonner";
 import { PageShell } from "@/components/sentinel/page-shell";
 import { GlassCard } from "@/components/sentinel/glass-card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { useSentinelStore } from "@/lib/store";
 import { useDialerQueue, useDialerStats, useCallTimer, type QueueLead } from "@/hooks/use-dialer";
 
@@ -52,6 +54,18 @@ function getScoreLabel(score: number): { label: string; variant: "fire" | "hot" 
   return { label: "COLD", variant: "cold" };
 }
 
+function formatPhoneDisplay(raw: string): string {
+  const digits = raw.replace(/\D/g, "");
+  if (digits.length === 0) return "";
+  if (digits.length <= 1) return `+${digits}`;
+  const hasCountry = digits.length > 10;
+  const cc = hasCountry ? digits.slice(0, digits.length - 10) : "1";
+  const nat = hasCountry ? digits.slice(-10) : digits;
+  if (nat.length <= 3) return `+${cc} (${nat}`;
+  if (nat.length <= 6) return `+${cc} (${nat.slice(0, 3)}) ${nat.slice(3)}`;
+  return `+${cc} (${nat.slice(0, 3)}) ${nat.slice(3, 6)}-${nat.slice(6, 10)}`;
+}
+
 export default function DialerPage() {
   const { currentUser, ghostMode } = useSentinelStore();
   const { queue, loading: queueLoading, refetch: refetchQueue } = useDialerQueue(8);
@@ -66,6 +80,15 @@ export default function DialerPage() {
   const [dispositionPending, setDispositionPending] = useState(false);
   const [smsLoading, setSmsLoading] = useState(false);
   const [transferStatus, setTransferStatus] = useState<string | null>(null);
+
+  // Quick Manual Dial state
+  const [manualPhone, setManualPhone] = useState("");
+  const [manualDialing, setManualDialing] = useState(false);
+  const [manualCallLogId, setManualCallLogId] = useState<string | null>(null);
+  const [manualStatus, setManualStatus] = useState<"idle" | "dialing" | "connected" | "ended">("idle");
+  const [smsComposeOpen, setSmsComposeOpen] = useState(false);
+  const [smsComposeMsg, setSmsComposeMsg] = useState("");
+  const [smsComposeSending, setSmsComposeSending] = useState(false);
 
   useEffect(() => {
     if (!currentLead && queue.length > 0) {
@@ -170,6 +193,97 @@ export default function DialerPage() {
       setSmsLoading(false);
     }
   }, [currentLead, currentUser.id]);
+
+  // ── Quick Manual Dial handler ──────────────────────────────────────
+  const handleManualDial = useCallback(async () => {
+    const digits = manualPhone.replace(/\D/g, "");
+    if (digits.length < 10) {
+      toast.error("Enter a valid 10+ digit phone number");
+      return;
+    }
+
+    setManualDialing(true);
+    setManualStatus("dialing");
+
+    try {
+      const res = await fetch("/api/dialer/call", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          phone: digits,
+          userId: currentUser.id,
+          ghostMode,
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        toast.error(data.error ?? "Call failed");
+        setManualStatus("idle");
+        setManualDialing(false);
+        return;
+      }
+
+      setManualCallLogId(data.callLogId);
+      setManualStatus("connected");
+      const cellHint = data.transferTo ? ` → ***${(data.transferTo as string).slice(-4)}` : "";
+      toast.success(`Calling ${formatPhoneDisplay(manualPhone)}${cellHint} — Caller ID: Dominion Homes`);
+    } catch {
+      toast.error("Network error — call not placed");
+      setManualStatus("idle");
+    } finally {
+      setManualDialing(false);
+    }
+  }, [manualPhone, currentUser.id, ghostMode]);
+
+  const handleManualHangup = useCallback(() => {
+    if (manualCallLogId) {
+      fetch("/api/dialer/call", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ callLogId: manualCallLogId, disposition: "manual_hangup", userId: currentUser.id }),
+      }).catch(() => {});
+    }
+    setManualStatus("idle");
+    setManualCallLogId(null);
+  }, [manualCallLogId, currentUser.id]);
+
+  const handleManualSms = useCallback(async () => {
+    const digits = manualPhone.replace(/\D/g, "");
+    if (digits.length < 10) {
+      toast.error("Enter a valid phone number first");
+      return;
+    }
+    if (!smsComposeMsg.trim()) {
+      toast.error("Enter a message");
+      return;
+    }
+
+    setSmsComposeSending(true);
+    try {
+      const res = await fetch("/api/dialer/sms", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          phone: digits,
+          message: smsComposeMsg.trim(),
+          userId: currentUser.id,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        toast.error(data.error ?? "SMS failed");
+      } else {
+        toast.success("Text sent via Dominion Homes");
+        setSmsComposeOpen(false);
+        setSmsComposeMsg("");
+      }
+    } catch {
+      toast.error("Network error — SMS not sent");
+    } finally {
+      setSmsComposeSending(false);
+    }
+  }, [manualPhone, smsComposeMsg, currentUser.id]);
 
   const handleHangup = useCallback(() => {
     setCallState("ended");
@@ -277,6 +391,126 @@ export default function DialerPage() {
         </div>
       }
     >
+      {/* ── Quick Manual Dial ─────────────────────────────────────────── */}
+      <GlassCard hover={false} glow className="!p-4 mb-4">
+        <div className="flex items-center gap-2 mb-3">
+          <div className="h-7 w-7 rounded-[8px] flex items-center justify-center bg-cyan/12" style={{ boxShadow: "0 0 12px rgba(0,212,255,0.15)" }}>
+            <Phone className="h-3.5 w-3.5 text-cyan" />
+          </div>
+          <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+            Quick Manual Dial
+          </h2>
+          <Badge variant="cyan" className="text-[9px] ml-auto">Dominion Homes Caller ID</Badge>
+        </div>
+
+        <div className="flex items-center gap-3">
+          <div className="flex-1 relative">
+            <Input
+              value={formatPhoneDisplay(manualPhone)}
+              onChange={(e) => setManualPhone(e.target.value.replace(/[^\d+]/g, ""))}
+              placeholder="+1 (509) 555-1234"
+              className="text-lg font-mono tracking-wide bg-white/[0.03] border-white/[0.06] focus:border-cyan/30 focus:ring-cyan/10 h-12 pr-24"
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && manualStatus === "idle") {
+                  e.preventDefault();
+                  handleManualDial();
+                }
+              }}
+            />
+            {manualStatus !== "idle" && (
+              <span className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-1.5 text-[10px]">
+                <span className={`h-2 w-2 rounded-full animate-pulse ${manualStatus === "dialing" ? "bg-yellow-400" : manualStatus === "connected" ? "bg-cyan" : "bg-red-400"}`} />
+                <span className={manualStatus === "dialing" ? "text-yellow-400" : manualStatus === "connected" ? "text-cyan" : "text-red-400"}>
+                  {manualStatus === "dialing" ? "Calling..." : manualStatus === "connected" ? "Live" : "Ended"}
+                </span>
+              </span>
+            )}
+          </div>
+
+          {manualStatus === "idle" ? (
+            <>
+              <Button
+                onClick={handleManualDial}
+                disabled={manualDialing || manualPhone.replace(/\D/g, "").length < 10}
+                className="gap-2 h-12 px-6 bg-cyan/15 hover:bg-cyan/25 text-cyan border border-cyan/25 text-sm font-semibold"
+                style={{ boxShadow: "0 0 20px rgba(0,212,255,0.1)" }}
+              >
+                {manualDialing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Phone className="h-4 w-4" />}
+                Dial Now
+              </Button>
+              <Button
+                onClick={() => {
+                  if (manualPhone.replace(/\D/g, "").length < 10) {
+                    toast.error("Enter a valid phone number first");
+                    return;
+                  }
+                  setSmsComposeOpen(!smsComposeOpen);
+                }}
+                disabled={manualPhone.replace(/\D/g, "").length < 10}
+                variant="outline"
+                className="gap-2 h-12 px-6 border-purple/25 text-purple hover:bg-purple/10 text-sm font-semibold"
+                style={{ boxShadow: "0 0 20px rgba(168,85,247,0.08)" }}
+              >
+                <MessageSquare className="h-4 w-4" />
+                Send Text
+              </Button>
+            </>
+          ) : (
+            <Button
+              onClick={handleManualHangup}
+              variant="destructive"
+              className="gap-2 h-12 px-6 text-sm font-semibold"
+            >
+              <PhoneOff className="h-4 w-4" />
+              End
+            </Button>
+          )}
+        </div>
+
+        {/* Inline SMS Compose */}
+        <AnimatePresence>
+          {smsComposeOpen && (
+            <motion.div
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: "auto" }}
+              exit={{ opacity: 0, height: 0 }}
+              transition={{ duration: 0.2 }}
+              className="overflow-hidden"
+            >
+              <div className="mt-3 rounded-[12px] bg-white/[0.03] border border-purple/15 p-3 space-y-2">
+                <div className="flex items-center justify-between">
+                  <p className="text-[10px] text-muted-foreground/60 uppercase tracking-wider">
+                    SMS to {formatPhoneDisplay(manualPhone)}
+                  </p>
+                  <button onClick={() => setSmsComposeOpen(false)} className="text-muted-foreground/40 hover:text-foreground">
+                    <X className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+                <textarea
+                  value={smsComposeMsg}
+                  onChange={(e) => setSmsComposeMsg(e.target.value)}
+                  placeholder="Hi, this is Dominion Homes..."
+                  className="w-full bg-transparent text-sm resize-none h-20 outline-none placeholder:text-muted-foreground/30 border border-white/[0.04] rounded-[8px] p-2"
+                  maxLength={500}
+                />
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] text-muted-foreground/30">{smsComposeMsg.length}/500</span>
+                  <Button
+                    onClick={handleManualSms}
+                    disabled={smsComposeSending || !smsComposeMsg.trim()}
+                    size="sm"
+                    className="gap-1.5 bg-purple/15 hover:bg-purple/25 text-purple border border-purple/25"
+                  >
+                    {smsComposeSending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
+                    Send
+                  </Button>
+                </div>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </GlassCard>
+
       <div className="grid grid-cols-3 md:grid-cols-6 gap-3">
         {statCards.map((s) => (
           <GlassCard key={s.label} className="!p-3 text-center" hover={false} delay={0.05}>
