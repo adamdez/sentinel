@@ -402,6 +402,7 @@ export const userProfiles = pgTable("user_profiles", {
   avatarUrl: text("avatar_url"),
   phone: varchar("phone", { length: 20 }),
   personalCell: varchar("personal_cell", { length: 20 }),
+  twilioPhoneNumber: varchar("twilio_phone_number", { length: 20 }),
   isActive: boolean("is_active").notNull().default(true),
   savedDashboardLayout: jsonb("saved_dashboard_layout"),
   preferences: jsonb("preferences").notNull().default({}),

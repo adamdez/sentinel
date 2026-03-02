@@ -217,7 +217,6 @@ export function LeadTable({
               <span
                 className="text-sm font-semibold truncate text-foreground"
                 style={{
-                  textShadow: "0 0 8px rgba(0,212,255,0.12), 0 0 16px rgba(0,212,255,0.05)",
                   WebkitFontSmoothing: "antialiased",
                 }}
               >

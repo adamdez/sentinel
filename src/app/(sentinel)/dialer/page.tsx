@@ -829,9 +829,9 @@ export default function DialerPage() {
                             {lead.properties?.owner_name ?? "Unknown"}
                             <RelationshipBadgeCompact data={{ tags: lead.tags }} />
                           </p>
-                          <p className="text-[11px] text-muted-foreground/60 truncate">{lead.properties?.address ?? "No address"}</p>
+                          <p className="text-xs text-muted-foreground/80 truncate">{lead.properties?.address ?? "No address"}</p>
                         </div>
-                        <span className="text-[8px] text-muted-foreground/40 font-mono shrink-0">{lead.call_sequence_step ?? 1}/7</span>
+                        <span className="text-[9px] text-muted-foreground/60 font-mono shrink-0">{lead.call_sequence_step ?? 1}/7</span>
                         <Badge variant={sl.variant} className="text-[9px] px-1.5 py-0 shrink-0">
                           {score}
                         </Badge>

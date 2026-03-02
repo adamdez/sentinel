@@ -375,7 +375,6 @@ function DataResultItem({ result, onSelect }: { result: DataResult; onSelect: (h
         <p
           className="text-sm font-semibold truncate text-foreground"
           style={{
-            textShadow: "0 0 8px rgba(0,212,255,0.1)",
             WebkitFontSmoothing: "antialiased",
           }}
         >

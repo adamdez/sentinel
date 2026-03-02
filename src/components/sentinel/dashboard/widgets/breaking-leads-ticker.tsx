@@ -199,7 +199,6 @@ export function BreakingLeadsTicker() {
                   <span
                     className="font-semibold truncate flex-1 text-foreground"
                     style={{
-                      textShadow: "0 0 8px rgba(0,212,255,0.15), 0 0 16px rgba(0,212,255,0.06)",
                       WebkitFontSmoothing: "antialiased",
                     }}
                   >
@@ -207,16 +206,16 @@ export function BreakingLeadsTicker() {
                   </span>
                   <RelationshipBadgeCompact data={{ tags: item.tags }} />
                   {item.daysUntilDistress != null && (
-                    <span className="text-[7px] px-1 py-0 rounded border font-semibold shrink-0 text-cyan-300 bg-cyan-500/10 border-cyan-500/20">
+                    <span className="text-[9px] px-1.5 py-0 rounded border font-semibold shrink-0 text-cyan-300 bg-cyan-500/10 border-cyan-500/20">
                       {item.daysUntilDistress}d
                     </span>
                   )}
                   {src && (
-                    <span className={cn("text-[7px] px-1 py-0 rounded border font-semibold shrink-0", src.color)}>
+                    <span className={cn("text-[9px] px-1.5 py-0 rounded border font-semibold shrink-0", src.color)}>
                       {src.label}
                     </span>
                   )}
-                  <Badge variant={isPlatinum ? "platinum" : "gold"} className="text-[8px] gap-0.5">
+                  <Badge variant={isPlatinum ? "platinum" : "gold"} className="text-[9px] gap-0.5">
                     <ArrowUp className="h-2 w-2" />{item.score}
                   </Badge>
                   <span className="text-[10px] text-muted-foreground shrink-0">{item.time}</span>
@@ -227,7 +226,7 @@ export function BreakingLeadsTicker() {
         </div>
       )}
 
-      <p className="text-[10px] text-muted-foreground text-center pt-1">
+      <p className="text-[11px] text-muted-foreground text-center pt-1">
         {items.length > 0
           ? `${items.length} breaking leads — real-time feed`
           : "Waiting for high-score prospects"}

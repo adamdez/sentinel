@@ -63,20 +63,20 @@ export function ActiveDrips() {
           style={drip.status === "active" ? { boxShadow: "inset 0 0 15px rgba(0,212,255,0.02)" } : {}}
         >
           <div className="flex items-center justify-between">
-            <span className="text-[11px] font-medium truncate">{drip.name}</span>
+            <span className="text-xs font-medium truncate">{drip.name}</span>
             <Badge
               variant={drip.status === "active" ? "neon" : "secondary"}
-              className="text-[8px]"
+              className="text-[9px]"
             >
               {drip.status}
             </Badge>
           </div>
-          <div className="flex items-center gap-3 text-[11px] text-muted-foreground">
+          <div className="flex items-center gap-3 text-xs text-muted-foreground">
             <span className="flex items-center gap-1"><Users className="h-2.5 w-2.5" /> {drip.count} leads</span>
           </div>
         </motion.div>
       ))}
-      <p className="text-[10px] text-muted-foreground text-center pt-1">
+      <p className="text-[11px] text-muted-foreground text-center pt-1">
         {totalActive > 0
           ? `${totalActive} leads across active pipelines`
           : "No leads in nurture or drip sequences yet"}

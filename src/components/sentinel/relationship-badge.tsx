@@ -171,7 +171,7 @@ export function RelationshipBadgeCompact({ data }: { data: RelationshipData }) {
       onMouseLeave={() => setShowTip(false)}
     >
       <span
-        className={`inline-flex items-center gap-1 px-1.5 py-0 rounded-[6px] text-[8px] font-bold uppercase tracking-wider border shrink-0 ${
+        className={`inline-flex items-center gap-1 px-1.5 py-0 rounded-[6px] text-[9px] font-bold uppercase tracking-wider border shrink-0 ${
           heir
             ? "text-purple-300 bg-purple-500/10 border-purple-500/20"
             : "text-emerald-300 bg-emerald-500/10 border-emerald-500/20"

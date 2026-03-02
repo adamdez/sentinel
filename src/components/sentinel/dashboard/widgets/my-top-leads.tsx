@@ -86,22 +86,19 @@ export function MyTopLeads() {
               <p
                 className="text-xs font-semibold truncate text-foreground"
                 style={{
-                  textShadow: lead.isOverdue
-                    ? "0 0 8px rgba(255,68,68,0.2), 0 0 16px rgba(255,68,68,0.08)"
-                    : "0 0 8px rgba(0,212,255,0.15), 0 0 16px rgba(0,212,255,0.06)",
                   WebkitFontSmoothing: "antialiased",
                 }}
               >
                 {lead.ownerName}
               </p>
               {lead.isOverdue && (
-                <Badge variant="destructive" className="text-[8px] px-1 py-0 gap-0.5">
+                <Badge variant="destructive" className="text-[9px] px-1.5 py-0 gap-0.5">
                   <AlertTriangle className="h-2 w-2" /> OVERDUE
                 </Badge>
               )}
             </div>
             <p
-              className="text-[11px] font-medium text-muted-foreground/90 truncate"
+              className="text-xs font-medium text-muted-foreground truncate"
               style={{ WebkitFontSmoothing: "antialiased" }}
             >
               {lead.address}
@@ -116,9 +113,7 @@ export function MyTopLeads() {
                 className={cn(
                   lead.isOverdue ? "text-red-400" : "text-muted-foreground"
                 )}
-                style={lead.isOverdue ? {
-                  textShadow: "0 0 8px rgba(255,68,68,0.3), 0 0 16px rgba(255,68,68,0.1)",
-                } : {}}
+                style={{}}
               >
                 {lead.isOverdue
                   ? `${Math.abs(lead.daysUntilFollowUp)}d overdue`
@@ -132,7 +127,7 @@ export function MyTopLeads() {
           <Button
             size="sm"
             className={cn(
-              "h-7 text-[10px] gap-1 shrink-0",
+              "h-7 text-[11px] gap-1 shrink-0",
               lead.isOverdue && "bg-destructive hover:bg-destructive/90 shadow-[0_0_15px_rgba(255,68,68,0.2)]"
             )}
             onClick={() => { const phone = lead.ownerPhone; if (phone) window.open(`tel:${phone.replace(/\D/g, "")}`); }}
@@ -142,7 +137,7 @@ export function MyTopLeads() {
           </Button>
         </motion.div>
       ))}
-      <p className="text-[10px] text-muted-foreground text-center pt-1">
+      <p className="text-[11px] text-muted-foreground text-center pt-1">
         Priority = score × urgency × contact recency — overdue leads surface first
       </p>
     </div>

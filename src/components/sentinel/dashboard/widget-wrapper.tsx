@@ -89,7 +89,7 @@ export function WidgetWrapper({
             <GripVertical className="h-3.5 w-3.5" />
           </button>
           <def.icon className="h-3.5 w-3.5 text-cyan" />
-          <span className="text-xs font-semibold tracking-tight text-glow-heading">{def.label}</span>
+          <span className="text-sm font-semibold tracking-tight text-glow-heading">{def.label}</span>
         </div>
         <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity duration-100">
           <Tooltip>

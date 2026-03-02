@@ -178,12 +178,12 @@ export function NextBestAction() {
       >
         <div className="flex items-center gap-2 mb-2">
           <GlowingOrb />
-          <span className="text-[11px] font-semibold text-cyan uppercase tracking-wider">
+          <span className="text-xs font-semibold text-cyan uppercase tracking-wider">
             AI Recommendation
           </span>
           {hasPredictive && (
-            <span className="flex items-center gap-0.5 text-[10px] text-purple-400 font-medium">
-              <Brain className="h-2.5 w-2.5" />
+            <span className="flex items-center gap-0.5 text-[11px] text-purple-400 font-medium">
+              <Brain className="h-3 w-3" />
               Predictive
             </span>
           )}
@@ -192,15 +192,15 @@ export function NextBestAction() {
           <span>{primary.action === "Call Now" ? "Call" : "Contact"} {primary.name} now</span>
           <RelationshipBadgeCompact data={{ tags: primary.tags }} />
         </p>
-        <p className="text-[11px] text-muted-foreground mb-2.5">
+        <p className="text-xs text-muted-foreground mb-2.5">
           {primary.reason}
         </p>
         <div className="flex items-center gap-2">
-          <Button size="sm" className="h-7 text-[10px] gap-1 flex-1" onClick={() => { if (primary.phone) window.open(`tel:${primary.phone.replace(/\D/g, "")}`); }}>
+          <Button size="sm" className="h-7 text-[11px] gap-1 flex-1" onClick={() => { if (primary.phone) window.open(`tel:${primary.phone.replace(/\D/g, "")}`); }}>
             <Phone className="h-3 w-3" />
             {primary.action}
           </Button>
-          <Button size="sm" variant="outline" className="h-7 text-[10px] gap-1" onClick={() => setSnoozed(true)}>
+          <Button size="sm" variant="outline" className="h-7 text-[11px] gap-1" onClick={() => setSnoozed(true)}>
             <Clock className="h-3 w-3" />
             Snooze
           </Button>
@@ -208,7 +208,7 @@ export function NextBestAction() {
       </motion.div>
 
       {secondary && (
-        <div className="text-[10px] text-muted-foreground flex items-center gap-1">
+        <div className="text-[11px] text-muted-foreground flex items-center gap-1">
           <ArrowRight className="h-2.5 w-2.5" />
           {secondary}
         </div>

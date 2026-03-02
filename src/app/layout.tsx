@@ -6,6 +6,11 @@ import { Providers } from "@/providers/providers";
 export const metadata: Metadata = {
   title: "Sentinel — Unified ERP",
   description: "Real estate wholesaling command system",
+  icons: {
+    icon: [
+      { url: "/favicon.svg", type: "image/svg+xml" },
+    ],
+  },
 };
 
 export default function RootLayout({

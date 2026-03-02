@@ -87,7 +87,7 @@ export default function LoginPage() {
           >
             SENTINEL
           </h1>
-          <p className="text-xs text-muted-foreground/50 tracking-[0.2em] uppercase mt-1">
+          <p className="text-xs text-muted-foreground/70 tracking-[0.2em] uppercase mt-1">
             Dominion Command System
           </p>
         </div>

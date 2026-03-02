@@ -27,13 +27,13 @@ export function TeamChatPreview() {
           className="flex items-start gap-2"
         >
           <Avatar className="h-5 w-5 shrink-0 mt-0.5">
-            <AvatarFallback className={cn("text-[8px]", userColors[msg.user_id] || "bg-[rgba(18,18,32,0.6)]")}>
+            <AvatarFallback className={cn("text-[9px]", userColors[msg.user_id] || "bg-[rgba(18,18,32,0.6)]")}>
               {msg.user_name.split(" ").map((n) => n[0]).join("")}
             </AvatarFallback>
           </Avatar>
           <div className="min-w-0">
-            <span className="text-[11px] font-medium">{msg.user_name}</span>
-            <p className="text-[11px] text-muted-foreground truncate">{msg.content}</p>
+            <span className="text-xs font-medium">{msg.user_name}</span>
+            <p className="text-xs text-muted-foreground truncate">{msg.content}</p>
           </div>
         </motion.div>
       ))}

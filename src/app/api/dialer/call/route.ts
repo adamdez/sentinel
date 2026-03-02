@@ -30,11 +30,11 @@ export async function POST(req: NextRequest) {
 
   const sid = process.env.TWILIO_ACCOUNT_SID;
   const token = process.env.TWILIO_AUTH_TOKEN;
-  const from = process.env.TWILIO_PHONE_NUMBER;
+  const fallbackFrom = process.env.TWILIO_PHONE_NUMBER;
 
-  if (!sid || !token || !from) {
+  if (!sid || !token) {
     return NextResponse.json(
-      { error: "Twilio credentials not configured (TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_PHONE_NUMBER)" },
+      { error: "Twilio credentials not configured (TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN)" },
       { status: 500 }
     );
   }
@@ -74,14 +74,32 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  // 2. Lookup agent's personal cell for warm transfer
-  let agentCell = "";
+  // 2. Lookup agent's profile: personal_cell for warm transfer,
+  //    twilio_phone_number for outbound caller ID, full_name for CNAM
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data: agentProfile } = await (sb.from("user_profiles") as any)
-    .select("personal_cell")
+    .select("personal_cell, twilio_phone_number, full_name")
     .eq("id", userId)
     .single();
-  agentCell = (agentProfile?.personal_cell as string) ?? "";
+
+  const agentCell = (agentProfile?.personal_cell as string) ?? "";
+  const agentTwilioNumber = (agentProfile?.twilio_phone_number as string) ?? "";
+  const agentFullName = (agentProfile?.full_name as string) ?? "";
+
+  // Determine the From number: user's assigned Twilio number, or env fallback
+  const from = agentTwilioNumber || fallbackFrom;
+  if (!from) {
+    return NextResponse.json(
+      { error: "No Twilio phone number configured for this user or in environment" },
+      { status: 500 }
+    );
+  }
+
+  // Build per-user caller ID name (max 15 chars for CNAM standard)
+  const firstName = agentFullName.split(" ")[0] || "";
+  const callerIdName = firstName
+    ? `Dominion ${firstName}`.substring(0, 15)
+    : "Dominion Homes";
 
   // 3. Twilio REST API — create call with warm transfer webhook
   const twilioUrl = `https://api.twilio.com/2010-04-01/Accounts/${sid}/Calls.json`;
@@ -118,7 +136,6 @@ export async function POST(req: NextRequest) {
     Url: voiceWebhookUrl,
     StatusCallback: statusCallbackUrl,
     StatusCallbackEvent: "initiated ringing answered completed",
-    CallerIdName: "Dominion Homes",
   });
 
   let twilioSid: string | null = null;
@@ -141,7 +158,7 @@ export async function POST(req: NextRequest) {
       console.error("[Dialer] Twilio error:", data);
     } else {
       twilioSid = data.sid;
-      console.log("[Dialer] Call initiated:", twilioSid);
+      console.log("[Dialer] Call initiated:", twilioSid, "From:", from, "CallerID:", callerIdName);
     }
   } catch (err) {
     twilioError = err instanceof Error ? err.message : "Network error";
@@ -167,6 +184,8 @@ export async function POST(req: NextRequest) {
       phone: `***${phone.slice(-4)}`,
       lead_id: body.leadId,
       twilio_sid: twilioSid,
+      from_number: from,
+      caller_id_name: callerIdName,
       transferred_to: agentCell ? `***${agentCell.slice(-4)}` : null,
       ghost_mode: body.ghostMode ?? false,
     },

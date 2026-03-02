@@ -23,22 +23,30 @@ export async function POST(req: NextRequest) {
 
   const sb = createServerClient();
 
-  // Look up agent's personal cell from user_profiles.personal_cell column
+  // Look up agent's profile: personal_cell, twilio_phone_number, full_name
   let personalCell = "";
   let agentName = "";
+  let agentTwilioNumber = "";
   if (agentId) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { data: profile } = await (sb.from("user_profiles") as any)
-      .select("personal_cell, full_name")
+      .select("personal_cell, full_name, twilio_phone_number")
       .eq("id", agentId)
       .single();
 
     personalCell = (profile?.personal_cell as string) ?? "";
     agentName = (profile?.full_name as string) ?? "";
+    agentTwilioNumber = (profile?.twilio_phone_number as string) ?? "";
   }
 
-  const callerIdName = "Dominion Homes";
-  const twilioNumber = process.env.TWILIO_PHONE_NUMBER ?? "";
+  // Use agent's assigned Twilio number, fall back to env var
+  const twilioNumber = agentTwilioNumber || process.env.TWILIO_PHONE_NUMBER || "";
+
+  // Build per-agent display name
+  const firstName = agentName.split(" ")[0] || "";
+  const callerIdName = firstName
+    ? `Dominion ${firstName}`
+    : "Dominion Homes";
 
   let twiml: string;
 
@@ -69,6 +77,7 @@ export async function POST(req: NextRequest) {
       has_personal_cell: !!personalCell,
       warm_transfer: !!personalCell,
       agent_name: agentName,
+      from_number: twilioNumber,
       transferred_to: personalCell ? `***${personalCell.slice(-4)}` : null,
       timestamp: new Date().toISOString(),
     },

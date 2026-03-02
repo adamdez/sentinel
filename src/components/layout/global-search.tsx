@@ -255,7 +255,7 @@ export function GlobalSearch() {
             <X className="h-3.5 w-3.5" />
           </button>
         ) : (
-          <kbd className="text-[10px] bg-white/[0.03] px-1.5 py-0.5 rounded-[6px] border border-white/[0.06] font-mono text-muted-foreground/50">
+          <kbd className="text-[11px] bg-white/[0.03] px-1.5 py-0.5 rounded-[6px] border border-white/[0.06] font-mono text-muted-foreground/70">
             Ctrl+K
           </kbd>
         )}
@@ -354,7 +354,7 @@ export function GlobalSearch() {
               </div>
             )}
 
-            <div className="border-t border-white/[0.04] px-3 py-1.5 flex items-center gap-4 text-[10px] text-muted-foreground/40">
+            <div className="border-t border-white/[0.04] px-3 py-1.5 flex items-center gap-4 text-[11px] text-muted-foreground/60">
               <span>
                 <kbd className="font-mono bg-white/[0.03] px-1 py-0.5 rounded-[4px] border border-white/[0.06]">↑↓</kbd> Navigate
               </span>

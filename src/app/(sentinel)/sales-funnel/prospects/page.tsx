@@ -5,7 +5,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import {
   UserPlus, Search, Filter, ArrowUpDown, ArrowUp, ArrowDown,
   Phone, MoreHorizontal, Radar, Loader2, AlertCircle,
-  RefreshCw, Shield, UserCheck, Home,
+  RefreshCw, Shield, UserCheck, Home, Trash2, Eye,
 } from "lucide-react";
 import { PageShell } from "@/components/sentinel/page-shell";
 import { GlassCard } from "@/components/sentinel/glass-card";
@@ -22,6 +22,10 @@ import { useModal } from "@/providers/modal-provider";
 import type { AIScore } from "@/lib/types";
 import { toast } from "sonner";
 import { RelationshipBadgeCompact } from "@/components/sentinel/relationship-badge";
+import {
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem,
+  DropdownMenuTrigger, DropdownMenuSeparator,
+} from "@/components/ui/dropdown-menu";
 
 // ── Constants ─────────────────────────────────────────────────────────
 
@@ -110,6 +114,7 @@ export default function ProspectsPage() {
   const [selectedProspect, setSelectedProspect] = useState<ProspectRow | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
   const [claiming, setClaiming] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState<string | null>(null);
   const [testingPR, setTestingPR] = useState(false);
 
   const handleQuickTestPR = async () => {
@@ -236,6 +241,31 @@ export default function ProspectsPage() {
       }
     } finally {
       setClaiming(null);
+    }
+  };
+
+  const handleDelete = async (prospect: ProspectRow) => {
+    if (!confirm(`Delete prospect "${prospect.owner_name}" at ${prospect.address}? This cannot be undone.`)) return;
+
+    setDeleting(prospect.id);
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { error: delLeadErr } = await (supabase.from("leads") as any)
+        .delete()
+        .eq("id", prospect.id);
+
+      if (delLeadErr) {
+        console.error("[Prospects] DELETE FAILED:", delLeadErr);
+        toast.error(`Delete failed: ${delLeadErr.message}`);
+      } else {
+        toast.success(`Deleted prospect: ${prospect.owner_name}`);
+        if (typeof refetch === "function") refetch();
+      }
+    } catch (err) {
+      toast.error("Network error — could not delete");
+      console.error("[Prospects] delete error:", err);
+    } finally {
+      setDeleting(null);
     }
   };
 
@@ -439,13 +469,13 @@ export default function ProspectsPage() {
                           {/* Tier + Absentee indicators */}
                           <div className="flex flex-col items-center gap-0.5 pt-0.5 shrink-0">
                             {p.tags.includes("tier-a") && (
-                              <span className="text-[8px] font-black px-1 rounded bg-red-500/15 text-red-400 border border-red-500/20">A</span>
+                              <span className="text-[9px] font-black px-1 rounded bg-red-500/15 text-red-400 border border-red-500/20">A</span>
                             )}
                             {p.tags.includes("tier-b") && (
-                              <span className="text-[8px] font-black px-1 rounded bg-orange-500/15 text-orange-400 border border-orange-500/20">B</span>
+                              <span className="text-[9px] font-black px-1 rounded bg-orange-500/15 text-orange-400 border border-orange-500/20">B</span>
                             )}
                             {p.tags.includes("tier-c") && (
-                              <span className="text-[8px] font-black px-1 rounded bg-yellow-500/15 text-yellow-400 border border-yellow-500/20">C</span>
+                              <span className="text-[9px] font-black px-1 rounded bg-yellow-500/15 text-yellow-400 border border-yellow-500/20">C</span>
                             )}
                             {p.is_absentee && (
                               <Home className="h-3 w-3 text-purple-400" />
@@ -455,7 +485,6 @@ export default function ProspectsPage() {
                             <p
                               className="text-sm font-semibold text-foreground"
                               style={{
-                                textShadow: "0 0 8px rgba(0,212,255,0.15), 0 0 16px rgba(0,212,255,0.06)",
                                 WebkitFontSmoothing: "antialiased",
                               }}
                             >
@@ -493,7 +522,7 @@ export default function ProspectsPage() {
                             ${p.estimated_value.toLocaleString()}
                           </span>
                         ) : (
-                          <span className="text-xs text-muted-foreground/50">—</span>
+                          <span className="text-xs text-muted-foreground/70">—</span>
                         )}
                       </td>
                       <td className="p-3 text-right">
@@ -505,7 +534,7 @@ export default function ProspectsPage() {
                             {Math.round(p.equity_percent)}%
                           </span>
                         ) : (
-                          <span className="text-xs text-muted-foreground/50">—</span>
+                          <span className="text-xs text-muted-foreground/70">—</span>
                         )}
                       </td>
                       <td className="p-3">
@@ -540,9 +569,28 @@ export default function ProspectsPage() {
                           >
                             <Shield className="h-3 w-3" />
                           </Button>
-                          <Button variant="ghost" size="icon" className="h-7 w-7" title="More">
-                            <MoreHorizontal className="h-3 w-3" />
-                          </Button>
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button variant="ghost" size="icon" className="h-7 w-7" title="More">
+                                <MoreHorizontal className="h-3 w-3" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end" className="min-w-[160px]">
+                              <DropdownMenuItem onClick={() => openDetail(p)} className="gap-2 text-xs">
+                                <Eye className="h-3 w-3" />
+                                View Details
+                              </DropdownMenuItem>
+                              <DropdownMenuSeparator />
+                              <DropdownMenuItem
+                                onClick={() => handleDelete(p)}
+                                disabled={deleting === p.id}
+                                className="gap-2 text-xs text-red-400 focus:text-red-400 focus:bg-red-500/10"
+                              >
+                                {deleting === p.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <Trash2 className="h-3 w-3" />}
+                                Delete Prospect
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
                         </div>
                       </td>
                     </motion.tr>

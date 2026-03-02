@@ -74,21 +74,20 @@ export function MyTopProspects() {
               boxShadow: "0 0 15px rgba(0,212,255,0.12), inset 0 0 20px rgba(0,212,255,0.03)",
             } : {}}
           >
-            <span className="text-[10px] text-muted-foreground font-mono w-3 shrink-0">
+            <span className="text-[11px] text-muted-foreground font-mono w-3 shrink-0">
               {i + 1}
             </span>
             <div className="flex-1 min-w-0">
               <p
                 className="text-xs font-semibold truncate text-foreground"
                 style={{
-                  textShadow: "0 0 8px rgba(0,212,255,0.15), 0 0 16px rgba(0,212,255,0.06)",
                   WebkitFontSmoothing: "antialiased",
                 }}
               >
                 {prospect.owner_name}
               </p>
               <p
-                className="text-[11px] font-medium text-muted-foreground/90 truncate"
+                className="text-xs font-medium text-muted-foreground truncate"
                 style={{ WebkitFontSmoothing: "antialiased" }}
               >
                 {prospect.address}
@@ -96,7 +95,7 @@ export function MyTopProspects() {
                 {prospect.state ? ` ${prospect.state}` : ""}
               </p>
             </div>
-            <Badge variant="outline" className="text-[9px] shrink-0 hidden sm:flex">
+            <Badge variant="outline" className="text-[10px] shrink-0 hidden sm:flex">
               {distressLabel}
             </Badge>
             <AIScoreBadge score={aiScore} size="sm" />
@@ -111,7 +110,7 @@ export function MyTopProspects() {
           </motion.div>
         );
       })}
-      <p className="text-[10px] text-muted-foreground text-center pt-1">
+      <p className="text-[11px] text-muted-foreground text-center pt-1">
         Scored by Dominion Heat Score v1.1 — top {top5.length} of {prospects.length} prospects
       </p>
     </div>

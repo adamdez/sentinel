@@ -116,12 +116,12 @@ export function LiveMap() {
 
         <div className="absolute bottom-2 left-2 flex gap-1.5">
           {fireCount > 0 && (
-            <Badge variant="neon" className="text-[8px]">{fireCount} FIRE</Badge>
+            <Badge variant="neon" className="text-[9px]">{fireCount} FIRE</Badge>
           )}
           {hotCount > 0 && (
-            <Badge variant="outline" className="text-[8px] border-red-400/30 text-red-400">{hotCount} HOT</Badge>
+            <Badge variant="outline" className="text-[9px] border-red-400/30 text-red-400">{hotCount} HOT</Badge>
           )}
-          <Badge variant="outline" className="text-[8px]">{prospects.length} Total</Badge>
+          <Badge variant="outline" className="text-[9px]">{prospects.length} Total</Badge>
         </div>
       </div>
     </div>

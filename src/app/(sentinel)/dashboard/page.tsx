@@ -214,16 +214,16 @@ export default function DashboardPage() {
             </button>
           )}
           {ghostMode && (
-            <Badge variant="outline" className="text-[10px] gap-1 border-yellow-500/30 text-yellow-400">
+            <Badge variant="outline" className="text-[11px] gap-1 border-yellow-500/30 text-yellow-400">
               Ghost Mode — activity not logged
             </Badge>
           )}
-          <Badge variant="outline" className="text-[10px] gap-1">
-            <Shield className="h-2.5 w-2.5" />
+          <Badge variant="outline" className="text-[11px] gap-1">
+            <Shield className="h-3 w-3" />
             {currentUser.role}
           </Badge>
-          <Badge variant="neon" className="text-[10px] gap-1">
-            <Zap className="h-2.5 w-2.5" />
+          <Badge variant="neon" className="text-[11px] gap-1">
+            <Zap className="h-3 w-3" />
             AI Model {SCORING_MODEL_VERSION}
           </Badge>
         </div>

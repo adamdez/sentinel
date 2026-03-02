@@ -33,7 +33,7 @@ function ScoreBar({ label, value, max = 100 }: { label: string; value: number; m
   const pct = Math.min((value / max) * 100, 100);
   return (
     <div className="space-y-0.5">
-      <div className="flex justify-between text-[10px]">
+      <div className="flex justify-between text-[11px]">
         <span className="text-muted-foreground">{label}</span>
         <span className="text-foreground font-medium">{value}</span>
       </div>
@@ -78,10 +78,10 @@ export function AIScoreBadge({ score, prediction, size = "md" }: AIScoreBadgePro
               )}
             />
             <span className="font-bold">{score.composite}</span>
-            <span className="opacity-75 text-[10px]">{config.text}</span>
+            <span className="opacity-90 text-[11px]">{config.text}</span>
           </Badge>
           {score.aiBoost > 0 && (
-            <span className="text-[9px] font-medium text-cyan bg-cyan/8 px-1 py-0.5 rounded border border-cyan/15">
+            <span className="text-[10px] font-medium text-cyan bg-cyan/8 px-1.5 py-0.5 rounded border border-cyan/15">
               AI +{score.aiBoost}
             </span>
           )}
@@ -104,7 +104,7 @@ export function AIScoreBadge({ score, prediction, size = "md" }: AIScoreBadgePro
           {score.aiBoost > 0 && (
             <div className="flex items-center gap-1 pt-1 border-t border-glass-border">
               <Sparkles className="h-3 w-3 text-cyan" />
-              <span className="text-[10px] text-cyan font-medium">
+              <span className="text-[11px] text-cyan font-medium">
                 AI Boost: +{score.aiBoost} from predictive model
               </span>
             </div>
@@ -113,15 +113,15 @@ export function AIScoreBadge({ score, prediction, size = "md" }: AIScoreBadgePro
             <div className="pt-1 border-t border-glass-border space-y-1">
               <div className="flex items-center gap-1">
                 <Brain className="h-3 w-3 text-purple-400" />
-                <span className="text-[10px] text-purple-400 font-medium">
+                <span className="text-[11px] text-purple-400 font-medium">
                   Predictive: {prediction.predictiveScore}/100
                 </span>
               </div>
-              <div className="flex items-center justify-between text-[10px]">
+              <div className="flex items-center justify-between text-[11px]">
                 <span className="text-muted-foreground">Distress in</span>
                 <span className="text-orange-400 font-semibold">~{prediction.daysUntilDistress}d</span>
               </div>
-              <div className="flex items-center justify-between text-[10px]">
+              <div className="flex items-center justify-between text-[11px]">
                 <span className="text-muted-foreground">Confidence</span>
                 <span className="text-foreground font-medium">{prediction.confidence}%</span>
               </div>

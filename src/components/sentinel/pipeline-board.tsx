@@ -139,7 +139,7 @@ function PipelineColumn({ title, items, count, color, onCall }: PipelineColumnPr
             <SortableCard key={item.id} item={item} onCall={onCall} />
           ))}
           {items.length === 0 && (
-            <div className="text-xs text-muted-foreground/40 text-center py-6 border border-dashed border-glass-border rounded-[14px]">
+            <div className="text-xs text-muted-foreground/60 text-center py-6 border border-dashed border-glass-border rounded-[14px]">
               No items
             </div>
           )}

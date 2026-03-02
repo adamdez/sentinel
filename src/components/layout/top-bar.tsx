@@ -138,7 +138,7 @@ export function TopBar() {
           <DropdownMenuTrigger asChild>
             <Button variant="ghost" className="h-8 gap-2 px-2 group">
               <Avatar className="h-6 w-6 avatar-holo">
-                <AvatarFallback className="text-[10px] bg-cyan/[0.08] text-cyan border-0">
+                <AvatarFallback className="text-[11px] bg-cyan/[0.08] text-cyan border-0">
                   {currentUser.name
                     ? currentUser.name
                         .split(" ")

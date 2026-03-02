@@ -81,7 +81,7 @@
   --secondary-foreground: #e6e6f2;
 
   --muted: #06061a;
-  --muted-foreground: #8a8aab;
+  --muted-foreground: #9e9ec0;
 
   --accent: rgba(179, 136, 255, 0.1);
   --accent-foreground: #d4bfff;
@@ -582,16 +582,14 @@ body {
 /* Typography glow for large headings and numbers */
 .text-glow-heading {
   text-shadow:
-    0 0 0.8px rgba(255, 255, 255, 0.5),
-    0 0 3px rgba(0, 229, 255, 0.2),
-    0 0 8px rgba(0, 229, 255, 0.08);
+    0 0 0.5px rgba(255, 255, 255, 0.7),
+    0 0 2px rgba(0, 229, 255, 0.15);
 }
 
 .text-glow-number {
   text-shadow:
-    0 0 0.8px rgba(255, 255, 255, 0.6),
-    0 0 4px rgba(0, 255, 136, 0.3),
-    0 0 10px rgba(0, 255, 136, 0.1);
+    0 0 0.5px rgba(255, 255, 255, 0.7),
+    0 0 3px rgba(0, 255, 136, 0.2);
 }
 
 /* ═══════════════════════════════════════════════════════════════════
