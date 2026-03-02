@@ -242,13 +242,13 @@ export function buildTroubleshootAgentPrompt(diagnostics: TroubleshootDiagnostic
     "### Your Task",
     "1. Explain each detected issue in plain language — what broke, why, and what the impact is.",
     "2. Prioritize issues by severity (critical first, then degraded).",
-    "3. For each issue, provide a ready-to-paste Cursor Composer fix prompt using this format:",
-    "```",
-    "CURSOR FIX: [title]",
-    "File: [path]",
-    "Issue: [description]",
-    "Fix: [exact change]",
-    "```",
+    "3. For EACH issue, output a complete Cursor Composer prompt. ALWAYS start the fix block with:",
+    '   `Here is the complete ready-to-paste Cursor Composer prompt for Claude:`',
+    "   Then provide the full prompt in a ```cursor code fence, including:",
+    "   - Exact files to modify (full paths from project root: src/...)",
+    "   - The specific code change (find string → replace string)",
+    "   - Git commit message in imperative mood",
+    "   - Verification: `Run \\`npm run build\\` to confirm zero errors`",
     "4. If everything is nominal, confirm all systems are healthy and suggest proactive optimizations.",
     "5. End with a one-line system health verdict.",
   );
@@ -261,7 +261,7 @@ export type AgentType = "call-copilot" | "outreach" | "optimization" | "forecast
 export function detectAgentIntent(message: string): AgentType | null {
   const lower = message.toLowerCase();
 
-  if (/\b(troubleshoot|diagnos|debug|fix\s*error|system\s*health|what.?s?\s*broken|check\s*errors?|self.?heal)\b/.test(lower)) {
+  if (/\b(troubleshoot|diagnos|debug|fix\b|fix\s*error|system\s*health|what.?s?\s*broken|check\s*errors?|self.?heal|cursor\s*(prompt|fix)|generate\s*cursor|what.?s?\s*wrong)\b/.test(lower)) {
     return "troubleshoot";
   }
   if (/\b(draft|write|compose|send|text|sms|email|outreach|message)\b/.test(lower) &&
