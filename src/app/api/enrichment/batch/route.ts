@@ -14,8 +14,11 @@ export const maxDuration = 300; // 5 min Vercel Pro timeout
  * Processes up to 10 staging leads per invocation:
  *   1. Fetch staging leads (oldest first)
  *   2. Enrich each via PropertyRadar → ATTOM fallback
- *   3. Score and promote to "prospect" when enriched
- *   4. After 3 failed attempts, promote with partial data
+ *   3. Score and tag — leads STAY in "staging" (reservoir model)
+ *   4. After 3 failed attempts, finalize with partial data
+ *
+ * Leads are promoted to "prospect" only via POST /api/enrichment/promote
+ * when an admin explicitly requests them by score tier.
  *
  * Auth: CRON_SECRET header (same as daily-poll).
  * Can also be triggered manually by admins for testing.

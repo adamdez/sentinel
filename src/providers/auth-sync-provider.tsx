@@ -12,21 +12,38 @@ const TEAM_MAP: Record<string, { name: string; role: SentinelUser["role"] }> = {
   "logan@dominionhomedeals.com": { name: "Logan D.", role: "admin" },
 };
 
-async function resolveUser(supabaseUser: { id: string; email?: string }): Promise<SentinelUser> {
+async function ensureProfileAndResolve(
+  supabaseUser: { id: string; email?: string },
+  accessToken: string,
+): Promise<SentinelUser> {
   const email = supabaseUser.email ?? "";
   const mapped = TEAM_MAP[email];
 
-  // Fetch personal_cell from user_profiles
   let personalCell: string | undefined;
   try {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data: profile } = await (supabase.from("user_profiles") as any)
-      .select("personal_cell")
-      .eq("id", supabaseUser.id)
-      .single();
-    personalCell = profile?.personal_cell ?? undefined;
+    const res = await fetch("/api/auth/ensure-profile", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${accessToken}`,
+      },
+    });
+    if (res.ok) {
+      const data = await res.json();
+      personalCell = data.personal_cell ?? undefined;
+    }
   } catch {
-    // Profile may not exist yet
+    // Non-fatal — profile may already exist, fall back to direct query
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data: profile } = await (supabase.from("user_profiles") as any)
+        .select("personal_cell")
+        .eq("id", supabaseUser.id)
+        .single();
+      personalCell = profile?.personal_cell ?? undefined;
+    } catch {
+      // Profile genuinely doesn't exist yet
+    }
   }
 
   return {
@@ -50,7 +67,7 @@ export function AuthSyncProvider({ children }: { children: React.ReactNode }) {
       const { data: { session } } = await supabase.auth.getSession();
 
       if (session?.user) {
-        setCurrentUser(await resolveUser(session.user));
+        setCurrentUser(await ensureProfileAndResolve(session.user, session.access_token));
       } else if (pathname !== "/login") {
         router.replace("/login");
       }
@@ -60,7 +77,7 @@ export function AuthSyncProvider({ children }: { children: React.ReactNode }) {
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
       if (session?.user) {
-        setCurrentUser(await resolveUser(session.user));
+        setCurrentUser(await ensureProfileAndResolve(session.user, session.access_token));
       } else if (pathname !== "/login") {
         router.replace("/login");
       }

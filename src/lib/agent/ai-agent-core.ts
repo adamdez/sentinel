@@ -536,15 +536,14 @@ async function processAttomProperty(
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { data: existingLead } = await (sb.from("leads") as any)
       .select("id").eq("property_id", property.id)
-      .in("status", ["prospect", "lead", "negotiation", "nurture"]).maybeSingle();
+      .in("status", ["staging", "prospect", "lead", "negotiation", "nurture"]).maybeSingle();
 
     if (!existingLead) {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       await (sb.from("leads") as any).insert({
-        property_id: property.id, status: "prospect", priority: blendedScore,
+        property_id: property.id, status: "staging", priority: blendedScore,
         source: ATTOM_SOURCE_TAG, tags: [scoreLabelTag, ...signalTags],
         notes: `ATTOM Delta [${label}] — Heat ${blendedScore} (det:${score.composite} + pred:${predOutput.predictiveScore}). Distress ~${predOutput.daysUntilDistress}d (${predOutput.confidence}% conf). ${signals.length} signal(s). ATTOM ID: ${prop.identifier?.attomId ?? "N/A"}`,
-        promoted_at: new Date().toISOString(),
       });
       result.promoted++;
     } else {
@@ -662,15 +661,14 @@ async function processAttomForeclosure(
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { data: existingLead } = await (sb.from("leads") as any)
       .select("id").eq("property_id", property.id)
-      .in("status", ["prospect", "lead", "negotiation", "nurture"]).maybeSingle();
+      .in("status", ["staging", "prospect", "lead", "negotiation", "nurture"]).maybeSingle();
 
     if (!existingLead) {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       await (sb.from("leads") as any).insert({
-        property_id: property.id, status: "prospect", priority: blendedScore,
+        property_id: property.id, status: "staging", priority: blendedScore,
         source: ATTOM_SOURCE_TAG, tags: [scoreLabelTag, "pre_foreclosure"],
         notes: `ATTOM Foreclosure [${label}] — Heat ${blendedScore} (det:${score.composite} + pred:${predOutput.predictiveScore}). ${fc.FC?.FCType ?? "Unknown"} stage. Default: $${fc.FC?.defaultAmount ?? "?"}. Lender: ${fc.FC?.lenderName ?? "N/A"}`,
-        promoted_at: new Date().toISOString(),
       });
       result.promoted++;
     } else {

@@ -161,7 +161,7 @@ async function ingestRecord(
     .upsert(
       {
         property_id: prop.id,
-        status: "prospect",
+        status: "staging",
         source: record.source,
         priority: score,
         tags: [record.distressType],

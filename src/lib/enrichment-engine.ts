@@ -1,5 +1,5 @@
 /**
- * Sentinel Enrichment Engine v1.0
+ * Sentinel Enrichment Engine v1.1
  *
  * Automatic property enrichment pipeline for staging leads.
  * Called by the enrichment batch cron and the agent cycle.
@@ -9,12 +9,16 @@
  *   2. ATTOM valuation fallback (if PR returns no AVM)
  *   3. Skip-trace for phone/email (PR Persons endpoint)
  *   4. Full scoring (deterministic v2.1 + predictive v2.1 + blend)
- *   5. Promote lead from "staging" → "prospect"
+ *   5. Finalize lead — set score, tags, notes but KEEP status "staging"
  *
- * Safety net: After MAX_ATTEMPTS failures, promotes anyway with partial data.
+ * Staging acts as a RESERVOIR. Leads are enriched & scored but stay invisible.
+ * Admins pull leads into "prospect" on demand via POST /api/enrichment/promote.
+ *
+ * Safety net: After MAX_ATTEMPTS failures, marks as enriched with partial data
+ * (still in staging — admin decides when to promote).
  *
  * Domain: Enrichment Pipeline — reads properties, writes enriched data,
- * promotes leads. Respects all golden key and dedup invariants.
+ * scores leads. Respects all golden key and dedup invariants.
  */
 
 import { createServerClient } from "@/lib/supabase";
@@ -241,8 +245,8 @@ export async function enrichProperty(
       // ── Step 4: Full scoring pipeline ──────────────────────────
       const score = await runScoringPipeline(sb, propertyId, property, prResult.pr, signals);
 
-      // ── Step 5: Promote lead staging → prospect ────────────────
-      await promoteToProspect(sb, leadId, propertyId, score.blended, signals, "propertyradar", attempts);
+      // ── Step 5: Finalize lead (score + tag, keep in staging) ────
+      await finalizeEnrichment(sb, leadId, propertyId, score.blended, signals, "propertyradar", attempts);
 
       return {
         propertyId, leadId, success: true,
@@ -263,7 +267,7 @@ export async function enrichProperty(
       const signals = attomResult.signals ?? [];
       const score = await runScoringPipelineFromFlags(sb, propertyId, property, signals);
 
-      await promoteToProspect(sb, leadId, propertyId, score.blended, signals, "attom", attempts);
+      await finalizeEnrichment(sb, leadId, propertyId, score.blended, signals, "attom", attempts);
 
       return {
         propertyId, leadId, success: true,
@@ -291,10 +295,10 @@ export async function enrichProperty(
       updated_at: new Date().toISOString(),
     }).eq("id", propertyId);
 
-    // Safety net: after MAX_ATTEMPTS, promote anyway with partial data
+    // Safety net: after MAX_ATTEMPTS, finalize with partial data (stays in staging)
     if (attempts >= MAX_ATTEMPTS) {
-      console.log(`[Enrich] Max attempts (${MAX_ATTEMPTS}) reached for ${propertyId} — promoting with partial data`);
-      await promoteToProspect(sb, leadId, propertyId, lead.priority ?? 30, [], "partial", attempts);
+      console.log(`[Enrich] Max attempts (${MAX_ATTEMPTS}) reached for ${propertyId} — finalizing with partial data`);
+      await finalizeEnrichment(sb, leadId, propertyId, lead.priority ?? 30, [], "partial", attempts);
 
       return {
         propertyId, leadId, success: false,
@@ -302,7 +306,7 @@ export async function enrichProperty(
         score: lead.priority ?? 30,
         label: getScoreLabel(lead.priority ?? 30),
         signalsDetected: 0,
-        error: `Failed after ${MAX_ATTEMPTS} attempts — promoted with partial data`,
+        error: `Failed after ${MAX_ATTEMPTS} attempts — finalized with partial data`,
         elapsed_ms: Date.now() - startTime,
       };
     }
@@ -334,7 +338,7 @@ export async function enrichProperty(
 
     // Safety net
     if (attempts >= MAX_ATTEMPTS) {
-      await promoteToProspect(sb, leadId, propertyId, lead.priority ?? 30, [], "partial", attempts);
+      await finalizeEnrichment(sb, leadId, propertyId, lead.priority ?? 30, [], "partial", attempts);
     }
 
     return {
@@ -528,29 +532,100 @@ async function updatePropertyFromPR(sb: any, propertyId: string, pr: any, existi
   }
 }
 
-// ── Contact Info Enrichment (Skip-Trace Lite) ────────────────────────
+// ── Contact Info Enrichment (Smart Heir Extraction) ──────────────────
+
+interface PersonContact {
+  name: string;
+  role: string; // "Owner", "Heir", "Executor", "Beneficiary", etc.
+  phone: string | null;
+  email: string | null;
+  mailingAddress: string | null;
+  isPrimary: boolean;
+}
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 async function enrichContactInfo(sb: any, propertyId: string, pr: any): Promise<void> {
   try {
-    // PropertyRadar Persons endpoint contains phone/email when available
     const persons = pr.Persons;
     if (!persons || !Array.isArray(persons) || persons.length === 0) return;
 
-    const primary = persons[0];
-    const phone = primary?.Phones?.[0]?.Number ?? null;
-    const email = primary?.Emails?.[0]?.Email ?? null;
+    // Extract all persons with their roles
+    const contacts: PersonContact[] = [];
+    for (const person of persons) {
+      const name = [person.FirstName, person.LastName].filter(Boolean).join(" ")
+        || person.EntityName || person.Name || "Unknown";
+      const role = person.OwnershipRole ?? person.PersonType ?? "Owner";
+      const phone = person.Phones?.[0]?.Number ?? null;
+      const email = person.Emails?.[0]?.Email ?? null;
+      const mailParts = person.MailAddress?.[0];
+      const mailingAddress = mailParts
+        ? [mailParts.Address, mailParts.City, mailParts.State, mailParts.Zip].filter(Boolean).join(", ")
+        : null;
 
-    if (!phone && !email) return;
+      contacts.push({
+        name,
+        role,
+        phone,
+        email,
+        mailingAddress,
+        isPrimary: person.isPrimaryContact === 1,
+      });
+    }
+
+    // Smart priority: prefer heir/executor contacts over the deceased owner
+    const HEIR_ROLES = ["heir", "executor", "beneficiary", "trustee", "successor"];
+    const isDeceased = isTruthy(pr.isDeceasedProperty);
+
+    // Sort: heirs/executors first, then primary contact, then others
+    const sorted = [...contacts].sort((a, b) => {
+      const aIsHeir = HEIR_ROLES.some((r) => a.role.toLowerCase().includes(r));
+      const bIsHeir = HEIR_ROLES.some((r) => b.role.toLowerCase().includes(r));
+      if (aIsHeir && !bIsHeir) return -1;
+      if (!aIsHeir && bIsHeir) return 1;
+      if (a.isPrimary && !b.isPrimary) return -1;
+      if (!a.isPrimary && b.isPrimary) return 1;
+      return 0;
+    });
+
+    // Find the best contact with phone/email
+    const bestWithPhone = sorted.find((c) => c.phone);
+    const bestWithEmail = sorted.find((c) => c.email);
+    const bestContact = bestWithPhone ?? bestWithEmail ?? sorted[0];
+
+    if (!bestContact?.phone && !bestContact?.email) return;
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const update: Record<string, any> = { updated_at: new Date().toISOString() };
-    if (phone) update.owner_phone = phone;
-    if (email) update.owner_email = email;
+    if (bestContact.phone) update.owner_phone = bestContact.phone;
+    if (bestContact.email) update.owner_email = bestContact.email;
+
+    // Store all heir contacts in owner_flags for the MCF modal
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: currentProp } = await (sb.from("properties") as any)
+      .select("owner_flags").eq("id", propertyId).single();
+    const flags = (currentProp?.owner_flags ?? {}) as Record<string, unknown>;
+
+    const heirContacts = sorted
+      .filter((c) => HEIR_ROLES.some((r) => c.role.toLowerCase().includes(r)) || (isDeceased && c.role !== "Owner"))
+      .map((c) => ({ name: c.name, role: c.role, phone: c.phone, email: c.email, mailing: c.mailingAddress }));
+
+    if (heirContacts.length > 0) {
+      update.owner_flags = {
+        ...flags,
+        heir_contacts: heirContacts,
+        heir_count: heirContacts.length,
+        best_contact_role: bestContact.role,
+        best_contact_name: bestContact.name,
+      };
+    }
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     await (sb.from("properties") as any).update(update).eq("id", propertyId);
-    console.log(`[Enrich] Contact info added for ${propertyId}: phone=${!!phone}, email=${!!email}`);
+
+    const heirLog = heirContacts.length > 0
+      ? ` | ${heirContacts.length} heir(s): ${heirContacts.map((h) => `${h.name} (${h.role})`).join(", ")}`
+      : "";
+    console.log(`[Enrich] Contact info for ${propertyId}: ${bestContact.name} (${bestContact.role}), phone=${!!bestContact.phone}, email=${!!bestContact.email}${heirLog}`);
   } catch (err) {
     // Non-fatal — skip-trace failure shouldn't block enrichment
     console.error(`[Enrich] Contact enrichment error for ${propertyId}:`, err);
@@ -828,9 +903,9 @@ async function runScoringPipelineFromFlags(
   return { composite: score.composite, predictive: predOutput.predictiveScore, blended };
 }
 
-// ── Promote Lead ─────────────────────────────────────────────────────
+// ── Finalize Lead (score + tag but KEEP in staging) ──────────────────
 
-async function promoteToProspect(
+async function finalizeEnrichment(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   sb: any,
   leadId: string,
@@ -844,14 +919,13 @@ async function promoteToProspect(
   const scoreLabelTag = `score-${label}`;
   const signalTags = signals.map((s) => s.type);
 
+  // Keep status as "staging" — lead stays in the reservoir until admin pulls it
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   await (sb.from("leads") as any)
     .update({
-      status: "prospect",
       priority: blendedScore,
       tags: [scoreLabelTag, ...signalTags],
       notes: `Enriched [${source}] — Heat ${blendedScore} (${label}). ${signals.length} signal(s). Attempts: ${attempts}`,
-      promoted_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     })
     .eq("id", leadId);
@@ -860,7 +934,7 @@ async function promoteToProspect(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   await (sb.from("event_log") as any).insert({
     user_id: SYSTEM_USER_ID,
-    action: "enrichment.promoted",
+    action: "enrichment.finalized",
     entity_type: "lead",
     entity_id: leadId,
     details: {
@@ -870,10 +944,178 @@ async function promoteToProspect(
       label,
       signals: signals.length,
       attempts,
+      status: "staging",
     },
   });
 
-  console.log(`[Enrich] Lead ${leadId} promoted: staging → prospect (score: ${blendedScore}, source: ${source})`);
+  console.log(`[Enrich] Lead ${leadId} enriched (staying in staging): score ${blendedScore} (${label}), source: ${source}`);
+}
+
+// ── Promote Leads from Staging → Prospect (admin pull) ───────────────
+
+export interface PromoteFilter {
+  tier?: "platinum" | "gold" | "silver" | "bronze" | "all";
+  minScore?: number;
+  maxScore?: number;
+  limit?: number;
+}
+
+export interface PromoteResult {
+  promoted: number;
+  tier: string;
+  scoreRange: { min: number; max: number };
+  leads: { id: string; score: number; label: string }[];
+}
+
+const TIER_RANGES: Record<string, { min: number; max: number }> = {
+  platinum: { min: 85, max: 100 },
+  gold: { min: 65, max: 84 },
+  silver: { min: 40, max: 64 },
+  bronze: { min: 0, max: 39 },
+  all: { min: 0, max: 100 },
+};
+
+/**
+ * Pull enriched leads from staging into "prospect" by score tier.
+ * Called by admin via POST /api/enrichment/promote.
+ *
+ * Only promotes leads that have been enriched (enrichment_status != "pending").
+ */
+export async function promoteByTier(filter: PromoteFilter): Promise<PromoteResult> {
+  const sb = createServerClient();
+  const tier = filter.tier ?? "all";
+  const range = TIER_RANGES[tier] ?? TIER_RANGES.all;
+  const minScore = filter.minScore ?? range.min;
+  const maxScore = filter.maxScore ?? range.max;
+  const limit = filter.limit ?? 500;
+
+  // Query enriched staging leads in the score range
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let query = (sb.from("leads") as any)
+    .select("id, property_id, priority, tags, notes, properties!inner(owner_flags)")
+    .eq("status", "staging")
+    .gte("priority", minScore)
+    .lte("priority", maxScore)
+    .order("priority", { ascending: false })
+    .limit(limit);
+
+  const { data: leads, error: queryErr } = await query;
+
+  if (queryErr) {
+    console.error("[Promote] Query error:", queryErr.message);
+    return { promoted: 0, tier, scoreRange: { min: minScore, max: maxScore }, leads: [] };
+  }
+
+  if (!leads || leads.length === 0) {
+    return { promoted: 0, tier, scoreRange: { min: minScore, max: maxScore }, leads: [] };
+  }
+
+  // Filter to only enriched leads (not still pending enrichment)
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const enrichedLeads = (leads as any[]).filter((l) => {
+    const flags = l.properties?.owner_flags ?? {};
+    const status = flags.enrichment_status;
+    // Accept: enriched, partial, or any lead with a real score (priority > 0)
+    return status === "enriched" || status === "partial" || l.priority > 0;
+  });
+
+  if (enrichedLeads.length === 0) {
+    return { promoted: 0, tier, scoreRange: { min: minScore, max: maxScore }, leads: [] };
+  }
+
+  // Batch promote
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const promotedLeads: { id: string; score: number; label: string }[] = [];
+
+  for (let i = 0; i < enrichedLeads.length; i += 100) {
+    const batch = enrichedLeads.slice(i, i + 100);
+    const ids = batch.map((l: { id: string }) => l.id);
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { error: updateErr } = await (sb.from("leads") as any)
+      .update({
+        status: "prospect",
+        promoted_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      })
+      .in("id", ids);
+
+    if (updateErr) {
+      console.error(`[Promote] Batch update error:`, updateErr.message);
+    } else {
+      for (const l of batch) {
+        promotedLeads.push({
+          id: l.id,
+          score: l.priority,
+          label: getScoreLabel(l.priority),
+        });
+      }
+    }
+  }
+
+  // Audit log
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  await (sb.from("event_log") as any).insert({
+    user_id: SYSTEM_USER_ID,
+    action: "enrichment.bulk_promote",
+    entity_type: "system",
+    entity_id: "enrichment_promote",
+    details: {
+      tier,
+      scoreRange: { min: minScore, max: maxScore },
+      promoted: promotedLeads.length,
+      timestamp: new Date().toISOString(),
+    },
+  });
+
+  console.log(`[Promote] ${promotedLeads.length} leads promoted: staging → prospect (tier: ${tier}, range: ${minScore}-${maxScore})`);
+
+  return {
+    promoted: promotedLeads.length,
+    tier,
+    scoreRange: { min: minScore, max: maxScore },
+    leads: promotedLeads,
+  };
+}
+
+/**
+ * Get a summary of enriched staging leads by tier.
+ * Used by the UI to show what's available in the reservoir.
+ */
+export async function getStagingSummary(): Promise<{
+  total: number;
+  enriched: number;
+  pending: number;
+  tiers: { tier: string; count: number; min: number; max: number }[];
+}> {
+  const sb = createServerClient();
+
+  // Get all staging leads with their scores
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: staging, error } = await (sb.from("leads") as any)
+    .select("id, priority, property_id, properties!inner(owner_flags)")
+    .eq("status", "staging");
+
+  if (error || !staging) {
+    return { total: 0, enriched: 0, pending: 0, tiers: [] };
+  }
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const all = staging as any[];
+  const enriched = all.filter((l) => {
+    const flags = l.properties?.owner_flags ?? {};
+    return flags.enrichment_status === "enriched" || flags.enrichment_status === "partial" || l.priority > 0;
+  });
+  const pending = all.length - enriched.length;
+
+  const tiers = [
+    { tier: "platinum", count: enriched.filter((l) => l.priority >= 85).length, min: 85, max: 100 },
+    { tier: "gold", count: enriched.filter((l) => l.priority >= 65 && l.priority < 85).length, min: 65, max: 84 },
+    { tier: "silver", count: enriched.filter((l) => l.priority >= 40 && l.priority < 65).length, min: 40, max: 64 },
+    { tier: "bronze", count: enriched.filter((l) => l.priority < 40).length, min: 0, max: 39 },
+  ];
+
+  return { total: all.length, enriched: enriched.length, pending, tiers };
 }
 
 // ── Batch Processor ──────────────────────────────────────────────────
@@ -892,13 +1134,14 @@ export async function processEnrichmentBatch(
   const startTime = Date.now();
   const sb = createServerClient();
 
-  // Fetch staging leads with their property data
+  // Fetch staging leads that NEED enrichment (skip pre-enriched PR/ATTOM/crawler leads)
+  // Pre-enriched leads have priority > 0 and their property has enrichment_status = "enriched"
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data: stagingLeads, error: queryErr } = await (sb.from("leads") as any)
     .select("id, property_id, priority, source, tags, notes")
     .eq("status", "staging")
     .order("created_at", { ascending: true })
-    .limit(limit);
+    .limit(limit * 3); // Fetch extra to filter out pre-enriched
 
   if (queryErr) {
     console.error("[Enrich/Batch] Query error:", queryErr.message);
@@ -910,7 +1153,7 @@ export async function processEnrichmentBatch(
     return { processed: 0, enriched: 0, partial: 0, failed: 0, remaining: 0, results: [], elapsed_ms: Date.now() - startTime };
   }
 
-  console.log(`[Enrich/Batch] Processing ${stagingLeads.length} staging leads`);
+  console.log(`[Enrich/Batch] Found ${stagingLeads.length} staging leads, filtering...`);
 
   // Fetch properties for these leads
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -927,13 +1170,44 @@ export async function processEnrichmentBatch(
     propMap[p.id] = p;
   }
 
+  // ── Separate pre-enriched leads from those needing enrichment ──
+  // Pre-enriched leads (from PR Elite Seed, ATTOM Daily, Crawlers) already have
+  // scores, distress events, and property data. They just need finalization.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const needsEnrichment: any[] = [];
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const alreadyEnriched: any[] = [];
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  for (const lead of stagingLeads as any[]) {
+    const prop = propMap[lead.property_id];
+    if (!prop) {
+      needsEnrichment.push(lead); // no property = definitely needs work
+      continue;
+    }
+    const flags = prop.owner_flags ?? {};
+    const isPreEnriched =
+      flags.enrichment_status === "enriched" ||
+      (lead.priority > 0 && flags.crawler_source) || // crawler leads arrive scored
+      (lead.priority > 0 && flags.pr_data_version);   // PR leads arrive scored
+    if (isPreEnriched) {
+      alreadyEnriched.push(lead);
+    } else {
+      needsEnrichment.push(lead);
+    }
+  }
+
+  console.log(`[Enrich/Batch] ${alreadyEnriched.length} pre-enriched (skip), ${needsEnrichment.length} need enrichment`);
+
+  // Take only `limit` leads that actually need enrichment
+  const toProcess = needsEnrichment.slice(0, limit);
+
   const results: EnrichmentResult[] = [];
   let enriched = 0;
   let partial = 0;
   let failed = 0;
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  for (const lead of stagingLeads as any[]) {
+  for (const lead of toProcess) {
     const property = propMap[lead.property_id];
     if (!property) {
       console.error(`[Enrich/Batch] No property found for lead ${lead.id}`);
@@ -978,7 +1252,8 @@ export async function processEnrichmentBatch(
     entity_type: "system",
     entity_id: "enrichment_batch",
     details: {
-      processed: stagingLeads.length,
+      processed: toProcess.length,
+      skipped_pre_enriched: alreadyEnriched.length,
       enriched,
       partial,
       failed,
@@ -988,7 +1263,7 @@ export async function processEnrichmentBatch(
   });
 
   return {
-    processed: stagingLeads.length,
+    processed: toProcess.length,
     enriched, partial, failed,
     remaining: remaining ?? 0,
     results,

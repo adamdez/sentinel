@@ -122,6 +122,28 @@ const DISTRESS_LENSES: DistressLens[] = [
     ],
     limit: 15,
   },
+  // 1g: DECEASED + TAX DELINQUENT (any mortgage status — highest-value combo)
+  // Estate with unpaid taxes = heirs who don't want the burden.
+  // No F&C requirement — even mortgaged properties with this combo convert.
+  {
+    name: "platinum_deceased_tax",
+    phase: 1,
+    criteria: [
+      { name: "isDeceasedProperty", value: ["Yes"] },
+      { name: "inTaxDelinquency", value: ["Yes"] },
+    ],
+    limit: 25,
+  },
+  // 1h: DECEASED + VACANT (abandoned estate — heirs walked away)
+  {
+    name: "platinum_deceased_vacant",
+    phase: 1,
+    criteria: [
+      { name: "isDeceasedProperty", value: ["Yes"] },
+      { name: "isSiteVacant", value: ["Yes"] },
+    ],
+    limit: 20,
+  },
 
   // ═══════════════════════════════════════════════════════════════════
   // PHASE 2 — GOLD: Free & Clear + Distress (no absentee required)
@@ -666,6 +688,9 @@ export async function POST(req: NextRequest) {
       pr_raw: pr,
       elite_seed: true,
       last_enriched: new Date().toISOString(),
+      enrichment_pending: false,
+      enrichment_status: "enriched",
+      enrichment_completed_at: new Date().toISOString(),
     };
     if (isTruthy(pr.isNotSameMailingOrExempt)) ownerFlags.absentee = true;
     if (isTruthy(pr.isSiteVacant)) ownerFlags.vacant = true;
@@ -797,19 +822,18 @@ export async function POST(req: NextRequest) {
     const { data: existingLead } = await (sb.from("leads") as any)
       .select("id")
       .eq("property_id", property.id)
-      .in("status", ["prospect", "lead", "negotiation", "nurture"])
+      .in("status", ["staging", "prospect", "lead", "negotiation", "nurture"])
       .maybeSingle();
 
     if (!existingLead) {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       await (sb.from("leads") as any).insert({
         property_id: property.id,
-        status: "prospect",
+        status: "staging",
         priority: blendedScore,
         source: SOURCE_TAG,
         tags: allTags,
         notes: `Elite Seed [${label}] — Heat ${blendedScore} (det:${score.composite} + pred:${predOutput.predictiveScore}). Distress in ~${predOutput.daysUntilDistress}d (${predOutput.confidence}% conf). ${signals.length} signal(s). RadarID: ${pr.RadarID ?? "N/A"}`,
-        promoted_at: new Date().toISOString(),
       });
       newInserts.push({ address: fullAddr, score: score.composite, label: score.label, apn });
     } else {

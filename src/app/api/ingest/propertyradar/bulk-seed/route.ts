@@ -479,19 +479,18 @@ export async function POST(req: NextRequest) {
     const { data: existingLead } = await (sb.from("leads") as any)
       .select("id")
       .eq("property_id", property.id)
-      .in("status", ["prospect", "lead", "negotiation", "nurture"])
+      .in("status", ["staging", "prospect", "lead", "negotiation", "nurture"])
       .maybeSingle();
 
     if (!existingLead) {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       await (sb.from("leads") as any).insert({
         property_id: property.id,
-        status: "prospect",
+        status: "staging",
         priority: blendedScore,
         source: SOURCE_TAG,
         tags: allTags,
         notes: `Bulk Seed [${label}] — Heat ${blendedScore} (det:${score.composite} + pred:${predOutput.predictiveScore}). ${signals.length} signal(s).`,
-        promoted_at: new Date().toISOString(),
       });
       newInserts++;
     } else {

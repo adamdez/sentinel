@@ -25,16 +25,16 @@ interface KPIConfig {
 }
 
 const KPI_CARDS: KPIConfig[] = [
-  { key: "totalDials",     label: "Total Dials",      icon: Phone,          color: "text-cyan",        format: (v) => String(v) },
-  { key: "connects",       label: "Connects",         icon: PhoneForwarded, color: "text-blue-400",    format: (v) => String(v) },
-  { key: "connectRate",    label: "Connect Rate",     icon: BarChart3,      color: "text-purple-400",  format: (v) => `${v}%` },
-  { key: "voicemails",     label: "Voicemails",       icon: Voicemail,      color: "text-sky-400",     format: (v) => String(v) },
-  { key: "appointments",   label: "Appointments",     icon: CalendarCheck,  color: "text-emerald-400", format: (v) => String(v) },
-  { key: "contracts",      label: "Contracts",        icon: FileSignature,  color: "text-orange-400",  format: (v) => String(v) },
-  { key: "deadLeads",      label: "Dead Leads",       icon: Skull,          color: "text-red-400",     format: (v) => String(v) },
-  { key: "nurtures",       label: "Nurtures",         icon: Heart,          color: "text-pink-400",    format: (v) => String(v) },
-  { key: "avgCallDuration",label: "Avg Duration",     icon: Clock,          color: "text-cyan-400",    format: formatDuration },
-  { key: "revenue",        label: "Revenue",          icon: DollarSign,     color: "text-yellow-400",  format: (v) => v >= 1000 ? `$${(v / 1000).toFixed(0)}K` : `$${v}` },
+  { key: "totalDials",     label: "Total Dials",      icon: Phone,          color: "text-cyan",        glowColor: "shadow-cyan-500/20",    format: (v) => String(v) },
+  { key: "connects",       label: "Connects",         icon: PhoneForwarded, color: "text-blue-400",    glowColor: "shadow-blue-500/20",    format: (v) => String(v) },
+  { key: "connectRate",    label: "Connect Rate",     icon: BarChart3,      color: "text-purple-400",  glowColor: "shadow-purple-500/20",  format: (v) => `${v}%` },
+  { key: "voicemails",     label: "Voicemails",       icon: Voicemail,      color: "text-sky-400",     glowColor: "shadow-sky-500/20",     format: (v) => String(v) },
+  { key: "appointments",   label: "Appointments",     icon: CalendarCheck,  color: "text-emerald-400", glowColor: "shadow-emerald-500/20", format: (v) => String(v) },
+  { key: "contracts",      label: "Contracts",        icon: FileSignature,  color: "text-orange-400",  glowColor: "shadow-orange-500/20",  format: (v) => String(v) },
+  { key: "deadLeads",      label: "Dead Leads",       icon: Skull,          color: "text-red-400",     glowColor: "shadow-red-500/20",     format: (v) => String(v) },
+  { key: "nurtures",       label: "Nurtures",         icon: Heart,          color: "text-pink-400",    glowColor: "shadow-pink-500/20",    format: (v) => String(v) },
+  { key: "avgCallDuration",label: "Avg Duration",     icon: Clock,          color: "text-cyan-400",    glowColor: "shadow-cyan-500/20",    format: formatDuration },
+  { key: "revenue",        label: "Revenue",          icon: DollarSign,     color: "text-yellow-400",  glowColor: "shadow-yellow-500/20",  format: (v) => v >= 1000 ? `$${(v / 1000).toFixed(0)}K` : `$${v}` },
 ];
 
 const PERIODS: { key: TimePeriod; label: string }[] = [

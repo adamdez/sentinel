@@ -612,7 +612,7 @@ export async function POST(request: NextRequest) {
     const { data: existingLead } = await (sb.from("leads") as any)
       .select("id")
       .eq("property_id", property.id)
-      .in("status", ["prospect", "lead"])
+      .in("status", ["staging", "prospect", "lead"])
       .maybeSingle() as SbResult<{ id: string } | null>;
 
     let leadId = existingLead?.id;
@@ -623,12 +623,11 @@ export async function POST(request: NextRequest) {
       const { data: newLead, error: leadError } = await (sb.from("leads") as any)
         .insert({
           property_id: property.id,
-          status: "prospect",
+          status: "staging",
           priority: scoreResult.composite,
           source: "propertyradar",
           tags: signals.map((s) => s.type),
           notes: `PropertyRadar ingestion. ${signals.length} distress signal(s). RadarID: ${prProperty.RadarID ?? "N/A"}`,
-          promoted_at: new Date().toISOString(),
         })
         .select("id")
         .single() as SbResult<{ id: string }>;
