@@ -133,6 +133,34 @@ export const GROK_ACTIONS: Record<string, GrokAction> = {
     },
   },
 
+  troubleshoot_sentinel: {
+    name: "troubleshoot_sentinel",
+    description: "Run full system diagnostics on Sentinel — checks event_log errors, env vars, crawler health",
+    parameters: [
+      { name: "depth", type: "number", description: "Number of event_log entries to scan (default 50)", required: false },
+    ],
+    requiresConfirmation: false,
+    execute: async (params) => {
+      const depth = Number(params.depth) || 50;
+      const origin = typeof window !== "undefined" ? window.location.origin : process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000";
+      const res = await fetch(`${origin}/api/grok/troubleshoot`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ depth }),
+      });
+      if (!res.ok) {
+        return { success: false, message: `Diagnostics failed (${res.status})` };
+      }
+      const data = await res.json();
+      const summary = data.healthSummary;
+      return {
+        success: true,
+        message: `System Status: ${summary.status.toUpperCase()}\n${summary.message}\nErrors: ${summary.errorCount} | Transitions: ${summary.failedTransitionCount} | API: ${summary.apiFailureCount} | Crawlers: ${summary.crawlerIssueCount}`,
+        data,
+      };
+    },
+  },
+
   draft_outreach: {
     name: "draft_outreach",
     description: "Use Outreach Agent to draft personalized SMS or email for a lead",

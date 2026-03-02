@@ -153,11 +153,117 @@ export function buildForecastingAgentPrompt(metrics: PipelineMetrics): string {
   ].join("\n");
 }
 
-export type AgentType = "call-copilot" | "outreach" | "optimization" | "forecasting";
+export interface TroubleshootDiagnostics {
+  timestamp: string;
+  recentErrors: { id: string; action: string; entity_type: string; details: Record<string, unknown>; created_at: string }[];
+  failedTransitions: { id: string; action: string; details: Record<string, unknown>; created_at: string }[];
+  apiFailures: { id: string; action: string; details: Record<string, unknown>; created_at: string }[];
+  crawlerIssues: { id: string; action: string; details: Record<string, unknown>; created_at: string }[];
+  envStatus: Record<string, "set" | "missing">;
+  healthSummary: {
+    status: "nominal" | "degraded" | "critical";
+    errorCount: number;
+    failedTransitionCount: number;
+    apiFailureCount: number;
+    crawlerIssueCount: number;
+    message: string;
+  };
+  cursorFixes: string[];
+}
+
+export function buildTroubleshootAgentPrompt(diagnostics: TroubleshootDiagnostics): string {
+  const lines: string[] = [
+    "",
+    "## Agent Mode: SYSTEM TROUBLESHOOTER",
+    "You are in full diagnostic mode. Below is live telemetry from Sentinel's event_log and environment scan.",
+    "",
+    `### Health Summary (${new Date(diagnostics.timestamp).toLocaleString()})`,
+    `- Status: **${diagnostics.healthSummary.status.toUpperCase()}**`,
+    `- ${diagnostics.healthSummary.message}`,
+    `- Errors: ${diagnostics.healthSummary.errorCount}`,
+    `- Failed transitions: ${diagnostics.healthSummary.failedTransitionCount}`,
+    `- API failures: ${diagnostics.healthSummary.apiFailureCount}`,
+    `- Crawler issues: ${diagnostics.healthSummary.crawlerIssueCount}`,
+  ];
+
+  const missingEnvs = Object.entries(diagnostics.envStatus)
+    .filter(([, v]) => v === "missing")
+    .map(([k]) => k);
+  if (missingEnvs.length > 0) {
+    lines.push("", "### Missing Environment Variables");
+    for (const v of missingEnvs) {
+      lines.push(`- ❌ ${v}`);
+    }
+  } else {
+    lines.push("", "### Environment: All required variables set ✓");
+  }
+
+  if (diagnostics.recentErrors.length > 0) {
+    lines.push("", "### Recent Errors (last 24h)");
+    for (const e of diagnostics.recentErrors.slice(0, 10)) {
+      const d = JSON.stringify(e.details).slice(0, 200);
+      lines.push(`- [${new Date(e.created_at).toLocaleTimeString()}] ${e.action} (${e.entity_type}): ${d}`);
+    }
+  }
+
+  if (diagnostics.failedTransitions.length > 0) {
+    lines.push("", "### Failed Status Transitions");
+    for (const e of diagnostics.failedTransitions.slice(0, 5)) {
+      const d = JSON.stringify(e.details).slice(0, 200);
+      lines.push(`- [${new Date(e.created_at).toLocaleTimeString()}] ${e.action}: ${d}`);
+    }
+  }
+
+  if (diagnostics.apiFailures.length > 0) {
+    lines.push("", "### API Failures");
+    for (const e of diagnostics.apiFailures.slice(0, 5)) {
+      const d = JSON.stringify(e.details).slice(0, 200);
+      lines.push(`- [${new Date(e.created_at).toLocaleTimeString()}] ${e.action}: ${d}`);
+    }
+  }
+
+  if (diagnostics.crawlerIssues.length > 0) {
+    lines.push("", "### Crawler / Ingest Issues");
+    for (const e of diagnostics.crawlerIssues.slice(0, 5)) {
+      const d = JSON.stringify(e.details).slice(0, 200);
+      lines.push(`- [${new Date(e.created_at).toLocaleTimeString()}] ${e.action}: ${d}`);
+    }
+  }
+
+  if (diagnostics.cursorFixes.length > 0) {
+    lines.push("", "### Auto-Generated Fix Suggestions");
+    for (const f of diagnostics.cursorFixes) {
+      lines.push(`- ${f}`);
+    }
+  }
+
+  lines.push(
+    "",
+    "### Your Task",
+    "1. Explain each detected issue in plain language — what broke, why, and what the impact is.",
+    "2. Prioritize issues by severity (critical first, then degraded).",
+    "3. For each issue, provide a ready-to-paste Cursor Composer fix prompt using this format:",
+    "```",
+    "CURSOR FIX: [title]",
+    "File: [path]",
+    "Issue: [description]",
+    "Fix: [exact change]",
+    "```",
+    "4. If everything is nominal, confirm all systems are healthy and suggest proactive optimizations.",
+    "5. End with a one-line system health verdict.",
+  );
+
+  return lines.join("\n");
+}
+
+export type AgentType = "call-copilot" | "outreach" | "optimization" | "forecasting" | "troubleshoot";
 
 export function detectAgentIntent(message: string): AgentType | null {
   const lower = message.toLowerCase();
 
+  if (/\b(troubleshoot|diagnos|debug|fix\s*error|system\s*health|what.?s?\s*broken|check\s*errors?|self.?heal)\b/.test(lower)) {
+    return "troubleshoot";
+  }
   if (/\b(draft|write|compose|send|text|sms|email|outreach|message)\b/.test(lower) &&
       /\b(lead|owner|property|contact)\b/.test(lower)) {
     return "outreach";

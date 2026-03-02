@@ -57,7 +57,7 @@ const SUGGESTIONS = [
   "Which signal types are converting best?",
   "Draft a strategy to hit 20 leads/day",
   "What should we adjust in our scoring weights?",
-  "Run the elite seed for Spokane + Kootenai",
+  "Troubleshoot Sentinel — diagnose all system errors",
 ];
 
 export default function GrokPage() {
