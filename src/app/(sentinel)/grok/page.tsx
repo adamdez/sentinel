@@ -14,6 +14,7 @@ import {
   CheckCircle2,
   XCircle,
   Shield,
+  Wrench,
 } from "lucide-react";
 import { toast } from "sonner";
 import { useSentinelStore } from "@/lib/store";
@@ -57,7 +58,7 @@ const SUGGESTIONS = [
   "Which signal types are converting best?",
   "Draft a strategy to hit 20 leads/day",
   "What should we adjust in our scoring weights?",
-  "Troubleshoot Sentinel — diagnose all system errors",
+  "Troubleshoot system — generate Cursor fix prompts for Claude",
 ];
 
 export default function GrokPage() {
@@ -281,6 +282,21 @@ export default function GrokPage() {
             </div>
           </div>
           <div className="flex items-center gap-2">
+            <button
+              onClick={() => sendMessage("Troubleshoot the system. Read event_log errors, diagnose root causes, and generate complete ready-to-paste Cursor Composer prompts for Claude to fix every issue.")}
+              disabled={streaming}
+              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[10px] font-medium transition-all disabled:opacity-40"
+              style={{
+                background: "rgba(168, 85, 247, 0.08)",
+                border: "1px solid rgba(168, 85, 247, 0.22)",
+                color: "rgba(192, 132, 252, 0.9)",
+                boxShadow: "0 0 8px rgba(168,85,247,0.1), inset 0 0 10px rgba(168,85,247,0.03)",
+              }}
+              title="Diagnose system errors and generate Cursor Composer prompts for Claude"
+            >
+              <Wrench className="h-3 w-3" />
+              Generate Cursor Fix
+            </button>
             <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-cyan/5 border border-cyan/10">
               <div className="h-1.5 w-1.5 rounded-full bg-cyan animate-pulse" />
               <span className="text-[10px] text-cyan/80 font-medium">Online</span>

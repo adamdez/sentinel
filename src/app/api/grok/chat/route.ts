@@ -8,8 +8,8 @@ import {
   buildForecastingAgentPrompt,
   buildTroubleshootAgentPrompt,
   type PipelineMetrics,
-  type TroubleshootDiagnostics,
 } from "@/lib/agent/grok-agents";
+import { runDiagnostics } from "@/lib/diagnostics";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -91,23 +91,11 @@ export async function POST(req: NextRequest) {
           break;
         case "troubleshoot": {
           try {
-            const origin = process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000";
-            const diagRes = await fetch(`${origin}/api/grok/troubleshoot`, {
-              method: "POST",
-              headers: {
-                "Content-Type": "application/json",
-                ...(token ? { Authorization: `Bearer ${token}` } : {}),
-              },
-              body: JSON.stringify({ depth: 50 }),
-            });
-            if (diagRes.ok) {
-              const diagnostics: TroubleshootDiagnostics = await diagRes.json();
-              systemPrompt += buildTroubleshootAgentPrompt(diagnostics);
-            } else {
-              systemPrompt += "\n\n## Agent Mode: SYSTEM TROUBLESHOOTER\nDiagnostic endpoint returned an error. Inform the user and suggest checking /api/grok/troubleshoot directly.";
-            }
-          } catch {
-            systemPrompt += "\n\n## Agent Mode: SYSTEM TROUBLESHOOTER\nCould not reach the diagnostic endpoint. Ask the user to verify the server is running and /api/grok/troubleshoot is accessible.";
+            const diagnostics = await runDiagnostics(50);
+            systemPrompt += buildTroubleshootAgentPrompt(diagnostics);
+          } catch (diagErr) {
+            console.error("[Grok Chat] Diagnostics failed:", diagErr);
+            systemPrompt += "\n\n## Agent Mode: SYSTEM TROUBLESHOOTER\nDiagnostic scan failed. Inform the user and suggest checking /api/grok/troubleshoot directly.";
           }
           break;
         }
