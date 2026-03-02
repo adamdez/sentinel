@@ -31,11 +31,19 @@ import { RevenueImpact } from "./widgets/revenue-impact";
 import { TeamChatPreview } from "./widgets/team-chat-preview";
 import { QuickDial } from "./widgets/quick-dial";
 import { GrokInsights } from "./widgets/grok-insights";
+import { HeatScoreDistribution } from "./widgets/heat-score-distribution";
+import { DistressSignals } from "./widgets/distress-signals";
+import { CallsToday } from "./widgets/calls-today";
+import { TasksDue } from "./widgets/tasks-due";
+import { ComplianceStatus } from "./widgets/compliance-status";
+import { CostPerLead } from "./widgets/cost-per-lead";
+import { ConversionRates } from "./widgets/conversion-rates";
+import { LeadVelocity } from "./widgets/lead-velocity";
 import { useDashboardLayout } from "@/hooks/use-dashboard-layout";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Plus, RotateCcw, LayoutGrid } from "lucide-react";
-import type { WidgetId, WidgetSize } from "@/lib/dashboard-config";
+import { MAX_DASHBOARD_TILES, type WidgetId, type WidgetSize } from "@/lib/dashboard-config";
 
 const WIDGET_COMPONENTS: Record<WidgetId, React.ComponentType> = {
   "my-top-prospects": MyTopProspects,
@@ -50,6 +58,14 @@ const WIDGET_COMPONENTS: Record<WidgetId, React.ComponentType> = {
   "team-chat-preview": TeamChatPreview,
   "quick-dial": QuickDial,
   "grok-insights": GrokInsights,
+  "heat-score-distribution": HeatScoreDistribution,
+  "distress-signals": DistressSignals,
+  "calls-today": CallsToday,
+  "tasks-due": TasksDue,
+  "compliance-status": ComplianceStatus,
+  "cost-per-lead": CostPerLead,
+  "conversion-rates": ConversionRates,
+  "lead-velocity": LeadVelocity,
 };
 
 function SortableTile({
@@ -133,7 +149,7 @@ export function DashboardGridInner() {
           <LayoutGrid className="h-4 w-4 text-cyan" />
           <span className="text-sm font-semibold">Your Dashboard</span>
           <Badge variant="outline" className="text-[10px]">
-            {layout.tiles.length}/6 widgets
+            {layout.tiles.length}/{MAX_DASHBOARD_TILES} widgets
           </Badge>
         </div>
         <div className="flex items-center gap-2">

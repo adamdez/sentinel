@@ -11,6 +11,14 @@ import {
   MessageCircle,
   PhoneCall,
   Brain,
+  Flame,
+  AlertTriangle,
+  PhoneOutgoing,
+  CalendarClock,
+  ShieldCheck,
+  Target,
+  GitBranch,
+  Gauge,
   type LucideIcon,
 } from "lucide-react";
 
@@ -26,7 +34,15 @@ export type WidgetId =
   | "revenue-impact"
   | "team-chat-preview"
   | "quick-dial"
-  | "grok-insights";
+  | "grok-insights"
+  | "heat-score-distribution"
+  | "distress-signals"
+  | "calls-today"
+  | "tasks-due"
+  | "compliance-status"
+  | "cost-per-lead"
+  | "conversion-rates"
+  | "lead-velocity";
 
 export type WidgetSize = "1x1" | "2x1" | "1x2" | "2x2";
 
@@ -160,9 +176,83 @@ export const WIDGET_REGISTRY: Record<WidgetId, WidgetDefinition> = {
     minSize: "1x1",
     category: "intelligence",
   },
+
+  // ── New widgets ─────────────────────────────────────────────────
+  "heat-score-distribution": {
+    id: "heat-score-distribution",
+    label: "Heat Score Distribution",
+    description: "FIRE / HOT / WARM / COLD breakdown across all prospects",
+    icon: Flame,
+    defaultSize: "1x1",
+    minSize: "1x1",
+    category: "intelligence",
+  },
+  "distress-signals": {
+    id: "distress-signals",
+    label: "Distress Signals",
+    description: "Live count of recent distress events by signal type",
+    icon: AlertTriangle,
+    defaultSize: "2x1",
+    minSize: "1x1",
+    category: "intelligence",
+  },
+  "calls-today": {
+    id: "calls-today",
+    label: "Calls Today",
+    description: "Daily call volume, talk time, and connect rate",
+    icon: PhoneOutgoing,
+    defaultSize: "1x1",
+    minSize: "1x1",
+    category: "workflow",
+  },
+  "tasks-due": {
+    id: "tasks-due",
+    label: "Tasks Due",
+    description: "Overdue and upcoming follow-up calls scheduled today",
+    icon: CalendarClock,
+    defaultSize: "1x1",
+    minSize: "1x1",
+    category: "workflow",
+  },
+  "compliance-status": {
+    id: "compliance-status",
+    label: "Compliance Status",
+    description: "DNC, litigant, and opt-out scrub health at a glance",
+    icon: ShieldCheck,
+    defaultSize: "1x1",
+    minSize: "1x1",
+    category: "workflow",
+  },
+  "cost-per-lead": {
+    id: "cost-per-lead",
+    label: "Cost per Lead",
+    description: "Blended and per-source CPL vs $40 target",
+    icon: Target,
+    defaultSize: "2x1",
+    minSize: "1x1",
+    category: "analytics",
+  },
+  "conversion-rates": {
+    id: "conversion-rates",
+    label: "Conversion Rates",
+    description: "Stage-to-stage conversion from prospect through close",
+    icon: GitBranch,
+    defaultSize: "2x1",
+    minSize: "1x1",
+    category: "analytics",
+  },
+  "lead-velocity": {
+    id: "lead-velocity",
+    label: "Lead Velocity",
+    description: "Avg days per pipeline stage — how fast deals move",
+    icon: Gauge,
+    defaultSize: "1x1",
+    minSize: "1x1",
+    category: "analytics",
+  },
 };
 
-export const MAX_DASHBOARD_TILES = 6;
+export const MAX_DASHBOARD_TILES = 12;
 
 export const DEFAULT_LAYOUT: DashboardLayout = {
   tiles: [
