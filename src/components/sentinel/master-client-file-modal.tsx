@@ -1277,32 +1277,35 @@ function OverviewTab({ cf, skipTracing, skipTraceResult, skipTraceMs, overlay, s
       {/* Owner & Contact */}
       <Section title="Owner & Contact" icon={User}>
         <InfoRow icon={User} label="Owner" value={cf.ownerName} />
-        {displayPhone && <InfoRow icon={Phone} label="Phone" value={displayPhone} highlight />}
-        {displayEmail && <InfoRow icon={Mail} label="Email" value={displayEmail} highlight />}
-
-        {allPhones.length > 1 && (
+        {allPhones.length > 0 ? (
           <div className="mt-2 space-y-1">
-            <p className="text-[10px] text-muted-foreground uppercase tracking-wider">All Phone Numbers</p>
+            <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Phone Numbers ({allPhones.length})</p>
             {allPhones.map((ph: string, i: number) => (
               <div key={i} className="flex items-center gap-2 text-sm">
-                <Phone className="h-3 w-3 text-cyan/60" /><span className="font-mono">{ph}</span>
+                <Phone className="h-3 w-3 text-cyan/60" />
+                <a href={`tel:${ph.replace(/\D/g, "")}`} className="font-mono text-cyan hover:underline">{ph}</a>
                 {i === 0 && <Badge variant="outline" className="text-[8px] py-0">PRIMARY</Badge>}
               </div>
             ))}
           </div>
-        )}
+        ) : displayPhone ? (
+          <InfoRow icon={Phone} label="Phone" value={displayPhone} highlight />
+        ) : null}
 
-        {allEmails.length > 1 && (
+        {allEmails.length > 0 ? (
           <div className="mt-2 space-y-1">
-            <p className="text-[10px] text-muted-foreground uppercase tracking-wider">All Emails</p>
+            <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Emails ({allEmails.length})</p>
             {allEmails.map((em: string, i: number) => (
               <div key={i} className="flex items-center gap-2 text-sm">
-                <Mail className="h-3 w-3 text-cyan/60" /><span>{em}</span>
+                <Mail className="h-3 w-3 text-cyan/60" />
+                <a href={`mailto:${em}`} className="text-cyan hover:underline">{em}</a>
                 {i === 0 && <Badge variant="outline" className="text-[8px] py-0">PRIMARY</Badge>}
               </div>
             ))}
           </div>
-        )}
+        ) : displayEmail ? (
+          <InfoRow icon={Mail} label="Email" value={displayEmail} highlight />
+        ) : null}
 
         {persons.length > 0 && (
           <div className="mt-3 space-y-2">
@@ -1324,13 +1327,27 @@ function OverviewTab({ cf, skipTracing, skipTraceResult, skipTraceMs, overlay, s
         )}
 
         {!displayPhone && !displayEmail && !skipTraced && (
-          <div className="flex items-center gap-2 py-2 text-xs text-muted-foreground bg-amber-500/5 border border-amber-500/10 rounded-md px-3 mt-2">
-            <Search className="h-3.5 w-3.5 text-amber-400" />
-            No contact info yet &mdash; click <strong className="text-amber-400 mx-1">Skip Trace</strong> to pull all data
+          <div className="mt-3 rounded-[10px] border border-amber-500/20 bg-amber-500/5 p-3 space-y-2">
+            <div className="flex items-center gap-2 text-xs text-amber-300">
+              <Search className="h-4 w-4 text-amber-400" />
+              <span className="font-semibold">No phone numbers or emails found yet</span>
+            </div>
+            <p className="text-[11px] text-muted-foreground">
+              Click below to pull owner contact info from PropertyRadar &mdash; typically returns 3-5 phone numbers and emails.
+            </p>
+            <Button
+              size="sm"
+              onClick={onSkipTrace}
+              disabled={skipTracing}
+              className="w-full gap-2 bg-neon/90 hover:bg-neon text-black font-bold border-0 shadow-[0_0_18px_rgba(0,255,136,0.3)] hover:shadow-[0_0_28px_rgba(0,255,136,0.5)] transition-all"
+            >
+              {skipTracing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
+              {skipTracing ? "Pulling contact data..." : cf.enriched ? "Skip Trace — Get Phone Numbers" : "Enrich + Skip Trace — Get Phone Numbers"}
+            </Button>
           </div>
         )}
 
-        {!cf.enriched && (
+        {!cf.enriched && displayPhone && (
           <div className="flex items-center gap-2 py-2 text-xs text-muted-foreground bg-blue-500/5 border border-blue-500/10 rounded-md px-3 mt-2">
             <Zap className="h-3.5 w-3.5 text-blue-400" />
             Not enriched &mdash; Skip Trace will auto-pull property data, scoring, and contact info

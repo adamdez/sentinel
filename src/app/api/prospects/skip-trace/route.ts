@@ -119,8 +119,7 @@ export async function POST(req: NextRequest) {
     console.log("[SkipTrace] Fetching Persons for RadarID:", radarId);
     const tPersonsStart = Date.now();
 
-    // Call PropertyRadar Persons endpoint
-    const personsUrl = `${PR_API_BASE}/${radarId}/persons?Fields=All`;
+    const personsUrl = `${PR_API_BASE}/${radarId}/persons?Purchase=1&Fields=default`;
     const personsRes = await fetch(personsUrl, {
       method: "GET",
       headers: {
@@ -150,61 +149,62 @@ export async function POST(req: NextRequest) {
     const personDetails: any[] = [];
 
     for (const person of persons) {
-      const name = [person.FirstName, person.LastName].filter(Boolean).join(" ") || person.Name || "Unknown";
+      const name = [person.FirstName, person.LastName].filter(Boolean).join(" ")
+        || person.EntityName || person.Name || "Unknown";
 
-      // Phones can be in Phone1, Phone2, etc. or in a Phones array
+      // PropertyRadar returns Phone as array of objects:
+      // [{href, linktext, phoneType, status, source}, ...]
       const personPhones: string[] = [];
-      for (let i = 1; i <= 5; i++) {
-        const ph = person[`Phone${i}`] ?? person[`phone${i}`];
-        if (ph && typeof ph === "string" && ph.length >= 7) {
-          personPhones.push(ph);
-          if (!phones.includes(ph)) phones.push(ph);
-        }
-      }
-      if (person.Phone && !phones.includes(person.Phone)) {
-        personPhones.push(person.Phone);
-        phones.push(person.Phone);
-      }
-      if (Array.isArray(person.Phones)) {
-        for (const ph of person.Phones) {
-          const num = typeof ph === "string" ? ph : ph?.Number ?? ph?.phone;
-          if (num && !phones.includes(num)) {
+      if (Array.isArray(person.Phone)) {
+        for (const ph of person.Phone) {
+          const num = ph?.linktext ?? ph?.href?.replace("tel:", "");
+          if (num && typeof num === "string" && num.length >= 7 && !phones.includes(num)) {
             personPhones.push(num);
             phones.push(num);
           }
         }
-      }
-
-      // Emails
-      const personEmails: string[] = [];
-      for (let i = 1; i <= 3; i++) {
-        const em = person[`Email${i}`] ?? person[`email${i}`];
-        if (em && typeof em === "string" && em.includes("@")) {
-          personEmails.push(em);
-          if (!emails.includes(em)) emails.push(em);
+      } else if (typeof person.Phone === "string" && person.Phone.length >= 7) {
+        if (!phones.includes(person.Phone)) {
+          personPhones.push(person.Phone);
+          phones.push(person.Phone);
         }
       }
-      if (person.Email && !emails.includes(person.Email)) {
-        personEmails.push(person.Email);
-        emails.push(person.Email);
-      }
-      if (Array.isArray(person.Emails)) {
-        for (const em of person.Emails) {
-          const addr = typeof em === "string" ? em : em?.Address ?? em?.email;
-          if (addr && !emails.includes(addr)) {
+
+      // PropertyRadar returns Email as array of objects:
+      // [{href, linktext, status, source}, ...]
+      const personEmails: string[] = [];
+      if (Array.isArray(person.Email)) {
+        for (const em of person.Email) {
+          const addr = em?.linktext ?? em?.href?.replace("mailto:", "");
+          if (addr && typeof addr === "string" && addr.includes("@") && !emails.includes(addr)) {
             personEmails.push(addr);
             emails.push(addr);
           }
         }
+      } else if (typeof person.Email === "string" && person.Email.includes("@")) {
+        if (!emails.includes(person.Email)) {
+          personEmails.push(person.Email);
+          emails.push(person.Email);
+        }
+      }
+
+      // Extract mailing address from the array format PR returns
+      let mailingAddr: string | null = null;
+      if (Array.isArray(person.MailAddress) && person.MailAddress.length > 0) {
+        mailingAddr = person.MailAddress[0]?.Address ?? null;
+      } else if (typeof person.MailAddress === "string") {
+        mailingAddr = person.MailAddress;
       }
 
       personDetails.push({
         name,
-        relation: person.Relation ?? person.PersonType ?? "Owner",
+        relation: person.OwnershipRole ?? person.PersonType ?? "Owner",
         age: person.Age ?? null,
         phones: personPhones,
         emails: personEmails,
-        mailing_address: person.MailingAddress ?? person.Address ?? null,
+        mailing_address: mailingAddr,
+        occupation: person.Occupation ?? null,
+        is_primary: person.isPrimaryContact === 1,
       });
     }
 
