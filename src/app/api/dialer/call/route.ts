@@ -54,12 +54,18 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "phone is required" }, { status: 400 });
   }
 
-  const phone = body.phone.replace(/\D/g, "");
-  if (phone.length < 10) {
+  // Strip everything except digits, then normalise to exactly 10-digit US number
+  let digits = body.phone.replace(/\D/g, "");
+  // Strip leading country code "1" if present (11 digits starting with 1)
+  if (digits.length === 11 && digits.startsWith("1")) {
+    digits = digits.slice(1);
+  }
+  if (digits.length < 10) {
     return NextResponse.json({ error: "Invalid phone number" }, { status: 400 });
   }
-
-  const e164 = phone.length === 10 ? `+1${phone}` : `+${phone}`;
+  // Always use exactly 10 digits for US E.164
+  const phone = digits.slice(0, 10);
+  const e164 = `+1${phone}`;
   const userId = user.id;
 
   // 1. Compliance scrub
@@ -91,8 +97,11 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const agentCellDigits = agentCell.replace(/\D/g, "");
-  const agentCellE164 = agentCellDigits.length === 10 ? `+1${agentCellDigits}` : `+${agentCellDigits}`;
+  let agentCellDigits = agentCell.replace(/\D/g, "");
+  if (agentCellDigits.length === 11 && agentCellDigits.startsWith("1")) {
+    agentCellDigits = agentCellDigits.slice(1);
+  }
+  const agentCellE164 = `+1${agentCellDigits.slice(0, 10)}`;
 
   const from = agentTwilioNumber || fallbackFrom;
   if (!from) {

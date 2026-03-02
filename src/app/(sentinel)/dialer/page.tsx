@@ -255,7 +255,10 @@ function formatUsPhone(digits: string): string {
   return `(${digits.slice(0, 3)}) ${digits.slice(3, 6)}-${digits.slice(6, 10)}`;
 }
 
-function toE164(digits: string): string {
+function toE164(raw: string): string {
+  let digits = raw.replace(/\D/g, "");
+  // Strip leading country code "1" so we don't double it
+  if (digits.length === 11 && digits.startsWith("1")) digits = digits.slice(1);
   return `+1${digits.slice(0, 10)}`;
 }
 
