@@ -33,6 +33,7 @@ const DISTRESS_LABELS: Record<string, string> = {
   probate: "Probate", pre_foreclosure: "Pre-Foreclosure", tax_lien: "Tax Lien",
   code_violation: "Code Violation", vacant: "Vacant", divorce: "Divorce",
   bankruptcy: "Bankruptcy", fsbo: "FSBO", absentee: "Absentee", inherited: "Inherited",
+  water_shutoff: "Water Shut-off", condemned: "Condemned",
 };
 
 const SOURCE_FILTERS = [

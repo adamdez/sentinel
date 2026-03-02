@@ -43,6 +43,8 @@ const DISTRESS_OPTIONS: { value: DistressType; label: string }[] = [
   { value: "fsbo", label: "FSBO" },
   { value: "absentee", label: "Absentee" },
   { value: "inherited", label: "Inherited" },
+  { value: "water_shutoff", label: "Water Shut-off" },
+  { value: "condemned", label: "Condemned" },
 ];
 
 const SCORE_PRESETS = [

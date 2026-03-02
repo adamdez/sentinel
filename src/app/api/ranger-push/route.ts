@@ -306,6 +306,8 @@ function mapTagToDistressType(tag: string): string {
     fsbo: "fsbo",
     absentee: "absentee",
     inherited: "inherited",
+    water_shutoff: "water_shutoff",
+    condemned: "condemned",
   };
   const normalized = tag.toLowerCase().replace(/[\s-]+/g, "_");
   return mapping[normalized] ?? "vacant";

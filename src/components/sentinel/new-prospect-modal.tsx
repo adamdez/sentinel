@@ -59,12 +59,14 @@ const EMPTY_FORM: FormData = {
 const DISTRESS_OPTIONS = [
   "probate", "pre_foreclosure", "tax_lien", "code_violation",
   "vacant", "divorce", "bankruptcy", "fsbo", "absentee", "inherited",
+  "water_shutoff", "condemned",
 ];
 
 const DISTRESS_LABELS: Record<string, string> = {
   probate: "Probate", pre_foreclosure: "Pre-Foreclosure", tax_lien: "Tax Lien",
   code_violation: "Code Violation", vacant: "Vacant", divorce: "Divorce",
   bankruptcy: "Bankruptcy", fsbo: "FSBO", absentee: "Absentee", inherited: "Inherited",
+  water_shutoff: "Water Shut-off", condemned: "Condemned",
 };
 
 const PROPERTY_TYPES = ["SFR", "Multi-Family", "Condo", "Townhome", "Mobile", "Land", "Commercial"];

@@ -22,6 +22,11 @@ const SIGNAL_COLORS: Record<string, string> = {
   trustee_sale: "text-cyan",
   obituary: "text-rose-400",
   vacant: "text-emerald-400",
+  condemned: "text-rose-500",
+  divorce: "text-purple-400",
+  bankruptcy: "text-red-500",
+  inherited: "text-amber-400",
+  absentee: "text-cyan-400",
 };
 
 function labelFor(type: string): string {

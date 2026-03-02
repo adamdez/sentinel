@@ -51,7 +51,7 @@ const SIGNAL_LABELS: Record<string, string> = {
   probate: "Probate", pre_foreclosure: "Pre-Foreclosure", tax_lien: "Tax Lien",
   code_violation: "Code Violation", vacant: "Vacant", divorce: "Divorce",
   bankruptcy: "Bankruptcy", fsbo: "FSBO", absentee: "Absentee",
-  inherited: "Inherited", water_shutoff: "Water Shut-off",
+  inherited: "Inherited", water_shutoff: "Water Shut-off", condemned: "Condemned",
 };
 
 const SIGNAL_EXPLAIN: Record<string, string> = {
@@ -66,6 +66,7 @@ const SIGNAL_EXPLAIN: Record<string, string> = {
   absentee: "Owner lives elsewhere — less attached, higher sell rate",
   inherited: "Property inherited — heirs often prefer cash",
   water_shutoff: "Utility disconnected — strong vacancy/abandonment signal",
+  condemned: "Property condemned — uninhabitable, owner under pressure to sell or demolish",
 };
 
 const SIGNAL_TAG_SET = new Set(Object.keys(SIGNAL_LABELS));

@@ -11,13 +11,20 @@
  *   - Idaho DEQ public notices
  *
  * Each crawled record is normalized to:
- *   { name, address, city, state, county, date, link, source, distressType: "water_shutoff" }
+ *   { name, address, city, state, county, date, link, source, distressType }
+ *
+ * distressType is derived from the source's dataType:
+ *   - code_violations → "code_violation"
+ *   - utility_liens / shutoff_notices / deq_notices → "water_shutoff"
  *
  * APN extraction attempted from page content; synthetic APN fallback via
  * address hash when not found. Idempotent via fingerprint dedup.
  */
 
 import type { CrawlerModule, CrawledRecord } from "./predictive-crawler";
+import type { DistressType } from "@/lib/types";
+
+type SourceDataType = "code_violations" | "utility_liens" | "shutoff_notices" | "deq_notices";
 
 interface UtilitySource {
   id: string;
@@ -26,8 +33,16 @@ interface UtilitySource {
   county: string;
   state: string;
   /** Which type of public data this source exposes */
-  dataType: "code_violations" | "utility_liens" | "shutoff_notices" | "deq_notices";
+  dataType: SourceDataType;
 }
+
+/** Map source dataType to the correct Sentinel distress_type enum value */
+const DATA_TYPE_TO_DISTRESS: Record<SourceDataType, DistressType> = {
+  code_violations: "code_violation",
+  utility_liens:   "water_shutoff",
+  shutoff_notices: "water_shutoff",
+  deq_notices:     "water_shutoff",
+};
 
 const SOURCES: UtilitySource[] = [
   {
@@ -249,7 +264,7 @@ async function crawlSource(source: UtilitySource): Promise<CrawledRecord[]> {
       date,
       link: source.url,
       source: `utility_shutoff:${source.id}`,
-      distressType: "water_shutoff",
+      distressType: DATA_TYPE_TO_DISTRESS[source.dataType],
       rawData: {
         data_type: source.dataType,
         source_name: source.name,
@@ -291,7 +306,7 @@ async function crawlSource(source: UtilitySource): Promise<CrawledRecord[]> {
       date,
       link,
       source: `utility_shutoff:${source.id}`,
-      distressType: "water_shutoff",
+      distressType: DATA_TYPE_TO_DISTRESS[source.dataType],
       rawData: {
         data_type: source.dataType,
         source_name: source.name,

@@ -59,6 +59,8 @@ const LIFE_EVENT_BASE_RATES: Record<string, number> = {
   tax_lien: 0.040,
   code_violation: 0.015,
   inherited: 0.030,
+  water_shutoff: 0.045,
+  condemned: 0.025,
 };
 
 // ── Age-bracket distress multipliers ────────────────────────────────

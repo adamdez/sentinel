@@ -242,6 +242,7 @@ const DISTRESS_CFG: Record<string, { label: string; icon: typeof AlertTriangle; 
   absentee:         { label: "Absentee",          icon: UserX,         color: "text-blue-400 bg-blue-500/10 border-blue-500/20" },
   inherited:        { label: "Inherited",         icon: User,          color: "text-violet-400 bg-violet-500/10 border-violet-500/20" },
   water_shutoff:    { label: "Water Shut-Off",   icon: AlertTriangle, color: "text-red-400 bg-red-500/10 border-red-500/20" },
+  condemned:        { label: "Condemned",        icon: AlertTriangle, color: "text-rose-400 bg-rose-500/10 border-rose-500/20" },
 };
 
 const SCORE_LABEL_CFG: Record<AIScore["label"], { text: string; color: string; bg: string }> = {
@@ -342,7 +343,7 @@ const SIGNAL_WEIGHT_LABELS: Record<string, string> = {
   probate: "Probate Filing", pre_foreclosure: "Pre-Foreclosure", tax_lien: "Tax Lien",
   code_violation: "Code Violation", vacant: "Vacant Property", divorce: "Divorce",
   bankruptcy: "Bankruptcy", fsbo: "FSBO", absentee: "Absentee Owner",
-  inherited: "Inherited Property", water_shutoff: "Water Shut-Off",
+  inherited: "Inherited Property", water_shutoff: "Water Shut-Off", condemned: "Condemned Property",
   stacking_bonus: "Signal Stacking Bonus", owner_factors: "Owner Profile Factors",
   equity: "Equity Factor", comp_ratio: "Comp Ratio Factor", ai_boost: "AI Historical Boost",
 };

@@ -145,6 +145,7 @@ export function BreakingLeadsSidebar() {
       probate: "Probate", pre_foreclosure: "Pre-Foreclosure", tax_lien: "Tax Lien",
       code_violation: "Code Viol.", vacant: "Vacant", divorce: "Divorce",
       bankruptcy: "Bankruptcy", fsbo: "FSBO", absentee: "Absentee", inherited: "Inherited",
+      water_shutoff: "Water Shutoff", condemned: "Condemned",
     };
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any

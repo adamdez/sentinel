@@ -34,6 +34,7 @@ export const SIGNAL_WEIGHTS: Record<DistressType, number> = {
   absentee: 22,
   inherited: 25,
   water_shutoff: 35,
+  condemned: 20,
 };
 
 // ── Severity Multiplier Tiers (config-driven) ───────────────────────

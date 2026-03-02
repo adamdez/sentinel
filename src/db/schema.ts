@@ -31,6 +31,7 @@ export const userRoleEnum = pgEnum("user_role", [
 export const distressTypeEnum = pgEnum("distress_type", [
   "probate", "pre_foreclosure", "tax_lien", "code_violation",
   "vacant", "divorce", "bankruptcy", "fsbo", "absentee", "inherited",
+  "water_shutoff", "condemned",
 ]);
 
 // ── Properties ──────────────────────────────────────────────────────

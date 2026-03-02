@@ -20,7 +20,8 @@ export type DistressType =
   | "fsbo"
   | "absentee"
   | "inherited"
-  | "water_shutoff";
+  | "water_shutoff"
+  | "condemned";
 
 export interface Property {
   id: string;
