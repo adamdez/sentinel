@@ -4,17 +4,21 @@ import { createServerClient } from "@/lib/supabase";
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
+const SYSTEM_USER_ID = "00000000-0000-0000-0000-000000000000";
+
 /**
  * POST /api/twilio/voice/status
  *
- * Called by Twilio after the <Dial> to the prospect completes.
+ * Handles TWO types of Twilio callbacks:
  *
- * Agent-first flow:
- *   - Agent is already on the line.
- *   - If DialCallStatus !== "completed", the prospect didn't answer.
- *     Tell the agent and end the call (the agent can also leave a VM
- *     naturally if the prospect's voicemail picks up before timeout).
- *   - If DialCallStatus === "completed", the call finished normally.
+ * 1. type=call_status — StatusCallback for the initial call TO the agent.
+ *    Form fields: CallSid, CallStatus, CallDuration, etc.
+ *    Statuses: queued → initiated → ringing → in-progress → completed
+ *    Also: busy, no-answer, canceled, failed
+ *
+ * 2. type=dial_complete — <Dial> action callback after the PROSPECT leg ends.
+ *    Form fields: DialCallSid, DialCallStatus, DialCallDuration, etc.
+ *    Statuses: completed, busy, no-answer, canceled, failed
  */
 export async function POST(req: NextRequest) {
   const url = new URL(req.url);
@@ -22,54 +26,158 @@ export async function POST(req: NextRequest) {
   const type = url.searchParams.get("type");
 
   const formData = await req.formData();
-  const dialStatus = formData.get("DialCallStatus")?.toString() ?? "";
-  const callDuration = formData.get("DialCallDuration")?.toString() ?? "0";
-
   const sb = createServerClient();
 
-  if (type === "dial_complete" && dialStatus !== "completed") {
-    // Prospect didn't answer — inform the agent who is still on the line
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    await (sb.from("event_log") as any).insert({
-      user_id: "00000000-0000-0000-0000-000000000000",
-      action: "twilio.prospect_no_answer",
-      entity_type: "call",
-      entity_id: callLogId ?? "unknown",
-      details: { dial_status: dialStatus, duration: callDuration },
+  // ── Type 1: Agent-leg status callbacks (from StatusCallbackEvent) ──
+  if (type === "call_status") {
+    const callStatus = formData.get("CallStatus")?.toString() ?? "";
+    const callSid = formData.get("CallSid")?.toString() ?? "";
+
+    console.log("[Twilio Status] Agent leg:", {
+      callLogId: callLogId?.slice(0, 8),
+      callStatus,
+      callSid: callSid.slice(0, 10),
     });
 
     if (callLogId) {
+      // Map Twilio CallStatus to our disposition
+      let disposition: string | null = null;
+      const updatePayload: Record<string, unknown> = {};
+
+      switch (callStatus) {
+        case "initiated":
+          disposition = "initiated";
+          break;
+        case "ringing":
+          disposition = "ringing_agent";
+          break;
+        case "in-progress":
+          disposition = "agent_connected";
+          break;
+        case "completed":
+          // Agent hung up or call ended — only update if not already dispositioned
+          updatePayload.ended_at = new Date().toISOString();
+          updatePayload.duration_sec = parseInt(formData.get("CallDuration")?.toString() ?? "0") || 0;
+          break;
+        case "busy":
+          disposition = "agent_busy";
+          updatePayload.ended_at = new Date().toISOString();
+          break;
+        case "no-answer":
+          disposition = "agent_no_answer";
+          updatePayload.ended_at = new Date().toISOString();
+          break;
+        case "canceled":
+          disposition = "canceled";
+          updatePayload.ended_at = new Date().toISOString();
+          break;
+        case "failed":
+          disposition = "failed";
+          updatePayload.ended_at = new Date().toISOString();
+          break;
+      }
+
+      if (disposition) {
+        updatePayload.disposition = disposition;
+      }
+
+      if (Object.keys(updatePayload).length > 0) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        await (sb.from("calls_log") as any)
+          .update(updatePayload)
+          .eq("id", callLogId);
+      }
+    }
+
+    // Log to event_log for debugging
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (sb.from("event_log") as any).insert({
+      user_id: SYSTEM_USER_ID,
+      action: `twilio.call_status.${callStatus}`,
+      entity_type: "call",
+      entity_id: callLogId ?? "unknown",
+      details: {
+        call_sid: callSid,
+        call_status: callStatus,
+        duration: formData.get("CallDuration")?.toString() ?? "0",
+      },
+    });
+
+    return new NextResponse(
+      '<?xml version="1.0" encoding="UTF-8"?><Response></Response>',
+      { headers: { "Content-Type": "text/xml" } },
+    );
+  }
+
+  // ── Type 2: Dial action callback (prospect leg completed) ──────────
+  if (type === "dial_complete") {
+    const dialStatus = formData.get("DialCallStatus")?.toString() ?? "";
+    const callDuration = formData.get("DialCallDuration")?.toString() ?? "0";
+
+    console.log("[Twilio Status] Prospect leg:", {
+      callLogId: callLogId?.slice(0, 8),
+      dialStatus,
+      duration: callDuration,
+    });
+
+    if (dialStatus !== "completed") {
+      // Prospect didn't answer — inform the agent who is still on the line
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      await (sb.from("event_log") as any).insert({
+        user_id: SYSTEM_USER_ID,
+        action: "twilio.prospect_no_answer",
+        entity_type: "call",
+        entity_id: callLogId ?? "unknown",
+        details: { dial_status: dialStatus, duration: callDuration },
+      });
+
+      if (callLogId) {
+        const dispo = dialStatus === "busy" ? "busy" : "no_answer";
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        await (sb.from("calls_log") as any)
+          .update({ disposition: dispo })
+          .eq("id", callLogId);
+      }
+
+      const twiml = [
+        '<?xml version="1.0" encoding="UTF-8"?>',
+        "<Response>",
+        `  <Say voice="Polly.Joanna">The prospect did not answer. Status: ${dialStatus || "unknown"}. Goodbye.</Say>`,
+        "</Response>",
+      ].join("\n");
+
+      return new NextResponse(twiml, {
+        headers: { "Content-Type": "text/xml" },
+      });
+    }
+
+    // Prospect answered and the call completed normally
+    if (callLogId) {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       await (sb.from("calls_log") as any)
-        .update({ disposition: "no_answer" })
+        .update({
+          disposition: "completed",
+          transfer_completed: true,
+          duration_sec: parseInt(callDuration) || 0,
+        })
         .eq("id", callLogId);
     }
 
-    const twiml = [
-      '<?xml version="1.0" encoding="UTF-8"?>',
-      "<Response>",
-      '  <Say voice="Polly.Joanna">The prospect did not answer. Goodbye.</Say>',
-      "</Response>",
-    ].join("\n");
-
-    return new NextResponse(twiml, {
-      headers: { "Content-Type": "text/xml" },
-    });
+    return new NextResponse(
+      '<?xml version="1.0" encoding="UTF-8"?><Response></Response>',
+      { headers: { "Content-Type": "text/xml" } },
+    );
   }
 
-  // Prospect answered and the call completed normally
-  if (callLogId) {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    await (sb.from("calls_log") as any)
-      .update({
-        transfer_completed: true,
-        duration_sec: parseInt(callDuration) || 0,
-      })
-      .eq("id", callLogId);
-  }
-
+  // ── Fallback: unknown type ─────────────────────────────────────────
+  console.warn("[Twilio Status] Unknown callback type:", type, Object.fromEntries(formData));
   return new NextResponse(
     '<?xml version="1.0" encoding="UTF-8"?><Response></Response>',
     { headers: { "Content-Type": "text/xml" } },
   );
+}
+
+// Support GET as fallback
+export async function GET(req: NextRequest) {
+  return POST(req);
 }

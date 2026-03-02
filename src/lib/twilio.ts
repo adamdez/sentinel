@@ -79,16 +79,34 @@ export function friendlyTwilioError(twilioMessage: string): string {
   const lower = twilioMessage.toLowerCase();
 
   if (lower.includes("authenticate") || lower.includes("invalid username") || lower.includes("invalid credentials")) {
-    return "Twilio authentication failed — please verify Account SID and Auth Token in Vercel env vars";
+    return "Twilio authentication failed — verify Account SID and Auth Token in Vercel env vars";
   }
   if (lower.includes("is not a valid phone number") || lower.includes("invalid 'to'")) {
-    return "Invalid destination phone number";
+    return "Invalid destination phone number — check the number format";
   }
-  if (lower.includes("unverified") || lower.includes("not a verified")) {
-    return "Phone number not verified in Twilio trial account — upgrade or verify the number";
+  if (lower.includes("unverified") || lower.includes("not a verified") || lower.includes("21219")) {
+    return "Phone number not verified — trial Twilio accounts can only call verified numbers. Upgrade your Twilio account or add the number in Twilio Console → Verified Caller IDs";
   }
   if (lower.includes("queue") || lower.includes("rate")) {
     return "Twilio rate limit reached — try again in a moment";
+  }
+  if (lower.includes("not owned") || lower.includes("21212") || lower.includes("is not a mobile number on your account")) {
+    return "The From phone number is not owned by your Twilio account — check TWILIO_PHONE_NUMBER in env vars";
+  }
+  if (lower.includes("geographic permission") || lower.includes("21215")) {
+    return "Geographic permissions not enabled — enable voice calling for this country in Twilio Console → Voice → Geo Permissions";
+  }
+  if (lower.includes("suspended") || lower.includes("disabled")) {
+    return "Twilio account is suspended or disabled — check your Twilio console";
+  }
+  if (lower.includes("insufficient") || lower.includes("balance") || lower.includes("funds")) {
+    return "Insufficient Twilio balance — add funds to your Twilio account";
+  }
+  if (lower.includes("https") || lower.includes("ssl") || lower.includes("21656")) {
+    return "Twilio requires HTTPS for webhook URLs — set NEXT_PUBLIC_SITE_URL to an https:// URL";
+  }
+  if (lower.includes("url") || lower.includes("21205")) {
+    return "Invalid webhook URL — check that NEXT_PUBLIC_SITE_URL is set correctly in env vars";
   }
 
   return `Twilio error: ${twilioMessage}`;

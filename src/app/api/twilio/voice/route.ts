@@ -7,7 +7,7 @@ export const runtime = "nodejs";
 const SYSTEM_USER_ID = "00000000-0000-0000-0000-000000000000";
 
 /**
- * POST /api/twilio/voice
+ * POST|GET /api/twilio/voice
  *
  * Twilio webhook — called when the AGENT answers their cell phone
  * (agent-first click-to-call). Returns TwiML that bridges
@@ -16,11 +16,18 @@ const SYSTEM_USER_ID = "00000000-0000-0000-0000-000000000000";
  * Query params:
  *   ?agentId=<user_id>&callLogId=<id>&prospectPhone=<e164>
  */
-export async function POST(req: NextRequest) {
+async function handleVoiceWebhook(req: NextRequest) {
   const url = new URL(req.url);
   const agentId = url.searchParams.get("agentId");
   const callLogId = url.searchParams.get("callLogId");
   const prospectPhone = url.searchParams.get("prospectPhone");
+
+  console.log("[Twilio Voice] Webhook hit:", {
+    agentId: agentId ? `${agentId.slice(0, 8)}…` : null,
+    callLogId: callLogId ? `${callLogId.slice(0, 8)}…` : null,
+    prospectPhone: prospectPhone ? `***${prospectPhone.slice(-4)}` : null,
+    method: req.method,
+  });
 
   const sb = createServerClient();
 
@@ -39,6 +46,13 @@ export async function POST(req: NextRequest) {
 
   const twilioNumber = agentTwilioNumber || process.env.TWILIO_PHONE_NUMBER || "";
 
+  // Build the absolute action URL for the Dial verb
+  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL
+    ?? (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "");
+  const actionUrl = siteUrl
+    ? `${siteUrl}/api/twilio/voice/status?callLogId=${encodeURIComponent(callLogId ?? "")}&amp;type=dial_complete`
+    : `/api/twilio/voice/status?callLogId=${callLogId ?? ""}&amp;type=dial_complete`;
+
   let twiml: string;
 
   if (prospectPhone) {
@@ -48,12 +62,13 @@ export async function POST(req: NextRequest) {
       '<?xml version="1.0" encoding="UTF-8"?>',
       "<Response>",
       '  <Say voice="Polly.Joanna">Sentinel call. Connecting to prospect now.</Say>',
-      `  <Dial callerId="${twilioNumber}" timeout="30" action="/api/twilio/voice/status?callLogId=${callLogId ?? ""}&amp;type=dial_complete">`,
+      `  <Dial callerId="${twilioNumber}" timeout="30" action="${actionUrl}">`,
       `    <Number>${prospectPhone}</Number>`,
       "  </Dial>",
       "</Response>",
     ].join("\n");
   } else {
+    console.warn("[Twilio Voice] No prospectPhone in webhook — call will end");
     twiml = [
       '<?xml version="1.0" encoding="UTF-8"?>',
       "<Response>",
@@ -62,8 +77,9 @@ export async function POST(req: NextRequest) {
     ].join("\n");
   }
 
+  // Log the webhook event (non-blocking)
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  await (sb.from("event_log") as any).insert({
+  (sb.from("event_log") as any).insert({
     user_id: agentId ?? SYSTEM_USER_ID,
     action: "twilio.voice_webhook",
     entity_type: "call",
@@ -77,7 +93,21 @@ export async function POST(req: NextRequest) {
     },
   });
 
+  // Update calls_log to show the agent answered
+  if (callLogId) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (sb.from("calls_log") as any)
+      .update({ disposition: "agent_answered" })
+      .eq("id", callLogId)
+      .then(() => {});
+  }
+
   return new NextResponse(twiml, {
     headers: { "Content-Type": "text/xml" },
   });
 }
+
+// Twilio sends POST for voice webhooks by default
+export const POST = handleVoiceWebhook;
+// Some Twilio configs use GET — support both
+export const GET = handleVoiceWebhook;

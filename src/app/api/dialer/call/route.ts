@@ -112,8 +112,32 @@ export async function POST(req: NextRequest) {
   //    voice webhook bridges the call to the PROSPECT.
   const twilioUrl = `https://api.twilio.com/2010-04-01/Accounts/${sid}/Calls.json`;
 
-  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL
-    ?? (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "http://localhost:3000");
+  // Resolve the public URL for Twilio webhooks.
+  // CRITICAL: Twilio MUST be able to reach these URLs from the internet.
+  // localhost will NOT work in production — Twilio silently fails.
+  let siteUrl = process.env.NEXT_PUBLIC_SITE_URL
+    ?? (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "");
+
+  // Force HTTPS in production (Twilio requires it)
+  if (siteUrl && !siteUrl.startsWith("https://") && process.env.NODE_ENV === "production") {
+    siteUrl = siteUrl.replace("http://", "https://");
+  }
+
+  if (!siteUrl || siteUrl.includes("localhost")) {
+    console.error("[Dialer] FATAL: Webhook URL is unreachable:", siteUrl || "(empty)",
+      "— Set NEXT_PUBLIC_SITE_URL to your public deployment URL");
+
+    // In development, fall back to localhost but warn
+    if (process.env.NODE_ENV !== "production" && !siteUrl) {
+      siteUrl = "http://localhost:3000";
+      console.warn("[Dialer] Using localhost for development — calls will connect but bridging won't work without ngrok/tunneling");
+    } else if (!siteUrl) {
+      return NextResponse.json({
+        success: false,
+        error: "Webhook URL not configured — set NEXT_PUBLIC_SITE_URL in Vercel environment variables to your public URL (e.g. https://sentinel.vercel.app)",
+      }, { status: 500 });
+    }
+  }
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data: callLog, error: logErr } = await (sb.from("calls_log") as any)

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Phone, PhoneOff, PhoneForwarded, PhoneIncoming, Clock, Users, BarChart3,
@@ -8,6 +8,7 @@ import {
   Skull, Heart, Search, Ghost, Zap, ChevronRight, Timer,
   Sparkles, DollarSign, Loader2, SkipForward, MessageSquare,
   X, Send, Shield, CheckCircle2, History, ArrowDownLeft, ArrowUpRight,
+  AlertTriangle, Wifi, WifiOff,
 } from "lucide-react";
 import { toast } from "sonner";
 import { PageShell } from "@/components/sentinel/page-shell";
@@ -288,6 +289,14 @@ export default function DialerPage() {
   const [smsComposeMsg, setSmsComposeMsg] = useState("");
   const [smsComposeSending, setSmsComposeSending] = useState(false);
 
+  // Twilio diagnostics + real-time call status
+  const [currentCallSid, setCurrentCallSid] = useState<string | null>(null);
+  const [liveCallStatus, setLiveCallStatus] = useState<string | null>(null);
+  const statusPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const [diagOpen, setDiagOpen] = useState(false);
+  const [diagResults, setDiagResults] = useState<{ name: string; status: string; message: string; detail?: string }[] | null>(null);
+  const [diagLoading, setDiagLoading] = useState(false);
+
   useEffect(() => {
     if (!currentLead && queue.length > 0) {
       setCurrentLead(queue[0]);
@@ -302,6 +311,83 @@ export default function DialerPage() {
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [consentGranted]);
+
+  // ── Real-time call status polling ─────────────────────────────────
+  // Polls /api/dialer/call-status every 2s to track the actual Twilio call state
+  useEffect(() => {
+    if (callState !== "connected" && callState !== "dialing") {
+      // Stop polling when not in a call
+      if (statusPollRef.current) {
+        clearInterval(statusPollRef.current);
+        statusPollRef.current = null;
+      }
+      setLiveCallStatus(null);
+      return;
+    }
+
+    const poll = async () => {
+      if (!currentCallLogId && !currentCallSid) return;
+      try {
+        const hdrs = await authHeaders();
+        const params = new URLSearchParams();
+        if (currentCallLogId) params.set("callLogId", currentCallLogId);
+        if (currentCallSid) params.set("callSid", currentCallSid);
+        const res = await fetch(`/api/dialer/call-status?${params}`, { headers: hdrs });
+        if (!res.ok) return;
+        const data = await res.json();
+
+        const status = data.twilioStatus || data.dbStatus;
+        setLiveCallStatus(status);
+
+        // Detect failures the old flow would miss
+        if (status === "failed" || status === "canceled" || status === "busy" || status === "no-answer") {
+          const reason = data.twilioError || `Call ${status}`;
+          toast.error(reason);
+          setTransferStatus(`Call failed: ${reason}`);
+          // Don't auto-reset to idle — let the user see the error and disposition
+        }
+      } catch {
+        // Non-blocking
+      }
+    };
+
+    // Poll immediately, then every 2s
+    poll();
+    statusPollRef.current = setInterval(poll, 2000);
+
+    return () => {
+      if (statusPollRef.current) {
+        clearInterval(statusPollRef.current);
+        statusPollRef.current = null;
+      }
+    };
+  }, [callState, currentCallLogId, currentCallSid]);
+
+  // ── Twilio diagnostics ──────────────────────────────────────────
+  const runDiagnostics = useCallback(async () => {
+    setDiagLoading(true);
+    setDiagResults(null);
+    try {
+      const res = await fetch("/api/dialer/test", {
+        method: "POST",
+        headers: await authHeaders(),
+        body: JSON.stringify({ userId: currentUser.id }),
+      });
+      const data = await res.json();
+      setDiagResults(data.checks ?? []);
+      if (data.overall === "fail") {
+        toast.error("Twilio setup has issues — see diagnostics below");
+      } else if (data.overall === "warn") {
+        toast("Twilio setup has warnings — review diagnostics", { icon: "⚠️" });
+      } else {
+        toast.success("Twilio setup looks good!");
+      }
+    } catch {
+      toast.error("Failed to run diagnostics");
+    } finally {
+      setDiagLoading(false);
+    }
+  }, [currentUser.id]);
 
   const grantConsent = useCallback(async () => {
     if (!currentLead) return;
@@ -370,6 +456,7 @@ export default function DialerPage() {
       }
 
       setCurrentCallLogId(data.callLogId);
+      setCurrentCallSid(data.callSid ?? null);
       const cellDisplay = data.transferTo
         ? `***${(data.transferTo as string).slice(-4)}`
         : currentUser.personal_cell
@@ -378,10 +465,12 @@ export default function DialerPage() {
       setTransferStatus(
         cellDisplay
           ? `Ringing ${currentUser.name || "your"}'s cell (${cellDisplay}) — pick up to connect to prospect`
-          : `Call initiated`
+          : `Call initiated — waiting for Twilio to connect…`
       );
       setCallState("connected");
-      toast.success("Ringing your cell — pick up to connect to prospect");
+      toast.success(cellDisplay
+        ? `Ringing your cell (${cellDisplay}) — pick up to connect to prospect`
+        : "Call initiated — check your phone");
     } catch (err) {
       console.error("[Dialer]", err);
       toast.error("Network error — call not placed");
@@ -519,6 +608,8 @@ export default function DialerPage() {
   const handleHangup = useCallback(() => {
     setCallState("ended");
     setTransferStatus(null);
+    setCurrentCallSid(null);
+    setLiveCallStatus(null);
     timer.stop();
   }, [timer]);
 
@@ -581,6 +672,8 @@ export default function DialerPage() {
 
     setCallState("idle");
     setCurrentCallLogId(null);
+    setCurrentCallSid(null);
+    setLiveCallStatus(null);
     setCallNotes("");
     setTransferStatus(null);
     timer.reset();
@@ -634,13 +727,146 @@ export default function DialerPage() {
               <Ghost className="h-2.5 w-2.5" /> Ghost Mode
             </Badge>
           )}
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => { setDiagOpen(!diagOpen); if (!diagResults) runDiagnostics(); }}
+            className="gap-1.5 text-[10px] h-7 px-2 text-muted-foreground hover:text-cyan"
+          >
+            {diagLoading ? <Loader2 className="h-3 w-3 animate-spin" /> : <Wifi className="h-3 w-3" />}
+            Test Twilio
+          </Button>
           <Badge variant="cyan" className="text-[10px] gap-1">
             <Zap className="h-2.5 w-2.5" />
-            {callState === "connected" ? "LIVE — Dominion Homes" : "Twilio Ready"}
+            {callState === "connected"
+              ? liveCallStatus === "ringing" ? "RINGING AGENT…"
+                : liveCallStatus === "in-progress" ? "LIVE — Dominion Homes"
+                : liveCallStatus === "failed" ? "CALL FAILED"
+                : "LIVE — Dominion Homes"
+              : "Twilio Ready"}
           </Badge>
         </div>
       }
     >
+      {/* ── Twilio Diagnostics Panel ──────────────────────────────────── */}
+      <AnimatePresence>
+        {diagOpen && (
+          <motion.div
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: "auto" }}
+            exit={{ opacity: 0, height: 0 }}
+            className="mb-4 overflow-hidden"
+          >
+            <GlassCard hover={false} className="!p-4">
+              <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center gap-2">
+                  <Wifi className="h-4 w-4 text-cyan" />
+                  <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                    Twilio Connection Diagnostics
+                  </h3>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={runDiagnostics}
+                    disabled={diagLoading}
+                    className="gap-1 text-[10px] h-6 px-2"
+                  >
+                    {diagLoading ? <Loader2 className="h-3 w-3 animate-spin" /> : null}
+                    Re-test
+                  </Button>
+                  <button onClick={() => setDiagOpen(false)} className="p-1 rounded hover:bg-white/[0.06]">
+                    <X className="h-3.5 w-3.5 text-muted-foreground" />
+                  </button>
+                </div>
+              </div>
+
+              {diagLoading && !diagResults && (
+                <div className="flex items-center gap-2 py-4 justify-center text-muted-foreground">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  <span className="text-xs">Running diagnostics…</span>
+                </div>
+              )}
+
+              {diagResults && (
+                <div className="space-y-2">
+                  {diagResults.map((check, i) => (
+                    <div key={i} className={`rounded-[10px] border px-3 py-2 text-xs ${
+                      check.status === "pass"
+                        ? "border-emerald-500/20 bg-emerald-500/[0.04]"
+                        : check.status === "warn"
+                        ? "border-yellow-500/20 bg-yellow-500/[0.04]"
+                        : "border-red-500/20 bg-red-500/[0.04]"
+                    }`}>
+                      <div className="flex items-center gap-2">
+                        <span className={`font-mono text-[10px] font-bold uppercase ${
+                          check.status === "pass" ? "text-emerald-400" : check.status === "warn" ? "text-yellow-400" : "text-red-400"
+                        }`}>
+                          {check.status === "pass" ? "PASS" : check.status === "warn" ? "WARN" : "FAIL"}
+                        </span>
+                        <span className="font-semibold text-foreground/80">{check.name}</span>
+                      </div>
+                      <p className="mt-0.5 text-muted-foreground/70">{check.message}</p>
+                      {check.detail && (
+                        <p className="mt-1 text-[10px] text-muted-foreground/50 leading-relaxed">{check.detail}</p>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </GlassCard>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* ── Live Call Status Banner ────────────────────────────────────── */}
+      <AnimatePresence>
+        {callState === "connected" && liveCallStatus && !["in-progress", "completed", "agent_connected", "agent_answered"].includes(liveCallStatus) && (
+          <motion.div
+            initial={{ opacity: 0, y: -8 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -8 }}
+            className={`mb-3 px-4 py-2 rounded-[10px] border text-xs flex items-center gap-2 ${
+              liveCallStatus === "failed" || liveCallStatus === "canceled"
+                ? "border-red-500/30 bg-red-500/8 text-red-300"
+                : liveCallStatus === "ringing" || liveCallStatus === "ringing_agent" || liveCallStatus === "initiated"
+                ? "border-cyan/30 bg-cyan/8 text-cyan"
+                : "border-yellow-500/30 bg-yellow-500/8 text-yellow-300"
+            }`}
+          >
+            {(liveCallStatus === "failed" || liveCallStatus === "canceled") ? (
+              <WifiOff className="h-3.5 w-3.5 flex-shrink-0" />
+            ) : (
+              <Loader2 className="h-3.5 w-3.5 animate-spin flex-shrink-0" />
+            )}
+            <span className="font-medium">
+              {liveCallStatus === "initiated" && "Twilio is processing the call…"}
+              {liveCallStatus === "ringing" && "Your phone is ringing — pick up!"}
+              {liveCallStatus === "ringing_agent" && "Your phone is ringing — pick up!"}
+              {liveCallStatus === "failed" && "Call failed — run diagnostics to troubleshoot"}
+              {liveCallStatus === "canceled" && "Call was canceled"}
+              {liveCallStatus === "busy" && "Agent line is busy"}
+              {liveCallStatus === "no-answer" && "No answer — try again"}
+              {liveCallStatus === "agent_busy" && "Your phone was busy — try again"}
+              {liveCallStatus === "agent_no_answer" && "You didn't pick up — your phone must be reachable"}
+              {!["initiated", "ringing", "ringing_agent", "failed", "canceled", "busy", "no-answer", "agent_busy", "agent_no_answer"].includes(liveCallStatus) && `Status: ${liveCallStatus}`}
+            </span>
+            {(liveCallStatus === "failed" || liveCallStatus === "canceled") && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => { setDiagOpen(true); runDiagnostics(); }}
+                className="ml-auto gap-1 text-[10px] h-6 px-2 text-red-300 hover:text-red-200"
+              >
+                <AlertTriangle className="h-3 w-3" />
+                Diagnose
+              </Button>
+            )}
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* ── Quick Manual Dial ─────────────────────────────────────────── */}
       <GlassCard hover={false} glow className="!p-4 mb-4">
         <div className="flex items-center gap-2 mb-3">
