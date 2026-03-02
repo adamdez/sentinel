@@ -209,12 +209,27 @@ export default function ProspectsPage() {
 
     setClaiming(leadId);
     try {
+      // Fetch current lock_version for optimistic locking
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data: current, error: fetchErr } = await (supabase.from("leads") as any)
+        .select("status, lock_version")
+        .eq("id", leadId)
+        .single();
+
+      if (fetchErr || !current) {
+        toast.error("Claim failed: Could not fetch lead status. Refresh and try again.");
+        return;
+      }
+
       const res = await fetch("/api/prospects", {
         method: "PATCH",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          "x-lock-version": String(current.lock_version ?? 0),
+        },
         body: JSON.stringify({
           lead_id: leadId,
-          status: "my_lead",
+          status: "lead",
           assigned_to: userId,
           actor_id: userId,
         }),
@@ -224,7 +239,11 @@ export default function ProspectsPage() {
 
       if (!res.ok) {
         console.error("[Prospects] CLAIM FAILED:", data);
-        toast.error(`Claim failed: ${data.error || "Unknown error"}`);
+        if (res.status === 409) {
+          toast.error("Claim failed: Lead was already claimed by someone else. Refresh and try again.");
+        } else {
+          toast.error(`Claim failed: ${data.detail ?? data.error ?? "Unknown error"}`);
+        }
       } else {
         console.log("[Prospects] CLAIM SUCCESS — lead now owned", data);
 
@@ -233,7 +252,7 @@ export default function ProspectsPage() {
           lead_id: leadId,
           action: "CLAIMED",
           user_id: userId,
-          details: "Claimed from Prospects modal (24h soft lock)",
+          details: "Claimed from Prospects page (24h soft lock)",
         });
 
         setModalOpen(false);
