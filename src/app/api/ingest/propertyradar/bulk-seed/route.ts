@@ -207,6 +207,17 @@ export async function POST(req: NextRequest) {
   };
   const extraCriteria = distressLens && LENS_CRITERIA[distressLens] ? LENS_CRITERIA[distressLens] : [];
 
+  // ── Absentee-first philosophy ─────────────────────────────────────
+  // Hard to buy a house from someone who lives in it. Absentee owners
+  // see the property as a financial burden, not their home — much higher
+  // conversion. EXCEPTION: deceased/probate (owner is dead — functionally
+  // absentee even if mailing address matches the property).
+  const DECEASED_LENSES = ["probate"];
+  const isDeceasedLens = distressLens ? DECEASED_LENSES.includes(distressLens) : false;
+  const absenteeCriteria = isDeceasedLens
+    ? [] // deceased = functionally absentee, skip the filter
+    : [{ name: "isNotSameMailingOrExempt", value: [1] }];
+
   const startTime = Date.now();
   console.log(`[BulkSeed] === STARTED: limit=${pullLimit}, counties=[${counties}], fips=[${fipsCodes}]${distressLens ? `, lens=${distressLens}` : ""} ===`);
 
@@ -226,6 +237,7 @@ export async function POST(req: NextRequest) {
       { name: "State", value: states },
       ...(useCountyFilter ? [{ name: "County", value: fipsCodes }] : []),
       { name: "EquityPercent", value: [[40, 100]] },
+      ...absenteeCriteria,
       ...extraCriteria,
     ];
 
@@ -250,6 +262,7 @@ export async function POST(req: NextRequest) {
           const fallbackCriteria = [
             { name: "State", value: states },
             { name: "EquityPercent", value: [[40, 100]] },
+            ...absenteeCriteria,
           ];
           const retryRes = await fetch(url, {
             method: "POST",

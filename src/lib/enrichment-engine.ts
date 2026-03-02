@@ -1019,7 +1019,40 @@ export async function promoteByTier(filter: PromoteFilter): Promise<PromoteResul
     return status === "enriched" || status === "partial" || l.priority > 0;
   });
 
-  if (enrichedLeads.length === 0) {
+  // ── Absentee-first gate ───────────────────────────────────────────
+  // Only promote leads where the owner does NOT live in the property,
+  // OR the owner is deceased (functionally absentee — heirs don't live there).
+  // Non-absentee, non-deceased leads stay in the reservoir as backup.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const promotable = enrichedLeads.filter((l) => {
+    const flags = l.properties?.owner_flags ?? {};
+    const prRaw = flags.pr_raw ?? {};
+    const tags: string[] = l.tags ?? [];
+
+    // Deceased / probate leads are always promotable (owner is dead)
+    const isDeceased =
+      tags.includes("probate") ||
+      tags.includes("inherited") ||
+      prRaw.isDeceasedProperty === "Yes" ||
+      prRaw.isDeceasedProperty === 1 ||
+      prRaw.isDeceasedProperty === true;
+    if (isDeceased) return true;
+
+    // Absentee owners are promotable (mailing address differs from property)
+    const isAbsentee =
+      tags.includes("absentee") ||
+      prRaw.isNotSameMailingOrExempt === "Yes" ||
+      prRaw.isNotSameMailingOrExempt === 1 ||
+      prRaw.isNotSameMailingOrExempt === true;
+    if (isAbsentee) return true;
+
+    // Non-absentee, non-deceased → stays in reservoir
+    return false;
+  });
+
+  console.log(`[Promote] ${enrichedLeads.length} enriched, ${promotable.length} promotable (absentee/deceased), ${enrichedLeads.length - promotable.length} held in reservoir`);
+
+  if (promotable.length === 0) {
     return { promoted: 0, tier, scoreRange: { min: minScore, max: maxScore }, leads: [] };
   }
 
@@ -1027,8 +1060,8 @@ export async function promoteByTier(filter: PromoteFilter): Promise<PromoteResul
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const promotedLeads: { id: string; score: number; label: string }[] = [];
 
-  for (let i = 0; i < enrichedLeads.length; i += 100) {
-    const batch = enrichedLeads.slice(i, i + 100);
+  for (let i = 0; i < promotable.length; i += 100) {
+    const batch = promotable.slice(i, i + 100);
     const ids = batch.map((l: { id: string }) => l.id);
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any

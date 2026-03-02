@@ -175,6 +175,18 @@ export function computeScore(input: ScoringInput): ScoringOutput {
     factors.push({ name: "absentee_amplifier", value: absenteeAmplifier, contribution: Math.round(baseSignalScore * (absenteeAmplifier - 1)) });
   }
 
+  // ── 2c. Occupied-owner penalty ──────────────────────────────────
+  // Hard to buy a house from someone who lives in it. Non-absentee,
+  // non-deceased leads get a score dampener that keeps them out of
+  // platinum/gold tiers. Deceased owners are exempt (functionally
+  // absentee — heirs usually don't live there).
+  const isDeceased = input.signals.some((s) => s.type === "probate") || input.ownerFlags.inherited;
+  const isAbsentee = input.ownerFlags.absentee || input.ownerFlags.outOfState;
+  const occupiedPenalty = (!isAbsentee && !isDeceased) ? -15 : 0;
+  if (occupiedPenalty < 0) {
+    factors.push({ name: "occupied_owner_penalty", value: occupiedPenalty, contribution: occupiedPenalty });
+  }
+
   // ── 3. Owner Factors ──────────────────────────────────────────────
   let ownerFactorScore = 0;
   if (input.ownerFlags.absentee) ownerFactorScore += OWNER_FACTORS.absentee;
@@ -206,7 +218,8 @@ export function computeScore(input: ScoringInput): ScoringOutput {
     stackingBonus +
     ownerFactorScore +
     equityFactorScore +
-    aiBoost;
+    aiBoost +
+    occupiedPenalty;
 
   const composite = Math.min(Math.max(Math.round(raw), 0), 100);
 
