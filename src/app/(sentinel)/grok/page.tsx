@@ -120,6 +120,8 @@ export default function GrokPage() {
       content: m.content,
     }));
 
+    const FIRST_TOKEN_TIMEOUT_MS = 30_000;
+
     try {
       const authHeaders = await getAuthHeaders();
       const controller = new AbortController();
@@ -148,35 +150,52 @@ export default function GrokPage() {
 
       const decoder = new TextDecoder();
       let accumulated = "";
+      let gotFirstToken = false;
 
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
+      const firstTokenTimer = setTimeout(() => {
+        if (!gotFirstToken) controller.abort();
+      }, FIRST_TOKEN_TIMEOUT_MS);
 
-        const chunk = decoder.decode(value, { stream: true });
-        const lines = chunk.split("\n");
+      try {
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
 
-        for (const line of lines) {
-          if (!line.startsWith("data: ")) continue;
-          const data = line.slice(6);
-          if (data === "[DONE]") continue;
+          const chunk = decoder.decode(value, { stream: true });
+          const lines = chunk.split("\n");
 
-          try {
-            const parsed = JSON.parse(data);
-            const delta = parsed.choices?.[0]?.delta?.content;
-            if (delta) {
-              accumulated += delta;
-              setMessages((prev) => {
-                const updated = [...prev];
-                const last = updated[updated.length - 1];
-                if (last?.role === "assistant") {
-                  updated[updated.length - 1] = { ...last, content: accumulated };
+          for (const line of lines) {
+            if (!line.startsWith("data: ")) continue;
+            const data = line.slice(6);
+            if (data === "[DONE]") continue;
+
+            try {
+              const parsed = JSON.parse(data);
+              const delta = parsed.choices?.[0]?.delta?.content;
+              if (delta) {
+                if (!gotFirstToken) {
+                  gotFirstToken = true;
+                  clearTimeout(firstTokenTimer);
                 }
-                return updated;
-              });
-            }
-          } catch {/* skip unparseable SSE lines */}
+                accumulated += delta;
+                setMessages((prev) => {
+                  const updated = [...prev];
+                  const last = updated[updated.length - 1];
+                  if (last?.role === "assistant") {
+                    updated[updated.length - 1] = { ...last, content: accumulated };
+                  }
+                  return updated;
+                });
+              }
+            } catch {/* skip unparseable SSE lines */}
+          }
         }
+      } finally {
+        clearTimeout(firstTokenTimer);
+      }
+
+      if (!accumulated.trim()) {
+        throw new Error("Grok returned an empty response. Please try again.");
       }
 
       setMessages((prev) => {
@@ -189,7 +208,16 @@ export default function GrokPage() {
         return final;
       });
     } catch (err) {
-      if (err instanceof DOMException && err.name === "AbortError") return;
+      if (err instanceof DOMException && err.name === "AbortError") {
+        const msg = "Grok took too long to respond. Please try again in a moment.";
+        setError(msg);
+        setMessages((prev) => {
+          const updated = prev.filter((m) => m.id !== assistantMsg.id);
+          saveHistory(updated);
+          return updated;
+        });
+        return;
+      }
       const msg = err instanceof Error ? err.message : "Connection failed";
       setError(msg);
       setMessages((prev) => {

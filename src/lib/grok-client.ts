@@ -19,22 +19,39 @@ export interface GrokStreamOptions {
   apiKey: string;
 }
 
+const STREAM_TIMEOUT_MS = 15_000;
+
 export async function streamGrokChat(opts: GrokStreamOptions): Promise<ReadableStream<Uint8Array>> {
   const { messages, temperature = 0.3, apiKey } = opts;
 
-  const res = await fetch(GROK_ENDPOINT, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${apiKey}`,
-    },
-    body: JSON.stringify({
-      model: GROK_MODEL,
-      temperature,
-      stream: true,
-      messages,
-    }),
-  });
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), STREAM_TIMEOUT_MS);
+
+  let res: Response;
+  try {
+    res = await fetch(GROK_ENDPOINT, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify({
+        model: GROK_MODEL,
+        temperature,
+        stream: true,
+        messages,
+      }),
+      signal: controller.signal,
+    });
+  } catch (err) {
+    clearTimeout(timeout);
+    if (err instanceof DOMException && err.name === "AbortError") {
+      throw new Error("Grok API timed out after 15 seconds — xAI may be overloaded.");
+    }
+    throw new Error(`Grok API connection failed: ${err instanceof Error ? err.message : String(err)}`);
+  }
+
+  clearTimeout(timeout);
 
   if (!res.ok) {
     const body = await res.text().catch(() => "");
@@ -48,22 +65,39 @@ export async function streamGrokChat(opts: GrokStreamOptions): Promise<ReadableS
   return res.body;
 }
 
+const COMPLETE_TIMEOUT_MS = 30_000;
+
 export async function completeGrokChat(opts: GrokStreamOptions): Promise<string> {
   const { messages, temperature = 0, apiKey } = opts;
 
-  const res = await fetch(GROK_ENDPOINT, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${apiKey}`,
-    },
-    body: JSON.stringify({
-      model: GROK_MODEL,
-      temperature,
-      stream: false,
-      messages,
-    }),
-  });
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), COMPLETE_TIMEOUT_MS);
+
+  let res: Response;
+  try {
+    res = await fetch(GROK_ENDPOINT, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify({
+        model: GROK_MODEL,
+        temperature,
+        stream: false,
+        messages,
+      }),
+      signal: controller.signal,
+    });
+  } catch (err) {
+    clearTimeout(timeout);
+    if (err instanceof DOMException && err.name === "AbortError") {
+      throw new Error("Grok API timed out after 30 seconds — xAI may be overloaded.");
+    }
+    throw new Error(`Grok API connection failed: ${err instanceof Error ? err.message : String(err)}`);
+  }
+
+  clearTimeout(timeout);
 
   if (!res.ok) {
     const body = await res.text().catch(() => "");
