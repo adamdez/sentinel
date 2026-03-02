@@ -20,6 +20,7 @@ interface AIScoreBadgeProps {
     confidence: number;
   } | null;
   size?: "sm" | "md" | "lg";
+  tags?: string[];
 }
 
 const labelConfig = {
@@ -52,8 +53,25 @@ function ScoreBar({ label, value, max = 100 }: { label: string; value: number; m
   );
 }
 
-export function AIScoreBadge({ score, prediction, size = "md" }: AIScoreBadgeProps) {
+const LABEL_EXPLAINER: Record<AIScore["label"], string> = {
+  platinum: "Platinum (85+): Extreme distress stacking, high equity, absentee — close immediately.",
+  gold: "Gold (65-84): Strong signal convergence. High-priority outreach target.",
+  silver: "Silver (40-64): Moderate distress or limited data. Worth nurturing.",
+  bronze: "Bronze (<40): Weak signal or stale data. Low priority.",
+};
+
+const SIGNAL_LABELS: Record<string, string> = {
+  probate: "Probate", pre_foreclosure: "Pre-Foreclosure", tax_lien: "Tax Lien",
+  code_violation: "Code Violation", vacant: "Vacant", divorce: "Divorce",
+  bankruptcy: "Bankruptcy", fsbo: "FSBO", absentee: "Absentee",
+  inherited: "Inherited", water_shutoff: "Water Shut-off",
+};
+
+const SIGNAL_TAG_SET = new Set(Object.keys(SIGNAL_LABELS));
+
+export function AIScoreBadge({ score, prediction, size = "md", tags }: AIScoreBadgeProps) {
   const config = labelConfig[score.label];
+  const distressSignals = tags?.filter((t) => SIGNAL_TAG_SET.has(t)) ?? [];
 
   return (
     <Tooltip>
@@ -87,7 +105,7 @@ export function AIScoreBadge({ score, prediction, size = "md" }: AIScoreBadgePro
           )}
         </motion.div>
       </TooltipTrigger>
-      <TooltipContent side="bottom" className="w-56 p-3">
+      <TooltipContent side="bottom" className="w-64 p-3">
         <div className="space-y-2">
           <div className="flex items-center justify-between">
             <span className="text-xs font-semibold">AI Score Breakdown</span>
@@ -95,12 +113,31 @@ export function AIScoreBadge({ score, prediction, size = "md" }: AIScoreBadgePro
               {score.composite} — {config.text}
             </span>
           </div>
+
+          <p className="text-[10px] text-muted-foreground/80 leading-snug">
+            {LABEL_EXPLAINER[score.label]}
+          </p>
+
           <div className="space-y-1.5">
             <ScoreBar label="Motivation" value={score.motivation} />
             <ScoreBar label="Equity Velocity" value={score.equityVelocity} />
             <ScoreBar label="Urgency" value={score.urgency} />
             <ScoreBar label="Historical Conv." value={score.historicalConversion} />
           </div>
+
+          {distressSignals.length > 0 && (
+            <div className="pt-1.5 border-t border-glass-border">
+              <span className="text-[10px] text-muted-foreground/70 block mb-1">Distress signals driving this score:</span>
+              <div className="flex flex-wrap gap-1">
+                {distressSignals.map((s) => (
+                  <span key={s} className="text-[9px] px-1.5 py-0.5 rounded bg-white/[0.06] border border-white/[0.08] text-foreground/80">
+                    {SIGNAL_LABELS[s] ?? s}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+
           {score.aiBoost > 0 && (
             <div className="flex items-center gap-1 pt-1 border-t border-glass-border">
               <Sparkles className="h-3 w-3 text-cyan" />
@@ -127,6 +164,13 @@ export function AIScoreBadge({ score, prediction, size = "md" }: AIScoreBadgePro
               </div>
             </div>
           )}
+
+          <div className="pt-1.5 border-t border-glass-border">
+            <p className="text-[9px] text-muted-foreground/50 leading-snug">
+              Score = (Signal Weights x Severity x Recency) + Stacking Bonus + Owner Factors + Equity + AI Boost.
+              Label: Platinum 85+ / Gold 65+ / Silver 40+ / Bronze &lt;40.
+            </p>
+          </div>
         </div>
       </TooltipContent>
     </Tooltip>

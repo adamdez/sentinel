@@ -26,6 +26,9 @@ import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem,
   DropdownMenuTrigger, DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
+import {
+  Tooltip, TooltipContent, TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 // ── Constants ─────────────────────────────────────────────────────────
 
@@ -85,6 +88,62 @@ function formatDistress(signals: string[]): string {
   if (signals.length === 0) return "—";
   return signals.slice(0, 3).map((s) => DISTRESS_LABELS[s] ?? s).join(" + ")
     + (signals.length > 3 ? ` +${signals.length - 3}` : "");
+}
+
+const TIER_TOOLTIP: Record<string, { label: string; range: string; meaning: string; color: string }> = {
+  "tier-a": {
+    label: "A-Tier",
+    range: "Score 75-100",
+    meaning: "Elite prospect. Multiple strong distress signals + high equity + absentee owner. Work immediately — first-to-contact advantage is critical.",
+    color: "text-red-400",
+  },
+  "tier-b": {
+    label: "B-Tier",
+    range: "Score 50-74",
+    meaning: "Warm prospect. At least one solid distress signal with moderate equity or owner factors. Work when A-tier pipeline thins out.",
+    color: "text-orange-400",
+  },
+  "tier-c": {
+    label: "C-Tier",
+    range: "Score 30-49",
+    meaning: "Watch list. Early-stage distress or low equity. Nurture with mailers and monthly calls — may escalate over time.",
+    color: "text-yellow-400",
+  },
+};
+
+function TierBadge({ tag, score }: { tag: string; score: number }) {
+  const tier = TIER_TOOLTIP[tag];
+  if (!tier) return null;
+  const letter = tag.replace("tier-", "").toUpperCase();
+
+  const colorClasses =
+    letter === "A" ? "bg-red-500/15 text-red-400 border-red-500/20" :
+    letter === "B" ? "bg-orange-500/15 text-orange-400 border-orange-500/20" :
+    "bg-yellow-500/15 text-yellow-400 border-yellow-500/20";
+
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <span className={`text-[9px] font-black px-1 rounded border cursor-help ${colorClasses}`}>
+          {letter}
+        </span>
+      </TooltipTrigger>
+      <TooltipContent side="right" className="max-w-[240px] p-3">
+        <div className="space-y-1.5">
+          <div className="flex items-center justify-between">
+            <span className={cn("text-xs font-bold", tier.color)}>{tier.label}</span>
+            <span className="text-[10px] text-muted-foreground">{tier.range}</span>
+          </div>
+          <p className="text-[11px] text-muted-foreground/90 leading-snug">{tier.meaning}</p>
+          <div className="pt-1 border-t border-white/[0.06]">
+            <p className="text-[10px] text-muted-foreground/60">
+              This prospect scored <span className="text-foreground font-semibold">{score}</span> on the Dominion Heat Score. Tier is determined solely by this composite number.
+            </p>
+          </div>
+        </div>
+      </TooltipContent>
+    </Tooltip>
+  );
 }
 
 function buildAIScore(p: ProspectRow): AIScore {
@@ -488,13 +547,13 @@ export default function ProspectsPage() {
                           {/* Tier + Absentee indicators */}
                           <div className="flex flex-col items-center gap-0.5 pt-0.5 shrink-0">
                             {p.tags.includes("tier-a") && (
-                              <span className="text-[9px] font-black px-1 rounded bg-red-500/15 text-red-400 border border-red-500/20">A</span>
+                              <TierBadge tag="tier-a" score={p.composite_score} />
                             )}
                             {p.tags.includes("tier-b") && (
-                              <span className="text-[9px] font-black px-1 rounded bg-orange-500/15 text-orange-400 border border-orange-500/20">B</span>
+                              <TierBadge tag="tier-b" score={p.composite_score} />
                             )}
                             {p.tags.includes("tier-c") && (
-                              <span className="text-[9px] font-black px-1 rounded bg-yellow-500/15 text-yellow-400 border border-yellow-500/20">C</span>
+                              <TierBadge tag="tier-c" score={p.composite_score} />
                             )}
                             {p.is_absentee && (
                               <Home className="h-3 w-3 text-purple-400" />
@@ -557,7 +616,7 @@ export default function ProspectsPage() {
                         )}
                       </td>
                       <td className="p-3">
-                        <AIScoreBadge score={buildAIScore(p)} size="sm" />
+                        <AIScoreBadge score={buildAIScore(p)} size="sm" tags={p.tags} />
                       </td>
                       <td className="p-3">
                         <div className="flex items-center justify-end gap-1" onClick={(e) => e.stopPropagation()}>
