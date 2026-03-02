@@ -187,14 +187,28 @@ export async function POST(req: NextRequest) {
   const pullLimit = Math.min(Math.max(toInt(body.limit as string) ?? 1000, 1), 1000);
   const counties: string[] = Array.isArray(body.counties) ? body.counties.map(String) : DEFAULT_COUNTIES;
   const states = [...new Set(counties.map((c) => COUNTY_STATE_MAP[c.toLowerCase()] ?? "WA"))];
+  const distressLens = body.distressLens as string | undefined;
 
   // Convert county names to FIPS codes for PropertyRadar API
   const fipsCodes = counties
     .map((c) => COUNTY_FIPS[c] ?? COUNTY_FIPS[c.charAt(0).toUpperCase() + c.slice(1).toLowerCase()])
     .filter(Boolean);
 
+  // Distress lens → additional PropertyRadar criteria for targeted pulls
+  const LENS_CRITERIA: Record<string, { name: string; value: unknown }[]> = {
+    probate: [{ name: "isDeceasedProperty", value: [1] }],
+    foreclosure: [{ name: "isPreforeclosure", value: [1] }],
+    tax: [{ name: "inTaxDelinquency", value: [1] }],
+    vacant: [{ name: "isSiteVacant", value: [1] }],
+    divorce: [{ name: "inDivorce", value: [1] }],
+    bankruptcy: [{ name: "inBankruptcyProperty", value: [1] }],
+    absentee: [{ name: "isNotSameMailingOrExempt", value: [1] }],
+    liens: [{ name: "PropertyHasOpenLiens", value: [1] }],
+  };
+  const extraCriteria = distressLens && LENS_CRITERIA[distressLens] ? LENS_CRITERIA[distressLens] : [];
+
   const startTime = Date.now();
-  console.log(`[BulkSeed] === STARTED: limit=${pullLimit}, counties=[${counties}], fips=[${fipsCodes}] ===`);
+  console.log(`[BulkSeed] === STARTED: limit=${pullLimit}, counties=[${counties}], fips=[${fipsCodes}]${distressLens ? `, lens=${distressLens}` : ""} ===`);
 
   // PropertyRadar pulls in pages of 200
   // Auto-fallback: if County criterion fails, retry with State-only
@@ -212,6 +226,7 @@ export async function POST(req: NextRequest) {
       { name: "State", value: states },
       ...(useCountyFilter ? [{ name: "County", value: fipsCodes }] : []),
       { name: "EquityPercent", value: [[40, 100]] },
+      ...extraCriteria,
     ];
 
     try {
