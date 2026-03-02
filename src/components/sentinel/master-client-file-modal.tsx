@@ -1070,7 +1070,7 @@ function OverviewTab({ cf, skipTracing, skipTraceResult, skipTraceMs, overlay, s
           {cf.lastSalePrice != null && (
             <p className="text-[10px] text-muted-foreground mt-1 relative z-10">Last sale: {formatCurrency(cf.lastSalePrice)}{cf.lastSaleDate ? ` (${new Date(cf.lastSaleDate).toLocaleDateString()})` : ""}</p>
           )}
-          {cf.ownerFlags?.last_enriched && (
+          {!!cf.ownerFlags?.last_enriched && (
             <p className="text-[9px] text-muted-foreground/40 relative z-10">Updated {new Date(cf.ownerFlags.last_enriched as string).toLocaleDateString()}</p>
           )}
         </div>
