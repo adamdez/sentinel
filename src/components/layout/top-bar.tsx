@@ -44,9 +44,10 @@ export function TopBar() {
   const { connected } = useRealtime();
   const hydrated = useHydrated();
 
-  const handleLogout = async () => {
-    await supabase.auth.signOut();
-    window.location.href = "/login";
+  const handleLogout = () => {
+    supabase.auth.signOut().finally(() => {
+      window.location.href = "/login";
+    });
   };
 
   return (
@@ -159,7 +160,7 @@ export function TopBar() {
             <DropdownMenuItem onClick={() => router.push("/settings")}>Settings</DropdownMenuItem>
             <DropdownMenuItem onClick={() => router.push("/analytics")}>Audit Log</DropdownMenuItem>
             <DropdownMenuSeparator />
-            <DropdownMenuItem className="text-destructive" onClick={handleLogout}>
+            <DropdownMenuItem className="text-destructive" onSelect={handleLogout}>
               Log out
             </DropdownMenuItem>
           </DropdownMenuContent>
