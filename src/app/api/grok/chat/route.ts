@@ -26,10 +26,11 @@ export async function POST(req: NextRequest) {
     });
   }
 
-  const apiKey = process.env.GROK_API_KEY;
+  const apiKey = process.env.GROK_API_KEY ?? process.env.XAI_API_KEY;
   if (!apiKey) {
+    console.error("[Grok API Error] Neither GROK_API_KEY nor XAI_API_KEY is set in environment");
     return new Response(
-      JSON.stringify({ error: "GROK_API_KEY not configured on server" }),
+      JSON.stringify({ error: "Grok API key not configured — add GROK_API_KEY or XAI_API_KEY to Vercel env." }),
       { status: 503, headers: { "Content-Type": "application/json" } },
     );
   }
@@ -84,10 +85,11 @@ export async function POST(req: NextRequest) {
       },
     });
   } catch (err) {
-    console.error("[Grok/Chat]", err);
+    const message = err instanceof Error ? err.message : String(err);
+    console.error("[Grok API Error]", message, err);
     return new Response(
-      JSON.stringify({ error: "Internal server error" }),
-      { status: 500, headers: { "Content-Type": "application/json" } },
+      JSON.stringify({ error: "Grok is temporarily unavailable. Please try again in a moment." }),
+      { status: 502, headers: { "Content-Type": "application/json" } },
     );
   }
 }

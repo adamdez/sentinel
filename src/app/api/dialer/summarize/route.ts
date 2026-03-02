@@ -30,9 +30,10 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const apiKey = process.env.GROK_API_KEY;
+  const apiKey = process.env.GROK_API_KEY ?? process.env.XAI_API_KEY;
   if (!apiKey) {
-    return NextResponse.json({ error: "GROK_API_KEY not configured" }, { status: 503 });
+    console.error("[Grok API Error] Neither GROK_API_KEY nor XAI_API_KEY is set in environment");
+    return NextResponse.json({ error: "Grok API key not configured" }, { status: 503 });
   }
 
   let body: {

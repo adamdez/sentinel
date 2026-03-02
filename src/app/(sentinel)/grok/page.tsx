@@ -126,8 +126,14 @@ export default function GrokPage() {
       });
 
       if (!res.ok) {
-        const err = await res.json().catch(() => ({ error: "Unknown error" }));
-        throw new Error(err.error ?? `HTTP ${res.status}`);
+        const err = await res.json().catch(() => null);
+        const serverMsg = err?.error;
+        throw new Error(
+          serverMsg
+            ?? (res.status === 503 ? "Grok API key not configured — contact Adam."
+               : res.status === 502 ? "Grok is temporarily unavailable. Please try again in a moment."
+               : `Grok request failed (HTTP ${res.status}). Try again.`)
+        );
       }
 
       const reader = res.body?.getReader();
