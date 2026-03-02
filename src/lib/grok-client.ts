@@ -19,7 +19,7 @@ export interface GrokStreamOptions {
   apiKey: string;
 }
 
-const STREAM_TIMEOUT_MS = 15_000;
+const STREAM_TIMEOUT_MS = 120_000;
 
 export async function streamGrokChat(opts: GrokStreamOptions): Promise<ReadableStream<Uint8Array>> {
   const { messages, temperature = 0.3, apiKey } = opts;
@@ -46,7 +46,7 @@ export async function streamGrokChat(opts: GrokStreamOptions): Promise<ReadableS
   } catch (err) {
     clearTimeout(timeout);
     if (err instanceof DOMException && err.name === "AbortError") {
-      throw new Error("Grok API timed out after 15 seconds — xAI may be overloaded.");
+      throw new Error("Grok API timed out — reasoning model may need more time. Try again.");
     }
     throw new Error(`Grok API connection failed: ${err instanceof Error ? err.message : String(err)}`);
   }
@@ -65,7 +65,7 @@ export async function streamGrokChat(opts: GrokStreamOptions): Promise<ReadableS
   return res.body;
 }
 
-const COMPLETE_TIMEOUT_MS = 30_000;
+const COMPLETE_TIMEOUT_MS = 180_000;
 
 export async function completeGrokChat(opts: GrokStreamOptions): Promise<string> {
   const { messages, temperature = 0, apiKey } = opts;
@@ -92,7 +92,7 @@ export async function completeGrokChat(opts: GrokStreamOptions): Promise<string>
   } catch (err) {
     clearTimeout(timeout);
     if (err instanceof DOMException && err.name === "AbortError") {
-      throw new Error("Grok API timed out after 30 seconds — xAI may be overloaded.");
+      throw new Error("Grok API timed out — reasoning model may need more time. Try again.");
     }
     throw new Error(`Grok API connection failed: ${err instanceof Error ? err.message : String(err)}`);
   }

@@ -15,6 +15,7 @@
 import type { LeadStatus } from "@/lib/types";
 
 const ALLOWED_TRANSITIONS: Record<LeadStatus, ReadonlyArray<LeadStatus>> = {
+  staging: ["prospect", "dead"],          // enrichment engine promotes staging → prospect
   prospect: ["lead", "negotiation", "nurture", "dead"],
   lead: ["negotiation", "nurture", "dead"],
   negotiation: ["disposition", "nurture", "dead"],

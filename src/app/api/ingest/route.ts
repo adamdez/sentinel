@@ -98,8 +98,25 @@ export async function POST(request: NextRequest) {
         continue;
       }
 
-      // TODO: Queue property for incremental scoring (background job)
-      // TODO: Queue property for promotion evaluation
+      // Create lead at "staging" status — enrichment cron will enrich + promote
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data: existingLead } = await (sb.from("leads") as any)
+        .select("id")
+        .eq("property_id", property.id)
+        .in("status", ["staging", "prospect", "lead", "negotiation", "nurture"])
+        .maybeSingle();
+
+      if (!existingLead) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        await (sb.from("leads") as any).insert({
+          property_id: property.id,
+          status: "staging",
+          source: payload.source,
+          priority: 0,
+          tags: [record.distress_type],
+          notes: `Webhook ingest from ${payload.source}. Queued for enrichment.`,
+        });
+      }
 
       results.push({ apn: record.apn, county: record.county, status: "ingested", fingerprint });
     }

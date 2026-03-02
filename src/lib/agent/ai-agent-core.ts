@@ -24,6 +24,7 @@
  */
 
 import { createServerClient } from "@/lib/supabase";
+import { processEnrichmentBatch, type BatchResult as EnrichmentBatchResult } from "@/lib/enrichment-engine";
 import { runAllCrawlers, type CrawlRunResult } from "@/lib/crawlers/predictive-crawler";
 import { obituaryCrawler } from "@/lib/crawlers/obituary-crawler";
 import { courtDocketCrawler } from "@/lib/crawlers/court-docket-crawler";
@@ -86,6 +87,7 @@ export interface AgentCycleResult {
   success: boolean;
   grokDirective: GrokDirective | null;
   phases: {
+    enrichment: { success: boolean; processed: number; enriched: number; remaining: number };
     propertyRadar: { success: boolean; count: number; newInserts: number; updated: number; prCost: string };
     crawlers: CrawlRunResult[];
     attom: AttomPhaseResult;
@@ -205,6 +207,18 @@ export async function runAgentCycle(
   const shouldRun = (crawler: string) =>
     !grokDirective || grokDirective.nextCrawlersToRun.includes(crawler);
 
+  // ── Phase 0.5: Enrichment Queue ─────────────────────────────────
+  // Process staging leads before anything else — turn raw imports into
+  // agent-ready prospects with full PropertyRadar + ATTOM data.
+  let enrichmentResult: EnrichmentBatchResult | null = null;
+  try {
+    console.log("[Agent] Phase 0.5: Processing enrichment queue...");
+    enrichmentResult = await processEnrichmentBatch(20, 1000);
+    console.log(`[Agent] Phase 0.5 complete — ${enrichmentResult.enriched} enriched, ${enrichmentResult.remaining} remaining`);
+  } catch (err) {
+    console.error("[Agent] Phase 0.5 (Enrichment) error:", err);
+  }
+
   // ── Phase 1: PropertyRadar ───────────────────────────────────────
   let prResult: Record<string, unknown> = {};
   let prSuccess = false;
@@ -281,6 +295,12 @@ export async function runAgentCycle(
     success: prSuccess || crawlerPhase.success || attomPhase.success,
     grokDirective,
     phases: {
+      enrichment: {
+        success: !!enrichmentResult && (enrichmentResult.enriched > 0 || enrichmentResult.processed === 0),
+        processed: enrichmentResult?.processed ?? 0,
+        enriched: enrichmentResult?.enriched ?? 0,
+        remaining: enrichmentResult?.remaining ?? 0,
+      },
       propertyRadar: {
         success: prSuccess,
         count: (prResult.count as number) ?? 0,

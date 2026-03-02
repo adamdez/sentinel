@@ -333,6 +333,9 @@ async function processRow(
     property_type: getField(row, mapping, "property_type") || null,
     owner_flags: {
       source: `csv:${meta.source}`,
+      enrichment_pending: true,
+      enrichment_status: "pending",
+      enrichment_attempts: 0,
       imported_at: new Date().toISOString(),
       csv_raw: Object.fromEntries(
         Object.entries(row).slice(0, 20) // cap raw data to prevent huge JSON
@@ -469,22 +472,25 @@ async function processRow(
   // ── Promote to lead if above threshold ─────────────────────────────
   let promoted = false;
 
-  if (blended >= PROMOTION_THRESHOLD) {
+  // All CSV imports enter as "staging" → enrichment bot fills in data → promotes to "prospect"
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: existingLead } = await (sb.from("leads") as any)
+    .select("id")
+    .eq("property_id", prop.id)
+    .in("status", ["staging", "prospect", "lead", "negotiation", "nurture"])
+    .maybeSingle();
+
+  if (!existingLead) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    await (sb.from("leads") as any)
-      .upsert(
-        {
-          property_id: prop.id,
-          status: "prospect",
-          source: `csv:${meta.source}`,
-          priority: blended,
-          tags: meta.distressTypes,
-          notes: `CSV import from ${meta.source}. Blended score: ${blended}. ${events.length} total signal(s).`,
-          promoted_at: new Date().toISOString(),
-        },
-        { onConflict: "property_id" }
-      );
-    promoted = true;
+    await (sb.from("leads") as any).insert({
+      property_id: prop.id,
+      status: "staging",
+      source: `csv:${meta.source}`,
+      priority: blended,
+      tags: meta.distressTypes,
+      notes: `CSV import from ${meta.source}. Preliminary score: ${blended}. Queued for enrichment.`,
+    });
+    promoted = true; // "promoted" here means "lead created" for the import stats
   }
 
   return { status: "upserted", promoted, eventsCreated, eventsDeduped };

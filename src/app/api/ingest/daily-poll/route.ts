@@ -45,6 +45,7 @@ export async function GET(req: Request) {
     message: [
       `Agent cycle complete`,
       result.grokDirective ? `Grok: [${result.grokDirective.nextCrawlersToRun.join(",")}]` : "Grok: off",
+      `Enrichment: ${result.phases.enrichment.enriched}/${result.phases.enrichment.processed} (${result.phases.enrichment.remaining} queued)`,
       `PR: ${result.phases.propertyRadar.count} prospects`,
       `Crawlers: ${crawlerPromoted} promoted`,
       `ATTOM: ${result.phases.attom.skipped ? "skipped (no key)" : `${result.phases.attom.totalApiCalls} API calls (${result.phases.attom.estimatedCost})`}`,
@@ -56,6 +57,7 @@ export async function GET(req: Request) {
       suggestions: result.grokDirective.newCrawlerSuggestions,
     } : null,
     counties,
+    enrichment: result.phases.enrichment,
     propertyRadar: result.phases.propertyRadar,
     crawlers: result.phases.crawlers.map((r) => ({
       id: r.crawlerId,

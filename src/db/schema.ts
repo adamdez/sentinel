@@ -17,7 +17,7 @@ import {
 // ── Enums ───────────────────────────────────────────────────────────
 
 export const leadStatusEnum = pgEnum("lead_status", [
-  "prospect", "lead", "negotiation", "disposition", "nurture", "dead", "closed",
+  "staging", "prospect", "lead", "negotiation", "disposition", "nurture", "dead", "closed",
 ]);
 
 export const dealStatusEnum = pgEnum("deal_status", [

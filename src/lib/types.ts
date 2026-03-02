@@ -1,6 +1,7 @@
 export type Role = "admin" | "agent" | "viewer";
 
 export type LeadStatus =
+  | "staging"
   | "prospect"
   | "lead"
   | "negotiation"

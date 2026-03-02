@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   UserPlus, Search, Filter, ArrowUpDown, ArrowUp, ArrowDown,
@@ -226,6 +226,23 @@ export default function ProspectsPage() {
     ? prospects.filter((p) => p.composite_score >= activeFilter.min && p.composite_score <= activeFilter.max)
     : prospects;
 
+  // Staging count — how many leads are being enriched
+  const [stagingCount, setStagingCount] = useState(0);
+  useEffect(() => {
+    const fetchStagingCount = async () => {
+      try {
+        const { count } = await supabase
+          .from("leads")
+          .select("id", { count: "exact", head: true })
+          .eq("status", "staging");
+        setStagingCount(count ?? 0);
+      } catch { /* ignore */ }
+    };
+    fetchStagingCount();
+    const interval = setInterval(fetchStagingCount, 60000); // refresh every minute
+    return () => clearInterval(interval);
+  }, []);
+
   const rangerCount = prospects.filter((p) => p.source === "ranger_push").length;
   const prCount = prospects.filter((p) => p.source === "propertyradar").length;
   const platinumCnt = prospects.filter((p) => p.composite_score >= 85).length;
@@ -380,6 +397,25 @@ export default function ProspectsPage() {
         </div>
       }
     >
+      {/* Staging / Enrichment Banner */}
+      {stagingCount > 0 && (
+        <motion.div
+          initial={{ opacity: 0, y: -8 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="mb-3 px-4 py-2.5 rounded-lg border border-cyan-500/20 bg-cyan-500/[0.06] flex items-center gap-3"
+        >
+          <div className="flex items-center gap-2">
+            <Loader2 className="h-3.5 w-3.5 text-cyan-400 animate-spin" />
+            <span className="text-xs font-medium text-cyan-300">
+              {stagingCount} lead{stagingCount !== 1 ? "s" : ""} enriching
+            </span>
+          </div>
+          <span className="text-[10px] text-muted-foreground">
+            PropertyRadar + ATTOM data being pulled automatically. Leads appear here once enriched.
+          </span>
+        </motion.div>
+      )}
+
       <GlassCard hover={false}>
         {/* Search + Filters */}
         <div className="flex items-center gap-3 mb-4 flex-wrap">

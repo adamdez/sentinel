@@ -3,6 +3,10 @@
     {
       "path": "/api/ingest/daily-poll",
       "schedule": "0 6 * * *"
+    },
+    {
+      "path": "/api/enrichment/batch",
+      "schedule": "*/15 * * * *"
     }
   ]
 }

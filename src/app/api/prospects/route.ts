@@ -313,7 +313,7 @@ export async function POST(req: NextRequest) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const leadRow: any = {
       property_id: property.id,
-      status: isAssigned ? "my_lead" : "prospect",
+      status: isAssigned ? "lead" : "staging",
       priority: compositeScore,
       source: source || "manual",
       tags,
@@ -359,8 +359,8 @@ export async function POST(req: NextRequest) {
       if (auditErr) console.error("[API/prospects POST] Audit log failed (non-fatal):", auditErr);
     });
 
-    // Enrichment is NOT done inline — it was causing Vercel timeouts.
-    // User triggers enrichment via "Enrich + Skip Trace" button in the modal.
+    // Enrichment is handled automatically by the enrichment cron (every 15 min).
+    // Lead enters as "staging" → enrichment bot fills in data → promotes to "prospect".
 
     return NextResponse.json({
       success: true,
@@ -369,7 +369,7 @@ export async function POST(req: NextRequest) {
       score: compositeScore,
       status: leadRow.status,
       enriched: false,
-      enrichment: "Use Skip Trace to pull PropertyRadar data",
+      enrichment: "Queued for automatic enrichment (runs every 15 min)",
     });
   } catch (err) {
     console.error("[API/prospects] Unexpected error:", err);
