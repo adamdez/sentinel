@@ -61,6 +61,9 @@ const LIFE_EVENT_BASE_RATES: Record<string, number> = {
   inherited: 0.030,
   water_shutoff: 0.045,
   condemned: 0.025,
+  vacant: 0.020,
+  fsbo: 0.015,
+  absentee: 0.025,
 };
 
 // ── Age-bracket distress multipliers ────────────────────────────────

@@ -46,7 +46,7 @@ export async function POST(req: NextRequest) {
     }
 
     const { data: distressEvents } = await tbl("distress_events")
-      .select("signal_type")
+      .select("event_type")
       .eq("property_id", lead.property_id)
       .limit(10);
 
@@ -61,7 +61,7 @@ export async function POST(req: NextRequest) {
       ownerName: prop.owner_name ?? "Unknown Owner",
       address: prop.address ?? "",
       score: lead.priority ?? 0,
-      distressSignals: (distressEvents ?? []).map((e: { signal_type: string }) => e.signal_type),
+      distressSignals: (distressEvents ?? []).map((e: { event_type: string }) => e.event_type),
       callHistory: (callLogs ?? []).map((c: { started_at: string; disposition: string; ai_note_summary: string | null }) => ({
         date: new Date(c.started_at).toLocaleDateString(),
         disposition: c.disposition ?? "unknown",

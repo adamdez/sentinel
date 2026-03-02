@@ -16,17 +16,15 @@ const SIGNAL_COLORS: Record<string, string> = {
   probate: "text-red-400",
   pre_foreclosure: "text-orange-400",
   tax_lien: "text-yellow-400",
-  lis_pendens: "text-purple-400",
   code_violation: "text-pink-400",
   water_shutoff: "text-blue-400",
-  trustee_sale: "text-cyan",
-  obituary: "text-rose-400",
-  vacant: "text-emerald-400",
   condemned: "text-rose-500",
+  vacant: "text-emerald-400",
   divorce: "text-purple-400",
   bankruptcy: "text-red-500",
   inherited: "text-amber-400",
   absentee: "text-cyan-400",
+  fsbo: "text-blue-300",
 };
 
 function labelFor(type: string): string {
@@ -45,15 +43,15 @@ export function DistressSignals() {
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { data: events } = await (supabase.from("distress_events") as any)
-      .select("signal_type, created_at")
+      .select("event_type, created_at")
       .order("created_at", { ascending: false })
       .limit(2000);
 
-    const rows = (events ?? []) as { signal_type: string; created_at: string }[];
+    const rows = (events ?? []) as { event_type: string; created_at: string }[];
     const agg: Record<string, { count: number; recent: number }> = {};
 
     for (const e of rows) {
-      const t = e.signal_type ?? "unknown";
+      const t = e.event_type ?? "unknown";
       if (!agg[t]) agg[t] = { count: 0, recent: 0 };
       agg[t].count++;
       if (e.created_at >= thirtyDaysAgo) agg[t].recent++;

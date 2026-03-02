@@ -23,7 +23,6 @@ import {
   autoMapColumns,
   ALL_SENTINEL_FIELDS,
   type SentinelField,
-  type ColumnMapping,
 } from "@/lib/csv-column-map";
 import type { DistressType } from "@/lib/types";
 import Papa from "papaparse";
@@ -70,7 +69,6 @@ export default function CsvImportPage() {
   const [file, setFile] = useState<File | null>(null);
   const [headers, setHeaders] = useState<string[]>([]);
   const [previewRows, setPreviewRows] = useState<Record<string, string>[]>([]);
-  const [columnMapping, setColumnMapping] = useState<ColumnMapping | null>(null);
   const [editedMapping, setEditedMapping] = useState<Partial<Record<SentinelField, string>>>({});
   const [selectedTypes, setSelectedTypes] = useState<DistressType[]>([]);
   const [sourceLabel, setSourceLabel] = useState("");
@@ -98,7 +96,6 @@ export default function CsvImportPage() {
 
         // Auto-map columns
         const mapping = autoMapColumns(hdrs);
-        setColumnMapping(mapping);
         setEditedMapping({ ...mapping.mapped });
 
         // Auto-detect source label from filename
@@ -231,7 +228,6 @@ export default function CsvImportPage() {
     setFile(null);
     setHeaders([]);
     setPreviewRows([]);
-    setColumnMapping(null);
     setEditedMapping({});
     setSelectedTypes([]);
     setSourceLabel("");
