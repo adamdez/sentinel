@@ -25,19 +25,17 @@ const ELITE_COUNT = 10;
 const DEFAULT_COUNTIES = ["Spokane", "Kootenai"];
 
 // ── Targeting Waterfall ───────────────────────────────────────────────
-// Two-phase priority system:
+// Strategy: FREE & CLEAR properties only. Then layer distress on top.
 //
-// PHASE 1 — PLATINUM: High Equity (60%+) + Absentee + Active Distress
-//   These are the best leads: significant equity + absentee owner +
-//   motivated to sell. Includes free & clear as a subset of 60%+.
-//   Previous version required isFreeAndClear which created impossible
-//   combos (free & clear + foreclosure). Now much larger pool.
-//   Also includes true cream: F&C + absentee + probate/tax lien.
+// PHASE 1 — PLATINUM: Free & Clear + Absentee + Distress
+//   Only distress signals that CAN exist on mortgage-free properties:
+//   probate, tax delinquency, divorce, bankruptcy, vacant, liens.
+//   (NOT foreclosure — that requires a mortgage to default on.)
 //
-// PHASE 2 — GOLD: Broader high-quality combos
-//   Absentee + vacant + equity, high equity + distress (no absentee
-//   required), free & clear + absentee (no distress required).
-//   Multiple strategies to ensure the pool fills.
+// PHASE 2 — GOLD: Free & Clear + Absentee (no distress required)
+//   Broadens to all F&C absentee owners. Still excellent leads —
+//   no mortgage + owner lives elsewhere = low attachment.
+//   Also F&C + distress without absentee requirement.
 //
 // PropertyRadar criteria are AND-based, so each lens is a separate
 // API call. Results are deduped by APN across all lenses.
@@ -53,82 +51,12 @@ interface DistressLens {
 
 const DISTRESS_LENSES: DistressLens[] = [
   // ═══════════════════════════════════════════════════════════════════
-  // PHASE 1 — PLATINUM: High Equity + Absentee + Active Distress
-  //
-  // NOTE: Previous version required isFreeAndClear (no mortgage) which
-  // created logical contradictions (free & clear can't be in foreclosure).
-  // Now uses EquityPercent 60%+ which captures free & clear properties
-  // PLUS high-equity properties with small remaining mortgages.
-  // This dramatically expands the pool while keeping quality high.
+  // PHASE 1 — PLATINUM: Free & Clear + Absentee + Distress
+  // Only distress signals valid on mortgage-free properties.
+  // (NOT foreclosure — requires a mortgage to default on.)
   // ═══════════════════════════════════════════════════════════════════
 
-  // 1a: High Equity + Absentee + Pre-Foreclosure/Foreclosure
-  {
-    name: "platinum_foreclosure",
-    phase: 1,
-    criteria: [
-      { name: "EquityPercent", value: [[60, 100]] },
-      { name: "isNotSameMailingOrExempt", value: ["Yes"] },
-      { name: "isPreforeclosure", value: ["Yes"] },
-    ],
-    limit: 15,
-  },
-  // 1b: High Equity + Absentee + Probate/Deceased (highest severity)
-  {
-    name: "platinum_probate",
-    phase: 1,
-    criteria: [
-      { name: "EquityPercent", value: [[60, 100]] },
-      { name: "isNotSameMailingOrExempt", value: ["Yes"] },
-      { name: "isDeceasedProperty", value: ["Yes"] },
-    ],
-    limit: 15,
-  },
-  // 1c: High Equity + Absentee + Tax Delinquent
-  {
-    name: "platinum_tax",
-    phase: 1,
-    criteria: [
-      { name: "EquityPercent", value: [[60, 100]] },
-      { name: "isNotSameMailingOrExempt", value: ["Yes"] },
-      { name: "inTaxDelinquency", value: ["Yes"] },
-    ],
-    limit: 15,
-  },
-  // 1d: High Equity + Absentee + Vacant (stacking bonus)
-  {
-    name: "platinum_vacant",
-    phase: 1,
-    criteria: [
-      { name: "EquityPercent", value: [[60, 100]] },
-      { name: "isNotSameMailingOrExempt", value: ["Yes"] },
-      { name: "isSiteVacant", value: ["Yes"] },
-    ],
-    limit: 15,
-  },
-  // 1e: High Equity + Absentee + Divorce
-  {
-    name: "platinum_divorce",
-    phase: 1,
-    criteria: [
-      { name: "EquityPercent", value: [[60, 100]] },
-      { name: "isNotSameMailingOrExempt", value: ["Yes"] },
-      { name: "inDivorce", value: ["Yes"] },
-    ],
-    limit: 15,
-  },
-  // 1f: High Equity + Absentee + Bankruptcy
-  {
-    name: "platinum_bankruptcy",
-    phase: 1,
-    criteria: [
-      { name: "EquityPercent", value: [[60, 100]] },
-      { name: "isNotSameMailingOrExempt", value: ["Yes"] },
-      { name: "inBankruptcyProperty", value: ["Yes"] },
-    ],
-    limit: 10,
-  },
-  // 1g: Free & Clear + Absentee + Probate (true cream — rare but perfect)
+  // 1a: F&C + Absentee + Probate/Deceased (highest severity — inherited)
   {
     name: "platinum_fc_probate",
     phase: 1,
@@ -137,9 +65,9 @@ const DISTRESS_LENSES: DistressLens[] = [
       { name: "isNotSameMailingOrExempt", value: ["Yes"] },
       { name: "isDeceasedProperty", value: ["Yes"] },
     ],
-    limit: 10,
+    limit: 20,
   },
-  // 1h: Free & Clear + Absentee + Tax Delinquent (another valid combo)
+  // 1b: F&C + Absentee + Tax Delinquent (owes taxes on free property)
   {
     name: "platinum_fc_tax",
     phase: 1,
@@ -148,56 +76,99 @@ const DISTRESS_LENSES: DistressLens[] = [
       { name: "isNotSameMailingOrExempt", value: ["Yes"] },
       { name: "inTaxDelinquency", value: ["Yes"] },
     ],
-    limit: 10,
+    limit: 20,
   },
-
-  // ═══════════════════════════════════════════════════════════════════
-  // PHASE 2 — GOLD: Broader high-quality combos
-  // Runs when Phase 1 doesn't fill quota. Multiple lens strategies.
-  // ═══════════════════════════════════════════════════════════════════
-
-  // 2a: Absentee + Vacant + 50%+ equity (strong signal stack)
+  // 1c: F&C + Absentee + Vacant (nobody home, no mortgage, lives elsewhere)
   {
-    name: "gold_absentee_vacant",
-    phase: 2,
+    name: "platinum_fc_vacant",
+    phase: 1,
     criteria: [
+      { name: "isFreeAndClear", value: ["Yes"] },
       { name: "isNotSameMailingOrExempt", value: ["Yes"] },
       { name: "isSiteVacant", value: ["Yes"] },
-      { name: "EquityPercent", value: [[50, 100]] },
     ],
     limit: 20,
   },
-  // 2b: High Equity + Any Distress (no absentee required)
+  // 1d: F&C + Absentee + Divorce
   {
-    name: "gold_equity_foreclosure",
-    phase: 2,
+    name: "platinum_fc_divorce",
+    phase: 1,
     criteria: [
-      { name: "EquityPercent", value: [[70, 100]] },
-      { name: "isPreforeclosure", value: ["Yes"] },
+      { name: "isFreeAndClear", value: ["Yes"] },
+      { name: "isNotSameMailingOrExempt", value: ["Yes"] },
+      { name: "inDivorce", value: ["Yes"] },
     ],
     limit: 15,
   },
-  // 2c: High Equity + Probate (no absentee required)
+  // 1e: F&C + Absentee + Bankruptcy
   {
-    name: "gold_equity_probate",
+    name: "platinum_fc_bankruptcy",
+    phase: 1,
+    criteria: [
+      { name: "isFreeAndClear", value: ["Yes"] },
+      { name: "isNotSameMailingOrExempt", value: ["Yes"] },
+      { name: "inBankruptcyProperty", value: ["Yes"] },
+    ],
+    limit: 15,
+  },
+  // 1f: F&C + Absentee + Open Liens (judgment liens, mechanic liens, etc.)
+  {
+    name: "platinum_fc_liens",
+    phase: 1,
+    criteria: [
+      { name: "isFreeAndClear", value: ["Yes"] },
+      { name: "isNotSameMailingOrExempt", value: ["Yes"] },
+      { name: "PropertyHasOpenLiens", value: ["Yes"] },
+    ],
+    limit: 15,
+  },
+
+  // ═══════════════════════════════════════════════════════════════════
+  // PHASE 2 — GOLD: Free & Clear + Distress (no absentee required)
+  // Then F&C + Absentee as broad catch-all (no distress required).
+  // ═══════════════════════════════════════════════════════════════════
+
+  // 2a: F&C + Probate (no absentee required — still highly motivated)
+  {
+    name: "gold_fc_probate",
     phase: 2,
     criteria: [
-      { name: "EquityPercent", value: [[60, 100]] },
+      { name: "isFreeAndClear", value: ["Yes"] },
       { name: "isDeceasedProperty", value: ["Yes"] },
     ],
-    limit: 15,
+    limit: 20,
   },
-  // 2d: Absentee + 60%+ equity (broad high-quality catch-all)
+  // 2b: F&C + Tax Delinquent (no absentee required)
   {
-    name: "gold_absentee_high_equity",
+    name: "gold_fc_tax",
     phase: 2,
     criteria: [
-      { name: "isNotSameMailingOrExempt", value: ["Yes"] },
-      { name: "EquityPercent", value: [[60, 100]] },
+      { name: "isFreeAndClear", value: ["Yes"] },
+      { name: "inTaxDelinquency", value: ["Yes"] },
     ],
     limit: 20,
   },
-  // 2e: Free & Clear + Absentee (no distress needed — still excellent leads)
+  // 2c: F&C + Vacant (no absentee required)
+  {
+    name: "gold_fc_vacant",
+    phase: 2,
+    criteria: [
+      { name: "isFreeAndClear", value: ["Yes"] },
+      { name: "isSiteVacant", value: ["Yes"] },
+    ],
+    limit: 20,
+  },
+  // 2d: F&C + Divorce (no absentee required)
+  {
+    name: "gold_fc_divorce",
+    phase: 2,
+    criteria: [
+      { name: "isFreeAndClear", value: ["Yes"] },
+      { name: "inDivorce", value: ["Yes"] },
+    ],
+    limit: 15,
+  },
+  // 2e: F&C + Absentee (broad — no distress required, still excellent)
   {
     name: "gold_fc_absentee",
     phase: 2,
@@ -205,7 +176,7 @@ const DISTRESS_LENSES: DistressLens[] = [
       { name: "isFreeAndClear", value: ["Yes"] },
       { name: "isNotSameMailingOrExempt", value: ["Yes"] },
     ],
-    limit: 20,
+    limit: 25,
   },
 ];
 
@@ -601,7 +572,7 @@ export async function POST(req: NextRequest) {
   if (results.length === 0) {
     return NextResponse.json({
       success: false,
-      error: "Both Platinum (high equity + absentee + distress) and Gold (equity + absentee/distress combos) phases returned 0 results. Check PROPERTYRADAR_API_KEY and verify API credits.",
+      error: "Both Platinum (free & clear + absentee + distress) and Gold (free & clear + distress/absentee) phases returned 0 results. Check PROPERTYRADAR_API_KEY and verify API credits.",
       counties,
       lensResults,
       phase1Count: 0,
