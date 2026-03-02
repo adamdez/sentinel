@@ -13,7 +13,7 @@
 import { createServerClient } from "@/lib/supabase";
 
 const GROK_ENDPOINT = "https://api.x.ai/v1/chat/completions";
-const GROK_MODEL = "grok-4-latest";
+const GROK_MODEL = "grok-3-mini";
 const SYSTEM_USER_ID = "00000000-0000-0000-0000-000000000000";
 
 // ── Types ────────────────────────────────────────────────────────────

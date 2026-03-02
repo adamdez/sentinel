@@ -6,7 +6,7 @@
  */
 
 const GROK_ENDPOINT = "https://api.x.ai/v1/chat/completions";
-const GROK_MODEL = "grok-4-latest";
+const GROK_MODEL = "grok-3-mini";
 
 export interface GrokMessage {
   role: "system" | "user" | "assistant";

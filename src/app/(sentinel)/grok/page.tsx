@@ -305,7 +305,7 @@ export default function GrokPage() {
                 GROK COMMAND CENTER
               </h2>
               <p className="text-[10px] text-muted-foreground/60 tracking-wider">
-                xAI grok-4-latest &middot; Sentinel AI Brain
+                xAI grok-3-mini &middot; Sentinel AI Brain
               </p>
             </div>
           </div>
