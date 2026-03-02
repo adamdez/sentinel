@@ -19,6 +19,7 @@
 /build
 /sentinel-mcp/build
 /sentinel-mcp/node_modules
+/src/mcp
 
 # misc
 .DS_Store
