@@ -39,9 +39,9 @@ export function CallsToday() {
 
     for (const r of rows) {
       const d = r.disposition ?? "";
-      if (["no_answer", "initiating", "in_progress"].includes(d)) {
+      if (["no_answer", "initiating"].includes(d)) {
         noAnswer++;
-      } else {
+      } else if (d !== "sms_outbound") {
         connected++;
       }
       talkSec += r.duration_sec ?? 0;
