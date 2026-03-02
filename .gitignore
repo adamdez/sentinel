@@ -17,6 +17,8 @@
 
 # production
 /build
+/sentinel-mcp/build
+/sentinel-mcp/node_modules
 
 # misc
 .DS_Store
@@ -26,8 +28,10 @@ nul
 # internal audit/agent files
 cursor-*.md
 
-# Claude Code worktrees (local workspace data)
+# Claude Code (local workspace data)
 .claude/worktrees/
+.claude/settings.local.json
+.claude/plans/
 
 # playwright
 e2e/.auth/

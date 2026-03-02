@@ -83,28 +83,38 @@ export async function POST(req: NextRequest) {
   const agentTwilioNumber = (agentProfile?.twilio_phone_number as string) ?? "";
   const agentFullName = (agentProfile?.full_name as string) ?? "";
 
-  // Determine the From number: user's assigned Twilio number, or env fallback
+  // Agent-first flow requires a personal cell to ring
+  if (!agentCell) {
+    return NextResponse.json(
+      { error: "Personal cell not configured — set it in Settings before using the dialer" },
+      { status: 400 },
+    );
+  }
+
+  const agentCellDigits = agentCell.replace(/\D/g, "");
+  const agentCellE164 = agentCellDigits.length === 10 ? `+1${agentCellDigits}` : `+${agentCellDigits}`;
+
   const from = agentTwilioNumber || fallbackFrom;
   if (!from) {
     return NextResponse.json(
       { error: "No Twilio phone number configured for this user or in environment" },
-      { status: 500 }
+      { status: 500 },
     );
   }
 
-  // Build per-user caller ID name (max 15 chars for CNAM standard)
   const firstName = agentFullName.split(" ")[0] || "";
   const callerIdName = firstName
     ? `Dominion ${firstName}`.substring(0, 15)
     : "Dominion Homes";
 
-  // 3. Twilio REST API — create call with warm transfer webhook
+  // 3. Twilio REST API — agent-first click-to-call
+  //    Twilio calls the AGENT's cell. When the agent picks up, the
+  //    voice webhook bridges the call to the PROSPECT.
   const twilioUrl = `https://api.twilio.com/2010-04-01/Accounts/${sid}/Calls.json`;
 
   const siteUrl = process.env.NEXT_PUBLIC_SITE_URL
     ?? (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "http://localhost:3000");
 
-  // Insert calls_log first so we have the ID for the webhook URL
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data: callLog, error: logErr } = await (sb.from("calls_log") as any)
     .insert({
@@ -112,7 +122,7 @@ export async function POST(req: NextRequest) {
       property_id: body.propertyId || null,
       user_id: userId,
       phone_dialed: e164,
-      transferred_to_cell: agentCell || null,
+      transferred_to_cell: agentCellE164,
       disposition: "initiating",
       started_at: new Date().toISOString(),
     })
@@ -123,11 +133,11 @@ export async function POST(req: NextRequest) {
     console.error("[Dialer] calls_log insert failed:", logErr);
   }
 
-  const voiceWebhookUrl = `${siteUrl}/api/twilio/voice?agentId=${encodeURIComponent(userId)}&callLogId=${encodeURIComponent(callLog?.id ?? "")}`;
+  const voiceWebhookUrl = `${siteUrl}/api/twilio/voice?agentId=${encodeURIComponent(userId)}&callLogId=${encodeURIComponent(callLog?.id ?? "")}&prospectPhone=${encodeURIComponent(e164)}`;
   const statusCallbackUrl = `${siteUrl}/api/twilio/voice/status?callLogId=${encodeURIComponent(callLog?.id ?? "")}&type=call_status`;
 
   const formData = new URLSearchParams({
-    To: e164,
+    To: agentCellE164,
     From: from,
     Url: voiceWebhookUrl,
     StatusCallback: statusCallbackUrl,

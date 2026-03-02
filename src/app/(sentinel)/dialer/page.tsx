@@ -377,11 +377,11 @@ export default function DialerPage() {
           : null;
       setTransferStatus(
         cellDisplay
-          ? `Warm transfer to ${currentUser.name || "Agent"}'s cell (${cellDisplay})`
-          : `Connected — no personal cell configured`
+          ? `Ringing ${currentUser.name || "your"}'s cell (${cellDisplay}) — pick up to connect to prospect`
+          : `Call initiated`
       );
       setCallState("connected");
-      toast.success("Connected — Caller ID: Dominion Homes");
+      toast.success("Ringing your cell — pick up to connect to prospect");
     } catch (err) {
       console.error("[Dialer]", err);
       toast.error("Network error — call not placed");
@@ -456,8 +456,8 @@ export default function DialerPage() {
 
       setManualCallLogId(data.callLogId);
       setManualStatus("connected");
-      const cellHint = data.transferTo ? ` → ***${(data.transferTo as string).slice(-4)}` : "";
-      toast.success(`Calling ${formatUsPhone(manualPhone)}${cellHint} — Caller ID: Dominion Homes`);
+      const cellHint = data.transferTo ? ` via ***${(data.transferTo as string).slice(-4)}` : "";
+      toast.success(`Ringing your cell${cellHint} — pick up to connect to ${formatUsPhone(manualPhone)}`);
     } catch {
       toast.error("Network error — call not placed");
       setManualStatus("idle");

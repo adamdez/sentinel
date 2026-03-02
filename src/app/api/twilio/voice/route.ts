@@ -9,64 +9,59 @@ const SYSTEM_USER_ID = "00000000-0000-0000-0000-000000000000";
 /**
  * POST /api/twilio/voice
  *
- * Twilio webhook — called when an outbound call connects.
- * Returns TwiML for warm transfer to agent's personal cell,
- * with professional voicemail on no-answer.
+ * Twilio webhook — called when the AGENT answers their cell phone
+ * (agent-first click-to-call). Returns TwiML that bridges
+ * the call to the prospect.
  *
- * Query params (set via statusCallbackUrl):
- *   ?agentId=<user_id>&callLogId=<id>&to=<e164>
+ * Query params:
+ *   ?agentId=<user_id>&callLogId=<id>&prospectPhone=<e164>
  */
 export async function POST(req: NextRequest) {
   const url = new URL(req.url);
   const agentId = url.searchParams.get("agentId");
   const callLogId = url.searchParams.get("callLogId");
+  const prospectPhone = url.searchParams.get("prospectPhone");
 
   const sb = createServerClient();
 
-  // Look up agent's profile: personal_cell, twilio_phone_number, full_name
-  let personalCell = "";
-  let agentName = "";
   let agentTwilioNumber = "";
+  let agentName = "";
   if (agentId) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { data: profile } = await (sb.from("user_profiles") as any)
-      .select("personal_cell, full_name, twilio_phone_number")
+      .select("full_name, twilio_phone_number")
       .eq("id", agentId)
       .single();
 
-    personalCell = (profile?.personal_cell as string) ?? "";
     agentName = (profile?.full_name as string) ?? "";
     agentTwilioNumber = (profile?.twilio_phone_number as string) ?? "";
   }
 
-  // Use agent's assigned Twilio number, fall back to env var
   const twilioNumber = agentTwilioNumber || process.env.TWILIO_PHONE_NUMBER || "";
-
-  // Build per-agent display name
-  const firstName = agentName.split(" ")[0] || "";
-  const callerIdName = firstName
-    ? `Dominion ${firstName}`
-    : "Dominion Homes";
 
   let twiml: string;
 
-  if (personalCell) {
-    // Warm transfer: ring agent's personal cell, voicemail on no-answer (30s timeout)
+  if (prospectPhone) {
+    // Agent just picked up — bridge to the prospect.
+    // The prospect sees the Twilio number (CNAM "Dominion Homes") as caller ID.
     twiml = [
       '<?xml version="1.0" encoding="UTF-8"?>',
       "<Response>",
-      `  <Say voice="Polly.Joanna">Connecting you to ${callerIdName}. Please hold.</Say>`,
+      '  <Say voice="Polly.Joanna">Sentinel call. Connecting to prospect now.</Say>',
       `  <Dial callerId="${twilioNumber}" timeout="30" action="/api/twilio/voice/status?callLogId=${callLogId ?? ""}&amp;type=dial_complete">`,
-      `    <Number>${personalCell}</Number>`,
+      `    <Number>${prospectPhone}</Number>`,
       "  </Dial>",
       "</Response>",
     ].join("\n");
   } else {
-    // No personal cell configured — play voicemail greeting + record
-    twiml = buildVoicemailTwiml(callLogId);
+    twiml = [
+      '<?xml version="1.0" encoding="UTF-8"?>',
+      "<Response>",
+      '  <Say voice="Polly.Joanna">No prospect number available. Goodbye.</Say>',
+      "</Response>",
+    ].join("\n");
   }
 
-  // Log the voice webhook event
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   await (sb.from("event_log") as any).insert({
     user_id: agentId ?? SYSTEM_USER_ID,
@@ -74,11 +69,10 @@ export async function POST(req: NextRequest) {
     entity_type: "call",
     entity_id: callLogId ?? "unknown",
     details: {
-      has_personal_cell: !!personalCell,
-      warm_transfer: !!personalCell,
+      flow: "agent_first",
+      prospect_phone: prospectPhone ? `***${prospectPhone.slice(-4)}` : null,
       agent_name: agentName,
       from_number: twilioNumber,
-      transferred_to: personalCell ? `***${personalCell.slice(-4)}` : null,
       timestamp: new Date().toISOString(),
     },
   });
@@ -86,28 +80,4 @@ export async function POST(req: NextRequest) {
   return new NextResponse(twiml, {
     headers: { "Content-Type": "text/xml" },
   });
-}
-
-/**
- * POST /api/twilio/voice/status
- *
- * Called by Twilio after <Dial> completes.
- * If the agent didn't answer, play voicemail greeting.
- */
-
-function buildVoicemailTwiml(callLogId: string | null): string {
-  const vmCallbackUrl = `/api/twilio/voice/recording?callLogId=${callLogId ?? ""}`;
-
-  return [
-    '<?xml version="1.0" encoding="UTF-8"?>',
-    "<Response>",
-    '  <Say voice="Polly.Joanna">',
-    "    Thank you for calling Dominion Homes. We are unable to take your call right now.",
-    "    Please leave a brief message with your name, property address, and phone number,",
-    "    and a member of our team will return your call shortly.",
-    "  </Say>",
-    `  <Record maxLength="120" action="${vmCallbackUrl}" playBeep="true" />`,
-    '  <Say voice="Polly.Joanna">We did not receive a recording. Goodbye.</Say>',
-    "</Response>",
-  ].join("\n");
 }

@@ -1679,6 +1679,7 @@ function CompsTab({ cf, selectedComps, onAddComp, onRemoveComp, onSkipTrace }: {
     beds: cf.bedrooms, baths: cf.bathrooms,
     sqft: cf.sqft, yearBuilt: cf.yearBuilt,
     propertyType: cf.propertyType, avm: cf.estimatedValue,
+    radarId: cf.radarId, zip: cf.zip, county: cf.county, state: cf.state,
   };
 
   // ARV from selected comps + adjustments

@@ -7,9 +7,14 @@ export const runtime = "nodejs";
 /**
  * POST /api/twilio/voice/status
  *
- * Called by Twilio after a <Dial> attempt completes.
- * If DialCallStatus !== "completed", the agent didn't answer —
- * return voicemail TwiML.
+ * Called by Twilio after the <Dial> to the prospect completes.
+ *
+ * Agent-first flow:
+ *   - Agent is already on the line.
+ *   - If DialCallStatus !== "completed", the prospect didn't answer.
+ *     Tell the agent and end the call (the agent can also leave a VM
+ *     naturally if the prospect's voicemail picks up before timeout).
+ *   - If DialCallStatus === "completed", the call finished normally.
  */
 export async function POST(req: NextRequest) {
   const url = new URL(req.url);
@@ -23,11 +28,11 @@ export async function POST(req: NextRequest) {
   const sb = createServerClient();
 
   if (type === "dial_complete" && dialStatus !== "completed") {
-    // Agent didn't answer — drop voicemail
+    // Prospect didn't answer — inform the agent who is still on the line
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     await (sb.from("event_log") as any).insert({
       user_id: "00000000-0000-0000-0000-000000000000",
-      action: "twilio.voicemail_drop",
+      action: "twilio.prospect_no_answer",
       entity_type: "call",
       entity_id: callLogId ?? "unknown",
       details: { dial_status: dialStatus, duration: callDuration },
@@ -36,22 +41,14 @@ export async function POST(req: NextRequest) {
     if (callLogId) {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       await (sb.from("calls_log") as any)
-        .update({ voicemail_dropped: true })
+        .update({ disposition: "no_answer" })
         .eq("id", callLogId);
     }
-
-    const vmCallbackUrl = `/api/twilio/voice/recording?callLogId=${callLogId ?? ""}`;
 
     const twiml = [
       '<?xml version="1.0" encoding="UTF-8"?>',
       "<Response>",
-      '  <Say voice="Polly.Joanna">',
-      "    Thank you for calling Dominion Homes. We are unable to take your call right now.",
-      "    Please leave a brief message with your name, property address, and phone number,",
-      "    and a member of our team will return your call shortly.",
-      "  </Say>",
-      `  <Record maxLength="120" action="${vmCallbackUrl}" playBeep="true" />`,
-      '  <Say voice="Polly.Joanna">We did not receive a recording. Goodbye.</Say>',
+      '  <Say voice="Polly.Joanna">The prospect did not answer. Goodbye.</Say>',
       "</Response>",
     ].join("\n");
 
@@ -60,7 +57,7 @@ export async function POST(req: NextRequest) {
     });
   }
 
-  // Agent answered — call completed normally
+  // Prospect answered and the call completed normally
   if (callLogId) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     await (sb.from("calls_log") as any)

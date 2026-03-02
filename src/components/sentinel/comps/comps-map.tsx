@@ -86,6 +86,10 @@ export interface SubjectProperty {
   yearBuilt: number | null;
   propertyType: string | null;
   avm: number | null;
+  radarId?: string | null;
+  zip?: string | null;
+  county?: string | null;
+  state?: string | null;
 }
 
 interface CompsMapProps {
@@ -117,6 +121,7 @@ function makeCacheKey(
     f: filters,
     b: subject.beds, ba: subject.baths, sq: subject.sqft,
     yb: subject.yearBuilt, pt: subject.propertyType,
+    rid: subject.radarId ?? null,
   });
 }
 
@@ -239,8 +244,12 @@ export function CompsMap({ subject, selectedComps, onAddComp, onRemoveComp }: Co
       method: "POST",
       headers: fetchHeaders,
       body: JSON.stringify({
+        radarId: subject.radarId || undefined,
         lat: subject.lat,
         lng: subject.lng,
+        zip: subject.zip || undefined,
+        county: subject.county || undefined,
+        state: subject.state || undefined,
         radiusMiles: searchRadius,
         beds: f.beds ? subject.beds : undefined,
         baths: f.baths ? subject.baths : undefined,
