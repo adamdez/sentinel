@@ -351,7 +351,7 @@ export function Sidebar() {
           animate={{ width: sidebarWidth, opacity: 1 }}
           exit={{ width: 0, opacity: 0 }}
           transition={isResizing ? { duration: 0 } : { duration: 0.2, ease: "easeInOut" }}
-          className="h-screen bg-sidebar border-r border-sidebar-border flex flex-col overflow-hidden shrink-0 sidebar-glass relative z-20"
+          className="h-screen bg-sidebar flex flex-col overflow-hidden shrink-0 sidebar-glass relative z-20"
         >
           {/* Drag-to-resize handle (double-click resets to 200px) */}
           <div
