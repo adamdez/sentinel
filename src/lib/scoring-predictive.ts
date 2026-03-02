@@ -636,20 +636,29 @@ export function getPredictiveLabel(score: number): PredictiveScore["label"] {
   return "unlikely";
 }
 
-// ── Enhanced Heat Score (v2.0 blend) ────────────────────────────────
-// Blends the existing deterministic composite with the predictive
-// component at a 70/30 ratio.
+// ── Enhanced Heat Score (v2.1 confidence-weighted blend) ─────────────
+// When predictive confidence is high, use 70/30 det/pred ratio.
+// When confidence is low (sparse data), increase deterministic weight
+// so strong signals aren't penalized by lack of enrichment data.
+//
+// Formula: effectivePredWeight = BASE_PRED_WEIGHT × (confidence / 100)
+//          effectiveDetWeight  = 1 - effectivePredWeight
+// At 100% confidence → 70/30.  At 30% confidence → 91/9.  At 0% → 100/0.
 
 export const PREDICTIVE_WEIGHT = 0.30;
 export const DETERMINISTIC_WEIGHT = 0.70;
 
 export function blendHeatScore(
   deterministicComposite: number,
-  predictiveScore: number
+  predictiveScore: number,
+  confidence?: number
 ): number {
+  const conf = confidence != null ? clamp(confidence, 0, 100) : 100;
+  const effectivePredWeight = PREDICTIVE_WEIGHT * (conf / 100);
+  const effectiveDetWeight = 1 - effectivePredWeight;
   const blended =
-    deterministicComposite * DETERMINISTIC_WEIGHT +
-    predictiveScore * PREDICTIVE_WEIGHT;
+    deterministicComposite * effectiveDetWeight +
+    predictiveScore * effectivePredWeight;
   return clamp(Math.round(blended), 0, 100);
 }
 

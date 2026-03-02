@@ -175,7 +175,7 @@ export async function scoreWithPrediction(
   const deterministicOutput = computeScore(input);
   const predInput = buildPredictiveInput(propertyId, property, events, scores);
   const predictiveOutput = computePredictiveScore(predInput);
-  const blendedComposite = blendHeatScore(deterministicOutput.composite, predictiveOutput.predictiveScore);
+  const blendedComposite = blendHeatScore(deterministicOutput.composite, predictiveOutput.predictiveScore, predictiveOutput.confidence);
 
   const client = options.useServerClient ? createServerClient() : supabase;
   let persisted = false;

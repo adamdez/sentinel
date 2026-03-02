@@ -502,7 +502,7 @@ async function processAttomProperty(
   };
 
   const predOutput = computePredictiveScore(predInput);
-  const blendedScore = blendHeatScore(score.composite, predOutput.predictiveScore);
+  const blendedScore = blendHeatScore(score.composite, predOutput.predictiveScore, predOutput.confidence);
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   await (sb.from("scoring_predictions") as any).insert(buildPredictionRecord(property.id, predOutput));
@@ -629,7 +629,7 @@ async function processAttomForeclosure(
   };
 
   const predOutput = computePredictiveScore(predInput);
-  const blendedScore = blendHeatScore(score.composite, predOutput.predictiveScore);
+  const blendedScore = blendHeatScore(score.composite, predOutput.predictiveScore, predOutput.confidence);
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   await (sb.from("scoring_predictions") as any).insert(buildPredictionRecord(property.id, predOutput));

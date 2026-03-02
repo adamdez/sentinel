@@ -194,7 +194,7 @@ export async function POST(request: NextRequest) {
     };
 
     const predOutput = computePredictiveScore(predInput);
-    const blendedScore = blendHeatScore(composite, predOutput.predictiveScore);
+    const blendedScore = blendHeatScore(composite, predOutput.predictiveScore, predOutput.confidence);
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     await (sb.from("scoring_predictions") as any)

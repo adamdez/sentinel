@@ -108,7 +108,7 @@ export async function POST(request: NextRequest) {
         let blendedHeatScore: number | null = null;
         if (scores && scores.length > 0) {
           const latestComposite = scores[0].composite_score;
-          blendedHeatScore = blendHeatScore(latestComposite, output.predictiveScore);
+          blendedHeatScore = blendHeatScore(latestComposite, output.predictiveScore, output.confidence);
 
           // Update lead priority with blended score
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
