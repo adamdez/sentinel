@@ -30,6 +30,7 @@ import { ActiveDrips } from "./widgets/active-drips";
 import { RevenueImpact } from "./widgets/revenue-impact";
 import { TeamChatPreview } from "./widgets/team-chat-preview";
 import { QuickDial } from "./widgets/quick-dial";
+import { GrokInsights } from "./widgets/grok-insights";
 import { useDashboardLayout } from "@/hooks/use-dashboard-layout";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -48,6 +49,7 @@ const WIDGET_COMPONENTS: Record<WidgetId, React.ComponentType> = {
   "revenue-impact": RevenueImpact,
   "team-chat-preview": TeamChatPreview,
   "quick-dial": QuickDial,
+  "grok-insights": GrokInsights,
 };
 
 function SortableTile({

@@ -21,6 +21,7 @@ import { useDialerQueue, useDialerStats, useCallTimer, fetchDialerKpis, type Que
 import { RelationshipBadgeCompact } from "@/components/sentinel/relationship-badge";
 import { getSequenceLabel } from "@/lib/call-scheduler";
 import { useCallNotes } from "@/hooks/use-call-notes";
+import { usePreCallBrief } from "@/hooks/use-pre-call-brief";
 import { CallSequenceGuide } from "@/components/sentinel/call-sequence-guide";
 
 async function authHeaders(): Promise<Record<string, string>> {
@@ -273,6 +274,7 @@ export default function DialerPage() {
   const [consentPending, setConsentPending] = useState(false);
   const [consentGranted, setConsentGranted] = useState(false);
   const { latestSummary, latestSummaryTime } = useCallNotes(currentLead?.id);
+  const { brief: preCallBrief, loading: briefLoading } = usePreCallBrief(currentLead?.id ?? null);
 
   // Quick Manual Dial state
   const [manualPhone, setManualPhone] = useState("");
@@ -989,6 +991,42 @@ export default function DialerPage() {
                         {currentLead.source ?? "unknown"} — {currentLead.notes ?? "No notes"}
                       </p>
                     </div>
+
+                    {/* Pre-Call Intelligence Brief */}
+                    <AnimatePresence>
+                      {callState === "idle" && (preCallBrief || briefLoading) && (
+                        <motion.div
+                          initial={{ opacity: 0, height: 0 }}
+                          animate={{ opacity: 1, height: "auto" }}
+                          exit={{ opacity: 0, height: 0 }}
+                          className="rounded-[10px] bg-purple-500/[0.06] border border-purple-500/20 p-2.5 overflow-hidden"
+                        >
+                          <div className="flex items-center gap-1.5 mb-1.5">
+                            <Sparkles className="h-3 w-3 text-purple-400" />
+                            <span className="text-[11px] font-semibold tracking-wider uppercase text-purple-400">Pre-Call Brief</span>
+                            {briefLoading && <Loader2 className="h-3 w-3 animate-spin text-purple-400/60 ml-auto" />}
+                          </div>
+                          {preCallBrief && (
+                            <>
+                              <ul className="space-y-1 mb-2">
+                                {preCallBrief.bullets.map((b, i) => (
+                                  <li key={i} className="text-xs text-foreground/80 flex items-start gap-1.5">
+                                    <span className="text-purple-400 mt-0.5">•</span>
+                                    {b}
+                                  </li>
+                                ))}
+                              </ul>
+                              {preCallBrief.suggestedOpener && (
+                                <div className="rounded-lg bg-white/[0.03] border border-white/[0.06] p-2 mt-1">
+                                  <p className="text-[10px] text-muted-foreground/60 uppercase mb-0.5">Suggested Opener</p>
+                                  <p className="text-xs text-foreground/70 italic">&ldquo;{preCallBrief.suggestedOpener}&rdquo;</p>
+                                </div>
+                              )}
+                            </>
+                          )}
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
 
                     <div className="flex items-center gap-2 pt-2">
                       {callState === "idle" && (

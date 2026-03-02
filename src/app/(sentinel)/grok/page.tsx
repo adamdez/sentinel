@@ -10,9 +10,15 @@ import {
   Brain,
   Sparkles,
   ChevronDown,
+  Play,
+  CheckCircle2,
+  XCircle,
+  Shield,
 } from "lucide-react";
+import { toast } from "sonner";
 import { useSentinelStore } from "@/lib/store";
 import { supabase } from "@/lib/supabase";
+import { parseActionBlocks, GROK_ACTIONS } from "@/lib/grok-actions";
 
 interface ChatMsg {
   id: string;
@@ -196,6 +202,50 @@ export default function GrokPage() {
     }
   }, [input, streaming, messages]);
 
+  const [executingAction, setExecutingAction] = useState<string | null>(null);
+  const [actionResults, setActionResults] = useState<Record<string, { success: boolean; message: string }>>({});
+
+  const executeGrokAction = useCallback(async (action: string, params: Record<string, unknown>, description?: string) => {
+    const actionDef = GROK_ACTIONS[action];
+    if (!actionDef) {
+      toast.error(`Unknown action: ${action}`);
+      return;
+    }
+
+    if (actionDef.requiresConfirmation) {
+      const confirmed = window.confirm(
+        `Execute action: ${description ?? action}?\n\nThis will ${actionDef.description.toLowerCase()}.`
+      );
+      if (!confirmed) return;
+    }
+
+    const actionKey = `${action}-${Date.now()}`;
+    setExecutingAction(actionKey);
+
+    try {
+      const authHeaders = await getAuthHeaders();
+      const res = await fetch("/api/grok/actions", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...authHeaders },
+        body: JSON.stringify({ action, params }),
+      });
+
+      const result = await res.json();
+      setActionResults((prev) => ({ ...prev, [actionKey]: result }));
+
+      if (result.success) {
+        toast.success(result.message?.slice(0, 100) ?? "Action executed");
+      } else {
+        toast.error(result.message?.slice(0, 100) ?? "Action failed");
+      }
+    } catch {
+      toast.error("Failed to execute action");
+      setActionResults((prev) => ({ ...prev, [actionKey]: { success: false, message: "Network error" } }));
+    } finally {
+      setExecutingAction(null);
+    }
+  }, []);
+
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
@@ -332,6 +382,61 @@ export default function GrokPage() {
                       </span>
                     )}
                   </div>
+                  {msg.role === "assistant" && msg.content && (() => {
+                    const actions = parseActionBlocks(msg.content);
+                    if (actions.length === 0) return null;
+                    return (
+                      <div className="mt-3 pt-2 border-t border-white/[0.06] space-y-2">
+                        {actions.map((a, i) => {
+                          const actionKey = `${msg.id}-${a.action}-${i}`;
+                          const result = actionResults[actionKey];
+                          const isExecuting = executingAction === actionKey;
+                          const actionDef = GROK_ACTIONS[a.action];
+
+                          return (
+                            <div
+                              key={i}
+                              className="flex items-center gap-2 rounded-lg bg-cyan/[0.04] border border-cyan/15 px-3 py-2"
+                            >
+                              {actionDef?.requiresConfirmation && (
+                                <Shield className="h-3.5 w-3.5 text-amber-400 shrink-0" />
+                              )}
+                              <div className="flex-1 min-w-0">
+                                <p className="text-[11px] font-medium text-cyan/90">
+                                  {a.description ?? a.action}
+                                </p>
+                                <p className="text-[10px] text-muted-foreground/50">
+                                  {actionDef?.description ?? a.action}
+                                </p>
+                              </div>
+                              {result ? (
+                                <div className="flex items-center gap-1">
+                                  {result.success ? (
+                                    <CheckCircle2 className="h-4 w-4 text-emerald-400" />
+                                  ) : (
+                                    <XCircle className="h-4 w-4 text-red-400" />
+                                  )}
+                                </div>
+                              ) : (
+                                <button
+                                  onClick={() => executeGrokAction(a.action, a.params, a.description)}
+                                  disabled={isExecuting || !!executingAction}
+                                  className="shrink-0 flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-medium bg-cyan/10 border border-cyan/20 text-cyan hover:bg-cyan/20 transition-all disabled:opacity-40"
+                                >
+                                  {isExecuting ? (
+                                    <Loader2 className="h-3 w-3 animate-spin" />
+                                  ) : (
+                                    <Play className="h-3 w-3" />
+                                  )}
+                                  Execute
+                                </button>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    );
+                  })()}
                 </div>
               </motion.div>
             ))}
