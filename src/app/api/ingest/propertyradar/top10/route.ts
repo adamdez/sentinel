@@ -447,154 +447,156 @@ export async function POST(req: NextRequest) {
     "DelinquentYear", "DelinquentAmount",
   ].join(",");
 
-  // ── 3. Waterfall Targeting ──────────────────────────────────────────
-  // Phase 1 (Platinum): Free & Clear + Absentee + Distress
-  //   → These are the slam-dunk deals. Run ALL Phase 1 lenses first.
-  // Phase 2 (Gold): Absentee + 80%+ equity
-  //   → Only if Phase 1 didn't produce enough storable results.
-  //
-  // Base criteria: State + County (with auto-fallback if FIPS rejected).
-  // Each lens adds its own equity + distress filters on top.
+  // ── 3. Single Broad Pull + Client-Side Lens Filtering ──────────────
+  // PropertyRadar restricts boolean fields (isFreeAndClear, isDeceasedProperty,
+  // etc.) as search criteria on non-premium API tiers. Instead, we pull a broad
+  // pool with only geo + equity filters, then apply each lens filter locally.
+  // This is actually more efficient: 1 API call instead of 13.
+
+  const PULL_LIMIT = 500; // Pull a large pool to filter through lenses
+  const allRaw: PRProperty[] = [];
+  let totalCost = "0";
 
   const geoCriteria = [
     { name: "State", value: states },
     ...(fipsCodes.length > 0 ? [{ name: "County", value: fipsCodes }] : []),
   ];
 
-  const fallbackGeoCriteria = [
-    { name: "State", value: states },
-  ];
+  // Page through results (200 per page)
+  const PAGE_SIZE = 200;
+  const pages = Math.ceil(PULL_LIMIT / PAGE_SIZE);
+  let useCountyFilter = fipsCodes.length > 0;
+
+  for (let page = 0; page < pages; page++) {
+    const offset = page * PAGE_SIZE;
+    const thisLimit = Math.min(PAGE_SIZE, PULL_LIMIT - offset);
+    const url = `${PR_API}?Purchase=1&Limit=${thisLimit}&Start=${offset}&Fields=${fields}`;
+    const criteria = [
+      ...(useCountyFilter ? geoCriteria : [{ name: "State", value: states }]),
+      { name: "EquityPercent", value: [[40, 100]] },
+    ];
+
+    console.log(`[Top10] Pulling page ${page + 1}/${pages} (limit ${thisLimit}, offset ${offset})`);
+
+    try {
+      const resp = await fetch(url, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+          "Content-Type": "application/json",
+          Accept: "application/json",
+        },
+        body: JSON.stringify({ Criteria: criteria }),
+      });
+
+      if (!resp.ok) {
+        if (page === 0 && useCountyFilter && resp.status === 400) {
+          console.warn(`[Top10] County filter rejected — retrying without County...`);
+          useCountyFilter = false;
+          page--; // Retry this page
+          continue;
+        }
+        console.error(`[Top10] API error on page ${page}: HTTP ${resp.status}`);
+        break;
+      }
+
+      const data = await resp.json();
+      const props = data.results ?? [];
+      allRaw.push(...props);
+      totalCost = String(parseFloat(totalCost) + parseFloat(data.totalCost?.replace(/[^0-9.]/g, "") ?? "0"));
+      console.log(`[Top10] Page ${page + 1}: ${props.length} properties (running total: ${allRaw.length})`);
+
+      if (props.length < thisLimit) break; // No more results
+    } catch (err) {
+      console.error(`[Top10] Network error on page ${page}:`, String(err));
+      break;
+    }
+  }
+
+  console.log(`[Top10] Broad pull complete: ${allRaw.length} raw properties, cost: ${totalCost}`);
+
+  if (allRaw.length === 0) {
+    return NextResponse.json({
+      success: false,
+      error: "PropertyRadar returned 0 results. Check API key and credits.",
+      counties,
+      lensResults: [],
+      phase1Count: 0,
+    });
+  }
+
+  // ── Apply lens filters client-side ──────────────────────────────────
+  // Each lens defines boolean fields that must be truthy on the property.
+  // We map lens criteria names to PR response field checks.
+
+  function matchesLens(pr: PRProperty, lens: DistressLens): boolean {
+    for (const c of lens.criteria) {
+      const field = c.name as keyof PRProperty;
+      const val = pr[field];
+      // PropertyRadar returns "Yes"/"No", 1/0, or true/false
+      const truthy = val === "Yes" || val === 1 || val === true || val === "1";
+      if (!truthy) return false;
+    }
+    return true;
+  }
 
   const allResults: PRProperty[] = [];
   const seenApns = new Set<string>();
   const lensResults: { lens: string; phase: number; count: number; cost: string }[] = [];
-  let totalCost = "0";
-  let useCountyFilter = fipsCodes.length > 0;
 
-  // Separate phases
   const phase1Lenses = DISTRESS_LENSES.filter((l) => l.phase === 1);
   const phase2Lenses = DISTRESS_LENSES.filter((l) => l.phase === 2);
 
-  // Run a set of lenses and collect results
-  async function runLenses(lenses: DistressLens[], phaseLabel: string): Promise<void> {
-    for (const lens of lenses) {
-      const geo = useCountyFilter ? geoCriteria : fallbackGeoCriteria;
-      const criteria = [...geo, ...lens.criteria];
-      const url = `${PR_API}?Purchase=1&Limit=${lens.limit}&Fields=${fields}`;
-      const requestBody = JSON.stringify({ Criteria: criteria });
-
-      console.log(`[Top10] >>> ${phaseLabel} Lens "${lens.name}" (limit ${lens.limit}):`, requestBody);
-
-      let lensResponse: Response;
-      let lensText: string;
-      try {
-        lensResponse = await fetch(url, {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${apiKey}`,
-            "Content-Type": "application/json",
-            Accept: "application/json",
-          },
-          body: requestBody,
-        });
-        lensText = await lensResponse.text();
-      } catch (err) {
-        console.warn(`[Top10] Lens "${lens.name}" network error — skipping:`, String(err));
-        lensResults.push({ lens: lens.name, phase: lens.phase, count: 0, cost: "0" });
-        continue;
-      }
-
-      if (!lensResponse.ok) {
-        // If County filter caused the failure, disable it for remaining lenses
-        if (useCountyFilter && lensResponse.status === 400) {
-          console.warn(`[Top10] Lens "${lens.name}" failed with County filter (${lensResponse.status}) — retrying without County...`);
-          useCountyFilter = false;
-
-          // Retry this lens without County
-          const retryGeo = fallbackGeoCriteria;
-          const retryCriteria = [...retryGeo, ...lens.criteria];
-          const retryBody = JSON.stringify({ Criteria: retryCriteria });
-          try {
-            const retryResp = await fetch(url, {
-              method: "POST",
-              headers: {
-                Authorization: `Bearer ${apiKey}`,
-                "Content-Type": "application/json",
-                Accept: "application/json",
-              },
-              body: retryBody,
-            });
-            if (retryResp.ok) {
-              lensText = await retryResp.text();
-            } else {
-              console.warn(`[Top10] Lens "${lens.name}" retry also failed (${retryResp.status}) — skipping`);
-              lensResults.push({ lens: lens.name, phase: lens.phase, count: 0, cost: "0" });
-              continue;
-            }
-          } catch {
-            lensResults.push({ lens: lens.name, phase: lens.phase, count: 0, cost: "0" });
-            continue;
-          }
-        } else {
-          console.warn(`[Top10] Lens "${lens.name}" failed (HTTP ${lensResponse.status}): ${lensText.slice(0, 200)} — skipping`);
-          lensResults.push({ lens: lens.name, phase: lens.phase, count: 0, cost: "0" });
-          continue;
-        }
-      }
-
-      let parsed: { results?: PRProperty[]; totalCost?: string };
-      try {
-        parsed = JSON.parse(lensText);
-      } catch {
-        console.warn(`[Top10] Lens "${lens.name}" returned non-JSON — skipping`);
-        lensResults.push({ lens: lens.name, phase: lens.phase, count: 0, cost: "0" });
-        continue;
-      }
-
-      const lensProps = parsed.results ?? [];
-      let newCount = 0;
-      for (const prop of lensProps) {
-        const apn = prop.APN;
-        if (!apn || seenApns.has(apn)) continue;
+  // Run Phase 1 lenses
+  console.log(`[Top10] === PHASE 1: PLATINUM — filtering ${allRaw.length} properties through ${phase1Lenses.length} lenses ===`);
+  for (const lens of phase1Lenses) {
+    let count = 0;
+    for (const pr of allRaw) {
+      const apn = pr.APN;
+      if (!apn || seenApns.has(apn)) continue;
+      if (matchesLens(pr, lens)) {
         seenApns.add(apn);
-        allResults.push(prop);
-        newCount++;
+        allResults.push(pr);
+        count++;
+        if (count >= lens.limit) break;
       }
-
-      totalCost = String(
-        parseFloat(totalCost) + parseFloat(parsed.totalCost?.replace(/[^0-9.]/g, "") ?? "0")
-      );
-      lensResults.push({ lens: lens.name, phase: lens.phase, count: newCount, cost: parsed.totalCost ?? "0" });
-      console.log(`[Top10] ${phaseLabel} Lens "${lens.name}": ${lensProps.length} raw → ${newCount} new (deduped). Cost: ${parsed.totalCost ?? "?"}`);
     }
+    lensResults.push({ lens: lens.name, phase: lens.phase, count, cost: "0" });
+    console.log(`[Top10] P1 Lens "${lens.name}": ${count} matches (limit ${lens.limit})`);
   }
-
-  // ── Execute Phase 1 (Platinum) ─────────────────────────────────────
-  console.log(`[Top10] === PHASE 1: PLATINUM (Free & Clear + Absentee + Distress) — ${phase1Lenses.length} lenses ===`);
-  await runLenses(phase1Lenses, "P1");
 
   const phase1Count = allResults.length;
   console.log(`[Top10] Phase 1 complete: ${phase1Count} unique Platinum properties`);
 
-  // ── Execute Phase 2 (Gold) only if Phase 1 didn't fill quota ───────
-  // "Fill quota" = at least MAX_PR_PULL storable results from Phase 1.
-  // If Platinum pool is rich, skip Gold entirely to save API credits.
+  // Run Phase 2 lenses if needed
   if (phase1Count < MAX_PR_PULL) {
-    console.log(`[Top10] === PHASE 2: GOLD (Absentee + 80%+ Equity) — Phase 1 only got ${phase1Count}/${MAX_PR_PULL}, running ${phase2Lenses.length} Gold lenses ===`);
-    await runLenses(phase2Lenses, "P2");
+    console.log(`[Top10] === PHASE 2: GOLD — ${phase2Lenses.length} lenses ===`);
+    for (const lens of phase2Lenses) {
+      let count = 0;
+      for (const pr of allRaw) {
+        const apn = pr.APN;
+        if (!apn || seenApns.has(apn)) continue;
+        if (matchesLens(pr, lens)) {
+          seenApns.add(apn);
+          allResults.push(pr);
+          count++;
+          if (count >= lens.limit) break;
+        }
+      }
+      lensResults.push({ lens: lens.name, phase: lens.phase, count, cost: "0" });
+      console.log(`[Top10] P2 Lens "${lens.name}": ${count} matches (limit ${lens.limit})`);
+    }
     console.log(`[Top10] Phase 2 complete: ${allResults.length - phase1Count} additional Gold properties`);
-  } else {
-    console.log(`[Top10] Phase 1 filled quota (${phase1Count} >= ${MAX_PR_PULL}) — skipping Phase 2 Gold lenses to save credits`);
   }
 
   const results = allResults;
-  console.log(`[Top10] All phases complete: ${results.length} unique properties (P1: ${phase1Count}, P2: ${results.length - phase1Count}, cost: ${totalCost})`);
+  console.log(`[Top10] All phases complete: ${results.length} filtered (from ${allRaw.length} raw). P1: ${phase1Count}, P2: ${results.length - phase1Count}`);
   console.log(`[Top10] Lens breakdown:`, lensResults);
 
   if (results.length === 0) {
     return NextResponse.json({
       success: false,
-      error: "Both Platinum (free & clear + absentee + distress) and Gold (free & clear + distress/absentee) phases returned 0 results. Check PROPERTYRADAR_API_KEY and verify API credits.",
+      error: `Pulled ${allRaw.length} properties but none matched lens criteria (F&C + Absentee + Distress). This may mean no matching properties exist in these counties.`,
       counties,
       lensResults,
       phase1Count: 0,
