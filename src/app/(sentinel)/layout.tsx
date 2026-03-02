@@ -20,7 +20,7 @@ export default function SentinelLayout({
     <div className="flex h-screen overflow-hidden sentinel-gradient sentinel-grid-bg relative">
       <ParticleField />
       <Sidebar />
-      <div className="flex flex-col flex-1 min-w-0 relative z-10">
+      <div className="flex flex-col flex-1 min-w-0 relative">
         <TopBar />
         <main className="flex-1 overflow-auto main-gloss">{children}</main>
       </div>

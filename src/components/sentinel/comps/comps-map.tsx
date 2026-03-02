@@ -74,6 +74,8 @@ export interface CompProperty {
   isTaxDelinquent: boolean;
   isListedForSale: boolean;
   isRecentSale: boolean;
+  photoUrl?: string | null;
+  streetViewUrl?: string | null;
 }
 
 export interface SubjectProperty {
@@ -194,6 +196,18 @@ const QUALITY_COLORS = {
   outlier: { fill: "#f87171", stroke: "#dc2626", label: "Outlier" },
 };
 
+export function getSatelliteTileUrl(lat: number, lng: number, zoom = 18): string {
+  const n = Math.pow(2, zoom);
+  const x = Math.floor(((lng + 180) / 360) * n);
+  const latRad = (lat * Math.PI) / 180;
+  const y = Math.floor((1 - Math.log(Math.tan(latRad) + 1 / Math.cos(latRad)) / Math.PI) / 2 * n);
+  return `https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/${zoom}/${y}/${x}`;
+}
+
+function getGoogleStreetViewLink(lat: number, lng: number): string {
+  return `https://www.google.com/maps/@${lat},${lng},3a,75y,0h,90t/data=!3m4!1e1!3m2!1s!2e0`;
+}
+
 const NO_FILTERS: CompFilters = { beds: false, baths: false, sqft: false, yearBuilt: false, propertyType: false };
 
 // ── Main Component ────────────────────────────────────────────────────
@@ -201,8 +215,8 @@ const NO_FILTERS: CompFilters = { beds: false, baths: false, sqft: false, yearBu
 export function CompsMap({ subject, selectedComps, onAddComp, onRemoveComp }: CompsMapProps) {
   const [comps, setComps] = useState<CompProperty[]>([]);
   const [loading, setLoading] = useState(false);
-  const [radiusMiles, setRadiusMiles] = useState(4);
-  const [searchRadius, setSearchRadius] = useState(4);
+  const [radiusMiles, setRadiusMiles] = useState(0.5);
+  const [searchRadius, setSearchRadius] = useState(0.5);
   const [selectedComp, setSelectedComp] = useState<CompProperty | null>(null);
   const [filtersOpen, setFiltersOpen] = useState(true);
   const [filters, setFilters] = useState<CompFilters>(NO_FILTERS);
@@ -422,7 +436,7 @@ export function CompsMap({ subject, selectedComps, onAddComp, onRemoveComp }: Co
           {mapReady ? (
             <MapContainer
               center={[subject.lat, subject.lng]}
-              zoom={12}
+              zoom={15}
               style={{ height: "100%", width: "100%", background: "#0a0a14" }}
               ref={(map: LMap | null) => { mapRef.current = map; }}
               zoomControl={true}
@@ -432,11 +446,20 @@ export function CompsMap({ subject, selectedComps, onAddComp, onRemoveComp }: Co
               preferCanvas={true}
             >
               <TileLayer
-                url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
-                attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a> &copy; <a href="https://carto.com/">CARTO</a>'
+                url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
+                attribution='&copy; Esri, Maxar, Earthstar Geographics'
                 updateWhenIdle={false}
                 updateWhenZooming={false}
                 keepBuffer={6}
+                maxZoom={19}
+              />
+              <TileLayer
+                url="https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}"
+                attribution=""
+                updateWhenIdle={false}
+                updateWhenZooming={false}
+                keepBuffer={6}
+                maxZoom={19}
               />
 
               {/* Radius circle */}
@@ -624,8 +647,56 @@ function CompDetailPanel({
   if (comp.isFreeAndClear) distressSignals.push({ label: "Free & Clear", color: "text-green-400 border-green-400/30 bg-green-500/10" });
   if (comp.isHighEquity) distressSignals.push({ label: "High Equity", color: "text-neon border-cyan/20 bg-cyan/[0.08]" });
 
+  const photoSrc = comp.photoUrl
+    ?? comp.streetViewUrl
+    ?? (comp.lat && comp.lng ? getSatelliteTileUrl(comp.lat, comp.lng) : null);
+  const streetViewLink = comp.lat && comp.lng
+    ? getGoogleStreetViewLink(comp.lat, comp.lng)
+    : null;
+
   return (
-    <div className="p-3 space-y-3 text-xs">
+    <div className="space-y-3 text-xs">
+      {/* Property photo / satellite thumbnail */}
+      {photoSrc && (
+        <div className="relative w-full h-[120px] overflow-hidden rounded-t-[10px] bg-black/40">
+          <img
+            src={photoSrc}
+            alt={comp.streetAddress || "Property"}
+            className="w-full h-full object-cover"
+            onError={(e) => {
+              const target = e.currentTarget;
+              if (comp.lat && comp.lng && !target.dataset.fallback) {
+                target.dataset.fallback = "1";
+                target.src = getSatelliteTileUrl(comp.lat, comp.lng, 17);
+              }
+            }}
+          />
+          <div className="absolute inset-0 bg-gradient-to-t from-[rgba(12,12,22,0.8)] to-transparent" />
+          {comp.lastSalePrice && (
+            <div className="absolute bottom-1.5 left-2 text-[11px] font-bold text-white" style={{ textShadow: "0 1px 4px rgba(0,0,0,0.7)" }}>
+              Sold {formatCurrency(comp.lastSalePrice)}
+              {comp.lastSaleDate && (
+                <span className="font-normal text-white/70 ml-1">
+                  {new Date(comp.lastSaleDate).toLocaleDateString("en-US", { month: "short", year: "numeric" })}
+                </span>
+              )}
+            </div>
+          )}
+          {streetViewLink && (
+            <a
+              href={streetViewLink}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="absolute top-1.5 right-1.5 bg-black/50 backdrop-blur-sm border border-white/10 rounded px-1.5 py-0.5 text-[8px] text-white/80 hover:text-white hover:bg-black/70 transition-colors flex items-center gap-1"
+            >
+              <Eye className="h-2.5 w-2.5" />
+              Street View
+            </a>
+          )}
+        </div>
+      )}
+
+      <div className="px-3 pb-3 space-y-3">
       {/* Header */}
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">
@@ -787,6 +858,7 @@ function CompDetailPanel({
           Add as Comp
         </Button>
       )}
+      </div>
     </div>
   );
 }

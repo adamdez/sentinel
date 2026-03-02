@@ -60,7 +60,7 @@ export async function POST(req: NextRequest) {
       const params = new URLSearchParams();
       params.set("Purchase", "1");
       params.set("Limit", String(Math.min(limit, 100)));
-      params.set("Fields", "default,State,AVM,EquityPercent");
+      params.set("Fields", "default,State,AVM,EquityPercent,PropertyImageUrl,StreetViewUrl");
 
       if (beds && typeof beds === "number") params.set("Beds", String(beds));
       if (baths && typeof baths === "number") params.set("Baths", String(baths));
@@ -210,6 +210,8 @@ export async function POST(req: NextRequest) {
       isTaxDelinquent: toBool(pr.inTaxDelinquency),
       isListedForSale: toBool(pr.isListedForSale),
       isRecentSale: toBool(pr.isRecentSale),
+      photoUrl: pr.PropertyImageUrl ?? null,
+      streetViewUrl: pr.StreetViewUrl ?? null,
     }));
 
     // Client-side distance filter when we have lat/lng
@@ -294,6 +296,8 @@ function mapCompSalesResult(r: any) {
     isRecentSale: true,
     prScore: toNum(r.Score),
     pricePerSqft: toNum(r.PricePerSqFt),
+    photoUrl: r.PropertyImageUrl ?? null,
+    streetViewUrl: r.StreetViewUrl ?? null,
   };
 }
 

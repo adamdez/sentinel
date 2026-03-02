@@ -19,7 +19,7 @@ import type { AIScore, DistressType } from "@/lib/types";
 import { SIGNAL_WEIGHTS } from "@/lib/scoring";
 import { getSequenceLabel, getSequenceProgress } from "@/lib/call-scheduler";
 import { useCallNotes, type CallNote } from "@/hooks/use-call-notes";
-import { CompsMap, type CompProperty, type SubjectProperty } from "@/components/sentinel/comps/comps-map";
+import { CompsMap, getSatelliteTileUrl, type CompProperty, type SubjectProperty } from "@/components/sentinel/comps/comps-map";
 import { PredictiveDistressBadge, type PredictiveDistressData } from "@/components/sentinel/predictive-distress-badge";
 import { RelationshipBadge } from "@/components/sentinel/relationship-badge";
 import { NumericInput } from "@/components/sentinel/numeric-input";
@@ -1768,6 +1768,7 @@ function CompsTab({ cf, selectedComps, onAddComp, onRemoveComp, onSkipTrace }: {
             <table className="w-full text-[11px]">
               <thead>
                 <tr className="border-b border-white/[0.06] bg-white/[0.04]">
+                  <th className="px-2 py-2 font-medium text-muted-foreground w-[52px]"></th>
                   <th className="text-left px-3 py-2 font-medium text-muted-foreground">Address</th>
                   <th className="text-right px-3 py-2 font-medium text-muted-foreground">Beds</th>
                   <th className="text-right px-3 py-2 font-medium text-muted-foreground">Baths</th>
@@ -1779,9 +1780,31 @@ function CompsTab({ cf, selectedComps, onAddComp, onRemoveComp, onSkipTrace }: {
                 </tr>
               </thead>
               <tbody>
-                {selectedComps.map((comp) => (
+                {selectedComps.map((comp) => {
+                  const thumbSrc = comp.photoUrl
+                    ?? comp.streetViewUrl
+                    ?? (comp.lat && comp.lng ? getSatelliteTileUrl(comp.lat, comp.lng, 17) : null);
+                  return (
                   <tr key={comp.apn} className="border-b border-white/[0.06]/50 hover:bg-white/[0.04]">
-                    <td className="px-3 py-2 max-w-[180px] truncate">{comp.streetAddress}</td>
+                    <td className="px-2 py-1.5">
+                      {thumbSrc ? (
+                        <div className="w-10 h-8 rounded overflow-hidden bg-black/30 border border-white/[0.06]">
+                          <img src={thumbSrc} alt="" className="w-full h-full object-cover" />
+                        </div>
+                      ) : (
+                        <div className="w-10 h-8 rounded bg-white/[0.04] border border-white/[0.06] flex items-center justify-center">
+                          <Home className="h-3 w-3 text-muted-foreground" />
+                        </div>
+                      )}
+                    </td>
+                    <td className="px-3 py-2 max-w-[180px]">
+                      <div className="truncate">{comp.streetAddress}</div>
+                      {comp.lastSaleDate && (
+                        <div className="text-[9px] text-muted-foreground">
+                          Sold {new Date(comp.lastSaleDate).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
+                        </div>
+                      )}
+                    </td>
                     <td className="px-3 py-2 text-right">{comp.beds ?? "—"}</td>
                     <td className="px-3 py-2 text-right">{comp.baths ?? "—"}</td>
                     <td className="px-3 py-2 text-right">{comp.sqft?.toLocaleString() ?? "—"}</td>
@@ -1794,7 +1817,8 @@ function CompsTab({ cf, selectedComps, onAddComp, onRemoveComp, onSkipTrace }: {
                       </button>
                     </td>
                   </tr>
-                ))}
+                  );
+                })}
               </tbody>
             </table>
           </div>
