@@ -66,7 +66,7 @@
 :root {
   --radius: 0.875rem;
 
-  --background: #0e1117;
+  --background: #020206;
   --foreground: #e6e6f2;
 
   --card: rgba(2, 2, 8, 0.30);
@@ -125,8 +125,8 @@
   --holo-purple: rgba(179, 136, 255, 0.1);
   --holo-orange: rgba(255, 107, 53, 0.07);
 
-  --specular-top: rgba(255, 255, 255, 0.55);
-  --specular-bottom-purple: rgba(179, 136, 255, 0.30);
+  --specular-top: rgba(255, 255, 255, 0.65);
+  --specular-bottom-purple: rgba(179, 136, 255, 0.35);
 }
 
 /* ── Keyframes ──────────────────────────────────────────────────── */
@@ -299,9 +299,9 @@ body {
     radial-gradient(ellipse 95% 80% at 12% 90%, rgba(255, 145, 0, 0.008) 0%, transparent 55%),
     radial-gradient(ellipse 90% 75% at 88% 10%, rgba(255, 145, 0, 0.008) 0%, transparent 55%),
     /* Center depth glow */
-    radial-gradient(ellipse 110% 90% at 50% 50%, rgba(0, 229, 255, 0.006) 0%, transparent 70%),
-    /* Base: near-black obsidian matching sidebar depth */
-    linear-gradient(180deg, #060810 0%, #050710 25%, #04060e 50%, #03050c 75%, #02040a 100%);
+    radial-gradient(ellipse 110% 90% at 50% 50%, rgba(0, 229, 255, 0.012) 0%, transparent 70%),
+    /* Base: deep obsidian — as dark as the sidebar */
+    linear-gradient(180deg, #030308 0%, #020206 25%, #020205 50%, #010104 75%, #010103 100%);
   background-size: 100% 100%, 100% 100%, 100% 100%, 100% 100%, 100% 100%, 100% 100%, 200% 200%, 100% 100%;
   animation: void-drift 40s ease-in-out infinite;
 }
@@ -323,12 +323,10 @@ body {
 .main-gloss {
   position: relative;
   background:
-    /* Top-edge specular: bright 1px highlight like polished metal */
-    linear-gradient(180deg, rgba(255,255,255,0.04) 0%, rgba(255,255,255,0.015) 0.5%, transparent 3%),
-    /* Diagonal gloss sweep across surface */
-    linear-gradient(135deg, rgba(255,255,255,0.02) 0%, rgba(255,255,255,0.006) 20%, transparent 45%, transparent 55%, rgba(255,255,255,0.004) 80%, rgba(255,255,255,0.015) 100%),
-    /* Near-black base matching sidebar depth */
-    linear-gradient(180deg, rgba(4,6,14,0.7) 0%, rgba(3,5,12,0.5) 50%, rgba(2,4,10,0.4) 100%);
+    /* Top-edge specular: bright gloss highlight */
+    linear-gradient(180deg, rgba(255,255,255,0.08) 0%, rgba(255,255,255,0.03) 0.5%, transparent 4%),
+    /* Diagonal gloss sweep — wet glass reflection */
+    linear-gradient(135deg, rgba(255,255,255,0.04) 0%, rgba(255,255,255,0.015) 18%, transparent 40%, transparent 60%, rgba(255,255,255,0.01) 82%, rgba(255,255,255,0.035) 100%);
 }
 
 .main-gloss::before {
@@ -340,11 +338,11 @@ body {
   height: 1px;
   background: linear-gradient(90deg,
     transparent 0%,
-    rgba(255,255,255,0.12) 15%,
-    rgba(255,255,255,0.25) 35%,
-    rgba(255,255,255,0.30) 50%,
-    rgba(255,255,255,0.25) 65%,
-    rgba(255,255,255,0.12) 85%,
+    rgba(255,255,255,0.15) 15%,
+    rgba(255,255,255,0.30) 35%,
+    rgba(255,255,255,0.38) 50%,
+    rgba(255,255,255,0.30) 65%,
+    rgba(255,255,255,0.15) 85%,
     transparent 100%
   );
   pointer-events: none;
@@ -1333,7 +1331,7 @@ body {
 /* ── Leaflet Dark Mode ─────────────────────────────────────────── */
 
 .leaflet-container {
-  background: #0e1117 !important;
+  background: #020206 !important;
   font-family: inherit;
 }
 .leaflet-control-zoom a {
