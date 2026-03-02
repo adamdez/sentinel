@@ -157,25 +157,28 @@ export async function POST(req: Request) {
 
   const phases: Record<string, unknown> = {};
 
-  // ── Phase 1: PropertyRadar Bulk Pull (max capacity per county) ────
+  // ── Phase 1: PropertyRadar Targeted Distress Pulls ─────────────────
+  // Run targeted pulls per distress lens, then a generic bulk pull.
+  // Targeted pulls hit probate/foreclosure/tax/vacant which score highest.
+  const distressLenses = ["probate", "foreclosure", "tax", "vacant", "divorce", "bankruptcy"];
   const prResults: Record<string, unknown>[] = [];
-  for (const county of counties) {
-    try {
-      console.log(`[PlatinumSeed] Phase 1: PropertyRadar bulk pull — ${county} (1000 max)...`);
-      const res = await fetch(`${baseUrl}/api/ingest/propertyradar/bulk-seed`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: authHeader,
-        },
-        body: JSON.stringify({ counties: [county], limit: 1000 }),
-      });
-      const data = await res.json();
-      prResults.push({ county, ...data });
-      console.log(`[PlatinumSeed] PR ${county}: ${data.inserted ?? 0} new, ${data.scoreBreakdown?.platinum ?? 0} platinum`);
-    } catch (err) {
-      console.error(`[PlatinumSeed] PR ${county} error:`, err);
-      prResults.push({ county, error: String(err) });
+
+  for (const lens of distressLenses) {
+    for (const county of counties) {
+      try {
+        console.log(`[PlatinumSeed] Phase 1: PR distress pull — ${county} / ${lens} (200 max)...`);
+        const res = await fetch(`${baseUrl}/api/ingest/propertyradar/bulk-seed`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: authHeader },
+          body: JSON.stringify({ counties: [county], limit: 200, distressLens: lens }),
+        });
+        const data = await res.json();
+        prResults.push({ county, lens, ...data });
+        console.log(`[PlatinumSeed] PR ${county}/${lens}: ${data.inserted ?? 0} new, ${data.scoreBreakdown?.platinum ?? 0} plat`);
+      } catch (err) {
+        console.error(`[PlatinumSeed] PR ${county}/${lens} error:`, err);
+        prResults.push({ county, lens, error: String(err) });
+      }
     }
   }
   phases.propertyRadar = prResults;
