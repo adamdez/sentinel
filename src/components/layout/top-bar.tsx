@@ -45,9 +45,9 @@ export function TopBar() {
   const hydrated = useHydrated();
 
   const handleLogout = () => {
-    supabase.auth.signOut().finally(() => {
-      window.location.href = "/login";
-    });
+    supabase.auth.signOut().catch(() => {});
+    // Redirect immediately — don't wait for signOut network call
+    window.location.href = "/login";
   };
 
   return (

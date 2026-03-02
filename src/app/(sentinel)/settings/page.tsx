@@ -74,24 +74,38 @@ export default function SettingsPage() {
     setSaving(true);
     setSaved(false);
 
-    try {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { error } = await (supabase.from("user_profiles") as any)
-        .update({ personal_cell: cleaned || null })
-        .eq("id", currentUser.id);
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 10_000);
 
-      if (error) {
-        toast.error("Failed to save — check permissions");
-        console.error("[Settings] personal_cell save:", error);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const headers: Record<string, string> = { "Content-Type": "application/json" };
+      if (session?.access_token) headers["Authorization"] = `Bearer ${session.access_token}`;
+
+      const res = await fetch("/api/settings/personal-cell", {
+        method: "PATCH",
+        headers,
+        body: JSON.stringify({ personalCell: cleaned }),
+        signal: controller.signal,
+      });
+
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        toast.error(data.error ?? "Failed to save — check permissions");
       } else {
         setCurrentUser({ ...currentUser, personal_cell: cleaned || undefined });
         toast.success("Personal cell saved — warm transfers will route here");
         setSaved(true);
         setTimeout(() => setSaved(false), 3000);
       }
-    } catch {
-      toast.error("Network error");
+    } catch (err) {
+      if (err instanceof DOMException && err.name === "AbortError") {
+        toast.error("Save timed out — please try again");
+      } else {
+        toast.error("Network error — please try again");
+      }
     } finally {
+      clearTimeout(timeout);
       setSaving(false);
     }
   }, [currentUser, personalCell, setCurrentUser]);

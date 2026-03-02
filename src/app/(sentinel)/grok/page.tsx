@@ -120,7 +120,7 @@ export default function GrokPage() {
       content: m.content,
     }));
 
-    const FIRST_TOKEN_TIMEOUT_MS = 30_000;
+    const FIRST_TOKEN_TIMEOUT_MS = 120_000;
 
     try {
       const authHeaders = await getAuthHeaders();
@@ -420,9 +420,14 @@ export default function GrokPage() {
                   )}
                   <div className="whitespace-pre-wrap break-words">
                     {msg.content || (
-                      <span className="inline-flex items-center gap-1 text-muted-foreground/50">
-                        <Loader2 className="h-3 w-3 animate-spin" />
-                        Thinking...
+                      <span className="inline-flex items-center gap-1.5 text-muted-foreground/50">
+                        <Loader2 className="h-3 w-3 animate-spin text-cyan/40" />
+                        <span>
+                          Reasoning<span className="animate-pulse">...</span>
+                          <span className="block text-[10px] text-muted-foreground/30 mt-0.5">
+                            Complex queries can take up to 2 minutes
+                          </span>
+                        </span>
                       </span>
                     )}
                   </div>

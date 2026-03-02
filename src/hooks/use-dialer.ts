@@ -48,98 +48,110 @@ export function useDialerQueue(limit = 7) {
   const { currentUser, ghostMode } = useSentinelStore();
 
   const fetchQueue = useCallback(async () => {
-    const now = new Date().toISOString();
-    // Personal queue: claimed leads where next call is due (or unscheduled)
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data: scheduled, error: err1 } = await (supabase.from("leads") as any)
-      .select("*, properties(*)")
-      .eq("status", "lead")
-      .eq("assigned_to", currentUser.id)
-      .lte("next_call_scheduled_at", now)
-      .order("next_call_scheduled_at", { ascending: true })
-      .limit(limit + 10);
+    try {
+      const now = new Date().toISOString();
+      // Personal queue: claimed leads where next call is due (or unscheduled)
+      const [scheduledRes, unscheduledRes] = await withTimeout(
+        Promise.all([
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          (supabase.from("leads") as any)
+            .select("*, properties(*)")
+            .eq("status", "lead")
+            .eq("assigned_to", currentUser.id)
+            .lte("next_call_scheduled_at", now)
+            .order("next_call_scheduled_at", { ascending: true })
+            .limit(limit + 10),
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          (supabase.from("leads") as any)
+            .select("*, properties(*)")
+            .eq("status", "lead")
+            .eq("assigned_to", currentUser.id)
+            .is("next_call_scheduled_at", null)
+            .order("priority", { ascending: false })
+            .limit(limit),
+        ]),
+        10_000,
+      );
 
-    // Also fetch leads with no schedule (legacy or newly claimed)
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data: unscheduled, error: err2 } = await (supabase.from("leads") as any)
-      .select("*, properties(*)")
-      .eq("status", "lead")
-      .eq("assigned_to", currentUser.id)
-      .is("next_call_scheduled_at", null)
-      .order("priority", { ascending: false })
-      .limit(limit);
-
-    if (err1 || err2) {
-      console.error("[DialerQueue]", err1 ?? err2);
-      setLoading(false);
-      return;
-    }
-
-    const seen = new Set<string>();
-    const merged: QueueLead[] = [];
-    for (const row of [...(scheduled ?? []), ...(unscheduled ?? [])]) {
-      if (!seen.has(row.id)) {
-        seen.add(row.id);
-        merged.push(row);
+      if (scheduledRes.error || unscheduledRes.error) {
+        console.error("[DialerQueue]", scheduledRes.error ?? unscheduledRes.error);
+        setLoading(false);
+        return;
       }
-    }
-    const rows = merged;
 
-    // Batch-fetch predictive scores for these leads' properties
-    const propertyIds = rows
-      .map((l) => l.property_id)
-      .filter(Boolean);
+      const seen = new Set<string>();
+      const merged: QueueLead[] = [];
+      for (const row of [...(scheduledRes.data ?? []), ...(unscheduledRes.data ?? [])]) {
+        if (!seen.has(row.id)) {
+          seen.add(row.id);
+          merged.push(row);
+        }
+      }
+      const rows = merged;
 
-    let predMap: Record<string, number> = {};
-    if (propertyIds.length > 0) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { data: predData } = await (supabase.from("scoring_predictions") as any)
-        .select("property_id, predictive_score")
-        .in("property_id", propertyIds)
-        .order("created_at", { ascending: false });
+      // Batch-fetch predictive scores for these leads' properties
+      const propertyIds = rows
+        .map((l) => l.property_id)
+        .filter(Boolean);
 
-      if (predData) {
-        const seen = new Set<string>();
-        for (const p of predData as { property_id: string; predictive_score: number }[]) {
-          if (!seen.has(p.property_id)) {
-            predMap[p.property_id] = p.predictive_score;
-            seen.add(p.property_id);
+      let predMap: Record<string, number> = {};
+      if (propertyIds.length > 0) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const { data: predData } = await (supabase.from("scoring_predictions") as any)
+          .select("property_id, predictive_score")
+          .in("property_id", propertyIds)
+          .order("created_at", { ascending: false });
+
+        if (predData) {
+          const seen = new Set<string>();
+          for (const p of predData as { property_id: string; predictive_score: number }[]) {
+            if (!seen.has(p.property_id)) {
+              predMap[p.property_id] = p.predictive_score;
+              seen.add(p.property_id);
+            }
           }
         }
       }
+
+      // Blend: 60% existing priority + 40% predictive score
+      const enriched = rows.map((lead) => {
+        const predScore = predMap[lead.property_id] ?? null;
+        const blendedPriority = predScore !== null
+          ? Math.round(lead.priority * 0.6 + predScore * 0.4)
+          : lead.priority;
+        return { ...lead, predictiveScore: predScore, blendedPriority };
+      });
+
+      // Sort by blended priority (higher = first)
+      enriched.sort((a, b) => b.blendedPriority - a.blendedPriority);
+
+      const withPhone = enriched
+        .filter((l) => l.properties?.owner_phone)
+        .slice(0, limit);
+
+      // Run compliance scrub in parallel
+      const scrubbed = await Promise.all(
+        withPhone.map(async (lead) => {
+          const phone = lead.properties?.owner_phone;
+          if (!phone) return { ...lead, compliant: true, scrubbing: false };
+
+          if (ghostMode) return { ...lead, compliant: true, scrubbing: false };
+
+          try {
+            const result = await scrubLeadClient(phone);
+            return { ...lead, compliant: result.allowed, scrubbing: false };
+          } catch {
+            return { ...lead, compliant: true, scrubbing: false };
+          }
+        })
+      );
+
+      setQueue(scrubbed);
+    } catch (err) {
+      console.error("[DialerQueue] fetch failed:", err);
+    } finally {
+      setLoading(false);
     }
-
-    // Blend: 60% existing priority + 40% predictive score
-    const enriched = rows.map((lead) => {
-      const predScore = predMap[lead.property_id] ?? null;
-      const blendedPriority = predScore !== null
-        ? Math.round(lead.priority * 0.6 + predScore * 0.4)
-        : lead.priority;
-      return { ...lead, predictiveScore: predScore, blendedPriority };
-    });
-
-    // Sort by blended priority (higher = first)
-    enriched.sort((a, b) => b.blendedPriority - a.blendedPriority);
-
-    const withPhone = enriched
-      .filter((l) => l.properties?.owner_phone)
-      .slice(0, limit);
-
-    // Run compliance scrub in parallel
-    const scrubbed = await Promise.all(
-      withPhone.map(async (lead) => {
-        const phone = lead.properties?.owner_phone;
-        if (!phone) return { ...lead, compliant: true, scrubbing: false };
-
-        if (ghostMode) return { ...lead, compliant: true, scrubbing: false };
-
-        const result = await scrubLeadClient(phone);
-        return { ...lead, compliant: result.allowed, scrubbing: false };
-      })
-    );
-
-    setQueue(scrubbed);
-    setLoading(false);
   }, [currentUser.id, currentUser.role, ghostMode, limit]);
 
   useEffect(() => {
@@ -179,6 +191,19 @@ function periodStart(period: "today" | "week" | "month" | "all"): string | null 
   return d.toISOString();
 }
 
+function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
+  return Promise.race([
+    promise,
+    new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error("Supabase query timed out")), ms),
+    ),
+  ]);
+}
+
+const EMPTY_STATS: DialerStats = {
+  myOutbound: 0, myInbound: 0, myLiveAnswers: 0, myAvgTalkTime: 0, teamOutbound: 0, teamInbound: 0,
+};
+
 export async function fetchDialerKpis(
   userId: string,
   period: "today" | "week" | "month" | "all" = "today",
@@ -191,41 +216,49 @@ export async function fetchDialerKpis(
     return since ? q.gte("started_at", since) : q;
   }
 
-  const [myOut, myIn, myLive, myDur, teamOut, teamIn, teamLive, teamDur] = await Promise.all([
-    applyPeriod(tbl().select("id", { count: "exact", head: true }).eq("user_id", userId).neq("disposition", "sms_outbound")),
-    applyPeriod(tbl().select("id", { count: "exact", head: true }).eq("user_id", userId).eq("disposition", "inbound")),
-    applyPeriod(tbl().select("id", { count: "exact", head: true }).eq("user_id", userId).not("disposition", "in", `(${LIVE_ANSWER_EXCLUDE})`)),
-    applyPeriod(tbl().select("duration_sec").eq("user_id", userId).gt("duration_sec", 0)),
-    applyPeriod(tbl().select("id", { count: "exact", head: true }).neq("disposition", "sms_outbound")),
-    applyPeriod(tbl().select("id", { count: "exact", head: true }).eq("disposition", "inbound")),
-    applyPeriod(tbl().select("id", { count: "exact", head: true }).not("disposition", "in", `(${LIVE_ANSWER_EXCLUDE})`)),
-    applyPeriod(tbl().select("duration_sec").gt("duration_sec", 0)),
-  ]);
+  try {
+    const [myOut, myIn, myLive, myDur, teamOut, teamIn, teamLive, teamDur] = await withTimeout(
+      Promise.all([
+        applyPeriod(tbl().select("id", { count: "exact", head: true }).eq("user_id", userId).neq("disposition", "sms_outbound")),
+        applyPeriod(tbl().select("id", { count: "exact", head: true }).eq("user_id", userId).eq("disposition", "inbound")),
+        applyPeriod(tbl().select("id", { count: "exact", head: true }).eq("user_id", userId).not("disposition", "in", `(${LIVE_ANSWER_EXCLUDE})`)),
+        applyPeriod(tbl().select("duration_sec").eq("user_id", userId).gt("duration_sec", 0)),
+        applyPeriod(tbl().select("id", { count: "exact", head: true }).neq("disposition", "sms_outbound")),
+        applyPeriod(tbl().select("id", { count: "exact", head: true }).eq("disposition", "inbound")),
+        applyPeriod(tbl().select("id", { count: "exact", head: true }).not("disposition", "in", `(${LIVE_ANSWER_EXCLUDE})`)),
+        applyPeriod(tbl().select("duration_sec").gt("duration_sec", 0)),
+      ]),
+      8_000,
+    );
 
-  function avgSec(rows: { duration_sec: number }[] | null): number {
-    if (!rows || rows.length === 0) return 0;
-    return Math.round(rows.reduce((s, r) => s + (r.duration_sec ?? 0), 0) / rows.length);
+    function avgSec(rows: { duration_sec: number }[] | null): number {
+      if (!rows || rows.length === 0) return 0;
+      return Math.round(rows.reduce((s, r) => s + (r.duration_sec ?? 0), 0) / rows.length);
+    }
+
+    const my: DialerStats = {
+      myOutbound: myOut.count ?? 0,
+      myInbound: myIn.count ?? 0,
+      myLiveAnswers: myLive.count ?? 0,
+      myAvgTalkTime: avgSec(myDur.data),
+      teamOutbound: teamOut.count ?? 0,
+      teamInbound: teamIn.count ?? 0,
+    };
+
+    const team: DialerStats = {
+      myOutbound: teamOut.count ?? 0,
+      myInbound: teamIn.count ?? 0,
+      myLiveAnswers: teamLive.count ?? 0,
+      myAvgTalkTime: avgSec(teamDur.data),
+      teamOutbound: teamOut.count ?? 0,
+      teamInbound: teamIn.count ?? 0,
+    };
+
+    return { my, team };
+  } catch (err) {
+    console.error("[DialerKpis] Failed to fetch stats:", err);
+    return { my: { ...EMPTY_STATS }, team: { ...EMPTY_STATS } };
   }
-
-  const my: DialerStats = {
-    myOutbound: myOut.count ?? 0,
-    myInbound: myIn.count ?? 0,
-    myLiveAnswers: myLive.count ?? 0,
-    myAvgTalkTime: avgSec(myDur.data),
-    teamOutbound: teamOut.count ?? 0,
-    teamInbound: teamIn.count ?? 0,
-  };
-
-  const team: DialerStats = {
-    myOutbound: teamOut.count ?? 0,
-    myInbound: teamIn.count ?? 0,
-    myLiveAnswers: teamLive.count ?? 0,
-    myAvgTalkTime: avgSec(teamDur.data),
-    teamOutbound: teamOut.count ?? 0,
-    teamInbound: teamIn.count ?? 0,
-  };
-
-  return { my, team };
 }
 
 export function useDialerStats() {
@@ -236,9 +269,14 @@ export function useDialerStats() {
   const { currentUser } = useSentinelStore();
 
   const fetchStats = useCallback(async () => {
-    const { my } = await fetchDialerKpis(currentUser.id, "today");
-    setStats(my);
-    setLoading(false);
+    try {
+      const { my } = await fetchDialerKpis(currentUser.id, "today");
+      setStats(my);
+    } catch (err) {
+      console.error("[DialerStats] fetch failed:", err);
+    } finally {
+      setLoading(false);
+    }
   }, [currentUser.id]);
 
   useEffect(() => {
