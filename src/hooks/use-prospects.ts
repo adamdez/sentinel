@@ -1,7 +1,8 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "@/lib/supabase";
+import { useSentinelStore } from "@/lib/store";
 import type { AIScore } from "@/lib/types";
 
 // ── Joined row shape from leads + properties ──────────────────────────
@@ -17,7 +18,6 @@ export interface ProspectRow {
   promoted_at: string | null;
   assigned_to: string | null;
   created_at: string;
-  // property fields
   apn: string;
   county: string;
   address: string;
@@ -36,25 +36,20 @@ export interface ProspectRow {
   year_built: number | null;
   lot_size: number | null;
   owner_flags: Record<string, unknown>;
-  // financial (from PropertyRadar enrichment)
   available_equity: number | null;
   total_loan_balance: number | null;
   last_sale_price: number | null;
   last_sale_date: string | null;
-  // distress detail
   foreclosure_stage: string | null;
   default_amount: number | null;
   delinquent_amount: number | null;
-  // ownership flags
   is_vacant: boolean;
   is_absentee: boolean;
   is_free_clear: boolean;
   is_high_equity: boolean;
   is_cash_buyer: boolean;
-  // enrichment
   radar_id: string | null;
   enriched: boolean;
-  // scoring (derived from priority)
   composite_score: number;
   motivation_score: number;
   deal_score: number;
@@ -91,219 +86,175 @@ function scoreLabel(composite: number): AIScore["label"] {
   return "bronze";
 }
 
+const CACHE_TTL_MS = 60_000; // 60s — data considered fresh for this long
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function buildRows(leadsData: any[], propertiesMap: Record<string, any>, predictionsMap: Record<string, any>): ProspectRow[] {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  return (leadsData as any[]).map((lead) => {
+    const prop = propertiesMap[lead.property_id] ?? {};
+    const composite = lead.priority ?? 0;
+    const flags = prop.owner_flags ?? {};
+    const prRaw = (flags.pr_raw ?? {}) as Record<string, unknown>;
+
+    const toNum = (v: unknown): number | null => {
+      if (v == null || v === "") return null;
+      const n = typeof v === "number" ? v : parseFloat(String(v).replace(/[$,%]/g, ""));
+      return isNaN(n) ? null : n;
+    };
+    const toBool = (v: unknown): boolean =>
+      v === true || v === 1 || v === "1" || v === "Yes" || v === "True" || v === "true";
+
+    return {
+      id: lead.id,
+      property_id: lead.property_id,
+      status: lead.status,
+      priority: lead.priority ?? 0,
+      source: lead.source ?? "unknown",
+      tags: lead.tags ?? [],
+      notes: lead.notes ?? null,
+      promoted_at: lead.promoted_at ?? null,
+      assigned_to: lead.assigned_to ?? null,
+      created_at: lead.created_at,
+      apn: prop.apn ?? "",
+      county: prop.county ?? "",
+      address: prop.address ?? "",
+      city: prop.city ?? "",
+      state: prop.state ?? "",
+      zip: prop.zip ?? "",
+      owner_name: prop.owner_name ?? "Unknown",
+      owner_phone: prop.owner_phone ?? null,
+      owner_email: prop.owner_email ?? null,
+      estimated_value: prop.estimated_value ?? null,
+      equity_percent: prop.equity_percent != null ? Number(prop.equity_percent) : null,
+      property_type: prop.property_type ?? null,
+      bedrooms: prop.bedrooms ?? null,
+      bathrooms: prop.bathrooms != null ? Number(prop.bathrooms) : null,
+      sqft: prop.sqft ?? null,
+      year_built: prop.year_built ?? null,
+      lot_size: prop.lot_size ?? null,
+      owner_flags: flags,
+      available_equity: toNum(prRaw.AvailableEquity) ?? toNum(flags.available_equity),
+      total_loan_balance: toNum(prRaw.TotalLoanBalance) ?? toNum(flags.total_loan_balance),
+      last_sale_price: toNum(prRaw.LastTransferValue) ?? toNum(flags.last_sale_price),
+      last_sale_date: (prRaw.LastTransferRecDate as string) ?? (flags.last_sale_date as string) ?? null,
+      foreclosure_stage: (prRaw.ForeclosureStage as string) ?? null,
+      default_amount: toNum(prRaw.DefaultAmount),
+      delinquent_amount: toNum(prRaw.DelinquentAmount),
+      is_vacant: toBool(flags.vacant) || toBool(prRaw.isSiteVacant),
+      is_absentee: toBool(flags.absentee) || toBool(prRaw.isNotSameMailingOrExempt),
+      is_free_clear: toBool(flags.freeAndClear) || toBool(prRaw.isFreeAndClear),
+      is_high_equity: toBool(flags.highEquity) || toBool(prRaw.isHighEquity),
+      is_cash_buyer: toBool(flags.cashBuyer) || toBool(prRaw.isCashBuyer),
+      radar_id: (flags.radar_id as string) ?? null,
+      enriched: flags.source === "propertyradar" || !!flags.radar_id,
+      composite_score: composite,
+      motivation_score: Math.round(composite * 0.85),
+      deal_score: Math.round(composite * 0.75),
+      score_label: scoreLabel(composite),
+      model_version: null,
+      ai_boost: 0,
+      factors: [],
+      _prediction: (() => {
+        const pred = predictionsMap[lead.property_id];
+        if (!pred) return null;
+        const ps = Number(pred.predictive_score) || 0;
+        return {
+          predictiveScore: ps,
+          daysUntilDistress: Number(pred.days_until_distress) || 365,
+          confidence: Number(pred.confidence) || 0,
+          label: (ps >= 80 ? "imminent" : ps >= 55 ? "likely" : ps >= 30 ? "possible" : "unlikely") as "imminent" | "likely" | "possible" | "unlikely",
+          ownerAgeInference: pred.owner_age_inference != null ? Number(pred.owner_age_inference) : null,
+          equityBurnRate: pred.equity_burn_rate != null ? Number(pred.equity_burn_rate) : null,
+          lifeEventProbability: pred.life_event_probability != null ? Number(pred.life_event_probability) : null,
+        };
+      })(),
+    };
+  });
+}
+
 export function useProspects(opts: UseProspectsOptions = {}) {
   const { search = "", sortField = "composite_score", sortDir = "desc", minScore, sourceFilter } = opts;
 
-  const [prospects, setProspects] = useState<ProspectRow[]>([]);
+  const [allRows, setAllRows] = useState<ProspectRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [totalCount, setTotalCount] = useState(0);
   const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
+  const fetchingRef = useRef(false);
 
-  const fetchProspects = useCallback(async () => {
-    console.log("=== [useProspects] FETCH START (server API) ===");
-    const t0 = Date.now();
+  const cache = useSentinelStore((s) => s._prospectCache);
+  const cacheTime = useSentinelStore((s) => s._prospectCacheTime);
+  const setCache = useSentinelStore((s) => s.setProspectCache);
+  const invalidateCache = useSentinelStore((s) => s.invalidateProspectCache);
 
+  const fetchFromApi = useCallback(async (force = false) => {
+    if (fetchingRef.current) return;
+
+    if (!force && cache && (Date.now() - cacheTime) < CACHE_TTL_MS) {
+      const rows = buildRows(cache.leads, cache.properties, cache.predictions);
+      setAllRows(rows);
+      setLoading(false);
+      return;
+    }
+
+    fetchingRef.current = true;
     try {
-      setLoading(true);
+      setLoading(allRows.length === 0);
       setError(null);
-
-      // ── Fetch all prospect data via server-side API (bypasses RLS) ──
 
       const res = await fetch("/api/prospects");
       if (!res.ok) {
         const body = await res.json().catch(() => ({ error: `HTTP ${res.status}` }));
-        console.error("[useProspects] API fetch FAILED:", res.status, body);
         setError(body.error || `Server error ${res.status}`);
         return;
       }
 
-      const { leads: leadsData, properties: propertiesMap, predictions: predictionsMap } = await res.json();
+      const data = await res.json();
+      const { leads: leadsData, properties: propertiesMap, predictions: predictionsMap } = data;
+
+      setCache({ leads: leadsData || [], properties: propertiesMap || {}, predictions: predictionsMap || {} });
 
       if (!leadsData || leadsData.length === 0) {
-        console.log("[useProspects] No prospect leads found");
-        setProspects([]);
-        setTotalCount(0);
+        setAllRows([]);
         return;
       }
 
-      console.log("[useProspects] API returned", leadsData.length, "leads,",
-        Object.keys(propertiesMap || {}).length, "properties,",
-        Object.keys(predictionsMap || {}).length, "predictions");
-
-      // ── Merge leads + properties ───────────────────────────────
-
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const rows: ProspectRow[] = (leadsData as any[]).map((lead) => {
-        const prop = propertiesMap[lead.property_id] ?? {};
-        const composite = lead.priority ?? 0;
-        const flags = prop.owner_flags ?? {};
-        const prRaw = (flags.pr_raw ?? {}) as Record<string, unknown>;
-
-        const toNum = (v: unknown): number | null => {
-          if (v == null || v === "") return null;
-          const n = typeof v === "number" ? v : parseFloat(String(v).replace(/[$,%]/g, ""));
-          return isNaN(n) ? null : n;
-        };
-        const toBool = (v: unknown): boolean =>
-          v === true || v === 1 || v === "1" || v === "Yes" || v === "True" || v === "true";
-
-        return {
-          id: lead.id,
-          property_id: lead.property_id,
-          status: lead.status,
-          priority: lead.priority ?? 0,
-          source: lead.source ?? "unknown",
-          tags: lead.tags ?? [],
-          notes: lead.notes ?? null,
-          promoted_at: lead.promoted_at ?? null,
-          assigned_to: lead.assigned_to ?? null,
-          created_at: lead.created_at,
-          apn: prop.apn ?? "",
-          county: prop.county ?? "",
-          address: prop.address ?? "",
-          city: prop.city ?? "",
-          state: prop.state ?? "",
-          zip: prop.zip ?? "",
-          owner_name: prop.owner_name ?? "Unknown",
-          owner_phone: prop.owner_phone ?? null,
-          owner_email: prop.owner_email ?? null,
-          estimated_value: prop.estimated_value ?? null,
-          equity_percent: prop.equity_percent != null ? Number(prop.equity_percent) : null,
-          property_type: prop.property_type ?? null,
-          bedrooms: prop.bedrooms ?? null,
-          bathrooms: prop.bathrooms != null ? Number(prop.bathrooms) : null,
-          sqft: prop.sqft ?? null,
-          year_built: prop.year_built ?? null,
-          lot_size: prop.lot_size ?? null,
-          owner_flags: flags,
-          // Financial (from PR enrichment stored in owner_flags.pr_raw)
-          available_equity: toNum(prRaw.AvailableEquity) ?? toNum(flags.available_equity),
-          total_loan_balance: toNum(prRaw.TotalLoanBalance) ?? toNum(flags.total_loan_balance),
-          last_sale_price: toNum(prRaw.LastTransferValue) ?? toNum(flags.last_sale_price),
-          last_sale_date: (prRaw.LastTransferRecDate as string) ?? (flags.last_sale_date as string) ?? null,
-          // Distress detail
-          foreclosure_stage: (prRaw.ForeclosureStage as string) ?? null,
-          default_amount: toNum(prRaw.DefaultAmount),
-          delinquent_amount: toNum(prRaw.DelinquentAmount),
-          // Ownership flags
-          is_vacant: toBool(flags.vacant) || toBool(prRaw.isSiteVacant),
-          is_absentee: toBool(flags.absentee) || toBool(prRaw.isNotSameMailingOrExempt),
-          is_free_clear: toBool(flags.freeAndClear) || toBool(prRaw.isFreeAndClear),
-          is_high_equity: toBool(flags.highEquity) || toBool(prRaw.isHighEquity),
-          is_cash_buyer: toBool(flags.cashBuyer) || toBool(prRaw.isCashBuyer),
-          // Enrichment
-          radar_id: (flags.radar_id as string) ?? null,
-          enriched: flags.source === "propertyradar" || !!flags.radar_id,
-          // Scoring
-          composite_score: composite,
-          motivation_score: Math.round(composite * 0.85),
-          deal_score: Math.round(composite * 0.75),
-          score_label: scoreLabel(composite),
-          model_version: null,
-          ai_boost: 0,
-          factors: [],
-          // Predictive intelligence
-          _prediction: (() => {
-            const pred = predictionsMap[lead.property_id];
-            if (!pred) return null;
-            const ps = Number(pred.predictive_score) || 0;
-            return {
-              predictiveScore: ps,
-              daysUntilDistress: Number(pred.days_until_distress) || 365,
-              confidence: Number(pred.confidence) || 0,
-              label: (ps >= 80 ? "imminent" : ps >= 55 ? "likely" : ps >= 30 ? "possible" : "unlikely") as "imminent" | "likely" | "possible" | "unlikely",
-              ownerAgeInference: pred.owner_age_inference != null ? Number(pred.owner_age_inference) : null,
-              equityBurnRate: pred.equity_burn_rate != null ? Number(pred.equity_burn_rate) : null,
-              lifeEventProbability: pred.life_event_probability != null ? Number(pred.life_event_probability) : null,
-            };
-          })(),
-        };
-      });
-
-      console.log("[useProspects] Step 3 — Merged. Sample row:", {
-        owner: rows[0]?.owner_name,
-        address: rows[0]?.address,
-        apn: rows[0]?.apn,
-        arv: rows[0]?.estimated_value,
-        equity: rows[0]?.equity_percent,
-        score: rows[0]?.composite_score,
-        hasPropertyData: !!propertiesMap[rows[0]?.property_id],
-      });
-
-      // ── Client-side filtering (search, source, score) ──────────────
-
-      let filtered = rows;
-
-      if (sourceFilter) {
-        filtered = filtered.filter((r) => r.source === sourceFilter);
-      }
-
-      if (search.length >= 2) {
-        const q = search.toLowerCase();
-        filtered = filtered.filter((r) =>
-          r.owner_name.toLowerCase().includes(q) ||
-          r.apn.toLowerCase().includes(q) ||
-          r.address.toLowerCase().includes(q) ||
-          r.city.toLowerCase().includes(q)
-        );
-      }
-
-      if (minScore != null) {
-        filtered = filtered.filter((r) => r.composite_score >= minScore);
-      }
-
-      // ── Step 5: Client-side sort ───────────────────────────────────
-
-      const dir = sortDir === "desc" ? -1 : 1;
-      filtered.sort((a, b) => {
-        switch (sortField) {
-          case "composite_score":
-            return (b.composite_score - a.composite_score) * dir;
-          case "promoted_at":
-            return ((a.promoted_at ?? "").localeCompare(b.promoted_at ?? "")) * dir;
-          case "owner_name":
-            return a.owner_name.localeCompare(b.owner_name) * dir;
-          case "address":
-            return a.address.localeCompare(b.address) * dir;
-          default:
-            return 0;
-        }
-      });
-
-      setProspects(filtered);
-      setTotalCount(leadsData.length);
-
-      console.log("[useProspects] DONE:", {
-        leads: leadsData.length,
-        properties: Object.keys(propertiesMap).length,
-        displayed: filtered.length,
-        elapsed: Date.now() - t0,
-      });
+      const rows = buildRows(leadsData, propertiesMap || {}, predictionsMap || {});
+      setAllRows(rows);
     } catch (err) {
       console.error("[useProspects] UNHANDLED:", err instanceof Error ? err.stack : err);
       setError(err instanceof Error ? err.message : "Unknown error");
     } finally {
       setLoading(false);
+      fetchingRef.current = false;
     }
-  }, [search, sortField, sortDir, minScore, sourceFilter]);
+  }, [cache, cacheTime, setCache, allRows.length]);
 
+  // On mount: use cache if fresh, otherwise fetch
   useEffect(() => {
-    fetchProspects();
-  }, [fetchProspects]);
+    if (cache && (Date.now() - cacheTime) < CACHE_TTL_MS) {
+      const rows = buildRows(cache.leads, cache.properties, cache.predictions);
+      setAllRows(rows);
+      setLoading(false);
+    } else {
+      fetchFromApi();
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
+  // Real-time: invalidate cache + refetch on DB changes
   useEffect(() => {
     const channel = supabase
       .channel("prospects_realtime")
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "leads", filter: "status=eq.prospect" },
-        () => fetchProspects()
+        () => { invalidateCache(); fetchFromApi(true); }
       )
       .on(
         "postgres_changes",
         { event: "UPDATE", schema: "public", table: "properties" },
-        () => fetchProspects()
+        () => { invalidateCache(); fetchFromApi(true); }
       )
       .subscribe();
 
@@ -311,7 +262,54 @@ export function useProspects(opts: UseProspectsOptions = {}) {
     return () => {
       if (channelRef.current) supabase.removeChannel(channelRef.current);
     };
-  }, [fetchProspects]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
-  return { prospects, loading, error, totalCount, refetch: fetchProspects };
+  // Client-side filter + sort (instant, no API call)
+  const { prospects, totalCount } = useMemo(() => {
+    let filtered = allRows;
+
+    if (sourceFilter) {
+      filtered = filtered.filter((r) => r.source === sourceFilter);
+    }
+
+    if (search.length >= 2) {
+      const q = search.toLowerCase();
+      filtered = filtered.filter((r) =>
+        r.owner_name.toLowerCase().includes(q) ||
+        r.apn.toLowerCase().includes(q) ||
+        r.address.toLowerCase().includes(q) ||
+        r.city.toLowerCase().includes(q)
+      );
+    }
+
+    if (minScore != null) {
+      filtered = filtered.filter((r) => r.composite_score >= minScore);
+    }
+
+    const dir = sortDir === "desc" ? -1 : 1;
+    filtered = [...filtered].sort((a, b) => {
+      switch (sortField) {
+        case "composite_score":
+          return (b.composite_score - a.composite_score) * dir;
+        case "promoted_at":
+          return ((a.promoted_at ?? "").localeCompare(b.promoted_at ?? "")) * dir;
+        case "owner_name":
+          return a.owner_name.localeCompare(b.owner_name) * dir;
+        case "address":
+          return a.address.localeCompare(b.address) * dir;
+        default:
+          return 0;
+      }
+    });
+
+    return { prospects: filtered, totalCount: allRows.length };
+  }, [allRows, search, sortField, sortDir, minScore, sourceFilter]);
+
+  const refetch = useCallback(() => {
+    invalidateCache();
+    return fetchFromApi(true);
+  }, [invalidateCache, fetchFromApi]);
+
+  return { prospects, loading, error, totalCount, refetch };
 }

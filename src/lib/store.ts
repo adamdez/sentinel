@@ -41,6 +41,14 @@ interface SentinelState {
 
   featureFlags: FeatureFlags;
   setFeatureFlags: (flags: FeatureFlags) => void;
+
+  // Prospect data cache — survives navigation, avoids refetch on every page visit
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  _prospectCache: { leads: any[]; properties: Record<string, any>; predictions: Record<string, any> } | null;
+  _prospectCacheTime: number;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  setProspectCache: (data: { leads: any[]; properties: Record<string, any>; predictions: Record<string, any> }) => void;
+  invalidateProspectCache: () => void;
 }
 
 export const useSentinelStore = create<SentinelState>((set) => ({
@@ -86,4 +94,9 @@ export const useSentinelStore = create<SentinelState>((set) => ({
     campaigns: true,
   },
   setFeatureFlags: (flags) => set({ featureFlags: flags }),
+
+  _prospectCache: null,
+  _prospectCacheTime: 0,
+  setProspectCache: (data) => set({ _prospectCache: data, _prospectCacheTime: Date.now() }),
+  invalidateProspectCache: () => set({ _prospectCache: null, _prospectCacheTime: 0 }),
 }));

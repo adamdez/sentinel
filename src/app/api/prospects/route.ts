@@ -53,39 +53,37 @@ export async function GET() {
       return NextResponse.json({ leads: [], properties: {}, predictions: {} });
     }
 
-    // Step 2: Fetch properties for those leads
+    // Step 2+3: Fetch properties AND predictions in parallel
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const propertyIds: string[] = [...new Set((leadsData as any[]).map((l) => l.property_id).filter(Boolean))];
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     let propertiesMap: Record<string, any> = {};
-    if (propertyIds.length > 0) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { data: propsData } = await (sb.from("properties") as any)
-        .select("*")
-        .in("id", propertyIds);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const predictionsMap: Record<string, any> = {};
 
-      if (propsData) {
+    if (propertyIds.length > 0) {
+      const [propsResult, predsResult] = await Promise.all([
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        for (const p of propsData as any[]) {
+        (sb.from("properties") as any)
+          .select("id, apn, county, address, city, state, zip, owner_name, owner_phone, owner_email, estimated_value, equity_percent, property_type, bedrooms, bathrooms, sqft, year_built, lot_size, owner_flags")
+          .in("id", propertyIds),
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (sb.from("scoring_predictions") as any)
+          .select("property_id, predictive_score, days_until_distress, confidence, owner_age_inference, equity_burn_rate, life_event_probability")
+          .in("property_id", propertyIds)
+          .order("created_at", { ascending: false }),
+      ]);
+
+      if (propsResult.data) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        for (const p of propsResult.data as any[]) {
           propertiesMap[p.id] = p;
         }
       }
-    }
-
-    // Step 3: Fetch latest predictions
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const predictionsMap: Record<string, any> = {};
-    if (propertyIds.length > 0) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { data: predsData } = await (sb.from("scoring_predictions") as any)
-        .select("property_id, predictive_score, days_until_distress, confidence, owner_age_inference, equity_burn_rate, life_event_probability")
-        .in("property_id", propertyIds)
-        .order("created_at", { ascending: false });
-
-      if (predsData) {
+      if (predsResult.data) {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        for (const p of predsData as any[]) {
+        for (const p of predsResult.data as any[]) {
           if (!(p.property_id in predictionsMap)) predictionsMap[p.property_id] = p;
         }
       }
@@ -93,11 +91,13 @@ export async function GET() {
 
     console.log(`[API/prospects GET] ${leadsData.length} leads, ${Object.keys(propertiesMap).length} properties, ${Object.keys(predictionsMap).length} predictions`);
 
-    return NextResponse.json({
+    const res = NextResponse.json({
       leads: leadsData,
       properties: propertiesMap,
       predictions: predictionsMap,
     });
+    res.headers.set("Cache-Control", "private, s-maxage=30, stale-while-revalidate=60");
+    return res;
   } catch (err) {
     console.error("[API/prospects GET] Error:", err);
     return NextResponse.json(
