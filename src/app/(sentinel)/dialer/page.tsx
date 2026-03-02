@@ -7,7 +7,7 @@ import {
   Mic, MicOff, Voicemail, CalendarCheck, FileSignature,
   Skull, Heart, Search, Ghost, Zap, ChevronRight, Timer,
   Sparkles, DollarSign, Loader2, SkipForward, MessageSquare,
-  X, Send, Shield, CheckCircle2,
+  X, Send, Shield, CheckCircle2, History, ArrowDownLeft, ArrowUpRight,
 } from "lucide-react";
 import { toast } from "sonner";
 import { PageShell } from "@/components/sentinel/page-shell";
@@ -23,6 +23,7 @@ import { getSequenceLabel } from "@/lib/call-scheduler";
 import { useCallNotes } from "@/hooks/use-call-notes";
 import { usePreCallBrief } from "@/hooks/use-pre-call-brief";
 import { CallSequenceGuide } from "@/components/sentinel/call-sequence-guide";
+import { useCallHistory, type CallHistoryEntry } from "@/hooks/use-call-history";
 
 async function authHeaders(): Promise<Record<string, string>> {
   const { data: { session } } = await supabase.auth.getSession();
@@ -275,6 +276,8 @@ export default function DialerPage() {
   const [consentGranted, setConsentGranted] = useState(false);
   const { latestSummary, latestSummaryTime } = useCallNotes(currentLead?.id);
   const { brief: preCallBrief, loading: briefLoading } = usePreCallBrief(currentLead?.id ?? null);
+  const { history: callHistory, loading: historyLoading } = useCallHistory(currentUser.id, 30);
+  const [historyFilter, setHistoryFilter] = useState<"all" | "outbound" | "inbound">("all");
 
   // Quick Manual Dial state
   const [manualPhone, setManualPhone] = useState("");
@@ -1203,6 +1206,164 @@ export default function DialerPage() {
           </AnimatePresence>
         </div>
       </div>
+
+      {/* ── Call History ──────────────────────────────────────────────── */}
+      <GlassCard hover={false} className="!p-4 mt-4">
+        <div className="flex items-center justify-between mb-3">
+          <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+            <History className="h-3.5 w-3.5 text-cyan" />
+            Call History
+            <span className="text-[10px] font-normal text-muted-foreground/50 ml-1">
+              {callHistory.length} recent
+            </span>
+          </h2>
+          <div className="flex items-center gap-1">
+            {(["all", "outbound", "inbound"] as const).map((f) => (
+              <button
+                key={f}
+                onClick={() => setHistoryFilter(f)}
+                className={`px-2.5 py-1 rounded-[8px] text-[10px] font-medium transition-all ${
+                  historyFilter === f
+                    ? "text-cyan bg-cyan/8 border border-cyan/20"
+                    : "text-muted-foreground/60 hover:text-foreground border border-transparent"
+                }`}
+              >
+                {f === "all" ? "All" : f === "outbound" ? "Outbound" : "Inbound"}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {historyLoading ? (
+          <div className="flex items-center justify-center py-8">
+            <Loader2 className="h-5 w-5 animate-spin text-cyan/50" />
+          </div>
+        ) : callHistory.length === 0 ? (
+          <div className="text-center py-6">
+            <History className="h-6 w-6 mx-auto text-muted-foreground/20 mb-2" />
+            <p className="text-xs text-muted-foreground/50">No calls yet — start dialing!</p>
+          </div>
+        ) : (
+          <div className="max-h-[340px] overflow-y-auto scrollbar-thin space-y-1">
+            {callHistory
+              .filter((c) => historyFilter === "all" || c.direction === historyFilter)
+              .map((entry) => (
+                <CallHistoryRow
+                  key={entry.id}
+                  entry={entry}
+                  onDial={(phone) => {
+                    setManualPhone(phone.replace(/\D/g, "").replace(/^1/, "").slice(0, 10));
+                    window.scrollTo({ top: 0, behavior: "smooth" });
+                    toast.info(`${formatUsPhone(phone.replace(/\D/g, "").slice(-10))} loaded — hit Dial Now`);
+                  }}
+                />
+              ))}
+          </div>
+        )}
+      </GlassCard>
     </PageShell>
+  );
+}
+
+/* ── Call History Row ───────────────────────────────────────────── */
+
+const DISPO_STYLES: Record<string, { color: string; bg: string }> = {
+  voicemail:     { color: "text-blue-400",    bg: "bg-blue-500/10 border-blue-500/15" },
+  no_answer:     { color: "text-zinc-400",    bg: "bg-zinc-500/10 border-zinc-500/15" },
+  interested:    { color: "text-cyan",        bg: "bg-cyan/8 border-cyan/15" },
+  appointment:   { color: "text-emerald-400", bg: "bg-emerald-500/10 border-emerald-500/15" },
+  contract:      { color: "text-orange-400",  bg: "bg-orange-500/10 border-orange-500/15" },
+  dead:          { color: "text-red-400",     bg: "bg-red-500/10 border-red-500/15" },
+  nurture:       { color: "text-pink-400",    bg: "bg-pink-500/10 border-pink-500/15" },
+  skip_trace:    { color: "text-cyan-400",    bg: "bg-cyan-500/10 border-cyan-500/15" },
+  ghost:         { color: "text-yellow-400",  bg: "bg-yellow-500/10 border-yellow-500/15" },
+  sms_outbound:  { color: "text-purple-400",  bg: "bg-purple-500/10 border-purple-500/15" },
+  manual_hangup: { color: "text-zinc-400",    bg: "bg-zinc-500/10 border-zinc-500/15" },
+  initiating:    { color: "text-yellow-400",  bg: "bg-yellow-500/10 border-yellow-500/15" },
+};
+
+function timeAgo(isoStr: string): string {
+  const diff = Date.now() - new Date(isoStr).getTime();
+  const mins = Math.floor(diff / 60000);
+  if (mins < 1) return "just now";
+  if (mins < 60) return `${mins}m ago`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `${hrs}h ago`;
+  const days = Math.floor(hrs / 24);
+  if (days < 7) return `${days}d ago`;
+  return new Date(isoStr).toLocaleDateString("en-US", { month: "short", day: "numeric" });
+}
+
+function formatDuration(sec: number): string {
+  if (!sec || sec <= 0) return "—";
+  const m = Math.floor(sec / 60);
+  const s = sec % 60;
+  return `${m}:${s.toString().padStart(2, "0")}`;
+}
+
+function CallHistoryRow({ entry, onDial }: { entry: CallHistoryEntry; onDial: (phone: string) => void }) {
+  const style = DISPO_STYLES[entry.disposition] ?? { color: "text-muted-foreground", bg: "bg-white/[0.03] border-white/[0.06]" };
+  const isInbound = entry.direction === "inbound";
+  const isSms = entry.disposition === "sms_outbound";
+  const phoneDigits = (entry.phone_dialed ?? "").replace(/\D/g, "").slice(-10);
+
+  return (
+    <div className="flex items-center gap-3 rounded-[12px] px-3 py-2.5 transition-all border border-transparent hover:border-white/[0.06] hover:bg-white/[0.02] group">
+      {/* Direction icon */}
+      <div className={`h-7 w-7 rounded-[8px] flex items-center justify-center shrink-0 ${
+        isInbound ? "bg-purple-500/12" : isSms ? "bg-purple-500/12" : "bg-cyan/8"
+      }`}>
+        {isSms ? (
+          <MessageSquare className="h-3.5 w-3.5 text-purple-400" />
+        ) : isInbound ? (
+          <ArrowDownLeft className="h-3.5 w-3.5 text-purple-400" />
+        ) : (
+          <ArrowUpRight className="h-3.5 w-3.5 text-cyan" />
+        )}
+      </div>
+
+      {/* Contact + phone */}
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-2">
+          <p className="text-sm font-medium truncate">
+            {entry.owner_name ?? formatUsPhone(phoneDigits)}
+          </p>
+          {entry.owner_name && (
+            <span className="text-[10px] text-muted-foreground/55 font-mono">
+              {formatUsPhone(phoneDigits)}
+            </span>
+          )}
+        </div>
+        {entry.address && (
+          <p className="text-[11px] text-muted-foreground/50 truncate">{entry.address}</p>
+        )}
+      </div>
+
+      {/* Disposition badge */}
+      <span className={`text-[9px] px-2 py-0.5 rounded-[6px] border font-medium uppercase tracking-wider shrink-0 ${style.color} ${style.bg}`}>
+        {entry.disposition.replace(/_/g, " ")}
+      </span>
+
+      {/* Duration */}
+      <span className="text-[11px] text-muted-foreground/50 font-mono w-10 text-right shrink-0">
+        {formatDuration(entry.duration_sec)}
+      </span>
+
+      {/* Time ago */}
+      <span className="text-[10px] text-muted-foreground/40 w-14 text-right shrink-0">
+        {timeAgo(entry.started_at)}
+      </span>
+
+      {/* Callback button */}
+      <button
+        onClick={() => onDial(entry.phone_dialed)}
+        className="h-7 w-7 rounded-[8px] flex items-center justify-center shrink-0
+          opacity-0 group-hover:opacity-100 transition-all
+          bg-cyan/10 hover:bg-cyan/20 border border-cyan/20 text-cyan"
+        title={`Call back ${formatUsPhone(phoneDigits)}`}
+      >
+        <Phone className="h-3 w-3" />
+      </button>
+    </div>
   );
 }
