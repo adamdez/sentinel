@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@/lib/supabase";
-import { computeScore, SCORING_MODEL_VERSION, getTierLabel, TIER_CUTOFFS, type ScoringInput } from "@/lib/scoring";
+import { computeScore, SCORING_MODEL_VERSION, getScoreLabel, getScoreLabelTag, SCORE_CUTOFFS, MIN_STORE_SCORE, type ScoringInput } from "@/lib/scoring";
 import {
   computePredictiveScore,
   buildPredictionRecord,
@@ -18,8 +18,8 @@ const SYSTEM_USER_ID = "00000000-0000-0000-0000-000000000000";
 const PR_API = "https://api.propertyradar.com/v1/properties";
 const SOURCE_TAG = "EliteSeed_Top10_20260301";
 const MAX_PR_PULL = 60;
-const ELITE_CUTOFF = TIER_CUTOFFS.A; // 75 — A-tier
-const STORE_CUTOFF = TIER_CUTOFFS.C; // 30 — minimum to store (C-tier)
+const ELITE_CUTOFF = SCORE_CUTOFFS.platinum; // 85 — platinum
+const STORE_CUTOFF = MIN_STORE_SCORE; // 30 — minimum to store
 const ELITE_COUNT = 10;
 
 const DEFAULT_COUNTIES = ["Spokane", "Kootenai"];
@@ -565,20 +565,21 @@ export async function POST(req: NextRequest) {
     candidates.push({ pr, score: computeScore(input), signals });
   }
 
-  // ── 5. Sort DESC → Tiered storage (v2.1) ──────────────────────────
+  // ── 5. Sort DESC → Score-label storage (v2.2) ─────────────────────
   //
-  // A-tier (75+): Elite — agents work immediately (top 10 returned)
-  // B-tier (50-74): Warm — worked when A-tier thins, drip campaigns
-  // C-tier (30-49): Watch — nurture, monthly call, mailers
-  // D-tier (<30): Discarded — not stored
+  // Platinum (85+): Elite — agents work immediately (top 10 returned)
+  // Gold (65-84): Strong — high-priority outreach
+  // Silver (40-64): Moderate — nurture, monthly calls
+  // Bronze (30-39): Watch — low priority but stored
+  // <30: Discarded — not stored
 
   candidates.sort((a, b) => b.score.composite - a.score.composite);
   const elite = candidates.filter((c) => c.score.composite >= ELITE_CUTOFF).slice(0, ELITE_COUNT);
-  const bTier = candidates.filter((c) => c.score.composite >= TIER_CUTOFFS.B && c.score.composite < ELITE_CUTOFF);
-  const cTier = candidates.filter((c) => c.score.composite >= STORE_CUTOFF && c.score.composite < TIER_CUTOFFS.B);
-  const allStorable = [...elite, ...bTier, ...cTier];
+  const gold = candidates.filter((c) => c.score.composite >= SCORE_CUTOFFS.gold && c.score.composite < ELITE_CUTOFF);
+  const rest = candidates.filter((c) => c.score.composite >= STORE_CUTOFF && c.score.composite < SCORE_CUTOFFS.gold);
+  const allStorable = [...elite, ...gold, ...rest];
 
-  console.log(`[Top10] ${candidates.length} scored → ${elite.length} A-tier, ${bTier.length} B-tier, ${cTier.length} C-tier (${candidates.length - allStorable.length} discarded D-tier)`);
+  console.log(`[Top10] ${candidates.length} scored → ${elite.length} platinum, ${gold.length} gold, ${rest.length} silver/bronze (${candidates.length - allStorable.length} discarded)`);
 
   if (allStorable.length === 0) {
     return NextResponse.json({
@@ -592,19 +593,19 @@ export async function POST(req: NextRequest) {
     });
   }
 
-  // ── 6. Insert ALL tiers into Supabase ─────────────────────────────
+  // ── 6. Insert all scored prospects into Supabase ──────────────────
 
-  const newInserts: { address: string; score: number; label: string; apn: string; tier: string }[] = [];
-  const updated: { address: string; score: number; apn: string; tier: string }[] = [];
-  const inserted: { address: string; score: number; label: string; apn: string; tier: string }[] = [];
+  const newInserts: { address: string; score: number; label: string; apn: string }[] = [];
+  const updated: { address: string; score: number; apn: string }[] = [];
+  const inserted: { address: string; score: number; label: string; apn: string }[] = [];
   const errors: string[] = [];
   let eventsInserted = 0;
   let eventsDeduped = 0;
-  const tierCounts = { A: 0, B: 0, C: 0 };
+  const labelCounts = { platinum: 0, gold: 0, silver: 0, bronze: 0 };
 
   for (let i = 0; i < allStorable.length; i++) {
     const { pr, score, signals } = allStorable[i];
-    const tier = getTierLabel(score.composite);
+    const label = getScoreLabel(score.composite);
     const apn = pr.APN!;
     const county = normalizeCounty(pr.County ?? counties[0], "Spokane");
     const address = pr.Address ?? pr.FullAddress ?? "";
@@ -614,7 +615,7 @@ export async function POST(req: NextRequest) {
     const ownerName = pr.Owner ?? pr.Taxpayer ?? "Unknown Owner";
     const fullAddr = [address, city, state, zip].filter(Boolean).join(", ");
 
-    console.log(`[Top10] Processing ${i + 1}/${allStorable.length}: ${address} (${apn}) [Tier ${tier}]`);
+    console.log(`[Top10] Processing ${i + 1}/${allStorable.length}: ${address} (${apn}) [${label}]`);
 
     const ownerFlags: Record<string, unknown> = {
       source: "propertyradar",
@@ -744,10 +745,10 @@ export async function POST(req: NextRequest) {
     await (sb.from("scoring_predictions") as any)
       .insert(buildPredictionRecord(property.id, predOutput));
 
-    // 4. Lead (prospect, unassigned) — uses blended score + tier tag
-    const tierTag = `tier-${tier.toLowerCase()}`;
+    // 4. Lead (prospect, unassigned) — uses blended score + score label tag
+    const scoreLabelTag = `score-${label}`;
     const signalTags = signals.map((s) => s.type);
-    const allTags = [tierTag, ...signalTags];
+    const allTags = [scoreLabelTag, ...signalTags];
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { data: existingLead } = await (sb.from("leads") as any)
@@ -764,25 +765,24 @@ export async function POST(req: NextRequest) {
         priority: blendedScore,
         source: SOURCE_TAG,
         tags: allTags,
-        notes: `Elite Seed [Tier ${tier}] — Heat ${blendedScore} (det:${score.composite} + pred:${predOutput.predictiveScore}). Distress in ~${predOutput.daysUntilDistress}d (${predOutput.confidence}% conf). ${signals.length} signal(s). RadarID: ${pr.RadarID ?? "N/A"}`,
+        notes: `Elite Seed [${label}] — Heat ${blendedScore} (det:${score.composite} + pred:${predOutput.predictiveScore}). Distress in ~${predOutput.daysUntilDistress}d (${predOutput.confidence}% conf). ${signals.length} signal(s). RadarID: ${pr.RadarID ?? "N/A"}`,
         promoted_at: new Date().toISOString(),
       });
-      newInserts.push({ address: fullAddr, score: score.composite, label: score.label, apn, tier });
+      newInserts.push({ address: fullAddr, score: score.composite, label: score.label, apn });
     } else {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       await (sb.from("leads") as any)
         .update({ priority: blendedScore, tags: allTags })
         .eq("id", existingLead.id);
-      updated.push({ address: fullAddr, score: score.composite, apn, tier });
+      updated.push({ address: fullAddr, score: score.composite, apn });
     }
 
-    tierCounts[tier as keyof typeof tierCounts]++;
+    labelCounts[label as keyof typeof labelCounts]++;
     inserted.push({
       address: `${address}, ${city} ${state} ${zip}`.trim(),
       score: blendedScore,
       label: score.label,
       apn,
-      tier,
     });
   }
 
@@ -813,7 +813,7 @@ export async function POST(req: NextRequest) {
 
   const allProspects = [...newInserts, ...updated.map((u) => ({ ...u, label: "updated" }))];
   console.log(`[Top10] === COMPLETE: ${newInserts.length} new, ${updated.length} updated, ${errors.length} errors in ${elapsed}ms ===`);
-  console.log(`[Top10] Tier breakdown: A=${tierCounts.A}, B=${tierCounts.B}, C=${tierCounts.C}`);
+  console.log(`[Top10] Score breakdown: platinum=${labelCounts.platinum}, gold=${labelCounts.gold}, silver=${labelCounts.silver}, bronze=${labelCounts.bronze}`);
 
   // ── 8. Detailed response ───────────────────────────────────────────
 
@@ -829,7 +829,7 @@ export async function POST(req: NextRequest) {
     counties,
     totalFetched: results.length,
     totalScored: candidates.length,
-    tierBreakdown: tierCounts,
+    scoreBreakdown: labelCounts,
     phaseBreakdown: {
       platinum: phase1Count,
       gold: results.length - phase1Count,

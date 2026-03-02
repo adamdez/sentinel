@@ -38,34 +38,36 @@ export async function POST(req: NextRequest) {
       limit = 50,
     } = body;
 
-    if (!lat || !lng) {
-      return NextResponse.json({ error: "lat and lng are required" }, { status: 400 });
+    const latNum = typeof lat === "number" ? lat : parseFloat(lat);
+    const lngNum = typeof lng === "number" ? lng : parseFloat(lng);
+    if (!latNum || !lngNum || isNaN(latNum) || isNaN(lngNum)) {
+      return NextResponse.json({ error: "lat and lng must be valid numbers" }, { status: 400 });
     }
 
-    const criteria: { name: string; value: string[] }[] = [
-      { name: "RadiusLatitude", value: [String(lat)] },
-      { name: "RadiusLongitude", value: [String(lng)] },
-      { name: "RadiusMiles", value: [String(Math.min(Math.max(radiusMiles, 0.5), 10))] },
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const criteria: { name: string; value: any[] }[] = [
+      { name: "RadiusLatitude", value: [latNum] },
+      { name: "RadiusLongitude", value: [lngNum] },
+      { name: "RadiusMiles", value: [Math.min(Math.max(radiusMiles, 0.5), 10)] },
     ];
 
-    if (beds) {
-      criteria.push({ name: "Beds", value: [`${Math.max(beds - 1, 0)}-${beds + 1}`] });
+    if (beds && typeof beds === "number") {
+      criteria.push({ name: "Beds", value: [[Math.max(beds - 1, 0), beds + 1]] });
     }
-    if (baths) {
-      const lo = Math.max(baths - 0.5, 0);
-      const hi = baths + 0.5;
-      criteria.push({ name: "Baths", value: [`${lo}-${hi}`] });
+    if (baths && typeof baths === "number") {
+      criteria.push({ name: "Baths", value: [[Math.max(baths - 0.5, 0), baths + 0.5]] });
     }
-    if (sqft) {
-      const lo = Math.round(sqft * 0.85);
-      const hi = Math.round(sqft * 1.15);
-      criteria.push({ name: "SqFt", value: [`${lo}-${hi}`] });
+    if (sqft && typeof sqft === "number") {
+      criteria.push({ name: "SqFt", value: [[Math.round(sqft * 0.85), Math.round(sqft * 1.15)]] });
     }
-    if (yearBuilt) {
-      criteria.push({ name: "YearBuilt", value: [`${yearBuilt - 10}-${yearBuilt + 10}`] });
+    if (yearBuilt && typeof yearBuilt === "number") {
+      criteria.push({ name: "YearBuilt", value: [[yearBuilt - 10, yearBuilt + 10]] });
     }
-    if (propertyType) {
-      criteria.push({ name: "PType", value: [propertyType] });
+    if (propertyType && typeof propertyType === "string") {
+      criteria.push({
+        name: "PropertyType",
+        value: [{ name: "PType", value: [propertyType] }],
+      });
     }
 
     const prBody = { Criteria: criteria };
@@ -84,8 +86,12 @@ export async function POST(req: NextRequest) {
 
     if (!prRes.ok) {
       const errText = await prRes.text().catch(() => "");
-      console.error("[Comps] PropertyRadar HTTP", prRes.status, errText.slice(0, 500));
-      return NextResponse.json({ error: `PropertyRadar returned ${prRes.status}` }, { status: 502 });
+      console.error("[Comps] PropertyRadar HTTP", prRes.status, errText.slice(0, 1000));
+      console.error("[Comps] Request body was:", JSON.stringify(prBody));
+      return NextResponse.json(
+        { error: `PropertyRadar returned ${prRes.status}`, detail: errText.slice(0, 300) },
+        { status: 502 },
+      );
     }
 
     const prData = await prRes.json();

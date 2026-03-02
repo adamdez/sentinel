@@ -26,9 +26,6 @@ import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem,
   DropdownMenuTrigger, DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
-import {
-  Tooltip, TooltipContent, TooltipTrigger,
-} from "@/components/ui/tooltip";
 
 // ── Constants ─────────────────────────────────────────────────────────
 
@@ -45,11 +42,12 @@ const SOURCE_FILTERS = [
   { value: "manual", label: "Manual" },
 ];
 
-const TIER_FILTERS = [
-  { value: "", label: "All Tiers", color: "text-muted-foreground" },
-  { value: "tier-a", label: "A-Tier", color: "text-red-400", desc: "75+ Elite" },
-  { value: "tier-b", label: "B-Tier", color: "text-orange-400", desc: "50-74 Warm" },
-  { value: "tier-c", label: "C-Tier", color: "text-yellow-400", desc: "30-49 Watch" },
+const SCORE_FILTERS: { value: string; label: string; color: string; min: number; max: number }[] = [
+  { value: "", label: "All", color: "text-muted-foreground", min: 0, max: 100 },
+  { value: "platinum", label: "Platinum", color: "text-cyan-300", min: 85, max: 100 },
+  { value: "gold", label: "Gold", color: "text-amber-400", min: 65, max: 84 },
+  { value: "silver", label: "Silver", color: "text-slate-300", min: 40, max: 64 },
+  { value: "bronze", label: "Bronze", color: "text-orange-500", min: 0, max: 39 },
 ];
 
 // ── Subcomponents ─────────────────────────────────────────────────────
@@ -90,62 +88,6 @@ function formatDistress(signals: string[]): string {
     + (signals.length > 3 ? ` +${signals.length - 3}` : "");
 }
 
-const TIER_TOOLTIP: Record<string, { label: string; range: string; meaning: string; color: string }> = {
-  "tier-a": {
-    label: "A-Tier",
-    range: "Score 75-100",
-    meaning: "Elite prospect. Multiple strong distress signals + high equity + absentee owner. Work immediately — first-to-contact advantage is critical.",
-    color: "text-red-400",
-  },
-  "tier-b": {
-    label: "B-Tier",
-    range: "Score 50-74",
-    meaning: "Warm prospect. At least one solid distress signal with moderate equity or owner factors. Work when A-tier pipeline thins out.",
-    color: "text-orange-400",
-  },
-  "tier-c": {
-    label: "C-Tier",
-    range: "Score 30-49",
-    meaning: "Watch list. Early-stage distress or low equity. Nurture with mailers and monthly calls — may escalate over time.",
-    color: "text-yellow-400",
-  },
-};
-
-function TierBadge({ tag, score }: { tag: string; score: number }) {
-  const tier = TIER_TOOLTIP[tag];
-  if (!tier) return null;
-  const letter = tag.replace("tier-", "").toUpperCase();
-
-  const colorClasses =
-    letter === "A" ? "bg-red-500/15 text-red-400 border-red-500/20" :
-    letter === "B" ? "bg-orange-500/15 text-orange-400 border-orange-500/20" :
-    "bg-yellow-500/15 text-yellow-400 border-yellow-500/20";
-
-  return (
-    <Tooltip>
-      <TooltipTrigger asChild>
-        <span className={`text-[9px] font-black px-1 rounded border cursor-help ${colorClasses}`}>
-          {letter}
-        </span>
-      </TooltipTrigger>
-      <TooltipContent side="right" className="max-w-[240px] p-3">
-        <div className="space-y-1.5">
-          <div className="flex items-center justify-between">
-            <span className={cn("text-xs font-bold", tier.color)}>{tier.label}</span>
-            <span className="text-[10px] text-muted-foreground">{tier.range}</span>
-          </div>
-          <p className="text-[11px] text-muted-foreground/90 leading-snug">{tier.meaning}</p>
-          <div className="pt-1 border-t border-white/[0.06]">
-            <p className="text-[10px] text-muted-foreground/60">
-              This prospect scored <span className="text-foreground font-semibold">{score}</span> on the Dominion Heat Score. Tier is determined solely by this composite number.
-            </p>
-          </div>
-        </div>
-      </TooltipContent>
-    </Tooltip>
-  );
-}
-
 function buildAIScore(p: ProspectRow): AIScore {
   return {
     composite: p.composite_score,
@@ -169,7 +111,7 @@ export default function ProspectsPage() {
   const [sortField, setSortField] = useState<SortField>("composite_score");
   const [sortDir, setSortDir] = useState<SortDir>("desc");
   const [sourceFilter, setSourceFilter] = useState("");
-  const [tierFilter, setTierFilter] = useState("");
+  const [scoreFilter, setScoreFilter] = useState("");
   const [selectedProspect, setSelectedProspect] = useState<ProspectRow | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
   const [claiming, setClaiming] = useState<string | null>(null);
@@ -230,16 +172,18 @@ export default function ProspectsPage() {
     sourceFilter: sourceFilter || undefined,
   });
 
-  // Apply tier filter client-side (tier tag is in prospects[].tags)
-  const filteredProspects = tierFilter
-    ? prospects.filter((p) => p.tags.includes(tierFilter))
+  // Apply score label filter client-side using composite_score
+  const activeFilter = SCORE_FILTERS.find((f) => f.value === scoreFilter);
+  const filteredProspects = activeFilter && activeFilter.value
+    ? prospects.filter((p) => p.composite_score >= activeFilter.min && p.composite_score <= activeFilter.max)
     : prospects;
 
   const rangerCount = prospects.filter((p) => p.source === "ranger_push").length;
   const prCount = prospects.filter((p) => p.source === "propertyradar").length;
-  const tierACnt = prospects.filter((p) => p.tags.includes("tier-a")).length;
-  const tierBCnt = prospects.filter((p) => p.tags.includes("tier-b")).length;
-  const tierCCnt = prospects.filter((p) => p.tags.includes("tier-c")).length;
+  const platinumCnt = prospects.filter((p) => p.composite_score >= 85).length;
+  const goldCnt = prospects.filter((p) => p.composite_score >= 65 && p.composite_score < 85).length;
+  const silverCnt = prospects.filter((p) => p.composite_score >= 40 && p.composite_score < 65).length;
+  const bronzeCnt = prospects.filter((p) => p.composite_score < 40).length;
 
   const toggleSort = (field: SortField) => {
     if (sortField === field) {
@@ -420,23 +364,23 @@ export default function ProspectsPage() {
             ))}
           </div>
 
-          {/* Tier filter */}
+          {/* Score label filter */}
           <div className="flex items-center gap-1">
-            <span className="text-[10px] text-muted-foreground font-medium">Tier:</span>
-            {TIER_FILTERS.map((tf) => {
-              const count = tf.value === "tier-a" ? tierACnt : tf.value === "tier-b" ? tierBCnt : tf.value === "tier-c" ? tierCCnt : prospects.length;
+            <span className="text-[10px] text-muted-foreground font-medium">Score:</span>
+            {SCORE_FILTERS.map((sf) => {
+              const count = sf.value === "platinum" ? platinumCnt : sf.value === "gold" ? goldCnt : sf.value === "silver" ? silverCnt : sf.value === "bronze" ? bronzeCnt : prospects.length;
               return (
                 <button
-                  key={tf.value}
-                  onClick={() => setTierFilter(tf.value)}
+                  key={sf.value}
+                  onClick={() => setScoreFilter(sf.value)}
                   className={cn(
                     "text-[10px] px-2 py-1 rounded border transition-all inline-flex items-center gap-1",
-                    tierFilter === tf.value
-                      ? `${tf.color} border-current/20 bg-current/8`
+                    scoreFilter === sf.value
+                      ? `${sf.color} border-current/20 bg-current/8`
                       : "text-muted-foreground border-glass-border hover:text-foreground hover:border-white/10"
                   )}
                 >
-                  {tf.label}
+                  {sf.label}
                   <span className="opacity-60">({count})</span>
                 </button>
               );
@@ -544,17 +488,8 @@ export default function ProspectsPage() {
                     >
                       <td className="p-3">
                         <div className="flex items-start gap-2">
-                          {/* Tier + Absentee indicators */}
+                          {/* Absentee indicator */}
                           <div className="flex flex-col items-center gap-0.5 pt-0.5 shrink-0">
-                            {p.tags.includes("tier-a") && (
-                              <TierBadge tag="tier-a" score={p.composite_score} />
-                            )}
-                            {p.tags.includes("tier-b") && (
-                              <TierBadge tag="tier-b" score={p.composite_score} />
-                            )}
-                            {p.tags.includes("tier-c") && (
-                              <TierBadge tag="tier-c" score={p.composite_score} />
-                            )}
                             {p.is_absentee && (
                               <Home className="h-3 w-3 text-purple-400" />
                             )}

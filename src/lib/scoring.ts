@@ -8,7 +8,7 @@
  *   - Absentee weight raised 10 → 22 (on par with tax_lien)
  *   - Absentee owner factor raised 5 → 10 (highest positive factor)
  *   - Absentee amplifier: 1.3× on base signal when absentee + other signals
- *   - Tier labels: A (75+), B (50-74), C (30-49), D (<30)
+ *   - Score labels: platinum (85+), gold (65-84), silver (40-64), bronze (<40)
  *
  * Domain: Scoring Domain — config-driven, versioned, deterministic, replayable.
  * Writes only scoring_records. Never mutates workflow.
@@ -243,23 +243,23 @@ export function getScoreLabel(score: number): AIScore["label"] {
   return "bronze";
 }
 
-// ── Tier Classification (v2.1) ────────────────────────────────────
-// Used by ingest routes to determine storage tier for prospects.
-export type ProspectTier = "A" | "B" | "C" | "D";
+// ── Score Label Classification (v2.2) ─────────────────────────────
+// Single unified classification — replaces the old A/B/C/D tier system.
+// Score label is derived from getScoreLabel() above. Ingest routes
+// tag prospects with `score-{label}` and filter by composite_score.
 
-export function getTierLabel(score: number): ProspectTier {
-  if (score >= 75) return "A";
-  if (score >= 50) return "B";
-  if (score >= 30) return "C";
-  return "D";
-}
-
-export const TIER_CUTOFFS = {
-  A: 75,  // Elite — agents work immediately
-  B: 50,  // Warm — work when A-tier thins out
-  C: 30,  // Watch — nurture campaigns, monthly call, mailers
-  D: 0,   // Cold — not stored
+export const SCORE_CUTOFFS = {
+  platinum: 85,  // Elite — agents work immediately
+  gold: 65,      // Strong — high-priority outreach
+  silver: 40,    // Moderate — nurture campaigns, monthly calls
+  bronze: 0,     // Weak — watch list, low priority
 } as const;
+
+export const MIN_STORE_SCORE = 30;
+
+export function getScoreLabelTag(score: number): string {
+  return `score-${getScoreLabel(score)}`;
+}
 
 // ── Enhanced V2 Score (with predictive blend) ───────────────────────
 

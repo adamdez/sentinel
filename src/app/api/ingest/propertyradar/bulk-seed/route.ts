@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@/lib/supabase";
-import { computeScore, SCORING_MODEL_VERSION, getTierLabel, TIER_CUTOFFS, type ScoringInput } from "@/lib/scoring";
+import { computeScore, SCORING_MODEL_VERSION, getScoreLabel, getScoreLabelTag, MIN_STORE_SCORE, type ScoringInput } from "@/lib/scoring";
 import {
   computePredictiveScore,
   buildPredictionRecord,
@@ -16,7 +16,7 @@ import { COUNTY_FIPS } from "@/lib/attom";
 
 const SYSTEM_USER_ID = "00000000-0000-0000-0000-000000000000";
 const PR_API = "https://api.propertyradar.com/v1/properties";
-const STORE_CUTOFF = TIER_CUTOFFS.C; // 30 — minimum to store (C-tier for nurture)
+const STORE_CUTOFF = MIN_STORE_SCORE; // 30 — minimum to store
 const SOURCE_TAG = "BulkSeed_1000_20260301";
 
 const DEFAULT_COUNTIES = ["Spokane", "Kootenai"];
@@ -316,11 +316,11 @@ export async function POST(req: NextRequest) {
 
   candidates.sort((a, b) => b.score.composite - a.score.composite);
   const storable = candidates.filter((c) => c.score.composite >= STORE_CUTOFF);
-  const tierCounts = { A: 0, B: 0, C: 0 };
+  const labelCounts = { platinum: 0, gold: 0, silver: 0, bronze: 0 };
 
   console.log(`[BulkSeed] ${candidates.length} scored → ${storable.length} storable (>= ${STORE_CUTOFF}), ${candidates.length - storable.length} discarded`);
 
-  // Insert all storable tiers into Supabase
+  // Insert all storable prospects into Supabase
   let newInserts = 0;
   let updated = 0;
   let errored = 0;
@@ -331,7 +331,7 @@ export async function POST(req: NextRequest) {
 
   for (let i = 0; i < storable.length; i++) {
     const { pr, score, signals } = storable[i];
-    const tier = getTierLabel(score.composite);
+    const label = getScoreLabel(score.composite);
     const apn = pr.APN!;
     const county = normalizeCounty(pr.County ?? counties[0], "Spokane");
     const address = pr.Address ?? pr.FullAddress ?? "";
@@ -342,7 +342,7 @@ export async function POST(req: NextRequest) {
     const fullAddr = [address, city, state, zip].filter(Boolean).join(", ");
 
     if (i < 5 || i % 50 === 0) {
-      console.log(`[BulkSeed] Processing ${i + 1}/${storable.length}: ${address} (${apn}) — score ${score.composite} [Tier ${tier}]`);
+      console.log(`[BulkSeed] Processing ${i + 1}/${storable.length}: ${address} (${apn}) — score ${score.composite} [${label}]`);
     }
 
     const ownerFlags: Record<string, unknown> = {
@@ -456,10 +456,9 @@ export async function POST(req: NextRequest) {
     await (sb.from("scoring_predictions") as any)
       .insert(buildPredictionRecord(property.id, predOutput));
 
-    // Lead with tier tag
-    const tierTag = `tier-${tier.toLowerCase()}`;
+    const scoreLabelTag = `score-${label}`;
     const signalTags = signals.map((s) => s.type);
-    const allTags = [tierTag, ...signalTags];
+    const allTags = [scoreLabelTag, ...signalTags];
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { data: existingLead } = await (sb.from("leads") as any)
@@ -476,7 +475,7 @@ export async function POST(req: NextRequest) {
         priority: blendedScore,
         source: SOURCE_TAG,
         tags: allTags,
-        notes: `Bulk Seed [Tier ${tier}] — Heat ${blendedScore} (det:${score.composite} + pred:${predOutput.predictiveScore}). ${signals.length} signal(s).`,
+        notes: `Bulk Seed [${label}] — Heat ${blendedScore} (det:${score.composite} + pred:${predOutput.predictiveScore}). ${signals.length} signal(s).`,
         promoted_at: new Date().toISOString(),
       });
       newInserts++;
@@ -488,7 +487,7 @@ export async function POST(req: NextRequest) {
       updated++;
     }
 
-    tierCounts[tier as keyof typeof tierCounts]++;
+    labelCounts[label as keyof typeof labelCounts]++;
     if (blendedScore > topScore) {
       topScore = blendedScore;
       topAddress = fullAddr;
@@ -509,7 +508,7 @@ export async function POST(req: NextRequest) {
       total_fetched: allResults.length,
       total_scored: candidates.length,
       above_cutoff: storable.length,
-      tier_breakdown: tierCounts,
+      score_breakdown: labelCounts,
       new_inserts: newInserts,
       updated,
       errored,
@@ -521,7 +520,7 @@ export async function POST(req: NextRequest) {
   });
 
   console.log(`[BulkSeed] === COMPLETE: ${newInserts} new, ${updated} updated, ${errored} errors in ${elapsed}ms ===`);
-  console.log(`[BulkSeed] Tier breakdown: A=${tierCounts.A}, B=${tierCounts.B}, C=${tierCounts.C}`);
+  console.log(`[BulkSeed] Score breakdown: platinum=${labelCounts.platinum}, gold=${labelCounts.gold}, silver=${labelCounts.silver}, bronze=${labelCounts.bronze}`);
 
   return NextResponse.json({
     success: true,
@@ -531,7 +530,7 @@ export async function POST(req: NextRequest) {
     totalFetched: allResults.length,
     totalScored: candidates.length,
     aboveCutoff: storable.length,
-    tierBreakdown: tierCounts,
+    scoreBreakdown: labelCounts,
     eventsInserted,
     eventsDeduped,
     topScore,
