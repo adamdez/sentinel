@@ -551,7 +551,13 @@ export default function ProspectsPage() {
                         )}
                       </td>
                       <td className="p-3">
-                        <AIScoreBadge score={buildAIScore(p)} size="sm" tags={p.tags} />
+                        <AIScoreBadge
+                          score={buildAIScore(p)}
+                          size="sm"
+                          tags={p.tags}
+                          equityPercent={p.equity_percent}
+                          isAbsentee={p.is_absentee}
+                        />
                       </td>
                       <td className="p-3">
                         <div className="flex items-center justify-end gap-1" onClick={(e) => e.stopPropagation()}>

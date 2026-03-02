@@ -1,7 +1,7 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { Sparkles } from "lucide-react";
+import { Sparkles, Info } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import {
   Tooltip,
@@ -10,6 +10,14 @@ import {
 } from "@/components/ui/tooltip";
 import { Brain } from "lucide-react";
 import type { AIScore } from "@/lib/types";
+import {
+  SIGNAL_WEIGHTS,
+  OWNER_FACTORS,
+  EQUITY_WEIGHT,
+  STACKING_THRESHOLDS,
+  getStackingBonus,
+} from "@/lib/scoring";
+import type { DistressType } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
 interface AIScoreBadgeProps {
@@ -21,6 +29,8 @@ interface AIScoreBadgeProps {
   } | null;
   size?: "sm" | "md" | "lg";
   tags?: string[];
+  equityPercent?: number | null;
+  isAbsentee?: boolean;
 }
 
 const labelConfig = {
@@ -30,34 +40,11 @@ const labelConfig = {
   bronze: { variant: "bronze" as const, text: "BRONZE", color: "text-orange-500", glow: "" },
 };
 
-function ScoreBar({ label, value, max = 100 }: { label: string; value: number; max?: number }) {
-  const pct = Math.min((value / max) * 100, 100);
-  return (
-    <div className="space-y-0.5">
-      <div className="flex justify-between text-[11px]">
-        <span className="text-muted-foreground">{label}</span>
-        <span className="text-foreground font-medium">{value}</span>
-      </div>
-      <div className="h-1 rounded-full bg-white/[0.06] overflow-hidden">
-        <motion.div
-          initial={{ width: 0 }}
-          animate={{ width: `${pct}%` }}
-          transition={{ duration: 0.6, delay: 0.1 }}
-          className={cn(
-            "h-full rounded-full",
-            pct >= 80 ? "bg-cyan" : pct >= 60 ? "bg-yellow-400" : pct >= 40 ? "bg-blue-400" : "bg-muted-foreground"
-          )}
-        />
-      </div>
-    </div>
-  );
-}
-
 const LABEL_EXPLAINER: Record<AIScore["label"], string> = {
-  platinum: "Platinum (85+): Extreme distress stacking, high equity, absentee — close immediately.",
-  gold: "Gold (65-84): Strong signal convergence. High-priority outreach target.",
-  silver: "Silver (40-64): Moderate distress or limited data. Worth nurturing.",
-  bronze: "Bronze (<40): Weak signal or stale data. Low priority.",
+  platinum: "Extreme distress stacking + high equity + absentee. Close immediately.",
+  gold: "Strong signal convergence. High-priority outreach target.",
+  silver: "Moderate distress or limited data. Worth nurturing.",
+  bronze: "Weak or stale signal. Low priority — watch list.",
 };
 
 const SIGNAL_LABELS: Record<string, string> = {
@@ -67,11 +54,123 @@ const SIGNAL_LABELS: Record<string, string> = {
   inherited: "Inherited", water_shutoff: "Water Shut-off",
 };
 
+const SIGNAL_EXPLAIN: Record<string, string> = {
+  probate: "Owner deceased — heirs often sell fast to split estate",
+  pre_foreclosure: "Lender filed notice — owner must sell or lose property",
+  tax_lien: "Unpaid property taxes — forced sale risk",
+  code_violation: "City-flagged issues — costly to fix, motivates selling",
+  vacant: "No one living here — carrying costs with no benefit",
+  divorce: "Court-ordered division — both parties want out fast",
+  bankruptcy: "Court filing — assets may be liquidated",
+  fsbo: "Owner selling direct — motivated, no agent protection",
+  absentee: "Owner lives elsewhere — less attached, higher sell rate",
+  inherited: "Property inherited — heirs often prefer cash",
+  water_shutoff: "Utility disconnected — strong vacancy/abandonment signal",
+};
+
 const SIGNAL_TAG_SET = new Set(Object.keys(SIGNAL_LABELS));
 
-export function AIScoreBadge({ score, prediction, size = "md", tags }: AIScoreBadgeProps) {
+interface FactorRow {
+  label: string;
+  maxPoints: string;
+  explain: string;
+  color?: string;
+}
+
+function buildFactorRows(
+  distressSignals: string[],
+  equityPercent: number | null | undefined,
+  isAbsentee: boolean | undefined,
+  aiBoost: number,
+): FactorRow[] {
+  const rows: FactorRow[] = [];
+
+  for (const sig of distressSignals) {
+    const weight = SIGNAL_WEIGHTS[sig as DistressType];
+    if (weight == null) continue;
+    rows.push({
+      label: SIGNAL_LABELS[sig] ?? sig,
+      maxPoints: `wt ${weight}`,
+      explain: SIGNAL_EXPLAIN[sig] ?? "Distress signal detected",
+      color: weight >= 25 ? "text-red-400" : weight >= 20 ? "text-orange-400" : "text-yellow-400",
+    });
+  }
+
+  const stackBonus = getStackingBonus(distressSignals.length);
+  const nextThreshold = STACKING_THRESHOLDS.find((t) => t.signals > distressSignals.length);
+  rows.push({
+    label: "Stacking Bonus",
+    maxPoints: stackBonus > 0 ? `+${stackBonus}` : "+0",
+    explain: stackBonus > 0
+      ? `${distressSignals.length} overlapping signals unlock +${stackBonus} bonus`
+      : distressSignals.length === 1
+        ? `Only 1 signal. Add 1 more to unlock +${nextThreshold?.bonus ?? 6}`
+        : "No signals detected",
+    color: stackBonus > 0 ? "text-neon" : "text-muted-foreground/60",
+  });
+
+  const hasNonAbsentee = distressSignals.some((s) => s !== "absentee");
+  if (isAbsentee) {
+    rows.push({
+      label: "Absentee Amplifier",
+      maxPoints: hasNonAbsentee ? "1.3×" : "1.0×",
+      explain: hasNonAbsentee
+        ? "Absentee + other signal → 1.3× boost to base signal"
+        : "Needs a non-absentee signal to activate (currently 1.0×)",
+      color: hasNonAbsentee ? "text-neon" : "text-muted-foreground/60",
+    });
+  }
+
+  const ownerFactors: string[] = [];
+  let ownerTotal = 0;
+  if (isAbsentee) { ownerFactors.push(`Absentee +${OWNER_FACTORS.absentee}`); ownerTotal += OWNER_FACTORS.absentee; }
+  if (distressSignals.includes("inherited")) { ownerFactors.push(`Inherited +${OWNER_FACTORS.inherited}`); ownerTotal += OWNER_FACTORS.inherited; }
+
+  rows.push({
+    label: "Owner Factors",
+    maxPoints: ownerTotal > 0 ? `+${ownerTotal}` : "+0",
+    explain: ownerFactors.length > 0
+      ? ownerFactors.join(", ")
+      : "No owner flags detected (absentee, inherited, elderly, out-of-state)",
+    color: ownerTotal > 0 ? "text-purple-400" : "text-muted-foreground/60",
+  });
+
+  const eqPct = equityPercent ?? 0;
+  const eqContrib = Math.round(eqPct * EQUITY_WEIGHT * 10) / 10;
+  rows.push({
+    label: `Equity (${eqPct > 0 ? Math.round(eqPct) + "%" : "??"})`,
+    maxPoints: `+${eqContrib}`,
+    explain: eqPct > 0
+      ? `${Math.round(eqPct)}% equity × ${EQUITY_WEIGHT} weight = +${eqContrib} points`
+      : "No equity data available",
+    color: eqContrib >= 10 ? "text-emerald-400" : eqContrib > 0 ? "text-emerald-400/70" : "text-muted-foreground/60",
+  });
+
+  if (aiBoost > 0) {
+    rows.push({
+      label: "AI Boost",
+      maxPoints: `+${aiBoost}`,
+      explain: "Predictive model detected conversion patterns in this area",
+      color: "text-cyan",
+    });
+  }
+
+  return rows;
+}
+
+export function AIScoreBadge({ score, prediction, size = "md", tags, equityPercent, isAbsentee }: AIScoreBadgeProps) {
   const config = labelConfig[score.label];
   const distressSignals = tags?.filter((t) => SIGNAL_TAG_SET.has(t)) ?? [];
+  const factors = buildFactorRows(distressSignals, equityPercent, isAbsentee, score.aiBoost);
+
+  const signalWeightSum = distressSignals.reduce((sum, s) => sum + (SIGNAL_WEIGHTS[s as DistressType] ?? 0), 0);
+  const stackBonus = getStackingBonus(distressSignals.length);
+  let ownerTotal = 0;
+  if (isAbsentee) ownerTotal += OWNER_FACTORS.absentee;
+  if (distressSignals.includes("inherited")) ownerTotal += OWNER_FACTORS.inherited;
+  const eqContrib = Math.round((equityPercent ?? 0) * EQUITY_WEIGHT * 10) / 10;
+  const theoreticalMax = signalWeightSum + stackBonus + ownerTotal + eqContrib + score.aiBoost;
+  const gap = Math.max(Math.round(theoreticalMax - score.composite), 0);
 
   return (
     <Tooltip>
@@ -105,47 +204,51 @@ export function AIScoreBadge({ score, prediction, size = "md", tags }: AIScoreBa
           )}
         </motion.div>
       </TooltipTrigger>
-      <TooltipContent side="bottom" className="w-64 p-3">
-        <div className="space-y-2">
+      <TooltipContent side="bottom" className="w-72 p-0">
+        <div className="p-3 space-y-2">
+          {/* Header */}
           <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold">AI Score Breakdown</span>
+            <span className="text-xs font-semibold">Score Breakdown</span>
             <span className={cn("text-xs font-bold", config.color)}>
               {score.composite} — {config.text}
             </span>
           </div>
-
           <p className="text-[10px] text-muted-foreground/80 leading-snug">
             {LABEL_EXPLAINER[score.label]}
           </p>
 
-          <div className="space-y-1.5">
-            <ScoreBar label="Motivation" value={score.motivation} />
-            <ScoreBar label="Equity Velocity" value={score.equityVelocity} />
-            <ScoreBar label="Urgency" value={score.urgency} />
-            <ScoreBar label="Historical Conv." value={score.historicalConversion} />
+          {/* Factor rows */}
+          <div className="space-y-0">
+            {factors.map((f, i) => (
+              <div key={i} className="py-1.5 border-t border-white/[0.04] first:border-t-0">
+                <div className="flex items-center justify-between">
+                  <span className={cn("text-[11px] font-semibold", f.color ?? "text-foreground")}>
+                    {f.label}
+                  </span>
+                  <span className={cn("text-[11px] font-bold tabular-nums", f.color ?? "text-foreground")}>
+                    {f.maxPoints}
+                  </span>
+                </div>
+                <p className="text-[9px] text-muted-foreground/60 leading-snug mt-0.5">
+                  {f.explain}
+                </p>
+              </div>
+            ))}
           </div>
 
-          {distressSignals.length > 0 && (
-            <div className="pt-1.5 border-t border-glass-border">
-              <span className="text-[10px] text-muted-foreground/70 block mb-1">Distress signals driving this score:</span>
-              <div className="flex flex-wrap gap-1">
-                {distressSignals.map((s) => (
-                  <span key={s} className="text-[9px] px-1.5 py-0.5 rounded bg-white/[0.06] border border-white/[0.08] text-foreground/80">
-                    {SIGNAL_LABELS[s] ?? s}
-                  </span>
-                ))}
-              </div>
+          {/* Gap explanation */}
+          {gap > 5 && (
+            <div className="flex items-start gap-1.5 pt-1.5 border-t border-glass-border">
+              <Info className="h-3 w-3 text-muted-foreground/50 shrink-0 mt-0.5" />
+              <p className="text-[9px] text-muted-foreground/60 leading-snug">
+                Base weights total ~{Math.round(theoreticalMax)} but the composite is {score.composite}.
+                The {gap}-point reduction comes from <span className="text-foreground/70 font-medium">recency decay</span> (older
+                events lose ~50% every 46 days) and <span className="text-foreground/70 font-medium">severity</span> adjustments.
+              </p>
             </div>
           )}
 
-          {score.aiBoost > 0 && (
-            <div className="flex items-center gap-1 pt-1 border-t border-glass-border">
-              <Sparkles className="h-3 w-3 text-cyan" />
-              <span className="text-[11px] text-cyan font-medium">
-                AI Boost: +{score.aiBoost} from predictive model
-              </span>
-            </div>
-          )}
+          {/* Prediction */}
           {prediction && (
             <div className="pt-1 border-t border-glass-border space-y-1">
               <div className="flex items-center gap-1">
@@ -164,13 +267,6 @@ export function AIScoreBadge({ score, prediction, size = "md", tags }: AIScoreBa
               </div>
             </div>
           )}
-
-          <div className="pt-1.5 border-t border-glass-border">
-            <p className="text-[9px] text-muted-foreground/50 leading-snug">
-              Score = (Signal Weights x Severity x Recency) + Stacking Bonus + Owner Factors + Equity + AI Boost.
-              Label: Platinum 85+ / Gold 65+ / Silver 40+ / Bronze &lt;40.
-            </p>
-          </div>
         </div>
       </TooltipContent>
     </Tooltip>

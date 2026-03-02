@@ -49,7 +49,7 @@ const DECAY_LAMBDA = 0.015; // ~46-day half-life
 const MAX_RECENCY_DAYS = 365;
 
 // ── Stacking Bonus (multiple overlapping distress signals) ──────────
-const STACKING_THRESHOLDS = [
+export const STACKING_THRESHOLDS = [
   { signals: 2, bonus: 6 },
   { signals: 3, bonus: 14 },
   { signals: 4, bonus: 22 },
@@ -58,7 +58,7 @@ const STACKING_THRESHOLDS = [
 
 // ── Owner Factor Weights ────────────────────────────────────────────
 // v2.1: Absentee raised from 5 → 10 — strongest positive owner factor.
-const OWNER_FACTORS = {
+export const OWNER_FACTORS = {
   absentee: 10,
   corporate: -3,
   inherited: 8,
@@ -73,7 +73,7 @@ const OWNER_FACTORS = {
 const ABSENTEE_AMPLIFIER = 1.3;
 
 // ── Equity Factor Weights ───────────────────────────────────────────
-const EQUITY_WEIGHT = 0.15;
+export const EQUITY_WEIGHT = 0.15;
 const COMP_RATIO_WEIGHT = 0.10;
 
 export function getSeverityMultiplier(severity: number): number {
