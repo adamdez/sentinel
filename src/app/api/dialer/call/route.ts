@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@/lib/supabase";
 import { scrubLead } from "@/lib/compliance";
 import { scheduleNextCall } from "@/lib/call-scheduler";
+import { getTwilioCredentials, isTwilioError, friendlyTwilioError } from "@/lib/twilio";
 
 const SYSTEM_USER_ID = "00000000-0000-0000-0000-000000000000";
 
@@ -28,16 +29,12 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const sid = process.env.TWILIO_ACCOUNT_SID;
-  const token = process.env.TWILIO_AUTH_TOKEN;
-  const fallbackFrom = process.env.TWILIO_PHONE_NUMBER;
-
-  if (!sid || !token) {
-    return NextResponse.json(
-      { error: "Twilio credentials not configured (TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN)" },
-      { status: 500 }
-    );
+  const creds = getTwilioCredentials();
+  if (isTwilioError(creds)) {
+    console.error("[Dialer] Twilio credential error:", creds.error, "—", creds.hint);
+    return NextResponse.json({ error: creds.error }, { status: 500 });
   }
+  const { sid, from: fallbackFrom, authHeader } = creds;
 
   let body: {
     phone: string;
@@ -103,7 +100,6 @@ export async function POST(req: NextRequest) {
 
   // 3. Twilio REST API — create call with warm transfer webhook
   const twilioUrl = `https://api.twilio.com/2010-04-01/Accounts/${sid}/Calls.json`;
-  const authHeader = "Basic " + Buffer.from(`${sid}:${token}`).toString("base64");
 
   const siteUrl = process.env.NEXT_PUBLIC_SITE_URL
     ?? (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "http://localhost:3000");
@@ -154,7 +150,8 @@ export async function POST(req: NextRequest) {
     const data = await res.json();
 
     if (!res.ok) {
-      twilioError = data.message ?? `Twilio HTTP ${res.status}`;
+      const rawMsg = data.message ?? `Twilio HTTP ${res.status}`;
+      twilioError = friendlyTwilioError(rawMsg);
       console.error("[Dialer] Twilio error:", data);
     } else {
       twilioSid = data.sid;

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@/lib/supabase";
 import { scrubLead } from "@/lib/compliance";
+import { getTwilioCredentials, isTwilioError, friendlyTwilioError } from "@/lib/twilio";
 
 const SYSTEM_USER_ID = "00000000-0000-0000-0000-000000000000";
 
@@ -18,13 +19,16 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const sid = process.env.TWILIO_ACCOUNT_SID;
-  const token = process.env.TWILIO_AUTH_TOKEN;
-  const from = process.env.TWILIO_PHONE_NUMBER;
+  const creds = getTwilioCredentials();
+  if (isTwilioError(creds)) {
+    console.error("[Dialer/SMS] Twilio credential error:", creds.error, "—", creds.hint);
+    return NextResponse.json({ error: creds.error }, { status: 500 });
+  }
+  const { sid, authHeader, from } = creds;
 
-  if (!sid || !token || !from) {
+  if (!from) {
     return NextResponse.json(
-      { error: "Twilio credentials not configured" },
+      { error: "No Twilio phone number configured (TWILIO_PHONE_NUMBER)" },
       { status: 500 },
     );
   }
@@ -62,7 +66,6 @@ export async function POST(req: NextRequest) {
 
   // Send via Twilio
   const twilioUrl = `https://api.twilio.com/2010-04-01/Accounts/${sid}/Messages.json`;
-  const authHeader = "Basic " + Buffer.from(`${sid}:${token}`).toString("base64");
 
   const formData = new URLSearchParams({
     To: e164,
@@ -83,9 +86,10 @@ export async function POST(req: NextRequest) {
     const data = await res.json();
 
     if (!res.ok) {
+      const rawMsg = data.message ?? "Twilio SMS failed";
       console.error("[Dialer/SMS] Twilio error:", data);
       return NextResponse.json(
-        { error: data.message ?? "Twilio SMS failed" },
+        { error: friendlyTwilioError(rawMsg) },
         { status: 502 },
       );
     }
