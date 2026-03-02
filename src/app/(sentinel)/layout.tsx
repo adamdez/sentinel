@@ -22,7 +22,7 @@ export default function SentinelLayout({
       <Sidebar />
       <div className="flex flex-col flex-1 min-w-0 relative z-10">
         <TopBar />
-        <main className="flex-1 overflow-auto">{children}</main>
+        <main className="flex-1 overflow-auto main-gloss">{children}</main>
       </div>
       <TeamChat />
       <NewProspectModal />
