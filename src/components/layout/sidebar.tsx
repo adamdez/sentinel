@@ -313,20 +313,58 @@ function SidebarSection({ section, badges }: { section: NavSection; badges?: Sid
 }
 
 export function Sidebar() {
-  const { sidebarOpen } = useSentinelStore();
+  const { sidebarOpen, sidebarWidth, setSidebarWidth } = useSentinelStore();
   const badges = useSidebarBadges();
   const hydrated = useHydrated();
+  const [isResizing, setIsResizing] = useState(false);
+
+  const handleMouseDown = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    setIsResizing(true);
+    const startX = e.clientX;
+    const startWidth = sidebarWidth;
+
+    const onMouseMove = (ev: MouseEvent) => {
+      const newWidth = startWidth + (ev.clientX - startX);
+      setSidebarWidth(newWidth);
+    };
+
+    const onMouseUp = () => {
+      setIsResizing(false);
+      document.removeEventListener("mousemove", onMouseMove);
+      document.removeEventListener("mouseup", onMouseUp);
+      document.body.style.cursor = "";
+      document.body.style.userSelect = "";
+    };
+
+    document.body.style.cursor = "col-resize";
+    document.body.style.userSelect = "none";
+    document.addEventListener("mousemove", onMouseMove);
+    document.addEventListener("mouseup", onMouseUp);
+  }, [sidebarWidth, setSidebarWidth]);
 
   return (
     <AnimatePresence mode="wait">
       {sidebarOpen && (
         <motion.aside
           initial={hydrated ? { width: 0, opacity: 0 } : false}
-          animate={{ width: 166, opacity: 1 }}
+          animate={{ width: sidebarWidth, opacity: 1 }}
           exit={{ width: 0, opacity: 0 }}
-          transition={{ duration: 0.2, ease: "easeInOut" }}
+          transition={isResizing ? { duration: 0 } : { duration: 0.2, ease: "easeInOut" }}
           className="h-screen bg-sidebar border-r border-sidebar-border flex flex-col overflow-hidden shrink-0 sidebar-glass relative z-20"
         >
+          {/* Drag-to-resize handle (double-click resets to 200px) */}
+          <div
+            onMouseDown={handleMouseDown}
+            onDoubleClick={() => setSidebarWidth(200)}
+            className="absolute top-0 right-0 w-[6px] h-full cursor-col-resize z-30 group"
+          >
+            <div className={cn(
+              "absolute top-0 right-0 w-[2px] h-full transition-opacity duration-150",
+              isResizing ? "opacity-100 bg-cyan/50" : "opacity-0 group-hover:opacity-100 bg-cyan/30"
+            )} />
+          </div>
+
           <div className="p-4 flex items-center gap-2.5">
             <div className="h-8 w-8 rounded-[12px] bg-cyan/8 flex items-center justify-center border border-cyan/18" style={{ boxShadow: "0 0 1px rgba(0,229,255,0.8), 0 0 4px rgba(0,229,255,0.35), 0 0 12px rgba(0,229,255,0.15), 0 0 20px rgba(0,229,255,0.06)" }}>
               <Zap className="h-4 w-4 text-cyan drop-shadow-[0_0_8px_rgba(0,229,255,0.6)]" />
