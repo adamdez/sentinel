@@ -27,6 +27,7 @@ import {
   Zap,
   Brain,
   Target,
+  Upload,
   type LucideIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -158,6 +159,7 @@ const sections: NavSection[] = [
   {
     title: "Admin",
     items: [
+      { label: "Import Data", href: "/admin/import", icon: Upload },
       { label: "Settings", href: "/settings", icon: Settings },
     ],
   },

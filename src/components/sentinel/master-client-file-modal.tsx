@@ -8,7 +8,7 @@ import {
   Copy, CheckCircle2, Search, Loader2, Building, Ruler, LandPlot,
   Banknote, Scale, UserX, Eye, FileText, Calculator, Globe, Send,
   Radar, LayoutDashboard, Map, Printer, ImageIcon, ChevronLeft, ChevronRight,
-  Pencil, Save, Voicemail, PhoneForwarded,
+  Pencil, Save, Voicemail, PhoneForwarded, Brain, Crosshair,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -23,6 +23,7 @@ import { CompsMap, getSatelliteTileUrl, type CompProperty, type SubjectProperty 
 import { PredictiveDistressBadge, type PredictiveDistressData } from "@/components/sentinel/predictive-distress-badge";
 import { RelationshipBadge } from "@/components/sentinel/relationship-badge";
 import { NumericInput } from "@/components/sentinel/numeric-input";
+import { usePreCallBrief } from "@/hooks/use-pre-call-brief";
 import { supabase } from "@/lib/supabase";
 import { toast } from "sonner";
 
@@ -312,25 +313,45 @@ function CopyBtn({ text }: { text: string }) {
 
 type ScoreType = "composite" | "motivation" | "deal";
 
+const TIER_COLORS = {
+  platinum: { bar: "bg-cyan-400", border: "border-cyan-400/30", glow: "rgba(0,212,255,0.3)", text: "text-cyan-300", hoverBorder: "hover:border-cyan-400/50" },
+  gold:     { bar: "bg-amber-400", border: "border-amber-500/30", glow: "rgba(245,158,11,0.3)", text: "text-amber-400", hoverBorder: "hover:border-amber-400/50" },
+  silver:   { bar: "bg-slate-300", border: "border-slate-400/30", glow: "rgba(148,163,184,0.3)", text: "text-slate-300", hoverBorder: "hover:border-slate-300/50" },
+  bronze:   { bar: "bg-orange-500", border: "border-orange-600/30", glow: "rgba(249,115,22,0.3)", text: "text-orange-400", hoverBorder: "hover:border-orange-500/50" },
+} as const;
+
+function getTier(score: number): keyof typeof TIER_COLORS {
+  if (score >= 85) return "platinum";
+  if (score >= 65) return "gold";
+  if (score >= 40) return "silver";
+  return "bronze";
+}
+
 function ScoreCard({ label, value, onClick }: { label: string; value: number; onClick?: () => void }) {
   const pct = Math.min(value, 100);
+  const tier = getTier(value);
+  const tc = TIER_COLORS[tier];
   return (
     <button
       type="button"
       onClick={onClick}
       className={cn(
-        "rounded-[10px] border border-white/[0.06] bg-white/[0.04] p-3 text-center transition-all duration-200 w-full",
-        "cursor-pointer hover:border-cyan/30 hover:bg-cyan/[0.04] hover:shadow-[0_0_20px_rgba(0,212,255,0.12)] active:scale-[0.97]",
+        "rounded-[10px] border bg-white/[0.04] p-3 text-center transition-all duration-200 w-full",
+        tc.border, tc.hoverBorder,
+        "cursor-pointer hover:bg-white/[0.06] hover:shadow-[0_0_20px_var(--glow)] active:scale-[0.97]",
         "group relative overflow-hidden"
       )}
+      style={{ "--glow": tc.glow } as React.CSSProperties}
     >
-      <div className="absolute inset-0 bg-gradient-to-b from-cyan/[0.03] to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
-      <p className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1 group-hover:text-cyan/80 transition-colors relative z-10">{label}</p>
-      <p className="text-xl font-bold relative z-10 group-hover:drop-shadow-[0_0_8px_rgba(0,212,255,0.3)] transition-all" style={{ textShadow: pct >= 80 ? "0 0 10px rgba(0,212,255,0.3)" : undefined }}>{value}</p>
-      <div className="h-1 rounded-full bg-secondary mt-2 overflow-hidden relative z-10">
-        <div className={cn("h-full rounded-full transition-all", pct >= 85 ? "bg-orange-400" : pct >= 65 ? "bg-red-400" : pct >= 40 ? "bg-yellow-400" : "bg-blue-400")} style={{ width: `${pct}%` }} />
+      <div className="absolute inset-0 bg-gradient-to-b from-white/[0.03] to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+      <p className={cn("text-[10px] uppercase tracking-wider mb-1 transition-colors relative z-10", tc.text)}>{label}</p>
+      <p className="text-xl font-bold relative z-10 transition-all" style={{ textShadow: `0 0 10px ${tc.glow}` }}>{value}</p>
+      <div className="h-1.5 rounded-full bg-secondary mt-2 overflow-hidden relative z-10">
+        <div className={cn("h-full rounded-full transition-all", tc.bar)} style={{ width: `${pct}%` }} />
       </div>
-      <p className="text-[8px] text-muted-foreground/40 mt-1.5 group-hover:text-cyan/50 transition-colors relative z-10 uppercase tracking-widest">Click for breakdown</p>
+      <p className={cn("text-[8px] mt-1.5 transition-colors relative z-10 uppercase tracking-widest font-semibold", tc.text, "opacity-60 group-hover:opacity-100")}>
+        {tier.toUpperCase()} — tap to drill
+      </p>
     </button>
   );
 }
@@ -966,11 +987,19 @@ function OverviewTab({ cf, skipTracing, skipTraceResult, skipTraceMs, overlay, s
   const [scoreBreakdown, setScoreBreakdown] = useState<ScoreType | null>(null);
   const canEdit = ["prospect", "lead"].includes(cf.status);
 
+  const { brief, loading: briefLoading } = usePreCallBrief(cf.id);
+
+  const bestPhone = allPhones[0] ?? displayPhone;
+  const phoneConfidence = allPhones.length >= 3 ? 95 : allPhones.length === 2 ? 80 : allPhones.length === 1 ? 65 : null;
+
+  const equityPct = cf.equityPercent ?? 0;
+  const equityIsGreen = equityPct >= 50;
+
   return (
     <div className="space-y-5">
-      {/* Edit Details button */}
-      {canEdit && (
-        <div className="flex justify-end">
+      {/* ── Top action bar: Edit + Enrich Now ── */}
+      <div className="flex items-center justify-between gap-2">
+        {canEdit ? (
           <button
             onClick={onEdit}
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-[10px] text-[11px] font-semibold
@@ -980,10 +1009,25 @@ function OverviewTab({ cf, skipTracing, skipTraceResult, skipTraceMs, overlay, s
           >
             <Pencil className="h-3 w-3" />Edit Details
           </button>
-        </div>
-      )}
+        ) : <div />}
 
-      {/* Score Dashboard */}
+        <Button
+          size="lg"
+          onClick={onSkipTrace}
+          disabled={skipTracing}
+          className="gap-2.5 px-6 py-2.5 text-sm font-bold rounded-[12px]
+            bg-gradient-to-r from-cyan-500 to-cyan-400 hover:from-cyan-400 hover:to-cyan-300
+            text-black border-0
+            shadow-[0_0_24px_rgba(0,212,255,0.35),0_0_60px_rgba(0,212,255,0.15)]
+            hover:shadow-[0_0_32px_rgba(0,212,255,0.5),0_0_80px_rgba(0,212,255,0.25)]
+            transition-all active:scale-[0.97]"
+        >
+          {skipTracing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Crosshair className="h-4 w-4" />}
+          {skipTracing ? "Enriching…" : "Enrich Now"}
+        </Button>
+      </div>
+
+      {/* ── Score Dashboard — Tier-Color-Coded ── */}
       <div className="grid grid-cols-3 gap-3">
         <ScoreCard label="Composite" value={cf.compositeScore} onClick={() => setScoreBreakdown("composite")} />
         <ScoreCard label="Motivation" value={cf.motivationScore} onClick={() => setScoreBreakdown("motivation")} />
@@ -994,6 +1038,237 @@ function OverviewTab({ cf, skipTracing, skipTraceResult, skipTraceMs, overlay, s
         <ScoreBreakdownModal cf={cf} scoreType={scoreBreakdown} onClose={() => setScoreBreakdown(null)} />
       )}
 
+      {/* ── Hero Numbers: Equity + AVM/ARV ── */}
+      <div className="grid grid-cols-2 gap-3">
+        <div className={cn(
+          "rounded-[12px] border p-4 text-center relative overflow-hidden",
+          equityIsGreen
+            ? "border-emerald-500/30 bg-emerald-500/[0.06]"
+            : "border-white/[0.06] bg-white/[0.02]"
+        )}>
+          {equityIsGreen && <div className="absolute inset-0 bg-gradient-to-b from-emerald-500/[0.08] to-transparent pointer-events-none" />}
+          <p className="text-[9px] text-muted-foreground uppercase tracking-widest mb-1 relative z-10">Equity</p>
+          <p className={cn("text-3xl font-black tabular-nums relative z-10", equityIsGreen ? "text-emerald-400" : "text-foreground")}
+            style={{ textShadow: equityIsGreen ? "0 0 20px rgba(52,211,153,0.4), 0 0 60px rgba(52,211,153,0.15)" : "0 0 12px rgba(255,255,255,0.08)" }}>
+            {cf.equityPercent != null ? `${cf.equityPercent}%` : "—"}
+          </p>
+          {cf.availableEquity != null && (
+            <p className="text-[10px] text-muted-foreground mt-1 relative z-10">{formatCurrency(cf.availableEquity)} available</p>
+          )}
+          {cf.totalLoanBalance != null && (
+            <p className="text-[9px] text-muted-foreground/50 relative z-10">Loans: {formatCurrency(cf.totalLoanBalance)}</p>
+          )}
+        </div>
+
+        <div className="rounded-[12px] border border-white/[0.06] bg-white/[0.02] p-4 text-center relative overflow-hidden">
+          {cf.estimatedValue && <div className="absolute inset-0 bg-gradient-to-b from-cyan/[0.05] to-transparent pointer-events-none" />}
+          <p className="text-[9px] text-muted-foreground uppercase tracking-widest mb-1 relative z-10">AVM / ARV</p>
+          <p className="text-3xl font-black tabular-nums text-cyan relative z-10"
+            style={{ textShadow: cf.estimatedValue ? "0 0 20px rgba(0,212,255,0.4), 0 0 60px rgba(0,212,255,0.15)" : undefined }}>
+            {cf.estimatedValue ? formatCurrency(cf.estimatedValue) : "—"}
+          </p>
+          {cf.lastSalePrice != null && (
+            <p className="text-[10px] text-muted-foreground mt-1 relative z-10">Last sale: {formatCurrency(cf.lastSalePrice)}{cf.lastSaleDate ? ` (${new Date(cf.lastSaleDate).toLocaleDateString()})` : ""}</p>
+          )}
+          {cf.ownerFlags?.last_enriched && (
+            <p className="text-[9px] text-muted-foreground/40 relative z-10">Updated {new Date(cf.ownerFlags.last_enriched as string).toLocaleDateString()}</p>
+          )}
+        </div>
+      </div>
+
+      {/* ── Owner & Contact — Best Phone + Confidence ── */}
+      <div className="rounded-[12px] border border-glass-border bg-secondary/10 p-4">
+        <div className="flex items-center gap-2 mb-3">
+          <User className="h-3.5 w-3.5 text-muted-foreground" />
+          <p className="text-[11px] text-muted-foreground uppercase tracking-wider font-semibold">Owner & Contact</p>
+        </div>
+
+        <div className="flex items-center gap-3 mb-3">
+          <p className="text-sm font-semibold text-foreground">{cf.ownerName || "—"}</p>
+          <RelationshipBadge data={{
+            ownerAgeInference: cf.prediction?.ownerAgeInference,
+            lifeEventProbability: cf.prediction?.lifeEventProbability,
+            tags: cf.tags,
+            bestAddress: cf.fullAddress,
+          }} />
+        </div>
+
+        {bestPhone ? (
+          <div className="rounded-[10px] border border-cyan/20 bg-cyan/[0.04] p-3 mb-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2.5">
+                <div className="h-8 w-8 rounded-[10px] bg-cyan/10 flex items-center justify-center">
+                  <Phone className="h-4 w-4 text-cyan" />
+                </div>
+                <div>
+                  <p className="text-[9px] text-cyan/60 uppercase tracking-widest">Best Phone</p>
+                  <a href={`tel:${bestPhone.replace(/\D/g, "")}`} className="text-lg font-bold font-mono text-cyan hover:underline"
+                    style={{ textShadow: "0 0 10px rgba(0,212,255,0.3)" }}>
+                    {bestPhone}
+                  </a>
+                </div>
+              </div>
+              {phoneConfidence != null && (
+                <div className="text-right">
+                  <p className="text-[9px] text-muted-foreground/50 uppercase tracking-widest">Confidence</p>
+                  <p className={cn("text-lg font-bold font-mono", phoneConfidence >= 80 ? "text-emerald-400" : "text-amber-400")}>
+                    {phoneConfidence}%
+                  </p>
+                </div>
+              )}
+            </div>
+            {allPhones.length > 1 && (
+              <div className="mt-2 pt-2 border-t border-cyan/10 flex flex-wrap gap-2">
+                {allPhones.slice(1).map((ph: string, i: number) => (
+                  <a key={i} href={`tel:${ph.replace(/\D/g, "")}`} className="text-xs font-mono text-muted-foreground hover:text-cyan transition-colors">{ph}</a>
+                ))}
+              </div>
+            )}
+          </div>
+        ) : (
+          <button
+            onClick={onSkipTrace}
+            disabled={skipTracing}
+            className="w-full rounded-[10px] border border-dashed border-cyan/30 bg-cyan/[0.03] p-4 mb-3
+              hover:bg-cyan/[0.08] hover:border-cyan/50 transition-all group cursor-pointer"
+          >
+            <div className="flex items-center justify-center gap-2.5">
+              {skipTracing ? <Loader2 className="h-5 w-5 text-cyan animate-spin" /> : <Crosshair className="h-5 w-5 text-cyan/60 group-hover:text-cyan transition-colors" />}
+              <span className="text-sm font-semibold text-cyan/70 group-hover:text-cyan transition-colors">
+                {skipTracing ? "Enriching…" : "Enrich to Unlock Phone"}
+              </span>
+            </div>
+          </button>
+        )}
+
+        {allEmails.length > 0 ? (
+          <div className="space-y-1">
+            <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Emails ({allEmails.length})</p>
+            {allEmails.map((em: string, i: number) => (
+              <div key={i} className="flex items-center gap-2 text-sm">
+                <Mail className="h-3 w-3 text-cyan/60" />
+                <a href={`mailto:${em}`} className="text-cyan hover:underline">{em}</a>
+                {i === 0 && <Badge variant="outline" className="text-[8px] py-0">PRIMARY</Badge>}
+              </div>
+            ))}
+          </div>
+        ) : displayEmail ? (
+          <InfoRow icon={Mail} label="Email" value={displayEmail} highlight />
+        ) : null}
+
+        {persons.length > 0 && (
+          <div className="mt-3 space-y-2">
+            <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Associated Persons</p>
+            {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
+            {persons.map((p: any, i: number) => (
+              <div key={i} className="rounded-md border border-white/[0.06] bg-white/[0.04] p-2.5 text-xs space-y-0.5">
+                <div className="flex items-center gap-2">
+                  <User className="h-3 w-3 text-muted-foreground" />
+                  <span className="font-semibold text-foreground">{p.name}</span>
+                  <span className="text-muted-foreground">({p.relation})</span>
+                  {p.age && <span className="text-muted-foreground">Age {p.age}</span>}
+                </div>
+                {p.phones?.length > 0 && <div className="pl-5 text-muted-foreground">Phones: {p.phones.join(", ")}</div>}
+                {p.emails?.length > 0 && <div className="pl-5 text-muted-foreground">Emails: {p.emails.join(", ")}</div>}
+              </div>
+            ))}
+          </div>
+        )}
+
+        {skipTraceResult && !skipTraceError && (
+          <div className={cn("mt-2 text-xs px-3 py-2 rounded-md border", skipTraceResult.startsWith("Found") ? "text-cyan bg-cyan/4 border-cyan/15" : "text-red-400 bg-red-500/5 border-red-500/20")}>
+            <div className="flex items-center justify-between gap-2">
+              <span>{skipTraceResult}</span>
+              {skipTraceMs != null && (
+                <span className={cn("font-mono text-[10px] shrink-0 px-1.5 py-0.5 rounded", skipTraceMs <= 2000 ? "text-cyan bg-cyan/8" : "text-amber-400 bg-amber-500/10")}>
+                  {(skipTraceMs / 1000).toFixed(2)}s
+                </span>
+              )}
+            </div>
+          </div>
+        )}
+
+        {skipTraceError && (
+          <div className="mt-2 rounded-[10px] border border-red-500/20 bg-red-500/5 p-3 space-y-2">
+            <div className="flex items-start gap-2">
+              <AlertTriangle className="h-4 w-4 text-red-400 shrink-0 mt-0.5" />
+              <div className="flex-1 min-w-0 space-y-1">
+                <p className="text-xs font-semibold text-red-400">{skipTraceError.error}</p>
+                {skipTraceError.reason && <p className="text-[11px] text-red-300/80">{skipTraceError.reason}</p>}
+                {skipTraceError.address_issues && skipTraceError.address_issues.length > 0 && (
+                  <div className="space-y-0.5">
+                    {skipTraceError.address_issues.map((issue, i) => (
+                      <p key={i} className="text-[10px] text-amber-400/80 flex items-center gap-1">
+                        <span className="text-amber-400">&#9679;</span>{issue}
+                      </p>
+                    ))}
+                  </div>
+                )}
+                {skipTraceError.suggestion && <p className="text-[11px] text-cyan/70 italic">{skipTraceError.suggestion}</p>}
+                {skipTraceError.tier_reached && <p className="text-[10px] text-muted-foreground/50 font-mono">Lookup stopped at: {skipTraceError.tier_reached}</p>}
+              </div>
+              {skipTraceMs != null && (
+                <span className="font-mono text-[10px] shrink-0 px-1.5 py-0.5 rounded text-red-400 bg-red-500/10">
+                  {(skipTraceMs / 1000).toFixed(2)}s
+                </span>
+              )}
+            </div>
+            <Button
+              size="sm"
+              onClick={onManualSkipTrace}
+              disabled={skipTracing}
+              className="w-full gap-2 bg-amber-600 hover:bg-amber-500 text-white border-0 shadow-[0_0_14px_rgba(245,158,11,0.25)] hover:shadow-[0_0_22px_rgba(245,158,11,0.4)] transition-all"
+            >
+              {skipTracing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Zap className="h-3.5 w-3.5" />}
+              Manual Skip Trace — Force Partial Lookup
+            </Button>
+          </div>
+        )}
+      </div>
+
+      {/* ── Pre-Call Brief — Grok AI Glass Card ── */}
+      <div className="rounded-[12px] border border-purple-500/20 bg-purple-500/[0.04] p-4 relative overflow-hidden">
+        <div className="absolute inset-0 bg-gradient-to-br from-purple-500/[0.06] via-transparent to-cyan/[0.03] pointer-events-none" />
+        <div className="absolute top-0 inset-x-0 h-[1px] bg-gradient-to-r from-transparent via-purple-400/40 to-transparent" />
+
+        <div className="flex items-center gap-2 mb-3 relative z-10">
+          <div className="h-7 w-7 rounded-[8px] bg-purple-500/15 flex items-center justify-center">
+            <Brain className="h-3.5 w-3.5 text-purple-400" />
+          </div>
+          <p className="text-[11px] text-purple-300 uppercase tracking-wider font-semibold">Pre-Call Brief</p>
+          <Badge variant="outline" className="text-[8px] border-purple-500/20 text-purple-400/60 ml-1">GROK AI</Badge>
+          {briefLoading && <Loader2 className="h-3 w-3 text-purple-400 animate-spin ml-auto" />}
+        </div>
+
+        <div className="relative z-10 space-y-2">
+          {brief ? (
+            <>
+              <div className="space-y-1.5">
+                {brief.bullets.map((bullet, i) => (
+                  <div key={i} className="flex items-start gap-2 text-xs">
+                    <span className="text-purple-400 mt-0.5 shrink-0">&#9670;</span>
+                    <p className="text-foreground/90 leading-relaxed">{bullet}</p>
+                  </div>
+                ))}
+              </div>
+              {brief.suggestedOpener && (
+                <div className="mt-3 pt-3 border-t border-purple-500/10">
+                  <p className="text-[9px] text-purple-400/50 uppercase tracking-widest mb-1">Suggested Opener</p>
+                  <p className="text-xs text-foreground/80 italic leading-relaxed">&ldquo;{brief.suggestedOpener}&rdquo;</p>
+                </div>
+              )}
+            </>
+          ) : briefLoading ? (
+            <div className="flex items-center justify-center py-4 gap-2">
+              <Loader2 className="h-4 w-4 text-purple-400 animate-spin" />
+              <span className="text-xs text-purple-300/60">Generating brief…</span>
+            </div>
+          ) : (
+            <p className="text-[11px] text-muted-foreground/40 italic py-2">Grok AI brief will generate automatically when available</p>
+          )}
+        </div>
+      </div>
+
       {/* ── Call History Summary — 7-Day Power Sequence ── */}
       {(cf.totalCalls > 0 || cf.nextCallScheduledAt) && (
         <div className="rounded-[12px] border border-white/[0.06] bg-white/[0.02] p-4 space-y-3">
@@ -1003,7 +1278,6 @@ function OverviewTab({ cf, skipTracing, skipTraceResult, skipTraceMs, overlay, s
             <span className="text-[10px] text-cyan/60 ml-auto font-medium">{getSequenceLabel(cf.callSequenceStep)}</span>
           </div>
 
-          {/* Progress bar */}
           <div className="relative h-1.5 rounded-full bg-white/[0.06] overflow-hidden">
             <div
               className="absolute inset-y-0 left-0 rounded-full transition-all duration-500"
@@ -1015,7 +1289,6 @@ function OverviewTab({ cf, skipTracing, skipTraceResult, skipTraceMs, overlay, s
             />
           </div>
 
-          {/* Stats grid */}
           <div className="grid grid-cols-3 gap-2">
             <div className="rounded-[10px] border border-white/[0.06] bg-white/[0.03] p-2.5 text-center">
               <Phone className="h-3 w-3 text-cyan mx-auto mb-1" />
@@ -1034,7 +1307,6 @@ function OverviewTab({ cf, skipTracing, skipTraceResult, skipTraceMs, overlay, s
             </div>
           </div>
 
-          {/* Last / Next call */}
           <div className="flex items-center gap-3">
             {cf.lastContactAt && (
               <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground/60">
@@ -1100,7 +1372,7 @@ function OverviewTab({ cf, skipTracing, skipTraceResult, skipTraceMs, overlay, s
         </div>
       )}
 
-      {/* ── Property Details — High-Density Wholesaler Grid ── */}
+      {/* ── Property Details — Compact Grid ── */}
       <div className="rounded-[12px] border border-white/[0.06] bg-white/[0.02] p-4 space-y-3">
         <div className="flex items-center gap-2 mb-1">
           <Home className="h-3.5 w-3.5 text-muted-foreground" />
@@ -1108,7 +1380,6 @@ function OverviewTab({ cf, skipTracing, skipTraceResult, skipTraceMs, overlay, s
         </div>
 
         <div className="grid grid-cols-2 gap-2.5">
-          {/* 1. Full Address + County */}
           <div className="rounded-[10px] border border-white/[0.06] bg-white/[0.03] p-2.5 col-span-2">
             <div className="flex items-start gap-2">
               <MapPin className="h-3.5 w-3.5 text-cyan/60 mt-0.5 shrink-0" />
@@ -1123,7 +1394,6 @@ function OverviewTab({ cf, skipTracing, skipTraceResult, skipTraceMs, overlay, s
             </div>
           </div>
 
-          {/* 2. APN */}
           <div className="rounded-[10px] border border-white/[0.06] bg-white/[0.03] p-2.5">
             <div className="flex items-start gap-2">
               <LandPlot className="h-3.5 w-3.5 text-cyan/60 mt-0.5 shrink-0" />
@@ -1137,7 +1407,6 @@ function OverviewTab({ cf, skipTracing, skipTraceResult, skipTraceMs, overlay, s
             </div>
           </div>
 
-          {/* 3. Property Type + Beds/Baths/SqFt */}
           <div className="rounded-[10px] border border-white/[0.06] bg-white/[0.03] p-2.5">
             <div className="flex items-start gap-2">
               <Building className="h-3.5 w-3.5 text-cyan/60 mt-0.5 shrink-0" />
@@ -1152,56 +1421,7 @@ function OverviewTab({ cf, skipTracing, skipTraceResult, skipTraceMs, overlay, s
             </div>
           </div>
 
-          {/* 4. Owner Name + Relationship Badge */}
-          <div className="rounded-[10px] border border-white/[0.06] bg-white/[0.03] p-2.5">
-            <div className="flex items-start gap-2">
-              <User className="h-3.5 w-3.5 text-cyan/60 mt-0.5 shrink-0" />
-              <div className="flex-1 min-w-0">
-                <p className="text-[9px] text-muted-foreground/60 uppercase tracking-widest mb-0.5">Owner</p>
-                <p className="text-sm font-semibold text-foreground truncate">{cf.ownerName || "—"}</p>
-                <div className="mt-1">
-                  <RelationshipBadge data={{
-                    ownerAgeInference: cf.prediction?.ownerAgeInference,
-                    lifeEventProbability: cf.prediction?.lifeEventProbability,
-                    tags: cf.tags,
-                    bestAddress: cf.fullAddress,
-                  }} />
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* 5. Equity % + Estimated Value */}
-          <div className="rounded-[10px] border border-white/[0.06] bg-white/[0.03] p-2.5">
-            <div className="flex items-start gap-2">
-              <TrendingUp className="h-3.5 w-3.5 text-cyan/60 mt-0.5 shrink-0" />
-              <div className="flex-1 min-w-0">
-                <p className="text-[9px] text-muted-foreground/60 uppercase tracking-widest mb-0.5">Equity</p>
-                <p className="text-lg font-bold" style={{ color: (cf.equityPercent ?? 0) >= 40 ? "rgb(0,212,255)" : undefined, textShadow: (cf.equityPercent ?? 0) >= 40 ? "0 0 10px rgba(0,212,255,0.3)" : undefined }}>
-                  {cf.equityPercent != null ? `${cf.equityPercent}%` : "—"}
-                </p>
-                {cf.availableEquity != null && <p className="text-[10px] text-muted-foreground">{formatCurrency(cf.availableEquity)} available</p>}
-                {cf.totalLoanBalance != null && <p className="text-[10px] text-muted-foreground/60">Loans: {formatCurrency(cf.totalLoanBalance)}</p>}
-              </div>
-            </div>
-          </div>
-
-          {/* 6. AVM / ARV */}
-          <div className="rounded-[10px] border border-white/[0.06] bg-white/[0.03] p-2.5">
-            <div className="flex items-start gap-2">
-              <DollarSign className="h-3.5 w-3.5 text-cyan/60 mt-0.5 shrink-0" />
-              <div className="flex-1 min-w-0">
-                <p className="text-[9px] text-muted-foreground/60 uppercase tracking-widest mb-0.5">AVM / ARV</p>
-                <p className="text-lg font-bold" style={{ color: cf.estimatedValue ? "rgb(0,212,255)" : undefined, textShadow: cf.estimatedValue ? "0 0 10px rgba(0,212,255,0.3)" : undefined }}>
-                  {cf.estimatedValue ? formatCurrency(cf.estimatedValue) : "—"}
-                </p>
-                {cf.lastSalePrice != null && <p className="text-[10px] text-muted-foreground">Last sale: {formatCurrency(cf.lastSalePrice)}{cf.lastSaleDate ? ` (${new Date(cf.lastSaleDate).toLocaleDateString()})` : ""}</p>}
-                {cf.ownerFlags?.last_enriched ? <p className="text-[9px] text-muted-foreground/40 mt-0.5">Updated {new Date(cf.ownerFlags.last_enriched as string).toLocaleDateString()}</p> : null}
-              </div>
-            </div>
-          </div>
-
-          {/* 7. Distress Signals with point values */}
+          {/* Distress Signals */}
           <div className="rounded-[10px] border border-white/[0.06] bg-white/[0.03] p-2.5 col-span-2">
             <div className="flex items-start gap-2">
               <AlertTriangle className="h-3.5 w-3.5 text-orange-400/70 mt-0.5 shrink-0" />
@@ -1234,7 +1454,7 @@ function OverviewTab({ cf, skipTracing, skipTraceResult, skipTraceMs, overlay, s
             </div>
           </div>
 
-          {/* 8. Predictive Days Until Distress + Contact Probability */}
+          {/* Predictive Intelligence */}
           <div className="rounded-[10px] border border-white/[0.06] bg-white/[0.03] p-2.5 col-span-2">
             <div className="flex items-start gap-2">
               <Zap className="h-3.5 w-3.5 text-purple-400/70 mt-0.5 shrink-0" />
@@ -1274,165 +1494,6 @@ function OverviewTab({ cf, skipTracing, skipTraceResult, skipTraceMs, overlay, s
           </div>
         </div>
       </div>
-
-      {/* Owner & Contact */}
-      <Section title="Owner & Contact" icon={User}>
-        <InfoRow icon={User} label="Owner" value={cf.ownerName} />
-        {allPhones.length > 0 ? (
-          <div className="mt-2 space-y-1">
-            <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Phone Numbers ({allPhones.length})</p>
-            {allPhones.map((ph: string, i: number) => (
-              <div key={i} className="flex items-center gap-2 text-sm">
-                <Phone className="h-3 w-3 text-cyan/60" />
-                <a href={`tel:${ph.replace(/\D/g, "")}`} className="font-mono text-cyan hover:underline">{ph}</a>
-                {i === 0 && <Badge variant="outline" className="text-[8px] py-0">PRIMARY</Badge>}
-              </div>
-            ))}
-          </div>
-        ) : displayPhone ? (
-          <InfoRow icon={Phone} label="Phone" value={displayPhone} highlight />
-        ) : null}
-
-        {allEmails.length > 0 ? (
-          <div className="mt-2 space-y-1">
-            <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Emails ({allEmails.length})</p>
-            {allEmails.map((em: string, i: number) => (
-              <div key={i} className="flex items-center gap-2 text-sm">
-                <Mail className="h-3 w-3 text-cyan/60" />
-                <a href={`mailto:${em}`} className="text-cyan hover:underline">{em}</a>
-                {i === 0 && <Badge variant="outline" className="text-[8px] py-0">PRIMARY</Badge>}
-              </div>
-            ))}
-          </div>
-        ) : displayEmail ? (
-          <InfoRow icon={Mail} label="Email" value={displayEmail} highlight />
-        ) : null}
-
-        {persons.length > 0 && (
-          <div className="mt-3 space-y-2">
-            <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Associated Persons</p>
-            {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
-            {persons.map((p: any, i: number) => (
-              <div key={i} className="rounded-md border border-white/[0.06] bg-white/[0.04] p-2.5 text-xs space-y-0.5">
-                <div className="flex items-center gap-2">
-                  <User className="h-3 w-3 text-muted-foreground" />
-                  <span className="font-semibold text-foreground">{p.name}</span>
-                  <span className="text-muted-foreground">({p.relation})</span>
-                  {p.age && <span className="text-muted-foreground">Age {p.age}</span>}
-                </div>
-                {p.phones?.length > 0 && <div className="pl-5 text-muted-foreground">Phones: {p.phones.join(", ")}</div>}
-                {p.emails?.length > 0 && <div className="pl-5 text-muted-foreground">Emails: {p.emails.join(", ")}</div>}
-              </div>
-            ))}
-          </div>
-        )}
-
-        {!displayPhone && !displayEmail && !skipTraced && (
-          <div className="mt-3 rounded-[10px] border border-amber-500/20 bg-amber-500/5 p-3 space-y-2">
-            <div className="flex items-center gap-2 text-xs text-amber-300">
-              <Search className="h-4 w-4 text-amber-400" />
-              <span className="font-semibold">No phone numbers or emails found yet</span>
-            </div>
-            <p className="text-[11px] text-muted-foreground">
-              Click below to pull owner contact info from PropertyRadar &mdash; typically returns 3-5 phone numbers and emails.
-            </p>
-            <Button
-              size="sm"
-              onClick={onSkipTrace}
-              disabled={skipTracing}
-              className="w-full gap-2 bg-neon/90 hover:bg-neon text-black font-bold border-0 shadow-[0_0_18px_rgba(0,255,136,0.3)] hover:shadow-[0_0_28px_rgba(0,255,136,0.5)] transition-all"
-            >
-              {skipTracing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
-              {skipTracing ? "Pulling contact data..." : cf.enriched ? "Skip Trace — Get Phone Numbers" : "Enrich + Skip Trace — Get Phone Numbers"}
-            </Button>
-          </div>
-        )}
-
-        {!cf.enriched && displayPhone && (
-          <div className="flex items-center gap-2 py-2 text-xs text-muted-foreground bg-blue-500/5 border border-blue-500/10 rounded-md px-3 mt-2">
-            <Zap className="h-3.5 w-3.5 text-blue-400" />
-            Not enriched &mdash; Skip Trace will auto-pull property data, scoring, and contact info
-          </div>
-        )}
-
-        {skipTraceResult && !skipTraceError && (
-          <div className={cn("mt-2 text-xs px-3 py-2 rounded-md border", skipTraceResult.startsWith("Found") ? "text-cyan bg-cyan/4 border-cyan/15" : "text-red-400 bg-red-500/5 border-red-500/20")}>
-            <div className="flex items-center justify-between gap-2">
-              <span>{skipTraceResult}</span>
-              {skipTraceMs != null && (
-                <span className={cn("font-mono text-[10px] shrink-0 px-1.5 py-0.5 rounded", skipTraceMs <= 2000 ? "text-cyan bg-cyan/8" : "text-amber-400 bg-amber-500/10")}>
-                  {(skipTraceMs / 1000).toFixed(2)}s
-                </span>
-              )}
-            </div>
-          </div>
-        )}
-
-        {skipTraceError && (
-          <div className="mt-2 rounded-[10px] border border-red-500/20 bg-red-500/5 p-3 space-y-2">
-            <div className="flex items-start gap-2">
-              <AlertTriangle className="h-4 w-4 text-red-400 shrink-0 mt-0.5" />
-              <div className="flex-1 min-w-0 space-y-1">
-                <p className="text-xs font-semibold text-red-400">{skipTraceError.error}</p>
-                {skipTraceError.reason && (
-                  <p className="text-[11px] text-red-300/80">{skipTraceError.reason}</p>
-                )}
-                {skipTraceError.address_issues && skipTraceError.address_issues.length > 0 && (
-                  <div className="space-y-0.5">
-                    {skipTraceError.address_issues.map((issue, i) => (
-                      <p key={i} className="text-[10px] text-amber-400/80 flex items-center gap-1">
-                        <span className="text-amber-400">&#9679;</span>{issue}
-                      </p>
-                    ))}
-                  </div>
-                )}
-                {skipTraceError.suggestion && (
-                  <p className="text-[11px] text-cyan/70 italic">{skipTraceError.suggestion}</p>
-                )}
-                {skipTraceError.tier_reached && (
-                  <p className="text-[10px] text-muted-foreground/50 font-mono">Lookup stopped at: {skipTraceError.tier_reached}</p>
-                )}
-              </div>
-              {skipTraceMs != null && (
-                <span className="font-mono text-[10px] shrink-0 px-1.5 py-0.5 rounded text-red-400 bg-red-500/10">
-                  {(skipTraceMs / 1000).toFixed(2)}s
-                </span>
-              )}
-            </div>
-            <Button
-              size="sm"
-              onClick={onManualSkipTrace}
-              disabled={skipTracing}
-              className="w-full gap-2 bg-amber-600 hover:bg-amber-500 text-white border-0 shadow-[0_0_14px_rgba(245,158,11,0.25)] hover:shadow-[0_0_22px_rgba(245,158,11,0.4)] transition-all"
-            >
-              {skipTracing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Zap className="h-3.5 w-3.5" />}
-              Manual Skip Trace — Force Partial Lookup
-            </Button>
-          </div>
-        )}
-
-        <div className="flex items-center gap-2 mt-3">
-          <Button size="sm" variant="outline" className={cn("gap-2 flex-1", skipTracing && "opacity-70 pointer-events-none")} onClick={onSkipTrace} disabled={skipTracing}>
-            {skipTracing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Search className="h-3.5 w-3.5" />}
-            {skipTracing ? "Pulling data..." : skipTraced ? "Re-Trace" : cf.enriched ? "Skip Trace" : "Enrich + Skip Trace"}
-          </Button>
-        </div>
-      </Section>
-
-      {/* AI Scoring Factors */}
-      {Array.isArray(cf.factors) && cf.factors.length > 0 && (
-        <Section title="AI Scoring Breakdown" icon={Zap}>
-          <div className="space-y-1">
-            {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
-            {(cf.factors as any[]).map((f, i) => (
-              <div key={i} className="flex items-center justify-between text-xs">
-                <span className="text-muted-foreground">{f.name}</span>
-                <span className="font-mono text-foreground">+{f.contribution}</span>
-              </div>
-            ))}
-          </div>
-        </Section>
-      )}
 
       {/* Metadata */}
       <Section title="Metadata" icon={Eye}>
