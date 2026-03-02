@@ -6,8 +6,10 @@ import {
   detectAgentIntent,
   buildOptimizationAgentPrompt,
   buildForecastingAgentPrompt,
+  buildTroubleshootAgentPrompt,
   type PipelineMetrics,
 } from "@/lib/agent/grok-agents";
+import { runDiagnostics } from "@/lib/diagnostics";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -87,6 +89,16 @@ export async function POST(req: NextRequest) {
         case "outreach":
           systemPrompt += "\n\n## Agent Mode: OUTREACH SPECIALIST\nThe user wants to draft outreach. Help them create personalized SMS or email text. Follow compliance rules strictly.";
           break;
+        case "troubleshoot": {
+          try {
+            const diagnostics = await runDiagnostics(50);
+            systemPrompt += buildTroubleshootAgentPrompt(diagnostics);
+          } catch (diagErr) {
+            console.error("[Grok Chat] Diagnostics failed:", diagErr);
+            systemPrompt += "\n\n## Agent Mode: SYSTEM TROUBLESHOOTER\nDiagnostic scan failed. Inform the user and suggest checking /api/grok/troubleshoot directly.";
+          }
+          break;
+        }
       }
     }
   }
