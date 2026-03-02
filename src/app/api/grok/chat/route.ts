@@ -1,6 +1,13 @@
 import { NextRequest } from "next/server";
 import { createServerClient } from "@/lib/supabase";
 import { streamGrokChat, buildSentinelSystemPrompt, type GrokMessage } from "@/lib/grok-client";
+import { buildFullContext } from "@/lib/grok-memory";
+import {
+  detectAgentIntent,
+  buildOptimizationAgentPrompt,
+  buildForecastingAgentPrompt,
+  type PipelineMetrics,
+} from "@/lib/agent/grok-agents";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -52,23 +59,37 @@ export async function POST(req: NextRequest) {
     });
   }
 
-  // Fetch live metrics for the system prompt
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { count: activeLeads } = await (sb.from("leads") as any)
-    .select("id", { count: "exact", head: true })
-    .in("status", ["prospect", "lead", "negotiation"]);
+  const ctx = await buildFullContext(user.id);
 
-  const thirtyDaysAgo = new Date(Date.now() - 30 * 86400000).toISOString();
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { count: closedDeals } = await (sb.from("leads") as any)
-    .select("id", { count: "exact", head: true })
-    .eq("status", "closed")
-    .gte("updated_at", thirtyDaysAgo);
+  let systemPrompt = buildSentinelSystemPrompt(ctx);
 
-  const systemPrompt = buildSentinelSystemPrompt({
-    activeLeads: activeLeads ?? 0,
-    closedDeals30d: closedDeals ?? 0,
-  });
+  const lastUserMsg = [...body.messages].reverse().find((m) => m.role === "user");
+  if (lastUserMsg) {
+    const intent = detectAgentIntent(lastUserMsg.content);
+    if (intent) {
+      const pm: PipelineMetrics = {
+        pipelineByStage: ctx.pipelineByStage,
+        closedDeals30d: ctx.closedDeals30d,
+        leadsPerDayLast7d: ctx.leadsPerDayLast7d,
+        todayCalls: ctx.todayCalls,
+      };
+
+      switch (intent) {
+        case "optimization":
+          systemPrompt += buildOptimizationAgentPrompt(pm);
+          break;
+        case "forecasting":
+          systemPrompt += buildForecastingAgentPrompt(pm);
+          break;
+        case "call-copilot":
+          systemPrompt += "\n\n## Agent Mode: CALL CO-PILOT\nThe user wants help with a call. Provide pre-call guidance, objection handlers, and script suggestions based on the lead data in context.";
+          break;
+        case "outreach":
+          systemPrompt += "\n\n## Agent Mode: OUTREACH SPECIALIST\nThe user wants to draft outreach. Help them create personalized SMS or email text. Follow compliance rules strictly.";
+          break;
+      }
+    }
+  }
 
   const messages: GrokMessage[] = [
     { role: "system", content: systemPrompt },

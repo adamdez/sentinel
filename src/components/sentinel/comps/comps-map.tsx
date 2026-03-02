@@ -12,6 +12,7 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn, formatCurrency } from "@/lib/utils";
 import { toast } from "sonner";
+import { supabase } from "@/lib/supabase";
 import dynamic from "next/dynamic";
 import type { Map as LMap } from "leaflet";
 
@@ -227,9 +228,16 @@ export function CompsMap({ subject, selectedComps, onAddComp, onRemoveComp }: Co
     const cached = getCached(key);
     if (cached) return cached;
 
+    // Get auth token for the API call
+    const { data: { session } } = await supabase.auth.getSession();
+    const fetchHeaders: Record<string, string> = { "Content-Type": "application/json" };
+    if (session?.access_token) {
+      fetchHeaders["Authorization"] = `Bearer ${session.access_token}`;
+    }
+
     const res = await fetch("/api/comps/search", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: fetchHeaders,
       body: JSON.stringify({
         lat: subject.lat,
         lng: subject.lng,
@@ -243,6 +251,13 @@ export function CompsMap({ subject, selectedComps, onAddComp, onRemoveComp }: Co
       }),
     });
     const data = await res.json();
+
+    if (!res.ok) {
+      console.error("[CompsMap] API error:", res.status, data.error ?? data);
+      toast.error(`Comps search failed: ${data.error ?? `HTTP ${res.status}`}`);
+      return [];
+    }
+
     if (data.success) {
       const results = (data.comps as CompProperty[]).filter((c) => c.lat != null && c.lng != null);
       setCache(key, results);
@@ -272,6 +287,7 @@ export function CompsMap({ subject, selectedComps, onAddComp, onRemoveComp }: Co
       setComps(results);
     } catch (err) {
       console.error("[CompsMap] Fetch error:", err);
+      toast.error("Failed to search for comparable properties");
     } finally {
       if (thisId === fetchIdRef.current) setLoading(false);
     }

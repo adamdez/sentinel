@@ -10,6 +10,7 @@ import {
   DollarSign,
   MessageCircle,
   PhoneCall,
+  Brain,
   type LucideIcon,
 } from "lucide-react";
 
@@ -24,7 +25,8 @@ export type WidgetId =
   | "active-drips"
   | "revenue-impact"
   | "team-chat-preview"
-  | "quick-dial";
+  | "quick-dial"
+  | "grok-insights";
 
 export type WidgetSize = "1x1" | "2x1" | "1x2" | "2x2";
 
@@ -149,6 +151,15 @@ export const WIDGET_REGISTRY: Record<WidgetId, WidgetDefinition> = {
     minSize: "1x1",
     category: "workflow",
   },
+  "grok-insights": {
+    id: "grok-insights",
+    label: "Grok Insights",
+    description: "AI-powered proactive insights and recommendations from Grok",
+    icon: Brain,
+    defaultSize: "2x1",
+    minSize: "1x1",
+    category: "intelligence",
+  },
 };
 
 export const MAX_DASHBOARD_TILES = 6;
@@ -160,7 +171,7 @@ export const DEFAULT_LAYOUT: DashboardLayout = {
     { widgetId: "next-best-action", size: "1x1", order: 2 },
     { widgetId: "quick-dial", size: "1x1", order: 3 },
     { widgetId: "funnel-value", size: "2x1", order: 4 },
-    { widgetId: "activity-feed", size: "1x1", order: 5 },
+    { widgetId: "grok-insights", size: "2x1", order: 5 },
   ],
   updatedAt: new Date().toISOString(),
 };

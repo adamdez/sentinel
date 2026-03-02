@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@/lib/supabase";
 import { computeScore, SCORING_MODEL_VERSION, type ScoringInput } from "@/lib/scoring";
 import type { DistressType, LeadStatus } from "@/lib/types";
-import { validateStatusTransition, incrementLockVersion } from "@/lib/lead-guardrails";
+import { validateStatusTransition, getAllowedTransitions, incrementLockVersion } from "@/lib/lead-guardrails";
 import { scrubLead } from "@/lib/compliance";
 import { distressFingerprint, normalizeCounty as globalNormalizeCounty, isDuplicateError } from "@/lib/dedup";
 
@@ -133,8 +133,12 @@ export async function PATCH(req: NextRequest) {
     }
 
     if (status && !validateStatusTransition(currentLead.status as LeadStatus, status as LeadStatus)) {
+      const allowed = getAllowedTransitions(currentLead.status as LeadStatus);
       return NextResponse.json(
-        { error: "Invalid transition", detail: `Cannot move from "${currentLead.status}" to "${status}"` },
+        {
+          error: "Invalid transition",
+          detail: `Cannot move from "${currentLead.status}" to "${status}". Allowed: ${allowed.length > 0 ? allowed.join(", ") : "none (terminal state)"}`,
+        },
         { status: 422 }
       );
     }

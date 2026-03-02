@@ -15,13 +15,11 @@
 import type { LeadStatus } from "@/lib/types";
 
 const ALLOWED_TRANSITIONS: Record<LeadStatus, ReadonlyArray<LeadStatus>> = {
-  prospect: ["lead", "nurture", "dead"],
+  prospect: ["lead", "negotiation", "nurture", "dead"],
   lead: ["negotiation", "nurture", "dead"],
   negotiation: ["disposition", "nurture", "dead"],
   disposition: ["closed", "nurture", "dead"],
   nurture: ["lead", "dead"],
-  // v2.1: Dead leads can be resurrected to nurture when new distress
-  // signals appear — keeps the funnel alive for drip campaigns.
   dead: ["nurture"],
   closed: [],
 };
@@ -36,8 +34,19 @@ export function validateStatusTransition(
   next: LeadStatus
 ): boolean {
   const allowed = ALLOWED_TRANSITIONS[current];
-  if (!allowed) return false;
-  return allowed.includes(next);
+  if (!allowed) {
+    console.warn(`[Guardrail] Attempted ${current} → ${next} — no transitions defined for "${current}"`);
+    return false;
+  }
+  const valid = allowed.includes(next);
+  if (!valid) {
+    console.warn(`[Guardrail] Attempted ${current} → ${next} — allowed: [${allowed.join(", ")}]`);
+  }
+  return valid;
+}
+
+export function getAllowedTransitions(status: LeadStatus): ReadonlyArray<LeadStatus> {
+  return ALLOWED_TRANSITIONS[status] ?? [];
 }
 
 /**

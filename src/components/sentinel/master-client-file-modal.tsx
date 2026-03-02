@@ -23,6 +23,8 @@ import { CompsMap, type CompProperty, type SubjectProperty } from "@/components/
 import { PredictiveDistressBadge, type PredictiveDistressData } from "@/components/sentinel/predictive-distress-badge";
 import { RelationshipBadge } from "@/components/sentinel/relationship-badge";
 import { NumericInput } from "@/components/sentinel/numeric-input";
+import { supabase } from "@/lib/supabase";
+import { toast } from "sonner";
 
 // ═══════════════════════════════════════════════════════════════════════
 // ClientFile — single unified shape for every funnel stage
@@ -2053,6 +2055,67 @@ export function MasterClientFileModal({ clientFile, open, onClose, onClaim, onRe
   const [skipTraceError, setSkipTraceError] = useState<SkipTraceError | null>(null);
   const [selectedComps, setSelectedComps] = useState<CompProperty[]>([]);
   const [editOpen, setEditOpen] = useState(false);
+  const [claiming, setClaiming] = useState(false);
+
+  const handleClaimLead = useCallback(async () => {
+    if (!clientFile) return;
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      toast.error("Not logged in — cannot claim");
+      return;
+    }
+
+    setClaiming(true);
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data: current, error: fetchErr } = await (supabase.from("leads") as any)
+        .select("status, lock_version")
+        .eq("id", clientFile.id)
+        .single();
+
+      if (fetchErr || !current) {
+        toast.error("Claim failed: Could not fetch lead status. Refresh and try again.");
+        return;
+      }
+
+      const res = await fetch("/api/prospects", {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          "x-lock-version": String(current.lock_version ?? 0),
+        },
+        body: JSON.stringify({
+          lead_id: clientFile.id,
+          status: "lead",
+          assigned_to: user.id,
+          actor_id: user.id,
+        }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        console.error("[MCF] Claim failed:", res.status, data);
+        if (res.status === 409) {
+          toast.error("Claim failed: Lead was already claimed by someone else. Refresh and try again.");
+        } else if (res.status === 422) {
+          toast.error(`Claim failed: ${data.detail ?? data.error ?? "Invalid transition"}`);
+        } else {
+          toast.error(`Claim failed: ${data.error ?? `HTTP ${res.status}`}`);
+        }
+        return;
+      }
+
+      toast.success("Lead claimed successfully");
+      onClaim?.(clientFile.id);
+      onRefresh?.();
+    } catch (err) {
+      console.error("[MCF] Claim error:", err);
+      toast.error("Claim failed: Network error. Check your connection and try again.");
+    } finally {
+      setClaiming(false);
+    }
+  }, [clientFile, onClaim, onRefresh]);
 
   const handleAddComp = useCallback((comp: CompProperty) => {
     setSelectedComps((prev) => prev.some((c) => c.apn === comp.apn) ? prev : [...prev, comp]);
@@ -2222,8 +2285,9 @@ export function MasterClientFileModal({ clientFile, open, onClose, onClaim, onRe
               {/* Footer */}
               <div className="shrink-0 flex items-center gap-3 px-6 py-3 border-t border-white/[0.06] bg-[rgba(4,4,12,0.88)] backdrop-blur-2xl rounded-b-[16px]">
                 {onClaim && (
-                  <Button size="sm" className="gap-2" onClick={() => onClaim(clientFile.id)}>
-                    <CheckCircle2 className="h-3.5 w-3.5" />Claim Lead
+                  <Button size="sm" className="gap-2" disabled={claiming} onClick={handleClaimLead}>
+                    {claiming ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <CheckCircle2 className="h-3.5 w-3.5" />}
+                    {claiming ? "Claiming…" : "Claim Lead"}
                   </Button>
                 )}
                 {displayPhone && (
