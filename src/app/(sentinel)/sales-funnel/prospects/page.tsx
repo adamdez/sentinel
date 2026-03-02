@@ -36,6 +36,21 @@ const DISTRESS_LABELS: Record<string, string> = {
   water_shutoff: "Water Shut-off", condemned: "Condemned",
 };
 
+const DISTRESS_COLORS: Record<string, { text: string; bg: string; border: string }> = {
+  probate: { text: "text-red-400", bg: "bg-red-500/10", border: "border-red-500/25" },
+  pre_foreclosure: { text: "text-orange-400", bg: "bg-orange-500/10", border: "border-orange-500/25" },
+  tax_lien: { text: "text-yellow-400", bg: "bg-yellow-500/10", border: "border-yellow-500/25" },
+  code_violation: { text: "text-pink-400", bg: "bg-pink-500/10", border: "border-pink-500/25" },
+  water_shutoff: { text: "text-blue-400", bg: "bg-blue-500/10", border: "border-blue-500/25" },
+  condemned: { text: "text-rose-500", bg: "bg-rose-500/10", border: "border-rose-500/25" },
+  vacant: { text: "text-emerald-400", bg: "bg-emerald-500/10", border: "border-emerald-500/25" },
+  divorce: { text: "text-purple-400", bg: "bg-purple-500/10", border: "border-purple-500/25" },
+  bankruptcy: { text: "text-red-500", bg: "bg-red-500/10", border: "border-red-500/25" },
+  inherited: { text: "text-amber-400", bg: "bg-amber-500/10", border: "border-amber-500/25" },
+  absentee: { text: "text-cyan-400", bg: "bg-cyan-500/10", border: "border-cyan-500/25" },
+  fsbo: { text: "text-blue-300", bg: "bg-blue-500/10", border: "border-blue-500/25" },
+};
+
 const SOURCE_FILTERS = [
   { value: "", label: "All Sources" },
   { value: "propertyradar", label: "PropertyRadar" },
@@ -69,10 +84,24 @@ function SourceBadge({ source }: { source: string }) {
       </span>
     );
   }
-  if (source.includes("scraper") || source.includes("api")) {
+  if (source.startsWith("csv:")) {
+    return (
+      <span className="text-[9px] px-1.5 py-0.5 rounded border font-semibold text-amber-400 bg-amber-500/10 border-amber-500/20">
+        CSV
+      </span>
+    );
+  }
+  if (source.includes("scraper") || source.includes("api") || source.includes("crawler")) {
     return (
       <span className="text-[9px] px-1.5 py-0.5 rounded border text-cyan-400 bg-cyan-500/10 border-cyan-500/20">
-        SCRAPER
+        CRAWLER
+      </span>
+    );
+  }
+  if (source.includes("attom")) {
+    return (
+      <span className="text-[9px] px-1.5 py-0.5 rounded border text-blue-400 bg-blue-500/10 border-blue-500/20">
+        ATTOM
       </span>
     );
   }
@@ -83,10 +112,28 @@ function SourceBadge({ source }: { source: string }) {
   );
 }
 
-function formatDistress(signals: string[]): string {
-  if (signals.length === 0) return "—";
-  return signals.slice(0, 3).map((s) => DISTRESS_LABELS[s] ?? s).join(" + ")
-    + (signals.length > 3 ? ` +${signals.length - 3}` : "");
+/** Color-coded distress signal pill */
+function SignalPill({ signal }: { signal: string }) {
+  // Filter out non-distress tags (like "score-silver")
+  const label = DISTRESS_LABELS[signal];
+  if (!label) return null;
+  const colors = DISTRESS_COLORS[signal] ?? { text: "text-muted-foreground", bg: "bg-white/[0.04]", border: "border-white/[0.08]" };
+  return (
+    <span className={cn("text-[9px] px-1.5 py-0.5 rounded border font-medium whitespace-nowrap", colors.text, colors.bg, colors.border)}>
+      {label}
+    </span>
+  );
+}
+
+/** Days-ago formatter */
+function timeAgo(dateStr: string | null): string {
+  if (!dateStr) return "";
+  const days = Math.round((Date.now() - new Date(dateStr).getTime()) / 86400000);
+  if (days <= 0) return "today";
+  if (days === 1) return "1d ago";
+  if (days < 30) return `${days}d ago`;
+  if (days < 365) return `${Math.round(days / 30)}mo ago`;
+  return `${Math.round(days / 365)}y ago`;
 }
 
 function buildAIScore(p: ProspectRow): AIScore {
@@ -452,12 +499,9 @@ export default function ProspectsPage() {
             <table className="w-full">
               <thead>
                 <tr className="border-b border-white/[0.06] bg-white/[0.02]">
-                  <th className="text-left p-3 text-xs font-medium text-muted-foreground">Property / Owner</th>
-                  <th className="text-left p-3 text-xs font-medium text-muted-foreground">APN</th>
-                  <th className="text-left p-3 text-xs font-medium text-muted-foreground">Source</th>
-                  <th className="text-left p-3 text-xs font-medium text-muted-foreground">Type</th>
-                  <th className="text-right p-3 text-xs font-medium text-muted-foreground">ARV</th>
-                  <th className="text-right p-3 text-xs font-medium text-muted-foreground">Equity %</th>
+                  <th className="text-left p-3 text-xs font-medium text-muted-foreground w-[300px]">Property</th>
+                  <th className="text-left p-3 text-xs font-medium text-muted-foreground">Distress Signals</th>
+                  <th className="text-right p-3 text-xs font-medium text-muted-foreground">ARV / Equity</th>
                   <th
                     className="text-left p-3 text-xs font-medium text-muted-foreground cursor-pointer hover:text-foreground transition-colors"
                     onClick={() => toggleSort("composite_score")}
@@ -467,154 +511,209 @@ export default function ProspectsPage() {
                       {sortField === "composite_score" && <SortIcon className="h-2.5 w-2.5 text-cyan" />}
                     </span>
                   </th>
+                  <th className="text-left p-3 text-xs font-medium text-muted-foreground">Intel</th>
                   <th className="text-right p-3 text-xs font-medium text-muted-foreground">Actions</th>
                 </tr>
               </thead>
               <tbody>
                 <AnimatePresence mode="popLayout">
-                  {filteredProspects.map((p, i) => (
-                    <motion.tr
-                      key={p.id}
-                      layout
-                      initial={{ opacity: 0, y: 4 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      exit={{ opacity: 0, x: -20 }}
-                      transition={{ delay: Math.min(i * 0.02, 0.5) }}
-                      onClick={() => openDetail(p)}
-                      className={cn(
-                        "border-b border-white/[0.06] hover:bg-white/[0.04] transition-colors cursor-pointer",
-                        p.source === "ranger_push" && "bg-purple-500/[0.02] hover:bg-purple-500/[0.05]",
-                        p.source === "propertyradar" && "bg-emerald-500/[0.02] hover:bg-emerald-500/[0.05]"
-                      )}
-                    >
-                      <td className="p-3">
-                        <div className="flex items-start gap-2">
-                          {/* Absentee indicator */}
-                          <div className="flex flex-col items-center gap-0.5 pt-0.5 shrink-0">
-                            {p.is_absentee && (
-                              <Home className="h-3 w-3 text-purple-400" />
-                            )}
-                          </div>
-                          <div className="min-w-0">
-                            <p
-                              className="text-sm font-semibold text-foreground"
-                              style={{
-                                WebkitFontSmoothing: "antialiased",
-                              }}
-                            >
-                              {p.address}{p.city ? `, ${p.city}` : ""} {p.state} {p.zip}
-                            </p>
-                            <p
-                              className="text-xs font-medium text-muted-foreground/90 flex items-center gap-1.5"
-                              style={{ WebkitFontSmoothing: "antialiased" }}
-                            >
-                              {p.owner_name}
-                              {p.is_absentee && (
-                                <span className="text-[9px] px-1 py-0 rounded border text-purple-400 border-purple-500/20 bg-purple-500/10">ABSENTEE</span>
+                  {filteredProspects.map((p, i) => {
+                    // Filter tags to only valid distress types
+                    const validSignals = p.tags.filter((t) => DISTRESS_LABELS[t]);
+                    const freshness = timeAgo(p.promoted_at ?? p.created_at);
+                    const hasAddress = p.address && p.address !== "" && !p.address.startsWith("Unknown");
+
+                    return (
+                      <motion.tr
+                        key={p.id}
+                        layout
+                        initial={{ opacity: 0, y: 4 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, x: -20 }}
+                        transition={{ delay: Math.min(i * 0.02, 0.5) }}
+                        onClick={() => openDetail(p)}
+                        className={cn(
+                          "border-b border-white/[0.06] hover:bg-white/[0.04] transition-colors cursor-pointer",
+                          p.source === "ranger_push" && "bg-purple-500/[0.02] hover:bg-purple-500/[0.05]",
+                          p.source === "propertyradar" && "bg-emerald-500/[0.02] hover:bg-emerald-500/[0.05]"
+                        )}
+                      >
+                        {/* ── Property / Owner / County / Source ── */}
+                        <td className="p-3">
+                          <div className="min-w-0 space-y-0.5">
+                            {/* Address line */}
+                            <p className="text-sm font-semibold text-foreground leading-tight truncate" style={{ WebkitFontSmoothing: "antialiased" }}>
+                              {hasAddress ? (
+                                <>{p.address}</>
+                              ) : p.owner_name !== "Unknown" ? (
+                                <span className="text-muted-foreground/70 italic">No address — {p.owner_name}</span>
+                              ) : (
+                                <span className="text-muted-foreground/50 italic">Needs enrichment</span>
                               )}
-                              <RelationshipBadgeCompact data={{
-                                ownerAgeInference: p._prediction?.ownerAgeInference,
-                                lifeEventProbability: p._prediction?.lifeEventProbability,
-                                tags: p.tags,
-                              }} />
                             </p>
+                            {/* Owner + County row */}
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              {hasAddress && p.owner_name !== "Unknown" && (
+                                <span className="text-xs text-muted-foreground/80 font-medium">{p.owner_name}</span>
+                              )}
+                              {hasAddress && p.owner_name !== "Unknown" && p.county && (
+                                <span className="text-muted-foreground/30">·</span>
+                              )}
+                              {p.county && (
+                                <span className="text-[10px] text-muted-foreground/60">{p.county} Co.</span>
+                              )}
+                              <SourceBadge source={p.source} />
+                              {p.owner_phone && (
+                                <span className="inline-flex items-center gap-0.5 text-[9px] text-emerald-400 font-medium">
+                                  <Phone className="h-2.5 w-2.5" />
+                                  Phone
+                                </span>
+                              )}
+                            </div>
                           </div>
-                        </div>
-                      </td>
-                      <td className="p-3 text-sm font-mono text-muted-foreground">{p.apn}</td>
-                      <td className="p-3">
-                        <SourceBadge source={p.source} />
-                      </td>
-                      <td className="p-3">
-                        <Badge variant="outline" className="text-[10px] max-w-[180px] truncate">
-                          {formatDistress(p.tags)}
-                        </Badge>
-                      </td>
-                      <td className="p-3 text-right">
-                        {p.estimated_value ? (
-                          <span className="text-sm font-semibold text-foreground" style={{ WebkitFontSmoothing: "antialiased" }}>
-                            ${p.estimated_value.toLocaleString()}
-                          </span>
-                        ) : (
-                          <span className="text-xs text-muted-foreground/70">—</span>
-                        )}
-                      </td>
-                      <td className="p-3 text-right">
-                        {p.equity_percent != null ? (
-                          <span className={cn(
-                            "text-sm font-semibold",
-                            p.equity_percent >= 60 ? "text-neon" : p.equity_percent >= 30 ? "text-yellow-400" : "text-muted-foreground"
-                          )} style={{ WebkitFontSmoothing: "antialiased" }}>
-                            {Math.round(p.equity_percent)}%
-                          </span>
-                        ) : (
-                          <span className="text-xs text-muted-foreground/70">—</span>
-                        )}
-                      </td>
-                      <td className="p-3">
-                        <AIScoreBadge
-                          score={buildAIScore(p)}
-                          size="sm"
-                          tags={p.tags}
-                          equityPercent={p.equity_percent}
-                          isAbsentee={p.is_absentee}
-                        />
-                      </td>
-                      <td className="p-3">
-                        <div className="flex items-center justify-end gap-1" onClick={(e) => e.stopPropagation()}>
-                          {p.owner_phone && (
-                            <Button variant="ghost" size="icon" className="h-7 w-7" title="Call">
-                              <Phone className="h-3 w-3" />
-                            </Button>
-                          )}
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-7 w-7"
-                            title="Claim"
-                            disabled={claiming === p.id}
-                            onClick={() => handleClaim(p.id)}
-                          >
-                            {claiming === p.id ? (
-                              <Loader2 className="h-3 w-3 animate-spin" />
+                        </td>
+
+                        {/* ── Distress Signal Badges ── */}
+                        <td className="p-3">
+                          <div className="flex flex-wrap gap-1 max-w-[220px]">
+                            {validSignals.length > 0 ? (
+                              <>
+                                {validSignals.slice(0, 4).map((s) => (
+                                  <SignalPill key={s} signal={s} />
+                                ))}
+                                {validSignals.length > 4 && (
+                                  <span className="text-[9px] text-muted-foreground/50 self-center">+{validSignals.length - 4}</span>
+                                )}
+                              </>
                             ) : (
-                              <UserCheck className="h-3 w-3" />
+                              <span className="text-[10px] text-muted-foreground/40">No signals</span>
                             )}
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-7 w-7"
-                            title="Skip Trace"
-                          >
-                            <Shield className="h-3 w-3" />
-                          </Button>
-                          <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                              <Button variant="ghost" size="icon" className="h-7 w-7" title="More">
-                                <MoreHorizontal className="h-3 w-3" />
+                          </div>
+                        </td>
+
+                        {/* ── ARV / Equity ── */}
+                        <td className="p-3 text-right">
+                          <div className="space-y-0.5">
+                            {p.estimated_value ? (
+                              <p className="text-sm font-bold text-foreground tabular-nums" style={{ WebkitFontSmoothing: "antialiased" }}>
+                                ${p.estimated_value >= 1000000
+                                  ? `${(p.estimated_value / 1000000).toFixed(1)}M`
+                                  : p.estimated_value >= 1000
+                                    ? `${Math.round(p.estimated_value / 1000)}K`
+                                    : p.estimated_value.toLocaleString()}
+                              </p>
+                            ) : (
+                              <p className="text-xs text-muted-foreground/40">No ARV</p>
+                            )}
+                            {p.equity_percent != null ? (
+                              <p className={cn(
+                                "text-[11px] font-semibold tabular-nums",
+                                p.equity_percent >= 60 ? "text-neon" : p.equity_percent >= 30 ? "text-yellow-400" : "text-muted-foreground/70"
+                              )}>
+                                {Math.round(p.equity_percent)}% equity
+                              </p>
+                            ) : p.is_free_clear ? (
+                              <p className="text-[11px] font-semibold text-neon">Free &amp; Clear</p>
+                            ) : null}
+                          </div>
+                        </td>
+
+                        {/* ── AI Score ── */}
+                        <td className="p-3">
+                          <AIScoreBadge
+                            score={buildAIScore(p)}
+                            size="sm"
+                            tags={p.tags}
+                            equityPercent={p.equity_percent}
+                            isAbsentee={p.is_absentee}
+                          />
+                        </td>
+
+                        {/* ── Quick Intel ── */}
+                        <td className="p-3">
+                          <div className="space-y-0.5 text-[10px]">
+                            {/* Freshness */}
+                            {freshness && (
+                              <p className="text-muted-foreground/60 flex items-center gap-1">
+                                <span className="inline-block h-1.5 w-1.5 rounded-full bg-cyan/60 shrink-0" />
+                                {freshness}
+                              </p>
+                            )}
+                            {/* Prediction intel */}
+                            {p._prediction && p._prediction.daysUntilDistress < 180 && (
+                              <p className={cn(
+                                "font-medium",
+                                p._prediction.daysUntilDistress < 60 ? "text-red-400" : p._prediction.daysUntilDistress < 120 ? "text-amber-400" : "text-muted-foreground/70"
+                              )}>
+                                ~{p._prediction.daysUntilDistress}d to distress
+                              </p>
+                            )}
+                            {/* Owner age if estimated */}
+                            {p._prediction?.ownerAgeInference && p._prediction.ownerAgeInference >= 60 && (
+                              <p className="text-muted-foreground/60">Owner ~{Math.round(p._prediction.ownerAgeInference)}y/o</p>
+                            )}
+                            {/* Key owner flags */}
+                            {p.is_vacant && <p className="text-emerald-400/70 font-medium">Vacant</p>}
+                            {p.is_high_equity && !p.equity_percent && <p className="text-neon/70 font-medium">High equity</p>}
+                            {validSignals.length >= 3 && (
+                              <p className="text-cyan font-semibold">{validSignals.length} signals stacked</p>
+                            )}
+                          </div>
+                        </td>
+
+                        {/* ── Actions ── */}
+                        <td className="p-3">
+                          <div className="flex items-center justify-end gap-1" onClick={(e) => e.stopPropagation()}>
+                            {p.owner_phone && (
+                              <Button variant="ghost" size="icon" className="h-7 w-7 text-emerald-400 hover:text-emerald-300 hover:bg-emerald-500/10" title="Call">
+                                <Phone className="h-3.5 w-3.5" />
                               </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end" className="min-w-[160px]">
-                              <DropdownMenuItem onClick={() => openDetail(p)} className="gap-2 text-xs">
-                                <Eye className="h-3 w-3" />
-                                View Details
-                              </DropdownMenuItem>
-                              <DropdownMenuSeparator />
-                              <DropdownMenuItem
-                                onClick={() => handleDelete(p)}
-                                disabled={deleting === p.id}
-                                className="gap-2 text-xs text-red-400 focus:text-red-400 focus:bg-red-500/10"
-                              >
-                                {deleting === p.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <Trash2 className="h-3 w-3" />}
-                                Delete Prospect
-                              </DropdownMenuItem>
-                            </DropdownMenuContent>
-                          </DropdownMenu>
-                        </div>
-                      </td>
-                    </motion.tr>
-                  ))}
+                            )}
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-7 w-7"
+                              title="Claim this lead"
+                              disabled={claiming === p.id}
+                              onClick={() => handleClaim(p.id)}
+                            >
+                              {claiming === p.id ? (
+                                <Loader2 className="h-3 w-3 animate-spin" />
+                              ) : (
+                                <UserCheck className="h-3 w-3" />
+                              )}
+                            </Button>
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <Button variant="ghost" size="icon" className="h-7 w-7" title="More">
+                                  <MoreHorizontal className="h-3 w-3" />
+                                </Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end" className="min-w-[160px]">
+                                <DropdownMenuItem onClick={() => openDetail(p)} className="gap-2 text-xs">
+                                  <Eye className="h-3 w-3" />
+                                  View Details
+                                </DropdownMenuItem>
+                                <DropdownMenuItem className="gap-2 text-xs">
+                                  <Shield className="h-3 w-3" />
+                                  Skip Trace
+                                </DropdownMenuItem>
+                                <DropdownMenuSeparator />
+                                <DropdownMenuItem
+                                  onClick={() => handleDelete(p)}
+                                  disabled={deleting === p.id}
+                                  className="gap-2 text-xs text-red-400 focus:text-red-400 focus:bg-red-500/10"
+                                >
+                                  {deleting === p.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <Trash2 className="h-3 w-3" />}
+                                  Delete Prospect
+                                </DropdownMenuItem>
+                              </DropdownMenuContent>
+                            </DropdownMenu>
+                          </div>
+                        </td>
+                      </motion.tr>
+                    );
+                  })}
                 </AnimatePresence>
               </tbody>
             </table>
