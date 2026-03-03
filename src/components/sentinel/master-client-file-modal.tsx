@@ -10,7 +10,7 @@ import {
   Radar, LayoutDashboard, Map, Printer, ImageIcon, ChevronLeft, ChevronRight,
   Pencil, Save, Voicemail, PhoneForwarded, Brain, Crosshair, MapPinned,
   MessageSquare, Flame, Smartphone, ShieldAlert, PhoneOff, Circle,
-  RefreshCw, Target, ArrowRight, ChevronDown,
+  RefreshCw, Target, ArrowRight, ChevronDown, Trash2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -952,6 +952,164 @@ function EditDetailsModal({ cf, onClose, onSaved }: { cf: ClientFile; onClose: (
                 {saving ? "Saving..." : "Save Changes"}
               </Button>
             </div>
+          </div>
+        </motion.div>
+      </motion.div>
+    </AnimatePresence>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// Delete Confirmation Modal — "type yes" to permanently delete
+// ═══════════════════════════════════════════════════════════════════════
+
+function DeleteConfirmationModal({
+  cf,
+  onClose,
+  onDeleted,
+}: {
+  cf: ClientFile;
+  onClose: () => void;
+  onDeleted: () => void;
+}) {
+  const [confirmText, setConfirmText] = useState("");
+  const [deleting, setDeleting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const canDelete = confirmText.trim().toLowerCase() === "yes";
+
+  const handleDelete = async () => {
+    if (!canDelete) return;
+    setDeleting(true);
+    setError(null);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const res = await fetch("/api/prospects", {
+        method: "DELETE",
+        headers: {
+          "Content-Type": "application/json",
+          ...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}),
+        },
+        body: JSON.stringify({ lead_id: cf.id }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        setError(data.error ?? "Delete failed");
+        return;
+      }
+      toast.success("Customer file permanently deleted");
+      window.dispatchEvent(new CustomEvent("sentinel:refresh-dashboard"));
+      onDeleted();
+      onClose();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Network error");
+    } finally {
+      setDeleting(false);
+    }
+  };
+
+  return (
+    <AnimatePresence>
+      <motion.div
+        initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+        className="fixed inset-0 z-[60] modal-backdrop flex items-center justify-center"
+        onClick={onClose}
+      >
+        <motion.div
+          initial={{ opacity: 0, scale: 0.92, y: 24 }}
+          animate={{ opacity: 1, scale: 1, y: 0 }}
+          exit={{ opacity: 0, scale: 0.92, y: 24 }}
+          transition={{ type: "spring", damping: 26, stiffness: 320 }}
+          onClick={(e) => e.stopPropagation()}
+          className="relative max-w-md w-full mx-4 overflow-hidden rounded-[16px] border border-red-500/20
+            modal-glass holo-border flex flex-col"
+        >
+          {/* Red accent */}
+          <div className="absolute top-0 inset-x-0 h-[1px] bg-gradient-to-r from-transparent via-red-500/40 to-transparent" />
+          <div className="absolute top-0 inset-x-0 h-12 bg-gradient-to-b from-red-500/[0.05] to-transparent pointer-events-none" />
+
+          {/* Header */}
+          <div className="shrink-0 flex items-center justify-between px-5 py-3.5 border-b border-white/[0.06]">
+            <div className="flex items-center gap-2.5">
+              <div className="h-8 w-8 rounded-[10px] bg-red-500/10 flex items-center justify-center">
+                <Trash2 className="h-4 w-4 text-red-400" />
+              </div>
+              <div>
+                <h3 className="text-sm font-bold text-white">Delete Customer File</h3>
+                <p className="text-[10px] text-muted-foreground">Permanent action</p>
+              </div>
+            </div>
+            <button onClick={onClose} className="p-1.5 rounded-[10px] hover:bg-white/[0.06] transition-colors text-muted-foreground hover:text-foreground">
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+
+          {/* Body */}
+          <div className="px-5 py-4 space-y-4">
+            {/* Lead details */}
+            <div className="rounded-[10px] bg-white/[0.03] border border-white/[0.06] p-3 space-y-1.5">
+              <div className="flex items-center gap-2 text-sm text-white">
+                <MapPin className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                <span className="truncate">{cf.fullAddress || cf.address}</span>
+              </div>
+              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                <User className="h-3.5 w-3.5 shrink-0" />
+                <span className="truncate">{cf.ownerName || "Unknown Owner"}</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <Badge variant="outline" className="text-[10px] border-white/[0.08]">
+                  {cf.status}
+                </Badge>
+              </div>
+            </div>
+
+            {/* Warning */}
+            <div className="flex items-start gap-2.5 p-3 rounded-[10px] bg-red-500/[0.06] border border-red-500/20">
+              <AlertTriangle className="h-4 w-4 text-red-400 shrink-0 mt-0.5" />
+              <div className="text-xs text-red-300/90 leading-relaxed">
+                <strong>This action is permanent and cannot be undone.</strong>
+                <br />
+                The lead, property, distress events, scoring records, predictions, and associated deals will be permanently deleted.
+              </div>
+            </div>
+
+            {/* Type yes input */}
+            <div className="space-y-1.5">
+              <label className="text-xs text-muted-foreground">
+                Type <span className="text-red-400 font-semibold">&quot;yes&quot;</span> to confirm deletion
+              </label>
+              <input
+                type="text"
+                value={confirmText}
+                onChange={(e) => setConfirmText(e.target.value)}
+                placeholder="Type yes to confirm..."
+                autoFocus
+                className="w-full px-3 py-2 rounded-[10px] text-sm bg-white/[0.04] border border-white/[0.08] text-foreground
+                  placeholder:text-muted-foreground/40 focus:outline-none focus:border-red-500/30 focus:ring-1 focus:ring-red-500/20
+                  transition-all hover:border-white/[0.12]"
+              />
+            </div>
+
+            {error && (
+              <p className="text-xs text-red-400">{error}</p>
+            )}
+          </div>
+
+          {/* Footer */}
+          <div className="shrink-0 flex items-center justify-end gap-2 px-5 py-3.5 border-t border-white/[0.06]">
+            <Button size="sm" variant="outline" onClick={onClose} className="text-[11px] h-8 px-4">
+              Cancel
+            </Button>
+            <Button
+              size="sm"
+              variant="destructive"
+              onClick={handleDelete}
+              disabled={!canDelete || deleting}
+              className="text-[11px] h-8 px-4 gap-1.5"
+            >
+              {deleting ? <Loader2 className="h-3 w-3 animate-spin" /> : <Trash2 className="h-3 w-3" />}
+              {deleting ? "Deleting..." : "Delete Permanently"}
+            </Button>
           </div>
         </motion.div>
       </motion.div>
@@ -3203,6 +3361,7 @@ export function MasterClientFileModal({ clientFile, open, onClose, onClaim, onRe
   const [selectedComps, setSelectedComps] = useState<CompProperty[]>([]);
   const [computedArv, setComputedArv] = useState(0);
   const [editOpen, setEditOpen] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
   const [claiming, setClaiming] = useState(false);
   const [calling, setCalling] = useState(false);
   const [callStatus, setCallStatus] = useState<string | null>(null);
@@ -3634,6 +3793,14 @@ export function MasterClientFileModal({ clientFile, open, onClose, onClaim, onRe
                       <a href={`mailto:${clientFile.ownerEmail}`}><Mail className="h-3.5 w-3.5" />Email</a>
                     </Button>
                   )}
+                  <Button
+                    size="sm"
+                    variant="destructive"
+                    className="gap-2"
+                    onClick={() => setDeleteOpen(true)}
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />Delete
+                  </Button>
                   <div className="ml-auto text-[10px] text-muted-foreground">
                     ID: {clientFile.id.slice(0, 8)} • {clientFile.source}
                   </div>
@@ -3647,6 +3814,18 @@ export function MasterClientFileModal({ clientFile, open, onClose, onClaim, onRe
               cf={clientFile}
               onClose={() => setEditOpen(false)}
               onSaved={() => onRefresh?.()}
+            />
+          )}
+
+          {deleteOpen && (
+            <DeleteConfirmationModal
+              cf={clientFile}
+              onClose={() => setDeleteOpen(false)}
+              onDeleted={() => {
+                setDeleteOpen(false);
+                onClose();
+                onRefresh?.();
+              }}
             />
           )}
         </Fragment>
