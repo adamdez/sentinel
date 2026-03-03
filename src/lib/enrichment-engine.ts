@@ -1188,20 +1188,23 @@ export async function processEnrichmentBatch(
 
   console.log(`[Enrich/Batch] Found ${stagingLeads.length} staging leads, filtering...`);
 
-  // Fetch properties for these leads
+  // Fetch properties for these leads (batch in chunks of 100 to avoid URL length limits)
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const propertyIds = (stagingLeads as any[]).map((l) => l.property_id).filter(Boolean);
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { data: properties } = await (sb.from("properties") as any)
-    .select("*")
-    .in("id", propertyIds);
-
+  const propertyIds = [...new Set((stagingLeads as any[]).map((l) => l.property_id).filter(Boolean))];
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const propMap: Record<string, any> = {};
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  for (const p of (properties ?? []) as any[]) {
-    propMap[p.id] = p;
+  for (let i = 0; i < propertyIds.length; i += 100) {
+    const chunk = propertyIds.slice(i, i + 100);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: props } = await (sb.from("properties") as any)
+      .select("*")
+      .in("id", chunk);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    for (const p of (props ?? []) as any[]) {
+      propMap[p.id] = p;
+    }
   }
+  console.log(`[Enrich/Batch] Loaded ${Object.keys(propMap).length} properties for ${propertyIds.length} unique IDs`);
 
   // ── Separate pre-enriched leads from those needing enrichment ──
   // Pre-enriched leads (from PR Elite Seed, ATTOM Daily, Crawlers) already have
