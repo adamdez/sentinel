@@ -246,7 +246,7 @@ export function getSatelliteTileUrl(lat: number, lng: number, zoom = 18): string
   return `https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/${zoom}/${y}/${x}`;
 }
 
-function getGoogleStreetViewLink(lat: number, lng: number): string {
+export function getGoogleStreetViewLink(lat: number, lng: number): string {
   return `https://www.google.com/maps/@${lat},${lng},3a,75y,0h,90t/data=!3m4!1e1!3m2!1s!2e0`;
 }
 

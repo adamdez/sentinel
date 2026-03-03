@@ -21,7 +21,7 @@ import type { AIScore, DistressType } from "@/lib/types";
 import { SIGNAL_WEIGHTS } from "@/lib/scoring";
 import { getSequenceLabel, getSequenceProgress } from "@/lib/call-scheduler";
 import { useCallNotes, type CallNote } from "@/hooks/use-call-notes";
-import { CompsMap, getSatelliteTileUrl, type CompProperty, type SubjectProperty } from "@/components/sentinel/comps/comps-map";
+import { CompsMap, getSatelliteTileUrl, getGoogleStreetViewLink, type CompProperty, type SubjectProperty } from "@/components/sentinel/comps/comps-map";
 import { PredictiveDistressBadge, type PredictiveDistressData } from "@/components/sentinel/predictive-distress-badge";
 import { RelationshipBadge } from "@/components/sentinel/relationship-badge";
 import { NumericInput } from "@/components/sentinel/numeric-input";
@@ -1168,8 +1168,8 @@ function dispositionColor(disp: string): string {
   return "text-muted-foreground";
 }
 
-function OverviewTab({ cf, skipTracing, skipTraceResult, skipTraceMs, overlay, skipTraceError, onSkipTrace, onManualSkipTrace, onEdit, onDial, onSms, calling, dialHistory }: {
-  cf: ClientFile; skipTracing: boolean; skipTraceResult: string | null; skipTraceMs: number | null;
+function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceMs, overlay, skipTraceError, onSkipTrace, onManualSkipTrace, onEdit, onDial, onSms, calling, dialHistory }: {
+  cf: ClientFile; computedArv: number; skipTracing: boolean; skipTraceResult: string | null; skipTraceMs: number | null;
   overlay: SkipTraceOverlay | null; skipTraceError: SkipTraceError | null;
   onSkipTrace: () => void; onManualSkipTrace: () => void; onEdit: () => void;
   onDial: (phone: string) => void; onSms: (phone: string) => void;
@@ -1304,24 +1304,28 @@ function OverviewTab({ cf, skipTracing, skipTraceResult, skipTraceMs, overlay, s
 
   const streetViewUrl = prRaw.StreetViewUrl ?? prRaw.PropertyImageUrl ?? (prRaw.Photos?.[0]) ?? null;
 
+  // ── Clickable Street View → Google Maps ──
+  const { lat: propLat, lng: propLng } = extractLatLng(cf);
+  const streetViewLink = propLat && propLng ? getGoogleStreetViewLink(propLat, propLng) : null;
+
   const sectionOwner = useRef<HTMLDivElement>(null);
   const sectionSignals = useRef<HTMLDivElement>(null);
   const sectionEquity = useRef<HTMLDivElement>(null);
   const sectionProperty = useRef<HTMLDivElement>(null);
   const scrollTo = (ref: React.RefObject<HTMLDivElement | null>) => ref.current?.scrollIntoView({ behavior: "smooth", block: "start" });
 
-  // ── Value-scaled rehab estimate ──
-  const getRehabEstimate = (arv: number | null, yb: number | null, vacant: boolean): number => {
-    if (!arv) return 40000;
-    const base = Math.round(arv * 0.08);
-    const clamped = Math.max(15000, Math.min(base, 100000));
-    const age = yb ? new Date().getFullYear() - yb : 0;
-    const agePenalty = age > 40 ? Math.floor((age - 40) / 10) * 5000 : 0;
-    const vacantMul = vacant ? 1.25 : 1;
-    return Math.round((clamped + agePenalty) * vacantMul);
-  };
-  const rehabEstimate = getRehabEstimate(cf.estimatedValue, cf.yearBuilt, cf.isVacant);
-  const mao = cf.estimatedValue ? Math.round(cf.estimatedValue * 0.70 - rehabEstimate) : null;
+  // ── MAO Formula: ARV × 75% − Repairs (10%) − Assignment Fee ($15K) ──
+  const persistedCompArv = (cf.ownerFlags?.comp_arv as number) ?? 0;
+  const bestArv = computedArv > 0 ? computedArv : persistedCompArv > 0 ? persistedCompArv : cf.estimatedValue ?? 0;
+  const arvSource: "comps" | "avm" = (computedArv > 0 || persistedCompArv > 0) ? "comps" : "avm";
+  const compCount = (cf.ownerFlags?.comp_count as number) ?? 0;
+
+  const wholesaleRate = 0.75;
+  const repairRate = 0.10;
+  const assignmentFee = 15000;
+  const wholesaleValue = bestArv > 0 ? Math.round(bestArv * wholesaleRate) : 0;
+  const repairEstimate = bestArv > 0 ? Math.round(bestArv * repairRate) : 0;
+  const mao = bestArv > 0 ? Math.round(wholesaleValue - repairEstimate - assignmentFee) : null;
 
   // ── Signal-specific motivation text ──
   const getSignalMotivation = (evtType: string, rd?: Record<string, unknown>): string => {
@@ -1354,8 +1358,6 @@ function OverviewTab({ cf, skipTracing, skipTraceResult, skipTraceMs, overlay, s
     }
     return { date: new Date(evt.created_at).toLocaleDateString(), isActual: false };
   };
-
-  const [distressExpanded, setDistressExpanded] = useState(true);
 
   const pipelineDays = cf.promotedAt
     ? Math.floor((Date.now() - new Date(cf.promotedAt).getTime()) / 86400000)
@@ -1789,18 +1791,72 @@ function OverviewTab({ cf, skipTracing, skipTraceResult, skipTraceMs, overlay, s
         </div>
       )}
 
-      {/* ═══ 3. PROPERTY SNAPSHOT — Street View + Address + Badges ═══ */}
+      {/* ═══ 3. DISTRESS SIGNALS — compact colored chips (WHY motivated) ═══ */}
+      {distressEvents.length > 0 && (
+        <div ref={sectionSignals} className="rounded-[12px] border border-white/[0.06] bg-white/[0.02] p-3">
+          <div className="flex items-center gap-2 mb-2">
+            <AlertTriangle className="h-3 w-3 text-orange-400" />
+            <p className="text-[10px] text-orange-400/80 uppercase tracking-wider font-semibold">Distress Signals</p>
+          </div>
+          <div className="flex flex-wrap gap-1.5">
+            {distressEvents.slice(0, 8).map((evt) => {
+              const cfg = DISTRESS_CFG[evt.event_type];
+              const EvtIcon = cfg?.icon ?? AlertTriangle;
+              const evtDate = getEventDate(evt);
+              const daysAgo = Math.floor((Date.now() - new Date(evt.created_at).getTime()) / 86400000);
+              const isRecent = daysAgo <= 30;
+              const motivation = getSignalMotivation(evt.event_type, evt.raw_data ?? undefined);
+              return (
+                <span
+                  key={evt.id}
+                  title={motivation}
+                  className={cn(
+                    "inline-flex items-center gap-1 px-2 py-1 rounded-full text-[10px] font-semibold border cursor-default transition-colors",
+                    cfg?.color ?? "text-cyan/70 bg-cyan/[0.06] border-cyan/20",
+                    isRecent && "ring-1 ring-orange-400/30"
+                  )}
+                >
+                  <EvtIcon className="h-2.5 w-2.5 shrink-0" />
+                  {cfg?.label ?? evt.event_type.replace(/_/g, " ")}
+                  <span className="text-[8px] opacity-60">· {evtDate.date.replace(/\/\d{4}$/, "")}</span>
+                  {isRecent && <Flame className="h-2.5 w-2.5 text-red-400 shrink-0" />}
+                </span>
+              );
+            })}
+            {distressEvents.length > 8 && (
+              <span className="inline-flex items-center px-2 py-1 rounded-full text-[10px] font-semibold border border-white/10 text-muted-foreground bg-white/[0.03]">
+                +{distressEvents.length - 8} more
+              </span>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ═══ 4. PROPERTY SNAPSHOT — Clickable Street View + Address + Badges ═══ */}
       <div ref={sectionProperty} className="rounded-[12px] border border-white/[0.06] bg-white/[0.02] overflow-hidden">
         {streetViewUrl && (
-          <div className="relative h-40">
+          <a
+            href={streetViewLink ?? "#"}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="relative block h-40 group cursor-pointer"
+            onClick={(e) => { if (!streetViewLink) e.preventDefault(); }}
+          >
             <img
               src={streetViewUrl}
               alt="Property"
-              className="w-full h-full object-cover"
+              className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-[1.02]"
               onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
             />
             <div className="absolute inset-0 bg-gradient-to-t from-[rgba(7,7,13,0.85)] via-[rgba(7,7,13,0.2)] to-transparent pointer-events-none" />
-            <div className="absolute bottom-2 left-3 right-3 flex items-end justify-between">
+            {streetViewLink && (
+              <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none">
+                <span className="bg-black/70 backdrop-blur-sm text-white text-xs font-semibold px-3 py-1.5 rounded-full flex items-center gap-1.5">
+                  <ExternalLink className="h-3 w-3" />Open Street View
+                </span>
+              </div>
+            )}
+            <div className="absolute bottom-2 left-3 right-3 flex items-end justify-between pointer-events-none">
               <div className="flex items-center gap-2.5 text-white">
                 {cf.bedrooms != null && (
                   <span className="text-xs font-bold bg-black/50 backdrop-blur-sm px-2 py-0.5 rounded">{cf.bedrooms}bd / {cf.bathrooms ?? "?"}ba</span>
@@ -1816,10 +1872,10 @@ function OverviewTab({ cf, skipTracing, skipTraceResult, skipTraceMs, overlay, s
                 )}
               </div>
               <div className="flex items-center gap-1 text-[9px] text-white/50">
-                <ImageIcon className="h-2.5 w-2.5" />Street View
+                <ImageIcon className="h-2.5 w-2.5" />{streetViewLink ? "Click to explore" : "Street View"}
               </div>
             </div>
-          </div>
+          </a>
         )}
         <div className="p-4 space-y-3">
           {/* Address + County + APN */}
@@ -1865,65 +1921,41 @@ function OverviewTab({ cf, skipTracing, skipTraceResult, skipTraceMs, overlay, s
         </div>
       </div>
 
-      {/* ═══ 4. DISTRESS SIGNALS — WHY they're motivated (always expanded) ═══ */}
-      {distressEvents.length > 0 && (
-        <div ref={sectionSignals} className="rounded-[12px] border border-orange-500/20 bg-orange-500/[0.03] p-4 space-y-3">
-          <div className="flex items-center gap-2">
-            <AlertTriangle className="h-3.5 w-3.5 text-orange-400" />
-            <p className="text-[11px] text-orange-400/80 uppercase tracking-wider font-semibold">Distress Signals</p>
-            <Badge variant="outline" className="text-[9px] ml-1 border-orange-500/20 text-orange-400/70">{distressEvents.length}</Badge>
-            {distressEvents.length > 5 && (
-              <button onClick={() => setDistressExpanded(!distressExpanded)} className="ml-auto text-[9px] text-orange-400/50 hover:text-orange-400 transition-colors">
-                {distressExpanded ? "show less" : `show all ${distressEvents.length}`}
-              </button>
-            )}
-          </div>
-          <div className="space-y-1.5">
-            {(distressExpanded ? distressEvents : distressEvents.slice(0, 5)).map((evt) => {
-              const cfg = DISTRESS_CFG[evt.event_type];
-              const EvtIcon = cfg?.icon ?? AlertTriangle;
-              const evtDate = getEventDate(evt);
-              const daysAgo = Math.floor((Date.now() - new Date(evt.created_at).getTime()) / 86400000);
-              const isRecent = daysAgo <= 30;
-              const motivation = getSignalMotivation(evt.event_type, evt.raw_data ?? undefined);
-              return (
-                <div key={evt.id} className={cn("rounded-[10px] border p-3 text-xs", isRecent ? "border-orange-500/25 bg-orange-500/[0.06]" : "border-white/[0.06] bg-white/[0.02]")}>
-                  <div className="flex items-center gap-2.5">
-                    <EvtIcon className={cn("h-3.5 w-3.5 shrink-0", isRecent ? "text-orange-400" : "text-muted-foreground/50")} />
-                    <div className="flex-1 min-w-0">
-                      <span className={cn("font-semibold", isRecent ? "text-orange-300" : "text-foreground")}>{cfg?.label ?? evt.event_type}</span>
-                      {evt.source && <span className="text-muted-foreground/50 ml-1.5">via {evt.source}</span>}
-                    </div>
-                    <div className="text-right shrink-0">
-                      <p className={cn("font-mono text-[10px]", isRecent ? "text-orange-400 font-bold" : "text-muted-foreground/50")}>{evtDate.date}</p>
-                      {!evtDate.isActual && <p className="text-[8px] text-muted-foreground/30">crawl date</p>}
-                    </div>
-                    {isRecent && <Flame className="h-3 w-3 text-red-400 shrink-0" />}
-                  </div>
-                  <p className={cn("mt-1 pl-6 text-[10px] font-medium", isRecent ? "text-orange-300/80" : "text-muted-foreground/60")}>{motivation}</p>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      )}
-
-      {/* ═══ 5. QUICK MAO — WHAT to offer (enhanced rehab) ═══ */}
+      {/* ═══ 5. MAO BREAKDOWN — Full formula so agents trust the math ═══ */}
       {mao != null && mao > 0 && (
-        <div className="rounded-[10px] border border-cyan/15 bg-cyan/[0.03] px-4 py-2.5">
+        <div className="rounded-[12px] border border-cyan/20 bg-cyan/[0.03] p-4 space-y-2">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <Target className="h-4 w-4 text-cyan/60" />
-              <span className="text-xs text-muted-foreground">Quick MAO:</span>
-              <span className="text-sm font-bold text-neon font-mono" style={{ textShadow: "0 0 10px rgba(0,212,255,0.25)" }}>{formatCurrency(mao)}</span>
+              <Target className="h-3.5 w-3.5 text-cyan" />
+              <p className="text-[11px] text-cyan/80 uppercase tracking-wider font-semibold">MAO Breakdown</p>
             </div>
-            <span className="text-[9px] text-muted-foreground/50">{formatCurrency(cf.estimatedValue!)} × 70% − {formatCurrency(rehabEstimate)} rehab</span>
+            <span className="text-[9px] text-muted-foreground/50 italic">
+              {arvSource === "comps" ? `Based on ${compCount || "selected"} comps` : "Based on AVM estimate"}
+            </span>
           </div>
-          {rehabEstimate !== 40000 && (
-            <p className="text-[8px] text-muted-foreground/40 mt-1 pl-6">
-              Rehab est: 8% ARV{cf.yearBuilt && cf.yearBuilt < (new Date().getFullYear() - 40) ? ` + age penalty (${new Date().getFullYear() - cf.yearBuilt}yr)` : ""}{cf.isVacant ? " + vacant 1.25×" : ""}, clamped $15K–$100K
-            </p>
-          )}
+
+          <div className="space-y-1 font-mono text-xs">
+            <div className="flex items-center justify-between text-muted-foreground">
+              <span>ARV ({arvSource === "comps" ? "comps" : "AVM"})</span>
+              <span className="text-foreground font-semibold">{formatCurrency(bestArv)}</span>
+            </div>
+            <div className="flex items-center justify-between text-muted-foreground">
+              <span>× 75% wholesale</span>
+              <span className="text-foreground">{formatCurrency(wholesaleValue)}</span>
+            </div>
+            <div className="flex items-center justify-between text-red-400/70">
+              <span>− Repairs (est. 10%)</span>
+              <span>−{formatCurrency(repairEstimate)}</span>
+            </div>
+            <div className="flex items-center justify-between text-red-400/70">
+              <span>− Assignment fee</span>
+              <span>−{formatCurrency(assignmentFee)}</span>
+            </div>
+            <div className="border-t border-white/[0.08] pt-1.5 mt-1 flex items-center justify-between">
+              <span className="text-cyan font-bold text-sm">MAO</span>
+              <span className="text-neon font-bold text-lg" style={{ textShadow: "0 0 12px rgba(0,212,255,0.3)" }}>{formatCurrency(mao)}</span>
+            </div>
+          </div>
         </div>
       )}
 
@@ -3206,7 +3238,7 @@ function OfferCalcTab({ cf, computedArv }: { cf: ClientFile; computedArv: number
 
   // Auto-fill ARV when Comps tab computes one
   useEffect(() => { if (computedArv > 0) setArv(computedArv.toString()); }, [computedArv]);
-  const defaultMao = bestArv > 0 ? Math.round(bestArv * 0.70 - 40000).toString() : "";
+  const defaultMao = bestArv > 0 ? Math.round(bestArv * 0.75 - 40000).toString() : "";
   const [purchase, setPurchase] = useState(defaultMao);
   const [rehab, setRehab] = useState("40000");
   const [holdMonths, setHoldMonths] = useState("3");
@@ -3221,7 +3253,7 @@ function OfferCalcTab({ cf, computedArv }: { cf: ClientFile; computedArv: number
   const closingNum = parseFloat(closing) || 0;
   const feeNum = parseFloat(assignmentFee) || 0;
 
-  const mao = arvNum > 0 ? Math.round(arvNum * 0.70 - rehabNum) : 0;
+  const mao = arvNum > 0 ? Math.round(arvNum * 0.75 - rehabNum) : 0;
   const totalCosts = purchaseNum + rehabNum + holdNum + closingNum;
   const grossProfit = arvNum - totalCosts;
   const netProfit = grossProfit - feeNum;
@@ -3250,11 +3282,11 @@ function OfferCalcTab({ cf, computedArv }: { cf: ClientFile; computedArv: number
       <Section title="Profit Projection" icon={TrendingUp}>
         <div className="grid grid-cols-2 gap-3">
           <div className="rounded-lg border border-cyan/20 bg-cyan/4 p-3 text-center">
-            <p className="text-[10px] text-muted-foreground uppercase">MAO (70% Rule)</p>
+            <p className="text-[10px] text-muted-foreground uppercase">MAO (75% Rule)</p>
             <p className="text-xl font-bold text-neon" style={{ textShadow: "0 0 10px rgba(0,212,255,0.3)" }}>
               {mao > 0 ? formatCurrency(mao) : "—"}
             </p>
-            <p className="text-[10px] text-muted-foreground mt-0.5">ARV × 0.70 − Rehab</p>
+            <p className="text-[10px] text-muted-foreground mt-0.5">ARV × 0.75 − Rehab</p>
           </div>
           <div className="rounded-[10px] border border-white/[0.06] bg-white/[0.04] p-3 text-center">
             <p className="text-[10px] text-muted-foreground uppercase">Total Costs</p>
@@ -3295,7 +3327,7 @@ function OfferCalcTab({ cf, computedArv }: { cf: ClientFile; computedArv: number
 function DocumentsTab({ cf, computedArv }: { cf: ClientFile; computedArv: number }) {
   const today = new Date().toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" });
   const bestArv = computedArv > 0 ? computedArv : cf.estimatedValue ?? 0;
-  const autoMao = bestArv > 0 ? formatCurrency(Math.round(bestArv * 0.70 - 40000)) : "____________";
+  const autoMao = bestArv > 0 ? formatCurrency(Math.round(bestArv * 0.75 - 40000)) : "____________";
 
   const psaBody = useMemo(() => [
     `REAL ESTATE PURCHASE AND SALE AGREEMENT`,
@@ -3406,7 +3438,9 @@ export function MasterClientFileModal({ clientFile, open, onClose, onClaim, onRe
   const [overlay, setOverlay] = useState<SkipTraceOverlay | null>(null);
   const [skipTraceError, setSkipTraceError] = useState<SkipTraceError | null>(null);
   const [selectedComps, setSelectedComps] = useState<CompProperty[]>([]);
-  const [computedArv, setComputedArv] = useState(0);
+  const [computedArv, setComputedArv] = useState(
+    () => (clientFile?.ownerFlags?.comp_arv as number) ?? 0
+  );
   const [editOpen, setEditOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [claiming, setClaiming] = useState(false);
@@ -3606,7 +3640,23 @@ export function MasterClientFileModal({ clientFile, open, onClose, onClaim, onRe
     setSelectedComps((prev) => prev.filter((c) => c.apn !== apn));
   }, []);
 
-  const handleArvChange = useCallback((arv: number) => { setComputedArv(arv); }, []);
+  const handleArvChange = useCallback(async (arv: number) => {
+    setComputedArv(arv);
+    if (!clientFile?.propertyId || arv <= 0) return;
+    try {
+      await (supabase.from("properties") as any)
+        .update({
+          owner_flags: {
+            ...clientFile.ownerFlags,
+            comp_arv: arv,
+            comp_arv_updated_at: new Date().toISOString(),
+            comp_count: selectedComps.length,
+            comp_addresses: selectedComps.map(c => c.address).slice(0, 5),
+          },
+        })
+        .eq("id", clientFile.propertyId);
+    } catch { /* silent — non-critical persistence */ }
+  }, [clientFile?.propertyId, clientFile?.ownerFlags, selectedComps]);
 
   const executeSkipTrace = useCallback(async (manual: boolean) => {
     if (!clientFile) return;
@@ -3758,7 +3808,7 @@ export function MasterClientFileModal({ clientFile, open, onClose, onClaim, onRe
                     transition={{ duration: 0.15 }}
                   >
                     {activeTab === "overview" && (
-                      <OverviewTab cf={clientFile} skipTracing={skipTracing} skipTraceResult={skipTraceResult} skipTraceMs={skipTraceMs} overlay={overlay} skipTraceError={skipTraceError} onSkipTrace={handleSkipTrace} onManualSkipTrace={handleManualSkipTrace} onEdit={() => setEditOpen(true)} onDial={handleDial} onSms={handleSendSms} calling={calling} dialHistory={dialHistoryMap} />
+                      <OverviewTab cf={clientFile} computedArv={computedArv} skipTracing={skipTracing} skipTraceResult={skipTraceResult} skipTraceMs={skipTraceMs} overlay={overlay} skipTraceError={skipTraceError} onSkipTrace={handleSkipTrace} onManualSkipTrace={handleManualSkipTrace} onEdit={() => setEditOpen(true)} onDial={handleDial} onSms={handleSendSms} calling={calling} dialHistory={dialHistoryMap} />
                     )}
                     {activeTab === "comps" && <CompsTab cf={clientFile} selectedComps={selectedComps} onAddComp={handleAddComp} onRemoveComp={handleRemoveComp} onSkipTrace={handleSkipTrace} computedArv={computedArv} onArvChange={handleArvChange} />}
                     {activeTab === "calculator" && <OfferCalcTab cf={clientFile} computedArv={computedArv} />}
