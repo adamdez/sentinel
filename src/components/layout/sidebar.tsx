@@ -22,7 +22,7 @@ import {
   BarChart3,
   Settings,
   DollarSign,
-  Share2,
+  Home,
   ChevronRight,
   Zap,
   Brain,
@@ -57,7 +57,7 @@ function useSidebarBadges(): SidebarBadges {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { count: fbCl } = await (supabase.from("leads") as any)
         .select("id", { count: "exact", head: true })
-        .in("source", ["facebook", "craigslist", "fb", "fb_craigslist"]);
+        .in("source", ["facebook", "craigslist", "fb", "fb_craigslist", "fsbo", "zillow_fsbo", "fsbo_com"]);
 
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { count: ppl } = await (supabase.from("leads") as any)
@@ -127,6 +127,7 @@ const sections: NavSection[] = [
     title: "Deal Funnel",
     items: [
       { label: "Prospects", href: "/sales-funnel/prospects", icon: UserPlus, badge: "prospect-dot" },
+      { label: "FSBO", href: "/sales-funnel/fsbo", icon: Home, badge: "fsbo-dot" },
       { label: "Leads", href: "/leads", icon: Users },
       { label: "Negotiation", href: "/sales-funnel/negotiation", icon: Handshake },
       { label: "Disposition", href: "/sales-funnel/disposition", icon: FileCheck },
@@ -138,7 +139,6 @@ const sections: NavSection[] = [
     title: "Marketing Sources",
     items: [
       { label: "Google Ads", href: "/ads", icon: Target },
-      { label: "Facebook/Craigslist", href: "/sales-funnel/facebook-craigslist", icon: Share2, badge: "fb-dot" },
       { label: "PPL", href: "/sales-funnel/ppl", icon: DollarSign, badge: "ppl-dot" },
     ],
   },
@@ -240,7 +240,7 @@ function NavLink({ item, depth = 0, badges }: { item: NavItem; depth?: number; b
         const dot =
           item.badge === "gmail-connected" && badges.gmailConnected ? "bg-cyan" :
           item.badge === "prospect-dot" && badges.prospects > 0 ? "bg-red-500" :
-          item.badge === "fb-dot" && badges.fbCraigslist > 0 ? "bg-red-500" :
+          item.badge === "fsbo-dot" && badges.fbCraigslist > 0 ? "bg-red-500" :
           item.badge === "ppl-dot" && badges.ppl > 0 ? "bg-red-500" :
           null;
         if (!dot) return null;
