@@ -14,7 +14,7 @@
     },
     {
       "path": "/api/ingest/marketplace-poll",
-      "schedule": "0 */2 * * *"
+      "schedule": "*/15 * * * *"
     }
   ]
 }

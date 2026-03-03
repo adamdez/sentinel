@@ -1,11 +1,11 @@
 /**
  * Marketplace FSBO Poll — Lightweight cron endpoint
  *
- * Runs every 2 hours via Vercel Cron.
+ * Runs every 15 minutes via Vercel Cron.
  * Only executes FSBO-specific crawlers (Craigslist, future Zillow, etc.).
  * Separate from the full agent cycle to keep FSBO ingestion fast and independent.
  *
- * Schedule: "0 *\/2 * * *" (every 2 hours)
+ * Schedule: "*\/15 * * * *" (every 15 minutes)
  */
 
 import { NextRequest, NextResponse } from "next/server";
