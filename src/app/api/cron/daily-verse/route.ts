@@ -12,11 +12,12 @@ export const maxDuration = 60;
 // ── ESV API helper ──────────────────────────────────────────────────
 
 async function fetchEsvText(verseRef: string): Promise<string | null> {
-  const apiKey = process.env.ESV_API_KEY;
-  if (!apiKey) {
+  const raw = process.env.ESV_API_KEY;
+  if (!raw) {
     console.error("[DailyVerse] ESV_API_KEY not configured");
     return null;
   }
+  const apiKey = raw.startsWith("Token ") ? raw : `Token ${raw}`;
 
   const url = new URL("https://api.esv.org/v3/passage/text/");
   url.searchParams.set("q", verseRef);
