@@ -1226,23 +1226,25 @@ function ContactTab({ cf, overlay, onSkipTrace, skipTracing, onDial, onSms, call
   const [propertyZip, setPropertyZip] = useState(cf.zip ?? "");
   const [mailingAddr, setMailingAddr] = useState(defaultMailing);
 
-  // 5 phone slots
+  // Dynamic phone slots — show all returned phones, minimum 5 empty slots
   const initialPhones = (() => {
     const phones: string[] = [];
     for (const pd of phoneDetails) phones.push(pd.number);
     if (phones.length === 0 && cf.ownerPhone) phones.push(cf.ownerPhone);
-    while (phones.length < 5) phones.push("");
-    return phones.slice(0, 5);
+    const MIN_PHONE_SLOTS = 5;
+    while (phones.length < MIN_PHONE_SLOTS) phones.push("");
+    return phones;
   })();
   const [phoneSlots, setPhoneSlots] = useState<string[]>(initialPhones);
 
-  // 2 email slots
+  // Dynamic email slots — show all returned emails, minimum 2 empty slots
   const initialEmails = (() => {
     const emails: string[] = [];
     for (const ed of emailDetails) emails.push(ed.email);
     if (emails.length === 0 && cf.ownerEmail) emails.push(cf.ownerEmail);
-    while (emails.length < 2) emails.push("");
-    return emails.slice(0, 2);
+    const MIN_EMAIL_SLOTS = 2;
+    while (emails.length < MIN_EMAIL_SLOTS) emails.push("");
+    return emails;
   })();
   const [emailSlots, setEmailSlots] = useState<string[]>(initialEmails);
 
@@ -1256,7 +1258,7 @@ function ContactTab({ cf, overlay, onSkipTrace, skipTracing, onDial, onSms, call
         for (const ph of overlay.phones) newPhones.push(ph);
       }
       while (newPhones.length < 5) newPhones.push("");
-      setPhoneSlots(newPhones.slice(0, 5));
+      setPhoneSlots(newPhones);
 
       const newEmails: string[] = [];
       if (overlay.emailDetails) {
@@ -1265,7 +1267,7 @@ function ContactTab({ cf, overlay, onSkipTrace, skipTracing, onDial, onSms, call
         for (const em of overlay.emails) newEmails.push(em);
       }
       while (newEmails.length < 2) newEmails.push("");
-      setEmailSlots(newEmails.slice(0, 2));
+      setEmailSlots(newEmails);
     }
   }, [overlay]);
 
@@ -1463,7 +1465,7 @@ function ContactTab({ cf, overlay, onSkipTrace, skipTracing, onDial, onSms, call
       <div className="rounded-[12px] border border-white/[0.06] bg-white/[0.02] p-4 space-y-3">
         <div className="flex items-center justify-between">
           <p className="text-[10px] text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
-            <Phone className="h-3 w-3" />Phone Numbers ({phoneSlots.filter((p) => p.trim().length >= 7).length}/5)
+            <Phone className="h-3 w-3" />Phone Numbers ({phoneSlots.filter((p) => p.trim().length >= 7).length}/{phoneSlots.length})
           </p>
           {!hasPhones && (
             <button
@@ -1563,10 +1565,10 @@ function ContactTab({ cf, overlay, onSkipTrace, skipTracing, onDial, onSms, call
         </div>
       </div>
 
-      {/* ── Emails (2 slots) ── */}
+      {/* ── Emails (dynamic slots) ── */}
       <div className="rounded-[12px] border border-white/[0.06] bg-white/[0.02] p-4 space-y-3">
         <p className="text-[10px] text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
-          <Mail className="h-3 w-3" />Emails ({emailSlots.filter((e) => e.includes("@")).length}/2)
+          <Mail className="h-3 w-3" />Emails ({emailSlots.filter((e) => e.includes("@")).length}/{emailSlots.length})
         </p>
         <div className="space-y-1.5">
           {emailSlots.map((email, i) => {
