@@ -14,7 +14,7 @@ import { craigslistFsboCrawler } from "@/lib/crawlers/craigslist-fsbo-crawler";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
-export const maxDuration = 60;
+export const maxDuration = 300;
 
 export async function GET(req: NextRequest) {
   // Auth check — same pattern as daily-poll

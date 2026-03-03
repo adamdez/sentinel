@@ -1174,8 +1174,8 @@ function OverviewTab({ cf, skipTracing, skipTraceResult, skipTraceMs, overlay, s
   dialHistory: Record<string, { count: number; lastDate: string; lastDisposition: string }>;
 }) {
   const skipTraced = !!overlay || !!cf.ownerFlags?.skip_traced;
-  const displayPhone = overlay?.primaryPhone ?? cf.ownerPhone;
-  const displayEmail = overlay?.primaryEmail ?? cf.ownerEmail;
+  const displayPhone = overlay?.primaryPhone ?? cf.ownerPhone ?? (cf.ownerFlags?.contact_phone as string | null) ?? null;
+  const displayEmail = overlay?.primaryEmail ?? cf.ownerEmail ?? (cf.ownerFlags?.contact_email as string | null) ?? null;
   const { notes: callHistory } = useCallNotes(cf.id, 5);
   const [notesExpanded, setNotesExpanded] = useState(false);
   const summaryNotes = callHistory.filter((n) => n.ai_summary);
@@ -2441,6 +2441,14 @@ function OverviewTab({ cf, skipTracing, skipTraceResult, skipTraceMs, overlay, s
               <Radar className="h-3 w-3" />PropertyRadar
             </a>
           )}
+          {(() => {
+            const listingUrl = String(cf.ownerFlags?.listing_url ?? cf.ownerFlags?.link ?? "");
+            return listingUrl ? (
+              <a href={listingUrl} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1.5 text-xs text-orange-400/80 hover:text-orange-400 transition-colors">
+                <ExternalLink className="h-3 w-3" />Original Listing
+              </a>
+            ) : null;
+          })()}
           {cf.fullAddress && (
             <>
               <a href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(cf.fullAddress)}`} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1.5 text-xs text-cyan/70 hover:text-cyan transition-colors">

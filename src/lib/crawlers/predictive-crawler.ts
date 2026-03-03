@@ -105,27 +105,32 @@ async function ingestRecord(
   const apn = syntheticApn(record);
   const fp = fingerprint(record);
 
+  // Build property record — include phone/email at top level when available from crawler
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const propRecord: Record<string, any> = {
+    apn,
+    county: record.county,
+    address: record.address ?? `${record.name} — ${record.county}`,
+    city: record.city ?? "",
+    state: record.state ?? "WA",
+    zip: (record.rawData?.zip as string) ?? "",
+    owner_name: record.name,
+    owner_flags: {
+      crawler_source: record.source,
+      crawled_at: new Date().toISOString(),
+      case_type: record.caseType ?? null,
+      link: record.link ?? null,
+      ...record.rawData,
+    },
+  };
+  // Surface contact info from rawData to top-level property fields
+  // so it appears in MCF and skip-trace won't overwrite if already present
+  if (record.rawData?.contact_phone) propRecord.owner_phone = record.rawData.contact_phone;
+  if (record.rawData?.contact_email) propRecord.owner_email = record.rawData.contact_email;
+
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data: prop, error: propErr } = await (sb.from("properties") as any)
-    .upsert(
-      {
-        apn,
-        county: record.county,
-        address: record.address ?? `${record.name} — ${record.county}`,
-        city: record.city ?? "",
-        state: record.state ?? "WA",
-        zip: "",
-        owner_name: record.name,
-        owner_flags: {
-          crawler_source: record.source,
-          crawled_at: new Date().toISOString(),
-          case_type: record.caseType ?? null,
-          link: record.link ?? null,
-          ...record.rawData,
-        },
-      },
-      { onConflict: "apn,county" }
-    )
+    .upsert(propRecord, { onConflict: "apn,county" })
     .select("id")
     .single();
 
