@@ -381,12 +381,15 @@ export async function POST(req: NextRequest) {
     const label = getScoreLabel(score.composite);
     const apn = pr.APN!;
     const county = normalizeCounty(pr.County ?? counties[0], "Spokane");
-    const address = pr.Address ?? pr.FullAddress ?? "";
+    const rawAddr = pr.Address ?? pr.FullAddress ?? "";
     const city = pr.City ?? "";
     const state = pr.State ?? "WA";
     const zip = pr.ZipFive ?? "";
     const ownerName = pr.Owner ?? pr.Taxpayer ?? "Unknown Owner";
-    const fullAddr = [address, city, state, zip].filter(Boolean).join(", ");
+    // Store only street portion; city/state/zip live in their own columns
+    const address = (rawAddr.includes(",") && city && rawAddr.toLowerCase().includes(city.toLowerCase()))
+      ? rawAddr.split(",")[0].trim()
+      : rawAddr;
 
     // ── Data quality gate: skip properties with no real address/owner ──
     const hasRealAddress = address.trim().length > 3;
@@ -417,7 +420,7 @@ export async function POST(req: NextRequest) {
     const { data: property, error: propErr } = await (sb.from("properties") as any)
       .upsert({
         apn, county,
-        address: fullAddr, city, state, zip,
+        address, city, state, zip,
         owner_name: ownerName,
         estimated_value: toNumber(pr.AVM) != null ? Math.round(toNumber(pr.AVM)!) : null,
         equity_percent: toNumber(pr.EquityPercent) ?? null,
@@ -545,7 +548,7 @@ export async function POST(req: NextRequest) {
     labelCounts[label as keyof typeof labelCounts]++;
     if (blendedScore > topScore) {
       topScore = blendedScore;
-      topAddress = fullAddr;
+      topAddress = [address, city, state, zip].filter(Boolean).join(", ");
     }
   }
 

@@ -9,6 +9,7 @@ import {
   Banknote, Scale, UserX, Eye, FileText, Calculator, Globe, Send,
   Radar, LayoutDashboard, Map, Printer, ImageIcon, ChevronLeft, ChevronRight,
   Pencil, Save, Voicemail, PhoneForwarded, Brain, Crosshair, MapPinned,
+  MessageSquare, Flame,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -105,7 +106,12 @@ export interface ClientFile {
 // ═══════════════════════════════════════════════════════════════════════
 
 function buildAddress(...parts: (string | null | undefined)[]) {
-  return parts.filter(Boolean).join(", ");
+  const filtered = parts.filter((p): p is string => !!p);
+  if (filtered.length <= 1) return filtered[0] ?? "";
+  const [street, ...rest] = filtered;
+  const sl = street.toLowerCase();
+  const unique = rest.filter((p) => !sl.includes(p.toLowerCase()));
+  return [street, ...unique].join(", ");
 }
 
 export function clientFileFromProspect(p: ProspectRow): ClientFile {
@@ -995,6 +1001,99 @@ function OverviewTab({ cf, skipTracing, skipTraceResult, skipTraceMs, overlay, s
   const equityPct = cf.equityPercent ?? 0;
   const equityIsGreen = equityPct >= 50;
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const prRaw = (cf.ownerFlags?.pr_raw ?? {}) as Record<string, any>;
+  const tier = getTier(cf.compositeScore);
+  const tc = TIER_COLORS[tier];
+
+  const ownerAge = prRaw.OwnerAge ? Number(prRaw.OwnerAge) : null;
+  const lastTransferDate = prRaw.LastTransferRecDate ?? prRaw.LastTransferDate ?? null;
+  const yearsOwned = lastTransferDate ? Math.floor((Date.now() - new Date(lastTransferDate).getTime()) / (365.25 * 24 * 60 * 60 * 1000)) : null;
+  const lastTransferType = prRaw.LastTransferType ?? null;
+  const lastTransferValue = prRaw.LastTransferValue ? Number(prRaw.LastTransferValue) : null;
+
+  const estimatedOwed = cf.estimatedValue && cf.equityPercent != null
+    ? Math.round(cf.estimatedValue * (1 - cf.equityPercent / 100)) : null;
+  const roomLabel = cf.equityPercent != null
+    ? (cf.equityPercent >= 50 ? "HIGH SPREAD" : cf.equityPercent >= 25 ? "MODERATE" : "TIGHT")
+    : null;
+  const roomColor = cf.equityPercent != null
+    ? (cf.equityPercent >= 50 ? "text-emerald-400 bg-emerald-500/10" : cf.equityPercent >= 25 ? "text-amber-400 bg-amber-500/10" : "text-red-400 bg-red-500/10")
+    : "";
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const mailingAddr = cf.isAbsentee ? ((persons[0] as any)?.mailing_address ?? prRaw.MailAddress ?? prRaw.MailingAddress ?? null) : null;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const heirContacts = (cf.ownerFlags?.heir_contacts as any[]) ?? [];
+
+  const warningFlags = useMemo(() => {
+    const flags: { label: string; color: string }[] = [];
+    if (prRaw.isListedForSale === "Yes" || prRaw.isListedForSale === true) flags.push({ label: "Listed for Sale", color: "text-red-400 bg-red-500/10 border-red-500/20" });
+    if (prRaw.isRecentSale === "Yes" || prRaw.isRecentSale === true) flags.push({ label: "Recent Sale", color: "text-amber-400 bg-amber-500/10 border-amber-500/20" });
+    if (prRaw.isRecentFlip === "Yes" || prRaw.isRecentFlip === true) flags.push({ label: "Recent Flip", color: "text-orange-400 bg-orange-500/10 border-orange-500/20" });
+    if (prRaw.isAuction === "Yes" || prRaw.isAuction === true) flags.push({ label: "Auction", color: "text-rose-400 bg-rose-500/10 border-rose-500/20" });
+    if (prRaw.isBankOwned === "Yes" || prRaw.isBankOwned === true) flags.push({ label: "Bank-Owned (REO)", color: "text-purple-400 bg-purple-500/10 border-purple-500/20" });
+    return flags;
+  }, [prRaw]);
+
+  const [distressEvents, setDistressEvents] = useState<{ id: string; event_type: string; source: string; created_at: string; severity?: number }[]>([]);
+  useEffect(() => {
+    if (!cf.propertyId) return;
+    (async () => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data } = await (supabase.from("distress_events") as any)
+        .select("id, event_type, source, created_at, severity")
+        .eq("property_id", cf.propertyId)
+        .order("created_at", { ascending: false })
+        .limit(20);
+      if (data) setDistressEvents(data);
+    })();
+  }, [cf.propertyId]);
+
+  const freshestEvent = distressEvents[0] ?? null;
+  const freshestDays = freshestEvent
+    ? Math.floor((Date.now() - new Date(freshestEvent.created_at).getTime()) / 86400000)
+    : null;
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const [activityLog, setActivityLog] = useState<{ id: string; type: string; disposition?: string; notes?: string; created_at: string; duration_sec?: number; phone?: string }[]>([]);
+  useEffect(() => {
+    if (!cf.id) return;
+    (async () => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const [callsRes, eventsRes] = await Promise.all([
+        (supabase.from("calls_log") as any)
+          .select("id, disposition, notes, started_at, duration_sec, phone_dialed")
+          .or(`lead_id.eq.${cf.id},property_id.eq.${cf.propertyId}`)
+          .order("started_at", { ascending: false })
+          .limit(20),
+        (supabase.from("event_log") as any)
+          .select("id, action, details, created_at")
+          .eq("entity_id", cf.id)
+          .order("created_at", { ascending: false })
+          .limit(20),
+      ]);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const merged = [
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        ...(callsRes.data ?? []).map((c: any) => ({
+          id: c.id, type: c.disposition === "sms_outbound" ? "sms" : "call",
+          disposition: c.disposition, notes: c.notes,
+          created_at: c.started_at, duration_sec: c.duration_sec, phone: c.phone_dialed,
+        })),
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        ...(eventsRes.data ?? []).map((e: any) => ({
+          id: e.id, type: "event", disposition: e.action,
+          notes: typeof e.details === "object" ? JSON.stringify(e.details) : e.details,
+          created_at: e.created_at,
+        })),
+      ].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()).slice(0, 30);
+      setActivityLog(merged);
+    })();
+  }, [cf.id, cf.propertyId]);
+
+  const streetViewUrl = prRaw.StreetViewUrl ?? prRaw.PropertyImageUrl ?? (prRaw.Photos?.[0]) ?? null;
+
   return (
     <div className="space-y-5">
       {/* ── Top action bar: Edit + Enrich Now ── */}
@@ -1027,54 +1126,152 @@ function OverviewTab({ cf, skipTracing, skipTraceResult, skipTraceMs, overlay, s
         </Button>
       </div>
 
-      {/* ── Score Dashboard — Tier-Color-Coded ── */}
-      <div className="grid grid-cols-3 gap-3">
-        <ScoreCard label="Composite" value={cf.compositeScore} onClick={() => setScoreBreakdown("composite")} />
-        <ScoreCard label="Motivation" value={cf.motivationScore} onClick={() => setScoreBreakdown("motivation")} />
-        <ScoreCard label="Deal Score" value={cf.dealScore} onClick={() => setScoreBreakdown("deal")} />
+      {/* ── Property Photo (Street View) ── */}
+      {streetViewUrl && (
+        <div className="rounded-[12px] border border-white/[0.08] overflow-hidden relative h-40">
+          <img
+            src={streetViewUrl}
+            alt="Property"
+            className="w-full h-full object-cover"
+            onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
+          />
+          <div className="absolute inset-0 bg-gradient-to-t from-[rgba(7,7,13,0.7)] to-transparent pointer-events-none" />
+          <div className="absolute bottom-2 left-3 flex items-center gap-1.5 text-[10px] text-white/70">
+            <ImageIcon className="h-3 w-3" />Street View
+          </div>
+        </div>
+      )}
+
+      {/* ── Warning Badges (Listed / Auction / Bank-Owned) ── */}
+      {warningFlags.length > 0 && (
+        <div className="flex flex-wrap gap-1.5">
+          {warningFlags.map((f) => (
+            <div key={f.label} className={cn("flex items-center gap-1 px-2.5 py-1 rounded-md border text-[10px] font-bold uppercase tracking-wider", f.color)}>
+              <AlertTriangle className="h-3 w-3" />{f.label}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* ── Lead Intelligence — Replaces Score Tiles ── */}
+      <div className="rounded-[12px] border border-cyan/15 bg-cyan/[0.02] p-4 space-y-3">
+        <div className="flex items-center gap-2">
+          <TrendingUp className="h-3.5 w-3.5 text-cyan" />
+          <p className="text-[11px] text-cyan/80 uppercase tracking-wider font-semibold">Lead Intelligence</p>
+        </div>
+
+        <div className="grid grid-cols-2 gap-2.5">
+          {/* Composite Score */}
+          <button
+            type="button"
+            onClick={() => setScoreBreakdown("composite")}
+            className={cn("rounded-[10px] border p-3 text-left transition-all cursor-pointer hover:bg-white/[0.04] group relative overflow-hidden", tc.border, tc.hoverBorder)}
+          >
+            <div className="absolute inset-0 bg-gradient-to-b from-white/[0.02] to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+            <div className="flex items-center justify-between mb-1 relative z-10">
+              <p className="text-[9px] text-muted-foreground/60 uppercase tracking-widest">Composite Score</p>
+              <span className="text-[8px] text-cyan/40 group-hover:text-cyan/70 transition-colors">drill &rarr;</span>
+            </div>
+            <div className="flex items-center gap-3 relative z-10">
+              <p className="text-3xl font-black tabular-nums" style={{ textShadow: `0 0 12px ${tc.glow}` }}>{cf.compositeScore}</p>
+              <div>
+                <span className={cn("text-[9px] font-bold px-1.5 py-0.5 rounded uppercase tracking-wider", tc.text, `${tc.bar}/20`)}>{tier.toUpperCase()}</span>
+                <p className="text-[9px] text-muted-foreground/50 mt-0.5">{cf.tags.length} signal{cf.tags.length !== 1 ? "s" : ""} stacked</p>
+              </div>
+            </div>
+            <div className="h-1.5 rounded-full bg-secondary mt-2 overflow-hidden relative z-10">
+              <div className={cn("h-full rounded-full transition-all", tc.bar)} style={{ width: `${Math.min(cf.compositeScore, 100)}%` }} />
+            </div>
+          </button>
+
+          {/* Equity & Spread */}
+          <div className={cn("rounded-[10px] border p-3 relative overflow-hidden", equityIsGreen ? "border-emerald-500/20 bg-emerald-500/[0.04]" : "border-white/[0.06] bg-white/[0.03]")}>
+            {equityIsGreen && <div className="absolute inset-0 bg-gradient-to-b from-emerald-500/[0.06] to-transparent pointer-events-none" />}
+            <p className="text-[9px] text-muted-foreground/60 uppercase tracking-widest mb-1 relative z-10">Equity &amp; Spread</p>
+            <div className="flex items-center gap-3 relative z-10">
+              <p className={cn("text-3xl font-black tabular-nums", equityIsGreen ? "text-emerald-400" : "text-foreground")}
+                style={{ textShadow: equityIsGreen ? "0 0 16px rgba(52,211,153,0.35)" : undefined }}>
+                {cf.equityPercent != null ? `${cf.equityPercent}%` : "—"}
+              </p>
+              <div className="text-[10px] text-muted-foreground space-y-0.5">
+                {cf.estimatedValue != null && <p>AVM {formatCurrency(cf.estimatedValue)}</p>}
+                {cf.availableEquity != null && <p>{formatCurrency(cf.availableEquity)} avail.</p>}
+                {estimatedOwed != null && <p>Owed ~{formatCurrency(estimatedOwed)}</p>}
+              </div>
+            </div>
+            {roomLabel && (
+              <div className="mt-2 relative z-10">
+                <span className={cn("text-[9px] font-bold px-1.5 py-0.5 rounded uppercase tracking-wider", roomColor)}>{roomLabel}</span>
+              </div>
+            )}
+          </div>
+
+          {/* Signal Freshness */}
+          <div className="rounded-[10px] border border-white/[0.06] bg-white/[0.03] p-3">
+            <p className="text-[9px] text-muted-foreground/60 uppercase tracking-widest mb-1">Signal Freshness</p>
+            {freshestEvent ? (
+              <>
+                <div className="flex items-center gap-2">
+                  <p className="text-2xl font-black text-orange-400" style={{ textShadow: "0 0 12px rgba(251,146,60,0.3)" }}>
+                    {freshestDays != null && freshestDays <= 0 ? "Today" : `${freshestDays}d`}
+                  </p>
+                  <p className="text-[9px] text-muted-foreground/50">since newest</p>
+                </div>
+                <div className="flex items-center gap-1.5 mt-1.5">
+                  {(() => {
+                    const cfg = DISTRESS_CFG[freshestEvent.event_type];
+                    const FreshIcon = cfg?.icon ?? AlertTriangle;
+                    return (
+                      <div className={cn("flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-medium", cfg?.color ?? "text-muted-foreground bg-white/[0.04] border-white/[0.06]")}>
+                        <FreshIcon className="h-2.5 w-2.5" />{cfg?.label ?? freshestEvent.event_type}
+                      </div>
+                    );
+                  })()}
+                  {freshestDays != null && freshestDays <= 14 && (
+                    <span className="flex items-center gap-0.5 text-[9px] font-bold text-red-400">
+                      <Flame className="h-2.5 w-2.5" />HOT
+                    </span>
+                  )}
+                </div>
+              </>
+            ) : cf.tags.length > 0 ? (
+              <div className="flex items-center gap-2">
+                <AlertTriangle className="h-4 w-4 text-orange-400/50" />
+                <p className="text-xs text-muted-foreground/60">{cf.tags.length} signal{cf.tags.length !== 1 ? "s" : ""} detected</p>
+              </div>
+            ) : (
+              <p className="text-xs text-muted-foreground/40 italic">No signals</p>
+            )}
+          </div>
+
+          {/* Owner Situation */}
+          <div className="rounded-[10px] border border-white/[0.06] bg-white/[0.03] p-3">
+            <p className="text-[9px] text-muted-foreground/60 uppercase tracking-widest mb-1">Owner Situation</p>
+            <div className="space-y-1.5">
+              <div className="flex flex-wrap items-center gap-1">
+                {cf.isAbsentee ? (
+                  <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-blue-500/10 text-blue-400 border border-blue-500/20">ABSENTEE</span>
+                ) : (
+                  <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">OCCUPIED</span>
+                )}
+                {cf.isFreeClear && <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-400 border border-amber-500/20">FREE &amp; CLEAR</span>}
+                {cf.isVacant && <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-purple-500/10 text-purple-400 border border-purple-500/20">VACANT</span>}
+              </div>
+              {yearsOwned != null && <p className="text-xs text-muted-foreground">{yearsOwned} year{yearsOwned !== 1 ? "s" : ""} owned</p>}
+              {ownerAge != null && <p className="text-xs text-muted-foreground">Owner age ~{ownerAge}</p>}
+              {lastTransferType && (
+                <p className="text-[10px] text-muted-foreground/60">
+                  Last transfer: {lastTransferType}{lastTransferValue ? ` (${formatCurrency(lastTransferValue)})` : ""}
+                </p>
+              )}
+            </div>
+          </div>
+        </div>
       </div>
 
       {scoreBreakdown && (
         <ScoreBreakdownModal cf={cf} scoreType={scoreBreakdown} onClose={() => setScoreBreakdown(null)} />
       )}
-
-      {/* ── Hero Numbers: Equity + AVM/ARV ── */}
-      <div className="grid grid-cols-2 gap-3">
-        <div className={cn(
-          "rounded-[12px] border p-4 text-center relative overflow-hidden",
-          equityIsGreen
-            ? "border-emerald-500/30 bg-emerald-500/[0.06]"
-            : "border-white/[0.06] bg-white/[0.02]"
-        )}>
-          {equityIsGreen && <div className="absolute inset-0 bg-gradient-to-b from-emerald-500/[0.08] to-transparent pointer-events-none" />}
-          <p className="text-[9px] text-muted-foreground uppercase tracking-widest mb-1 relative z-10">Equity</p>
-          <p className={cn("text-3xl font-black tabular-nums relative z-10", equityIsGreen ? "text-emerald-400" : "text-foreground")}
-            style={{ textShadow: equityIsGreen ? "0 0 20px rgba(52,211,153,0.4), 0 0 60px rgba(52,211,153,0.15)" : "0 0 12px rgba(255,255,255,0.08)" }}>
-            {cf.equityPercent != null ? `${cf.equityPercent}%` : "—"}
-          </p>
-          {cf.availableEquity != null && (
-            <p className="text-[10px] text-muted-foreground mt-1 relative z-10">{formatCurrency(cf.availableEquity)} available</p>
-          )}
-          {cf.totalLoanBalance != null && (
-            <p className="text-[9px] text-muted-foreground/50 relative z-10">Loans: {formatCurrency(cf.totalLoanBalance)}</p>
-          )}
-        </div>
-
-        <div className="rounded-[12px] border border-white/[0.06] bg-white/[0.02] p-4 text-center relative overflow-hidden">
-          {cf.estimatedValue && <div className="absolute inset-0 bg-gradient-to-b from-cyan/[0.05] to-transparent pointer-events-none" />}
-          <p className="text-[9px] text-muted-foreground uppercase tracking-widest mb-1 relative z-10">AVM / ARV</p>
-          <p className="text-3xl font-black tabular-nums text-cyan relative z-10"
-            style={{ textShadow: cf.estimatedValue ? "0 0 20px rgba(0,212,255,0.4), 0 0 60px rgba(0,212,255,0.15)" : undefined }}>
-            {cf.estimatedValue ? formatCurrency(cf.estimatedValue) : "—"}
-          </p>
-          {cf.lastSalePrice != null && (
-            <p className="text-[10px] text-muted-foreground mt-1 relative z-10">Last sale: {formatCurrency(cf.lastSalePrice)}{cf.lastSaleDate ? ` (${new Date(cf.lastSaleDate).toLocaleDateString()})` : ""}</p>
-          )}
-          {!!cf.ownerFlags?.last_enriched && (
-            <p className="text-[9px] text-muted-foreground/40 relative z-10">Updated {new Date(cf.ownerFlags.last_enriched as string).toLocaleDateString()}</p>
-          )}
-        </div>
-      </div>
 
       {/* ── Owner & Contact — Best Phone + Confidence ── */}
       <div className="rounded-[12px] border border-glass-border bg-secondary/10 p-4">
@@ -1092,6 +1289,22 @@ function OverviewTab({ cf, skipTracing, skipTraceResult, skipTraceMs, overlay, s
             bestAddress: cf.fullAddress,
           }} />
         </div>
+
+        {/* Mailing Address for absentee owners */}
+        {mailingAddr && (
+          <div className="rounded-[10px] border border-blue-500/15 bg-blue-500/[0.04] p-2.5 mb-3">
+            <div className="flex items-start gap-2">
+              <MapPinned className="h-3.5 w-3.5 text-blue-400/70 mt-0.5 shrink-0" />
+              <div className="flex-1 min-w-0">
+                <p className="text-[9px] text-blue-400/60 uppercase tracking-widest">Mailing Address (Absentee)</p>
+                <div className="flex items-center gap-1.5">
+                  <p className="text-sm text-foreground truncate">{typeof mailingAddr === "string" ? mailingAddr : JSON.stringify(mailingAddr)}</p>
+                  <CopyBtn text={typeof mailingAddr === "string" ? mailingAddr : JSON.stringify(mailingAddr)} />
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
 
         {bestPhone ? (
           <div className="rounded-[10px] border border-cyan/20 bg-cyan/[0.04] p-3 mb-3">
@@ -1170,6 +1383,38 @@ function OverviewTab({ cf, skipTracing, skipTraceResult, skipTraceMs, overlay, s
                 </div>
                 {p.phones?.length > 0 && <div className="pl-5 text-muted-foreground">Phones: {p.phones.join(", ")}</div>}
                 {p.emails?.length > 0 && <div className="pl-5 text-muted-foreground">Emails: {p.emails.join(", ")}</div>}
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Heir Contacts (probate situations) */}
+        {heirContacts.length > 0 && (
+          <div className="mt-3 space-y-2">
+            <p className="text-[10px] text-red-400/80 uppercase tracking-wider font-semibold flex items-center gap-1.5">
+              <AlertTriangle className="h-3 w-3" />Heir / Decision-Maker Contacts
+            </p>
+            {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
+            {heirContacts.map((heir: any, i: number) => (
+              <div key={i} className="rounded-md border border-red-500/15 bg-red-500/[0.04] p-2.5 text-xs space-y-0.5">
+                <div className="flex items-center gap-2">
+                  <User className="h-3 w-3 text-red-400/60" />
+                  <span className="font-semibold text-foreground">{heir.name ?? "Unknown Heir"}</span>
+                  {heir.role && <span className="text-muted-foreground">({heir.role})</span>}
+                </div>
+                {heir.phone && (
+                  <div className="pl-5 flex items-center gap-1.5">
+                    <Phone className="h-2.5 w-2.5 text-cyan/60" />
+                    <a href={`tel:${heir.phone.replace(/\D/g, "")}`} className="text-cyan hover:underline font-mono">{heir.phone}</a>
+                  </div>
+                )}
+                {heir.email && (
+                  <div className="pl-5 flex items-center gap-1.5">
+                    <Mail className="h-2.5 w-2.5 text-cyan/60" />
+                    <a href={`mailto:${heir.email}`} className="text-cyan hover:underline">{heir.email}</a>
+                  </div>
+                )}
+                {heir.mailing && <div className="pl-5 text-muted-foreground">{heir.mailing}</div>}
               </div>
             ))}
           </div>
@@ -1421,6 +1666,32 @@ function OverviewTab({ cf, skipTracing, skipTraceResult, skipTraceMs, overlay, s
             </div>
           </div>
 
+          {/* Tax & Transfer Details */}
+          {(prRaw.AssessedValue || lastTransferType || cf.lastSalePrice) && (
+            <div className="rounded-[10px] border border-white/[0.06] bg-white/[0.03] p-2.5 col-span-2">
+              <div className="flex items-start gap-2">
+                <Banknote className="h-3.5 w-3.5 text-cyan/60 mt-0.5 shrink-0" />
+                <div className="flex-1 min-w-0">
+                  <p className="text-[9px] text-muted-foreground/60 uppercase tracking-widest mb-1">Tax &amp; Transfer</p>
+                  <div className="grid grid-cols-2 gap-x-4 gap-y-0.5 text-xs">
+                    {prRaw.AssessedValue && (
+                      <p className="text-muted-foreground">Tax Assessed: <span className="text-foreground font-medium">{formatCurrency(Number(prRaw.AssessedValue))}</span></p>
+                    )}
+                    {cf.lastSalePrice != null && (
+                      <p className="text-muted-foreground">Last Sale: <span className="text-foreground font-medium">{formatCurrency(cf.lastSalePrice)}</span>{cf.lastSaleDate ? ` (${new Date(cf.lastSaleDate).toLocaleDateString()})` : ""}</p>
+                    )}
+                    {lastTransferType && (
+                      <p className="text-muted-foreground">Transfer: <span className="text-foreground font-medium">{lastTransferType}</span>{lastTransferValue ? ` — ${formatCurrency(lastTransferValue)}` : ""}</p>
+                    )}
+                    {prRaw.DelinquentYear && (
+                      <p className="text-amber-400">Delinquent: <span className="font-medium">Year {prRaw.DelinquentYear}</span>{prRaw.NumberDelinquentInstallments ? ` (${prRaw.NumberDelinquentInstallments} installments)` : ""}</p>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Distress Signals */}
           <div className="rounded-[10px] border border-white/[0.06] bg-white/[0.03] p-2.5 col-span-2">
             <div className="flex items-start gap-2">
@@ -1514,11 +1785,92 @@ function OverviewTab({ cf, skipTracing, skipTraceResult, skipTraceMs, overlay, s
         )}
       </Section>
 
-      {cf.radarId && (
-        <a href={`https://app.propertyradar.com/properties/${cf.radarId}`} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 text-xs text-cyan/70 hover:text-cyan transition-colors">
-          <ExternalLink className="h-3 w-3" />View on PropertyRadar
-        </a>
+      {/* ── Distress Signal Timeline ── */}
+      {distressEvents.length > 0 && (
+        <div className="rounded-[12px] border border-orange-500/15 bg-orange-500/[0.02] p-4 space-y-3">
+          <div className="flex items-center gap-2 mb-1">
+            <AlertTriangle className="h-3.5 w-3.5 text-orange-400" />
+            <p className="text-[11px] text-orange-400/80 uppercase tracking-wider font-semibold">Distress Signal Timeline</p>
+            <Badge variant="outline" className="text-[9px] ml-1 border-orange-500/20 text-orange-400/70">{distressEvents.length}</Badge>
+          </div>
+          <div className="space-y-1.5 max-h-48 overflow-y-auto scrollbar-thin">
+            {distressEvents.map((evt) => {
+              const cfg = DISTRESS_CFG[evt.event_type];
+              const EvtIcon = cfg?.icon ?? AlertTriangle;
+              const daysAgo = Math.floor((Date.now() - new Date(evt.created_at).getTime()) / 86400000);
+              const isRecent = daysAgo <= 30;
+              return (
+                <div key={evt.id} className={cn("flex items-center gap-2.5 px-3 py-2 rounded-[8px] border text-xs", isRecent ? "border-orange-500/20 bg-orange-500/[0.06]" : "border-white/[0.06] bg-white/[0.02]")}>
+                  <EvtIcon className={cn("h-3.5 w-3.5 shrink-0", isRecent ? "text-orange-400" : "text-muted-foreground/50")} />
+                  <div className="flex-1 min-w-0">
+                    <span className={cn("font-semibold", isRecent ? "text-orange-300" : "text-foreground")}>{cfg?.label ?? evt.event_type}</span>
+                    {evt.source && <span className="text-muted-foreground/50 ml-1.5">via {evt.source}</span>}
+                  </div>
+                  <div className="text-right shrink-0">
+                    <p className={cn("font-mono text-[10px]", isRecent ? "text-orange-400 font-bold" : "text-muted-foreground/50")}>{daysAgo}d ago</p>
+                    <p className="text-[9px] text-muted-foreground/40">{new Date(evt.created_at).toLocaleDateString()}</p>
+                  </div>
+                  {isRecent && <Flame className="h-3 w-3 text-red-400 shrink-0" />}
+                </div>
+              );
+            })}
+          </div>
+        </div>
       )}
+
+      {/* ── Activity Timeline ── */}
+      {activityLog.length > 0 && (
+        <div className="rounded-[12px] border border-white/[0.06] bg-white/[0.02] p-4 space-y-3">
+          <div className="flex items-center gap-2 mb-1">
+            <Clock className="h-3.5 w-3.5 text-cyan" />
+            <p className="text-[11px] text-muted-foreground uppercase tracking-wider font-semibold">Activity Timeline</p>
+            <Badge variant="outline" className="text-[9px] ml-1">{activityLog.length}</Badge>
+          </div>
+          <div className="space-y-1 max-h-48 overflow-y-auto scrollbar-thin">
+            {activityLog.map((entry) => {
+              const isCall = entry.type === "call";
+              const isSms = entry.type === "sms";
+              const EntryIcon = isCall ? Phone : isSms ? MessageSquare : Zap;
+              const iconColor = isCall ? "text-cyan" : isSms ? "text-emerald-400" : "text-purple-400";
+              return (
+                <div key={entry.id} className="flex items-center gap-2.5 px-3 py-2 rounded-[8px] border border-white/[0.04] bg-white/[0.02] text-xs">
+                  <EntryIcon className={cn("h-3.5 w-3.5 shrink-0", iconColor)} />
+                  <div className="flex-1 min-w-0">
+                    <span className="font-semibold text-foreground capitalize">{entry.disposition?.replace(/_/g, " ") ?? entry.type}</span>
+                    {entry.phone && <span className="text-muted-foreground/50 ml-1.5 font-mono">***{entry.phone.slice(-4)}</span>}
+                    {entry.duration_sec != null && entry.duration_sec > 0 && (
+                      <span className="text-muted-foreground/50 ml-1.5">{Math.floor(entry.duration_sec / 60)}:{(entry.duration_sec % 60).toString().padStart(2, "0")}</span>
+                    )}
+                  </div>
+                  <p className="text-[9px] text-muted-foreground/40 shrink-0">{new Date(entry.created_at).toLocaleDateString()} {new Date(entry.created_at).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}</p>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* ── External Links ── */}
+      <div className="flex flex-wrap items-center gap-3">
+        {cf.radarId && (
+          <a href={`https://app.propertyradar.com/properties/${cf.radarId}`} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1.5 text-xs text-cyan/70 hover:text-cyan transition-colors">
+            <Radar className="h-3 w-3" />PropertyRadar
+          </a>
+        )}
+        {cf.fullAddress && (
+          <>
+            <a href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(cf.fullAddress)}`} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1.5 text-xs text-cyan/70 hover:text-cyan transition-colors">
+              <Map className="h-3 w-3" />Google Maps
+            </a>
+            <a href={`https://www.zillow.com/homes/${encodeURIComponent(cf.fullAddress)}_rb/`} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1.5 text-xs text-cyan/70 hover:text-cyan transition-colors">
+              <ExternalLink className="h-3 w-3" />Zillow
+            </a>
+            <a href={`https://www.redfin.com/search#query=${encodeURIComponent(cf.fullAddress)}`} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1.5 text-xs text-cyan/70 hover:text-cyan transition-colors">
+              <ExternalLink className="h-3 w-3" />Redfin
+            </a>
+          </>
+        )}
+      </div>
     </div>
   );
 }
@@ -2336,6 +2688,13 @@ export function MasterClientFileModal({ clientFile, open, onClose, onClaim, onRe
   const [computedArv, setComputedArv] = useState(0);
   const [editOpen, setEditOpen] = useState(false);
   const [claiming, setClaiming] = useState(false);
+  const [calling, setCalling] = useState(false);
+  const [callStatus, setCallStatus] = useState<string | null>(null);
+  const [smsOpen, setSmsOpen] = useState(false);
+  const [smsMessage, setSmsMessage] = useState("");
+  const [smsSending, setSmsSending] = useState(false);
+
+  const displayPhone = overlay?.primaryPhone ?? clientFile?.ownerPhone ?? null;
 
   const handleClaimLead = useCallback(async () => {
     if (!clientFile) return;
@@ -2396,6 +2755,74 @@ export function MasterClientFileModal({ clientFile, open, onClose, onClaim, onRe
       setClaiming(false);
     }
   }, [clientFile, onClaim, onRefresh]);
+
+  const handleDial = useCallback(async () => {
+    if (!clientFile || !displayPhone) return;
+    setCalling(true);
+    setCallStatus("dialing");
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const res = await fetch("/api/dialer/call", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}),
+        },
+        body: JSON.stringify({
+          phone: displayPhone,
+          leadId: clientFile.id,
+          propertyId: clientFile.propertyId,
+        }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setCallStatus("ringing");
+        toast.success("Call initiated via Twilio");
+        setTimeout(() => { setCallStatus(null); setCalling(false); }, 30000);
+      } else {
+        setCallStatus(null);
+        setCalling(false);
+        toast.error(data.error ?? "Call failed");
+      }
+    } catch {
+      setCallStatus(null);
+      setCalling(false);
+      toast.error("Network error — call failed");
+    }
+  }, [clientFile, displayPhone]);
+
+  const handleSendSms = useCallback(async () => {
+    if (!clientFile || !displayPhone || !smsMessage.trim()) return;
+    setSmsSending(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const res = await fetch("/api/dialer/sms", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}),
+        },
+        body: JSON.stringify({
+          phone: displayPhone,
+          message: smsMessage.trim(),
+          leadId: clientFile.id,
+          propertyId: clientFile.propertyId,
+        }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        toast.success("SMS sent successfully");
+        setSmsMessage("");
+        setSmsOpen(false);
+      } else {
+        toast.error(data.error ?? "SMS failed");
+      }
+    } catch {
+      toast.error("Network error — SMS failed");
+    } finally {
+      setSmsSending(false);
+    }
+  }, [clientFile, displayPhone, smsMessage]);
 
   const handleAddComp = useCallback((comp: CompProperty) => {
     setSelectedComps((prev) => prev.some((c) => c.apn === comp.apn) ? prev : [...prev, comp]);
@@ -2467,7 +2894,6 @@ export function MasterClientFileModal({ clientFile, open, onClose, onClaim, onRe
   if (!clientFile) return null;
 
   const lbl = SCORE_LABEL_CFG[clientFile.scoreLabel];
-  const displayPhone = overlay?.primaryPhone ?? clientFile.ownerPhone;
 
   return (
     <AnimatePresence>
@@ -2565,25 +2991,81 @@ export function MasterClientFileModal({ clientFile, open, onClose, onClaim, onRe
               </div>
 
               {/* Footer */}
-              <div className="shrink-0 flex items-center gap-3 px-6 py-3 border-t border-white/[0.06] bg-[rgba(4,4,12,0.88)] backdrop-blur-2xl rounded-b-[16px]">
-                {onClaim && (
-                  <Button size="sm" className="gap-2" disabled={claiming} onClick={handleClaimLead}>
-                    {claiming ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <CheckCircle2 className="h-3.5 w-3.5" />}
-                    {claiming ? "Claiming…" : "Claim Lead"}
-                  </Button>
+              <div className="shrink-0 flex flex-col border-t border-white/[0.06] bg-[rgba(4,4,12,0.88)] backdrop-blur-2xl rounded-b-[16px]">
+                {/* Call status banner */}
+                {callStatus && (
+                  <div className="flex items-center gap-2 px-6 py-2 bg-cyan/[0.08] border-b border-cyan/15 text-xs text-cyan">
+                    <Loader2 className="h-3 w-3 animate-spin" />
+                    <span className="font-semibold capitalize">{callStatus}</span>
+                    <span className="text-muted-foreground/50 ml-1">via Twilio</span>
+                    <button onClick={() => { setCallStatus(null); setCalling(false); }} className="ml-auto text-muted-foreground hover:text-foreground">
+                      <X className="h-3 w-3" />
+                    </button>
+                  </div>
                 )}
-                {displayPhone && (
-                  <Button size="sm" variant="outline" className="gap-2" onClick={() => window.open(`tel:${displayPhone.replace(/\D/g, "")}`)}>
-                    <Phone className="h-3.5 w-3.5" />Call {displayPhone.slice(-4)}
-                  </Button>
+                {/* SMS Compose */}
+                {smsOpen && displayPhone && (
+                  <div className="px-6 py-3 border-b border-white/[0.06] space-y-2">
+                    <div className="flex items-center gap-2">
+                      <MessageSquare className="h-3.5 w-3.5 text-emerald-400" />
+                      <p className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold">SMS to ***{displayPhone.slice(-4)}</p>
+                      <button onClick={() => setSmsOpen(false)} className="ml-auto text-muted-foreground hover:text-foreground">
+                        <X className="h-3 w-3" />
+                      </button>
+                    </div>
+                    <textarea
+                      value={smsMessage}
+                      onChange={(e) => setSmsMessage(e.target.value)}
+                      placeholder="Type your message…"
+                      className="w-full h-16 rounded-[8px] border border-white/[0.08] bg-white/[0.04] px-3 py-2 text-xs text-foreground placeholder:text-muted-foreground/40 resize-none focus:outline-none focus:border-cyan/30"
+                      maxLength={320}
+                    />
+                    <div className="flex items-center justify-between">
+                      <span className="text-[9px] text-muted-foreground/40">{smsMessage.length}/320</span>
+                      <Button size="sm" className="gap-1.5" disabled={smsSending || !smsMessage.trim()} onClick={handleSendSms}>
+                        {smsSending ? <Loader2 className="h-3 w-3 animate-spin" /> : <Send className="h-3 w-3" />}
+                        {smsSending ? "Sending…" : "Send SMS"}
+                      </Button>
+                    </div>
+                  </div>
                 )}
-                {clientFile.ownerEmail && (
-                  <Button size="sm" variant="outline" className="gap-2" asChild>
-                    <a href={`mailto:${clientFile.ownerEmail}`}><Mail className="h-3.5 w-3.5" />Email</a>
-                  </Button>
-                )}
-                <div className="ml-auto text-[10px] text-muted-foreground">
-                  ID: {clientFile.id.slice(0, 8)} • {clientFile.source}
+                <div className="flex items-center gap-3 px-6 py-3">
+                  {onClaim && (
+                    <Button size="sm" className="gap-2" disabled={claiming} onClick={handleClaimLead}>
+                      {claiming ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <CheckCircle2 className="h-3.5 w-3.5" />}
+                      {claiming ? "Claiming…" : "Claim Lead"}
+                    </Button>
+                  )}
+                  {displayPhone && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="gap-2 border-cyan/20 hover:border-cyan/40 hover:bg-cyan/[0.06]"
+                      disabled={calling}
+                      onClick={handleDial}
+                    >
+                      {calling ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Phone className="h-3.5 w-3.5" />}
+                      {calling ? "Dialing…" : `Dial ${displayPhone.slice(-4)}`}
+                    </Button>
+                  )}
+                  {displayPhone && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="gap-2 border-emerald-500/20 hover:border-emerald-500/40 hover:bg-emerald-500/[0.06]"
+                      onClick={() => setSmsOpen(!smsOpen)}
+                    >
+                      <MessageSquare className="h-3.5 w-3.5 text-emerald-400" />SMS
+                    </Button>
+                  )}
+                  {clientFile.ownerEmail && (
+                    <Button size="sm" variant="outline" className="gap-2" asChild>
+                      <a href={`mailto:${clientFile.ownerEmail}`}><Mail className="h-3.5 w-3.5" />Email</a>
+                    </Button>
+                  )}
+                  <div className="ml-auto text-[10px] text-muted-foreground">
+                    ID: {clientFile.id.slice(0, 8)} • {clientFile.source}
+                  </div>
                 </div>
               </div>
             </div>

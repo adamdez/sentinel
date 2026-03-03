@@ -403,10 +403,14 @@ export async function POST(request: NextRequest) {
     }
 
     const county = globalNormalizeCounty(prProperty.County ?? body.county ?? "", "Unknown");
-    const address = prProperty.Address ?? prProperty.FullAddress ?? body.address ?? "";
+    const rawAddr = prProperty.Address ?? prProperty.FullAddress ?? body.address ?? "";
     const city = prProperty.City ?? "";
     const state = prProperty.State ?? "AZ";
     const zip = prProperty.ZipFive ?? "";
+    // Store only the street portion — city/state/zip live in their own columns
+    const address = (rawAddr.includes(",") && city && rawAddr.toLowerCase().includes(city.toLowerCase()))
+      ? rawAddr.split(",")[0].trim()
+      : rawAddr;
     const ownerName = prProperty.Owner ?? prProperty.Taxpayer ?? "Unknown Owner";
 
     log("Step 6 — Normalized fields", { apn, county, address, city, state, zip, ownerName });
@@ -445,7 +449,7 @@ export async function POST(request: NextRequest) {
     const propertyRow = {
       apn,
       county,
-      address: `${address}${city ? ", " + city : ""}${state ? " " + state : ""}${zip ? " " + zip : ""}`.trim(),
+      address,
       city,
       state,
       zip,
