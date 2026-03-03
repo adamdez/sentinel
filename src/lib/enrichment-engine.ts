@@ -1222,10 +1222,15 @@ export async function processEnrichmentBatch(
       continue;
     }
     const flags = prop.owner_flags ?? {};
+    // A lead is pre-enriched ONLY if it still has a score (priority > 0).
+    // Flushed leads get priority reset to 0, forcing re-enrichment even if
+    // the property still has enrichment_status = "enriched".
     const isPreEnriched =
-      flags.enrichment_status === "enriched" ||
-      (lead.priority > 0 && flags.crawler_source) || // crawler leads arrive scored
-      (lead.priority > 0 && flags.pr_data_version);   // PR leads arrive scored
+      lead.priority > 0 && (
+        flags.enrichment_status === "enriched" ||
+        flags.crawler_source || // crawler leads arrive scored
+        flags.pr_data_version   // PR leads arrive scored
+      );
     if (isPreEnriched) {
       alreadyEnriched.push(lead);
     } else {

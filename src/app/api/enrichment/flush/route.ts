@@ -14,13 +14,13 @@ const ADMIN_EMAILS = [
 /**
  * POST /api/enrichment/flush
  *
- * Nuclear reset — moves ALL current prospects back to staging and clears
- * their enrichment flags so the cron re-enriches them from scratch.
+ * Nuclear reset — moves ALL current prospects back to staging and resets
+ * their priority so the enrichment cron re-processes them from scratch.
  *
  * After flush:
  *   - Prospect folder is empty (agents see nothing temporarily)
- *   - Reservoir has all leads, enrichment_status reset to "pending"
- *   - Enrichment cron picks them up automatically every 15 min
+ *   - Reservoir has all leads with priority=0 (triggers re-enrichment)
+ *   - Enrichment cron picks them up automatically every 15 min (50/batch)
  *   - Admin promotes platinum/gold when ready
  *
  * Auth: Admin session or CRON_SECRET.
@@ -55,9 +55,11 @@ export async function POST(req: NextRequest) {
       .select("id", { count: "exact", head: true })
       .eq("status", "prospect");
 
-    // Step 2: Reset all prospect leads → staging
+    // Step 2: Reset ALL prospect leads → staging with priority=0
+    // Priority=0 tells the batch filter this lead needs re-enrichment
+    // even if the property already has enrichment_status = "enriched"
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { error: leadErr } = await (sb.from("leads") as any)
+    const { error: prospectErr } = await (sb.from("leads") as any)
       .update({
         status: "staging",
         priority: 0,
@@ -67,13 +69,13 @@ export async function POST(req: NextRequest) {
       })
       .eq("status", "prospect");
 
-    if (leadErr) {
-      console.error("[Enrichment/Flush] Lead reset error:", leadErr.message);
-      return NextResponse.json({ error: leadErr.message }, { status: 500 });
+    if (prospectErr) {
+      console.error("[Enrichment/Flush] Prospect reset error:", prospectErr.message);
+      return NextResponse.json({ error: prospectErr.message }, { status: 500 });
     }
 
-    // Step 3: Also reset any staging leads that were already enriched
-    // (so they get a fresh pass through the pipeline)
+    // Step 3: Also reset any EXISTING staging leads that were already enriched
+    // so they also get a fresh pass
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { error: stagingErr } = await (sb.from("leads") as any)
       .update({
@@ -82,53 +84,14 @@ export async function POST(req: NextRequest) {
         notes: "Flushed to reservoir for re-enrichment",
         updated_at: new Date().toISOString(),
       })
-      .eq("status", "staging");
+      .eq("status", "staging")
+      .gt("priority", 0);
 
     if (stagingErr) {
       console.error("[Enrichment/Flush] Staging reset error:", stagingErr.message);
     }
 
-    // Step 4: Clear enrichment flags on ALL properties so they get re-enriched
-    // We need to reset enrichment_status, enrichment_pending, enrichment_attempts
-    // Fetch all properties linked to staging leads
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data: allLeads } = await (sb.from("leads") as any)
-      .select("property_id")
-      .eq("status", "staging");
-
-    const propertyIds = [...new Set((allLeads ?? []).map((l: { property_id: string }) => l.property_id).filter(Boolean))];
-
-    let propsReset = 0;
-    for (let i = 0; i < propertyIds.length; i += 100) {
-      const chunk = propertyIds.slice(i, i + 100);
-      // Fetch current owner_flags for each property, then reset enrichment fields
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { data: props } = await (sb.from("properties") as any)
-        .select("id, owner_flags")
-        .in("id", chunk);
-
-      for (const prop of (props ?? []) as { id: string; owner_flags: Record<string, unknown> }[]) {
-        const flags = prop.owner_flags ?? {};
-        // Keep pr_raw and other data but reset enrichment tracking
-        const resetFlags = {
-          ...flags,
-          enrichment_status: "pending",
-          enrichment_pending: true,
-          enrichment_attempts: 0,
-          enrichment_last_attempt: null,
-          enrichment_completed_at: null,
-          enrichment_error: null,
-        };
-
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        await (sb.from("properties") as any)
-          .update({ owner_flags: resetFlags, updated_at: new Date().toISOString() })
-          .eq("id", prop.id);
-        propsReset++;
-      }
-    }
-
-    // Step 5: Count total staging after flush
+    // Step 4: Count total staging after flush
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { count: stagingCount } = await (sb.from("leads") as any)
       .select("id", { count: "exact", head: true })
@@ -143,21 +106,23 @@ export async function POST(req: NextRequest) {
       entity_id: "enrichment_flush",
       details: {
         prospects_flushed: prospectCount ?? 0,
-        properties_reset: propsReset,
         total_staging: stagingCount ?? 0,
         timestamp: new Date().toISOString(),
       },
     });
 
-    console.log(`[Enrichment/Flush] Complete: ${prospectCount} prospects → staging, ${propsReset} properties reset, ${stagingCount} total in reservoir`);
+    console.log(`[Enrichment/Flush] Complete: ${prospectCount} prospects → staging, ${stagingCount} total in reservoir`);
+
+    const batchesNeeded = Math.ceil((stagingCount ?? 0) / 50);
+    const estimatedMinutes = batchesNeeded * 15;
 
     return NextResponse.json({
       success: true,
-      message: `Flush complete — ${prospectCount} prospects moved to staging, ${propsReset} properties reset for re-enrichment`,
+      message: `Flush complete — ${prospectCount} prospects moved to staging for re-enrichment`,
       prospects_flushed: prospectCount ?? 0,
-      properties_reset: propsReset,
       total_staging: stagingCount ?? 0,
-      note: "Enrichment cron will automatically process these every 15 minutes. Promote platinum/gold when ready.",
+      estimated_enrichment: `~${estimatedMinutes} minutes (${batchesNeeded} batches × 15 min cron)`,
+      note: "Enrichment cron runs every 15 min, processing 50 leads per batch. Promote platinum/gold when ready.",
     });
   } catch (err) {
     console.error("[Enrichment/Flush] Error:", err);
