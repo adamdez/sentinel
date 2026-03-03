@@ -293,7 +293,8 @@ interface PRPersonsResult {
 }
 
 async function fetchPRPersons(apiKey: string, radarId: string): Promise<PRPersonsResult> {
-  const personsUrl = `${PR_API_BASE}/${radarId}/persons?Purchase=1&Fields=default`;
+  // Fields=All triggers phone/email unlock (Fields=default only returns names/addresses)
+  const personsUrl = `${PR_API_BASE}/${radarId}/persons?Purchase=1&Fields=All`;
   const res = await fetch(personsUrl, {
     method: "GET",
     headers: {
