@@ -52,12 +52,25 @@ const JUNK_TITLE_PATTERNS: RegExp[] = [
   /\b(storage unit|parking spot|garage for rent)\b/i,
 ];
 
+// MLS pattern — listings with MLS numbers are agent-listed, NOT true FSBO
+// Common formats: "MLS# 12345678", "MLS 12345678", "MLS#12345678", "MLS ID: 12345678"
+const MLS_RE = /\bMLS\s*#?\s*:?\s*\d{5,}/i;
+
 const VALID_STATES = new Set(["WA", "ID", "MT"]);
 
 function isJunkListing(title: string, body?: string): boolean {
   if (JUNK_TITLE_PATTERNS.some((pat) => pat.test(title))) return true;
   // Also check body for rental signals that slip through titles
   if (body && /\b(for rent|rental only|lease only|tenant|renter)\b/i.test(body)) return true;
+  return false;
+}
+
+/** Returns true if listing contains an MLS number (agent-listed, not FSBO) */
+function hasMLSNumber(title: string, body?: string): boolean {
+  if (MLS_RE.test(title)) return true;
+  if (body && MLS_RE.test(body)) return true;
+  // Also catch "listed by" / "listing agent" / "listing courtesy of" patterns
+  if (body && /\b(listing\s+agent|listed\s+by|courtesy\s+of|listing\s+courtesy|broker\s*:)\b/i.test(body)) return true;
   return false;
 }
 
@@ -220,18 +233,78 @@ function extractPrice(text: string): number | null {
   return num;
 }
 
+/**
+ * Decode obfuscated phone numbers that CL sellers use to avoid spam bots.
+ * Common patterns:
+ *   "5O9.993.3719"   (letter O for zero)
+ *   "5 0 9 - 9 9 3 - 3 7 1 9"   (extra spaces)
+ *   "five oh nine 993 3719"   (word substitution — too complex, skip)
+ *   "509-99TREE-TREE7l9"   (word substitution + letter l for 1 — partial decode)
+ */
+function deobfuscateDigits(text: string): string {
+  return text
+    .replace(/[Oo]/g, "0")      // letter O → 0
+    .replace(/[Ii!|l]/g, "1")   // letter I/l/|/! → 1
+    .replace(/[Ss\$]/g, "5")    // letter S/$ → 5
+    .replace(/[Bb]/g, "8")      // letter B → 8
+    .replace(/\b(?:zero|ZERO)\b/g, "0")
+    .replace(/\b(?:one|ONE)\b/g, "1")
+    .replace(/\b(?:two|TWO)\b/g, "2")
+    .replace(/\b(?:three|THREE|tree|TREE)\b/g, "3")
+    .replace(/\b(?:four|FOUR|for|FOR)\b/g, "4")
+    .replace(/\b(?:five|FIVE)\b/g, "5")
+    .replace(/\b(?:six|SIX)\b/g, "6")
+    .replace(/\b(?:seven|SEVEN)\b/g, "7")
+    .replace(/\b(?:eight|EIGHT)\b/g, "8")
+    .replace(/\b(?:nine|NINE|niner|NINER)\b/g, "9");
+}
+
 function extractPhones(text: string): string[] {
   const phones: string[] = [];
+
+  // Pass 1: Standard phone regex on raw text
   let match: RegExpExecArray | null;
   PHONE_RE.lastIndex = 0;
   while ((match = PHONE_RE.exec(text)) !== null) {
     const p = match[0].replace(/[^\d]/g, "");
-    // Avoid fake numbers and CL system numbers
     if (p.length === 10 && !p.startsWith("000") && !p.startsWith("555") && !p.startsWith("123")) {
-      phones.push(match[0]);
+      phones.push(p);
     }
   }
-  return [...new Set(phones)];
+
+  // Pass 2: Deobfuscate text and try again (catches "5O9.993.3719", word subs, etc.)
+  if (phones.length === 0) {
+    const decoded = deobfuscateDigits(text);
+    // After deobfuscation, try matching spaced-out digits like "5 0 9 9 9 3 3 7 1 9"
+    // First try standard regex on decoded text
+    PHONE_RE.lastIndex = 0;
+    while ((match = PHONE_RE.exec(decoded)) !== null) {
+      const p = match[0].replace(/[^\d]/g, "");
+      if (p.length === 10 && !p.startsWith("000") && !p.startsWith("555") && !p.startsWith("123")) {
+        phones.push(p);
+      }
+    }
+
+    // Also try finding 10 digits with single-character separators (including spaces)
+    if (phones.length === 0) {
+      const spacedRe = /(\d)\s*[-.\s]\s*(\d)\s*[-.\s]\s*(\d)\s*[-.\s]\s*(\d)\s*[-.\s]\s*(\d)\s*[-.\s]\s*(\d)\s*[-.\s]\s*(\d)\s*[-.\s]\s*(\d)\s*[-.\s]\s*(\d)\s*[-.\s]\s*(\d)/g;
+      while ((match = spacedRe.exec(decoded)) !== null) {
+        const p = match.slice(1, 11).join("");
+        if (p.length === 10 && !p.startsWith("000") && !p.startsWith("555") && !p.startsWith("123")) {
+          phones.push(p);
+        }
+      }
+    }
+  }
+
+  // Format as (XXX) XXX-XXXX for consistency
+  return [...new Set(phones)].map((p) => {
+    const digits = p.replace(/[^\d]/g, "");
+    if (digits.length === 10) {
+      return `(${digits.slice(0, 3)}) ${digits.slice(3, 6)}-${digits.slice(6)}`;
+    }
+    return p;
+  });
 }
 
 function extractZipFromText(text: string): string | null {
@@ -487,9 +560,26 @@ function parseDetailPage(html: string): DetailData {
   result.lotSize = extractLotSize(allText);
 
   // 7. Contact name — look for "contact: Name" or "ask for Name" patterns
-  const contactRe = /(?:contact|ask for|call|reach)\s*:?\s*([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)/i;
-  const contactMatch = contactRe.exec(allText);
-  result.contactName = contactMatch?.[1] ?? null;
+  // Reject common false positives: FOR, CALL, PLEASE, US, ME, etc.
+  const CONTACT_STOPWORDS = new Set([
+    "for", "us", "me", "details", "info", "information", "more",
+    "today", "now", "here", "asap", "please", "call", "the",
+    "this", "that", "price", "sale", "sold", "owner", "seller",
+  ]);
+  const contactRe = /(?:contact|ask for|call|reach)\s*:?\s*([A-Z][a-z]+(?:\s+[A-Z][a-z]+){0,2})/gi;
+  let contactMatch: RegExpExecArray | null;
+  let bestContact: string | null = null;
+  while ((contactMatch = contactRe.exec(allText)) !== null) {
+    const name = contactMatch[1].trim();
+    const firstWord = name.split(/\s+/)[0].toLowerCase();
+    // Reject if first word is a stopword or name is too short
+    if (CONTACT_STOPWORDS.has(firstWord) || name.length < 3) continue;
+    // Reject if it looks like a generic phrase
+    if (/^(For|Call|Please|The|This|At|On|In|By)\b/i.test(name)) continue;
+    bestContact = name;
+    break;
+  }
+  result.contactName = bestContact;
 
   // 8. Posted date
   const dateRe = /datetime="(\d{4}-\d{2}-\d{2})/;
@@ -546,6 +636,13 @@ async function crawlMarket(market: CraigslistMarket): Promise<CrawledRecord[]> {
     // Post-filter: check body text for junk signals
     if (isJunkListing(listing.title, detail.description)) {
       filteredJunk++;
+      return null;
+    }
+
+    // Filter out agent-listed properties (have MLS numbers)
+    if (hasMLSNumber(listing.title, detail.description)) {
+      filteredJunk++;
+      console.log(`[CL-FSBO] Filtered MLS listing: ${listing.title.slice(0, 60)}`);
       return null;
     }
 
