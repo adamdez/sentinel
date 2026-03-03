@@ -293,8 +293,9 @@ interface PRPersonsResult {
 }
 
 async function fetchPRPersons(apiKey: string, radarId: string): Promise<PRPersonsResult> {
-  // Fields=All triggers phone/email unlock (Fields=default only returns names/addresses)
-  const personsUrl = `${PR_API_BASE}/${radarId}/persons?Purchase=1&Fields=All`;
+  // Persons endpoint: Fields=default returns all available person fields including Phone/Email
+  // Phone/Email data availability depends on PropertyRadar plan phone unlock quota
+  const personsUrl = `${PR_API_BASE}/${radarId}/persons?Purchase=1&Fields=default`;
   const res = await fetch(personsUrl, {
     method: "GET",
     headers: {
