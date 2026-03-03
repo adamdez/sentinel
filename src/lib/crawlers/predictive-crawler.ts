@@ -158,19 +158,35 @@ async function ingestRecord(
 
   const label = getScoreLabel(score);
 
+  // Check if lead already exists for this property (no unique constraint on property_id)
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  await (sb.from("leads") as any)
-    .upsert(
-      {
+  const { data: existingLead } = await (sb.from("leads") as any)
+    .select("id")
+    .eq("property_id", prop.id)
+    .limit(1)
+    .maybeSingle();
+
+  if (existingLead) {
+    // Update existing lead's score if our new score is higher
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    await (sb.from("leads") as any)
+      .update({ priority: score, tags: [record.distressType] })
+      .eq("id", existingLead.id);
+  } else {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { error: leadErr } = await (sb.from("leads") as any)
+      .insert({
         property_id: prop.id,
         status: "staging",
         source: record.source,
         priority: score,
         tags: [record.distressType],
         notes: `Auto-crawled ${record.distressType} signal from ${record.source} on ${record.date}`,
-      },
-      { onConflict: "property_id" }
-    );
+      });
+    if (leadErr) {
+      console.error(`[Crawler] Lead insert failed for ${record.name}:`, leadErr);
+    }
+  }
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   await (sb.from("scoring_records") as any).insert({
