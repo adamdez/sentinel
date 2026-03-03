@@ -2056,18 +2056,6 @@ function OverviewTab({ cf, skipTracing, skipTraceResult, skipTraceMs, overlay, s
         </div>
       </div>
 
-      {/* ── Quick Offer — MAO at a glance ── */}
-      {mao != null && mao > 0 && (
-        <div className="rounded-[10px] border border-cyan/15 bg-cyan/[0.03] px-4 py-2.5 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <Target className="h-4 w-4 text-cyan/60" />
-            <span className="text-xs text-muted-foreground">Quick MAO:</span>
-            <span className="text-sm font-bold text-neon font-mono" style={{ textShadow: "0 0 10px rgba(0,212,255,0.25)" }}>{formatCurrency(mao)}</span>
-          </div>
-          <span className="text-[9px] text-muted-foreground/50">{formatCurrency(cf.estimatedValue!)} × 70% − $40k rehab</span>
-        </div>
-      )}
-
       {scoreBreakdown && (
         <ScoreBreakdownModal cf={cf} scoreType={scoreBreakdown} onClose={() => setScoreBreakdown(null)} />
       )}
