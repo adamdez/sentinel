@@ -150,15 +150,17 @@ async function ingestRecord(
     },
   });
 
-  if (evtErr) {
-    if ((evtErr as { code?: string }).code === "23505") return "duplicate";
+  const isDuplicate = evtErr && (evtErr as { code?: string }).code === "23505";
+
+  if (evtErr && !isDuplicate) {
     console.error(`[Crawler] Distress event insert failed:`, evtErr);
     return "error";
   }
 
   const label = getScoreLabel(score);
 
-  // Check if lead already exists for this property (no unique constraint on property_id)
+  // Always ensure a lead exists for the property (even if distress event is duplicate).
+  // No unique constraint on property_id → use check-then-insert pattern.
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data: existingLead } = await (sb.from("leads") as any)
     .select("id")
@@ -188,20 +190,27 @@ async function ingestRecord(
     }
   }
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  await (sb.from("scoring_records") as any).insert({
-    property_id: prop.id,
-    model_version: SCORING_MODEL_VERSION,
-    composite_score: score,
-    motivation_score: Math.round(score * 0.85),
-    deal_score: Math.round(score * 0.75),
-    equity_multiplier: 1.0,
-    severity_multiplier: 1.25,
-    factors: [
-      { name: record.distressType, weight: 1, value: score, contribution: score },
-      { name: "crawler_predictive", weight: 1, value: 1, contribution: 0 },
-    ],
-  });
+  if (!isDuplicate) {
+    // Only insert scoring record for new distress events (not re-crawls)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    await (sb.from("scoring_records") as any).insert({
+      property_id: prop.id,
+      model_version: SCORING_MODEL_VERSION,
+      composite_score: score,
+      motivation_score: Math.round(score * 0.85),
+      deal_score: Math.round(score * 0.75),
+      equity_multiplier: 1.0,
+      severity_multiplier: 1.25,
+      factors: [
+        { name: record.distressType, weight: 1, value: score, contribution: score },
+        { name: "crawler_predictive", weight: 1, value: 1, contribution: 0 },
+      ],
+    });
+  }
+
+  if (isDuplicate) {
+    return "duplicate";
+  }
 
   console.log(`[Crawler] Promoted ${record.name} — ${score} ${label.toUpperCase()} (${record.source})`);
   return "promoted";
