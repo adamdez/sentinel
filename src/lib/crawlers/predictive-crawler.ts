@@ -18,6 +18,7 @@
 import { createHash } from "crypto";
 import { createServerClient } from "@/lib/supabase";
 import { computeScore, getScoreLabel, SCORING_MODEL_VERSION } from "@/lib/scoring";
+import { enrichProperty } from "@/lib/enrichment-engine";
 import type { DistressType } from "@/lib/types";
 
 const PROMOTION_THRESHOLD = 60;
@@ -42,6 +43,10 @@ export interface CrawlerModule {
   crawl: () => Promise<CrawledRecord[]>;
   /** Override the default promotion threshold (60). Set to 0 for self-qualified sources like FSBO. */
   promotionThreshold?: number;
+  /** Run full enrichment (PropertyRadar + scoring + skip-trace) inline during crawl.
+   *  When true, leads arrive fully enriched instead of waiting for batch enrichment.
+   *  Only set this for self-qualified sources like FSBO where agents need immediate data. */
+  shouldEnrichInline?: boolean;
 }
 
 export interface CrawlRunResult {
@@ -51,7 +56,15 @@ export interface CrawlRunResult {
   promoted: number;
   duplicates: number;
   errors: number;
+  enriched: number;
+  enrichErrors: number;
   elapsed_ms: number;
+}
+
+interface IngestResult {
+  status: "promoted" | "duplicate" | "error";
+  propertyId?: string;
+  leadId?: string;
 }
 
 function fingerprint(record: CrawledRecord): string {
@@ -101,7 +114,7 @@ async function ingestRecord(
   sb: ReturnType<typeof createServerClient>,
   record: CrawledRecord,
   score: number
-): Promise<"promoted" | "duplicate" | "error"> {
+): Promise<IngestResult> {
   const apn = syntheticApn(record);
   const fp = fingerprint(record);
 
@@ -140,7 +153,7 @@ async function ingestRecord(
 
   if (propErr || !prop) {
     console.error(`[Crawler] Property upsert failed for ${record.name}:`, propErr);
-    return "error";
+    return { status: "error" };
   }
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -163,7 +176,7 @@ async function ingestRecord(
 
   if (evtErr && !isDuplicate) {
     console.error(`[Crawler] Distress event insert failed:`, evtErr);
-    return "error";
+    return { status: "error" };
   }
 
   const label = getScoreLabel(score);
@@ -177,7 +190,10 @@ async function ingestRecord(
     .limit(1)
     .maybeSingle();
 
+  let leadId: string | undefined;
+
   if (existingLead) {
+    leadId = existingLead.id;
     // Update existing lead's score if our new score is higher
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     await (sb.from("leads") as any)
@@ -185,7 +201,7 @@ async function ingestRecord(
       .eq("id", existingLead.id);
   } else {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { error: leadErr } = await (sb.from("leads") as any)
+    const { data: newLead, error: leadErr } = await (sb.from("leads") as any)
       .insert({
         property_id: prop.id,
         status: "staging",
@@ -193,10 +209,13 @@ async function ingestRecord(
         priority: score,
         tags: [record.distressType],
         notes: `Auto-crawled ${record.distressType} signal from ${record.source} on ${record.date}`,
-      });
+      })
+      .select("id")
+      .single();
     if (leadErr) {
       console.error(`[Crawler] Lead insert failed for ${record.name}:`, leadErr);
     }
+    leadId = newLead?.id;
   }
 
   if (!isDuplicate) {
@@ -218,11 +237,11 @@ async function ingestRecord(
   }
 
   if (isDuplicate) {
-    return "duplicate";
+    return { status: "duplicate", propertyId: prop.id, leadId };
   }
 
   console.log(`[Crawler] Promoted ${record.name} — ${score} ${label.toUpperCase()} (${record.source})`);
-  return "promoted";
+  return { status: "promoted", propertyId: prop.id, leadId };
 }
 
 export async function runCrawler(module: CrawlerModule): Promise<CrawlRunResult> {
@@ -233,6 +252,8 @@ export async function runCrawler(module: CrawlerModule): Promise<CrawlRunResult>
   let promoted = 0;
   let duplicates = 0;
   let errors = 0;
+  let enriched = 0;
+  let enrichErrors = 0;
 
   try {
     const records = await module.crawl();
@@ -241,16 +262,72 @@ export async function runCrawler(module: CrawlerModule): Promise<CrawlRunResult>
 
     const threshold = module.promotionThreshold ?? PROMOTION_THRESHOLD;
 
+    // Collect newly promoted records for inline enrichment
+    const toEnrich: { propertyId: string; leadId: string }[] = [];
+
     for (const record of records) {
       const score = scoreRecord(record);
       scored++;
 
       if (score < threshold) continue;
 
-      const status = await ingestRecord(sb, record, score);
-      if (status === "promoted") promoted++;
-      else if (status === "duplicate") duplicates++;
-      else errors++;
+      const result = await ingestRecord(sb, record, score);
+      if (result.status === "promoted") {
+        promoted++;
+        // Queue for enrichment if this crawler requests it
+        if (module.shouldEnrichInline && result.propertyId && result.leadId) {
+          toEnrich.push({ propertyId: result.propertyId, leadId: result.leadId });
+        }
+      } else if (result.status === "duplicate") {
+        duplicates++;
+      } else {
+        errors++;
+      }
+    }
+
+    // ── Inline Enrichment (FSBO only) ─────────────────────────────
+    // Run full PropertyRadar + scoring + skip-trace for each new record.
+    // Only triggers when module.shouldEnrichInline = true.
+    // Duplicates are skipped — they were enriched on a previous run.
+    if (toEnrich.length > 0) {
+      console.log(`[Crawler:${module.id}] Enriching ${toEnrich.length} new records inline...`);
+      const enrichT0 = Date.now();
+
+      for (const { propertyId, leadId } of toEnrich) {
+        try {
+          // Fetch full records for enrichProperty()
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const { data: fullProp } = await (sb.from("properties") as any)
+            .select("*").eq("id", propertyId).single();
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const { data: fullLead } = await (sb.from("leads") as any)
+            .select("*").eq("id", leadId).single();
+
+          if (!fullProp || !fullLead) {
+            console.warn(`[Crawler:${module.id}] Could not fetch property/lead for enrichment: ${propertyId}`);
+            enrichErrors++;
+            continue;
+          }
+
+          const enrichResult = await enrichProperty(propertyId, leadId, fullProp, fullLead);
+
+          if (enrichResult.success) {
+            enriched++;
+            console.log(`[Crawler:${module.id}] Enriched ${fullProp.owner_name?.slice(0, 30)} — score=${enrichResult.score} ${enrichResult.label?.toUpperCase()} (${enrichResult.signalsDetected} signals, src=${enrichResult.enrichmentSource})`);
+          } else {
+            enrichErrors++;
+            console.warn(`[Crawler:${module.id}] Enrichment failed for ${propertyId}: ${enrichResult.error}`);
+          }
+
+          // Brief delay between enrichment calls to be respectful to APIs
+          await new Promise((r) => setTimeout(r, 500));
+        } catch (enrichErr) {
+          enrichErrors++;
+          console.error(`[Crawler:${module.id}] Enrichment error for ${propertyId}:`, enrichErr);
+        }
+      }
+
+      console.log(`[Crawler:${module.id}] Enrichment complete in ${Date.now() - enrichT0}ms: ${enriched} enriched, ${enrichErrors} errors`);
     }
   } catch (err) {
     console.error(`[Crawler:${module.id}] Fatal error:`, err);
@@ -272,12 +349,14 @@ export async function runCrawler(module: CrawlerModule): Promise<CrawlRunResult>
       promoted,
       duplicates,
       errors,
+      enriched,
+      enrichErrors,
       elapsed_ms,
       timestamp: new Date().toISOString(),
     },
   });
 
-  return { crawlerId: module.id, crawled, scored, promoted, duplicates, errors, elapsed_ms };
+  return { crawlerId: module.id, crawled, scored, promoted, duplicates, errors, enriched, enrichErrors, elapsed_ms };
 }
 
 export async function runAllCrawlers(modules: CrawlerModule[]): Promise<CrawlRunResult[]> {

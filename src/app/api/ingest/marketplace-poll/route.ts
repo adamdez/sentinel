@@ -164,6 +164,8 @@ export async function GET(req: NextRequest) {
         promoted: 0,
         duplicates: 0,
         errors: 1,
+        enriched: 0,
+        enrichErrors: 0,
         elapsed_ms: 0,
       });
     }
@@ -173,8 +175,9 @@ export async function GET(req: NextRequest) {
   const totalCrawled = results.reduce((s, r) => s + r.crawled, 0);
   const totalPromoted = results.reduce((s, r) => s + r.promoted, 0);
   const totalDuplicates = results.reduce((s, r) => s + r.duplicates, 0);
+  const totalEnriched = results.reduce((s, r) => s + r.enriched, 0);
 
-  console.log(`[MarketplacePoll] === CYCLE COMPLETE in ${elapsed}ms — ${totalCrawled} crawled, ${totalPromoted} promoted, ${totalDuplicates} dupes ===`);
+  console.log(`[MarketplacePoll] === CYCLE COMPLETE in ${elapsed}ms — ${totalCrawled} crawled, ${totalPromoted} promoted, ${totalEnriched} enriched, ${totalDuplicates} dupes ===`);
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const response: Record<string, any> = {
@@ -183,6 +186,7 @@ export async function GET(req: NextRequest) {
     summary: {
       totalCrawled,
       totalPromoted,
+      totalEnriched,
       totalDuplicates,
       elapsed_ms: elapsed,
     },

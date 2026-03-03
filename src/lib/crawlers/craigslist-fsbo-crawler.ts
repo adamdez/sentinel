@@ -746,6 +746,7 @@ export const craigslistFsboCrawler: CrawlerModule = {
   id: "craigslist_fsbo",
   name: "Craigslist FSBO Crawler (Spokane/Kootenai)",
   promotionThreshold: 0,
+  shouldEnrichInline: true,
   async crawl(): Promise<CrawledRecord[]> {
     const all: CrawledRecord[] = [];
     for (const market of MARKETS) {
