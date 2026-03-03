@@ -27,6 +27,7 @@ export default function LeadsPage() {
     segmentCounts,
     totalFiltered,
     currentUser,
+    teamMembers,
   } = useLeads();
 
   return (
@@ -58,6 +59,7 @@ export default function LeadsPage() {
           counts={segmentCounts}
           currentUserId={currentUser.id}
           currentUserRole={currentUser.role}
+          teamMembers={teamMembers}
         />
 
         {/* Filters + search */}

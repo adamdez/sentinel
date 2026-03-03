@@ -2,7 +2,7 @@
 
 import { useState, useMemo, useCallback, useEffect, useRef } from "react";
 import {
-  TEAM_MEMBERS,
+  type DynamicTeamMember,
   type LeadRow,
   type LeadSegment,
 } from "@/lib/leads-data";
@@ -101,6 +101,33 @@ export function useLeads() {
   const [leads, setLeads] = useState<LeadRow[]>([]);
   const [loading, setLoading] = useState(true);
   const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
+
+  // Dynamic team members loaded from user_profiles (real Supabase UUIDs)
+  const [teamMembers, setTeamMembers] = useState<DynamicTeamMember[]>([]);
+
+  useEffect(() => {
+    async function loadTeam() {
+      try {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const { data } = await (supabase.from("user_profiles") as any)
+          .select("id, full_name, role")
+          .in("role", ["admin", "agent"])
+          .order("full_name");
+
+        if (data && data.length > 0) {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          setTeamMembers(data.map((p: any) => ({
+            id: p.id,
+            name: p.full_name ?? "Unknown",
+            role: p.role ?? "agent",
+          })));
+        }
+      } catch (err) {
+        console.error("[useLeads] Failed to load team members:", err);
+      }
+    }
+    loadTeam();
+  }, []);
 
   const fetchLeads = useCallback(async () => {
     setLoading(true);
@@ -280,15 +307,21 @@ export function useLeads() {
     [leads, selectedId]
   );
 
+  // Exclude current user from team tabs (admin sees "My Leads" instead)
+  const otherTeamMembers = useMemo(
+    () => teamMembers.filter((m) => m.id !== currentUser.id),
+    [teamMembers, currentUser.id],
+  );
+
   const segmentCounts = useMemo(() => {
     const all = leads.length;
     const mine = leads.filter((l) => l.assignedTo === currentUser.id).length;
     const byMember: Record<string, number> = {};
-    for (const m of TEAM_MEMBERS) {
+    for (const m of teamMembers) {
       byMember[m.id] = leads.filter((l) => l.assignedTo === m.id).length;
     }
     return { all, mine, byMember };
-  }, [leads, currentUser.id]);
+  }, [leads, currentUser.id, teamMembers]);
 
   return {
     leads: sortedLeads,
@@ -309,7 +342,7 @@ export function useLeads() {
     segmentCounts,
     totalFiltered: filteredLeads.length,
     currentUser,
-    teamMembers: TEAM_MEMBERS,
+    teamMembers: otherTeamMembers,
     refetch: fetchLeads,
   };
 }

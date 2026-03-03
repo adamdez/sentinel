@@ -35,6 +35,21 @@ export interface LeadRow {
   notes: string | null;
 }
 
+/**
+ * Dynamic team member loaded from user_profiles (real Supabase UUIDs).
+ * Replaces the old hardcoded TEAM_MEMBERS whose IDs never matched
+ * the actual Supabase auth UUIDs stored in leads.assigned_to.
+ */
+export interface DynamicTeamMember {
+  id: string;       // Supabase auth UUID
+  name: string;     // full_name from user_profiles
+  role: "admin" | "agent";
+}
+
+/**
+ * @deprecated Use DynamicTeamMember[] fetched from user_profiles instead.
+ * Kept only as a fallback if the DB fetch fails.
+ */
 export const TEAM_MEMBERS = [
   { id: "user-adam", name: "Adam D.", role: "admin" as const },
   { id: "user-nathan", name: "Nathan B.", role: "agent" as const },
@@ -43,4 +58,5 @@ export const TEAM_MEMBERS = [
 
 export type TeamMemberId = (typeof TEAM_MEMBERS)[number]["id"];
 
-export type LeadSegment = "all" | "mine" | TeamMemberId;
+/** Segment can be "all", "mine", or any team member UUID */
+export type LeadSegment = "all" | "mine" | string;

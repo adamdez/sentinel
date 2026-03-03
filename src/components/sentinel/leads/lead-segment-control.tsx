@@ -1,9 +1,9 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { Users, UserCheck, User, Shield } from "lucide-react";
+import { Users, UserCheck, User } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { TEAM_MEMBERS, type LeadSegment } from "@/lib/leads-data";
+import type { DynamicTeamMember, LeadSegment } from "@/lib/leads-data";
 import type { Role } from "@/lib/types";
 
 interface LeadSegmentControlProps {
@@ -12,6 +12,8 @@ interface LeadSegmentControlProps {
   counts: { all: number; mine: number; byMember: Record<string, number> };
   currentUserId: string;
   currentUserRole: Role;
+  /** Other team members (current user already excluded by the hook). */
+  teamMembers: DynamicTeamMember[];
 }
 
 interface Tab {
@@ -25,22 +27,22 @@ export function LeadSegmentControl({
   value,
   onChange,
   counts,
-  currentUserId,
   currentUserRole,
+  teamMembers,
 }: LeadSegmentControlProps) {
   const tabs: Tab[] = [
     { id: "mine", label: "My Leads", icon: UserCheck, count: counts.mine },
     { id: "all", label: "Team Leads", icon: Users, count: counts.all },
   ];
 
+  // Admins see per-member tabs for OTHER team members (their own is "My Leads")
   if (currentUserRole === "admin") {
-    for (const member of TEAM_MEMBERS) {
+    for (const member of teamMembers) {
       const firstName = member.name.split(" ")[0];
-      const isSelf = member.id === currentUserId;
       tabs.push({
         id: member.id,
         label: `${firstName}'s Leads`,
-        icon: isSelf ? Shield : User,
+        icon: User,
         count: counts.byMember[member.id] ?? 0,
       });
     }
