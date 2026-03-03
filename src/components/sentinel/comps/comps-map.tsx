@@ -161,33 +161,75 @@ function haversine(lat1: number, lng1: number, lat2: number, lng2: number): numb
 
 // ── Comp quality classification ───────────────────────────────────────
 
-function classifyComp(comp: CompProperty, subject: SubjectProperty): "good" | "marginal" | "outlier" {
-  let score = 0;
-  let checks = 0;
+export interface CompScore {
+  total: number;
+  distance: number;
+  recency: number;
+  size: number;
+  bedBath: number;
+  year: number;
+  label: "good" | "marginal" | "outlier";
+}
 
+function scoreComp(comp: CompProperty, subject: SubjectProperty): CompScore {
+  const W = { distance: 30, recency: 25, size: 20, bedBath: 15, year: 10 };
+
+  // Distance (30 pts): 0 mi = 30, 1 mi = 20, 3+ mi = 0
+  let distPts = 0;
+  if (comp.lat && comp.lng) {
+    const dist = haversine(subject.lat, subject.lng, comp.lat, comp.lng);
+    distPts = dist <= 0.25 ? W.distance : dist >= 3 ? 0 : Math.round(W.distance * (1 - (dist / 3)));
+  }
+
+  // Recency (25 pts): sold today = 25, 6mo = 15, 12mo = 5, 18+mo = 0
+  let recPts = 0;
+  if (comp.lastSaleDate) {
+    const daysAgo = Math.max(0, (Date.now() - new Date(comp.lastSaleDate).getTime()) / 86400000);
+    recPts = daysAgo <= 90 ? W.recency : daysAgo >= 540 ? 0 : Math.round(W.recency * (1 - daysAgo / 540));
+  }
+
+  // Size (20 pts): within 5% = 20, 20%+ diff = 0
+  let sizePts = 0;
+  if (subject.sqft && comp.sqft && subject.sqft > 0) {
+    const pctDiff = Math.abs(comp.sqft - subject.sqft) / subject.sqft;
+    sizePts = pctDiff <= 0.05 ? W.size : pctDiff >= 0.25 ? 0 : Math.round(W.size * (1 - pctDiff / 0.25));
+  } else {
+    sizePts = Math.round(W.size * 0.3);
+  }
+
+  // Bed/Bath (15 pts): exact = 15, ±1 = 10, ±2 = 3, ±3+ = 0
+  let bbPts = 0;
+  let bbChecks = 0;
   if (subject.beds != null && comp.beds != null) {
-    checks++;
-    if (Math.abs(comp.beds - subject.beds) <= 1) score++;
+    bbChecks++;
+    const diff = Math.abs(comp.beds - subject.beds);
+    bbPts += diff === 0 ? W.bedBath / 2 : diff === 1 ? (W.bedBath / 2) * 0.66 : diff === 2 ? (W.bedBath / 2) * 0.2 : 0;
   }
   if (subject.baths != null && comp.baths != null) {
-    checks++;
-    if (Math.abs(comp.baths - subject.baths) <= 0.5) score++;
+    bbChecks++;
+    const diff = Math.abs(comp.baths - subject.baths);
+    bbPts += diff <= 0.5 ? W.bedBath / 2 : diff <= 1 ? (W.bedBath / 2) * 0.66 : diff <= 2 ? (W.bedBath / 2) * 0.2 : 0;
   }
-  if (subject.sqft != null && comp.sqft != null) {
-    checks++;
-    const pct = Math.abs(comp.sqft - subject.sqft) / subject.sqft;
-    if (pct <= 0.15) score++;
-  }
+  if (bbChecks === 0) bbPts = Math.round(W.bedBath * 0.3);
+  bbPts = Math.round(bbPts);
+
+  // Year built (10 pts): within 5yr = 10, 15yr = 5, 30+ = 0
+  let yrPts = 0;
   if (subject.yearBuilt != null && comp.yearBuilt != null) {
-    checks++;
-    if (Math.abs(comp.yearBuilt - subject.yearBuilt) <= 10) score++;
+    const diff = Math.abs(comp.yearBuilt - subject.yearBuilt);
+    yrPts = diff <= 5 ? W.year : diff >= 30 ? 0 : Math.round(W.year * (1 - diff / 30));
+  } else {
+    yrPts = Math.round(W.year * 0.3);
   }
 
-  if (checks === 0) return "marginal";
-  const ratio = score / checks;
-  if (ratio >= 0.75) return "good";
-  if (ratio >= 0.4) return "marginal";
-  return "outlier";
+  const total = distPts + recPts + sizePts + bbPts + yrPts;
+  const label: CompScore["label"] = total >= 55 ? "good" : total >= 30 ? "marginal" : "outlier";
+
+  return { total, distance: distPts, recency: recPts, size: sizePts, bedBath: bbPts, year: yrPts, label };
+}
+
+function classifyComp(comp: CompProperty, subject: SubjectProperty): "good" | "marginal" | "outlier" {
+  return scoreComp(comp, subject).label;
 }
 
 const QUALITY_COLORS = {
@@ -218,6 +260,7 @@ export function CompsMap({ subject, selectedComps, onAddComp, onRemoveComp }: Co
   const [radiusMiles, setRadiusMiles] = useState(1);
   const [searchRadius, setSearchRadius] = useState(1);
   const [selectedComp, setSelectedComp] = useState<CompProperty | null>(null);
+  const [showSubject, setShowSubject] = useState(false);
   const [filtersOpen, setFiltersOpen] = useState(true);
   const [filters, setFilters] = useState<CompFilters>(NO_FILTERS);
   const [mapReady, setMapReady] = useState(false);
@@ -328,16 +371,32 @@ export function CompsMap({ subject, selectedComps, onAddComp, onRemoveComp }: Co
 
   // Sort comps: good first, then marginal, then outlier — cap visible markers
   const MAX_MARKERS = 80;
-  const sortedComps = useMemo(() => {
-    const qualityOrder = { good: 0, marginal: 1, outlier: 2 };
-    return [...comps]
-      .sort((a, b) => {
-        const qa = qualityOrder[classifyComp(a, subject)];
-        const qb = qualityOrder[classifyComp(b, subject)];
-        if (qa !== qb) return qa - qb;
-        return (b.avm ?? 0) - (a.avm ?? 0);
-      });
+  const scoredComps = useMemo(() => {
+    return comps.map((c) => ({ comp: c, score: scoreComp(c, subject) }));
   }, [comps, subject]);
+
+  const sortedComps = useMemo(() => {
+    return [...scoredComps]
+      .sort((a, b) => b.score.total - a.score.total)
+      .map((s) => s.comp);
+  }, [scoredComps]);
+
+  // Auto-suggest top 3 comps on first load when none are selected
+  const autoSuggestedRef = useRef(false);
+  useEffect(() => {
+    if (autoSuggestedRef.current || selectedComps.length > 0 || scoredComps.length === 0) return;
+    autoSuggestedRef.current = true;
+
+    const top3 = [...scoredComps]
+      .sort((a, b) => b.score.total - a.score.total)
+      .filter((s) => s.score.total >= 50 && (s.comp.lastSalePrice ?? s.comp.avm ?? 0) > 0)
+      .slice(0, 3);
+
+    if (top3.length > 0) {
+      top3.forEach((s) => onAddComp(s.comp));
+      toast.success(`Auto-selected ${top3.length} best comp${top3.length > 1 ? "s" : ""}`);
+    }
+  }, [scoredComps, selectedComps.length, onAddComp]);
 
   const visibleComps = useMemo(
     () => sortedComps.slice(0, MAX_MARKERS),
@@ -476,7 +535,7 @@ export function CompsMap({ subject, selectedComps, onAddComp, onRemoveComp }: Co
                 }}
               />
 
-              {/* Subject property marker */}
+              {/* Subject property marker — clickable */}
               <CircleMarker
                 center={[subject.lat, subject.lng]}
                 radius={10}
@@ -486,6 +545,9 @@ export function CompsMap({ subject, selectedComps, onAddComp, onRemoveComp }: Co
                   fillColor: "#00d4ff",
                   fillOpacity: 0.9,
                 }}
+                eventHandlers={{
+                  click: () => { setSelectedComp(null); setShowSubject(true); },
+                }}
               >
                 <Tooltip
                   permanent
@@ -493,7 +555,7 @@ export function CompsMap({ subject, selectedComps, onAddComp, onRemoveComp }: Co
                   offset={[0, -12]}
                   className="!bg-transparent !border-0 !shadow-none !p-0"
                 >
-                  <div className="bg-glass border border-cyan/20 rounded px-2 py-0.5 text-[10px] text-cyan font-bold backdrop-blur-sm whitespace-nowrap">
+                  <div className="bg-glass border border-cyan/20 rounded px-2 py-0.5 text-[10px] text-cyan font-bold backdrop-blur-sm whitespace-nowrap cursor-pointer">
                     ★ SUBJECT
                   </div>
                 </Tooltip>
@@ -518,7 +580,7 @@ color: isSelected ? "#00d4ff" : colors.stroke,
                       fillOpacity: isSelected ? 1 : 0.7,
                     }}
                     eventHandlers={{
-                      click: () => setSelectedComp(comp),
+                      click: () => { setShowSubject(false); setSelectedComp(comp); },
                     }}
                   >
                     <Tooltip
@@ -596,6 +658,17 @@ color: isSelected ? "#00d4ff" : colors.stroke,
                 onClose={() => setSelectedComp(null)}
               />
             </motion.div>
+          ) : showSubject ? (
+            <motion.div
+              key="subject-detail"
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: 20 }}
+              transition={{ duration: 0.15 }}
+              className="w-[290px] shrink-0 rounded-[10px] border border-cyan/20 bg-[rgba(12,12,22,0.5)] backdrop-blur-xl overflow-y-auto scrollbar-none"
+            >
+              <SubjectDetailPanel subject={subject} onClose={() => setShowSubject(false)} />
+            </motion.div>
           ) : (
             <motion.div
               initial={{ opacity: 0 }}
@@ -631,13 +704,21 @@ function CompDetailPanel({
   onRemove: () => void;
   onClose: () => void;
 }) {
-  const quality = classifyComp(comp, subject);
-  const colors = QUALITY_COLORS[quality];
+  const compScore = scoreComp(comp, subject);
+  const colors = QUALITY_COLORS[compScore.label];
   const distance = comp.lat && comp.lng
     ? haversine(subject.lat, subject.lng, comp.lat, comp.lng)
     : null;
-  const pricePerSqft = comp.avm && comp.sqft ? Math.round(comp.avm / comp.sqft) : null;
+  const salePrice = comp.lastSalePrice ?? comp.avm ?? 0;
+  const pricePerSqft = salePrice > 0 && comp.sqft ? Math.round(salePrice / comp.sqft) : null;
   const subjectPpsf = subject.avm && subject.sqft ? Math.round(subject.avm / subject.sqft) : null;
+
+  const zillowUrl = comp.streetAddress && comp.city && comp.state
+    ? `https://www.zillow.com/homes/${encodeURIComponent(comp.streetAddress + " " + comp.city + " " + comp.state)}`
+    : null;
+  const redfinUrl = comp.streetAddress && comp.city && comp.state
+    ? `https://www.redfin.com/search#query=${encodeURIComponent(comp.streetAddress + " " + comp.city + " " + comp.state)}`
+    : null;
 
   const distressSignals: { label: string; color: string }[] = [];
   if (comp.isForeclosure) distressSignals.push({ label: "Foreclosure", color: "text-red-400 border-red-400/30 bg-red-500/10" });
@@ -712,7 +793,7 @@ function CompDetailPanel({
         </button>
       </div>
 
-      {/* Quality + distance + badges row */}
+      {/* Quality score + distance + badges row */}
       <div className="flex flex-wrap items-center gap-1.5">
         <Badge
           className="text-[9px] gap-1"
@@ -723,7 +804,7 @@ function CompDetailPanel({
           }}
         >
           <div className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: colors.fill }} />
-          {colors.label}
+          {compScore.total}/100
         </Badge>
         {distance != null && (
           <Badge variant="outline" className="text-[9px] gap-0.5">
@@ -846,6 +927,48 @@ function CompDetailPanel({
         )}
       </div>
 
+      {/* Score breakdown */}
+      <div className="space-y-1 p-2 rounded-md border border-white/[0.06] bg-white/[0.04]">
+        <p className="text-[9px] font-semibold text-muted-foreground uppercase tracking-wider mb-1">Comp Quality Score</p>
+        {[
+          { label: "Distance", pts: compScore.distance, max: 30 },
+          { label: "Recency", pts: compScore.recency, max: 25 },
+          { label: "Size", pts: compScore.size, max: 20 },
+          { label: "Bed/Bath", pts: compScore.bedBath, max: 15 },
+          { label: "Year Built", pts: compScore.year, max: 10 },
+        ].map((row) => (
+          <div key={row.label} className="flex items-center gap-2">
+            <span className="text-[9px] text-muted-foreground w-14 shrink-0">{row.label}</span>
+            <div className="flex-1 h-1.5 rounded-full bg-white/[0.06] overflow-hidden">
+              <div className="h-full rounded-full transition-all" style={{ width: `${(row.pts / row.max) * 100}%`, backgroundColor: colors.fill }} />
+            </div>
+            <span className="text-[9px] font-mono w-8 text-right">{row.pts}/{row.max}</span>
+          </div>
+        ))}
+      </div>
+
+      {/* External research links */}
+      <div className="flex gap-1.5">
+        {zillowUrl && (
+          <a href={zillowUrl} target="_blank" rel="noopener noreferrer"
+            className="flex-1 text-center text-[9px] font-medium py-1.5 rounded-md border border-white/[0.06] bg-white/[0.04] hover:bg-white/[0.08] transition-colors text-blue-400">
+            Zillow
+          </a>
+        )}
+        {redfinUrl && (
+          <a href={redfinUrl} target="_blank" rel="noopener noreferrer"
+            className="flex-1 text-center text-[9px] font-medium py-1.5 rounded-md border border-white/[0.06] bg-white/[0.04] hover:bg-white/[0.08] transition-colors text-red-400">
+            Redfin
+          </a>
+        )}
+        {comp.lat && comp.lng && (
+          <a href={`https://www.google.com/maps/@${comp.lat},${comp.lng},18z`} target="_blank" rel="noopener noreferrer"
+            className="flex-1 text-center text-[9px] font-medium py-1.5 rounded-md border border-white/[0.06] bg-white/[0.04] hover:bg-white/[0.08] transition-colors text-green-400">
+            Google Maps
+          </a>
+        )}
+      </div>
+
       {/* Action button */}
       {isSelected ? (
         <Button variant="outline" size="sm" className="w-full text-[11px] gap-1.5 text-red-400 border-red-400/30 hover:bg-red-500/10" onClick={onRemove}>
@@ -858,6 +981,62 @@ function CompDetailPanel({
           Add as Comp
         </Button>
       )}
+      </div>
+    </div>
+  );
+}
+
+function SubjectDetailPanel({ subject, onClose }: { subject: SubjectProperty; onClose: () => void }) {
+  const photoSrc = subject.lat && subject.lng ? getSatelliteTileUrl(subject.lat, subject.lng) : null;
+  const ppsqft = subject.avm && subject.sqft ? Math.round(subject.avm / subject.sqft) : null;
+
+  return (
+    <div className="space-y-3 text-xs">
+      {photoSrc && (
+        <div className="relative w-full h-[120px] overflow-hidden rounded-t-[10px] bg-black/40">
+          <img src={photoSrc} alt="Subject" className="w-full h-full object-cover" />
+          <div className="absolute inset-0 bg-gradient-to-t from-[rgba(12,12,22,0.8)] to-transparent" />
+          <div className="absolute bottom-1.5 left-2 text-[11px] font-bold text-cyan" style={{ textShadow: "0 1px 4px rgba(0,0,0,0.7)" }}>
+            ★ Subject Property
+          </div>
+        </div>
+      )}
+      <div className="px-3 pb-3 space-y-3">
+        <div className="flex items-start justify-between gap-2">
+          <div className="min-w-0">
+            <p className="font-semibold text-sm truncate text-cyan" style={{ textShadow: "0 0 8px rgba(0,212,255,0.2)" }}>
+              {subject.address}
+            </p>
+          </div>
+          <button onClick={onClose} className="p-1 rounded hover:bg-white/[0.08] shrink-0">
+            <X className="h-3 w-3" />
+          </button>
+        </div>
+        <div className="grid grid-cols-2 gap-1.5">
+          <StatBox icon={Home} label="Beds" value={subject.beds != null ? String(subject.beds) : "—"} match={false} />
+          <StatBox icon={Home} label="Baths" value={subject.baths != null ? String(subject.baths) : "—"} match={false} />
+          <StatBox icon={Ruler} label="Sqft" value={subject.sqft ? subject.sqft.toLocaleString() : "—"} match={false} />
+          <StatBox icon={Calendar} label="Year" value={subject.yearBuilt ? String(subject.yearBuilt) : "—"} match={false} />
+        </div>
+        <div className="space-y-1.5 p-2 rounded-md border border-cyan/15 bg-cyan/4">
+          <div className="flex justify-between">
+            <span className="text-muted-foreground">AVM</span>
+            <span className="font-bold text-neon">{subject.avm ? formatCurrency(subject.avm) : "—"}</span>
+          </div>
+          {ppsqft && (
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">$/sqft</span>
+              <span className="font-semibold text-neon">${ppsqft}</span>
+            </div>
+          )}
+          {subject.propertyType && (
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Type</span>
+              <span>{subject.propertyType}</span>
+            </div>
+          )}
+        </div>
+        <p className="text-[10px] text-muted-foreground/60 text-center">This is the subject property — click comp markers to compare</p>
       </div>
     </div>
   );

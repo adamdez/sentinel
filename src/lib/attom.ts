@@ -286,6 +286,11 @@ export interface AttomForeclosureResponse {
 export interface AttomSale {
   identifier?: AttomProperty["identifier"];
   address?: AttomProperty["address"];
+  location?: AttomProperty["location"];
+  summary?: AttomProperty["summary"];
+  building?: AttomProperty["building"];
+  lot?: AttomProperty["lot"];
+  avm?: { amount?: { value?: number; high?: number; low?: number }; eventDate?: string };
   sale?: {
     amount?: { saleAmt?: number; saleRecDate?: string; saleTransDate?: string };
     calculation?: { pricePerBed?: number; pricePerSizeUnit?: number };

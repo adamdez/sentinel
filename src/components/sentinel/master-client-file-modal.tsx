@@ -388,7 +388,7 @@ function ScoreBreakdownModal({ cf, scoreType, onClose }: { cf: ClientFile; score
   const arv = cf.estimatedValue ?? 0;
   const eqPct = cf.equityPercent ?? 0;
   const availableEquity = cf.availableEquity ?? (arv > 0 ? Math.round(arv * eqPct / 100) : 0);
-  const rehabEst = 15000;
+  const rehabEst = 40000;
   const offerPct = 65;
   const offer = Math.round(arv * (offerPct / 100));
   const holdingCosts = Math.round(arv * 0.03);
@@ -1149,7 +1149,8 @@ function OverviewTab({ cf, skipTracing, skipTraceResult, skipTraceMs, overlay, s
   const sectionProperty = useRef<HTMLDivElement>(null);
   const scrollTo = (ref: React.RefObject<HTMLDivElement | null>) => ref.current?.scrollIntoView({ behavior: "smooth", block: "start" });
 
-  const mao = cf.estimatedValue ? Math.round(cf.estimatedValue * 0.70) : null;
+  const DEFAULT_REHAB = 40000;
+  const mao = cf.estimatedValue ? Math.round(cf.estimatedValue * 0.70 - DEFAULT_REHAB) : null;
 
   const pipelineDays = cf.promotedAt
     ? Math.floor((Date.now() - new Date(cf.promotedAt).getTime()) / 86400000)
@@ -1401,10 +1402,10 @@ function OverviewTab({ cf, skipTracing, skipTraceResult, skipTraceMs, overlay, s
         <div className="rounded-[10px] border border-cyan/15 bg-cyan/[0.03] px-4 py-2.5 flex items-center justify-between">
           <div className="flex items-center gap-2">
             <Target className="h-4 w-4 text-cyan/60" />
-            <span className="text-xs text-muted-foreground">Quick MAO (70% rule):</span>
+            <span className="text-xs text-muted-foreground">Quick MAO:</span>
             <span className="text-sm font-bold text-neon font-mono" style={{ textShadow: "0 0 10px rgba(0,212,255,0.25)" }}>{formatCurrency(mao)}</span>
           </div>
-          <span className="text-[9px] text-muted-foreground/50">AVM {formatCurrency(cf.estimatedValue!)} × 0.70</span>
+          <span className="text-[9px] text-muted-foreground/50">{formatCurrency(cf.estimatedValue!)} × 70% − $40k rehab</span>
         </div>
       )}
 
@@ -2621,7 +2622,7 @@ function CompsTab({ cf, selectedComps, onAddComp, onRemoveComp, onSkipTrace, com
   // ARV adjustment state
   const [conditionAdj, setConditionAdj] = useState(0);
   const [offerPct, setOfferPct] = useState(65);
-  const [rehabEst, setRehabEst] = useState(15000);
+  const [rehabEst, setRehabEst] = useState(40000);
 
   const photos = useMemo(() => {
     const urls: string[] = [];
@@ -2632,13 +2633,43 @@ function CompsTab({ cf, selectedComps, onAddComp, onRemoveComp, onSkipTrace, com
     return urls;
   }, [prRaw]);
 
-  // ARV from selected comps + adjustments (must be computed before early returns to keep hooks stable)
-  const avms = selectedComps.map((c) => c.avm).filter((v): v is number => v != null);
-  const lastSales = selectedComps.map((c) => c.lastSalePrice).filter((v): v is number => v != null);
-  const avgAvm = avms.length > 0 ? Math.round(avms.reduce((a, b) => a + b, 0) / avms.length) : null;
-  const avgLastSale = lastSales.length > 0 ? Math.round(lastSales.reduce((a, b) => a + b, 0) / lastSales.length) : null;
-  const baseArv = avgAvm ?? avgLastSale ?? cf.estimatedValue ?? 0;
+  // ARV from selected comps using weighted $/sqft methodology
+  const subjectSqft = cf.sqft ?? 0;
+  const compMetrics = selectedComps
+    .filter((c) => (c.lastSalePrice ?? c.avm ?? 0) > 0)
+    .map((c) => {
+      const price = c.lastSalePrice ?? c.avm ?? 0;
+      const ppsqft = c.sqft && c.sqft > 0 ? price / c.sqft : null;
+      return { price, sqft: c.sqft ?? 0, ppsqft };
+    });
+
+  const sqftComps = compMetrics.filter((m) => m.ppsqft != null);
+  let baseArv = 0;
+  let arvLow = 0;
+  let arvHigh = 0;
+  let arvConfidence: "high" | "medium" | "low" = "low";
+
+  if (sqftComps.length > 0 && subjectSqft > 0) {
+    const pps = sqftComps.map((m) => m.ppsqft!);
+    const avgPps = pps.reduce((a, b) => a + b, 0) / pps.length;
+    baseArv = Math.round(avgPps * subjectSqft);
+    arvLow = Math.round(Math.min(...pps) * subjectSqft);
+    arvHigh = Math.round(Math.max(...pps) * subjectSqft);
+    const spread = arvHigh - arvLow;
+    arvConfidence = sqftComps.length >= 3 && spread / baseArv < 0.15 ? "high"
+      : sqftComps.length >= 2 && spread / baseArv < 0.30 ? "medium" : "low";
+  } else if (compMetrics.length > 0) {
+    const prices = compMetrics.map((m) => m.price);
+    baseArv = Math.round(prices.reduce((a, b) => a + b, 0) / prices.length);
+    arvLow = Math.min(...prices);
+    arvHigh = Math.max(...prices);
+    arvConfidence = compMetrics.length >= 3 ? "medium" : "low";
+  } else {
+    baseArv = cf.estimatedValue ?? 0;
+  }
+
   const arv = Math.round(baseArv * (1 + conditionAdj / 100));
+  const avgPpsqft = sqftComps.length > 0 ? Math.round(sqftComps.reduce((a, m) => a + m.ppsqft!, 0) / sqftComps.length) : null;
 
   const offer = Math.round(arv * (offerPct / 100));
   const holdingCosts = Math.round(arv * 0.03);
@@ -2841,17 +2872,28 @@ function CompsTab({ cf, selectedComps, onAddComp, onRemoveComp, onSkipTrace, com
           <p className="text-[10px] font-semibold text-cyan uppercase tracking-wider mb-3 flex items-center gap-1.5">
             <TrendingUp className="h-3 w-3" />
             Live ARV
+            {selectedComps.length > 0 && (
+              <span className={cn("ml-auto text-[9px] px-1.5 py-0.5 rounded-full font-medium",
+                arvConfidence === "high" ? "bg-emerald-500/20 text-emerald-400" :
+                arvConfidence === "medium" ? "bg-amber-500/20 text-amber-400" :
+                "bg-red-500/20 text-red-400"
+              )}>
+                {arvConfidence} confidence
+              </span>
+            )}
           </p>
           {selectedComps.length > 0 ? (
             <div className="space-y-1.5 text-xs">
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Avg AVM</span>
-                <span className="font-bold text-neon">{avgAvm ? formatCurrency(avgAvm) : "—"}</span>
-              </div>
-              {avgLastSale && (
+              {avgPpsqft != null && (
                 <div className="flex justify-between">
-                  <span className="text-muted-foreground">Avg Sale</span>
-                  <span className="font-semibold">{formatCurrency(avgLastSale)}</span>
+                  <span className="text-muted-foreground">Avg $/sqft</span>
+                  <span className="font-bold text-neon">${avgPpsqft}</span>
+                </div>
+              )}
+              {arvLow > 0 && arvHigh > 0 && (
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Range</span>
+                  <span className="font-medium">{formatCurrency(arvLow)} – {formatCurrency(arvHigh)}</span>
                 </div>
               )}
               {conditionAdj !== 0 && (
@@ -2868,6 +2910,9 @@ function CompsTab({ cf, selectedComps, onAddComp, onRemoveComp, onSkipTrace, com
                   {formatCurrency(arv)}
                 </span>
               </div>
+              <p className="text-[9px] text-muted-foreground/60 pt-1">
+                {avgPpsqft != null ? `Based on ${sqftComps.length} comp${sqftComps.length > 1 ? "s" : ""} × ${subjectSqft.toLocaleString()} sqft` : `Average of ${compMetrics.length} comp sale price${compMetrics.length > 1 ? "s" : ""}`}
+              </p>
             </div>
           ) : cf.estimatedValue ? (
             <div className="space-y-1.5 text-xs">
@@ -2956,9 +3001,9 @@ function OfferCalcTab({ cf, computedArv }: { cf: ClientFile; computedArv: number
 
   // Auto-fill ARV when Comps tab computes one
   useEffect(() => { if (computedArv > 0) setArv(computedArv.toString()); }, [computedArv]);
-  const defaultMao = bestArv > 0 ? Math.round(bestArv * 0.70).toString() : "";
+  const defaultMao = bestArv > 0 ? Math.round(bestArv * 0.70 - 40000).toString() : "";
   const [purchase, setPurchase] = useState(defaultMao);
-  const [rehab, setRehab] = useState("15000");
+  const [rehab, setRehab] = useState("40000");
   const [holdMonths, setHoldMonths] = useState("3");
   const [monthlyHold, setMonthlyHold] = useState("1500");
   const [closing, setClosing] = useState("5000");
@@ -3045,7 +3090,7 @@ function OfferCalcTab({ cf, computedArv }: { cf: ClientFile; computedArv: number
 function DocumentsTab({ cf, computedArv }: { cf: ClientFile; computedArv: number }) {
   const today = new Date().toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" });
   const bestArv = computedArv > 0 ? computedArv : cf.estimatedValue ?? 0;
-  const autoMao = bestArv > 0 ? formatCurrency(Math.round(bestArv * 0.70)) : "____________";
+  const autoMao = bestArv > 0 ? formatCurrency(Math.round(bestArv * 0.70 - 40000)) : "____________";
 
   const psaBody = useMemo(() => [
     `REAL ESTATE PURCHASE AND SALE AGREEMENT`,
