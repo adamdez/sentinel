@@ -120,8 +120,26 @@ export async function POST(req: NextRequest) {
       duration: callDuration,
     });
 
+    // Only overwrite disposition if the agent hasn't already set a final
+    // one from the UI (e.g. "voicemail", "interested", "appointment").
+    const MACHINE_DISPOSITIONS = new Set([
+      "initiating", "initiated", "ringing_agent", "agent_connected",
+      "in_progress", "ringing",
+    ]);
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    let currentDispo: string | null = null;
+    if (callLogId) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data: row } = await (sb.from("calls_log") as any)
+        .select("disposition")
+        .eq("id", callLogId)
+        .single();
+      currentDispo = row?.disposition ?? null;
+    }
+    const agentAlreadySet = currentDispo !== null && !MACHINE_DISPOSITIONS.has(currentDispo);
+
     if (dialStatus !== "completed") {
-      // Prospect didn't answer — inform the agent who is still on the line
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       await (sb.from("event_log") as any).insert({
         user_id: SYSTEM_USER_ID,
@@ -131,7 +149,7 @@ export async function POST(req: NextRequest) {
         details: { dial_status: dialStatus, duration: callDuration },
       });
 
-      if (callLogId) {
+      if (callLogId && !agentAlreadySet) {
         const dispo = dialStatus === "busy" ? "busy" : "no_answer";
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         await (sb.from("calls_log") as any)
@@ -154,12 +172,16 @@ export async function POST(req: NextRequest) {
     // Prospect answered and the call completed normally
     if (callLogId) {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const updatePayload: Record<string, unknown> = {
+        transfer_completed: true,
+        duration_sec: parseInt(callDuration) || 0,
+      };
+      if (!agentAlreadySet) {
+        updatePayload.disposition = "completed";
+      }
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       await (sb.from("calls_log") as any)
-        .update({
-          disposition: "completed",
-          transfer_completed: true,
-          duration_sec: parseInt(callDuration) || 0,
-        })
+        .update(updatePayload)
         .eq("id", callLogId);
     }
 

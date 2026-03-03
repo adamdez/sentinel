@@ -56,7 +56,7 @@ export function useDialerQueue(limit = 7) {
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           (supabase.from("leads") as any)
             .select("*, properties(*)")
-            .eq("status", "lead")
+            .in("status", ["lead", "my_lead", "negotiation"])
             .eq("assigned_to", currentUser.id)
             .lte("next_call_scheduled_at", now)
             .order("next_call_scheduled_at", { ascending: true })
@@ -64,7 +64,7 @@ export function useDialerQueue(limit = 7) {
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           (supabase.from("leads") as any)
             .select("*, properties(*)")
-            .eq("status", "lead")
+            .in("status", ["lead", "my_lead", "negotiation"])
             .eq("assigned_to", currentUser.id)
             .is("next_call_scheduled_at", null)
             .order("priority", { ascending: false })
@@ -269,6 +269,7 @@ export function useDialerStats() {
   const { currentUser } = useSentinelStore();
 
   const fetchStats = useCallback(async () => {
+    if (!currentUser.id) return;
     try {
       const { my } = await fetchDialerKpis(currentUser.id, "today");
       setStats(my);
@@ -289,6 +290,7 @@ export function useDialerStats() {
     const channel = supabase
       .channel("dialer-stats")
       .on("postgres_changes", { event: "INSERT", schema: "public", table: "calls_log" }, () => fetchStats())
+      .on("postgres_changes", { event: "UPDATE", schema: "public", table: "calls_log" }, () => fetchStats())
       .subscribe();
 
     return () => { supabase.removeChannel(channel); };
