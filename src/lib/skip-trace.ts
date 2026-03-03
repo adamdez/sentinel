@@ -63,6 +63,8 @@ export interface SkipTraceResult {
   bdSuccess: boolean;
   totalPhoneCount: number;
   totalEmailCount: number;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  _debugSources?: Record<string, any>;
 }
 
 // ── Property Input ───────────────────────────────────────────────────
@@ -256,6 +258,15 @@ export async function dualSkipTrace(
     bdSuccess: !!bdResult || !!bdMailResult,
     totalPhoneCount: phones.length,
     totalEmailCount: emails.length,
+    _debugSources: {
+      prPersons: prResult ? { phones: prResult.phones.length, emails: prResult.emails.length, persons: prResult.persons.length } : "null/error",
+      prCounty: prCountyResult ? { phones: prCountyResult.phones.length, emails: prCountyResult.emails.length, phoneNumbers: prCountyResult.phones.map(p => p.number) } : "null/error",
+      bdProperty: bdResult ? { phones: bdResult.phones.length, emails: bdResult.emails.length, persons: bdResult.persons.length } : "null/error",
+      bdMailing: bdMailResult ? { phones: bdMailResult.phones.length, emails: bdMailResult.emails.length } : "null/error",
+      hasBDToken: !!process.env.BATCHDATA_API_TOKEN,
+      inputAddress: property.address,
+      inputMailing: property.mailingAddress,
+    },
   };
 
   console.log(`[DualSkip] Result: ${phones.length} phones, ${emails.length} emails, providers: [${providers.join(",")}], litigator: ${isLitigator}, DNC: ${hasDncNumbers} (${Date.now() - t0}ms)`);
