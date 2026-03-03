@@ -388,6 +388,15 @@ export async function POST(req: NextRequest) {
     const ownerName = pr.Owner ?? pr.Taxpayer ?? "Unknown Owner";
     const fullAddr = [address, city, state, zip].filter(Boolean).join(", ");
 
+    // ── Data quality gate: skip properties with no real address/owner ──
+    const hasRealAddress = address.trim().length > 3;
+    const hasRealOwner = ownerName !== "Unknown Owner" && ownerName.trim().length > 0;
+    if (!hasRealAddress || !hasRealOwner) {
+      if (i < 10) console.log(`[BulkSeed] SKIPPED ${apn}: no address or owner (addr="${address}", owner="${ownerName}")`);
+      errored++;
+      continue;
+    }
+
     if (i < 5 || i % 50 === 0) {
       console.log(`[BulkSeed] Processing ${i + 1}/${storable.length}: ${address} (${apn}) — score ${score.composite} [${label}]`);
     }

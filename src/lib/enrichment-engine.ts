@@ -992,7 +992,7 @@ export async function promoteByTier(filter: PromoteFilter): Promise<PromoteResul
   // Query enriched staging leads in the score range
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let query = (sb.from("leads") as any)
-    .select("id, property_id, priority, tags, notes, properties!inner(owner_flags)")
+    .select("id, property_id, priority, tags, notes, properties!inner(owner_flags, address, owner_name)")
     .eq("status", "staging")
     .gte("priority", minScore)
     .lte("priority", maxScore)
@@ -1019,12 +1019,41 @@ export async function promoteByTier(filter: PromoteFilter): Promise<PromoteResul
     return status === "enriched" || status === "partial" || l.priority > 0;
   });
 
+  // ── Data quality gate ─────────────────────────────────────────────
+  // Reject leads whose property has no real address or owner name.
+  // These are garbage records from bulk-seed where PropertyRadar
+  // returned empty/null Address fields.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const qualityFiltered = enrichedLeads.filter((l) => {
+    const addr = (l.properties?.address ?? "").trim();
+    const owner = (l.properties?.owner_name ?? "").trim();
+
+    // Address must be > 5 chars and not just a state code
+    const hasAddress = addr.length > 5 && !/^\s*[A-Z]{2}\s*,?\s*\d{0,5}\s*$/.test(addr);
+    // Owner must not be "Unknown" or empty
+    const hasOwner = owner.length > 0
+      && owner.toLowerCase() !== "unknown"
+      && owner.toLowerCase() !== "unknown owner"
+      && owner.toLowerCase() !== "n/a";
+
+    if (!hasAddress || !hasOwner) {
+      console.log(`[Promote] BLOCKED garbage lead ${l.id}: addr="${addr}", owner="${owner}"`);
+      return false;
+    }
+    return true;
+  });
+
+  const garbageCount = enrichedLeads.length - qualityFiltered.length;
+  if (garbageCount > 0) {
+    console.log(`[Promote] Data quality gate blocked ${garbageCount} garbage leads (no address or owner)`);
+  }
+
   // ── Absentee-first gate ───────────────────────────────────────────
   // Only promote leads where the owner does NOT live in the property,
   // OR the owner is deceased (functionally absentee — heirs don't live there).
   // Non-absentee, non-deceased leads stay in the reservoir as backup.
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const promotable = enrichedLeads.filter((l) => {
+  const promotable = qualityFiltered.filter((l) => {
     const flags = l.properties?.owner_flags ?? {};
     const prRaw = flags.pr_raw ?? {};
     const tags: string[] = l.tags ?? [];
@@ -1050,7 +1079,7 @@ export async function promoteByTier(filter: PromoteFilter): Promise<PromoteResul
     return false;
   });
 
-  console.log(`[Promote] ${enrichedLeads.length} enriched, ${promotable.length} promotable (absentee/deceased), ${enrichedLeads.length - promotable.length} held in reservoir`);
+  console.log(`[Promote] ${enrichedLeads.length} enriched, ${garbageCount} blocked (bad data), ${promotable.length} promotable (absentee/deceased), ${qualityFiltered.length - promotable.length} held in reservoir`);
 
   if (promotable.length === 0) {
     return { promoted: 0, tier, scoreRange: { min: minScore, max: maxScore }, leads: [] };

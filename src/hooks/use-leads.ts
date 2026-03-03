@@ -105,11 +105,14 @@ export function useLeads() {
   const fetchLeads = useCallback(async () => {
     setLoading(true);
     try {
-      // Fetch leads that are NOT prospects (prospects live on the Prospects page)
+      // Fetch leads that are NOT prospects and NOT staging
+      // Prospects live on the Prospects page; staging leads are invisible
+      // (they're in the enrichment reservoir, not yet promoted).
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { data: leadsRaw, error: leadsErr } = await (supabase.from("leads") as any)
         .select("*")
         .neq("status", "prospect")
+        .neq("status", "staging")
         .order("priority", { ascending: false });
 
       if (leadsErr) {

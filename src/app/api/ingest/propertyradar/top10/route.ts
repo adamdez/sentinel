@@ -682,6 +682,14 @@ export async function POST(req: NextRequest) {
     const ownerName = pr.Owner ?? pr.Taxpayer ?? "Unknown Owner";
     const fullAddr = [address, city, state, zip].filter(Boolean).join(", ");
 
+    // ── Data quality gate: skip properties with no real address/owner ──
+    const hasRealAddress = address.trim().length > 3;
+    const hasRealOwner = ownerName !== "Unknown Owner" && ownerName.trim().length > 0;
+    if (!hasRealAddress || !hasRealOwner) {
+      console.log(`[Top10] SKIPPED ${apn}: no address or owner (addr="${address}", owner="${ownerName}")`);
+      continue;
+    }
+
     console.log(`[Top10] Processing ${i + 1}/${allStorable.length}: ${address} (${apn}) [${label}]`);
 
     const ownerFlags: Record<string, unknown> = {
