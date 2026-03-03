@@ -9,7 +9,7 @@ import {
   Banknote, Scale, UserX, Eye, FileText, Calculator, Globe, Send,
   Radar, LayoutDashboard, Map, Printer, ImageIcon, ChevronLeft, ChevronRight,
   Pencil, Save, Voicemail, PhoneForwarded, Brain, Crosshair, MapPinned,
-  MessageSquare, Flame,
+  MessageSquare, Flame, Smartphone, ShieldAlert, PhoneOff, Circle,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -964,7 +964,33 @@ function EditDetailsModal({ cf, onClose, onSaved }: { cf: ClientFile; onClose: (
 // Tab: Overview
 // ═══════════════════════════════════════════════════════════════════════
 
-interface SkipTraceOverlay { phones: string[]; emails: string[]; persons: Record<string, unknown>[]; primaryPhone: string | null; primaryEmail: string | null; }
+interface PhoneDetail {
+  number: string;
+  lineType: "mobile" | "landline" | "voip" | "unknown";
+  confidence: number;
+  dnc: boolean;
+  carrier?: string;
+  source: "propertyradar" | "batchdata";
+}
+
+interface EmailDetail {
+  email: string;
+  deliverable: boolean;
+  source: "propertyradar" | "batchdata";
+}
+
+interface SkipTraceOverlay {
+  phones: string[];
+  emails: string[];
+  persons: Record<string, unknown>[];
+  primaryPhone: string | null;
+  primaryEmail: string | null;
+  phoneDetails: PhoneDetail[];
+  emailDetails: EmailDetail[];
+  providers: string[];
+  isLitigator: boolean;
+  hasDncNumbers: boolean;
+}
 
 interface SkipTraceError {
   error: string;
@@ -974,10 +1000,21 @@ interface SkipTraceError {
   address_issues?: string[];
 }
 
-function OverviewTab({ cf, skipTracing, skipTraceResult, skipTraceMs, overlay, skipTraceError, onSkipTrace, onManualSkipTrace, onEdit }: {
+function dispositionColor(disp: string): string {
+  const d = disp.toLowerCase();
+  if (d === "connected" || d === "interested" || d === "appointment_set" || d === "callback") return "text-emerald-400";
+  if (d === "no_answer" || d === "voicemail" || d === "busy" || d === "left_message") return "text-amber-400";
+  if (d === "wrong_number" || d === "disconnected" || d === "do_not_call") return "text-red-400";
+  return "text-muted-foreground";
+}
+
+function OverviewTab({ cf, skipTracing, skipTraceResult, skipTraceMs, overlay, skipTraceError, onSkipTrace, onManualSkipTrace, onEdit, onDial, onSms, calling, dialHistory }: {
   cf: ClientFile; skipTracing: boolean; skipTraceResult: string | null; skipTraceMs: number | null;
   overlay: SkipTraceOverlay | null; skipTraceError: SkipTraceError | null;
   onSkipTrace: () => void; onManualSkipTrace: () => void; onEdit: () => void;
+  onDial: (phone: string) => void; onSms: (phone: string) => void;
+  calling: boolean;
+  dialHistory: Record<string, { count: number; lastDate: string; lastDisposition: string }>;
 }) {
   const skipTraced = !!overlay || !!cf.ownerFlags?.skip_traced;
   const displayPhone = overlay?.primaryPhone ?? cf.ownerPhone;
@@ -990,13 +1027,26 @@ function OverviewTab({ cf, skipTracing, skipTraceResult, skipTraceMs, overlay, s
   const allPhones = overlay?.phones ?? (cf.ownerFlags?.all_phones as string[]) ?? [];
   const allEmails = overlay?.emails ?? (cf.ownerFlags?.all_emails as string[]) ?? [];
 
+  // Rich phone/email details from dual skip-trace
+  const phoneDetails: PhoneDetail[] = overlay?.phoneDetails
+    ?? (cf.ownerFlags?.all_phones as PhoneDetail[] | undefined)?.filter((p) => typeof p === "object" && p !== null && "number" in p)
+    ?? [];
+  const emailDetails: EmailDetail[] = overlay?.emailDetails
+    ?? (cf.ownerFlags?.all_emails as EmailDetail[] | undefined)?.filter((e) => typeof e === "object" && e !== null && "email" in e)
+    ?? [];
+  const isLitigator = overlay?.isLitigator ?? (cf.ownerFlags?.is_litigator as boolean) ?? false;
+  const hasDncNumbers = overlay?.hasDncNumbers ?? (cf.ownerFlags?.has_dnc_numbers as boolean) ?? false;
+  const skipProviders = overlay?.providers ?? (cf.ownerFlags?.skip_trace_providers as string[]) ?? [];
+
   const [scoreBreakdown, setScoreBreakdown] = useState<ScoreType | null>(null);
   const canEdit = ["prospect", "lead"].includes(cf.status);
 
   const { brief, loading: briefLoading } = usePreCallBrief(cf.id);
 
-  const bestPhone = allPhones[0] ?? displayPhone;
-  const phoneConfidence = allPhones.length >= 3 ? 95 : allPhones.length === 2 ? 80 : allPhones.length === 1 ? 65 : null;
+  const bestPhone = allPhones[0] ?? (phoneDetails[0]?.number) ?? displayPhone;
+  const phoneConfidence = phoneDetails.length > 0
+    ? phoneDetails[0]?.confidence ?? 70
+    : allPhones.length >= 3 ? 95 : allPhones.length === 2 ? 80 : allPhones.length === 1 ? 65 : null;
 
   const equityPct = cf.equityPercent ?? 0;
   const equityIsGreen = equityPct >= 50;
@@ -1306,37 +1356,202 @@ function OverviewTab({ cf, skipTracing, skipTraceResult, skipTraceMs, overlay, s
           </div>
         )}
 
-        {bestPhone ? (
-          <div className="rounded-[10px] border border-cyan/20 bg-cyan/[0.04] p-3 mb-3">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2.5">
-                <div className="h-8 w-8 rounded-[10px] bg-cyan/10 flex items-center justify-center">
-                  <Phone className="h-4 w-4 text-cyan" />
-                </div>
-                <div>
-                  <p className="text-[9px] text-cyan/60 uppercase tracking-widest">Best Phone</p>
-                  <a href={`tel:${bestPhone.replace(/\D/g, "")}`} className="text-lg font-bold font-mono text-cyan hover:underline"
-                    style={{ textShadow: "0 0 10px rgba(0,212,255,0.3)" }}>
-                    {bestPhone}
-                  </a>
-                </div>
+        {/* ── Litigator Warning ── */}
+        {isLitigator && (
+          <div className="rounded-[10px] border border-red-500/30 bg-red-500/[0.08] p-3 mb-3">
+            <div className="flex items-center gap-2">
+              <ShieldAlert className="h-4 w-4 text-red-400 shrink-0" />
+              <div>
+                <p className="text-xs font-bold text-red-400 uppercase">Known TCPA Litigator</p>
+                <p className="text-[10px] text-red-300/70">Do NOT call or text this owner. High litigation risk.</p>
               </div>
-              {phoneConfidence != null && (
-                <div className="text-right">
-                  <p className="text-[9px] text-muted-foreground/50 uppercase tracking-widest">Confidence</p>
-                  <p className={cn("text-lg font-bold font-mono", phoneConfidence >= 80 ? "text-emerald-400" : "text-amber-400")}>
-                    {phoneConfidence}%
-                  </p>
-                </div>
+            </div>
+          </div>
+        )}
+
+        {/* ── Phone Dialer Cards ── */}
+        {phoneDetails.length > 0 ? (
+          <div className="space-y-1.5 mb-3">
+            <div className="flex items-center justify-between">
+              <p className="text-[10px] text-muted-foreground uppercase tracking-wider">
+                Phone Numbers ({phoneDetails.length})
+              </p>
+              {hasDncNumbers && (
+                <span className="text-[9px] text-red-400/80 flex items-center gap-1">
+                  <PhoneOff className="h-2.5 w-2.5" />
+                  {phoneDetails.filter((p) => p.dnc).length} DNC
+                </span>
+              )}
+              {skipProviders.length > 0 && (
+                <span className="text-[9px] text-muted-foreground/50">{skipProviders.join(" + ")}</span>
               )}
             </div>
-            {allPhones.length > 1 && (
-              <div className="mt-2 pt-2 border-t border-cyan/10 flex flex-wrap gap-2">
-                {allPhones.slice(1).map((ph: string, i: number) => (
-                  <a key={i} href={`tel:${ph.replace(/\D/g, "")}`} className="text-xs font-mono text-muted-foreground hover:text-cyan transition-colors">{ph}</a>
-                ))}
-              </div>
-            )}
+            {phoneDetails.map((ph, i) => {
+              const norm = ph.number.replace(/\D/g, "").slice(-10);
+              const hist = dialHistory[norm];
+              const isDnc = ph.dnc;
+              const isBest = i === 0;
+
+              return (
+                <div
+                  key={norm + i}
+                  className={cn(
+                    "rounded-[10px] border p-2.5 transition-all",
+                    isDnc
+                      ? "border-red-500/20 bg-red-500/[0.04] opacity-60"
+                      : isBest
+                        ? "border-cyan/25 bg-cyan/[0.04]"
+                        : "border-glass-border bg-secondary/5"
+                  )}
+                >
+                  <div className="flex items-center gap-2.5">
+                    {/* Line type icon */}
+                    <div className={cn(
+                      "h-7 w-7 rounded-lg flex items-center justify-center shrink-0",
+                      isDnc ? "bg-red-500/10" : "bg-cyan/10"
+                    )}>
+                      {isDnc ? (
+                        <PhoneOff className="h-3.5 w-3.5 text-red-400" />
+                      ) : ph.lineType === "mobile" ? (
+                        <Smartphone className="h-3.5 w-3.5 text-cyan" />
+                      ) : (
+                        <Phone className="h-3.5 w-3.5 text-cyan" />
+                      )}
+                    </div>
+
+                    {/* Number + metadata */}
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-1.5">
+                        <span className={cn(
+                          "text-sm font-bold font-mono",
+                          isDnc ? "text-red-400 line-through" : "text-foreground"
+                        )}>
+                          {ph.number}
+                        </span>
+                        {isBest && !isDnc && (
+                          <Badge variant="outline" className="text-[7px] py-0 px-1 border-cyan/30 text-cyan">BEST</Badge>
+                        )}
+                        <Badge variant="outline" className={cn(
+                          "text-[7px] py-0 px-1",
+                          ph.source === "batchdata" ? "border-emerald-500/30 text-emerald-400" : "border-cyan/30 text-cyan/70"
+                        )}>
+                          {ph.source === "batchdata" ? "BD" : "PR"}
+                        </Badge>
+                        {ph.lineType !== "unknown" && (
+                          <span className="text-[8px] text-muted-foreground/50 uppercase">{ph.lineType}</span>
+                        )}
+                        {isDnc && (
+                          <Badge variant="outline" className="text-[7px] py-0 px-1 border-red-500/30 text-red-400">DNC</Badge>
+                        )}
+                      </div>
+
+                      {/* Call status row */}
+                      <div className="flex items-center gap-1.5 mt-0.5">
+                        {hist ? (
+                          <>
+                            <CheckCircle2 className={cn("h-2.5 w-2.5", dispositionColor(hist.lastDisposition))} />
+                            <span className="text-[10px] text-muted-foreground">
+                              Called {hist.count}x · {new Date(hist.lastDate).toLocaleDateString()} · {hist.lastDisposition.replace(/_/g, " ")}
+                            </span>
+                          </>
+                        ) : (
+                          <>
+                            <Circle className="h-2.5 w-2.5 text-cyan/40" />
+                            <span className="text-[10px] text-cyan/50">Not yet called</span>
+                          </>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Confidence */}
+                    {ph.confidence > 0 && !isDnc && (
+                      <span className={cn(
+                        "text-xs font-bold font-mono shrink-0",
+                        ph.confidence >= 80 ? "text-emerald-400" : ph.confidence >= 60 ? "text-amber-400" : "text-muted-foreground"
+                      )}>
+                        {ph.confidence}%
+                      </span>
+                    )}
+
+                    {/* Action buttons */}
+                    {!isDnc && !isLitigator && (
+                      <div className="flex items-center gap-1 shrink-0">
+                        <button
+                          onClick={() => onDial(ph.number)}
+                          disabled={calling}
+                          className="h-7 px-2 rounded-md text-[10px] font-semibold bg-cyan/10 text-cyan hover:bg-cyan/20 border border-cyan/20 transition-all flex items-center gap-1 disabled:opacity-50"
+                        >
+                          <Phone className="h-3 w-3" />Dial
+                        </button>
+                        <button
+                          onClick={() => onSms(ph.number)}
+                          className="h-7 px-2 rounded-md text-[10px] font-semibold bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 border border-emerald-500/20 transition-all flex items-center gap-1"
+                        >
+                          <MessageSquare className="h-3 w-3" />
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        ) : bestPhone ? (
+          /* Fallback for legacy data (plain string phones, no PhoneDetail) */
+          <div className="space-y-1.5 mb-3">
+            <p className="text-[10px] text-muted-foreground uppercase tracking-wider">
+              Phone Numbers ({allPhones.length || 1})
+            </p>
+            {(allPhones.length > 0 ? allPhones : [bestPhone]).map((ph: string, i: number) => {
+              const norm = ph.replace(/\D/g, "").slice(-10);
+              const hist = dialHistory[norm];
+              return (
+                <div key={norm + i} className={cn(
+                  "rounded-[10px] border p-2.5",
+                  i === 0 ? "border-cyan/25 bg-cyan/[0.04]" : "border-glass-border bg-secondary/5"
+                )}>
+                  <div className="flex items-center gap-2.5">
+                    <div className="h-7 w-7 rounded-lg bg-cyan/10 flex items-center justify-center shrink-0">
+                      <Phone className="h-3.5 w-3.5 text-cyan" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <span className="text-sm font-bold font-mono text-foreground">{ph}</span>
+                      {i === 0 && <Badge variant="outline" className="text-[7px] py-0 px-1 ml-1.5 border-cyan/30 text-cyan">BEST</Badge>}
+                      <div className="flex items-center gap-1.5 mt-0.5">
+                        {hist ? (
+                          <>
+                            <CheckCircle2 className={cn("h-2.5 w-2.5", dispositionColor(hist.lastDisposition))} />
+                            <span className="text-[10px] text-muted-foreground">
+                              Called {hist.count}x · {new Date(hist.lastDate).toLocaleDateString()} · {hist.lastDisposition.replace(/_/g, " ")}
+                            </span>
+                          </>
+                        ) : (
+                          <>
+                            <Circle className="h-2.5 w-2.5 text-cyan/40" />
+                            <span className="text-[10px] text-cyan/50">Not yet called</span>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-1 shrink-0">
+                      <button
+                        onClick={() => onDial(ph)}
+                        disabled={calling}
+                        className="h-7 px-2 rounded-md text-[10px] font-semibold bg-cyan/10 text-cyan hover:bg-cyan/20 border border-cyan/20 transition-all flex items-center gap-1 disabled:opacity-50"
+                      >
+                        <Phone className="h-3 w-3" />Dial
+                      </button>
+                      <button
+                        onClick={() => onSms(ph)}
+                        className="h-7 px-2 rounded-md text-[10px] font-semibold bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 border border-emerald-500/20 transition-all flex items-center gap-1"
+                      >
+                        <MessageSquare className="h-3 w-3" />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
           </div>
         ) : (
           <button
@@ -1354,8 +1569,29 @@ function OverviewTab({ cf, skipTracing, skipTraceResult, skipTraceMs, overlay, s
           </button>
         )}
 
-        {allEmails.length > 0 ? (
-          <div className="space-y-1">
+        {/* ── Emails ── */}
+        {emailDetails.length > 0 ? (
+          <div className="space-y-1 mb-3">
+            <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Emails ({emailDetails.length})</p>
+            {emailDetails.map((em, i) => (
+              <div key={i} className="flex items-center gap-2 text-sm">
+                <Mail className="h-3 w-3 text-cyan/60" />
+                <a href={`mailto:${em.email}`} className="text-cyan hover:underline">{em.email}</a>
+                {i === 0 && <Badge variant="outline" className="text-[8px] py-0">PRIMARY</Badge>}
+                <Badge variant="outline" className={cn(
+                  "text-[7px] py-0 px-1",
+                  em.source === "batchdata" ? "border-emerald-500/30 text-emerald-400" : "border-cyan/30 text-cyan/70"
+                )}>
+                  {em.source === "batchdata" ? "BD" : "PR"}
+                </Badge>
+                {em.deliverable && (
+                  <Badge variant="outline" className="text-[7px] py-0 px-1 border-emerald-500/30 text-emerald-400">Verified</Badge>
+                )}
+              </div>
+            ))}
+          </div>
+        ) : allEmails.length > 0 ? (
+          <div className="space-y-1 mb-3">
             <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Emails ({allEmails.length})</p>
             {allEmails.map((em: string, i: number) => (
               <div key={i} className="flex items-center gap-2 text-sm">
@@ -1369,6 +1605,7 @@ function OverviewTab({ cf, skipTracing, skipTraceResult, skipTraceMs, overlay, s
           <InfoRow icon={Mail} label="Email" value={displayEmail} highlight />
         ) : null}
 
+        {/* ── Associated Persons ── */}
         {persons.length > 0 && (
           <div className="mt-3 space-y-2">
             <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Associated Persons</p>
@@ -1380,6 +1617,14 @@ function OverviewTab({ cf, skipTracing, skipTraceResult, skipTraceMs, overlay, s
                   <span className="font-semibold text-foreground">{p.name}</span>
                   <span className="text-muted-foreground">({p.relation})</span>
                   {p.age && <span className="text-muted-foreground">Age {p.age}</span>}
+                  {p.source && (
+                    <Badge variant="outline" className={cn(
+                      "text-[7px] py-0 px-1",
+                      p.source === "batchdata" ? "border-emerald-500/30 text-emerald-400" : "border-cyan/30 text-cyan/70"
+                    )}>
+                      {p.source === "batchdata" ? "BD" : "PR"}
+                    </Badge>
+                  )}
                 </div>
                 {p.phones?.length > 0 && <div className="pl-5 text-muted-foreground">Phones: {p.phones.join(", ")}</div>}
                 {p.emails?.length > 0 && <div className="pl-5 text-muted-foreground">Emails: {p.emails.join(", ")}</div>}
@@ -1388,7 +1633,7 @@ function OverviewTab({ cf, skipTracing, skipTraceResult, skipTraceMs, overlay, s
           </div>
         )}
 
-        {/* Heir Contacts (probate situations) */}
+        {/* ── Heir Contacts (probate situations) ── */}
         {heirContacts.length > 0 && (
           <div className="mt-3 space-y-2">
             <p className="text-[10px] text-red-400/80 uppercase tracking-wider font-semibold flex items-center gap-1.5">
@@ -1405,7 +1650,7 @@ function OverviewTab({ cf, skipTracing, skipTraceResult, skipTraceMs, overlay, s
                 {heir.phone && (
                   <div className="pl-5 flex items-center gap-1.5">
                     <Phone className="h-2.5 w-2.5 text-cyan/60" />
-                    <a href={`tel:${heir.phone.replace(/\D/g, "")}`} className="text-cyan hover:underline font-mono">{heir.phone}</a>
+                    <button onClick={() => onDial(heir.phone)} className="text-cyan hover:underline font-mono text-xs">{heir.phone}</button>
                   </div>
                 )}
                 {heir.email && (
@@ -2162,6 +2407,23 @@ function CompsTab({ cf, selectedComps, onAddComp, onRemoveComp, onSkipTrace, com
     return urls;
   }, [prRaw]);
 
+  // ARV from selected comps + adjustments (must be computed before early returns to keep hooks stable)
+  const avms = selectedComps.map((c) => c.avm).filter((v): v is number => v != null);
+  const lastSales = selectedComps.map((c) => c.lastSalePrice).filter((v): v is number => v != null);
+  const avgAvm = avms.length > 0 ? Math.round(avms.reduce((a, b) => a + b, 0) / avms.length) : null;
+  const avgLastSale = lastSales.length > 0 ? Math.round(lastSales.reduce((a, b) => a + b, 0) / lastSales.length) : null;
+  const baseArv = avgAvm ?? avgLastSale ?? cf.estimatedValue ?? 0;
+  const arv = Math.round(baseArv * (1 + conditionAdj / 100));
+
+  const offer = Math.round(arv * (offerPct / 100));
+  const holdingCosts = Math.round(arv * 0.03);
+  const sellingCosts = Math.round(arv * 0.08);
+  const totalCost = offer + rehabEst + holdingCosts + sellingCosts;
+  const profit = arv - totalCost;
+  const roi = totalCost > 0 ? Math.round((profit / totalCost) * 100) : 0;
+
+  useEffect(() => { if (arv > 0) onArvChange(arv); }, [arv, onArvChange]);
+
   if (geocoding) {
     return (
       <div className="text-center py-12">
@@ -2226,25 +2488,6 @@ function CompsTab({ cf, selectedComps, onAddComp, onRemoveComp, onSkipTrace, com
     propertyType: cf.propertyType, avm: cf.estimatedValue,
     radarId: cf.radarId, zip: cf.zip, county: cf.county, state: cf.state,
   };
-
-  // ARV from selected comps + adjustments
-  const avms = selectedComps.map((c) => c.avm).filter((v): v is number => v != null);
-  const lastSales = selectedComps.map((c) => c.lastSalePrice).filter((v): v is number => v != null);
-  const avgAvm = avms.length > 0 ? Math.round(avms.reduce((a, b) => a + b, 0) / avms.length) : null;
-  const avgLastSale = lastSales.length > 0 ? Math.round(lastSales.reduce((a, b) => a + b, 0) / lastSales.length) : null;
-  const baseArv = avgAvm ?? avgLastSale ?? cf.estimatedValue ?? 0;
-  const arv = Math.round(baseArv * (1 + conditionAdj / 100));
-
-  // Profit projection with editable inputs
-  const offer = Math.round(arv * (offerPct / 100));
-  const holdingCosts = Math.round(arv * 0.03);
-  const sellingCosts = Math.round(arv * 0.08);
-  const totalCost = offer + rehabEst + holdingCosts + sellingCosts;
-  const profit = arv - totalCost;
-  const roi = totalCost > 0 ? Math.round((profit / totalCost) * 100) : 0;
-
-  // Sync computed ARV to parent (flows into Offer Calculator tab)
-  useEffect(() => { if (arv > 0) onArvChange(arv); }, [arv, onArvChange]);
 
   return (
     <div className="space-y-4">
@@ -2693,8 +2936,48 @@ export function MasterClientFileModal({ clientFile, open, onClose, onClaim, onRe
   const [smsOpen, setSmsOpen] = useState(false);
   const [smsMessage, setSmsMessage] = useState("");
   const [smsSending, setSmsSending] = useState(false);
+  const [smsPhone, setSmsPhone] = useState<string | null>(null);
+  const [dialHistoryMap, setDialHistoryMap] = useState<Record<string, { count: number; lastDate: string; lastDisposition: string }>>({});
 
   const displayPhone = overlay?.primaryPhone ?? clientFile?.ownerPhone ?? null;
+
+  // Fetch dial history for this lead — groups calls_log by phone_dialed
+  const fetchDialHistory = useCallback(async () => {
+    if (!clientFile?.id) return;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data } = await (supabase.from("calls_log") as any)
+      .select("phone_dialed, disposition, started_at")
+      .eq("lead_id", clientFile.id)
+      .order("started_at", { ascending: false });
+
+    if (!data) return;
+    const grouped: Record<string, { count: number; lastDate: string; lastDisposition: string }> = {};
+    for (const row of data as { phone_dialed: string; disposition: string; started_at: string }[]) {
+      const norm = row.phone_dialed.replace(/\D/g, "").slice(-10);
+      if (!grouped[norm]) {
+        grouped[norm] = { count: 1, lastDate: row.started_at, lastDisposition: row.disposition };
+      } else {
+        grouped[norm].count++;
+      }
+    }
+    setDialHistoryMap(grouped);
+  }, [clientFile?.id]);
+
+  useEffect(() => { fetchDialHistory(); }, [fetchDialHistory]);
+
+  // Real-time subscription for call updates
+  useEffect(() => {
+    if (!clientFile?.id) return;
+    const channel = supabase
+      .channel(`dial-history-${clientFile.id}`)
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "calls_log", filter: `lead_id=eq.${clientFile.id}` },
+        () => { fetchDialHistory(); },
+      )
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
+  }, [clientFile?.id, fetchDialHistory]);
 
   const handleClaimLead = useCallback(async () => {
     if (!clientFile) return;
@@ -2756,8 +3039,9 @@ export function MasterClientFileModal({ clientFile, open, onClose, onClaim, onRe
     }
   }, [clientFile, onClaim, onRefresh]);
 
-  const handleDial = useCallback(async () => {
-    if (!clientFile || !displayPhone) return;
+  const handleDial = useCallback(async (phoneNumber?: string) => {
+    const numberToDial = phoneNumber || displayPhone;
+    if (!clientFile || !numberToDial) return;
     setCalling(true);
     setCallStatus("dialing");
     try {
@@ -2769,7 +3053,7 @@ export function MasterClientFileModal({ clientFile, open, onClose, onClaim, onRe
           ...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}),
         },
         body: JSON.stringify({
-          phone: displayPhone,
+          phone: numberToDial,
           leadId: clientFile.id,
           propertyId: clientFile.propertyId,
         }),
@@ -2777,8 +3061,9 @@ export function MasterClientFileModal({ clientFile, open, onClose, onClaim, onRe
       const data = await res.json();
       if (res.ok) {
         setCallStatus("ringing");
-        toast.success("Call initiated via Twilio");
+        toast.success(`Call initiated to ...${numberToDial.slice(-4)}`);
         setTimeout(() => { setCallStatus(null); setCalling(false); }, 30000);
+        fetchDialHistory();
       } else {
         setCallStatus(null);
         setCalling(false);
@@ -2789,10 +3074,19 @@ export function MasterClientFileModal({ clientFile, open, onClose, onClaim, onRe
       setCalling(false);
       toast.error("Network error — call failed");
     }
-  }, [clientFile, displayPhone]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [clientFile, displayPhone, fetchDialHistory]);
 
-  const handleSendSms = useCallback(async () => {
-    if (!clientFile || !displayPhone || !smsMessage.trim()) return;
+  const handleSendSms = useCallback(async (phoneNumber?: string) => {
+    const numberToSms = phoneNumber || displayPhone;
+    if (!clientFile || !numberToSms) return;
+    // If called from dialer card without a message, open SMS panel with the phone pre-set
+    if (!smsMessage.trim() && !phoneNumber) return;
+    if (phoneNumber && !smsMessage.trim()) {
+      setSmsPhone(numberToSms);
+      setSmsOpen(true);
+      return;
+    }
     setSmsSending(true);
     try {
       const { data: { session } } = await supabase.auth.getSession();
@@ -2803,7 +3097,7 @@ export function MasterClientFileModal({ clientFile, open, onClose, onClaim, onRe
           ...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}),
         },
         body: JSON.stringify({
-          phone: displayPhone,
+          phone: smsPhone || numberToSms,
           message: smsMessage.trim(),
           leadId: clientFile.id,
           propertyId: clientFile.propertyId,
@@ -2814,6 +3108,7 @@ export function MasterClientFileModal({ clientFile, open, onClose, onClaim, onRe
         toast.success("SMS sent successfully");
         setSmsMessage("");
         setSmsOpen(false);
+        setSmsPhone(null);
       } else {
         toast.error(data.error ?? "SMS failed");
       }
@@ -2822,7 +3117,7 @@ export function MasterClientFileModal({ clientFile, open, onClose, onClaim, onRe
     } finally {
       setSmsSending(false);
     }
-  }, [clientFile, displayPhone, smsMessage]);
+  }, [clientFile, displayPhone, smsMessage, smsPhone]);
 
   const handleAddComp = useCallback((comp: CompProperty) => {
     setSelectedComps((prev) => prev.some((c) => c.apn === comp.apn) ? prev : [...prev, comp]);
@@ -2856,6 +3151,11 @@ export function MasterClientFileModal({ clientFile, open, onClose, onClaim, onRe
           phones: data.phones ?? [], emails: data.emails ?? [],
           persons: data.persons ?? [], primaryPhone: data.primary_phone ?? null,
           primaryEmail: data.primary_email ?? null,
+          phoneDetails: data.phone_details ?? [],
+          emailDetails: data.email_details ?? [],
+          providers: data.providers ?? [],
+          isLitigator: data.is_litigator ?? false,
+          hasDncNumbers: data.has_dnc_numbers ?? false,
         });
         const total = Math.round(performance.now() - t0);
         setSkipTraceMs(total);
@@ -2979,7 +3279,7 @@ export function MasterClientFileModal({ clientFile, open, onClose, onClaim, onRe
                     transition={{ duration: 0.15 }}
                   >
                     {activeTab === "overview" && (
-                      <OverviewTab cf={clientFile} skipTracing={skipTracing} skipTraceResult={skipTraceResult} skipTraceMs={skipTraceMs} overlay={overlay} skipTraceError={skipTraceError} onSkipTrace={handleSkipTrace} onManualSkipTrace={handleManualSkipTrace} onEdit={() => setEditOpen(true)} />
+                      <OverviewTab cf={clientFile} skipTracing={skipTracing} skipTraceResult={skipTraceResult} skipTraceMs={skipTraceMs} overlay={overlay} skipTraceError={skipTraceError} onSkipTrace={handleSkipTrace} onManualSkipTrace={handleManualSkipTrace} onEdit={() => setEditOpen(true)} onDial={handleDial} onSms={handleSendSms} calling={calling} dialHistory={dialHistoryMap} />
                     )}
                     {activeTab === "propertyradar" && <PropertyRadarTab cf={clientFile} />}
                     {activeTab === "county" && <CountyRecordsTab cf={clientFile} />}
@@ -3008,7 +3308,7 @@ export function MasterClientFileModal({ clientFile, open, onClose, onClaim, onRe
                   <div className="px-6 py-3 border-b border-white/[0.06] space-y-2">
                     <div className="flex items-center gap-2">
                       <MessageSquare className="h-3.5 w-3.5 text-emerald-400" />
-                      <p className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold">SMS to ***{displayPhone.slice(-4)}</p>
+                      <p className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold">SMS to ***{(smsPhone || displayPhone)?.slice(-4)}</p>
                       <button onClick={() => setSmsOpen(false)} className="ml-auto text-muted-foreground hover:text-foreground">
                         <X className="h-3 w-3" />
                       </button>
@@ -3022,7 +3322,7 @@ export function MasterClientFileModal({ clientFile, open, onClose, onClaim, onRe
                     />
                     <div className="flex items-center justify-between">
                       <span className="text-[9px] text-muted-foreground/40">{smsMessage.length}/320</span>
-                      <Button size="sm" className="gap-1.5" disabled={smsSending || !smsMessage.trim()} onClick={handleSendSms}>
+                      <Button size="sm" className="gap-1.5" disabled={smsSending || !smsMessage.trim()} onClick={() => handleSendSms()}>
                         {smsSending ? <Loader2 className="h-3 w-3 animate-spin" /> : <Send className="h-3 w-3" />}
                         {smsSending ? "Sending…" : "Send SMS"}
                       </Button>
@@ -3042,7 +3342,7 @@ export function MasterClientFileModal({ clientFile, open, onClose, onClaim, onRe
                       variant="outline"
                       className="gap-2 border-cyan/20 hover:border-cyan/40 hover:bg-cyan/[0.06]"
                       disabled={calling}
-                      onClick={handleDial}
+                      onClick={() => handleDial()}
                     >
                       {calling ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Phone className="h-3.5 w-3.5" />}
                       {calling ? "Dialing…" : `Dial ${displayPhone.slice(-4)}`}

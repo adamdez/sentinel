@@ -3,6 +3,7 @@ import { createServerClient } from "@/lib/supabase";
 import { computeScore, SCORING_MODEL_VERSION, type ScoringInput } from "@/lib/scoring";
 import type { DistressType } from "@/lib/types";
 import { distressFingerprint, normalizeCounty as globalNormalizeCounty } from "@/lib/dedup";
+import { dualSkipTrace, skipTraceResultToOwnerFlags } from "@/lib/skip-trace";
 
 const PR_API_BASE = "https://api.propertyradar.com/v1/properties";
 
@@ -116,124 +117,46 @@ export async function POST(req: NextRequest) {
       }, { status: 422 });
     }
 
-    console.log("[SkipTrace] Fetching Persons for RadarID:", radarId);
-    const tPersonsStart = Date.now();
+    // ── Dual-source skip-trace (PR Persons + BatchData in parallel) ──
+    console.log("[SkipTrace] Running dual skip-trace for RadarID:", radarId);
+    const tSkipStart = Date.now();
 
-    const personsUrl = `${PR_API_BASE}/${radarId}/persons?Purchase=1&Fields=default`;
-    const personsRes = await fetch(personsUrl, {
-      method: "GET",
-      headers: {
-        "Authorization": `Bearer ${apiKey}`,
-        "Accept": "application/json",
+    // Re-read property for latest data (may have been updated by enrichment)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: freshProp } = await (sb.from("properties") as any)
+      .select("*").eq("id", property_id).single();
+    const propForSkip = freshProp ?? property;
+
+    const skipResult = await dualSkipTrace(
+      {
+        id: property_id,
+        address: propForSkip.address,
+        city: propForSkip.city,
+        state: propForSkip.state,
+        zip: propForSkip.zip,
+        owner_name: propForSkip.owner_name,
       },
-    });
+      radarId,
+    );
 
-    if (!personsRes.ok) {
-      console.error("[SkipTrace] Persons API failed:", personsRes.status);
-      return NextResponse.json({
-        error: `PropertyRadar Persons API returned ${personsRes.status}`,
-      }, { status: 502 });
-    }
+    console.log(`[SkipTrace Perf] Dual skip-trace: ${Date.now() - tSkipStart}ms`);
 
-    const personsData = await personsRes.json();
-    console.log(`[SkipTrace Perf] Persons API: ${Date.now() - tPersonsStart}ms`);
-    console.log("[SkipTrace] Persons response:", JSON.stringify(personsData).slice(0, 2000));
+    // Persist results to property record
+    const existingFlags = (propForSkip.owner_flags ?? {}) as Record<string, unknown>;
+    const skipFlags = skipTraceResultToOwnerFlags(skipResult);
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const persons: any[] = personsData.results ?? personsData ?? [];
-
-    // Extract phone numbers and emails from all persons
-    const phones: string[] = [];
-    const emails: string[] = [];
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const personDetails: any[] = [];
-
-    for (const person of persons) {
-      const name = [person.FirstName, person.LastName].filter(Boolean).join(" ")
-        || person.EntityName || person.Name || "Unknown";
-
-      // PropertyRadar returns Phone as array of objects:
-      // [{href, linktext, phoneType, status, source}, ...]
-      const personPhones: string[] = [];
-      if (Array.isArray(person.Phone)) {
-        for (const ph of person.Phone) {
-          const num = ph?.linktext ?? ph?.href?.replace("tel:", "");
-          if (num && typeof num === "string" && num.length >= 7 && !phones.includes(num)) {
-            personPhones.push(num);
-            phones.push(num);
-          }
-        }
-      } else if (typeof person.Phone === "string" && person.Phone.length >= 7) {
-        if (!phones.includes(person.Phone)) {
-          personPhones.push(person.Phone);
-          phones.push(person.Phone);
-        }
-      }
-
-      // PropertyRadar returns Email as array of objects:
-      // [{href, linktext, status, source}, ...]
-      const personEmails: string[] = [];
-      if (Array.isArray(person.Email)) {
-        for (const em of person.Email) {
-          const addr = em?.linktext ?? em?.href?.replace("mailto:", "");
-          if (addr && typeof addr === "string" && addr.includes("@") && !emails.includes(addr)) {
-            personEmails.push(addr);
-            emails.push(addr);
-          }
-        }
-      } else if (typeof person.Email === "string" && person.Email.includes("@")) {
-        if (!emails.includes(person.Email)) {
-          personEmails.push(person.Email);
-          emails.push(person.Email);
-        }
-      }
-
-      // Extract mailing address from the array format PR returns
-      let mailingAddr: string | null = null;
-      if (Array.isArray(person.MailAddress) && person.MailAddress.length > 0) {
-        mailingAddr = person.MailAddress[0]?.Address ?? null;
-      } else if (typeof person.MailAddress === "string") {
-        mailingAddr = person.MailAddress;
-      }
-
-      personDetails.push({
-        name,
-        relation: person.OwnershipRole ?? person.PersonType ?? "Owner",
-        age: person.Age ?? null,
-        phones: personPhones,
-        emails: personEmails,
-        mailing_address: mailingAddr,
-        occupation: person.Occupation ?? null,
-        is_primary: person.isPrimaryContact === 1,
-      });
-    }
-
-    console.log("[SkipTrace] Found", phones.length, "phones,", emails.length, "emails from", persons.length, "persons");
-
-    // Update the property record with contact info
-    const primaryPhone = phones[0] ?? null;
-    const primaryEmail = emails[0] ?? null;
-
-    const updatedFlags = {
-      ...property.owner_flags,
-      skip_traced: true,
-      skip_trace_date: new Date().toISOString(),
-      persons: personDetails,
-      all_phones: phones,
-      all_emails: emails,
+    const propUpdate: Record<string, any> = {
+      owner_flags: { ...existingFlags, ...skipFlags },
+      updated_at: new Date().toISOString(),
     };
+    if (skipResult.primaryPhone) propUpdate.owner_phone = skipResult.primaryPhone;
+    if (skipResult.primaryEmail) propUpdate.owner_email = skipResult.primaryEmail;
 
-    // Property update + audit log are independent — run in parallel
+    // Property update + audit log in parallel
     const writes: Promise<unknown>[] = [
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      (sb.from("properties") as any)
-        .update({
-          owner_phone: primaryPhone,
-          owner_email: primaryEmail,
-          owner_flags: updatedFlags,
-          updated_at: new Date().toISOString(),
-        })
-        .eq("id", property_id),
+      (sb.from("properties") as any).update(propUpdate).eq("id", property_id),
     ];
 
     if (lead_id) {
@@ -245,9 +168,12 @@ export async function POST(req: NextRequest) {
           action: "SKIP_TRACED",
           details: {
             radar_id: radarId,
-            phones_found: phones.length,
-            emails_found: emails.length,
-            persons_found: persons.length,
+            providers: skipResult.providers,
+            phones_found: skipResult.totalPhoneCount,
+            emails_found: skipResult.totalEmailCount,
+            persons_found: skipResult.persons.length,
+            is_litigator: skipResult.isLitigator,
+            has_dnc: skipResult.hasDncNumbers,
           },
         })
       );
@@ -258,15 +184,34 @@ export async function POST(req: NextRequest) {
     console.log(`[SkipTrace Perf] DB writes: ${Date.now() - tWriteStart}ms`);
     console.log(`[SkipTrace Perf] TOTAL: ${Date.now() - t0}ms`);
 
+    // Map unified format back to the shape the UI expects
+    const phones = skipResult.phones.map((p) => p.number);
+    const emails = skipResult.emails.map((e) => e.email);
+
     return NextResponse.json({
       success: true,
       property_id,
       radar_id: radarId,
       phones,
       emails,
-      persons: personDetails,
-      primary_phone: primaryPhone,
-      primary_email: primaryEmail,
+      persons: skipResult.persons.map((p) => ({
+        name: p.name,
+        relation: p.role,
+        age: p.age,
+        phones: p.phones,
+        emails: p.emails,
+        mailing_address: p.mailingAddress,
+        occupation: p.occupation,
+        is_primary: p.isPrimary,
+        source: p.source,
+      })),
+      primary_phone: skipResult.primaryPhone,
+      primary_email: skipResult.primaryEmail,
+      providers: skipResult.providers,
+      is_litigator: skipResult.isLitigator,
+      has_dnc_numbers: skipResult.hasDncNumbers,
+      phone_details: skipResult.phones,
+      email_details: skipResult.emails,
     });
   } catch (err) {
     console.error("[SkipTrace] Error:", err);

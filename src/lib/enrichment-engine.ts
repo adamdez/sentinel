@@ -31,7 +31,10 @@ import {
   type PredictiveInput,
 } from "@/lib/scoring-predictive";
 import { distressFingerprint, isDuplicateError, normalizeCounty } from "@/lib/dedup";
+import { dualSkipTrace, skipTraceResultToOwnerFlags, type SkipTraceResult } from "@/lib/skip-trace";
 import type { DistressType } from "@/lib/types";
+
+const AUTO_SKIPTRACE_THRESHOLD = 65;
 
 const SYSTEM_USER_ID = "00000000-0000-0000-0000-000000000000";
 const PR_API_BASE = "https://api.propertyradar.com/v1/properties";
@@ -215,10 +218,7 @@ export async function enrichProperty(
     const prResult = await enrichFromPropertyRadar(sb, propertyId, property);
 
     if (prResult.success && prResult.pr) {
-      // ── Step 2: Skip-trace for phone/email ─────────────────────
-      await enrichContactInfo(sb, propertyId, prResult.pr);
-
-      // ── Step 3: Detect distress signals ────────────────────────
+      // ── Step 2: Detect distress signals ────────────────────────
       const signals = detectDistressSignals(prResult.pr);
 
       // Insert distress events (dedup by fingerprint)
@@ -242,8 +242,18 @@ export async function enrichProperty(
         }
       }
 
-      // ── Step 4: Full scoring pipeline ──────────────────────────
+      // ── Step 3: Full scoring pipeline (BEFORE skip-trace) ──────
       const score = await runScoringPipeline(sb, propertyId, property, prResult.pr, signals);
+
+      // ── Step 4: Conditional dual skip-trace (Gold+ only) ───────
+      // Only spend money on phone/email lookups for leads scoring >= 65
+      if (score.blended >= AUTO_SKIPTRACE_THRESHOLD) {
+        const radarId = prResult.pr.RadarID as string | undefined;
+        await runDualSkipTrace(sb, propertyId, property, radarId);
+        console.log(`[Enrich] Auto skip-trace triggered for ${propertyId} (score ${score.blended} >= ${AUTO_SKIPTRACE_THRESHOLD})`);
+      } else {
+        console.log(`[Enrich] Skip-trace skipped for ${propertyId} (score ${score.blended} < ${AUTO_SKIPTRACE_THRESHOLD})`);
+      }
 
       // ── Step 5: Finalize lead (score + tag, keep in staging) ────
       await finalizeEnrichment(sb, leadId, propertyId, score.blended, signals, "propertyradar", attempts);
@@ -266,6 +276,12 @@ export async function enrichProperty(
     if (attomResult.success) {
       const signals = attomResult.signals ?? [];
       const score = await runScoringPipelineFromFlags(sb, propertyId, property, signals);
+
+      // Conditional dual skip-trace for ATTOM path too (Gold+ only)
+      if (score.blended >= AUTO_SKIPTRACE_THRESHOLD) {
+        await runDualSkipTrace(sb, propertyId, property);
+        console.log(`[Enrich] Auto skip-trace (ATTOM path) for ${propertyId} (score ${score.blended})`);
+      }
 
       await finalizeEnrichment(sb, leadId, propertyId, score.blended, signals, "attom", attempts);
 
@@ -532,7 +548,67 @@ async function updatePropertyFromPR(sb: any, propertyId: string, pr: any, existi
   }
 }
 
-// ── Contact Info Enrichment (Smart Heir Extraction) ──────────────────
+// ── Dual-Source Skip-Trace (PR Persons + BatchData) ──────────────────
+
+/**
+ * Run dual skip-trace and persist results to the property record.
+ * Called conditionally when score >= AUTO_SKIPTRACE_THRESHOLD.
+ */
+async function runDualSkipTrace(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  sb: any,
+  propertyId: string,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  property: Record<string, any>,
+  radarId?: string,
+): Promise<SkipTraceResult | null> {
+  try {
+    const result = await dualSkipTrace(
+      {
+        id: propertyId,
+        address: property.address,
+        city: property.city,
+        state: property.state,
+        zip: property.zip,
+        owner_name: property.owner_name,
+      },
+      radarId,
+    );
+
+    if (result.totalPhoneCount === 0 && result.totalEmailCount === 0) {
+      console.log(`[Enrich] Dual skip-trace returned no contacts for ${propertyId}`);
+      return result;
+    }
+
+    // Read current flags, merge skip-trace data
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: currentProp } = await (sb.from("properties") as any)
+      .select("owner_flags").eq("id", propertyId).single();
+    const existingFlags = (currentProp?.owner_flags ?? {}) as Record<string, unknown>;
+
+    const skipFlags = skipTraceResultToOwnerFlags(result);
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const update: Record<string, any> = {
+      owner_flags: { ...existingFlags, ...skipFlags },
+      updated_at: new Date().toISOString(),
+    };
+
+    if (result.primaryPhone) update.owner_phone = result.primaryPhone;
+    if (result.primaryEmail) update.owner_email = result.primaryEmail;
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    await (sb.from("properties") as any).update(update).eq("id", propertyId);
+
+    console.log(`[Enrich] Dual skip-trace stored for ${propertyId}: ${result.totalPhoneCount} phones, ${result.totalEmailCount} emails [${result.providers.join("+")}]`);
+    return result;
+  } catch (err) {
+    console.error(`[Enrich] Dual skip-trace error for ${propertyId}:`, err);
+    return null;
+  }
+}
+
+// ── Legacy Contact Info Enrichment (Smart Heir Extraction) ───────────
 
 interface PersonContact {
   name: string;
