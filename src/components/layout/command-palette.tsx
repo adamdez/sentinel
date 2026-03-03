@@ -19,7 +19,7 @@ import {
   FileSignature,
   Megaphone,
   DollarSign,
-  Share2,
+  Home,
   MapPin,
   ArrowRight,
   Flame,
@@ -69,7 +69,7 @@ const NAV_COMMANDS: NavCommand[] = [
   { kind: "nav", label: "Analytics", href: "/analytics", icon: BarChart3, group: "Pages" },
   { kind: "nav", label: "Settings", href: "/settings", icon: Settings, group: "Pages" },
   { kind: "nav", label: "PPL", href: "/sales-funnel/ppl", icon: DollarSign, group: "Deal Funnel" },
-  { kind: "nav", label: "Facebook/Craigslist", href: "/sales-funnel/facebook-craigslist", icon: Share2, group: "Deal Funnel" },
+  { kind: "nav", label: "FSBO", href: "/sales-funnel/fsbo", icon: Home, group: "Deal Funnel" },
 ];
 
 const CONTACT_DATA = [

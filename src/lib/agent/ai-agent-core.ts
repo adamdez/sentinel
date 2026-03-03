@@ -29,6 +29,7 @@ import { runAllCrawlers, type CrawlRunResult } from "@/lib/crawlers/predictive-c
 import { obituaryCrawler } from "@/lib/crawlers/obituary-crawler";
 import { courtDocketCrawler } from "@/lib/crawlers/court-docket-crawler";
 import { utilityShutoffCrawler } from "@/lib/crawlers/utility-shutoff-crawler";
+import { craigslistFsboCrawler } from "@/lib/crawlers/craigslist-fsbo-crawler";
 import { runGrokReasoning, type GrokDirective } from "@/lib/agent/grok-reasoning-agent";
 import {
   pullDailyDelta,
@@ -253,13 +254,15 @@ export async function runAgentCycle(
   const runObits = shouldRun("obituary");
   const runCourts = shouldRun("court_docket");
   const runUtility = shouldRun("utility_shutoff");
+  const runCraigslist = shouldRun("craigslist_fsbo");
   let crawlerPhase: { results: CrawlRunResult[]; success: boolean };
 
-  if (runObits || runCourts || runUtility) {
+  if (runObits || runCourts || runUtility || runCraigslist) {
     const crawlers = [
       ...(runObits ? [obituaryCrawler] : []),
       ...(runCourts ? [courtDocketCrawler] : []),
       ...(runUtility ? [utilityShutoffCrawler] : []),
+      ...(runCraigslist ? [craigslistFsboCrawler] : []),
     ];
     try {
       console.log(`[Agent] Phase 2: Running ${crawlers.length} crawler(s)...`);
