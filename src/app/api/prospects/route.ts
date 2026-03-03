@@ -425,7 +425,7 @@ export async function DELETE(req: NextRequest) {
 
     // Call the DB function that handles cascading deletes + scoring_predictions bypass
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data: result, error: rpcErr } = await (sb as any).rpc("delete_customer_file", {
+    const { data: rpcData, error: rpcErr } = await (sb as any).rpc("delete_customer_file", {
       p_lead_id: lead_id,
     });
 
@@ -437,9 +437,13 @@ export async function DELETE(req: NextRequest) {
       );
     }
 
-    if (!result?.success) {
+    // Supabase .rpc() may return JSONB as-is or wrapped — normalize
+    const result = typeof rpcData === "string" ? JSON.parse(rpcData) : rpcData;
+    console.log("[API/prospects DELETE] RPC result:", JSON.stringify(result));
+
+    if (result && result.success === false) {
       return NextResponse.json(
-        { error: "Delete failed", detail: result?.error ?? "Unknown error" },
+        { error: "Delete failed", detail: result.error ?? "Unknown DB error" },
         { status: 500 },
       );
     }
