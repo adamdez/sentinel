@@ -184,7 +184,9 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const pullLimit = Math.min(Math.max(toInt(body.limit as string) ?? 1000, 1), 1000);
+  const requestedLimit = Math.min(Math.max(toInt(body.limit as string) ?? 1000, 1), 1000);
+  // Pull 3x the requested amount — we filter for absentee client-side
+  const pullLimit = Math.min(requestedLimit * 3, 1000);
   const counties: string[] = Array.isArray(body.counties) ? body.counties.map(String) : DEFAULT_COUNTIES;
   const states = [...new Set(counties.map((c) => COUNTY_STATE_MAP[c.toLowerCase()] ?? "WA"))];
   const distressLens = body.distressLens as string | undefined;
@@ -212,11 +214,13 @@ export async function POST(req: NextRequest) {
   // see the property as a financial burden, not their home — much higher
   // conversion. EXCEPTION: deceased/probate (owner is dead — functionally
   // absentee even if mailing address matches the property).
+  //
+  // NOTE: isNotSameMailingOrExempt CANNOT be used as a PropertyRadar search
+  // criterion on our API tier. Instead we pull 3x the limit and filter
+  // for absentee client-side after the API call returns.
   const DECEASED_LENSES = ["probate"];
   const isDeceasedLens = distressLens ? DECEASED_LENSES.includes(distressLens) : false;
-  const absenteeCriteria = isDeceasedLens
-    ? [] // deceased = functionally absentee, skip the filter
-    : [{ name: "isNotSameMailingOrExempt", value: [1] }];
+  const absenteeCriteria: { name: string; value: unknown }[] = []; // client-side filter now
 
   const startTime = Date.now();
   console.log(`[BulkSeed] === STARTED: limit=${pullLimit}, counties=[${counties}], fips=[${fipsCodes}]${distressLens ? `, lens=${distressLens}` : ""} ===`);
@@ -343,10 +347,25 @@ export async function POST(req: NextRequest) {
   }
 
   candidates.sort((a, b) => b.score.composite - a.score.composite);
-  const storable = candidates.filter((c) => c.score.composite >= STORE_CUTOFF);
+
+  // ── Client-side absentee filter ───────────────────────────────────
+  // Since PropertyRadar API won't let us filter by isNotSameMailingOrExempt
+  // as a search criterion, we filter here. Deceased/probate are exempt.
+  const absenteeFiltered = isDeceasedLens
+    ? candidates // probate = functionally absentee, no filter needed
+    : candidates.filter((c) => {
+        // Keep if absentee OR deceased
+        if (isTruthy(c.pr.isNotSameMailingOrExempt)) return true;
+        if (isTruthy(c.pr.isDeceasedProperty)) return true;
+        return false;
+      });
+
+  console.log(`[BulkSeed] ${candidates.length} scored → ${absenteeFiltered.length} pass absentee filter (${candidates.length - absenteeFiltered.length} occupied-owner filtered out)`);
+
+  const storable = absenteeFiltered.filter((c) => c.score.composite >= STORE_CUTOFF).slice(0, requestedLimit);
   const labelCounts = { platinum: 0, gold: 0, silver: 0, bronze: 0 };
 
-  console.log(`[BulkSeed] ${candidates.length} scored → ${storable.length} storable (>= ${STORE_CUTOFF}), ${candidates.length - storable.length} discarded`);
+  console.log(`[BulkSeed] ${absenteeFiltered.length} absentee → ${storable.length} storable (>= ${STORE_CUTOFF}, capped at ${requestedLimit})`);
 
   // Insert all storable prospects into Supabase
   let newInserts = 0;
