@@ -297,14 +297,29 @@ function extractPhones(text: string): string[] {
     }
   }
 
-  // Format as (XXX) XXX-XXXX for consistency
-  return [...new Set(phones)].map((p) => {
-    const digits = p.replace(/[^\d]/g, "");
-    if (digits.length === 10) {
+  // Validate area codes — reject obviously fake ones
+  // Valid US area codes: 2xx-9xx (never start with 0 or 1), and some are unassigned
+  // For our market, valid area codes are: 208 (ID), 406 (MT), 509 (WA), 360 (WA), 253 (WA), etc.
+  const VALID_AREA_CODES = new Set([
+    "208", "406", "509", "360", "253", "425", "206",  // ID, MT, WA
+    "541", "503", "971",                                // OR (nearby)
+    "307",                                              // WY
+    "406",                                              // MT
+  ]);
+
+  // Format as (XXX) XXX-XXXX for consistency and filter invalid area codes
+  return [...new Set(phones)]
+    .map((p) => {
+      const digits = p.replace(/[^\d]/g, "");
+      if (digits.length !== 10) return null;
+      const areaCode = digits.slice(0, 3);
+      // Reject if area code starts with 0 or 1 (invalid US area codes)
+      if (areaCode.startsWith("0") || areaCode.startsWith("1")) return null;
+      // Only accept known regional area codes (avoid false positives from deobfuscation)
+      if (!VALID_AREA_CODES.has(areaCode)) return null;
       return `(${digits.slice(0, 3)}) ${digits.slice(3, 6)}-${digits.slice(6)}`;
-    }
-    return p;
-  });
+    })
+    .filter((p): p is string => p !== null);
 }
 
 function extractZipFromText(text: string): string | null {
