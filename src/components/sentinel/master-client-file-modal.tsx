@@ -993,8 +993,8 @@ function DeleteConfirmationModal({
         body: JSON.stringify({ lead_id: cf.id }),
       });
       const data = await res.json();
-      if (!res.ok || !data.success) {
-        setError(data.error ?? "Delete failed");
+      if (!res.ok || data.error) {
+        setError(data.detail ?? data.error ?? "Delete failed");
         return;
       }
       toast.success("Customer file permanently deleted");
