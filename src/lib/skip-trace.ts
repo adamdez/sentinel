@@ -96,27 +96,34 @@ export async function dualSkipTrace(
   const t0 = Date.now();
   const prApiKey = process.env.PROPERTYRADAR_API_KEY;
 
+  // Track errors for debug output
+  const _errors: Record<string, string> = {};
+
   // Fire all providers in parallel — includes PR county phone fields + mailing address BatchData
   const [prResult, prCountyResult, bdResult, bdMailResult] = await Promise.all([
     radarId && prApiKey
       ? fetchPRPersons(prApiKey, radarId).catch((err) => {
           console.error("[DualSkip] PR Persons error:", err);
+          _errors.prPersons = String(err?.message ?? err);
           return null;
         })
       : Promise.resolve(null),
     radarId && prApiKey
       ? fetchPRCountyPhones(prApiKey, radarId).catch((err) => {
           console.error("[DualSkip] PR County phones error:", err);
+          _errors.prCounty = String(err?.message ?? err);
           return null;
         })
       : Promise.resolve(null),
     fetchBatchData(property).catch((err) => {
       console.error("[DualSkip] BatchData (property) error:", err);
+      _errors.bdProperty = String(err?.message ?? err);
       return null;
     }),
     // Also try BatchData with mailing address if it differs from property address
     fetchBatchDataMailing(property).catch((err) => {
       console.error("[DualSkip] BatchData (mailing) error:", err);
+      _errors.bdMailing = String(err?.message ?? err);
       return null;
     }),
   ]);
@@ -266,6 +273,7 @@ export async function dualSkipTrace(
       hasBDToken: !!process.env.BATCHDATA_API_TOKEN,
       inputAddress: property.address,
       inputMailing: property.mailingAddress,
+      errors: Object.keys(_errors).length > 0 ? _errors : "none",
     },
   };
 
