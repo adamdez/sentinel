@@ -10,7 +10,7 @@
 
 const TRACERFY_BASE = "https://tracerfy.com/v1/api";
 const POLL_INTERVAL_MS = 3_000;
-const MAX_POLL_MS = 90_000; // 90 seconds max wait
+const MAX_POLL_MS = 120_000; // 120 seconds max wait (single records typically take 60-90s)
 
 // ── Types ────────────────────────────────────────────────────────────
 
