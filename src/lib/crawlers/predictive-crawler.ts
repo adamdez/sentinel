@@ -40,6 +40,8 @@ export interface CrawlerModule {
   id: string;
   name: string;
   crawl: () => Promise<CrawledRecord[]>;
+  /** Override the default promotion threshold (60). Set to 0 for self-qualified sources like FSBO. */
+  promotionThreshold?: number;
 }
 
 export interface CrawlRunResult {
@@ -203,11 +205,13 @@ export async function runCrawler(module: CrawlerModule): Promise<CrawlRunResult>
     crawled = records.length;
     console.log(`[Crawler:${module.id}] Crawled ${crawled} records`);
 
+    const threshold = module.promotionThreshold ?? PROMOTION_THRESHOLD;
+
     for (const record of records) {
       const score = scoreRecord(record);
       scored++;
 
-      if (score < PROMOTION_THRESHOLD) continue;
+      if (score < threshold) continue;
 
       const status = await ingestRecord(sb, record, score);
       if (status === "promoted") promoted++;

@@ -378,6 +378,9 @@ async function crawlMarket(market: CraigslistMarket): Promise<CrawledRecord[]> {
 export const craigslistFsboCrawler: CrawlerModule = {
   id: "craigslist_fsbo",
   name: "Craigslist FSBO Crawler (Spokane/Kootenai)",
+  // FSBO listings are self-qualified — seller publicly declared intent to sell.
+  // Always ingest regardless of score; enrichment batch will re-score with full data.
+  promotionThreshold: 0,
   async crawl(): Promise<CrawledRecord[]> {
     const all: CrawledRecord[] = [];
     for (const market of MARKETS) {
