@@ -1,0 +1,127 @@
+[
+  {
+    "hash": "d4abfb5d",
+    "date": "2026-03-03",
+    "message": "chore: increase FSBO crawler frequency from 2 hours to 15 minutes"
+  },
+  {
+    "hash": "48fbfb74",
+    "date": "2026-03-03",
+    "message": "merge: resolve vercel.json conflict — keep both daily-verse and marketplace-poll crons"
+  },
+  {
+    "hash": "3a7c334a",
+    "date": "2026-03-03",
+    "message": "feat: add FSBO pipeline with Craigslist crawler, rename from Facebook/Craigslist"
+  },
+  {
+    "hash": "77ea7709",
+    "date": "2026-03-03",
+    "message": "Daily verse cron to 5am Pacific (12pm UTC) + auto-prefix ESV API Token header"
+  },
+  {
+    "hash": "ef819782",
+    "date": "2026-03-03",
+    "message": "Merge branch 'claude/practical-mcclintock'"
+  },
+  {
+    "hash": "0caa9172",
+    "date": "2026-03-03",
+    "message": "feat: upgrade deal funnel pages with real data, tables, and MCF modal"
+  },
+  {
+    "hash": "a2194ae7",
+    "date": "2026-03-03",
+    "message": "Replace Generate Cursor Fix with Create Upgrade Request — one-click email to Adam + event_log"
+  },
+  {
+    "hash": "235f72c9",
+    "date": "2026-03-03",
+    "message": "Inject live date/time + model identity into all Grok system prompts for accurate temporal reasoning"
+  },
+  {
+    "hash": "983ec3b7",
+    "date": "2026-03-03",
+    "message": "Merge delete response fix"
+  },
+  {
+    "hash": "c4b5ebd7",
+    "date": "2026-03-03",
+    "message": "fix: normalize RPC result and show error detail in delete confirmation"
+  },
+  {
+    "hash": "24d376c2",
+    "date": "2026-03-03",
+    "message": "feat: upgrade Grok model from grok-4-fast-reasoning to grok-4-1-fast-reasoning (Nov 2025 release)"
+  },
+  {
+    "hash": "cf0443c6",
+    "date": "2026-03-03",
+    "message": "Merge delete customer file feature"
+  },
+  {
+    "hash": "20bfbaac",
+    "date": "2026-03-03",
+    "message": "feat: add delete customer file with type-yes confirmation"
+  },
+  {
+    "hash": "78d4ce79",
+    "date": "2026-03-03",
+    "message": "fix: Widget Library dialog positioning - remove translateZ(0) override on modal-glass that broke fixed centering"
+  },
+  {
+    "hash": "08363761",
+    "date": "2026-03-03",
+    "message": "Merge branch 'claude/practical-mcclintock'"
+  },
+  {
+    "hash": "c46cf7dc",
+    "date": "2026-03-03",
+    "message": "fix: correct agent names — Nathan Walsh and Logan Anyan"
+  },
+  {
+    "hash": "8edd47a7",
+    "date": "2026-03-03",
+    "message": "Merge branch 'claude/practical-mcclintock'"
+  },
+  {
+    "hash": "cd9c8538",
+    "date": "2026-03-03",
+    "message": "fix: add missing auth headers to Gmail page API calls"
+  },
+  {
+    "hash": "4ea6862d",
+    "date": "2026-03-02",
+    "message": "Merge branch 'claude/practical-mcclintock'"
+  },
+  {
+    "hash": "dd210451",
+    "date": "2026-03-02",
+    "message": "fix: remove infinite recursion in Grok chat auth that caused HTTP 500"
+  },
+  {
+    "hash": "dfbf59ba",
+    "date": "2026-03-02",
+    "message": "feat: daily Bible verse with Reformed commentary in top bar - ESV API + Bible Hub scraper + Grok fallback"
+  },
+  {
+    "hash": "221a589e",
+    "date": "2026-03-02",
+    "message": "feat: smart comps engine - fix PR 400, ATTOM fallback, weighted scoring, auto-suggest, dollar/sqft ARV, 40k rehab default"
+  },
+  {
+    "hash": "ce0dbbc6",
+    "date": "2026-03-02",
+    "message": "feat: full prospect modal overhaul - agent speed optimization with Next Best Action banner, Call Playbook, compliance gate, clickable tiles, MAO calc, tab consolidation, Deal Calculator fixes, phone validation"
+  },
+  {
+    "hash": "094544f9",
+    "date": "2026-03-02",
+    "message": "fix: Comps tab crash - move useEffect before early returns to fix React hooks order violation; add dual-source skip-trace and phone dialer cards"
+  },
+  {
+    "hash": "dadbd748",
+    "date": "2026-03-02",
+    "message": "fix: remove redundant admin self-tab, use real Supabase UUIDs for team segments"
+  }
+]

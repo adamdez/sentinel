@@ -5,6 +5,9 @@
  * streaming endpoint at /api/grok/chat.
  */
 
+import sentinelFeatures from "@/data/sentinel-features.json";
+import recentChangelog from "@/data/recent-changelog.json";
+
 const GROK_ENDPOINT = "https://api.x.ai/v1/chat/completions";
 const GROK_MODEL = "grok-4-1-fast-reasoning";
 
@@ -126,6 +129,12 @@ export interface SentinelPromptMetrics {
 export function buildSentinelSystemPrompt(metrics?: SentinelPromptMetrics): string {
   const m = metrics ?? {};
 
+  const liveFeatures = (sentinelFeatures as Array<{ feature: string; area: string; status: string; description: string; howTo?: string }>)
+    .filter((f) => f.status === "live");
+  const changelogEntries = (recentChangelog as Array<{ date: string; message: string }>)
+    .filter((c) => !c.message.toLowerCase().startsWith("merge"))
+    .slice(0, 15);
+
   const now = new Date();
   const dateStr = now.toLocaleDateString("en-US", { weekday: "long", year: "numeric", month: "long", day: "numeric" });
   const timeStr = now.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", timeZoneName: "short" });
@@ -147,12 +156,15 @@ export function buildSentinelSystemPrompt(metrics?: SentinelPromptMetrics): stri
     "- Scoring: Dominion Heat Score v2.1 — deterministic + predictive. PLATINUM ≥85, GOLD ≥65, SILVER ≥40, BRONZE <40. Only ≥75 pushed to Sentinel.",
     "- Stack: Next.js 15, React 19, TypeScript, Supabase, Tailwind v4, Zustand.",
     "",
-    "## Active Systems",
-    "- AI Agent Core: runs every 4h via Vercel Cron — PropertyRadar, obituary/court crawlers, ATTOM daily delta.",
-    "- Grok Reasoning Layer: observes crawl results + closed-deal feedback, reasons about which crawlers to run, adjusts priorities.",
-    "- Predictive Scoring v2.1: ownership tenure, equity delta, skip-trace inference, foreclosure staging.",
-    "- Power Dialer: Twilio integration with hotkeys, 7-Day Power Sequence, auto-queue by blended score.",
-    "- Gmail OAuth: send/receive directly from Sentinel.",
+    `## Sentinel Feature Inventory (${liveFeatures.length} live features)`,
+    "Use this inventory to accurately answer questions about what Sentinel can do, guide agents through features, and know what's available.",
+    ...liveFeatures.map(
+      (f) => `- **${f.feature}** [${f.area}]: ${f.description}${f.howTo ? ` → _How: ${f.howTo}_` : ""}`
+    ),
+    "",
+    `## Recent System Changes (last ${changelogEntries.length} deploys — auto-updated each build)`,
+    "Reference these when asked 'what's new?', 'what changed?', or to understand recent fixes and features.",
+    ...changelogEntries.map((c) => `- ${c.date}: ${c.message}`),
     "",
     "## Live Metrics (Real-Time)",
     `- Active leads in pipeline: ${m.activeLeads ?? "unknown"}`,

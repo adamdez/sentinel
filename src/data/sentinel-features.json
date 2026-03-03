@@ -1,0 +1,250 @@
+[
+  {
+    "feature": "Dashboard",
+    "area": "Dashboard",
+    "status": "live",
+    "since": "2026-02-20",
+    "description": "Drag-and-drop widget grid with up to 12 widgets. Shows pipeline KPIs, top prospects, live map, breaking leads ticker, and team activity at a glance.",
+    "howTo": "Visit the Dashboard tab. Click '+ Add Widget' to pick from the widget library. Drag widgets to rearrange. Click 'Reset' to restore defaults."
+  },
+  {
+    "feature": "Prospects Hub",
+    "area": "Prospects",
+    "status": "live",
+    "since": "2026-02-20",
+    "description": "Master table of all ingested prospects with sortable columns for property, distress signals, ARV/equity, AI score, and actions. Click any row to open the full prospect detail modal.",
+    "howTo": "Go to Prospects tab. Use filters and column headers to sort. Click a row to open the prospect file. Use 'Claim Lead' to move a prospect into your pipeline."
+  },
+  {
+    "feature": "Prospect Detail Modal — Overview",
+    "area": "Prospects",
+    "status": "live",
+    "since": "2026-03-02",
+    "description": "Full prospect file with 4 Lead Intelligence tiles (Composite Score, Equity & Spread, Signal Freshness, Owner Situation) — all clickable for drill-down. Includes Next Best Action banner, Quick MAO (ARV × 70% − $40k rehab), Call Playbook, Owner & Contact with one-click dial, property details with Street View overlay, and compliance warnings.",
+    "howTo": "Click any prospect row. The Overview tab loads first. Click any intelligence tile to scroll to details. Click 'Dial via Twilio' next to a phone number to call. Click 'Enrich Now' (header icon) to pull fresh data."
+  },
+  {
+    "feature": "Call Playbook (Pre-Call Brief)",
+    "area": "Prospects",
+    "status": "live",
+    "since": "2026-03-02",
+    "description": "Grok AI-generated pre-call playbook with talking points, common objections with rebuttals, negotiation anchor price, and watch-outs. Auto-generates when a prospect has phone data. Includes a Regenerate button.",
+    "howTo": "Open a prospect's Overview tab. Scroll to the Call Playbook section (above Owner & Contact). It generates automatically. Click 'Regenerate' for a fresh one."
+  },
+  {
+    "feature": "Comps & ARV Tab",
+    "area": "Prospects",
+    "status": "live",
+    "since": "2026-03-02",
+    "description": "Interactive comp map with weighted quality scoring (0-100). Pulls from PropertyRadar first, falls back to ATTOM. Auto-selects top 3 comps scoring ≥50. Shows score breakdown (proximity, recency, size match, age match). Weighted $/sqft ARV calculation flows to Deal Calculator. Clickable subject marker shows property details. Comp cards link to Zillow, Redfin, and Google Maps.",
+    "howTo": "Open prospect file → Comps & ARV tab. Map auto-searches 1mi radius. Click markers to see comp details. Green = good comp, yellow = marginal, red = outlier. Selected comps feed the Live ARV and Quick Profit Projection below the map. Adjust the condition slider for repair factor."
+  },
+  {
+    "feature": "Deal Calculator",
+    "area": "Prospects",
+    "status": "live",
+    "since": "2026-03-02",
+    "description": "Full deal analysis with ARV (auto-filled from Comps tab), purchase price, rehab estimate (defaults to $40k), closing costs, holding period, and assignment fee. Shows MAO (70% rule), total costs, gross profit, net after assignment, and ROI.",
+    "howTo": "Open prospect file → Deal Calculator tab. ARV auto-fills. Enter your purchase price offer. Rehab defaults to $40k — edit if you have better info. Review the Profit Projection tiles at the bottom."
+  },
+  {
+    "feature": "Documents / PSA",
+    "area": "Prospects",
+    "status": "live",
+    "since": "2026-02-25",
+    "description": "Auto-generated Purchase & Sale Agreement (RCW 61.40.010 compliant) with wholesaler disclosure. Pre-filled with owner name, property address, APN, county, and legal description. Purchase price auto-fills from Deal Calculator MAO. One-click 'Create PSA' and 'Email via Gmail'.",
+    "howTo": "Open prospect file → Documents / PSA tab. Review the auto-filled PSA. Click 'Create PSA' to finalize. Click 'Email via Gmail' to send directly to the seller."
+  },
+  {
+    "feature": "Lead Intelligence Tiles",
+    "area": "Prospects",
+    "status": "live",
+    "since": "2026-03-02",
+    "description": "Four clickable tiles at the top of the Overview: Composite Score (with full factor breakdown), Equity & Spread (equity %, AVM, estimated spread), Signal Freshness (days since latest distress signal), and Owner Situation (ownership duration, absentee status, occupancy). Each shows an actionable one-line summary and smooth-scrolls to the relevant detail section.",
+    "howTo": "Click any tile to see the drill-down and auto-scroll to the relevant section below."
+  },
+  {
+    "feature": "Dominion Heat Score (Scoring Engine v2.1)",
+    "area": "Scoring",
+    "status": "live",
+    "since": "2026-02-22",
+    "description": "Deterministic + predictive composite score. Formula: (BaseSignalScore × Severity × RecencyDecay) + StackingBonus + Owner/Equity Factors + AIBoost. Labels: PLATINUM ≥85, GOLD ≥65, SILVER ≥40, BRONZE <40. Only ≥75 pushed to Sentinel. Fully versioned and append-only.",
+    "howTo": "Scores auto-calculate on ingestion and enrichment. Click the Composite Score tile in any prospect to see the full breakdown. Adam can adjust weights via Grok ('adjust scoring weight for probate to 30')."
+  },
+  {
+    "feature": "Power Dialer",
+    "area": "Dialer",
+    "status": "live",
+    "since": "2026-02-25",
+    "description": "Twilio-powered outbound calling. Shows dial queue (your claimed leads), KPI tiles (outbound calls, live answers, connect rate, avg talk time), active call controls, and scrollable call history. Twilio calls your personal cell first, then bridges to the prospect.",
+    "howTo": "Go to Dialer tab. Your claimed leads appear in the queue. Click a lead, then click 'Dial'. Your personal cell rings — answer it, then Twilio bridges to the prospect. Use the disposition buttons after the call."
+  },
+  {
+    "feature": "SMS Messaging",
+    "area": "Dialer",
+    "status": "live",
+    "since": "2026-02-28",
+    "description": "Send SMS to prospects directly from the prospect file or dialer. Uses Twilio for delivery. Compliance-gated — checks DNC/litigator status before sending.",
+    "howTo": "Open a prospect file and click 'SMS' in the bottom bar, or use the SMS button on individual phone cards in the Owner & Contact section."
+  },
+  {
+    "feature": "Pipeline (Kanban Board)",
+    "area": "Pipeline",
+    "status": "live",
+    "since": "2026-02-22",
+    "description": "Visual Kanban board showing leads across lifecycle stages: Prospect → Lead → Negotiation → Disposition → Closed. Drag-and-drop to move leads between stages.",
+    "howTo": "Go to Pipeline tab. Cards show lead summary with score, owner name, and address. Drag a card to a new column to change its status."
+  },
+  {
+    "feature": "Leads Hub (5 Tabs)",
+    "area": "Leads",
+    "status": "live",
+    "since": "2026-02-22",
+    "description": "Tabbed view of all claimed leads organized by status: Active, Negotiation, Disposition, Nurture, Dead. Each tab shows relevant data and actions for that stage.",
+    "howTo": "Go to Leads tab. Switch between status tabs at the top. Click any lead to open its full file."
+  },
+  {
+    "feature": "Ranger Push Ingestion",
+    "area": "Ingestion",
+    "status": "live",
+    "since": "2026-02-20",
+    "description": "Receives scored leads from the Dominion scoring engine via POST /api/ranger-push. Deduplicates on (apn, county) fingerprint. Creates properties, distress events, and scoring records. Only accepts leads with score ≥75.",
+    "howTo": "Automatic — the Dominion scoring engine pushes leads to Sentinel's API endpoint. No manual action needed."
+  },
+  {
+    "feature": "PropertyRadar Enrichment",
+    "area": "Enrichment",
+    "status": "live",
+    "since": "2026-02-23",
+    "description": "Enriches prospects with PropertyRadar data: owner details, mailing address, equity, AVM, property specs, and skip-trace (phone numbers, emails). Runs via 'Enrich Now' button or automated batch cron.",
+    "howTo": "Open any prospect and click the 'Enrich Now' button (icon in the modal header). Or wait for the automated batch enrichment cron (runs every 15 minutes)."
+  },
+  {
+    "feature": "Skip Trace",
+    "area": "Enrichment",
+    "status": "live",
+    "since": "2026-02-24",
+    "description": "Pulls phone numbers and emails for property owners via PropertyRadar's person endpoint. Validates phone numbers (strips API paths, filters to real 10-digit numbers). Shows confidence scores and phone type (mobile/landline).",
+    "howTo": "Click 'Enrich Now' on a prospect, or click 'Enrich to Unlock Phone' in the Owner & Contact section."
+  },
+  {
+    "feature": "Bulk Seed (Elite & Platinum)",
+    "area": "Ingestion",
+    "status": "live",
+    "since": "2026-02-26",
+    "description": "One-click bulk import of high-equity distressed properties from PropertyRadar. 'Top 10 Elite Seed' imports 10 highest-scoring, 'Bulk Elite Seed 1000' imports up to 1000. Also available via Grok command.",
+    "howTo": "Click the red 'Top 10 Elite Seed' or 'Bulk Elite Seed 1000' buttons on the Dashboard. Or ask Grok: 'run elite seed with 500 properties'."
+  },
+  {
+    "feature": "Daily Poll (Automated Ingestion)",
+    "area": "Ingestion",
+    "status": "live",
+    "since": "2026-02-27",
+    "description": "Vercel cron job (6 AM UTC daily) that polls PropertyRadar for new distressed properties matching Dominion's criteria. Auto-ingests and scores them.",
+    "howTo": "Automatic — runs daily. Check the Dashboard for newly ingested prospects."
+  },
+  {
+    "feature": "Gmail Integration",
+    "area": "Gmail",
+    "status": "live",
+    "since": "2026-02-27",
+    "description": "OAuth-connected Gmail for sending and receiving email directly from Sentinel. Used by PSA email, upgrade requests, and outreach.",
+    "howTo": "Go to Gmail tab. Click 'Connect Gmail' and authorize with your Google account. Once connected, you can send emails from prospect files and the Documents/PSA tab."
+  },
+  {
+    "feature": "Grok Command Center",
+    "area": "Grok",
+    "status": "live",
+    "since": "2026-02-24",
+    "description": "AI chat interface powered by Grok 4.1. Has full Charter context, live pipeline metrics, team performance data, and can execute system actions (run seeds, adjust scoring weights, generate reports, trigger crawlers). Streaming responses with executable action blocks.",
+    "howTo": "Go to the Grok tab. Type any question or use the suggestion tiles. Grok can analyze leads, draft strategy, forecast revenue, and execute commands. Action blocks appear as clickable buttons in responses."
+  },
+  {
+    "feature": "Create Upgrade Request",
+    "area": "Grok",
+    "status": "live",
+    "since": "2026-03-03",
+    "description": "Agents report bugs or feature requests through Grok. Grok structures the issue (category, summary, steps to reproduce, expected behavior, priority). One-click 'Send to Adam' emails it and logs it in event_log.",
+    "howTo": "In Grok Command Center, click 'Create Upgrade Request' (purple button in header). Describe the issue. Grok structures it. Click the green 'Send to Adam' button on the response."
+  },
+  {
+    "feature": "Daily Verse",
+    "area": "Dashboard",
+    "status": "live",
+    "since": "2026-03-03",
+    "description": "Daily ESV Bible verse in the top bar with click-to-expand Reformed commentary (Calvin, Gill, Henry, Edwards, Spurgeon, etc.). Commentary scraped from Bible Hub with Grok AI fallback. Updates daily at 5 AM Pacific via cron.",
+    "howTo": "The verse appears in the top bar between the search bar and the online indicator. Click it to expand a dropdown with the full verse text, commentary quote, author attribution, and a citation link to the source."
+  },
+  {
+    "feature": "Analytics Dashboard",
+    "area": "Analytics",
+    "status": "live",
+    "since": "2026-02-26",
+    "description": "KPI tiles and charts showing pipeline velocity, conversion rates by signal type, lead sources, team performance, and revenue tracking.",
+    "howTo": "Go to Analytics tab. View KPI tiles at the top, charts below. Data updates in real-time from Supabase."
+  },
+  {
+    "feature": "Global Search (Ctrl+K)",
+    "area": "Navigation",
+    "status": "live",
+    "since": "2026-02-22",
+    "description": "Command palette and global search. Search prospects, leads, and properties by name, address, or APN. Keyboard shortcut Ctrl+K.",
+    "howTo": "Press Ctrl+K or click the search bar in the top bar. Type a name, address, or APN. Click a result to open that prospect's file."
+  },
+  {
+    "feature": "Ghost Mode",
+    "area": "Navigation",
+    "status": "live",
+    "since": "2026-02-24",
+    "description": "Research mode that allows browsing prospects without logging a contact attempt. Toggle in the top bar. When active, opening a prospect doesn't count as a touch in the contact timeline.",
+    "howTo": "Click the Ghost toggle in the top bar (next to the WiFi icon). When green, Ghost Mode is active — you can research without affecting contact history."
+  },
+  {
+    "feature": "Team Chat",
+    "area": "Communication",
+    "status": "live",
+    "since": "2026-02-25",
+    "description": "Real-time team chat widget in the bottom-right corner. Allows quick communication between Adam, Nathan, and Logan without leaving Sentinel.",
+    "howTo": "The chat widget appears in the bottom-right corner of every page. Click to expand, type a message, press Enter to send."
+  },
+  {
+    "feature": "Settings (Personal Cell & Preferences)",
+    "area": "Settings",
+    "status": "live",
+    "since": "2026-02-28",
+    "description": "User settings page with personal cell number (required for dialer), notification preferences, and Twilio diagnostics. Personal cell is saved via upsert to ensure it always persists.",
+    "howTo": "Go to Settings tab. Enter your personal cell number in E.164 format (+1XXXXXXXXXX). Click Save. This number is where Twilio will call you when you dial a prospect."
+  },
+  {
+    "feature": "CSV Upload",
+    "area": "Ingestion",
+    "status": "live",
+    "since": "2026-02-26",
+    "description": "Upload CSV files of properties for bulk ingestion. Parses addresses, deduplicates on (apn, county), scores, and creates prospect records.",
+    "howTo": "Use the CSV upload endpoint or the import button to upload a formatted CSV of properties."
+  },
+  {
+    "feature": "Compliance Layer (DNC/Litigator/Opt-Out)",
+    "area": "Compliance",
+    "status": "live",
+    "since": "2026-02-28",
+    "description": "Checks every prospect against DNC lists, known litigators, and opt-out records before displaying phone numbers or allowing dialer/SMS actions. Red 'DO NOT CALL' banner appears for flagged owners. TCPA, CAN-SPAM, RCW 61.40.010 compliant.",
+    "howTo": "Automatic — compliance checks run before any contact action. If a red banner appears, do NOT call or text that prospect."
+  },
+  {
+    "feature": "Audit Trail (Event Log)",
+    "area": "System",
+    "status": "live",
+    "since": "2026-02-20",
+    "description": "Append-only event log tracking every action: lead claims, status changes, calls, emails, enrichments, scoring changes, upgrade requests. Used for compliance auditing and Grok's operational awareness.",
+    "howTo": "Automatic — all actions are logged. Adam can query event_log in Supabase for audit history."
+  },
+  {
+    "feature": "Real-Time Subscriptions",
+    "area": "System",
+    "status": "live",
+    "since": "2026-02-22",
+    "description": "Supabase real-time subscriptions for live updates across all connected clients. New prospects, lead claims, status changes, and team chat messages push instantly.",
+    "howTo": "Automatic — data updates appear in real-time without refreshing the page."
+  }
+]
