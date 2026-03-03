@@ -565,6 +565,34 @@ export async function runDualSkipTrace(
   radarId?: string,
 ): Promise<SkipTraceResult | null> {
   try {
+    // Extract mailing address from owner_flags if available
+    const flags = (property.owner_flags ?? {}) as Record<string, unknown>;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const prRaw = flags.pr_raw as Record<string, any> | undefined;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const persons = (flags.persons ?? []) as any[];
+    const primaryPerson = persons.find((p: { is_primary?: boolean }) => p.is_primary) ?? persons[0];
+    const rawMailAddr = primaryPerson?.mailing_address as string | undefined;
+
+    let mailingAddress: string | undefined;
+    let mailingCity: string | undefined;
+    let mailingState: string | undefined;
+    let mailingZip: string | undefined;
+
+    if (prRaw?.MailAddress) {
+      mailingAddress = prRaw.MailAddress;
+      mailingCity = prRaw.MailCity;
+      mailingState = prRaw.MailState;
+      mailingZip = prRaw.MailZip;
+    } else if (rawMailAddr) {
+      const mailParts = rawMailAddr.split(",").map((s: string) => s.trim());
+      mailingAddress = mailParts[0];
+      mailingCity = mailParts[1];
+      const stateZip = mailParts[2]?.match(/([A-Z]{2})\s*(\d{5})?/);
+      mailingState = stateZip?.[1];
+      mailingZip = stateZip?.[2];
+    }
+
     const result = await dualSkipTrace(
       {
         id: propertyId,
@@ -573,6 +601,10 @@ export async function runDualSkipTrace(
         state: property.state,
         zip: property.zip,
         owner_name: property.owner_name,
+        mailingAddress,
+        mailingCity,
+        mailingState,
+        mailingZip,
       },
       radarId,
     );

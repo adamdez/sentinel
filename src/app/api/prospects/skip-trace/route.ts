@@ -127,6 +127,36 @@ export async function POST(req: NextRequest) {
       .select("*").eq("id", property_id).single();
     const propForSkip = freshProp ?? property;
 
+    // Extract mailing address from owner_flags (PR Persons or pr_raw data)
+    const existingFlags = (propForSkip.owner_flags ?? {}) as Record<string, unknown>;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const persons = (existingFlags.persons ?? []) as any[];
+    const primaryPerson = persons.find((p: { is_primary?: boolean }) => p.is_primary) ?? persons[0];
+    const rawMailAddr = primaryPerson?.mailing_address as string | undefined;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const prRaw = existingFlags.pr_raw as Record<string, any> | undefined;
+
+    // Parse mailing address — could be "PO BOX 9815, SPOKANE, WA 99209" or structured
+    let mailingAddress: string | undefined;
+    let mailingCity: string | undefined;
+    let mailingState: string | undefined;
+    let mailingZip: string | undefined;
+
+    if (prRaw?.MailAddress) {
+      mailingAddress = prRaw.MailAddress;
+      mailingCity = prRaw.MailCity;
+      mailingState = prRaw.MailState;
+      mailingZip = prRaw.MailZip;
+    } else if (rawMailAddr) {
+      const mailParts = rawMailAddr.split(",").map((s: string) => s.trim());
+      mailingAddress = mailParts[0];
+      mailingCity = mailParts[1];
+      // "WA 99209" → state=WA, zip=99209
+      const stateZip = mailParts[2]?.match(/([A-Z]{2})\s*(\d{5})?/);
+      mailingState = stateZip?.[1];
+      mailingZip = stateZip?.[2];
+    }
+
     const skipResult = await dualSkipTrace(
       {
         id: property_id,
@@ -135,14 +165,17 @@ export async function POST(req: NextRequest) {
         state: propForSkip.state,
         zip: propForSkip.zip,
         owner_name: propForSkip.owner_name,
+        mailingAddress,
+        mailingCity,
+        mailingState,
+        mailingZip,
       },
       radarId,
     );
 
     console.log(`[SkipTrace Perf] Dual skip-trace: ${Date.now() - tSkipStart}ms`);
 
-    // Persist results to property record
-    const existingFlags = (propForSkip.owner_flags ?? {}) as Record<string, unknown>;
+    // Persist results to property record (reuse existingFlags from above)
     const skipFlags = skipTraceResultToOwnerFlags(skipResult);
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any

@@ -74,13 +74,18 @@ export interface SkipTracePropertyInput {
   state?: string;
   zip?: string;
   owner_name?: string;
+  mailingAddress?: string;
+  mailingCity?: string;
+  mailingState?: string;
+  mailingZip?: string;
 }
 
 // ── Main Entry Point ─────────────────────────────────────────────────
 
 /**
- * Run dual-source skip-trace: PR Persons + BatchData in parallel.
- * If radarId is provided, PR Persons is called. Otherwise PR is skipped.
+ * Run dual-source skip-trace: PR Persons + PR County + BatchData in parallel.
+ * If radarId is provided, PR Persons + PR County phone fields are called.
+ * BatchData is called for both property address and mailing address.
  */
 export async function dualSkipTrace(
   property: SkipTracePropertyInput,
@@ -89,21 +94,32 @@ export async function dualSkipTrace(
   const t0 = Date.now();
   const prApiKey = process.env.PROPERTYRADAR_API_KEY;
 
-  // Fire both providers in parallel
-  const [prResult, bdResult] = await Promise.all([
+  // Fire all providers in parallel — includes PR county phone fields + mailing address BatchData
+  const [prResult, prCountyResult, bdResult, bdMailResult] = await Promise.all([
     radarId && prApiKey
       ? fetchPRPersons(prApiKey, radarId).catch((err) => {
           console.error("[DualSkip] PR Persons error:", err);
           return null;
         })
       : Promise.resolve(null),
+    radarId && prApiKey
+      ? fetchPRCountyPhones(prApiKey, radarId).catch((err) => {
+          console.error("[DualSkip] PR County phones error:", err);
+          return null;
+        })
+      : Promise.resolve(null),
     fetchBatchData(property).catch((err) => {
-      console.error("[DualSkip] BatchData error:", err);
+      console.error("[DualSkip] BatchData (property) error:", err);
+      return null;
+    }),
+    // Also try BatchData with mailing address if it differs from property address
+    fetchBatchDataMailing(property).catch((err) => {
+      console.error("[DualSkip] BatchData (mailing) error:", err);
       return null;
     }),
   ]);
 
-  console.log(`[DualSkip] Parallel calls completed in ${Date.now() - t0}ms`);
+  console.log(`[DualSkip] Parallel calls completed in ${Date.now() - t0}ms (PR Persons: ${!!prResult}, PR County: ${!!prCountyResult}, BD Property: ${!!bdResult}, BD Mailing: ${!!bdMailResult})`);
 
   // Merge results
   const allPhones: UnifiedPhone[] = [];
@@ -115,9 +131,9 @@ export async function dualSkipTrace(
   let hasDncNumbers = false;
   const providers: ("propertyradar" | "batchdata")[] = [];
 
-  // ── Merge PropertyRadar results ────────────────────────────────
+  // ── Merge PropertyRadar Persons results ───────────────────────
   if (prResult) {
-    providers.push("propertyradar");
+    if (!providers.includes("propertyradar")) providers.push("propertyradar");
     for (const phone of prResult.phones) {
       const norm = normalizePhone(phone.number);
       if (seenPhones.has(norm)) continue;
@@ -133,13 +149,30 @@ export async function dualSkipTrace(
     allPersons.push(...prResult.persons);
   }
 
-  // ── Merge BatchData results ────────────────────────────────────
-  if (bdResult) {
-    providers.push("batchdata");
-    isLitigator = bdResult.isLitigator;
-    hasDncNumbers = bdResult.hasDncNumbers;
+  // ── Merge PropertyRadar County phone/email records ──────────────
+  if (prCountyResult) {
+    if (!providers.includes("propertyradar")) providers.push("propertyradar");
+    for (const phone of prCountyResult.phones) {
+      const norm = normalizePhone(phone.number);
+      if (seenPhones.has(norm)) continue;
+      seenPhones.add(norm);
+      allPhones.push(phone);
+    }
+    for (const email of prCountyResult.emails) {
+      const norm = email.email.toLowerCase().trim();
+      if (seenEmails.has(norm)) continue;
+      seenEmails.add(norm);
+      allEmails.push(email);
+    }
+  }
 
-    for (const phone of bdResult.phones) {
+  // ── Helper to merge BatchData-shaped result ────────────────────
+  const mergeBatchData = (bd: NonNullable<typeof bdResult>, label: string) => {
+    if (!providers.includes("batchdata")) providers.push("batchdata");
+    if (bd.isLitigator) isLitigator = true;
+    if (bd.hasDncNumbers) hasDncNumbers = true;
+
+    for (const phone of bd.phones) {
       const norm = normalizePhone(phone.number);
       if (seenPhones.has(norm)) continue;
       seenPhones.add(norm);
@@ -155,7 +188,7 @@ export async function dualSkipTrace(
       if (phone.dnc) hasDncNumbers = true;
     }
 
-    for (const email of bdResult.emails) {
+    for (const email of bd.emails) {
       const norm = email.email.toLowerCase().trim();
       if (seenEmails.has(norm)) continue;
       seenEmails.add(norm);
@@ -166,7 +199,7 @@ export async function dualSkipTrace(
       });
     }
 
-    for (const person of bdResult.persons) {
+    for (const person of bd.persons) {
       allPersons.push({
         name: person.fullName ?? ([person.firstName, person.lastName].filter(Boolean).join(" ") || "Unknown"),
         role: "Owner",
@@ -179,7 +212,14 @@ export async function dualSkipTrace(
         source: "batchdata",
       });
     }
-  }
+    console.log(`[DualSkip] Merged ${label}: +${bd.phones.length} phones, +${bd.emails.length} emails`);
+  };
+
+  // ── Merge BatchData results (property address) ──────────────────
+  if (bdResult) mergeBatchData(bdResult, "BD Property");
+
+  // ── Merge BatchData results (mailing address) ──────────────────
+  if (bdMailResult) mergeBatchData(bdMailResult, "BD Mailing");
 
   // ── Sort: highest confidence first, DNC numbers last ───────────
   allPhones.sort((a, b) => {
@@ -212,8 +252,8 @@ export async function dualSkipTrace(
     isLitigator,
     hasDncNumbers,
     providers,
-    prSuccess: !!prResult,
-    bdSuccess: !!bdResult,
+    prSuccess: !!prResult || !!prCountyResult,
+    bdSuccess: !!bdResult || !!bdMailResult,
     totalPhoneCount: phones.length,
     totalEmailCount: emails.length,
   };
@@ -385,6 +425,127 @@ async function fetchBatchData(
   console.log(`[DualSkip/BD] Calling BatchData with: street="${street}", city="${city}", state="${state}", zip="${zip}"`);
   const result = await skipTraceByAddress(street, city, state, zip || undefined);
   console.log(`[DualSkip/BD] BatchData returned: success=${result.success}, phones=${result.phones.length}, emails=${result.emails.length}, persons=${result.persons.length}, error=${result.error ?? "none"}`);
+
+  if (!result.success && result.phones.length === 0 && result.emails.length === 0) {
+    return null;
+  }
+
+  return {
+    phones: result.phones,
+    emails: result.emails,
+    persons: result.persons,
+    isLitigator: result.isLitigator,
+    hasDncNumbers: result.hasDncNumbers,
+  };
+}
+
+// ── PropertyRadar County Phone/Email Fetch ──────────────────────────
+
+/**
+ * Fetch Phone1, Phone2, Email directly from the PropertyRadar property record.
+ * These are county-level records that often have phone data even for LLC-owned properties.
+ */
+async function fetchPRCountyPhones(
+  apiKey: string,
+  radarId: string,
+): Promise<{ phones: UnifiedPhone[]; emails: UnifiedEmail[] }> {
+  const url = `${PR_API_BASE}/${radarId}?Fields=Phone1,Phone2,Email,PhoneAvailability,EmailAvailability&Purchase=1`;
+  const res = await fetch(url, {
+    method: "GET",
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      Accept: "application/json",
+    },
+  });
+
+  if (!res.ok) {
+    throw new Error(`PR County phones API returned ${res.status}`);
+  }
+
+  const data = await res.json();
+  const results = data.results ?? data ?? [];
+  const prop = Array.isArray(results) ? results[0] : results;
+  console.log(`[DualSkip/PR County] Raw response keys: ${prop ? Object.keys(prop).join(", ") : "null"}`,
+    `Phone1=${prop?.Phone1 ?? "N/A"}, Phone2=${prop?.Phone2 ?? "N/A"}, Email=${prop?.Email ?? "N/A"}, PhoneAvail=${prop?.PhoneAvailability ?? "N/A"}`);
+
+  const phones: UnifiedPhone[] = [];
+  const emails: UnifiedEmail[] = [];
+
+  // Extract Phone1 and Phone2 from county records
+  for (const fieldName of ["Phone1", "Phone2"] as const) {
+    const raw = prop?.[fieldName];
+    if (raw && typeof raw === "string" && raw.length >= 7) {
+      const norm = raw.replace(/\D/g, "").slice(-10);
+      if (norm.length >= 10) {
+        phones.push({
+          number: raw,
+          normalized: norm,
+          lineType: "unknown",
+          confidence: 50, // County records — lower confidence
+          dnc: false,
+          source: "propertyradar",
+        });
+      }
+    }
+  }
+
+  // Extract Email from county records
+  const rawEmail = prop?.Email;
+  if (rawEmail && typeof rawEmail === "string" && rawEmail.includes("@")) {
+    emails.push({
+      email: rawEmail,
+      deliverable: true,
+      source: "propertyradar",
+    });
+  }
+
+  console.log(`[DualSkip/PR County] radarId=${radarId}: ${phones.length} phones, ${emails.length} emails`,
+    phones.length > 0 ? `(${phones.map(p => p.number).join(", ")})` : "(none)");
+
+  return { phones, emails };
+}
+
+// ── BatchData Mailing Address Fetch ─────────────────────────────────
+
+/**
+ * Try BatchData with the mailing address instead of the property address.
+ * Only fires if mailing address is different from property address.
+ */
+async function fetchBatchDataMailing(
+  property: SkipTracePropertyInput,
+): Promise<{
+  phones: BatchDataPhone[];
+  emails: BatchDataEmail[];
+  persons: { firstName?: string; lastName?: string; fullName?: string; phones: BatchDataPhone[]; emails: BatchDataEmail[]; mailingAddress?: string }[];
+  isLitigator: boolean;
+  hasDncNumbers: boolean;
+} | null> {
+  const mailStreet = property.mailingAddress;
+  const mailCity = property.mailingCity;
+  const mailState = property.mailingState;
+  const mailZip = property.mailingZip;
+
+  if (!mailStreet || !mailCity || !mailState) {
+    console.log("[DualSkip/BD Mailing] No mailing address available, skipping");
+    return null;
+  }
+
+  // Don't duplicate if mailing address is same as property address
+  const propStreet = (property.address ?? "").split(",")[0]?.trim().toUpperCase();
+  if (mailStreet.toUpperCase().trim() === propStreet) {
+    console.log("[DualSkip/BD Mailing] Mailing address same as property, skipping");
+    return null;
+  }
+
+  // Skip PO Boxes — BatchData can't skip-trace PO Boxes
+  if (/^\s*p\.?\s*o\.?\s*box/i.test(mailStreet)) {
+    console.log("[DualSkip/BD Mailing] PO Box detected, skipping BatchData for mailing address");
+    return null;
+  }
+
+  console.log(`[DualSkip/BD Mailing] Calling BatchData with mailing: street="${mailStreet}", city="${mailCity}", state="${mailState}", zip="${mailZip}"`);
+  const result = await skipTraceByAddress(mailStreet, mailCity, mailState, mailZip || undefined);
+  console.log(`[DualSkip/BD Mailing] BatchData mailing returned: success=${result.success}, phones=${result.phones.length}, emails=${result.emails.length}, persons=${result.persons.length}`);
 
   if (!result.success && result.phones.length === 0 && result.emails.length === 0) {
     return null;
