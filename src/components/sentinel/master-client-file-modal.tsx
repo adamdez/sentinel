@@ -10,7 +10,7 @@ import {
   Radar, LayoutDashboard, Map, Printer, ImageIcon, ChevronLeft, ChevronRight,
   Pencil, Save, Voicemail, PhoneForwarded, Brain, Crosshair, MapPinned,
   MessageSquare, Flame, Smartphone, ShieldAlert, PhoneOff, Circle,
-  RefreshCw, Target, ArrowRight, ChevronDown, Trash2,
+  RefreshCw, Target, ArrowRight, ChevronDown, Trash2, Lock,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -215,7 +215,7 @@ export function clientFileFromRaw(lead: Record<string, any>, prop: Record<string
     isHighEquity: toBool(flags.highEquity) || toBool(prRaw.isHighEquity),
     isCashBuyer: toBool(flags.cashBuyer) || toBool(prRaw.isCashBuyer),
     ownerFlags: flags, radarId: (flags.radar_id as string) ?? null,
-    enriched: flags.source === "propertyradar" || !!flags.radar_id,
+    enriched: !!flags.skip_traced || (flags.all_phones as unknown[])?.length > 0,
     lockVersion: lead.lock_version ?? 0,
     nextCallScheduledAt: lead.next_call_scheduled_at ?? null,
     callSequenceStep: lead.call_sequence_step ?? 1,
@@ -1308,6 +1308,11 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
   const { lat: propLat, lng: propLng } = extractLatLng(cf);
   const streetViewLink = propLat && propLng ? getGoogleStreetViewLink(propLat, propLng) : null;
 
+  // ── Satellite tile fallback when no Street View available ──
+  const satelliteFallbackUrl = (!streetViewUrl && propLat && propLng) ? getSatelliteTileUrl(propLat, propLng, 18) : null;
+  const imageUrl = streetViewUrl ?? satelliteFallbackUrl;
+  const imageLabel = streetViewUrl ? "Street View" : "Satellite";
+
   const sectionOwner = useRef<HTMLDivElement>(null);
   const sectionSignals = useRef<HTMLDivElement>(null);
   const sectionEquity = useRef<HTMLDivElement>(null);
@@ -1613,19 +1618,60 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
               })}
             </div>
           ) : (
-            <button
-              onClick={onSkipTrace}
-              disabled={skipTracing}
-              className="w-full rounded-[10px] border border-dashed border-cyan/30 bg-cyan/[0.03] p-4 mb-3
-                hover:bg-cyan/[0.08] hover:border-cyan/50 transition-all group cursor-pointer"
-            >
-              <div className="flex items-center justify-center gap-2.5">
-                {skipTracing ? <Loader2 className="h-5 w-5 text-cyan animate-spin" /> : <Crosshair className="h-5 w-5 text-cyan/60 group-hover:text-cyan transition-colors" />}
-                <span className="text-sm font-semibold text-cyan/70 group-hover:text-cyan transition-colors">
-                  {skipTracing ? "Enriching…" : "Enrich to Unlock Phone"}
-                </span>
-              </div>
-            </button>
+            <div className="space-y-1.5 mb-3">
+              <p className="text-[10px] text-muted-foreground uppercase tracking-wider">
+                Phone Numbers (locked)
+              </p>
+              {/* 3 placeholder phone card slots */}
+              {[0, 1, 2].map((i) => (
+                <div
+                  key={i}
+                  className="rounded-[10px] border border-dashed border-white/10 bg-white/[0.02] p-2.5"
+                >
+                  <div className="flex items-center gap-2.5">
+                    <div className="h-7 w-7 rounded-lg bg-white/[0.04] flex items-center justify-center shrink-0">
+                      <Lock className="h-3.5 w-3.5 text-muted-foreground/30" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-sm font-bold font-mono text-muted-foreground/20">
+                          (•••) •••-••••
+                        </span>
+                        {i === 0 && (
+                          <Badge variant="outline" className="text-[7px] py-0 px-1 border-white/10 text-muted-foreground/20">BEST</Badge>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-1.5 mt-0.5">
+                        <Circle className="h-2.5 w-2.5 text-muted-foreground/15" />
+                        <span className="text-[10px] text-muted-foreground/20">Not yet enriched</span>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-1 shrink-0 opacity-20 pointer-events-none">
+                      <div className="h-7 px-2 rounded-md text-[10px] font-semibold bg-cyan/10 text-cyan border border-cyan/20 flex items-center gap-1">
+                        <Phone className="h-3 w-3" />Dial
+                      </div>
+                      <div className="h-7 px-2 rounded-md text-[10px] font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 flex items-center gap-1">
+                        <MessageSquare className="h-3 w-3" />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ))}
+              {/* Enrich CTA */}
+              <button
+                onClick={onSkipTrace}
+                disabled={skipTracing}
+                className="w-full mt-1 rounded-[10px] border-2 border-dashed border-amber-500/30 bg-amber-500/[0.04] p-3
+                  hover:bg-amber-500/[0.08] hover:border-amber-500/50 transition-all group cursor-pointer"
+              >
+                <div className="flex items-center justify-center gap-2.5">
+                  {skipTracing ? <Loader2 className="h-4 w-4 text-amber-400 animate-spin" /> : <Crosshair className="h-4 w-4 text-amber-400/70 group-hover:text-amber-400 transition-colors" />}
+                  <span className="text-sm font-semibold text-amber-400/80 group-hover:text-amber-400 transition-colors">
+                    {skipTracing ? "Enriching…" : "Enrich to Unlock Phones"}
+                  </span>
+                </div>
+              </button>
+            </div>
           )}
 
           {/* Emails */}
@@ -1834,7 +1880,7 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
 
       {/* ═══ 4. PROPERTY SNAPSHOT — Clickable Street View + Address + Badges ═══ */}
       <div ref={sectionProperty} className="rounded-[12px] border border-white/[0.06] bg-white/[0.02] overflow-hidden">
-        {streetViewUrl && (
+        {imageUrl && (
           <a
             href={streetViewLink ?? "#"}
             target="_blank"
@@ -1843,7 +1889,7 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
             onClick={(e) => { if (!streetViewLink) e.preventDefault(); }}
           >
             <img
-              src={streetViewUrl}
+              src={imageUrl}
               alt="Property"
               className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-[1.02]"
               onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
@@ -1852,7 +1898,7 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
             {streetViewLink && (
               <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none">
                 <span className="bg-black/70 backdrop-blur-sm text-white text-xs font-semibold px-3 py-1.5 rounded-full flex items-center gap-1.5">
-                  <ExternalLink className="h-3 w-3" />Open Street View
+                  <ExternalLink className="h-3 w-3" />{streetViewUrl ? "Open Street View" : "Open in Google Maps"}
                 </span>
               </div>
             )}
@@ -1872,7 +1918,7 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
                 )}
               </div>
               <div className="flex items-center gap-1 text-[9px] text-white/50">
-                <ImageIcon className="h-2.5 w-2.5" />{streetViewLink ? "Click to explore" : "Street View"}
+                <ImageIcon className="h-2.5 w-2.5" />{streetViewLink ? `Click to explore · ${imageLabel}` : imageLabel}
               </div>
             </div>
           </a>
@@ -1896,6 +1942,37 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
               </div>
             </div>
           </div>
+
+          {/* Property type + stats — type always shows; bed/bath/sqft only when no image overlay */}
+          {(cf.propertyType || cf.bedrooms != null || cf.sqft != null) && (
+            <div className="flex items-center gap-2 flex-wrap">
+              {cf.propertyType && (
+                <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-muted-foreground bg-white/[0.04] border border-white/[0.08] px-2 py-0.5 rounded-full">
+                  <Building className="h-2.5 w-2.5" />{cf.propertyType}
+                </span>
+              )}
+              {!imageUrl && cf.bedrooms != null && (
+                <span className="text-[10px] font-semibold text-muted-foreground bg-white/[0.04] border border-white/[0.08] px-2 py-0.5 rounded-full">
+                  {cf.bedrooms}bd / {cf.bathrooms ?? "?"}ba
+                </span>
+              )}
+              {!imageUrl && cf.sqft != null && (
+                <span className="text-[10px] font-semibold text-muted-foreground bg-white/[0.04] border border-white/[0.08] px-2 py-0.5 rounded-full">
+                  {cf.sqft.toLocaleString()} sqft
+                </span>
+              )}
+              {!imageUrl && cf.yearBuilt && (
+                <span className="text-[10px] font-semibold text-muted-foreground bg-white/[0.04] border border-white/[0.08] px-2 py-0.5 rounded-full">
+                  Built {cf.yearBuilt}
+                </span>
+              )}
+              {!imageUrl && cf.lotSize && (
+                <span className="text-[10px] font-semibold text-muted-foreground bg-white/[0.04] border border-white/[0.08] px-2 py-0.5 rounded-full">
+                  {cf.lotSize.toLocaleString()} lot
+                </span>
+              )}
+            </div>
+          )}
 
           {/* Distress type pill badges */}
           {(cf.tags.length > 0 || warningFlags.length > 0) && (
@@ -2316,21 +2393,6 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
         </div>
 
         <div className="grid grid-cols-2 gap-2.5">
-          {/* Type / Size */}
-          <div className="rounded-[10px] border border-white/[0.06] bg-white/[0.03] p-2.5 col-span-2">
-            <div className="flex items-start gap-2">
-              <Building className="h-3.5 w-3.5 text-cyan/60 mt-0.5 shrink-0" />
-              <div className="flex-1 min-w-0">
-                <p className="text-[9px] text-muted-foreground/60 uppercase tracking-widest mb-0.5">Type / Size</p>
-                <p className="text-sm font-semibold text-foreground">
-                  {cf.propertyType || "Unknown"}
-                  {cf.bedrooms != null && <span className="text-muted-foreground font-normal text-xs ml-1.5">{cf.bedrooms}bd/{cf.bathrooms ?? "?"}ba</span>}
-                </p>
-                {cf.sqft != null && <p className="text-[10px] text-muted-foreground mt-0.5">{cf.sqft.toLocaleString()} sqft{cf.yearBuilt ? ` • Built ${cf.yearBuilt}` : ""}{cf.lotSize ? ` • ${cf.lotSize.toLocaleString()} lot` : ""}</p>}
-              </div>
-            </div>
-          </div>
-
           {/* Tax & Transfer Details */}
           {(prRaw.AssessedValue || lastTransferType || cf.lastSalePrice) && (
             <div className="rounded-[10px] border border-white/[0.06] bg-white/[0.03] p-2.5 col-span-2">
@@ -2398,18 +2460,12 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
         </div>
       </div>
 
-      {/* ═══ 10. EDIT DETAILS / ENRICH (demoted) ═══ */}
-      <div className="flex items-center justify-between gap-2">
-        {canEdit ? (
-          <button onClick={onEdit} className="flex items-center gap-1.5 px-3 py-1.5 rounded-[10px] text-[11px] font-semibold text-cyan bg-cyan/[0.06] border border-cyan/20 hover:bg-cyan/[0.12] hover:border-cyan/30 shadow-[0_0_10px_rgba(0,212,255,0.06)] hover:shadow-[0_0_18px_rgba(0,212,255,0.12)] transition-all active:scale-[0.97]">
-            <Pencil className="h-3 w-3" />Edit Details
-          </button>
-        ) : <div />}
-        <button onClick={onSkipTrace} disabled={skipTracing} title="Enrich Now" className="flex items-center gap-1.5 px-3 py-1.5 rounded-[10px] text-[10px] font-semibold text-cyan/70 bg-cyan/[0.04] border border-cyan/15 hover:bg-cyan/[0.10] hover:border-cyan/25 transition-all active:scale-[0.97] disabled:opacity-50">
-          {skipTracing ? <Loader2 className="h-3 w-3 animate-spin" /> : <Crosshair className="h-3 w-3" />}
-          {skipTracing ? "Enriching\u2026" : "Enrich"}
+      {/* ═══ 10. EDIT DETAILS ═══ */}
+      {canEdit && (
+        <button onClick={onEdit} className="flex items-center gap-1.5 px-3 py-1.5 rounded-[10px] text-[11px] font-semibold text-cyan bg-cyan/[0.06] border border-cyan/20 hover:bg-cyan/[0.12] hover:border-cyan/30 shadow-[0_0_10px_rgba(0,212,255,0.06)] hover:shadow-[0_0_18px_rgba(0,212,255,0.12)] transition-all active:scale-[0.97]">
+          <Pencil className="h-3 w-3" />Edit Details
         </button>
-      </div>
+      )}
 
       {/* ═══ 11. METADATA — Collapsible ═══ */}
       <div className="rounded-[12px] border border-glass-border bg-secondary/10">

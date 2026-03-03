@@ -575,16 +575,21 @@ export async function runDualSkipTrace(
       radarId,
     );
 
-    if (result.totalPhoneCount === 0 && result.totalEmailCount === 0) {
-      console.log(`[Enrich] Dual skip-trace returned no contacts for ${propertyId}`);
-      return result;
-    }
-
     // Read current flags, merge skip-trace data
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { data: currentProp } = await (sb.from("properties") as any)
       .select("owner_flags").eq("id", propertyId).single();
     const existingFlags = (currentProp?.owner_flags ?? {}) as Record<string, unknown>;
+
+    if (result.totalPhoneCount === 0 && result.totalEmailCount === 0) {
+      console.log(`[Enrich] Dual skip-trace returned no contacts for ${propertyId}`);
+      // Still mark as attempted so we don't re-try and badge shows correct state
+      await (sb.from("properties") as any).update({
+        owner_flags: { ...existingFlags, skip_traced: true, skip_trace_attempted_at: new Date().toISOString() },
+        updated_at: new Date().toISOString(),
+      }).eq("id", propertyId);
+      return result;
+    }
 
     const skipFlags = skipTraceResultToOwnerFlags(result);
 
