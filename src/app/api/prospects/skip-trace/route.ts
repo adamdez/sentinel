@@ -250,12 +250,6 @@ export async function POST(req: NextRequest) {
       has_dnc_numbers: skipResult.hasDncNumbers,
       phone_details: skipResult.phones,
       email_details: skipResult.emails,
-      _debug: {
-        ...skipResult._debugSources,
-        mailing_parsed: { mailingAddress, mailingCity, mailingState, mailingZip },
-        input: { address: propForSkip.address, city: propForSkip.city, state: propForSkip.state, zip: propForSkip.zip },
-        total_ms: Date.now() - t0,
-      },
     });
   } catch (err) {
     console.error("[SkipTrace] Error:", err);

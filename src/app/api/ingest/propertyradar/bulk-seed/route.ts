@@ -13,7 +13,7 @@ import {
   isTruthy, toNumber, toInt, daysSince,
 } from "@/lib/dedup";
 import { COUNTY_FIPS } from "@/lib/attom";
-import { runDualSkipTrace } from "@/lib/enrichment-engine";
+// runDualSkipTrace import removed — auto skip-trace disabled, agents trigger manually
 
 const SYSTEM_USER_ID = "00000000-0000-0000-0000-000000000000";
 const PR_API = "https://api.propertyradar.com/v1/properties";
@@ -378,8 +378,8 @@ export async function POST(req: NextRequest) {
   let errored = 0;
   let eventsInserted = 0;
   let eventsDeduped = 0;
-  let skipTraced = 0;
-  let skipTraceErrors = 0;
+  const skipTraced = 0;     // auto skip-trace disabled — kept for event_log schema compat
+  const skipTraceErrors = 0;
   let topScore = 0;
   let topAddress = "";
 
@@ -559,28 +559,8 @@ export async function POST(req: NextRequest) {
       updated++;
     }
 
-    // ── Auto skip-trace Gold+ prospects (blendedScore >= 65) ──
-    if (blendedScore >= 65) {
-      try {
-        const stResult = await runDualSkipTrace(
-          sb,
-          property.id,
-          { address, city, state, zip, owner_name: ownerName },
-          pr.RadarID,
-        );
-        if (stResult && stResult.totalPhoneCount > 0) {
-          skipTraced++;
-          console.log(`[BulkSeed] Skip-traced ${address}: ${stResult.totalPhoneCount} phones, ${stResult.totalEmailCount} emails`);
-        } else {
-          console.log(`[BulkSeed] Skip-trace returned no contacts for ${address}`);
-        }
-        // Rate-limit: 300ms between skip-trace API calls
-        await new Promise((r) => setTimeout(r, 300));
-      } catch (stErr) {
-        skipTraceErrors++;
-        console.error(`[BulkSeed] Skip-trace error for ${address}:`, stErr);
-      }
-    }
+    // Auto skip-trace disabled — agents trigger manually via "Enrich" button in prospect folder
+    // This conserves BatchData/PR credits ($0.07/call) for agent-initiated lookups only
 
     labelCounts[label as keyof typeof labelCounts]++;
     if (blendedScore > topScore) {
@@ -618,7 +598,7 @@ export async function POST(req: NextRequest) {
 
   console.log(`[BulkSeed] === COMPLETE: ${newInserts} new, ${updated} updated, ${errored} errors, ${skipTraced} skip-traced in ${elapsed}ms ===`);
   console.log(`[BulkSeed] Score breakdown: platinum=${labelCounts.platinum}, gold=${labelCounts.gold}, silver=${labelCounts.silver}, bronze=${labelCounts.bronze}`);
-  console.log(`[BulkSeed] Skip-trace: ${skipTraced} succeeded, ${skipTraceErrors} errors`);
+  console.log(`[BulkSeed] Skip-trace: disabled (agents trigger manually)`);
 
   return NextResponse.json({
     success: true,

@@ -34,7 +34,8 @@ import { distressFingerprint, isDuplicateError, normalizeCounty } from "@/lib/de
 import { dualSkipTrace, skipTraceResultToOwnerFlags, type SkipTraceResult } from "@/lib/skip-trace";
 import type { DistressType } from "@/lib/types";
 
-const AUTO_SKIPTRACE_THRESHOLD = 65;
+// DISABLED: Auto skip-trace removed — agents trigger manually via "Enrich" button
+// const AUTO_SKIPTRACE_THRESHOLD = 65;
 
 const SYSTEM_USER_ID = "00000000-0000-0000-0000-000000000000";
 const PR_API_BASE = "https://api.propertyradar.com/v1/properties";
@@ -245,15 +246,10 @@ export async function enrichProperty(
       // ── Step 3: Full scoring pipeline (BEFORE skip-trace) ──────
       const score = await runScoringPipeline(sb, propertyId, property, prResult.pr, signals);
 
-      // ── Step 4: Conditional dual skip-trace (Gold+ only) ───────
-      // Only spend money on phone/email lookups for leads scoring >= 65
-      if (score.blended >= AUTO_SKIPTRACE_THRESHOLD) {
-        const radarId = prResult.pr.RadarID as string | undefined;
-        await runDualSkipTrace(sb, propertyId, property, radarId);
-        console.log(`[Enrich] Auto skip-trace triggered for ${propertyId} (score ${score.blended} >= ${AUTO_SKIPTRACE_THRESHOLD})`);
-      } else {
-        console.log(`[Enrich] Skip-trace skipped for ${propertyId} (score ${score.blended} < ${AUTO_SKIPTRACE_THRESHOLD})`);
-      }
+      // ── Step 4: Skip-trace deferred to manual agent action ───────
+      // Auto skip-trace disabled to conserve BatchData/PR credits.
+      // Agents trigger skip-trace manually via "Enrich" button in prospect folder.
+      console.log(`[Enrich] Skip-trace deferred to manual agent action for ${propertyId} (score ${score.blended})`);
 
       // ── Step 5: Finalize lead (score + tag, keep in staging) ────
       await finalizeEnrichment(sb, leadId, propertyId, score.blended, signals, "propertyradar", attempts);
@@ -277,13 +273,8 @@ export async function enrichProperty(
       const signals = attomResult.signals ?? [];
       const score = await runScoringPipelineFromFlags(sb, propertyId, property, signals);
 
-      // Conditional dual skip-trace for ATTOM path too (Gold+ only)
-      // Check if property already has a radarId from a prior enrichment
-      if (score.blended >= AUTO_SKIPTRACE_THRESHOLD) {
-        const existingRadarId = property.owner_flags?.radar_id as string | undefined;
-        await runDualSkipTrace(sb, propertyId, property, existingRadarId);
-        console.log(`[Enrich] Auto skip-trace (ATTOM path) for ${propertyId} (score ${score.blended}, radarId: ${existingRadarId ?? "none"})`);
-      }
+      // Auto skip-trace disabled — agents trigger manually via "Enrich" button
+      console.log(`[Enrich] Skip-trace deferred to manual agent action for ${propertyId} (ATTOM path, score ${score.blended})`);
 
       await finalizeEnrichment(sb, leadId, propertyId, score.blended, signals, "attom", attempts);
 
