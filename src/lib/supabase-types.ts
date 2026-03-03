@@ -203,6 +203,18 @@ interface UserProfileRow {
   updated_at: string;
 }
 
+interface DailyDevotionalRow {
+  id: string;
+  display_date: string;
+  verse_ref: string;
+  verse_text: string;
+  author: string;
+  commentary: string;
+  source_url: string;
+  source_title: string;
+  created_at: string;
+}
+
 export interface Database {
   public: {
     Tables: {
@@ -265,6 +277,11 @@ export interface Database {
         Row: UserProfileRow;
         Insert: Omit<UserProfileRow, "created_at" | "updated_at"> & { created_at?: string; updated_at?: string };
         Update: Partial<Omit<UserProfileRow, "id" | "created_at" | "updated_at">>;
+      };
+      daily_devotional: {
+        Row: DailyDevotionalRow;
+        Insert: Omit<DailyDevotionalRow, "id" | "created_at"> & { id?: string; created_at?: string };
+        Update: Partial<Omit<DailyDevotionalRow, "id" | "created_at">>;
       };
     };
     Functions: Record<string, never>;

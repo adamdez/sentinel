@@ -31,6 +31,7 @@ import { useRealtime } from "@/providers/realtime-provider";
 import { useHydrated } from "@/providers/hydration-provider";
 import { supabase } from "@/lib/supabase";
 import { GlobalSearch } from "./global-search";
+import { DailyVerse } from "./daily-verse";
 
 export function TopBar() {
   const router = useRouter();
@@ -77,6 +78,8 @@ export function TopBar() {
 
         <GlobalSearch />
       </div>
+
+      <DailyVerse />
 
       <div className="flex items-center gap-3">
         <Tooltip>
