@@ -48,6 +48,7 @@ export function useDialerQueue(limit = 7) {
   const { currentUser, ghostMode } = useSentinelStore();
 
   const fetchQueue = useCallback(async () => {
+    if (!currentUser.id) return;
     try {
       const now = new Date().toISOString();
       // Personal queue: claimed leads where next call is due (or unscheduled)
@@ -74,7 +75,8 @@ export function useDialerQueue(limit = 7) {
       );
 
       if (scheduledRes.error || unscheduledRes.error) {
-        console.error("[DialerQueue]", scheduledRes.error ?? unscheduledRes.error);
+        const err = scheduledRes.error ?? unscheduledRes.error;
+        console.error("[DialerQueue] query error:", err?.message ?? err);
         setLoading(false);
         return;
       }

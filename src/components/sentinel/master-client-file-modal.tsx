@@ -1472,7 +1472,7 @@ function ContactTab({ cf, overlay, onSkipTrace, skipTracing, onDial, onSms, call
               className="h-6 px-2.5 rounded-md text-[9px] font-semibold border border-amber-500/30 bg-amber-500/[0.06] text-amber-400 hover:bg-amber-500/[0.12] transition-colors flex items-center gap-1"
             >
               {skipTracing ? <Loader2 className="h-3 w-3 animate-spin" /> : <Crosshair className="h-3 w-3" />}
-              {skipTracing ? "Enriching..." : "Enrich"}
+              {skipTracing ? "Deep Skipping..." : "~90s Deep Skip"}
             </button>
           )}
         </div>

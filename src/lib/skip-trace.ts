@@ -15,6 +15,7 @@
  */
 
 import { skipTraceByAddress, type BatchDataPhone, type BatchDataEmail } from "@/lib/batchdata";
+import { tracerfySkipTrace } from "@/lib/tracerfy";
 
 const PR_API_BASE = "https://api.propertyradar.com/v1/properties";
 const MAX_PHONES = 8;
@@ -29,13 +30,13 @@ export interface UnifiedPhone {
   confidence: number;
   dnc: boolean;
   carrier?: string;
-  source: "propertyradar" | "batchdata";
+  source: "propertyradar" | "batchdata" | "tracerfy";
 }
 
 export interface UnifiedEmail {
   email: string;
   deliverable: boolean;
-  source: "propertyradar" | "batchdata";
+  source: "propertyradar" | "batchdata" | "tracerfy";
 }
 
 export interface UnifiedPerson {
@@ -47,7 +48,7 @@ export interface UnifiedPerson {
   mailingAddress: string | null;
   occupation: string | null;
   isPrimary: boolean;
-  source: "propertyradar" | "batchdata";
+  source: "propertyradar" | "batchdata" | "tracerfy";
 }
 
 export interface SkipTraceResult {
@@ -58,9 +59,10 @@ export interface SkipTraceResult {
   primaryEmail: string | null;
   isLitigator: boolean;
   hasDncNumbers: boolean;
-  providers: ("propertyradar" | "batchdata")[];
+  providers: ("propertyradar" | "batchdata" | "tracerfy")[];
   prSuccess: boolean;
   bdSuccess: boolean;
+  tfSuccess: boolean;
   totalPhoneCount: number;
   totalEmailCount: number;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -101,8 +103,8 @@ export async function dualSkipTrace(
   // Track errors for debug output
   const _errors: Record<string, string> = {};
 
-  // Fire all providers in parallel — includes PR county phone fields + mailing address BatchData
-  const [prResult, prCountyResult, bdResult, bdMailResult] = await Promise.all([
+  // Fire all providers in parallel — includes PR county phone fields + mailing address BatchData + Tracerfy
+  const [prResult, prCountyResult, bdResult, bdMailResult, tracerfyResult] = await Promise.all([
     radarId && prApiKey
       ? fetchPRPersons(prApiKey, radarId).catch((err) => {
           console.error("[DualSkip] PR Persons error:", err);
@@ -128,9 +130,15 @@ export async function dualSkipTrace(
       _errors.bdMailing = String(err?.message ?? err);
       return null;
     }),
+    // Tracerfy — async batch API, polls for results (up to 90s)
+    fetchTracerfySource(property).catch((err) => {
+      console.error("[DualSkip] Tracerfy error:", err);
+      _errors.tracerfy = String(err?.message ?? err);
+      return null;
+    }),
   ]);
 
-  console.log(`[DualSkip] Parallel calls completed in ${Date.now() - t0}ms (PR Persons: ${!!prResult}, PR County: ${!!prCountyResult}, BD Property: ${!!bdResult}, BD Mailing: ${!!bdMailResult})`);
+  console.log(`[DualSkip] Parallel calls completed in ${Date.now() - t0}ms (PR Persons: ${!!prResult}, PR County: ${!!prCountyResult}, BD Property: ${!!bdResult}, BD Mailing: ${!!bdMailResult}, Tracerfy: ${!!tracerfyResult})`);
 
   // Merge results
   const allPhones: UnifiedPhone[] = [];
@@ -140,7 +148,7 @@ export async function dualSkipTrace(
   const seenEmails = new Set<string>();
   let isLitigator = false;
   let hasDncNumbers = false;
-  const providers: ("propertyradar" | "batchdata")[] = [];
+  const providers: ("propertyradar" | "batchdata" | "tracerfy")[] = [];
 
   // ── Merge PropertyRadar Persons results ───────────────────────
   if (prResult) {
@@ -232,6 +240,38 @@ export async function dualSkipTrace(
   // ── Merge BatchData results (mailing address) ──────────────────
   if (bdMailResult) mergeBatchData(bdMailResult, "BD Mailing");
 
+  // ── Merge Tracerfy results ────────────────────────────────────────
+  if (tracerfyResult) {
+    if (!providers.includes("tracerfy")) providers.push("tracerfy");
+
+    for (const phone of tracerfyResult.phones) {
+      const norm = normalizePhone(phone.number);
+      if (seenPhones.has(norm)) continue;
+      seenPhones.add(norm);
+      allPhones.push({
+        number: phone.number,
+        normalized: norm,
+        lineType: phone.lineType,
+        confidence: 70, // Tracerfy default confidence
+        dnc: false,
+        source: "tracerfy",
+      });
+    }
+
+    for (const email of tracerfyResult.emails) {
+      const norm = email.toLowerCase().trim();
+      if (seenEmails.has(norm)) continue;
+      seenEmails.add(norm);
+      allEmails.push({
+        email,
+        deliverable: true,
+        source: "tracerfy",
+      });
+    }
+
+    console.log(`[DualSkip] Merged Tracerfy: +${tracerfyResult.phones.length} phones, +${tracerfyResult.emails.length} emails`);
+  }
+
   // ── Sort: highest confidence first, DNC numbers last ───────────
   allPhones.sort((a, b) => {
     if (a.dnc && !b.dnc) return 1;
@@ -265,6 +305,7 @@ export async function dualSkipTrace(
     providers,
     prSuccess: !!prResult || !!prCountyResult,
     bdSuccess: !!bdResult || !!bdMailResult,
+    tfSuccess: !!tracerfyResult,
     totalPhoneCount: phones.length,
     totalEmailCount: emails.length,
     prCountyRaw: prCountyResult?.prRaw,
@@ -273,7 +314,9 @@ export async function dualSkipTrace(
       prCounty: prCountyResult ? { phones: prCountyResult.phones.length, emails: prCountyResult.emails.length, phoneNumbers: prCountyResult.phones.map(p => p.number) } : "null/error",
       bdProperty: bdResult ? { phones: bdResult.phones.length, emails: bdResult.emails.length, persons: bdResult.persons.length } : "null/error",
       bdMailing: bdMailResult ? { phones: bdMailResult.phones.length, emails: bdMailResult.emails.length } : "null/error",
+      tracerfy: tracerfyResult ? { phones: tracerfyResult.phones.length, emails: tracerfyResult.emails.length } : "null/error",
       hasBDToken: !!process.env.BATCHDATA_API_TOKEN,
+      hasTFToken: !!process.env.TRACERFY_API_KEY,
       inputAddress: property.address,
       inputMailing: property.mailingAddress,
       errors: Object.keys(_errors).length > 0 ? _errors : "none",
@@ -584,6 +627,73 @@ async function fetchBatchDataMailing(
     isLitigator: result.isLitigator,
     hasDncNumbers: result.hasDncNumbers,
   };
+}
+
+// ── Tracerfy Fetch ───────────────────────────────────────────────────
+
+/**
+ * Call Tracerfy with the property owner name + address.
+ * Parses owner_name into first/last name for the API.
+ */
+async function fetchTracerfySource(
+  property: SkipTracePropertyInput,
+): Promise<{ phones: { number: string; lineType: "mobile" | "landline" | "unknown" }[]; emails: string[] } | null> {
+  if (!process.env.TRACERFY_API_KEY) return null;
+
+  const address = property.address ?? "";
+  if (!address || address === "Unknown") return null;
+
+  // Parse address parts
+  const parts = address.split(",").map((s) => s.trim());
+  const street = parts[0] ?? address;
+  const city = property.city ?? parts[1] ?? "";
+  const state = property.state ?? parts[2]?.replace(/\d/g, "").trim() ?? "";
+
+  if (!street || !city || !state) {
+    console.log("[DualSkip/Tracerfy] Insufficient address, skipping");
+    return null;
+  }
+
+  // Parse owner name into first/last
+  const ownerName = property.owner_name ?? "";
+  let firstName = "";
+  let lastName = "";
+
+  if (ownerName) {
+    // Handle "LAST, FIRST" format (common in county records)
+    if (ownerName.includes(",")) {
+      const nameParts = ownerName.split(",").map((s) => s.trim());
+      lastName = nameParts[0] ?? "";
+      firstName = nameParts[1]?.split(/\s+/)[0] ?? ""; // Take first word after comma
+    } else {
+      // Handle "FIRST LAST" format
+      const nameParts = ownerName.trim().split(/\s+/);
+      firstName = nameParts[0] ?? "";
+      lastName = nameParts[nameParts.length - 1] ?? "";
+    }
+  }
+
+  if (!firstName && !lastName) {
+    console.log("[DualSkip/Tracerfy] No owner name available, skipping");
+    return null;
+  }
+
+  const result = await tracerfySkipTrace(
+    firstName,
+    lastName,
+    street,
+    city,
+    state,
+    property.mailingAddress,
+    property.mailingCity,
+    property.mailingState,
+  );
+
+  if (!result.success || (result.phones.length === 0 && result.emails.length === 0)) {
+    return null;
+  }
+
+  return { phones: result.phones, emails: result.emails };
 }
 
 // ── Helpers ──────────────────────────────────────────────────────────
