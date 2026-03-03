@@ -20,13 +20,6 @@ export async function POST(req: NextRequest) {
 
   const authHeader = req.headers.get("authorization");
   const token = authHeader?.replace("Bearer ", "");
-  if (token) {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    (sb as any).auth.getUser = async () => {
-      const { data, error } = await sb.auth.getUser(token);
-      return { data, error };
-    };
-  }
 
   const { data: { user }, error: authErr } = await sb.auth.getUser(token ?? "");
   if (authErr || !user) {
