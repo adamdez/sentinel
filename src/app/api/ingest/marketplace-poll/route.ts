@@ -27,59 +27,111 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  // ── Cleanup mode: ?cleanup=true purges all CRAWL- records then re-crawls ──
+  // ── Cleanup mode: ?cleanup=true fixes CRAWL- property data in-place ──
+  // Note: distress_events has an append-only trigger (trg_distress_events_immutable)
+  // that blocks DELETE. So instead of purging, we UPDATE properties with correct data
+  // from the v2 crawler, then re-crawl to pick up new listings.
   const cleanup = req.nextUrl.searchParams.get("cleanup") === "true";
-  let purgeStats: { leadsDeleted: number; eventsDeleted: number; propertiesDeleted: number } | null = null;
+  let cleanupStats: { propertiesFixed: number; leadsRemoved: number; orphanLeadsRemoved: number } | null = null;
   if (cleanup) {
-    console.log("[MarketplacePoll] === CLEANUP MODE: Purging old FSBO data ===");
+    console.log("[MarketplacePoll] === CLEANUP MODE: Fixing CRAWL- property data ===");
     const sb = createServerClient();
-    purgeStats = { leadsDeleted: 0, eventsDeleted: 0, propertiesDeleted: 0 };
+    cleanupStats = { propertiesFixed: 0, leadsRemoved: 0, orphanLeadsRemoved: 0 };
 
-    // Find all properties with synthetic CRAWL- APNs
+    // Find all properties with synthetic CRAWL- APNs and their current data
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { data: crawlProps, error: findErr } = await (sb.from("properties") as any)
-      .select("id")
+      .select("id, apn, city, state, owner_name, zip, owner_flags")
       .like("apn", "CRAWL-%");
 
     if (findErr) {
       console.error("[MarketplacePoll] Failed to find CRAWL properties:", findErr);
-      return NextResponse.json({ success: false, error: "Purge find failed", detail: findErr.message });
-    }
+    } else if (crawlProps && crawlProps.length > 0) {
+      console.log(`[MarketplacePoll] Found ${crawlProps.length} CRAWL- properties to clean`);
 
-    if (crawlProps && crawlProps.length > 0) {
-      const propIds = crawlProps.map((p: { id: string }) => p.id);
-      console.log(`[MarketplacePoll] Purging ${propIds.length} CRAWL- properties`);
+      // Delete leads for out-of-area properties (FL, AZ, NH, etc. — junk from v1)
+      const validStates = new Set(["WA", "ID", "MT"]);
+      const junkPropIds: string[] = [];
+      const fixableProps: typeof crawlProps = [];
 
-      // Delete in batches of 50 to avoid query size limits
-      for (let i = 0; i < propIds.length; i += 50) {
-        const batch = propIds.slice(i, i + 50);
+      for (const prop of crawlProps) {
+        const state = (prop.state || "").toUpperCase();
+        const ownerName = prop.owner_name || "";
+        const isJunkOwner = ownerName.length > 40 && !ownerName.startsWith("FSBO Owner");
+        const isOutOfArea = state && !validStates.has(state);
+        const isRental = /\b(for rent|rental|lease)\b/i.test(ownerName);
 
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const { count: lc, error: le } = await (sb.from("leads") as any)
-          .delete({ count: "exact" }).in("property_id", batch);
-        if (le) console.error(`[MarketplacePoll] Lead delete batch error:`, le);
-        purgeStats.leadsDeleted += lc ?? 0;
-
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const { count: ec, error: ee } = await (sb.from("distress_events") as any)
-          .delete({ count: "exact" }).in("property_id", batch);
-        if (ee) console.error(`[MarketplacePoll] Event delete batch error:`, ee);
-        purgeStats.eventsDeleted += ec ?? 0;
-
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const { count: pc, error: pe } = await (sb.from("properties") as any)
-          .delete({ count: "exact" }).in("id", batch);
-        if (pe) console.error(`[MarketplacePoll] Property delete batch error:`, pe);
-        purgeStats.propertiesDeleted += pc ?? 0;
+        if (isOutOfArea || isRental) {
+          junkPropIds.push(prop.id);
+        } else {
+          fixableProps.push(prop);
+        }
       }
 
-      console.log(`[MarketplacePoll] Purge complete:`, purgeStats);
-    } else {
-      console.log("[MarketplacePoll] No CRAWL- properties found to purge");
-    }
+      // Remove leads for junk properties (can't delete properties/events due to triggers)
+      if (junkPropIds.length > 0) {
+        console.log(`[MarketplacePoll] Removing leads for ${junkPropIds.length} junk/out-of-area properties`);
+        for (let i = 0; i < junkPropIds.length; i += 50) {
+          const batch = junkPropIds.slice(i, i + 50);
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const { count: lc } = await (sb.from("leads") as any)
+            .delete({ count: "exact" }).in("property_id", batch);
+          cleanupStats.leadsRemoved += lc ?? 0;
+        }
+      }
 
-    // Continue to re-crawl below...
-    console.log("[MarketplacePoll] Purge done, now re-crawling with v2...");
+      // Fix remaining properties: update ZIP from city lookup + clean owner_name
+      const CITY_ZIP: Record<string, string> = {
+        "spokane": "99201", "spokane valley": "99206", "liberty lake": "99019",
+        "cheney": "99004", "airway heights": "99001", "medical lake": "99022",
+        "deer park": "99006", "mead": "99021", "greenacres": "99016",
+        "otis orchards": "99027", "nine mile falls": "99026", "colbert": "99005",
+        "coeur d'alene": "83814", "coeur d alene": "83814",
+        "post falls": "83854", "hayden": "83835", "rathdrum": "83858",
+        "spirit lake": "83869", "athol": "83801", "sandpoint": "83864",
+        "oldtown": "83822", "newport": "99156", "saint regis": "59866",
+        "somers": "59932", "medimont": "83842", "plains": "59859",
+        "harrison": "83833", "worley": "83876", "moscow": "83843",
+        "pullman": "99163", "inverness": "", "bigfork": "59911",
+        "thompson falls": "59873", "superior": "59872", "priest river": "83856",
+        "bonners ferry": "83805", "kellogg": "83837", "wallace": "83873",
+        "sagle": "83860", "priest lake": "83856", "dalton gardens": "83815",
+        "ponderay": "83852", "clarkston": "99403",
+      };
+
+      for (const prop of fixableProps) {
+        const city = (prop.city || "").toLowerCase().trim();
+        const currentZip = prop.zip || "";
+        const ownerName = prop.owner_name || "";
+        const needsZip = !currentZip && city;
+        const needsOwnerFix = ownerName.length > 40 && !ownerName.startsWith("FSBO Owner");
+        const lookupZip = CITY_ZIP[city] || "";
+
+        if (needsZip || needsOwnerFix) {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const updates: Record<string, any> = {};
+          if (needsZip && lookupZip) updates.zip = lookupZip;
+          if (needsOwnerFix) {
+            updates.owner_name = `FSBO Owner — ${prop.city || "Unknown"}, ${prop.state || ""}`.trim();
+          }
+
+          if (Object.keys(updates).length > 0) {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const { error: upErr } = await (sb.from("properties") as any)
+              .update(updates).eq("id", prop.id);
+            if (upErr) {
+              console.error(`[MarketplacePoll] Property update failed for ${prop.id}:`, upErr);
+            } else {
+              cleanupStats.propertiesFixed++;
+            }
+          }
+        }
+      }
+
+      console.log(`[MarketplacePoll] Cleanup complete:`, cleanupStats);
+    } else {
+      console.log("[MarketplacePoll] No CRAWL- properties found");
+    }
   }
 
   console.log("[MarketplacePoll] === Starting FSBO crawl cycle ===");
@@ -129,9 +181,9 @@ export async function GET(req: NextRequest) {
     timestamp: new Date().toISOString(),
   };
 
-  // Include purge stats if cleanup was requested
-  if (cleanup && purgeStats) {
-    response.cleanup = purgeStats;
+  // Include cleanup stats if cleanup was requested
+  if (cleanup && cleanupStats) {
+    response.cleanup = cleanupStats;
   }
 
   return NextResponse.json(response);
