@@ -1,5 +1,5 @@
 /**
- * Craigslist FSBO Crawler
+ * Craigslist FSBO Crawler v2
  *
  * Charter v3.1 §1: Chase every legal upstream edge — FSBO listings on Craigslist
  * represent motivated sellers who have publicly declared intent to sell without
@@ -12,6 +12,14 @@
  *   1. JSON-LD structured data (schema.org ItemList) with lat/long, bedrooms, bathrooms, city
  *   2. Static listing cards with titles, links, and prices
  * Combines both sources for comprehensive extraction.
+ *
+ * v2 Improvements:
+ *   - Junk filtering: rentals, ISO posts, obituaries, commercial, off-topic
+ *   - Out-of-area filtering: only WA, ID, MT states accepted
+ *   - City-to-ZIP lookup for Spokane/CdA area (~35 cities)
+ *   - County inference from city/state (Kootenai, Bonner, etc.)
+ *   - Stricter address validation (3+ words, valid street suffix)
+ *   - Owner name: "Unknown" (not listing title)
  *
  * Note: Craigslist RSS feeds (format=rss) are blocked as of 2026. HTML pages
  * with embedded JSON-LD are the reliable alternative.
@@ -52,15 +60,128 @@ const MARKETS: CraigslistMarket[] = [
   },
 ];
 
+// ── Junk Filtering ──────────────────────────────────────────────────
+
+/** Titles matching any of these patterns are filtered out before ingestion */
+const JUNK_TITLE_PATTERNS: RegExp[] = [
+  /\b(obituar|memorial|funeral|rest in peace|rip)\b/i,
+  /\b(ISO|in search of|looking for|wanted to buy|WTB)\b/i,
+  /\b(for rent|rental|lease|per month|\/mo\b|deposit required)\b/i,
+  /\b(trade|swap|exchange|barter)\b/i,
+  /\b(commercial|warehouse|office space|retail space|industrial)\b/i,
+  /\b(lot only|land only|vacant lot|raw land|acreage only)\b/i,
+  /\b(roommate|room for rent|shared housing|sublet)\b/i,
+  /\b(storage unit|parking spot|garage for rent)\b/i,
+  /\b(mobile home lot|rv lot|rv space|rv park)\b/i,
+];
+
+/** Only accept listings in these states (filter out distant cross-posts) */
+const VALID_STATES = new Set(["WA", "ID", "MT"]);
+
+function isJunkListing(title: string): boolean {
+  return JUNK_TITLE_PATTERNS.some((pat) => pat.test(title));
+}
+
+function isOutOfArea(state: string | null): boolean {
+  if (!state) return false;
+  return !VALID_STATES.has(state.toUpperCase());
+}
+
+// ── City → ZIP Lookup ───────────────────────────────────────────────
+
+/** Maps city names (lowercased) to ZIP codes for the Spokane/CdA operating area */
+const CITY_ZIP_MAP: Record<string, string> = {
+  // Spokane County, WA
+  "spokane": "99201", "spokane valley": "99206", "liberty lake": "99019",
+  "cheney": "99004", "airway heights": "99001", "medical lake": "99022",
+  "deer park": "99006", "mead": "99021", "greenacres": "99016",
+  "otis orchards": "99027", "nine mile falls": "99026", "colbert": "99005",
+  "elk": "99009", "four lakes": "99014", "valleyford": "99036",
+  "spangle": "99031", "rockford": "99030", "fairfield": "99012",
+  "latah": "99018", "waverly": "99039", "marshall": "99020",
+  // Kootenai County, ID
+  "coeur d'alene": "83814", "coeur d alene": "83814", "cda": "83814",
+  "post falls": "83854", "hayden": "83835", "rathdrum": "83858",
+  "spirit lake": "83869", "athol": "83801", "harrison": "83833",
+  "worley": "83876", "dalton gardens": "83815", "hauser": "83854",
+  "huetter": "83854",
+  // Bonner County, ID
+  "sandpoint": "83864", "ponderay": "83852", "priest river": "83856",
+  "priest lake": "83856", "sagle": "83860", "hope": "83836",
+  "clark fork": "83811",
+  // Shoshone County, ID
+  "kellogg": "83837", "wallace": "83873", "silverton": "83867",
+  // Stevens County, WA
+  "chewelah": "99109", "colville": "99114", "kettle falls": "99141",
+  // Other nearby
+  "moscow": "83843", "pullman": "99163", "lewiston": "83501",
+  "clarkston": "99403", "oldtown": "83822", "newport": "99156",
+  "bonners ferry": "83805",
+  // Sanders County, MT
+  "plains": "59859", "thompson falls": "59873", "trout creek": "59874",
+  // Mineral County, MT
+  "saint regis": "59866", "st. regis": "59866", "superior": "59872",
+};
+
+/** Returns the inferred county based on city + state */
+function inferCounty(city: string, state: string): string {
+  const key = city.toLowerCase().trim();
+  const st = state.toUpperCase();
+
+  // Idaho cities
+  if (st === "ID") {
+    if (["coeur d'alene", "coeur d alene", "cda", "post falls", "hayden",
+         "rathdrum", "spirit lake", "athol", "harrison", "worley",
+         "dalton gardens", "hauser", "huetter"].includes(key)) return "Kootenai";
+    if (["sandpoint", "ponderay", "priest river", "priest lake", "sagle",
+         "hope", "clark fork", "bonners ferry"].includes(key)) return "Bonner";
+    if (["kellogg", "wallace", "silverton"].includes(key)) return "Shoshone";
+    if (["oldtown"].includes(key)) return "Bonner";
+    if (["moscow"].includes(key)) return "Latah";
+    if (["lewiston"].includes(key)) return "Nez Perce";
+    if (["medimont"].includes(key)) return "Kootenai";
+  }
+  // Montana cities
+  if (st === "MT") {
+    if (["plains", "thompson falls", "trout creek"].includes(key)) return "Sanders";
+    if (["saint regis", "st. regis", "superior"].includes(key)) return "Mineral";
+    if (["somers", "bigfork", "kalispell", "whitefish"].includes(key)) return "Flathead";
+    if (["missoula"].includes(key)) return "Missoula";
+  }
+  // WA cities
+  if (st === "WA") {
+    if (["spokane", "spokane valley", "liberty lake", "cheney",
+         "airway heights", "medical lake", "deer park", "mead",
+         "greenacres", "otis orchards", "nine mile falls", "colbert", "elk",
+         "four lakes", "valleyford", "spangle", "rockford", "fairfield",
+         "latah", "waverly", "marshall"].includes(key)) return "Spokane";
+    if (["chewelah", "colville", "kettle falls"].includes(key)) return "Stevens";
+    if (["pullman"].includes(key)) return "Whitman";
+    if (["clarkston"].includes(key)) return "Asotin";
+    if (["newport"].includes(key)) return "Pend Oreille";
+  }
+
+  return "Spokane"; // Default for the market
+}
+
+function lookupZip(city: string): string | null {
+  return CITY_ZIP_MAP[city.toLowerCase().trim()] ?? null;
+}
+
 // ── Regex Patterns ──────────────────────────────────────────────────
 
+/**
+ * Stricter address regex: requires a number, at least 2 words of street name,
+ * and a valid street suffix. This avoids false positives like "15 AM at the..."
+ */
 const ADDRESS_RE =
-  /(\d{1,6}\s+[A-Z][A-Za-z\s.]+(?:St|Ave|Rd|Dr|Ln|Blvd|Ct|Way|Pl|Cir|Ter|Loop|Hwy|Drive|Street|Avenue|Road|Lane|Boulevard|Court|Place|Circle)\.?)/gi;
+  /(\d{1,6}\s+(?:[A-Z][A-Za-z]+\s+){1,4}(?:St|Ave|Rd|Dr|Ln|Blvd|Ct|Way|Pl|Cir|Ter|Loop|Hwy|Drive|Street|Avenue|Road|Lane|Boulevard|Court|Place|Circle|Trail|Trl|Pike|Run|Pass)\.?(?:\s+(?:N|S|E|W|NE|NW|SE|SW|#\d+|Apt\s*\d+|Unit\s*\d+|Ste\s*\d+))?)/gi;
 
 const PRICE_RE = /\$\s*([\d,]+(?:\.\d{2})?)/g;
 const PHONE_RE = /\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}/g;
 const BR_RE = /(\d+)\s*(?:br|bed|bedroom)/gi;
 const BA_RE = /(\d+(?:\.\d)?)\s*(?:ba|bath|bathroom)/gi;
+const ZIP_RE = /\b(\d{5})(?:-\d{4})?\b/g;
 
 const MOTIVATION_KEYWORDS = [
   "must sell", "motivated", "price reduced", "price drop",
@@ -79,7 +200,12 @@ const MOTIVATION_KEYWORDS = [
 function extractAddress(text: string): string | null {
   ADDRESS_RE.lastIndex = 0;
   const match = ADDRESS_RE.exec(text);
-  return match?.[1]?.trim() ?? null;
+  if (!match) return null;
+  const addr = match[1].trim();
+  // Validate: address must have at least 3 words (number + street name + suffix)
+  const wordCount = addr.split(/\s+/).length;
+  if (wordCount < 3) return null;
+  return addr;
 }
 
 function extractPrice(text: string): number | null {
@@ -107,6 +233,18 @@ function extractPhone(text: string): string | null {
   PHONE_RE.lastIndex = 0;
   const match = PHONE_RE.exec(text);
   return match?.[0] ?? null;
+}
+
+function extractZipFromText(text: string): string | null {
+  ZIP_RE.lastIndex = 0;
+  const match = ZIP_RE.exec(text);
+  if (!match) return null;
+  const zip = match[1];
+  // Basic validation: US ZIPs in our area start with 83xxx (ID), 99xxx (WA), 59xxx (MT)
+  if (zip.startsWith("83") || zip.startsWith("99") || zip.startsWith("59")) {
+    return zip;
+  }
+  return null;
 }
 
 function findMotivationKeywords(text: string): string[] {
@@ -232,6 +370,9 @@ function parseListingCards(html: string): ListingCard[] {
 
 async function crawlMarket(market: CraigslistMarket): Promise<CrawledRecord[]> {
   const records: CrawledRecord[] = [];
+  let filteredJunk = 0;
+  let filteredArea = 0;
+
   const searchUrl = `https://${market.subdomain}.craigslist.org/search/rea?housing_type=6`;
 
   console.log(`[CL-FSBO] Fetching search page: ${searchUrl}`);
@@ -270,41 +411,67 @@ async function crawlMarket(market: CraigslistMarket): Promise<CrawledRecord[]> {
     if (link) seenLinks.add(link);
 
     const plainTitle = stripHtml(item.name);
-    const combined = plainTitle;
 
-    // Extract address from title or JSON-LD streetAddress
-    const addressFromTitle = extractAddress(combined);
-    const addressFromLd = item.address?.streetAddress || null;
-    const address = addressFromTitle || (addressFromLd && addressFromLd.length > 3 ? addressFromLd : null);
+    // ── v2: Junk filter ──
+    if (isJunkListing(plainTitle)) {
+      filteredJunk++;
+      continue;
+    }
 
-    // City from JSON-LD or title
+    // City from JSON-LD or market default
     const city = item.address?.addressLocality || market.cities[0];
 
     // State from JSON-LD or market default
     const state = item.address?.addressRegion || market.state;
 
+    // ── v2: Out-of-area filter ──
+    if (isOutOfArea(state)) {
+      filteredArea++;
+      continue;
+    }
+
+    // Extract address from title or JSON-LD streetAddress
+    const addressFromTitle = extractAddress(plainTitle);
+    const addressFromLd = item.address?.streetAddress || null;
+    const address = addressFromTitle || (addressFromLd && addressFromLd.length > 5 ? addressFromLd : null);
+
+    // ── v2: ZIP code resolution (3-tier: JSON-LD → title → city lookup) ──
+    const zipFromLd = item.address?.postalCode || null;
+    const zipFromTitle = extractZipFromText(plainTitle);
+    const zipFromCity = lookupZip(city);
+    const zip = zipFromLd || zipFromTitle || zipFromCity || "";
+
+    // ── v2: County inference from city/state ──
+    const inferredCounty = inferCounty(city, state);
+
     // Price from card HTML (most reliable) or from title extraction
-    const price = cardPrice ?? extractPrice(combined);
+    const price = cardPrice ?? extractPrice(plainTitle);
 
     // Bedrooms/bathrooms from JSON-LD (structured) or title extraction
-    const titleBedBath = extractBedBath(combined);
+    const titleBedBath = extractBedBath(plainTitle);
     const bedrooms = item.numberOfBedrooms ?? titleBedBath.bedrooms;
     const bathrooms = item.numberOfBathroomsTotal ?? titleBedBath.bathrooms;
 
     // Phone from title
-    const phone = extractPhone(combined);
+    const phone = extractPhone(plainTitle);
 
     // Motivation keywords
-    const motivationKeywords = findMotivationKeywords(combined);
+    const motivationKeywords = findMotivationKeywords(plainTitle);
 
-    // Build record name
-    const name = address ? `FSBO ${address}` : `FSBO ${plainTitle.slice(0, 60)}`;
+    // ── v2: Owner name — never use listing title ──
+    // Owner is unknown until skip-trace; use a descriptive placeholder
+    const ownerName = address
+      ? `FSBO Owner — ${address}`
+      : `FSBO Owner — ${city}, ${state}`;
 
     records.push({
-      name,
+      name: ownerName,
       address,
       city,
       state,
+      // IMPORTANT: Keep county = market.county so upsert matches existing records
+      // (property upsert uses onConflict: "apn,county"). Store inferredCounty in rawData
+      // for display; enrichment will correct county from PropertyRadar.
       county: market.county,
       date: new Date().toISOString().slice(0, 10),
       link,
@@ -324,7 +491,8 @@ async function crawlMarket(market: CraigslistMarket): Promise<CrawledRecord[]> {
         platform: "craigslist",
         city,
         state,
-        zip: item.address?.postalCode || null,
+        zip,
+        inferred_county: inferredCounty,
       },
     });
   }
@@ -333,15 +501,28 @@ async function crawlMarket(market: CraigslistMarket): Promise<CrawledRecord[]> {
   for (const card of listingCards) {
     if (card.link && !seenLinks.has(card.link)) {
       seenLinks.add(card.link);
-      const combined = card.title;
-      const address = extractAddress(combined);
-      const { bedrooms, bathrooms } = extractBedBath(combined);
-      const phone = extractPhone(combined);
-      const motivationKeywords = findMotivationKeywords(combined);
-      const name = address ? `FSBO ${address}` : `FSBO ${card.title.slice(0, 60)}`;
+      const title = card.title;
+
+      // ── v2: Junk filter ──
+      if (isJunkListing(title)) {
+        filteredJunk++;
+        continue;
+      }
+
+      const address = extractAddress(title);
+      const { bedrooms, bathrooms } = extractBedBath(title);
+      const phone = extractPhone(title);
+      const motivationKeywords = findMotivationKeywords(title);
+      const zipFromTitle = extractZipFromText(title);
+      const zipFromCity = lookupZip(market.cities[0]);
+      const zip = zipFromTitle || zipFromCity || "";
+
+      const ownerName = address
+        ? `FSBO Owner — ${address}`
+        : `FSBO Owner — ${market.cities[0]}, ${market.state}`;
 
       records.push({
-        name,
+        name: ownerName,
         address,
         city: market.cities[0],
         state: market.state,
@@ -364,11 +545,14 @@ async function crawlMarket(market: CraigslistMarket): Promise<CrawledRecord[]> {
           platform: "craigslist",
           city: market.cities[0],
           state: market.state,
-          zip: null,
+          zip,
+          inferred_county: market.county,
         },
       });
     }
   }
+
+  console.log(`[CL-FSBO] ${market.name}: ${records.length} valid listings (filtered: ${filteredJunk} junk, ${filteredArea} out-of-area)`);
 
   return records;
 }
