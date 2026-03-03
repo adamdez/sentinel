@@ -1182,7 +1182,6 @@ body {
 .glass-strong,
 .glass-card,
 .glass-ultra,
-.modal-glass,
 .widget-wrapper,
 .glow-bar,
 .scanline-overlay,
@@ -1213,15 +1212,13 @@ body {
 .glass-strong::after,
 .glass-card::after,
 .glass-ultra::after,
-.modal-glass::after,
 .scanline-overlay::after,
 .wet-shine::before,
 .wet-shine::after,
 .glass::before,
 .glass-strong::before,
 .glass-card::before,
-.glass-ultra::before,
-.modal-glass::before {
+.glass-ultra::before {
   transform: translateZ(0);
   will-change: auto;
 }
