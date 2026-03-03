@@ -61,7 +61,11 @@ export async function POST(req: NextRequest) {
       const params = new URLSearchParams();
       params.set("Purchase", "1");
       params.set("Limit", String(Math.min(limit, 100)));
-      params.set("Fields", "default,State,AVM,EquityPercent,PropertyImageUrl,StreetViewUrl,Latitude,Longitude,LastTransferRecDate,LastTransferValue,LastTransferType,Beds,Baths,SqFt,YearBuilt,LotSize,PType");
+      // comps/sales endpoint has its own field set — uses TransferValue/TransferDate/TransferType
+      // (NOT LastTransferRecDate/LastTransferValue), and doesn't support PropertyImageUrl/StreetViewUrl/EquityPercent.
+      // "default" includes: RadarID, Address, City, Latitude, Longitude, PType, Beds, Baths, SqFt,
+      //   LotSize, YearBuilt, Score, TransferValue, TransferDate, TransferType, PricePerSqFt
+      params.set("Fields", "default,State,AVM");
 
       const url = `${PR_API_BASE}/${radarId}/comps/sales?${params.toString()}`;
       console.log(`[Comps] Using native comps/sales for ${radarId}`);
@@ -99,9 +103,10 @@ export async function POST(req: NextRequest) {
 
     if (state) criteria.push({ name: "State", value: [state] });
     if (zip) criteria.push({ name: "ZipFive", value: [zip] });
-    if (county) criteria.push({ name: "County", value: [county] });
+    // Note: PropertyRadar County criterion requires a numeric FIPS code, not a name string.
+    // We rely on zip + state for location targeting instead.
 
-    if (!zip && !county && !state) {
+    if (!zip && !state) {
       return NextResponse.json(
         { error: "No location data (zip, county, or state) available for fallback search" },
         { status: 400 },
@@ -376,7 +381,7 @@ function mapCompSalesResult(r: any) {
   };
   return {
     radarId: r.RadarID ?? null,
-    apn: "",
+    apn: r.RadarID ?? "",  // comps/sales doesn't return APN; use RadarID as unique key
     address: [r.Address, r.City, r.State].filter(Boolean).join(", "),
     streetAddress: r.Address ?? "",
     city: r.City ?? "",
