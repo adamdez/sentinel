@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment, useState, useCallback, useMemo } from "react";
+import { Fragment, useState, useCallback, useMemo, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   X, MapPin, User, Phone, Mail, DollarSign, Home, TrendingUp,
@@ -8,7 +8,7 @@ import {
   Copy, CheckCircle2, Search, Loader2, Building, Ruler, LandPlot,
   Banknote, Scale, UserX, Eye, FileText, Calculator, Globe, Send,
   Radar, LayoutDashboard, Map, Printer, ImageIcon, ChevronLeft, ChevronRight,
-  Pencil, Save, Voicemail, PhoneForwarded, Brain, Crosshair,
+  Pencil, Save, Voicemail, PhoneForwarded, Brain, Crosshair, MapPinned,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -1704,6 +1704,38 @@ function SubjectPhotoCarousel({ photos, onSkipTrace }: { photos: string[]; onSki
   );
 }
 
+// ── Lat/Lng extraction with fallbacks ─────────────────────────────────
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function extractLatLng(cf: ClientFile): { lat: number | null; lng: number | null } {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const flags = (cf.ownerFlags ?? {}) as Record<string, any>;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const prRaw = (flags.pr_raw ?? {}) as Record<string, any>;
+
+  const tryParse = (v: unknown): number | null => {
+    if (v == null || v === "" || v === "null") return null;
+    const n = typeof v === "number" ? v : parseFloat(String(v));
+    return isNaN(n) || n === 0 ? null : n;
+  };
+
+  const lat =
+    tryParse(prRaw.Latitude) ??
+    tryParse(prRaw.latitude) ??
+    tryParse(flags.latitude) ??
+    tryParse(flags.lat) ??
+    null;
+
+  const lng =
+    tryParse(prRaw.Longitude) ??
+    tryParse(prRaw.longitude) ??
+    tryParse(flags.longitude) ??
+    tryParse(flags.lng) ??
+    null;
+
+  return { lat, lng };
+}
+
 // ── ARV adjustment helpers ────────────────────────────────────────────
 
 const CONDITION_LABELS: Record<number, string> = {
@@ -1714,17 +1746,55 @@ const CONDITION_LABELS: Record<number, string> = {
   [5]: "Good (+5%)",
 };
 
-function CompsTab({ cf, selectedComps, onAddComp, onRemoveComp, onSkipTrace }: {
+function CompsTab({ cf, selectedComps, onAddComp, onRemoveComp, onSkipTrace, computedArv, onArvChange }: {
   cf: ClientFile;
   selectedComps: CompProperty[];
   onAddComp: (comp: CompProperty) => void;
   onRemoveComp: (apn: string) => void;
   onSkipTrace?: () => void;
+  computedArv: number;
+  onArvChange: (arv: number) => void;
 }) {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const prRaw = (cf.ownerFlags?.pr_raw ?? {}) as Record<string, any>;
-  const lat = prRaw.Latitude ? parseFloat(String(prRaw.Latitude)) : null;
-  const lng = prRaw.Longitude ? parseFloat(String(prRaw.Longitude)) : null;
+
+  // ── Lat/lng with multi-source fallback + geocoding ──
+  const extracted = extractLatLng(cf);
+  const [geocodedCoords, setGeocodedCoords] = useState<{ lat: number; lng: number } | null>(null);
+  const [geocoding, setGeocoding] = useState(false);
+  const [geocodeError, setGeocodeError] = useState<string | null>(null);
+
+  const lat = extracted.lat ?? geocodedCoords?.lat ?? null;
+  const lng = extracted.lng ?? geocodedCoords?.lng ?? null;
+
+  // Auto-geocode via Nominatim on mount if no lat/lng from data
+  useEffect(() => {
+    if (extracted.lat || extracted.lng || geocodedCoords || !cf.fullAddress) return;
+    let cancelled = false;
+    (async () => {
+      setGeocoding(true);
+      setGeocodeError(null);
+      try {
+        const q = encodeURIComponent(cf.fullAddress);
+        const res = await fetch(
+          `https://nominatim.openstreetmap.org/search?q=${q}&format=json&limit=1`,
+          { headers: { "User-Agent": "SentinelERP/1.0" } },
+        );
+        const data = await res.json();
+        if (cancelled) return;
+        if (data?.[0]?.lat && data?.[0]?.lon) {
+          setGeocodedCoords({ lat: parseFloat(data[0].lat), lng: parseFloat(data[0].lon) });
+        } else {
+          setGeocodeError("Could not geocode address");
+        }
+      } catch {
+        if (!cancelled) setGeocodeError("Geocoding service unavailable");
+      } finally {
+        if (!cancelled) setGeocoding(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [extracted.lat, extracted.lng, geocodedCoords, cf.fullAddress]);
 
   // ARV adjustment state
   const [conditionAdj, setConditionAdj] = useState(0);
@@ -1740,15 +1810,59 @@ function CompsTab({ cf, selectedComps, onAddComp, onRemoveComp, onSkipTrace }: {
     return urls;
   }, [prRaw]);
 
-  if (!lat || !lng) {
+  if (geocoding) {
     return (
       <div className="text-center py-12">
-        <Map className="h-10 w-10 text-muted-foreground mx-auto mb-3" />
-        <p className="text-sm text-muted-foreground mb-2">No location data available</p>
-        <p className="text-xs text-muted-foreground/60">
-          This property needs enrichment from PropertyRadar to get latitude/longitude.
-          Go to the <strong>Overview</strong> tab and click <strong>&ldquo;Enrich + Skip Trace&rdquo;</strong>.
+        <Loader2 className="h-10 w-10 text-cyan mx-auto mb-3 animate-spin" />
+        <p className="text-sm text-muted-foreground">Geocoding address...</p>
+      </div>
+    );
+  }
+
+  if (!lat || !lng) {
+    const handleRetryGeocode = async () => {
+      if (!cf.fullAddress) return;
+      setGeocoding(true);
+      setGeocodeError(null);
+      try {
+        const q = encodeURIComponent(cf.fullAddress);
+        const res = await fetch(
+          `https://nominatim.openstreetmap.org/search?q=${q}&format=json&limit=1`,
+          { headers: { "User-Agent": "SentinelERP/1.0" } },
+        );
+        const data = await res.json();
+        if (data?.[0]?.lat && data?.[0]?.lon) {
+          setGeocodedCoords({ lat: parseFloat(data[0].lat), lng: parseFloat(data[0].lon) });
+        } else {
+          setGeocodeError("Could not geocode — try enriching from PropertyRadar");
+        }
+      } catch {
+        setGeocodeError("Geocoding service unavailable");
+      } finally {
+        setGeocoding(false);
+      }
+    };
+
+    return (
+      <div className="text-center py-12">
+        <MapPinned className="h-10 w-10 text-muted-foreground mx-auto mb-3" />
+        <p className="text-sm text-muted-foreground mb-2">
+          {geocodeError ?? "No location data available"}
         </p>
+        <p className="text-xs text-muted-foreground/60 mb-3">
+          This property needs enrichment from PropertyRadar to get latitude/longitude,
+          or you can try geocoding the address.
+        </p>
+        <div className="flex gap-2 justify-center">
+          <Button variant="outline" size="sm" onClick={handleRetryGeocode} className="gap-1.5">
+            <MapPinned className="h-3 w-3" /> Retry Geocode
+          </Button>
+          {onSkipTrace && (
+            <Button variant="outline" size="sm" onClick={onSkipTrace} className="gap-1.5">
+              <Globe className="h-3 w-3" /> Enrich + Skip Trace
+            </Button>
+          )}
+        </div>
       </div>
     );
   }
@@ -1776,6 +1890,9 @@ function CompsTab({ cf, selectedComps, onAddComp, onRemoveComp, onSkipTrace }: {
   const totalCost = offer + rehabEst + holdingCosts + sellingCosts;
   const profit = arv - totalCost;
   const roi = totalCost > 0 ? Math.round((profit / totalCost) * 100) : 0;
+
+  // Sync computed ARV to parent (flows into Offer Calculator tab)
+  useEffect(() => { if (arv > 0) onArvChange(arv); }, [arv, onArvChange]);
 
   return (
     <div className="space-y-4">
@@ -1887,6 +2004,17 @@ function CompsTab({ cf, selectedComps, onAddComp, onRemoveComp, onSkipTrace }: {
         </div>
       )}
 
+      {/* Condition Adjustment slider */}
+      <div className="rounded-[10px] border border-white/[0.06] bg-[rgba(12,12,22,0.5)] p-3">
+        <div className="flex items-center justify-between mb-2">
+          <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Condition Adjustment</p>
+          <span className={cn("text-xs font-bold", conditionAdj > 0 ? "text-emerald-400" : conditionAdj < 0 ? "text-red-400" : "text-muted-foreground")}>
+            {CONDITION_LABELS[conditionAdj] ?? `${conditionAdj > 0 ? "+" : ""}${conditionAdj}%`}
+          </span>
+        </div>
+        <input type="range" min={-15} max={5} step={5} value={conditionAdj} onChange={(e) => setConditionAdj(Number(e.target.value))} className="w-full h-1.5 accent-[#00d4ff] bg-secondary rounded-full" />
+      </div>
+
       {/* Live ARV + Profit projection */}
       <div className="grid grid-cols-2 gap-4">
         <div className="rounded-lg border border-cyan/15 bg-cyan/4 p-4">
@@ -1906,12 +2034,42 @@ function CompsTab({ cf, selectedComps, onAddComp, onRemoveComp, onSkipTrace }: {
                   <span className="font-semibold">{formatCurrency(avgLastSale)}</span>
                 </div>
               )}
+              {conditionAdj !== 0 && (
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Condition</span>
+                  <span className={cn("font-medium", conditionAdj > 0 ? "text-emerald-400" : "text-red-400")}>
+                    {conditionAdj > 0 ? "+" : ""}{conditionAdj}%
+                  </span>
+                </div>
+              )}
               <div className="pt-2 mt-2 border-t border-cyan/15 flex justify-between">
                 <span className="font-medium">Estimated ARV</span>
                 <span className="font-bold text-neon text-xl" style={{ textShadow: "0 0 10px rgba(0,212,255,0.4)" }}>
                   {formatCurrency(arv)}
                 </span>
               </div>
+            </div>
+          ) : cf.estimatedValue ? (
+            <div className="space-y-1.5 text-xs">
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">AVM (pre-comps)</span>
+                <span className="font-bold text-neon">{formatCurrency(cf.estimatedValue)}</span>
+              </div>
+              {conditionAdj !== 0 && (
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Condition</span>
+                  <span className={cn("font-medium", conditionAdj > 0 ? "text-emerald-400" : "text-red-400")}>
+                    {conditionAdj > 0 ? "+" : ""}{conditionAdj}%
+                  </span>
+                </div>
+              )}
+              <div className="pt-2 mt-2 border-t border-cyan/15 flex justify-between">
+                <span className="font-medium">Est. ARV</span>
+                <span className="font-bold text-neon text-xl" style={{ textShadow: "0 0 10px rgba(0,212,255,0.4)" }}>
+                  {formatCurrency(arv)}
+                </span>
+              </div>
+              <p className="text-[9px] text-muted-foreground/60 pt-1">Add comps for a more accurate ARV</p>
             </div>
           ) : (
             <p className="text-[10px] text-muted-foreground">Add comps to calculate</p>
@@ -1921,19 +2079,26 @@ function CompsTab({ cf, selectedComps, onAddComp, onRemoveComp, onSkipTrace }: {
         <div className="rounded-[12px] border border-glass-border bg-secondary/10 p-4">
           <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-3 flex items-center gap-1.5">
             <DollarSign className="h-3 w-3" />
-            Profit Projection
+            Quick Profit Projection
           </p>
           <div className="space-y-1 text-xs">
             <div className="flex justify-between">
               <span className="text-muted-foreground">ARV</span>
               <span className="font-medium">{formatCurrency(arv)}</span>
             </div>
-            <div className="flex justify-between">
-              <span className="text-muted-foreground">Offer ({offerPct}%)</span>
+            <div className="flex justify-between items-center">
+              <span className="text-muted-foreground flex items-center gap-1">
+                Offer
+                <input type="range" min={50} max={80} step={5} value={offerPct} onChange={(e) => setOfferPct(Number(e.target.value))} className="w-14 h-1 accent-[#00d4ff]" />
+                <span className="text-[10px] font-mono w-7 text-right">{offerPct}%</span>
+              </span>
               <span className="font-medium text-red-400">-{formatCurrency(offer)}</span>
             </div>
-            <div className="flex justify-between">
-              <span className="text-muted-foreground">Rehab</span>
+            <div className="flex justify-between items-center">
+              <span className="text-muted-foreground flex items-center gap-1">
+                Rehab
+                <input type="number" value={rehabEst} onChange={(e) => setRehabEst(Number(e.target.value) || 0)} className="w-16 h-5 text-[10px] text-right bg-white/[0.06] border border-white/[0.1] rounded px-1 font-mono" />
+              </span>
               <span className="font-medium text-red-400">-{formatCurrency(rehabEst)}</span>
             </div>
             <div className="flex justify-between">
@@ -1965,8 +2130,12 @@ function CompsTab({ cf, selectedComps, onAddComp, onRemoveComp, onSkipTrace }: {
 // Tab: Offer Calculator
 // ═══════════════════════════════════════════════════════════════════════
 
-function OfferCalcTab({ cf }: { cf: ClientFile }) {
-  const [arv, setArv] = useState(cf.estimatedValue?.toString() ?? "");
+function OfferCalcTab({ cf, computedArv }: { cf: ClientFile; computedArv: number }) {
+  const bestArv = computedArv > 0 ? computedArv : cf.estimatedValue ?? 0;
+  const [arv, setArv] = useState(bestArv > 0 ? bestArv.toString() : "");
+
+  // Auto-fill ARV when Comps tab computes one
+  useEffect(() => { if (computedArv > 0) setArv(computedArv.toString()); }, [computedArv]);
   const [purchase, setPurchase] = useState("");
   const [rehab, setRehab] = useState("");
   const [holdMonths, setHoldMonths] = useState("3");
@@ -1990,6 +2159,12 @@ function OfferCalcTab({ cf }: { cf: ClientFile }) {
   return (
     <div className="space-y-4">
       <Section title="Deal Inputs" icon={Calculator}>
+        {computedArv > 0 && (
+          <div className="flex items-center gap-1.5 text-[10px] text-cyan/70 mb-2">
+            <CheckCircle2 className="h-3 w-3" />
+            ARV auto-filled from Comps &amp; ARV tab
+          </div>
+        )}
         <div className="grid grid-cols-2 gap-3">
           <NumericInput label="ARV (After Repair Value)" value={arv} onChange={setArv} prefix="$" min={0} />
           <NumericInput label="Purchase Price" value={purchase} onChange={setPurchase} prefix="$" min={0} />
@@ -2158,6 +2333,7 @@ export function MasterClientFileModal({ clientFile, open, onClose, onClaim, onRe
   const [overlay, setOverlay] = useState<SkipTraceOverlay | null>(null);
   const [skipTraceError, setSkipTraceError] = useState<SkipTraceError | null>(null);
   const [selectedComps, setSelectedComps] = useState<CompProperty[]>([]);
+  const [computedArv, setComputedArv] = useState(0);
   const [editOpen, setEditOpen] = useState(false);
   const [claiming, setClaiming] = useState(false);
 
@@ -2228,6 +2404,8 @@ export function MasterClientFileModal({ clientFile, open, onClose, onClaim, onRe
   const handleRemoveComp = useCallback((apn: string) => {
     setSelectedComps((prev) => prev.filter((c) => c.apn !== apn));
   }, []);
+
+  const handleArvChange = useCallback((arv: number) => { setComputedArv(arv); }, []);
 
   const executeSkipTrace = useCallback(async (manual: boolean) => {
     if (!clientFile) return;
@@ -2379,8 +2557,8 @@ export function MasterClientFileModal({ clientFile, open, onClose, onClaim, onRe
                     )}
                     {activeTab === "propertyradar" && <PropertyRadarTab cf={clientFile} />}
                     {activeTab === "county" && <CountyRecordsTab cf={clientFile} />}
-                    {activeTab === "comps" && <CompsTab cf={clientFile} selectedComps={selectedComps} onAddComp={handleAddComp} onRemoveComp={handleRemoveComp} onSkipTrace={handleSkipTrace} />}
-                    {activeTab === "calculator" && <OfferCalcTab cf={clientFile} />}
+                    {activeTab === "comps" && <CompsTab cf={clientFile} selectedComps={selectedComps} onAddComp={handleAddComp} onRemoveComp={handleRemoveComp} onSkipTrace={handleSkipTrace} computedArv={computedArv} onArvChange={handleArvChange} />}
+                    {activeTab === "calculator" && <OfferCalcTab cf={clientFile} computedArv={computedArv} />}
                     {activeTab === "documents" && <DocumentsTab cf={clientFile} />}
                   </motion.div>
                 </AnimatePresence>
