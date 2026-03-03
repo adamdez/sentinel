@@ -74,8 +74,8 @@ const PROPERTY_TYPES = ["SFR", "Multi-Family", "Condo", "Townhome", "Mobile", "L
 const TEAM_MEMBERS = [
   { id: "unassigned", label: "Unassigned (Prospect)" },
   { id: "adam", label: "Adam D.", email: "adam@dominionhomedeals.com" },
-  { id: "nathan", label: "Nathan J.", email: "nathan@dominionhomedeals.com" },
-  { id: "logan", label: "Logan D.", email: "logan@dominionhomedeals.com" },
+  { id: "nathan", label: "Nathan Walsh", email: "nathan@dominionhomedeals.com" },
+  { id: "logan", label: "Logan Anyan", email: "logan@dominionhomedeals.com" },
 ];
 
 type Step = "form" | "confirm";

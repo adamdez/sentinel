@@ -50,8 +50,8 @@ export interface FunnelStep {
 
 export const TEAM_ROSTER = [
   { name: "Adam D.", email: "adam@dominionhomedeals.com", color: "#00ff88" },
-  { name: "Nathan J.", email: "nathan@dominionhomedeals.com", color: "#0099ff" },
-  { name: "Logan D.", email: "logan@dominionhomedeals.com", color: "#a855f7" },
+  { name: "Nathan Walsh", email: "nathan@dominionhomedeals.com", color: "#0099ff" },
+  { name: "Logan Anyan", email: "logan@dominionhomedeals.com", color: "#a855f7" },
 ];
 
 // ── Date range helpers ─────────────────────────────────────────────────
