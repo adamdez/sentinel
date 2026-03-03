@@ -41,7 +41,7 @@ export async function GET(req: NextRequest) {
     // Find all properties with synthetic CRAWL- APNs and their current data
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { data: crawlProps, error: findErr } = await (sb.from("properties") as any)
-      .select("id, apn, city, state, owner_name, zip, owner_flags")
+      .select("id, apn, address, city, state, owner_name, zip, owner_flags")
       .like("apn", "CRAWL-%");
 
     if (findErr) {
@@ -101,29 +101,37 @@ export async function GET(req: NextRequest) {
 
       for (const prop of fixableProps) {
         const city = (prop.city || "").toLowerCase().trim();
+        const cityDisplay = prop.city || "Unknown";
+        const stateDisplay = prop.state || "";
         const currentZip = prop.zip || "";
         const ownerName = prop.owner_name || "";
+        const address = prop.owner_flags?.address_raw ?? "";
         const needsZip = !currentZip && city;
         const needsOwnerFix = ownerName.length > 40 && !ownerName.startsWith("FSBO Owner");
+        // Fix address if it contains owner name (v1 bug: used record.name as address)
+        const currentAddress = (prop as Record<string, unknown>).address as string || "";
+        const needsAddressFix = currentAddress.includes("FSBO") || currentAddress.includes(ownerName);
         const lookupZip = CITY_ZIP[city] || "";
 
-        if (needsZip || needsOwnerFix) {
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          const updates: Record<string, any> = {};
-          if (needsZip && lookupZip) updates.zip = lookupZip;
-          if (needsOwnerFix) {
-            updates.owner_name = `FSBO Owner — ${prop.city || "Unknown"}, ${prop.state || ""}`.trim();
-          }
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const updates: Record<string, any> = {};
+        if (needsZip && lookupZip) updates.zip = lookupZip;
+        if (needsOwnerFix) {
+          updates.owner_name = `FSBO Owner — ${cityDisplay}, ${stateDisplay}`.trim();
+        }
+        if (needsAddressFix) {
+          // Use real address from rawData if available, otherwise city/state
+          updates.address = address || `${cityDisplay}, ${stateDisplay}`;
+        }
 
-          if (Object.keys(updates).length > 0) {
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            const { error: upErr } = await (sb.from("properties") as any)
-              .update(updates).eq("id", prop.id);
-            if (upErr) {
-              console.error(`[MarketplacePoll] Property update failed for ${prop.id}:`, upErr);
-            } else {
-              cleanupStats.propertiesFixed++;
-            }
+        if (Object.keys(updates).length > 0) {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const { error: upErr } = await (sb.from("properties") as any)
+            .update(updates).eq("id", prop.id);
+          if (upErr) {
+            console.error(`[MarketplacePoll] Property update failed for ${prop.id}:`, upErr);
+          } else {
+            cleanupStats.propertiesFixed++;
           }
         }
       }

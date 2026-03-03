@@ -110,7 +110,11 @@ async function ingestRecord(
   const propRecord: Record<string, any> = {
     apn,
     county: record.county,
-    address: record.address ?? `${record.name} — ${record.county}`,
+    // Use real address if available; otherwise construct from city/state/county
+    // Never use record.name as address — it contains owner name, not a street address
+    address: record.address
+      ?? (record.city && record.state ? `${record.city}, ${record.state}` : null)
+      ?? `${record.county} County — pending enrichment`,
     city: record.city ?? "",
     state: record.state ?? "WA",
     zip: (record.rawData?.zip as string) ?? "",

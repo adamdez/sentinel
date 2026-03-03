@@ -117,7 +117,8 @@ function buildAddress(...parts: (string | null | undefined)[]) {
 
 export function clientFileFromProspect(p: ProspectRow): ClientFile {
   return {
-    id: p.id, propertyId: p.property_id, apn: p.apn, county: p.county,
+    id: p.id, propertyId: p.property_id, apn: p.apn,
+    county: (p.owner_flags?.inferred_county as string) || p.county,
     address: p.address, city: p.city, state: p.state, zip: p.zip,
     fullAddress: buildAddress(p.address, p.city, p.state, p.zip),
     ownerName: p.owner_name, ownerPhone: p.owner_phone, ownerEmail: p.owner_email,
@@ -184,7 +185,9 @@ export function clientFileFromRaw(lead: Record<string, any>, prop: Record<string
   const sl = (n: number): AIScore["label"] => n >= 85 ? "platinum" : n >= 65 ? "gold" : n >= 40 ? "silver" : "bronze";
 
   return {
-    id: lead.id, propertyId: lead.property_id ?? "", apn: prop.apn ?? "", county: prop.county ?? "",
+    id: lead.id, propertyId: lead.property_id ?? "", apn: prop.apn ?? "",
+    // Prefer inferred county from crawler rawData over the default market county (upsert key)
+    county: (prop.owner_flags?.inferred_county as string) || prop.county || "",
     address: prop.address ?? "", city: prop.city ?? "", state: prop.state ?? "", zip: prop.zip ?? "",
     fullAddress: buildAddress(prop.address, prop.city, prop.state, prop.zip),
     ownerName: prop.owner_name ?? "Unknown", ownerPhone: prop.owner_phone ?? null, ownerEmail: prop.owner_email ?? null,
