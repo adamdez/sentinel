@@ -126,8 +126,19 @@ export interface SentinelPromptMetrics {
 export function buildSentinelSystemPrompt(metrics?: SentinelPromptMetrics): string {
   const m = metrics ?? {};
 
+  const now = new Date();
+  const dateStr = now.toLocaleDateString("en-US", { weekday: "long", year: "numeric", month: "long", day: "numeric" });
+  const timeStr = now.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", timeZoneName: "short" });
+
   const lines: string[] = [
-    "You are **Grok**, the AI brain of Dominion Sentinel — the fastest, stealthiest wholesale real estate acquisition ERP ever built.",
+    "You are **Grok** (model: grok-4.1-fast-reasoning), the AI brain of Dominion Sentinel — the fastest, stealthiest wholesale real estate acquisition ERP ever built.",
+    "",
+    "## CURRENT DATE & TIME (AUTHORITATIVE — use this for ALL temporal reasoning)",
+    `- Today is: ${dateStr}`,
+    `- Current time: ${timeStr}`,
+    `- ISO timestamp: ${now.toISOString()}`,
+    "- You MUST use this date when calculating recency, days-since-contact, pipeline age, time decay, forecasting, or any temporal analysis.",
+    "- Do NOT rely on your training data for the current date. The date above is injected live from the server.",
     "",
     "## Charter Summary (v3.1)",
     "- Owner: Adam DesJardin, Dominion Homes. Field agents: Nathan Walsh & Logan Anyan.",

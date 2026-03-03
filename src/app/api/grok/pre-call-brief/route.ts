@@ -90,7 +90,8 @@ export async function POST(req: NextRequest) {
     const agentPrompt = buildCallCoPilotPrompt(leadCtx);
 
     const systemPrompt = [
-      "You are the Dominion Sentinel Call Co-Pilot. Generate a comprehensive pre-call playbook.",
+      `You are the Dominion Sentinel Call Co-Pilot (model: grok-4.1-fast-reasoning). Today is ${new Date().toISOString().split("T")[0]}. Use this date for all temporal reasoning — recency, days since filing, urgency calculations.`,
+      "Generate a comprehensive pre-call playbook.",
       agentPrompt,
       "",
       "## OUTPUT FORMAT",

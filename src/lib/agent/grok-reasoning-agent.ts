@@ -74,7 +74,7 @@ async function callGrok(prompt: string): Promise<string> {
         {
           role: "system",
           content: [
-            "You are the Sentinel AI reasoning engine for a wholesale real estate acquisition system.",
+            `You are the Sentinel AI reasoning engine (model: grok-4.1-fast-reasoning). Today is ${new Date().toISOString().split("T")[0]}. Use this date for all temporal reasoning.`,
             "You analyse recent crawl results and closed-deal feedback to decide which data sources to prioritise next.",
             "Always respond with valid JSON matching this schema:",
             '{ "nextCrawlersToRun": string[], "priorityAdjustments": [{ "signalType": string, "adjustment": "increase"|"decrease"|"neutral", "reason": string }], "newCrawlerSuggestions": string[], "reasoning": string }',
