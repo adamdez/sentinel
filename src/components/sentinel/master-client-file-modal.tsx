@@ -1204,9 +1204,18 @@ function ContactTab({ cf, overlay, onSkipTrace, skipTracing, onDial, onSms, call
   const prMailState = prRaw.MailState ?? null;
   const prMailZip = prRaw.MailZip ?? null;
   const mailingFromPersons = persons.find((p: Record<string, unknown>) => p.mailing_address || p.mailingAddress);
+  const safeMailing = (val: unknown): string => {
+    if (!val) return "";
+    if (typeof val === "string") return val;
+    if (typeof val === "object" && val !== null) {
+      const a = val as Record<string, unknown>;
+      return [a.street, a.city, a.state, a.zip].filter(Boolean).join(", ");
+    }
+    return "";
+  };
   const defaultMailing = prMailAddr
     ? [prMailAddr, prMailCity, prMailState, prMailZip].filter(Boolean).join(", ")
-    : (mailingFromPersons?.mailing_address as string) ?? (mailingFromPersons?.mailingAddress as string) ?? "";
+    : safeMailing(mailingFromPersons?.mailing_address) || safeMailing(mailingFromPersons?.mailingAddress);
 
   // ── Editable state ──
   const [editing, setEditing] = useState(false);
@@ -1642,7 +1651,13 @@ function ContactTab({ cf, overlay, onSkipTrace, skipTracing, onDial, onSms, call
                   {person.age && <span className="text-[10px] text-muted-foreground">Age {person.age}</span>}
                   {person.occupation && <span className="text-[10px] text-muted-foreground ml-2">{person.occupation}</span>}
                   {person.mailing_address && (
-                    <p className="text-[10px] text-muted-foreground/70 mt-0.5">{person.mailing_address}</p>
+                    <p className="text-[10px] text-muted-foreground/70 mt-0.5">
+                      {typeof person.mailing_address === "string"
+                        ? person.mailing_address
+                        : typeof person.mailing_address === "object"
+                          ? [person.mailing_address.street, person.mailing_address.city, person.mailing_address.state, person.mailing_address.zip].filter(Boolean).join(", ")
+                          : ""}
+                    </p>
                   )}
                 </div>
               </div>

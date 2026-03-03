@@ -619,7 +619,7 @@ export function skipTraceResultToOwnerFlags(result: SkipTraceResult): Record<str
       age: p.age,
       phones: p.phones,
       emails: p.emails,
-      mailing_address: p.mailingAddress,
+      mailing_address: typeof p.mailingAddress === "string" ? p.mailingAddress : null,
       occupation: p.occupation,
       is_primary: p.isPrimary,
       source: p.source,

@@ -250,7 +250,17 @@ function parseSkipTraceResponse(data: any): BatchDataSkipTraceResult {
       fullName,
       phones: personPhones,
       emails: personEmails,
-      mailingAddress: person.mailingAddress ?? person.mailing_address ?? undefined,
+      mailingAddress: (() => {
+        const raw = person.mailingAddress ?? person.mailing_address;
+        if (!raw) return undefined;
+        if (typeof raw === "string") return raw;
+        // BatchData sometimes returns mailingAddress as an object with street/city/state/zip
+        if (typeof raw === "object" && raw !== null) {
+          const a = raw as Record<string, unknown>;
+          return [a.street, a.city, a.state, a.zip].filter(Boolean).join(", ") || undefined;
+        }
+        return undefined;
+      })(),
       isLitigator: person.isLitigator ?? person.litigator ?? false,
     });
   }

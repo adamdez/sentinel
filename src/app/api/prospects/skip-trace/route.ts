@@ -238,7 +238,7 @@ export async function POST(req: NextRequest) {
         age: p.age,
         phones: p.phones,
         emails: p.emails,
-        mailing_address: p.mailingAddress,
+        mailing_address: typeof p.mailingAddress === "string" ? p.mailingAddress : (p.mailingAddress && typeof p.mailingAddress === "object" ? [(p.mailingAddress as any).street, (p.mailingAddress as any).city, (p.mailingAddress as any).state, (p.mailingAddress as any).zip].filter(Boolean).join(", ") : null),
         occupation: p.occupation,
         is_primary: p.isPrimary,
         source: p.source,
