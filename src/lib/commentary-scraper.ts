@@ -86,8 +86,11 @@ function extractVerseCommentary(
   const end = endVerse ?? startVerse;
   for (let v = startVerse; v <= end; v++) targetVerses.add(v);
 
-  // Strip HTML tags for text extraction but preserve paragraph breaks
+  // Strip script/style tags entirely BEFORE removing HTML (prevents gibberish from JS/CSS)
   const text = html
+    .replace(/<script[\s\S]*?<\/script>/gi, "")
+    .replace(/<style[\s\S]*?<\/style>/gi, "")
+    .replace(/<noscript[\s\S]*?<\/noscript>/gi, "")
     .replace(/<br\s*\/?>/gi, "\n")
     .replace(/<\/p>/gi, "\n\n")
     .replace(/<\/div>/gi, "\n\n")

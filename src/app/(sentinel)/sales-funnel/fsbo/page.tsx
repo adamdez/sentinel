@@ -4,7 +4,7 @@ import { useState, useMemo, Fragment } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Home, Search, Loader2, Phone, ExternalLink, ArrowUpDown,
-  AlertTriangle, Globe, TrendingUp,
+  AlertTriangle, Globe, TrendingUp, Trash2,
 } from "lucide-react";
 import { PageShell } from "@/components/sentinel/page-shell";
 import { GlassCard } from "@/components/sentinel/glass-card";
@@ -14,6 +14,8 @@ import { cn, formatCurrency } from "@/lib/utils";
 import { useFsboLeads } from "@/hooks/use-fsbo-leads";
 import { MasterClientFileModal, clientFileFromRaw } from "@/components/sentinel/master-client-file-modal";
 import type { ProspectRow } from "@/hooks/use-prospects";
+import { supabase } from "@/lib/supabase";
+import { toast } from "sonner";
 
 // ── Constants ─────────────────────────────────────────────────────────
 
@@ -100,6 +102,24 @@ export default function FsboPage() {
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
   const { rows, loading, error, totalCount, refetch } = useFsboLeads({ search, sortField, sortDir });
   const [selectedRow, setSelectedRow] = useState<ProspectRow | null>(null);
+  const [deleting, setDeleting] = useState<string | null>(null);
+
+  const handleDelete = async (row: ProspectRow, e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!confirm(`Delete "${row.owner_name}" at ${row.address}?\n\nThis will remove the FSBO lead.`)) return;
+    setDeleting(row.id);
+    try {
+      const { error: delErr } = await supabase.from("leads").delete().eq("id", row.id);
+      if (delErr) {
+        toast.error(`Delete failed: ${delErr.message}`);
+      } else {
+        toast.success(`Deleted: ${row.owner_name}`);
+        refetch();
+      }
+    } finally {
+      setDeleting(null);
+    }
+  };
 
   const stats = useMemo(() => {
     const total = rows.length;
@@ -286,6 +306,16 @@ export default function FsboPage() {
                               )}
                               <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={(e) => { e.stopPropagation(); setSelectedRow(row); }}>
                                 <ExternalLink className="h-3.5 w-3.5" />
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                className="h-7 w-7 p-0 text-red-400/60 hover:text-red-400 hover:bg-red-500/10"
+                                onClick={(e) => handleDelete(row, e)}
+                                disabled={deleting === row.id}
+                                title="Delete"
+                              >
+                                {deleting === row.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
                               </Button>
                             </div>
                           </td>
