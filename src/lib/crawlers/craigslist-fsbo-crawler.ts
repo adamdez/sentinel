@@ -8,14 +8,17 @@
  * Sources (WA/ID focus — expandable):
  *   - Craigslist Spokane (covers Spokane County + Kootenai County)
  *
- * Uses Craigslist's public RSS feeds:
- *   https://{city}.craigslist.org/search/rea?format=rss&housing_type=6
- *   housing_type=6 = "by owner" (FSBO)
+ * Approach: Fetches the Craigslist search page HTML which contains:
+ *   1. JSON-LD structured data (schema.org ItemList) with lat/long, bedrooms, bathrooms, city
+ *   2. Static listing cards with titles, links, and prices
+ * Combines both sources for comprehensive extraction.
+ *
+ * Note: Craigslist RSS feeds (format=rss) are blocked as of 2026. HTML pages
+ * with embedded JSON-LD are the reliable alternative.
  *
  * Each crawled listing is normalized to:
  *   { name, address, city, state, county, date, link, source, distressType: "fsbo" }
  *
- * Address extraction uses regex heuristics; geo coordinates from RSS as fallback.
  * APN resolution deferred to PropertyRadar enrichment pass.
  */
 
@@ -42,7 +45,9 @@ const MARKETS: CraigslistMarket[] = [
     cities: [
       "Spokane", "Spokane Valley", "Liberty Lake", "Cheney",
       "Airway Heights", "Medical Lake", "Deer Park", "Mead",
-      "Coeur d'Alene", "Post Falls", "Hayden", "Rathdrum", "Sandpoint",
+      "Coeur d'Alene", "Coeur D Alene", "Post Falls", "Hayden",
+      "Rathdrum", "Sandpoint", "Greenacres", "Otis Orchards",
+      "Nine Mile Falls", "Colbert", "Elk", "Spirit Lake",
     ],
   },
 ];
@@ -51,11 +56,6 @@ const MARKETS: CraigslistMarket[] = [
 
 const ADDRESS_RE =
   /(\d{1,6}\s+[A-Z][A-Za-z\s.]+(?:St|Ave|Rd|Dr|Ln|Blvd|Ct|Way|Pl|Cir|Ter|Loop|Hwy|Drive|Street|Avenue|Road|Lane|Boulevard|Court|Place|Circle)\.?)/gi;
-
-const CITY_RE = new RegExp(
-  `\\b(${MARKETS.flatMap((m) => m.cities).join("|")})\\b`,
-  "gi"
-);
 
 const PRICE_RE = /\$\s*([\d,]+(?:\.\d{2})?)/g;
 const PHONE_RE = /\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}/g;
@@ -70,19 +70,16 @@ const MOTIVATION_KEYWORDS = [
   "owner financing", "owner will carry", "fixer upper",
   "fixer-upper", "handyman special", "needs work",
   "cash only", "investors welcome", "wholesale",
+  "health issues", "price reduced", "new price",
+  "reduced", "below assessed",
 ];
 
 // ── Helpers ─────────────────────────────────────────────────────────
 
-function extractAddress(text: string): { address: string | null; city: string | null } {
+function extractAddress(text: string): string | null {
   ADDRESS_RE.lastIndex = 0;
-  CITY_RE.lastIndex = 0;
-  const addrMatch = ADDRESS_RE.exec(text);
-  const cityMatch = CITY_RE.exec(text);
-  return {
-    address: addrMatch?.[1]?.trim() ?? null,
-    city: cityMatch?.[1]?.trim() ?? null,
-  };
+  const match = ADDRESS_RE.exec(text);
+  return match?.[1]?.trim() ?? null;
 }
 
 function extractPrice(text: string): number | null {
@@ -118,7 +115,15 @@ function findMotivationKeywords(text: string): string[] {
 }
 
 function stripHtml(html: string): string {
-  return html.replace(/<[^>]*>/g, " ").replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/\s+/g, " ").trim();
+  return html
+    .replace(/<[^>]*>/g, " ")
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
 async function fetchWithTimeout(url: string, timeoutMs = 15000): Promise<string | null> {
@@ -128,121 +133,241 @@ async function fetchWithTimeout(url: string, timeoutMs = 15000): Promise<string 
     const res = await fetch(url, {
       signal: controller.signal,
       headers: {
-        "User-Agent": "Mozilla/5.0 (compatible; DominionBot/1.0; +https://dominionhomedeals.com)",
-        Accept: "application/rss+xml, application/xml, text/xml",
+        "User-Agent":
+          "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
+        Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+        "Accept-Language": "en-US,en;q=0.9",
       },
     });
     clearTimeout(timer);
-    if (!res.ok) return null;
+    if (!res.ok) {
+      console.warn(`[CL-FSBO] HTTP ${res.status} for ${url}`);
+      return null;
+    }
     return await res.text();
-  } catch {
+  } catch (err) {
+    console.warn(`[CL-FSBO] Fetch error for ${url}:`, err);
     return null;
   }
 }
 
-// ── RSS Item Parser ─────────────────────────────────────────────────
+// ── JSON-LD Item ────────────────────────────────────────────────────
 
-interface RSSItem {
-  title: string;
-  link: string;
-  description: string;
-  date: string;
-  geoLat: number | null;
-  geoLong: number | null;
+interface JsonLdItem {
+  name: string;
+  latitude?: number;
+  longitude?: number;
+  numberOfBedrooms?: number;
+  numberOfBathroomsTotal?: number;
+  address?: {
+    streetAddress?: string;
+    addressLocality?: string;
+    addressRegion?: string;
+    postalCode?: string;
+  };
 }
 
-function parseRSSItems(xml: string): RSSItem[] {
-  const items: RSSItem[] = [];
-  const itemRe = /<item>([\s\S]*?)<\/item>/gi;
-  let match: RegExpExecArray | null;
+// ── HTML Listing Card ───────────────────────────────────────────────
 
-  while ((match = itemRe.exec(xml)) !== null) {
-    const block = match[1];
+interface ListingCard {
+  title: string;
+  link: string;
+  price: number | null;
+}
 
-    const titleMatch = /<title><!\[CDATA\[(.*?)\]\]>|<title>(.*?)<\/title>/i.exec(block);
-    const linkMatch = /<link>(.*?)<\/link>/i.exec(block);
-    const descMatch = /<description><!\[CDATA\[([\s\S]*?)\]\]>|<description>([\s\S]*?)<\/description>/i.exec(block);
-    const dateMatch = /<dc:date>(.*?)<\/dc:date>/i.exec(block);
-    const latMatch = /<geo:lat>([\d.-]+)<\/geo:lat>/i.exec(block);
-    const longMatch = /<geo:long>([\d.-]+)<\/geo:long>/i.exec(block);
+// ── Parsers ─────────────────────────────────────────────────────────
 
-    const title = (titleMatch?.[1] ?? titleMatch?.[2] ?? "").trim();
-    const link = (linkMatch?.[1] ?? "").trim();
-    const description = (descMatch?.[1] ?? descMatch?.[2] ?? "").trim();
-    const date = (dateMatch?.[1] ?? new Date().toISOString()).trim();
-
-    if (!title || !link) continue;
-
-    items.push({
-      title,
-      link,
-      description,
-      date: new Date(date).toISOString().slice(0, 10),
-      geoLat: latMatch ? parseFloat(latMatch[1]) : null,
-      geoLong: longMatch ? parseFloat(longMatch[1]) : null,
-    });
+function parseJsonLdItems(html: string): JsonLdItem[] {
+  // Extract JSON-LD script with id="ld_searchpage_results"
+  const scriptRe = /<script[^>]*id\s*=\s*"ld_searchpage_results"[^>]*>([\s\S]*?)<\/script>/i;
+  const match = scriptRe.exec(html);
+  if (!match) {
+    console.warn("[CL-FSBO] No JSON-LD search results found in HTML");
+    return [];
   }
 
-  return items;
+  try {
+    const data = JSON.parse(match[1]);
+    if (data?.["@type"] !== "ItemList" || !Array.isArray(data.itemListElement)) {
+      return [];
+    }
+
+    return data.itemListElement
+      .map((el: { item?: JsonLdItem }) => el.item)
+      .filter((item: JsonLdItem | undefined): item is JsonLdItem => !!item?.name);
+  } catch (err) {
+    console.warn("[CL-FSBO] Failed to parse JSON-LD:", err);
+    return [];
+  }
+}
+
+function parseListingCards(html: string): ListingCard[] {
+  const cards: ListingCard[] = [];
+  // Match each <li class="cl-static-search-result"> block
+  const cardRe = /<li\s+class="cl-static-search-result"[^>]*title="([^"]*)">\s*<a\s+href="([^"]*)"[\s\S]*?<div\s+class="price">([^<]*)<\/div>/gi;
+  let match: RegExpExecArray | null;
+
+  while ((match = cardRe.exec(html)) !== null) {
+    const title = stripHtml(match[1]);
+    const link = match[2].trim();
+    const priceStr = match[3].trim();
+
+    let price: number | null = null;
+    if (priceStr && priceStr !== "$0") {
+      const parsed = parseFloat(priceStr.replace(/[$,]/g, ""));
+      if (!isNaN(parsed) && parsed >= 10000 && parsed <= 10000000) {
+        price = parsed;
+      }
+    }
+
+    if (title && link) {
+      cards.push({ title, link, price });
+    }
+  }
+
+  return cards;
 }
 
 // ── Crawl a Single Market ───────────────────────────────────────────
 
 async function crawlMarket(market: CraigslistMarket): Promise<CrawledRecord[]> {
   const records: CrawledRecord[] = [];
-  const rssUrl = `https://${market.subdomain}.craigslist.org/search/rea?format=rss&housing_type=6&availabilityMode=0`;
+  const searchUrl = `https://${market.subdomain}.craigslist.org/search/rea?housing_type=6`;
 
-  console.log(`[CL-FSBO] Fetching RSS: ${rssUrl}`);
-  const xml = await fetchWithTimeout(rssUrl);
-  if (!xml) {
-    console.warn(`[CL-FSBO] Failed to fetch RSS for ${market.name}`);
+  console.log(`[CL-FSBO] Fetching search page: ${searchUrl}`);
+  const html = await fetchWithTimeout(searchUrl);
+  if (!html) {
+    console.warn(`[CL-FSBO] Failed to fetch search page for ${market.name}`);
     return records;
   }
 
-  const items = parseRSSItems(xml);
-  console.log(`[CL-FSBO] Parsed ${items.length} listings from ${market.name}`);
+  // Parse both data sources
+  const jsonLdItems = parseJsonLdItems(html);
+  const listingCards = parseListingCards(html);
 
-  for (const item of items) {
-    const plainTitle = stripHtml(item.title);
-    const plainDesc = stripHtml(item.description);
-    const combined = `${plainTitle} ${plainDesc}`;
+  console.log(`[CL-FSBO] ${market.name}: ${jsonLdItems.length} JSON-LD items, ${listingCards.length} listing cards`);
 
-    const { address, city } = extractAddress(combined);
-    const price = extractPrice(combined);
-    const { bedrooms, bathrooms } = extractBedBath(combined);
-    const phone = extractPhone(plainDesc);
+  // Build a map from title → listing card for easy lookup
+  const cardsByTitle = new Map<string, ListingCard>();
+  for (const card of listingCards) {
+    cardsByTitle.set(card.title.toLowerCase().trim(), card);
+  }
+
+  // Process each JSON-LD item, enriched with card data
+  const seenLinks = new Set<string>();
+
+  for (let i = 0; i < jsonLdItems.length; i++) {
+    const item = jsonLdItems[i];
+    const itemNameLower = item.name.toLowerCase().trim();
+
+    // Find matching card (by title match or by position)
+    const matchedCard = cardsByTitle.get(itemNameLower) ?? listingCards[i];
+    const link = matchedCard?.link ?? "";
+    const cardPrice = matchedCard?.price ?? null;
+
+    // Skip duplicates (same listing URL)
+    if (link && seenLinks.has(link)) continue;
+    if (link) seenLinks.add(link);
+
+    const plainTitle = stripHtml(item.name);
+    const combined = plainTitle;
+
+    // Extract address from title or JSON-LD streetAddress
+    const addressFromTitle = extractAddress(combined);
+    const addressFromLd = item.address?.streetAddress || null;
+    const address = addressFromTitle || (addressFromLd && addressFromLd.length > 3 ? addressFromLd : null);
+
+    // City from JSON-LD or title
+    const city = item.address?.addressLocality || market.cities[0];
+
+    // State from JSON-LD or market default
+    const state = item.address?.addressRegion || market.state;
+
+    // Price from card HTML (most reliable) or from title extraction
+    const price = cardPrice ?? extractPrice(combined);
+
+    // Bedrooms/bathrooms from JSON-LD (structured) or title extraction
+    const titleBedBath = extractBedBath(combined);
+    const bedrooms = item.numberOfBedrooms ?? titleBedBath.bedrooms;
+    const bathrooms = item.numberOfBathroomsTotal ?? titleBedBath.bathrooms;
+
+    // Phone from title
+    const phone = extractPhone(combined);
+
+    // Motivation keywords
     const motivationKeywords = findMotivationKeywords(combined);
 
-    // Build a name from the listing — use address or title snippet
-    const name = address
-      ? `FSBO ${address}`
-      : `FSBO ${plainTitle.slice(0, 60)}`;
+    // Build record name
+    const name = address ? `FSBO ${address}` : `FSBO ${plainTitle.slice(0, 60)}`;
 
     records.push({
       name,
       address,
-      city: city ?? market.cities[0],
-      state: market.state,
+      city,
+      state,
       county: market.county,
-      date: item.date,
-      link: item.link,
+      date: new Date().toISOString().slice(0, 10),
+      link,
       source: "craigslist",
       distressType: "fsbo",
       rawData: {
-        listing_url: item.link,
+        listing_url: link,
         listing_title: plainTitle,
         price,
         bedrooms,
         bathrooms,
         contact_phone: phone,
-        geo_lat: item.geoLat,
-        geo_long: item.geoLong,
+        geo_lat: item.latitude ?? null,
+        geo_long: item.longitude ?? null,
         motivation_keywords: motivationKeywords,
-        description_snippet: plainDesc.slice(0, 500),
         market_id: market.id,
         platform: "craigslist",
+        city,
+        state,
+        zip: item.address?.postalCode || null,
       },
     });
+  }
+
+  // Also process any listing cards that weren't matched to JSON-LD items
+  for (const card of listingCards) {
+    if (card.link && !seenLinks.has(card.link)) {
+      seenLinks.add(card.link);
+      const combined = card.title;
+      const address = extractAddress(combined);
+      const { bedrooms, bathrooms } = extractBedBath(combined);
+      const phone = extractPhone(combined);
+      const motivationKeywords = findMotivationKeywords(combined);
+      const name = address ? `FSBO ${address}` : `FSBO ${card.title.slice(0, 60)}`;
+
+      records.push({
+        name,
+        address,
+        city: market.cities[0],
+        state: market.state,
+        county: market.county,
+        date: new Date().toISOString().slice(0, 10),
+        link: card.link,
+        source: "craigslist",
+        distressType: "fsbo",
+        rawData: {
+          listing_url: card.link,
+          listing_title: card.title,
+          price: card.price,
+          bedrooms,
+          bathrooms,
+          contact_phone: phone,
+          geo_lat: null,
+          geo_long: null,
+          motivation_keywords: motivationKeywords,
+          market_id: market.id,
+          platform: "craigslist",
+          city: market.cities[0],
+          state: market.state,
+          zip: null,
+        },
+      });
+    }
   }
 
   return records;
