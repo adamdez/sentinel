@@ -64,6 +64,8 @@ export interface SkipTraceResult {
   totalPhoneCount: number;
   totalEmailCount: number;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  prCountyRaw?: Record<string, any>;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   _debugSources?: Record<string, any>;
 }
 
@@ -265,6 +267,7 @@ export async function dualSkipTrace(
     bdSuccess: !!bdResult || !!bdMailResult,
     totalPhoneCount: phones.length,
     totalEmailCount: emails.length,
+    prCountyRaw: prCountyResult?.prRaw,
     _debugSources: {
       prPersons: prResult ? { phones: prResult.phones.length, emails: prResult.emails.length, persons: prResult.persons.length } : "null/error",
       prCounty: prCountyResult ? { phones: prCountyResult.phones.length, emails: prCountyResult.emails.length, phoneNumbers: prCountyResult.phones.map(p => p.number) } : "null/error",
@@ -467,8 +470,10 @@ async function fetchBatchData(
 async function fetchPRCountyPhones(
   apiKey: string,
   radarId: string,
-): Promise<{ phones: UnifiedPhone[]; emails: UnifiedEmail[] }> {
-  const url = `${PR_API_BASE}/${radarId}?Fields=Phone1,Phone2,Email,PhoneAvailability,EmailAvailability&Purchase=1`;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+): Promise<{ phones: UnifiedPhone[]; emails: UnifiedEmail[]; prRaw?: Record<string, any> }> {
+  // Use Fields=All (specific field names not supported on direct path endpoint)
+  const url = `${PR_API_BASE}/${radarId}?Fields=All&Purchase=1`;
   const res = await fetch(url, {
     method: "GET",
     headers: {
@@ -521,7 +526,7 @@ async function fetchPRCountyPhones(
   console.log(`[DualSkip/PR County] radarId=${radarId}: ${phones.length} phones, ${emails.length} emails`,
     phones.length > 0 ? `(${phones.map(p => p.number).join(", ")})` : "(none)");
 
-  return { phones, emails };
+  return { phones, emails, prRaw: prop };
 }
 
 // ── BatchData Mailing Address Fetch ─────────────────────────────────

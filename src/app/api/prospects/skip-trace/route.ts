@@ -178,6 +178,11 @@ export async function POST(req: NextRequest) {
     // Persist results to property record (reuse existingFlags from above)
     const skipFlags = skipTraceResultToOwnerFlags(skipResult);
 
+    // Merge pr_raw from county call if not already present (provides lat/lng, mailing address, etc.)
+    if (skipResult.prCountyRaw && !existingFlags.pr_raw) {
+      skipFlags.pr_raw = skipResult.prCountyRaw;
+    }
+
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const propUpdate: Record<string, any> = {
       owner_flags: { ...existingFlags, ...skipFlags },
