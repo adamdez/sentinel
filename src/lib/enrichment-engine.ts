@@ -1174,7 +1174,7 @@ export async function processEnrichmentBatch(
     .select("id, property_id, priority, source, tags, notes")
     .eq("status", "staging")
     .order("created_at", { ascending: true })
-    .limit(limit * 3); // Fetch extra to filter out pre-enriched
+    .limit(1000); // Fetch all staging leads — filter pre-enriched in memory
 
   if (queryErr) {
     console.error("[Enrich/Batch] Query error:", queryErr.message);

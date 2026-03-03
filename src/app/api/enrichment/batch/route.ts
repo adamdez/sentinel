@@ -34,7 +34,7 @@ export async function GET(req: Request) {
   console.log("[Enrichment/Batch] Cron triggered:", new Date().toISOString());
 
   try {
-    const result = await processEnrichmentBatch(10, 1000);
+    const result = await processEnrichmentBatch(50, 500);
 
     return NextResponse.json({
       success: true,
