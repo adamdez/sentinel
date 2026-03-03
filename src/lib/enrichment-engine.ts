@@ -554,7 +554,7 @@ async function updatePropertyFromPR(sb: any, propertyId: string, pr: any, existi
  * Run dual skip-trace and persist results to the property record.
  * Called conditionally when score >= AUTO_SKIPTRACE_THRESHOLD.
  */
-async function runDualSkipTrace(
+export async function runDualSkipTrace(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   sb: any,
   propertyId: string,

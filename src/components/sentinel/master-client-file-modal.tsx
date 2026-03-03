@@ -1246,13 +1246,13 @@ function OverviewTab({ cf, skipTracing, skipTraceResult, skipTraceMs, overlay, s
     return flags;
   }, [prRaw]);
 
-  const [distressEvents, setDistressEvents] = useState<{ id: string; event_type: string; source: string; created_at: string; severity?: number }[]>([]);
+  const [distressEvents, setDistressEvents] = useState<{ id: string; event_type: string; source: string; created_at: string; severity?: number; raw_data?: Record<string, unknown> }[]>([]);
   useEffect(() => {
     if (!cf.propertyId) return;
     (async () => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { data } = await (supabase.from("distress_events") as any)
-        .select("id, event_type, source, created_at, severity")
+        .select("id, event_type, source, created_at, severity, raw_data")
         .eq("property_id", cf.propertyId)
         .order("created_at", { ascending: false })
         .limit(20);
@@ -1310,8 +1310,52 @@ function OverviewTab({ cf, skipTracing, skipTraceResult, skipTraceMs, overlay, s
   const sectionProperty = useRef<HTMLDivElement>(null);
   const scrollTo = (ref: React.RefObject<HTMLDivElement | null>) => ref.current?.scrollIntoView({ behavior: "smooth", block: "start" });
 
-  const DEFAULT_REHAB = 40000;
-  const mao = cf.estimatedValue ? Math.round(cf.estimatedValue * 0.70 - DEFAULT_REHAB) : null;
+  // ── Value-scaled rehab estimate ──
+  const getRehabEstimate = (arv: number | null, yb: number | null, vacant: boolean): number => {
+    if (!arv) return 40000;
+    const base = Math.round(arv * 0.08);
+    const clamped = Math.max(15000, Math.min(base, 100000));
+    const age = yb ? new Date().getFullYear() - yb : 0;
+    const agePenalty = age > 40 ? Math.floor((age - 40) / 10) * 5000 : 0;
+    const vacantMul = vacant ? 1.25 : 1;
+    return Math.round((clamped + agePenalty) * vacantMul);
+  };
+  const rehabEstimate = getRehabEstimate(cf.estimatedValue, cf.yearBuilt, cf.isVacant);
+  const mao = cf.estimatedValue ? Math.round(cf.estimatedValue * 0.70 - rehabEstimate) : null;
+
+  // ── Signal-specific motivation text ──
+  const getSignalMotivation = (evtType: string, rd?: Record<string, unknown>): string => {
+    switch (evtType) {
+      case "pre_foreclosure": case "foreclosure": {
+        const d = rd?.ForeclosureRecDate ?? rd?.event_date;
+        return d ? `Foreclosure filed ${new Date(String(d)).toLocaleDateString()} — auction pressure` : "Foreclosure filing — auction pressure mounting";
+      }
+      case "tax_lien": case "tax_delinquency": {
+        const amt = rd?.DelinquentAmount ?? rd?.delinquent_amount;
+        const inst = rd?.NumberDelinquentInstallments;
+        return amt ? `Tax delinquent $${Number(amt).toLocaleString()}${inst ? ` — ${inst} installments behind` : ""}` : "Tax delinquent — penalties accumulating";
+      }
+      case "divorce": return "Divorce filing — forced partition possible";
+      case "probate": case "deceased": return "Estate in probate — heirs likely want quick liquidation";
+      case "bankruptcy": return "Bankruptcy filing — motivated to resolve debts";
+      case "code_violation": return "Code violations — mounting fines, pressure to sell";
+      case "vacant": return "Vacant property — carrying costs with no income";
+      case "inherited": return "Inherited property — heirs may want fast liquidation";
+      default: return "Distress signal — may be motivated to sell";
+    }
+  };
+
+  // ── Actual event date extraction from raw_data ──
+  const getEventDate = (evt: { created_at: string; raw_data?: Record<string, unknown> }): { date: string; isActual: boolean } => {
+    const rd = evt.raw_data ?? {};
+    const dateVal = rd.ForeclosureRecDate ?? rd.event_date ?? rd.filing_date ?? rd.recording_date ?? rd.delinquent_date ?? null;
+    if (dateVal && typeof dateVal === "string") {
+      try { return { date: new Date(dateVal).toLocaleDateString(), isActual: true }; } catch { /* fall through */ }
+    }
+    return { date: new Date(evt.created_at).toLocaleDateString(), isActual: false };
+  };
+
+  const [distressExpanded, setDistressExpanded] = useState(true);
 
   const pipelineDays = cf.promotedAt
     ? Math.floor((Date.now() - new Date(cf.promotedAt).getTime()) / 86400000)
@@ -1335,16 +1379,402 @@ function OverviewTab({ cf, skipTracing, skipTraceResult, skipTraceMs, overlay, s
 
   return (
     <div className="space-y-5">
-      {/* ── Next Best Action Banner ── */}
-      <div className={cn("rounded-[10px] px-4 py-2.5 flex items-center gap-3 font-bold text-sm shadow-lg", nextAction.color)}>
-        <nextAction.icon className="h-5 w-5 shrink-0" />
-        <span className="tracking-wide">{nextAction.label}</span>
-        {pipelineDays != null && (
-          <span className="ml-auto text-[10px] font-mono opacity-70">{pipelineDays}d in pipeline</span>
-        )}
+      {/* ═══ 1. CALL CARD — WHO + NUMBER (hero section) ═══ */}
+      <div ref={sectionOwner} className="rounded-[12px] border-2 border-cyan/30 bg-cyan/[0.03] p-4 relative overflow-hidden shadow-[0_0_20px_rgba(0,212,255,0.08)]">
+        <div className="absolute inset-0 bg-gradient-to-br from-cyan/[0.05] via-transparent to-transparent pointer-events-none" />
+        <div className="absolute top-0 inset-x-0 h-[1px] bg-gradient-to-r from-transparent via-cyan/50 to-transparent" />
+
+        <div className="relative z-10">
+          {/* Owner name + badges + next action */}
+          <div className="flex items-center gap-3 mb-3">
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2 flex-wrap">
+                <p className="text-lg font-bold text-foreground truncate">{cf.ownerName || "—"}</p>
+                <RelationshipBadge data={{
+                  ownerAgeInference: cf.prediction?.ownerAgeInference,
+                  lifeEventProbability: cf.prediction?.lifeEventProbability,
+                  tags: cf.tags,
+                  bestAddress: cf.fullAddress,
+                }} />
+                {ownerAge && <span className="text-[10px] text-muted-foreground/60">Age ~{ownerAge}</span>}
+                {pipelineDays != null && <Badge variant="outline" className="text-[8px] border-white/10 text-muted-foreground/60">{pipelineDays}d</Badge>}
+              </div>
+            </div>
+            {/* Next Best Action as inline badge */}
+            <div className={cn("rounded-md px-2.5 py-1.5 flex items-center gap-1.5 text-[10px] font-bold shrink-0 shadow-lg", nextAction.color)}>
+              <nextAction.icon className="h-3.5 w-3.5" />
+              {nextAction.label}
+            </div>
+          </div>
+
+          {/* Mailing Address for absentee owners */}
+          {mailingAddr && (
+            <div className="rounded-[10px] border border-blue-500/15 bg-blue-500/[0.04] p-2.5 mb-3">
+              <div className="flex items-start gap-2">
+                <MapPinned className="h-3.5 w-3.5 text-blue-400/70 mt-0.5 shrink-0" />
+                <div className="flex-1 min-w-0">
+                  <p className="text-[9px] text-blue-400/60 uppercase tracking-widest">Mailing Address (Absentee)</p>
+                  <div className="flex items-center gap-1.5">
+                    <p className="text-sm text-foreground truncate">{typeof mailingAddr === "string" ? mailingAddr : JSON.stringify(mailingAddr)}</p>
+                    <CopyBtn text={typeof mailingAddr === "string" ? mailingAddr : JSON.stringify(mailingAddr)} />
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Litigator Warning */}
+          {isLitigator && (
+            <div className="rounded-[10px] border border-red-500/30 bg-red-500/[0.08] p-3 mb-3">
+              <div className="flex items-center gap-2">
+                <ShieldAlert className="h-4 w-4 text-red-400 shrink-0" />
+                <div>
+                  <p className="text-xs font-bold text-red-400 uppercase">Known TCPA Litigator</p>
+                  <p className="text-[10px] text-red-300/70">Do NOT call or text this owner. High litigation risk.</p>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Phone Dialer Cards */}
+          {phoneDetails.length > 0 ? (
+            <div className="space-y-1.5 mb-3">
+              <div className="flex items-center justify-between">
+                <p className="text-[10px] text-muted-foreground uppercase tracking-wider">
+                  Phone Numbers ({phoneDetails.length})
+                </p>
+                {hasDncNumbers && (
+                  <span className="text-[9px] text-red-400/80 flex items-center gap-1">
+                    <PhoneOff className="h-2.5 w-2.5" />
+                    {phoneDetails.filter((p) => p.dnc).length} DNC
+                  </span>
+                )}
+                {skipProviders.length > 0 && (
+                  <span className="text-[9px] text-muted-foreground/50">{skipProviders.join(" + ")}</span>
+                )}
+              </div>
+              {phoneDetails.map((ph, i) => {
+                const norm = ph.number.replace(/\D/g, "").slice(-10);
+                const hist = dialHistory[norm];
+                const isDnc = ph.dnc;
+                const isBest = i === 0;
+
+                return (
+                  <div
+                    key={norm + i}
+                    className={cn(
+                      "rounded-[10px] border p-2.5 transition-all",
+                      isDnc
+                        ? "border-red-500/20 bg-red-500/[0.04] opacity-60"
+                        : isBest
+                          ? "border-cyan/25 bg-cyan/[0.04]"
+                          : "border-glass-border bg-secondary/5"
+                    )}
+                  >
+                    <div className="flex items-center gap-2.5">
+                      <div className={cn(
+                        "h-7 w-7 rounded-lg flex items-center justify-center shrink-0",
+                        isDnc ? "bg-red-500/10" : "bg-cyan/10"
+                      )}>
+                        {isDnc ? (
+                          <PhoneOff className="h-3.5 w-3.5 text-red-400" />
+                        ) : ph.lineType === "mobile" ? (
+                          <Smartphone className="h-3.5 w-3.5 text-cyan" />
+                        ) : (
+                          <Phone className="h-3.5 w-3.5 text-cyan" />
+                        )}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-1.5">
+                          <span className={cn(
+                            "text-sm font-bold font-mono",
+                            isDnc ? "text-red-400 line-through" : "text-foreground"
+                          )}>
+                            {ph.number}
+                          </span>
+                          {isBest && !isDnc && (
+                            <Badge variant="outline" className="text-[7px] py-0 px-1 border-cyan/30 text-cyan">BEST</Badge>
+                          )}
+                          <Badge variant="outline" className={cn(
+                            "text-[7px] py-0 px-1",
+                            ph.source === "batchdata" ? "border-emerald-500/30 text-emerald-400" : "border-cyan/30 text-cyan/70"
+                          )}>
+                            {ph.source === "batchdata" ? "BD" : "PR"}
+                          </Badge>
+                          {ph.lineType !== "unknown" && (
+                            <span className="text-[8px] text-muted-foreground/50 uppercase">{ph.lineType}</span>
+                          )}
+                          {isDnc && (
+                            <Badge variant="outline" className="text-[7px] py-0 px-1 border-red-500/30 text-red-400">DNC</Badge>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-1.5 mt-0.5">
+                          {hist ? (
+                            <>
+                              <CheckCircle2 className={cn("h-2.5 w-2.5", dispositionColor(hist.lastDisposition))} />
+                              <span className="text-[10px] text-muted-foreground">
+                                Called {hist.count}x · {new Date(hist.lastDate).toLocaleDateString()} · {hist.lastDisposition.replace(/_/g, " ")}
+                              </span>
+                            </>
+                          ) : (
+                            <>
+                              <Circle className="h-2.5 w-2.5 text-cyan/40" />
+                              <span className="text-[10px] text-cyan/50">Not yet called</span>
+                            </>
+                          )}
+                        </div>
+                      </div>
+                      {ph.confidence > 0 && !isDnc && (
+                        <span className={cn(
+                          "text-xs font-bold font-mono shrink-0",
+                          ph.confidence >= 80 ? "text-emerald-400" : ph.confidence >= 60 ? "text-amber-400" : "text-muted-foreground"
+                        )}>
+                          {ph.confidence}%
+                        </span>
+                      )}
+                      {!isDnc && !isLitigator && (
+                        <div className="flex items-center gap-1 shrink-0">
+                          <button
+                            onClick={() => onDial(ph.number)}
+                            disabled={calling}
+                            className="h-7 px-2 rounded-md text-[10px] font-semibold bg-cyan/10 text-cyan hover:bg-cyan/20 border border-cyan/20 transition-all flex items-center gap-1 disabled:opacity-50"
+                          >
+                            <Phone className="h-3 w-3" />Dial
+                          </button>
+                          <button
+                            onClick={() => onSms(ph.number)}
+                            className="h-7 px-2 rounded-md text-[10px] font-semibold bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 border border-emerald-500/20 transition-all flex items-center gap-1"
+                          >
+                            <MessageSquare className="h-3 w-3" />
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          ) : bestPhone ? (
+            <div className="space-y-1.5 mb-3">
+              <p className="text-[10px] text-muted-foreground uppercase tracking-wider">
+                Phone Numbers ({allPhones.length || 1})
+              </p>
+              {(allPhones.length > 0 ? allPhones : [bestPhone]).map((ph: string, i: number) => {
+                const norm = ph.replace(/\D/g, "").slice(-10);
+                const hist = dialHistory[norm];
+                return (
+                  <div key={norm + i} className={cn(
+                    "rounded-[10px] border p-2.5",
+                    i === 0 ? "border-cyan/25 bg-cyan/[0.04]" : "border-glass-border bg-secondary/5"
+                  )}>
+                    <div className="flex items-center gap-2.5">
+                      <div className="h-7 w-7 rounded-lg bg-cyan/10 flex items-center justify-center shrink-0">
+                        <Phone className="h-3.5 w-3.5 text-cyan" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <span className="text-sm font-bold font-mono text-foreground">{ph}</span>
+                        {i === 0 && <Badge variant="outline" className="text-[7px] py-0 px-1 ml-1.5 border-cyan/30 text-cyan">BEST</Badge>}
+                        <div className="flex items-center gap-1.5 mt-0.5">
+                          {hist ? (
+                            <>
+                              <CheckCircle2 className={cn("h-2.5 w-2.5", dispositionColor(hist.lastDisposition))} />
+                              <span className="text-[10px] text-muted-foreground">
+                                Called {hist.count}x · {new Date(hist.lastDate).toLocaleDateString()} · {hist.lastDisposition.replace(/_/g, " ")}
+                              </span>
+                            </>
+                          ) : (
+                            <>
+                              <Circle className="h-2.5 w-2.5 text-cyan/40" />
+                              <span className="text-[10px] text-cyan/50">Not yet called</span>
+                            </>
+                          )}
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-1 shrink-0">
+                        <button
+                          onClick={() => onDial(ph)}
+                          disabled={calling}
+                          className="h-7 px-2 rounded-md text-[10px] font-semibold bg-cyan/10 text-cyan hover:bg-cyan/20 border border-cyan/20 transition-all flex items-center gap-1 disabled:opacity-50"
+                        >
+                          <Phone className="h-3 w-3" />Dial
+                        </button>
+                        <button
+                          onClick={() => onSms(ph)}
+                          className="h-7 px-2 rounded-md text-[10px] font-semibold bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 border border-emerald-500/20 transition-all flex items-center gap-1"
+                        >
+                          <MessageSquare className="h-3 w-3" />
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
+            <button
+              onClick={onSkipTrace}
+              disabled={skipTracing}
+              className="w-full rounded-[10px] border border-dashed border-cyan/30 bg-cyan/[0.03] p-4 mb-3
+                hover:bg-cyan/[0.08] hover:border-cyan/50 transition-all group cursor-pointer"
+            >
+              <div className="flex items-center justify-center gap-2.5">
+                {skipTracing ? <Loader2 className="h-5 w-5 text-cyan animate-spin" /> : <Crosshair className="h-5 w-5 text-cyan/60 group-hover:text-cyan transition-colors" />}
+                <span className="text-sm font-semibold text-cyan/70 group-hover:text-cyan transition-colors">
+                  {skipTracing ? "Enriching…" : "Enrich to Unlock Phone"}
+                </span>
+              </div>
+            </button>
+          )}
+
+          {/* Emails */}
+          {emailDetails.length > 0 ? (
+            <div className="space-y-1 mb-3">
+              <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Emails ({emailDetails.length})</p>
+              {emailDetails.map((em, i) => (
+                <div key={i} className="flex items-center gap-2 text-sm">
+                  <Mail className="h-3 w-3 text-cyan/60" />
+                  <a href={`mailto:${em.email}`} className="text-cyan hover:underline">{em.email}</a>
+                  {i === 0 && <Badge variant="outline" className="text-[8px] py-0">PRIMARY</Badge>}
+                  <Badge variant="outline" className={cn(
+                    "text-[7px] py-0 px-1",
+                    em.source === "batchdata" ? "border-emerald-500/30 text-emerald-400" : "border-cyan/30 text-cyan/70"
+                  )}>
+                    {em.source === "batchdata" ? "BD" : "PR"}
+                  </Badge>
+                  {em.deliverable && (
+                    <Badge variant="outline" className="text-[7px] py-0 px-1 border-emerald-500/30 text-emerald-400">Verified</Badge>
+                  )}
+                </div>
+              ))}
+            </div>
+          ) : allEmails.length > 0 ? (
+            <div className="space-y-1 mb-3">
+              <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Emails ({allEmails.length})</p>
+              {allEmails.map((em: string, i: number) => (
+                <div key={i} className="flex items-center gap-2 text-sm">
+                  <Mail className="h-3 w-3 text-cyan/60" />
+                  <a href={`mailto:${em}`} className="text-cyan hover:underline">{em}</a>
+                  {i === 0 && <Badge variant="outline" className="text-[8px] py-0">PRIMARY</Badge>}
+                </div>
+              ))}
+            </div>
+          ) : displayEmail ? (
+            <InfoRow icon={Mail} label="Email" value={displayEmail} highlight />
+          ) : null}
+
+          {/* Associated Persons */}
+          {persons.length > 0 && (
+            <div className="mt-3 space-y-2">
+              <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Associated Persons</p>
+              {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
+              {persons.map((p: any, i: number) => (
+                <div key={i} className="rounded-md border border-white/[0.06] bg-white/[0.04] p-2.5 text-xs space-y-0.5">
+                  <div className="flex items-center gap-2">
+                    <User className="h-3 w-3 text-muted-foreground" />
+                    <span className="font-semibold text-foreground">{p.name}</span>
+                    <span className="text-muted-foreground">({p.relation})</span>
+                    {p.age && <span className="text-muted-foreground">Age {p.age}</span>}
+                    {p.source && (
+                      <Badge variant="outline" className={cn(
+                        "text-[7px] py-0 px-1",
+                        p.source === "batchdata" ? "border-emerald-500/30 text-emerald-400" : "border-cyan/30 text-cyan/70"
+                      )}>
+                        {p.source === "batchdata" ? "BD" : "PR"}
+                      </Badge>
+                    )}
+                  </div>
+                  {p.phones?.length > 0 && <div className="pl-5 text-muted-foreground">Phones: {p.phones.join(", ")}</div>}
+                  {p.emails?.length > 0 && <div className="pl-5 text-muted-foreground">Emails: {p.emails.join(", ")}</div>}
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Heir Contacts (probate situations) */}
+          {heirContacts.length > 0 && (
+            <div className="mt-3 space-y-2">
+              <p className="text-[10px] text-red-400/80 uppercase tracking-wider font-semibold flex items-center gap-1.5">
+                <AlertTriangle className="h-3 w-3" />Heir / Decision-Maker Contacts
+              </p>
+              {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
+              {heirContacts.map((heir: any, i: number) => (
+                <div key={i} className="rounded-md border border-red-500/15 bg-red-500/[0.04] p-2.5 text-xs space-y-0.5">
+                  <div className="flex items-center gap-2">
+                    <User className="h-3 w-3 text-red-400/60" />
+                    <span className="font-semibold text-foreground">{heir.name ?? "Unknown Heir"}</span>
+                    {heir.role && <span className="text-muted-foreground">({heir.role})</span>}
+                  </div>
+                  {heir.phone && (
+                    <div className="pl-5 flex items-center gap-1.5">
+                      <Phone className="h-2.5 w-2.5 text-cyan/60" />
+                      <button onClick={() => onDial(heir.phone)} className="text-cyan hover:underline font-mono text-xs">{heir.phone}</button>
+                    </div>
+                  )}
+                  {heir.email && (
+                    <div className="pl-5 flex items-center gap-1.5">
+                      <Mail className="h-2.5 w-2.5 text-cyan/60" />
+                      <a href={`mailto:${heir.email}`} className="text-cyan hover:underline">{heir.email}</a>
+                    </div>
+                  )}
+                  {heir.mailing && <div className="pl-5 text-muted-foreground">{heir.mailing}</div>}
+                </div>
+              ))}
+            </div>
+          )}
+
+          {skipTraceResult && !skipTraceError && (
+            <div className={cn("mt-2 text-xs px-3 py-2 rounded-md border", skipTraceResult.startsWith("Found") ? "text-cyan bg-cyan/4 border-cyan/15" : "text-red-400 bg-red-500/5 border-red-500/20")}>
+              <div className="flex items-center justify-between gap-2">
+                <span>{skipTraceResult}</span>
+                {skipTraceMs != null && (
+                  <span className={cn("font-mono text-[10px] shrink-0 px-1.5 py-0.5 rounded", skipTraceMs <= 2000 ? "text-cyan bg-cyan/8" : "text-amber-400 bg-amber-500/10")}>
+                    {(skipTraceMs / 1000).toFixed(2)}s
+                  </span>
+                )}
+              </div>
+            </div>
+          )}
+
+          {skipTraceError && (
+            <div className="mt-2 rounded-[10px] border border-red-500/20 bg-red-500/5 p-3 space-y-2">
+              <div className="flex items-start gap-2">
+                <AlertTriangle className="h-4 w-4 text-red-400 shrink-0 mt-0.5" />
+                <div className="flex-1 min-w-0 space-y-1">
+                  <p className="text-xs font-semibold text-red-400">{skipTraceError.error}</p>
+                  {skipTraceError.reason && <p className="text-[11px] text-red-300/80">{skipTraceError.reason}</p>}
+                  {skipTraceError.address_issues && skipTraceError.address_issues.length > 0 && (
+                    <div className="space-y-0.5">
+                      {skipTraceError.address_issues.map((issue, i) => (
+                        <p key={i} className="text-[10px] text-amber-400/80 flex items-center gap-1">
+                          <span className="text-amber-400">&#9679;</span>{issue}
+                        </p>
+                      ))}
+                    </div>
+                  )}
+                  {skipTraceError.suggestion && <p className="text-[11px] text-cyan/70 italic">{skipTraceError.suggestion}</p>}
+                  {skipTraceError.tier_reached && <p className="text-[10px] text-muted-foreground/50 font-mono">Lookup stopped at: {skipTraceError.tier_reached}</p>}
+                </div>
+                {skipTraceMs != null && (
+                  <span className="font-mono text-[10px] shrink-0 px-1.5 py-0.5 rounded text-red-400 bg-red-500/10">
+                    {(skipTraceMs / 1000).toFixed(2)}s
+                  </span>
+                )}
+              </div>
+              <Button
+                size="sm"
+                onClick={onManualSkipTrace}
+                disabled={skipTracing}
+                className="w-full gap-2 bg-amber-600 hover:bg-amber-500 text-white border-0 shadow-[0_0_14px_rgba(245,158,11,0.25)] hover:shadow-[0_0_22px_rgba(245,158,11,0.4)] transition-all"
+              >
+                {skipTracing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Zap className="h-3.5 w-3.5" />}
+                Manual Skip Trace — Force Partial Lookup
+              </Button>
+            </div>
+          )}
+        </div>
       </div>
 
-      {/* ── Compliance Gate — DNC / Litigator ── */}
+      {/* ═══ 2. COMPLIANCE GATE — DNC / Litigator ═══ */}
       {(isLitigator || hasDncNumbers) && (
         <div className="rounded-[10px] border border-red-500/40 bg-red-500/[0.12] p-3 flex items-center gap-3">
           <ShieldAlert className="h-5 w-5 text-red-400 shrink-0" />
@@ -1359,77 +1789,145 @@ function OverviewTab({ cf, skipTracing, skipTraceResult, skipTraceMs, overlay, s
         </div>
       )}
 
-      {/* ── Top action bar: Edit + Enrich (small) ── */}
-      <div className="flex items-center justify-between gap-2">
-        {canEdit ? (
-          <button
-            onClick={onEdit}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-[10px] text-[11px] font-semibold
-              text-cyan bg-cyan/[0.06] border border-cyan/20 hover:bg-cyan/[0.12] hover:border-cyan/30
-              shadow-[0_0_10px_rgba(0,212,255,0.06)] hover:shadow-[0_0_18px_rgba(0,212,255,0.12)]
-              transition-all active:scale-[0.97]"
-          >
-            <Pencil className="h-3 w-3" />Edit Details
-          </button>
-        ) : <div />}
+      {/* ═══ 3. PROPERTY SNAPSHOT — Street View + Address + Badges ═══ */}
+      <div ref={sectionProperty} className="rounded-[12px] border border-white/[0.06] bg-white/[0.02] overflow-hidden">
+        {streetViewUrl && (
+          <div className="relative h-40">
+            <img
+              src={streetViewUrl}
+              alt="Property"
+              className="w-full h-full object-cover"
+              onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
+            />
+            <div className="absolute inset-0 bg-gradient-to-t from-[rgba(7,7,13,0.85)] via-[rgba(7,7,13,0.2)] to-transparent pointer-events-none" />
+            <div className="absolute bottom-2 left-3 right-3 flex items-end justify-between">
+              <div className="flex items-center gap-2.5 text-white">
+                {cf.bedrooms != null && (
+                  <span className="text-xs font-bold bg-black/50 backdrop-blur-sm px-2 py-0.5 rounded">{cf.bedrooms}bd / {cf.bathrooms ?? "?"}ba</span>
+                )}
+                {cf.sqft != null && (
+                  <span className="text-xs font-bold bg-black/50 backdrop-blur-sm px-2 py-0.5 rounded">{cf.sqft.toLocaleString()} sqft</span>
+                )}
+                {cf.yearBuilt && (
+                  <span className="text-xs font-bold bg-black/50 backdrop-blur-sm px-2 py-0.5 rounded">Built {cf.yearBuilt}</span>
+                )}
+                {cf.lotSize && (
+                  <span className="text-xs font-bold bg-black/50 backdrop-blur-sm px-2 py-0.5 rounded">{cf.lotSize.toLocaleString()} lot</span>
+                )}
+              </div>
+              <div className="flex items-center gap-1 text-[9px] text-white/50">
+                <ImageIcon className="h-2.5 w-2.5" />Street View
+              </div>
+            </div>
+          </div>
+        )}
+        <div className="p-4 space-y-3">
+          {/* Address + County + APN */}
+          <div className="flex items-start gap-2">
+            <MapPin className="h-3.5 w-3.5 text-cyan/60 mt-0.5 shrink-0" />
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-1.5">
+                <p className="text-sm font-semibold text-foreground truncate">{cf.fullAddress || "—"}</p>
+                {cf.fullAddress && <CopyBtn text={cf.fullAddress} />}
+              </div>
+              <div className="flex items-center gap-3 mt-0.5">
+                {cf.county && <span className="text-[10px] text-muted-foreground">{cf.county} County</span>}
+                {cf.apn && (
+                  <span className="text-[10px] text-muted-foreground/60 font-mono flex items-center gap-1">
+                    APN: {cf.apn} <CopyBtn text={cf.apn} />
+                  </span>
+                )}
+              </div>
+            </div>
+          </div>
 
-        <button
-          onClick={onSkipTrace}
-          disabled={skipTracing}
-          title="Enrich Now"
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-[10px] text-[10px] font-semibold
-            text-cyan/70 bg-cyan/[0.04] border border-cyan/15 hover:bg-cyan/[0.10] hover:border-cyan/25
-            transition-all active:scale-[0.97] disabled:opacity-50"
-        >
-          {skipTracing ? <Loader2 className="h-3 w-3 animate-spin" /> : <Crosshair className="h-3 w-3" />}
-          {skipTracing ? "Enriching…" : "Enrich"}
-        </button>
+          {/* Distress type pill badges */}
+          {(cf.tags.length > 0 || warningFlags.length > 0) && (
+            <div className="flex flex-wrap gap-1.5">
+              {cf.tags.filter((t) => !t.startsWith("score-")).map((tag) => {
+                const cfg = DISTRESS_CFG[tag];
+                return (
+                  <span key={tag} className={cn(
+                    "text-[9px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider border",
+                    cfg?.color ?? "text-cyan/70 bg-cyan/[0.06] border-cyan/20"
+                  )}>
+                    {cfg?.label ?? tag.replace(/_/g, " ")}
+                  </span>
+                );
+              })}
+              {warningFlags.map((f) => (
+                <span key={f.label} className={cn("flex items-center gap-1 px-2 py-0.5 rounded-full border text-[9px] font-bold uppercase tracking-wider", f.color)}>
+                  <AlertTriangle className="h-2.5 w-2.5" />{f.label}
+                </span>
+              ))}
+            </div>
+          )}
+        </div>
       </div>
 
-      {/* ── Property Photo (Street View) with Specs Overlay ── */}
-      {streetViewUrl && (
-        <div className="rounded-[12px] border border-white/[0.08] overflow-hidden relative h-40">
-          <img
-            src={streetViewUrl}
-            alt="Property"
-            className="w-full h-full object-cover"
-            onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
-          />
-          <div className="absolute inset-0 bg-gradient-to-t from-[rgba(7,7,13,0.85)] via-[rgba(7,7,13,0.2)] to-transparent pointer-events-none" />
-          <div className="absolute bottom-2 left-3 right-3 flex items-end justify-between">
-            <div className="flex items-center gap-2.5 text-white">
-              {cf.bedrooms != null && (
-                <span className="text-xs font-bold bg-black/50 backdrop-blur-sm px-2 py-0.5 rounded">{cf.bedrooms}bd / {cf.bathrooms ?? "?"}ba</span>
-              )}
-              {cf.sqft != null && (
-                <span className="text-xs font-bold bg-black/50 backdrop-blur-sm px-2 py-0.5 rounded">{cf.sqft.toLocaleString()} sqft</span>
-              )}
-              {cf.yearBuilt && (
-                <span className="text-xs font-bold bg-black/50 backdrop-blur-sm px-2 py-0.5 rounded">Built {cf.yearBuilt}</span>
-              )}
-              {cf.lotSize && (
-                <span className="text-xs font-bold bg-black/50 backdrop-blur-sm px-2 py-0.5 rounded">{cf.lotSize.toLocaleString()} lot</span>
-              )}
-            </div>
-            <div className="flex items-center gap-1 text-[9px] text-white/50">
-              <ImageIcon className="h-2.5 w-2.5" />Street View
-            </div>
+      {/* ═══ 4. DISTRESS SIGNALS — WHY they're motivated (always expanded) ═══ */}
+      {distressEvents.length > 0 && (
+        <div ref={sectionSignals} className="rounded-[12px] border border-orange-500/20 bg-orange-500/[0.03] p-4 space-y-3">
+          <div className="flex items-center gap-2">
+            <AlertTriangle className="h-3.5 w-3.5 text-orange-400" />
+            <p className="text-[11px] text-orange-400/80 uppercase tracking-wider font-semibold">Distress Signals</p>
+            <Badge variant="outline" className="text-[9px] ml-1 border-orange-500/20 text-orange-400/70">{distressEvents.length}</Badge>
+            {distressEvents.length > 5 && (
+              <button onClick={() => setDistressExpanded(!distressExpanded)} className="ml-auto text-[9px] text-orange-400/50 hover:text-orange-400 transition-colors">
+                {distressExpanded ? "show less" : `show all ${distressEvents.length}`}
+              </button>
+            )}
+          </div>
+          <div className="space-y-1.5">
+            {(distressExpanded ? distressEvents : distressEvents.slice(0, 5)).map((evt) => {
+              const cfg = DISTRESS_CFG[evt.event_type];
+              const EvtIcon = cfg?.icon ?? AlertTriangle;
+              const evtDate = getEventDate(evt);
+              const daysAgo = Math.floor((Date.now() - new Date(evt.created_at).getTime()) / 86400000);
+              const isRecent = daysAgo <= 30;
+              const motivation = getSignalMotivation(evt.event_type, evt.raw_data ?? undefined);
+              return (
+                <div key={evt.id} className={cn("rounded-[10px] border p-3 text-xs", isRecent ? "border-orange-500/25 bg-orange-500/[0.06]" : "border-white/[0.06] bg-white/[0.02]")}>
+                  <div className="flex items-center gap-2.5">
+                    <EvtIcon className={cn("h-3.5 w-3.5 shrink-0", isRecent ? "text-orange-400" : "text-muted-foreground/50")} />
+                    <div className="flex-1 min-w-0">
+                      <span className={cn("font-semibold", isRecent ? "text-orange-300" : "text-foreground")}>{cfg?.label ?? evt.event_type}</span>
+                      {evt.source && <span className="text-muted-foreground/50 ml-1.5">via {evt.source}</span>}
+                    </div>
+                    <div className="text-right shrink-0">
+                      <p className={cn("font-mono text-[10px]", isRecent ? "text-orange-400 font-bold" : "text-muted-foreground/50")}>{evtDate.date}</p>
+                      {!evtDate.isActual && <p className="text-[8px] text-muted-foreground/30">crawl date</p>}
+                    </div>
+                    {isRecent && <Flame className="h-3 w-3 text-red-400 shrink-0" />}
+                  </div>
+                  <p className={cn("mt-1 pl-6 text-[10px] font-medium", isRecent ? "text-orange-300/80" : "text-muted-foreground/60")}>{motivation}</p>
+                </div>
+              );
+            })}
           </div>
         </div>
       )}
 
-      {/* ── Warning Badges (Listed / Auction / Bank-Owned) ── */}
-      {warningFlags.length > 0 && (
-        <div className="flex flex-wrap gap-1.5">
-          {warningFlags.map((f) => (
-            <div key={f.label} className={cn("flex items-center gap-1 px-2.5 py-1 rounded-md border text-[10px] font-bold uppercase tracking-wider", f.color)}>
-              <AlertTriangle className="h-3 w-3" />{f.label}
+      {/* ═══ 5. QUICK MAO — WHAT to offer (enhanced rehab) ═══ */}
+      {mao != null && mao > 0 && (
+        <div className="rounded-[10px] border border-cyan/15 bg-cyan/[0.03] px-4 py-2.5">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Target className="h-4 w-4 text-cyan/60" />
+              <span className="text-xs text-muted-foreground">Quick MAO:</span>
+              <span className="text-sm font-bold text-neon font-mono" style={{ textShadow: "0 0 10px rgba(0,212,255,0.25)" }}>{formatCurrency(mao)}</span>
             </div>
-          ))}
+            <span className="text-[9px] text-muted-foreground/50">{formatCurrency(cf.estimatedValue!)} × 70% − {formatCurrency(rehabEstimate)} rehab</span>
+          </div>
+          {rehabEstimate !== 40000 && (
+            <p className="text-[8px] text-muted-foreground/40 mt-1 pl-6">
+              Rehab est: 8% ARV{cf.yearBuilt && cf.yearBuilt < (new Date().getFullYear() - 40) ? ` + age penalty (${new Date().getFullYear() - cf.yearBuilt}yr)` : ""}{cf.isVacant ? " + vacant 1.25×" : ""}, clamped $15K–$100K
+            </p>
+          )}
         </div>
       )}
 
-      {/* ── Lead Intelligence — Replaces Score Tiles ── */}
+      {/* ═══ 6. LEAD INTELLIGENCE — 4 Tiles ═══ */}
       <div className="rounded-[12px] border border-cyan/15 bg-cyan/[0.02] p-4 space-y-3">
         <div className="flex items-center gap-2">
           <TrendingUp className="h-3.5 w-3.5 text-cyan" />
@@ -1682,503 +2180,115 @@ function OverviewTab({ cf, skipTracing, skipTraceResult, skipTraceMs, overlay, s
         </div>
       </div>
 
-      {/* ── Owner & Contact — Best Phone + Confidence ── */}
-      <div ref={sectionOwner} className="rounded-[12px] border border-glass-border bg-secondary/10 p-4">
-        <div className="flex items-center gap-2 mb-3">
-          <User className="h-3.5 w-3.5 text-muted-foreground" />
-          <p className="text-[11px] text-muted-foreground uppercase tracking-wider font-semibold">Owner & Contact</p>
-        </div>
-
-        <div className="flex items-center gap-3 mb-3">
-          <p className="text-sm font-semibold text-foreground">{cf.ownerName || "—"}</p>
-          <RelationshipBadge data={{
-            ownerAgeInference: cf.prediction?.ownerAgeInference,
-            lifeEventProbability: cf.prediction?.lifeEventProbability,
-            tags: cf.tags,
-            bestAddress: cf.fullAddress,
-          }} />
-        </div>
-
-        {/* Mailing Address for absentee owners */}
-        {mailingAddr && (
-          <div className="rounded-[10px] border border-blue-500/15 bg-blue-500/[0.04] p-2.5 mb-3">
-            <div className="flex items-start gap-2">
-              <MapPinned className="h-3.5 w-3.5 text-blue-400/70 mt-0.5 shrink-0" />
-              <div className="flex-1 min-w-0">
-                <p className="text-[9px] text-blue-400/60 uppercase tracking-widest">Mailing Address (Absentee)</p>
-                <div className="flex items-center gap-1.5">
-                  <p className="text-sm text-foreground truncate">{typeof mailingAddr === "string" ? mailingAddr : JSON.stringify(mailingAddr)}</p>
-                  <CopyBtn text={typeof mailingAddr === "string" ? mailingAddr : JSON.stringify(mailingAddr)} />
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* ── Litigator Warning ── */}
-        {isLitigator && (
-          <div className="rounded-[10px] border border-red-500/30 bg-red-500/[0.08] p-3 mb-3">
-            <div className="flex items-center gap-2">
-              <ShieldAlert className="h-4 w-4 text-red-400 shrink-0" />
-              <div>
-                <p className="text-xs font-bold text-red-400 uppercase">Known TCPA Litigator</p>
-                <p className="text-[10px] text-red-300/70">Do NOT call or text this owner. High litigation risk.</p>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* ── Phone Dialer Cards ── */}
-        {phoneDetails.length > 0 ? (
-          <div className="space-y-1.5 mb-3">
-            <div className="flex items-center justify-between">
-              <p className="text-[10px] text-muted-foreground uppercase tracking-wider">
-                Phone Numbers ({phoneDetails.length})
-              </p>
-              {hasDncNumbers && (
-                <span className="text-[9px] text-red-400/80 flex items-center gap-1">
-                  <PhoneOff className="h-2.5 w-2.5" />
-                  {phoneDetails.filter((p) => p.dnc).length} DNC
-                </span>
-              )}
-              {skipProviders.length > 0 && (
-                <span className="text-[9px] text-muted-foreground/50">{skipProviders.join(" + ")}</span>
-              )}
-            </div>
-            {phoneDetails.map((ph, i) => {
-              const norm = ph.number.replace(/\D/g, "").slice(-10);
-              const hist = dialHistory[norm];
-              const isDnc = ph.dnc;
-              const isBest = i === 0;
-
-              return (
-                <div
-                  key={norm + i}
-                  className={cn(
-                    "rounded-[10px] border p-2.5 transition-all",
-                    isDnc
-                      ? "border-red-500/20 bg-red-500/[0.04] opacity-60"
-                      : isBest
-                        ? "border-cyan/25 bg-cyan/[0.04]"
-                        : "border-glass-border bg-secondary/5"
-                  )}
-                >
-                  <div className="flex items-center gap-2.5">
-                    {/* Line type icon */}
-                    <div className={cn(
-                      "h-7 w-7 rounded-lg flex items-center justify-center shrink-0",
-                      isDnc ? "bg-red-500/10" : "bg-cyan/10"
-                    )}>
-                      {isDnc ? (
-                        <PhoneOff className="h-3.5 w-3.5 text-red-400" />
-                      ) : ph.lineType === "mobile" ? (
-                        <Smartphone className="h-3.5 w-3.5 text-cyan" />
-                      ) : (
-                        <Phone className="h-3.5 w-3.5 text-cyan" />
-                      )}
-                    </div>
-
-                    {/* Number + metadata */}
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-1.5">
-                        <span className={cn(
-                          "text-sm font-bold font-mono",
-                          isDnc ? "text-red-400 line-through" : "text-foreground"
-                        )}>
-                          {ph.number}
-                        </span>
-                        {isBest && !isDnc && (
-                          <Badge variant="outline" className="text-[7px] py-0 px-1 border-cyan/30 text-cyan">BEST</Badge>
-                        )}
-                        <Badge variant="outline" className={cn(
-                          "text-[7px] py-0 px-1",
-                          ph.source === "batchdata" ? "border-emerald-500/30 text-emerald-400" : "border-cyan/30 text-cyan/70"
-                        )}>
-                          {ph.source === "batchdata" ? "BD" : "PR"}
-                        </Badge>
-                        {ph.lineType !== "unknown" && (
-                          <span className="text-[8px] text-muted-foreground/50 uppercase">{ph.lineType}</span>
-                        )}
-                        {isDnc && (
-                          <Badge variant="outline" className="text-[7px] py-0 px-1 border-red-500/30 text-red-400">DNC</Badge>
-                        )}
-                      </div>
-
-                      {/* Call status row */}
-                      <div className="flex items-center gap-1.5 mt-0.5">
-                        {hist ? (
-                          <>
-                            <CheckCircle2 className={cn("h-2.5 w-2.5", dispositionColor(hist.lastDisposition))} />
-                            <span className="text-[10px] text-muted-foreground">
-                              Called {hist.count}x · {new Date(hist.lastDate).toLocaleDateString()} · {hist.lastDisposition.replace(/_/g, " ")}
-                            </span>
-                          </>
-                        ) : (
-                          <>
-                            <Circle className="h-2.5 w-2.5 text-cyan/40" />
-                            <span className="text-[10px] text-cyan/50">Not yet called</span>
-                          </>
-                        )}
-                      </div>
-                    </div>
-
-                    {/* Confidence */}
-                    {ph.confidence > 0 && !isDnc && (
-                      <span className={cn(
-                        "text-xs font-bold font-mono shrink-0",
-                        ph.confidence >= 80 ? "text-emerald-400" : ph.confidence >= 60 ? "text-amber-400" : "text-muted-foreground"
-                      )}>
-                        {ph.confidence}%
-                      </span>
-                    )}
-
-                    {/* Action buttons */}
-                    {!isDnc && !isLitigator && (
-                      <div className="flex items-center gap-1 shrink-0">
-                        <button
-                          onClick={() => onDial(ph.number)}
-                          disabled={calling}
-                          className="h-7 px-2 rounded-md text-[10px] font-semibold bg-cyan/10 text-cyan hover:bg-cyan/20 border border-cyan/20 transition-all flex items-center gap-1 disabled:opacity-50"
-                        >
-                          <Phone className="h-3 w-3" />Dial
-                        </button>
-                        <button
-                          onClick={() => onSms(ph.number)}
-                          className="h-7 px-2 rounded-md text-[10px] font-semibold bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 border border-emerald-500/20 transition-all flex items-center gap-1"
-                        >
-                          <MessageSquare className="h-3 w-3" />
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        ) : bestPhone ? (
-          /* Fallback for legacy data (plain string phones, no PhoneDetail) */
-          <div className="space-y-1.5 mb-3">
-            <p className="text-[10px] text-muted-foreground uppercase tracking-wider">
-              Phone Numbers ({allPhones.length || 1})
-            </p>
-            {(allPhones.length > 0 ? allPhones : [bestPhone]).map((ph: string, i: number) => {
-              const norm = ph.replace(/\D/g, "").slice(-10);
-              const hist = dialHistory[norm];
-              return (
-                <div key={norm + i} className={cn(
-                  "rounded-[10px] border p-2.5",
-                  i === 0 ? "border-cyan/25 bg-cyan/[0.04]" : "border-glass-border bg-secondary/5"
-                )}>
-                  <div className="flex items-center gap-2.5">
-                    <div className="h-7 w-7 rounded-lg bg-cyan/10 flex items-center justify-center shrink-0">
-                      <Phone className="h-3.5 w-3.5 text-cyan" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <span className="text-sm font-bold font-mono text-foreground">{ph}</span>
-                      {i === 0 && <Badge variant="outline" className="text-[7px] py-0 px-1 ml-1.5 border-cyan/30 text-cyan">BEST</Badge>}
-                      <div className="flex items-center gap-1.5 mt-0.5">
-                        {hist ? (
-                          <>
-                            <CheckCircle2 className={cn("h-2.5 w-2.5", dispositionColor(hist.lastDisposition))} />
-                            <span className="text-[10px] text-muted-foreground">
-                              Called {hist.count}x · {new Date(hist.lastDate).toLocaleDateString()} · {hist.lastDisposition.replace(/_/g, " ")}
-                            </span>
-                          </>
-                        ) : (
-                          <>
-                            <Circle className="h-2.5 w-2.5 text-cyan/40" />
-                            <span className="text-[10px] text-cyan/50">Not yet called</span>
-                          </>
-                        )}
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-1 shrink-0">
-                      <button
-                        onClick={() => onDial(ph)}
-                        disabled={calling}
-                        className="h-7 px-2 rounded-md text-[10px] font-semibold bg-cyan/10 text-cyan hover:bg-cyan/20 border border-cyan/20 transition-all flex items-center gap-1 disabled:opacity-50"
-                      >
-                        <Phone className="h-3 w-3" />Dial
-                      </button>
-                      <button
-                        onClick={() => onSms(ph)}
-                        className="h-7 px-2 rounded-md text-[10px] font-semibold bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 border border-emerald-500/20 transition-all flex items-center gap-1"
-                      >
-                        <MessageSquare className="h-3 w-3" />
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        ) : (
-          <button
-            onClick={onSkipTrace}
-            disabled={skipTracing}
-            className="w-full rounded-[10px] border border-dashed border-cyan/30 bg-cyan/[0.03] p-4 mb-3
-              hover:bg-cyan/[0.08] hover:border-cyan/50 transition-all group cursor-pointer"
-          >
-            <div className="flex items-center justify-center gap-2.5">
-              {skipTracing ? <Loader2 className="h-5 w-5 text-cyan animate-spin" /> : <Crosshair className="h-5 w-5 text-cyan/60 group-hover:text-cyan transition-colors" />}
-              <span className="text-sm font-semibold text-cyan/70 group-hover:text-cyan transition-colors">
-                {skipTracing ? "Enriching…" : "Enrich to Unlock Phone"}
-              </span>
-            </div>
-          </button>
-        )}
-
-        {/* ── Emails ── */}
-        {emailDetails.length > 0 ? (
-          <div className="space-y-1 mb-3">
-            <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Emails ({emailDetails.length})</p>
-            {emailDetails.map((em, i) => (
-              <div key={i} className="flex items-center gap-2 text-sm">
-                <Mail className="h-3 w-3 text-cyan/60" />
-                <a href={`mailto:${em.email}`} className="text-cyan hover:underline">{em.email}</a>
-                {i === 0 && <Badge variant="outline" className="text-[8px] py-0">PRIMARY</Badge>}
-                <Badge variant="outline" className={cn(
-                  "text-[7px] py-0 px-1",
-                  em.source === "batchdata" ? "border-emerald-500/30 text-emerald-400" : "border-cyan/30 text-cyan/70"
-                )}>
-                  {em.source === "batchdata" ? "BD" : "PR"}
-                </Badge>
-                {em.deliverable && (
-                  <Badge variant="outline" className="text-[7px] py-0 px-1 border-emerald-500/30 text-emerald-400">Verified</Badge>
-                )}
-              </div>
-            ))}
-          </div>
-        ) : allEmails.length > 0 ? (
-          <div className="space-y-1 mb-3">
-            <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Emails ({allEmails.length})</p>
-            {allEmails.map((em: string, i: number) => (
-              <div key={i} className="flex items-center gap-2 text-sm">
-                <Mail className="h-3 w-3 text-cyan/60" />
-                <a href={`mailto:${em}`} className="text-cyan hover:underline">{em}</a>
-                {i === 0 && <Badge variant="outline" className="text-[8px] py-0">PRIMARY</Badge>}
-              </div>
-            ))}
-          </div>
-        ) : displayEmail ? (
-          <InfoRow icon={Mail} label="Email" value={displayEmail} highlight />
-        ) : null}
-
-        {/* ── Associated Persons ── */}
-        {persons.length > 0 && (
-          <div className="mt-3 space-y-2">
-            <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Associated Persons</p>
-            {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
-            {persons.map((p: any, i: number) => (
-              <div key={i} className="rounded-md border border-white/[0.06] bg-white/[0.04] p-2.5 text-xs space-y-0.5">
-                <div className="flex items-center gap-2">
-                  <User className="h-3 w-3 text-muted-foreground" />
-                  <span className="font-semibold text-foreground">{p.name}</span>
-                  <span className="text-muted-foreground">({p.relation})</span>
-                  {p.age && <span className="text-muted-foreground">Age {p.age}</span>}
-                  {p.source && (
-                    <Badge variant="outline" className={cn(
-                      "text-[7px] py-0 px-1",
-                      p.source === "batchdata" ? "border-emerald-500/30 text-emerald-400" : "border-cyan/30 text-cyan/70"
-                    )}>
-                      {p.source === "batchdata" ? "BD" : "PR"}
-                    </Badge>
-                  )}
-                </div>
-                {p.phones?.length > 0 && <div className="pl-5 text-muted-foreground">Phones: {p.phones.join(", ")}</div>}
-                {p.emails?.length > 0 && <div className="pl-5 text-muted-foreground">Emails: {p.emails.join(", ")}</div>}
-              </div>
-            ))}
-          </div>
-        )}
-
-        {/* ── Heir Contacts (probate situations) ── */}
-        {heirContacts.length > 0 && (
-          <div className="mt-3 space-y-2">
-            <p className="text-[10px] text-red-400/80 uppercase tracking-wider font-semibold flex items-center gap-1.5">
-              <AlertTriangle className="h-3 w-3" />Heir / Decision-Maker Contacts
-            </p>
-            {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
-            {heirContacts.map((heir: any, i: number) => (
-              <div key={i} className="rounded-md border border-red-500/15 bg-red-500/[0.04] p-2.5 text-xs space-y-0.5">
-                <div className="flex items-center gap-2">
-                  <User className="h-3 w-3 text-red-400/60" />
-                  <span className="font-semibold text-foreground">{heir.name ?? "Unknown Heir"}</span>
-                  {heir.role && <span className="text-muted-foreground">({heir.role})</span>}
-                </div>
-                {heir.phone && (
-                  <div className="pl-5 flex items-center gap-1.5">
-                    <Phone className="h-2.5 w-2.5 text-cyan/60" />
-                    <button onClick={() => onDial(heir.phone)} className="text-cyan hover:underline font-mono text-xs">{heir.phone}</button>
-                  </div>
-                )}
-                {heir.email && (
-                  <div className="pl-5 flex items-center gap-1.5">
-                    <Mail className="h-2.5 w-2.5 text-cyan/60" />
-                    <a href={`mailto:${heir.email}`} className="text-cyan hover:underline">{heir.email}</a>
-                  </div>
-                )}
-                {heir.mailing && <div className="pl-5 text-muted-foreground">{heir.mailing}</div>}
-              </div>
-            ))}
-          </div>
-        )}
-
-        {skipTraceResult && !skipTraceError && (
-          <div className={cn("mt-2 text-xs px-3 py-2 rounded-md border", skipTraceResult.startsWith("Found") ? "text-cyan bg-cyan/4 border-cyan/15" : "text-red-400 bg-red-500/5 border-red-500/20")}>
-            <div className="flex items-center justify-between gap-2">
-              <span>{skipTraceResult}</span>
-              {skipTraceMs != null && (
-                <span className={cn("font-mono text-[10px] shrink-0 px-1.5 py-0.5 rounded", skipTraceMs <= 2000 ? "text-cyan bg-cyan/8" : "text-amber-400 bg-amber-500/10")}>
-                  {(skipTraceMs / 1000).toFixed(2)}s
-                </span>
-              )}
-            </div>
-          </div>
-        )}
-
-        {skipTraceError && (
-          <div className="mt-2 rounded-[10px] border border-red-500/20 bg-red-500/5 p-3 space-y-2">
-            <div className="flex items-start gap-2">
-              <AlertTriangle className="h-4 w-4 text-red-400 shrink-0 mt-0.5" />
-              <div className="flex-1 min-w-0 space-y-1">
-                <p className="text-xs font-semibold text-red-400">{skipTraceError.error}</p>
-                {skipTraceError.reason && <p className="text-[11px] text-red-300/80">{skipTraceError.reason}</p>}
-                {skipTraceError.address_issues && skipTraceError.address_issues.length > 0 && (
-                  <div className="space-y-0.5">
-                    {skipTraceError.address_issues.map((issue, i) => (
-                      <p key={i} className="text-[10px] text-amber-400/80 flex items-center gap-1">
-                        <span className="text-amber-400">&#9679;</span>{issue}
-                      </p>
-                    ))}
-                  </div>
-                )}
-                {skipTraceError.suggestion && <p className="text-[11px] text-cyan/70 italic">{skipTraceError.suggestion}</p>}
-                {skipTraceError.tier_reached && <p className="text-[10px] text-muted-foreground/50 font-mono">Lookup stopped at: {skipTraceError.tier_reached}</p>}
-              </div>
-              {skipTraceMs != null && (
-                <span className="font-mono text-[10px] shrink-0 px-1.5 py-0.5 rounded text-red-400 bg-red-500/10">
-                  {(skipTraceMs / 1000).toFixed(2)}s
-                </span>
-              )}
-            </div>
-            <Button
-              size="sm"
-              onClick={onManualSkipTrace}
-              disabled={skipTracing}
-              className="w-full gap-2 bg-amber-600 hover:bg-amber-500 text-white border-0 shadow-[0_0_14px_rgba(245,158,11,0.25)] hover:shadow-[0_0_22px_rgba(245,158,11,0.4)] transition-all"
-            >
-              {skipTracing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Zap className="h-3.5 w-3.5" />}
-              Manual Skip Trace — Force Partial Lookup
-            </Button>
-          </div>
-        )}
-      </div>
-
-      {/* ── Call History Summary — 7-Day Power Sequence ── */}
-      {(cf.totalCalls > 0 || cf.nextCallScheduledAt) && (
+      {/* ═══ 8. CALL HISTORY + AI NOTES (merged) ═══ */}
+      {(cf.totalCalls > 0 || cf.nextCallScheduledAt || summaryNotes.length > 0) && (
         <div className="rounded-[12px] border border-white/[0.06] bg-white/[0.02] p-4 space-y-3">
           <div className="flex items-center gap-2 mb-1">
             <PhoneForwarded className="h-3.5 w-3.5 text-cyan" />
-            <p className="text-[11px] text-muted-foreground uppercase tracking-wider font-semibold">Call History</p>
-            <span className="text-[10px] text-cyan/60 ml-auto font-medium">{getSequenceLabel(cf.callSequenceStep)}</span>
+            <p className="text-[11px] text-muted-foreground uppercase tracking-wider font-semibold">Call History &amp; Notes</p>
+            {cf.totalCalls > 0 && <span className="text-[10px] text-cyan/60 ml-auto font-medium">{getSequenceLabel(cf.callSequenceStep)}</span>}
           </div>
 
-          <div className="relative h-1.5 rounded-full bg-white/[0.06] overflow-hidden">
-            <div
-              className="absolute inset-y-0 left-0 rounded-full transition-all duration-500"
-              style={{
-                width: `${getSequenceProgress(cf.callSequenceStep) * 100}%`,
-                background: "linear-gradient(90deg, rgba(0,229,255,0.6), rgba(0,255,136,0.6))",
-                boxShadow: "0 0 8px rgba(0,229,255,0.3)",
-              }}
-            />
-          </div>
-
-          <div className="grid grid-cols-3 gap-2">
-            <div className="rounded-[10px] border border-white/[0.06] bg-white/[0.03] p-2.5 text-center">
-              <Phone className="h-3 w-3 text-cyan mx-auto mb-1" />
-              <p className="text-lg font-bold text-foreground text-glow-number">{cf.totalCalls}</p>
-              <p className="text-[9px] text-muted-foreground/60 uppercase tracking-wider">Total Calls</p>
-            </div>
-            <div className="rounded-[10px] border border-white/[0.06] bg-white/[0.03] p-2.5 text-center">
-              <PhoneForwarded className="h-3 w-3 text-emerald-400 mx-auto mb-1" />
-              <p className="text-lg font-bold text-emerald-400 text-glow-number">{cf.liveAnswers}</p>
-              <p className="text-[9px] text-muted-foreground/60 uppercase tracking-wider">Live Answers</p>
-            </div>
-            <div className="rounded-[10px] border border-white/[0.06] bg-white/[0.03] p-2.5 text-center">
-              <Voicemail className="h-3 w-3 text-blue-400 mx-auto mb-1" />
-              <p className="text-lg font-bold text-blue-400 text-glow-number">{cf.voicemailsLeft}</p>
-              <p className="text-[9px] text-muted-foreground/60 uppercase tracking-wider">Voicemails</p>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-3">
-            {cf.lastContactAt && (
-              <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground/60">
-                <Clock className="h-3 w-3" />
-                <span>Last: {new Date(cf.lastContactAt).toLocaleDateString("en-US", { month: "short", day: "numeric" })} {new Date(cf.lastContactAt).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}</span>
+          {cf.totalCalls > 0 && (
+            <>
+              <div className="relative h-1.5 rounded-full bg-white/[0.06] overflow-hidden">
+                <div
+                  className="absolute inset-y-0 left-0 rounded-full transition-all duration-500"
+                  style={{
+                    width: `${getSequenceProgress(cf.callSequenceStep) * 100}%`,
+                    background: "linear-gradient(90deg, rgba(0,229,255,0.6), rgba(0,255,136,0.6))",
+                    boxShadow: "0 0 8px rgba(0,229,255,0.3)",
+                  }}
+                />
               </div>
-            )}
-            {cf.nextCallScheduledAt && (
-              <div className="flex items-center gap-1.5 text-[10px] text-cyan/70 ml-auto">
-                <Calendar className="h-3 w-3" />
-                <span>Next: {new Date(cf.nextCallScheduledAt).toLocaleDateString("en-US", { month: "short", day: "numeric" })} {new Date(cf.nextCallScheduledAt).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}</span>
+
+              <div className="grid grid-cols-3 gap-2">
+                <div className="rounded-[10px] border border-white/[0.06] bg-white/[0.03] p-2.5 text-center">
+                  <Phone className="h-3 w-3 text-cyan mx-auto mb-1" />
+                  <p className="text-lg font-bold text-foreground text-glow-number">{cf.totalCalls}</p>
+                  <p className="text-[9px] text-muted-foreground/60 uppercase tracking-wider">Total Calls</p>
+                </div>
+                <div className="rounded-[10px] border border-white/[0.06] bg-white/[0.03] p-2.5 text-center">
+                  <PhoneForwarded className="h-3 w-3 text-emerald-400 mx-auto mb-1" />
+                  <p className="text-lg font-bold text-emerald-400 text-glow-number">{cf.liveAnswers}</p>
+                  <p className="text-[9px] text-muted-foreground/60 uppercase tracking-wider">Live Answers</p>
+                </div>
+                <div className="rounded-[10px] border border-white/[0.06] bg-white/[0.03] p-2.5 text-center">
+                  <Voicemail className="h-3 w-3 text-blue-400 mx-auto mb-1" />
+                  <p className="text-lg font-bold text-blue-400 text-glow-number">{cf.voicemailsLeft}</p>
+                  <p className="text-[9px] text-muted-foreground/60 uppercase tracking-wider">Voicemails</p>
+                </div>
               </div>
-            )}
-          </div>
-        </div>
-      )}
 
-      {/* ── Call Notes History (AI Summaries) ── */}
-      {summaryNotes.length > 0 && (
-        <div className="rounded-[12px] border border-white/[0.06] bg-white/[0.02] p-4 space-y-3">
-          <button
-            onClick={() => setNotesExpanded(!notesExpanded)}
-            className="w-full flex items-center gap-2 mb-1 text-left"
-          >
-            <Zap className="h-3.5 w-3.5 text-purple-400" />
-            <p className="text-[11px] text-muted-foreground uppercase tracking-wider font-semibold">AI Call Notes</p>
-            <Badge variant="outline" className="text-[9px] ml-1 border-purple-500/20 text-purple-400/70">{summaryNotes.length}</Badge>
-            <ChevronRight className={cn("h-3.5 w-3.5 text-muted-foreground/40 ml-auto transition-transform", notesExpanded && "rotate-90")} />
-          </button>
-
-          <AnimatePresence>
-            {notesExpanded && (
-              <motion.div
-                initial={{ height: 0, opacity: 0 }}
-                animate={{ height: "auto", opacity: 1 }}
-                exit={{ height: 0, opacity: 0 }}
-                transition={{ duration: 0.2 }}
-                className="overflow-hidden space-y-2"
-              >
-                {summaryNotes.map((note) => (
-                  <div key={note.id} className="rounded-[10px] border border-white/[0.06] bg-white/[0.03] p-3 space-y-1.5">
-                    <div className="flex items-center gap-2">
-                      <span className="text-[9px] font-semibold uppercase text-purple-400/60">{note.disposition}</span>
-                      <span className="text-[9px] text-muted-foreground/40">
-                        {new Date(note.started_at).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
-                        {" "}
-                        {new Date(note.started_at).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}
-                      </span>
-                      {note.duration_sec > 0 && (
-                        <span className="text-[9px] text-muted-foreground/40 ml-auto">{Math.floor(note.duration_sec / 60)}:{(note.duration_sec % 60).toString().padStart(2, "0")}</span>
-                      )}
-                    </div>
-                    <p className="text-[11px] text-muted-foreground/80 leading-relaxed whitespace-pre-line">{note.ai_summary}</p>
+              <div className="flex items-center gap-3">
+                {cf.lastContactAt && (
+                  <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground/60">
+                    <Clock className="h-3 w-3" />
+                    <span>Last: {new Date(cf.lastContactAt).toLocaleDateString("en-US", { month: "short", day: "numeric" })} {new Date(cf.lastContactAt).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}</span>
                   </div>
-                ))}
-              </motion.div>
-            )}
-          </AnimatePresence>
+                )}
+                {cf.nextCallScheduledAt && (
+                  <div className="flex items-center gap-1.5 text-[10px] text-cyan/70 ml-auto">
+                    <Calendar className="h-3 w-3" />
+                    <span>Next: {new Date(cf.nextCallScheduledAt).toLocaleDateString("en-US", { month: "short", day: "numeric" })} {new Date(cf.nextCallScheduledAt).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}</span>
+                  </div>
+                )}
+              </div>
+            </>
+          )}
 
-          {!notesExpanded && summaryNotes[0] && (
-            <p className="text-[11px] text-muted-foreground/60 leading-relaxed line-clamp-3 whitespace-pre-line">{summaryNotes[0].ai_summary}</p>
+          {/* AI Call Notes inline */}
+          {summaryNotes.length > 0 && (
+            <>
+              {cf.totalCalls > 0 && <div className="border-t border-white/[0.06]" />}
+              <button
+                onClick={() => setNotesExpanded(!notesExpanded)}
+                className="w-full flex items-center gap-2 text-left"
+              >
+                <Zap className="h-3.5 w-3.5 text-purple-400" />
+                <p className="text-[11px] text-muted-foreground uppercase tracking-wider font-semibold">AI Call Notes</p>
+                <Badge variant="outline" className="text-[9px] ml-1 border-purple-500/20 text-purple-400/70">{summaryNotes.length}</Badge>
+                <ChevronRight className={cn("h-3.5 w-3.5 text-muted-foreground/40 ml-auto transition-transform", notesExpanded && "rotate-90")} />
+              </button>
+
+              <AnimatePresence>
+                {notesExpanded && (
+                  <motion.div
+                    initial={{ height: 0, opacity: 0 }}
+                    animate={{ height: "auto", opacity: 1 }}
+                    exit={{ height: 0, opacity: 0 }}
+                    transition={{ duration: 0.2 }}
+                    className="overflow-hidden space-y-2"
+                  >
+                    {summaryNotes.map((note) => (
+                      <div key={note.id} className="rounded-[10px] border border-white/[0.06] bg-white/[0.03] p-3 space-y-1.5">
+                        <div className="flex items-center gap-2">
+                          <span className="text-[9px] font-semibold uppercase text-purple-400/60">{note.disposition}</span>
+                          <span className="text-[9px] text-muted-foreground/40">
+                            {new Date(note.started_at).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
+                            {" "}
+                            {new Date(note.started_at).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}
+                          </span>
+                          {note.duration_sec > 0 && (
+                            <span className="text-[9px] text-muted-foreground/40 ml-auto">{Math.floor(note.duration_sec / 60)}:{(note.duration_sec % 60).toString().padStart(2, "0")}</span>
+                          )}
+                        </div>
+                        <p className="text-[11px] text-muted-foreground/80 leading-relaxed whitespace-pre-line">{note.ai_summary}</p>
+                      </div>
+                    ))}
+                  </motion.div>
+                )}
+              </AnimatePresence>
+
+              {!notesExpanded && summaryNotes[0] && (
+                <p className="text-[11px] text-muted-foreground/60 leading-relaxed line-clamp-3 whitespace-pre-line">{summaryNotes[0].ai_summary}</p>
+              )}
+            </>
           )}
         </div>
       )}
 
-      {/* ── Property Details — Compact Grid ── */}
+      {/* ═══ 9. PROPERTY DETAILS — Tax/Transfer + Predictive (no address — moved to Snapshot) ═══ */}
       <div ref={sectionEquity} className="rounded-[12px] border border-white/[0.06] bg-white/[0.02] p-4 space-y-3">
         <div className="flex items-center gap-2 mb-1">
           <Home className="h-3.5 w-3.5 text-muted-foreground" />
@@ -2186,34 +2296,8 @@ function OverviewTab({ cf, skipTracing, skipTraceResult, skipTraceMs, overlay, s
         </div>
 
         <div className="grid grid-cols-2 gap-2.5">
+          {/* Type / Size */}
           <div className="rounded-[10px] border border-white/[0.06] bg-white/[0.03] p-2.5 col-span-2">
-            <div className="flex items-start gap-2">
-              <MapPin className="h-3.5 w-3.5 text-cyan/60 mt-0.5 shrink-0" />
-              <div className="flex-1 min-w-0">
-                <p className="text-[9px] text-muted-foreground/60 uppercase tracking-widest mb-0.5">Address</p>
-                <div className="flex items-center gap-1.5">
-                  <p className="text-sm font-semibold text-foreground truncate">{cf.fullAddress || "—"}</p>
-                  {cf.fullAddress && <CopyBtn text={cf.fullAddress} />}
-                </div>
-                {cf.county && <p className="text-[10px] text-muted-foreground mt-0.5">{cf.county} County</p>}
-              </div>
-            </div>
-          </div>
-
-          <div className="rounded-[10px] border border-white/[0.06] bg-white/[0.03] p-2.5">
-            <div className="flex items-start gap-2">
-              <LandPlot className="h-3.5 w-3.5 text-cyan/60 mt-0.5 shrink-0" />
-              <div className="flex-1 min-w-0">
-                <p className="text-[9px] text-muted-foreground/60 uppercase tracking-widest mb-0.5">APN</p>
-                <div className="flex items-center gap-1.5">
-                  <p className="text-sm font-mono font-semibold text-foreground truncate">{cf.apn || "—"}</p>
-                  {cf.apn && <CopyBtn text={cf.apn} />}
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div className="rounded-[10px] border border-white/[0.06] bg-white/[0.03] p-2.5">
             <div className="flex items-start gap-2">
               <Building className="h-3.5 w-3.5 text-cyan/60 mt-0.5 shrink-0" />
               <div className="flex-1 min-w-0">
@@ -2294,7 +2378,20 @@ function OverviewTab({ cf, skipTracing, skipTraceResult, skipTraceMs, overlay, s
         </div>
       </div>
 
-      {/* Metadata — Collapsible */}
+      {/* ═══ 10. EDIT DETAILS / ENRICH (demoted) ═══ */}
+      <div className="flex items-center justify-between gap-2">
+        {canEdit ? (
+          <button onClick={onEdit} className="flex items-center gap-1.5 px-3 py-1.5 rounded-[10px] text-[11px] font-semibold text-cyan bg-cyan/[0.06] border border-cyan/20 hover:bg-cyan/[0.12] hover:border-cyan/30 shadow-[0_0_10px_rgba(0,212,255,0.06)] hover:shadow-[0_0_18px_rgba(0,212,255,0.12)] transition-all active:scale-[0.97]">
+            <Pencil className="h-3 w-3" />Edit Details
+          </button>
+        ) : <div />}
+        <button onClick={onSkipTrace} disabled={skipTracing} title="Enrich Now" className="flex items-center gap-1.5 px-3 py-1.5 rounded-[10px] text-[10px] font-semibold text-cyan/70 bg-cyan/[0.04] border border-cyan/15 hover:bg-cyan/[0.10] hover:border-cyan/25 transition-all active:scale-[0.97] disabled:opacity-50">
+          {skipTracing ? <Loader2 className="h-3 w-3 animate-spin" /> : <Crosshair className="h-3 w-3" />}
+          {skipTracing ? "Enriching\u2026" : "Enrich"}
+        </button>
+      </div>
+
+      {/* ═══ 11. METADATA — Collapsible ═══ */}
       <div className="rounded-[12px] border border-glass-border bg-secondary/10">
         <button
           onClick={() => setMetadataOpen(!metadataOpen)}
@@ -2335,56 +2432,7 @@ function OverviewTab({ cf, skipTracing, skipTraceResult, skipTraceMs, overlay, s
         </AnimatePresence>
       </div>
 
-      {/* ── Distress Signal Timeline — Collapsible ── */}
-      {distressEvents.length > 0 && (
-        <div ref={sectionSignals} className="rounded-[12px] border border-orange-500/15 bg-orange-500/[0.02]">
-          <button
-            onClick={() => setTimelinesOpen(!timelinesOpen)}
-            className="w-full flex items-center gap-2 p-4 text-left"
-          >
-            <AlertTriangle className="h-3.5 w-3.5 text-orange-400" />
-            <p className="text-[11px] text-orange-400/80 uppercase tracking-wider font-semibold">Distress Signal Timeline</p>
-            <Badge variant="outline" className="text-[9px] ml-1 border-orange-500/20 text-orange-400/70">{distressEvents.length}</Badge>
-            <ChevronDown className={cn("h-3.5 w-3.5 text-muted-foreground/40 ml-auto transition-transform", timelinesOpen && "rotate-180")} />
-          </button>
-          <AnimatePresence>
-            {timelinesOpen && (
-              <motion.div
-                initial={{ height: 0, opacity: 0 }}
-                animate={{ height: "auto", opacity: 1 }}
-                exit={{ height: 0, opacity: 0 }}
-                transition={{ duration: 0.2 }}
-                className="overflow-hidden"
-              >
-                <div className="px-4 pb-4 space-y-1.5 max-h-48 overflow-y-auto scrollbar-thin">
-                  {distressEvents.map((evt) => {
-                    const cfg = DISTRESS_CFG[evt.event_type];
-                    const EvtIcon = cfg?.icon ?? AlertTriangle;
-                    const daysAgo = Math.floor((Date.now() - new Date(evt.created_at).getTime()) / 86400000);
-                    const isRecent = daysAgo <= 30;
-                    return (
-                      <div key={evt.id} className={cn("flex items-center gap-2.5 px-3 py-2 rounded-[8px] border text-xs", isRecent ? "border-orange-500/20 bg-orange-500/[0.06]" : "border-white/[0.06] bg-white/[0.02]")}>
-                        <EvtIcon className={cn("h-3.5 w-3.5 shrink-0", isRecent ? "text-orange-400" : "text-muted-foreground/50")} />
-                        <div className="flex-1 min-w-0">
-                          <span className={cn("font-semibold", isRecent ? "text-orange-300" : "text-foreground")}>{cfg?.label ?? evt.event_type}</span>
-                          {evt.source && <span className="text-muted-foreground/50 ml-1.5">via {evt.source}</span>}
-                        </div>
-                        <div className="text-right shrink-0">
-                          <p className={cn("font-mono text-[10px]", isRecent ? "text-orange-400 font-bold" : "text-muted-foreground/50")}>{daysAgo}d ago</p>
-                          <p className="text-[9px] text-muted-foreground/40">{new Date(evt.created_at).toLocaleDateString()}</p>
-                        </div>
-                        {isRecent && <Flame className="h-3 w-3 text-red-400 shrink-0" />}
-                      </div>
-                    );
-                  })}
-                </div>
-              </motion.div>
-            )}
-          </AnimatePresence>
-        </div>
-      )}
-
-      {/* ── Activity Timeline — Collapsible ── */}
+      {/* ═══ 12. ACTIVITY TIMELINE — Collapsible ═══ */}
       {activityLog.length > 0 && (
         <div className="rounded-[12px] border border-white/[0.06] bg-white/[0.02]">
           <button
@@ -2432,7 +2480,7 @@ function OverviewTab({ cf, skipTracing, skipTraceResult, skipTraceMs, overlay, s
         </div>
       )}
 
-      {/* ── External Links + County Records ── */}
+      {/* ═══ 13. EXTERNAL LINKS + COUNTY RECORDS ═══ */}
       <div className="rounded-[12px] border border-white/[0.06] bg-white/[0.02] p-4 space-y-3">
         <div className="flex items-center gap-2 mb-1">
           <Globe className="h-3.5 w-3.5 text-muted-foreground" />
