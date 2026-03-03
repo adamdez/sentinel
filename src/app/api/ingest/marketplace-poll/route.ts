@@ -29,36 +29,49 @@ export async function GET(req: NextRequest) {
 
   // ── Cleanup mode: ?cleanup=true purges all CRAWL- records then re-crawls ──
   const cleanup = req.nextUrl.searchParams.get("cleanup") === "true";
+  let purgeStats: { leadsDeleted: number; eventsDeleted: number; propertiesDeleted: number } | null = null;
   if (cleanup) {
     console.log("[MarketplacePoll] === CLEANUP MODE: Purging old FSBO data ===");
     const sb = createServerClient();
-    const purgeStats = { leadsDeleted: 0, eventsDeleted: 0, propertiesDeleted: 0 };
+    purgeStats = { leadsDeleted: 0, eventsDeleted: 0, propertiesDeleted: 0 };
 
     // Find all properties with synthetic CRAWL- APNs
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data: crawlProps } = await (sb.from("properties") as any)
+    const { data: crawlProps, error: findErr } = await (sb.from("properties") as any)
       .select("id")
       .like("apn", "CRAWL-%");
+
+    if (findErr) {
+      console.error("[MarketplacePoll] Failed to find CRAWL properties:", findErr);
+      return NextResponse.json({ success: false, error: "Purge find failed", detail: findErr.message });
+    }
 
     if (crawlProps && crawlProps.length > 0) {
       const propIds = crawlProps.map((p: { id: string }) => p.id);
       console.log(`[MarketplacePoll] Purging ${propIds.length} CRAWL- properties`);
 
-      // Delete leads, events, then properties in order
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { count: lc } = await (sb.from("leads") as any)
-        .delete({ count: "exact" }).in("property_id", propIds);
-      purgeStats.leadsDeleted = lc ?? 0;
+      // Delete in batches of 50 to avoid query size limits
+      for (let i = 0; i < propIds.length; i += 50) {
+        const batch = propIds.slice(i, i + 50);
 
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { count: ec } = await (sb.from("distress_events") as any)
-        .delete({ count: "exact" }).in("property_id", propIds);
-      purgeStats.eventsDeleted = ec ?? 0;
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const { count: lc, error: le } = await (sb.from("leads") as any)
+          .delete({ count: "exact" }).in("property_id", batch);
+        if (le) console.error(`[MarketplacePoll] Lead delete batch error:`, le);
+        purgeStats.leadsDeleted += lc ?? 0;
 
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { count: pc } = await (sb.from("properties") as any)
-        .delete({ count: "exact" }).in("id", propIds);
-      purgeStats.propertiesDeleted = pc ?? 0;
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const { count: ec, error: ee } = await (sb.from("distress_events") as any)
+          .delete({ count: "exact" }).in("property_id", batch);
+        if (ee) console.error(`[MarketplacePoll] Event delete batch error:`, ee);
+        purgeStats.eventsDeleted += ec ?? 0;
+
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const { count: pc, error: pe } = await (sb.from("properties") as any)
+          .delete({ count: "exact" }).in("id", batch);
+        if (pe) console.error(`[MarketplacePoll] Property delete batch error:`, pe);
+        purgeStats.propertiesDeleted += pc ?? 0;
+      }
 
       console.log(`[MarketplacePoll] Purge complete:`, purgeStats);
     } else {
@@ -103,7 +116,8 @@ export async function GET(req: NextRequest) {
 
   console.log(`[MarketplacePoll] === CYCLE COMPLETE in ${elapsed}ms — ${totalCrawled} crawled, ${totalPromoted} promoted, ${totalDuplicates} dupes ===`);
 
-  return NextResponse.json({
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const response: Record<string, any> = {
     success: true,
     crawlers: results,
     summary: {
@@ -113,5 +127,12 @@ export async function GET(req: NextRequest) {
       elapsed_ms: elapsed,
     },
     timestamp: new Date().toISOString(),
-  });
+  };
+
+  // Include purge stats if cleanup was requested
+  if (cleanup && purgeStats) {
+    response.cleanup = purgeStats;
+  }
+
+  return NextResponse.json(response);
 }
