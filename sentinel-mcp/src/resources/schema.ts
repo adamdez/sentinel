@@ -75,8 +75,8 @@ Columns: id (uuid PK), action, entity_type, entity_id, actor, lead_id (FK→lead
 
 ## Team
 - Adam D. (admin) — adam@dominionhomedeals.com
-- Nathan J. (agent) — nathan@dominionhomedeals.com
-- Logan D. (agent) — logan@dominionhomedeals.com
+- Nathan Walsh (agent) — nathan@dominionhomedeals.com
+- Logan Anyan (agent) — logan@dominionhomedeals.com
 
 ## Score Tiers
 - Platinum: composite_score >= 85
