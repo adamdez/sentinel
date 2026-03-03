@@ -108,15 +108,24 @@ const CITY_ZIP_MAP: Record<string, string> = {
   // Bonner County, ID
   "sandpoint": "83864", "ponderay": "83852", "priest river": "83856",
   "priest lake": "83856", "sagle": "83860", "hope": "83836",
-  "clark fork": "83811",
+  "clark fork": "83811", "colburn": "83865",
+  // Clearwater County, ID
+  "elk river": "83827", "orofino": "83544",
+  // Benewah County, ID
+  "medimont": "83842", "st. maries": "83861", "santa": "83866",
   // Shoshone County, ID
   "kellogg": "83837", "wallace": "83873", "silverton": "83867",
   // Stevens County, WA
   "chewelah": "99109", "colville": "99114", "kettle falls": "99141",
+  // Okanogan County, WA
+  "wauconda": "98859", "okanogan": "98840", "omak": "98841",
   // Other nearby
   "moscow": "83843", "pullman": "99163", "lewiston": "83501",
   "clarkston": "99403", "oldtown": "83822", "newport": "99156",
   "bonners ferry": "83805",
+  // Flathead County, MT
+  "somers": "59932", "bigfork": "59911", "kalispell": "59901",
+  "whitefish": "59937", "lakeside": "59922", "columbia falls": "59912",
   // Sanders County, MT
   "plains": "59859", "thompson falls": "59873", "trout creek": "59874",
   // Mineral County, MT
@@ -134,18 +143,19 @@ function inferCounty(city: string, state: string): string {
          "rathdrum", "spirit lake", "athol", "harrison", "worley",
          "dalton gardens", "hauser", "huetter"].includes(key)) return "Kootenai";
     if (["sandpoint", "ponderay", "priest river", "priest lake", "sagle",
-         "hope", "clark fork", "bonners ferry"].includes(key)) return "Bonner";
+         "hope", "clark fork", "bonners ferry", "colburn"].includes(key)) return "Bonner";
     if (["kellogg", "wallace", "silverton"].includes(key)) return "Shoshone";
     if (["oldtown"].includes(key)) return "Bonner";
     if (["moscow"].includes(key)) return "Latah";
     if (["lewiston"].includes(key)) return "Nez Perce";
-    if (["medimont"].includes(key)) return "Kootenai";
+    if (["medimont", "st. maries", "santa"].includes(key)) return "Benewah";
+    if (["elk river", "orofino"].includes(key)) return "Clearwater";
   }
   // Montana cities
   if (st === "MT") {
     if (["plains", "thompson falls", "trout creek"].includes(key)) return "Sanders";
     if (["saint regis", "st. regis", "superior"].includes(key)) return "Mineral";
-    if (["somers", "bigfork", "kalispell", "whitefish"].includes(key)) return "Flathead";
+    if (["somers", "bigfork", "kalispell", "whitefish", "lakeside", "columbia falls"].includes(key)) return "Flathead";
     if (["missoula"].includes(key)) return "Missoula";
   }
   // WA cities
@@ -156,6 +166,7 @@ function inferCounty(city: string, state: string): string {
          "four lakes", "valleyford", "spangle", "rockford", "fairfield",
          "latah", "waverly", "marshall"].includes(key)) return "Spokane";
     if (["chewelah", "colville", "kettle falls"].includes(key)) return "Stevens";
+    if (["wauconda", "okanogan", "omak"].includes(key)) return "Okanogan";
     if (["pullman"].includes(key)) return "Whitman";
     if (["clarkston"].includes(key)) return "Asotin";
     if (["newport"].includes(key)) return "Pend Oreille";
