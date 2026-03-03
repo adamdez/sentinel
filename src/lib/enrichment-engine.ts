@@ -278,9 +278,11 @@ export async function enrichProperty(
       const score = await runScoringPipelineFromFlags(sb, propertyId, property, signals);
 
       // Conditional dual skip-trace for ATTOM path too (Gold+ only)
+      // Check if property already has a radarId from a prior enrichment
       if (score.blended >= AUTO_SKIPTRACE_THRESHOLD) {
-        await runDualSkipTrace(sb, propertyId, property);
-        console.log(`[Enrich] Auto skip-trace (ATTOM path) for ${propertyId} (score ${score.blended})`);
+        const existingRadarId = property.owner_flags?.radar_id as string | undefined;
+        await runDualSkipTrace(sb, propertyId, property, existingRadarId);
+        console.log(`[Enrich] Auto skip-trace (ATTOM path) for ${propertyId} (score ${score.blended}, radarId: ${existingRadarId ?? "none"})`);
       }
 
       await finalizeEnrichment(sb, leadId, propertyId, score.blended, signals, "attom", attempts);

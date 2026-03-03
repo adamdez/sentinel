@@ -147,7 +147,7 @@ function buildRows(leadsData: any[], propertiesMap: Record<string, any>, predict
       is_high_equity: toBool(flags.highEquity) || toBool(prRaw.isHighEquity),
       is_cash_buyer: toBool(flags.cashBuyer) || toBool(prRaw.isCashBuyer),
       radar_id: (flags.radar_id as string) ?? null,
-      enriched: flags.source === "propertyradar" || !!flags.radar_id,
+      enriched: !!flags.skip_traced || (flags.all_phones as unknown[])?.length > 0,
       composite_score: composite,
       motivation_score: Math.round(composite * 0.85),
       deal_score: Math.round(composite * 0.75),

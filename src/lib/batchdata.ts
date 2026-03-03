@@ -119,6 +119,19 @@ export async function skipTraceByAddress(
     }
 
     const data = await res.json();
+    console.log(`[BatchData] Raw response for ${street}, ${city}, ${state}:`,
+      JSON.stringify({
+        hasResults: !!data?.results,
+        resultsType: Array.isArray(data?.results) ? "array" : typeof data?.results,
+        resultsLength: Array.isArray(data?.results) ? data.results.length : 0,
+        firstPersonKeys: Array.isArray(data?.results) && data.results[0]?.persons?.[0]
+          ? Object.keys(data.results[0].persons[0]).slice(0, 15)
+          : data?.results?.persons?.[0] ? Object.keys(data.results.persons[0]).slice(0, 15) : [],
+        firstPersonPhoneField: Array.isArray(data?.results) && data.results[0]?.persons?.[0]
+          ? (data.results[0].persons[0].phoneNumbers ?? data.results[0].persons[0].phones ?? data.results[0].persons[0].phone_numbers ?? "NONE")
+          : "N/A",
+      }).slice(0, 1000),
+    );
     return parseSkipTraceResponse(data);
   } catch (err) {
     if (err instanceof BatchDataApiError) throw err;

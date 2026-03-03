@@ -1708,6 +1708,16 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
             </div>
           ) : displayEmail ? (
             <InfoRow icon={Mail} label="Email" value={displayEmail} highlight />
+          ) : !cf.enriched ? (
+            <div className="space-y-1 mb-3">
+              <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Emails (locked)</p>
+              {[0, 1].map((i) => (
+                <div key={i} className="flex items-center gap-2 text-sm rounded-md border border-dashed border-white/10 bg-white/[0.02] py-1.5 px-2">
+                  <Lock className="h-3 w-3 text-muted-foreground/20" />
+                  <span className="font-mono text-muted-foreground/15">•••••••@•••••.com</span>
+                </div>
+              ))}
+            </div>
           ) : null}
 
           {/* Associated Persons */}

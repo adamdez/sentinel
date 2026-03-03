@@ -421,9 +421,15 @@ async function enrichProperty(sb: any, apiKey: string, property: any, leadId?: s
   if (isTruthy(pr.isFreeAndClear)) ownerFlags.freeAndClear = true;
   if (isTruthy(pr.isCashBuyer)) ownerFlags.cashBuyer = true;
 
+  // Extract phone/email from PR county records
+  const countyPhone = pr.Phone1 ?? pr.Phone2 ?? null;
+  const countyEmail = pr.Email ?? null;
+
   // Update property
   const update: Record<string, unknown> = {
     owner_name: pr.Owner ?? pr.Taxpayer ?? property.owner_name,
+    owner_phone: countyPhone ?? property.owner_phone ?? null,
+    owner_email: countyEmail ?? property.owner_email ?? null,
     estimated_value: toInt(pr.AVM),
     equity_percent: toNum(pr.EquityPercent),
     bedrooms: toInt(pr.Beds),

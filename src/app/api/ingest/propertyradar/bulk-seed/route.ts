@@ -39,6 +39,10 @@ const PR_FIELDS = [
   "PropertyHasOpenLiens", "PropertyHasOpenPersonLiens",
   "ForeclosureStage", "ForeclosureRecDate", "DefaultAmount",
   "DelinquentYear", "DelinquentAmount",
+  // Phone & email fields from county records
+  "Phone1", "Phone2", "Email", "PhoneAvailability", "EmailAvailability",
+  // Mailing address for contact tab
+  "MailAddress", "MailCity", "MailState", "MailZip",
 ].join(",");
 
 interface PRProperty {
@@ -411,6 +415,7 @@ export async function POST(req: NextRequest) {
       source: "propertyradar",
       radar_id: pr.RadarID ?? null,
       bulk_seed: true,
+      pr_raw: pr, // Store full PR response for lat/lng, images, and future field access
       last_enriched: new Date().toISOString(),
     };
     if (isTruthy(pr.isNotSameMailingOrExempt)) ownerFlags.absentee = true;
@@ -419,12 +424,18 @@ export async function POST(req: NextRequest) {
     if (isTruthy(pr.isFreeAndClear)) ownerFlags.freeAndClear = true;
     if (isTruthy(pr.isCashBuyer)) ownerFlags.cashBuyer = true;
 
+    // Extract phone/email from county records (PropertyRadar property-level data)
+    const countyPhone = pr.Phone1 ?? pr.Phone2 ?? null;
+    const countyEmail = pr.Email ?? null;
+
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { data: property, error: propErr } = await (sb.from("properties") as any)
       .upsert({
         apn, county,
         address, city, state, zip,
         owner_name: ownerName,
+        owner_phone: countyPhone,
+        owner_email: countyEmail,
         estimated_value: toNumber(pr.AVM) != null ? Math.round(toNumber(pr.AVM)!) : null,
         equity_percent: toNumber(pr.EquityPercent) ?? null,
         bedrooms: toInt(pr.Beds) ?? null,

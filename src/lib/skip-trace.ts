@@ -247,6 +247,13 @@ async function fetchPRPersons(apiKey: string, radarId: string): Promise<PRPerson
   const data = await res.json();
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const rawPersons: any[] = data.results ?? data ?? [];
+  console.log(`[DualSkip/PR] Persons response for radarId ${radarId}: ${rawPersons.length} persons found`,
+    rawPersons.length > 0 ? JSON.stringify({
+      personNames: rawPersons.map((p: Record<string, unknown>) => p.FirstName ?? p.EntityName ?? p.Name ?? "?"),
+      hasPhoneArrays: rawPersons.map((p: Record<string, unknown>) => Array.isArray(p.Phone) ? (p.Phone as unknown[]).length : typeof p.Phone),
+      hasEmailArrays: rawPersons.map((p: Record<string, unknown>) => Array.isArray(p.Email) ? (p.Email as unknown[]).length : typeof p.Email),
+    }).slice(0, 500) : "(empty)",
+  );
 
   const phones: UnifiedPhone[] = [];
   const emails: UnifiedEmail[] = [];
@@ -371,11 +378,14 @@ async function fetchBatchData(
   const zip = property.zip ?? "";
 
   if (!street || !city || !state) {
-    console.log("[DualSkip/BD] Insufficient address for BatchData:", { street, city, state });
+    console.log("[DualSkip/BD] Insufficient address for BatchData:", { street, city, state, rawAddress: address });
     return null;
   }
 
+  console.log(`[DualSkip/BD] Calling BatchData with: street="${street}", city="${city}", state="${state}", zip="${zip}"`);
   const result = await skipTraceByAddress(street, city, state, zip || undefined);
+  console.log(`[DualSkip/BD] BatchData returned: success=${result.success}, phones=${result.phones.length}, emails=${result.emails.length}, persons=${result.persons.length}, error=${result.error ?? "none"}`);
+
   if (!result.success && result.phones.length === 0 && result.emails.length === 0) {
     return null;
   }
