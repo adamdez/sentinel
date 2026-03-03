@@ -1,33 +1,21 @@
 /**
- * Craigslist FSBO Crawler v2
+ * Craigslist FSBO Crawler v3
  *
  * Charter v3.1 §1: Chase every legal upstream edge — FSBO listings on Craigslist
  * represent motivated sellers who have publicly declared intent to sell without
  * an agent. First-to-contact wins.
  *
- * Sources (WA/ID focus — expandable):
- *   - Craigslist Spokane (covers Spokane County + Kootenai County)
+ * v3: Two-pass approach:
+ *   Pass 1 — Fetch search results page for listing URLs, basic city/state, prices
+ *   Pass 2 — Follow each listing link to scrape the DETAIL page for:
+ *            street address, ZIP, sqft, lot size, phone number, contact name,
+ *            full description, posted/updated dates
  *
- * Approach: Fetches the Craigslist search page HTML which contains:
- *   1. JSON-LD structured data (schema.org ItemList) with lat/long, bedrooms, bathrooms, city
- *   2. Static listing cards with titles, links, and prices
- * Combines both sources for comprehensive extraction.
+ * The search page JSON-LD has almost no useful data (streetAddress is blank,
+ * no ZIP, no sqft, no phone). The detail page has everything.
  *
- * v2 Improvements:
- *   - Junk filtering: rentals, ISO posts, obituaries, commercial, off-topic
- *   - Out-of-area filtering: only WA, ID, MT states accepted
- *   - City-to-ZIP lookup for Spokane/CdA area (~35 cities)
- *   - County inference from city/state (Kootenai, Bonner, etc.)
- *   - Stricter address validation (3+ words, valid street suffix)
- *   - Owner name: "Unknown" (not listing title)
- *
- * Note: Craigslist RSS feeds (format=rss) are blocked as of 2026. HTML pages
- * with embedded JSON-LD are the reliable alternative.
- *
- * Each crawled listing is normalized to:
- *   { name, address, city, state, county, date, link, source, distressType: "fsbo" }
- *
- * APN resolution deferred to PropertyRadar enrichment pass.
+ * Performance: ~94 listings × ~1-2s each = ~2-3 min. maxDuration is 300s.
+ * Uses controlled concurrency (5 parallel fetches) to stay fast but polite.
  */
 
 import type { CrawlerModule, CrawledRecord } from "./predictive-crawler";
@@ -40,7 +28,6 @@ interface CraigslistMarket {
   subdomain: string;
   county: string;
   state: string;
-  cities: string[];
 }
 
 const MARKETS: CraigslistMarket[] = [
@@ -50,36 +37,28 @@ const MARKETS: CraigslistMarket[] = [
     subdomain: "spokane",
     county: "Spokane",
     state: "WA",
-    cities: [
-      "Spokane", "Spokane Valley", "Liberty Lake", "Cheney",
-      "Airway Heights", "Medical Lake", "Deer Park", "Mead",
-      "Coeur d'Alene", "Coeur D Alene", "Post Falls", "Hayden",
-      "Rathdrum", "Sandpoint", "Greenacres", "Otis Orchards",
-      "Nine Mile Falls", "Colbert", "Elk", "Spirit Lake",
-    ],
   },
 ];
 
 // ── Junk Filtering ──────────────────────────────────────────────────
 
-/** Titles matching any of these patterns are filtered out before ingestion */
 const JUNK_TITLE_PATTERNS: RegExp[] = [
   /\b(obituar|memorial|funeral|rest in peace|rip)\b/i,
   /\b(ISO|in search of|looking for|wanted to buy|WTB)\b/i,
   /\b(for rent|rental|lease|per month|\/mo\b|deposit required)\b/i,
   /\b(trade|swap|exchange|barter)\b/i,
   /\b(commercial|warehouse|office space|retail space|industrial)\b/i,
-  /\b(lot only|land only|vacant lot|raw land|acreage only)\b/i,
   /\b(roommate|room for rent|shared housing|sublet)\b/i,
   /\b(storage unit|parking spot|garage for rent)\b/i,
-  /\b(mobile home lot|rv lot|rv space|rv park)\b/i,
 ];
 
-/** Only accept listings in these states (filter out distant cross-posts) */
 const VALID_STATES = new Set(["WA", "ID", "MT"]);
 
-function isJunkListing(title: string): boolean {
-  return JUNK_TITLE_PATTERNS.some((pat) => pat.test(title));
+function isJunkListing(title: string, body?: string): boolean {
+  if (JUNK_TITLE_PATTERNS.some((pat) => pat.test(title))) return true;
+  // Also check body for rental signals that slip through titles
+  if (body && /\b(for rent|rental only|lease only|tenant|renter)\b/i.test(body)) return true;
+  return false;
 }
 
 function isOutOfArea(state: string | null): boolean {
@@ -89,7 +68,6 @@ function isOutOfArea(state: string | null): boolean {
 
 // ── City → ZIP Lookup ───────────────────────────────────────────────
 
-/** Maps city names (lowercased) to ZIP codes for the Spokane/CdA operating area */
 const CITY_ZIP_MAP: Record<string, string> = {
   // Spokane County, WA
   "spokane": "99201", "spokane valley": "99206", "liberty lake": "99019",
@@ -132,12 +110,10 @@ const CITY_ZIP_MAP: Record<string, string> = {
   "saint regis": "59866", "st. regis": "59866", "superior": "59872",
 };
 
-/** Returns the inferred county based on city + state */
 function inferCounty(city: string, state: string): string {
   const key = city.toLowerCase().trim();
   const st = state.toUpperCase();
 
-  // Idaho cities
   if (st === "ID") {
     if (["coeur d'alene", "coeur d alene", "cda", "post falls", "hayden",
          "rathdrum", "spirit lake", "athol", "harrison", "worley",
@@ -151,14 +127,12 @@ function inferCounty(city: string, state: string): string {
     if (["medimont", "st. maries", "santa"].includes(key)) return "Benewah";
     if (["elk river", "orofino"].includes(key)) return "Clearwater";
   }
-  // Montana cities
   if (st === "MT") {
     if (["plains", "thompson falls", "trout creek"].includes(key)) return "Sanders";
     if (["saint regis", "st. regis", "superior"].includes(key)) return "Mineral";
     if (["somers", "bigfork", "kalispell", "whitefish", "lakeside", "columbia falls"].includes(key)) return "Flathead";
     if (["missoula"].includes(key)) return "Missoula";
   }
-  // WA cities
   if (st === "WA") {
     if (["spokane", "spokane valley", "liberty lake", "cheney",
          "airway heights", "medical lake", "deer park", "mead",
@@ -171,8 +145,7 @@ function inferCounty(city: string, state: string): string {
     if (["clarkston"].includes(key)) return "Asotin";
     if (["newport"].includes(key)) return "Pend Oreille";
   }
-
-  return "Spokane"; // Default for the market
+  return "Spokane";
 }
 
 function lookupZip(city: string): string | null {
@@ -181,18 +154,15 @@ function lookupZip(city: string): string | null {
 
 // ── Regex Patterns ──────────────────────────────────────────────────
 
-/**
- * Stricter address regex: requires a number, at least 2 words of street name,
- * and a valid street suffix. This avoids false positives like "15 AM at the..."
- */
+// Relaxed address regex for detail page parsing — the detail page has cleaner data
 const ADDRESS_RE =
-  /(\d{1,6}\s+(?:[A-Z][A-Za-z]+\s+){1,4}(?:St|Ave|Rd|Dr|Ln|Blvd|Ct|Way|Pl|Cir|Ter|Loop|Hwy|Drive|Street|Avenue|Road|Lane|Boulevard|Court|Place|Circle|Trail|Trl|Pike|Run|Pass)\.?(?:\s+(?:N|S|E|W|NE|NW|SE|SW|#\d+|Apt\s*\d+|Unit\s*\d+|Ste\s*\d+))?)/gi;
+  /(\d{1,6}\s+[A-Za-z][\w\s.'-]{2,60}(?:St|Ave|Rd|Dr|Ln|Blvd|Ct|Way|Pl|Cir|Ter|Loop|Hwy|Drive|Street|Avenue|Road|Lane|Boulevard|Court|Place|Circle|Trail|Trl|Pike|Run|Pass)\.?(?:\s+(?:N|S|E|W|NE|NW|SE|SW|#\s*\d+|Apt\.?\s*\d+|Unit\s*\d+|Ste\.?\s*\d+))?)/i;
 
-const PRICE_RE = /\$\s*([\d,]+(?:\.\d{2})?)/g;
+const PRICE_RE = /\$\s*([\d,]+(?:\.\d{2})?)/;
 const PHONE_RE = /\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}/g;
-const BR_RE = /(\d+)\s*(?:br|bed|bedroom)/gi;
-const BA_RE = /(\d+(?:\.\d)?)\s*(?:ba|bath|bathroom)/gi;
 const ZIP_RE = /\b(\d{5})(?:-\d{4})?\b/g;
+const SQFT_RE = /(\d[\d,]*)\s*(?:sq\.?\s*(?:ft|feet)|sqft|square\s*(?:ft|feet))/i;
+const LOT_RE = /(\d+(?:\.\d+)?)\s*(?:acres?|ac\b)/i;
 
 const MOTIVATION_KEYWORDS = [
   "must sell", "motivated", "price reduced", "price drop",
@@ -202,21 +172,43 @@ const MOTIVATION_KEYWORDS = [
   "owner financing", "owner will carry", "fixer upper",
   "fixer-upper", "handyman special", "needs work",
   "cash only", "investors welcome", "wholesale",
-  "health issues", "price reduced", "new price",
-  "reduced", "below assessed",
+  "health issues", "new price", "reduced", "below assessed",
 ];
 
-// ── Helpers ─────────────────────────────────────────────────────────
+// ── Extraction Helpers ──────────────────────────────────────────────
 
 function extractAddress(text: string): string | null {
   ADDRESS_RE.lastIndex = 0;
   const match = ADDRESS_RE.exec(text);
   if (!match) return null;
   const addr = match[1].trim();
-  // Validate: address must have at least 3 words (number + street name + suffix)
-  const wordCount = addr.split(/\s+/).length;
-  if (wordCount < 3) return null;
+  if (addr.split(/\s+/).length < 3) return null;
   return addr;
+}
+
+/**
+ * Parse addresses from CL title patterns like:
+ * "For Sale: 311 S Third AVE, Sandpoint, ID 83864"
+ * "811 E Seasons Rd, Athol, ID 83801 - Beautiful Home"
+ */
+function extractAddressFromTitle(title: string): { address: string | null; city: string | null; state: string | null; zip: string | null } {
+  // Pattern: "address, City, ST ZIP"
+  const fullPattern = /(\d{1,6}\s+[A-Za-z][\w\s.'-]+(?:St|Ave|Rd|Dr|Ln|Blvd|Ct|Way|Pl|Cir|Ter|Loop|Hwy|Drive|Street|Avenue|Road|Lane|Boulevard|Court|Place|Circle|Trail|Trl|Pass)\.?(?:\s+[NSEW]{1,2})?)\s*,\s*([A-Za-z\s]+?)\s*,\s*([A-Z]{2})\s+(\d{5})/i;
+  const m = fullPattern.exec(title);
+  if (m) {
+    return { address: m[1].trim(), city: m[2].trim(), state: m[3].toUpperCase(), zip: m[4] };
+  }
+
+  // Pattern without ZIP: "address, City, ST"
+  const noZipPattern = /(\d{1,6}\s+[A-Za-z][\w\s.'-]+(?:St|Ave|Rd|Dr|Ln|Blvd|Ct|Way|Pl|Cir|Ter|Loop|Hwy|Drive|Street|Avenue|Road|Lane|Boulevard|Court|Place|Circle|Trail|Trl|Pass)\.?(?:\s+[NSEW]{1,2})?)\s*,\s*([A-Za-z\s]+?)\s*,\s*([A-Z]{2})\b/i;
+  const m2 = noZipPattern.exec(title);
+  if (m2) {
+    return { address: m2[1].trim(), city: m2[2].trim(), state: m2[3].toUpperCase(), zip: null };
+  }
+
+  // Just try address extraction
+  const addr = extractAddress(title);
+  return { address: addr, city: null, state: null, zip: null };
 }
 
 function extractPrice(text: string): number | null {
@@ -224,26 +216,22 @@ function extractPrice(text: string): number | null {
   const match = PRICE_RE.exec(text);
   if (!match) return null;
   const num = parseFloat(match[1].replace(/,/g, ""));
-  // Filter out unreasonable prices (< $10k or > $10M)
   if (num < 10000 || num > 10000000) return null;
   return num;
 }
 
-function extractBedBath(text: string): { bedrooms: number | null; bathrooms: number | null } {
-  BR_RE.lastIndex = 0;
-  BA_RE.lastIndex = 0;
-  const brMatch = BR_RE.exec(text);
-  const baMatch = BA_RE.exec(text);
-  return {
-    bedrooms: brMatch ? parseInt(brMatch[1], 10) : null,
-    bathrooms: baMatch ? parseFloat(baMatch[1]) : null,
-  };
-}
-
-function extractPhone(text: string): string | null {
+function extractPhones(text: string): string[] {
+  const phones: string[] = [];
+  let match: RegExpExecArray | null;
   PHONE_RE.lastIndex = 0;
-  const match = PHONE_RE.exec(text);
-  return match?.[0] ?? null;
+  while ((match = PHONE_RE.exec(text)) !== null) {
+    const p = match[0].replace(/[^\d]/g, "");
+    // Avoid fake numbers and CL system numbers
+    if (p.length === 10 && !p.startsWith("000") && !p.startsWith("555") && !p.startsWith("123")) {
+      phones.push(match[0]);
+    }
+  }
+  return [...new Set(phones)];
 }
 
 function extractZipFromText(text: string): string | null {
@@ -251,11 +239,21 @@ function extractZipFromText(text: string): string | null {
   const match = ZIP_RE.exec(text);
   if (!match) return null;
   const zip = match[1];
-  // Basic validation: US ZIPs in our area start with 83xxx (ID), 99xxx (WA), 59xxx (MT)
-  if (zip.startsWith("83") || zip.startsWith("99") || zip.startsWith("59")) {
+  if (zip.startsWith("83") || zip.startsWith("99") || zip.startsWith("59") || zip.startsWith("98")) {
     return zip;
   }
   return null;
+}
+
+function extractSqft(text: string): number | null {
+  const match = SQFT_RE.exec(text);
+  if (!match) return null;
+  return parseInt(match[1].replace(/,/g, ""), 10) || null;
+}
+
+function extractLotSize(text: string): string | null {
+  const match = LOT_RE.exec(text);
+  return match ? `${match[1]} acres` : null;
 }
 
 function findMotivationKeywords(text: string): string[] {
@@ -266,16 +264,14 @@ function findMotivationKeywords(text: string): string[] {
 function stripHtml(html: string): string {
   return html
     .replace(/<[^>]*>/g, " ")
-    .replace(/&amp;/g, "&")
-    .replace(/&lt;/g, "<")
-    .replace(/&gt;/g, ">")
-    .replace(/&quot;/g, '"')
-    .replace(/&#39;/g, "'")
-    .replace(/\s+/g, " ")
-    .trim();
+    .replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"').replace(/&#39;/g, "'")
+    .replace(/\s+/g, " ").trim();
 }
 
-async function fetchWithTimeout(url: string, timeoutMs = 15000): Promise<string | null> {
+// ── HTTP ────────────────────────────────────────────────────────────
+
+async function fetchPage(url: string, timeoutMs = 12000): Promise<string | null> {
   try {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), timeoutMs);
@@ -289,92 +285,221 @@ async function fetchWithTimeout(url: string, timeoutMs = 15000): Promise<string 
       },
     });
     clearTimeout(timer);
-    if (!res.ok) {
-      console.warn(`[CL-FSBO] HTTP ${res.status} for ${url}`);
-      return null;
-    }
+    if (!res.ok) return null;
     return await res.text();
-  } catch (err) {
-    console.warn(`[CL-FSBO] Fetch error for ${url}:`, err);
+  } catch {
     return null;
   }
 }
 
-// ── JSON-LD Item ────────────────────────────────────────────────────
-
-interface JsonLdItem {
-  name: string;
-  latitude?: number;
-  longitude?: number;
-  numberOfBedrooms?: number;
-  numberOfBathroomsTotal?: number;
-  address?: {
-    streetAddress?: string;
-    addressLocality?: string;
-    addressRegion?: string;
-    postalCode?: string;
+/** Run promises with max concurrency */
+async function parallelLimit<T>(tasks: (() => Promise<T>)[], limit: number): Promise<T[]> {
+  const results: T[] = [];
+  let idx = 0;
+  const next = async (): Promise<void> => {
+    while (idx < tasks.length) {
+      const i = idx++;
+      results[i] = await tasks[i]();
+    }
   };
+  await Promise.all(Array.from({ length: Math.min(limit, tasks.length) }, () => next()));
+  return results;
 }
 
-// ── HTML Listing Card ───────────────────────────────────────────────
+// ── Search Page Parsers ─────────────────────────────────────────────
 
-interface ListingCard {
+interface SearchListing {
   title: string;
   link: string;
   price: number | null;
+  city: string;
+  state: string;
+  bedrooms: number | null;
+  bathrooms: number | null;
+  lat: number | null;
+  lng: number | null;
 }
 
-// ── Parsers ─────────────────────────────────────────────────────────
+function parseSearchPage(html: string, market: CraigslistMarket): SearchListing[] {
+  const listings: SearchListing[] = [];
+  const seenLinks = new Set<string>();
 
-function parseJsonLdItems(html: string): JsonLdItem[] {
-  // Extract JSON-LD script with id="ld_searchpage_results"
+  // Parse JSON-LD for structured data (city, state, lat/lng, bed/bath)
   const scriptRe = /<script[^>]*id\s*=\s*"ld_searchpage_results"[^>]*>([\s\S]*?)<\/script>/i;
-  const match = scriptRe.exec(html);
-  if (!match) {
-    console.warn("[CL-FSBO] No JSON-LD search results found in HTML");
-    return [];
+  const scriptMatch = scriptRe.exec(html);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let jsonLdItems: any[] = [];
+  if (scriptMatch) {
+    try {
+      const data = JSON.parse(scriptMatch[1]);
+      if (data?.["@type"] === "ItemList" && Array.isArray(data.itemListElement)) {
+        jsonLdItems = data.itemListElement.map((el: { item?: unknown }) => el.item).filter(Boolean);
+      }
+    } catch { /* ignore parse errors */ }
   }
 
-  try {
-    const data = JSON.parse(match[1]);
-    if (data?.["@type"] !== "ItemList" || !Array.isArray(data.itemListElement)) {
-      return [];
-    }
-
-    return data.itemListElement
-      .map((el: { item?: JsonLdItem }) => el.item)
-      .filter((item: JsonLdItem | undefined): item is JsonLdItem => !!item?.name);
-  } catch (err) {
-    console.warn("[CL-FSBO] Failed to parse JSON-LD:", err);
-    return [];
-  }
-}
-
-function parseListingCards(html: string): ListingCard[] {
-  const cards: ListingCard[] = [];
-  // Match each <li class="cl-static-search-result"> block
+  // Parse listing cards for URLs and prices
   const cardRe = /<li\s+class="cl-static-search-result"[^>]*title="([^"]*)">\s*<a\s+href="([^"]*)"[\s\S]*?<div\s+class="price">([^<]*)<\/div>/gi;
-  let match: RegExpExecArray | null;
+  let cardMatch: RegExpExecArray | null;
+  const cards: { title: string; link: string; price: number | null }[] = [];
 
-  while ((match = cardRe.exec(html)) !== null) {
-    const title = stripHtml(match[1]);
-    const link = match[2].trim();
-    const priceStr = match[3].trim();
-
+  while ((cardMatch = cardRe.exec(html)) !== null) {
+    const title = stripHtml(cardMatch[1]);
+    const link = cardMatch[2].trim();
+    const priceStr = cardMatch[3].trim();
     let price: number | null = null;
     if (priceStr && priceStr !== "$0") {
       const parsed = parseFloat(priceStr.replace(/[$,]/g, ""));
-      if (!isNaN(parsed) && parsed >= 10000 && parsed <= 10000000) {
-        price = parsed;
-      }
+      if (!isNaN(parsed) && parsed >= 10000 && parsed <= 10000000) price = parsed;
     }
-
-    if (title && link) {
-      cards.push({ title, link, price });
-    }
+    if (title && link) cards.push({ title, link, price });
   }
 
-  return cards;
+  // Merge JSON-LD + cards by position
+  const count = Math.max(jsonLdItems.length, cards.length);
+  for (let i = 0; i < count; i++) {
+    const jld = jsonLdItems[i];
+    const card = cards[i];
+    const link = card?.link ?? "";
+    if (!link || seenLinks.has(link)) continue;
+    seenLinks.add(link);
+
+    const title = card?.title ?? jld?.name ?? "";
+    const city = jld?.address?.addressLocality || market.state;
+    const state = jld?.address?.addressRegion || market.state;
+    const price = card?.price ?? null;
+
+    listings.push({
+      title,
+      link,
+      price,
+      city,
+      state,
+      bedrooms: jld?.numberOfBedrooms ?? null,
+      bathrooms: jld?.numberOfBathroomsTotal ?? null,
+      lat: jld?.latitude ?? null,
+      lng: jld?.longitude ?? null,
+    });
+  }
+
+  return listings;
+}
+
+// ── Detail Page Parser ──────────────────────────────────────────────
+
+interface DetailData {
+  address: string | null;
+  city: string | null;
+  state: string | null;
+  zip: string | null;
+  sqft: number | null;
+  lotSize: string | null;
+  phone: string | null;
+  contactName: string | null;
+  description: string;
+  postedDate: string | null;
+  bedrooms: number | null;
+  bathrooms: number | null;
+  motivationKeywords: string[];
+}
+
+function parseDetailPage(html: string): DetailData {
+  const result: DetailData = {
+    address: null, city: null, state: null, zip: null,
+    sqft: null, lotSize: null, phone: null, contactName: null,
+    description: "", postedDate: null, bedrooms: null, bathrooms: null,
+    motivationKeywords: [],
+  };
+
+  // 1. Parse JSON-LD from detail page
+  const scriptRe = /<script[^>]*type\s*=\s*"application\/ld\+json"[^>]*>([\s\S]*?)<\/script>/gi;
+  let scriptMatch: RegExpExecArray | null;
+  while ((scriptMatch = scriptRe.exec(html)) !== null) {
+    try {
+      const data = JSON.parse(scriptMatch[1]);
+      if (data?.["@type"] === "House" || data?.["@type"] === "Apartment" || data?.["@type"] === "SingleFamilyResidence") {
+        // Address from JSON-LD
+        if (data.address?.streetAddress && data.address.streetAddress.length > 3) {
+          result.address = data.address.streetAddress;
+        }
+        if (data.address?.addressLocality) result.city = data.address.addressLocality;
+        if (data.address?.addressRegion) result.state = data.address.addressRegion;
+        if (data.address?.postalCode) result.zip = data.address.postalCode;
+
+        // Try extracting address from the name/title (e.g., "For Sale: 311 S Third AVE, Sandpoint, ID 83864")
+        if (!result.address && data.name) {
+          const titleParsed = extractAddressFromTitle(data.name);
+          if (titleParsed.address) result.address = titleParsed.address;
+          if (titleParsed.city && !result.city) result.city = titleParsed.city;
+          if (titleParsed.state && !result.state) result.state = titleParsed.state;
+          if (titleParsed.zip && !result.zip) result.zip = titleParsed.zip;
+        }
+
+        // Bed/bath
+        if (data.numberOfBedrooms) result.bedrooms = parseInt(String(data.numberOfBedrooms), 10) || null;
+        if (data.numberOfBathroomsTotal) result.bathrooms = parseFloat(String(data.numberOfBathroomsTotal)) || null;
+
+        break; // Found our LD+JSON
+      }
+    } catch { /* ignore */ }
+  }
+
+  // 2. Extract body text (posting body)
+  const bodyRe = /<section\s+id="postingbody"[^>]*>([\s\S]*?)<\/section>/i;
+  const bodyMatch = bodyRe.exec(html);
+  const bodyHtml = bodyMatch?.[1] ?? "";
+  const bodyText = stripHtml(bodyHtml);
+  result.description = bodyText.slice(0, 500); // Keep first 500 chars
+
+  // Also get the page title for address extraction fallback
+  const titleRe = /<span\s+id="titletextonly"[^>]*>([^<]*)<\/span>/i;
+  const titleMatch = titleRe.exec(html);
+  const pageTitle = titleMatch?.[1]?.trim() ?? "";
+
+  // Combined text for extraction
+  const allText = `${pageTitle} ${bodyText}`;
+
+  // 3. Extract street address from body/title if not from JSON-LD
+  if (!result.address) {
+    const fromTitle = extractAddressFromTitle(pageTitle);
+    if (fromTitle.address) {
+      result.address = fromTitle.address;
+      if (fromTitle.city && !result.city) result.city = fromTitle.city;
+      if (fromTitle.state && !result.state) result.state = fromTitle.state;
+      if (fromTitle.zip && !result.zip) result.zip = fromTitle.zip;
+    }
+  }
+  if (!result.address) {
+    result.address = extractAddress(allText);
+  }
+
+  // 4. Extract ZIP from body if still missing
+  if (!result.zip) {
+    result.zip = extractZipFromText(allText);
+  }
+
+  // 5. Phone number — from body text
+  const phones = extractPhones(allText);
+  result.phone = phones[0] ?? null;
+
+  // 6. Sqft and lot size
+  result.sqft = extractSqft(allText);
+  result.lotSize = extractLotSize(allText);
+
+  // 7. Contact name — look for "contact: Name" or "ask for Name" patterns
+  const contactRe = /(?:contact|ask for|call|reach)\s*:?\s*([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)/i;
+  const contactMatch = contactRe.exec(allText);
+  result.contactName = contactMatch?.[1] ?? null;
+
+  // 8. Posted date
+  const dateRe = /datetime="(\d{4}-\d{2}-\d{2})/;
+  const dateMatch = dateRe.exec(html);
+  result.postedDate = dateMatch?.[1] ?? null;
+
+  // 9. Motivation keywords from full body
+  result.motivationKeywords = findMotivationKeywords(allText);
+
+  return result;
 }
 
 // ── Crawl a Single Market ───────────────────────────────────────────
@@ -383,120 +508,110 @@ async function crawlMarket(market: CraigslistMarket): Promise<CrawledRecord[]> {
   const records: CrawledRecord[] = [];
   let filteredJunk = 0;
   let filteredArea = 0;
+  let detailsFetched = 0;
+  let detailsFailed = 0;
 
   const searchUrl = `https://${market.subdomain}.craigslist.org/search/rea?housing_type=6`;
-
-  console.log(`[CL-FSBO] Fetching search page: ${searchUrl}`);
-  const html = await fetchWithTimeout(searchUrl);
-  if (!html) {
+  console.log(`[CL-FSBO] Pass 1: Fetching search page: ${searchUrl}`);
+  const searchHtml = await fetchPage(searchUrl);
+  if (!searchHtml) {
     console.warn(`[CL-FSBO] Failed to fetch search page for ${market.name}`);
     return records;
   }
 
-  // Parse both data sources
-  const jsonLdItems = parseJsonLdItems(html);
-  const listingCards = parseListingCards(html);
+  const listings = parseSearchPage(searchHtml, market);
+  console.log(`[CL-FSBO] ${market.name}: Found ${listings.length} listings on search page`);
 
-  console.log(`[CL-FSBO] ${market.name}: ${jsonLdItems.length} JSON-LD items, ${listingCards.length} listing cards`);
+  // Pre-filter before fetching detail pages (save time/bandwidth)
+  const validListings = listings.filter((l) => {
+    if (isJunkListing(l.title)) { filteredJunk++; return false; }
+    if (isOutOfArea(l.state)) { filteredArea++; return false; }
+    return true;
+  });
+  console.log(`[CL-FSBO] ${validListings.length} valid listings after pre-filter (${filteredJunk} junk, ${filteredArea} out-of-area)`);
 
-  // Build a map from title → listing card for easy lookup
-  const cardsByTitle = new Map<string, ListingCard>();
-  for (const card of listingCards) {
-    cardsByTitle.set(card.title.toLowerCase().trim(), card);
-  }
+  // Pass 2: Fetch each detail page with controlled concurrency
+  console.log(`[CL-FSBO] Pass 2: Fetching ${validListings.length} detail pages (concurrency: 5)...`);
+  const t0 = Date.now();
 
-  // Process each JSON-LD item, enriched with card data
-  const seenLinks = new Set<string>();
+  const detailTasks = validListings.map((listing) => async () => {
+    const html = await fetchPage(listing.link, 12000);
+    if (!html) {
+      detailsFailed++;
+      return null;
+    }
+    detailsFetched++;
+    const detail = parseDetailPage(html);
 
-  for (let i = 0; i < jsonLdItems.length; i++) {
-    const item = jsonLdItems[i];
-    const itemNameLower = item.name.toLowerCase().trim();
-
-    // Find matching card (by title match or by position)
-    const matchedCard = cardsByTitle.get(itemNameLower) ?? listingCards[i];
-    const link = matchedCard?.link ?? "";
-    const cardPrice = matchedCard?.price ?? null;
-
-    // Skip duplicates (same listing URL)
-    if (link && seenLinks.has(link)) continue;
-    if (link) seenLinks.add(link);
-
-    const plainTitle = stripHtml(item.name);
-
-    // ── v2: Junk filter ──
-    if (isJunkListing(plainTitle)) {
+    // Post-filter: check body text for junk signals
+    if (isJunkListing(listing.title, detail.description)) {
       filteredJunk++;
-      continue;
+      return null;
     }
 
-    // City from JSON-LD or market default
-    const city = item.address?.addressLocality || market.cities[0];
+    return { listing, detail };
+  });
 
-    // State from JSON-LD or market default
-    const state = item.address?.addressRegion || market.state;
+  const detailResults = await parallelLimit(detailTasks, 5);
+  console.log(`[CL-FSBO] Pass 2 complete in ${Date.now() - t0}ms: ${detailsFetched} fetched, ${detailsFailed} failed`);
 
-    // ── v2: Out-of-area filter ──
+  // Build CrawledRecords from merged search + detail data
+  for (const result of detailResults) {
+    if (!result) continue;
+    const { listing, detail } = result;
+
+    // Best address: detail page > search page title
+    const address = detail.address || extractAddress(listing.title);
+
+    // Best city/state/zip: detail page > search page > lookup
+    const city = detail.city || listing.city;
+    const state = detail.state || listing.state;
+    const zip = detail.zip || extractZipFromText(listing.title) || lookupZip(city) || "";
+
+    // Second out-of-area check (detail page may reveal different state)
     if (isOutOfArea(state)) {
       filteredArea++;
       continue;
     }
 
-    // Extract address from title or JSON-LD streetAddress
-    const addressFromTitle = extractAddress(plainTitle);
-    const addressFromLd = item.address?.streetAddress || null;
-    const address = addressFromTitle || (addressFromLd && addressFromLd.length > 5 ? addressFromLd : null);
-
-    // ── v2: ZIP code resolution (3-tier: JSON-LD → title → city lookup) ──
-    const zipFromLd = item.address?.postalCode || null;
-    const zipFromTitle = extractZipFromText(plainTitle);
-    const zipFromCity = lookupZip(city);
-    const zip = zipFromLd || zipFromTitle || zipFromCity || "";
-
-    // ── v2: County inference from city/state ──
     const inferredCounty = inferCounty(city, state);
+    const bedrooms = detail.bedrooms ?? listing.bedrooms;
+    const bathrooms = detail.bathrooms ?? listing.bathrooms;
+    const price = listing.price ?? extractPrice(detail.description);
+    const motivationKeywords = detail.motivationKeywords.length > 0
+      ? detail.motivationKeywords
+      : findMotivationKeywords(listing.title);
 
-    // Price from card HTML (most reliable) or from title extraction
-    const price = cardPrice ?? extractPrice(plainTitle);
-
-    // Bedrooms/bathrooms from JSON-LD (structured) or title extraction
-    const titleBedBath = extractBedBath(plainTitle);
-    const bedrooms = item.numberOfBedrooms ?? titleBedBath.bedrooms;
-    const bathrooms = item.numberOfBathroomsTotal ?? titleBedBath.bathrooms;
-
-    // Phone from title
-    const phone = extractPhone(plainTitle);
-
-    // Motivation keywords
-    const motivationKeywords = findMotivationKeywords(plainTitle);
-
-    // ── v2: Owner name — never use listing title ──
-    // Owner is unknown until skip-trace; use a descriptive placeholder
-    const ownerName = address
-      ? `FSBO Owner — ${address}`
-      : `FSBO Owner — ${city}, ${state}`;
+    // Owner name: use contact name if found, otherwise placeholder
+    const ownerName = detail.contactName
+      ? detail.contactName
+      : address
+        ? `FSBO Owner — ${address}`
+        : `FSBO Owner — ${city}, ${state}`;
 
     records.push({
       name: ownerName,
       address,
       city,
       state,
-      // IMPORTANT: Keep county = market.county so upsert matches existing records
-      // (property upsert uses onConflict: "apn,county"). Store inferredCounty in rawData
-      // for display; enrichment will correct county from PropertyRadar.
-      county: market.county,
-      date: new Date().toISOString().slice(0, 10),
-      link,
+      county: market.county, // Keep market county for upsert key matching
+      date: detail.postedDate || new Date().toISOString().slice(0, 10),
+      link: listing.link,
       source: "craigslist",
       distressType: "fsbo",
       rawData: {
-        listing_url: link,
-        listing_title: plainTitle,
+        listing_url: listing.link,
+        listing_title: listing.title,
         price,
         bedrooms,
         bathrooms,
-        contact_phone: phone,
-        geo_lat: item.latitude ?? null,
-        geo_long: item.longitude ?? null,
+        sqft: detail.sqft,
+        lot_size: detail.lotSize,
+        contact_phone: detail.phone,
+        contact_name: detail.contactName,
+        description_snippet: detail.description.slice(0, 300),
+        geo_lat: listing.lat ?? null,
+        geo_long: listing.lng ?? null,
         motivation_keywords: motivationKeywords,
         market_id: market.id,
         platform: "craigslist",
@@ -504,67 +619,12 @@ async function crawlMarket(market: CraigslistMarket): Promise<CrawledRecord[]> {
         state,
         zip,
         inferred_county: inferredCounty,
+        posted_date: detail.postedDate,
       },
     });
   }
 
-  // Also process any listing cards that weren't matched to JSON-LD items
-  for (const card of listingCards) {
-    if (card.link && !seenLinks.has(card.link)) {
-      seenLinks.add(card.link);
-      const title = card.title;
-
-      // ── v2: Junk filter ──
-      if (isJunkListing(title)) {
-        filteredJunk++;
-        continue;
-      }
-
-      const address = extractAddress(title);
-      const { bedrooms, bathrooms } = extractBedBath(title);
-      const phone = extractPhone(title);
-      const motivationKeywords = findMotivationKeywords(title);
-      const zipFromTitle = extractZipFromText(title);
-      const zipFromCity = lookupZip(market.cities[0]);
-      const zip = zipFromTitle || zipFromCity || "";
-
-      const ownerName = address
-        ? `FSBO Owner — ${address}`
-        : `FSBO Owner — ${market.cities[0]}, ${market.state}`;
-
-      records.push({
-        name: ownerName,
-        address,
-        city: market.cities[0],
-        state: market.state,
-        county: market.county,
-        date: new Date().toISOString().slice(0, 10),
-        link: card.link,
-        source: "craigslist",
-        distressType: "fsbo",
-        rawData: {
-          listing_url: card.link,
-          listing_title: card.title,
-          price: card.price,
-          bedrooms,
-          bathrooms,
-          contact_phone: phone,
-          geo_lat: null,
-          geo_long: null,
-          motivation_keywords: motivationKeywords,
-          market_id: market.id,
-          platform: "craigslist",
-          city: market.cities[0],
-          state: market.state,
-          zip,
-          inferred_county: market.county,
-        },
-      });
-    }
-  }
-
-  console.log(`[CL-FSBO] ${market.name}: ${records.length} valid listings (filtered: ${filteredJunk} junk, ${filteredArea} out-of-area)`);
-
+  console.log(`[CL-FSBO] ${market.name}: ${records.length} records built (filtered total: ${filteredJunk} junk, ${filteredArea} out-of-area)`);
   return records;
 }
 
@@ -573,8 +633,6 @@ async function crawlMarket(market: CraigslistMarket): Promise<CrawledRecord[]> {
 export const craigslistFsboCrawler: CrawlerModule = {
   id: "craigslist_fsbo",
   name: "Craigslist FSBO Crawler (Spokane/Kootenai)",
-  // FSBO listings are self-qualified — seller publicly declared intent to sell.
-  // Always ingest regardless of score; enrichment batch will re-score with full data.
   promotionThreshold: 0,
   async crawl(): Promise<CrawledRecord[]> {
     const all: CrawledRecord[] = [];
