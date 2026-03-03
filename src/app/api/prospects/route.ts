@@ -380,6 +380,111 @@ export async function POST(req: NextRequest) {
   }
 }
 
+// ── DELETE /api/prospects — Permanently delete a customer file ────────
+
+export async function DELETE(req: NextRequest) {
+  try {
+    const sb = createServerClient();
+
+    // Auth: same Bearer-token pattern as PATCH/POST
+    const authHeader = req.headers.get("authorization");
+    const token = authHeader?.replace("Bearer ", "");
+    const { data: { user } } = await sb.auth.getUser(token);
+    if (!user) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const body = await req.json();
+    const { lead_id } = body;
+
+    if (!lead_id) {
+      return NextResponse.json({ error: "lead_id is required" }, { status: 400 });
+    }
+
+    // Fetch lead + property details BEFORE deletion (for audit log)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: lead, error: fetchErr } = await (sb.from("leads") as any)
+      .select("id, status, assigned_to, property_id, notes, source, priority")
+      .eq("id", lead_id)
+      .single();
+
+    if (fetchErr || !lead) {
+      return NextResponse.json({ error: "Lead not found" }, { status: 404 });
+    }
+
+    // Fetch property details for audit
+    let propertyDetails: Record<string, unknown> = {};
+    if (lead.property_id) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data: prop } = await (sb.from("properties") as any)
+        .select("address, owner_name, apn, county")
+        .eq("id", lead.property_id)
+        .single();
+      if (prop) propertyDetails = prop;
+    }
+
+    // Call the DB function that handles cascading deletes + scoring_predictions bypass
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: result, error: rpcErr } = await (sb as any).rpc("delete_customer_file", {
+      p_lead_id: lead_id,
+    });
+
+    if (rpcErr) {
+      console.error("[API/prospects DELETE] RPC error:", rpcErr);
+      return NextResponse.json(
+        { error: "Delete failed", detail: rpcErr.message },
+        { status: 500 },
+      );
+    }
+
+    if (!result?.success) {
+      return NextResponse.json(
+        { error: "Delete failed", detail: result?.error ?? "Unknown error" },
+        { status: 500 },
+      );
+    }
+
+    // Audit log
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    await (sb.from("event_log") as any)
+      .insert({
+        user_id: user.id,
+        action: "LEAD_DELETED",
+        entity_type: "lead",
+        entity_id: lead_id,
+        details: {
+          address: propertyDetails.address ?? null,
+          owner_name: propertyDetails.owner_name ?? null,
+          apn: propertyDetails.apn ?? null,
+          county: propertyDetails.county ?? null,
+          status: lead.status,
+          assigned_to: lead.assigned_to,
+          property_id: lead.property_id,
+          property_deleted: result.property_deleted,
+          deleted_by: user.id,
+          deleted_by_email: user.email,
+        },
+      })
+      .then(({ error: auditErr }: { error: unknown }) => {
+        if (auditErr) console.error("[API/prospects DELETE] Audit log failed (non-fatal):", auditErr);
+      });
+
+    console.log(`[API/prospects DELETE] Lead ${lead_id} deleted by ${user.email} (property_deleted: ${result.property_deleted})`);
+
+    return NextResponse.json({
+      success: true,
+      lead_id,
+      property_deleted: result.property_deleted,
+    });
+  } catch (err) {
+    console.error("[API/prospects DELETE] Error:", err);
+    return NextResponse.json(
+      { error: "Internal server error" },
+      { status: 500 },
+    );
+  }
+}
+
 // ── PropertyRadar Enrichment ────────────────────────────────────────────
 
 interface EnrichResult {
