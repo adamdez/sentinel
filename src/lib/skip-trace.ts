@@ -264,7 +264,9 @@ async function fetchPRPersons(apiKey: string, radarId: string): Promise<PRPerson
       for (const ph of person.Phone) {
         const num = ph?.linktext ?? ph?.href?.replace("tel:", "");
         if (!num || typeof num !== "string" || num.length < 7) continue;
+        if (num.startsWith("/") || /v\d+\//.test(num) || num.includes("persons")) continue;
         const norm = normalizePhone(num);
+        if (norm.length < 10) continue;
         if (seenPhones.has(norm)) continue;
         seenPhones.add(norm);
 

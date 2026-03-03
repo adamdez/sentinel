@@ -215,8 +215,8 @@ const NO_FILTERS: CompFilters = { beds: false, baths: false, sqft: false, yearBu
 export function CompsMap({ subject, selectedComps, onAddComp, onRemoveComp }: CompsMapProps) {
   const [comps, setComps] = useState<CompProperty[]>([]);
   const [loading, setLoading] = useState(false);
-  const [radiusMiles, setRadiusMiles] = useState(0.5);
-  const [searchRadius, setSearchRadius] = useState(0.5);
+  const [radiusMiles, setRadiusMiles] = useState(1);
+  const [searchRadius, setSearchRadius] = useState(1);
   const [selectedComp, setSelectedComp] = useState<CompProperty | null>(null);
   const [filtersOpen, setFiltersOpen] = useState(true);
   const [filters, setFilters] = useState<CompFilters>(NO_FILTERS);

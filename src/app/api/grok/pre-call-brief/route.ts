@@ -37,7 +37,7 @@ export async function POST(req: NextRequest) {
     const tbl = (name: string) => sb.from(name) as any;
 
     const { data: lead } = await tbl("leads")
-      .select("*, properties(owner_name, address, estimated_value, equity_percent, ownership_years)")
+      .select("*, properties(owner_name, address, estimated_value, equity_percent, ownership_years, property_type, county, owner_flags)")
       .eq("id", body.leadId)
       .single();
 
@@ -57,6 +57,8 @@ export async function POST(req: NextRequest) {
       .limit(5);
 
     const prop = lead.properties || {};
+    const ownerFlags = prop.owner_flags ?? {};
+    const prRaw = ownerFlags.pr_raw ?? {};
     const leadCtx: LeadContext = {
       ownerName: prop.owner_name ?? "Unknown Owner",
       address: prop.address ?? "",
@@ -73,18 +75,39 @@ export async function POST(req: NextRequest) {
       equityPercent: prop.equity_percent ?? undefined,
       ownershipYears: prop.ownership_years ?? undefined,
       estimatedValue: prop.estimated_value ?? undefined,
+      tags: lead.tags ?? [],
+      ownerAge: prRaw.OwnerAge ? Number(prRaw.OwnerAge) : null,
+      isAbsentee: !!lead.is_absentee,
+      isFreeClear: !!lead.is_free_clear,
+      isVacant: !!lead.is_vacant,
+      propertyType: prop.property_type ?? undefined,
+      county: prop.county ?? undefined,
+      lastTransferType: prRaw.LastTransferType ?? undefined,
+      delinquentAmount: lead.delinquent_amount ?? undefined,
+      foreclosureStage: lead.foreclosure_stage ?? undefined,
     };
 
     const agentPrompt = buildCallCoPilotPrompt(leadCtx);
 
     const systemPrompt = [
-      "You are the Dominion Sentinel Call Co-Pilot. Generate a concise pre-call brief.",
+      "You are the Dominion Sentinel Call Co-Pilot. Generate a comprehensive pre-call playbook.",
       agentPrompt,
       "",
       "## OUTPUT FORMAT",
       "Return ONLY a JSON object (no markdown, no explanation):",
-      '{"bullets":["bullet 1","bullet 2","bullet 3"],"suggestedOpener":"Opening line here"}',
-      "Keep bullets under 80 chars each. Opening line should be natural and empathetic.",
+      '{',
+      '  "bullets":["bullet 1","bullet 2","bullet 3"],',
+      '  "suggestedOpener":"Opening line here",',
+      '  "talkingPoints":["point 1","point 2"],',
+      '  "objections":[{"objection":"They say X","rebuttal":"You respond Y"}],',
+      '  "negotiationAnchor":"Offer range: $X - $Y based on ...",',
+      '  "watchOuts":["compliance note","emotional trigger to avoid"]',
+      '}',
+      "Keep bullets under 80 chars. Opening line should be natural and empathetic.",
+      "talkingPoints: 2-3 conversation starters tied to their distress signals.",
+      "objections: 2-3 likely pushbacks with one-line rebuttals.",
+      "negotiationAnchor: a single sentence with the MAO range if data exists.",
+      "watchOuts: 1-2 compliance/emotional things to avoid.",
     ].join("\n");
 
     const raw = await completeGrokChat({
@@ -99,11 +122,26 @@ export async function POST(req: NextRequest) {
     let brief;
     try {
       const cleaned = raw.replace(/```json\s*/g, "").replace(/```/g, "").trim();
-      brief = JSON.parse(cleaned);
+      const parsed = JSON.parse(cleaned);
+      brief = {
+        bullets: parsed.bullets ?? [],
+        suggestedOpener: parsed.suggestedOpener ?? "",
+        talkingPoints: parsed.talkingPoints ?? [],
+        objections: (parsed.objections ?? []).map((o: { objection?: string; rebuttal?: string }) => ({
+          objection: o.objection ?? "",
+          rebuttal: o.rebuttal ?? "",
+        })),
+        negotiationAnchor: parsed.negotiationAnchor ?? null,
+        watchOuts: parsed.watchOuts ?? [],
+      };
     } catch {
       brief = {
         bullets: [raw.slice(0, 80)],
         suggestedOpener: "Hi, this is calling from Dominion Homes — do you have a moment to chat?",
+        talkingPoints: [],
+        objections: [],
+        negotiationAnchor: null,
+        watchOuts: [],
       };
     }
 

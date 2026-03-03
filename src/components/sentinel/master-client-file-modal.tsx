@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment, useState, useCallback, useMemo, useEffect } from "react";
+import { Fragment, useState, useCallback, useMemo, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   X, MapPin, User, Phone, Mail, DollarSign, Home, TrendingUp,
@@ -10,6 +10,7 @@ import {
   Radar, LayoutDashboard, Map, Printer, ImageIcon, ChevronLeft, ChevronRight,
   Pencil, Save, Voicemail, PhoneForwarded, Brain, Crosshair, MapPinned,
   MessageSquare, Flame, Smartphone, ShieldAlert, PhoneOff, Circle,
+  RefreshCw, Target, ArrowRight, ChevronDown,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -228,10 +229,8 @@ export function clientFileFromRaw(lead: Record<string, any>, prop: Record<string
 
 const TABS = [
   { id: "overview", label: "Overview", icon: LayoutDashboard },
-  { id: "propertyradar", label: "PropertyRadar", icon: Radar },
-  { id: "county", label: "County Records", icon: Globe },
   { id: "comps", label: "Comps & ARV", icon: Map },
-  { id: "calculator", label: "Offer Calculator", icon: Calculator },
+  { id: "calculator", label: "Deal Calculator", icon: Calculator },
   { id: "documents", label: "Documents / PSA", icon: FileText },
 ] as const;
 
@@ -1041,7 +1040,7 @@ function OverviewTab({ cf, skipTracing, skipTraceResult, skipTraceMs, overlay, s
   const [scoreBreakdown, setScoreBreakdown] = useState<ScoreType | null>(null);
   const canEdit = ["prospect", "lead"].includes(cf.status);
 
-  const { brief, loading: briefLoading } = usePreCallBrief(cf.id);
+  const { brief, loading: briefLoading, regenerate: regenerateBrief } = usePreCallBrief(cf.id);
 
   const bestPhone = allPhones[0] ?? (phoneDetails[0]?.number) ?? displayPhone;
   const phoneConfidence = phoneDetails.length > 0
@@ -1144,9 +1143,61 @@ function OverviewTab({ cf, skipTracing, skipTraceResult, skipTraceMs, overlay, s
 
   const streetViewUrl = prRaw.StreetViewUrl ?? prRaw.PropertyImageUrl ?? (prRaw.Photos?.[0]) ?? null;
 
+  const sectionOwner = useRef<HTMLDivElement>(null);
+  const sectionSignals = useRef<HTMLDivElement>(null);
+  const sectionEquity = useRef<HTMLDivElement>(null);
+  const sectionProperty = useRef<HTMLDivElement>(null);
+  const scrollTo = (ref: React.RefObject<HTMLDivElement | null>) => ref.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+
+  const mao = cf.estimatedValue ? Math.round(cf.estimatedValue * 0.70) : null;
+
+  const pipelineDays = cf.promotedAt
+    ? Math.floor((Date.now() - new Date(cf.promotedAt).getTime()) / 86400000)
+    : null;
+
+  const nextAction = useMemo(() => {
+    if (isLitigator || hasDncNumbers) return { label: "DO NOT CALL", color: "bg-red-600 text-white", icon: ShieldAlert };
+    if (cf.totalCalls === 0 && bestPhone) return { label: "CALL NOW", color: "bg-emerald-500 text-black", icon: Phone };
+    if (cf.totalCalls > 0 && cf.lastContactAt) {
+      const daysSince = Math.floor((Date.now() - new Date(cf.lastContactAt).getTime()) / 86400000);
+      if (daysSince >= 2 && daysSince <= 7) return { label: "FOLLOW UP", color: "bg-amber-500 text-black", icon: PhoneForwarded };
+      if (daysSince > 7) return { label: "SEND MAILER", color: "bg-blue-500 text-white", icon: Mail };
+    }
+    if (!bestPhone && !skipTraced) return { label: "ENRICH FIRST", color: "bg-cyan-500 text-black", icon: Crosshair };
+    if (bestPhone) return { label: "CALL NOW", color: "bg-emerald-500 text-black", icon: Phone };
+    return { label: "SKIP", color: "bg-zinc-600 text-white", icon: ArrowRight };
+  }, [isLitigator, hasDncNumbers, cf.totalCalls, cf.lastContactAt, bestPhone, skipTraced]);
+
+  const [timelinesOpen, setTimelinesOpen] = useState(cf.totalCalls > 0);
+  const [metadataOpen, setMetadataOpen] = useState(false);
+
   return (
     <div className="space-y-5">
-      {/* ── Top action bar: Edit + Enrich Now ── */}
+      {/* ── Next Best Action Banner ── */}
+      <div className={cn("rounded-[10px] px-4 py-2.5 flex items-center gap-3 font-bold text-sm shadow-lg", nextAction.color)}>
+        <nextAction.icon className="h-5 w-5 shrink-0" />
+        <span className="tracking-wide">{nextAction.label}</span>
+        {pipelineDays != null && (
+          <span className="ml-auto text-[10px] font-mono opacity-70">{pipelineDays}d in pipeline</span>
+        )}
+      </div>
+
+      {/* ── Compliance Gate — DNC / Litigator ── */}
+      {(isLitigator || hasDncNumbers) && (
+        <div className="rounded-[10px] border border-red-500/40 bg-red-500/[0.12] p-3 flex items-center gap-3">
+          <ShieldAlert className="h-5 w-5 text-red-400 shrink-0" />
+          <div>
+            <p className="text-xs font-bold text-red-400 uppercase tracking-wide">
+              {isLitigator ? "TCPA Litigator — DO NOT CONTACT" : "DNC Numbers Detected"}
+            </p>
+            <p className="text-[10px] text-red-300/70 mt-0.5">
+              {isLitigator ? "High litigation risk. No calls, texts, or mailers to this owner." : "One or more phone numbers are on the DNC list. Check before dialing."}
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* ── Top action bar: Edit + Enrich (small) ── */}
       <div className="flex items-center justify-between gap-2">
         {canEdit ? (
           <button
@@ -1160,23 +1211,20 @@ function OverviewTab({ cf, skipTracing, skipTraceResult, skipTraceMs, overlay, s
           </button>
         ) : <div />}
 
-        <Button
-          size="lg"
+        <button
           onClick={onSkipTrace}
           disabled={skipTracing}
-          className="gap-2.5 px-6 py-2.5 text-sm font-bold rounded-[12px]
-            bg-gradient-to-r from-cyan-500 to-cyan-400 hover:from-cyan-400 hover:to-cyan-300
-            text-black border-0
-            shadow-[0_0_24px_rgba(0,212,255,0.35),0_0_60px_rgba(0,212,255,0.15)]
-            hover:shadow-[0_0_32px_rgba(0,212,255,0.5),0_0_80px_rgba(0,212,255,0.25)]
-            transition-all active:scale-[0.97]"
+          title="Enrich Now"
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-[10px] text-[10px] font-semibold
+            text-cyan/70 bg-cyan/[0.04] border border-cyan/15 hover:bg-cyan/[0.10] hover:border-cyan/25
+            transition-all active:scale-[0.97] disabled:opacity-50"
         >
-          {skipTracing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Crosshair className="h-4 w-4" />}
-          {skipTracing ? "Enriching…" : "Enrich Now"}
-        </Button>
+          {skipTracing ? <Loader2 className="h-3 w-3 animate-spin" /> : <Crosshair className="h-3 w-3" />}
+          {skipTracing ? "Enriching…" : "Enrich"}
+        </button>
       </div>
 
-      {/* ── Property Photo (Street View) ── */}
+      {/* ── Property Photo (Street View) with Specs Overlay ── */}
       {streetViewUrl && (
         <div className="rounded-[12px] border border-white/[0.08] overflow-hidden relative h-40">
           <img
@@ -1185,9 +1233,25 @@ function OverviewTab({ cf, skipTracing, skipTraceResult, skipTraceMs, overlay, s
             className="w-full h-full object-cover"
             onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
           />
-          <div className="absolute inset-0 bg-gradient-to-t from-[rgba(7,7,13,0.7)] to-transparent pointer-events-none" />
-          <div className="absolute bottom-2 left-3 flex items-center gap-1.5 text-[10px] text-white/70">
-            <ImageIcon className="h-3 w-3" />Street View
+          <div className="absolute inset-0 bg-gradient-to-t from-[rgba(7,7,13,0.85)] via-[rgba(7,7,13,0.2)] to-transparent pointer-events-none" />
+          <div className="absolute bottom-2 left-3 right-3 flex items-end justify-between">
+            <div className="flex items-center gap-2.5 text-white">
+              {cf.bedrooms != null && (
+                <span className="text-xs font-bold bg-black/50 backdrop-blur-sm px-2 py-0.5 rounded">{cf.bedrooms}bd / {cf.bathrooms ?? "?"}ba</span>
+              )}
+              {cf.sqft != null && (
+                <span className="text-xs font-bold bg-black/50 backdrop-blur-sm px-2 py-0.5 rounded">{cf.sqft.toLocaleString()} sqft</span>
+              )}
+              {cf.yearBuilt && (
+                <span className="text-xs font-bold bg-black/50 backdrop-blur-sm px-2 py-0.5 rounded">Built {cf.yearBuilt}</span>
+              )}
+              {cf.lotSize && (
+                <span className="text-xs font-bold bg-black/50 backdrop-blur-sm px-2 py-0.5 rounded">{cf.lotSize.toLocaleString()} lot</span>
+              )}
+            </div>
+            <div className="flex items-center gap-1 text-[9px] text-white/50">
+              <ImageIcon className="h-2.5 w-2.5" />Street View
+            </div>
           </div>
         </div>
       )}
@@ -1235,9 +1299,18 @@ function OverviewTab({ cf, skipTracing, skipTraceResult, skipTraceMs, overlay, s
           </button>
 
           {/* Equity & Spread */}
-          <div className={cn("rounded-[10px] border p-3 relative overflow-hidden", equityIsGreen ? "border-emerald-500/20 bg-emerald-500/[0.04]" : "border-white/[0.06] bg-white/[0.03]")}>
+          <button
+            type="button"
+            onClick={() => scrollTo(sectionEquity)}
+            className={cn("rounded-[10px] border p-3 relative overflow-hidden text-left transition-all cursor-pointer hover:bg-white/[0.04] group",
+              equityIsGreen ? "border-emerald-500/20 bg-emerald-500/[0.04] hover:border-emerald-500/30" : "border-white/[0.06] bg-white/[0.03] hover:border-white/[0.12]"
+            )}
+          >
             {equityIsGreen && <div className="absolute inset-0 bg-gradient-to-b from-emerald-500/[0.06] to-transparent pointer-events-none" />}
-            <p className="text-[9px] text-muted-foreground/60 uppercase tracking-widest mb-1 relative z-10">Equity &amp; Spread</p>
+            <div className="flex items-center justify-between mb-1 relative z-10">
+              <p className="text-[9px] text-muted-foreground/60 uppercase tracking-widest">Equity &amp; Spread</p>
+              <span className="text-[8px] text-emerald-400/40 group-hover:text-emerald-400/70 transition-colors">details &rarr;</span>
+            </div>
             <div className="flex items-center gap-3 relative z-10">
               <p className={cn("text-3xl font-black tabular-nums", equityIsGreen ? "text-emerald-400" : "text-foreground")}
                 style={{ textShadow: equityIsGreen ? "0 0 16px rgba(52,211,153,0.35)" : undefined }}>
@@ -1250,15 +1323,22 @@ function OverviewTab({ cf, skipTracing, skipTraceResult, skipTraceMs, overlay, s
               </div>
             </div>
             {roomLabel && (
-              <div className="mt-2 relative z-10">
-                <span className={cn("text-[9px] font-bold px-1.5 py-0.5 rounded uppercase tracking-wider", roomColor)}>{roomLabel}</span>
-              </div>
+              <p className={cn("text-[9px] mt-1.5 relative z-10 font-semibold", roomColor.split(" ")[0])}>
+                {roomLabel === "HIGH SPREAD" ? "Room to negotiate — strong equity" : roomLabel === "MODERATE" ? "Some room — watch margins" : "Tight spread — proceed with caution"}
+              </p>
             )}
-          </div>
+          </button>
 
           {/* Signal Freshness */}
-          <div className="rounded-[10px] border border-white/[0.06] bg-white/[0.03] p-3">
-            <p className="text-[9px] text-muted-foreground/60 uppercase tracking-widest mb-1">Signal Freshness</p>
+          <button
+            type="button"
+            onClick={() => scrollTo(sectionSignals)}
+            className="rounded-[10px] border border-white/[0.06] bg-white/[0.03] p-3 text-left transition-all cursor-pointer hover:bg-white/[0.04] hover:border-white/[0.12] group"
+          >
+            <div className="flex items-center justify-between mb-1">
+              <p className="text-[9px] text-muted-foreground/60 uppercase tracking-widest">Signal Freshness</p>
+              <span className="text-[8px] text-orange-400/40 group-hover:text-orange-400/70 transition-colors">timeline &rarr;</span>
+            </div>
             {freshestEvent ? (
               <>
                 <div className="flex items-center gap-2">
@@ -1267,22 +1347,11 @@ function OverviewTab({ cf, skipTracing, skipTraceResult, skipTraceMs, overlay, s
                   </p>
                   <p className="text-[9px] text-muted-foreground/50">since newest</p>
                 </div>
-                <div className="flex items-center gap-1.5 mt-1.5">
-                  {(() => {
-                    const cfg = DISTRESS_CFG[freshestEvent.event_type];
-                    const FreshIcon = cfg?.icon ?? AlertTriangle;
-                    return (
-                      <div className={cn("flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-medium", cfg?.color ?? "text-muted-foreground bg-white/[0.04] border-white/[0.06]")}>
-                        <FreshIcon className="h-2.5 w-2.5" />{cfg?.label ?? freshestEvent.event_type}
-                      </div>
-                    );
-                  })()}
-                  {freshestDays != null && freshestDays <= 14 && (
-                    <span className="flex items-center gap-0.5 text-[9px] font-bold text-red-400">
-                      <Flame className="h-2.5 w-2.5" />HOT
-                    </span>
-                  )}
-                </div>
+                <p className="text-[9px] text-orange-300/70 mt-1 font-semibold">
+                  {freshestDays != null && freshestDays <= 7 ? "Very fresh — call ASAP before competitors" :
+                   freshestDays != null && freshestDays <= 30 ? "Recent signal — still a warm window" :
+                   "Aging signal — may need re-verification"}
+                </p>
               </>
             ) : cf.tags.length > 0 ? (
               <div className="flex items-center gap-2">
@@ -1292,11 +1361,18 @@ function OverviewTab({ cf, skipTracing, skipTraceResult, skipTraceMs, overlay, s
             ) : (
               <p className="text-xs text-muted-foreground/40 italic">No signals</p>
             )}
-          </div>
+          </button>
 
           {/* Owner Situation */}
-          <div className="rounded-[10px] border border-white/[0.06] bg-white/[0.03] p-3">
-            <p className="text-[9px] text-muted-foreground/60 uppercase tracking-widest mb-1">Owner Situation</p>
+          <button
+            type="button"
+            onClick={() => scrollTo(sectionOwner)}
+            className="rounded-[10px] border border-white/[0.06] bg-white/[0.03] p-3 text-left transition-all cursor-pointer hover:bg-white/[0.04] hover:border-white/[0.12] group"
+          >
+            <div className="flex items-center justify-between mb-1">
+              <p className="text-[9px] text-muted-foreground/60 uppercase tracking-widest">Owner Situation</p>
+              <span className="text-[8px] text-cyan/40 group-hover:text-cyan/70 transition-colors">contact &rarr;</span>
+            </div>
             <div className="space-y-1.5">
               <div className="flex flex-wrap items-center gap-1">
                 {cf.isAbsentee ? (
@@ -1307,24 +1383,145 @@ function OverviewTab({ cf, skipTracing, skipTraceResult, skipTraceMs, overlay, s
                 {cf.isFreeClear && <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-400 border border-amber-500/20">FREE &amp; CLEAR</span>}
                 {cf.isVacant && <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-purple-500/10 text-purple-400 border border-purple-500/20">VACANT</span>}
               </div>
-              {yearsOwned != null && <p className="text-xs text-muted-foreground">{yearsOwned} year{yearsOwned !== 1 ? "s" : ""} owned</p>}
-              {ownerAge != null && <p className="text-xs text-muted-foreground">Owner age ~{ownerAge}</p>}
-              {lastTransferType && (
-                <p className="text-[10px] text-muted-foreground/60">
-                  Last transfer: {lastTransferType}{lastTransferValue ? ` (${formatCurrency(lastTransferValue)})` : ""}
-                </p>
-              )}
+              <p className="text-[9px] text-muted-foreground/70 font-semibold">
+                {cf.isAbsentee && ownerAge && ownerAge >= 65 ? "Elderly absentee — likely estate/caretaker situation" :
+                 cf.isAbsentee ? "Absentee owner — may be motivated to offload" :
+                 cf.isFreeClear ? "Free & clear — no mortgage pressure, but no urgency either" :
+                 yearsOwned != null && yearsOwned >= 20 ? `${yearsOwned}yr owner — long tenure, may be ready to move` :
+                 ownerAge ? `Owner ~${ownerAge} — ${ownerAge >= 65 ? "senior, life transition likely" : "younger owner"}` :
+                 "Standard owner situation"}
+              </p>
             </div>
-          </div>
+          </button>
         </div>
       </div>
+
+      {/* ── Quick Offer — MAO at a glance ── */}
+      {mao != null && mao > 0 && (
+        <div className="rounded-[10px] border border-cyan/15 bg-cyan/[0.03] px-4 py-2.5 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Target className="h-4 w-4 text-cyan/60" />
+            <span className="text-xs text-muted-foreground">Quick MAO (70% rule):</span>
+            <span className="text-sm font-bold text-neon font-mono" style={{ textShadow: "0 0 10px rgba(0,212,255,0.25)" }}>{formatCurrency(mao)}</span>
+          </div>
+          <span className="text-[9px] text-muted-foreground/50">AVM {formatCurrency(cf.estimatedValue!)} × 0.70</span>
+        </div>
+      )}
 
       {scoreBreakdown && (
         <ScoreBreakdownModal cf={cf} scoreType={scoreBreakdown} onClose={() => setScoreBreakdown(null)} />
       )}
 
+      {/* ── Call Playbook — Grok AI (upgraded pre-call brief) ── */}
+      <div className="rounded-[12px] border border-purple-500/20 bg-purple-500/[0.04] p-4 relative overflow-hidden">
+        <div className="absolute inset-0 bg-gradient-to-br from-purple-500/[0.06] via-transparent to-cyan/[0.03] pointer-events-none" />
+        <div className="absolute top-0 inset-x-0 h-[1px] bg-gradient-to-r from-transparent via-purple-400/40 to-transparent" />
+
+        <div className="flex items-center gap-2 mb-3 relative z-10">
+          <div className="h-7 w-7 rounded-[8px] bg-purple-500/15 flex items-center justify-center">
+            <Brain className="h-3.5 w-3.5 text-purple-400" />
+          </div>
+          <p className="text-[11px] text-purple-300 uppercase tracking-wider font-semibold">Call Playbook</p>
+          <Badge variant="outline" className="text-[8px] border-purple-500/20 text-purple-400/60 ml-1">GROK AI</Badge>
+          {briefLoading && <Loader2 className="h-3 w-3 text-purple-400 animate-spin ml-auto" />}
+          {!briefLoading && (
+            <button
+              onClick={regenerateBrief}
+              className="ml-auto p-1 rounded-md hover:bg-purple-500/10 transition-colors text-purple-400/50 hover:text-purple-400"
+              title="Regenerate playbook"
+            >
+              <RefreshCw className="h-3 w-3" />
+            </button>
+          )}
+        </div>
+
+        <div className="relative z-10 space-y-3">
+          {brief ? (
+            <>
+              {/* Key Bullets */}
+              <div className="space-y-1.5">
+                {brief.bullets.map((bullet, i) => (
+                  <div key={i} className="flex items-start gap-2 text-xs">
+                    <span className="text-purple-400 mt-0.5 shrink-0">&#9670;</span>
+                    <p className="text-foreground/90 leading-relaxed">{bullet}</p>
+                  </div>
+                ))}
+              </div>
+
+              {/* Suggested Opener */}
+              {brief.suggestedOpener && (
+                <div className="pt-2 border-t border-purple-500/10">
+                  <p className="text-[9px] text-purple-400/50 uppercase tracking-widest mb-1">Suggested Opener</p>
+                  <p className="text-xs text-foreground/80 italic leading-relaxed">&ldquo;{brief.suggestedOpener}&rdquo;</p>
+                </div>
+              )}
+
+              {/* Talking Points */}
+              {brief.talkingPoints.length > 0 && (
+                <div className="pt-2 border-t border-purple-500/10">
+                  <p className="text-[9px] text-purple-400/50 uppercase tracking-widest mb-1.5">Talking Points</p>
+                  <div className="space-y-1">
+                    {brief.talkingPoints.map((tp, i) => (
+                      <div key={i} className="flex items-start gap-2 text-xs">
+                        <span className="text-cyan/60 mt-0.5 shrink-0 text-[10px]">{i + 1}.</span>
+                        <p className="text-foreground/80 leading-relaxed">{tp}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Objections & Rebuttals */}
+              {brief.objections.length > 0 && (
+                <div className="pt-2 border-t border-purple-500/10">
+                  <p className="text-[9px] text-purple-400/50 uppercase tracking-widest mb-1.5">Likely Objections</p>
+                  <div className="space-y-2">
+                    {brief.objections.map((obj, i) => (
+                      <div key={i} className="rounded-[8px] border border-white/[0.04] bg-white/[0.02] px-3 py-2">
+                        <p className="text-xs text-red-300/80 font-medium">&ldquo;{obj.objection}&rdquo;</p>
+                        <p className="text-xs text-emerald-300/80 mt-1 pl-3 border-l-2 border-emerald-500/20">{obj.rebuttal}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Negotiation Anchor */}
+              {brief.negotiationAnchor && (
+                <div className="pt-2 border-t border-purple-500/10">
+                  <p className="text-[9px] text-purple-400/50 uppercase tracking-widest mb-1">Negotiation Anchor</p>
+                  <p className="text-xs text-neon/90 font-semibold">{brief.negotiationAnchor}</p>
+                </div>
+              )}
+
+              {/* Watch-Outs */}
+              {brief.watchOuts.length > 0 && (
+                <div className="pt-2 border-t border-purple-500/10">
+                  <p className="text-[9px] text-red-400/50 uppercase tracking-widest mb-1">Watch-Outs</p>
+                  <div className="space-y-1">
+                    {brief.watchOuts.map((wo, i) => (
+                      <div key={i} className="flex items-start gap-1.5 text-xs text-amber-400/80">
+                        <AlertTriangle className="h-3 w-3 mt-0.5 shrink-0" />
+                        <p>{wo}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </>
+          ) : briefLoading ? (
+            <div className="flex items-center justify-center py-4 gap-2">
+              <Loader2 className="h-4 w-4 text-purple-400 animate-spin" />
+              <span className="text-xs text-purple-300/60">Generating playbook…</span>
+            </div>
+          ) : (
+            <p className="text-[11px] text-muted-foreground/40 italic py-2">Grok AI playbook will generate automatically when data is available</p>
+          )}
+        </div>
+      </div>
+
       {/* ── Owner & Contact — Best Phone + Confidence ── */}
-      <div className="rounded-[12px] border border-glass-border bg-secondary/10 p-4">
+      <div ref={sectionOwner} className="rounded-[12px] border border-glass-border bg-secondary/10 p-4">
         <div className="flex items-center gap-2 mb-3">
           <User className="h-3.5 w-3.5 text-muted-foreground" />
           <p className="text-[11px] text-muted-foreground uppercase tracking-wider font-semibold">Owner & Contact</p>
@@ -1716,49 +1913,6 @@ function OverviewTab({ cf, skipTracing, skipTraceResult, skipTraceMs, overlay, s
         )}
       </div>
 
-      {/* ── Pre-Call Brief — Grok AI Glass Card ── */}
-      <div className="rounded-[12px] border border-purple-500/20 bg-purple-500/[0.04] p-4 relative overflow-hidden">
-        <div className="absolute inset-0 bg-gradient-to-br from-purple-500/[0.06] via-transparent to-cyan/[0.03] pointer-events-none" />
-        <div className="absolute top-0 inset-x-0 h-[1px] bg-gradient-to-r from-transparent via-purple-400/40 to-transparent" />
-
-        <div className="flex items-center gap-2 mb-3 relative z-10">
-          <div className="h-7 w-7 rounded-[8px] bg-purple-500/15 flex items-center justify-center">
-            <Brain className="h-3.5 w-3.5 text-purple-400" />
-          </div>
-          <p className="text-[11px] text-purple-300 uppercase tracking-wider font-semibold">Pre-Call Brief</p>
-          <Badge variant="outline" className="text-[8px] border-purple-500/20 text-purple-400/60 ml-1">GROK AI</Badge>
-          {briefLoading && <Loader2 className="h-3 w-3 text-purple-400 animate-spin ml-auto" />}
-        </div>
-
-        <div className="relative z-10 space-y-2">
-          {brief ? (
-            <>
-              <div className="space-y-1.5">
-                {brief.bullets.map((bullet, i) => (
-                  <div key={i} className="flex items-start gap-2 text-xs">
-                    <span className="text-purple-400 mt-0.5 shrink-0">&#9670;</span>
-                    <p className="text-foreground/90 leading-relaxed">{bullet}</p>
-                  </div>
-                ))}
-              </div>
-              {brief.suggestedOpener && (
-                <div className="mt-3 pt-3 border-t border-purple-500/10">
-                  <p className="text-[9px] text-purple-400/50 uppercase tracking-widest mb-1">Suggested Opener</p>
-                  <p className="text-xs text-foreground/80 italic leading-relaxed">&ldquo;{brief.suggestedOpener}&rdquo;</p>
-                </div>
-              )}
-            </>
-          ) : briefLoading ? (
-            <div className="flex items-center justify-center py-4 gap-2">
-              <Loader2 className="h-4 w-4 text-purple-400 animate-spin" />
-              <span className="text-xs text-purple-300/60">Generating brief…</span>
-            </div>
-          ) : (
-            <p className="text-[11px] text-muted-foreground/40 italic py-2">Grok AI brief will generate automatically when available</p>
-          )}
-        </div>
-      </div>
-
       {/* ── Call History Summary — 7-Day Power Sequence ── */}
       {(cf.totalCalls > 0 || cf.nextCallScheduledAt) && (
         <div className="rounded-[12px] border border-white/[0.06] bg-white/[0.02] p-4 space-y-3">
@@ -1863,7 +2017,7 @@ function OverviewTab({ cf, skipTracing, skipTraceResult, skipTraceMs, overlay, s
       )}
 
       {/* ── Property Details — Compact Grid ── */}
-      <div className="rounded-[12px] border border-white/[0.06] bg-white/[0.02] p-4 space-y-3">
+      <div ref={sectionEquity} className="rounded-[12px] border border-white/[0.06] bg-white/[0.02] p-4 space-y-3">
         <div className="flex items-center gap-2 mb-1">
           <Home className="h-3.5 w-3.5 text-muted-foreground" />
           <p className="text-[11px] text-muted-foreground uppercase tracking-wider font-semibold">Property Details</p>
@@ -1937,39 +2091,6 @@ function OverviewTab({ cf, skipTracing, skipTraceResult, skipTraceMs, overlay, s
             </div>
           )}
 
-          {/* Distress Signals */}
-          <div className="rounded-[10px] border border-white/[0.06] bg-white/[0.03] p-2.5 col-span-2">
-            <div className="flex items-start gap-2">
-              <AlertTriangle className="h-3.5 w-3.5 text-orange-400/70 mt-0.5 shrink-0" />
-              <div className="flex-1 min-w-0">
-                <p className="text-[9px] text-muted-foreground/60 uppercase tracking-widest mb-1">Active Distress Signals</p>
-                {cf.tags.length > 0 ? (
-                  <div className="flex flex-wrap gap-1.5">
-                    {cf.tags.map((tag) => {
-                      const cfg = DISTRESS_CFG[tag];
-                      const pts = SIGNAL_WEIGHTS[tag as keyof typeof SIGNAL_WEIGHTS];
-                      const TagIcon = cfg?.icon ?? Tag;
-                      return (
-                        <div key={tag} className={cn("flex items-center gap-1 px-2 py-0.5 rounded-md border text-[10px] font-medium", cfg?.color ?? "text-muted-foreground bg-white/[0.02] border-white/[0.06]")}>
-                          <TagIcon className="h-2.5 w-2.5" />{cfg?.label ?? tag}
-                          {pts != null && <span className="text-[8px] ml-0.5 opacity-60 font-mono">+{pts}</span>}
-                        </div>
-                      );
-                    })}
-                  </div>
-                ) : (
-                  <p className="text-[11px] text-muted-foreground/40 italic">No active distress signals</p>
-                )}
-                {cf.foreclosureStage && (
-                  <p className="text-[10px] text-orange-400 mt-1.5">Foreclosure: <span className="font-semibold">{cf.foreclosureStage}</span>{cf.defaultAmount ? ` — ${formatCurrency(cf.defaultAmount)} default` : ""}</p>
-                )}
-                {cf.delinquentAmount != null && cf.delinquentAmount > 0 && (
-                  <p className="text-[10px] text-amber-400 mt-0.5">Tax Delinquent: <span className="font-semibold">{formatCurrency(cf.delinquentAmount)}</span></p>
-                )}
-              </div>
-            </div>
-          </div>
-
           {/* Predictive Intelligence */}
           <div className="rounded-[10px] border border-white/[0.06] bg-white/[0.03] p-2.5 col-span-2">
             <div className="flex items-start gap-2">
@@ -2011,110 +2132,214 @@ function OverviewTab({ cf, skipTracing, skipTraceResult, skipTraceMs, overlay, s
         </div>
       </div>
 
-      {/* Metadata */}
-      <Section title="Metadata" icon={Eye}>
-        <div className="grid grid-cols-2 gap-x-6">
-          <InfoRow icon={Zap} label="Source" value={cf.source} />
-          <InfoRow icon={Clock} label="Promoted" value={cf.promotedAt ? new Date(cf.promotedAt).toLocaleDateString() : null} />
-          <InfoRow icon={Clock} label="Last Contact" value={cf.lastContactAt ? new Date(cf.lastContactAt).toLocaleDateString() : null} />
-          <InfoRow icon={Calendar} label="Follow-Up" value={cf.followUpDate ? new Date(cf.followUpDate).toLocaleDateString() : null} />
-          <InfoRow icon={Copy} label="Model Version" value={cf.modelVersion} />
-          <InfoRow icon={ExternalLink} label="Radar ID" value={cf.radarId} mono />
-          <InfoRow icon={Clock} label="Last Enriched" value={cf.ownerFlags?.last_enriched ? new Date(cf.ownerFlags.last_enriched as string).toLocaleString() : (cf.enriched ? "Enriched (time unknown)" : null)} highlight={!!cf.ownerFlags?.last_enriched} />
-        </div>
-        {cf.notes && (
-          <div className="mt-2">
-            <p className="text-[10px] text-muted-foreground uppercase tracking-wider mb-0.5">Notes</p>
-            <p className="text-xs text-foreground/80">{cf.notes}</p>
-          </div>
-        )}
-      </Section>
+      {/* Metadata — Collapsible */}
+      <div className="rounded-[12px] border border-glass-border bg-secondary/10">
+        <button
+          onClick={() => setMetadataOpen(!metadataOpen)}
+          className="w-full flex items-center gap-2 p-4 text-left"
+        >
+          <Eye className="h-3.5 w-3.5 text-muted-foreground" />
+          <p className="text-[11px] text-muted-foreground uppercase tracking-wider font-semibold">Metadata</p>
+          <ChevronDown className={cn("h-3.5 w-3.5 text-muted-foreground/40 ml-auto transition-transform", metadataOpen && "rotate-180")} />
+        </button>
+        <AnimatePresence>
+          {metadataOpen && (
+            <motion.div
+              initial={{ height: 0, opacity: 0 }}
+              animate={{ height: "auto", opacity: 1 }}
+              exit={{ height: 0, opacity: 0 }}
+              transition={{ duration: 0.2 }}
+              className="overflow-hidden"
+            >
+              <div className="px-4 pb-4">
+                <div className="grid grid-cols-2 gap-x-6">
+                  <InfoRow icon={Zap} label="Source" value={cf.source} />
+                  <InfoRow icon={Clock} label="Promoted" value={cf.promotedAt ? new Date(cf.promotedAt).toLocaleDateString() : null} />
+                  <InfoRow icon={Clock} label="Last Contact" value={cf.lastContactAt ? new Date(cf.lastContactAt).toLocaleDateString() : null} />
+                  <InfoRow icon={Calendar} label="Follow-Up" value={cf.followUpDate ? new Date(cf.followUpDate).toLocaleDateString() : null} />
+                  <InfoRow icon={Copy} label="Model Version" value={cf.modelVersion} />
+                  <InfoRow icon={ExternalLink} label="Radar ID" value={cf.radarId} mono />
+                  <InfoRow icon={Clock} label="Last Enriched" value={cf.ownerFlags?.last_enriched ? new Date(cf.ownerFlags.last_enriched as string).toLocaleString() : (cf.enriched ? "Enriched (time unknown)" : null)} highlight={!!cf.ownerFlags?.last_enriched} />
+                </div>
+                {cf.notes && (
+                  <div className="mt-2">
+                    <p className="text-[10px] text-muted-foreground uppercase tracking-wider mb-0.5">Notes</p>
+                    <p className="text-xs text-foreground/80">{cf.notes}</p>
+                  </div>
+                )}
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
 
-      {/* ── Distress Signal Timeline ── */}
+      {/* ── Distress Signal Timeline — Collapsible ── */}
       {distressEvents.length > 0 && (
-        <div className="rounded-[12px] border border-orange-500/15 bg-orange-500/[0.02] p-4 space-y-3">
-          <div className="flex items-center gap-2 mb-1">
+        <div ref={sectionSignals} className="rounded-[12px] border border-orange-500/15 bg-orange-500/[0.02]">
+          <button
+            onClick={() => setTimelinesOpen(!timelinesOpen)}
+            className="w-full flex items-center gap-2 p-4 text-left"
+          >
             <AlertTriangle className="h-3.5 w-3.5 text-orange-400" />
             <p className="text-[11px] text-orange-400/80 uppercase tracking-wider font-semibold">Distress Signal Timeline</p>
             <Badge variant="outline" className="text-[9px] ml-1 border-orange-500/20 text-orange-400/70">{distressEvents.length}</Badge>
-          </div>
-          <div className="space-y-1.5 max-h-48 overflow-y-auto scrollbar-thin">
-            {distressEvents.map((evt) => {
-              const cfg = DISTRESS_CFG[evt.event_type];
-              const EvtIcon = cfg?.icon ?? AlertTriangle;
-              const daysAgo = Math.floor((Date.now() - new Date(evt.created_at).getTime()) / 86400000);
-              const isRecent = daysAgo <= 30;
-              return (
-                <div key={evt.id} className={cn("flex items-center gap-2.5 px-3 py-2 rounded-[8px] border text-xs", isRecent ? "border-orange-500/20 bg-orange-500/[0.06]" : "border-white/[0.06] bg-white/[0.02]")}>
-                  <EvtIcon className={cn("h-3.5 w-3.5 shrink-0", isRecent ? "text-orange-400" : "text-muted-foreground/50")} />
-                  <div className="flex-1 min-w-0">
-                    <span className={cn("font-semibold", isRecent ? "text-orange-300" : "text-foreground")}>{cfg?.label ?? evt.event_type}</span>
-                    {evt.source && <span className="text-muted-foreground/50 ml-1.5">via {evt.source}</span>}
-                  </div>
-                  <div className="text-right shrink-0">
-                    <p className={cn("font-mono text-[10px]", isRecent ? "text-orange-400 font-bold" : "text-muted-foreground/50")}>{daysAgo}d ago</p>
-                    <p className="text-[9px] text-muted-foreground/40">{new Date(evt.created_at).toLocaleDateString()}</p>
-                  </div>
-                  {isRecent && <Flame className="h-3 w-3 text-red-400 shrink-0" />}
+            <ChevronDown className={cn("h-3.5 w-3.5 text-muted-foreground/40 ml-auto transition-transform", timelinesOpen && "rotate-180")} />
+          </button>
+          <AnimatePresence>
+            {timelinesOpen && (
+              <motion.div
+                initial={{ height: 0, opacity: 0 }}
+                animate={{ height: "auto", opacity: 1 }}
+                exit={{ height: 0, opacity: 0 }}
+                transition={{ duration: 0.2 }}
+                className="overflow-hidden"
+              >
+                <div className="px-4 pb-4 space-y-1.5 max-h-48 overflow-y-auto scrollbar-thin">
+                  {distressEvents.map((evt) => {
+                    const cfg = DISTRESS_CFG[evt.event_type];
+                    const EvtIcon = cfg?.icon ?? AlertTriangle;
+                    const daysAgo = Math.floor((Date.now() - new Date(evt.created_at).getTime()) / 86400000);
+                    const isRecent = daysAgo <= 30;
+                    return (
+                      <div key={evt.id} className={cn("flex items-center gap-2.5 px-3 py-2 rounded-[8px] border text-xs", isRecent ? "border-orange-500/20 bg-orange-500/[0.06]" : "border-white/[0.06] bg-white/[0.02]")}>
+                        <EvtIcon className={cn("h-3.5 w-3.5 shrink-0", isRecent ? "text-orange-400" : "text-muted-foreground/50")} />
+                        <div className="flex-1 min-w-0">
+                          <span className={cn("font-semibold", isRecent ? "text-orange-300" : "text-foreground")}>{cfg?.label ?? evt.event_type}</span>
+                          {evt.source && <span className="text-muted-foreground/50 ml-1.5">via {evt.source}</span>}
+                        </div>
+                        <div className="text-right shrink-0">
+                          <p className={cn("font-mono text-[10px]", isRecent ? "text-orange-400 font-bold" : "text-muted-foreground/50")}>{daysAgo}d ago</p>
+                          <p className="text-[9px] text-muted-foreground/40">{new Date(evt.created_at).toLocaleDateString()}</p>
+                        </div>
+                        {isRecent && <Flame className="h-3 w-3 text-red-400 shrink-0" />}
+                      </div>
+                    );
+                  })}
                 </div>
-              );
-            })}
-          </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
         </div>
       )}
 
-      {/* ── Activity Timeline ── */}
+      {/* ── Activity Timeline — Collapsible ── */}
       {activityLog.length > 0 && (
-        <div className="rounded-[12px] border border-white/[0.06] bg-white/[0.02] p-4 space-y-3">
-          <div className="flex items-center gap-2 mb-1">
+        <div className="rounded-[12px] border border-white/[0.06] bg-white/[0.02]">
+          <button
+            onClick={() => setTimelinesOpen(!timelinesOpen)}
+            className="w-full flex items-center gap-2 p-4 text-left"
+          >
             <Clock className="h-3.5 w-3.5 text-cyan" />
             <p className="text-[11px] text-muted-foreground uppercase tracking-wider font-semibold">Activity Timeline</p>
             <Badge variant="outline" className="text-[9px] ml-1">{activityLog.length}</Badge>
-          </div>
-          <div className="space-y-1 max-h-48 overflow-y-auto scrollbar-thin">
-            {activityLog.map((entry) => {
-              const isCall = entry.type === "call";
-              const isSms = entry.type === "sms";
-              const EntryIcon = isCall ? Phone : isSms ? MessageSquare : Zap;
-              const iconColor = isCall ? "text-cyan" : isSms ? "text-emerald-400" : "text-purple-400";
-              return (
-                <div key={entry.id} className="flex items-center gap-2.5 px-3 py-2 rounded-[8px] border border-white/[0.04] bg-white/[0.02] text-xs">
-                  <EntryIcon className={cn("h-3.5 w-3.5 shrink-0", iconColor)} />
-                  <div className="flex-1 min-w-0">
-                    <span className="font-semibold text-foreground capitalize">{entry.disposition?.replace(/_/g, " ") ?? entry.type}</span>
-                    {entry.phone && <span className="text-muted-foreground/50 ml-1.5 font-mono">***{entry.phone.slice(-4)}</span>}
-                    {entry.duration_sec != null && entry.duration_sec > 0 && (
-                      <span className="text-muted-foreground/50 ml-1.5">{Math.floor(entry.duration_sec / 60)}:{(entry.duration_sec % 60).toString().padStart(2, "0")}</span>
-                    )}
-                  </div>
-                  <p className="text-[9px] text-muted-foreground/40 shrink-0">{new Date(entry.created_at).toLocaleDateString()} {new Date(entry.created_at).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}</p>
+            <ChevronDown className={cn("h-3.5 w-3.5 text-muted-foreground/40 ml-auto transition-transform", timelinesOpen && "rotate-180")} />
+          </button>
+          <AnimatePresence>
+            {timelinesOpen && (
+              <motion.div
+                initial={{ height: 0, opacity: 0 }}
+                animate={{ height: "auto", opacity: 1 }}
+                exit={{ height: 0, opacity: 0 }}
+                transition={{ duration: 0.2 }}
+                className="overflow-hidden"
+              >
+                <div className="px-4 pb-4 space-y-1 max-h-48 overflow-y-auto scrollbar-thin">
+                  {activityLog.map((entry) => {
+                    const isCall = entry.type === "call";
+                    const isSms = entry.type === "sms";
+                    const EntryIcon = isCall ? Phone : isSms ? MessageSquare : Zap;
+                    const iconColor = isCall ? "text-cyan" : isSms ? "text-emerald-400" : "text-purple-400";
+                    return (
+                      <div key={entry.id} className="flex items-center gap-2.5 px-3 py-2 rounded-[8px] border border-white/[0.04] bg-white/[0.02] text-xs">
+                        <EntryIcon className={cn("h-3.5 w-3.5 shrink-0", iconColor)} />
+                        <div className="flex-1 min-w-0">
+                          <span className="font-semibold text-foreground capitalize">{entry.disposition?.replace(/_/g, " ") ?? entry.type}</span>
+                          {entry.phone && <span className="text-muted-foreground/50 ml-1.5 font-mono">***{entry.phone.slice(-4)}</span>}
+                          {entry.duration_sec != null && entry.duration_sec > 0 && (
+                            <span className="text-muted-foreground/50 ml-1.5">{Math.floor(entry.duration_sec / 60)}:{(entry.duration_sec % 60).toString().padStart(2, "0")}</span>
+                          )}
+                        </div>
+                        <p className="text-[9px] text-muted-foreground/40 shrink-0">{new Date(entry.created_at).toLocaleDateString()} {new Date(entry.created_at).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}</p>
+                      </div>
+                    );
+                  })}
                 </div>
-              );
-            })}
-          </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
         </div>
       )}
 
-      {/* ── External Links ── */}
-      <div className="flex flex-wrap items-center gap-3">
-        {cf.radarId && (
-          <a href={`https://app.propertyradar.com/properties/${cf.radarId}`} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1.5 text-xs text-cyan/70 hover:text-cyan transition-colors">
-            <Radar className="h-3 w-3" />PropertyRadar
-          </a>
-        )}
-        {cf.fullAddress && (
-          <>
-            <a href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(cf.fullAddress)}`} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1.5 text-xs text-cyan/70 hover:text-cyan transition-colors">
-              <Map className="h-3 w-3" />Google Maps
+      {/* ── External Links + County Records ── */}
+      <div className="rounded-[12px] border border-white/[0.06] bg-white/[0.02] p-4 space-y-3">
+        <div className="flex items-center gap-2 mb-1">
+          <Globe className="h-3.5 w-3.5 text-muted-foreground" />
+          <p className="text-[11px] text-muted-foreground uppercase tracking-wider font-semibold">External Links &amp; County Records</p>
+        </div>
+        <div className="flex flex-wrap items-center gap-3">
+          {cf.radarId && (
+            <a href={`https://app.propertyradar.com/properties/${cf.radarId}`} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1.5 text-xs text-cyan/70 hover:text-cyan transition-colors">
+              <Radar className="h-3 w-3" />PropertyRadar
             </a>
-            <a href={`https://www.zillow.com/homes/${encodeURIComponent(cf.fullAddress)}_rb/`} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1.5 text-xs text-cyan/70 hover:text-cyan transition-colors">
-              <ExternalLink className="h-3 w-3" />Zillow
-            </a>
-            <a href={`https://www.redfin.com/search#query=${encodeURIComponent(cf.fullAddress)}`} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1.5 text-xs text-cyan/70 hover:text-cyan transition-colors">
-              <ExternalLink className="h-3 w-3" />Redfin
-            </a>
-          </>
-        )}
+          )}
+          {cf.fullAddress && (
+            <>
+              <a href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(cf.fullAddress)}`} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1.5 text-xs text-cyan/70 hover:text-cyan transition-colors">
+                <Map className="h-3 w-3" />Google Maps
+              </a>
+              <a href={`https://www.zillow.com/homes/${encodeURIComponent(cf.fullAddress)}_rb/`} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1.5 text-xs text-cyan/70 hover:text-cyan transition-colors">
+                <ExternalLink className="h-3 w-3" />Zillow
+              </a>
+              <a href={`https://www.redfin.com/search#query=${encodeURIComponent(cf.fullAddress)}`} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1.5 text-xs text-cyan/70 hover:text-cyan transition-colors">
+                <ExternalLink className="h-3 w-3" />Redfin
+              </a>
+            </>
+          )}
+        </div>
+        {/* County Records Links */}
+        {(() => {
+          const countyKey = cf.county?.toLowerCase().replace(/\s+county$/i, "").trim() ?? "";
+          const countyInfo = COUNTY_LINKS[countyKey];
+          if (countyInfo) {
+            return (
+              <div className="space-y-1.5 pt-2 border-t border-white/[0.06]">
+                <p className="text-[10px] text-muted-foreground/60 uppercase tracking-wider">{countyInfo.name}</p>
+                <div className="flex flex-wrap gap-2">
+                  <a href={countyInfo.gis} target="_blank" rel="noopener noreferrer">
+                    <Button size="sm" variant="outline" className="gap-1.5 text-[10px] h-7 px-2.5">
+                      <Map className="h-3 w-3 text-cyan/60" />GIS / Parcel Map
+                    </Button>
+                  </a>
+                  <a href={countyInfo.assessor} target="_blank" rel="noopener noreferrer">
+                    <Button size="sm" variant="outline" className="gap-1.5 text-[10px] h-7 px-2.5">
+                      <Building className="h-3 w-3 text-cyan/60" />Assessor
+                    </Button>
+                  </a>
+                  {countyInfo.treasurer && (
+                    <a href={countyInfo.treasurer} target="_blank" rel="noopener noreferrer">
+                      <Button size="sm" variant="outline" className="gap-1.5 text-[10px] h-7 px-2.5">
+                        <DollarSign className="h-3 w-3 text-cyan/60" />Treasurer / Tax
+                      </Button>
+                    </a>
+                  )}
+                </div>
+              </div>
+            );
+          }
+          if (cf.apn && cf.county) {
+            const searchQ = encodeURIComponent(`${cf.apn} ${cf.county} county ${cf.state} property records`);
+            return (
+              <div className="pt-2 border-t border-white/[0.06]">
+                <a href={`https://www.google.com/search?q=${searchQ}`} target="_blank" rel="noopener noreferrer">
+                  <Button size="sm" variant="outline" className="gap-1.5 text-[10px] h-7 px-2.5">
+                    <Search className="h-3 w-3 text-cyan/60" />Search {cf.county} County Records
+                  </Button>
+                </a>
+              </div>
+            );
+          }
+          return null;
+        })()}
       </div>
     </div>
   );
@@ -2257,11 +2482,11 @@ function SubjectPhotoCarousel({ photos, onSkipTrace }: { photos: string[]; onSki
             onClick={onSkipTrace}
             className="text-[9px] text-neon hover:underline font-medium mt-0.5"
           >
-            Run Skip Trace for photos
+            Enrich for photos
           </button>
         ) : (
           <p className="text-[9px] text-muted-foreground leading-tight">
-            Enrich via Skip Trace<br />for photos
+            Enrich for photos
           </p>
         )}
       </div>
@@ -2731,8 +2956,9 @@ function OfferCalcTab({ cf, computedArv }: { cf: ClientFile; computedArv: number
 
   // Auto-fill ARV when Comps tab computes one
   useEffect(() => { if (computedArv > 0) setArv(computedArv.toString()); }, [computedArv]);
-  const [purchase, setPurchase] = useState("");
-  const [rehab, setRehab] = useState("");
+  const defaultMao = bestArv > 0 ? Math.round(bestArv * 0.70).toString() : "";
+  const [purchase, setPurchase] = useState(defaultMao);
+  const [rehab, setRehab] = useState("15000");
   const [holdMonths, setHoldMonths] = useState("3");
   const [monthlyHold, setMonthlyHold] = useState("1500");
   const [closing, setClosing] = useState("5000");
@@ -2749,7 +2975,7 @@ function OfferCalcTab({ cf, computedArv }: { cf: ClientFile; computedArv: number
   const totalCosts = purchaseNum + rehabNum + holdNum + closingNum;
   const grossProfit = arvNum - totalCosts;
   const netProfit = grossProfit - feeNum;
-  const roi = totalCosts > 0 ? ((grossProfit / totalCosts) * 100).toFixed(1) : "0";
+  const roi = totalCosts > 0 && purchaseNum > 0 ? ((grossProfit / totalCosts) * 100).toFixed(1) : null;
 
   return (
     <div className="space-y-4">
@@ -2790,7 +3016,7 @@ function OfferCalcTab({ cf, computedArv }: { cf: ClientFile; computedArv: number
             <p className={cn("text-xl font-bold", grossProfit > 0 ? "text-emerald-400" : "text-red-400")}>
               {arvNum > 0 && purchaseNum > 0 ? formatCurrency(grossProfit) : "—"}
             </p>
-            <p className="text-[10px] text-muted-foreground mt-0.5">ROI: {roi}%</p>
+            <p className="text-[10px] text-muted-foreground mt-0.5">ROI: {roi != null ? `${roi}%` : "—"}</p>
           </div>
           <div className={cn("rounded-lg border p-3 text-center", netProfit > 0 ? "border-cyan/20 bg-cyan/4" : "border-red-500/30 bg-red-500/5")}>
             <p className="text-[10px] text-muted-foreground uppercase">Net After Assignment</p>
@@ -2816,8 +3042,10 @@ function OfferCalcTab({ cf, computedArv }: { cf: ClientFile; computedArv: number
 // Tab: Documents / PSA
 // ═══════════════════════════════════════════════════════════════════════
 
-function DocumentsTab({ cf }: { cf: ClientFile }) {
+function DocumentsTab({ cf, computedArv }: { cf: ClientFile; computedArv: number }) {
   const today = new Date().toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" });
+  const bestArv = computedArv > 0 ? computedArv : cf.estimatedValue ?? 0;
+  const autoMao = bestArv > 0 ? formatCurrency(Math.round(bestArv * 0.70)) : "____________";
 
   const psaBody = useMemo(() => [
     `REAL ESTATE PURCHASE AND SALE AGREEMENT`,
@@ -2833,7 +3061,7 @@ function DocumentsTab({ cf }: { cf: ClientFile }) {
     `  County: ${cf.county}`,
     `  Legal Description: Per county records`,
     ``,
-    `PURCHASE PRICE: $____________`,
+    `PURCHASE PRICE: ${autoMao}`,
     `EARNEST MONEY: $____________`,
     `CLOSING DATE: ____________`,
     ``,
@@ -2853,7 +3081,7 @@ function DocumentsTab({ cf }: { cf: ClientFile }) {
     ``,
     `BUYER:  ______________________________  Date: ____________`,
     `         Dominion Homes LLC`,
-  ].join("\n"), [cf, today]);
+  ].join("\n"), [cf, today, autoMao]);
 
   const handlePrint = useCallback(() => {
     const w = window.open("", "_blank", "width=800,height=1100");
@@ -3281,11 +3509,9 @@ export function MasterClientFileModal({ clientFile, open, onClose, onClaim, onRe
                     {activeTab === "overview" && (
                       <OverviewTab cf={clientFile} skipTracing={skipTracing} skipTraceResult={skipTraceResult} skipTraceMs={skipTraceMs} overlay={overlay} skipTraceError={skipTraceError} onSkipTrace={handleSkipTrace} onManualSkipTrace={handleManualSkipTrace} onEdit={() => setEditOpen(true)} onDial={handleDial} onSms={handleSendSms} calling={calling} dialHistory={dialHistoryMap} />
                     )}
-                    {activeTab === "propertyradar" && <PropertyRadarTab cf={clientFile} />}
-                    {activeTab === "county" && <CountyRecordsTab cf={clientFile} />}
                     {activeTab === "comps" && <CompsTab cf={clientFile} selectedComps={selectedComps} onAddComp={handleAddComp} onRemoveComp={handleRemoveComp} onSkipTrace={handleSkipTrace} computedArv={computedArv} onArvChange={handleArvChange} />}
                     {activeTab === "calculator" && <OfferCalcTab cf={clientFile} computedArv={computedArv} />}
-                    {activeTab === "documents" && <DocumentsTab cf={clientFile} />}
+                    {activeTab === "documents" && <DocumentsTab cf={clientFile} computedArv={computedArv} />}
                   </motion.div>
                 </AnimatePresence>
               </div>

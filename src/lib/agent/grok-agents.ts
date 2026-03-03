@@ -17,6 +17,16 @@ export interface LeadContext {
   ownershipYears?: number;
   phoneNumbers?: string[];
   estimatedValue?: number;
+  tags?: string[];
+  ownerAge?: number | null;
+  isAbsentee?: boolean;
+  isFreeClear?: boolean;
+  isVacant?: boolean;
+  propertyType?: string;
+  county?: string;
+  lastTransferType?: string;
+  delinquentAmount?: number;
+  foreclosureStage?: string;
 }
 
 export interface PipelineMetrics {
@@ -53,6 +63,16 @@ export function buildCallCoPilotPrompt(lead: LeadContext): string {
     `- Equity: ${lead.equityPercent != null ? `${lead.equityPercent}%` : "unknown"}`,
     `- Ownership: ${lead.ownershipYears != null ? `${lead.ownershipYears} years` : "unknown"}`,
     `- Est. value: ${lead.estimatedValue ? `$${lead.estimatedValue.toLocaleString()}` : "unknown"}`,
+    `- Tags: ${(lead.tags ?? lead.distressSignals)?.join(", ") || "none"}`,
+    `- Owner age: ${lead.ownerAge ?? "unknown"}`,
+    `- Absentee: ${lead.isAbsentee ? "yes" : "no"}`,
+    `- Free & clear: ${lead.isFreeClear ? "yes" : "no"}`,
+    `- Vacant: ${lead.isVacant ? "yes" : "no"}`,
+    `- Property type: ${lead.propertyType ?? "unknown"}`,
+    `- County: ${lead.county ?? "unknown"}`,
+    lead.lastTransferType ? `- Last transfer: ${lead.lastTransferType}` : "",
+    lead.delinquentAmount ? `- Delinquent amount: $${lead.delinquentAmount.toLocaleString()}` : "",
+    lead.foreclosureStage ? `- Foreclosure stage: ${lead.foreclosureStage}` : "",
     "",
     "### Call History",
     historyBlock,
@@ -62,10 +82,12 @@ export function buildCallCoPilotPrompt(lead: LeadContext): string {
     "",
     "### Your Output",
     "Provide:",
-    "1. A 3-bullet pre-call brief (key facts the agent should know)",
+    "1. A 3-bullet pre-call brief (key facts the agent should know BEFORE dialing)",
     "2. A suggested opening line tailored to the owner's situation",
-    "3. Top 3 likely objections with rebuttals",
-    "4. Recommended negotiation range if applicable",
+    "3. 2-3 talking points based on the distress signals — what to bring up naturally",
+    "4. Top 3 likely objections with one-line rebuttals",
+    "5. A negotiation anchor (MAO range based on equity + value if available)",
+    "6. Any watch-outs (compliance red flags, emotional triggers, things to avoid mentioning)",
     "Be empathetic but direct. Remember compliance: never misrepresent who you are or why you're calling.",
   ].join("\n");
 }

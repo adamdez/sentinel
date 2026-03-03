@@ -6,6 +6,10 @@ import { supabase } from "@/lib/supabase";
 export interface PreCallBrief {
   bullets: string[];
   suggestedOpener: string;
+  talkingPoints: string[];
+  objections: { objection: string; rebuttal: string }[];
+  negotiationAnchor: string | null;
+  watchOuts: string[];
 }
 
 export function usePreCallBrief(leadId: string | null) {
@@ -14,11 +18,13 @@ export function usePreCallBrief(leadId: string | null) {
   const cacheRef = useRef<Map<string, PreCallBrief>>(new Map());
   const abortRef = useRef<AbortController | null>(null);
 
-  const fetchBrief = useCallback(async (id: string) => {
-    const cached = cacheRef.current.get(id);
-    if (cached) {
-      setBrief(cached);
-      return;
+  const fetchBrief = useCallback(async (id: string, bust = false) => {
+    if (!bust) {
+      const cached = cacheRef.current.get(id);
+      if (cached) {
+        setBrief(cached);
+        return;
+      }
     }
 
     abortRef.current?.abort();
@@ -51,6 +57,10 @@ export function usePreCallBrief(leadId: string | null) {
       const result: PreCallBrief = {
         bullets: data.bullets ?? [],
         suggestedOpener: data.suggestedOpener ?? "",
+        talkingPoints: data.talkingPoints ?? [],
+        objections: data.objections ?? [],
+        negotiationAnchor: data.negotiationAnchor ?? null,
+        watchOuts: data.watchOuts ?? [],
       };
 
       cacheRef.current.set(id, result);
@@ -68,6 +78,12 @@ export function usePreCallBrief(leadId: string | null) {
     }
   }, []);
 
+  const regenerate = useCallback(() => {
+    if (!leadId) return;
+    cacheRef.current.delete(leadId);
+    fetchBrief(leadId, true);
+  }, [leadId, fetchBrief]);
+
   useEffect(() => {
     if (!leadId) {
       setBrief(null);
@@ -81,5 +97,5 @@ export function usePreCallBrief(leadId: string | null) {
     return () => clearTimeout(timer);
   }, [leadId, fetchBrief]);
 
-  return { brief, loading };
+  return { brief, loading, regenerate };
 }
