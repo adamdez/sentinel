@@ -6,7 +6,7 @@ import { Device, Call } from "@twilio/voice-sdk";
 import {
   Phone, PhoneOff, PhoneForwarded, PhoneIncoming, Clock, Users, BarChart3,
   Mic, MicOff, Voicemail, CalendarCheck, FileSignature,
-  Skull, Heart, Search, Ghost, Zap, ChevronRight, Timer,
+  Skull, Heart, Search, Ghost, Zap, ChevronRight, ChevronUp, ChevronDown, Timer,
   Sparkles, DollarSign, Loader2, SkipForward, MessageSquare,
   X, Send, Shield, CheckCircle2, History, ArrowDownLeft, ArrowUpRight,
   AlertTriangle, Wifi, WifiOff,
@@ -283,6 +283,7 @@ export default function DialerPage() {
   const { brief: preCallBrief, loading: briefLoading } = usePreCallBrief(currentLead?.id ?? null);
   const { history: callHistory, loading: historyLoading } = useCallHistory(currentUser.id, 30);
   const [historyFilter, setHistoryFilter] = useState<"all" | "outbound" | "inbound">("all");
+  const [historyOpen, setHistoryOpen] = useState(false);
 
   // Quick Manual Dial state
   const [manualPhone, setManualPhone] = useState("");
@@ -1613,9 +1614,12 @@ export default function DialerPage() {
         </div>
       </div>
 
-      {/* ── Call History ──────────────────────────────────────────────── */}
+      {/* ── Call History (collapsible) ─────────────────────────────── */}
       <GlassCard hover={false} className="!p-4 mt-4">
-        <div className="flex items-center justify-between mb-3">
+        <button
+          onClick={() => setHistoryOpen((v) => !v)}
+          className="w-full flex items-center justify-between cursor-pointer group"
+        >
           <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
             <History className="h-3.5 w-3.5 text-cyan" />
             Call History
@@ -1623,49 +1627,73 @@ export default function DialerPage() {
               {callHistory.length} recent
             </span>
           </h2>
-          <div className="flex items-center gap-1">
-            {(["all", "outbound", "inbound"] as const).map((f) => (
-              <button
-                key={f}
-                onClick={() => setHistoryFilter(f)}
-                className={`px-2.5 py-1 rounded-[8px] text-[10px] font-medium transition-all ${
-                  historyFilter === f
-                    ? "text-cyan bg-cyan/8 border border-cyan/20"
-                    : "text-muted-foreground/60 hover:text-foreground border border-transparent"
-                }`}
-              >
-                {f === "all" ? "All" : f === "outbound" ? "Outbound" : "Inbound"}
-              </button>
-            ))}
+          <div className="flex items-center gap-2">
+            {historyOpen && (
+              <div className="flex items-center gap-1">
+                {(["all", "outbound", "inbound"] as const).map((f) => (
+                  <span
+                    key={f}
+                    role="button"
+                    onClick={(e) => { e.stopPropagation(); setHistoryFilter(f); }}
+                    className={`px-2.5 py-1 rounded-[8px] text-[10px] font-medium transition-all ${
+                      historyFilter === f
+                        ? "text-cyan bg-cyan/8 border border-cyan/20"
+                        : "text-muted-foreground/60 hover:text-foreground border border-transparent"
+                    }`}
+                  >
+                    {f === "all" ? "All" : f === "outbound" ? "Outbound" : "Inbound"}
+                  </span>
+                ))}
+              </div>
+            )}
+            {historyOpen ? (
+              <ChevronDown className="h-4 w-4 text-muted-foreground group-hover:text-cyan transition-colors" />
+            ) : (
+              <ChevronUp className="h-4 w-4 text-muted-foreground group-hover:text-cyan transition-colors" />
+            )}
           </div>
-        </div>
+        </button>
 
-        {historyLoading ? (
-          <div className="flex items-center justify-center py-8">
-            <Loader2 className="h-5 w-5 animate-spin text-cyan/50" />
-          </div>
-        ) : callHistory.length === 0 ? (
-          <div className="text-center py-6">
-            <History className="h-6 w-6 mx-auto text-muted-foreground/20 mb-2" />
-            <p className="text-xs text-muted-foreground/50">No calls yet — start dialing!</p>
-          </div>
-        ) : (
-          <div className="max-h-[340px] overflow-y-auto scrollbar-thin space-y-1">
-            {callHistory
-              .filter((c) => historyFilter === "all" || c.direction === historyFilter)
-              .map((entry) => (
-                <CallHistoryRow
-                  key={entry.id}
-                  entry={entry}
-                  onDial={(phone) => {
-                    setManualPhone(phone.replace(/\D/g, "").replace(/^1/, "").slice(0, 10));
-                    window.scrollTo({ top: 0, behavior: "smooth" });
-                    toast.info(`${formatUsPhone(phone.replace(/\D/g, "").slice(-10))} loaded — hit Dial Now`);
-                  }}
-                />
-              ))}
-          </div>
-        )}
+        <AnimatePresence>
+          {historyOpen && (
+            <motion.div
+              initial={{ height: 0, opacity: 0 }}
+              animate={{ height: "auto", opacity: 1 }}
+              exit={{ height: 0, opacity: 0 }}
+              transition={{ duration: 0.2, ease: "easeInOut" }}
+              className="overflow-hidden"
+            >
+              <div className="pt-3">
+                {historyLoading ? (
+                  <div className="flex items-center justify-center py-8">
+                    <Loader2 className="h-5 w-5 animate-spin text-cyan/50" />
+                  </div>
+                ) : callHistory.length === 0 ? (
+                  <div className="text-center py-6">
+                    <History className="h-6 w-6 mx-auto text-muted-foreground/20 mb-2" />
+                    <p className="text-xs text-muted-foreground/50">No calls yet — start dialing!</p>
+                  </div>
+                ) : (
+                  <div className="max-h-[340px] overflow-y-auto scrollbar-thin space-y-1">
+                    {callHistory
+                      .filter((c) => historyFilter === "all" || c.direction === historyFilter)
+                      .map((entry) => (
+                        <CallHistoryRow
+                          key={entry.id}
+                          entry={entry}
+                          onDial={(phone) => {
+                            setManualPhone(phone.replace(/\D/g, "").replace(/^1/, "").slice(0, 10));
+                            window.scrollTo({ top: 0, behavior: "smooth" });
+                            toast.info(`${formatUsPhone(phone.replace(/\D/g, "").slice(-10))} loaded — hit Dial Now`);
+                          }}
+                        />
+                      ))}
+                  </div>
+                )}
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </GlassCard>
     </PageShell>
   );
