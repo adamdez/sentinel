@@ -112,7 +112,7 @@ export async function POST(req: NextRequest) {
 
   try {
     const body = await req.json();
-    const { property_id, lead_id } = body;
+    const { property_id, lead_id, force } = body;
 
     if (!property_id) {
       return NextResponse.json({ error: "property_id is required" }, { status: 400 });
@@ -142,9 +142,11 @@ export async function POST(req: NextRequest) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const cached = ownerFlags.deep_crawl as any;
     const cachedTime = cached?.crawledAt ?? cached?.crawled_at;
-    // Only use cache if it has real AI dossier data (not fallback)
-    const hasDossier = cached?.aiDossier?.signalAnalysis?.length > 0 || cached?.ai_dossier?.signalAnalysis?.length > 0;
-    if (cachedTime && hasDossier) {
+    // Only use cache if it has REAL Grok AI data (grokSuccess flag or webFindings)
+    const hasRealAI = cached?.grokSuccess === true
+      || (cached?.aiDossier?.webFindings?.length > 0)
+      || (cached?.ai_dossier?.webFindings?.length > 0);
+    if (!force && cachedTime && hasRealAI) {
       const ageMs = Date.now() - new Date(cachedTime).getTime();
       if (ageMs < 24 * 60 * 60 * 1000) {
         console.log(`[DeepCrawl] Returning cached results (${Math.round(ageMs / 60000)}min old)`);
@@ -305,11 +307,13 @@ export async function POST(req: NextRequest) {
     const grokApiKey = process.env.GROK_API_KEY ?? process.env.XAI_API_KEY;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     let aiDossier: any = null;
+    let grokSuccess = false;
 
     if (grokApiKey) {
       console.log("[DeepCrawl] Phase 3 — calling Grok AI with web search");
       try {
         aiDossier = await callGrokDeepCrawl(grokApiKey, property, crawlData);
+        grokSuccess = true;
         sources.push("Grok AI + Web");
       } catch (err) {
         console.error("[DeepCrawl] Grok AI error (non-fatal):", err);
@@ -330,13 +334,14 @@ export async function POST(req: NextRequest) {
 
     console.log("[DeepCrawl] Phase 4 — storing results and backfilling");
 
-    const result: DeepCrawlResult = {
+    const result = {
       crawledAt: new Date().toISOString(),
       signals,
       financial,
       owner,
       aiDossier,
       sources,
+      grokSuccess,
     };
 
     const writes: Promise<unknown>[] = [];
