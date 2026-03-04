@@ -1649,8 +1649,8 @@ function ContactTab({ cf, overlay, onSkipTrace, skipTracing, onDial, onSms, call
           </div>
         ) : (
           <div className="flex items-center gap-2">
-            <p className="text-sm font-semibold text-foreground">{cf.fullAddress || "—"}</p>
-            {cf.fullAddress && <CopyBtn text={cf.fullAddress} />}
+            <p className="text-sm font-semibold text-foreground">{buildAddress(propertyAddr, propertyCity, propertyState, propertyZip) || "—"}</p>
+            {(propertyAddr || propertyCity) && <CopyBtn text={buildAddress(propertyAddr, propertyCity, propertyState, propertyZip)} />}
           </div>
         )}
       </div>

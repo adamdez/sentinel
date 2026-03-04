@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, Fragment } from "react";
+import { useState, useMemo, useEffect, Fragment } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Home, Search, Loader2, Phone, ExternalLink, ArrowUpDown,
@@ -103,6 +103,15 @@ export default function FsboPage() {
   const { rows, loading, error, totalCount, refetch } = useFsboLeads({ search, sortField, sortDir });
   const [selectedRow, setSelectedRow] = useState<ProspectRow | null>(null);
   const [deleting, setDeleting] = useState<string | null>(null);
+
+  // Sync selectedRow with latest data after refetch (e.g. after Contact tab saves)
+  useEffect(() => {
+    if (selectedRow) {
+      const updated = rows.find((r) => r.id === selectedRow.id);
+      if (updated && updated !== selectedRow) setSelectedRow(updated);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rows]);
 
   const handleDelete = async (row: ProspectRow, e: React.MouseEvent) => {
     e.stopPropagation();
