@@ -4379,6 +4379,8 @@ export function MasterClientFileModal({ clientFile, open, onClose, onClaim, onRe
       setDeepCrawlExpanded(false);
       setHasSavedReport(false);
       setLoadingReport(false);
+      setCrawlSteps([]);
+      setDeepSkipResult(null);
       deepCrawlCheckedRef.current = null;
     }
   }, [clientFile?.propertyId, clientFile?.ownerFlags]);

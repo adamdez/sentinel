@@ -409,8 +409,10 @@ export async function POST(req: NextRequest) {
               const meta = await metaRes.json();
 
               if (meta.status === "OK") {
-                // Street View coverage exists — build the URL (don't download the image, just store the URL)
-                const streetViewUrl = `https://maps.googleapis.com/maps/api/streetview?size=640x480&location=${lat},${lng}&key=${googleKey}`;
+                // Street View coverage exists — store a proxy URL (no API key exposed to client)
+                // The key is only used server-side for the metadata check; we store a keyless
+                // URL pattern that can be resolved by a server proxy or re-signed at render time.
+                const streetViewUrl = `/api/street-view?lat=${lat}&lng=${lng}&size=640x480`;
                 photos.push({
                   url: streetViewUrl,
                   source: "google_street_view",
