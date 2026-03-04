@@ -1,0 +1,49 @@
+# ═══════════════════════════════════════════════════════════════════════
+# OpenClaw Research Gateway — LiteLLM Configuration
+# ═══════════════════════════════════════════════════════════════════════
+#
+# Routes agent requests to the cheapest capable model:
+#   - DeepSeek V3 (deepseek-chat): court records, obituaries, county records, photos
+#   - Claude Haiku (claude-haiku): social media, PR/ATTOM web navigation
+#
+# Exposed as OpenAI-compatible API: POST /v1/chat/completions
+# Auth: Bearer token via LITELLM_MASTER_KEY env var
+
+model_list:
+  # ── DeepSeek V3 — $0.27/M input, $1.10/M output ──
+  # Used for: court_records, obituary_probate, county_records, property_photos
+  - model_name: deepseek-chat
+    litellm_params:
+      model: deepseek/deepseek-chat
+      api_key: os.environ/DEEPSEEK_API_KEY
+      max_tokens: 4096
+      temperature: 0.1
+
+  # ── Claude 3.5 Haiku — $0.80/M input, $4/M output ──
+  # Used for: social_media, propertyradar_navigator, attom_navigator
+  - model_name: claude-haiku
+    litellm_params:
+      model: anthropic/claude-3-5-haiku-20241022
+      api_key: os.environ/ANTHROPIC_API_KEY
+      max_tokens: 4096
+      temperature: 0.1
+
+  # ── Fallback: DeepSeek for any unmatched model name ──
+  - model_name: default
+    litellm_params:
+      model: deepseek/deepseek-chat
+      api_key: os.environ/DEEPSEEK_API_KEY
+      max_tokens: 4096
+
+general_settings:
+  master_key: os.environ/LITELLM_MASTER_KEY
+  # Drop requests that sit in queue > 120s
+  request_timeout: 120
+
+litellm_settings:
+  # Don't log PII to telemetry
+  telemetry: false
+  drop_params: true
+  # Retry on transient failures
+  num_retries: 2
+  retry_after: 5
