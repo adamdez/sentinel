@@ -1834,14 +1834,41 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
 
   const streetViewUrl = prRaw.StreetViewUrl ?? prRaw.PropertyImageUrl ?? (prRaw.Photos?.[0]) ?? null;
 
+  // ── Geocode if no lat/lng from data (same as Comps tab) ──
+  const extracted = extractLatLng(cf);
+  const [geocodedCoords, setGeocodedCoords] = useState<{ lat: number; lng: number } | null>(null);
+  useEffect(() => {
+    if (extracted.lat || extracted.lng || geocodedCoords || !cf.fullAddress) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const q = encodeURIComponent(cf.fullAddress);
+        const res = await fetch(
+          `https://nominatim.openstreetmap.org/search?q=${q}&format=json&limit=1`,
+          { headers: { "User-Agent": "SentinelERP/1.0" } },
+        );
+        const data = await res.json();
+        if (cancelled) return;
+        if (data?.[0]?.lat && data?.[0]?.lon) {
+          setGeocodedCoords({ lat: parseFloat(data[0].lat), lng: parseFloat(data[0].lon) });
+        }
+      } catch { /* ignore */ }
+    })();
+    return () => { cancelled = true; };
+  }, [extracted.lat, extracted.lng, geocodedCoords, cf.fullAddress]);
+
+  const propLat = extracted.lat ?? geocodedCoords?.lat ?? null;
+  const propLng = extracted.lng ?? geocodedCoords?.lng ?? null;
+
   // ── Clickable Street View → Google Maps ──
-  const { lat: propLat, lng: propLng } = extractLatLng(cf);
   const streetViewLink = propLat && propLng ? getGoogleStreetViewLink(propLat, propLng) : null;
 
   // ── Satellite tile fallback when no Street View available ──
   const satelliteFallbackUrl = (!streetViewUrl && propLat && propLng) ? getSatelliteTileUrl(propLat, propLng, 18) : null;
   const imageUrl = streetViewUrl ?? satelliteFallbackUrl;
   const imageLabel = streetViewUrl ? "Street View" : "Satellite";
+  // ── Small thumbnail for property tile (always satellite for compact view) ──
+  const thumbUrl = propLat && propLng ? getSatelliteTileUrl(propLat, propLng, 17) : null;
 
   const sectionOwner = useRef<HTMLDivElement>(null);
   const sectionSignals = useRef<HTMLDivElement>(null);
@@ -2073,46 +2100,131 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
         </div>
       )}
 
-      {/* ═══ 3. DISTRESS SIGNALS — compact colored chips (WHY motivated) ═══ */}
-      {distressEvents.length > 0 && (
-        <div ref={sectionSignals} className="rounded-[12px] border border-white/[0.06] bg-white/[0.02] p-3">
+      {/* ═══ 3. DISTRESS SIGNALS + EXTERNAL LINKS — side by side ═══ */}
+      <div className="flex gap-3">
+        {/* Distress Signals — left half */}
+        <div ref={sectionSignals} className="flex-1 min-w-0 rounded-[12px] border border-white/[0.06] bg-white/[0.02] p-3">
           <div className="flex items-center gap-2 mb-2">
             <AlertTriangle className="h-3 w-3 text-orange-400" />
             <p className="text-[10px] text-orange-400/80 uppercase tracking-wider font-semibold">Distress Signals</p>
           </div>
-          <div className="flex flex-wrap gap-1.5">
-            {distressEvents.slice(0, 8).map((evt) => {
-              const cfg = DISTRESS_CFG[evt.event_type];
-              const EvtIcon = cfg?.icon ?? AlertTriangle;
-              const evtDate = getEventDate(evt);
-              const daysAgo = Math.floor((Date.now() - new Date(evt.created_at).getTime()) / 86400000);
-              const isRecent = daysAgo <= 30;
-              const motivation = getSignalMotivation(evt.event_type, evt.raw_data ?? undefined);
-              return (
-                <span
-                  key={evt.id}
-                  title={motivation}
-                  className={cn(
-                    "inline-flex items-center gap-1 px-2 py-1 rounded-full text-[10px] font-semibold border cursor-default transition-colors",
-                    cfg?.color ?? "text-cyan/70 bg-cyan/[0.06] border-cyan/20",
-                    isRecent && "ring-1 ring-orange-400/30"
-                  )}
-                >
-                  <EvtIcon className="h-2.5 w-2.5 shrink-0" />
-                  {cfg?.label ?? evt.event_type.replace(/_/g, " ")}
-                  <span className="text-[8px] opacity-60">· {evtDate.date.replace(/\/\d{4}$/, "")}</span>
-                  {isRecent && <Flame className="h-2.5 w-2.5 text-red-400 shrink-0" />}
+          {distressEvents.length > 0 ? (
+            <div className="flex flex-wrap gap-1.5">
+              {distressEvents.slice(0, 6).map((evt) => {
+                const cfg = DISTRESS_CFG[evt.event_type];
+                const EvtIcon = cfg?.icon ?? AlertTriangle;
+                const evtDate = getEventDate(evt);
+                const daysAgo = Math.floor((Date.now() - new Date(evt.created_at).getTime()) / 86400000);
+                const isRecent = daysAgo <= 30;
+                const motivation = getSignalMotivation(evt.event_type, evt.raw_data ?? undefined);
+                return (
+                  <span
+                    key={evt.id}
+                    title={motivation}
+                    className={cn(
+                      "inline-flex items-center gap-1 px-2 py-1 rounded-full text-[10px] font-semibold border cursor-default transition-colors",
+                      cfg?.color ?? "text-cyan/70 bg-cyan/[0.06] border-cyan/20",
+                      isRecent && "ring-1 ring-orange-400/30"
+                    )}
+                  >
+                    <EvtIcon className="h-2.5 w-2.5 shrink-0" />
+                    {cfg?.label ?? evt.event_type.replace(/_/g, " ")}
+                    <span className="text-[8px] opacity-60">· {evtDate.date.replace(/\/\d{4}$/, "")}</span>
+                    {isRecent && <Flame className="h-2.5 w-2.5 text-red-400 shrink-0" />}
+                  </span>
+                );
+              })}
+              {distressEvents.length > 6 && (
+                <span className="inline-flex items-center px-2 py-1 rounded-full text-[10px] font-semibold border border-white/10 text-muted-foreground bg-white/[0.03]">
+                  +{distressEvents.length - 6} more
                 </span>
-              );
-            })}
-            {distressEvents.length > 8 && (
-              <span className="inline-flex items-center px-2 py-1 rounded-full text-[10px] font-semibold border border-white/10 text-muted-foreground bg-white/[0.03]">
-                +{distressEvents.length - 8} more
-              </span>
+              )}
+            </div>
+          ) : (
+            <p className="text-[10px] text-muted-foreground/50">No distress signals detected</p>
+          )}
+        </div>
+
+        {/* External Links + County Records — right half */}
+        <div className="flex-1 min-w-0 rounded-[12px] border border-white/[0.06] bg-white/[0.02] p-3">
+          <div className="flex items-center gap-2 mb-2">
+            <Globe className="h-3 w-3 text-muted-foreground" />
+            <p className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold">External Links</p>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            {cf.radarId && (
+              <a href={`https://app.propertyradar.com/properties/${cf.radarId}`} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 text-[10px] text-cyan/70 hover:text-cyan transition-colors">
+                <Radar className="h-2.5 w-2.5" />PropertyRadar
+              </a>
+            )}
+            {(() => {
+              const listingUrl = String(cf.ownerFlags?.listing_url ?? cf.ownerFlags?.link ?? "");
+              return listingUrl ? (
+                <a href={listingUrl} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 text-[10px] text-orange-400/80 hover:text-orange-400 transition-colors">
+                  <ExternalLink className="h-2.5 w-2.5" />Listing
+                </a>
+              ) : null;
+            })()}
+            {cf.fullAddress && (
+              <>
+                <a href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(cf.fullAddress)}`} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 text-[10px] text-cyan/70 hover:text-cyan transition-colors">
+                  <Map className="h-2.5 w-2.5" />Maps
+                </a>
+                <a href={`https://www.zillow.com/homes/${encodeURIComponent(cf.fullAddress)}_rb/`} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 text-[10px] text-cyan/70 hover:text-cyan transition-colors">
+                  <ExternalLink className="h-2.5 w-2.5" />Zillow
+                </a>
+                <a href={`https://www.redfin.com/search#query=${encodeURIComponent(cf.fullAddress)}`} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 text-[10px] text-cyan/70 hover:text-cyan transition-colors">
+                  <ExternalLink className="h-2.5 w-2.5" />Redfin
+                </a>
+              </>
             )}
           </div>
+          {/* County Records */}
+          {(() => {
+            const countyKey = cf.county?.toLowerCase().replace(/\s+county$/i, "").trim() ?? "";
+            const countyInfo = COUNTY_LINKS[countyKey];
+            if (countyInfo) {
+              return (
+                <div className="space-y-1.5 pt-2 mt-2 border-t border-white/[0.06]">
+                  <p className="text-[9px] text-muted-foreground/60 uppercase tracking-wider">{countyInfo.name}</p>
+                  <div className="flex flex-wrap gap-1.5">
+                    <a href={countyInfo.gis} target="_blank" rel="noopener noreferrer">
+                      <Button size="sm" variant="outline" className="gap-1 text-[9px] h-6 px-2">
+                        <Map className="h-2.5 w-2.5 text-cyan/60" />GIS
+                      </Button>
+                    </a>
+                    <a href={countyInfo.assessor} target="_blank" rel="noopener noreferrer">
+                      <Button size="sm" variant="outline" className="gap-1 text-[9px] h-6 px-2">
+                        <Building className="h-2.5 w-2.5 text-cyan/60" />Assessor
+                      </Button>
+                    </a>
+                    {countyInfo.treasurer && (
+                      <a href={countyInfo.treasurer} target="_blank" rel="noopener noreferrer">
+                        <Button size="sm" variant="outline" className="gap-1 text-[9px] h-6 px-2">
+                          <DollarSign className="h-2.5 w-2.5 text-cyan/60" />Tax
+                        </Button>
+                      </a>
+                    )}
+                  </div>
+                </div>
+              );
+            }
+            if (cf.apn && cf.county) {
+              const searchQ = encodeURIComponent(`${cf.apn} ${cf.county} county ${cf.state} property records`);
+              return (
+                <div className="pt-2 mt-2 border-t border-white/[0.06]">
+                  <a href={`https://www.google.com/search?q=${searchQ}`} target="_blank" rel="noopener noreferrer">
+                    <Button size="sm" variant="outline" className="gap-1 text-[9px] h-6 px-2">
+                      <Search className="h-2.5 w-2.5 text-cyan/60" />{cf.county} Records
+                    </Button>
+                  </a>
+                </div>
+              );
+            }
+            return null;
+          })()}
         </div>
-      )}
+      </div>
 
       {/* ═══ 4. PROPERTY SNAPSHOT — Clickable Street View + Address + Badges ═══ */}
       <div ref={sectionProperty} className="rounded-[12px] border border-white/[0.06] bg-white/[0.02] overflow-hidden">
@@ -2160,55 +2272,83 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
           </a>
         )}
         <div className="p-4 space-y-3">
-          {/* Address + County + APN */}
-          <div className="flex items-start gap-2">
-            <MapPin className="h-3.5 w-3.5 text-cyan/60 mt-0.5 shrink-0" />
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-1.5">
-                <p className="text-sm font-semibold text-foreground truncate">{cf.fullAddress || "—"}</p>
-                {cf.fullAddress && <CopyBtn text={cf.fullAddress} />}
+          {/* Address + County + APN — with satellite thumbnail on the right */}
+          <div className="flex gap-3">
+            <div className="flex-1 min-w-0 space-y-2">
+              <div className="flex items-start gap-2">
+                <MapPin className="h-3.5 w-3.5 text-cyan/60 mt-0.5 shrink-0" />
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-1.5">
+                    <p className="text-sm font-semibold text-foreground truncate">{cf.fullAddress || "—"}</p>
+                    {cf.fullAddress && <CopyBtn text={cf.fullAddress} />}
+                  </div>
+                  <div className="flex items-center gap-3 mt-0.5">
+                    {cf.county && <span className="text-[10px] text-muted-foreground">{cf.county} County</span>}
+                    {cf.apn && (
+                      <span className="text-[10px] text-muted-foreground/60 font-mono flex items-center gap-1">
+                        APN: {cf.apn} <CopyBtn text={cf.apn} />
+                      </span>
+                    )}
+                  </div>
+                </div>
               </div>
-              <div className="flex items-center gap-3 mt-0.5">
-                {cf.county && <span className="text-[10px] text-muted-foreground">{cf.county} County</span>}
-                {cf.apn && (
-                  <span className="text-[10px] text-muted-foreground/60 font-mono flex items-center gap-1">
-                    APN: {cf.apn} <CopyBtn text={cf.apn} />
-                  </span>
-                )}
-              </div>
-            </div>
-          </div>
 
-          {/* Property type + stats — type always shows; bed/bath/sqft only when no image overlay */}
-          {(cf.propertyType || cf.bedrooms != null || cf.sqft != null) && (
-            <div className="flex items-center gap-2 flex-wrap">
-              {cf.propertyType && (
-                <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-muted-foreground bg-white/[0.04] border border-white/[0.08] px-2 py-0.5 rounded-full">
-                  <Building className="h-2.5 w-2.5" />{cf.propertyType}
-                </span>
-              )}
-              {!imageUrl && cf.bedrooms != null && (
-                <span className="text-[10px] font-semibold text-muted-foreground bg-white/[0.04] border border-white/[0.08] px-2 py-0.5 rounded-full">
-                  {cf.bedrooms}bd / {cf.bathrooms ?? "?"}ba
-                </span>
-              )}
-              {!imageUrl && cf.sqft != null && (
-                <span className="text-[10px] font-semibold text-muted-foreground bg-white/[0.04] border border-white/[0.08] px-2 py-0.5 rounded-full">
-                  {cf.sqft.toLocaleString()} sqft
-                </span>
-              )}
-              {!imageUrl && cf.yearBuilt && (
-                <span className="text-[10px] font-semibold text-muted-foreground bg-white/[0.04] border border-white/[0.08] px-2 py-0.5 rounded-full">
-                  Built {cf.yearBuilt}
-                </span>
-              )}
-              {!imageUrl && cf.lotSize && (
-                <span className="text-[10px] font-semibold text-muted-foreground bg-white/[0.04] border border-white/[0.08] px-2 py-0.5 rounded-full">
-                  {cf.lotSize.toLocaleString()} lot
-                </span>
+              {/* Property type + stats */}
+              {(cf.propertyType || cf.bedrooms != null || cf.sqft != null) && (
+                <div className="flex items-center gap-2 flex-wrap">
+                  {cf.propertyType && (
+                    <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-muted-foreground bg-white/[0.04] border border-white/[0.08] px-2 py-0.5 rounded-full">
+                      <Building className="h-2.5 w-2.5" />{cf.propertyType}
+                    </span>
+                  )}
+                  {!imageUrl && cf.bedrooms != null && (
+                    <span className="text-[10px] font-semibold text-muted-foreground bg-white/[0.04] border border-white/[0.08] px-2 py-0.5 rounded-full">
+                      {cf.bedrooms}bd / {cf.bathrooms ?? "?"}ba
+                    </span>
+                  )}
+                  {!imageUrl && cf.sqft != null && (
+                    <span className="text-[10px] font-semibold text-muted-foreground bg-white/[0.04] border border-white/[0.08] px-2 py-0.5 rounded-full">
+                      {cf.sqft.toLocaleString()} sqft
+                    </span>
+                  )}
+                  {!imageUrl && cf.yearBuilt && (
+                    <span className="text-[10px] font-semibold text-muted-foreground bg-white/[0.04] border border-white/[0.08] px-2 py-0.5 rounded-full">
+                      Built {cf.yearBuilt}
+                    </span>
+                  )}
+                  {!imageUrl && cf.lotSize && (
+                    <span className="text-[10px] font-semibold text-muted-foreground bg-white/[0.04] border border-white/[0.08] px-2 py-0.5 rounded-full">
+                      {cf.lotSize.toLocaleString()} lot
+                    </span>
+                  )}
+                </div>
               )}
             </div>
-          )}
+
+            {/* Satellite / Street View thumbnail on the right */}
+            {(thumbUrl || streetViewUrl) && (
+              <a
+                href={streetViewLink ?? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(cf.fullAddress ?? "")}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="shrink-0 relative group rounded-lg overflow-hidden border border-white/[0.08] hover:border-cyan/30 transition-colors"
+              >
+                <img
+                  src={streetViewUrl ?? thumbUrl ?? ""}
+                  alt="Property"
+                  className="w-[120px] h-[90px] object-cover transition-transform duration-300 group-hover:scale-105"
+                  onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
+                />
+                <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent pointer-events-none" />
+                <div className="absolute bottom-1 left-1.5 right-1.5 flex items-center gap-1 text-[8px] text-white/70 pointer-events-none">
+                  <ImageIcon className="h-2 w-2" />{streetViewUrl ? "Street View" : "Satellite"}
+                </div>
+                <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
+                  <ExternalLink className="h-3.5 w-3.5 text-white drop-shadow-md" />
+                </div>
+              </a>
+            )}
+          </div>
 
           {/* Distress type pill badges */}
           {(cf.tags.length > 0 || warningFlags.length > 0) && (
@@ -2804,85 +2944,7 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
         </div>
       )}
 
-      {/* ═══ 13. EXTERNAL LINKS + COUNTY RECORDS ═══ */}
-      <div className="rounded-[12px] border border-white/[0.06] bg-white/[0.02] p-4 space-y-3">
-        <div className="flex items-center gap-2 mb-1">
-          <Globe className="h-3.5 w-3.5 text-muted-foreground" />
-          <p className="text-[11px] text-muted-foreground uppercase tracking-wider font-semibold">External Links &amp; County Records</p>
-        </div>
-        <div className="flex flex-wrap items-center gap-3">
-          {cf.radarId && (
-            <a href={`https://app.propertyradar.com/properties/${cf.radarId}`} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1.5 text-xs text-cyan/70 hover:text-cyan transition-colors">
-              <Radar className="h-3 w-3" />PropertyRadar
-            </a>
-          )}
-          {(() => {
-            const listingUrl = String(cf.ownerFlags?.listing_url ?? cf.ownerFlags?.link ?? "");
-            return listingUrl ? (
-              <a href={listingUrl} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1.5 text-xs text-orange-400/80 hover:text-orange-400 transition-colors">
-                <ExternalLink className="h-3 w-3" />Original Listing
-              </a>
-            ) : null;
-          })()}
-          {cf.fullAddress && (
-            <>
-              <a href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(cf.fullAddress)}`} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1.5 text-xs text-cyan/70 hover:text-cyan transition-colors">
-                <Map className="h-3 w-3" />Google Maps
-              </a>
-              <a href={`https://www.zillow.com/homes/${encodeURIComponent(cf.fullAddress)}_rb/`} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1.5 text-xs text-cyan/70 hover:text-cyan transition-colors">
-                <ExternalLink className="h-3 w-3" />Zillow
-              </a>
-              <a href={`https://www.redfin.com/search#query=${encodeURIComponent(cf.fullAddress)}`} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1.5 text-xs text-cyan/70 hover:text-cyan transition-colors">
-                <ExternalLink className="h-3 w-3" />Redfin
-              </a>
-            </>
-          )}
-        </div>
-        {/* County Records Links */}
-        {(() => {
-          const countyKey = cf.county?.toLowerCase().replace(/\s+county$/i, "").trim() ?? "";
-          const countyInfo = COUNTY_LINKS[countyKey];
-          if (countyInfo) {
-            return (
-              <div className="space-y-1.5 pt-2 border-t border-white/[0.06]">
-                <p className="text-[10px] text-muted-foreground/60 uppercase tracking-wider">{countyInfo.name}</p>
-                <div className="flex flex-wrap gap-2">
-                  <a href={countyInfo.gis} target="_blank" rel="noopener noreferrer">
-                    <Button size="sm" variant="outline" className="gap-1.5 text-[10px] h-7 px-2.5">
-                      <Map className="h-3 w-3 text-cyan/60" />GIS / Parcel Map
-                    </Button>
-                  </a>
-                  <a href={countyInfo.assessor} target="_blank" rel="noopener noreferrer">
-                    <Button size="sm" variant="outline" className="gap-1.5 text-[10px] h-7 px-2.5">
-                      <Building className="h-3 w-3 text-cyan/60" />Assessor
-                    </Button>
-                  </a>
-                  {countyInfo.treasurer && (
-                    <a href={countyInfo.treasurer} target="_blank" rel="noopener noreferrer">
-                      <Button size="sm" variant="outline" className="gap-1.5 text-[10px] h-7 px-2.5">
-                        <DollarSign className="h-3 w-3 text-cyan/60" />Treasurer / Tax
-                      </Button>
-                    </a>
-                  )}
-                </div>
-              </div>
-            );
-          }
-          if (cf.apn && cf.county) {
-            const searchQ = encodeURIComponent(`${cf.apn} ${cf.county} county ${cf.state} property records`);
-            return (
-              <div className="pt-2 border-t border-white/[0.06]">
-                <a href={`https://www.google.com/search?q=${searchQ}`} target="_blank" rel="noopener noreferrer">
-                  <Button size="sm" variant="outline" className="gap-1.5 text-[10px] h-7 px-2.5">
-                    <Search className="h-3 w-3 text-cyan/60" />Search {cf.county} County Records
-                  </Button>
-                </a>
-              </div>
-            );
-          }
-          return null;
-        })()}
-      </div>
+      {/* External links moved to section 3 (side-by-side with distress signals) */}
     </div>
   );
 }
