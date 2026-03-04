@@ -1199,6 +1199,177 @@ function dispositionColor(disp: string): string {
 }
 
 // ═══════════════════════════════════════════════════════════════════════
+// DEEP CRAWL RESULTS PANEL
+// ═══════════════════════════════════════════════════════════════════════
+
+const URGENCY_COLORS: Record<string, string> = {
+  CRITICAL: "text-red-400 bg-red-500/[0.12] border-red-500/30",
+  HIGH: "text-orange-400 bg-orange-500/[0.12] border-orange-500/30",
+  MEDIUM: "text-amber-400 bg-amber-500/[0.12] border-amber-500/30",
+  LOW: "text-emerald-400 bg-emerald-500/[0.12] border-emerald-500/30",
+};
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function DeepCrawlPanel({ result }: { result: any }) {
+  if (!result) return null;
+
+  const ai = result.aiDossier ?? result.ai_dossier ?? {};
+  const crawledAt = result.crawledAt ?? result.crawled_at;
+  const crawledAgo = crawledAt
+    ? (() => {
+        const mins = Math.floor((Date.now() - new Date(crawledAt).getTime()) / 60000);
+        if (mins < 1) return "just now";
+        if (mins < 60) return `${mins} min ago`;
+        const hrs = Math.floor(mins / 60);
+        if (hrs < 24) return `${hrs}h ago`;
+        return `${Math.floor(hrs / 24)}d ago`;
+      })()
+    : null;
+
+  const urgencyColor = URGENCY_COLORS[ai.urgencyLevel] ?? URGENCY_COLORS.MEDIUM;
+  const sources = result.sources ?? [];
+
+  return (
+    <div className="rounded-[12px] border border-white/[0.06] bg-white/[0.02] p-4 space-y-4">
+      {/* Executive Summary */}
+      <div>
+        <div className="flex items-center gap-2 mb-2">
+          <Brain className="h-3 w-3 text-cyan" />
+          <p className="text-[10px] text-cyan/80 uppercase tracking-wider font-semibold">Executive Summary</p>
+          {ai.urgencyLevel && (
+            <span className={cn("px-2 py-0.5 rounded-full text-[9px] font-bold border", urgencyColor)}>
+              {ai.urgencyLevel}
+            </span>
+          )}
+        </div>
+        <p className="text-xs text-foreground/90 leading-relaxed">{ai.summary ?? "No summary available"}</p>
+        {ai.urgencyReason && (
+          <p className="text-[10px] text-muted-foreground mt-1">{ai.urgencyReason}</p>
+        )}
+      </div>
+
+      {/* Signal Analysis */}
+      {ai.signalAnalysis && ai.signalAnalysis.length > 0 && (
+        <div>
+          <p className="text-[10px] text-orange-400/80 uppercase tracking-wider font-semibold mb-2 flex items-center gap-1.5">
+            <AlertTriangle className="h-3 w-3" />Signal Analysis
+          </p>
+          <div className="space-y-2">
+            {ai.signalAnalysis.map((s: { headline: string; detail: string; daysUntilCritical: number | null; actionableInsight: string }, i: number) => (
+              <div key={i} className="rounded-[10px] border border-white/[0.06] bg-white/[0.02] p-2.5 space-y-1">
+                <p className="text-[11px] font-semibold text-foreground flex items-center gap-1.5">
+                  <AlertTriangle className="h-2.5 w-2.5 text-orange-400 shrink-0" />
+                  {s.headline}
+                  {s.daysUntilCritical != null && s.daysUntilCritical <= 60 && (
+                    <span className="text-[9px] text-red-400 font-mono ml-auto">{s.daysUntilCritical}d</span>
+                  )}
+                </p>
+                <p className="text-[10px] text-muted-foreground leading-relaxed pl-4">{s.detail}</p>
+                {s.actionableInsight && (
+                  <p className="text-[10px] text-cyan/80 pl-4 flex items-center gap-1">
+                    <ArrowRight className="h-2.5 w-2.5 shrink-0" />{s.actionableInsight}
+                  </p>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Owner Profile */}
+      {ai.ownerProfile && (
+        <div>
+          <p className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold mb-1.5 flex items-center gap-1.5">
+            <User className="h-3 w-3" />Owner Profile
+          </p>
+          <p className="text-[10px] text-foreground/80 leading-relaxed">{ai.ownerProfile}</p>
+        </div>
+      )}
+
+      {/* Financial Snapshot */}
+      {ai.financialAnalysis && (
+        <div>
+          <p className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold mb-1.5 flex items-center gap-1.5">
+            <DollarSign className="h-3 w-3" />Financial Snapshot
+          </p>
+          <p className="text-[10px] text-foreground/80 leading-relaxed">{ai.financialAnalysis}</p>
+          {ai.estimatedMAO && (
+            <div className="mt-1.5 flex items-center gap-2">
+              <span className="text-[9px] text-muted-foreground uppercase">Est. MAO:</span>
+              <span className="text-[11px] font-semibold text-emerald-400">
+                ${ai.estimatedMAO.low?.toLocaleString()} &ndash; ${ai.estimatedMAO.high?.toLocaleString()}
+              </span>
+              <span className="text-[9px] text-muted-foreground/60">{ai.estimatedMAO.basis}</span>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Approach & Talking Points */}
+      {ai.suggestedApproach && (
+        <div>
+          <p className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold mb-1.5 flex items-center gap-1.5">
+            <Target className="h-3 w-3" />Suggested Approach
+          </p>
+          <p className="text-[10px] text-foreground/80 leading-relaxed">{ai.suggestedApproach}</p>
+          {ai.talkingPoints && ai.talkingPoints.length > 0 && (
+            <ul className="mt-1.5 space-y-0.5">
+              {ai.talkingPoints.map((tp: string, i: number) => (
+                <li key={i} className="text-[10px] text-cyan/80 flex items-start gap-1.5">
+                  <span className="text-cyan/40 mt-0.5 shrink-0">&#8226;</span>{tp}
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
+
+      {/* Web Findings */}
+      {ai.webFindings && ai.webFindings.length > 0 && (
+        <div>
+          <p className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold mb-1.5 flex items-center gap-1.5">
+            <Globe className="h-3 w-3" />Web Findings
+          </p>
+          <div className="space-y-1">
+            {ai.webFindings.map((w: { source: string; finding: string }, i: number) => (
+              <div key={i} className="flex items-start gap-2 text-[10px]">
+                <Search className="h-2.5 w-2.5 text-cyan/50 mt-0.5 shrink-0" />
+                <span>
+                  <span className="font-semibold text-foreground/70">{w.source}:</span>{" "}
+                  <span className="text-foreground/60">{w.finding}</span>
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Red Flags */}
+      {ai.redFlags && ai.redFlags.length > 0 && (
+        <div>
+          <p className="text-[10px] text-red-400/80 uppercase tracking-wider font-semibold mb-1 flex items-center gap-1.5">
+            <ShieldAlert className="h-3 w-3" />Red Flags
+          </p>
+          <ul className="space-y-0.5">
+            {ai.redFlags.map((flag: string, i: number) => (
+              <li key={i} className="text-[10px] text-red-300/70 flex items-start gap-1.5">
+                <span className="text-red-400 mt-0.5 shrink-0">&#9679;</span>{flag}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {/* Footer */}
+      <div className="pt-2 border-t border-white/[0.06] flex items-center gap-2 text-[9px] text-muted-foreground/50">
+        {crawledAgo && <span>Crawled {crawledAgo}</span>}
+        {sources.length > 0 && <span>&#183; Sources: {sources.join(", ")}</span>}
+      </div>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════
 // CONTACT TAB — Editable phones, emails, addresses + street view
 // ═══════════════════════════════════════════════════════════════════════
 
@@ -1704,7 +1875,7 @@ function ContactTab({ cf, overlay, onSkipTrace, skipTracing, onDial, onSms, call
 // OVERVIEW TAB
 // ═══════════════════════════════════════════════════════════════════════
 
-function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceMs, overlay, skipTraceError, onSkipTrace, onManualSkipTrace, onEdit, onDial, onSms, calling, dialHistory, autofilling, onAutofill }: {
+function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceMs, overlay, skipTraceError, onSkipTrace, onManualSkipTrace, onEdit, onDial, onSms, calling, dialHistory, autofilling, onAutofill, deepCrawling, deepCrawlResult, deepCrawlExpanded, setDeepCrawlExpanded, executeDeepCrawl }: {
   cf: ClientFile; computedArv: number; skipTracing: boolean; skipTraceResult: string | null; skipTraceMs: number | null;
   overlay: SkipTraceOverlay | null; skipTraceError: SkipTraceError | null;
   onSkipTrace: () => void; onManualSkipTrace: () => void; onEdit: () => void;
@@ -1712,6 +1883,9 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
   calling: boolean;
   dialHistory: Record<string, { count: number; lastDate: string; lastDisposition: string }>;
   autofilling: boolean; onAutofill: () => void;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  deepCrawling: boolean; deepCrawlResult: any; deepCrawlExpanded: boolean;
+  setDeepCrawlExpanded: (v: boolean) => void; executeDeepCrawl: () => void;
 }) {
   const skipTraced = !!overlay || !!cf.ownerFlags?.skip_traced;
   const displayPhone = overlay?.primaryPhone ?? cf.ownerPhone ?? (cf.ownerFlags?.contact_phone as string | null) ?? null;
@@ -2122,9 +2296,25 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
       <div className="flex gap-3">
         {/* Distress Signals — left half */}
         <div ref={sectionSignals} className="flex-1 min-w-0 rounded-[12px] border border-white/[0.06] bg-white/[0.02] p-3">
-          <div className="flex items-center gap-2 mb-2">
-            <AlertTriangle className="h-3 w-3 text-orange-400" />
-            <p className="text-[10px] text-orange-400/80 uppercase tracking-wider font-semibold">Distress Signals</p>
+          <div className="flex items-center justify-between mb-2">
+            <div className="flex items-center gap-2">
+              <AlertTriangle className="h-3 w-3 text-orange-400" />
+              <p className="text-[10px] text-orange-400/80 uppercase tracking-wider font-semibold">Distress Signals</p>
+            </div>
+            {/* Deep Crawl button */}
+            <button
+              onClick={deepCrawlResult && !deepCrawling ? () => setDeepCrawlExpanded(!deepCrawlExpanded) : executeDeepCrawl}
+              disabled={deepCrawling}
+              className={cn(
+                "h-6 px-2.5 rounded-md text-[9px] font-semibold border flex items-center gap-1 transition-colors",
+                deepCrawlResult && !deepCrawling
+                  ? "border-emerald-500/30 bg-emerald-500/[0.06] text-emerald-400 hover:bg-emerald-500/[0.12]"
+                  : "border-amber-500/30 bg-amber-500/[0.06] text-amber-400 hover:bg-amber-500/[0.12]"
+              )}
+            >
+              {deepCrawling ? <Loader2 className="h-3 w-3 animate-spin" /> : <Search className="h-3 w-3" />}
+              {deepCrawling ? "Deep Crawling..." : deepCrawlResult ? "Deep Crawl Results" : "~120s Deep Crawl"}
+            </button>
           </div>
           {distressEvents.length > 0 ? (
             <div className="flex flex-wrap gap-1.5">
@@ -2243,6 +2433,20 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
           })()}
         </div>
       </div>
+
+      {/* ═══ 3b. DEEP CRAWL RESULTS (collapsible) ═══ */}
+      <AnimatePresence>
+        {deepCrawlResult && deepCrawlExpanded && (
+          <motion.div
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: "auto" }}
+            exit={{ opacity: 0, height: 0 }}
+            className="overflow-hidden"
+          >
+            <DeepCrawlPanel result={deepCrawlResult} />
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* ═══ 4. PROPERTY SNAPSHOT — Clickable Street View + Address + Badges ═══ */}
       <div ref={sectionProperty} className="rounded-[12px] border border-white/[0.06] bg-white/[0.02] overflow-hidden">
@@ -3837,6 +4041,24 @@ export function MasterClientFileModal({ clientFile, open, onClose, onClaim, onRe
   const [dialHistoryMap, setDialHistoryMap] = useState<Record<string, { count: number; lastDate: string; lastDisposition: string }>>({});
   const [autofilling, setAutofilling] = useState(false);
 
+  // ── Deep Crawl state ──
+  const [deepCrawling, setDeepCrawling] = useState(false);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const [deepCrawlResult, setDeepCrawlResult] = useState<any>(null);
+  const [deepCrawlExpanded, setDeepCrawlExpanded] = useState(false);
+
+  // Pre-populate deep crawl from cached results in owner_flags
+  useEffect(() => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const cached = (clientFile?.ownerFlags as any)?.deep_crawl;
+    if (cached?.crawledAt) {
+      const ageMs = Date.now() - new Date(cached.crawledAt).getTime();
+      if (ageMs < 24 * 60 * 60 * 1000) {
+        setDeepCrawlResult(cached);
+      }
+    }
+  }, [clientFile?.ownerFlags, clientFile?.propertyId]);
+
   const displayPhone = overlay?.primaryPhone ?? clientFile?.ownerPhone ?? null;
 
   // Reset all skip-trace / enrichment state when switching to a different prospect
@@ -3852,6 +4074,10 @@ export function MasterClientFileModal({ clientFile, open, onClose, onClaim, onRe
       setSelectedComps([]);
       setComputedArv((clientFile?.ownerFlags?.comp_arv as number) ?? 0);
       setDialHistoryMap({});
+      // Reset deep crawl
+      setDeepCrawling(false);
+      setDeepCrawlResult(null);
+      setDeepCrawlExpanded(false);
     }
   }, [clientFile?.propertyId, clientFile?.ownerFlags]);
 
@@ -4121,6 +4347,32 @@ export function MasterClientFileModal({ clientFile, open, onClose, onClaim, onRe
   const handleSkipTrace = useCallback(() => executeSkipTrace(false), [executeSkipTrace]);
   const handleManualSkipTrace = useCallback(() => executeSkipTrace(true), [executeSkipTrace]);
 
+  // ── Deep Crawl handler ──
+  const executeDeepCrawl = useCallback(async () => {
+    if (!clientFile) return;
+    setDeepCrawling(true);
+    try {
+      const res = await fetch("/api/prospects/deep-crawl", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ property_id: clientFile.propertyId, lead_id: clientFile.id }),
+      });
+      const data = await res.json();
+      if (data.error) {
+        toast.error(`Deep Crawl failed: ${data.error}`);
+      } else {
+        setDeepCrawlResult(data);
+        setDeepCrawlExpanded(true);
+        toast.success(`Deep Crawl complete — ${data.sources?.join(", ") ?? "done"}`);
+        onRefresh?.();
+      }
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Deep Crawl network error");
+    } finally {
+      setDeepCrawling(false);
+    }
+  }, [clientFile, onRefresh]);
+
   const handleAutofill = useCallback(async () => {
     if (!clientFile) return;
     setAutofilling(true);
@@ -4241,7 +4493,7 @@ export function MasterClientFileModal({ clientFile, open, onClose, onClaim, onRe
                     transition={{ duration: 0.15 }}
                   >
                     {activeTab === "overview" && (
-                      <OverviewTab cf={clientFile} computedArv={computedArv} skipTracing={skipTracing} skipTraceResult={skipTraceResult} skipTraceMs={skipTraceMs} overlay={overlay} skipTraceError={skipTraceError} onSkipTrace={handleSkipTrace} onManualSkipTrace={handleManualSkipTrace} onEdit={() => setEditOpen(true)} onDial={handleDial} onSms={handleSendSms} calling={calling} dialHistory={dialHistoryMap} autofilling={autofilling} onAutofill={handleAutofill} />
+                      <OverviewTab cf={clientFile} computedArv={computedArv} skipTracing={skipTracing} skipTraceResult={skipTraceResult} skipTraceMs={skipTraceMs} overlay={overlay} skipTraceError={skipTraceError} onSkipTrace={handleSkipTrace} onManualSkipTrace={handleManualSkipTrace} onEdit={() => setEditOpen(true)} onDial={handleDial} onSms={handleSendSms} calling={calling} dialHistory={dialHistoryMap} autofilling={autofilling} onAutofill={handleAutofill} deepCrawling={deepCrawling} deepCrawlResult={deepCrawlResult} deepCrawlExpanded={deepCrawlExpanded} setDeepCrawlExpanded={setDeepCrawlExpanded} executeDeepCrawl={executeDeepCrawl} />
                     )}
                     {activeTab === "contact" && (
                       <ContactTab cf={clientFile} overlay={overlay} onSkipTrace={handleSkipTrace} skipTracing={skipTracing} onDial={handleDial} onSms={handleSendSms} calling={calling} onRefresh={onRefresh} />
