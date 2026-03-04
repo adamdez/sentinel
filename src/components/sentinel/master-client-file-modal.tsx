@@ -4048,12 +4048,14 @@ export function MasterClientFileModal({ clientFile, open, onClose, onClaim, onRe
   const [deepCrawlExpanded, setDeepCrawlExpanded] = useState(false);
 
   // Pre-populate deep crawl from cached results in owner_flags
+  // Only use cache if it has REAL Grok AI results (not fallback dossier)
   useEffect(() => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const cached = (clientFile?.ownerFlags as any)?.deep_crawl;
     if (cached?.crawledAt) {
+      const hasRealAI = cached.grokSuccess === true || (cached.aiDossier?.webFindings?.length > 0);
       const ageMs = Date.now() - new Date(cached.crawledAt).getTime();
-      if (ageMs < 24 * 60 * 60 * 1000) {
+      if (hasRealAI && ageMs < 24 * 60 * 60 * 1000) {
         setDeepCrawlResult(cached);
       }
     }
