@@ -1927,6 +1927,17 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
     return { date: new Date(evt.created_at).toLocaleDateString(), isActual: false };
   };
 
+  // ── Humanize source name ──
+  const sourceName = (s?: string): string => {
+    switch (s) {
+      case "propertyradar": return "PropertyRadar";
+      case "attom": return "ATTOM";
+      case "manual": return "Manual entry";
+      case "bulk_seed": return "Bulk import";
+      default: return s || "Unknown";
+    }
+  };
+
   const pipelineDays = cf.promotedAt
     ? Math.floor((Date.now() - new Date(cf.promotedAt).getTime()) / 86400000)
     : null;
@@ -2126,7 +2137,7 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
                 return (
                   <span
                     key={evt.id}
-                    title={motivation}
+                    title={`${motivation}\nPer ${sourceName(evt.source)} · ${evtDate.isActual ? "filed" : "detected"} ${evtDate.date}`}
                     className={cn(
                       "inline-flex items-center gap-1 px-2 py-1 rounded-full text-[10px] font-semibold border cursor-default transition-colors",
                       cfg?.color ?? "text-cyan/70 bg-cyan/[0.06] border-cyan/20",
