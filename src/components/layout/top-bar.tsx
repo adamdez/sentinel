@@ -3,7 +3,6 @@
 import { motion } from "framer-motion";
 import { useRouter } from "next/navigation";
 import {
-  Ghost,
   PanelLeftClose,
   PanelLeft,
   Bell,
@@ -11,7 +10,6 @@ import {
   WifiOff,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Switch } from "@/components/ui/switch";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
   Tooltip,
@@ -38,8 +36,6 @@ export function TopBar() {
   const {
     sidebarOpen,
     toggleSidebar,
-    ghostMode,
-    setGhostMode,
     currentUser,
   } = useSentinelStore();
   const { connected } = useRealtime();
@@ -94,30 +90,6 @@ export function TopBar() {
           </TooltipTrigger>
           <TooltipContent>
             {connected ? "Connected" : "Reconnecting..."}
-          </TooltipContent>
-        </Tooltip>
-
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <div
-              className={`flex items-center gap-2 px-2 py-1 rounded-[10px] bg-secondary/30 border border-glass-border transition-all duration-100 ${
-                ghostMode ? "ghost-active" : ""
-              }`}
-            >
-              <Ghost
-                className={`h-3.5 w-3.5 transition-colors ${
-                  ghostMode ? "text-purple" : "text-muted-foreground"
-                }`}
-              />
-              <span className="text-xs text-muted-foreground/70">Ghost</span>
-              <Switch
-                checked={ghostMode}
-                onCheckedChange={setGhostMode}
-              />
-            </div>
-          </TooltipTrigger>
-          <TooltipContent>
-            Ghost Mode — Browse without logging activity
           </TooltipContent>
         </Tooltip>
 
