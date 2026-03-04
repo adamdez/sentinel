@@ -16,8 +16,6 @@ export default function DashboardPage() {
   const { currentUser, ghostMode } = useSentinelStore();
   const [eliteDone, setEliteDone] = useState(true);
   const [eliteLoading, setEliteLoading] = useState(false);
-  const [bulkLoading, setBulkLoading] = useState(false);
-  const [bulkConfirmOpen, setBulkConfirmOpen] = useState(false);
 
   useEffect(() => {
     setEliteDone(localStorage.getItem(ELITE_SEED_FLAG) === "1");
@@ -129,58 +127,6 @@ export default function DashboardPage() {
     }
   }
 
-  async function handleBulkSeed() {
-    setBulkConfirmOpen(false);
-    setBulkLoading(true);
-    toast.loading("Seeding 1000 predictive leads from PropertyRadar...", { id: "bulk-seed" });
-    try {
-      const res = await fetch("/api/ingest/propertyradar/bulk-seed", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ limit: 1000, counties: ["Spokane", "Kootenai"], userId: currentUser.id }),
-      });
-
-      let data: Record<string, unknown>;
-      try {
-        data = await res.json();
-      } catch {
-        toast.error("Bulk seed returned non-JSON — check server logs", { id: "bulk-seed" });
-        return;
-      }
-
-      if (!res.ok || !data.success) {
-        const msg = typeof data.error === "string" ? data.error : "Bulk seed failed";
-        toast.error(msg, { id: "bulk-seed" });
-        console.error("[BulkSeed] Response:", data);
-        return;
-      }
-
-      const inserted = typeof data.inserted === "number" ? data.inserted : 0;
-      const updCount = typeof data.updated === "number" ? data.updated : 0;
-      const fetched = typeof data.totalFetched === "number" ? data.totalFetched : 0;
-      const scored = typeof data.totalScored === "number" ? data.totalScored : 0;
-      const aboveCut = typeof data.aboveCutoff === "number" ? data.aboveCutoff : 0;
-      const topScore = typeof data.topScore === "number" ? data.topScore : 0;
-      const topAddr = typeof data.topAddress === "string" ? data.topAddress : "—";
-      const elapsed = typeof data.elapsed_ms === "number" ? Math.round(data.elapsed_ms / 1000) : "?";
-
-      console.log("[BulkSeed] Complete:", data);
-
-      toast.success(`${inserted} new leads seeded, ${updCount} updated`, {
-        id: "bulk-seed",
-        description: `Fetched ${fetched} → scored ${scored} → ${aboveCut} above 75 cutoff. Top: ${topScore} pts — ${topAddr}. Took ${elapsed}s.`,
-        duration: 12000,
-      });
-
-      window.dispatchEvent(new CustomEvent("sentinel:refresh-dashboard"));
-    } catch (err) {
-      console.error("[BulkSeed] Network error:", err);
-      toast.error("Network error reaching bulk seed API", { id: "bulk-seed" });
-    } finally {
-      setBulkLoading(false);
-    }
-  }
-
   return (
     <PageShell
       title={`Welcome back, ${currentUser.name ? currentUser.name.split(" ")[0] : "..."}`}
@@ -189,7 +135,7 @@ export default function DashboardPage() {
         <div className="flex items-center gap-2">
           <button
             onClick={handleEliteSeed}
-            disabled={eliteLoading || bulkLoading}
+            disabled={eliteLoading}
             className="relative px-4 py-1.5 rounded-[12px] font-bold text-[11px] uppercase tracking-wider
               bg-red-600 hover:bg-red-500 text-white border border-red-400/40
               shadow-[0_0_14px_rgba(255,60,60,0.45)] hover:shadow-[0_0_22px_rgba(255,60,60,0.6)]
@@ -197,22 +143,8 @@ export default function DashboardPage() {
               flex items-center gap-1.5"
           >
             {eliteLoading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Flame className="h-3.5 w-3.5" />}
-            {eliteLoading ? "Pulling…" : "TOP 10 ELITE SEED"}
+            {eliteLoading ? "Pulling…" : "Go Prospecting"}
           </button>
-          {currentUser.role === "admin" && (
-            <button
-              onClick={() => setBulkConfirmOpen(true)}
-              disabled={bulkLoading || eliteLoading}
-              className="relative px-4 py-1.5 rounded-[12px] font-bold text-[11px] uppercase tracking-wider
-                bg-red-800 hover:bg-red-700 text-white border border-red-500/30
-                shadow-[0_0_14px_rgba(200,40,40,0.35)] hover:shadow-[0_0_22px_rgba(200,40,40,0.5)]
-                transition-all active:scale-95 disabled:opacity-50 disabled:cursor-wait
-                flex items-center gap-1.5"
-            >
-              {bulkLoading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Flame className="h-3.5 w-3.5" />}
-              {bulkLoading ? "Seeding…" : "Bulk Elite Seed 1000"}
-            </button>
-          )}
           {ghostMode && (
             <Badge variant="outline" className="text-[11px] gap-1 border-yellow-500/30 text-yellow-400">
               Ghost Mode — activity not logged
@@ -235,54 +167,6 @@ export default function DashboardPage() {
         </div>
         <BreakingLeadsSidebar />
       </div>
-
-      {/* Bulk Seed Confirmation Modal */}
-      {bulkConfirmOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center">
-          <div
-            className="absolute inset-0 modal-backdrop"
-            onClick={() => setBulkConfirmOpen(false)}
-          />
-          <div
-            className="relative rounded-[16px] border border-red-500/20 p-6 max-w-md w-full mx-4
-              modal-glass holo-border wet-shine"
-            style={{ boxShadow: "0 0 48px rgba(255,40,40,0.12), 0 0 96px rgba(255,40,40,0.04)" }}
-          >
-            <div className="flex items-center gap-2 mb-3">
-              <div className="h-8 w-8 rounded-[10px] bg-red-600/15 flex items-center justify-center">
-                <Flame className="h-4 w-4 text-red-400" />
-              </div>
-              <h3 className="text-sm font-bold text-white">Bulk Elite Seed 1000</h3>
-            </div>
-            <p className="text-xs text-muted-foreground mb-4 leading-relaxed">
-              This will pull and score <span className="text-white font-semibold">1,000 fresh leads</span> from
-              PropertyRadar (Spokane + Kootenai), run full Predictive Scoring v2.1, and insert all prospects with
-              blended score &ge; 75.
-            </p>
-            <p className="text-[10px] text-red-400/70 mb-4">
-              This uses PropertyRadar API credits. Only run when you need a large fresh batch.
-            </p>
-            <div className="flex items-center justify-end gap-2">
-              <button
-                onClick={() => setBulkConfirmOpen(false)}
-                className="px-4 py-1.5 rounded-[10px] text-[11px] font-semibold text-muted-foreground
-                  bg-white/[0.04] hover:bg-white/[0.08] border border-white/[0.06] transition-all"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleBulkSeed}
-                className="px-4 py-1.5 rounded-[10px] text-[11px] font-bold text-white uppercase tracking-wider
-                  bg-red-600 hover:bg-red-500 border border-red-400/40
-                  shadow-[0_0_14px_rgba(255,60,60,0.35)] hover:shadow-[0_0_22px_rgba(255,60,60,0.5)]
-                  transition-all active:scale-95"
-              >
-                Confirm — Seed 1,000 Leads
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </PageShell>
   );
 }
