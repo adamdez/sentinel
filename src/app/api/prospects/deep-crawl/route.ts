@@ -141,8 +141,11 @@ export async function POST(req: NextRequest) {
     // ── Check for cached results (<24h old) ──
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const cached = ownerFlags.deep_crawl as any;
-    if (cached?.crawled_at) {
-      const ageMs = Date.now() - new Date(cached.crawled_at).getTime();
+    const cachedTime = cached?.crawledAt ?? cached?.crawled_at;
+    // Only use cache if it has real AI dossier data (not fallback)
+    const hasDossier = cached?.aiDossier?.signalAnalysis?.length > 0 || cached?.ai_dossier?.signalAnalysis?.length > 0;
+    if (cachedTime && hasDossier) {
+      const ageMs = Date.now() - new Date(cachedTime).getTime();
       if (ageMs < 24 * 60 * 60 * 1000) {
         console.log(`[DeepCrawl] Returning cached results (${Math.round(ageMs / 60000)}min old)`);
         return NextResponse.json({ ...cached, fromCache: true });
@@ -535,24 +538,12 @@ async function callGrokDeepCrawl(
           { role: "system", content: systemPrompt },
           { role: "user", content: userPrompt },
         ],
-        // Enable web search tool for Grok
-        tools: [
-          {
-            type: "function",
-            function: {
-              name: "web_search",
-              description: "Search the web for information about property owners, court records, obituaries, and public records",
-              parameters: {
-                type: "object",
-                properties: {
-                  query: { type: "string", description: "The search query" },
-                },
-                required: ["query"],
-              },
-            },
-          },
-        ],
-        tool_choice: "auto",
+        // Enable xAI's native live web search
+        search_parameters: {
+          mode: "auto",
+          return_citations: true,
+          from_date: new Date(Date.now() - 365 * 24 * 60 * 60 * 1000).toISOString().split("T")[0],
+        },
       }),
       signal: controller.signal,
     });
@@ -567,8 +558,20 @@ async function callGrokDeepCrawl(
     const resData = await res.json();
     const raw = resData.choices?.[0]?.message?.content ?? "";
 
-    // Parse JSON from response
-    const cleaned = raw.replace(/```json\s*/g, "").replace(/```/g, "").trim();
+    console.log("[DeepCrawl/Grok] Raw response length:", raw.length);
+    if (!raw) {
+      console.warn("[DeepCrawl/Grok] Empty content — model may have returned tool calls only:", JSON.stringify(resData.choices?.[0]?.message).slice(0, 500));
+    }
+
+    // Parse JSON from response — handle reasoning model think blocks and markdown
+    let cleaned = raw;
+    // Strip <think>...</think> blocks from reasoning models
+    cleaned = cleaned.replace(/<think>[\s\S]*?<\/think>/g, "").trim();
+    // Strip markdown code fences
+    cleaned = cleaned.replace(/```json\s*/g, "").replace(/```/g, "").trim();
+    // Try to extract JSON object if surrounded by text
+    const jsonMatch = cleaned.match(/\{[\s\S]*\}/);
+    if (jsonMatch) cleaned = jsonMatch[0];
 
     try {
       const parsed = JSON.parse(cleaned);
