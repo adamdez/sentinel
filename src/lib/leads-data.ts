@@ -33,6 +33,12 @@ export interface LeadRow {
   tags: string[];
   complianceClean: boolean;
   notes: string | null;
+  totalCalls: number;
+  liveAnswers: number;
+  voicemailsLeft: number;
+  callSequenceStep: number;
+  nextCallScheduledAt: string | null;
+  dispositionCode: string | null;
 }
 
 /**

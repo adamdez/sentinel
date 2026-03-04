@@ -10,7 +10,7 @@ import type { DistressType, LeadStatus, AIScore } from "@/lib/types";
 import { useSentinelStore } from "@/lib/store";
 import { supabase } from "@/lib/supabase";
 
-export type SortField = "score" | "priority" | "followUp" | "address" | "owner" | "status";
+export type SortField = "score" | "priority" | "followUp" | "address" | "owner" | "status" | "equity";
 export type SortDir = "asc" | "desc";
 
 export interface LeadFilters {
@@ -80,13 +80,19 @@ function mapToLeadRow(raw: any, prop: any): LeadRow {
     predictivePriority: composite,
     estimatedValue: prop.estimated_value ?? null,
     equityPercent: prop.equity_percent != null ? Number(prop.equity_percent) : null,
-    followUpDate: raw.follow_up_date ?? null,
+    followUpDate: raw.next_call_scheduled_at ?? raw.follow_up_date ?? null,
     lastContactAt: raw.last_contact_at ?? null,
     promotedAt: raw.promoted_at ?? raw.created_at ?? new Date().toISOString(),
     source: raw.source ?? "unknown",
     tags: raw.tags ?? [],
     complianceClean: true,
     notes: raw.notes ?? null,
+    totalCalls: raw.total_calls ?? 0,
+    liveAnswers: raw.live_answers ?? 0,
+    voicemailsLeft: raw.voicemails_left ?? 0,
+    callSequenceStep: raw.call_sequence_step ?? 1,
+    nextCallScheduledAt: raw.next_call_scheduled_at ?? null,
+    dispositionCode: raw.disposition_code ?? null,
   };
 }
 
@@ -281,6 +287,8 @@ export function useLeads() {
           return a.address.localeCompare(b.address) * dir;
         case "owner":
           return a.ownerName.localeCompare(b.ownerName) * dir;
+        case "equity":
+          return ((a.equityPercent ?? 0) - (b.equityPercent ?? 0)) * dir;
         case "status":
           return a.status.localeCompare(b.status) * dir;
         default:
