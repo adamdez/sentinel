@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import { Device, Call } from "@twilio/voice-sdk";
 import {
   Phone, PhoneOff, PhoneForwarded, PhoneIncoming, Clock, Users, BarChart3,
   Mic, MicOff, Voicemail, CalendarCheck, FileSignature,
@@ -292,6 +293,12 @@ export default function DialerPage() {
   const [smsComposeMsg, setSmsComposeMsg] = useState("");
   const [smsComposeSending, setSmsComposeSending] = useState(false);
 
+  // Twilio VoIP Device
+  const [deviceStatus, setDeviceStatus] = useState<"initializing" | "ready" | "error" | "offline">("initializing");
+  const [activeCall, setActiveCall] = useState<Call | null>(null);
+  const [voipCallerId, setVoipCallerId] = useState<string>("");
+  const deviceRef = useRef<Device | null>(null);
+
   // Twilio diagnostics + real-time call status
   const [currentCallSid, setCurrentCallSid] = useState<string | null>(null);
   const [liveCallStatus, setLiveCallStatus] = useState<string | null>(null);
@@ -314,6 +321,87 @@ export default function DialerPage() {
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [consentGranted]);
+
+  // ── Twilio VoIP Device Initialization ────────────────────────────
+  useEffect(() => {
+    if (!currentUser.id) return;
+
+    let cancelled = false;
+
+    const initDevice = async () => {
+      try {
+        const hdrs = await authHeaders();
+        const res = await fetch("/api/twilio/token", { headers: hdrs });
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({ error: "Token fetch failed" }));
+          console.warn("[VoIP] Token error:", err.error);
+          setDeviceStatus("error");
+          return;
+        }
+
+        const { token, callerId: cid } = await res.json();
+        if (cancelled) return;
+
+        setVoipCallerId(cid || "");
+
+        const device = new Device(token, {
+          codecPreferences: [Call.Codec.Opus, Call.Codec.PCMU],
+          closeProtection: "A call is in progress. Are you sure you want to leave?",
+        });
+
+        device.on("registered", () => {
+          if (!cancelled) {
+            setDeviceStatus("ready");
+            console.log("[VoIP] Device registered");
+          }
+        });
+
+        device.on("error", (err: { message?: string }) => {
+          console.error("[VoIP] Device error:", err);
+          if (!cancelled) {
+            setDeviceStatus("error");
+            toast.error(`VoIP error: ${err.message ?? "unknown"}`);
+          }
+        });
+
+        device.on("unregistered", () => {
+          if (!cancelled) setDeviceStatus("offline");
+        });
+
+        // Token refresh — fires ~3 min before expiry
+        device.on("tokenWillExpire", async () => {
+          try {
+            const hdrs2 = await authHeaders();
+            const r = await fetch("/api/twilio/token", { headers: hdrs2 });
+            if (r.ok) {
+              const { token: newToken } = await r.json();
+              device.updateToken(newToken);
+              console.log("[VoIP] Token refreshed");
+            }
+          } catch {
+            console.warn("[VoIP] Token refresh failed");
+          }
+        });
+
+        await device.register();
+        if (!cancelled) deviceRef.current = device;
+      } catch (err) {
+        console.error("[VoIP] Device init failed:", err);
+        if (!cancelled) setDeviceStatus("error");
+      }
+    };
+
+    initDevice();
+
+    return () => {
+      cancelled = true;
+      if (deviceRef.current) {
+        deviceRef.current.destroy();
+        deviceRef.current = null;
+      }
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentUser.id]);
 
   // ── Real-time call status polling ─────────────────────────────────
   // Polls /api/dialer/call-status every 2s to track the actual Twilio call state
@@ -431,12 +519,18 @@ export default function DialerPage() {
       }
     }
 
+    if (!deviceRef.current || deviceStatus !== "ready") {
+      toast.error("VoIP not ready — check Twilio diagnostics");
+      return;
+    }
+
     setCurrentLead(target);
     setCallState("dialing");
     setCallNotes("");
     timer.start();
 
     try {
+      // VoIP pre-flight: compliance + logging
       const res = await fetch("/api/dialer/call", {
         method: "POST",
         headers: await authHeaders(),
@@ -446,6 +540,7 @@ export default function DialerPage() {
           propertyId: target.property_id,
           userId: currentUser.id,
           ghostMode,
+          mode: "voip",
         }),
       });
 
@@ -459,28 +554,55 @@ export default function DialerPage() {
       }
 
       setCurrentCallLogId(data.callLogId);
-      setCurrentCallSid(data.callSid ?? null);
-      const cellDisplay = data.transferTo
-        ? `***${(data.transferTo as string).slice(-4)}`
-        : currentUser.personal_cell
-          ? `***${currentUser.personal_cell.slice(-4)}`
-          : null;
-      setTransferStatus(
-        cellDisplay
-          ? `Ringing ${currentUser.name || "your"}'s cell (${cellDisplay}) — pick up to connect to prospect`
-          : `Call initiated — waiting for Twilio to connect…`
-      );
+
+      // Connect via browser VoIP
+      const call = await deviceRef.current.connect({
+        params: {
+          To: toE164(phone),
+          callLogId: data.callLogId ?? "",
+          agentId: currentUser.id,
+          callerId: voipCallerId,
+        },
+      });
+
+      setActiveCall(call);
+      setTransferStatus("Connecting via VoIP…");
       setCallState("connected");
-      toast.success(cellDisplay
-        ? `Ringing your cell (${cellDisplay}) — pick up to connect to prospect`
-        : "Call initiated — check your phone");
+
+      call.on("ringing", () => {
+        setLiveCallStatus("ringing");
+        setTransferStatus("Ringing prospect…");
+      });
+
+      call.on("accept", () => {
+        setLiveCallStatus("in-progress");
+        setTransferStatus("Connected via VoIP — Dominion Homes");
+        toast.success("Call connected via VoIP");
+      });
+
+      call.on("disconnect", () => {
+        setLiveCallStatus("completed");
+        setActiveCall(null);
+        // Don't auto-reset — let user disposition
+      });
+
+      call.on("error", (err: { message?: string }) => {
+        toast.error(`Call error: ${err.message ?? "unknown"}`);
+        setLiveCallStatus("failed");
+        setActiveCall(null);
+      });
+
+      call.on("cancel", () => {
+        setLiveCallStatus("canceled");
+        setActiveCall(null);
+      });
     } catch (err) {
       console.error("[Dialer]", err);
       toast.error("Network error — call not placed");
       setCallState("idle");
       timer.reset();
     }
-  }, [currentLead, currentUser.id, currentUser.name, currentUser.personal_cell, ghostMode, timer]);
+  }, [currentLead, currentUser.id, ghostMode, timer, deviceStatus, voipCallerId]);
 
   const handleSendText = useCallback(async () => {
     if (!currentLead) return;
@@ -524,10 +646,16 @@ export default function DialerPage() {
       return;
     }
 
+    if (!deviceRef.current || deviceStatus !== "ready") {
+      toast.error("VoIP not ready — check Twilio diagnostics");
+      return;
+    }
+
     setManualDialing(true);
     setManualStatus("dialing");
 
     try {
+      // VoIP pre-flight
       const res = await fetch("/api/dialer/call", {
         method: "POST",
         headers: await authHeaders(),
@@ -535,6 +663,7 @@ export default function DialerPage() {
           phone: toE164(manualPhone),
           userId: currentUser.id,
           ghostMode,
+          mode: "voip",
         }),
       });
 
@@ -547,18 +676,52 @@ export default function DialerPage() {
       }
 
       setManualCallLogId(data.callLogId);
+
+      // Connect via browser VoIP
+      const call = await deviceRef.current.connect({
+        params: {
+          To: toE164(manualPhone),
+          callLogId: data.callLogId ?? "",
+          agentId: currentUser.id,
+          callerId: voipCallerId,
+        },
+      });
+
+      setActiveCall(call);
       setManualStatus("connected");
-      const cellHint = data.transferTo ? ` via ***${(data.transferTo as string).slice(-4)}` : "";
-      toast.success(`Ringing your cell${cellHint} — pick up to connect to ${formatUsPhone(manualPhone)}`);
+
+      call.on("ringing", () => {
+        toast.success(`Ringing ${formatUsPhone(manualPhone)} via VoIP…`);
+      });
+
+      call.on("accept", () => {
+        toast.success(`Connected to ${formatUsPhone(manualPhone)} via VoIP`);
+      });
+
+      call.on("disconnect", () => {
+        setActiveCall(null);
+        setManualStatus("ended");
+      });
+
+      call.on("error", (err: { message?: string }) => {
+        toast.error(`Call error: ${err.message ?? "unknown"}`);
+        setActiveCall(null);
+        setManualStatus("idle");
+      });
     } catch {
       toast.error("Network error — call not placed");
       setManualStatus("idle");
     } finally {
       setManualDialing(false);
     }
-  }, [manualPhone, currentUser.id, ghostMode]);
+  }, [manualPhone, currentUser.id, ghostMode, deviceStatus, voipCallerId]);
 
   const handleManualHangup = useCallback(() => {
+    // Disconnect VoIP call
+    if (activeCall) {
+      activeCall.disconnect();
+      setActiveCall(null);
+    }
     if (manualCallLogId) {
       authHeaders().then((hdrs) =>
         fetch("/api/dialer/call", {
@@ -570,7 +733,7 @@ export default function DialerPage() {
     }
     setManualStatus("idle");
     setManualCallLogId(null);
-  }, [manualCallLogId, currentUser.id]);
+  }, [manualCallLogId, currentUser.id, activeCall]);
 
   const handleManualSms = useCallback(async () => {
     if (manualPhone.length < 10) {
@@ -609,12 +772,18 @@ export default function DialerPage() {
   }, [manualPhone, smsComposeMsg, currentUser.id]);
 
   const handleHangup = useCallback(() => {
+    // Disconnect VoIP call
+    if (activeCall) {
+      activeCall.disconnect();
+      setActiveCall(null);
+    }
     setCallState("ended");
     setTransferStatus(null);
     setCurrentCallSid(null);
     setLiveCallStatus(null);
+    setMuted(false);
     timer.stop();
-  }, [timer]);
+  }, [timer, activeCall]);
 
   const handleDisposition = useCallback(async (dispoKey: string) => {
     if (!currentCallLogId && callState !== "idle") {
@@ -739,14 +908,17 @@ export default function DialerPage() {
             {diagLoading ? <Loader2 className="h-3 w-3 animate-spin" /> : <Wifi className="h-3 w-3" />}
             Test Twilio
           </Button>
-          <Badge variant="cyan" className="text-[10px] gap-1">
-            <Zap className="h-2.5 w-2.5" />
+          <Badge variant={deviceStatus === "ready" ? "cyan" : "outline"} className={`text-[10px] gap-1 ${deviceStatus === "error" ? "border-red-500/30 text-red-400" : ""}`}>
+            {deviceStatus === "ready" ? <Zap className="h-2.5 w-2.5" /> : deviceStatus === "error" ? <WifiOff className="h-2.5 w-2.5" /> : <Loader2 className="h-2.5 w-2.5 animate-spin" />}
             {callState === "connected"
-              ? liveCallStatus === "ringing" ? "RINGING AGENT…"
-                : liveCallStatus === "in-progress" ? "LIVE — Dominion Homes"
+              ? liveCallStatus === "ringing" ? "RINGING PROSPECT…"
+                : liveCallStatus === "in-progress" ? "LIVE — VoIP"
                 : liveCallStatus === "failed" ? "CALL FAILED"
-                : "LIVE — Dominion Homes"
-              : "Twilio Ready"}
+                : "LIVE — VoIP"
+              : deviceStatus === "ready" ? "VoIP Ready"
+              : deviceStatus === "error" ? "VoIP Error"
+              : deviceStatus === "initializing" ? "Connecting…"
+              : "VoIP Offline"}
           </Badge>
         </div>
       }
@@ -844,16 +1016,17 @@ export default function DialerPage() {
               <Loader2 className="h-3.5 w-3.5 animate-spin flex-shrink-0" />
             )}
             <span className="font-medium">
-              {liveCallStatus === "initiated" && "Twilio is processing the call…"}
-              {liveCallStatus === "ringing" && "Your phone is ringing — pick up!"}
-              {liveCallStatus === "ringing_agent" && "Your phone is ringing — pick up!"}
+              {liveCallStatus === "initiated" && "Connecting VoIP call…"}
+              {liveCallStatus === "ringing" && "Ringing prospect…"}
+              {liveCallStatus === "ringing_prospect" && "Ringing prospect…"}
+              {liveCallStatus === "ringing_agent" && "Connecting VoIP…"}
               {liveCallStatus === "failed" && "Call failed — run diagnostics to troubleshoot"}
               {liveCallStatus === "canceled" && "Call was canceled"}
-              {liveCallStatus === "busy" && "Agent line is busy"}
+              {liveCallStatus === "busy" && "Prospect line is busy"}
               {liveCallStatus === "no-answer" && "No answer — try again"}
-              {liveCallStatus === "agent_busy" && "Your phone was busy — try again"}
-              {liveCallStatus === "agent_no_answer" && "You didn't pick up — your phone must be reachable"}
-              {!["initiated", "ringing", "ringing_agent", "failed", "canceled", "busy", "no-answer", "agent_busy", "agent_no_answer"].includes(liveCallStatus) && `Status: ${liveCallStatus}`}
+              {liveCallStatus === "agent_busy" && "Line is busy — try again"}
+              {liveCallStatus === "agent_no_answer" && "No answer — try again"}
+              {!["initiated", "ringing", "ringing_prospect", "ringing_agent", "failed", "canceled", "busy", "no-answer", "agent_busy", "agent_no_answer"].includes(liveCallStatus) && `Status: ${liveCallStatus}`}
             </span>
             {(liveCallStatus === "failed" || liveCallStatus === "canceled") && (
               <Button
@@ -1288,7 +1461,11 @@ export default function DialerPage() {
                           <Button
                             variant="outline"
                             size="icon"
-                            onClick={() => setMuted(!muted)}
+                            onClick={() => {
+                              const next = !muted;
+                              setMuted(next);
+                              if (activeCall) activeCall.mute(next);
+                            }}
                             className="shrink-0"
                           >
                             {muted ? <MicOff className="h-4 w-4" /> : <Mic className="h-4 w-4" />}

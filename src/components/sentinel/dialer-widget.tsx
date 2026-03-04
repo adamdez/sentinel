@@ -1,147 +1,63 @@
-"use client";
+'use client'
+import { useState, useEffect } from 'react'
+import { Device, Call } from '@twilio/voice-sdk'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Card } from '@/components/ui/card'
 
-import { useState } from "react";
-import { motion } from "framer-motion";
-import { Phone, PhoneOff, Mic, MicOff, Clock, User } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { GlassCard } from "./glass-card";
-import { cn } from "@/lib/utils";
+export default function DialerWidget() {
+  const [device, setDevice] = useState<any>(null)
+  const [status, setStatus] = useState('Disconnected')
+  const [phoneToCall, setPhoneToCall] = useState('')
+  const [connecting, setConnecting] = useState(false)
 
-type DialerState = "idle" | "dialing" | "connected" | "ended";
+  useEffect(() => {
+    const connectTwilio = async () => {
+      const res = await fetch('/api/twilio/token')
+      const { token, callerId } = await res.json()
+      
+      const newDevice = new Device(token, { codecPreferences: [Call.Codec.Opus, Call.Codec.PCMU] })
+      await newDevice.register()
+      setDevice(newDevice)
+      setStatus('Ready — ' + callerId)
+    }
+    connectTwilio()
+  }, [])
 
-interface DialerWidgetProps {
-  contactName?: string;
-  contactPhone?: string;
-}
-
-export function DialerWidget({ contactName, contactPhone }: DialerWidgetProps) {
-  const [state, setState] = useState<DialerState>("idle");
-  const [muted, setMuted] = useState(false);
-  const [elapsed, setElapsed] = useState(0);
-
-  const handleDial = () => {
-    if (!contactPhone) return;
-    setState("dialing");
-    window.open(`tel:${contactPhone.replace(/\D/g, "")}`);
-    setTimeout(() => {
-      setState("connected");
-      const timer = setInterval(() => {
-        setElapsed((e) => e + 1);
-      }, 1000);
-      setTimeout(() => {
-        clearInterval(timer);
-        setState("ended");
-        setTimeout(() => {
-          setState("idle");
-          setElapsed(0);
-        }, 2000);
-      }, 5000);
-    }, 2000);
-  };
-
-  const handleHangup = () => {
-    setState("ended");
-    setTimeout(() => {
-      setState("idle");
-      setElapsed(0);
-    }, 2000);
-  };
-
-  const formatTime = (s: number) => {
-    const m = Math.floor(s / 60);
-    const sec = s % 60;
-    return `${m}:${sec.toString().padStart(2, "0")}`;
-  };
+  const makeCall = async () => {
+    if (!device || !phoneToCall) return
+    setConnecting(true)
+    const call = await device.connect({ To: phoneToCall })
+    call.on('disconnect', () => setStatus('Call ended'))
+    setConnecting(false)
+  }
 
   return (
-    <GlassCard
-      glow={state === "connected"}
-      className={cn(
-        "transition-all duration-300",
-        state === "dialing" && "border-yellow-500/30"
-      )}
-    >
-      <div className="flex items-center justify-between mb-3">
-        <h3 className="text-sm font-semibold flex items-center gap-2">
-          <Phone className="h-4 w-4 text-cyan" />
-          Dialer
-        </h3>
-        {state !== "idle" && (
-          <div
-            className={cn(
-              "flex items-center gap-1.5 text-xs px-2 py-0.5 rounded-full",
-              state === "dialing" && "bg-yellow-500/10 text-yellow-400",
-              state === "connected" && "bg-cyan/8 text-cyan",
-              state === "ended" && "bg-destructive/10 text-destructive"
-            )}
-          >
-            <span
-              className={cn(
-                "h-1.5 w-1.5 rounded-full",
-                state === "dialing" && "bg-yellow-400 animate-pulse",
-                state === "connected" && "bg-cyan animate-pulse",
-                state === "ended" && "bg-destructive"
-              )}
-            />
-            {state === "dialing" && "Dialing..."}
-            {state === "connected" && "Connected"}
-            {state === "ended" && "Ended"}
-          </div>
-        )}
+    <Card className="glass-card p-6 bg-[#0d0d14]/85 backdrop-blur-xl border border-white/6 shadow-[0_0_8px_#00ff88]">
+      <div className="text-[#00ff88] text-xl font-bold mb-4 flex items-center gap-2">
+        📞 DIALER (VoIP Only)
       </div>
-
-      <div className="flex items-center gap-3 mb-3 p-3 rounded-[12px] bg-secondary/30">
-        <div className="h-8 w-8 rounded-full bg-secondary flex items-center justify-center">
-          <User className="h-4 w-4 text-muted-foreground" />
-        </div>
-        <div>
-          <p className="text-sm font-medium">{contactName ?? "No contact selected"}</p>
-          <p className="text-xs text-muted-foreground">{contactPhone ?? ""}</p>
-        </div>
-        {state === "connected" && (
-          <div className="ml-auto flex items-center gap-1 text-xs text-muted-foreground">
-            <Clock className="h-3 w-3" />
-            {formatTime(elapsed)}
-          </div>
-        )}
+      <div className="text-white/70 mb-4">{status}</div>
+      
+      <Input
+        type="tel"
+        placeholder="+1509..."
+        value={phoneToCall}
+        onChange={(e) => setPhoneToCall(e.target.value)}
+        className="mb-4 bg-black/50 border-white/10 text-white"
+      />
+      
+      <Button 
+        onClick={makeCall} 
+        disabled={connecting || !device}
+        className="w-full bg-[#00ff88] hover:bg-[#00ff88]/90 text-black font-bold text-lg py-6 neon-glow"
+      >
+        {connecting ? 'Connecting...' : 'CALL NOW'}
+      </Button>
+      
+      <div className="text-[10px] text-white/40 mt-4 text-center">
+        All calls use your personal Twilio number • Auto-recorded
       </div>
-
-      <div className="flex items-center gap-2">
-        {state === "idle" && (
-          <Button onClick={handleDial} className="flex-1 gap-2" disabled={!contactPhone}>
-            <Phone className="h-4 w-4" />
-            Call
-          </Button>
-        )}
-        {(state === "dialing" || state === "connected") && (
-          <>
-            <Button
-              variant="outline"
-              size="icon"
-              onClick={() => setMuted(!muted)}
-            >
-              {muted ? <MicOff className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
-            </Button>
-            <Button
-              variant="destructive"
-              className="flex-1 gap-2"
-              onClick={handleHangup}
-            >
-              <PhoneOff className="h-4 w-4" />
-              Hang Up
-            </Button>
-          </>
-        )}
-        {state === "ended" && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            className="w-full text-center text-sm text-muted-foreground py-2"
-          >
-            Call ended — {formatTime(elapsed)}
-          </motion.div>
-        )}
-      </div>
-    </GlassCard>
-  );
+    </Card>
+  )
 }

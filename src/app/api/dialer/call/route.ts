@@ -42,6 +42,7 @@ export async function POST(req: NextRequest) {
     propertyId?: string;
     userId?: string;
     ghostMode?: boolean;
+    mode?: "voip" | "cell";
   };
 
   try {
@@ -77,8 +78,9 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  // 2. Lookup agent's profile: personal_cell for warm transfer,
-  //    twilio_phone_number for outbound caller ID, full_name for CNAM
+  const callMode = body.mode ?? "voip";
+
+  // 2. Lookup agent's profile
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data: agentProfile } = await (sb.from("user_profiles") as any)
     .select("personal_cell, twilio_phone_number, full_name")
@@ -89,6 +91,56 @@ export async function POST(req: NextRequest) {
   const agentTwilioNumber = (agentProfile?.twilio_phone_number as string) ?? "";
   const agentFullName = (agentProfile?.full_name as string) ?? "";
 
+  // ── VoIP Pre-flight Mode ──────────────────────────────────────────
+  // Browser SDK handles the actual call. We just do compliance + logging.
+  if (callMode === "voip") {
+    const from = agentTwilioNumber || fallbackFrom;
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: callLog, error: logErr } = await (sb.from("calls_log") as any)
+      .insert({
+        lead_id: body.leadId || null,
+        property_id: body.propertyId || null,
+        user_id: userId,
+        phone_dialed: e164,
+        disposition: "initiating",
+        started_at: new Date().toISOString(),
+      })
+      .select("id")
+      .single();
+
+    if (logErr) {
+      console.error("[Dialer] calls_log insert failed:", logErr);
+    }
+
+    // Audit log (non-blocking)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (sb.from("event_log") as any).insert({
+      user_id: userId,
+      action: "dialer.voip_preflight",
+      entity_type: "call",
+      entity_id: callLog?.id ?? "unknown",
+      details: {
+        phone: `***${phone.slice(-4)}`,
+        lead_id: body.leadId,
+        from_number: from,
+        mode: "voip",
+        ghost_mode: body.ghostMode ?? false,
+      },
+    });
+
+    console.log("[Dialer] VoIP pre-flight:", e164.slice(-4), "callLogId:", callLog?.id);
+
+    return NextResponse.json({
+      success: true,
+      callLogId: callLog?.id ?? null,
+      phone: e164,
+      mode: "voip",
+      callerId: from,
+    });
+  }
+
+  // ── Cell-bridge Mode (legacy) ─────────────────────────────────────
   // Agent-first flow requires a personal cell to ring
   if (!agentCell) {
     return NextResponse.json(

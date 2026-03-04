@@ -63,7 +63,7 @@ export async function POST(req: NextRequest) {
     });
   }
 
-  // ── 3. Agent's personal cell ───────────────────────────────────────
+  // ── 3. Agent's personal cell (optional for VoIP) ──────────────────
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data: profile } = await (sb.from("user_profiles") as any)
     .select("personal_cell, twilio_phone_number, full_name")
@@ -76,18 +76,18 @@ export async function POST(req: NextRequest) {
   if (!agentCell) {
     checks.push({
       name: "Personal Cell",
-      status: "fail",
-      message: "Your personal cell is not configured",
-      detail: "Go to Settings and enter your personal cell phone number. Twilio calls YOUR phone first, then bridges to the prospect.",
+      status: "pass",
+      message: "Not set — not needed for browser VoIP",
+      detail: "Browser VoIP connects calls directly in your browser. Personal cell is only required for the legacy cell-bridge mode.",
     });
   } else {
     const digits = agentCell.replace(/\D/g, "");
     if (digits.length < 10) {
       checks.push({
         name: "Personal Cell",
-        status: "fail",
+        status: "warn",
         message: `"${agentCell}" is too short — must be at least 10 digits`,
-        detail: "Enter your full phone number in E.164 format: +1XXXXXXXXXX",
+        detail: "Not required for VoIP, but if you want cell-bridge fallback, enter a valid number.",
       });
     } else {
       const e164 = digits.length === 10 ? `+1${digits}` : `+${digits}`;
@@ -261,6 +261,32 @@ export async function POST(req: NextRequest) {
         message: "Lookup API not reachable — non-blocking",
       });
     }
+  }
+
+  // ── 8. VoIP Configuration ──────────────────────────────────────────
+  const twimlAppSid = process.env.TWILIO_TWIML_APP_SID;
+  const apiKeySid = process.env.TWILIO_API_KEY_SID;
+
+  if (!twimlAppSid) {
+    checks.push({
+      name: "VoIP Configuration",
+      status: "fail",
+      message: "TWILIO_TWIML_APP_SID not set — browser VoIP won't work",
+      detail: "Run POST /api/twilio/setup to auto-create a TwiML App, then add the returned TWILIO_TWIML_APP_SID to your Vercel env vars.",
+    });
+  } else if (!apiKeySid) {
+    checks.push({
+      name: "VoIP Configuration",
+      status: "warn",
+      message: `TwiML App: ${twimlAppSid.slice(0, 6)}…${twimlAppSid.slice(-4)} — using Account SID as signing key (recommended: set TWILIO_API_KEY_SID)`,
+      detail: "Run POST /api/twilio/setup to create a dedicated API Key for better security.",
+    });
+  } else {
+    checks.push({
+      name: "VoIP Configuration",
+      status: "pass",
+      message: `TwiML App: ${twimlAppSid.slice(0, 6)}…${twimlAppSid.slice(-4)} | API Key: ${apiKeySid.slice(0, 6)}…${apiKeySid.slice(-4)}`,
+    });
   }
 
   // ── Overall status ─────────────────────────────────────────────────
