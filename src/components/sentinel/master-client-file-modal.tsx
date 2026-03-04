@@ -4060,6 +4060,7 @@ export function MasterClientFileModal({ clientFile, open, onClose, onClaim, onRe
 
   // Pre-populate deep crawl from cached results in owner_flags
   // Results persist permanently once crawled (like addresses/phone numbers)
+  // For leads, ownerFlags may be empty ({}) — fetch directly from properties table
   useEffect(() => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const cached = (clientFile?.ownerFlags as any)?.deep_crawl;
@@ -4067,7 +4068,29 @@ export function MasterClientFileModal({ clientFile, open, onClose, onClaim, onRe
       const hasRealAI = cached.grokSuccess === true || (cached.aiDossier?.webFindings?.length > 0);
       if (hasRealAI) {
         setDeepCrawlResult(cached);
+        return;
       }
+    }
+    // If ownerFlags is empty (lead context), try fetching from properties table
+    if (clientFile?.propertyId && (!clientFile.ownerFlags || Object.keys(clientFile.ownerFlags).length === 0)) {
+      (async () => {
+        try {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const { data } = await (supabase.from("properties") as any)
+            .select("owner_flags")
+            .eq("id", clientFile.propertyId)
+            .single();
+          const dc = data?.owner_flags?.deep_crawl;
+          if (dc?.crawledAt) {
+            const hasRealAI = dc.grokSuccess === true || (dc.aiDossier?.webFindings?.length > 0);
+            if (hasRealAI) {
+              setDeepCrawlResult(dc);
+            }
+          }
+        } catch {
+          // Silently fail — just means no cached results
+        }
+      })();
     }
   }, [clientFile?.ownerFlags, clientFile?.propertyId]);
 
