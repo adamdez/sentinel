@@ -349,13 +349,20 @@ export async function POST(req: NextRequest) {
 
     // 4a. Store in owner_flags.deep_crawl
     writes.push(
-      tbl("properties").update({
-        owner_flags: {
-          ...ownerFlags,
-          deep_crawl: result,
-        },
-        updated_at: new Date().toISOString(),
-      }).eq("id", property_id),
+      (async () => {
+        const { error: updateErr } = await tbl("properties").update({
+          owner_flags: {
+            ...ownerFlags,
+            deep_crawl: result,
+          },
+          updated_at: new Date().toISOString(),
+        }).eq("id", property_id);
+        if (updateErr) {
+          console.error("[DeepCrawl] Failed to save to owner_flags:", updateErr);
+        } else {
+          console.log("[DeepCrawl] Saved deep_crawl to owner_flags for property:", property_id);
+        }
+      })(),
     );
 
     // 4b. Backfill distress_events.raw_data with actual dates/amounts
