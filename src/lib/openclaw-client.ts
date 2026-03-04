@@ -15,12 +15,24 @@
 
 export interface AgentFinding {
   source: string;        // e.g. "Spokane County Clerk", "LinkedIn", "Legacy.com"
-  category: string;      // "court_record" | "obituary" | "social_media" | "property_listing" | "county_record" | "photo"
+  category: string;      // "court_record" | "obituary" | "social_media" | "property_listing" | "county_record" | "photo" | "contact" | "financial" | "heir" | "employment"
   finding: string;       // human-readable finding
   confidence: number;    // 0-1
   url?: string;          // source URL
   date?: string;         // finding date (ISO or human-readable)
   rawSnippet?: string;   // raw text excerpt from source
+  structuredData?: {
+    phone?: string;         // For contact findings → merge into all_phones
+    email?: string;         // For contact findings → merge into all_emails
+    personName?: string;    // For heir/executor/LLC owner
+    personRole?: "heir" | "executor" | "attorney" | "beneficial_owner" | "spouse" | "family" | "owner";
+    eventType?: string;     // Maps to DistressType for auto-creation
+    amount?: number;        // Dollar amounts for liens/judgments
+    caseNumber?: string;    // Court case numbers
+    filingDate?: string;    // ISO date for distress events
+    employer?: string;      // Employment agent
+    location?: string;      // Relocation agent
+  };
 }
 
 export interface PropertyPhoto {
@@ -70,6 +82,36 @@ export interface AgentMeta {
 }
 
 // ═══════════════════════════════════════════════════════════════════════
+// Deep Skip Report — people intelligence from agents
+// ═══════════════════════════════════════════════════════════════════════
+
+export interface DeepSkipPerson {
+  name: string;
+  role: "owner" | "heir" | "executor" | "attorney" | "beneficial_owner" | "spouse" | "family";
+  phones: string[];
+  emails: string[];
+  address?: string;
+  notes: string;           // e.g. "Listed as executor in probate case #24-1234"
+  source: string;          // agent that found them
+  confidence: number;
+}
+
+export interface DeepSkipResult {
+  crawledAt: string;
+  people: DeepSkipPerson[];
+  newPhones: { number: string; source: string; personName?: string }[];
+  newEmails: { email: string; source: string; personName?: string }[];
+  employmentSignals: {
+    signal: string;          // "Job change to Portland, OR (LinkedIn)"
+    source: string;
+    date?: string;
+    url?: string;
+  }[];
+  agentMeta: AgentMeta;
+  findings: AgentFinding[];
+}
+
+// ═══════════════════════════════════════════════════════════════════════
 // Config
 // ═══════════════════════════════════════════════════════════════════════
 
@@ -85,6 +127,10 @@ const AGENT_MODELS: Record<string, string> = {
   social_media: "claude-haiku",
   property_photos: "deepseek-chat",
   county_records: "deepseek-chat",
+  contact_finder: "claude-haiku",
+  financial_distress: "deepseek-chat",
+  heir_estate: "deepseek-chat",
+  employment_relocation: "deepseek-chat",
   propertyradar_navigator: "claude-haiku",
   attom_navigator: "claude-haiku",
 };
@@ -236,6 +282,145 @@ Return a JSON array of findings:
   "confidence": 0.0-1.0,
   "url": "Direct URL to the photo or listing page",
   "date": "Photo date if available"
+}]
+\`\`\`
+
+Return ONLY the JSON array, no other text. Return empty array [] if nothing found.`,
+
+    contact_finder: `You are a contact intelligence agent. Find phone numbers, email addresses, and decision-maker contacts that standard skip trace providers miss.
+
+## Property Context
+${ctx}
+${payload.additionalContext ? `\n## Known Contacts (DO NOT duplicate these)\nKnown phones: ${(payload.additionalContext.knownPhones as string[])?.join(", ") || "none"}\nKnown emails: ${(payload.additionalContext.knownEmails as string[])?.join(", ") || "none"}` : ""}
+
+## Instructions
+1. Search Secretary of State LLC/DBA filings for "${payload.ownerName}" → extract beneficial owner name + registered agent phone/email
+2. Search LinkedIn for "${payload.ownerName}" in ${payload.city}, ${payload.state} → extract any visible contact info, email patterns from employer
+3. Search Facebook public profiles for "${payload.ownerName}" → look for phone numbers in bio, "About" section
+4. Search Whitepages/TruePeopleSearch for family members at ${payload.address} → get their names and phone numbers
+5. If this is an LLC or trust, find the actual human behind it
+6. DO NOT return contacts already listed in "Known Contacts" above
+
+## Output Format
+Return a JSON array. Each finding MUST include structuredData with phone/email/person info:
+\`\`\`json
+[{
+  "source": "Secretary of State / LinkedIn / Facebook / Whitepages",
+  "category": "contact",
+  "finding": "Human-readable description of who this person is and how they relate to the property",
+  "confidence": 0.0-1.0,
+  "url": "Source URL",
+  "structuredData": {
+    "phone": "5551234567",
+    "email": "person@example.com",
+    "personName": "John Smith",
+    "personRole": "beneficial_owner"
+  }
+}]
+\`\`\`
+
+Return ONLY the JSON array, no other text. Return empty array [] if nothing found.`,
+
+    financial_distress: `You are a financial distress research agent. Find liens, judgments, bankruptcies, code violations, and other financial stress indicators that commercial databases miss or lag behind on.
+
+## Property Context
+${ctx}
+
+## Instructions
+1. Search PACER (Public Access to Court Electronic Records) for "${payload.ownerName}" bankruptcy filings → extract case number, chapter, filing date, status
+2. Search ${payload.county} County recorder for mechanic's liens against ${payload.address} → unpaid contractors signal both deferred maintenance and cash flow problems
+3. Search ${payload.county} County code enforcement for violations at ${payload.address} → code violations = deferred maintenance
+4. Search for abandoned/expired building permits at ${payload.address} → started reno but ran out of money
+5. Search for HOA lien filings against this property → unpaid HOA = owner stress
+6. Search for small claims judgments or civil judgments against "${payload.ownerName}" in ${payload.county} County
+7. Search for eviction filings by "${payload.ownerName}" (as landlord) → landlord fatigue signal
+8. Search for IRS/state tax liens against "${payload.ownerName}"
+
+## Output Format
+Return a JSON array. Each finding MUST include structuredData with event details:
+\`\`\`json
+[{
+  "source": "PACER / County Recorder / Code Enforcement",
+  "category": "financial",
+  "finding": "Human-readable description of the financial distress indicator",
+  "confidence": 0.0-1.0,
+  "url": "Source URL if available",
+  "date": "Filing/event date",
+  "structuredData": {
+    "eventType": "bankruptcy|mechanics_lien|code_violation|expired_permit|hoa_lien|judgment|eviction|tax_lien",
+    "amount": 15000,
+    "caseNumber": "24-12345",
+    "filingDate": "2024-01-15"
+  }
+}]
+\`\`\`
+
+Return ONLY the JSON array, no other text. Return empty array [] if nothing found.`,
+
+    heir_estate: `You are an heir and estate research agent. Find family members, executors, attorneys, and estate contacts for deceased or elderly property owners.
+
+## Property Context
+${ctx}
+
+## Instructions
+1. Search for "${payload.ownerName}" obituary on Legacy.com, Dignity Memorial, local newspaper obituaries, funeral home websites
+2. From any obituary found, extract EVERY family member mentioned: spouse, children, siblings, grandchildren — with their full names
+3. Search ${payload.county} County probate court for active probate cases involving "${payload.ownerName}" or ${payload.address}
+4. If probate found, extract: case number, executor/personal representative name, attorney of record, filing date
+5. Cross-reference heir names with Whitepages/TruePeopleSearch to find their current phone numbers and addresses
+6. Check for transfer-on-death (TOD) deed or beneficiary deed recorded on this property
+7. Look for estate sale listings or signs the property is being liquidated
+
+## Output Format
+Return a JSON array. Each finding MUST include structuredData with person/role info:
+\`\`\`json
+[{
+  "source": "Legacy.com / Probate Court / Whitepages",
+  "category": "heir",
+  "finding": "Human-readable description of the person and their relationship",
+  "confidence": 0.0-1.0,
+  "url": "Source URL",
+  "date": "Date of death or probate filing",
+  "structuredData": {
+    "personName": "Jane Smith",
+    "personRole": "heir",
+    "phone": "5559876543",
+    "email": "jane@example.com",
+    "caseNumber": "PROB-2024-1234"
+  }
+}]
+\`\`\`
+
+Return ONLY the JSON array, no other text. Return empty array [] if nothing found.`,
+
+    employment_relocation: `You are an employment and relocation research agent. Find job changes, business closures, and relocation signals for absentee property owners.
+
+## Property Context
+${ctx}
+
+## Instructions
+1. Search LinkedIn for "${payload.ownerName}" → look for recent job changes, especially moves to a different city/state
+2. Search Secretary of State business filings for "${payload.ownerName}" → look for business dissolutions, inactive registrations
+3. Search professional licensing boards in ${payload.state} and neighboring states → active license in another state = relocated
+4. Search voter registration records → registered at a different address = relocated
+5. Search for "${payload.ownerName}" in news articles about company layoffs, business closures, or relocations
+6. Check USPS change-of-address indicators if available
+
+## Output Format
+Return a JSON array. Each finding MUST include structuredData with employment/location info:
+\`\`\`json
+[{
+  "source": "LinkedIn / Secretary of State / Professional Board",
+  "category": "employment",
+  "finding": "Human-readable description of the employment or relocation signal",
+  "confidence": 0.0-1.0,
+  "url": "Source URL",
+  "date": "Date of the change",
+  "structuredData": {
+    "employer": "Company name if applicable",
+    "location": "New city, state if relocated",
+    "personName": "${payload.ownerName}"
+  }
 }]
 \`\`\`
 
@@ -414,15 +599,31 @@ function parseAgentFindings(content: string, agentId: string): AgentFinding[] {
 
     return parsed
       .filter((f: unknown): f is Record<string, unknown> => typeof f === "object" && f !== null)
-      .map((f) => ({
-        source: String(f.source ?? agentId),
-        category: String(f.category ?? "unknown"),
-        finding: String(f.finding ?? ""),
-        confidence: typeof f.confidence === "number" ? Math.max(0, Math.min(1, f.confidence)) : 0.5,
-        url: f.url ? String(f.url) : undefined,
-        date: f.date ? String(f.date) : undefined,
-        rawSnippet: f.rawSnippet ? String(f.rawSnippet) : undefined,
-      }))
+      .map((f) => {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const sd = f.structuredData as Record<string, any> | undefined;
+        return {
+          source: String(f.source ?? agentId),
+          category: String(f.category ?? "unknown"),
+          finding: String(f.finding ?? ""),
+          confidence: typeof f.confidence === "number" ? Math.max(0, Math.min(1, f.confidence)) : 0.5,
+          url: f.url ? String(f.url) : undefined,
+          date: f.date ? String(f.date) : undefined,
+          rawSnippet: f.rawSnippet ? String(f.rawSnippet) : undefined,
+          structuredData: sd && typeof sd === "object" ? {
+            phone: sd.phone ? String(sd.phone) : undefined,
+            email: sd.email ? String(sd.email) : undefined,
+            personName: sd.personName ? String(sd.personName) : undefined,
+            personRole: sd.personRole ? String(sd.personRole) as DeepSkipPerson["role"] : undefined,
+            eventType: sd.eventType ? String(sd.eventType) : undefined,
+            amount: typeof sd.amount === "number" ? sd.amount : undefined,
+            caseNumber: sd.caseNumber ? String(sd.caseNumber) : undefined,
+            filingDate: sd.filingDate ? String(sd.filingDate) : undefined,
+            employer: sd.employer ? String(sd.employer) : undefined,
+            location: sd.location ? String(sd.location) : undefined,
+          } : undefined,
+        };
+      })
       .filter((f) => f.finding.length > 0);
   } catch (err) {
     console.error(`[OpenClaw] Failed to parse ${agentId} response:`, err);
@@ -437,6 +638,108 @@ function parseAgentFindings(content: string, agentId: string): AgentFinding[] {
     }
     return [];
   }
+}
+
+/**
+ * Build a Deep Skip Report from agent findings.
+ * Extracts people, contacts, and employment signals into a structured report.
+ */
+export function buildDeepSkipResult(
+  results: AgentResult[],
+  existingPhones: string[],
+  existingEmails: string[],
+  meta: AgentMeta,
+): DeepSkipResult {
+  const people: DeepSkipPerson[] = [];
+  const newPhones: DeepSkipResult["newPhones"] = [];
+  const newEmails: DeepSkipResult["newEmails"] = [];
+  const employmentSignals: DeepSkipResult["employmentSignals"] = [];
+  const allFindings: AgentFinding[] = [];
+
+  // Normalize existing contacts for dedup
+  const knownPhoneSet = new Set(existingPhones.map((p) => p.replace(/\D/g, "").slice(-10)));
+  const knownEmailSet = new Set(existingEmails.map((e) => e.toLowerCase()));
+  const seenPhones = new Set<string>();
+  const seenEmails = new Set<string>();
+
+  for (const result of results) {
+    if (!result.success) continue;
+    for (const f of result.findings) {
+      allFindings.push(f);
+      const sd = f.structuredData;
+      if (!sd) continue;
+
+      // Extract person
+      if (sd.personName && sd.personRole) {
+        const existing = people.find(
+          (p) => p.name.toLowerCase() === sd.personName!.toLowerCase(),
+        );
+        if (existing) {
+          // Merge into existing person
+          if (sd.phone && !existing.phones.includes(sd.phone)) existing.phones.push(sd.phone);
+          if (sd.email && !existing.emails.includes(sd.email)) existing.emails.push(sd.email);
+          if (f.finding && !existing.notes.includes(f.finding)) existing.notes += `; ${f.finding}`;
+          existing.confidence = Math.max(existing.confidence, f.confidence);
+        } else {
+          people.push({
+            name: sd.personName,
+            role: sd.personRole,
+            phones: sd.phone ? [sd.phone] : [],
+            emails: sd.email ? [sd.email] : [],
+            notes: f.finding,
+            source: result.agentId,
+            confidence: f.confidence,
+          });
+        }
+      }
+
+      // Extract new phones
+      if (sd.phone) {
+        const normalized = sd.phone.replace(/\D/g, "").slice(-10);
+        if (normalized.length === 10 && !knownPhoneSet.has(normalized) && !seenPhones.has(normalized)) {
+          seenPhones.add(normalized);
+          newPhones.push({
+            number: normalized,
+            source: result.agentId,
+            personName: sd.personName,
+          });
+        }
+      }
+
+      // Extract new emails
+      if (sd.email) {
+        const normalized = sd.email.toLowerCase();
+        if (!knownEmailSet.has(normalized) && !seenEmails.has(normalized)) {
+          seenEmails.add(normalized);
+          newEmails.push({
+            email: normalized,
+            source: result.agentId,
+            personName: sd.personName,
+          });
+        }
+      }
+
+      // Extract employment signals
+      if ((sd.employer || sd.location) && f.category === "employment") {
+        employmentSignals.push({
+          signal: f.finding,
+          source: f.source,
+          date: f.date,
+          url: f.url,
+        });
+      }
+    }
+  }
+
+  return {
+    crawledAt: new Date().toISOString(),
+    people,
+    newPhones,
+    newEmails,
+    employmentSignals,
+    agentMeta: meta,
+    findings: allFindings,
+  };
 }
 
 /**

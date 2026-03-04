@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@/lib/supabase";
 import { getPropertyDetailByAddress } from "@/lib/attom";
-import { fanOutAgents, formatFindingsForGrok } from "@/lib/openclaw-client";
-import type { AgentResult, AgentMeta, AgentFinding } from "@/lib/openclaw-client";
+import { fanOutAgents, formatFindingsForGrok, buildDeepSkipResult } from "@/lib/openclaw-client";
+import type { AgentResult, AgentMeta, AgentFinding, DeepSkipResult, PropertyPhoto } from "@/lib/openclaw-client";
 import { buildAgentPlan, buildPropertyContext } from "@/lib/openclaw-orchestrator";
 
 /**
@@ -93,9 +93,14 @@ export interface DeepCrawlResult {
     estimatedMAO: { low: number; high: number; basis: string } | null;
   };
   sources: string[];
+  grokSuccess?: boolean;
   // Phase 2.5 — OpenClaw agent findings
   agentFindings?: AgentFinding[];
   agentMeta?: AgentMeta;
+  // Phase 2.6 — Property photos from real sources
+  photos?: PropertyPhoto[];
+  // Phase 2.75 — Deep Skip Report (people intelligence)
+  deepSkip?: DeepSkipResult;
 }
 
 // ── Helpers ─────────────────────────────────────────────────────────
@@ -113,390 +118,580 @@ function safeStr(v: unknown): string | null {
 
 // ── Main Handler ────────────────────────────────────────────────────
 
+// ── SSE streaming helpers ──────────────────────────────────────────
+
+type SSEController = ReadableStreamDefaultController<Uint8Array>;
+
+function sseEmit(controller: SSEController, encoder: TextEncoder, event: Record<string, unknown>) {
+  try {
+    controller.enqueue(encoder.encode(`data: ${JSON.stringify(event)}\n\n`));
+  } catch {
+    // Stream may be closed
+  }
+}
+
 export async function POST(req: NextRequest) {
   const t0 = Date.now();
 
+  // ── Pre-flight: parse body and validate ──
+  let body: Record<string, unknown>;
   try {
-    const body = await req.json();
-    const { property_id, lead_id, force } = body;
-
-    if (!property_id) {
-      return NextResponse.json({ error: "property_id is required" }, { status: 400 });
-    }
-
-    const sb = createServerClient();
-
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const tbl = (name: string) => sb.from(name) as any;
-
-    // ── Fetch property ──
-    const { data: property, error: propErr } = await tbl("properties")
-      .select("*")
-      .eq("id", property_id)
-      .single();
-
-    if (propErr || !property) {
-      return NextResponse.json({ error: "Property not found" }, { status: 404 });
-    }
-
-    const ownerFlags = (property.owner_flags ?? {}) as Record<string, unknown>;
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const prRaw = (ownerFlags.pr_raw ?? {}) as Record<string, any>;
-    const radarId = ownerFlags.radar_id as string | undefined;
-
-    // ── Check for cached results (7-day API-side cache) ──
-    // Results persist permanently in the UI; API cache avoids redundant re-crawls
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const cached = ownerFlags.deep_crawl as any;
-    const cachedTime = cached?.crawledAt ?? cached?.crawled_at;
-    // Only use cache if it has REAL Grok AI data (grokSuccess flag or webFindings)
-    const hasRealAI = cached?.grokSuccess === true
-      || (cached?.aiDossier?.webFindings?.length > 0)
-      || (cached?.ai_dossier?.webFindings?.length > 0);
-    if (!force && cachedTime && hasRealAI) {
-      const ageMs = Date.now() - new Date(cachedTime).getTime();
-      if (ageMs < 7 * 24 * 60 * 60 * 1000) {
-        console.log(`[DeepCrawl] Returning cached results (${Math.round(ageMs / 3600000)}h old)`);
-        return NextResponse.json({ ...cached, fromCache: true });
-      }
-    }
-
-    const sources: string[] = [];
-
-    // ══════════════════════════════════════════════════════════════════
-    // PHASE 1 — Data Gathering (parallel)
-    // ══════════════════════════════════════════════════════════════════
-
-    console.log("[DeepCrawl] Starting Phase 1 — data gathering");
-
-    const [prDetail, attomDetail, distressRows, callRows] = await Promise.all([
-      // 1a. PropertyRadar full detail
-      fetchPropertyRadarDetail(radarId, prRaw, ownerFlags),
-      // 1b. ATTOM property detail
-      fetchAttomDetail(property),
-      // 1c. Existing distress events
-      tbl("distress_events")
-        .select("*")
-        .eq("property_id", property_id)
-        .order("created_at", { ascending: false }),
-      // 1d. Last 5 calls for context
-      tbl("calls_log")
-        .select("started_at, disposition, ai_note_summary, notes")
-        .eq("property_id", property_id)
-        .order("started_at", { ascending: false })
-        .limit(5),
-    ]);
-
-    if (prDetail) sources.push("PropertyRadar");
-    if (attomDetail) sources.push("ATTOM");
-
-    const distressEvents = distressRows?.data ?? [];
-    const callLogs = callRows?.data ?? [];
-
-    console.log(`[DeepCrawl] Phase 1 complete: PR=${!!prDetail} ATTOM=${!!attomDetail} events=${distressEvents.length} calls=${callLogs.length}`);
-
-    // ══════════════════════════════════════════════════════════════════
-    // PHASE 2 — Normalize into structured object
-    // ══════════════════════════════════════════════════════════════════
-
-    const pr = prDetail ?? prRaw;
-
-    const signals: SignalDetail[] = distressEvents.map((evt: { event_type: string; source: string; raw_data?: Record<string, unknown> }) => {
-      const rd = evt.raw_data ?? {};
-      return {
-        type: evt.event_type,
-        filingDate: safeStr(rd.ForeclosureRecDate ?? rd.event_date ?? rd.filing_date ?? rd.recording_date),
-        amount: safeNum(rd.DefaultAmount ?? rd.DelinquentAmount ?? rd.delinquent_amount),
-        stage: safeStr(rd.ForeclosureStage ?? rd.stage),
-        auctionDate: safeStr(rd.FCAuctionDate ?? rd.auction_date),
-        lender: safeStr(rd.lenderName ?? rd.lender),
-        installmentsBehind: safeNum(rd.NumberDelinquentInstallments),
-        source: evt.source ?? "unknown",
-      };
-    });
-
-    // Enrich signals with PR data if we have deeper info
-    if (pr) {
-      // If we have foreclosure data from PR but no foreclosure signal yet — add it
-      const hasForeclosure = signals.some(s => s.type === "pre_foreclosure" || s.type === "foreclosure");
-      if (!hasForeclosure && (pr.ForeclosureRecDate || pr.DefaultAmount)) {
-        signals.push({
-          type: "pre_foreclosure",
-          filingDate: safeStr(pr.ForeclosureRecDate),
-          amount: safeNum(pr.DefaultAmount),
-          stage: safeStr(pr.ForeclosureStage),
-          auctionDate: safeStr(pr.FCAuctionDate),
-          lender: safeStr(pr.LenderName),
-          installmentsBehind: null,
-          source: "propertyradar",
-        });
-      }
-
-      // Enrich existing tax lien signals with PR amounts
-      const taxSignal = signals.find(s => s.type === "tax_lien" || s.type === "tax_delinquency");
-      if (taxSignal && !taxSignal.amount && pr.DelinquentAmount) {
-        taxSignal.amount = safeNum(pr.DelinquentAmount);
-        taxSignal.installmentsBehind = safeNum(pr.NumberDelinquentInstallments);
-      }
-
-      // Enrich foreclosure signals with PR dates
-      const fcSignal = signals.find(s => s.type === "pre_foreclosure" || s.type === "foreclosure");
-      if (fcSignal) {
-        if (!fcSignal.filingDate && pr.ForeclosureRecDate) fcSignal.filingDate = safeStr(pr.ForeclosureRecDate);
-        if (!fcSignal.amount && pr.DefaultAmount) fcSignal.amount = safeNum(pr.DefaultAmount);
-        if (!fcSignal.stage && pr.ForeclosureStage) fcSignal.stage = safeStr(pr.ForeclosureStage);
-        if (!fcSignal.auctionDate && pr.FCAuctionDate) fcSignal.auctionDate = safeStr(pr.FCAuctionDate);
-        if (!fcSignal.lender && pr.LenderName) fcSignal.lender = safeStr(pr.LenderName);
-      }
-    }
-
-    // Also enrich from ATTOM if available
-    if (attomDetail) {
-      const attomAssessment = attomDetail.assessment;
-      const attomMortgage = attomDetail.mortgage;
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const attomForeclosure = (attomDetail as any).foreclosure;
-
-      if (attomForeclosure) {
-        const fcSignal = signals.find(s => s.type === "pre_foreclosure" || s.type === "foreclosure");
-        if (fcSignal) {
-          if (!fcSignal.filingDate && attomForeclosure.recordingDate) fcSignal.filingDate = attomForeclosure.recordingDate;
-          if (!fcSignal.amount && attomForeclosure.defaultAmount) fcSignal.amount = safeNum(attomForeclosure.defaultAmount);
-          if (!fcSignal.lender && attomMortgage?.lender?.name) fcSignal.lender = attomMortgage.lender.name;
-        }
-      }
-
-      // Enrich tax signals with ATTOM data
-      if (attomAssessment?.tax) {
-        const taxSignal = signals.find(s => s.type === "tax_lien" || s.type === "tax_delinquency");
-        if (taxSignal && !taxSignal.amount) {
-          taxSignal.amount = safeNum(attomAssessment.tax.taxAmt);
-        }
-      }
-    }
-
-    const financial: FinancialDetail = {
-      avm: safeNum(pr?.AVM ?? pr?.avm ?? attomDetail?.avm?.amount?.value),
-      equityPercent: safeNum(pr?.EquityPercent ?? property.equity_percent),
-      availableEquity: safeNum(pr?.AvailableEquity),
-      loanBalance: safeNum(pr?.TotalLoanBalance ?? attomDetail?.mortgage?.amount?.firstMortgageAmount),
-      taxAssessed: safeNum(attomDetail?.assessment?.assessed?.assdTtlValue ?? pr?.TaxAssessedValue),
-      taxAmount: safeNum(attomDetail?.assessment?.tax?.taxAmt ?? pr?.TaxAmount),
-    };
-
-    const owner: OwnerDetail = {
-      name: property.owner_name ?? "Unknown",
-      age: safeNum(pr?.OwnerAge),
-      ownershipYears: safeNum(pr?.OwnershipLength ?? property.ownership_years),
-      lastTransferDate: safeStr(pr?.LastTransferRecDate),
-      lastTransferValue: safeNum(pr?.LastTransferValue),
-      lastTransferType: safeStr(pr?.LastTransferType),
-      absentee: !!property.owner_flags?.absentee || !!pr?.Absentee,
-      deceased: !!pr?.OwnerDeceased,
-      freeClear: !!property.is_free_clear || (financial.loanBalance === 0),
-      mailingAddress: safeStr(pr?.MailAddress ? `${pr.MailAddress}, ${pr.MailCity ?? ""} ${pr.MailState ?? ""} ${pr.MailZip ?? ""}`.trim() : null),
-    };
-
-    const callHistory: CallHistoryItem[] = (callLogs ?? []).map((c: { started_at: string; disposition: string; ai_note_summary: string | null; notes: string | null }) => ({
-      date: c.started_at,
-      disposition: c.disposition ?? "unknown",
-      notes: c.ai_note_summary ?? c.notes ?? null,
-    }));
-
-    const crawlData: DeepCrawlData = { signals, financial, owner, callHistory };
-
-    console.log("[DeepCrawl] Phase 2 complete — normalized data ready");
-
-    // ══════════════════════════════════════════════════════════════════
-    // PHASE 2.5 — OpenClaw Agent Fan-Out (parallel research)
-    // ══════════════════════════════════════════════════════════════════
-
-    let allAgentFindings: AgentFinding[] = [];
-    let agentMeta: AgentMeta | undefined;
-    let agentFindingsText = "";
-
-    const openClawKey = process.env.OPENCLAW_API_KEY;
-    if (openClawKey) {
-      console.log("[DeepCrawl] Phase 2.5 — OpenClaw agent fan-out");
-
-      try {
-        const signalTypes = signals.map(s => s.type);
-        const propCtx = buildPropertyContext(property, signalTypes, ownerFlags);
-        const plan = buildAgentPlan(propCtx);
-
-        console.log(`[DeepCrawl] Orchestrator selected ${plan.tasks.length} agents: ${plan.tasks.map(t => t.agentId).join(", ")}`);
-        console.log(`[DeepCrawl] Rationale: ${plan.rationale.join(" | ")}`);
-        console.log(`[DeepCrawl] Est. cost: $${plan.estimatedCost.toFixed(4)} | Est. duration: ${Math.round(plan.estimatedDurationMs / 1000)}s`);
-
-        const { results: agentResults, meta } = await fanOutAgents(plan.tasks);
-        agentMeta = meta;
-
-        // Collect all findings across agents
-        allAgentFindings = agentResults.flatMap((r: AgentResult) => r.findings);
-        sources.push(`OpenClaw (${meta.agentsSucceeded.length}/${meta.agentsRun.length} agents)`);
-
-        // Format findings for Grok's system prompt
-        agentFindingsText = formatFindingsForGrok(agentResults);
-
-        console.log(`[DeepCrawl] Phase 2.5 complete — ${allAgentFindings.length} findings from ${meta.agentsSucceeded.length} agents in ${meta.totalDurationMs}ms`);
-        if (meta.agentsFailed.length > 0) {
-          console.warn(`[DeepCrawl] Failed agents: ${meta.agentsFailed.join(", ")}`);
-        }
-      } catch (err) {
-        console.error("[DeepCrawl] OpenClaw fan-out error (non-fatal):", err);
-        // Continue without agent findings — Grok will still do web search
-      }
-    } else {
-      console.log("[DeepCrawl] No OPENCLAW_API_KEY — skipping agent research");
-    }
-
-    // ══════════════════════════════════════════════════════════════════
-    // PHASE 3 — Grok AI synthesis (agents provide the intel, Grok strategizes)
-    // ══════════════════════════════════════════════════════════════════
-
-    const grokApiKey = process.env.GROK_API_KEY ?? process.env.XAI_API_KEY;
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    let aiDossier: any = null;
-    let grokSuccess = false;
-
-    if (grokApiKey) {
-      console.log("[DeepCrawl] Phase 3 — calling Grok AI" + (agentFindingsText ? " with agent findings" : " with web search"));
-      try {
-        aiDossier = await callGrokDeepCrawl(grokApiKey, property, crawlData, agentFindingsText);
-        grokSuccess = true;
-        sources.push(agentFindingsText ? "Grok AI (Strategist)" : "Grok AI + Web");
-      } catch (err) {
-        console.error("[DeepCrawl] Grok AI error (non-fatal):", err);
-        // Continue without AI — we still have structured data
-      }
-    } else {
-      console.warn("[DeepCrawl] No GROK_API_KEY — skipping AI analysis");
-    }
-
-    // Build default dossier if Grok failed
-    if (!aiDossier) {
-      aiDossier = buildFallbackDossier(crawlData, property);
-    }
-
-    // ══════════════════════════════════════════════════════════════════
-    // PHASE 4 — Storage & backfill (parallel)
-    // ══════════════════════════════════════════════════════════════════
-
-    console.log("[DeepCrawl] Phase 4 — storing results and backfilling");
-
-    const result = {
-      crawledAt: new Date().toISOString(),
-      signals,
-      financial,
-      owner,
-      aiDossier,
-      sources,
-      grokSuccess,
-      // Phase 2.5 — agent research data
-      agentFindings: allAgentFindings.length > 0 ? allAgentFindings : undefined,
-      agentMeta,
-    };
-
-    const writes: Promise<unknown>[] = [];
-
-    // 4a. Store in owner_flags.deep_crawl
-    writes.push(
-      (async () => {
-        const { error: updateErr } = await tbl("properties").update({
-          owner_flags: {
-            ...ownerFlags,
-            deep_crawl: result,
-          },
-          updated_at: new Date().toISOString(),
-        }).eq("id", property_id);
-        if (updateErr) {
-          console.error("[DeepCrawl] Failed to save to owner_flags:", updateErr);
-        } else {
-          console.log("[DeepCrawl] Saved deep_crawl to owner_flags for property:", property_id);
-        }
-      })(),
-    );
-
-    // 4b. Backfill distress_events.raw_data with actual dates/amounts
-    for (const evt of distressEvents) {
-      const enrichedSignal = signals.find(s => s.type === evt.event_type);
-      if (!enrichedSignal) continue;
-
-      const existingRaw = evt.raw_data ?? {};
-      const updates: Record<string, unknown> = {};
-      let changed = false;
-
-      // Backfill dates
-      if (enrichedSignal.filingDate && !existingRaw.ForeclosureRecDate && !existingRaw.filing_date && !existingRaw.event_date) {
-        if (evt.event_type === "pre_foreclosure" || evt.event_type === "foreclosure") {
-          updates.ForeclosureRecDate = enrichedSignal.filingDate;
-        } else {
-          updates.filing_date = enrichedSignal.filingDate;
-        }
-        changed = true;
-      }
-
-      // Backfill amounts
-      if (enrichedSignal.amount != null && !existingRaw.DefaultAmount && !existingRaw.DelinquentAmount && !existingRaw.delinquent_amount) {
-        if (evt.event_type === "pre_foreclosure" || evt.event_type === "foreclosure") {
-          updates.DefaultAmount = enrichedSignal.amount;
-          if (enrichedSignal.stage) updates.ForeclosureStage = enrichedSignal.stage;
-          if (enrichedSignal.auctionDate) updates.FCAuctionDate = enrichedSignal.auctionDate;
-          if (enrichedSignal.lender) updates.lenderName = enrichedSignal.lender;
-        } else if (evt.event_type === "tax_lien" || evt.event_type === "tax_delinquency") {
-          updates.DelinquentAmount = enrichedSignal.amount;
-          if (enrichedSignal.installmentsBehind != null) updates.NumberDelinquentInstallments = enrichedSignal.installmentsBehind;
-        }
-        changed = true;
-      }
-
-      if (changed) {
-        writes.push(
-          tbl("distress_events").update({
-            raw_data: { ...existingRaw, ...updates },
-          }).eq("id", evt.id),
-        );
-      }
-    }
-
-    // 4c. Audit log
-    if (lead_id) {
-      writes.push(
-        tbl("event_log").insert({
-          entity_type: "lead",
-          entity_id: lead_id,
-          action: "DEEP_CRAWL",
-          details: {
-            property_id,
-            sources,
-            signals_enriched: signals.length,
-            urgency_level: aiDossier?.urgencyLevel ?? "UNKNOWN",
-            duration_ms: Date.now() - t0,
-            // Phase 2.5 — agent research metadata
-            ...(agentMeta ? {
-              agents_run: agentMeta.agentsRun,
-              agents_succeeded: agentMeta.agentsSucceeded,
-              agents_failed: agentMeta.agentsFailed,
-              agent_findings_count: allAgentFindings.length,
-              agent_duration_ms: agentMeta.totalDurationMs,
-            } : {}),
-          },
-        }),
-      );
-    }
-
-    await Promise.all(writes);
-
-    console.log(`[DeepCrawl] Complete in ${Date.now() - t0}ms — ${sources.join(", ")}`);
-
-    return NextResponse.json(result);
-  } catch (err) {
-    console.error("[DeepCrawl] Error:", err);
-    return NextResponse.json(
-      { error: "Deep crawl failed", message: err instanceof Error ? err.message : String(err) },
-      { status: 500 },
-    );
+    body = await req.json();
+  } catch {
+    return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
   }
+  const { property_id, lead_id, force } = body;
+
+  if (!property_id) {
+    return NextResponse.json({ error: "property_id is required" }, { status: 400 });
+  }
+
+  const sb = createServerClient();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const tbl = (name: string) => sb.from(name) as any;
+
+  // ── Fetch property ──
+  const { data: property, error: propErr } = await tbl("properties")
+    .select("*")
+    .eq("id", property_id)
+    .single();
+
+  if (propErr || !property) {
+    return NextResponse.json({ error: "Property not found" }, { status: 404 });
+  }
+
+  const ownerFlags = (property.owner_flags ?? {}) as Record<string, unknown>;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const prRaw = (ownerFlags.pr_raw ?? {}) as Record<string, any>;
+  const radarId = ownerFlags.radar_id as string | undefined;
+
+  // ── Check for cached results (7-day API-side cache) ──
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const cached = ownerFlags.deep_crawl as any;
+  const cachedTime = cached?.crawledAt ?? cached?.crawled_at;
+  const hasRealAI = cached?.grokSuccess === true
+    || (cached?.aiDossier?.webFindings?.length > 0)
+    || (cached?.ai_dossier?.webFindings?.length > 0);
+  if (!force && cachedTime && hasRealAI) {
+    const ageMs = Date.now() - new Date(cachedTime).getTime();
+    if (ageMs < 7 * 24 * 60 * 60 * 1000) {
+      console.log(`[DeepCrawl] Returning cached results (${Math.round(ageMs / 3600000)}h old)`);
+      return NextResponse.json({ ...cached, fromCache: true });
+    }
+  }
+
+  // ── Stream the deep crawl as SSE events ──
+  const stream = new ReadableStream<Uint8Array>({
+    start(controller) {
+      const encoder = new TextEncoder();
+      const emit = (event: Record<string, unknown>) => sseEmit(controller, encoder, event);
+
+      // Run the entire crawl pipeline inside the stream
+      (async () => {
+        try {
+          const sources: string[] = [];
+
+          // ══════════════════════════════════════════════════════════════════
+          // PHASE 1 — Data Gathering (parallel)
+          // ══════════════════════════════════════════════════════════════════
+
+          emit({ phase: "data_gathering", status: "started", detail: "Loading PropertyRadar + ATTOM data..." });
+
+          const [prDetail, attomDetail, distressRows, callRows] = await Promise.all([
+            fetchPropertyRadarDetail(radarId, prRaw, ownerFlags),
+            fetchAttomDetail(property),
+            tbl("distress_events")
+              .select("*")
+              .eq("property_id", property_id)
+              .order("created_at", { ascending: false }),
+            tbl("calls_log")
+              .select("started_at, disposition, ai_note_summary, notes")
+              .eq("property_id", property_id)
+              .order("started_at", { ascending: false })
+              .limit(5),
+          ]);
+
+          if (prDetail) sources.push("PropertyRadar");
+          if (attomDetail) sources.push("ATTOM");
+
+          const distressEvents = distressRows?.data ?? [];
+          const callLogs = callRows?.data ?? [];
+
+          emit({
+            phase: "data_gathering", status: "complete",
+            detail: `PR=${!!prDetail} ATTOM=${!!attomDetail} events=${distressEvents.length}`,
+            elapsed: Date.now() - t0,
+          });
+
+          // ══════════════════════════════════════════════════════════════════
+          // PHASE 2 — Normalize into structured object
+          // ══════════════════════════════════════════════════════════════════
+
+          emit({ phase: "normalization", status: "started", detail: "Normalizing data..." });
+
+          const pr = prDetail ?? prRaw;
+
+          const signals: SignalDetail[] = distressEvents.map((evt: { event_type: string; source: string; raw_data?: Record<string, unknown> }) => {
+            const rd = evt.raw_data ?? {};
+            return {
+              type: evt.event_type,
+              filingDate: safeStr(rd.ForeclosureRecDate ?? rd.event_date ?? rd.filing_date ?? rd.recording_date),
+              amount: safeNum(rd.DefaultAmount ?? rd.DelinquentAmount ?? rd.delinquent_amount),
+              stage: safeStr(rd.ForeclosureStage ?? rd.stage),
+              auctionDate: safeStr(rd.FCAuctionDate ?? rd.auction_date),
+              lender: safeStr(rd.lenderName ?? rd.lender),
+              installmentsBehind: safeNum(rd.NumberDelinquentInstallments),
+              source: evt.source ?? "unknown",
+            };
+          });
+
+          // Enrich signals with PR data
+          if (pr) {
+            const hasForeclosure = signals.some(s => s.type === "pre_foreclosure" || s.type === "foreclosure");
+            if (!hasForeclosure && (pr.ForeclosureRecDate || pr.DefaultAmount)) {
+              signals.push({
+                type: "pre_foreclosure",
+                filingDate: safeStr(pr.ForeclosureRecDate),
+                amount: safeNum(pr.DefaultAmount),
+                stage: safeStr(pr.ForeclosureStage),
+                auctionDate: safeStr(pr.FCAuctionDate),
+                lender: safeStr(pr.LenderName),
+                installmentsBehind: null,
+                source: "propertyradar",
+              });
+            }
+
+            const taxSignal = signals.find(s => s.type === "tax_lien" || s.type === "tax_delinquency");
+            if (taxSignal && !taxSignal.amount && pr.DelinquentAmount) {
+              taxSignal.amount = safeNum(pr.DelinquentAmount);
+              taxSignal.installmentsBehind = safeNum(pr.NumberDelinquentInstallments);
+            }
+
+            const fcSignal = signals.find(s => s.type === "pre_foreclosure" || s.type === "foreclosure");
+            if (fcSignal) {
+              if (!fcSignal.filingDate && pr.ForeclosureRecDate) fcSignal.filingDate = safeStr(pr.ForeclosureRecDate);
+              if (!fcSignal.amount && pr.DefaultAmount) fcSignal.amount = safeNum(pr.DefaultAmount);
+              if (!fcSignal.stage && pr.ForeclosureStage) fcSignal.stage = safeStr(pr.ForeclosureStage);
+              if (!fcSignal.auctionDate && pr.FCAuctionDate) fcSignal.auctionDate = safeStr(pr.FCAuctionDate);
+              if (!fcSignal.lender && pr.LenderName) fcSignal.lender = safeStr(pr.LenderName);
+            }
+          }
+
+          // Enrich from ATTOM
+          if (attomDetail) {
+            const attomAssessment = attomDetail.assessment;
+            const attomMortgage = attomDetail.mortgage;
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const attomForeclosure = (attomDetail as any).foreclosure;
+
+            if (attomForeclosure) {
+              const fcSignal = signals.find(s => s.type === "pre_foreclosure" || s.type === "foreclosure");
+              if (fcSignal) {
+                if (!fcSignal.filingDate && attomForeclosure.recordingDate) fcSignal.filingDate = attomForeclosure.recordingDate;
+                if (!fcSignal.amount && attomForeclosure.defaultAmount) fcSignal.amount = safeNum(attomForeclosure.defaultAmount);
+                if (!fcSignal.lender && attomMortgage?.lender?.name) fcSignal.lender = attomMortgage.lender.name;
+              }
+            }
+
+            if (attomAssessment?.tax) {
+              const taxSignal = signals.find(s => s.type === "tax_lien" || s.type === "tax_delinquency");
+              if (taxSignal && !taxSignal.amount) {
+                taxSignal.amount = safeNum(attomAssessment.tax.taxAmt);
+              }
+            }
+          }
+
+          const financial: FinancialDetail = {
+            avm: safeNum(pr?.AVM ?? pr?.avm ?? attomDetail?.avm?.amount?.value),
+            equityPercent: safeNum(pr?.EquityPercent ?? property.equity_percent),
+            availableEquity: safeNum(pr?.AvailableEquity),
+            loanBalance: safeNum(pr?.TotalLoanBalance ?? attomDetail?.mortgage?.amount?.firstMortgageAmount),
+            taxAssessed: safeNum(attomDetail?.assessment?.assessed?.assdTtlValue ?? pr?.TaxAssessedValue),
+            taxAmount: safeNum(attomDetail?.assessment?.tax?.taxAmt ?? pr?.TaxAmount),
+          };
+
+          const owner: OwnerDetail = {
+            name: property.owner_name ?? "Unknown",
+            age: safeNum(pr?.OwnerAge),
+            ownershipYears: safeNum(pr?.OwnershipLength ?? property.ownership_years),
+            lastTransferDate: safeStr(pr?.LastTransferRecDate),
+            lastTransferValue: safeNum(pr?.LastTransferValue),
+            lastTransferType: safeStr(pr?.LastTransferType),
+            absentee: !!property.owner_flags?.absentee || !!pr?.Absentee,
+            deceased: !!pr?.OwnerDeceased,
+            freeClear: !!property.is_free_clear || (financial.loanBalance === 0),
+            mailingAddress: safeStr(pr?.MailAddress ? `${pr.MailAddress}, ${pr.MailCity ?? ""} ${pr.MailState ?? ""} ${pr.MailZip ?? ""}`.trim() : null),
+          };
+
+          const callHistory: CallHistoryItem[] = (callLogs ?? []).map((c: { started_at: string; disposition: string; ai_note_summary: string | null; notes: string | null }) => ({
+            date: c.started_at,
+            disposition: c.disposition ?? "unknown",
+            notes: c.ai_note_summary ?? c.notes ?? null,
+          }));
+
+          const crawlData: DeepCrawlData = { signals, financial, owner, callHistory };
+
+          emit({ phase: "normalization", status: "complete", detail: `${signals.length} signals normalized`, elapsed: Date.now() - t0 });
+
+          // ══════════════════════════════════════════════════════════════════
+          // PHASE 2.5 — OpenClaw Agent Fan-Out (parallel research)
+          // ══════════════════════════════════════════════════════════════════
+
+          let allAgentFindings: AgentFinding[] = [];
+          let agentMeta: AgentMeta | undefined;
+          let agentFindingsText = "";
+          let agentResults: AgentResult[] = [];
+
+          const openClawKey = process.env.OPENCLAW_API_KEY;
+          if (openClawKey) {
+            try {
+              const signalTypes = signals.map(s => s.type);
+              const propCtx = buildPropertyContext(property, signalTypes, ownerFlags);
+              const plan = buildAgentPlan(propCtx);
+
+              const agentNames = plan.tasks.map(t => t.agentId.replace(/_/g, " ")).join(", ");
+              emit({
+                phase: "agents", status: "started",
+                detail: `Running ${plan.tasks.length} agents: ${agentNames}`,
+                agents: plan.tasks.map(t => t.agentId),
+              });
+
+              console.log(`[DeepCrawl] Phase 2.5 — ${plan.tasks.length} agents: ${plan.tasks.map(t => t.agentId).join(", ")}`);
+              console.log(`[DeepCrawl] Est. cost: $${plan.estimatedCost.toFixed(4)}`);
+
+              const fanResult = await fanOutAgents(plan.tasks);
+              agentResults = fanResult.results;
+              agentMeta = fanResult.meta;
+
+              allAgentFindings = agentResults.flatMap((r: AgentResult) => r.findings);
+              sources.push(`OpenClaw (${fanResult.meta.agentsSucceeded.length}/${fanResult.meta.agentsRun.length} agents)`);
+              agentFindingsText = formatFindingsForGrok(agentResults);
+
+              emit({
+                phase: "agents", status: "complete",
+                detail: `${allAgentFindings.length} findings from ${fanResult.meta.agentsSucceeded.length} agents`,
+                elapsed: Date.now() - t0,
+                succeeded: fanResult.meta.agentsSucceeded,
+                failed: fanResult.meta.agentsFailed,
+              });
+
+              if (fanResult.meta.agentsFailed.length > 0) {
+                console.warn(`[DeepCrawl] Failed agents: ${fanResult.meta.agentsFailed.join(", ")}`);
+              }
+            } catch (err) {
+              console.error("[DeepCrawl] OpenClaw fan-out error (non-fatal):", err);
+              emit({ phase: "agents", status: "error", detail: "Agent research failed (continuing)" });
+            }
+          }
+
+          // ══════════════════════════════════════════════════════════════════
+          // PHASE 2.6 — Google Street View photos
+          // ══════════════════════════════════════════════════════════════════
+
+          const photos: PropertyPhoto[] = [];
+          const googleKey = process.env.GOOGLE_STREET_VIEW_KEY;
+          const lat = property.lat != null ? Number(property.lat) : (pr?.Latitude ? Number(pr.Latitude) : null);
+          const lng = property.lng != null ? Number(property.lng) : (pr?.Longitude ? Number(pr.Longitude) : null);
+
+          // Check if we already have street-level photos
+          const existingPhotos: string[] = [];
+          if (Array.isArray(prRaw.Photos)) existingPhotos.push(...prRaw.Photos.filter((u: unknown) => typeof u === "string"));
+          if (Array.isArray(prRaw.photos)) existingPhotos.push(...prRaw.photos.filter((u: unknown) => typeof u === "string"));
+          if (typeof prRaw.PropertyImageUrl === "string" && prRaw.PropertyImageUrl) existingPhotos.push(prRaw.PropertyImageUrl);
+
+          if (googleKey && lat && lng && existingPhotos.length === 0) {
+            emit({ phase: "photos", status: "started", detail: "Fetching Google Street View..." });
+            try {
+              // Check metadata first to see if coverage exists
+              const metaRes = await fetch(
+                `https://maps.googleapis.com/maps/api/streetview/metadata?location=${lat},${lng}&key=${googleKey}`
+              );
+              const meta = await metaRes.json();
+
+              if (meta.status === "OK") {
+                // Street View coverage exists — build the URL (don't download the image, just store the URL)
+                const streetViewUrl = `https://maps.googleapis.com/maps/api/streetview?size=640x480&location=${lat},${lng}&key=${googleKey}`;
+                photos.push({
+                  url: streetViewUrl,
+                  source: "google_street_view",
+                  capturedAt: new Date().toISOString(),
+                });
+                sources.push("Google Street View");
+                emit({ phase: "photos", status: "complete", detail: "Street View photo captured", elapsed: Date.now() - t0 });
+              } else {
+                emit({ phase: "photos", status: "complete", detail: "No Street View coverage at this location" });
+              }
+            } catch (err) {
+              console.warn("[DeepCrawl] Street View metadata check failed:", err);
+              emit({ phase: "photos", status: "error", detail: "Street View check failed (continuing)" });
+            }
+          }
+
+          // ══════════════════════════════════════════════════════════════════
+          // PHASE 2.75 — Post-Processing (Deep Skip Report + contact merge)
+          // ══════════════════════════════════════════════════════════════════
+
+          let deepSkipResult: DeepSkipResult | undefined;
+          const updatedOwnerFlags = { ...ownerFlags };
+
+          if (agentResults.length > 0 && agentMeta) {
+            emit({ phase: "post_processing", status: "started", detail: "Building Deep Skip report, merging contacts..." });
+
+            // Extract known phones/emails for dedup
+            const existingPhones = Array.isArray(ownerFlags.all_phones)
+              ? (ownerFlags.all_phones as { number: string }[])
+                  .filter(p => typeof p === "object" && "number" in p)
+                  .map(p => p.number)
+              : [];
+            const existingEmails = Array.isArray(ownerFlags.all_emails)
+              ? (ownerFlags.all_emails as { email: string }[])
+                  .filter(e => typeof e === "object" && "email" in e)
+                  .map(e => e.email)
+              : [];
+
+            deepSkipResult = buildDeepSkipResult(agentResults, existingPhones, existingEmails, agentMeta);
+
+            // Merge new phones into all_phones
+            if (deepSkipResult.newPhones.length > 0) {
+              const currentPhones = Array.isArray(ownerFlags.all_phones) ? [...ownerFlags.all_phones as unknown[]] : [];
+              for (const np of deepSkipResult.newPhones) {
+                currentPhones.push({
+                  number: np.number,
+                  lineType: "unknown",
+                  confidence: 60,
+                  dnc: false,
+                  source: `openclaw_${np.source}`,
+                });
+              }
+              updatedOwnerFlags.all_phones = currentPhones;
+              updatedOwnerFlags.phone_count = currentPhones.length;
+            }
+
+            // Merge new emails into all_emails
+            if (deepSkipResult.newEmails.length > 0) {
+              const currentEmails = Array.isArray(ownerFlags.all_emails) ? [...ownerFlags.all_emails as unknown[]] : [];
+              for (const ne of deepSkipResult.newEmails) {
+                currentEmails.push({
+                  email: ne.email,
+                  deliverable: true,
+                  source: `openclaw_${ne.source}`,
+                });
+              }
+              updatedOwnerFlags.all_emails = currentEmails;
+              updatedOwnerFlags.email_count = currentEmails.length;
+            }
+
+            emit({
+              phase: "post_processing", status: "complete",
+              detail: `${deepSkipResult.people.length} people, +${deepSkipResult.newPhones.length} phones, +${deepSkipResult.newEmails.length} emails`,
+              elapsed: Date.now() - t0,
+            });
+          }
+
+          // ══════════════════════════════════════════════════════════════════
+          // PHASE 3 — Grok AI synthesis
+          // ══════════════════════════════════════════════════════════════════
+
+          const grokApiKey = process.env.GROK_API_KEY ?? process.env.XAI_API_KEY;
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          let aiDossier: any = null;
+          let grokSuccess = false;
+
+          if (grokApiKey) {
+            emit({
+              phase: "grok_synthesis", status: "started",
+              detail: agentFindingsText ? "Grok synthesizing agent findings..." : "Grok researching with web search...",
+            });
+            try {
+              aiDossier = await callGrokDeepCrawl(grokApiKey, property, crawlData, agentFindingsText);
+              grokSuccess = true;
+              sources.push(agentFindingsText ? "Grok AI (Strategist)" : "Grok AI + Web");
+              emit({ phase: "grok_synthesis", status: "complete", detail: "Dossier generated", elapsed: Date.now() - t0 });
+            } catch (err) {
+              console.error("[DeepCrawl] Grok AI error (non-fatal):", err);
+              emit({ phase: "grok_synthesis", status: "error", detail: "AI synthesis failed (using fallback)" });
+            }
+          }
+
+          if (!aiDossier) {
+            aiDossier = buildFallbackDossier(crawlData, property);
+          }
+
+          // ══════════════════════════════════════════════════════════════════
+          // PHASE 4 — Storage & backfill (parallel)
+          // ══════════════════════════════════════════════════════════════════
+
+          emit({ phase: "storage", status: "started", detail: "Saving results..." });
+
+          const result: DeepCrawlResult = {
+            crawledAt: new Date().toISOString(),
+            signals,
+            financial,
+            owner,
+            aiDossier,
+            sources,
+            grokSuccess,
+            agentFindings: allAgentFindings.length > 0 ? allAgentFindings : undefined,
+            agentMeta,
+            photos: photos.length > 0 ? photos : undefined,
+            deepSkip: deepSkipResult,
+          };
+
+          const writes: Promise<unknown>[] = [];
+
+          // 4a. Store in owner_flags.deep_crawl + deep_skip + merged contacts
+          writes.push(
+            (async () => {
+              const flagsToSave = {
+                ...updatedOwnerFlags,
+                deep_crawl: result,
+                ...(deepSkipResult ? { deep_skip: deepSkipResult } : {}),
+              };
+              const { error: updateErr } = await tbl("properties").update({
+                owner_flags: flagsToSave,
+                updated_at: new Date().toISOString(),
+              }).eq("id", property_id);
+              if (updateErr) {
+                console.error("[DeepCrawl] Failed to save to owner_flags:", updateErr);
+              } else {
+                console.log("[DeepCrawl] Saved deep_crawl + deep_skip to owner_flags");
+              }
+            })(),
+          );
+
+          // 4b. Backfill distress_events.raw_data with actual dates/amounts
+          for (const evt of distressEvents) {
+            const enrichedSignal = signals.find(s => s.type === evt.event_type);
+            if (!enrichedSignal) continue;
+
+            const existingRaw = evt.raw_data ?? {};
+            const updates: Record<string, unknown> = {};
+            let changed = false;
+
+            if (enrichedSignal.filingDate && !existingRaw.ForeclosureRecDate && !existingRaw.filing_date && !existingRaw.event_date) {
+              if (evt.event_type === "pre_foreclosure" || evt.event_type === "foreclosure") {
+                updates.ForeclosureRecDate = enrichedSignal.filingDate;
+              } else {
+                updates.filing_date = enrichedSignal.filingDate;
+              }
+              changed = true;
+            }
+
+            if (enrichedSignal.amount != null && !existingRaw.DefaultAmount && !existingRaw.DelinquentAmount && !existingRaw.delinquent_amount) {
+              if (evt.event_type === "pre_foreclosure" || evt.event_type === "foreclosure") {
+                updates.DefaultAmount = enrichedSignal.amount;
+                if (enrichedSignal.stage) updates.ForeclosureStage = enrichedSignal.stage;
+                if (enrichedSignal.auctionDate) updates.FCAuctionDate = enrichedSignal.auctionDate;
+                if (enrichedSignal.lender) updates.lenderName = enrichedSignal.lender;
+              } else if (evt.event_type === "tax_lien" || evt.event_type === "tax_delinquency") {
+                updates.DelinquentAmount = enrichedSignal.amount;
+                if (enrichedSignal.installmentsBehind != null) updates.NumberDelinquentInstallments = enrichedSignal.installmentsBehind;
+              }
+              changed = true;
+            }
+
+            if (changed) {
+              writes.push(
+                tbl("distress_events").update({
+                  raw_data: { ...existingRaw, ...updates },
+                }).eq("id", evt.id),
+              );
+            }
+          }
+
+          // 4c. Create new distress_events from financial_distress agent findings
+          if (allAgentFindings.length > 0) {
+            const financialFindings = allAgentFindings.filter(
+              f => f.structuredData?.eventType && f.structuredData?.filingDate
+            );
+            for (const f of financialFindings) {
+              const sd = f.structuredData!;
+              // Dedup: don't create if same event_type already exists
+              const existsAlready = distressEvents.some(
+                (evt: { event_type: string }) => evt.event_type === sd.eventType
+              );
+              if (!existsAlready) {
+                writes.push(
+                  tbl("distress_events").insert({
+                    property_id,
+                    lead_id: lead_id ?? null,
+                    event_type: sd.eventType,
+                    source: `openclaw_${f.source}`,
+                    raw_data: {
+                      finding: f.finding,
+                      amount: sd.amount,
+                      caseNumber: sd.caseNumber,
+                      filing_date: sd.filingDate,
+                      url: f.url,
+                      confidence: f.confidence,
+                    },
+                  }),
+                );
+              }
+            }
+          }
+
+          // 4d. Audit log
+          if (lead_id) {
+            writes.push(
+              tbl("event_log").insert({
+                entity_type: "lead",
+                entity_id: lead_id,
+                action: "DEEP_CRAWL",
+                details: {
+                  property_id,
+                  sources,
+                  signals_enriched: signals.length,
+                  urgency_level: aiDossier?.urgencyLevel ?? "UNKNOWN",
+                  duration_ms: Date.now() - t0,
+                  ...(agentMeta ? {
+                    agents_run: agentMeta.agentsRun,
+                    agents_succeeded: agentMeta.agentsSucceeded,
+                    agents_failed: agentMeta.agentsFailed,
+                    agent_findings_count: allAgentFindings.length,
+                    agent_duration_ms: agentMeta.totalDurationMs,
+                  } : {}),
+                  ...(deepSkipResult ? {
+                    deep_skip_people: deepSkipResult.people.length,
+                    deep_skip_new_phones: deepSkipResult.newPhones.length,
+                    deep_skip_new_emails: deepSkipResult.newEmails.length,
+                  } : {}),
+                  photos_captured: photos.length,
+                },
+              }),
+            );
+          }
+
+          await Promise.all(writes);
+
+          emit({ phase: "storage", status: "complete", detail: "Results saved", elapsed: Date.now() - t0 });
+
+          console.log(`[DeepCrawl] Complete in ${Date.now() - t0}ms — ${sources.join(", ")}`);
+
+          // ── Final event: the complete result ──
+          emit({ phase: "complete", status: "complete", result, elapsed: Date.now() - t0 });
+          controller.close();
+        } catch (err) {
+          console.error("[DeepCrawl] Stream error:", err);
+          const encoder = new TextEncoder();
+          try {
+            controller.enqueue(
+              encoder.encode(`data: ${JSON.stringify({ phase: "error", status: "error", detail: err instanceof Error ? err.message : String(err) })}\n\n`)
+            );
+          } catch { /* stream closed */ }
+          controller.close();
+        }
+      })();
+    },
+  });
+
+  return new Response(stream, {
+    headers: {
+      "Content-Type": "text/event-stream",
+      "Cache-Control": "no-cache, no-transform",
+      Connection: "keep-alive",
+    },
+  });
 }
 
 // ══════════════════════════════════════════════════════════════════════

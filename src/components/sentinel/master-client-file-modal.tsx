@@ -11,6 +11,7 @@ import {
   Pencil, Save, Voicemail, PhoneForwarded, Brain, Crosshair, MapPinned,
   MessageSquare, Flame, Smartphone, ShieldAlert, PhoneOff, Circle,
   RefreshCw, Target, ArrowRight, ChevronDown, Trash2, Lock, Contact2, Plus,
+  Users, Briefcase, CheckCircle, XCircle,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -1371,6 +1372,192 @@ function DeepCrawlPanel({ result, onRecrawl, isRecrawling }: { result: any; onRe
 }
 
 // ═══════════════════════════════════════════════════════════════════════
+// DEEP SKIP PANEL — People intelligence from agents
+// ═══════════════════════════════════════════════════════════════════════
+
+const ROLE_COLORS: Record<string, string> = {
+  owner: "text-cyan bg-cyan/10 border-cyan/30",
+  heir: "text-purple-400 bg-purple-500/10 border-purple-500/30",
+  executor: "text-amber-400 bg-amber-500/10 border-amber-500/30",
+  attorney: "text-blue-400 bg-blue-500/10 border-blue-500/30",
+  beneficial_owner: "text-emerald-400 bg-emerald-500/10 border-emerald-500/30",
+  spouse: "text-pink-400 bg-pink-500/10 border-pink-500/30",
+  family: "text-orange-400 bg-orange-500/10 border-orange-500/30",
+};
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function DeepSkipPanel({ result }: { result: any }) {
+  if (!result || (!result.people?.length && !result.newPhones?.length && !result.newEmails?.length && !result.employmentSignals?.length)) {
+    return null;
+  }
+
+  return (
+    <div className="rounded-[12px] border border-white/[0.06] bg-white/[0.02] p-4 space-y-4">
+      {/* Header */}
+      <div className="flex items-center gap-2">
+        <Users className="h-3.5 w-3.5 text-purple-400" />
+        <p className="text-[11px] text-purple-400/80 uppercase tracking-wider font-semibold">Deep Skip Report — People Intelligence</p>
+        {result.agentMeta && (
+          <span className="text-[10px] text-muted-foreground/50 ml-auto">
+            {result.agentMeta.agentsSucceeded?.length ?? 0} agents · {result.people?.length ?? 0} people found
+          </span>
+        )}
+      </div>
+
+      {/* People Cards */}
+      {result.people && result.people.length > 0 && (
+        <div className="space-y-2">
+          <p className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold">People Found</p>
+          <div className="grid gap-2">
+            {result.people.map((person: { name: string; role: string; phones: string[]; emails: string[]; notes: string; source: string; confidence: number; address?: string }, i: number) => (
+              <div key={i} className="rounded-[10px] border border-white/[0.06] bg-white/[0.02] p-3">
+                <div className="flex items-center gap-2 mb-1.5">
+                  <User className="h-3 w-3 text-foreground/60" />
+                  <span className="text-[13px] font-semibold text-foreground">{person.name}</span>
+                  <span className={cn(
+                    "px-1.5 py-0.5 rounded-full text-[9px] font-bold border uppercase",
+                    ROLE_COLORS[person.role] ?? "text-muted-foreground bg-white/5 border-white/10",
+                  )}>
+                    {person.role.replace(/_/g, " ")}
+                  </span>
+                  {person.confidence >= 0.8 && <CheckCircle className="h-3 w-3 text-emerald-400" />}
+                </div>
+                <p className="text-[11px] text-muted-foreground leading-relaxed mb-1.5 pl-5">{person.notes}</p>
+                <div className="flex flex-wrap gap-3 pl-5 text-[11px]">
+                  {person.phones.map((p: string, j: number) => (
+                    <span key={j} className="flex items-center gap-1 text-emerald-400/80">
+                      <Phone className="h-2.5 w-2.5" />{p}
+                    </span>
+                  ))}
+                  {person.emails.map((e: string, j: number) => (
+                    <span key={j} className="flex items-center gap-1 text-cyan/80">
+                      <Mail className="h-2.5 w-2.5" />{e}
+                    </span>
+                  ))}
+                  {person.address && (
+                    <span className="flex items-center gap-1 text-muted-foreground/60">
+                      <MapPin className="h-2.5 w-2.5" />{person.address}
+                    </span>
+                  )}
+                </div>
+                <div className="flex items-center gap-2 mt-1.5 pl-5">
+                  <span className="text-[9px] text-muted-foreground/40">via {person.source.replace(/_/g, " ")}</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* New Contacts Found */}
+      {((result.newPhones?.length > 0) || (result.newEmails?.length > 0)) && (
+        <div>
+          <p className="text-[10px] text-emerald-400/80 uppercase tracking-wider font-semibold mb-1.5 flex items-center gap-1.5">
+            <Plus className="h-3 w-3" />New Contacts Discovered
+          </p>
+          <div className="flex flex-wrap gap-2">
+            {(result.newPhones ?? []).map((p: { number: string; source: string; personName?: string }, i: number) => (
+              <span key={`p${i}`} className="inline-flex items-center gap-1.5 px-2 py-1 rounded-full text-[10px] font-medium border border-emerald-500/20 bg-emerald-500/[0.06] text-emerald-400">
+                <Phone className="h-2.5 w-2.5" />
+                {p.number}
+                {p.personName && <span className="text-emerald-400/50">({p.personName})</span>}
+                <span className="text-[8px] px-1 py-0.5 rounded bg-emerald-500/20 text-emerald-300 font-bold">OC</span>
+              </span>
+            ))}
+            {(result.newEmails ?? []).map((e: { email: string; source: string; personName?: string }, i: number) => (
+              <span key={`e${i}`} className="inline-flex items-center gap-1.5 px-2 py-1 rounded-full text-[10px] font-medium border border-cyan/20 bg-cyan/[0.06] text-cyan">
+                <Mail className="h-2.5 w-2.5" />
+                {e.email}
+                {e.personName && <span className="text-cyan/50">({e.personName})</span>}
+                <span className="text-[8px] px-1 py-0.5 rounded bg-cyan/20 text-cyan font-bold">OC</span>
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Employment & Relocation Signals */}
+      {result.employmentSignals && result.employmentSignals.length > 0 && (
+        <div>
+          <p className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold mb-1.5 flex items-center gap-1.5">
+            <Briefcase className="h-3 w-3" />Employment & Relocation Signals
+          </p>
+          <div className="space-y-1.5">
+            {result.employmentSignals.map((s: { signal: string; source: string; date?: string; url?: string }, i: number) => (
+              <div key={i} className="flex items-start gap-2 text-[12px]">
+                <ArrowRight className="h-3 w-3 text-amber-400/60 mt-0.5 shrink-0" />
+                <span className="text-foreground/70">{s.signal}</span>
+                {s.date && <span className="text-muted-foreground/40 text-[10px] ml-auto shrink-0">{s.date}</span>}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Footer */}
+      <div className="pt-2 border-t border-white/[0.06] text-[10px] text-muted-foreground/40">
+        {result.crawledAt && <span>Generated {new Date(result.crawledAt).toLocaleString()}</span>}
+      </div>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// DEEP CRAWL PROGRESS INDICATOR — SSE streaming steps
+// ═══════════════════════════════════════════════════════════════════════
+
+interface CrawlStep {
+  phase: string;
+  status: "started" | "complete" | "error";
+  detail: string;
+  elapsed?: number;
+}
+
+function CrawlProgressIndicator({ steps }: { steps: CrawlStep[] }) {
+  if (steps.length === 0) return null;
+
+  const phaseLabels: Record<string, string> = {
+    data_gathering: "Data Gathering",
+    normalization: "Normalizing Data",
+    agents: "Research Agents",
+    photos: "Property Photos",
+    post_processing: "Contact & People Intel",
+    grok_synthesis: "AI Synthesis",
+    storage: "Saving Results",
+    complete: "Complete",
+    error: "Error",
+  };
+
+  return (
+    <div className="rounded-[12px] border border-white/[0.06] bg-white/[0.02] p-3 space-y-1.5">
+      <div className="flex items-center gap-2 mb-2">
+        <Loader2 className="h-3.5 w-3.5 text-cyan animate-spin" />
+        <p className="text-[11px] text-cyan/80 uppercase tracking-wider font-semibold">Deep Crawl in Progress</p>
+      </div>
+      {steps.map((step, i) => {
+        const isLast = i === steps.length - 1;
+        const icon = step.status === "complete"
+          ? <CheckCircle className="h-3 w-3 text-emerald-400 shrink-0" />
+          : step.status === "error"
+            ? <XCircle className="h-3 w-3 text-red-400 shrink-0" />
+            : <Loader2 className="h-3 w-3 text-cyan animate-spin shrink-0" />;
+
+        return (
+          <div key={i} className={cn("flex items-center gap-2 text-[11px]", isLast && step.status === "started" ? "text-foreground" : "text-muted-foreground")}>
+            {icon}
+            <span className="font-medium">{phaseLabels[step.phase] ?? step.phase}</span>
+            <span className="text-muted-foreground/50">{step.detail}</span>
+            {step.elapsed != null && (
+              <span className="text-[9px] text-muted-foreground/30 ml-auto font-mono">{(step.elapsed / 1000).toFixed(1)}s</span>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════
 // CONTACT TAB — Editable phones, emails, addresses + street view
 // ═══════════════════════════════════════════════════════════════════════
 
@@ -1736,9 +1923,11 @@ function ContactTab({ cf, overlay, onSkipTrace, skipTracing, onDial, onSms, call
                       {detail?.source && (
                         <Badge variant="outline" className={cn(
                           "text-[7px] py-0 px-1",
-                          detail.source === "batchdata" ? "border-emerald-500/30 text-emerald-400" : "border-cyan/30 text-cyan/70",
+                          detail.source === "batchdata" ? "border-emerald-500/30 text-emerald-400"
+                            : String(detail.source).startsWith("openclaw") ? "border-purple-500/30 text-purple-400"
+                            : "border-cyan/30 text-cyan/70",
                         )}>
-                          {detail.source === "batchdata" ? "BD" : "PR"}
+                          {detail.source === "batchdata" ? "BD" : String(detail.source).startsWith("openclaw") ? "OC" : "PR"}
                         </Badge>
                       )}
                     </div>
@@ -1813,9 +2002,11 @@ function ContactTab({ cf, overlay, onSkipTrace, skipTracing, onDial, onSms, call
                   {detail?.source && (
                     <Badge variant="outline" className={cn(
                       "text-[7px] py-0 px-1",
-                      detail.source === "batchdata" ? "border-emerald-500/30 text-emerald-400" : "border-cyan/30 text-cyan/70",
+                      detail.source === "batchdata" ? "border-emerald-500/30 text-emerald-400"
+                        : String(detail.source).startsWith("openclaw") ? "border-purple-500/30 text-purple-400"
+                        : "border-cyan/30 text-cyan/70",
                     )}>
-                      {detail.source === "batchdata" ? "BD" : "PR"}
+                      {detail.source === "batchdata" ? "BD" : String(detail.source).startsWith("openclaw") ? "OC" : "PR"}
                     </Badge>
                   )}
                 </div>
@@ -1845,9 +2036,11 @@ function ContactTab({ cf, overlay, onSkipTrace, skipTracing, onDial, onSms, call
                     {person.source && (
                       <Badge variant="outline" className={cn(
                         "text-[7px] py-0 px-1",
-                        person.source === "batchdata" ? "border-emerald-500/30 text-emerald-400" : "border-cyan/30 text-cyan/70",
+                        person.source === "batchdata" ? "border-emerald-500/30 text-emerald-400"
+                          : String(person.source).startsWith("openclaw") ? "border-purple-500/30 text-purple-400"
+                          : "border-cyan/30 text-cyan/70",
                       )}>
-                        {person.source === "batchdata" ? "BD" : "PR"}
+                        {person.source === "batchdata" ? "BD" : String(person.source).startsWith("openclaw") ? "OC" : "PR"}
                       </Badge>
                     )}
                   </div>
@@ -1876,7 +2069,7 @@ function ContactTab({ cf, overlay, onSkipTrace, skipTracing, onDial, onSms, call
 // OVERVIEW TAB
 // ═══════════════════════════════════════════════════════════════════════
 
-function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceMs, overlay, skipTraceError, onSkipTrace, onManualSkipTrace, onEdit, onDial, onSms, calling, dialHistory, autofilling, onAutofill, deepCrawling, deepCrawlResult, deepCrawlExpanded, setDeepCrawlExpanded, executeDeepCrawl, hasSavedReport, loadingReport, loadSavedReport }: {
+function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceMs, overlay, skipTraceError, onSkipTrace, onManualSkipTrace, onEdit, onDial, onSms, calling, dialHistory, autofilling, onAutofill, deepCrawling, deepCrawlResult, deepCrawlExpanded, setDeepCrawlExpanded, executeDeepCrawl, hasSavedReport, loadingReport, loadSavedReport, crawlSteps, deepSkipResult }: {
   cf: ClientFile; computedArv: number; skipTracing: boolean; skipTraceResult: string | null; skipTraceMs: number | null;
   overlay: SkipTraceOverlay | null; skipTraceError: SkipTraceError | null;
   onSkipTrace: () => void; onManualSkipTrace: () => void; onEdit: () => void;
@@ -1888,6 +2081,9 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
   deepCrawling: boolean; deepCrawlResult: any; deepCrawlExpanded: boolean;
   setDeepCrawlExpanded: (v: boolean) => void; executeDeepCrawl: () => void;
   hasSavedReport: boolean; loadingReport: boolean; loadSavedReport: () => void;
+  crawlSteps: CrawlStep[];
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  deepSkipResult: any;
 }) {
   const skipTraced = !!overlay || !!cf.ownerFlags?.skip_traced;
   const displayPhone = overlay?.primaryPhone ?? cf.ownerPhone ?? (cf.ownerFlags?.contact_phone as string | null) ?? null;
@@ -2450,8 +2646,21 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
         </div>
       </div>
 
-      {/* ═══ 3b. DEEP CRAWL RESULTS (collapsible) ═══ */}
+      {/* ═══ 3b. DEEP CRAWL PROGRESS + RESULTS (collapsible) ═══ */}
       <AnimatePresence>
+        {/* SSE Progress Indicator (during active crawl) */}
+        {deepCrawling && crawlSteps.length > 0 && !deepCrawlResult && (
+          <motion.div
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: "auto" }}
+            exit={{ opacity: 0, height: 0 }}
+            className="overflow-hidden"
+          >
+            <CrawlProgressIndicator steps={crawlSteps} />
+          </motion.div>
+        )}
+
+        {/* Deep Crawl Report */}
         {deepCrawlResult && deepCrawlExpanded && (
           <motion.div
             initial={{ opacity: 0, height: 0 }}
@@ -2460,6 +2669,18 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
             className="overflow-hidden"
           >
             <DeepCrawlPanel result={deepCrawlResult} onRecrawl={executeDeepCrawl} isRecrawling={deepCrawling} />
+          </motion.div>
+        )}
+
+        {/* Deep Skip Report (people intelligence) */}
+        {deepCrawlExpanded && (deepSkipResult || deepCrawlResult?.deepSkip) && (
+          <motion.div
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: "auto" }}
+            exit={{ opacity: 0, height: 0 }}
+            className="overflow-hidden"
+          >
+            <DeepSkipPanel result={deepSkipResult ?? deepCrawlResult?.deepSkip} />
           </motion.div>
         )}
       </AnimatePresence>
@@ -4055,6 +4276,9 @@ export function MasterClientFileModal({ clientFile, open, onClose, onClaim, onRe
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [deepCrawlResult, setDeepCrawlResult] = useState<any>(null);
   const [deepCrawlExpanded, setDeepCrawlExpanded] = useState(false);
+  const [crawlSteps, setCrawlSteps] = useState<CrawlStep[]>([]);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const [deepSkipResult, setDeepSkipResult] = useState<any>(null);
 
   // Pre-populate deep crawl from cached results
   // Results persist permanently once crawled (like addresses/phone numbers)
@@ -4107,6 +4331,10 @@ export function MasterClientFileModal({ clientFile, open, onClose, onClaim, onRe
       if (inlineCached?.crawledAt) {
         setDeepCrawlResult(inlineCached);
         setDeepCrawlExpanded(true);
+        // Also load deep skip if available
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const ds = (clientFile?.ownerFlags as any)?.deep_skip ?? inlineCached?.deepSkip;
+        if (ds) setDeepSkipResult(ds);
         return;
       }
       // Fetch from DB
@@ -4119,6 +4347,9 @@ export function MasterClientFileModal({ clientFile, open, onClose, onClaim, onRe
       if (dc?.crawledAt) {
         setDeepCrawlResult(dc);
         setDeepCrawlExpanded(true);
+        // Also load deep skip
+        const ds = data?.owner_flags?.deep_skip ?? dc?.deepSkip;
+        if (ds) setDeepSkipResult(ds);
       }
     } catch {
       // Silently fail
@@ -4422,26 +4653,89 @@ export function MasterClientFileModal({ clientFile, open, onClose, onClaim, onRe
   const executeDeepCrawl = useCallback(async () => {
     if (!clientFile) return;
     setDeepCrawling(true);
+    setCrawlSteps([]);
+    setDeepCrawlExpanded(true); // Show progress immediately
     try {
       const res = await fetch("/api/prospects/deep-crawl", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ property_id: clientFile.propertyId, lead_id: clientFile.id }),
       });
-      const data = await res.json();
-      if (data.error) {
-        toast.error(`Deep Crawl failed: ${data.error}`);
+
+      // Check if this is an SSE stream or regular JSON (cached responses are still JSON)
+      const contentType = res.headers.get("content-type") ?? "";
+      if (contentType.includes("text/event-stream") && res.body) {
+        // SSE streaming mode — read events as they arrive
+        const reader = res.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = "";
+
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+
+          buffer += decoder.decode(value, { stream: true });
+
+          // Parse SSE events from buffer
+          const lines = buffer.split("\n\n");
+          buffer = lines.pop() ?? ""; // Keep incomplete chunk
+
+          for (const line of lines) {
+            const dataLine = line.trim();
+            if (!dataLine.startsWith("data: ")) continue;
+            try {
+              const event = JSON.parse(dataLine.slice(6));
+
+              if (event.phase === "complete" && event.result) {
+                // Final event — the full result
+                setDeepCrawlResult(event.result);
+                setHasSavedReport(true);
+                if (event.result.deepSkip) {
+                  setDeepSkipResult(event.result.deepSkip);
+                }
+                toast.success(`Deep Crawl complete — ${event.result.sources?.join(", ") ?? "done"}`);
+                onRefresh?.();
+              } else if (event.phase === "error") {
+                toast.error(`Deep Crawl failed: ${event.detail}`);
+              } else if (event.phase && event.status) {
+                // Progress event
+                setCrawlSteps(prev => {
+                  // Update existing step or add new one
+                  const existing = prev.findIndex(s => s.phase === event.phase);
+                  if (existing >= 0) {
+                    const updated = [...prev];
+                    updated[existing] = { phase: event.phase, status: event.status, detail: event.detail, elapsed: event.elapsed };
+                    return updated;
+                  }
+                  return [...prev, { phase: event.phase, status: event.status, detail: event.detail, elapsed: event.elapsed }];
+                });
+              }
+            } catch {
+              // Skip malformed events
+            }
+          }
+        }
       } else {
-        setDeepCrawlResult(data);
-        setDeepCrawlExpanded(true);
-        setHasSavedReport(true);
-        toast.success(`Deep Crawl complete — report saved. ${data.sources?.join(", ") ?? "done"}`);
-        onRefresh?.();
+        // Regular JSON response (cached results)
+        const data = await res.json();
+        if (data.error) {
+          toast.error(`Deep Crawl failed: ${data.error}`);
+        } else {
+          setDeepCrawlResult(data);
+          setDeepCrawlExpanded(true);
+          setHasSavedReport(true);
+          if (data.deepSkip) {
+            setDeepSkipResult(data.deepSkip);
+          }
+          toast.success(`Deep Crawl complete — ${data.sources?.join(", ") ?? "done"}`);
+          onRefresh?.();
+        }
       }
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Deep Crawl network error");
     } finally {
       setDeepCrawling(false);
+      setCrawlSteps([]);
     }
   }, [clientFile, onRefresh]);
 
@@ -4565,7 +4859,7 @@ export function MasterClientFileModal({ clientFile, open, onClose, onClaim, onRe
                     transition={{ duration: 0.15 }}
                   >
                     {activeTab === "overview" && (
-                      <OverviewTab cf={clientFile} computedArv={computedArv} skipTracing={skipTracing} skipTraceResult={skipTraceResult} skipTraceMs={skipTraceMs} overlay={overlay} skipTraceError={skipTraceError} onSkipTrace={handleSkipTrace} onManualSkipTrace={handleManualSkipTrace} onEdit={() => setEditOpen(true)} onDial={handleDial} onSms={handleSendSms} calling={calling} dialHistory={dialHistoryMap} autofilling={autofilling} onAutofill={handleAutofill} deepCrawling={deepCrawling} deepCrawlResult={deepCrawlResult} deepCrawlExpanded={deepCrawlExpanded} setDeepCrawlExpanded={setDeepCrawlExpanded} executeDeepCrawl={executeDeepCrawl} hasSavedReport={hasSavedReport} loadingReport={loadingReport} loadSavedReport={loadSavedReport} />
+                      <OverviewTab cf={clientFile} computedArv={computedArv} skipTracing={skipTracing} skipTraceResult={skipTraceResult} skipTraceMs={skipTraceMs} overlay={overlay} skipTraceError={skipTraceError} onSkipTrace={handleSkipTrace} onManualSkipTrace={handleManualSkipTrace} onEdit={() => setEditOpen(true)} onDial={handleDial} onSms={handleSendSms} calling={calling} dialHistory={dialHistoryMap} autofilling={autofilling} onAutofill={handleAutofill} deepCrawling={deepCrawling} deepCrawlResult={deepCrawlResult} deepCrawlExpanded={deepCrawlExpanded} setDeepCrawlExpanded={setDeepCrawlExpanded} executeDeepCrawl={executeDeepCrawl} hasSavedReport={hasSavedReport} loadingReport={loadingReport} loadSavedReport={loadSavedReport} crawlSteps={crawlSteps} deepSkipResult={deepSkipResult} />
                     )}
                     {activeTab === "contact" && (
                       <ContactTab cf={clientFile} overlay={overlay} onSkipTrace={handleSkipTrace} skipTracing={skipTracing} onDial={handleDial} onSms={handleSendSms} calling={calling} onRefresh={onRefresh} />

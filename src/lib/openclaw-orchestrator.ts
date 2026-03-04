@@ -34,6 +34,16 @@ interface PropertyContext {
   isVacant: boolean;
   hasForeclosure: boolean;
   hasTaxLien: boolean;
+  // Owner intelligence
+  ownerAge?: number;             // estimated age if known
+  isLlcOwned: boolean;           // LLC/trust/corp ownership
+  mailingDiffersFromProperty: boolean; // mailing address ≠ property address
+  // Contact data state
+  knownPhones: string[];         // existing phones from skip trace
+  knownEmails: string[];         // existing emails from skip trace
+  hasSkipTraced: boolean;        // has property been skip traced?
+  hasDistressEvents: boolean;    // any existing distress_events?
+  equityPercent?: number;        // equity % for hidden lien detection
   // Data freshness
   hasPhotos: boolean;            // existing street-level photos?
   prDataAgeHours?: number;       // hours since last PR pull
@@ -57,6 +67,10 @@ const AGENT_COSTS: Record<string, number> = {
   social_media: 0.003,
   property_photos: 0.001,
   county_records: 0.001,
+  contact_finder: 0.002,
+  financial_distress: 0.003,
+  heir_estate: 0.002,
+  employment_relocation: 0.003,
   propertyradar_navigator: 0.005,
   attom_navigator: 0.005,
 };
@@ -67,6 +81,10 @@ const AGENT_DURATIONS_MS: Record<string, number> = {
   social_media: 40_000,
   property_photos: 35_000,
   county_records: 30_000,
+  contact_finder: 35_000,
+  financial_distress: 40_000,
+  heir_estate: 35_000,
+  employment_relocation: 30_000,
   propertyradar_navigator: 60_000,
   attom_navigator: 60_000,
 };
@@ -104,6 +122,19 @@ export function buildAgentPlan(ctx: PropertyContext): OrchestrationPlan {
   tasks.push({ agentId: "social_media", payload });
   rationale.push("Social media: ALWAYS — owner profiling, relocation signals, life events");
 
+  // ── ALWAYS run: contact finder ──
+  // Finds phones, emails, and decision-maker contacts that skip trace missed.
+  // Especially valuable for LLC owners and heir contacts.
+  const contactPayload = {
+    ...payload,
+    additionalContext: {
+      knownPhones: ctx.knownPhones,
+      knownEmails: ctx.knownEmails,
+    },
+  };
+  tasks.push({ agentId: "contact_finder", payload: contactPayload });
+  rationale.push("Contact finder: ALWAYS — phones, emails, LLC/heir contacts beyond skip trace");
+
   // ── CONDITIONAL: obituary/probate ──
   // Run if: deceased flag, probate signal, owner age >70, or estate-related signals
   if (
@@ -129,6 +160,55 @@ export function buildAgentPlan(ctx: PropertyContext): OrchestrationPlan {
   ) {
     tasks.push({ agentId: "county_records", payload });
     rationale.push("County records: triggered by foreclosure/lien/code violation signal");
+  }
+
+  // ── CONDITIONAL: financial distress ──
+  // Run if: any distress signal exists OR high equity (hidden liens kill deals)
+  if (
+    ctx.distressSignals.length > 0 ||
+    (ctx.equityPercent != null && ctx.equityPercent > 50) ||
+    ctx.hasForeclosure ||
+    ctx.hasTaxLien
+  ) {
+    tasks.push({ agentId: "financial_distress", payload });
+    rationale.push(
+      ctx.distressSignals.length > 0
+        ? `Financial distress: triggered by ${ctx.distressSignals.length} distress signal(s)`
+        : "Financial distress: high equity — checking for hidden liens",
+    );
+  }
+
+  // ── CONDITIONAL: heir/estate ──
+  // Run if: deceased flag, probate signal, or owner age ≥ 70
+  if (
+    ctx.isDeceased ||
+    (ctx.ownerAge != null && ctx.ownerAge >= 70) ||
+    ctx.distressSignals.some(s =>
+      s.includes("probate") || s.includes("estate") ||
+      s.includes("deceased") || s.includes("inheritance")
+    )
+  ) {
+    tasks.push({ agentId: "heir_estate", payload });
+    rationale.push(
+      ctx.isDeceased
+        ? "Heir/Estate: owner deceased — finding heirs, executor, attorney"
+        : ctx.ownerAge != null && ctx.ownerAge >= 70
+          ? `Heir/Estate: owner age ${ctx.ownerAge} — pre-probate intelligence`
+          : "Heir/Estate: probate/estate signal detected",
+    );
+  }
+
+  // ── CONDITIONAL: employment/relocation ──
+  // Run if: absentee owner or mailing differs from property
+  if (ctx.isAbsentee || ctx.mailingDiffersFromProperty || ctx.isLlcOwned) {
+    tasks.push({ agentId: "employment_relocation", payload });
+    rationale.push(
+      ctx.isAbsentee
+        ? "Employment/Relocation: absentee owner — checking for job change, relocation"
+        : ctx.isLlcOwned
+          ? "Employment/Relocation: LLC-owned — finding actual owner location"
+          : "Employment/Relocation: mailing differs from property — owner may have relocated",
+    );
   }
 
   // ── CONDITIONAL: property photos ──
@@ -179,8 +259,41 @@ export function buildPropertyContext(
 ): PropertyContext {
   const prRaw = (ownerFlags.pr_raw ?? {}) as Record<string, unknown>;
 
+  // Extract known phones/emails for dedup
+  const allPhones = Array.isArray(ownerFlags.all_phones)
+    ? ownerFlags.all_phones
+        .filter((p: unknown) => typeof p === "object" && p !== null && "number" in (p as Record<string, unknown>))
+        .map((p: Record<string, unknown>) => String(p.number))
+    : [];
+  const allEmails = Array.isArray(ownerFlags.all_emails)
+    ? ownerFlags.all_emails
+        .filter((e: unknown) => typeof e === "object" && e !== null && "email" in (e as Record<string, unknown>))
+        .map((e: Record<string, unknown>) => String(e.email))
+    : [];
+
+  // Detect LLC/trust ownership
+  const ownerName = String(property.owner_name ?? "Unknown");
+  const isLlcOwned = /\b(LLC|L\.L\.C|INC|CORP|TRUST|LP|LLP|PARTNERSHIP|HOLDINGS)\b/i.test(ownerName);
+
+  // Check if mailing differs from property
+  const mailingAddr = String(prRaw.MailingAddress ?? ownerFlags.mailing_address ?? "").toLowerCase();
+  const propAddr = String(property.address ?? "").toLowerCase();
+  const mailingDiffersFromProperty = !!(mailingAddr && propAddr && !mailingAddr.includes(propAddr.split(" ")[0]));
+
+  // Owner age estimate (from PR raw data)
+  const ownerAge = typeof prRaw.OwnerAge === "number"
+    ? prRaw.OwnerAge
+    : typeof prRaw.EstOwnerAge === "number"
+      ? prRaw.EstOwnerAge
+      : undefined;
+
+  // Equity percent
+  const avm = Number(prRaw.AVM ?? property.avm ?? 0);
+  const totalLoans = Number(ownerFlags.total_loan_balance ?? prRaw.TotalLoanBalance ?? 0);
+  const equityPercent = avm > 0 ? Math.round(((avm - totalLoans) / avm) * 100) : undefined;
+
   return {
-    ownerName: property.owner_name ?? "Unknown",
+    ownerName,
     address: property.address ?? "",
     city: property.city ?? "",
     state: property.state ?? "",
@@ -196,6 +309,14 @@ export function buildPropertyContext(
     isVacant: !!(ownerFlags.vacant || prRaw.isSiteVacant),
     hasForeclosure: distressSignalTypes.some(s => s.includes("foreclosure")),
     hasTaxLien: distressSignalTypes.some(s => s.includes("tax")),
+    ownerAge,
+    isLlcOwned,
+    mailingDiffersFromProperty,
+    knownPhones: allPhones,
+    knownEmails: allEmails,
+    hasSkipTraced: !!ownerFlags.skip_traced,
+    hasDistressEvents: distressSignalTypes.length > 0,
+    equityPercent,
     hasPhotos: !!(ownerFlags.deep_crawl?.photos?.length > 0),
     prDataAgeHours: ownerFlags.pr_raw_updated_at
       ? (Date.now() - new Date(ownerFlags.pr_raw_updated_at as string).getTime()) / 3600000
