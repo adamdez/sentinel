@@ -3759,6 +3759,22 @@ export function MasterClientFileModal({ clientFile, open, onClose, onClaim, onRe
 
   const displayPhone = overlay?.primaryPhone ?? clientFile?.ownerPhone ?? null;
 
+  // Reset all skip-trace / enrichment state when switching to a different prospect
+  // Without this, overlay data from the previous prospect bleeds into the new one
+  const prevPropertyIdRef = useRef(clientFile?.propertyId);
+  useEffect(() => {
+    if (clientFile?.propertyId !== prevPropertyIdRef.current) {
+      prevPropertyIdRef.current = clientFile?.propertyId;
+      setOverlay(null);
+      setSkipTraceResult(null);
+      setSkipTraceMs(null);
+      setSkipTraceError(null);
+      setSelectedComps([]);
+      setComputedArv((clientFile?.ownerFlags?.comp_arv as number) ?? 0);
+      setDialHistoryMap({});
+    }
+  }, [clientFile?.propertyId, clientFile?.ownerFlags]);
+
   // Fetch dial history for this lead — groups calls_log by phone_dialed
   const fetchDialHistory = useCallback(async () => {
     if (!clientFile?.id) return;
@@ -4138,7 +4154,7 @@ export function MasterClientFileModal({ clientFile, open, onClose, onClaim, onRe
               <div className="flex-1 overflow-y-auto p-6">
                 <AnimatePresence mode="wait">
                   <motion.div
-                    key={activeTab}
+                    key={`${activeTab}-${clientFile.propertyId}`}
                     initial={{ opacity: 0, y: 8 }}
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0, y: -8 }}
