@@ -73,7 +73,7 @@ export interface AgentMeta {
 // Config
 // ═══════════════════════════════════════════════════════════════════════
 
-const OPENCLAW_ENDPOINT = process.env.OPENCLAW_API_URL ?? "https://research.dominionhomes.fly.dev";
+const OPENCLAW_ENDPOINT = process.env.OPENCLAW_API_URL ?? "https://openclaw-gateway-frosty-darkness-4048.fly.dev";
 const OPENCLAW_API_KEY = process.env.OPENCLAW_API_KEY ?? "";
 const AGENT_TIMEOUT_MS = 120_000;
 const FANOUT_TIMEOUT_MS = 180_000;
