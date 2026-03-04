@@ -273,6 +273,7 @@ const COUNTY_LINKS: Record<string, { name: string; gis: (apn: string) => string;
     name: "Kootenai County",
     gis: () => `https://gis.kcgov.us/app/kcearth/`,
     assessor: () => `https://ftp.kcgov.us/departments/mapping/mapSearch/`,
+    treasurer: () => `https://id-kootenai.publicaccessnow.com/Treasurer/TaxSearch.aspx`,
   },
   ada: {
     name: "Ada County",
