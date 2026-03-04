@@ -6,7 +6,7 @@ import { Device, Call } from "@twilio/voice-sdk";
 import {
   Phone, PhoneOff, PhoneForwarded, PhoneIncoming, Clock, Users, BarChart3,
   Mic, MicOff, Voicemail, CalendarCheck, FileSignature,
-  Skull, Heart, Search, Ghost, Zap, ChevronRight, ChevronUp, ChevronDown, Timer,
+  Skull, Heart, Search, Ghost, Zap, ChevronRight, Timer,
   Sparkles, DollarSign, Loader2, SkipForward, MessageSquare,
   X, Send, Shield, CheckCircle2, History, ArrowDownLeft, ArrowUpRight,
   AlertTriangle, Wifi, WifiOff,
@@ -283,7 +283,6 @@ export default function DialerPage() {
   const { brief: preCallBrief, loading: briefLoading } = usePreCallBrief(currentLead?.id ?? null);
   const { history: callHistory, loading: historyLoading } = useCallHistory(currentUser.id, 30);
   const [historyFilter, setHistoryFilter] = useState<"all" | "outbound" | "inbound">("all");
-  const [historyOpen, setHistoryOpen] = useState(false);
 
   // Quick Manual Dial state
   const [manualPhone, setManualPhone] = useState("");
@@ -1543,60 +1542,58 @@ export default function DialerPage() {
             </GlassCard>
           )}
 
-          <GlassCard hover={false} className="!p-3">
-            <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3 flex items-center gap-1.5">
-              <BarChart3 className="h-3.5 w-3.5 text-cyan" />
-              Disposition
-              <span className="text-[10px] opacity-40 ml-auto">Keyboard shortcuts active</span>
-            </h2>
-
-            <div className="grid grid-cols-1 gap-1.5">
-              {DISPOSITIONS.map((d) => {
-                const Icon = d.icon;
-                const disabled = callState === "idle" || dispositionPending;
-
-                return (
-                  <button
-                    key={d.key}
-                    onClick={() => handleDisposition(d.key)}
-                    disabled={disabled}
-                    className={`flex items-center gap-3 rounded-[12px] px-3 py-2.5 text-left transition-all duration-150 border
-                      ${disabled ? "opacity-30 cursor-not-allowed" : d.bgColor}
-                    `}
-                  >
-                    <span className="text-[10px] font-mono text-muted-foreground/55 w-3">{d.hotkey}</span>
-                    <Icon className={`h-4 w-4 ${d.color}`} />
-                    <span className="text-sm font-medium flex-1">{d.label}</span>
-                    <ChevronRight className="h-3 w-3 text-muted-foreground/30" />
-                  </button>
-                );
-              })}
-            </div>
-
-            <Button
-              variant="outline"
-              className="w-full mt-3 gap-2 text-xs"
-              onClick={() => {
-                const idx = queue.findIndex((l) => l.id === currentLead?.id);
-                setCurrentLead(queue[(idx + 1) % queue.length] ?? null);
-                setCallState("idle");
-                setCallNotes("");
-                timer.reset();
-              }}
-              disabled={queue.length <= 1}
-            >
-              <SkipForward className="h-3.5 w-3.5" />
-              Next Lead
-            </Button>
-          </GlassCard>
-
-          <AnimatePresence>
-            {callState !== "idle" && (
+          <AnimatePresence mode="wait">
+            {callState !== "idle" ? (
               <motion.div
+                key="disposition-panel"
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: 10 }}
+                exit={{ opacity: 0, y: -10 }}
+                transition={{ duration: 0.2 }}
               >
+                <GlassCard hover={false} className="!p-3">
+                  <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3 flex items-center gap-1.5">
+                    <BarChart3 className="h-3.5 w-3.5 text-cyan" />
+                    Disposition
+                    <span className="text-[10px] opacity-40 ml-auto">Keyboard shortcuts active</span>
+                  </h2>
+
+                  <div className="grid grid-cols-1 gap-1.5">
+                    {DISPOSITIONS.map((d) => {
+                      const Icon = d.icon;
+                      return (
+                        <button
+                          key={d.key}
+                          onClick={() => handleDisposition(d.key)}
+                          disabled={dispositionPending}
+                          className={`flex items-center gap-3 rounded-[12px] px-3 py-2.5 text-left transition-all duration-150 border ${d.bgColor}`}
+                        >
+                          <span className="text-[10px] font-mono text-muted-foreground/55 w-3">{d.hotkey}</span>
+                          <Icon className={`h-4 w-4 ${d.color}`} />
+                          <span className="text-sm font-medium flex-1">{d.label}</span>
+                          <ChevronRight className="h-3 w-3 text-muted-foreground/30" />
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  <Button
+                    variant="outline"
+                    className="w-full mt-3 gap-2 text-xs"
+                    onClick={() => {
+                      const idx = queue.findIndex((l) => l.id === currentLead?.id);
+                      setCurrentLead(queue[(idx + 1) % queue.length] ?? null);
+                      setCallState("idle");
+                      setCallNotes("");
+                      timer.reset();
+                    }}
+                    disabled={queue.length <= 1}
+                  >
+                    <SkipForward className="h-3.5 w-3.5" />
+                    Next Lead
+                  </Button>
+                </GlassCard>
+
                 <GlassCard glow hover={false} className="!p-4 mt-3 text-center">
                   <Clock className="h-5 w-5 mx-auto mb-1 text-cyan" />
                   <p className="text-3xl font-bold font-mono tracking-wider text-neon text-glow-number">
@@ -1609,92 +1606,74 @@ export default function DialerPage() {
                   </p>
                 </GlassCard>
               </motion.div>
+            ) : (
+              <motion.div
+                key="call-history-panel"
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -10 }}
+                transition={{ duration: 0.2 }}
+              >
+                <GlassCard hover={false} className="!p-3">
+                  <div className="flex items-center justify-between mb-3">
+                    <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+                      <History className="h-3.5 w-3.5 text-cyan" />
+                      Call History
+                      <span className="text-[10px] font-normal text-muted-foreground/50 ml-1">
+                        {callHistory.length} recent
+                      </span>
+                    </h2>
+                    <div className="flex items-center gap-1">
+                      {(["all", "outbound", "inbound"] as const).map((f) => (
+                        <span
+                          key={f}
+                          role="button"
+                          onClick={() => setHistoryFilter(f)}
+                          className={`px-2.5 py-1 rounded-[8px] text-[10px] font-medium cursor-pointer transition-all ${
+                            historyFilter === f
+                              ? "text-cyan bg-cyan/8 border border-cyan/20"
+                              : "text-muted-foreground/60 hover:text-foreground border border-transparent"
+                          }`}
+                        >
+                          {f === "all" ? "All" : f === "outbound" ? "Outbound" : "Inbound"}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+
+                  {historyLoading ? (
+                    <div className="flex items-center justify-center py-8">
+                      <Loader2 className="h-5 w-5 animate-spin text-cyan/50" />
+                    </div>
+                  ) : callHistory.length === 0 ? (
+                    <div className="text-center py-6">
+                      <History className="h-6 w-6 mx-auto text-muted-foreground/20 mb-2" />
+                      <p className="text-xs text-muted-foreground/50">No calls yet — start dialing!</p>
+                    </div>
+                  ) : (
+                    <div className="max-h-[calc(100vh-420px)] overflow-y-auto scrollbar-thin space-y-1">
+                      {callHistory
+                        .filter((c) => historyFilter === "all" || c.direction === historyFilter)
+                        .map((entry) => (
+                          <CallHistoryRow
+                            key={entry.id}
+                            entry={entry}
+                            onDial={(phone) => {
+                              setManualPhone(phone.replace(/\D/g, "").replace(/^1/, "").slice(0, 10));
+                              window.scrollTo({ top: 0, behavior: "smooth" });
+                              toast.info(`${formatUsPhone(phone.replace(/\D/g, "").slice(-10))} loaded — hit Dial Now`);
+                            }}
+                          />
+                        ))}
+                    </div>
+                  )}
+                </GlassCard>
+              </motion.div>
             )}
           </AnimatePresence>
         </div>
       </div>
 
-      {/* ── Call History (collapsible) ─────────────────────────────── */}
-      <GlassCard hover={false} className="!p-4 mt-4">
-        <button
-          onClick={() => setHistoryOpen((v) => !v)}
-          className="w-full flex items-center justify-between cursor-pointer group"
-        >
-          <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
-            <History className="h-3.5 w-3.5 text-cyan" />
-            Call History
-            <span className="text-[10px] font-normal text-muted-foreground/50 ml-1">
-              {callHistory.length} recent
-            </span>
-          </h2>
-          <div className="flex items-center gap-2">
-            {historyOpen && (
-              <div className="flex items-center gap-1">
-                {(["all", "outbound", "inbound"] as const).map((f) => (
-                  <span
-                    key={f}
-                    role="button"
-                    onClick={(e) => { e.stopPropagation(); setHistoryFilter(f); }}
-                    className={`px-2.5 py-1 rounded-[8px] text-[10px] font-medium transition-all ${
-                      historyFilter === f
-                        ? "text-cyan bg-cyan/8 border border-cyan/20"
-                        : "text-muted-foreground/60 hover:text-foreground border border-transparent"
-                    }`}
-                  >
-                    {f === "all" ? "All" : f === "outbound" ? "Outbound" : "Inbound"}
-                  </span>
-                ))}
-              </div>
-            )}
-            {historyOpen ? (
-              <ChevronDown className="h-4 w-4 text-muted-foreground group-hover:text-cyan transition-colors" />
-            ) : (
-              <ChevronUp className="h-4 w-4 text-muted-foreground group-hover:text-cyan transition-colors" />
-            )}
-          </div>
-        </button>
-
-        <AnimatePresence>
-          {historyOpen && (
-            <motion.div
-              initial={{ height: 0, opacity: 0 }}
-              animate={{ height: "auto", opacity: 1 }}
-              exit={{ height: 0, opacity: 0 }}
-              transition={{ duration: 0.2, ease: "easeInOut" }}
-              className="overflow-hidden"
-            >
-              <div className="pt-3">
-                {historyLoading ? (
-                  <div className="flex items-center justify-center py-8">
-                    <Loader2 className="h-5 w-5 animate-spin text-cyan/50" />
-                  </div>
-                ) : callHistory.length === 0 ? (
-                  <div className="text-center py-6">
-                    <History className="h-6 w-6 mx-auto text-muted-foreground/20 mb-2" />
-                    <p className="text-xs text-muted-foreground/50">No calls yet — start dialing!</p>
-                  </div>
-                ) : (
-                  <div className="max-h-[340px] overflow-y-auto scrollbar-thin space-y-1">
-                    {callHistory
-                      .filter((c) => historyFilter === "all" || c.direction === historyFilter)
-                      .map((entry) => (
-                        <CallHistoryRow
-                          key={entry.id}
-                          entry={entry}
-                          onDial={(phone) => {
-                            setManualPhone(phone.replace(/\D/g, "").replace(/^1/, "").slice(0, 10));
-                            window.scrollTo({ top: 0, behavior: "smooth" });
-                            toast.info(`${formatUsPhone(phone.replace(/\D/g, "").slice(-10))} loaded — hit Dial Now`);
-                          }}
-                        />
-                      ))}
-                  </div>
-                )}
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
-      </GlassCard>
     </PageShell>
   );
 }
