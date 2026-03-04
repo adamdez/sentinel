@@ -1151,13 +1151,13 @@ interface PhoneDetail {
   confidence: number;
   dnc: boolean;
   carrier?: string;
-  source: "propertyradar" | "batchdata";
+  source: "propertyradar" | "batchdata" | `openclaw_${string}` | string;
 }
 
 interface EmailDetail {
   email: string;
   deliverable: boolean;
-  source: "propertyradar" | "batchdata";
+  source: "propertyradar" | "batchdata" | `openclaw_${string}` | string;
 }
 
 interface SkipTraceOverlay {
@@ -4692,10 +4692,45 @@ export function MasterClientFileModal({ clientFile, open, onClose, onClaim, onRe
                 // Final event — the full result
                 setDeepCrawlResult(event.result);
                 setHasSavedReport(true);
-                if (event.result.deepSkip) {
-                  setDeepSkipResult(event.result.deepSkip);
+                // deepSkip is sent as a sibling field (not nested inside result)
+                const ds = event.deepSkip ?? event.result.deepSkip;
+                if (ds) {
+                  setDeepSkipResult(ds);
+                  // Immediately inject new phones/emails into overlay so Contact tab updates
+                  // without waiting for full parent re-fetch
+                  if (ds.newPhones?.length > 0 || ds.newEmails?.length > 0) {
+                    setOverlay(prev => {
+                      const base = prev ?? { phones: [], emails: [], persons: [], primaryPhone: null, primaryEmail: null, phoneDetails: [], emailDetails: [], providers: [], isLitigator: false, hasDncNumbers: false };
+                      const existingNums = new Set(base.phoneDetails.map((p: PhoneDetail) => p.number.replace(/\D/g, "").slice(-10)));
+                      const existingEmails = new Set(base.emailDetails.map((e: EmailDetail) => e.email.toLowerCase()));
+                      const addedPhones: PhoneDetail[] = (ds.newPhones ?? [])
+                        .filter((np: { number: string }) => !existingNums.has(np.number.replace(/\D/g, "").slice(-10)))
+                        .map((np: { number: string; source: string }) => ({
+                          number: np.number,
+                          lineType: "unknown" as const,
+                          confidence: 60,
+                          dnc: false,
+                          source: `openclaw_${np.source}`,
+                        }));
+                      const addedEmails: EmailDetail[] = (ds.newEmails ?? [])
+                        .filter((ne: { email: string }) => !existingEmails.has(ne.email.toLowerCase()))
+                        .map((ne: { email: string; source: string }) => ({
+                          email: ne.email,
+                          deliverable: true,
+                          source: `openclaw_${ne.source}`,
+                        }));
+                      return {
+                        ...base,
+                        phoneDetails: [...base.phoneDetails, ...addedPhones],
+                        emailDetails: [...base.emailDetails, ...addedEmails],
+                        phones: [...base.phones, ...addedPhones.map(p => p.number)],
+                        emails: [...base.emails, ...addedEmails.map(e => e.email)],
+                      };
+                    });
+                  }
                 }
                 toast.success(`Deep Crawl complete — ${event.result.sources?.join(", ") ?? "done"}`);
+                // Also re-fetch from parent to get full updated data
                 onRefresh?.();
               } else if (event.phase === "error") {
                 toast.error(`Deep Crawl failed: ${event.detail}`);
@@ -4726,9 +4761,8 @@ export function MasterClientFileModal({ clientFile, open, onClose, onClaim, onRe
           setDeepCrawlResult(data);
           setDeepCrawlExpanded(true);
           setHasSavedReport(true);
-          if (data.deepSkip) {
-            setDeepSkipResult(data.deepSkip);
-          }
+          // Backward compat: cached results may still have nested deepSkip
+          if (data.deepSkip) setDeepSkipResult(data.deepSkip);
           toast.success(`Deep Crawl complete — ${data.sources?.join(", ") ?? "done"}`);
           onRefresh?.();
         }

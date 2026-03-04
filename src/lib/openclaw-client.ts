@@ -108,7 +108,7 @@ export interface DeepSkipResult {
     url?: string;
   }[];
   agentMeta: AgentMeta;
-  findings: AgentFinding[];
+  // NOTE: findings intentionally omitted — stored once in deep_crawl.agentFindings to avoid JSONB bloat
 }
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -654,7 +654,6 @@ export function buildDeepSkipResult(
   const newPhones: DeepSkipResult["newPhones"] = [];
   const newEmails: DeepSkipResult["newEmails"] = [];
   const employmentSignals: DeepSkipResult["employmentSignals"] = [];
-  const allFindings: AgentFinding[] = [];
 
   // Normalize existing contacts for dedup
   const knownPhoneSet = new Set(existingPhones.map((p) => p.replace(/\D/g, "").slice(-10)));
@@ -665,7 +664,6 @@ export function buildDeepSkipResult(
   for (const result of results) {
     if (!result.success) continue;
     for (const f of result.findings) {
-      allFindings.push(f);
       const sd = f.structuredData;
       if (!sd) continue;
 
@@ -738,7 +736,7 @@ export function buildDeepSkipResult(
     newEmails,
     employmentSignals,
     agentMeta: meta,
-    findings: allFindings,
+    // findings intentionally omitted — stored once in deep_crawl.agentFindings
   };
 }
 

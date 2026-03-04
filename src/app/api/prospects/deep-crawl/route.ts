@@ -99,8 +99,7 @@ export interface DeepCrawlResult {
   agentMeta?: AgentMeta;
   // Phase 2.6 — Property photos from real sources
   photos?: PropertyPhoto[];
-  // Phase 2.75 — Deep Skip Report (people intelligence)
-  deepSkip?: DeepSkipResult;
+  // NOTE: deepSkip intentionally omitted — stored once as owner_flags.deep_skip to avoid JSONB bloat
 }
 
 // ── Helpers ─────────────────────────────────────────────────────────
@@ -536,7 +535,7 @@ export async function POST(req: NextRequest) {
             agentFindings: allAgentFindings.length > 0 ? allAgentFindings : undefined,
             agentMeta,
             photos: photos.length > 0 ? photos : undefined,
-            deepSkip: deepSkipResult,
+            // deepSkip stored separately as owner_flags.deep_skip (not nested here)
           };
 
           const writes: Promise<unknown>[] = [];
@@ -671,7 +670,11 @@ export async function POST(req: NextRequest) {
           console.log(`[DeepCrawl] Complete in ${Date.now() - t0}ms — ${sources.join(", ")}`);
 
           // ── Final event: the complete result ──
-          emit({ phase: "complete", status: "complete", result, elapsed: Date.now() - t0 });
+          emit({
+            phase: "complete", status: "complete", result,
+            deepSkip: deepSkipResult ?? undefined,
+            elapsed: Date.now() - t0,
+          });
           controller.close();
         } catch (err) {
           console.error("[DeepCrawl] Stream error:", err);
