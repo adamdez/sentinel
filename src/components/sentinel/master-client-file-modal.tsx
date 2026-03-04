@@ -1210,7 +1210,7 @@ const URGENCY_COLORS: Record<string, string> = {
 };
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-function DeepCrawlPanel({ result }: { result: any }) {
+function DeepCrawlPanel({ result, onRecrawl, isRecrawling }: { result: any; onRecrawl?: () => void; isRecrawling?: boolean }) {
   if (!result) return null;
 
   const ai = result.aiDossier ?? result.ai_dossier ?? {};
@@ -1234,40 +1234,40 @@ function DeepCrawlPanel({ result }: { result: any }) {
       {/* Executive Summary */}
       <div>
         <div className="flex items-center gap-2 mb-2">
-          <Brain className="h-3 w-3 text-cyan" />
-          <p className="text-[10px] text-cyan/80 uppercase tracking-wider font-semibold">Executive Summary</p>
+          <Brain className="h-3.5 w-3.5 text-cyan" />
+          <p className="text-[11px] text-cyan/80 uppercase tracking-wider font-semibold">Executive Summary</p>
           {ai.urgencyLevel && (
-            <span className={cn("px-2 py-0.5 rounded-full text-[9px] font-bold border", urgencyColor)}>
+            <span className={cn("px-2 py-0.5 rounded-full text-[10px] font-bold border", urgencyColor)}>
               {ai.urgencyLevel}
             </span>
           )}
         </div>
-        <p className="text-xs text-foreground/90 leading-relaxed">{ai.summary ?? "No summary available"}</p>
+        <p className="text-[13px] text-foreground/90 leading-relaxed">{ai.summary ?? "No summary available"}</p>
         {ai.urgencyReason && (
-          <p className="text-[10px] text-muted-foreground mt-1">{ai.urgencyReason}</p>
+          <p className="text-[11px] text-muted-foreground mt-1">{ai.urgencyReason}</p>
         )}
       </div>
 
       {/* Signal Analysis */}
       {ai.signalAnalysis && ai.signalAnalysis.length > 0 && (
         <div>
-          <p className="text-[10px] text-orange-400/80 uppercase tracking-wider font-semibold mb-2 flex items-center gap-1.5">
-            <AlertTriangle className="h-3 w-3" />Signal Analysis
+          <p className="text-[11px] text-orange-400/80 uppercase tracking-wider font-semibold mb-2 flex items-center gap-1.5">
+            <AlertTriangle className="h-3.5 w-3.5" />Signal Analysis
           </p>
           <div className="space-y-2">
             {ai.signalAnalysis.map((s: { headline: string; detail: string; daysUntilCritical: number | null; actionableInsight: string }, i: number) => (
-              <div key={i} className="rounded-[10px] border border-white/[0.06] bg-white/[0.02] p-2.5 space-y-1">
-                <p className="text-[11px] font-semibold text-foreground flex items-center gap-1.5">
-                  <AlertTriangle className="h-2.5 w-2.5 text-orange-400 shrink-0" />
+              <div key={i} className="rounded-[10px] border border-white/[0.06] bg-white/[0.02] p-3 space-y-1.5">
+                <p className="text-[13px] font-semibold text-foreground flex items-center gap-1.5">
+                  <AlertTriangle className="h-3 w-3 text-orange-400 shrink-0" />
                   {s.headline}
                   {s.daysUntilCritical != null && s.daysUntilCritical <= 60 && (
-                    <span className="text-[9px] text-red-400 font-mono ml-auto">{s.daysUntilCritical}d</span>
+                    <span className="text-[11px] text-red-400 font-mono ml-auto">{s.daysUntilCritical}d</span>
                   )}
                 </p>
-                <p className="text-[10px] text-muted-foreground leading-relaxed pl-4">{s.detail}</p>
+                <p className="text-[12px] text-muted-foreground leading-relaxed pl-5">{s.detail}</p>
                 {s.actionableInsight && (
-                  <p className="text-[10px] text-cyan/80 pl-4 flex items-center gap-1">
-                    <ArrowRight className="h-2.5 w-2.5 shrink-0" />{s.actionableInsight}
+                  <p className="text-[12px] text-cyan/80 pl-5 flex items-center gap-1">
+                    <ArrowRight className="h-3 w-3 shrink-0" />{s.actionableInsight}
                   </p>
                 )}
               </div>
@@ -1279,27 +1279,27 @@ function DeepCrawlPanel({ result }: { result: any }) {
       {/* Owner Profile */}
       {ai.ownerProfile && (
         <div>
-          <p className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold mb-1.5 flex items-center gap-1.5">
-            <User className="h-3 w-3" />Owner Profile
+          <p className="text-[11px] text-muted-foreground uppercase tracking-wider font-semibold mb-1.5 flex items-center gap-1.5">
+            <User className="h-3.5 w-3.5" />Owner Profile
           </p>
-          <p className="text-[10px] text-foreground/80 leading-relaxed">{ai.ownerProfile}</p>
+          <p className="text-[12px] text-foreground/80 leading-relaxed">{ai.ownerProfile}</p>
         </div>
       )}
 
       {/* Financial Snapshot */}
       {ai.financialAnalysis && (
         <div>
-          <p className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold mb-1.5 flex items-center gap-1.5">
-            <DollarSign className="h-3 w-3" />Financial Snapshot
+          <p className="text-[11px] text-muted-foreground uppercase tracking-wider font-semibold mb-1.5 flex items-center gap-1.5">
+            <DollarSign className="h-3.5 w-3.5" />Financial Snapshot
           </p>
-          <p className="text-[10px] text-foreground/80 leading-relaxed">{ai.financialAnalysis}</p>
+          <p className="text-[12px] text-foreground/80 leading-relaxed">{ai.financialAnalysis}</p>
           {ai.estimatedMAO && (
             <div className="mt-1.5 flex items-center gap-2">
-              <span className="text-[9px] text-muted-foreground uppercase">Est. MAO:</span>
-              <span className="text-[11px] font-semibold text-emerald-400">
+              <span className="text-[11px] text-muted-foreground uppercase">Est. MAO:</span>
+              <span className="text-[13px] font-semibold text-emerald-400">
                 ${ai.estimatedMAO.low?.toLocaleString()} &ndash; ${ai.estimatedMAO.high?.toLocaleString()}
               </span>
-              <span className="text-[9px] text-muted-foreground/60">{ai.estimatedMAO.basis}</span>
+              <span className="text-[11px] text-muted-foreground/60">{ai.estimatedMAO.basis}</span>
             </div>
           )}
         </div>
@@ -1308,14 +1308,14 @@ function DeepCrawlPanel({ result }: { result: any }) {
       {/* Approach & Talking Points */}
       {ai.suggestedApproach && (
         <div>
-          <p className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold mb-1.5 flex items-center gap-1.5">
-            <Target className="h-3 w-3" />Suggested Approach
+          <p className="text-[11px] text-muted-foreground uppercase tracking-wider font-semibold mb-1.5 flex items-center gap-1.5">
+            <Target className="h-3.5 w-3.5" />Suggested Approach
           </p>
-          <p className="text-[10px] text-foreground/80 leading-relaxed">{ai.suggestedApproach}</p>
+          <p className="text-[12px] text-foreground/80 leading-relaxed">{ai.suggestedApproach}</p>
           {ai.talkingPoints && ai.talkingPoints.length > 0 && (
-            <ul className="mt-1.5 space-y-0.5">
+            <ul className="mt-2 space-y-1">
               {ai.talkingPoints.map((tp: string, i: number) => (
-                <li key={i} className="text-[10px] text-cyan/80 flex items-start gap-1.5">
+                <li key={i} className="text-[12px] text-cyan/80 flex items-start gap-1.5">
                   <span className="text-cyan/40 mt-0.5 shrink-0">&#8226;</span>{tp}
                 </li>
               ))}
@@ -1327,13 +1327,13 @@ function DeepCrawlPanel({ result }: { result: any }) {
       {/* Web Findings */}
       {ai.webFindings && ai.webFindings.length > 0 && (
         <div>
-          <p className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold mb-1.5 flex items-center gap-1.5">
-            <Globe className="h-3 w-3" />Web Findings
+          <p className="text-[11px] text-muted-foreground uppercase tracking-wider font-semibold mb-1.5 flex items-center gap-1.5">
+            <Globe className="h-3.5 w-3.5" />Web Findings
           </p>
-          <div className="space-y-1">
+          <div className="space-y-1.5">
             {ai.webFindings.map((w: { source: string; finding: string }, i: number) => (
-              <div key={i} className="flex items-start gap-2 text-[10px]">
-                <Search className="h-2.5 w-2.5 text-cyan/50 mt-0.5 shrink-0" />
+              <div key={i} className="flex items-start gap-2 text-[12px]">
+                <Search className="h-3 w-3 text-cyan/50 mt-0.5 shrink-0" />
                 <span>
                   <span className="font-semibold text-foreground/70">{w.source}:</span>{" "}
                   <span className="text-foreground/60">{w.finding}</span>
@@ -1347,12 +1347,12 @@ function DeepCrawlPanel({ result }: { result: any }) {
       {/* Red Flags */}
       {ai.redFlags && ai.redFlags.length > 0 && (
         <div>
-          <p className="text-[10px] text-red-400/80 uppercase tracking-wider font-semibold mb-1 flex items-center gap-1.5">
-            <ShieldAlert className="h-3 w-3" />Red Flags
+          <p className="text-[11px] text-red-400/80 uppercase tracking-wider font-semibold mb-1 flex items-center gap-1.5">
+            <ShieldAlert className="h-3.5 w-3.5" />Red Flags
           </p>
-          <ul className="space-y-0.5">
+          <ul className="space-y-1">
             {ai.redFlags.map((flag: string, i: number) => (
-              <li key={i} className="text-[10px] text-red-300/70 flex items-start gap-1.5">
+              <li key={i} className="text-[12px] text-red-300/70 flex items-start gap-1.5">
                 <span className="text-red-400 mt-0.5 shrink-0">&#9679;</span>{flag}
               </li>
             ))}
@@ -1361,9 +1361,20 @@ function DeepCrawlPanel({ result }: { result: any }) {
       )}
 
       {/* Footer */}
-      <div className="pt-2 border-t border-white/[0.06] flex items-center gap-2 text-[9px] text-muted-foreground/50">
-        {crawledAgo && <span>Crawled {crawledAgo}</span>}
-        {sources.length > 0 && <span>&#183; Sources: {sources.join(", ")}</span>}
+      <div className="pt-2 border-t border-white/[0.06] flex items-center justify-between text-[11px] text-muted-foreground/50">
+        <div className="flex items-center gap-2">
+          {crawledAgo && <span>Crawled {crawledAgo}</span>}
+          {sources.length > 0 && <span>&#183; Sources: {sources.join(", ")}</span>}
+        </div>
+        {onRecrawl && (
+          <button
+            onClick={onRecrawl}
+            disabled={isRecrawling}
+            className="text-[11px] text-amber-400/70 hover:text-amber-400 transition-colors disabled:opacity-50"
+          >
+            {isRecrawling ? "Re-crawling…" : "↻ Re-crawl"}
+          </button>
+        )}
       </div>
     </div>
   );
@@ -2443,7 +2454,7 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
             exit={{ opacity: 0, height: 0 }}
             className="overflow-hidden"
           >
-            <DeepCrawlPanel result={deepCrawlResult} />
+            <DeepCrawlPanel result={deepCrawlResult} onRecrawl={executeDeepCrawl} isRecrawling={deepCrawling} />
           </motion.div>
         )}
       </AnimatePresence>
@@ -4048,14 +4059,13 @@ export function MasterClientFileModal({ clientFile, open, onClose, onClaim, onRe
   const [deepCrawlExpanded, setDeepCrawlExpanded] = useState(false);
 
   // Pre-populate deep crawl from cached results in owner_flags
-  // Only use cache if it has REAL Grok AI results (not fallback dossier)
+  // Results persist permanently once crawled (like addresses/phone numbers)
   useEffect(() => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const cached = (clientFile?.ownerFlags as any)?.deep_crawl;
     if (cached?.crawledAt) {
       const hasRealAI = cached.grokSuccess === true || (cached.aiDossier?.webFindings?.length > 0);
-      const ageMs = Date.now() - new Date(cached.crawledAt).getTime();
-      if (hasRealAI && ageMs < 24 * 60 * 60 * 1000) {
+      if (hasRealAI) {
         setDeepCrawlResult(cached);
       }
     }

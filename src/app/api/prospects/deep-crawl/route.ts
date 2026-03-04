@@ -138,7 +138,8 @@ export async function POST(req: NextRequest) {
     const prRaw = (ownerFlags.pr_raw ?? {}) as Record<string, any>;
     const radarId = ownerFlags.radar_id as string | undefined;
 
-    // ── Check for cached results (<24h old) ──
+    // ── Check for cached results (7-day API-side cache) ──
+    // Results persist permanently in the UI; API cache avoids redundant re-crawls
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const cached = ownerFlags.deep_crawl as any;
     const cachedTime = cached?.crawledAt ?? cached?.crawled_at;
@@ -148,8 +149,8 @@ export async function POST(req: NextRequest) {
       || (cached?.ai_dossier?.webFindings?.length > 0);
     if (!force && cachedTime && hasRealAI) {
       const ageMs = Date.now() - new Date(cachedTime).getTime();
-      if (ageMs < 24 * 60 * 60 * 1000) {
-        console.log(`[DeepCrawl] Returning cached results (${Math.round(ageMs / 60000)}min old)`);
+      if (ageMs < 7 * 24 * 60 * 60 * 1000) {
+        console.log(`[DeepCrawl] Returning cached results (${Math.round(ageMs / 3600000)}h old)`);
         return NextResponse.json({ ...cached, fromCache: true });
       }
     }
