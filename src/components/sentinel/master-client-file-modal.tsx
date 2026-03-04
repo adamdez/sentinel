@@ -4058,41 +4058,47 @@ export function MasterClientFileModal({ clientFile, open, onClose, onClaim, onRe
   const [deepCrawlResult, setDeepCrawlResult] = useState<any>(null);
   const [deepCrawlExpanded, setDeepCrawlExpanded] = useState(false);
 
-  // Pre-populate deep crawl from cached results in owner_flags
+  // Pre-populate deep crawl from cached results
   // Results persist permanently once crawled (like addresses/phone numbers)
-  // For leads, ownerFlags may be empty ({}) — fetch directly from properties table
+  // Uses a ref to avoid infinite re-render loops from ownerFlags dependency
+  const deepCrawlFetchedRef = useRef<string | null>(null);
   useEffect(() => {
+    const propId = clientFile?.propertyId;
+    if (!propId || deepCrawlFetchedRef.current === propId) return;
+
+    // First try inline ownerFlags (works for prospects)
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const cached = (clientFile?.ownerFlags as any)?.deep_crawl;
     if (cached?.crawledAt) {
       const hasRealAI = cached.grokSuccess === true || (cached.aiDossier?.webFindings?.length > 0);
       if (hasRealAI) {
+        deepCrawlFetchedRef.current = propId;
         setDeepCrawlResult(cached);
         return;
       }
     }
-    // If ownerFlags is empty (lead context), try fetching from properties table
-    if (clientFile?.propertyId && (!clientFile.ownerFlags || Object.keys(clientFile.ownerFlags).length === 0)) {
-      (async () => {
-        try {
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          const { data } = await (supabase.from("properties") as any)
-            .select("owner_flags")
-            .eq("id", clientFile.propertyId)
-            .single();
-          const dc = data?.owner_flags?.deep_crawl;
-          if (dc?.crawledAt) {
-            const hasRealAI = dc.grokSuccess === true || (dc.aiDossier?.webFindings?.length > 0);
-            if (hasRealAI) {
-              setDeepCrawlResult(dc);
-            }
+
+    // For leads, ownerFlags is empty — fetch directly from properties table
+    deepCrawlFetchedRef.current = propId;
+    (async () => {
+      try {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const { data } = await (supabase.from("properties") as any)
+          .select("owner_flags")
+          .eq("id", propId)
+          .single();
+        const dc = data?.owner_flags?.deep_crawl;
+        if (dc?.crawledAt) {
+          const hasRealAI = dc.grokSuccess === true || (dc.aiDossier?.webFindings?.length > 0);
+          if (hasRealAI) {
+            setDeepCrawlResult(dc);
           }
-        } catch {
-          // Silently fail — just means no cached results
         }
-      })();
-    }
-  }, [clientFile?.ownerFlags, clientFile?.propertyId]);
+      } catch {
+        // Silently fail — just means no cached results
+      }
+    })();
+  }, [clientFile?.propertyId, clientFile?.ownerFlags]);
 
   const displayPhone = overlay?.primaryPhone ?? clientFile?.ownerPhone ?? null;
 
@@ -4113,6 +4119,7 @@ export function MasterClientFileModal({ clientFile, open, onClose, onClaim, onRe
       setDeepCrawling(false);
       setDeepCrawlResult(null);
       setDeepCrawlExpanded(false);
+      deepCrawlFetchedRef.current = null;
     }
   }, [clientFile?.propertyId, clientFile?.ownerFlags]);
 
