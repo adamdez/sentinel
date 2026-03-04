@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@/lib/supabase";
 import { getPropertyDetailByAddress } from "@/lib/attom";
+import { fanOutAgents, formatFindingsForGrok } from "@/lib/openclaw-client";
+import type { AgentResult, AgentMeta, AgentFinding } from "@/lib/openclaw-client";
+import { buildAgentPlan, buildPropertyContext } from "@/lib/openclaw-orchestrator";
 
 /**
  * POST /api/prospects/deep-crawl
@@ -90,6 +93,9 @@ export interface DeepCrawlResult {
     estimatedMAO: { low: number; high: number; basis: string } | null;
   };
   sources: string[];
+  // Phase 2.5 — OpenClaw agent findings
+  agentFindings?: AgentFinding[];
+  agentMeta?: AgentMeta;
 }
 
 // ── Helpers ─────────────────────────────────────────────────────────
@@ -302,7 +308,50 @@ export async function POST(req: NextRequest) {
     console.log("[DeepCrawl] Phase 2 complete — normalized data ready");
 
     // ══════════════════════════════════════════════════════════════════
-    // PHASE 3 — Grok AI with web search
+    // PHASE 2.5 — OpenClaw Agent Fan-Out (parallel research)
+    // ══════════════════════════════════════════════════════════════════
+
+    let allAgentFindings: AgentFinding[] = [];
+    let agentMeta: AgentMeta | undefined;
+    let agentFindingsText = "";
+
+    const openClawKey = process.env.OPENCLAW_API_KEY;
+    if (openClawKey) {
+      console.log("[DeepCrawl] Phase 2.5 — OpenClaw agent fan-out");
+
+      try {
+        const signalTypes = signals.map(s => s.type);
+        const propCtx = buildPropertyContext(property, signalTypes, ownerFlags);
+        const plan = buildAgentPlan(propCtx);
+
+        console.log(`[DeepCrawl] Orchestrator selected ${plan.tasks.length} agents: ${plan.tasks.map(t => t.agentId).join(", ")}`);
+        console.log(`[DeepCrawl] Rationale: ${plan.rationale.join(" | ")}`);
+        console.log(`[DeepCrawl] Est. cost: $${plan.estimatedCost.toFixed(4)} | Est. duration: ${Math.round(plan.estimatedDurationMs / 1000)}s`);
+
+        const { results: agentResults, meta } = await fanOutAgents(plan.tasks);
+        agentMeta = meta;
+
+        // Collect all findings across agents
+        allAgentFindings = agentResults.flatMap((r: AgentResult) => r.findings);
+        sources.push(`OpenClaw (${meta.agentsSucceeded.length}/${meta.agentsRun.length} agents)`);
+
+        // Format findings for Grok's system prompt
+        agentFindingsText = formatFindingsForGrok(agentResults);
+
+        console.log(`[DeepCrawl] Phase 2.5 complete — ${allAgentFindings.length} findings from ${meta.agentsSucceeded.length} agents in ${meta.totalDurationMs}ms`);
+        if (meta.agentsFailed.length > 0) {
+          console.warn(`[DeepCrawl] Failed agents: ${meta.agentsFailed.join(", ")}`);
+        }
+      } catch (err) {
+        console.error("[DeepCrawl] OpenClaw fan-out error (non-fatal):", err);
+        // Continue without agent findings — Grok will still do web search
+      }
+    } else {
+      console.log("[DeepCrawl] No OPENCLAW_API_KEY — skipping agent research");
+    }
+
+    // ══════════════════════════════════════════════════════════════════
+    // PHASE 3 — Grok AI synthesis (agents provide the intel, Grok strategizes)
     // ══════════════════════════════════════════════════════════════════
 
     const grokApiKey = process.env.GROK_API_KEY ?? process.env.XAI_API_KEY;
@@ -311,11 +360,11 @@ export async function POST(req: NextRequest) {
     let grokSuccess = false;
 
     if (grokApiKey) {
-      console.log("[DeepCrawl] Phase 3 — calling Grok AI with web search");
+      console.log("[DeepCrawl] Phase 3 — calling Grok AI" + (agentFindingsText ? " with agent findings" : " with web search"));
       try {
-        aiDossier = await callGrokDeepCrawl(grokApiKey, property, crawlData);
+        aiDossier = await callGrokDeepCrawl(grokApiKey, property, crawlData, agentFindingsText);
         grokSuccess = true;
-        sources.push("Grok AI + Web");
+        sources.push(agentFindingsText ? "Grok AI (Strategist)" : "Grok AI + Web");
       } catch (err) {
         console.error("[DeepCrawl] Grok AI error (non-fatal):", err);
         // Continue without AI — we still have structured data
@@ -343,6 +392,9 @@ export async function POST(req: NextRequest) {
       aiDossier,
       sources,
       grokSuccess,
+      // Phase 2.5 — agent research data
+      agentFindings: allAgentFindings.length > 0 ? allAgentFindings : undefined,
+      agentMeta,
     };
 
     const writes: Promise<unknown>[] = [];
@@ -420,6 +472,14 @@ export async function POST(req: NextRequest) {
             signals_enriched: signals.length,
             urgency_level: aiDossier?.urgencyLevel ?? "UNKNOWN",
             duration_ms: Date.now() - t0,
+            // Phase 2.5 — agent research metadata
+            ...(agentMeta ? {
+              agents_run: agentMeta.agentsRun,
+              agents_succeeded: agentMeta.agentsSucceeded,
+              agents_failed: agentMeta.agentsFailed,
+              agent_findings_count: allAgentFindings.length,
+              agent_duration_ms: agentMeta.totalDurationMs,
+            } : {}),
           },
         }),
       );
@@ -525,13 +585,21 @@ async function callGrokDeepCrawl(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   property: Record<string, any>,
   data: DeepCrawlData,
+  agentFindingsText?: string,
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 ): Promise<any> {
   const now = new Date();
   const dateStr = now.toISOString().split("T")[0];
 
-  const systemPrompt = buildGrokSystemPrompt(property, data, dateStr);
-  const userPrompt = `Perform a deep distress intelligence analysis for ${data.owner.name} at ${property.address}, ${property.city} ${property.state} ${property.zip}. Search the web for the owner's name and city. Return ONLY the JSON object as specified.`;
+  const systemPrompt = buildGrokSystemPrompt(property, data, dateStr, agentFindingsText);
+
+  // If agents provided findings, Grok acts as a strategist (no web search needed).
+  // If no agent findings, Grok falls back to its own web search.
+  const hasAgentFindings = !!(agentFindingsText && agentFindingsText.length > 50);
+
+  const userPrompt = hasAgentFindings
+    ? `Synthesize the research agent findings with the structured data above to produce a comprehensive distress intelligence analysis for ${data.owner.name} at ${property.address}, ${property.city} ${property.state} ${property.zip}. Cite relevant agent findings in your analysis. Return ONLY the JSON object as specified.`
+    : `Perform a deep distress intelligence analysis for ${data.owner.name} at ${property.address}, ${property.city} ${property.state} ${property.zip}. Search the web for the owner's name and city. Return ONLY the JSON object as specified.`;
 
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 150_000); // 2.5 min timeout
@@ -551,8 +619,9 @@ async function callGrokDeepCrawl(
           { role: "system", content: systemPrompt },
           { role: "user", content: userPrompt },
         ],
-        // xAI built-in web search tool (Agent Tools API)
-        tools: [{ type: "web_search" }],
+        // If agents provided findings, skip web search (saves ~$0.05).
+        // Otherwise fall back to Grok's built-in web search.
+        ...(hasAgentFindings ? {} : { tools: [{ type: "web_search" }] }),
       }),
       signal: controller.signal,
     });
@@ -651,12 +720,17 @@ function buildGrokSystemPrompt(
   property: Record<string, any>,
   data: DeepCrawlData,
   dateStr: string,
+  agentFindingsText?: string,
 ): string {
+  const hasAgentFindings = !!(agentFindingsText && agentFindingsText.length > 50);
+
   const lines: string[] = [
     `You are the Dominion Sentinel Deep Crawl Intelligence Agent (model: ${GROK_MODEL}). Today is ${dateStr}.`,
     "",
     "## Mission",
-    "Perform deep distress intelligence research on a property and its owner. Your goal is to give a real estate acquisition agent everything they need to make an informed decision and approach the owner effectively.",
+    hasAgentFindings
+      ? "Synthesize structured property data with research agent findings to produce actionable distress intelligence. Research agents have already gathered court records, social media profiles, obituaries, and county records. Your role is to ANALYZE, find connections, and build the acquisition strategy."
+      : "Perform deep distress intelligence research on a property and its owner. Your goal is to give a real estate acquisition agent everything they need to make an informed decision and approach the owner effectively.",
     "",
     "## Property Data",
     `Address: ${property.address}, ${property.city} ${property.state} ${property.zip}`,
@@ -707,15 +781,38 @@ function buildGrokSystemPrompt(
     }
   }
 
+  // ── Agent findings section (if available) ──
+  if (hasAgentFindings && agentFindingsText) {
+    lines.push("", agentFindingsText);
+  }
+
   lines.push(
     "",
     "## Instructions",
-    "1. SEARCH THE WEB for the owner name + city. Look for: social media profiles, court records, obituaries, news articles, public filings, LinkedIn, business registrations.",
-    "2. Analyze each distress signal with actual dates, dollar amounts, and timeline pressure. Calculate days until critical deadlines.",
-    "3. Profile the owner's likely mindset, situation, and motivation to sell.",
-    "4. Assess deal economics: equity position, maximum allowable offer (MAO) range assuming 65-70% of ARV minus repairs.",
-    "5. Suggest specific approach strategy and talking points tailored to this owner's situation.",
-    "6. Flag any red flags (litigator risk, title issues, environmental concerns, etc).",
+  );
+
+  if (hasAgentFindings) {
+    lines.push(
+      "1. SYNTHESIZE the research agent findings above with the structured property data. Look for connections: a court filing + a LinkedIn relocation = high motivation to sell.",
+      "2. Analyze each distress signal with actual dates, dollar amounts, and timeline pressure. Calculate days until critical deadlines.",
+      "3. Profile the owner's likely mindset, situation, and motivation to sell — use agent findings for depth.",
+      "4. Assess deal economics: equity position, maximum allowable offer (MAO) range assuming 65-70% of ARV minus repairs.",
+      "5. Suggest specific approach strategy and talking points tailored to this owner's situation. Reference specific findings.",
+      "6. Flag any red flags (litigator risk, title issues, environmental concerns, etc).",
+      "7. Cite relevant agent findings in your webFindings array — include the agent's source URLs and dates.",
+    );
+  } else {
+    lines.push(
+      "1. SEARCH THE WEB for the owner name + city. Look for: social media profiles, court records, obituaries, news articles, public filings, LinkedIn, business registrations.",
+      "2. Analyze each distress signal with actual dates, dollar amounts, and timeline pressure. Calculate days until critical deadlines.",
+      "3. Profile the owner's likely mindset, situation, and motivation to sell.",
+      "4. Assess deal economics: equity position, maximum allowable offer (MAO) range assuming 65-70% of ARV minus repairs.",
+      "5. Suggest specific approach strategy and talking points tailored to this owner's situation.",
+      "6. Flag any red flags (litigator risk, title issues, environmental concerns, etc).",
+    );
+  }
+
+  lines.push(
     "",
     "## Output Format",
     "Return ONLY a JSON object (no markdown, no explanation, no code fences):",
