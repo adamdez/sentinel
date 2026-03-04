@@ -42,7 +42,7 @@ type Period = "today" | "week" | "month" | "all";
 const KPI_META: Record<KpiKey, { label: string; icon: React.ElementType; color: string; glow: string; teamKey: KpiKey; format?: (v: number) => string }> = {
   myOutbound:    { label: "My Outbound",    icon: PhoneForwarded, color: "text-cyan",        glow: "rgba(0,212,255,0.12)",  teamKey: "teamOutbound" },
   myInbound:     { label: "My Inbound",     icon: PhoneIncoming,  color: "text-purple-400",  glow: "rgba(168,85,247,0.12)", teamKey: "teamInbound" },
-  myLiveAnswers: { label: "My Live Answers", icon: Phone,         color: "text-emerald-400", glow: "rgba(16,185,129,0.12)", teamKey: "myLiveAnswers" },
+  myLiveAnswers: { label: "Outbounds Answered", icon: Phone,       color: "text-emerald-400", glow: "rgba(16,185,129,0.12)", teamKey: "myLiveAnswers" },
   myAvgTalkTime: { label: "Avg Talk Time",  icon: Timer,          color: "text-orange-400",  glow: "rgba(251,146,60,0.12)", teamKey: "myAvgTalkTime", format: (s) => s > 0 ? `${Math.floor(s / 60)}:${(s % 60).toString().padStart(2, "0")}` : "0:00" },
   teamOutbound:  { label: "Team Outbound",  icon: Users,          color: "text-blue-400",    glow: "rgba(59,130,246,0.12)", teamKey: "teamOutbound" },
   teamInbound:   { label: "Team Inbound",   icon: Users,          color: "text-pink-400",    glow: "rgba(236,72,153,0.12)", teamKey: "teamInbound" },
@@ -195,7 +195,7 @@ function StatDetailModal({ kpiKey, userId, onClose }: { kpiKey: KpiKey; userId: 
                 <div className="grid grid-cols-3 gap-2">
                   {[
                     { label: "Outbound", val: data?.my.myOutbound ?? 0, color: "text-cyan" },
-                    { label: "Live Answers", val: data?.my.myLiveAnswers ?? 0, color: "text-emerald-400" },
+                    { label: "Answered", val: data?.my.myLiveAnswers ?? 0, color: "text-emerald-400" },
                     { label: "Avg Talk", val: data?.my.myAvgTalkTime ?? 0, color: "text-orange-400", fmt: (v: number) => `${Math.floor(v / 60)}:${(v % 60).toString().padStart(2, "0")}` },
                   ].map((s) => (
                     <div key={s.label} className="rounded-[10px] border border-white/[0.06] bg-white/[0.02] p-2.5 text-center">
