@@ -402,9 +402,7 @@ function ScoreBreakdownModal({ cf, scoreType, onClose }: { cf: ClientFile; score
   const rehabEst = 40000;
   const offerPct = 65;
   const offer = Math.round(arv * (offerPct / 100));
-  const holdingCosts = Math.round(arv * 0.03);
-  const sellingCosts = Math.round(arv * 0.08);
-  const totalCost = offer + rehabEst + holdingCosts + sellingCosts;
+  const totalCost = offer + rehabEst;
   const profit = arv - totalCost;
   const roi = totalCost > 0 ? Math.round((profit / totalCost) * 100) : 0;
 
@@ -698,14 +696,6 @@ function ScoreBreakdownModal({ cf, scoreType, onClose }: { cf: ClientFile; score
                       <div className="flex justify-between">
                         <span className="text-muted-foreground">Rehab Est.</span>
                         <span className="font-mono text-red-400">-{formatCurrency(rehabEst)}</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-muted-foreground">Holding (3%)</span>
-                        <span className="font-mono text-red-400">-{formatCurrency(holdingCosts)}</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-muted-foreground">Selling (8%)</span>
-                        <span className="font-mono text-red-400">-{formatCurrency(sellingCosts)}</span>
                       </div>
                       <div className="border-t border-white/[0.06] pt-1.5 mt-1.5 flex justify-between">
                         <span className="font-semibold">Net Profit</span>
@@ -3523,9 +3513,7 @@ function CompsTab({ cf, selectedComps, onAddComp, onRemoveComp, onSkipTrace, com
   const avgPpsqft = sqftComps.length > 0 ? Math.round(sqftComps.reduce((a, m) => a + m.ppsqft!, 0) / sqftComps.length) : null;
 
   const offer = Math.round(arv * (offerPct / 100));
-  const holdingCosts = Math.round(arv * 0.03);
-  const sellingCosts = Math.round(arv * 0.08);
-  const totalCost = offer + rehabEst + holdingCosts + sellingCosts;
+  const totalCost = offer + rehabEst;
   const profit = arv - totalCost;
   const roi = totalCost > 0 ? Math.round((profit / totalCost) * 100) : 0;
 
@@ -3816,14 +3804,6 @@ function CompsTab({ cf, selectedComps, onAddComp, onRemoveComp, onSkipTrace, com
                 <input type="number" value={rehabEst} onChange={(e) => setRehabEst(Number(e.target.value) || 0)} className="w-16 h-5 text-[10px] text-right bg-white/[0.06] border border-white/[0.1] rounded px-1 font-mono" />
               </span>
               <span className="font-medium text-red-400">-{formatCurrency(rehabEst)}</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-muted-foreground">Holding (3%)</span>
-              <span className="font-medium text-red-400">-{formatCurrency(holdingCosts)}</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-muted-foreground">Selling (8%)</span>
-              <span className="font-medium text-red-400">-{formatCurrency(sellingCosts)}</span>
             </div>
             <div className="pt-1.5 mt-1.5 border-t border-white/[0.06] flex justify-between">
               <span className="font-semibold">Net Profit</span>
