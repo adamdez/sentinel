@@ -789,6 +789,11 @@ interface EditFields {
   apn: string;
   property_type: string;
   notes: string;
+  bedrooms: string;
+  bathrooms: string;
+  sqft: string;
+  year_built: string;
+  lot_size: string;
 }
 
 function EditField({ label, value, onChange, placeholder, mono }: {
@@ -823,6 +828,11 @@ function EditDetailsModal({ cf, onClose, onSaved }: { cf: ClientFile; onClose: (
     apn: cf.apn || "",
     property_type: cf.propertyType || "",
     notes: cf.notes || "",
+    bedrooms: cf.bedrooms != null ? String(cf.bedrooms) : "",
+    bathrooms: cf.bathrooms != null ? String(cf.bathrooms) : "",
+    sqft: cf.sqft != null ? String(cf.sqft) : "",
+    year_built: cf.yearBuilt != null ? String(cf.yearBuilt) : "",
+    lot_size: cf.lotSize != null ? String(cf.lotSize) : "",
   });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -849,6 +859,11 @@ function EditDetailsModal({ cf, onClose, onSaved }: { cf: ClientFile; onClose: (
             apn: fields.apn,
             property_type: fields.property_type || null,
             notes: fields.notes || null,
+            bedrooms: fields.bedrooms ? parseInt(fields.bedrooms) : null,
+            bathrooms: fields.bathrooms ? parseFloat(fields.bathrooms) : null,
+            sqft: fields.sqft ? parseInt(fields.sqft) : null,
+            year_built: fields.year_built ? parseInt(fields.year_built) : null,
+            lot_size: fields.lot_size ? parseInt(fields.lot_size) : null,
           },
         }),
       });
@@ -916,6 +931,13 @@ function EditDetailsModal({ cf, onClose, onSaved }: { cf: ClientFile; onClose: (
               <EditField label="APN" value={fields.apn} onChange={set("apn")} placeholder="12345-678-9" mono />
               <EditField label="Property Type" value={fields.property_type} onChange={set("property_type")} placeholder="SFR" />
             </div>
+            <div className="grid grid-cols-4 gap-3">
+              <EditField label="Beds" value={fields.bedrooms} onChange={set("bedrooms")} placeholder="3" mono />
+              <EditField label="Baths" value={fields.bathrooms} onChange={set("bathrooms")} placeholder="2" mono />
+              <EditField label="Sqft" value={fields.sqft} onChange={set("sqft")} placeholder="1500" mono />
+              <EditField label="Year Built" value={fields.year_built} onChange={set("year_built")} placeholder="1985" mono />
+            </div>
+            <EditField label="Lot Size (sqft)" value={fields.lot_size} onChange={set("lot_size")} placeholder="7500" mono />
             <div className="space-y-1">
               <label className="text-[10px] text-muted-foreground uppercase tracking-wider font-medium">Notes</label>
               <textarea
@@ -1675,13 +1697,14 @@ function ContactTab({ cf, overlay, onSkipTrace, skipTracing, onDial, onSms, call
 // OVERVIEW TAB
 // ═══════════════════════════════════════════════════════════════════════
 
-function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceMs, overlay, skipTraceError, onSkipTrace, onManualSkipTrace, onEdit, onDial, onSms, calling, dialHistory }: {
+function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceMs, overlay, skipTraceError, onSkipTrace, onManualSkipTrace, onEdit, onDial, onSms, calling, dialHistory, autofilling, onAutofill }: {
   cf: ClientFile; computedArv: number; skipTracing: boolean; skipTraceResult: string | null; skipTraceMs: number | null;
   overlay: SkipTraceOverlay | null; skipTraceError: SkipTraceError | null;
   onSkipTrace: () => void; onManualSkipTrace: () => void; onEdit: () => void;
   onDial: (phone: string) => void; onSms: (phone: string) => void;
   calling: boolean;
   dialHistory: Record<string, { count: number; lastDate: string; lastDisposition: string }>;
+  autofilling: boolean; onAutofill: () => void;
 }) {
   const skipTraced = !!overlay || !!cf.ownerFlags?.skip_traced;
   const displayPhone = overlay?.primaryPhone ?? cf.ownerPhone ?? (cf.ownerFlags?.contact_phone as string | null) ?? null;
@@ -2603,6 +2626,18 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
         <div className="flex items-center gap-2 mb-1">
           <Home className="h-3.5 w-3.5 text-muted-foreground" />
           <p className="text-[11px] text-muted-foreground uppercase tracking-wider font-semibold">Property Details</p>
+          {(cf.bedrooms == null || cf.sqft == null || cf.yearBuilt == null) && (
+            <Button
+              size="sm"
+              variant="outline"
+              className="text-[10px] h-6 gap-1 ml-auto text-cyan border-cyan/20 hover:bg-cyan/10"
+              onClick={onAutofill}
+              disabled={autofilling}
+            >
+              {autofilling ? <Loader2 className="h-2.5 w-2.5 animate-spin" /> : <RefreshCw className="h-2.5 w-2.5" />}
+              {autofilling ? "Looking up..." : "Autofill Details"}
+            </Button>
+          )}
         </div>
 
         <div className="grid grid-cols-2 gap-2.5">
@@ -3720,6 +3755,7 @@ export function MasterClientFileModal({ clientFile, open, onClose, onClaim, onRe
   const [smsSending, setSmsSending] = useState(false);
   const [smsPhone, setSmsPhone] = useState<string | null>(null);
   const [dialHistoryMap, setDialHistoryMap] = useState<Record<string, { count: number; lastDate: string; lastDisposition: string }>>({});
+  const [autofilling, setAutofilling] = useState(false);
 
   const displayPhone = overlay?.primaryPhone ?? clientFile?.ownerPhone ?? null;
 
@@ -3989,6 +4025,38 @@ export function MasterClientFileModal({ clientFile, open, onClose, onClaim, onRe
   const handleSkipTrace = useCallback(() => executeSkipTrace(false), [executeSkipTrace]);
   const handleManualSkipTrace = useCallback(() => executeSkipTrace(true), [executeSkipTrace]);
 
+  const handleAutofill = useCallback(async () => {
+    if (!clientFile) return;
+    setAutofilling(true);
+    try {
+      const res = await fetch("/api/properties/autofill", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ property_id: clientFile.propertyId }),
+      });
+      const data = await res.json();
+
+      if (data.success && data.filled?.length > 0) {
+        toast.success(`Autofilled: ${data.filled.join(", ")}`);
+        onRefresh?.();
+      } else if (data.success && data.filled?.length === 0) {
+        toast.info("All property details already populated");
+      } else {
+        // ATTOM failed — offer Zillow link
+        const zUrl = data.zillow_url;
+        toast.error(
+          `${data.error ?? "Autofill failed"}${zUrl ? " — opening Zillow for manual lookup" : ""}`,
+          { duration: 6000 },
+        );
+        if (zUrl) window.open(zUrl, "_blank", "noopener,noreferrer");
+      }
+    } catch {
+      toast.error("Network error during autofill");
+    } finally {
+      setAutofilling(false);
+    }
+  }, [clientFile, onRefresh]);
+
   if (!clientFile) return null;
 
   const lbl = SCORE_LABEL_CFG[clientFile.scoreLabel];
@@ -4077,7 +4145,7 @@ export function MasterClientFileModal({ clientFile, open, onClose, onClaim, onRe
                     transition={{ duration: 0.15 }}
                   >
                     {activeTab === "overview" && (
-                      <OverviewTab cf={clientFile} computedArv={computedArv} skipTracing={skipTracing} skipTraceResult={skipTraceResult} skipTraceMs={skipTraceMs} overlay={overlay} skipTraceError={skipTraceError} onSkipTrace={handleSkipTrace} onManualSkipTrace={handleManualSkipTrace} onEdit={() => setEditOpen(true)} onDial={handleDial} onSms={handleSendSms} calling={calling} dialHistory={dialHistoryMap} />
+                      <OverviewTab cf={clientFile} computedArv={computedArv} skipTracing={skipTracing} skipTraceResult={skipTraceResult} skipTraceMs={skipTraceMs} overlay={overlay} skipTraceError={skipTraceError} onSkipTrace={handleSkipTrace} onManualSkipTrace={handleManualSkipTrace} onEdit={() => setEditOpen(true)} onDial={handleDial} onSms={handleSendSms} calling={calling} dialHistory={dialHistoryMap} autofilling={autofilling} onAutofill={handleAutofill} />
                     )}
                     {activeTab === "contact" && (
                       <ContactTab cf={clientFile} overlay={overlay} onSkipTrace={handleSkipTrace} skipTracing={skipTracing} onDial={handleDial} onSms={handleSendSms} calling={calling} onRefresh={onRefresh} />

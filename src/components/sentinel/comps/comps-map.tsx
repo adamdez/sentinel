@@ -369,11 +369,53 @@ export function CompsMap({ subject, selectedComps, onAddComp, onRemoveComp }: Co
 
   const radiusMeters = radiusMiles * 1609.34;
 
+  // ── Client-side post-filtering (makes filters work with Strategy 1 comps/sales) ──
+  const filteredComps = useMemo(() => {
+    let result = comps;
+
+    // Radius filter — always active based on slider
+    if (subject.lat && subject.lng) {
+      result = result.filter((c) => {
+        if (!c.lat || !c.lng) return true;
+        return haversine(subject.lat, subject.lng, c.lat, c.lng) <= radiusMiles;
+      });
+    }
+
+    // "Match subject on" filters — only when toggled ON and subject has data
+    if (filters.beds && subject.beds != null) {
+      result = result.filter((c) => c.beds != null && Math.abs(c.beds - subject.beds!) <= 1);
+    }
+    if (filters.baths && subject.baths != null) {
+      result = result.filter((c) => c.baths != null && Math.abs(c.baths - subject.baths!) <= 0.5);
+    }
+    if (filters.sqft && subject.sqft != null && subject.sqft > 0) {
+      result = result.filter((c) => c.sqft != null && Math.abs(c.sqft - subject.sqft!) / subject.sqft! <= 0.15);
+    }
+    if (filters.yearBuilt && subject.yearBuilt != null) {
+      result = result.filter((c) => c.yearBuilt != null && Math.abs(c.yearBuilt - subject.yearBuilt!) <= 10);
+    }
+    if (filters.propertyType && subject.propertyType) {
+      result = result.filter((c) => c.propertyType === subject.propertyType);
+    }
+
+    return result;
+  }, [comps, filters, subject, radiusMiles]);
+
+  // Info toast when post-filtering eliminates all results
+  const prevFilteredLen = useRef(filteredComps.length);
+  useEffect(() => {
+    const anyFilterActive = Object.values(filters).some(Boolean);
+    if (comps.length > 0 && filteredComps.length === 0 && anyFilterActive && prevFilteredLen.current > 0) {
+      toast.info(`Filters eliminated all ${comps.length} results — try loosening filters`);
+    }
+    prevFilteredLen.current = filteredComps.length;
+  }, [filteredComps.length, comps.length, filters]);
+
   // Sort comps: good first, then marginal, then outlier — cap visible markers
   const MAX_MARKERS = 80;
   const scoredComps = useMemo(() => {
-    return comps.map((c) => ({ comp: c, score: scoreComp(c, subject) }));
-  }, [comps, subject]);
+    return filteredComps.map((c) => ({ comp: c, score: scoreComp(c, subject) }));
+  }, [filteredComps, subject]);
 
   const sortedComps = useMemo(() => {
     return [...scoredComps]
@@ -402,7 +444,7 @@ export function CompsMap({ subject, selectedComps, onAddComp, onRemoveComp }: Co
     () => sortedComps.slice(0, MAX_MARKERS),
     [sortedComps]
   );
-  const hiddenCount = Math.max(0, comps.length - MAX_MARKERS);
+  const hiddenCount = Math.max(0, filteredComps.length - MAX_MARKERS);
 
   return (
     <div className="space-y-3">
@@ -435,7 +477,7 @@ export function CompsMap({ subject, selectedComps, onAddComp, onRemoveComp }: Co
         <div className="flex items-center gap-2">
           {loading && <Loader2 className="h-3 w-3 animate-spin text-cyan" />}
           <Badge variant="outline" className="text-[10px]">
-            {comps.length} properties{hiddenCount > 0 && ` (${MAX_MARKERS} shown)`}
+            {filteredComps.length}{filteredComps.length !== comps.length ? `/${comps.length}` : ""} properties{hiddenCount > 0 && ` (${MAX_MARKERS} shown)`}
           </Badge>
           <Badge variant="neon" className="text-[10px]">
             {selectedComps.length} comps selected

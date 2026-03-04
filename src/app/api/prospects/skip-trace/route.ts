@@ -491,6 +491,56 @@ async function enrichProperty(sb: any, apiKey: string, property: any, leadId?: s
     update.address = [pr.Address, pr.City, pr.State, pr.ZipFive].filter(Boolean).join(", ");
   }
 
+  // ── ATTOM fallback for missing building specs ─────────────────────
+  if (!update.bedrooms && !update.sqft) {
+    try {
+      const { getPropertyDetailByAddress } = await import("@/lib/attom");
+      const streetAddr = pr.Address || property.address?.split(",")[0]?.trim() || "";
+      const cityStateZip = [
+        pr.City || property.city,
+        pr.State || property.state,
+        pr.ZipFive || property.zip,
+      ].filter(Boolean).join(" ");
+
+      if (streetAddr && cityStateZip) {
+        console.log(`[Enrich] ATTOM fallback for missing specs: "${streetAddr}", "${cityStateZip}"`);
+        const attomProp = await getPropertyDetailByAddress(streetAddr, cityStateZip);
+
+        if (attomProp) {
+          if (!update.bedrooms && attomProp.building?.rooms?.beds) {
+            update.bedrooms = attomProp.building.rooms.beds;
+          }
+          if (!update.bathrooms && attomProp.building?.rooms?.bathsTotal) {
+            update.bathrooms = attomProp.building.rooms.bathsTotal;
+          }
+          if (!update.sqft && (attomProp.building?.size?.livingSize || attomProp.building?.size?.bldgSize)) {
+            update.sqft = attomProp.building.size.livingSize ?? attomProp.building.size.bldgSize ?? null;
+          }
+          if (!update.year_built && attomProp.summary?.yearBuilt) {
+            update.year_built = attomProp.summary.yearBuilt;
+          }
+          if (!update.lot_size && attomProp.lot?.lotSize1) {
+            update.lot_size = Math.round(attomProp.lot.lotSize1);
+          }
+          if (!update.property_type && attomProp.summary?.propType) {
+            update.property_type = attomProp.summary.propType;
+          }
+          ownerFlags.attom_backfill = true;
+          ownerFlags.attom_backfill_at = new Date().toISOString();
+          update.owner_flags = ownerFlags;
+          console.log("[Enrich] ATTOM backfill applied:", {
+            beds: update.bedrooms, baths: update.bathrooms,
+            sqft: update.sqft, year: update.year_built,
+          });
+        } else {
+          console.log("[Enrich] ATTOM returned no property — specs remain null");
+        }
+      }
+    } catch (attomErr) {
+      console.warn("[Enrich] ATTOM fallback error (non-fatal):", attomErr);
+    }
+  }
+
   // Detect distress signals + compute score in parallel with property update
   const signals = detectDistressSignals(pr, isTruthy, toNum);
 

@@ -120,10 +120,10 @@ export async function POST(req: NextRequest) {
       criteria.push({ name: "Baths", value: [[Math.max(baths - 1, 0), baths + 1]] });
     }
     if (sqft && typeof sqft === "number") {
-      criteria.push({ name: "SqFt", value: [[Math.round(sqft * 0.80), Math.round(sqft * 1.20)]] });
+      criteria.push({ name: "SqFt", value: [[Math.round(sqft * 0.85), Math.round(sqft * 1.15)]] });
     }
     if (yearBuilt && typeof yearBuilt === "number") {
-      criteria.push({ name: "YearBuilt", value: [[yearBuilt - 15, yearBuilt + 15]] });
+      criteria.push({ name: "YearBuilt", value: [[yearBuilt - 10, yearBuilt + 10]] });
     }
     if (propertyType && typeof propertyType === "string") {
       criteria.push({

@@ -28,6 +28,7 @@ export async function PATCH(req: NextRequest) {
     const allowed = [
       "address", "city", "state", "zip", "owner_name", "apn",
       "property_type", "notes", "county",
+      "bedrooms", "bathrooms", "sqft", "year_built", "lot_size",
     ];
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const propUpdate: Record<string, any> = { updated_at: new Date().toISOString() };
