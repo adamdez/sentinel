@@ -1886,7 +1886,7 @@ function ContactTab({ cf, overlay, onSkipTrace, skipTracing, onDial, onSms, call
 // OVERVIEW TAB
 // ═══════════════════════════════════════════════════════════════════════
 
-function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceMs, overlay, skipTraceError, onSkipTrace, onManualSkipTrace, onEdit, onDial, onSms, calling, dialHistory, autofilling, onAutofill, deepCrawling, deepCrawlResult, deepCrawlExpanded, setDeepCrawlExpanded, executeDeepCrawl }: {
+function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceMs, overlay, skipTraceError, onSkipTrace, onManualSkipTrace, onEdit, onDial, onSms, calling, dialHistory, autofilling, onAutofill, deepCrawling, deepCrawlResult, deepCrawlExpanded, setDeepCrawlExpanded, executeDeepCrawl, hasSavedReport, loadingReport, loadSavedReport }: {
   cf: ClientFile; computedArv: number; skipTracing: boolean; skipTraceResult: string | null; skipTraceMs: number | null;
   overlay: SkipTraceOverlay | null; skipTraceError: SkipTraceError | null;
   onSkipTrace: () => void; onManualSkipTrace: () => void; onEdit: () => void;
@@ -1897,6 +1897,7 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   deepCrawling: boolean; deepCrawlResult: any; deepCrawlExpanded: boolean;
   setDeepCrawlExpanded: (v: boolean) => void; executeDeepCrawl: () => void;
+  hasSavedReport: boolean; loadingReport: boolean; loadSavedReport: () => void;
 }) {
   const skipTraced = !!overlay || !!cf.ownerFlags?.skip_traced;
   const displayPhone = overlay?.primaryPhone ?? cf.ownerPhone ?? (cf.ownerFlags?.contact_phone as string | null) ?? null;
@@ -2312,20 +2313,34 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
               <AlertTriangle className="h-3 w-3 text-orange-400" />
               <p className="text-[10px] text-orange-400/80 uppercase tracking-wider font-semibold">Distress Signals</p>
             </div>
-            {/* Deep Crawl button */}
-            <button
-              onClick={deepCrawlResult && !deepCrawling ? () => setDeepCrawlExpanded(!deepCrawlExpanded) : executeDeepCrawl}
-              disabled={deepCrawling}
-              className={cn(
-                "h-6 px-2.5 rounded-md text-[9px] font-semibold border flex items-center gap-1 transition-colors",
-                deepCrawlResult && !deepCrawling
-                  ? "border-emerald-500/30 bg-emerald-500/[0.06] text-emerald-400 hover:bg-emerald-500/[0.12]"
-                  : "border-amber-500/30 bg-amber-500/[0.06] text-amber-400 hover:bg-amber-500/[0.12]"
-              )}
-            >
-              {deepCrawling ? <Loader2 className="h-3 w-3 animate-spin" /> : <Search className="h-3 w-3" />}
-              {deepCrawling ? "Deep Crawling..." : deepCrawlResult ? "Deep Crawl Results" : "~120s Deep Crawl"}
-            </button>
+            {/* Deep Crawl button — 4 states: idle, crawling, saved (not loaded), loaded */}
+            {deepCrawlResult ? (
+              <button
+                onClick={() => setDeepCrawlExpanded(!deepCrawlExpanded)}
+                className="h-6 px-2.5 rounded-md text-[9px] font-semibold border flex items-center gap-1 transition-colors border-emerald-500/30 bg-emerald-500/[0.06] text-emerald-400 hover:bg-emerald-500/[0.12]"
+              >
+                <FileText className="h-3 w-3" />
+                {deepCrawlExpanded ? "Hide Report" : "Deep Crawl Report"}
+              </button>
+            ) : hasSavedReport ? (
+              <button
+                onClick={loadSavedReport}
+                disabled={loadingReport}
+                className="h-6 px-2.5 rounded-md text-[9px] font-semibold border flex items-center gap-1 transition-colors border-emerald-500/30 bg-emerald-500/[0.06] text-emerald-400 hover:bg-emerald-500/[0.12]"
+              >
+                {loadingReport ? <Loader2 className="h-3 w-3 animate-spin" /> : <FileText className="h-3 w-3" />}
+                {loadingReport ? "Loading Report..." : "View Saved Report"}
+              </button>
+            ) : (
+              <button
+                onClick={executeDeepCrawl}
+                disabled={deepCrawling}
+                className="h-6 px-2.5 rounded-md text-[9px] font-semibold border flex items-center gap-1 transition-colors border-amber-500/30 bg-amber-500/[0.06] text-amber-400 hover:bg-amber-500/[0.12]"
+              >
+                {deepCrawling ? <Loader2 className="h-3 w-3 animate-spin" /> : <Search className="h-3 w-3" />}
+                {deepCrawling ? "Deep Crawling..." : "~120s Deep Crawl"}
+              </button>
+            )}
           </div>
           {distressEvents.length > 0 ? (
             <div className="flex flex-wrap gap-1.5">
@@ -4061,25 +4076,25 @@ export function MasterClientFileModal({ clientFile, open, onClose, onClaim, onRe
   // Pre-populate deep crawl from cached results
   // Results persist permanently once crawled (like addresses/phone numbers)
   // Uses a ref to avoid infinite re-render loops from ownerFlags dependency
-  const deepCrawlFetchedRef = useRef<string | null>(null);
+  // Check if a saved Deep Crawl report exists for this property
+  const [hasSavedReport, setHasSavedReport] = useState(false);
+  const [loadingReport, setLoadingReport] = useState(false);
+  const deepCrawlCheckedRef = useRef<string | null>(null);
+
   useEffect(() => {
     const propId = clientFile?.propertyId;
-    if (!propId || deepCrawlFetchedRef.current === propId) return;
+    if (!propId || deepCrawlCheckedRef.current === propId) return;
+    deepCrawlCheckedRef.current = propId;
 
-    // First try inline ownerFlags (works for prospects)
+    // First check inline ownerFlags (works for prospects with full data)
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const cached = (clientFile?.ownerFlags as any)?.deep_crawl;
-    if (cached?.crawledAt) {
-      const hasRealAI = cached.grokSuccess === true || (cached.aiDossier?.webFindings?.length > 0);
-      if (hasRealAI) {
-        deepCrawlFetchedRef.current = propId;
-        setDeepCrawlResult(cached);
-        return;
-      }
+    const inlineCached = (clientFile?.ownerFlags as any)?.deep_crawl;
+    if (inlineCached?.crawledAt && (inlineCached.grokSuccess === true || inlineCached.aiDossier?.webFindings?.length > 0)) {
+      setHasSavedReport(true);
+      return;
     }
 
-    // For leads, ownerFlags is empty — fetch directly from properties table
-    deepCrawlFetchedRef.current = propId;
+    // For leads (ownerFlags is empty), do a lightweight DB check
     (async () => {
       try {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -4088,16 +4103,45 @@ export function MasterClientFileModal({ clientFile, open, onClose, onClaim, onRe
           .eq("id", propId)
           .single();
         const dc = data?.owner_flags?.deep_crawl;
-        if (dc?.crawledAt) {
-          const hasRealAI = dc.grokSuccess === true || (dc.aiDossier?.webFindings?.length > 0);
-          if (hasRealAI) {
-            setDeepCrawlResult(dc);
-          }
+        if (dc?.crawledAt && (dc.grokSuccess === true || dc.aiDossier?.webFindings?.length > 0)) {
+          setHasSavedReport(true);
         }
       } catch {
-        // Silently fail — just means no cached results
+        // Silently fail
       }
     })();
+  }, [clientFile?.propertyId, clientFile?.ownerFlags]);
+
+  // Load saved report from DB when user clicks "View Report"
+  const loadSavedReport = useCallback(async () => {
+    const propId = clientFile?.propertyId;
+    if (!propId) return;
+    setLoadingReport(true);
+    try {
+      // First try inline ownerFlags
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const inlineCached = (clientFile?.ownerFlags as any)?.deep_crawl;
+      if (inlineCached?.crawledAt) {
+        setDeepCrawlResult(inlineCached);
+        setDeepCrawlExpanded(true);
+        return;
+      }
+      // Fetch from DB
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data } = await (supabase.from("properties") as any)
+        .select("owner_flags")
+        .eq("id", propId)
+        .single();
+      const dc = data?.owner_flags?.deep_crawl;
+      if (dc?.crawledAt) {
+        setDeepCrawlResult(dc);
+        setDeepCrawlExpanded(true);
+      }
+    } catch {
+      // Silently fail
+    } finally {
+      setLoadingReport(false);
+    }
   }, [clientFile?.propertyId, clientFile?.ownerFlags]);
 
   const displayPhone = overlay?.primaryPhone ?? clientFile?.ownerPhone ?? null;
@@ -4119,7 +4163,9 @@ export function MasterClientFileModal({ clientFile, open, onClose, onClaim, onRe
       setDeepCrawling(false);
       setDeepCrawlResult(null);
       setDeepCrawlExpanded(false);
-      deepCrawlFetchedRef.current = null;
+      setHasSavedReport(false);
+      setLoadingReport(false);
+      deepCrawlCheckedRef.current = null;
     }
   }, [clientFile?.propertyId, clientFile?.ownerFlags]);
 
@@ -4405,7 +4451,8 @@ export function MasterClientFileModal({ clientFile, open, onClose, onClaim, onRe
       } else {
         setDeepCrawlResult(data);
         setDeepCrawlExpanded(true);
-        toast.success(`Deep Crawl complete — ${data.sources?.join(", ") ?? "done"}`);
+        setHasSavedReport(true);
+        toast.success(`Deep Crawl complete — report saved. ${data.sources?.join(", ") ?? "done"}`);
         onRefresh?.();
       }
     } catch (err) {
@@ -4535,7 +4582,7 @@ export function MasterClientFileModal({ clientFile, open, onClose, onClaim, onRe
                     transition={{ duration: 0.15 }}
                   >
                     {activeTab === "overview" && (
-                      <OverviewTab cf={clientFile} computedArv={computedArv} skipTracing={skipTracing} skipTraceResult={skipTraceResult} skipTraceMs={skipTraceMs} overlay={overlay} skipTraceError={skipTraceError} onSkipTrace={handleSkipTrace} onManualSkipTrace={handleManualSkipTrace} onEdit={() => setEditOpen(true)} onDial={handleDial} onSms={handleSendSms} calling={calling} dialHistory={dialHistoryMap} autofilling={autofilling} onAutofill={handleAutofill} deepCrawling={deepCrawling} deepCrawlResult={deepCrawlResult} deepCrawlExpanded={deepCrawlExpanded} setDeepCrawlExpanded={setDeepCrawlExpanded} executeDeepCrawl={executeDeepCrawl} />
+                      <OverviewTab cf={clientFile} computedArv={computedArv} skipTracing={skipTracing} skipTraceResult={skipTraceResult} skipTraceMs={skipTraceMs} overlay={overlay} skipTraceError={skipTraceError} onSkipTrace={handleSkipTrace} onManualSkipTrace={handleManualSkipTrace} onEdit={() => setEditOpen(true)} onDial={handleDial} onSms={handleSendSms} calling={calling} dialHistory={dialHistoryMap} autofilling={autofilling} onAutofill={handleAutofill} deepCrawling={deepCrawling} deepCrawlResult={deepCrawlResult} deepCrawlExpanded={deepCrawlExpanded} setDeepCrawlExpanded={setDeepCrawlExpanded} executeDeepCrawl={executeDeepCrawl} hasSavedReport={hasSavedReport} loadingReport={loadingReport} loadSavedReport={loadSavedReport} />
                     )}
                     {activeTab === "contact" && (
                       <ContactTab cf={clientFile} overlay={overlay} onSkipTrace={handleSkipTrace} skipTracing={skipTracing} onDial={handleDial} onSms={handleSendSms} calling={calling} onRefresh={onRefresh} />
