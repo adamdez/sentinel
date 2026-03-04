@@ -70,7 +70,7 @@ export function WidgetLibrary({
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-4 max-h-[520px] overflow-y-auto pr-1">
+        <div className="space-y-4 min-h-0 max-h-[60vh] overflow-y-auto pr-1">
           {grouped.map((group) => (
             <div key={group.category}>
               <p className="text-[10px] uppercase tracking-widest text-muted-foreground mb-2 font-medium">
