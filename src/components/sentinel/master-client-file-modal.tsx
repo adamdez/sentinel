@@ -3704,6 +3704,7 @@ function CompsTab({ cf, selectedComps, onAddComp, onRemoveComp, onSkipTrace, com
             {CONDITION_LABELS[conditionAdj] ?? `${conditionAdj > 0 ? "+" : ""}${conditionAdj}%`}
           </span>
         </div>
+        <p className="text-[9px] text-muted-foreground/60 mb-2">Adjust the ARV up or down based on the subject property{"'"}s condition relative to the comps. If it needs more work than the comps, slide left. If it{"'"}s in better shape, slide right.</p>
         <input type="range" min={-15} max={5} step={5} value={conditionAdj} onChange={(e) => setConditionAdj(Number(e.target.value))} className="w-full h-1.5 accent-[#00d4ff] bg-secondary rounded-full" />
       </div>
 
