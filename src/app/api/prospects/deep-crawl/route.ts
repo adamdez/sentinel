@@ -538,12 +538,8 @@ async function callGrokDeepCrawl(
           { role: "system", content: systemPrompt },
           { role: "user", content: userPrompt },
         ],
-        // Enable xAI's native live web search
-        search_parameters: {
-          mode: "auto",
-          return_citations: true,
-          from_date: new Date(Date.now() - 365 * 24 * 60 * 60 * 1000).toISOString().split("T")[0],
-        },
+        // xAI built-in web search tool (Agent Tools API)
+        tools: [{ type: "web_search" }],
       }),
       signal: controller.signal,
     });
