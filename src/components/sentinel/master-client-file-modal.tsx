@@ -3419,6 +3419,7 @@ function CompsTab({ cf, selectedComps, onAddComp, onRemoveComp, onSkipTrace, com
   computedArv: number;
   onArvChange: (arv: number) => void;
 }) {
+  const [focusedComp, setFocusedComp] = useState<CompProperty | null>(null);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const prRaw = (cf.ownerFlags?.pr_raw ?? {}) as Record<string, any>;
 
@@ -3622,6 +3623,7 @@ function CompsTab({ cf, selectedComps, onAddComp, onRemoveComp, onSkipTrace, com
         selectedComps={selectedComps}
         onAddComp={onAddComp}
         onRemoveComp={onRemoveComp}
+        focusedComp={focusedComp}
       />
 
       {/* Selected comps table */}
@@ -3654,7 +3656,7 @@ function CompsTab({ cf, selectedComps, onAddComp, onRemoveComp, onSkipTrace, com
                     ?? comp.streetViewUrl
                     ?? (comp.lat && comp.lng ? getSatelliteTileUrl(comp.lat, comp.lng, 17) : null);
                   return (
-                  <tr key={comp.apn} className="border-b border-white/[0.06]/50 hover:bg-white/[0.04]">
+                  <tr key={comp.apn} className="border-b border-white/[0.06]/50 hover:bg-white/[0.04] cursor-pointer" onClick={() => setFocusedComp(prev => prev?.apn === comp.apn ? null : comp)}>
                     <td className="px-2 py-1.5">
                       {thumbSrc ? (
                         <div className="w-10 h-8 rounded overflow-hidden bg-black/30 border border-white/[0.06]">

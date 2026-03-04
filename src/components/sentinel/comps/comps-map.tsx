@@ -99,6 +99,7 @@ interface CompsMapProps {
   selectedComps: CompProperty[];
   onAddComp: (comp: CompProperty) => void;
   onRemoveComp: (apn: string) => void;
+  focusedComp?: CompProperty | null;
 }
 
 interface CompFilters {
@@ -254,7 +255,7 @@ const NO_FILTERS: CompFilters = { beds: false, baths: false, sqft: false, yearBu
 
 // ── Main Component ────────────────────────────────────────────────────
 
-export function CompsMap({ subject, selectedComps, onAddComp, onRemoveComp }: CompsMapProps) {
+export function CompsMap({ subject, selectedComps, onAddComp, onRemoveComp, focusedComp }: CompsMapProps) {
   const [comps, setComps] = useState<CompProperty[]>([]);
   const [loading, setLoading] = useState(false);
   const [radiusMiles, setRadiusMiles] = useState(1);
@@ -267,6 +268,14 @@ export function CompsMap({ subject, selectedComps, onAddComp, onRemoveComp }: Co
   const mapRef = useRef<LMap | null>(null);
   const fetchIdRef = useRef(0);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Sync focusedComp from parent (e.g. clicking a row in the Selected Comps table)
+  useEffect(() => {
+    if (focusedComp) {
+      setSelectedComp(focusedComp);
+      setShowSubject(false);
+    }
+  }, [focusedComp]);
 
   const selectedApns = useMemo(
     () => new Set(selectedComps.map((c) => c.apn)),
