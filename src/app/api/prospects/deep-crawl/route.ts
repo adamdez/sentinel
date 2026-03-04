@@ -16,7 +16,7 @@ import { getPropertyDetailByAddress } from "@/lib/attom";
  */
 
 const PR_API_BASE = "https://api.propertyradar.com/v1/properties";
-const GROK_ENDPOINT = "https://api.x.ai/v1/chat/completions";
+const GROK_ENDPOINT = "https://api.x.ai/v1/responses";
 const GROK_MODEL = "grok-4-1-fast-reasoning";
 
 export const dynamic = "force-dynamic";
@@ -534,7 +534,7 @@ async function callGrokDeepCrawl(
         model: GROK_MODEL,
         temperature: 0,
         stream: false,
-        messages: [
+        input: [
           { role: "system", content: systemPrompt },
           { role: "user", content: userPrompt },
         ],
@@ -552,11 +552,30 @@ async function callGrokDeepCrawl(
     }
 
     const resData = await res.json();
-    const raw = resData.choices?.[0]?.message?.content ?? "";
+
+    // xAI Responses API: extract text from nested output structure
+    // data.output[] -> { type: 'message', content: [{ type: 'output_text', text: '...' }] }
+    let raw = "";
+    if (resData.output_text) {
+      // Some versions have top-level output_text
+      raw = resData.output_text;
+    } else if (Array.isArray(resData.output)) {
+      for (const item of resData.output) {
+        if (item.type === "message" && Array.isArray(item.content)) {
+          for (const c of item.content) {
+            if (c.type === "output_text" && c.text) {
+              raw = c.text;
+              break;
+            }
+          }
+        }
+        if (raw) break;
+      }
+    }
 
     console.log("[DeepCrawl/Grok] Raw response length:", raw.length);
     if (!raw) {
-      console.warn("[DeepCrawl/Grok] Empty content — model may have returned tool calls only:", JSON.stringify(resData.choices?.[0]?.message).slice(0, 500));
+      console.warn("[DeepCrawl/Grok] Empty content — full response keys:", Object.keys(resData), "output sample:", JSON.stringify(resData.output ?? resData.choices ?? resData).slice(0, 800));
     }
 
     // Parse JSON from response — handle reasoning model think blocks and markdown
