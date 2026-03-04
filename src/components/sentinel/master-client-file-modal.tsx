@@ -262,17 +262,23 @@ const SCORE_LABEL_CFG: Record<AIScore["label"], { text: string; color: string; b
   bronze:   { text: "BRONZE",  color: "text-orange-500",  bg: "bg-orange-600/10 border-orange-600/30" },
 };
 
-const COUNTY_LINKS: Record<string, { name: string; gis: string; assessor: string; treasurer?: string }> = {
+const COUNTY_LINKS: Record<string, { name: string; gis: (apn: string) => string; assessor: (apn: string) => string; treasurer?: (apn: string) => string }> = {
   spokane: {
     name: "Spokane County",
-    gis: "https://cp.spokanecounty.org/scout/propertyinformation/",
-    assessor: "https://www.spokanecounty.org/236/Assessor",
-    treasurer: "https://www.spokanecounty.org/272/Treasurer",
+    gis: (apn) => `https://cp.spokanecounty.org/SCOUT/Map/?PID=${encodeURIComponent(apn)}`,
+    assessor: (apn) => `https://cp.spokanecounty.org/SCOUT/propertyinformation/Summary.aspx?PID=${encodeURIComponent(apn)}`,
+    treasurer: (apn) => `https://cp.spokanecounty.org/SCOUT/propertyinformation/Summary.aspx?PID=${encodeURIComponent(apn)}`,
   },
   kootenai: {
     name: "Kootenai County",
-    gis: "https://gis.kcgov.us/kootenaimaps/",
-    assessor: "https://www.kcgov.us/186/Assessor",
+    gis: () => `https://gis.kcgov.us/app/kcearth/`,
+    assessor: () => `https://ftp.kcgov.us/departments/mapping/mapSearch/`,
+  },
+  ada: {
+    name: "Ada County",
+    gis: (apn) => `https://www.adacountyassessor.org/adamaps/?run=ZoomToParcel&query=parcel%3D'${encodeURIComponent(apn)}'&LayerTheme=AerialsOn`,
+    assessor: () => `https://apps.adacounty.id.gov/PropertyLookup/`,
+    treasurer: () => `https://adacounty.id.gov/treasurer/`,
   },
 };
 
@@ -2188,18 +2194,18 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
                 <div className="space-y-1.5 pt-2 mt-2 border-t border-white/[0.06]">
                   <p className="text-[9px] text-muted-foreground/60 uppercase tracking-wider">{countyInfo.name}</p>
                   <div className="flex flex-wrap gap-1.5">
-                    <a href={countyInfo.gis} target="_blank" rel="noopener noreferrer">
+                    <a href={countyInfo.gis(cf.apn ?? "")} target="_blank" rel="noopener noreferrer">
                       <Button size="sm" variant="outline" className="gap-1 text-[9px] h-6 px-2">
                         <Map className="h-2.5 w-2.5 text-cyan/60" />GIS
                       </Button>
                     </a>
-                    <a href={countyInfo.assessor} target="_blank" rel="noopener noreferrer">
+                    <a href={countyInfo.assessor(cf.apn ?? "")} target="_blank" rel="noopener noreferrer">
                       <Button size="sm" variant="outline" className="gap-1 text-[9px] h-6 px-2">
                         <Building className="h-2.5 w-2.5 text-cyan/60" />Assessor
                       </Button>
                     </a>
                     {countyInfo.treasurer && (
-                      <a href={countyInfo.treasurer} target="_blank" rel="noopener noreferrer">
+                      <a href={countyInfo.treasurer(cf.apn ?? "")} target="_blank" rel="noopener noreferrer">
                         <Button size="sm" variant="outline" className="gap-1 text-[9px] h-6 px-2">
                           <DollarSign className="h-2.5 w-2.5 text-cyan/60" />Tax
                         </Button>
@@ -3029,20 +3035,20 @@ function CountyRecordsTab({ cf }: { cf: ClientFile }) {
 
         {countyInfo ? (
           <div className="space-y-2">
-            <a href={countyInfo.gis} target="_blank" rel="noopener noreferrer">
+            <a href={countyInfo.gis(cf.apn ?? "")} target="_blank" rel="noopener noreferrer">
               <Button size="sm" variant="outline" className="gap-2 text-xs w-full justify-start">
                 <Map className="h-3.5 w-3.5 text-cyan" />GIS / Parcel Map — {countyInfo.name}
                 <ExternalLink className="h-3 w-3 ml-auto text-muted-foreground" />
               </Button>
             </a>
-            <a href={countyInfo.assessor} target="_blank" rel="noopener noreferrer">
+            <a href={countyInfo.assessor(cf.apn ?? "")} target="_blank" rel="noopener noreferrer">
               <Button size="sm" variant="outline" className="gap-2 text-xs w-full justify-start">
                 <Building className="h-3.5 w-3.5 text-cyan" />Assessor&apos;s Office — {countyInfo.name}
                 <ExternalLink className="h-3 w-3 ml-auto text-muted-foreground" />
               </Button>
             </a>
             {countyInfo.treasurer && (
-              <a href={countyInfo.treasurer} target="_blank" rel="noopener noreferrer">
+              <a href={countyInfo.treasurer(cf.apn ?? "")} target="_blank" rel="noopener noreferrer">
                 <Button size="sm" variant="outline" className="gap-2 text-xs w-full justify-start">
                   <DollarSign className="h-3.5 w-3.5 text-cyan" />Treasurer / Tax Records — {countyInfo.name}
                   <ExternalLink className="h-3 w-3 ml-auto text-muted-foreground" />
