@@ -182,7 +182,7 @@ export interface DialerStats {
 }
 
 const OUTBOUND_FILTER = "no_answer,voicemail,interested,appointment,contract,dead,nurture,skip_trace,ghost,manual_hangup,in_progress,initiating";
-const LIVE_ANSWER_EXCLUDE = "no_answer,voicemail,in_progress,initiating,sms_outbound";
+const LIVE_ANSWER_EXCLUDE = "no_answer,voicemail,manual_hangup,dead,skip_trace,ghost,nurture,in_progress,initiating,sms_outbound";
 
 function periodStart(period: "today" | "week" | "month" | "all"): string | null {
   if (period === "all") return null;
