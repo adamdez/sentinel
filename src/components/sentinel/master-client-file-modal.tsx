@@ -2235,7 +2235,7 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
         const res = await fetch("/api/property-photos", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ address: cf.fullAddress, property_id: cf.propertyId }),
+          body: JSON.stringify({ address: cf.fullAddress, property_id: cf.propertyId, lat: propLat, lng: propLng }),
         });
         if (cancelled) return;
         const data = await res.json();
@@ -3754,7 +3754,7 @@ function CompDetailPanel({ comp, onClose }: { comp: CompProperty; onClose: () =>
         const res = await fetch("/api/property-photos", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ address: fullAddress }),
+          body: JSON.stringify({ address: fullAddress, lat: comp.lat, lng: comp.lng }),
         });
         if (cancelled) return;
         const data = await res.json();
@@ -3979,7 +3979,7 @@ function CompsTab({ cf, selectedComps, onAddComp, onRemoveComp, onSkipTrace, com
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const oFlagsComps = (cf.ownerFlags ?? {}) as any;
-  const photos = useMemo(() => {
+  const cachedPhotos = useMemo(() => {
     const urls: string[] = [];
     // Zillow photos from owner_flags (cached from Apify)
     const cached = oFlagsComps?.photos ?? oFlagsComps?.deep_crawl?.photos ?? [];
@@ -3995,6 +3995,32 @@ function CompsTab({ cf, selectedComps, onAddComp, onRemoveComp, onSkipTrace, com
     // Deduplicate
     return [...new Set(urls)];
   }, [prRaw, oFlagsComps]);
+
+  // Auto-fetch photos from Google Places if none cached
+  const [fetchedPhotos, setFetchedPhotos] = useState<string[]>([]);
+  useEffect(() => {
+    if (cachedPhotos.length > 0 || !cf.fullAddress) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch("/api/property-photos", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ address: cf.fullAddress, property_id: cf.propertyId, lat, lng }),
+        });
+        if (cancelled) return;
+        const data = await res.json();
+        if (data.photos?.length > 0) {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          setFetchedPhotos(data.photos.map((p: any) => (typeof p === "string" ? p : p?.url)).filter(Boolean));
+        }
+      } catch { /* ignore */ }
+    })();
+    return () => { cancelled = true; };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cf.fullAddress, cf.propertyId, lat, lng]);
+
+  const photos = cachedPhotos.length > 0 ? cachedPhotos : fetchedPhotos;
 
   // ARV from selected comps using weighted $/sqft methodology
   const subjectSqft = cf.sqft ?? 0;

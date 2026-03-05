@@ -152,7 +152,7 @@ export function PropertyPreviewModal() {
         const res = await fetch("/api/property-photos", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ address: property.fullAddress }),
+          body: JSON.stringify({ address: property.fullAddress, lat: property.latitude, lng: property.longitude }),
         });
         if (cancelled) return;
         const data = await res.json();
