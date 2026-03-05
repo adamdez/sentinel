@@ -2216,6 +2216,42 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
 
   const streetViewUrl = prRaw.StreetViewUrl ?? prRaw.PropertyImageUrl ?? (prRaw.Photos?.[0]) ?? null;
 
+  // ── Zillow photo carousel ──
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const oFlags = cf.ownerFlags as any;
+  const cachedPhotos: string[] = (oFlags?.photos ?? oFlags?.deep_crawl?.photos ?? [])
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    .map((p: any) => (typeof p === "string" ? p : p?.url)).filter(Boolean);
+  const [zillowPhotos, setZillowPhotos] = useState<string[]>(cachedPhotos);
+  const [zPhotoIdx, setZPhotoIdx] = useState(0);
+  const [zPhotosLoading, setZPhotosLoading] = useState(false);
+
+  useEffect(() => {
+    if (cachedPhotos.length > 0 || !cf.fullAddress) return;
+    let cancelled = false;
+    setZPhotosLoading(true);
+    (async () => {
+      try {
+        const res = await fetch("/api/property-photos", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ address: cf.fullAddress, property_id: cf.propertyId }),
+        });
+        if (cancelled) return;
+        const data = await res.json();
+        if (data.photos?.length > 0) {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          setZillowPhotos(data.photos.map((p: any) => (typeof p === "string" ? p : p.url)));
+        }
+      } catch { /* ignore */ }
+      if (!cancelled) setZPhotosLoading(false);
+    })();
+    return () => { cancelled = true; };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cf.fullAddress, cf.propertyId]);
+
+  const allPhotos = zillowPhotos.length > 0 ? zillowPhotos : [];
+
   // ── Geocode if no lat/lng from data (same as Comps tab) ──
   const extracted = extractLatLng(cf);
   const [geocodedCoords, setGeocodedCoords] = useState<{ lat: number; lng: number } | null>(null);
@@ -2690,28 +2726,64 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
         )}
       </AnimatePresence>
 
-      {/* ═══ 4. PROPERTY SNAPSHOT — Clickable Street View + Address + Badges ═══ */}
+      {/* ═══ 4. PROPERTY SNAPSHOT — Photo Carousel + Address + Badges ═══ */}
       <div ref={sectionProperty} className="rounded-[12px] border border-white/[0.06] bg-white/[0.02] overflow-hidden">
-        {imageUrl && (
-          <a
-            href={streetViewLink ?? "#"}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="relative block h-40 group cursor-pointer"
-            onClick={(e) => { if (!streetViewLink) e.preventDefault(); }}
-          >
-            <img
-              src={imageUrl}
-              alt="Property"
-              className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-[1.02]"
-              onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
-            />
+        {(allPhotos.length > 0 || imageUrl) && (
+          <div className="relative block h-40 group">
+            {allPhotos.length > 0 ? (
+              <>
+                <img
+                  src={allPhotos[zPhotoIdx]}
+                  alt={`Property photo ${zPhotoIdx + 1}`}
+                  className="w-full h-full object-cover"
+                />
+                {allPhotos.length > 1 && (
+                  <>
+                    <button
+                      onClick={() => setZPhotoIdx((i) => (i - 1 + allPhotos.length) % allPhotos.length)}
+                      className="absolute left-1.5 top-1/2 -translate-y-1/2 p-0.5 rounded bg-black/50 text-white opacity-0 group-hover:opacity-100 transition-opacity z-10"
+                    >
+                      <ChevronLeft className="h-3.5 w-3.5" />
+                    </button>
+                    <button
+                      onClick={() => setZPhotoIdx((i) => (i + 1) % allPhotos.length)}
+                      className="absolute right-1.5 top-1/2 -translate-y-1/2 p-0.5 rounded bg-black/50 text-white opacity-0 group-hover:opacity-100 transition-opacity z-10"
+                    >
+                      <ChevronRight className="h-3.5 w-3.5" />
+                    </button>
+                  </>
+                )}
+                <div className="absolute top-2 left-2 bg-black/60 backdrop-blur-sm text-white text-[9px] font-medium px-1.5 py-0.5 rounded-full flex items-center gap-1 z-10">
+                  <ImageIcon className="h-2.5 w-2.5" />{zPhotoIdx + 1} / {allPhotos.length}
+                </div>
+              </>
+            ) : (
+              <a
+                href={streetViewLink ?? "#"}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="block h-full cursor-pointer"
+                onClick={(e) => { if (!streetViewLink) e.preventDefault(); }}
+              >
+                <img
+                  src={imageUrl!}
+                  alt="Property"
+                  className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-[1.02]"
+                  onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
+                />
+                {streetViewLink && (
+                  <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none">
+                    <span className="bg-black/70 backdrop-blur-sm text-white text-xs font-semibold px-3 py-1.5 rounded-full flex items-center gap-1.5">
+                      <ExternalLink className="h-3 w-3" />{streetViewUrl ? "Open Street View" : "Open in Google Maps"}
+                    </span>
+                  </div>
+                )}
+              </a>
+            )}
             <div className="absolute inset-0 bg-gradient-to-t from-[rgba(7,7,13,0.85)] via-[rgba(7,7,13,0.2)] to-transparent pointer-events-none" />
-            {streetViewLink && (
-              <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none">
-                <span className="bg-black/70 backdrop-blur-sm text-white text-xs font-semibold px-3 py-1.5 rounded-full flex items-center gap-1.5">
-                  <ExternalLink className="h-3 w-3" />{streetViewUrl ? "Open Street View" : "Open in Google Maps"}
-                </span>
+            {zPhotosLoading && allPhotos.length === 0 && (
+              <div className="absolute top-2 left-2 bg-black/60 backdrop-blur-sm text-white text-[9px] font-medium px-1.5 py-0.5 rounded-full flex items-center gap-1 z-10">
+                <Loader2 className="h-2.5 w-2.5 animate-spin" />Loading photos...
               </div>
             )}
             <div className="absolute bottom-2 left-3 right-3 flex items-end justify-between pointer-events-none">
@@ -2730,10 +2802,10 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
                 )}
               </div>
               <div className="flex items-center gap-1 text-[9px] text-white/50">
-                <ImageIcon className="h-2.5 w-2.5" />{streetViewLink ? `Click to explore · ${imageLabel}` : imageLabel}
+                <ImageIcon className="h-2.5 w-2.5" />{allPhotos.length > 0 ? `${allPhotos.length} photos · Zillow` : streetViewLink ? `Click to explore · ${imageLabel}` : imageLabel}
               </div>
             </div>
-          </a>
+          </div>
         )}
         <div className="p-4 space-y-3">
           {/* Address + County + APN — with satellite thumbnail on the right */}
@@ -3594,6 +3666,153 @@ function SubjectPhotoCarousel({ photos, onSkipTrace }: { photos: string[]; onSki
   );
 }
 
+// ── Comp detail panel with auto-fetching Zillow photo carousel ────────
+
+function CompDetailPanel({ comp, onClose }: { comp: CompProperty; onClose: () => void }) {
+  const [photos, setPhotos] = useState<string[]>([]);
+  const [photoIdx, setPhotoIdx] = useState(0);
+  const [loading, setLoading] = useState(false);
+
+  // Build full address for photo lookup
+  const fullAddress = [comp.streetAddress, comp.city, comp.state, comp.zip].filter(Boolean).join(", ");
+
+  // Auto-fetch photos from Zillow via Apify
+  useEffect(() => {
+    if (!fullAddress) return;
+    let cancelled = false;
+    setLoading(true);
+    setPhotos([]);
+    setPhotoIdx(0);
+    (async () => {
+      try {
+        const res = await fetch("/api/property-photos", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ address: fullAddress }),
+        });
+        if (cancelled) return;
+        const data = await res.json();
+        if (data.photos?.length > 0) {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          setPhotos(data.photos.map((p: any) => (typeof p === "string" ? p : p?.url)).filter(Boolean));
+        }
+      } catch { /* ignore — fallback to street view / satellite */ }
+      if (!cancelled) setLoading(false);
+    })();
+    return () => { cancelled = true; };
+  }, [fullAddress]);
+
+  // Fallback image sources
+  const fallbackSrc = comp.photoUrl
+    ?? comp.streetViewUrl
+    ?? (comp.lat && comp.lng ? getSatelliteTileUrl(comp.lat, comp.lng, 17) : null);
+
+  const allPhotos = photos.length > 0 ? photos : (fallbackSrc ? [fallbackSrc] : []);
+  const safeIdx = allPhotos.length > 0 ? photoIdx % allPhotos.length : 0;
+
+  return (
+    <div className="rounded-[10px] border border-cyan/20 bg-[rgba(12,12,22,0.6)] backdrop-blur-xl overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200">
+      <div className="flex items-center justify-between px-4 py-2 border-b border-white/[0.06] bg-cyan/[0.04]">
+        <p className="text-xs font-semibold flex items-center gap-1.5">
+          <Eye className="h-3 w-3 text-cyan" />
+          {comp.streetAddress}
+        </p>
+        <button onClick={onClose} className="text-muted-foreground hover:text-white">
+          <X className="h-3.5 w-3.5" />
+        </button>
+      </div>
+      <div className="flex">
+        {/* Photo carousel */}
+        <div className="w-64 h-44 shrink-0 border-r border-white/[0.06] bg-black/30 relative group">
+          {loading && allPhotos.length === 0 ? (
+            <div className="h-full flex items-center justify-center">
+              <Loader2 className="h-5 w-5 text-cyan animate-spin" />
+              <span className="ml-2 text-[10px] text-muted-foreground">Fetching photos…</span>
+            </div>
+          ) : allPhotos.length > 0 ? (
+            <>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={allPhotos[safeIdx]}
+                alt={`Comp photo ${safeIdx + 1}`}
+                className="h-full w-full object-cover"
+              />
+              {allPhotos.length > 1 && (
+                <>
+                  <button
+                    onClick={() => setPhotoIdx((i) => (i - 1 + allPhotos.length) % allPhotos.length)}
+                    className="absolute left-1 top-1/2 -translate-y-1/2 p-1 rounded bg-black/60 text-white opacity-0 group-hover:opacity-100 transition-opacity"
+                  >
+                    <ChevronLeft className="h-3.5 w-3.5" />
+                  </button>
+                  <button
+                    onClick={() => setPhotoIdx((i) => (i + 1) % allPhotos.length)}
+                    className="absolute right-1 top-1/2 -translate-y-1/2 p-1 rounded bg-black/60 text-white opacity-0 group-hover:opacity-100 transition-opacity"
+                  >
+                    <ChevronRight className="h-3.5 w-3.5" />
+                  </button>
+                  <span className="absolute bottom-1.5 right-2 text-[9px] bg-black/60 text-white/80 px-1.5 py-0.5 rounded-full">
+                    {safeIdx + 1}/{allPhotos.length}
+                  </span>
+                </>
+              )}
+              {loading && (
+                <span className="absolute top-1.5 right-2 text-[8px] bg-black/60 text-cyan px-1.5 py-0.5 rounded-full flex items-center gap-1">
+                  <Loader2 className="h-2.5 w-2.5 animate-spin" />loading more
+                </span>
+              )}
+            </>
+          ) : (
+            <div className="h-full flex items-center justify-center">
+              <ImageIcon className="h-5 w-5 text-muted-foreground/40" />
+              <span className="ml-2 text-[10px] text-muted-foreground">No photos available</span>
+            </div>
+          )}
+        </div>
+        {/* Property details */}
+        <div className="flex-1 p-3 min-w-0">
+          <div className="grid grid-cols-2 gap-x-6 gap-y-1.5 text-[11px]">
+            <div><span className="text-muted-foreground">Beds:</span> <span className="font-medium">{comp.beds ?? "—"}</span></div>
+            <div><span className="text-muted-foreground">Baths:</span> <span className="font-medium">{comp.baths ?? "—"}</span></div>
+            <div><span className="text-muted-foreground">Sqft:</span> <span className="font-medium">{comp.sqft?.toLocaleString() ?? "—"}</span></div>
+            <div><span className="text-muted-foreground">Year:</span> <span className="font-medium">{comp.yearBuilt ?? "—"}</span></div>
+            <div><span className="text-muted-foreground">AVM:</span> <span className="font-medium text-neon">{comp.avm ? formatCurrency(comp.avm) : "—"}</span></div>
+            <div><span className="text-muted-foreground">Last Sale:</span> <span className="font-medium">{comp.lastSalePrice ? formatCurrency(comp.lastSalePrice) : "—"}</span></div>
+            {comp.lastSaleDate && (
+              <div><span className="text-muted-foreground">Sale Date:</span> <span className="font-medium">{new Date(comp.lastSaleDate).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}</span></div>
+            )}
+            {comp.lotSize != null && (
+              <div><span className="text-muted-foreground">Lot:</span> <span className="font-medium">{comp.lotSize.toLocaleString()} sqft</span></div>
+            )}
+            {comp.sqft != null && (comp.lastSalePrice ?? comp.avm) ? (
+              <div><span className="text-muted-foreground">$/sqft:</span> <span className="font-medium">${Math.round((comp.lastSalePrice ?? comp.avm ?? 0) / comp.sqft)}</span></div>
+            ) : null}
+          </div>
+          <div className="flex flex-wrap gap-1.5 mt-2">
+            {comp.isVacant && <span className="px-1.5 py-0.5 rounded text-[9px] bg-amber-500/10 text-amber-400 border border-amber-500/20">Vacant</span>}
+            {comp.isAbsentee && <span className="px-1.5 py-0.5 rounded text-[9px] bg-blue-500/10 text-blue-400 border border-blue-500/20">Absentee</span>}
+            {comp.isFreeAndClear && <span className="px-1.5 py-0.5 rounded text-[9px] bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">Free & Clear</span>}
+            {comp.isForeclosure && <span className="px-1.5 py-0.5 rounded text-[9px] bg-red-500/10 text-red-400 border border-red-500/20">Foreclosure</span>}
+            {comp.isListedForSale && <span className="px-1.5 py-0.5 rounded text-[9px] bg-purple-500/10 text-purple-400 border border-purple-500/20">Listed</span>}
+            {comp.isRecentSale && <span className="px-1.5 py-0.5 rounded text-[9px] bg-cyan/10 text-cyan border border-cyan/20">Recent Sale</span>}
+          </div>
+          {comp.lat && comp.lng && (
+            <a
+              href={getGoogleStreetViewLink(comp.lat, comp.lng)}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1 text-[9px] text-cyan hover:underline mt-2"
+            >
+              <ExternalLink className="h-2.5 w-2.5" />
+              Street View
+            </a>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── Lat/Lng extraction with fallbacks ─────────────────────────────────
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -3692,14 +3911,24 @@ function CompsTab({ cf, selectedComps, onAddComp, onRemoveComp, onSkipTrace, com
   const [offerPct, setOfferPct] = useState(65);
   const [rehabEst, setRehabEst] = useState(40000);
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const oFlagsComps = (cf.ownerFlags ?? {}) as any;
   const photos = useMemo(() => {
     const urls: string[] = [];
+    // Zillow photos from owner_flags (cached from Apify)
+    const cached = oFlagsComps?.photos ?? oFlagsComps?.deep_crawl?.photos ?? [];
+    if (Array.isArray(cached)) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      urls.push(...cached.map((p: any) => (typeof p === "string" ? p : p?.url)).filter(Boolean));
+    }
+    // PropertyRadar photos
     if (Array.isArray(prRaw.Photos)) urls.push(...prRaw.Photos.filter((u: unknown) => typeof u === "string"));
     if (Array.isArray(prRaw.photos)) urls.push(...prRaw.photos.filter((u: unknown) => typeof u === "string"));
     if (typeof prRaw.PropertyImageUrl === "string" && prRaw.PropertyImageUrl) urls.push(prRaw.PropertyImageUrl);
     if (typeof prRaw.StreetViewUrl === "string" && prRaw.StreetViewUrl) urls.push(prRaw.StreetViewUrl);
-    return urls;
-  }, [prRaw]);
+    // Deduplicate
+    return [...new Set(urls)];
+  }, [prRaw, oFlagsComps]);
 
   // ARV from selected comps using weighted $/sqft methodology
   const subjectSqft = cf.sqft ?? 0;
@@ -3920,6 +4149,11 @@ function CompsTab({ cf, selectedComps, onAddComp, onRemoveComp, onSkipTrace, com
             </table>
           </div>
         </div>
+      )}
+
+      {/* Focused comp detail panel with photo carousel */}
+      {focusedComp && (
+        <CompDetailPanel comp={focusedComp} onClose={() => setFocusedComp(null)} />
       )}
 
       {/* Condition Adjustment slider */}

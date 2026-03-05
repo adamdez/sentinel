@@ -20,6 +20,9 @@ import {
   TrendingDown,
   Shield,
   Tag,
+  ChevronLeft,
+  ChevronRight,
+  Image as ImageIcon,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useSentinelStore } from "@/lib/store";
@@ -113,6 +116,9 @@ export function PropertyPreviewModal() {
   const [claiming, setClaiming] = useState(false);
   const [claimed, setClaimed] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [photos, setPhotos] = useState<string[]>([]);
+  const [photoIdx, setPhotoIdx] = useState(0);
+  const [photosLoading, setPhotosLoading] = useState(false);
 
   // Listen for the custom event from GlobalSearch
   useEffect(() => {
@@ -127,12 +133,41 @@ export function PropertyPreviewModal() {
     return () => window.removeEventListener("open-property-preview", handler);
   }, []);
 
+  // Auto-fetch Zillow photos when modal opens
+  useEffect(() => {
+    if (!open || !property) return;
+    let cancelled = false;
+    setPhotos([]);
+    setPhotoIdx(0);
+    setPhotosLoading(true);
+
+    (async () => {
+      try {
+        const res = await fetch("/api/property-photos", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ address: property.fullAddress }),
+        });
+        if (cancelled) return;
+        const data = await res.json();
+        if (data.photos?.length > 0) {
+          setPhotos(data.photos.map((p: { url: string }) => p.url));
+        }
+      } catch { /* ignore — Street View fallback is fine */ }
+      if (!cancelled) setPhotosLoading(false);
+    })();
+
+    return () => { cancelled = true; };
+  }, [open, property]);
+
   const close = useCallback(() => {
     setOpen(false);
     setTimeout(() => {
       setProperty(null);
       setClaimed(false);
       setError(null);
+      setPhotos([]);
+      setPhotoIdx(0);
     }, 200);
   }, []);
 
@@ -229,9 +264,39 @@ export function PropertyPreviewModal() {
               className="w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-2xl glass-strong border border-glass-border shadow-2xl"
               onClick={(e) => e.stopPropagation()}
             >
-              {/* ── Header with Street View ────────────────────────────── */}
+              {/* ── Header with Photo Carousel ────────────────────────── */}
               <div className="relative">
-                {streetViewUrl ? (
+                {photos.length > 0 ? (
+                  <div className="relative h-52 overflow-hidden rounded-t-2xl group">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={photos[photoIdx]}
+                      alt={`Property photo ${photoIdx + 1}`}
+                      className="w-full h-full object-cover"
+                    />
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent" />
+                    {photos.length > 1 && (
+                      <>
+                        <button
+                          onClick={() => setPhotoIdx((i) => (i - 1 + photos.length) % photos.length)}
+                          className="absolute left-2 top-1/2 -translate-y-1/2 p-1 rounded-full bg-black/50 text-white opacity-0 group-hover:opacity-100 transition-opacity"
+                        >
+                          <ChevronLeft className="h-4 w-4" />
+                        </button>
+                        <button
+                          onClick={() => setPhotoIdx((i) => (i + 1) % photos.length)}
+                          className="absolute right-2 top-1/2 -translate-y-1/2 p-1 rounded-full bg-black/50 text-white opacity-0 group-hover:opacity-100 transition-opacity"
+                        >
+                          <ChevronRight className="h-4 w-4" />
+                        </button>
+                        <div className="absolute top-3 left-3 bg-black/60 backdrop-blur-sm text-white text-[10px] font-medium px-2 py-0.5 rounded-full flex items-center gap-1">
+                          <ImageIcon className="h-3 w-3" />
+                          {photoIdx + 1} / {photos.length}
+                        </div>
+                      </>
+                    )}
+                  </div>
+                ) : streetViewUrl ? (
                   <div className="relative h-52 overflow-hidden rounded-t-2xl">
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img
@@ -240,10 +305,20 @@ export function PropertyPreviewModal() {
                       className="w-full h-full object-cover"
                     />
                     <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent" />
+                    {photosLoading && (
+                      <div className="absolute top-3 left-3 bg-black/60 backdrop-blur-sm text-white text-[10px] font-medium px-2 py-0.5 rounded-full flex items-center gap-1">
+                        <Loader2 className="h-3 w-3 animate-spin" />
+                        Loading photos...
+                      </div>
+                    )}
                   </div>
                 ) : (
                   <div className="h-32 rounded-t-2xl bg-gradient-to-br from-cyan/10 to-purple-500/10 flex items-center justify-center">
-                    <Home className="h-12 w-12 text-muted-foreground/30" />
+                    {photosLoading ? (
+                      <Loader2 className="h-8 w-8 text-muted-foreground/40 animate-spin" />
+                    ) : (
+                      <Home className="h-12 w-12 text-muted-foreground/30" />
+                    )}
                   </div>
                 )}
 

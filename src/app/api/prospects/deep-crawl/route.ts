@@ -429,6 +429,52 @@ export async function POST(req: NextRequest) {
           }
 
           // ══════════════════════════════════════════════════════════════════
+          // PHASE 2.65 — Zillow photos via Apify
+          // ══════════════════════════════════════════════════════════════════
+
+          const apifyToken = process.env.APIFY_API_TOKEN;
+          if (apifyToken && photos.length < 2) {
+            emit({ phase: "photos", status: "started", detail: "Fetching Zillow listing photos..." });
+            try {
+              const apifyUrl = `https://api.apify.com/v2/acts/zillowscraper~zillow-property-images-fetcher/run-sync-get-dataset-items?token=${apifyToken}`;
+              const fullAddr = [property.address, property.city, property.state, property.zip].filter(Boolean).join(", ");
+              const apifyRes = await fetch(apifyUrl, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ searchType: "address", searchQuery: fullAddr, maxItems: 30 }),
+                signal: AbortSignal.timeout(60_000),
+              });
+              if (apifyRes.ok) {
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                const apifyData: any[] = await apifyRes.json();
+                let added = 0;
+                for (const item of apifyData) {
+                  let url: string | null = null;
+                  if (typeof item === "string") url = item;
+                  else if (item?.url) url = item.url;
+                  else if (item?.imageUrl) url = item.imageUrl;
+                  else if (item?.hdUrl) url = item.hdUrl;
+                  else if (item?.mixedSources?.jpeg) {
+                    const jpegs = item.mixedSources.jpeg;
+                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                    const largest = Array.isArray(jpegs) ? jpegs.reduce((best: any, j: any) => (j.width > (best?.width ?? 0) ? j : best), null) : null;
+                    if (largest?.url) url = largest.url;
+                  }
+                  if (url) {
+                    photos.push({ url, source: "zillow", capturedAt: new Date().toISOString() });
+                    added++;
+                  }
+                }
+                if (added > 0) sources.push("Zillow Photos");
+                emit({ phase: "photos", status: "complete", detail: `${added} Zillow photos found`, elapsed: Date.now() - t0 });
+              }
+            } catch (err) {
+              console.warn("[DeepCrawl] Zillow photo fetch failed (non-fatal):", err);
+              emit({ phase: "photos", status: "error", detail: "Zillow photos unavailable (continuing)" });
+            }
+          }
+
+          // ══════════════════════════════════════════════════════════════════
           // PHASE 2.75 — Post-Processing (Deep Skip Report + contact merge)
           // ══════════════════════════════════════════════════════════════════
 
@@ -547,6 +593,7 @@ export async function POST(req: NextRequest) {
                 ...updatedOwnerFlags,
                 deep_crawl: result,
                 ...(deepSkipResult ? { deep_skip: deepSkipResult } : {}),
+                ...(photos.length > 0 ? { photos, photos_fetched_at: new Date().toISOString() } : {}),
               };
               const { error: updateErr } = await tbl("properties").update({
                 owner_flags: flagsToSave,
