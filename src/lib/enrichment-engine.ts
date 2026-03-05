@@ -563,6 +563,45 @@ async function updatePropertyFromPR(sb: any, propertyId: string, pr: any, existi
     pr_raw: pr,
   };
 
+  // ── Extract photos from PR response (zero additional cost) ──────────
+  const existingPhotos = Array.isArray(existingFlags.photos) ? existingFlags.photos : [];
+  if (existingPhotos.length === 0) {
+    const now = new Date().toISOString();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const extractedPhotos: { url: string; source: string; capturedAt: string }[] = [];
+
+    // PR photo arrays
+    const prPhotos = pr.Photos || pr.photos;
+    if (Array.isArray(prPhotos)) {
+      for (const url of prPhotos) {
+        if (typeof url === "string" && url.startsWith("http")) {
+          extractedPhotos.push({ url, source: "assessor", capturedAt: now });
+        }
+      }
+    }
+
+    // Single property image URL
+    if (typeof pr.PropertyImageUrl === "string" && pr.PropertyImageUrl.startsWith("http")) {
+      extractedPhotos.push({ url: pr.PropertyImageUrl, source: "assessor", capturedAt: now });
+    }
+
+    // Google Street View from coordinates (proxy URL — no key exposed)
+    const lat = toNumber(pr.Latitude);
+    const lng = toNumber(pr.Longitude);
+    if (lat && lng) {
+      extractedPhotos.push({
+        url: `/api/street-view?lat=${lat}&lng=${lng}`,
+        source: "google_street_view",
+        capturedAt: now,
+      });
+    }
+
+    if (extractedPhotos.length > 0) {
+      ownerFlags.photos = extractedPhotos;
+      ownerFlags.photos_fetched_at = now;
+    }
+  }
+
   if (isTruthy(pr.isNotSameMailingOrExempt)) ownerFlags.absentee = true;
   if (isTruthy(pr.isSiteVacant)) ownerFlags.vacant = true;
   if (isTruthy(pr.isHighEquity)) ownerFlags.highEquity = true;

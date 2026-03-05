@@ -387,18 +387,18 @@ export async function POST(req: NextRequest) {
           // PHASE 2.6 — Google Street View photos
           // ══════════════════════════════════════════════════════════════════
 
-          const photos: PropertyPhoto[] = [];
+          // Carry forward photos already extracted during enrichment
+          const enrichmentPhotos: PropertyPhoto[] = Array.isArray(ownerFlags.photos) ? ownerFlags.photos as PropertyPhoto[] : [];
+          const photos: PropertyPhoto[] = [...enrichmentPhotos];
+          const photoUrls = new Set(photos.map(p => p.url));
+
           const googleKey = process.env.GOOGLE_STREET_VIEW_KEY;
           const lat = property.lat != null ? Number(property.lat) : (pr?.Latitude ? Number(pr.Latitude) : null);
           const lng = property.lng != null ? Number(property.lng) : (pr?.Longitude ? Number(pr.Longitude) : null);
 
-          // Check if we already have street-level photos
-          const existingPhotos: string[] = [];
-          if (Array.isArray(prRaw.Photos)) existingPhotos.push(...prRaw.Photos.filter((u: unknown) => typeof u === "string"));
-          if (Array.isArray(prRaw.photos)) existingPhotos.push(...prRaw.photos.filter((u: unknown) => typeof u === "string"));
-          if (typeof prRaw.PropertyImageUrl === "string" && prRaw.PropertyImageUrl) existingPhotos.push(prRaw.PropertyImageUrl);
-
-          if (googleKey && lat && lng && existingPhotos.length === 0) {
+          // Only fetch Street View if we don't already have one from enrichment
+          const hasStreetView = photos.some(p => p.source === "google_street_view");
+          if (googleKey && lat && lng && !hasStreetView) {
             emit({ phase: "photos", status: "started", detail: "Fetching Google Street View..." });
             try {
               // Check metadata first to see if coverage exists
@@ -433,7 +433,8 @@ export async function POST(req: NextRequest) {
           // ══════════════════════════════════════════════════════════════════
 
           const apifyToken = process.env.APIFY_API_TOKEN;
-          if (apifyToken && photos.length < 2) {
+          const alreadyTriedZillow = ownerFlags.zillow_photos_attempted === true;
+          if (apifyToken && !alreadyTriedZillow && photos.filter(p => p.source === "zillow").length === 0) {
             emit({ phase: "photos", status: "started", detail: "Fetching Zillow listing photos..." });
             try {
               const apifyUrl = `https://api.apify.com/v2/acts/zillowscraper~zillow-property-images-fetcher/run-sync-get-dataset-items?token=${apifyToken}`;
@@ -460,8 +461,9 @@ export async function POST(req: NextRequest) {
                     const largest = Array.isArray(jpegs) ? jpegs.reduce((best: any, j: any) => (j.width > (best?.width ?? 0) ? j : best), null) : null;
                     if (largest?.url) url = largest.url;
                   }
-                  if (url) {
+                  if (url && !photoUrls.has(url)) {
                     photos.push({ url, source: "zillow", capturedAt: new Date().toISOString() });
+                    photoUrls.add(url);
                     added++;
                   }
                 }
@@ -472,6 +474,8 @@ export async function POST(req: NextRequest) {
               console.warn("[DeepCrawl] Zillow photo fetch failed (non-fatal):", err);
               emit({ phase: "photos", status: "error", detail: "Zillow photos unavailable (continuing)" });
             }
+            // Mark that we attempted Zillow so we don't re-run on next deep crawl
+            ownerFlags.zillow_photos_attempted = true;
           }
 
           // ══════════════════════════════════════════════════════════════════

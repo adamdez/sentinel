@@ -80,6 +80,32 @@ function looksLikeAddress(q: string): boolean {
   return /^\d+\s+[a-zA-Z]/.test(q.trim()) && q.trim().length >= 6;
 }
 
+interface NationwideSuggestion {
+  address: string;
+  city: string;
+  state: string;
+  zip: string;
+  fullAddress: string;
+  placeId?: string;
+  lat?: number | null;
+  lng?: number | null;
+}
+
+async function fetchSuggestions(q: string): Promise<NationwideSuggestion[]> {
+  try {
+    const res = await fetch("/api/property-lookup/suggestions", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ query: q }),
+    });
+    if (!res.ok) return [];
+    const data = await res.json();
+    return data.suggestions ?? [];
+  } catch {
+    return [];
+  }
+}
+
 // ── Live search function ───────────────────────────────────────────────
 
 async function searchSupabase(q: string): Promise<SearchRecord[]> {
@@ -150,7 +176,10 @@ export function GlobalSearch() {
   const [results, setResults] = useState<SearchRecord[]>([]);
   const [searching, setSearching] = useState(false);
   const [lookingUp, setLookingUp] = useState(false);
+  const [suggestions, setSuggestions] = useState<NationwideSuggestion[]>([]);
+  const [loadingSuggestions, setLoadingSuggestions] = useState(false);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const suggestDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const isOpen = open && query.length > 0;
   const showNationwide = looksLikeAddress(query) && !searching;
@@ -176,6 +205,27 @@ export function GlobalSearch() {
     };
   }, [query]);
 
+  // Debounced nationwide suggestions (fires when address-like query + few local results)
+  useEffect(() => {
+    if (suggestDebounceRef.current) clearTimeout(suggestDebounceRef.current);
+
+    if (!looksLikeAddress(query) || query.length < 6) {
+      setSuggestions([]);
+      return;
+    }
+
+    setLoadingSuggestions(true);
+    suggestDebounceRef.current = setTimeout(async () => {
+      const s = await fetchSuggestions(query);
+      setSuggestions(s);
+      setLoadingSuggestions(false);
+    }, 500);
+
+    return () => {
+      if (suggestDebounceRef.current) clearTimeout(suggestDebounceRef.current);
+    };
+  }, [query]);
+
   const closeDropdown = useCallback(() => {
     setOpen(false);
     setActiveIndex(-1);
@@ -192,14 +242,14 @@ export function GlobalSearch() {
   );
 
   // Nationwide PropertyRadar lookup
-  const handleNationwideLookup = useCallback(async () => {
+  const handleNationwideLookup = useCallback(async (addressOverride?: string) => {
     if (lookingUp) return;
     setLookingUp(true);
     try {
       const res = await fetch("/api/property-lookup", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ address: query }),
+        body: JSON.stringify({ address: addressOverride ?? query }),
       });
       const data = await res.json();
       if (res.ok && data.success && data.property) {
@@ -338,11 +388,11 @@ export function GlobalSearch() {
             transition={{ duration: 0.12 }}
             className="absolute top-full left-0 right-0 mt-2 z-50 rounded-[14px] glass-strong border border-glass-border shadow-2xl overflow-hidden max-h-[min(480px,calc(100vh-200px))]"
           >
-            {searching && results.length === 0 ? (
+            {searching && results.length === 0 && suggestions.length === 0 ? (
               <div className="px-4 py-6 text-center text-sm text-muted-foreground">
                 Searching...
               </div>
-            ) : results.length === 0 && !showNationwide ? (
+            ) : results.length === 0 && suggestions.length === 0 && !showNationwide && !loadingSuggestions ? (
               <div className="px-4 py-6 text-center text-sm text-muted-foreground">
                 No results for &ldquo;{query}&rdquo;
               </div>
@@ -437,38 +487,74 @@ export function GlobalSearch() {
                   </div>
                 )}
 
-                {/* ── Nationwide lookup ── */}
+                {/* ── Nationwide suggestions + fallback lookup ── */}
                 {showNationwide && (
                   <>
                     <div className="border-t border-white/[0.04] px-3 pt-2 pb-1">
                       <span className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/50">
-                        Nationwide Search
+                        {suggestions.length > 0 ? "Nationwide Matches" : "Nationwide Search"}
                       </span>
+                      {loadingSuggestions && (
+                        <Loader2 className="h-3 w-3 animate-spin inline ml-2 text-emerald-400/60" />
+                      )}
                     </div>
-                    <button
-                      onMouseDown={(e) => {
-                        e.preventDefault();
-                        handleNationwideLookup();
-                      }}
-                      className="flex items-center gap-3 w-full text-left px-3 py-3 hover:bg-white/[0.06] transition-colors"
-                    >
-                      <div className="h-7 w-7 rounded-md flex items-center justify-center shrink-0 border bg-emerald-500/10 border-emerald-500/20 text-emerald-400">
-                        {lookingUp ? (
-                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                        ) : (
-                          <Globe className="h-3.5 w-3.5" />
-                        )}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-semibold text-emerald-400 truncate">
-                          {lookingUp ? "Looking up property..." : `Look up "${query}"`}
-                        </p>
-                        <p className="text-[11px] text-muted-foreground">
-                          Search any US property via PropertyRadar
-                        </p>
-                      </div>
-                      <ArrowRight className="h-3 w-3 shrink-0 text-emerald-400/40" />
-                    </button>
+
+                    {/* Show address suggestions when available */}
+                    {suggestions.map((s) => (
+                      <button
+                        key={s.placeId || s.fullAddress}
+                        onMouseDown={(e) => {
+                          e.preventDefault();
+                          handleNationwideLookup(s.fullAddress);
+                        }}
+                        className="flex items-center gap-3 w-full text-left px-3 py-2.5 hover:bg-white/[0.06] transition-colors"
+                      >
+                        <div className="h-7 w-7 rounded-md flex items-center justify-center shrink-0 border bg-emerald-500/10 border-emerald-500/20 text-emerald-400">
+                          {lookingUp ? (
+                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                          ) : (
+                            <MapPin className="h-3.5 w-3.5" />
+                          )}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-semibold text-foreground truncate">
+                            <HighlightMatch text={s.address} query={query} />
+                          </p>
+                          <p className="text-[11px] text-muted-foreground truncate">
+                            {[s.city, s.state, s.zip].filter(Boolean).join(", ")}
+                          </p>
+                        </div>
+                        <ArrowRight className="h-3 w-3 shrink-0 text-emerald-400/40" />
+                      </button>
+                    ))}
+
+                    {/* Always show generic lookup button as fallback */}
+                    {suggestions.length === 0 && !loadingSuggestions && (
+                      <button
+                        onMouseDown={(e) => {
+                          e.preventDefault();
+                          handleNationwideLookup();
+                        }}
+                        className="flex items-center gap-3 w-full text-left px-3 py-3 hover:bg-white/[0.06] transition-colors"
+                      >
+                        <div className="h-7 w-7 rounded-md flex items-center justify-center shrink-0 border bg-emerald-500/10 border-emerald-500/20 text-emerald-400">
+                          {lookingUp ? (
+                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                          ) : (
+                            <Globe className="h-3.5 w-3.5" />
+                          )}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-semibold text-emerald-400 truncate">
+                            {lookingUp ? "Looking up property..." : `Look up "${query}"`}
+                          </p>
+                          <p className="text-[11px] text-muted-foreground">
+                            Search any US property via PropertyRadar
+                          </p>
+                        </div>
+                        <ArrowRight className="h-3 w-3 shrink-0 text-emerald-400/40" />
+                      </button>
+                    )}
                   </>
                 )}
               </div>

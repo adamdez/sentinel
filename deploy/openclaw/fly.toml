@@ -14,7 +14,7 @@ primary_region = 'sjc'
   force_https = true
   auto_stop_machines = 'suspend'
   auto_start_machines = true
-  min_machines_running = 0
+  min_machines_running = 1
 
   [http_service.concurrency]
     type = 'requests'
@@ -27,9 +27,9 @@ primary_region = 'sjc'
     type = 'http'
     interval = '30s'
     timeout = '5s'
-    grace_period = '30s'
+    grace_period = '60s'
     method = 'GET'
-    path = '/health'
+    path = '/health/liveliness'
 
 [[vm]]
   size = 'shared-cpu-2x'
