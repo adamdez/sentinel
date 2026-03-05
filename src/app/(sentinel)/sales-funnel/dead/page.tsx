@@ -24,6 +24,7 @@ const DISTRESS_LABELS: Record<string, string> = {
   code_violation: "Code Violation", vacant: "Vacant", divorce: "Divorce",
   bankruptcy: "Bankruptcy", fsbo: "FSBO", absentee: "Absentee", inherited: "Inherited",
   water_shutoff: "Water Shut-off", condemned: "Condemned",
+  tired_landlord: "Tired Landlord", underwater: "Underwater",
 };
 
 const DISTRESS_COLORS: Record<string, { text: string; bg: string; border: string }> = {
@@ -39,6 +40,8 @@ const DISTRESS_COLORS: Record<string, { text: string; bg: string; border: string
   inherited: { text: "text-amber-400", bg: "bg-amber-500/10", border: "border-amber-500/25" },
   absentee: { text: "text-cyan-400", bg: "bg-cyan-500/10", border: "border-cyan-500/25" },
   fsbo: { text: "text-blue-300", bg: "bg-blue-500/10", border: "border-blue-500/25" },
+  tired_landlord: { text: "text-amber-500", bg: "bg-amber-500/10", border: "border-amber-500/25" },
+  underwater: { text: "text-red-400", bg: "bg-red-500/10", border: "border-red-500/25" },
 };
 
 function SignalPill({ signal }: { signal: string }) {

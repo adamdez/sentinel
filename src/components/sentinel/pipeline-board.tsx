@@ -178,7 +178,7 @@ export function PipelineBoard() {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { data, error } = await (supabase.from("leads") as any)
         .select("id, status, priority, source, tags, properties(id, address, city, state, owner_name, owner_phone)")
-        .in("status", ["prospect", "lead", "my_lead", "negotiation", "disposition", "nurture", "dead", "closed"])
+        .in("status", ["prospect", "lead", "negotiation", "disposition", "nurture", "dead", "closed"])
         .order("priority", { ascending: false })
         .limit(100);
 

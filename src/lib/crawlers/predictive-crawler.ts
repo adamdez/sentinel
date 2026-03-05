@@ -8,7 +8,7 @@
  *
  * Architecture:
  *   1. Each crawler module exports a `crawl()` → CrawledRecord[]
- *   2. Framework normalizes to (apn, county), deduplicates, scores via v1.1 engine
+ *   2. Framework normalizes to (apn, county), deduplicates, scores via v2.2 engine
  *   3. Only records with predictive score ≥ 60 are promoted to Sentinel
  *   4. Append-only audit trail for every crawl run
  *

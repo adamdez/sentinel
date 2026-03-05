@@ -230,7 +230,7 @@ export async function PATCH(req: NextRequest) {
     await (sb.from("event_log") as any).insert({
       entity_type: "lead",
       entity_id: lead_id,
-      action: status === "my_lead" ? "CLAIMED" : "STATUS_CHANGED",
+      action: assigned_to ? "CLAIMED" : "STATUS_CHANGED",
       user_id: actor_id || null,
       details: { status, assigned_to },
     }).then(({ error: auditErr }: { error: unknown }) => {
@@ -328,7 +328,7 @@ export async function POST(req: NextRequest) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const leadRow: any = {
       property_id: property.id,
-      status: isAssigned ? "lead" : "staging",
+      status: isAssigned ? "lead" : "prospect",
       priority: compositeScore,
       source: source || "manual",
       tags,

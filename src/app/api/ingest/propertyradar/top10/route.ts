@@ -365,7 +365,7 @@ export async function GET(_req: NextRequest) {
  *  1. Accepts { counties: ["Spokane","Kootenai"] }
  *  2. PropertyRadar: counties + Absentee + Equity >= 50% + distress
  *  3. Pulls max 60 records (NO phones/emails — preserve credits)
- *  4. Scores all with v1.1 engine
+ *  4. Scores all with v2.2 engine
  *  5. Sorts DESC → keeps top 10 where >= 75
  *  6. Upserts into properties (apn,county ON CONFLICT) + distress_events
  *     (fingerprint dedup) + scoring_records + leads

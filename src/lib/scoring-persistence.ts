@@ -115,7 +115,7 @@ export async function replayAllScores(): Promise<ReplayResult> {
   // Fetch current lead priorities for audit
   const { data: leadsData } = await tbl("leads")
     .select("id, property_id, priority")
-    .in("status", ["staging", "prospect", "my_lead", "lead", "negotiation"]);
+    .in("status", ["staging", "prospect", "lead", "negotiation"]);
 
   const leadByProperty: Record<string, { id: string; priority: number | null }> = {};
   for (const l of leadsData ?? []) {

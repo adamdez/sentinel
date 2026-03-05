@@ -1,5 +1,5 @@
 /**
- * Sentinel Enrichment Engine v1.1
+ * Sentinel Enrichment Engine v2.2
  *
  * Automatic property enrichment pipeline for staging leads.
  * Called by the enrichment batch cron and the agent cycle.

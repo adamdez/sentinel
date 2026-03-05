@@ -59,7 +59,7 @@ const EMPTY_FORM: FormData = {
 const DISTRESS_OPTIONS = [
   "probate", "pre_foreclosure", "tax_lien", "code_violation",
   "vacant", "divorce", "bankruptcy", "fsbo", "absentee", "inherited",
-  "water_shutoff", "condemned",
+  "water_shutoff", "condemned", "tired_landlord", "underwater",
 ];
 
 const DISTRESS_LABELS: Record<string, string> = {
@@ -67,6 +67,7 @@ const DISTRESS_LABELS: Record<string, string> = {
   code_violation: "Code Violation", vacant: "Vacant", divorce: "Divorce",
   bankruptcy: "Bankruptcy", fsbo: "FSBO", absentee: "Absentee", inherited: "Inherited",
   water_shutoff: "Water Shut-off", condemned: "Condemned",
+  tired_landlord: "Tired Landlord", underwater: "Underwater",
 };
 
 const PROPERTY_TYPES = ["SFR", "Multi-Family", "Condo", "Townhome", "Mobile", "Land", "Commercial"];
@@ -143,7 +144,7 @@ export function NewProspectModal() {
   // ── Save to Supabase ─────────────────────────────────────────────────
 
   const handleSave = async () => {
-    if (!canSubmit) return;
+    if (!canSubmit || saving) return;
     setSaving(true);
 
     try {
@@ -241,7 +242,7 @@ export function NewProspectModal() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           lead_id: createdLeadId,
-          status: "my_lead",
+          status: "lead",
           assigned_to: currentUser.id,
           actor_id: currentUser.id,
         }),

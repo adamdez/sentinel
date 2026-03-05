@@ -660,7 +660,7 @@ export default function ProspectsPage() {
           </div>
 
           <Badge variant="outline" className="text-[10px] shrink-0">
-            {totalCount} prospects
+            {scoreFilter ? filteredProspects.length : totalCount} prospects
           </Badge>
         </div>
 

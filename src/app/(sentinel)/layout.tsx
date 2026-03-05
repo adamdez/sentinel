@@ -5,6 +5,7 @@ import { Sidebar } from "@/components/layout/sidebar";
 import { TopBar } from "@/components/layout/top-bar";
 import { TeamChat } from "@/components/layout/team-chat";
 import { NewProspectModal } from "@/components/sentinel/new-prospect-modal";
+import { PropertyPreviewModal } from "@/components/sentinel/property-preview-modal";
 
 const ParticleField = dynamic(
   () => import("@/components/layout/particle-field").then((m) => m.ParticleField),
@@ -26,6 +27,7 @@ export default function SentinelLayout({
       </div>
       <TeamChat />
       <NewProspectModal />
+      <PropertyPreviewModal />
     </div>
   );
 }

@@ -57,7 +57,7 @@ export function useDialerQueue(limit = 7) {
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           (supabase.from("leads") as any)
             .select("*, properties(*)")
-            .in("status", ["lead", "my_lead", "negotiation"])
+            .in("status", ["lead", "negotiation"])
             .eq("assigned_to", currentUser.id)
             .lte("next_call_scheduled_at", now)
             .order("next_call_scheduled_at", { ascending: true })
@@ -65,7 +65,7 @@ export function useDialerQueue(limit = 7) {
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           (supabase.from("leads") as any)
             .select("*, properties(*)")
-            .in("status", ["lead", "my_lead", "negotiation"])
+            .in("status", ["lead", "negotiation"])
             .eq("assigned_to", currentUser.id)
             .is("next_call_scheduled_at", null)
             .order("priority", { ascending: false })

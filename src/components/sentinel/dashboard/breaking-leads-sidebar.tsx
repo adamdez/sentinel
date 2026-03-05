@@ -146,6 +146,7 @@ export function BreakingLeadsSidebar() {
       code_violation: "Code Viol.", vacant: "Vacant", divorce: "Divorce",
       bankruptcy: "Bankruptcy", fsbo: "FSBO", absentee: "Absentee", inherited: "Inherited",
       water_shutoff: "Water Shutoff", condemned: "Condemned",
+      tired_landlord: "Tired Landlord", underwater: "Underwater",
     };
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any

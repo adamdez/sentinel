@@ -2,6 +2,7 @@
 
 import { motion } from "framer-motion";
 import { useHydrated } from "@/providers/hydration-provider";
+import { GlobalSearch } from "@/components/layout/global-search";
 
 interface PageShellProps {
   title: string;
@@ -21,8 +22,8 @@ export function PageShell({ title, description, children, actions }: PageShellPr
       className="flex-1 overflow-auto"
     >
       <div className="p-6 space-y-6">
-        <div className="flex items-start justify-between">
-          <div>
+        <div className="flex items-center gap-4">
+          <div className="shrink-0">
             <motion.h1
               initial={hydrated ? { opacity: 0, x: -8 } : false}
               animate={{ opacity: 1, x: 0 }}
@@ -42,12 +43,17 @@ export function PageShell({ title, description, children, actions }: PageShellPr
               </motion.p>
             )}
           </div>
+
+          <div className="flex-1 flex justify-center min-w-0">
+            <GlobalSearch />
+          </div>
+
           {actions && (
             <motion.div
               initial={hydrated ? { opacity: 0, x: 8 } : false}
               animate={{ opacity: 1, x: 0 }}
               transition={{ duration: 0.1, ease: "easeOut" }}
-              className="flex items-center gap-2"
+              className="flex items-center gap-2 shrink-0"
             >
               {actions}
             </motion.div>

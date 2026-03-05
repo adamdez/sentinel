@@ -94,7 +94,7 @@ export function NextBestAction() {
           name: topLead.ownerName,
           phone: topLead.ownerPhone,
           tags: topLead.tags ?? [],
-          reason: `Highest-priority ${topLead.status} lead — predictive priority ${topLead.predictivePriority} (${topLead.score.label.toUpperCase()})${predLabel}. ${topLead.address}.`,
+          reason: `Highest-priority ${topLead.status === "lead" ? "" : topLead.status + " "}lead — predictive priority ${topLead.predictivePriority} (${topLead.score.label.toUpperCase()})${predLabel}. ${topLead.address}.`,
           action: "Call Now",
         },
         secondary: ranked[1]

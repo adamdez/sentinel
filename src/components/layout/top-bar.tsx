@@ -28,7 +28,6 @@ import { useSentinelStore } from "@/lib/store";
 import { useRealtime } from "@/providers/realtime-provider";
 import { useHydrated } from "@/providers/hydration-provider";
 import { supabase } from "@/lib/supabase";
-import { GlobalSearch } from "./global-search";
 import { DailyVerse } from "./daily-verse";
 
 export function TopBar() {
@@ -72,7 +71,6 @@ export function TopBar() {
           <TooltipContent>Toggle sidebar</TooltipContent>
         </Tooltip>
 
-        <GlobalSearch />
       </div>
 
       <DailyVerse />

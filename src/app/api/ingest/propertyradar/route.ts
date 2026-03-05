@@ -113,7 +113,7 @@ interface IngestRequest {
  * 1. Calls PropertyRadar API to fetch full property data
  * 2. Normalizes into properties table (APN golden record upsert)
  * 3. Detects distress signals from the response data
- * 4. Runs the full Sentinel AI scoring engine (v1.1)
+ * 4. Runs the full Sentinel AI scoring engine (v2.2)
  * 5. Inserts into leads table at "prospect" stage (unassigned)
  * 6. Appends audit log entry
  *

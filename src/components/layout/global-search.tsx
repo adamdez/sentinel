@@ -17,6 +17,8 @@ import {
   Users,
   User,
   MapPin,
+  Globe,
+  Loader2,
   type LucideIcon,
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
@@ -70,6 +72,12 @@ function labelFromScore(n: number): "platinum" | "gold" | "silver" | "bronze" {
   if (n >= 65) return "gold";
   if (n >= 40) return "silver";
   return "bronze";
+}
+
+/** Heuristic: does the query look like a US street address? */
+function looksLikeAddress(q: string): boolean {
+  // Must start with a number and contain at least one letter word after it
+  return /^\d+\s+[a-zA-Z]/.test(q.trim()) && q.trim().length >= 6;
 }
 
 // ── Live search function ───────────────────────────────────────────────
@@ -137,13 +145,15 @@ export function GlobalSearch() {
   const inputRef = useRef<HTMLInputElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const [query, setQuery] = useState("");
-  const [focused, setFocused] = useState(false);
+  const [open, setOpen] = useState(false);
   const [activeIndex, setActiveIndex] = useState(-1);
   const [results, setResults] = useState<SearchRecord[]>([]);
   const [searching, setSearching] = useState(false);
+  const [lookingUp, setLookingUp] = useState(false);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const isOpen = focused && query.length > 0;
+  const isOpen = open && query.length > 0;
+  const showNationwide = looksLikeAddress(query) && !searching;
 
   // Debounced search
   useEffect(() => {
@@ -166,15 +176,66 @@ export function GlobalSearch() {
     };
   }, [query]);
 
+  const closeDropdown = useCallback(() => {
+    setOpen(false);
+    setActiveIndex(-1);
+  }, []);
+
   const handleSelect = useCallback(
     (href: string) => {
       setQuery("");
-      setFocused(false);
+      closeDropdown();
       inputRef.current?.blur();
       router.push(href);
     },
-    [router]
+    [router, closeDropdown]
   );
+
+  // Nationwide PropertyRadar lookup
+  const handleNationwideLookup = useCallback(async () => {
+    if (lookingUp) return;
+    setLookingUp(true);
+    try {
+      const res = await fetch("/api/property-lookup", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ address: query }),
+      });
+      const data = await res.json();
+      if (res.ok && data.success && data.property) {
+        // Store result in sessionStorage for the preview modal to pick up
+        sessionStorage.setItem("propertyPreview", JSON.stringify(data.property));
+        setQuery("");
+        closeDropdown();
+        inputRef.current?.blur();
+        // Navigate to a special preview route or dispatch a custom event
+        window.dispatchEvent(new CustomEvent("open-property-preview", { detail: data.property }));
+      } else {
+        // No result — show inline feedback
+        setResults([]);
+        setLookingUp(false);
+        // Briefly show an error in the dropdown
+        setResults([{
+          id: "__no_result__",
+          kind: "contact",
+          primary: "No property found",
+          secondary: data.error ?? "PropertyRadar returned no results for this address",
+          href: "#",
+          status: undefined,
+        }]);
+      }
+    } catch {
+      setResults([{
+        id: "__error__",
+        kind: "contact",
+        primary: "Lookup failed",
+        secondary: "Network error — check console",
+        href: "#",
+        status: undefined,
+      }]);
+    }
+    setLookingUp(false);
+  }, [query, lookingUp, closeDropdown]);
 
   useEffect(() => {
     setActiveIndex(-1);
@@ -198,12 +259,12 @@ export function GlobalSearch() {
     if (!isOpen) return;
     const handler = (e: MouseEvent) => {
       if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
-        setFocused(false);
+        closeDropdown();
       }
     };
     document.addEventListener("mousedown", handler);
     return () => document.removeEventListener("mousedown", handler);
-  }, [isOpen]);
+  }, [isOpen, closeDropdown]);
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
@@ -217,39 +278,46 @@ export function GlobalSearch() {
         setActiveIndex((prev) => (prev > 0 ? prev - 1 : results.length - 1));
       } else if (e.key === "Enter" && activeIndex >= 0 && results[activeIndex]) {
         e.preventDefault();
-        handleSelect(results[activeIndex].href);
+        const rec = results[activeIndex];
+        if (rec.href !== "#") handleSelect(rec.href);
       } else if (e.key === "Escape") {
-        setFocused(false);
+        closeDropdown();
         inputRef.current?.blur();
       }
     },
-    [isOpen, activeIndex, results, handleSelect]
+    [isOpen, activeIndex, results, handleSelect, closeDropdown]
   );
 
   return (
-    <div ref={containerRef} className="relative">
+    <div ref={containerRef} className="relative w-full max-w-xl">
       <div
         className={cn(
-          "flex items-center gap-2 h-9 px-3 rounded-[12px] border text-sm transition-all duration-100 min-w-[320px] search-scan-line",
-          focused
+          "flex items-center gap-2 h-9 px-3 rounded-[12px] border text-sm transition-all duration-100 w-full search-scan-line",
+          open
             ? "bg-secondary/80 border-cyan/22 shadow-[0_0_1px_rgba(0,229,255,0.6),0_0_4px_rgba(0,229,255,0.2),0_0_8px_rgba(0,229,255,0.08)]"
             : "bg-secondary/50 border-glass-border hover:bg-secondary/70"
         )}
       >
-        <Search className={cn("h-3.5 w-3.5 shrink-0 transition-colors", focused ? "text-cyan" : "text-muted-foreground")} />
+        <Search className={cn("h-3.5 w-3.5 shrink-0 transition-colors", open ? "text-cyan" : "text-muted-foreground")} />
         <input
           ref={inputRef}
           type="text"
           value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          onFocus={() => setFocused(true)}
+          onChange={(e) => {
+            setQuery(e.target.value);
+            if (!open) setOpen(true);
+          }}
+          onFocus={() => {
+            if (!open) setOpen(true);
+          }}
           onKeyDown={handleKeyDown}
           placeholder="Search anything in Sentinel..."
           className="flex-1 bg-transparent outline-none text-sm placeholder:text-muted-foreground"
         />
         {query ? (
           <button
-            onClick={() => { setQuery(""); inputRef.current?.focus(); }}
+            onMouseDown={(e) => e.preventDefault()}
+            onClick={() => { setQuery(""); setResults([]); inputRef.current?.focus(); }}
             className="text-muted-foreground hover:text-foreground transition-colors"
           >
             <X className="h-3.5 w-3.5" />
@@ -264,93 +332,145 @@ export function GlobalSearch() {
       <AnimatePresence>
         {isOpen && (
           <motion.div
-            initial={{ opacity: 0, y: -4, scaleY: 0.96 }}
-            animate={{ opacity: 1, y: 0, scaleY: 1 }}
-            exit={{ opacity: 0, y: -4, scaleY: 0.96 }}
+            initial={{ opacity: 0, y: -4 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -4 }}
             transition={{ duration: 0.12 }}
-            style={{ transformOrigin: "top" }}
-            className="absolute top-full left-0 right-0 mt-1.5 z-50 rounded-[14px] glass-strong border border-glass-border shadow-2xl overflow-hidden min-w-[400px]"
+            className="absolute top-full left-0 right-0 mt-2 z-50 rounded-[14px] glass-strong border border-glass-border shadow-2xl overflow-hidden max-h-[min(480px,calc(100vh-200px))]"
           >
-            {searching ? (
+            {searching && results.length === 0 ? (
               <div className="px-4 py-6 text-center text-sm text-muted-foreground">
                 Searching...
               </div>
-            ) : results.length === 0 ? (
+            ) : results.length === 0 && !showNationwide ? (
               <div className="px-4 py-6 text-center text-sm text-muted-foreground">
                 No results for &ldquo;{query}&rdquo;
               </div>
             ) : (
-              <div className="max-h-[400px] overflow-y-auto py-1.5">
-                {results.map((rec, i) => {
-                  const Icon = KIND_ICONS[rec.kind] ?? MapPin;
-                  const isActive = i === activeIndex;
+              <div className="max-h-[400px] overflow-y-auto">
+                {/* ── Local DB results ── */}
+                {results.length > 0 && results[0].id !== "__no_result__" && results[0].id !== "__error__" && (
+                  <>
+                    <div className="px-3 pt-2 pb-1">
+                      <span className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/50">
+                        In Your Pipeline
+                      </span>
+                    </div>
+                    {results.map((rec, i) => {
+                      const Icon = KIND_ICONS[rec.kind] ?? MapPin;
+                      const isActive = i === activeIndex;
 
-                  return (
+                      return (
+                        <button
+                          key={rec.id}
+                          onMouseEnter={() => setActiveIndex(i)}
+                          onMouseDown={(e) => {
+                            e.preventDefault();
+                            if (rec.href !== "#") handleSelect(rec.href);
+                          }}
+                          className={cn(
+                            "flex items-center gap-3 w-full text-left px-3 py-2.5 transition-colors",
+                            isActive ? "bg-white/[0.06]" : "hover:bg-white/[0.03]"
+                          )}
+                        >
+                          <div
+                            className={cn(
+                              "h-7 w-7 rounded-md flex items-center justify-center shrink-0 border",
+                              KIND_COLORS[rec.kind] ?? "bg-white/[0.04] border-white/[0.06] text-muted-foreground"
+                            )}
+                          >
+                            <Icon className="h-3.5 w-3.5" />
+                          </div>
+
+                          <div className="flex-1 min-w-0">
+                            <p
+                              className="text-sm font-semibold truncate text-foreground"
+                              style={{
+                                textShadow: isActive ? "0 0 10px rgba(0,212,255,0.15)" : undefined,
+                                WebkitFontSmoothing: "antialiased",
+                              }}
+                            >
+                              <HighlightMatch text={rec.primary} query={query} />
+                            </p>
+                            <p className="text-[11px] text-muted-foreground truncate">
+                              <HighlightMatch text={rec.secondary} query={query} />
+                            </p>
+                          </div>
+
+                          {rec.score != null && rec.scoreLabel && (
+                            <span
+                              className={cn(
+                                "text-[9px] px-1.5 py-0.5 rounded border font-bold shrink-0",
+                                SCORE_COLORS[rec.scoreLabel]
+                              )}
+                            >
+                              {rec.scoreLabel === "platinum" && (
+                                <Flame className="h-2 w-2 inline mr-0.5" />
+                              )}
+                              {rec.score}
+                            </span>
+                          )}
+
+                          {rec.status && (
+                            <span className="text-[9px] px-1.5 py-0.5 rounded bg-white/[0.04] text-muted-foreground border border-white/[0.06] shrink-0">
+                              {STATUS_LABELS[rec.status] ?? rec.status}
+                            </span>
+                          )}
+
+                          <ArrowRight
+                            className={cn(
+                              "h-3 w-3 shrink-0 transition-colors",
+                              isActive ? "text-cyan/60" : "text-muted-foreground/20"
+                            )}
+                          />
+                        </button>
+                      );
+                    })}
+                  </>
+                )}
+
+                {/* ── Error / no-result inline messages ── */}
+                {results.length > 0 && (results[0].id === "__no_result__" || results[0].id === "__error__") && (
+                  <div className="px-4 py-4 text-center">
+                    <p className="text-sm font-medium text-muted-foreground">{results[0].primary}</p>
+                    <p className="text-xs text-muted-foreground/60 mt-1">{results[0].secondary}</p>
+                  </div>
+                )}
+
+                {/* ── Nationwide lookup ── */}
+                {showNationwide && (
+                  <>
+                    <div className="border-t border-white/[0.04] px-3 pt-2 pb-1">
+                      <span className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/50">
+                        Nationwide Search
+                      </span>
+                    </div>
                     <button
-                      key={rec.id}
-                      onMouseEnter={() => setActiveIndex(i)}
                       onMouseDown={(e) => {
                         e.preventDefault();
-                        handleSelect(rec.href);
+                        handleNationwideLookup();
                       }}
-                      className={cn(
-                        "flex items-center gap-3 w-full text-left px-3 py-2.5 transition-colors",
-                        isActive ? "bg-white/[0.06]" : "hover:bg-white/[0.03]"
-                      )}
+                      className="flex items-center gap-3 w-full text-left px-3 py-3 hover:bg-white/[0.06] transition-colors"
                     >
-                      <div
-                        className={cn(
-                          "h-7 w-7 rounded-md flex items-center justify-center shrink-0 border",
-                          KIND_COLORS[rec.kind] ?? "bg-white/[0.04] border-white/[0.06] text-muted-foreground"
+                      <div className="h-7 w-7 rounded-md flex items-center justify-center shrink-0 border bg-emerald-500/10 border-emerald-500/20 text-emerald-400">
+                        {lookingUp ? (
+                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                        ) : (
+                          <Globe className="h-3.5 w-3.5" />
                         )}
-                      >
-                        <Icon className="h-3.5 w-3.5" />
                       </div>
-
                       <div className="flex-1 min-w-0">
-                        <p
-                          className="text-sm font-semibold truncate text-foreground"
-                          style={{
-                            textShadow: isActive ? "0 0 10px rgba(0,212,255,0.15)" : undefined,
-                            WebkitFontSmoothing: "antialiased",
-                          }}
-                        >
-                          <HighlightMatch text={rec.primary} query={query} />
+                        <p className="text-sm font-semibold text-emerald-400 truncate">
+                          {lookingUp ? "Looking up property..." : `Look up "${query}"`}
                         </p>
-                        <p className="text-[11px] text-muted-foreground truncate">
-                          <HighlightMatch text={rec.secondary} query={query} />
+                        <p className="text-[11px] text-muted-foreground">
+                          Search any US property via PropertyRadar
                         </p>
                       </div>
-
-                      {rec.score != null && rec.scoreLabel && (
-                        <span
-                          className={cn(
-                            "text-[9px] px-1.5 py-0.5 rounded border font-bold shrink-0",
-                            SCORE_COLORS[rec.scoreLabel]
-                          )}
-                        >
-                          {rec.scoreLabel === "platinum" && (
-                            <Flame className="h-2 w-2 inline mr-0.5" />
-                          )}
-                          {rec.score}
-                        </span>
-                      )}
-
-                      {rec.status && (
-                        <span className="text-[9px] px-1.5 py-0.5 rounded bg-white/[0.04] text-muted-foreground border border-white/[0.06] shrink-0">
-                          {STATUS_LABELS[rec.status] ?? rec.status}
-                        </span>
-                      )}
-
-                      <ArrowRight
-                        className={cn(
-                          "h-3 w-3 shrink-0 transition-colors",
-                          isActive ? "text-cyan/60" : "text-muted-foreground/20"
-                        )}
-                      />
+                      <ArrowRight className="h-3 w-3 shrink-0 text-emerald-400/40" />
                     </button>
-                  );
-                })}
+                  </>
+                )}
               </div>
             )}
 
@@ -364,9 +484,11 @@ export function GlobalSearch() {
               <span>
                 <kbd className="font-mono bg-white/[0.03] px-1 py-0.5 rounded-[4px] border border-white/[0.06]">Esc</kbd> Close
               </span>
-              <span className="ml-auto text-cyan/40">
-                {results.length} result{results.length !== 1 ? "s" : ""}
-              </span>
+              {results.length > 0 && results[0].id !== "__no_result__" && results[0].id !== "__error__" && (
+                <span className="ml-auto text-cyan/40">
+                  {results.length} result{results.length !== 1 ? "s" : ""}
+                </span>
+              )}
             </div>
           </motion.div>
         )}

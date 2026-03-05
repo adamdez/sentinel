@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useProspects } from "@/hooks/use-prospects";
+import { SCORING_MODEL_VERSION } from "@/lib/scoring";
 import type { AIScore } from "@/lib/types";
 
 export function MyTopProspects() {
@@ -111,7 +112,7 @@ export function MyTopProspects() {
         );
       })}
       <p className="text-[11px] text-muted-foreground text-center pt-1">
-        Scored by Dominion Heat Score v1.1 — top {top5.length} of {prospects.length} prospects
+        Scored by Dominion Heat Score {SCORING_MODEL_VERSION} — top {top5.length} of {prospects.length} prospects
       </p>
     </div>
   );
