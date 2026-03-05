@@ -2,8 +2,6 @@
 
 import { motion } from "framer-motion";
 import { useHydrated } from "@/providers/hydration-provider";
-import { GlobalSearch } from "@/components/layout/global-search";
-
 interface PageShellProps {
   title: string;
   description?: string;
@@ -44,9 +42,7 @@ export function PageShell({ title, description, children, actions }: PageShellPr
             )}
           </div>
 
-          <div className="flex-1 flex justify-center min-w-0">
-            <GlobalSearch />
-          </div>
+          <div className="flex-1" />
 
           {actions && (
             <motion.div

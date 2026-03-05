@@ -59,21 +59,21 @@ export function DailyVerse() {
       : devotional.verseText;
 
   return (
-    <div className="relative flex-1 min-w-0 px-4" ref={dropdownRef}>
-      {/* Top bar display — clickable verse */}
+    <div className="relative shrink-0 border-b border-glass-border/50 bg-white/[0.015]" ref={dropdownRef}>
+      {/* Thin banner strip — clickable verse */}
       <button
         onClick={() => setOpen((v) => !v)}
-        className="w-full flex items-center justify-center gap-2 group cursor-pointer"
+        className="w-full flex items-center justify-center gap-2 group cursor-pointer px-4 py-1"
       >
-        <BookOpen className="h-4 w-4 text-[#ff6b35]/50 shrink-0 group-hover:text-[#ff6b35]/80 transition-colors" />
-        <p className="text-[16px] text-[#ff6b35]/70 group-hover:text-[#ff6b35]/90 transition-colors truncate italic">
+        <BookOpen className="h-3 w-3 text-[#ff6b35]/40 shrink-0 group-hover:text-[#ff6b35]/70 transition-colors" />
+        <p className="text-[11px] text-[#ff6b35]/50 group-hover:text-[#ff6b35]/80 transition-colors truncate italic">
           &ldquo;{displayText}&rdquo;
         </p>
-        <span className="text-[14px] text-[#ff6b35]/60 group-hover:text-[#ff6b35]/90 transition-colors shrink-0 font-medium">
+        <span className="text-[11px] text-[#ff6b35]/40 group-hover:text-[#ff6b35]/70 transition-colors shrink-0 font-medium">
           — {devotional.verseRef}
         </span>
         <ChevronDown
-          className={`h-3 w-3 text-[#ff6b35]/40 shrink-0 transition-transform ${
+          className={`h-2.5 w-2.5 text-[#ff6b35]/30 shrink-0 transition-transform ${
             open ? "rotate-180" : ""
           }`}
         />
