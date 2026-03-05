@@ -1,0 +1,16 @@
+{
+  "name": "sentinel-transcription",
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "@deepgram/sdk": "^3.9.0",
+    "@supabase/supabase-js": "^2.49.1",
+    "ws": "^8.18.0"
+  },
+  "devDependencies": {
+    "@types/ws": "^8.5.13"
+  }
+}

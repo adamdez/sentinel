@@ -77,9 +77,16 @@ async function handleBrowserVoice(req: NextRequest) {
     : "";
 
   // Build TwiML — dial the prospect directly from the browser
+  // Optionally add <Stream> for real-time transcription if server is configured
+  const transcriptionUrl = process.env.TRANSCRIPTION_WS_URL; // e.g. wss://sentinel-transcription.fly.dev/media-stream
+  const streamLine = transcriptionUrl && callLogId
+    ? `  <Stream url="${transcriptionUrl}?callLogId=${encodeURIComponent(callLogId)}" />`
+    : "";
+
   const twiml = [
     '<?xml version="1.0" encoding="UTF-8"?>',
     "<Response>",
+    ...(streamLine ? [streamLine] : []),
     `  <Dial callerId="${callerId}" timeout="30"${dialActionUrl ? ` action="${dialActionUrl}"` : ""}>`,
     `    <Number${statusCallbackUrl ? ` statusCallback="${statusCallbackUrl}" statusCallbackEvent="initiated ringing answered completed"` : ""}>${to}</Number>`,
     "  </Dial>",

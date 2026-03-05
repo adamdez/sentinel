@@ -26,6 +26,8 @@ import { useCallNotes } from "@/hooks/use-call-notes";
 import { usePreCallBrief } from "@/hooks/use-pre-call-brief";
 import { CallSequenceGuide } from "@/components/sentinel/call-sequence-guide";
 import { useCallHistory, type CallHistoryEntry } from "@/hooks/use-call-history";
+import { MasterClientFileModal, clientFileFromRaw } from "@/components/sentinel/master-client-file-modal";
+import { Eye } from "lucide-react";
 
 async function authHeaders(): Promise<Record<string, string>> {
   const { data: { session } } = await supabase.auth.getSession();
@@ -283,6 +285,28 @@ export default function DialerPage() {
   const { brief: preCallBrief, loading: briefLoading } = usePreCallBrief(currentLead?.id ?? null);
   const { history: callHistory, loading: historyLoading } = useCallHistory(currentUser.id, 30);
   const [historyFilter, setHistoryFilter] = useState<"all" | "outbound" | "inbound">("all");
+  const [fileModalOpen, setFileModalOpen] = useState(false);
+  const [liveNotes, setLiveNotes] = useState<string[]>([]);
+
+  // Subscribe to live_notes updates from transcription server via Supabase realtime
+  useEffect(() => {
+    if (!currentCallLogId) { setLiveNotes([]); return; }
+    const channel = supabase
+      .channel(`live-notes-${currentCallLogId}`)
+      .on(
+        "postgres_changes",
+        { event: "UPDATE", schema: "public", table: "calls_log", filter: `id=eq.${currentCallLogId}` },
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (payload: any) => {
+          const notes = payload.new?.live_notes;
+          if (Array.isArray(notes) && notes.length > 0) {
+            setLiveNotes(notes);
+          }
+        },
+      )
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
+  }, [currentCallLogId]);
 
   // Quick Manual Dial state
   const [manualPhone, setManualPhone] = useState("");
@@ -1341,6 +1365,13 @@ export default function DialerPage() {
                         <p className="text-xs text-muted-foreground/50 mt-0.5">
                           {currentLead.properties?.city}, {currentLead.properties?.state} — {currentLead.properties?.county} County
                         </p>
+                        <button
+                          onClick={() => setFileModalOpen(true)}
+                          className="mt-1 inline-flex items-center gap-1 text-[10px] text-cyan hover:text-cyan/80 hover:underline transition-colors"
+                        >
+                          <Eye className="h-3 w-3" />
+                          View Full File
+                        </button>
                       </div>
                       <div className="flex flex-col items-end gap-1">
                         {(() => {
@@ -1488,20 +1519,44 @@ export default function DialerPage() {
                       )}
                     </div>
 
-                    {callState === "idle" && currentUser.personal_cell && (
+                    {callState === "idle" && (
                       <p className="text-[11px] text-muted-foreground/55 flex items-center gap-1.5 pt-1">
-                        <PhoneForwarded className="h-3 w-3 text-cyan/40" />
-                        Will transfer to your cell (***{currentUser.personal_cell.slice(-4)}) — Caller ID: Dominion Homes
-                      </p>
-                    )}
-                    {callState === "idle" && !currentUser.personal_cell && (
-                      <p className="text-[10px] text-yellow-400/60 flex items-center gap-1.5 pt-1">
-                        <PhoneForwarded className="h-3 w-3" />
-                        No personal cell set — <a href="/settings" className="underline hover:text-yellow-400">configure in Settings</a>
+                        <Wifi className="h-3 w-3 text-cyan/40" />
+                        VoIP call via browser — Caller ID: Dominion Homes
                       </p>
                     )}
                   </div>
                 </GlassCard>
+
+                {/* AI Live Notes — auto-generated from call transcription */}
+                {(callState === "connected" || callState === "ended" || liveNotes.length > 0) && (
+                  <GlassCard hover={false} className="!p-3 mt-3 border-cyan/10">
+                    <div className="flex items-center gap-1.5 mb-2">
+                      <Zap className="h-3 w-3 text-cyan" />
+                      <p className="text-[10px] font-semibold uppercase tracking-wider text-cyan/80">AI Live Notes</p>
+                      {callState === "connected" && (
+                        <span className="ml-auto flex items-center gap-1 text-[9px] text-cyan/50">
+                          <span className="h-1.5 w-1.5 rounded-full bg-cyan animate-pulse" />
+                          Listening
+                        </span>
+                      )}
+                    </div>
+                    {liveNotes.length > 0 ? (
+                      <ul className="space-y-1">
+                        {liveNotes.map((note, i) => (
+                          <li key={i} className="text-[11px] text-foreground/80 flex items-start gap-1.5">
+                            <span className="text-cyan/40 mt-0.5 shrink-0">•</span>
+                            <span>{note}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    ) : (
+                      <p className="text-[10px] text-muted-foreground/40 italic">
+                        Notes will appear as the conversation progresses...
+                      </p>
+                    )}
+                  </GlassCard>
+                )}
 
                 <GlassCard hover={false} className="!p-3 mt-3">
                   <textarea
@@ -1673,6 +1728,44 @@ export default function DialerPage() {
           </AnimatePresence>
         </div>
       </div>
+
+      {/* Master Client File Modal */}
+      {currentLead && (
+        <MasterClientFileModal
+          clientFile={clientFileFromRaw(
+            {
+              id: currentLead.id,
+              property_id: currentLead.property_id,
+              status: currentLead.status,
+              priority: currentLead.priority,
+              source: currentLead.source,
+              tags: currentLead.tags,
+              notes: currentLead.notes,
+              assigned_to: currentLead.assigned_to,
+              lock_version: currentLead.lock_version,
+              next_call_scheduled_at: currentLead.next_call_scheduled_at,
+              call_sequence_step: currentLead.call_sequence_step,
+              total_calls: currentLead.total_calls,
+              live_answers: currentLead.live_answers,
+              voicemails_left: currentLead.voicemails_left,
+            },
+            {
+              id: currentLead.properties?.id ?? "",
+              address: currentLead.properties?.address ?? "",
+              owner_name: currentLead.properties?.owner_name ?? "Unknown",
+              owner_phone: currentLead.properties?.owner_phone ?? null,
+              estimated_value: currentLead.properties?.estimated_value ?? null,
+              equity_percent: currentLead.properties?.equity_percent ?? null,
+              city: currentLead.properties?.city ?? "",
+              state: currentLead.properties?.state ?? "",
+              county: currentLead.properties?.county ?? "",
+              owner_flags: currentLead.properties?.owner_flags ?? {},
+            },
+          )}
+          open={fileModalOpen}
+          onClose={() => setFileModalOpen(false)}
+        />
+      )}
 
     </PageShell>
   );
