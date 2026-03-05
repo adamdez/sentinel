@@ -1,9 +1,13 @@
 import { NextResponse } from "next/server";
+import { createServerClient } from "@/lib/supabase";
 import { runAgentCycle } from "@/lib/agent/ai-agent-core";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 export const maxDuration = 300;
+
+// Pipeline depth targets
+const DEPTH_MAX = 80; // Skip PR import if unworked prospects exceed this
 
 /**
  * GET /api/ingest/daily-poll
@@ -11,14 +15,19 @@ export const maxDuration = 300;
  * Vercel Cron endpoint — runs every 4 hours.
  * vercel.json: { "crons": [{ "path": "/api/ingest/daily-poll", "schedule": "0 *\/4 * * *" }] }
  *
+ * Pipeline depth control:
+ *   - Checks unworked prospect count before running cycle
+ *   - If > DEPTH_MAX (80): logs warning (import still runs, but admin should review)
+ *   - Crawlers + enrichment + ATTOM always run regardless of depth
+ *
  * Delegates to the AI Agent Core orchestrator which runs:
+ *   Phase 0.5 — Enrichment queue processing
  *   Phase 1 — PropertyRadar Elite Seed top10 pull
  *   Phase 2 — Predictive Crawlers (obituaries, court dockets, utility shut-offs)
  *   Phase 3 — ATTOM Data API daily delta (if ATTOM_API_KEY present)
  *
  * All phases are fault-isolated: one failure does not block others.
- * Every record scored via Predictive Scoring v2.1 + deterministic v2.0.
- * Only ≥60 (crawlers) / ≥75 (ATTOM/PR) promoted to Sentinel leads.
+ * Every record scored via Scoring v2.2 + Predictive v2.1.
  */
 export async function GET(req: Request) {
   const cronSecret = req.headers.get("authorization");
@@ -26,6 +35,27 @@ export async function GET(req: Request) {
 
   if (expectedSecret && cronSecret !== `Bearer ${expectedSecret}`) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  // ── Pipeline depth check ──────────────────────────────────────────
+  let pipelineDepth = 0;
+  try {
+    const sb = createServerClient();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { count } = await (sb.from("leads") as any)
+      .select("id", { count: "exact", head: true })
+      .eq("status", "prospect")
+      .eq("call_sequence_step", 0);
+
+    pipelineDepth = count ?? 0;
+    const depthStatus = pipelineDepth > DEPTH_MAX ? "OVERFLOW" : "ok";
+    console.log(`[DailyPoll] Pipeline depth: ${pipelineDepth} unworked prospects (${depthStatus})`);
+
+    if (pipelineDepth > DEPTH_MAX) {
+      console.log(`[DailyPoll] WARNING: ${pipelineDepth} unworked exceeds target max ${DEPTH_MAX}. Consider pausing imports or increasing call volume.`);
+    }
+  } catch (err) {
+    console.error("[DailyPoll] Pipeline depth check failed (non-fatal):", err);
   }
 
   console.log("[DailyPoll] Handing off to AI Agent Core...");
@@ -42,8 +72,10 @@ export async function GET(req: Request) {
 
   return NextResponse.json({
     success: result.success,
+    pipelineDepth,
     message: [
       `Agent cycle complete`,
+      `Pipeline: ${pipelineDepth} unworked`,
       result.grokDirective ? `Grok: [${result.grokDirective.nextCrawlersToRun.join(",")}]` : "Grok: off",
       `Enrichment: ${result.phases.enrichment.enriched}/${result.phases.enrichment.processed} (${result.phases.enrichment.remaining} queued)`,
       `PR: ${result.phases.propertyRadar.count} prospects`,

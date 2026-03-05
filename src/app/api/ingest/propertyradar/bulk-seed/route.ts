@@ -353,11 +353,17 @@ export async function POST(req: NextRequest) {
       ? rawAddr.split(",")[0].trim()
       : rawAddr;
 
-    // ── Data quality gate: skip properties with no real address/owner ──
+    // ── Data quality gate: skip garbage records ──
     const hasRealAddress = address.trim().length > 3;
     const hasRealOwner = ownerName !== "Unknown Owner" && ownerName.trim().length > 0;
-    if (!hasRealAddress || !hasRealOwner) {
-      if (i < 10) console.log(`[BulkSeed] SKIPPED ${apn}: no address or owner (addr="${address}", owner="${ownerName}")`);
+    const hasAPN = !!apn && apn.trim().length > 0;
+
+    // Reject government/commercial properties — can't wholesale these
+    const pType = (pr.PType ?? pr.PropertyType ?? "").toString().toLowerCase();
+    const isGovOrCommercial = /government|commercial|industrial|office|retail|church|school|hospital|public/.test(pType);
+
+    if (!hasRealAddress || !hasRealOwner || !hasAPN || isGovOrCommercial) {
+      if (i < 10) console.log(`[BulkSeed] SKIPPED ${apn}: quality gate (addr="${address}", owner="${ownerName}", apn=${hasAPN}, type="${pType}")`);
       errored++;
       continue;
     }

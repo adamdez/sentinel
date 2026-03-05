@@ -30,7 +30,7 @@ import {
   buildPredictiveInput,
   type PredictiveInput,
 } from "@/lib/scoring-predictive";
-import { distressFingerprint, isDuplicateError, normalizeCounty } from "@/lib/dedup";
+import { distressFingerprint, isDuplicateError, normalizeCounty, daysSince } from "@/lib/dedup";
 import { dualSkipTrace, skipTraceResultToOwnerFlags, type SkipTraceResult } from "@/lib/skip-trace";
 import { detectDistressSignals, type DetectedSignal } from "@/lib/distress-signals";
 import type { DistressType } from "@/lib/types";
@@ -78,6 +78,131 @@ function toNumber(val: unknown): number | undefined {
 function toInt(val: unknown): number | undefined {
   const n = toNumber(val);
   return n != null ? Math.round(n) : undefined;
+}
+
+// ── Signal Verification (Phase 1d) ──────────────────────────────────
+
+/**
+ * Maps distress event types to PropertyRadar flags that indicate
+ * the signal is still active. Used during re-enrichment to verify
+ * or resolve existing signals.
+ */
+const SIGNAL_PR_FLAGS: Record<string, string[]> = {
+  probate: ["isDeceasedProperty"],
+  pre_foreclosure: ["isPreforeclosure", "inForeclosure"],
+  tax_lien: ["inTaxDelinquency", "PropertyHasOpenLiens", "PropertyHasOpenPersonLiens"],
+  bankruptcy: ["inBankruptcyProperty"],
+  divorce: ["inDivorce"],
+  vacant: ["isSiteVacant", "isMailVacant"],
+  absentee: ["isNotSameMailingOrExempt"],
+  underwater: ["isUnderwater"],
+  // tired_landlord is composite — checked separately
+};
+
+/**
+ * Extract the real event date from PR data for a given signal type.
+ * Returns ISO date string or null if no date available.
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function extractEventDate(pr: any, signalType: string): string | null {
+  switch (signalType) {
+    case "probate": return pr.DeceasedDate ?? null;
+    case "pre_foreclosure": return pr.ForeclosureRecDate ?? null;
+    case "tax_lien":
+      if (pr.DelinquentYear) return `${pr.DelinquentYear}-01-01`;
+      return null;
+    case "bankruptcy": return pr.BankruptcyRecDate ?? null;
+    case "divorce": return pr.DivorceRecDate ?? null;
+    default: return null;
+  }
+}
+
+/**
+ * Check if a signal type is still active based on current PR data.
+ * For composite signals (tired_landlord), checks component conditions.
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function isSignalStillActive(pr: any, signalType: string): boolean {
+  if (signalType === "tired_landlord") {
+    const isAbsentee = isTruthy(pr.isNotSameMailingOrExempt);
+    const units = toNumber(pr.Units) ?? 1;
+    const dateStr = (pr.LastTransferRecDate ?? pr.SaleDate) as string | undefined;
+    let ownershipYears: number | null = null;
+    if (dateStr) {
+      const days = daysSince(dateStr, -1);
+      if (days >= 0) ownershipYears = days / 365;
+    }
+    return isAbsentee && units >= 2 && ownershipYears !== null && ownershipYears > 10;
+  }
+
+  const flags = SIGNAL_PR_FLAGS[signalType];
+  if (!flags) return false; // unknown type, can't verify
+  return flags.some((flag) => isTruthy(pr[flag]));
+}
+
+/**
+ * Verify existing distress signals against fresh PropertyRadar data.
+ *
+ * Called during re-enrichment to update signal lifecycle:
+ * - Still active → status = 'active', last_verified_at = now()
+ * - No longer active → status = 'resolved', resolved_at = now()
+ * - Backfill event_date from PR if not yet set
+ */
+async function verifyExistingSignals(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  sb: any,
+  propertyId: string,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  pr: any,
+): Promise<{ verified: number; resolved: number }> {
+  // Fetch existing non-resolved events for this property
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: existing } = await (sb.from("distress_events") as any)
+    .select("id, event_type, status, event_date")
+    .eq("property_id", propertyId)
+    .in("status", ["active", "unknown"]);
+
+  if (!existing || existing.length === 0) {
+    return { verified: 0, resolved: 0 };
+  }
+
+  const now = new Date().toISOString();
+  let verified = 0;
+  let resolved = 0;
+
+  for (const evt of existing) {
+    const stillActive = isSignalStillActive(pr, evt.event_type);
+
+    if (stillActive) {
+      // Signal confirmed active — update verification timestamp
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const update: Record<string, any> = {
+        status: "active",
+        last_verified_at: now,
+      };
+      // Backfill event_date if we didn't have one before
+      if (!evt.event_date) {
+        const realDate = extractEventDate(pr, evt.event_type);
+        if (realDate) update.event_date = realDate;
+      }
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      await (sb.from("distress_events") as any).update(update).eq("id", evt.id);
+      verified++;
+    } else {
+      // Signal no longer present in PR data — mark as resolved
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      await (sb.from("distress_events") as any)
+        .update({ status: "resolved", resolved_at: now, last_verified_at: now })
+        .eq("id", evt.id);
+      resolved++;
+    }
+  }
+
+  if (verified > 0 || resolved > 0) {
+    console.log(`[Enrich] Signal verification for ${propertyId}: ${verified} verified active, ${resolved} resolved`);
+  }
+
+  return { verified, resolved };
 }
 
 // ── Address Parser ───────────────────────────────────────────────────
@@ -154,9 +279,14 @@ export async function enrichProperty(
       const detection = detectDistressSignals(prResult.pr);
       const signals = detection.signals;
 
-      // Insert distress events (dedup by fingerprint)
+      // ── Step 2b: Verify existing signals against fresh PR data ──
+      // Marks still-active signals as verified, resolves signals no longer in PR
+      await verifyExistingSignals(sb, propertyId, prResult.pr);
+
+      // Insert distress events (dedup by fingerprint) with lifecycle fields
       const apn = prResult.pr.APN ?? property.apn ?? propertyId;
       const county = normalizeCounty(prResult.pr.County ?? property.county ?? "", "Unknown");
+      const now = new Date().toISOString();
 
       for (const signal of signals) {
         const fp = distressFingerprint(apn, county, signal.type, "propertyradar");
@@ -169,6 +299,9 @@ export async function enrichProperty(
           fingerprint: fp,
           raw_data: { detected_from: signal.detectedFrom, radar_id: prResult.pr.RadarID },
           confidence: signal.severity >= 7 ? "0.900" : signal.severity >= 4 ? "0.750" : "0.600",
+          status: "active",
+          last_verified_at: now,
+          event_date: extractEventDate(prResult.pr, signal.type),
         });
         if (evtErr && !isDuplicateError(evtErr)) {
           console.error(`[Enrich] Event insert error (${signal.type}):`, evtErr.message);
@@ -958,13 +1091,19 @@ async function finalizeEnrichment(
   const scoreLabelTag = `score-${label}`;
   const signalTags = signals.map((s) => s.type);
 
-  // Keep status as "staging" — lead stays in the reservoir until admin pulls it
+  // Auto-promote: leads scoring ≥70 go directly to prospect (skip manual promote)
+  // Lower scores stay in staging until admin pulls them
+  const AUTO_PROMOTE_THRESHOLD = 70;
+  const shouldAutoPromote = blendedScore >= AUTO_PROMOTE_THRESHOLD;
+  const finalStatus = shouldAutoPromote ? "prospect" : "staging";
+
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   await (sb.from("leads") as any)
     .update({
       priority: blendedScore,
+      status: finalStatus,
       tags: [scoreLabelTag, ...signalTags],
-      notes: `Enriched [${source}] — Heat ${blendedScore} (${label}). ${signals.length} signal(s). Attempts: ${attempts}`,
+      notes: `Enriched [${source}] — Heat ${blendedScore} (${label}). ${signals.length} signal(s). Attempts: ${attempts}${shouldAutoPromote ? " [auto-promoted]" : ""}`,
       updated_at: new Date().toISOString(),
     })
     .eq("id", leadId);
@@ -973,7 +1112,7 @@ async function finalizeEnrichment(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   await (sb.from("event_log") as any).insert({
     user_id: SYSTEM_USER_ID,
-    action: "enrichment.finalized",
+    action: shouldAutoPromote ? "enrichment.auto_promoted" : "enrichment.finalized",
     entity_type: "lead",
     entity_id: leadId,
     details: {
@@ -983,11 +1122,11 @@ async function finalizeEnrichment(
       label,
       signals: signals.length,
       attempts,
-      status: "staging",
+      status: finalStatus,
     },
   });
 
-  console.log(`[Enrich] Lead ${leadId} enriched (staying in staging): score ${blendedScore} (${label}), source: ${source}`);
+  console.log(`[Enrich] Lead ${leadId} enriched (${finalStatus}): score ${blendedScore} (${label}), source: ${source}${shouldAutoPromote ? " [AUTO-PROMOTED]" : ""}`);
 }
 
 // ── Promote Leads from Staging → Prospect (admin pull) ───────────────

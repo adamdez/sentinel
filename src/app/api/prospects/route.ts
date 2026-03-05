@@ -6,6 +6,7 @@ import { validateStatusTransition, getAllowedTransitions, incrementLockVersion }
 import { scrubLead } from "@/lib/compliance";
 import { distressFingerprint, normalizeCounty as globalNormalizeCounty, isDuplicateError } from "@/lib/dedup";
 import { detectDistressSignals, type DetectedSignal } from "@/lib/distress-signals";
+import { captureStageTransition } from "@/lib/conversion-tracking";
 
 const SYSTEM_USER_ID = "00000000-0000-0000-0000-000000000000";
 const PR_API_BASE = "https://api.propertyradar.com/v1/properties";
@@ -77,8 +78,14 @@ export async function GET() {
       ]);
 
       if (propsResult.data) {
+        // Trim heavy nested fields from owner_flags for list rendering.
+        // pr_raw, deep_crawl, deep_skip can be 10-50KB each — not needed in list view.
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         for (const p of propsResult.data as any[]) {
+          if (p.owner_flags && typeof p.owner_flags === "object") {
+            const { pr_raw, deep_crawl, deep_skip, ...lightFlags } = p.owner_flags;
+            p.owner_flags = lightFlags;
+          }
           propertiesMap[p.id] = p;
         }
       }
@@ -209,6 +216,13 @@ export async function PATCH(req: NextRequest) {
       return NextResponse.json(
         { error: "Internal server error" },
         { status: 500 }
+      );
+    }
+
+    // Conversion tracking: capture stage transition snapshot (non-blocking)
+    if (status && currentLead.status !== status) {
+      captureStageTransition(lead_id, currentLead.status, status).catch((e) =>
+        console.error("[API/prospects PATCH] Stage transition capture failed (non-fatal):", e),
       );
     }
 

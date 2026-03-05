@@ -7,7 +7,9 @@
  */
 
 import { supabase, createServerClient } from "./supabase";
-import { computeScore, SCORING_MODEL_VERSION, type ScoringInput, type ScoringOutput } from "./scoring";
+import { computeScore, SCORING_MODEL_VERSION, getScoreLabel, type ScoringInput, type ScoringOutput } from "./scoring";
+import { crossSourceFingerprint } from "./dedup";
+import type { SignalStatus } from "./types";
 
 export interface StoredScoringRecord {
   id: string;
@@ -69,71 +71,150 @@ export async function scoreAndPersist(
   }
 }
 
-/**
- * Replay scoring for all properties.
- * Reads distress_events, recomputes, writes new scoring_records.
- * Used for model recalibration.
- *
- * TODO: Implement as a background job with queue isolation.
- */
-export async function replayAllScores(): Promise<{
+export interface ReplayAuditEntry {
+  propertyId: string;
+  oldScore: number | null;
+  oldTier: string | null;
+  newScore: number;
+  newTier: string;
+}
+
+export interface ReplayResult {
   processed: number;
   errors: number;
-}> {
-  console.log(`[Scoring] Replay started — model ${SCORING_MODEL_VERSION}`);
+  leadsUpdated: number;
+  audit: ReplayAuditEntry[];
+  tierMigration: Record<string, Record<string, number>>;
+}
 
-  // TODO: Replace `as any` when types are auto-generated via `supabase gen types`
+/**
+ * Replay scoring for all properties with v2.2 enhancements:
+ * - Excludes resolved signals (status = 'resolved')
+ * - Uses event_date for recency (falls back to created_at)
+ * - Cross-source dedup by event_type per property
+ * - Includes signal freshness (status) in scoring input
+ * - Updates leads.priority with new score
+ * - Returns before/after audit summary with tier migrations
+ */
+export async function replayAllScores(): Promise<ReplayResult> {
+  console.log(`[Scoring] Replay started — model ${SCORING_MODEL_VERSION}`);
+  const sb = createServerClient();
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { data: propertiesData, error } = await (supabase.from("properties") as any)
-    .select("id, equity_percent, owner_flags")
-    .order("created_at", { ascending: true }) as {
-      data: { id: string; equity_percent: number | null; owner_flags: Record<string, boolean> }[] | null;
-      error: { message: string } | null;
-    };
+  const tbl = (name: string) => sb.from(name) as any;
+
+  // Fetch all properties with their current lead scores
+  const { data: propertiesData, error } = await tbl("properties")
+    .select("id, apn, county, equity_percent, owner_flags")
+    .order("created_at", { ascending: true });
 
   if (error || !propertiesData) {
     console.error("[Scoring] Replay failed to fetch properties:", error?.message);
-    return { processed: 0, errors: 1 };
+    return { processed: 0, errors: 1, leadsUpdated: 0, audit: [], tierMigration: {} };
+  }
+
+  // Fetch current lead priorities for audit
+  const { data: leadsData } = await tbl("leads")
+    .select("id, property_id, priority")
+    .in("status", ["staging", "prospect", "my_lead", "lead", "negotiation"]);
+
+  const leadByProperty: Record<string, { id: string; priority: number | null }> = {};
+  for (const l of leadsData ?? []) {
+    if (l.property_id) leadByProperty[l.property_id] = { id: l.id, priority: l.priority };
   }
 
   let processed = 0;
   let errors = 0;
+  let leadsUpdated = 0;
+  const audit: ReplayAuditEntry[] = [];
+  // tierMigration[oldTier][newTier] = count
+  const tierMigration: Record<string, Record<string, number>> = {};
+
+  const now = Date.now();
 
   for (const property of propertiesData) {
     try {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { data: events } = await (supabase.from("distress_events") as any)
-        .select("event_type, severity, created_at")
-        .eq("property_id", property.id) as {
-          data: { event_type: string; severity: number; created_at: string }[] | null;
-        };
+      // Fetch events — exclude resolved, include status for freshness
+      const { data: events } = await tbl("distress_events")
+        .select("event_type, severity, created_at, event_date, status, source")
+        .eq("property_id", property.id)
+        .in("status", ["active", "unknown"]);
 
       if (!events || events.length === 0) continue;
 
-      const now = Date.now();
+      // Cross-source dedup: keep highest-severity per event_type
+      const dedupMap = new Map<string, typeof events[0]>();
+      for (const e of events) {
+        const key = crossSourceFingerprint(
+          property.apn ?? property.id,
+          property.county ?? "unknown",
+          e.event_type,
+        );
+        const existing = dedupMap.get(key);
+        if (!existing || e.severity > existing.severity) {
+          dedupMap.set(key, e);
+        }
+      }
+
+      const dedupedEvents = [...dedupMap.values()];
+
       const input: ScoringInput = {
-        signals: events.map((e) => ({
-          type: e.event_type as ScoringInput["signals"][0]["type"],
-          severity: e.severity,
-          daysSinceEvent: Math.floor((now - new Date(e.created_at).getTime()) / 86400000),
-        })),
+        signals: dedupedEvents.map((e) => {
+          // Prefer event_date for recency, fall back to created_at
+          const dateForRecency = e.event_date ?? e.created_at;
+          const daysSinceEvent = Math.floor((now - new Date(dateForRecency).getTime()) / 86400000);
+          return {
+            type: e.event_type as ScoringInput["signals"][0]["type"],
+            severity: e.severity,
+            daysSinceEvent: Math.max(daysSinceEvent, 0),
+            status: (e.status ?? "unknown") as SignalStatus,
+          };
+        }),
         ownerFlags: (property.owner_flags as Record<string, boolean>) ?? {},
         equityPercent: Number(property.equity_percent) || 0,
         compRatio: 1.0,
         historicalConversionRate: 0,
       };
 
-      const { persisted } = await scoreAndPersist(property.id, input, {
+      const { output, persisted } = await scoreAndPersist(property.id, input, {
         useServerClient: true,
       });
 
-      if (persisted) processed++;
-      else errors++;
+      if (!persisted) {
+        errors++;
+        continue;
+      }
+
+      processed++;
+
+      // Update lead priority if there's a lead for this property
+      const lead = leadByProperty[property.id];
+      if (lead) {
+        const oldScore = lead.priority;
+        const oldTier = oldScore != null ? getScoreLabel(oldScore) : "none";
+        const newTier = getScoreLabel(output.composite);
+
+        await tbl("leads")
+          .update({ priority: output.composite, updated_at: new Date().toISOString() })
+          .eq("id", lead.id);
+        leadsUpdated++;
+
+        audit.push({
+          propertyId: property.id,
+          oldScore,
+          oldTier,
+          newScore: output.composite,
+          newTier,
+        });
+
+        // Track tier migration
+        if (!tierMigration[oldTier]) tierMigration[oldTier] = {};
+        tierMigration[oldTier][newTier] = (tierMigration[oldTier][newTier] ?? 0) + 1;
+      }
     } catch {
       errors++;
     }
   }
 
-  console.log(`[Scoring] Replay complete — ${processed} scored, ${errors} errors`);
-  return { processed, errors };
+  console.log(`[Scoring] Replay complete — ${processed} scored, ${leadsUpdated} leads updated, ${errors} errors`);
+  return { processed, errors, leadsUpdated, audit, tierMigration };
 }

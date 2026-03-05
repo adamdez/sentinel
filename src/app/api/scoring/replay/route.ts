@@ -37,7 +37,12 @@ export async function POST() {
 
     return NextResponse.json({
       success: true,
-      ...result,
+      processed: result.processed,
+      errors: result.errors,
+      leadsUpdated: result.leadsUpdated,
+      tierMigration: result.tierMigration,
+      auditSample: result.audit.slice(0, 50), // First 50 for response size
+      auditTotal: result.audit.length,
       timestamp: new Date().toISOString(),
     });
   } catch (error) {
