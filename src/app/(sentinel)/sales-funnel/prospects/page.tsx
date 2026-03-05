@@ -703,7 +703,8 @@ export default function ProspectsPage() {
             <table className="w-full">
               <thead>
                 <tr className="border-b border-white/[0.06] bg-white/[0.02]">
-                  <th className="text-left p-3 text-xs font-medium text-muted-foreground w-[300px]">Property</th>
+                  <th className="text-left p-3 text-xs font-medium text-muted-foreground w-[280px]">Property</th>
+                  <th className="text-left p-3 text-xs font-medium text-muted-foreground w-[140px]">Phone</th>
                   <th className="text-left p-3 text-xs font-medium text-muted-foreground">Distress Signals</th>
                   <th className="text-right p-3 text-xs font-medium text-muted-foreground">ARV / Equity</th>
                   <th
@@ -715,7 +716,7 @@ export default function ProspectsPage() {
                       {sortField === "composite_score" && <SortIcon className="h-2.5 w-2.5 text-cyan" />}
                     </span>
                   </th>
-                  <th className="text-left p-3 text-xs font-medium text-muted-foreground">Intel</th>
+                  <th className="text-left p-3 text-xs font-medium text-muted-foreground">Last Activity</th>
                   <th className="text-right p-3 text-xs font-medium text-muted-foreground">Actions</th>
                 </tr>
               </thead>
@@ -777,6 +778,22 @@ export default function ProspectsPage() {
                           </div>
                         </td>
 
+                        {/* ── Phone / Contact ── */}
+                        <td className="p-3">
+                          <div className="space-y-0.5">
+                            {p.owner_phone ? (
+                              <>
+                                <p className="text-xs font-mono text-foreground/90">{p.owner_phone}</p>
+                                {p.owner_email && (
+                                  <p className="text-[10px] text-muted-foreground/50 truncate max-w-[140px]">{p.owner_email}</p>
+                                )}
+                              </>
+                            ) : (
+                              <span className="text-[10px] text-red-400/60 font-medium">No phone</span>
+                            )}
+                          </div>
+                        </td>
+
                         {/* ── Distress Signal Badges ── */}
                         <td className="p-3">
                           <div className="flex flex-wrap gap-1 max-w-[220px]">
@@ -833,32 +850,23 @@ export default function ProspectsPage() {
                           />
                         </td>
 
-                        {/* ── Quick Intel ── */}
+                        {/* ── Last Activity ── */}
                         <td className="p-3">
                           <div className="space-y-0.5 text-[10px]">
-                            {/* Freshness */}
                             {freshness && (
                               <p className="text-muted-foreground/60 flex items-center gap-1">
                                 <span className="inline-block h-1.5 w-1.5 rounded-full bg-cyan/60 shrink-0" />
                                 {freshness}
                               </p>
                             )}
-                            {/* Prediction intel */}
-                            {p._prediction && p._prediction.daysUntilDistress < 180 && (
-                              <p className={cn(
-                                "font-medium",
-                                p._prediction.daysUntilDistress < 60 ? "text-red-400" : p._prediction.daysUntilDistress < 120 ? "text-amber-400" : "text-muted-foreground/70"
-                              )}>
-                                ~{p._prediction.daysUntilDistress}d to distress
+                            {p.total_loan_balance != null && p.total_loan_balance > 0 && (
+                              <p className="text-muted-foreground/70">
+                                Owes ${p.total_loan_balance >= 1000 ? `${Math.round(p.total_loan_balance / 1000)}K` : p.total_loan_balance.toLocaleString()}
                               </p>
                             )}
-                            {/* Owner age if estimated */}
-                            {p._prediction?.ownerAgeInference && p._prediction.ownerAgeInference >= 60 && (
-                              <p className="text-muted-foreground/60">Owner ~{Math.round(p._prediction.ownerAgeInference)}y/o</p>
+                            {p.foreclosure_stage && (
+                              <p className="text-red-400 font-medium">{p.foreclosure_stage}</p>
                             )}
-                            {/* Key owner flags */}
-                            {p.is_vacant && <p className="text-emerald-400/70 font-medium">Vacant</p>}
-                            {p.is_high_equity && !p.equity_percent && <p className="text-neon/70 font-medium">High equity</p>}
                             {validSignals.length >= 3 && (
                               <p className="text-cyan font-semibold">{validSignals.length} signals stacked</p>
                             )}

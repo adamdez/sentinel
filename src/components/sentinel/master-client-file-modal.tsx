@@ -3081,113 +3081,176 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
         <ScoreBreakdownModal cf={cf} scoreType={scoreBreakdown} onClose={() => setScoreBreakdown(null)} />
       )}
 
-      {/* ── Call Playbook — Grok AI (upgraded pre-call brief) ── */}
-      <div className="rounded-[12px] border border-purple-500/20 bg-purple-500/[0.04] p-4 relative overflow-hidden">
-        <div className="absolute inset-0 bg-gradient-to-br from-purple-500/[0.06] via-transparent to-cyan/[0.03] pointer-events-none" />
-        <div className="absolute top-0 inset-x-0 h-[1px] bg-gradient-to-r from-transparent via-purple-400/40 to-transparent" />
-
-        <div className="flex items-center gap-2 mb-3 relative z-10">
-          <div className="h-7 w-7 rounded-[8px] bg-purple-500/15 flex items-center justify-center">
-            <Brain className="h-3.5 w-3.5 text-purple-400" />
+      {/* ── Quick Call Summary (compact inline) ── */}
+      {(cf.totalCalls > 0 || cf.lastContactAt) && (
+        <div className="flex items-center gap-3 rounded-[10px] border border-white/[0.06] bg-white/[0.02] px-3 py-2">
+          <Phone className="h-3.5 w-3.5 text-cyan shrink-0" />
+          <p className="text-[11px] text-muted-foreground uppercase tracking-wider font-semibold shrink-0">Call Summary</p>
+          <div className="flex items-center gap-2 ml-2 text-[11px] text-foreground/80 flex-wrap">
+            {cf.lastContactAt && (
+              <span className="flex items-center gap-1">
+                <Clock className="h-3 w-3 text-muted-foreground/50" />
+                Last called: <span className="font-medium text-foreground">{(() => {
+                  const diff = Date.now() - new Date(cf.lastContactAt).getTime();
+                  const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+                  if (days === 0) return "Today";
+                  if (days === 1) return "1d ago";
+                  return `${days}d ago`;
+                })()}</span>
+              </span>
+            )}
+            {cf.lastContactAt && cf.totalCalls > 0 && <span className="text-muted-foreground/30">|</span>}
+            {cf.totalCalls > 0 && (
+              <span>Total: <span className="font-medium text-foreground">{cf.totalCalls}</span></span>
+            )}
+            {cf.liveAnswers > 0 && (
+              <>
+                <span className="text-muted-foreground/30">|</span>
+                <span>Live: <span className="font-medium text-emerald-400">{cf.liveAnswers}</span></span>
+              </>
+            )}
+            {cf.voicemailsLeft > 0 && (
+              <>
+                <span className="text-muted-foreground/30">|</span>
+                <span>VM: <span className="font-medium text-blue-400">{cf.voicemailsLeft}</span></span>
+              </>
+            )}
+            {callHistory.length > 0 && callHistory[0].disposition && (
+              <>
+                <span className="text-muted-foreground/30">|</span>
+                <span>Last: <span className="font-medium text-purple-300">{callHistory[0].disposition}</span></span>
+              </>
+            )}
           </div>
-          <p className="text-[11px] text-purple-300 uppercase tracking-wider font-semibold">Call Playbook</p>
-          <Badge variant="outline" className="text-[8px] border-purple-500/20 text-purple-400/60 ml-1">GROK AI</Badge>
-          {briefLoading && <Loader2 className="h-3 w-3 text-purple-400 animate-spin ml-auto" />}
-          {!briefLoading && (
-            <button
-              onClick={regenerateBrief}
-              className="ml-auto p-1 rounded-md hover:bg-purple-500/10 transition-colors text-purple-400/50 hover:text-purple-400"
-              title="Regenerate playbook"
-            >
-              <RefreshCw className="h-3 w-3" />
-            </button>
+          {cf.nextCallScheduledAt && (
+            <span className="ml-auto text-[10px] text-cyan/70 flex items-center gap-1 shrink-0">
+              <Calendar className="h-3 w-3" />
+              Next: {new Date(cf.nextCallScheduledAt).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
+            </span>
           )}
         </div>
+      )}
 
-        <div className="relative z-10 space-y-3">
-          {brief ? (
-            <>
-              {/* Key Bullets */}
-              <div className="space-y-1.5">
-                {brief.bullets.map((bullet, i) => (
-                  <div key={i} className="flex items-start gap-2 text-xs">
-                    <span className="text-purple-400 mt-0.5 shrink-0">&#9670;</span>
-                    <p className="text-foreground/90 leading-relaxed">{bullet}</p>
-                  </div>
-                ))}
-              </div>
+      {/* ── Call Playbook — Grok AI (upgraded pre-call brief) ── */}
+      {brief || briefLoading ? (
+        <div className="rounded-[12px] border border-purple-500/20 bg-purple-500/[0.04] p-4 relative overflow-hidden">
+          <div className="absolute inset-0 bg-gradient-to-br from-purple-500/[0.06] via-transparent to-cyan/[0.03] pointer-events-none" />
+          <div className="absolute top-0 inset-x-0 h-[1px] bg-gradient-to-r from-transparent via-purple-400/40 to-transparent" />
 
-              {/* Suggested Opener */}
-              {brief.suggestedOpener && (
-                <div className="pt-2 border-t border-purple-500/10">
-                  <p className="text-[9px] text-purple-400/50 uppercase tracking-widest mb-1">Suggested Opener</p>
-                  <p className="text-xs text-foreground/80 italic leading-relaxed">&ldquo;{brief.suggestedOpener}&rdquo;</p>
-                </div>
-              )}
-
-              {/* Talking Points */}
-              {brief.talkingPoints.length > 0 && (
-                <div className="pt-2 border-t border-purple-500/10">
-                  <p className="text-[9px] text-purple-400/50 uppercase tracking-widest mb-1.5">Talking Points</p>
-                  <div className="space-y-1">
-                    {brief.talkingPoints.map((tp, i) => (
-                      <div key={i} className="flex items-start gap-2 text-xs">
-                        <span className="text-cyan/60 mt-0.5 shrink-0 text-[10px]">{i + 1}.</span>
-                        <p className="text-foreground/80 leading-relaxed">{tp}</p>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* Objections & Rebuttals */}
-              {brief.objections.length > 0 && (
-                <div className="pt-2 border-t border-purple-500/10">
-                  <p className="text-[9px] text-purple-400/50 uppercase tracking-widest mb-1.5">Likely Objections</p>
-                  <div className="space-y-2">
-                    {brief.objections.map((obj, i) => (
-                      <div key={i} className="rounded-[8px] border border-white/[0.04] bg-white/[0.02] px-3 py-2">
-                        <p className="text-xs text-red-300/80 font-medium">&ldquo;{obj.objection}&rdquo;</p>
-                        <p className="text-xs text-emerald-300/80 mt-1 pl-3 border-l-2 border-emerald-500/20">{obj.rebuttal}</p>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* Negotiation Anchor */}
-              {brief.negotiationAnchor && (
-                <div className="pt-2 border-t border-purple-500/10">
-                  <p className="text-[9px] text-purple-400/50 uppercase tracking-widest mb-1">Negotiation Anchor</p>
-                  <p className="text-xs text-neon/90 font-semibold">{brief.negotiationAnchor}</p>
-                </div>
-              )}
-
-              {/* Watch-Outs */}
-              {brief.watchOuts.length > 0 && (
-                <div className="pt-2 border-t border-purple-500/10">
-                  <p className="text-[9px] text-red-400/50 uppercase tracking-widest mb-1">Watch-Outs</p>
-                  <div className="space-y-1">
-                    {brief.watchOuts.map((wo, i) => (
-                      <div key={i} className="flex items-start gap-1.5 text-xs text-amber-400/80">
-                        <AlertTriangle className="h-3 w-3 mt-0.5 shrink-0" />
-                        <p>{wo}</p>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </>
-          ) : briefLoading ? (
-            <div className="flex items-center justify-center py-4 gap-2">
-              <Loader2 className="h-4 w-4 text-purple-400 animate-spin" />
-              <span className="text-xs text-purple-300/60">Generating playbook…</span>
+          <div className="flex items-center gap-2 mb-3 relative z-10">
+            <div className="h-7 w-7 rounded-[8px] bg-purple-500/15 flex items-center justify-center">
+              <Brain className="h-3.5 w-3.5 text-purple-400" />
             </div>
-          ) : (
-            <p className="text-[11px] text-muted-foreground/40 italic py-2">Grok AI playbook will generate automatically when data is available</p>
-          )}
+            <p className="text-[11px] text-purple-300 uppercase tracking-wider font-semibold">Call Playbook</p>
+            <Badge variant="outline" className="text-[8px] border-purple-500/20 text-purple-400/60 ml-1">GROK AI</Badge>
+            {briefLoading && <Loader2 className="h-3 w-3 text-purple-400 animate-spin ml-auto" />}
+            {!briefLoading && (
+              <button
+                onClick={regenerateBrief}
+                className="ml-auto p-1 rounded-md hover:bg-purple-500/10 transition-colors text-purple-400/50 hover:text-purple-400"
+                title="Regenerate playbook"
+              >
+                <RefreshCw className="h-3 w-3" />
+              </button>
+            )}
+          </div>
+
+          <div className="relative z-10 space-y-3">
+            {brief ? (
+              <>
+                {/* Key Bullets */}
+                <div className="space-y-1.5">
+                  {brief.bullets.map((bullet, i) => (
+                    <div key={i} className="flex items-start gap-2 text-xs">
+                      <span className="text-purple-400 mt-0.5 shrink-0">&#9670;</span>
+                      <p className="text-foreground/90 leading-relaxed">{bullet}</p>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Suggested Opener */}
+                {brief.suggestedOpener && (
+                  <div className="pt-2 border-t border-purple-500/10">
+                    <p className="text-[9px] text-purple-400/50 uppercase tracking-widest mb-1">Suggested Opener</p>
+                    <p className="text-xs text-foreground/80 italic leading-relaxed">&ldquo;{brief.suggestedOpener}&rdquo;</p>
+                  </div>
+                )}
+
+                {/* Talking Points */}
+                {brief.talkingPoints.length > 0 && (
+                  <div className="pt-2 border-t border-purple-500/10">
+                    <p className="text-[9px] text-purple-400/50 uppercase tracking-widest mb-1.5">Talking Points</p>
+                    <div className="space-y-1">
+                      {brief.talkingPoints.map((tp, i) => (
+                        <div key={i} className="flex items-start gap-2 text-xs">
+                          <span className="text-cyan/60 mt-0.5 shrink-0 text-[10px]">{i + 1}.</span>
+                          <p className="text-foreground/80 leading-relaxed">{tp}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Objections & Rebuttals */}
+                {brief.objections.length > 0 && (
+                  <div className="pt-2 border-t border-purple-500/10">
+                    <p className="text-[9px] text-purple-400/50 uppercase tracking-widest mb-1.5">Likely Objections</p>
+                    <div className="space-y-2">
+                      {brief.objections.map((obj, i) => (
+                        <div key={i} className="rounded-[8px] border border-white/[0.04] bg-white/[0.02] px-3 py-2">
+                          <p className="text-xs text-red-300/80 font-medium">&ldquo;{obj.objection}&rdquo;</p>
+                          <p className="text-xs text-emerald-300/80 mt-1 pl-3 border-l-2 border-emerald-500/20">{obj.rebuttal}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Negotiation Anchor */}
+                {brief.negotiationAnchor && (
+                  <div className="pt-2 border-t border-purple-500/10">
+                    <p className="text-[9px] text-purple-400/50 uppercase tracking-widest mb-1">Negotiation Anchor</p>
+                    <p className="text-xs text-neon/90 font-semibold">{brief.negotiationAnchor}</p>
+                  </div>
+                )}
+
+                {/* Watch-Outs */}
+                {brief.watchOuts.length > 0 && (
+                  <div className="pt-2 border-t border-purple-500/10">
+                    <p className="text-[9px] text-red-400/50 uppercase tracking-widest mb-1">Watch-Outs</p>
+                    <div className="space-y-1">
+                      {brief.watchOuts.map((wo, i) => (
+                        <div key={i} className="flex items-start gap-1.5 text-xs text-amber-400/80">
+                          <AlertTriangle className="h-3 w-3 mt-0.5 shrink-0" />
+                          <p>{wo}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </>
+            ) : (
+              <div className="flex items-center justify-center py-4 gap-2">
+                <Loader2 className="h-4 w-4 text-purple-400 animate-spin" />
+                <span className="text-xs text-purple-300/60">Generating playbook…</span>
+              </div>
+            )}
+          </div>
         </div>
-      </div>
+      ) : (
+        /* Compact empty-state: single line instead of full card */
+        <div className="flex items-center gap-2 rounded-[10px] border border-purple-500/10 bg-purple-500/[0.02] px-3 py-2">
+          <Brain className="h-3.5 w-3.5 text-purple-400/40" />
+          <p className="text-[11px] text-muted-foreground/40 italic">No call playbook yet</p>
+          <button
+            onClick={regenerateBrief}
+            className="ml-auto flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] text-purple-400/60 hover:text-purple-400 hover:bg-purple-500/10 transition-colors"
+          >
+            <RefreshCw className="h-2.5 w-2.5" />
+            Generate
+          </button>
+        </div>
+      )}
 
       {/* ═══ 8. CALL HISTORY + AI NOTES (merged) ═══ */}
       {(cf.totalCalls > 0 || cf.nextCallScheduledAt || summaryNotes.length > 0) && (
@@ -3344,12 +3407,12 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
           )}
 
           {/* Predictive Intelligence */}
-          <div className="rounded-[10px] border border-white/[0.06] bg-white/[0.03] p-2.5 col-span-2">
-            <div className="flex items-start gap-2">
-              <Zap className="h-3.5 w-3.5 text-purple-400/70 mt-0.5 shrink-0" />
-              <div className="flex-1 min-w-0">
-                <p className="text-[9px] text-muted-foreground/60 uppercase tracking-widest mb-1">Predictive Intelligence</p>
-                {cf.prediction ? (
+          {cf.prediction ? (
+            <div className="rounded-[10px] border border-white/[0.06] bg-white/[0.03] p-2.5 col-span-2">
+              <div className="flex items-start gap-2">
+                <Zap className="h-3.5 w-3.5 text-purple-400/70 mt-0.5 shrink-0" />
+                <div className="flex-1 min-w-0">
+                  <p className="text-[9px] text-muted-foreground/60 uppercase tracking-widest mb-1">Predictive Intelligence</p>
                   <div className="flex items-center gap-4">
                     <div>
                       <p className="text-[9px] text-muted-foreground/50 uppercase tracking-widest">Distress In</p>
@@ -3375,12 +3438,15 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
                       </>
                     )}
                   </div>
-                ) : (
-                  <p className="text-[11px] text-muted-foreground/40 italic">Predictive data not yet available — enrich to generate</p>
-                )}
+                </div>
               </div>
             </div>
-          </div>
+          ) : (
+            <div className="flex items-center gap-2 rounded-[8px] border border-white/[0.04] bg-white/[0.015] px-2.5 py-1.5 col-span-2">
+              <Zap className="h-3 w-3 text-purple-400/30 shrink-0" />
+              <p className="text-[10px] text-muted-foreground/35 italic">No predictive data yet</p>
+            </div>
+          )}
         </div>
       </div>
 

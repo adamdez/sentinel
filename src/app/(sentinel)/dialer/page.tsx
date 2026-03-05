@@ -1395,7 +1395,7 @@ export default function DialerPage() {
                       </div>
                     </div>
 
-                    <div className="grid grid-cols-2 gap-2">
+                    <div className="grid grid-cols-3 gap-2">
                       {[
                         { label: "Phone", value: currentLead.properties?.owner_phone ?? "—", mono: true },
                         { label: "ARV", value: currentLead.properties?.estimated_value ? `$${currentLead.properties.estimated_value.toLocaleString()}` : "—" },
@@ -1406,6 +1406,20 @@ export default function DialerPage() {
                           <p className={`text-sm font-medium ${item.mono ? "font-mono" : ""}`}>{item.value}</p>
                         </div>
                       ))}
+                      <div className="rounded-[10px] bg-white/[0.03] border border-white/[0.04] p-2.5">
+                        <p className="text-[11px] text-muted-foreground/60 uppercase">Owed</p>
+                        <p className="text-sm font-medium">
+                          {(currentLead.properties as any)?.total_loan_balance
+                            ? `$${Number((currentLead.properties as any).total_loan_balance).toLocaleString()}`
+                            : (currentLead.properties as any)?.owner_flags?.is_free_clear ? "Free & Clear" : "—"}
+                        </p>
+                      </div>
+                      <div className="rounded-[10px] bg-white/[0.03] border border-white/[0.04] p-2.5">
+                        <p className="text-[11px] text-muted-foreground/60 uppercase">Bed/Bath</p>
+                        <p className="text-sm font-medium">
+                          {(currentLead.properties as any)?.bedrooms ?? "—"} / {(currentLead.properties as any)?.bathrooms ?? "—"}
+                        </p>
+                      </div>
                       <div className="rounded-[10px] bg-white/[0.03] border border-white/[0.04] p-2.5">
                         <p className="text-[11px] text-muted-foreground/60 uppercase">Distress</p>
                         <div className="flex flex-wrap gap-1 mt-0.5">
@@ -1421,11 +1435,19 @@ export default function DialerPage() {
                       </div>
                     </div>
 
-                    <div className="rounded-[10px] bg-white/[0.03] border border-white/[0.04] p-2.5">
-                        <p className="text-[11px] text-muted-foreground/60 uppercase mb-1">Source & Notes</p>
-                      <p className="text-xs text-muted-foreground/60">
-                        {currentLead.source ?? "unknown"} — {currentLead.notes ?? "No notes"}
-                      </p>
+                    <div className="grid grid-cols-3 gap-2">
+                      <div className="rounded-[10px] bg-white/[0.03] border border-white/[0.04] p-2.5">
+                        <p className="text-[11px] text-muted-foreground/60 uppercase">SqFt</p>
+                        <p className="text-sm font-medium">{(currentLead.properties as any)?.sqft?.toLocaleString() ?? "—"}</p>
+                      </div>
+                      <div className="rounded-[10px] bg-white/[0.03] border border-white/[0.04] p-2.5">
+                        <p className="text-[11px] text-muted-foreground/60 uppercase">Year Built</p>
+                        <p className="text-sm font-medium">{(currentLead.properties as any)?.year_built ?? "—"}</p>
+                      </div>
+                      <div className="rounded-[10px] bg-white/[0.03] border border-white/[0.04] p-2.5">
+                        <p className="text-[11px] text-muted-foreground/60 uppercase">Lot</p>
+                        <p className="text-sm font-medium">{(currentLead.properties as any)?.lot_size?.toLocaleString() ?? "—"}</p>
+                      </div>
                     </div>
 
                     {/* Pre-Call Intelligence Brief */}

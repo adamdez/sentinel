@@ -19,7 +19,7 @@ import {
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { motion } from "framer-motion";
-import { GripVertical, Phone, MoreHorizontal, Loader2 } from "lucide-react";
+import { GripVertical, Phone, MoreHorizontal, Loader2, Clock } from "lucide-react";
 import { GlassCard } from "./glass-card";
 import { AIScoreBadge } from "./ai-score-badge";
 import { Badge } from "@/components/ui/badge";
@@ -38,6 +38,8 @@ interface PipelineItem {
   score: AIScore;
   distressType: string;
   propertyId?: string;
+  equityPercent?: number | null;
+  lastContactAt?: string | null;
 }
 
 const COLUMNS: { id: string; title: string; color: string }[] = [
@@ -47,6 +49,22 @@ const COLUMNS: { id: string; title: string; color: string }[] = [
   { id: "disposition", title: "Disposition", color: "bg-orange-400" },
   { id: "closed", title: "Closed", color: "bg-purple-400" },
 ];
+
+function formatFreshness(dateStr: string | null | undefined): string {
+  if (!dateStr) return "never contacted";
+  const now = Date.now();
+  const then = new Date(dateStr).getTime();
+  const diffMs = now - then;
+  const diffMin = Math.floor(diffMs / 60000);
+  if (diffMin < 1) return "just now";
+  if (diffMin < 60) return `${diffMin}m ago`;
+  const diffHrs = Math.floor(diffMin / 60);
+  if (diffHrs < 24) return `${diffHrs}h ago`;
+  const diffDays = Math.floor(diffHrs / 24);
+  if (diffDays < 30) return `${diffDays}d ago`;
+  const diffMonths = Math.floor(diffDays / 30);
+  return `${diffMonths}mo ago`;
+}
 
 function SortableCard({ item, onCall }: { item: PipelineItem; onCall?: (phone: string) => void }) {
   const {
@@ -83,9 +101,22 @@ function SortableCard({ item, onCall }: { item: PipelineItem; onCall?: (phone: s
         </button>
         <div className="flex-1 min-w-0 space-y-2">
           <div className="flex items-start justify-between gap-2">
-            <div>
+            <div className="min-w-0">
               <p className="font-medium text-sm truncate">{item.name}</p>
               <p className="text-xs text-muted-foreground truncate">{item.address}</p>
+              <div className="flex items-center gap-2 mt-0.5">
+                {item.equityPercent != null && (
+                  <span className={cn(
+                    "text-[10px] font-medium",
+                    item.equityPercent >= 50 ? "text-emerald-400" : item.equityPercent >= 25 ? "text-yellow-400" : "text-red-400"
+                  )}>
+                    {Math.round(item.equityPercent)}% equity
+                  </span>
+                )}
+                {item.phone && (
+                  <Phone className="h-2.5 w-2.5 text-cyan shrink-0" />
+                )}
+              </div>
             </div>
             <AIScoreBadge score={item.score} size="sm" />
           </div>
@@ -93,18 +124,25 @@ function SortableCard({ item, onCall }: { item: PipelineItem; onCall?: (phone: s
             <Badge variant="outline" className="text-[10px]">
               {item.distressType}
             </Badge>
+            <span className={cn(
+              "flex items-center gap-0.5 text-[10px]",
+              !item.lastContactAt ? "text-muted-foreground/50" : "text-muted-foreground"
+            )}>
+              <Clock className="h-2.5 w-2.5" />
+              {formatFreshness(item.lastContactAt)}
+            </span>
             {item.phone && (
               <Button
                 variant="ghost"
                 size="sm"
-                className="h-6 px-2 text-[10px] gap-1"
+                className="h-6 px-2 text-[10px] gap-1 ml-auto"
                 onClick={() => onCall?.(item.phone!)}
               >
                 <Phone className="h-3 w-3" />
                 Call
               </Button>
             )}
-            <Button variant="ghost" size="icon" className="h-6 w-6 ml-auto">
+            <Button variant="ghost" size="icon" className={cn("h-6 w-6", !item.phone && "ml-auto")}>
               <MoreHorizontal className="h-3 w-3" />
             </Button>
           </div>
@@ -177,7 +215,7 @@ export function PipelineBoard() {
     try {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { data, error } = await (supabase.from("leads") as any)
-        .select("id, status, priority, source, tags, properties(id, address, city, state, owner_name, owner_phone)")
+        .select("id, status, priority, source, tags, last_contact_at, properties(id, address, city, state, owner_name, owner_phone, equity_percent)")
         .in("status", ["prospect", "lead", "negotiation", "disposition", "nurture", "dead", "closed"])
         .order("priority", { ascending: false })
         .limit(100);
@@ -203,6 +241,8 @@ export function PipelineBoard() {
             score: mapToScore(row.priority ?? 0),
             distressType: row.tags?.[0] ?? row.source ?? "Unknown",
             propertyId: prop?.id,
+            equityPercent: prop?.equity_percent != null ? Number(prop.equity_percent) : null,
+            lastContactAt: row.last_contact_at ?? null,
           };
         });
         setItems(mapped);

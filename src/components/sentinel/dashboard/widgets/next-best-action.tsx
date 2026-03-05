@@ -2,7 +2,7 @@
 
 import { useMemo, useState, useEffect } from "react";
 import { motion } from "framer-motion";
-import { Zap, ArrowRight, Phone, Clock, Brain } from "lucide-react";
+import { Zap, ArrowRight, Phone, Clock, Brain, AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useProspects } from "@/hooks/use-prospects";
@@ -124,6 +124,17 @@ export function NextBestAction() {
     return { primary: null as null, secondary: null as string | null, hasPredictive: false };
   }, [prospects, leads]);
 
+  // Count leads that haven't been contacted in 7+ days (stale leads)
+  const staleCount = useMemo(() => {
+    const now = Date.now();
+    const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000;
+    return leads.filter((l) => {
+      // A lead is stale if it has never been contacted, or was last contacted 7+ days ago
+      if (!l.lastContactAt) return true;
+      return now - new Date(l.lastContactAt).getTime() >= SEVEN_DAYS_MS;
+    }).length;
+  }, [leads]);
+
   if (loading) {
     return (
       <div className="space-y-3">
@@ -206,6 +217,15 @@ export function NextBestAction() {
           </Button>
         </div>
       </motion.div>
+
+      {staleCount > 0 && (
+        <div className="flex items-center gap-2 px-3 py-2 rounded-[10px] bg-amber-500/8 border border-amber-500/20">
+          <AlertTriangle className="h-3.5 w-3.5 text-amber-400 shrink-0" />
+          <span className="text-[11px] text-amber-300/90 font-medium">
+            {staleCount} lead{staleCount === 1 ? "" : "s"} {staleCount === 1 ? "hasn\u2019t" : "haven\u2019t"} been called in 7+ days
+          </span>
+        </div>
+      )}
 
       {secondary && (
         <div className="text-[11px] text-muted-foreground flex items-center gap-1">
