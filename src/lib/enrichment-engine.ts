@@ -565,7 +565,8 @@ async function updatePropertyFromPR(sb: any, propertyId: string, pr: any, existi
 
   // ── Extract photos from PR response (zero additional cost) ──────────
   const existingPhotos = Array.isArray(existingFlags.photos) ? existingFlags.photos : [];
-  if (existingPhotos.length === 0) {
+  // Re-extract if fewer than 3 photos (old enrichments only had 1 Street View)
+  if (existingPhotos.length < 3) {
     const now = new Date().toISOString();
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const extractedPhotos: { url: string; source: string; capturedAt: string }[] = [];
@@ -585,13 +586,22 @@ async function updatePropertyFromPR(sb: any, propertyId: string, pr: any, existi
       extractedPhotos.push({ url: pr.PropertyImageUrl, source: "assessor", capturedAt: now });
     }
 
-    // Google Street View from coordinates (proxy URL — no key exposed)
+    // Multi-angle Street View from coordinates (proxy URL — no key exposed)
     const lat = toNumber(pr.Latitude);
     const lng = toNumber(pr.Longitude);
     if (lat && lng) {
+      // 4 cardinal headings for full property coverage
+      for (const heading of ["0", "90", "180", "270"]) {
+        extractedPhotos.push({
+          url: `/api/street-view?lat=${lat}&lng=${lng}&size=800x400&heading=${heading}`,
+          source: "google_street_view",
+          capturedAt: now,
+        });
+      }
+      // Satellite / aerial view
       extractedPhotos.push({
-        url: `/api/street-view?lat=${lat}&lng=${lng}`,
-        source: "google_street_view",
+        url: `/api/street-view?lat=${lat}&lng=${lng}&size=800x400&type=satellite&zoom=19`,
+        source: "satellite",
         capturedAt: now,
       });
     }

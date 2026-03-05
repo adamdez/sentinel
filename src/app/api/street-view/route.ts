@@ -1,16 +1,30 @@
 import { NextRequest, NextResponse } from "next/server";
 
 /**
- * GET /api/street-view?lat=...&lng=...&size=640x480
+ * GET /api/street-view?lat=...&lng=...&size=640x480&heading=0&type=streetview
  *
- * Server-side proxy for Google Street View Static API.
+ * Server-side proxy for Google Street View Static API and Google Maps Static API.
  * Keeps the API key secret (never exposed to client).
+ *
+ * Parameters:
+ *   lat, lng  — required coordinates
+ *   size      — image size (default 640x480)
+ *   heading   — camera heading 0-360 (default: auto / best view)
+ *   pitch     — camera pitch (default 0)
+ *   fov       — field of view (default 90)
+ *   type      — "streetview" (default) or "satellite" for aerial view
+ *   zoom      — satellite zoom level (default 19)
  */
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const lat = searchParams.get("lat");
   const lng = searchParams.get("lng");
   const size = searchParams.get("size") ?? "640x480";
+  const heading = searchParams.get("heading");
+  const pitch = searchParams.get("pitch") ?? "0";
+  const fov = searchParams.get("fov") ?? "90";
+  const type = searchParams.get("type") ?? "streetview";
+  const zoom = searchParams.get("zoom") ?? "19";
 
   if (!lat || !lng) {
     return NextResponse.json({ error: "lat and lng are required" }, { status: 400 });
@@ -21,7 +35,18 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "Street View not configured" }, { status: 503 });
   }
 
-  const url = `https://maps.googleapis.com/maps/api/streetview?size=${size}&location=${lat},${lng}&key=${apiKey}`;
+  let url: string;
+
+  if (type === "satellite") {
+    // Google Maps Static API — satellite/aerial view
+    url = `https://maps.googleapis.com/maps/api/staticmap?center=${lat},${lng}&zoom=${zoom}&size=${size}&maptype=satellite&key=${apiKey}`;
+  } else {
+    // Google Street View Static API
+    url = `https://maps.googleapis.com/maps/api/streetview?size=${size}&location=${lat},${lng}&pitch=${pitch}&fov=${fov}&key=${apiKey}`;
+    if (heading) {
+      url += `&heading=${heading}`;
+    }
+  }
 
   try {
     const res = await fetch(url);

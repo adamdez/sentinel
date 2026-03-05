@@ -237,7 +237,9 @@ export async function POST(req: NextRequest) {
         .single();
 
       const cached = data?.owner_flags?.photos as PropertyPhoto[] | undefined;
-      if (cached && cached.length > 0) {
+      // Require at least 3 cached photos to use cache — older entries had only
+      // 1 Street View image. New fetches produce 5+ (multi-angle SV + satellite).
+      if (cached && cached.length >= 3) {
         return NextResponse.json({ photos: cached, cached: true });
       }
     }
@@ -254,15 +256,35 @@ export async function POST(req: NextRequest) {
       photos = await fetchApifyZillowPhotos(address, apifyToken);
     }
 
-    // ── 4. Street View guaranteed fallback ──────────────────────────────
-    // Always add a Street View photo if we have coordinates or Google key
+    // ── 4. Multi-angle Street View + Satellite (guaranteed fallback) ────
+    // Always add Street View angles + satellite if we have coordinates.
+    // Generates 4 street-level views (front, right, back, left) + 1 aerial.
     if (googleKey && lat && lng) {
-      const svUrl = `/api/street-view?lat=${lat}&lng=${lng}&size=800x400`;
-      // Only add if not already in the list
-      if (!photos.some((p) => p.source === "google_street_view")) {
+      const hasStreetView = photos.some((p) => p.source === "google_street_view");
+      const hasSatellite = photos.some((p) => p.source === "satellite");
+
+      if (!hasStreetView) {
+        // 4 cardinal headings for full property coverage
+        const headings = [
+          { heading: "0", label: "north" },
+          { heading: "90", label: "east" },
+          { heading: "180", label: "south" },
+          { heading: "270", label: "west" },
+        ];
+        for (const h of headings) {
+          photos.push({
+            url: `/api/street-view?lat=${lat}&lng=${lng}&size=800x400&heading=${h.heading}`,
+            source: "google_street_view",
+            capturedAt: now,
+          });
+        }
+      }
+
+      if (!hasSatellite) {
+        // Satellite / aerial view
         photos.push({
-          url: svUrl,
-          source: "google_street_view",
+          url: `/api/street-view?lat=${lat}&lng=${lng}&size=800x400&type=satellite&zoom=19`,
+          source: "satellite",
           capturedAt: now,
         });
       }
