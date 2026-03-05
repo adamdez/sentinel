@@ -9,6 +9,9 @@ import { createClient } from "@supabase/supabase-js";
  * Returns: { photos: PropertyPhoto[] }
  */
 
+export const dynamic = "force-dynamic";
+export const maxDuration = 60; // Apify sync runs take 15-45s
+
 const APIFY_ACTOR = "zillowscraper~zillow-property-images-fetcher";
 
 interface PropertyPhoto {
@@ -54,10 +57,10 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // ── Call Apify Zillow Property Images Fetcher ─────────────────────
-    const apifyUrl = `https://api.apify.com/v2/acts/${APIFY_ACTOR}/run-sync-get-dataset-items?token=${token}`;
-
-    const apifyRes = await fetch(apifyUrl, {
+    // ── Call Apify Zillow Property Images Fetcher (async start + poll) ─
+    // Start the actor run asynchronously
+    const startUrl = `https://api.apify.com/v2/acts/${APIFY_ACTOR}/runs?token=${token}`;
+    const startRes = await fetch(startUrl, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -65,20 +68,62 @@ export async function POST(req: NextRequest) {
         searchQuery: address,
         maxItems: 30,
       }),
-      signal: AbortSignal.timeout(60_000), // 60s timeout for Apify
+      signal: AbortSignal.timeout(10_000),
     });
 
-    if (!apifyRes.ok) {
-      const errText = await apifyRes.text().catch(() => "");
-      console.error("[property-photos] Apify error:", apifyRes.status, errText.slice(0, 300));
-      return NextResponse.json(
-        { error: "Photo fetch failed", photos: [] },
-        { status: 502 },
-      );
+    if (!startRes.ok) {
+      const errText = await startRes.text().catch(() => "");
+      console.error("[property-photos] Apify start error:", startRes.status, errText.slice(0, 300));
+      return NextResponse.json({ error: "Photo fetch failed", photos: [] }, { status: 502 });
     }
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const apifyData: any[] = await apifyRes.json();
+    const startData: any = await startRes.json();
+    const runId = startData?.data?.id;
+    if (!runId) {
+      console.error("[property-photos] No run ID from Apify");
+      return NextResponse.json({ error: "Photo fetch failed", photos: [] }, { status: 502 });
+    }
+
+    // Poll for run completion (max ~50s to stay within maxDuration)
+    const pollStart = Date.now();
+    const MAX_POLL_MS = 50_000;
+    const POLL_INTERVAL = 2_000;
+    let runStatus = "";
+
+    while (Date.now() - pollStart < MAX_POLL_MS) {
+      await new Promise((r) => setTimeout(r, POLL_INTERVAL));
+      const statusRes = await fetch(
+        `https://api.apify.com/v2/actor-runs/${runId}?token=${token}`,
+        { signal: AbortSignal.timeout(5_000) },
+      );
+      if (!statusRes.ok) continue;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const statusData: any = await statusRes.json();
+      runStatus = statusData?.data?.status;
+      if (runStatus === "SUCCEEDED" || runStatus === "FAILED" || runStatus === "ABORTED" || runStatus === "TIMED-OUT") {
+        break;
+      }
+    }
+
+    if (runStatus !== "SUCCEEDED") {
+      console.error("[property-photos] Apify run did not succeed:", runStatus || "TIMEOUT");
+      return NextResponse.json({ error: "Photo fetch timed out", photos: [] }, { status: 504 });
+    }
+
+    // Fetch dataset items
+    const datasetRes = await fetch(
+      `https://api.apify.com/v2/actor-runs/${runId}/dataset/items?token=${token}`,
+      { signal: AbortSignal.timeout(10_000) },
+    );
+
+    if (!datasetRes.ok) {
+      console.error("[property-photos] Dataset fetch error:", datasetRes.status);
+      return NextResponse.json({ error: "Photo fetch failed", photos: [] }, { status: 502 });
+    }
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const apifyData: any[] = await datasetRes.json();
 
     // ── Normalize to PropertyPhoto[] ──────────────────────────────────
     const now = new Date().toISOString();
