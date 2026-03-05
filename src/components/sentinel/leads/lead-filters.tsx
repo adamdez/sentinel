@@ -45,6 +45,8 @@ const DISTRESS_OPTIONS: { value: DistressType; label: string }[] = [
   { value: "inherited", label: "Inherited" },
   { value: "water_shutoff", label: "Water Shut-off" },
   { value: "condemned", label: "Condemned" },
+  { value: "tired_landlord", label: "Tired Landlord" },
+  { value: "underwater", label: "Underwater" },
 ];
 
 const SCORE_PRESETS = [

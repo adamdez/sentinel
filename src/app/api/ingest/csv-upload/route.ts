@@ -427,7 +427,7 @@ async function processRow(
     },
     equityPercent: equityPct,
     compRatio: Math.min(compRatio, 3.0),
-    historicalConversionRate: 0.12,
+    historicalConversionRate: 0,
   };
 
   const scoreResult = computeScore(scoringInput);

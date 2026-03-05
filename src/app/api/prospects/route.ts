@@ -5,6 +5,7 @@ import type { DistressType, LeadStatus } from "@/lib/types";
 import { validateStatusTransition, getAllowedTransitions, incrementLockVersion } from "@/lib/lead-guardrails";
 import { scrubLead } from "@/lib/compliance";
 import { distressFingerprint, normalizeCounty as globalNormalizeCounty, isDuplicateError } from "@/lib/dedup";
+import { detectDistressSignals, type DetectedSignal } from "@/lib/distress-signals";
 
 const SYSTEM_USER_ID = "00000000-0000-0000-0000-000000000000";
 const PR_API_BASE = "https://api.propertyradar.com/v1/properties";
@@ -614,7 +615,8 @@ async function enrichFromPropertyRadar(
 
     // ── Detect distress signals ────────────────────────────────────
 
-    const signals = detectDistressSignals(pr);
+    const detection = detectDistressSignals(pr);
+    const signals = detection.signals;
     console.log("[Enrich] Distress signals:", signals.map((s) => s.type));
 
     // Append distress events (dedup by fingerprint)
@@ -659,7 +661,7 @@ async function enrichFromPropertyRadar(
       },
       equityPercent: equityPct,
       compRatio: Math.min(compRatio, 3.0),
-      historicalConversionRate: 0.5,
+      historicalConversionRate: 0,
     };
 
     const scoreResult = computeScore(scoringInput);
@@ -788,85 +790,4 @@ function toIntHelper(val: unknown): number | undefined {
   return n != null ? Math.round(n) : undefined;
 }
 
-// ── Distress Signal Detection ─────────────────────────────────────────
-
-interface DetectedSignal {
-  type: DistressType;
-  severity: number;
-  daysSinceEvent: number;
-  detectedFrom: string;
-}
-
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-function detectDistressSignals(pr: any): DetectedSignal[] {
-  const signals: DetectedSignal[] = [];
-
-  if (isTruthy(pr.isDeceasedProperty)) {
-    signals.push({ type: "probate", severity: 9, daysSinceEvent: 30, detectedFrom: "isDeceasedProperty" });
-  }
-
-  if (isTruthy(pr.isPreforeclosure) || isTruthy(pr.inForeclosure)) {
-    const defaultAmt = toNumber(pr.DefaultAmount) ?? 0;
-    signals.push({
-      type: "pre_foreclosure",
-      severity: defaultAmt > 50000 ? 9 : 7,
-      daysSinceEvent: pr.ForeclosureRecDate ? daysBetween(pr.ForeclosureRecDate) : 30,
-      detectedFrom: isTruthy(pr.isPreforeclosure) ? "isPreforeclosure" : "inForeclosure",
-    });
-  }
-
-  if (isTruthy(pr.inTaxDelinquency)) {
-    const delAmt = toNumber(pr.DelinquentAmount) ?? 0;
-    signals.push({
-      type: "tax_lien",
-      severity: delAmt > 10000 ? 8 : 6,
-      daysSinceEvent: pr.DelinquentYear
-        ? Math.max(365 * (new Date().getFullYear() - Number(pr.DelinquentYear)), 30)
-        : 90,
-      detectedFrom: "inTaxDelinquency",
-    });
-  }
-
-  if (isTruthy(pr.inBankruptcyProperty)) {
-    signals.push({ type: "bankruptcy", severity: 8, daysSinceEvent: 60, detectedFrom: "inBankruptcyProperty" });
-  }
-
-  if (isTruthy(pr.inDivorce)) {
-    signals.push({ type: "divorce", severity: 7, daysSinceEvent: 60, detectedFrom: "inDivorce" });
-  }
-
-  if (isTruthy(pr.isSiteVacant) || isTruthy(pr.isMailVacant)) {
-    signals.push({
-      type: "vacant",
-      severity: 5,
-      daysSinceEvent: 60,
-      detectedFrom: isTruthy(pr.isSiteVacant) ? "isSiteVacant" : "isMailVacant",
-    });
-  }
-
-  if (isTruthy(pr.isNotSameMailingOrExempt)) {
-    signals.push({ type: "absentee", severity: 4, daysSinceEvent: 90, detectedFrom: "isNotSameMailingOrExempt" });
-  }
-
-  if (isTruthy(pr.PropertyHasOpenLiens) || isTruthy(pr.PropertyHasOpenPersonLiens)) {
-    if (!signals.some((s) => s.type === "tax_lien")) {
-      signals.push({ type: "tax_lien", severity: 5, daysSinceEvent: 90, detectedFrom: "PropertyHasOpenLiens" });
-    }
-  }
-
-  if (signals.length === 0) {
-    signals.push({ type: "vacant", severity: 3, daysSinceEvent: 180, detectedFrom: "no_distress_default" });
-  }
-
-  return signals;
-}
-
-function daysBetween(dateStr: string): number {
-  try {
-    const d = new Date(dateStr).getTime();
-    if (isNaN(d)) return 90;
-    return Math.max(Math.round((Date.now() - d) / 86400000), 1);
-  } catch {
-    return 90;
-  }
-}
+// Distress Signal Detection — uses shared module from @/lib/distress-signals

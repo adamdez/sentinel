@@ -1,27 +1,30 @@
 /**
- * Sentinel AI Distress Scoring Engine v2.1
+ * Sentinel AI Distress Scoring Engine v2.2
  *
- * Composite = (BaseSignalScore × AbsenteeAmplifier × SeverityMultiplier × RecencyDecay)
- *           + StackingBonus + OwnerFactors + EquityFactors + AIBoost
+ * Primary-Signal-Dominant Formula:
+ *   BASE = max(signal_scores) + 0.3 × sum(remaining_signal_scores) + combination_bonus
+ *   SIGNAL_SCORE = weight × severity_mult × recency_decay × freshness_mult
+ *   Composite = BASE × absentee_amplifier + owner_factors + equity_factors + occupied_penalty
  *
- * v2.1 changes:
- *   - Absentee weight raised 10 → 22 (on par with tax_lien)
- *   - Absentee owner factor raised 5 → 10 (highest positive factor)
- *   - Absentee amplifier: 1.3× on base signal when absentee + other signals
- *   - Score labels: platinum (85+), gold (65-84), silver (40-64), bronze (<40)
+ * v2.2 changes (from v2.1):
+ *   - Primary-signal-dominant: strongest signal contributes ~70%, prevents weak stacking
+ *   - Signal freshness multiplier: active=1.0, unknown=0.6, stale=0.3, resolved=0
+ *   - Combination bonuses: deceased+tax_lien=+15, deceased+absentee=+10, etc.
+ *   - New signal weights: underwater=30, tired_landlord=18
+ *   - Removed phantom signals: no fake absentee/vacant for clean properties
+ *   - Removed AI boost: historicalConversionRate=0 until real conversion data exists
+ *   - Normalized absentee severity=5 everywhere
+ *   - Score transparency: factors include primary signal identification
  *
  * Domain: Scoring Domain — config-driven, versioned, deterministic, replayable.
  * Writes only scoring_records. Never mutates workflow.
  */
 
-import type { DistressType, AIScore } from "./types";
-import { blendHeatScore, PREDICTIVE_WEIGHT, DETERMINISTIC_WEIGHT } from "./scoring-predictive";
+import type { DistressType, AIScore, SignalStatus } from "./types";
 
-export const SCORING_MODEL_VERSION = "v2.1";
+export const SCORING_MODEL_VERSION = "v2.2";
 
 // ── Signal Base Weights ─────────────────────────────────────────────
-// v2.1: Absentee raised from 10 → 22 — absentee is the precondition
-// that makes every other distress signal convert.
 export const SIGNAL_WEIGHTS: Record<DistressType, number> = {
   probate: 28,
   pre_foreclosure: 26,
@@ -35,6 +38,8 @@ export const SIGNAL_WEIGHTS: Record<DistressType, number> = {
   inherited: 25,
   water_shutoff: 35,
   condemned: 20,
+  underwater: 30,
+  tired_landlord: 18,
 };
 
 // ── Severity Multiplier Tiers (config-driven) ───────────────────────
@@ -49,7 +54,9 @@ const SEVERITY_TIERS: { min: number; max: number; multiplier: number }[] = [
 const DECAY_LAMBDA = 0.015; // ~46-day half-life
 const MAX_RECENCY_DAYS = 365;
 
-// ── Stacking Bonus (multiple overlapping distress signals) ──────────
+// ── Stacking Bonus (legacy — used by UI score badge for display) ─────
+// v2.2 scoring uses combination bonuses instead, but these are exported
+// for backwards compatibility with ai-score-badge.tsx display logic.
 export const STACKING_THRESHOLDS = [
   { signals: 2, bonus: 6 },
   { signals: 3, bonus: 14 },
@@ -57,8 +64,38 @@ export const STACKING_THRESHOLDS = [
   { signals: 5, bonus: 30 },
 ];
 
+export function getStackingBonus(signalCount: number): number {
+  const applicable = STACKING_THRESHOLDS.filter(
+    (t) => signalCount >= t.signals
+  );
+  return applicable.length > 0
+    ? applicable[applicable.length - 1].bonus
+    : 0;
+}
+
+// ── Combination Bonuses ─────────────────────────────────────────────
+// Specific high-value signal pairs that indicate exceptional motivation.
+const COMBINATION_BONUSES: { types: [DistressType, DistressType]; bonus: number }[] = [
+  { types: ["probate", "tax_lien"], bonus: 15 },          // #1 target: must settle estate + tax clock ticking
+  { types: ["probate", "absentee"], bonus: 10 },           // heir doesn't live there, wants quick resolution
+  { types: ["pre_foreclosure", "vacant"], bonus: 10 },     // abandoned + foreclosing = desperate
+  { types: ["divorce", "absentee"], bonus: 8 },            // split household, one party gone
+  { types: ["underwater", "pre_foreclosure"], bonus: 12 }, // negative equity + foreclosure = short sale candidate
+  { types: ["underwater", "tax_lien"], bonus: 12 },        // underwater + tax problems = maximum motivation
+  { types: ["tired_landlord", "code_violation"], bonus: 8 },// landlord burnout + violations = wants out
+  { types: ["probate", "vacant"], bonus: 8 },              // deceased + nobody living there
+];
+
+// ── Signal Freshness Multiplier ─────────────────────────────────────
+// Rewards signals that have been recently verified as still active.
+const FRESHNESS_MULTIPLIERS: Record<SignalStatus, number> = {
+  active: 1.0,    // verified within 30 days
+  unknown: 0.6,   // never verified or verification expired
+  expired: 0.3,   // aged out
+  resolved: 0.0,  // confirmed resolved — excluded from scoring
+};
+
 // ── Owner Factor Weights ────────────────────────────────────────────
-// v2.1: Absentee raised from 5 → 10 — strongest positive owner factor.
 export const OWNER_FACTORS = {
   absentee: 10,
   corporate: -3,
@@ -68,14 +105,23 @@ export const OWNER_FACTORS = {
 };
 
 // ── Absentee Amplifier ──────────────────────────────────────────────
-// When absentee combines with ANY other distress signal, the entire
-// base signal score is multiplied by this factor. Absentee is the
-// precondition that makes all other signals convert at higher rates.
 const ABSENTEE_AMPLIFIER = 1.3;
 
 // ── Equity Factor Weights ───────────────────────────────────────────
 export const EQUITY_WEIGHT = 0.15;
 const COMP_RATIO_WEIGHT = 0.10;
+
+// ── Score Label Cutoffs ─────────────────────────────────────────────
+export const SCORE_CUTOFFS = {
+  platinum: 85,
+  gold: 65,
+  silver: 40,
+  bronze: 0,
+} as const;
+
+export const MIN_STORE_SCORE = 30;
+
+// ── Helper Functions ────────────────────────────────────────────────
 
 export function getSeverityMultiplier(severity: number): number {
   const tier = SEVERITY_TIERS.find(
@@ -89,20 +135,26 @@ export function getRecencyDecay(daysSinceEvent: number): number {
   return Math.exp(-DECAY_LAMBDA * clamped);
 }
 
-export function getStackingBonus(signalCount: number): number {
-  const applicable = STACKING_THRESHOLDS.filter(
-    (t) => signalCount >= t.signals
-  );
-  return applicable.length > 0
-    ? applicable[applicable.length - 1].bonus
-    : 0;
+export function getScoreLabel(score: number): AIScore["label"] {
+  if (score >= 85) return "platinum";
+  if (score >= 65) return "gold";
+  if (score >= 40) return "silver";
+  return "bronze";
 }
+
+export function getScoreLabelTag(score: number): string {
+  return `score-${getScoreLabel(score)}`;
+}
+
+// ── Input / Output Types ────────────────────────────────────────────
 
 export interface ScoringInput {
   signals: {
     type: DistressType;
     severity: number;
     daysSinceEvent: number;
+    /** Signal lifecycle status for freshness multiplier. Defaults to "unknown". */
+    status?: SignalStatus;
   }[];
   ownerFlags: {
     absentee?: boolean;
@@ -113,6 +165,7 @@ export interface ScoringInput {
   };
   equityPercent: number;
   compRatio: number;
+  /** Set to 0 until real conversion data exists. */
   historicalConversionRate: number;
 }
 
@@ -130,64 +183,125 @@ export interface ScoringOutput {
   label: AIScore["label"];
   modelVersion: string;
   factors: { name: string; value: number; contribution: number }[];
+  /** v2.2: which signal type dominated the score */
+  primarySignal: string | null;
+  /** v2.2: combination bonuses that fired */
+  combinationBonuses: { types: string; bonus: number }[];
 }
+
+// ── Scoring Engine v2.2 ─────────────────────────────────────────────
 
 export function computeScore(input: ScoringInput): ScoringOutput {
   const factors: ScoringOutput["factors"] = [];
+  const firedCombos: ScoringOutput["combinationBonuses"] = [];
 
-  // ── 1. Base Signal Score ──────────────────────────────────────────
+  // ── 1. Compute individual signal scores ───────────────────────────
+  // Exclude resolved signals entirely.
+  const scoredSignals = input.signals
+    .filter((s) => (s.status ?? "unknown") !== "resolved")
+    .map((signal) => {
+      const weight = SIGNAL_WEIGHTS[signal.type] ?? 10;
+      const severity = getSeverityMultiplier(signal.severity);
+      const recency = getRecencyDecay(signal.daysSinceEvent);
+      const freshness = FRESHNESS_MULTIPLIERS[signal.status ?? "unknown"];
+
+      const score = weight * severity * recency * freshness;
+
+      return {
+        type: signal.type,
+        weight,
+        severity,
+        recency,
+        freshness,
+        score,
+        daysSinceEvent: signal.daysSinceEvent,
+        status: signal.status ?? "unknown",
+      };
+    })
+    .sort((a, b) => b.score - a.score); // sort descending by score
+
+  // ── 2. Primary-signal-dominant formula ─────────────────────────────
+  // Strongest signal contributes 100%, remaining contribute 30% each.
+  // Prevents 5 weak signals from outscoring 1 strong signal.
   let baseSignalScore = 0;
-  let weightedSeverity = 0;
-  let weightedRecency = 1;
+  let primarySignal: string | null = null;
+  let bestSeverity = 0;
+  let bestRecency = 1;
 
-  for (const signal of input.signals) {
-    const weight = SIGNAL_WEIGHTS[signal.type] ?? 10;
-    const severity = getSeverityMultiplier(signal.severity);
-    const recency = getRecencyDecay(signal.daysSinceEvent);
-
-    const contribution = weight * severity * recency;
-    baseSignalScore += contribution;
-
-    weightedSeverity = Math.max(weightedSeverity, severity);
-    weightedRecency = Math.min(weightedRecency, recency);
+  if (scoredSignals.length > 0) {
+    const primary = scoredSignals[0];
+    primarySignal = primary.type;
+    baseSignalScore = primary.score;
+    bestSeverity = primary.severity;
+    bestRecency = primary.recency;
 
     factors.push({
-      name: signal.type,
-      value: weight,
-      contribution: Math.round(contribution * 10) / 10,
+      name: primary.type,
+      value: primary.weight,
+      contribution: Math.round(primary.score * 10) / 10,
+    });
+
+    // Secondary signals contribute at 30%
+    for (let i = 1; i < scoredSignals.length; i++) {
+      const s = scoredSignals[i];
+      const secondaryContribution = s.score * 0.3;
+      baseSignalScore += secondaryContribution;
+
+      bestSeverity = Math.max(bestSeverity, s.severity);
+      bestRecency = Math.min(bestRecency, s.recency);
+
+      factors.push({
+        name: s.type,
+        value: s.weight,
+        contribution: Math.round(secondaryContribution * 10) / 10,
+      });
+    }
+  }
+
+  // ── 3. Combination Bonuses ─────────────────────────────────────────
+  // Replace generic stacking bonus with targeted combination bonuses.
+  const signalTypes = new Set(scoredSignals.map((s) => s.type));
+  let combinationBonus = 0;
+
+  for (const combo of COMBINATION_BONUSES) {
+    if (signalTypes.has(combo.types[0]) && signalTypes.has(combo.types[1])) {
+      combinationBonus += combo.bonus;
+      firedCombos.push({
+        types: `${combo.types[0]}+${combo.types[1]}`,
+        bonus: combo.bonus,
+      });
+    }
+  }
+
+  if (combinationBonus > 0) {
+    factors.push({
+      name: "combination_bonus",
+      value: firedCombos.length,
+      contribution: combinationBonus,
     });
   }
 
-  // ── 2. Stacking Bonus ─────────────────────────────────────────────
-  const stackingBonus = getStackingBonus(input.signals.length);
-  if (stackingBonus > 0) {
-    factors.push({ name: "stacking_bonus", value: input.signals.length, contribution: stackingBonus });
-  }
-
-  // ── 2b. Absentee Amplifier ──────────────────────────────────────
-  // When absentee is flagged AND there's at least one OTHER distress
-  // signal, amplify the base signal score by 1.3×. Absentee alone
-  // doesn't get the amplifier — it needs a co-occurring signal.
-  const hasNonAbsenteeSignal = input.signals.some((s) => s.type !== "absentee");
+  // ── 4. Absentee Amplifier ──────────────────────────────────────────
+  const hasNonAbsenteeSignal = scoredSignals.some((s) => s.type !== "absentee");
   const absenteeAmplifier =
     input.ownerFlags.absentee && hasNonAbsenteeSignal ? ABSENTEE_AMPLIFIER : 1.0;
   if (absenteeAmplifier > 1.0) {
-    factors.push({ name: "absentee_amplifier", value: absenteeAmplifier, contribution: Math.round(baseSignalScore * (absenteeAmplifier - 1)) });
+    factors.push({
+      name: "absentee_amplifier",
+      value: absenteeAmplifier,
+      contribution: Math.round(baseSignalScore * (absenteeAmplifier - 1)),
+    });
   }
 
-  // ── 2c. Occupied-owner penalty ──────────────────────────────────
-  // Hard to buy a house from someone who lives in it. Non-absentee,
-  // non-deceased leads get a score dampener that keeps them out of
-  // platinum/gold tiers. Deceased owners are exempt (functionally
-  // absentee — heirs usually don't live there).
-  const isDeceased = input.signals.some((s) => s.type === "probate") || input.ownerFlags.inherited;
+  // ── 5. Occupied-owner penalty ──────────────────────────────────────
+  const isDeceased = signalTypes.has("probate") || input.ownerFlags.inherited;
   const isAbsentee = input.ownerFlags.absentee || input.ownerFlags.outOfState;
   const occupiedPenalty = (!isAbsentee && !isDeceased) ? -15 : 0;
   if (occupiedPenalty < 0) {
     factors.push({ name: "occupied_owner_penalty", value: occupiedPenalty, contribution: occupiedPenalty });
   }
 
-  // ── 3. Owner Factors ──────────────────────────────────────────────
+  // ── 6. Owner Factors ──────────────────────────────────────────────
   let ownerFactorScore = 0;
   if (input.ownerFlags.absentee) ownerFactorScore += OWNER_FACTORS.absentee;
   if (input.ownerFlags.corporate) ownerFactorScore += OWNER_FACTORS.corporate;
@@ -199,23 +313,23 @@ export function computeScore(input: ScoringInput): ScoringOutput {
     factors.push({ name: "owner_factors", value: ownerFactorScore, contribution: ownerFactorScore });
   }
 
-  // ── 4. Equity Factors ─────────────────────────────────────────────
+  // ── 7. Equity Factors ─────────────────────────────────────────────
   const equityContribution = input.equityPercent * EQUITY_WEIGHT;
   const compContribution = input.compRatio * COMP_RATIO_WEIGHT * 100;
   const equityFactorScore = equityContribution + compContribution;
   factors.push({ name: "equity", value: input.equityPercent, contribution: Math.round(equityContribution * 10) / 10 });
   factors.push({ name: "comp_ratio", value: input.compRatio, contribution: Math.round(compContribution * 10) / 10 });
 
-  // ── 5. AI Boost (historical conversion patterns) ──────────────────
+  // ── 8. AI Boost (disabled until real conversion data) ──────────────
   const aiBoost = Math.round(input.historicalConversionRate * 15);
   if (aiBoost > 0) {
     factors.push({ name: "ai_boost", value: input.historicalConversionRate, contribution: aiBoost });
   }
 
-  // ── 6. Composite Score ────────────────────────────────────────────
+  // ── 9. Composite Score ────────────────────────────────────────────
   const raw =
-    baseSignalScore * absenteeAmplifier * weightedSeverity * weightedRecency +
-    stackingBonus +
+    baseSignalScore * absenteeAmplifier +
+    combinationBonus +
     ownerFactorScore +
     equityFactorScore +
     aiBoost +
@@ -225,20 +339,20 @@ export function computeScore(input: ScoringInput): ScoringOutput {
 
   // ── Derived Scores ────────────────────────────────────────────────
   const motivationScore = Math.min(
-    Math.round(baseSignalScore * weightedRecency * 1.2),
+    Math.round(baseSignalScore * bestRecency * 1.2),
     100
   );
   const dealScore = Math.min(
-    Math.round(equityFactorScore * 2 + aiBoost + stackingBonus * 0.5),
+    Math.round(equityFactorScore * 2 + combinationBonus * 0.5),
     100
   );
 
   return {
     composite,
     baseSignalScore: Math.round(baseSignalScore),
-    severityMultiplier: weightedSeverity,
-    recencyDecay: Math.round(weightedRecency * 100) / 100,
-    stackingBonus,
+    severityMultiplier: bestSeverity,
+    recencyDecay: Math.round(bestRecency * 100) / 100,
+    stackingBonus: combinationBonus, // v2.2: renamed semantically but kept for backwards compat
     ownerFactorScore,
     equityFactorScore: Math.round(equityFactorScore * 10) / 10,
     aiBoost,
@@ -247,68 +361,8 @@ export function computeScore(input: ScoringInput): ScoringOutput {
     label: getScoreLabel(composite),
     modelVersion: SCORING_MODEL_VERSION,
     factors,
-  };
-}
-
-export function getScoreLabel(score: number): AIScore["label"] {
-  if (score >= 85) return "platinum";
-  if (score >= 65) return "gold";
-  if (score >= 40) return "silver";
-  return "bronze";
-}
-
-// ── Score Label Classification (v2.2) ─────────────────────────────
-// Single unified classification — replaces the old A/B/C/D tier system.
-// Score label is derived from getScoreLabel() above. Ingest routes
-// tag prospects with `score-{label}` and filter by composite_score.
-
-export const SCORE_CUTOFFS = {
-  platinum: 85,  // Elite — agents work immediately
-  gold: 65,      // Strong — high-priority outreach
-  silver: 40,    // Moderate — nurture campaigns, monthly calls
-  bronze: 0,     // Weak — watch list, low priority
-} as const;
-
-export const MIN_STORE_SCORE = 30;
-
-export function getScoreLabelTag(score: number): string {
-  return `score-${getScoreLabel(score)}`;
-}
-
-// ── Enhanced V2 Score (with predictive blend) ───────────────────────
-
-export interface ScoringOutputV2 extends ScoringOutput {
-  predictiveBlend: number | null;
-  blendedComposite: number;
-  blendWeights: { deterministic: number; predictive: number };
-}
-
-/**
- * Compute the deterministic score and optionally blend with a
- * predictive score from the v2.0 model. If no predictive score is
- * supplied, the deterministic composite is used as-is.
- */
-export function computeScoreV2(
-  input: ScoringInput,
-  predictiveScore: number | null = null
-): ScoringOutputV2 {
-  const base = computeScore(input);
-
-  const blendedComposite = predictiveScore !== null
-    ? blendHeatScore(base.composite, predictiveScore)
-    : base.composite;
-
-  return {
-    ...base,
-    composite: blendedComposite,
-    label: getScoreLabel(blendedComposite),
-    modelVersion: SCORING_MODEL_VERSION,
-    predictiveBlend: predictiveScore,
-    blendedComposite,
-    blendWeights: {
-      deterministic: DETERMINISTIC_WEIGHT,
-      predictive: PREDICTIVE_WEIGHT,
-    },
+    primarySignal,
+    combinationBonuses: firedCombos,
   };
 }
 

@@ -4,6 +4,7 @@ import { computeScore, SCORING_MODEL_VERSION, type ScoringInput } from "@/lib/sc
 import type { DistressType } from "@/lib/types";
 import { distressFingerprint, normalizeCounty as globalNormalizeCounty } from "@/lib/dedup";
 import { dualSkipTrace, skipTraceResultToOwnerFlags } from "@/lib/skip-trace";
+import { detectDistressSignals, type DetectedSignal } from "@/lib/distress-signals";
 
 const PR_API_BASE = "https://api.propertyradar.com/v1/properties";
 
@@ -542,7 +543,8 @@ async function enrichProperty(sb: any, apiKey: string, property: any, leadId?: s
   }
 
   // Detect distress signals + compute score in parallel with property update
-  const signals = detectDistressSignals(pr, isTruthy, toNum);
+  const detection = detectDistressSignals(pr);
+  const signals = detection.signals;
 
   const equityPct = toNum(pr.EquityPercent) ?? 50;
   const avm = toNum(pr.AVM) ?? 0;
@@ -550,17 +552,17 @@ async function enrichProperty(sb: any, apiKey: string, property: any, leadId?: s
   const compRatio = avm > 0 && loanBal > 0 ? Math.min(avm / loanBal, 3.0) : 1.1;
 
   const scoringInput: ScoringInput = {
-    signals: signals.map((s) => ({ type: s.type, severity: s.severity, daysSinceEvent: s.days })),
+    signals: signals.map((s) => ({ type: s.type, severity: s.severity, daysSinceEvent: s.daysSinceEvent })),
     ownerFlags: {
       absentee: ownerFlags.absentee === true,
       corporate: false,
       inherited: isTruthy(pr.isDeceasedProperty),
-      elderly: false,
-      outOfState: ownerFlags.absentee === true,
+      elderly: detection.ownerAge !== null && detection.ownerAge >= 65,
+      outOfState: detection.isOutOfState,
     },
     equityPercent: equityPct,
     compRatio,
-    historicalConversionRate: 0.5,
+    historicalConversionRate: 0,
   };
 
   const score = computeScore(scoringInput);
@@ -594,7 +596,7 @@ async function enrichProperty(sb: any, apiKey: string, property: any, leadId?: s
         source: "propertyradar",
         severity: signal.severity,
         fingerprint: fp,
-        raw_data: { detected_from: signal.from, radar_id: pr.RadarID },
+        raw_data: { detected_from: signal.detectedFrom, radar_id: pr.RadarID },
         confidence: signal.severity >= 7 ? "0.900" : "0.600",
       }).then(({ error: e }: { error: { code?: string } | null }) => {
         if (e && e.code !== "23505") console.error("[Enrich] Event insert err:", e);
@@ -655,29 +657,4 @@ function parseAddress(raw: string) {
   return result;
 }
 
-// ── Distress detection ──────────────────────────────────────────────────
-
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-function detectDistressSignals(pr: any, isTruthy: (v: unknown) => boolean, toNum: (v: unknown) => number | null) {
-  const signals: { type: DistressType; severity: number; days: number; from: string }[] = [];
-
-  if (isTruthy(pr.isDeceasedProperty))
-    signals.push({ type: "probate", severity: 9, days: 30, from: "isDeceasedProperty" });
-  if (isTruthy(pr.isPreforeclosure) || isTruthy(pr.inForeclosure))
-    signals.push({ type: "pre_foreclosure", severity: (toNum(pr.DefaultAmount) ?? 0) > 50000 ? 9 : 7, days: 30, from: "foreclosure" });
-  if (isTruthy(pr.inTaxDelinquency))
-    signals.push({ type: "tax_lien", severity: (toNum(pr.DelinquentAmount) ?? 0) > 10000 ? 8 : 6, days: 90, from: "inTaxDelinquency" });
-  if (isTruthy(pr.inBankruptcyProperty))
-    signals.push({ type: "bankruptcy", severity: 8, days: 60, from: "inBankruptcyProperty" });
-  if (isTruthy(pr.inDivorce))
-    signals.push({ type: "divorce", severity: 7, days: 60, from: "inDivorce" });
-  if (isTruthy(pr.isSiteVacant) || isTruthy(pr.isMailVacant))
-    signals.push({ type: "vacant", severity: 5, days: 60, from: "vacant" });
-  if (isTruthy(pr.isNotSameMailingOrExempt))
-    signals.push({ type: "absentee", severity: 4, days: 90, from: "absentee" });
-
-  if (signals.length === 0)
-    signals.push({ type: "vacant", severity: 3, days: 180, from: "no_distress_default" });
-
-  return signals;
-}
+// Distress Signal Detection — uses shared module from @/lib/distress-signals

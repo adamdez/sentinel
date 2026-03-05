@@ -32,10 +32,8 @@ import {
 } from "@/lib/scoring-predictive";
 import { distressFingerprint, isDuplicateError, normalizeCounty } from "@/lib/dedup";
 import { dualSkipTrace, skipTraceResultToOwnerFlags, type SkipTraceResult } from "@/lib/skip-trace";
+import { detectDistressSignals, type DetectedSignal } from "@/lib/distress-signals";
 import type { DistressType } from "@/lib/types";
-
-// DISABLED: Auto skip-trace removed — agents trigger manually via "Enrich" button
-// const AUTO_SKIPTRACE_THRESHOLD = 65;
 
 const SYSTEM_USER_ID = "00000000-0000-0000-0000-000000000000";
 const PR_API_BASE = "https://api.propertyradar.com/v1/properties";
@@ -126,73 +124,6 @@ function parseAddress(raw: string): ParsedAddress {
   return result;
 }
 
-// ── Distress Signal Detection ────────────────────────────────────────
-
-interface DetectedSignal {
-  type: DistressType;
-  severity: number;
-  daysSinceEvent: number;
-  detectedFrom: string;
-}
-
-function daysBetween(dateStr: string): number {
-  try {
-    const d = new Date(dateStr).getTime();
-    if (isNaN(d)) return 90;
-    return Math.max(Math.round((Date.now() - d) / 86400000), 1);
-  } catch {
-    return 90;
-  }
-}
-
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-function detectDistressSignals(pr: any): DetectedSignal[] {
-  const signals: DetectedSignal[] = [];
-
-  if (isTruthy(pr.isDeceasedProperty)) {
-    signals.push({ type: "probate", severity: 9, daysSinceEvent: 30, detectedFrom: "isDeceasedProperty" });
-  }
-  if (isTruthy(pr.isPreforeclosure) || isTruthy(pr.inForeclosure)) {
-    const defaultAmt = toNumber(pr.DefaultAmount) ?? 0;
-    signals.push({
-      type: "pre_foreclosure",
-      severity: defaultAmt > 50000 ? 9 : 7,
-      daysSinceEvent: pr.ForeclosureRecDate ? daysBetween(pr.ForeclosureRecDate) : 30,
-      detectedFrom: isTruthy(pr.isPreforeclosure) ? "isPreforeclosure" : "inForeclosure",
-    });
-  }
-  if (isTruthy(pr.inTaxDelinquency)) {
-    const delAmt = toNumber(pr.DelinquentAmount) ?? 0;
-    signals.push({
-      type: "tax_lien",
-      severity: delAmt > 10000 ? 8 : 6,
-      daysSinceEvent: pr.DelinquentYear ? Math.max(365 * (new Date().getFullYear() - Number(pr.DelinquentYear)), 30) : 90,
-      detectedFrom: "inTaxDelinquency",
-    });
-  }
-  if (isTruthy(pr.inBankruptcyProperty)) {
-    signals.push({ type: "bankruptcy", severity: 8, daysSinceEvent: 60, detectedFrom: "inBankruptcyProperty" });
-  }
-  if (isTruthy(pr.inDivorce)) {
-    signals.push({ type: "divorce", severity: 7, daysSinceEvent: 60, detectedFrom: "inDivorce" });
-  }
-  if (isTruthy(pr.isSiteVacant) || isTruthy(pr.isMailVacant)) {
-    signals.push({
-      type: "vacant", severity: 5, daysSinceEvent: 60,
-      detectedFrom: isTruthy(pr.isSiteVacant) ? "isSiteVacant" : "isMailVacant",
-    });
-  }
-  if (isTruthy(pr.isNotSameMailingOrExempt)) {
-    signals.push({ type: "absentee", severity: 4, daysSinceEvent: 90, detectedFrom: "isNotSameMailingOrExempt" });
-  }
-  if ((isTruthy(pr.PropertyHasOpenLiens) || isTruthy(pr.PropertyHasOpenPersonLiens)) && !signals.some((s) => s.type === "tax_lien")) {
-    signals.push({ type: "tax_lien", severity: 5, daysSinceEvent: 90, detectedFrom: "PropertyHasOpenLiens" });
-  }
-
-  // No default "vacant" signal — if no distress, property might just be clean.
-  return signals;
-}
-
 // ── Single Property Enrichment ───────────────────────────────────────
 
 /**
@@ -220,7 +151,8 @@ export async function enrichProperty(
 
     if (prResult.success && prResult.pr) {
       // ── Step 2: Detect distress signals ────────────────────────
-      const signals = detectDistressSignals(prResult.pr);
+      const detection = detectDistressSignals(prResult.pr);
+      const signals = detection.signals;
 
       // Insert distress events (dedup by fingerprint)
       const apn = prResult.pr.APN ?? property.apn ?? propertyId;
@@ -865,7 +797,7 @@ async function runScoringPipeline(
     },
     equityPercent: equityPct,
     compRatio: Math.min(compRatio, 3.0),
-    historicalConversionRate: 0.5,
+    historicalConversionRate: 0,
   };
 
   const score = computeScore(scoringInput);
@@ -985,6 +917,7 @@ async function runScoringPipelineFromFlags(
     isVacant: signals.some((s) => s.type === "vacant"),
     isCorporateOwner: false,
     isFreeClear: false,
+    isUnderwater: false,
     ownerAgeKnown: null,
     delinquentAmount: null,
     previousDelinquentAmount: null,

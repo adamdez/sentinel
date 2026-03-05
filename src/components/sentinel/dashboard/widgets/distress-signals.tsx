@@ -25,6 +25,8 @@ const SIGNAL_COLORS: Record<string, string> = {
   inherited: "text-amber-400",
   absentee: "text-cyan-400",
   fsbo: "text-blue-300",
+  tired_landlord: "text-amber-400",
+  underwater: "text-red-400",
 };
 
 function labelFor(type: string): string {

@@ -3,6 +3,7 @@ import { createServerClient } from "@/lib/supabase";
 import { computeScore, SCORING_MODEL_VERSION, type ScoringInput } from "@/lib/scoring";
 import type { DistressType } from "@/lib/types";
 import { distressFingerprint, normalizeCounty as globalNormalizeCounty, isDuplicateError } from "@/lib/dedup";
+import { detectDistressSignals, type DetectedSignal } from "@/lib/distress-signals";
 
 type SbResult<T> = { data: T | null; error: { code?: string; message: string } | null };
 
@@ -417,10 +418,13 @@ export async function POST(request: NextRequest) {
 
     // ── 7. Detect distress signals from PR boolean flags + data ──────
 
-    const signals = detectDistressSignals(prProperty);
+    const detection = detectDistressSignals(prProperty);
+    const signals = detection.signals;
     log("Step 7 — Distress signals detected", {
       count: signals.length,
       signals: signals.map((s) => `${s.type}(sev:${s.severity}, from:${s.detectedFrom})`),
+      isMLSListed: detection.isMLSListed,
+      isOutOfState: detection.isOutOfState,
     });
 
     // ── 8. Upsert property (APN golden record) ──────────────────────
@@ -573,7 +577,7 @@ export async function POST(request: NextRequest) {
       },
       equityPercent: equityPct,
       compRatio: Math.min(compRatio, 3.0),
-      historicalConversionRate: 0.5,
+      historicalConversionRate: 0,
     };
 
     const scoreResult = computeScore(scoringInput);
@@ -931,115 +935,4 @@ function safeParseJson(text: string): unknown {
   }
 }
 
-// ── Distress Signal Detection ─────────────────────────────────────────
-// Uses PropertyRadar's boolean indicator fields + date fields.
-
-interface DetectedSignal {
-  type: DistressType;
-  severity: number;
-  daysSinceEvent: number;
-  detectedFrom: string;
-}
-
-function detectDistressSignals(pr: PRProperty): DetectedSignal[] {
-  const signals: DetectedSignal[] = [];
-
-  if (isTruthy(pr.isDeceasedProperty)) {
-    signals.push({
-      type: "probate",
-      severity: 9,
-      daysSinceEvent: 30,
-      detectedFrom: "isDeceasedProperty",
-    });
-  }
-
-  if (isTruthy(pr.isPreforeclosure) || isTruthy(pr.inForeclosure)) {
-    const defaultAmt = toNumber(pr.DefaultAmount) ?? 0;
-    signals.push({
-      type: "pre_foreclosure",
-      severity: defaultAmt > 50000 ? 9 : 7,
-      daysSinceEvent: pr.ForeclosureRecDate ? daysBetween(pr.ForeclosureRecDate) : 30,
-      detectedFrom: isTruthy(pr.isPreforeclosure) ? "isPreforeclosure" : "inForeclosure",
-    });
-  }
-
-  if (isTruthy(pr.inTaxDelinquency)) {
-    const delAmt = toNumber(pr.DelinquentAmount) ?? 0;
-    signals.push({
-      type: "tax_lien",
-      severity: delAmt > 10000 ? 8 : 6,
-      daysSinceEvent: pr.DelinquentYear
-        ? Math.max(365 * (new Date().getFullYear() - Number(pr.DelinquentYear)), 30)
-        : 90,
-      detectedFrom: "inTaxDelinquency",
-    });
-  }
-
-  if (isTruthy(pr.inBankruptcyProperty)) {
-    signals.push({
-      type: "bankruptcy",
-      severity: 8,
-      daysSinceEvent: 60,
-      detectedFrom: "inBankruptcyProperty",
-    });
-  }
-
-  if (isTruthy(pr.inDivorce)) {
-    signals.push({
-      type: "divorce",
-      severity: 7,
-      daysSinceEvent: 60,
-      detectedFrom: "inDivorce",
-    });
-  }
-
-  if (isTruthy(pr.isSiteVacant) || isTruthy(pr.isMailVacant)) {
-    signals.push({
-      type: "vacant",
-      severity: 5,
-      daysSinceEvent: 60,
-      detectedFrom: isTruthy(pr.isSiteVacant) ? "isSiteVacant" : "isMailVacant",
-    });
-  }
-
-  if (isTruthy(pr.isNotSameMailingOrExempt)) {
-    signals.push({
-      type: "absentee",
-      severity: 4,
-      daysSinceEvent: 90,
-      detectedFrom: "isNotSameMailingOrExempt",
-    });
-  }
-
-  if (isTruthy(pr.PropertyHasOpenLiens) || isTruthy(pr.PropertyHasOpenPersonLiens)) {
-    if (!signals.some((s) => s.type === "tax_lien")) {
-      signals.push({
-        type: "tax_lien",
-        severity: 5,
-        daysSinceEvent: 90,
-        detectedFrom: "PropertyHasOpenLiens",
-      });
-    }
-  }
-
-  if (signals.length === 0) {
-    signals.push({
-      type: "vacant",
-      severity: 3,
-      daysSinceEvent: 180,
-      detectedFrom: "no_distress_detected_default",
-    });
-  }
-
-  return signals;
-}
-
-function daysBetween(dateStr: string): number {
-  try {
-    const d = new Date(dateStr).getTime();
-    if (isNaN(d)) return 90;
-    return Math.max(Math.round((Date.now() - d) / 86400000), 1);
-  } catch {
-    return 90;
-  }
-}
+// Distress Signal Detection — uses shared module from @/lib/distress-signals

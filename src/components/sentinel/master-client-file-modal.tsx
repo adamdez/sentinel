@@ -254,6 +254,8 @@ const DISTRESS_CFG: Record<string, { label: string; icon: typeof AlertTriangle; 
   inherited:        { label: "Inherited",         icon: User,          color: "text-violet-400 bg-violet-500/10 border-violet-500/20" },
   water_shutoff:    { label: "Water Shut-Off",   icon: AlertTriangle, color: "text-red-400 bg-red-500/10 border-red-500/20" },
   condemned:        { label: "Condemned",        icon: AlertTriangle, color: "text-rose-400 bg-rose-500/10 border-rose-500/20" },
+  tired_landlord:   { label: "Tired Landlord",  icon: AlertTriangle, color: "text-amber-400 bg-amber-500/10 border-amber-500/20" },
+  underwater:       { label: "Underwater",       icon: AlertTriangle, color: "text-red-400 bg-red-500/10 border-red-500/20" },
 };
 
 const SCORE_LABEL_CFG: Record<AIScore["label"], { text: string; color: string; bg: string }> = {
@@ -382,6 +384,7 @@ const SIGNAL_WEIGHT_LABELS: Record<string, string> = {
   code_violation: "Code Violation", vacant: "Vacant Property", divorce: "Divorce",
   bankruptcy: "Bankruptcy", fsbo: "FSBO", absentee: "Absentee Owner",
   inherited: "Inherited Property", water_shutoff: "Water Shut-Off", condemned: "Condemned Property",
+  tired_landlord: "Tired Landlord", underwater: "Underwater",
   stacking_bonus: "Signal Stacking Bonus", owner_factors: "Owner Profile Factors",
   equity: "Equity Factor", comp_ratio: "Comp Ratio Factor", ai_boost: "AI Historical Boost",
 };
@@ -2286,6 +2289,8 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
       case "code_violation": return "Code violations — mounting fines, pressure to sell";
       case "vacant": return "Vacant property — carrying costs with no income";
       case "inherited": return "Inherited property — heirs may want fast liquidation";
+      case "tired_landlord": return "Long-term landlord showing signs of fatigue — may want to exit their rental portfolio";
+      case "underwater": return "Negative equity means the owner owes more than the home is worth — potential short sale candidate";
       default: return "Distress signal — may be motivated to sell";
     }
   };

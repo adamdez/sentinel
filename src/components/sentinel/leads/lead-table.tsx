@@ -48,6 +48,8 @@ const DISTRESS_COLORS: Partial<Record<DistressType, string>> = {
   inherited: "bg-amber-500/15 text-amber-400 border-amber-500/30",
   water_shutoff: "bg-teal-500/15 text-teal-400 border-teal-500/30",
   condemned: "bg-rose-600/15 text-rose-400 border-rose-600/30",
+  tired_landlord: "bg-amber-500/15 text-amber-400 border-amber-500/30",
+  underwater: "bg-red-500/15 text-red-400 border-red-500/30",
 };
 
 const DISTRESS_LABELS: Record<DistressType, string> = {
@@ -63,6 +65,8 @@ const DISTRESS_LABELS: Record<DistressType, string> = {
   inherited: "Inherited",
   water_shutoff: "Water Shutoff",
   condemned: "Condemned",
+  tired_landlord: "Tired Landlord",
+  underwater: "Underwater",
 };
 
 const OWNER_BADGE_MAP: Record<string, { label: string; color: string }> = {

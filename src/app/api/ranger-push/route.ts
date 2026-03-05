@@ -174,6 +174,7 @@ export async function POST(request: NextRequest) {
       isVacant: (payload.tags ?? []).includes("vacant"),
       isCorporateOwner: false,
       isFreeClear: false,
+      isUnderwater: false,
       ownerAgeKnown: null,
       delinquentAmount: null,
       previousDelinquentAmount: null,

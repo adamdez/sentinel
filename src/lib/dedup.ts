@@ -76,6 +76,25 @@ export function toInt(val: unknown): number | undefined {
 }
 
 /**
+ * Cross-source fingerprint for deduplicating the same distress event
+ * detected from multiple sources (e.g., PropertyRadar + ATTOM both
+ * reporting tax_lien for the same property). Omits `source` from the
+ * hash so that PR and ATTOM detections match.
+ *
+ * Use this when scoring to deduplicate before computing the score.
+ * Use `distressFingerprint` (with source) when inserting events.
+ */
+export function crossSourceFingerprint(
+  apn: string,
+  county: string,
+  eventType: DistressType | string,
+): string {
+  return createHash("sha256")
+    .update(`${apn}:${county}:${eventType}`)
+    .digest("hex");
+}
+
+/**
  * Days between a date string and now. Defaults to fallback on parse failure.
  */
 export function daysSince(dateStr: string, fallback = 90): number {

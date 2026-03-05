@@ -104,7 +104,7 @@ function scoreRecord(record: CrawledRecord): number {
     ownerFlags: {},
     equityPercent: 0,
     compRatio: 0,
-    historicalConversionRate: 0.12,
+    historicalConversionRate: 0,
   });
 
   return result.composite;

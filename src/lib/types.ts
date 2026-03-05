@@ -22,7 +22,9 @@ export type DistressType =
   | "absentee"
   | "inherited"
   | "water_shutoff"
-  | "condemned";
+  | "condemned"
+  | "tired_landlord"
+  | "underwater";
 
 export interface Property {
   id: string;
@@ -41,6 +43,8 @@ export interface Property {
   updated_at: string;
 }
 
+export type SignalStatus = "active" | "resolved" | "expired" | "unknown";
+
 export interface DistressEvent {
   id: string;
   property_id: string;
@@ -49,6 +53,10 @@ export interface DistressEvent {
   severity: number;
   fingerprint: string;
   raw_data: Record<string, unknown>;
+  status: SignalStatus;
+  event_date: string | null;
+  last_verified_at: string | null;
+  resolved_at: string | null;
   created_at: string;
 }
 

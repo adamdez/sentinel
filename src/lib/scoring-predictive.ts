@@ -43,7 +43,7 @@ const FEATURE_WEIGHTS = {
   taxDelinquencyTrend: 0.14,
   lifeEventProbability: 0.17,
   signalVelocity: 0.07,
-  ownershipStress: 0.05,
+  ownershipStress: 0.12,
   marketExposure: 0.03,
   skipTrace: 0.15,
 } as const;
@@ -113,6 +113,7 @@ export interface PredictiveInput {
   isVacant: boolean;
   isCorporateOwner: boolean;
   isFreeClear: boolean;
+  isUnderwater: boolean;
   ownerAgeKnown: number | null;
 
   // Tax & delinquency
@@ -517,8 +518,10 @@ function computeOwnershipStress(input: PredictiveInput): number {
   if (input.ownershipYears != null && input.ownershipYears > 20) stress += 20;
   else if (input.ownershipYears != null && input.ownershipYears > 10) stress += 10;
 
-  // High loan-to-value (underwater risk)
-  if (input.equityPercent != null) {
+  // Underwater / high loan-to-value
+  if (input.isUnderwater) {
+    stress += 40; // confirmed negative equity — maximum stress
+  } else if (input.equityPercent != null) {
     if (input.equityPercent < 10) stress += 35;
     else if (input.equityPercent < 20) stress += 20;
     else if (input.equityPercent < 30) stress += 10;
@@ -761,6 +764,7 @@ export function buildPredictiveInput(
     isVacant: toBool(flags.vacant) || toBool(prRaw.isSiteVacant),
     isCorporateOwner: toBool(flags.corporate),
     isFreeClear: toBool(flags.freeAndClear) || toBool(prRaw.isFreeAndClear),
+    isUnderwater: toBool(prRaw.isUnderwater) || toBool(flags.underwater),
     ownerAgeKnown: toNum(flags.owner_age) ?? toNum(prRaw.OwnerAge),
     delinquentAmount: toNum(prRaw.DelinquentAmount) ?? toNum(flags.delinquent_amount),
     previousDelinquentAmount: toNum(flags.previous_delinquent_amount),

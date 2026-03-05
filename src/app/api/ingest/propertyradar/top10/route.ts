@@ -12,6 +12,7 @@ import {
   normalizeCounty, distressFingerprint, isDuplicateError,
   isTruthy, toNumber, toInt, daysSince,
 } from "@/lib/dedup";
+import { detectDistressSignals, type DetectedSignal } from "@/lib/distress-signals";
 import { COUNTY_FIPS } from "@/lib/attom";
 
 const SYSTEM_USER_ID = "00000000-0000-0000-0000-000000000000";
@@ -609,7 +610,12 @@ export async function POST(req: NextRequest) {
 
   for (const pr of results) {
     if (!pr.APN) continue;
-    const signals = detectDistressSignals(pr);
+    const detection = detectDistressSignals(pr);
+    const signals = detection.signals;
+
+    // MLS-listed properties cannot be wholesaled — skip entirely
+    if (detection.isMLSListed) continue;
+
     const equityPct = toNumber(pr.EquityPercent) ?? 50;
     const avm = toNumber(pr.AVM) ?? 0;
     const loanBal = toNumber(pr.TotalLoanBalance) ?? 0;
@@ -621,12 +627,12 @@ export async function POST(req: NextRequest) {
         absentee: isTruthy(pr.isNotSameMailingOrExempt),
         corporate: false,
         inherited: isTruthy(pr.isDeceasedProperty),
-        elderly: false,
-        outOfState: isTruthy(pr.isNotSameMailingOrExempt),
+        elderly: detection.ownerAge !== null && detection.ownerAge >= 65,
+        outOfState: detection.isOutOfState,
       },
       equityPercent: equityPct,
       compRatio: Math.min(compRatio, 3.0),
-      historicalConversionRate: 0.5,
+      historicalConversionRate: 0,
     };
 
     candidates.push({ pr, score: computeScore(input), signals });
@@ -798,6 +804,7 @@ export async function POST(req: NextRequest) {
       isVacant: isTruthy(pr.isSiteVacant) || isTruthy(pr.isMailVacant),
       isCorporateOwner: false,
       isFreeClear: isTruthy(pr.isFreeAndClear),
+      isUnderwater: isTruthy(pr.isUnderwater),
       ownerAgeKnown: null,
       delinquentAmount: toNumber(pr.DelinquentAmount) ?? null,
       previousDelinquentAmount: null,
@@ -927,58 +934,4 @@ export async function POST(req: NextRequest) {
 }
 
 // ═══════════════════════════════════════════════════════════════════════
-// Distress Signal Detection
-// ═══════════════════════════════════════════════════════════════════════
-
-interface DetectedSignal {
-  type: DistressType;
-  severity: number;
-  daysSinceEvent: number;
-  detectedFrom: string;
-}
-
-function detectDistressSignals(pr: PRProperty): DetectedSignal[] {
-  const signals: DetectedSignal[] = [];
-
-  if (isTruthy(pr.isDeceasedProperty))
-    signals.push({ type: "probate", severity: 9, daysSinceEvent: 30, detectedFrom: "isDeceasedProperty" });
-
-  if (isTruthy(pr.isPreforeclosure) || isTruthy(pr.inForeclosure)) {
-    const amt = toNumber(pr.DefaultAmount) ?? 0;
-    signals.push({
-      type: "pre_foreclosure", severity: amt > 50000 ? 9 : 7,
-      daysSinceEvent: pr.ForeclosureRecDate ? daysSince(pr.ForeclosureRecDate) : 30,
-      detectedFrom: isTruthy(pr.isPreforeclosure) ? "isPreforeclosure" : "inForeclosure",
-    });
-  }
-
-  if (isTruthy(pr.inTaxDelinquency)) {
-    const amt = toNumber(pr.DelinquentAmount) ?? 0;
-    signals.push({
-      type: "tax_lien", severity: amt > 10000 ? 8 : 6,
-      daysSinceEvent: pr.DelinquentYear ? Math.max(365 * (new Date().getFullYear() - Number(pr.DelinquentYear)), 30) : 90,
-      detectedFrom: "inTaxDelinquency",
-    });
-  }
-
-  if (isTruthy(pr.inBankruptcyProperty))
-    signals.push({ type: "bankruptcy", severity: 8, daysSinceEvent: 60, detectedFrom: "inBankruptcyProperty" });
-  if (isTruthy(pr.inDivorce))
-    signals.push({ type: "divorce", severity: 7, daysSinceEvent: 60, detectedFrom: "inDivorce" });
-
-  if (isTruthy(pr.isSiteVacant) || isTruthy(pr.isMailVacant))
-    signals.push({ type: "vacant", severity: 5, daysSinceEvent: 60, detectedFrom: isTruthy(pr.isSiteVacant) ? "isSiteVacant" : "isMailVacant" });
-  // v2.1: Absentee severity raised 4 → 6 (was severely underweighted)
-  if (isTruthy(pr.isNotSameMailingOrExempt))
-    signals.push({ type: "absentee", severity: 6, daysSinceEvent: 90, detectedFrom: "isNotSameMailingOrExempt" });
-
-  if ((isTruthy(pr.PropertyHasOpenLiens) || isTruthy(pr.PropertyHasOpenPersonLiens)) && !signals.some((s) => s.type === "tax_lien"))
-    signals.push({ type: "tax_lien", severity: 5, daysSinceEvent: 90, detectedFrom: "PropertyHasOpenLiens" });
-
-  // v2.1: Default absentee severity raised 3 → 5 (all high-equity PR results
-  // are worth storing even without explicit absentee flag)
-  if (signals.length === 0)
-    signals.push({ type: "absentee", severity: 5, daysSinceEvent: 180, detectedFrom: "default_absentee" });
-
-  return signals;
-}
+// Distress Signal Detection — uses shared module from @/lib/distress-signals

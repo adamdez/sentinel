@@ -52,6 +52,7 @@ const SIGNAL_LABELS: Record<string, string> = {
   code_violation: "Code Violation", vacant: "Vacant", divorce: "Divorce",
   bankruptcy: "Bankruptcy", fsbo: "FSBO", absentee: "Absentee",
   inherited: "Inherited", water_shutoff: "Water Shut-off", condemned: "Condemned",
+  tired_landlord: "Tired Landlord", underwater: "Underwater",
 };
 
 const SIGNAL_EXPLAIN: Record<string, string> = {
@@ -67,6 +68,8 @@ const SIGNAL_EXPLAIN: Record<string, string> = {
   inherited: "Property inherited — heirs often prefer cash",
   water_shutoff: "Utility disconnected — strong vacancy/abandonment signal",
   condemned: "Property condemned — uninhabitable, owner under pressure to sell or demolish",
+  tired_landlord: "Multi-unit landlord with long ownership — may be burned out on property management",
+  underwater: "Owner owes more than the property is worth — negative equity creates urgency",
 };
 
 const SIGNAL_TAG_SET = new Set(Object.keys(SIGNAL_LABELS));
