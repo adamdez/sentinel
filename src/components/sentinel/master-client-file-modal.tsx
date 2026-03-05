@@ -2227,7 +2227,8 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
   const [zPhotosLoading, setZPhotosLoading] = useState(false);
 
   useEffect(() => {
-    if (cachedPhotos.length > 0 || !cf.fullAddress) return;
+    // Re-fetch if fewer than 3 cached photos (old caches had only 1 Street View)
+    if (cachedPhotos.length >= 3 || !cf.fullAddress) return;
     let cancelled = false;
     setZPhotosLoading(true);
     (async () => {
@@ -3999,7 +4000,8 @@ function CompsTab({ cf, selectedComps, onAddComp, onRemoveComp, onSkipTrace, com
   // Auto-fetch photos from Google Places if none cached
   const [fetchedPhotos, setFetchedPhotos] = useState<string[]>([]);
   useEffect(() => {
-    if (cachedPhotos.length > 0 || !cf.fullAddress) return;
+    // Re-fetch if fewer than 3 cached photos (old caches had only 1 Street View)
+    if (cachedPhotos.length >= 3 || !cf.fullAddress) return;
     let cancelled = false;
     (async () => {
       try {
