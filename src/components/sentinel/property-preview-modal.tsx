@@ -23,6 +23,8 @@ import {
   ChevronLeft,
   ChevronRight,
   Image as ImageIcon,
+  Flame,
+  Zap,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useSentinelStore } from "@/lib/store";
@@ -119,6 +121,10 @@ export function PropertyPreviewModal() {
   const [photos, setPhotos] = useState<string[]>([]);
   const [photoIdx, setPhotoIdx] = useState(0);
   const [photosLoading, setPhotosLoading] = useState(false);
+  const [enriching, setEnriching] = useState(false);
+  const [enrichedPropertyId, setEnrichedPropertyId] = useState<string | null>(null);
+  const [enrichedScore, setEnrichedScore] = useState<number | null>(null);
+  const [enrichedScoreLabel, setEnrichedScoreLabel] = useState<string | null>(null);
 
   // Listen for the custom event from GlobalSearch
   useEffect(() => {
@@ -160,6 +166,57 @@ export function PropertyPreviewModal() {
     return () => { cancelled = true; };
   }, [open, property]);
 
+  // Fire enrichment-on-preview when modal opens
+  useEffect(() => {
+    if (!open || !property || !property.prRaw || !property.apn) return;
+    let cancelled = false;
+    setEnriching(true);
+    setEnrichedPropertyId(null);
+    setEnrichedScore(null);
+    setEnrichedScoreLabel(null);
+
+    (async () => {
+      try {
+        const res = await fetch("/api/property-lookup/enrich", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            prRaw: property.prRaw,
+            apn: property.apn,
+            county: property.county,
+            address: property.address,
+            city: property.city,
+            state: property.state,
+            zip: property.zip,
+            ownerName: property.ownerName,
+            fullAddress: property.fullAddress,
+          }),
+        });
+        if (cancelled) return;
+        const data = await res.json();
+        if (data.success) {
+          setEnrichedPropertyId(data.propertyId);
+          setEnrichedScore(data.score);
+          setEnrichedScoreLabel(data.scoreLabel);
+
+          // Merge PR assessor photos into carousel (dedupe by URL)
+          if (data.photos?.length > 0) {
+            setPhotos((prev) => {
+              const existing = new Set(prev);
+              const newPhotos = data.photos
+                .map((p: { url: string }) => p.url)
+                .filter((url: string) => !existing.has(url) && url.startsWith("http"));
+              return [...prev, ...newPhotos];
+            });
+          }
+        }
+      } catch { /* enrichment is non-blocking */ }
+      if (!cancelled) setEnriching(false);
+    })();
+
+    return () => { cancelled = true; };
+  }, [open, property]);
+
   const close = useCallback(() => {
     setOpen(false);
     setTimeout(() => {
@@ -168,6 +225,10 @@ export function PropertyPreviewModal() {
       setError(null);
       setPhotos([]);
       setPhotoIdx(0);
+      setEnriching(false);
+      setEnrichedPropertyId(null);
+      setEnrichedScore(null);
+      setEnrichedScoreLabel(null);
     }, 200);
   }, []);
 
@@ -191,6 +252,7 @@ export function PropertyPreviewModal() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
+          property_id: enrichedPropertyId || undefined,
           apn: property.apn,
           county: property.county,
           address: property.address,
@@ -330,11 +392,29 @@ export function PropertyPreviewModal() {
                   <X className="h-4 w-4" />
                 </button>
 
-                {/* Address overlay */}
+                {/* Address overlay + score badge */}
                 <div className="absolute bottom-0 left-0 right-0 p-4">
                   <div className="flex items-center gap-2 text-white">
                     <MapPin className="h-4 w-4 text-cyan shrink-0" />
                     <h2 className="text-lg font-bold truncate">{property.address}</h2>
+                    {enrichedScore != null && (
+                      <span className={cn(
+                        "ml-auto shrink-0 inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-bold border",
+                        enrichedScoreLabel === "platinum" ? "bg-cyan-400/20 text-cyan-300 border-cyan-400/40" :
+                        enrichedScoreLabel === "gold" ? "bg-amber-500/20 text-amber-400 border-amber-500/40" :
+                        enrichedScoreLabel === "silver" ? "bg-slate-400/20 text-slate-300 border-slate-400/40" :
+                        "bg-orange-600/20 text-orange-400 border-orange-600/40"
+                      )}>
+                        {enrichedScoreLabel === "platinum" && <Flame className="h-3 w-3" />}
+                        {enrichedScore}
+                      </span>
+                    )}
+                    {enriching && (
+                      <span className="ml-auto shrink-0 inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-black/60 text-cyan/70 border border-cyan/20">
+                        <Zap className="h-3 w-3 animate-pulse" />
+                        Enriching...
+                      </span>
+                    )}
                   </div>
                   <p className="text-white/70 text-sm ml-6">
                     {property.city}, {property.state} {property.zip}

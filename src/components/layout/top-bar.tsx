@@ -28,7 +28,7 @@ import { useSentinelStore } from "@/lib/store";
 import { useRealtime } from "@/providers/realtime-provider";
 import { useHydrated } from "@/providers/hydration-provider";
 import { supabase } from "@/lib/supabase";
-import { DailyVerse } from "./daily-verse";
+import { GlobalSearch } from "./global-search";
 
 export function TopBar() {
   const router = useRouter();
@@ -73,7 +73,9 @@ export function TopBar() {
 
       </div>
 
-      <DailyVerse />
+      <div className="flex-1 flex justify-center min-w-0 px-4">
+        <GlobalSearch />
+      </div>
 
       <div className="flex items-center gap-3">
         <Tooltip>

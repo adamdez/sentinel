@@ -255,6 +255,7 @@ export async function POST(req: NextRequest) {
     const sb = createServerClient();
 
     const {
+      property_id: preEnrichedPropertyId,
       apn, county, address, city, state, zip,
       owner_name, owner_phone, owner_email,
       estimated_value, equity_percent, property_type,
@@ -275,46 +276,74 @@ export async function POST(req: NextRequest) {
     const toInt = (v: unknown) => { const n = parseInt(String(v), 10); return isNaN(n) ? null : n; };
     const toFloat = (v: unknown) => { const n = parseFloat(String(v)); return isNaN(n) ? null : n; };
 
-    // ── Step 1: Save basic property ──────────────────────────────────
+    // ── Step 1: Save basic property (or reuse pre-enriched) ──────────
 
-    const baseProperty: Record<string, unknown> = {
-      apn: finalApn,
-      county: finalCounty,
-      address: address.trim(),
-      city: city?.trim() || "Unknown",
-      state: state?.trim().toUpperCase() || "WA",
-      zip: zip?.trim() || null,
-      owner_name: owner_name?.trim() || "Unknown Owner",
-      owner_phone: owner_phone?.trim() || null,
-      owner_email: owner_email?.trim() || null,
-      property_type: property_type || "SFR",
-      owner_flags: { manual_entry: true, enrichment_pending: true },
-      updated_at: new Date().toISOString(),
-    };
+    let propertyId: string;
+    let alreadyEnriched = false;
 
-    if (estimated_value) baseProperty.estimated_value = toInt(estimated_value);
-    if (equity_percent) baseProperty.equity_percent = toFloat(equity_percent);
-    if (bedrooms) baseProperty.bedrooms = toInt(bedrooms);
-    if (bathrooms) baseProperty.bathrooms = toFloat(bathrooms);
-    if (sqft) baseProperty.sqft = toInt(sqft);
-    if (year_built) baseProperty.year_built = toInt(year_built);
-    if (lot_size) baseProperty.lot_size = toFloat(lot_size);
+    if (preEnrichedPropertyId) {
+      // Property was already created + enriched during preview — reuse it
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data: existing } = await (sb.from("properties") as any)
+        .select("id, owner_flags")
+        .eq("id", preEnrichedPropertyId)
+        .single();
 
-    console.log("[API/prospects POST] Upserting property:", JSON.stringify(baseProperty));
-
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data: property, error: propErr } = await (sb.from("properties") as any)
-      .upsert(baseProperty, { onConflict: "apn,county" })
-      .select("id")
-      .single();
-
-    if (propErr || !property) {
-      console.error("[API/prospects] Property upsert failed:", propErr);
-      return NextResponse.json(
-        { error: "Internal server error" },
-        { status: 500 }
-      );
+      if (existing) {
+        propertyId = existing.id;
+        alreadyEnriched = !!(existing.owner_flags?.enrichment_completed_at);
+        console.log(`[API/prospects POST] Using pre-enriched property ${propertyId} (enriched: ${alreadyEnriched})`);
+      } else {
+        // Fallback to upsert if pre-enriched ID is stale
+        console.warn(`[API/prospects POST] Pre-enriched property ${preEnrichedPropertyId} not found, falling back to upsert`);
+        preEnrichedPropertyId === undefined; // fall through
+      }
     }
+
+    // @ts-expect-error — propertyId may not be set yet if pre-enriched path failed
+    if (!propertyId) {
+      const baseProperty: Record<string, unknown> = {
+        apn: finalApn,
+        county: finalCounty,
+        address: address.trim(),
+        city: city?.trim() || "Unknown",
+        state: state?.trim().toUpperCase() || "WA",
+        zip: zip?.trim() || null,
+        owner_name: owner_name?.trim() || "Unknown Owner",
+        owner_phone: owner_phone?.trim() || null,
+        owner_email: owner_email?.trim() || null,
+        property_type: property_type || "SFR",
+        owner_flags: { manual_entry: true, enrichment_pending: true },
+        updated_at: new Date().toISOString(),
+      };
+
+      if (estimated_value) baseProperty.estimated_value = toInt(estimated_value);
+      if (equity_percent) baseProperty.equity_percent = toFloat(equity_percent);
+      if (bedrooms) baseProperty.bedrooms = toInt(bedrooms);
+      if (bathrooms) baseProperty.bathrooms = toFloat(bathrooms);
+      if (sqft) baseProperty.sqft = toInt(sqft);
+      if (year_built) baseProperty.year_built = toInt(year_built);
+      if (lot_size) baseProperty.lot_size = toFloat(lot_size);
+
+      console.log("[API/prospects POST] Upserting property:", JSON.stringify(baseProperty));
+
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data: upserted, error: propErr } = await (sb.from("properties") as any)
+        .upsert(baseProperty, { onConflict: "apn,county" })
+        .select("id")
+        .single();
+
+      if (propErr || !upserted) {
+        console.error("[API/prospects] Property upsert failed:", propErr);
+        return NextResponse.json(
+          { error: "Internal server error" },
+          { status: 500 }
+        );
+      }
+      propertyId = upserted.id;
+    }
+
+    const property = { id: propertyId };
 
     // ── Step 2: Save basic lead ──────────────────────────────────────
 
@@ -374,8 +403,8 @@ export async function POST(req: NextRequest) {
       if (auditErr) console.error("[API/prospects POST] Audit log failed (non-fatal):", auditErr);
     });
 
-    // Enrichment is handled automatically by the enrichment cron (every 15 min).
-    // Lead enters as "staging" → enrichment bot fills in data → promotes to "prospect".
+    // If property was pre-enriched during preview, no need for cron.
+    // Otherwise, enrichment cron picks it up every 15 min.
 
     return NextResponse.json({
       success: true,
@@ -383,8 +412,10 @@ export async function POST(req: NextRequest) {
       property_id: property.id,
       score: compositeScore,
       status: leadRow.status,
-      enriched: false,
-      enrichment: "Queued for automatic enrichment (runs every 15 min)",
+      enriched: alreadyEnriched,
+      enrichment: alreadyEnriched
+        ? "Already enriched during preview"
+        : "Queued for automatic enrichment (runs every 15 min)",
     });
   } catch (err) {
     console.error("[API/prospects] Unexpected error:", err);

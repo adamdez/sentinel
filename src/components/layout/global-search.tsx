@@ -91,12 +91,20 @@ interface NationwideSuggestion {
   lng?: number | null;
 }
 
+// Session token groups autocomplete requests to reduce Google billing
+let _sessionToken: string | null = null;
+function getSessionToken() {
+  if (!_sessionToken) _sessionToken = crypto.randomUUID();
+  return _sessionToken;
+}
+function resetSessionToken() { _sessionToken = null; }
+
 async function fetchSuggestions(q: string): Promise<NationwideSuggestion[]> {
   try {
     const res = await fetch("/api/property-lookup/suggestions", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ query: q }),
+      body: JSON.stringify({ query: q, sessionToken: getSessionToken() }),
     });
     if (!res.ok) return [];
     const data = await res.json();
@@ -184,6 +192,11 @@ export function GlobalSearch() {
   const isOpen = open && query.length > 0;
   const showNationwide = looksLikeAddress(query) && !searching;
 
+  // Build a unified navigable item count: local results + nationwide suggestions + fallback button
+  const localResults = results.filter((r) => r.id !== "__no_result__" && r.id !== "__error__");
+  const showFallbackButton = showNationwide && suggestions.length === 0 && !loadingSuggestions;
+  const totalNavItems = localResults.length + suggestions.length + (showFallbackButton ? 1 : 0);
+
   // Debounced search
   useEffect(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current);
@@ -235,6 +248,7 @@ export function GlobalSearch() {
     (href: string) => {
       setQuery("");
       closeDropdown();
+      resetSessionToken();
       inputRef.current?.blur();
       router.push(href);
     },
@@ -257,6 +271,7 @@ export function GlobalSearch() {
         sessionStorage.setItem("propertyPreview", JSON.stringify(data.property));
         setQuery("");
         closeDropdown();
+        resetSessionToken();
         inputRef.current?.blur();
         // Navigate to a special preview route or dispatch a custom event
         window.dispatchEvent(new CustomEvent("open-property-preview", { detail: data.property }));
@@ -273,6 +288,8 @@ export function GlobalSearch() {
           href: "#",
           status: undefined,
         }]);
+        // Re-focus input so user can immediately edit the address
+        inputRef.current?.focus();
       }
     } catch {
       setResults([{
@@ -283,12 +300,17 @@ export function GlobalSearch() {
         href: "#",
         status: undefined,
       }]);
+      inputRef.current?.focus();
     }
     setLookingUp(false);
   }, [query, lookingUp, closeDropdown]);
 
   useEffect(() => {
     setActiveIndex(-1);
+    // Clear error/no-result entries on query change
+    setResults((prev) =>
+      prev.length > 0 && (prev[0].id === "__no_result__" || prev[0].id === "__error__") ? [] : prev
+    );
   }, [query]);
 
   // Ctrl+K hotkey
@@ -322,30 +344,43 @@ export function GlobalSearch() {
 
       if (e.key === "ArrowDown") {
         e.preventDefault();
-        setActiveIndex((prev) => (prev < results.length - 1 ? prev + 1 : 0));
+        setActiveIndex((prev) => (prev < totalNavItems - 1 ? prev + 1 : 0));
       } else if (e.key === "ArrowUp") {
         e.preventDefault();
-        setActiveIndex((prev) => (prev > 0 ? prev - 1 : results.length - 1));
-      } else if (e.key === "Enter" && activeIndex >= 0 && results[activeIndex]) {
+        setActiveIndex((prev) => (prev > 0 ? prev - 1 : totalNavItems - 1));
+      } else if (e.key === "Enter") {
         e.preventDefault();
-        const rec = results[activeIndex];
-        if (rec.href !== "#") handleSelect(rec.href);
+        if (activeIndex >= 0 && activeIndex < localResults.length) {
+          // Local result selected
+          const rec = localResults[activeIndex];
+          if (rec.href !== "#") handleSelect(rec.href);
+        } else if (activeIndex >= localResults.length && activeIndex < localResults.length + suggestions.length) {
+          // Nationwide suggestion selected
+          const suggestion = suggestions[activeIndex - localResults.length];
+          handleNationwideLookup(suggestion.fullAddress);
+        } else if (showFallbackButton && activeIndex === localResults.length + suggestions.length) {
+          // Fallback "Look up" button selected
+          handleNationwideLookup();
+        } else if (totalNavItems === 0 && showNationwide) {
+          // No navigable items but nationwide is visible — trigger lookup directly
+          handleNationwideLookup();
+        }
       } else if (e.key === "Escape") {
         closeDropdown();
         inputRef.current?.blur();
       }
     },
-    [isOpen, activeIndex, results, handleSelect, closeDropdown]
+    [isOpen, activeIndex, totalNavItems, localResults, suggestions, showFallbackButton, showNationwide, handleSelect, handleNationwideLookup, closeDropdown]
   );
 
   return (
     <div ref={containerRef} className="relative w-full max-w-xl">
       <div
         className={cn(
-          "flex items-center gap-2 h-9 px-3 rounded-[12px] border text-sm transition-all duration-100 w-full search-scan-line",
-          open
-            ? "bg-secondary/80 border-cyan/22 shadow-[0_0_1px_rgba(0,229,255,0.6),0_0_4px_rgba(0,229,255,0.2),0_0_8px_rgba(0,229,255,0.08)]"
-            : "bg-secondary/50 border-glass-border hover:bg-secondary/70"
+          "flex items-center gap-2 h-9 px-3 border text-sm transition-all duration-100 w-full search-scan-line",
+          isOpen
+            ? "rounded-t-[12px] rounded-b-none bg-[rgb(8,8,16)] border-cyan/22 border-b-white/[0.06] shadow-[0_0_1px_rgba(0,229,255,0.6),0_0_4px_rgba(0,229,255,0.2),0_0_8px_rgba(0,229,255,0.08)]"
+            : "rounded-[12px] bg-secondary/50 border-glass-border hover:bg-secondary/70"
         )}
       >
         <Search className={cn("h-3.5 w-3.5 shrink-0 transition-colors", open ? "text-cyan" : "text-muted-foreground")} />
@@ -386,7 +421,8 @@ export function GlobalSearch() {
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -4 }}
             transition={{ duration: 0.12 }}
-            className="absolute top-full left-0 right-0 mt-2 z-50 rounded-[14px] glass-strong border border-glass-border shadow-2xl overflow-hidden max-h-[min(480px,calc(100vh-200px))]"
+            onMouseDown={(e) => e.preventDefault()}
+            className="absolute top-full left-0 right-0 z-50 rounded-b-[12px] rounded-t-none bg-[rgb(8,8,16)] border border-t-0 border-cyan/22 shadow-[0_4px_24px_rgba(0,0,0,0.6),0_0_8px_rgba(0,229,255,0.08)] overflow-hidden max-h-[min(480px,calc(100vh-200px))]"
           >
             {searching && results.length === 0 && suggestions.length === 0 ? (
               <div className="px-4 py-6 text-center text-sm text-muted-foreground">
@@ -500,14 +536,21 @@ export function GlobalSearch() {
                     </div>
 
                     {/* Show address suggestions when available */}
-                    {suggestions.map((s) => (
+                    {suggestions.map((s, si) => {
+                      const navIdx = localResults.length + si;
+                      const isActive = navIdx === activeIndex;
+                      return (
                       <button
                         key={s.placeId || s.fullAddress}
+                        onMouseEnter={() => setActiveIndex(navIdx)}
                         onMouseDown={(e) => {
                           e.preventDefault();
                           handleNationwideLookup(s.fullAddress);
                         }}
-                        className="flex items-center gap-3 w-full text-left px-3 py-2.5 hover:bg-white/[0.06] transition-colors"
+                        className={cn(
+                          "flex items-center gap-3 w-full text-left px-3 py-2.5 transition-colors",
+                          isActive ? "bg-white/[0.06]" : "hover:bg-white/[0.03]"
+                        )}
                       >
                         <div className="h-7 w-7 rounded-md flex items-center justify-center shrink-0 border bg-emerald-500/10 border-emerald-500/20 text-emerald-400">
                           {lookingUp ? (
@@ -524,18 +567,26 @@ export function GlobalSearch() {
                             {[s.city, s.state, s.zip].filter(Boolean).join(", ")}
                           </p>
                         </div>
-                        <ArrowRight className="h-3 w-3 shrink-0 text-emerald-400/40" />
+                        <ArrowRight className={cn("h-3 w-3 shrink-0 transition-colors", isActive ? "text-emerald-400/60" : "text-emerald-400/40")} />
                       </button>
-                    ))}
+                      );
+                    })}
 
                     {/* Always show generic lookup button as fallback */}
-                    {suggestions.length === 0 && !loadingSuggestions && (
+                    {suggestions.length === 0 && !loadingSuggestions && (() => {
+                      const navIdx = localResults.length;
+                      const isFallbackActive = navIdx === activeIndex;
+                      return (
                       <button
+                        onMouseEnter={() => setActiveIndex(navIdx)}
                         onMouseDown={(e) => {
                           e.preventDefault();
                           handleNationwideLookup();
                         }}
-                        className="flex items-center gap-3 w-full text-left px-3 py-3 hover:bg-white/[0.06] transition-colors"
+                        className={cn(
+                          "flex items-center gap-3 w-full text-left px-3 py-3 transition-colors",
+                          isFallbackActive ? "bg-white/[0.06]" : "hover:bg-white/[0.03]"
+                        )}
                       >
                         <div className="h-7 w-7 rounded-md flex items-center justify-center shrink-0 border bg-emerald-500/10 border-emerald-500/20 text-emerald-400">
                           {lookingUp ? (
@@ -545,16 +596,17 @@ export function GlobalSearch() {
                           )}
                         </div>
                         <div className="flex-1 min-w-0">
-                          <p className="text-sm font-semibold text-emerald-400 truncate">
+                          <p className="text-sm font-semibold text-emerald-400">
                             {lookingUp ? "Looking up property..." : `Look up "${query}"`}
                           </p>
                           <p className="text-[11px] text-muted-foreground">
                             Search any US property via PropertyRadar
                           </p>
                         </div>
-                        <ArrowRight className="h-3 w-3 shrink-0 text-emerald-400/40" />
+                        <ArrowRight className={cn("h-3 w-3 shrink-0 transition-colors", isFallbackActive ? "text-emerald-400/60" : "text-emerald-400/40")} />
                       </button>
-                    )}
+                      );
+                    })()}
                   </>
                 )}
               </div>
