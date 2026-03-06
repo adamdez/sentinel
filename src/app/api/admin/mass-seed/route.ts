@@ -77,10 +77,12 @@ export async function POST(req: NextRequest) {
   const limitPerCounty = Math.min(toInt(body.limitPerCounty as string) ?? 1000, 1000);
   const startTime = Date.now();
 
+  const debug = !!body.debug;
   console.log(`[MassSeed] === STARTED: Deceased+Tax, counties=[${counties}], limit=${limitPerCounty}/county ===`);
 
   // ── Pull from PropertyRadar per county ──────────────────────────────
   const allRaw: PRProperty[] = [];
+  const debugInfo: string[] = [];
 
   for (const county of counties) {
     const fips = COUNTY_FIPS[county] ?? COUNTY_FIPS[county.charAt(0).toUpperCase() + county.slice(1).toLowerCase()];
@@ -108,7 +110,9 @@ export async function POST(req: NextRequest) {
       const thisLimit = Math.min(PAGE_SIZE, limitPerCounty - offset);
       const url = `${PR_API}?Purchase=1&Limit=${thisLimit}&Start=${offset}&Fields=${PR_FIELDS}`;
 
+      const criteriaJson = JSON.stringify({ Criteria: criteria });
       console.log(`[MassSeed] ${county} page ${page + 1}/${pages} (limit ${thisLimit}, offset ${offset})`);
+      if (debug) debugInfo.push(`${county} p${page + 1}: POST ${url} body=${criteriaJson.slice(0, 300)}`);
 
       try {
         const resp = await fetch(url, {
@@ -118,17 +122,22 @@ export async function POST(req: NextRequest) {
             "Content-Type": "application/json",
             Accept: "application/json",
           },
-          body: JSON.stringify({ Criteria: criteria }),
+          body: criteriaJson,
         });
 
         if (!resp.ok) {
           const errText = await resp.text();
           console.error(`[MassSeed] ${county} page ${page + 1} error (HTTP ${resp.status}): ${errText.slice(0, 200)}`);
+          debugInfo.push(`${county} p${page + 1}: HTTP ${resp.status} — ${errText.slice(0, 200)}`);
           break;
         }
 
-        const data = await resp.json();
-        const records = Array.isArray(data) ? data : data.results ?? data.properties ?? [];
+        const rawText = await resp.text();
+        if (debug) debugInfo.push(`${county} p${page + 1}: response ${rawText.length} chars`);
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        let data: any;
+        try { data = JSON.parse(rawText); } catch { debugInfo.push(`${county} p${page + 1}: JSON parse error`); break; }
+        const records: PRProperty[] = Array.isArray(data) ? data : data.results ?? data.properties ?? [];
 
         if (records.length === 0) {
           console.log(`[MassSeed] ${county} page ${page + 1}: no more records`);
@@ -437,5 +446,6 @@ export async function POST(req: NextRequest) {
     topScore,
     topAddress,
     elapsed_ms: elapsed,
+    ...(debug ? { debugInfo } : {}),
   });
 }
