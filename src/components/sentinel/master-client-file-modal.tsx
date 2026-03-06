@@ -666,12 +666,20 @@ function ScoreBreakdownModal({ cf, scoreType, onClose }: { cf: ClientFile; score
                   <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Property Financials</p>
                   <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs">
                     <div className="flex justify-between px-3 py-1.5 rounded-[8px] bg-white/[0.02] border border-white/[0.04]">
-                      <span className="text-muted-foreground">ARV / AVM</span>
+                      <span className="text-muted-foreground">AVM</span>
                       <span className="font-mono font-bold text-neon">{arv > 0 ? formatCurrency(arv) : "—"}</span>
+                    </div>
+                    <div className="flex justify-between px-3 py-1.5 rounded-[8px] bg-white/[0.02] border border-white/[0.04]">
+                      <span className="text-muted-foreground">Tax Assessed</span>
+                      <span className="font-mono font-bold text-amber-400">{(() => { const tv = Number(cf.ownerFlags?.tax_assessed_value) || 0; return tv > 0 ? formatCurrency(tv) : "—"; })()}</span>
                     </div>
                     <div className="flex justify-between px-3 py-1.5 rounded-[8px] bg-white/[0.02] border border-white/[0.04]">
                       <span className="text-muted-foreground">Equity %</span>
                       <span className="font-mono font-bold">{eqPct > 0 ? `${eqPct}%` : "—"}</span>
+                    </div>
+                    <div className="flex justify-between px-3 py-1.5 rounded-[8px] bg-white/[0.02] border border-white/[0.04]">
+                      <span className="text-muted-foreground">AVM vs Tax</span>
+                      <span className="font-mono font-semibold text-cyan">{(() => { const tv = Number(cf.ownerFlags?.tax_assessed_value) || 0; if (arv > 0 && tv > 0) { const delta = arv - tv; return `${delta >= 0 ? "+" : ""}${formatCurrency(delta)}`; } return "—"; })()}</span>
                     </div>
                     <div className="flex justify-between px-3 py-1.5 rounded-[8px] bg-white/[0.02] border border-white/[0.04]">
                       <span className="text-muted-foreground">Available Equity</span>
@@ -3000,6 +3008,7 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
               </p>
               <div className="text-[10px] text-muted-foreground space-y-0.5">
                 {cf.estimatedValue != null && <p>AVM {formatCurrency(cf.estimatedValue)}</p>}
+                {(() => { const tv = Number(cf.ownerFlags?.tax_assessed_value) || 0; return tv > 0 ? <p className="text-amber-400/80">Tax {formatCurrency(tv)}</p> : null; })()}
                 {cf.availableEquity != null && <p>{formatCurrency(cf.availableEquity)} avail.</p>}
                 {estimatedOwed != null && <p>Owed ~{formatCurrency(estimatedOwed)}</p>}
               </div>
@@ -3382,15 +3391,15 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
 
         <div className="grid grid-cols-2 gap-2.5">
           {/* Tax & Transfer Details */}
-          {(prRaw.AssessedValue || lastTransferType || cf.lastSalePrice) && (
+          {(prRaw.AssessedValue || cf.ownerFlags?.tax_assessed_value || lastTransferType || cf.lastSalePrice) && (
             <div className="rounded-[10px] border border-white/[0.06] bg-white/[0.03] p-2.5 col-span-2">
               <div className="flex items-start gap-2">
                 <Banknote className="h-3.5 w-3.5 text-cyan/60 mt-0.5 shrink-0" />
                 <div className="flex-1 min-w-0">
                   <p className="text-[9px] text-muted-foreground/60 uppercase tracking-widest mb-1">Tax &amp; Transfer</p>
                   <div className="grid grid-cols-2 gap-x-4 gap-y-0.5 text-xs">
-                    {prRaw.AssessedValue && (
-                      <p className="text-muted-foreground">Tax Assessed: <span className="text-foreground font-medium">{formatCurrency(Number(prRaw.AssessedValue))}</span></p>
+                    {(prRaw.AssessedValue || cf.ownerFlags?.tax_assessed_value) && (
+                      <p className="text-muted-foreground">Tax Assessed: <span className="text-amber-400 font-medium">{formatCurrency(Number(prRaw.AssessedValue || cf.ownerFlags?.tax_assessed_value))}</span></p>
                     )}
                     {cf.lastSalePrice != null && (
                       <p className="text-muted-foreground">Last Sale: <span className="text-foreground font-medium">{formatCurrency(cf.lastSalePrice)}</span>{cf.lastSaleDate ? ` (${new Date(cf.lastSaleDate).toLocaleDateString()})` : ""}</p>

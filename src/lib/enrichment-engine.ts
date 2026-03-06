@@ -623,6 +623,8 @@ async function updatePropertyFromPR(sb: any, propertyId: string, pr: any, existi
 
   const estimatedValue = toNumber(pr.AVM);
   const equityPercent = toNumber(pr.EquityPercent);
+  const assessedValue = toNumber(pr.AssessedValue);
+  if (assessedValue != null) ownerFlags.tax_assessed_value = Math.round(assessedValue);
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const update: Record<string, any> = {
@@ -1309,9 +1311,26 @@ export async function promoteByTier(filter: PromoteFilter): Promise<PromoteResul
     return false;
   });
 
-  console.log(`[Promote] ${enrichedLeads.length} enriched, ${garbageCount} blocked (bad data), ${promotable.length} promotable (absentee/deceased), ${qualityFiltered.length - promotable.length} held in reservoir`);
+  // ── Value cap gate ────────────────────────────────────────────────
+  // Hard filter: skip properties with AVM above $450K — not viable wholesale deals
+  const MAX_AVM_VALUE = 450_000;
+  const valueFiltered = promotable.filter((l) => {
+    const flags = l.properties?.owner_flags ?? {};
+    const prRaw = flags.pr_raw ?? {};
+    const avm = Number(prRaw.AVM) || 0;
+    // Also check estimated_value on the property as fallback
+    if (avm > MAX_AVM_VALUE) return false;
+    return true;
+  });
 
-  if (promotable.length === 0) {
+  const valueBlockedCount = promotable.length - valueFiltered.length;
+  if (valueBlockedCount > 0) {
+    console.log(`[Promote] Value cap gate blocked ${valueBlockedCount} leads (AVM > $${MAX_AVM_VALUE.toLocaleString()})`);
+  }
+
+  console.log(`[Promote] ${enrichedLeads.length} enriched, ${garbageCount} blocked (bad data), ${valueBlockedCount} blocked (value cap), ${valueFiltered.length} promotable (absentee/deceased), ${qualityFiltered.length - promotable.length} held in reservoir`);
+
+  if (valueFiltered.length === 0) {
     return { promoted: 0, tier, scoreRange: { min: minScore, max: maxScore }, leads: [] };
   }
 
@@ -1319,8 +1338,8 @@ export async function promoteByTier(filter: PromoteFilter): Promise<PromoteResul
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const promotedLeads: { id: string; score: number; label: string }[] = [];
 
-  for (let i = 0; i < promotable.length; i += 100) {
-    const batch = promotable.slice(i, i + 100);
+  for (let i = 0; i < valueFiltered.length; i += 100) {
+    const batch = valueFiltered.slice(i, i + 100);
     const ids = batch.map((l: { id: string }) => l.id);
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any

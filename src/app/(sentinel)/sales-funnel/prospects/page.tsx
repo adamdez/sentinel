@@ -706,7 +706,7 @@ export default function ProspectsPage() {
                   <th className="text-left p-3 text-xs font-medium text-muted-foreground w-[280px]">Property</th>
                   <th className="text-left p-3 text-xs font-medium text-muted-foreground w-[140px]">Phone</th>
                   <th className="text-left p-3 text-xs font-medium text-muted-foreground">Distress Signals</th>
-                  <th className="text-right p-3 text-xs font-medium text-muted-foreground">ARV / Equity</th>
+                  <th className="text-right p-3 text-xs font-medium text-muted-foreground">Est. Value</th>
                   <th
                     className="text-left p-3 text-xs font-medium text-muted-foreground cursor-pointer hover:text-foreground transition-colors"
                     onClick={() => toggleSort("composite_score")}
@@ -812,11 +812,16 @@ export default function ProspectsPage() {
                           </div>
                         </td>
 
-                        {/* ── ARV / Equity ── */}
+                        {/* ── Est. Value (AVM + Tax Assessed) ── */}
                         <td className="p-3 text-right">
                           <div className="space-y-0.5">
                             {p.estimated_value ? (
-                              <p className="text-sm font-bold text-foreground tabular-nums" style={{ WebkitFontSmoothing: "antialiased" }}>
+                              <p className={cn(
+                                "text-sm font-bold tabular-nums",
+                                p.estimated_value < 200_000 ? "text-emerald-400" :
+                                p.estimated_value < 410_000 ? "text-yellow-400" :
+                                "text-red-400"
+                              )} style={{ WebkitFontSmoothing: "antialiased" }}>
                                 ${p.estimated_value >= 1000000
                                   ? `${(p.estimated_value / 1000000).toFixed(1)}M`
                                   : p.estimated_value >= 1000
@@ -824,17 +829,25 @@ export default function ProspectsPage() {
                                     : p.estimated_value.toLocaleString()}
                               </p>
                             ) : (
-                              <p className="text-xs text-muted-foreground/40">No ARV</p>
+                              <p className="text-xs text-muted-foreground/40">No AVM</p>
                             )}
+                            {(() => {
+                              const taxVal = Number(p.owner_flags?.tax_assessed_value) || 0;
+                              return taxVal > 0 ? (
+                                <p className="text-[10px] text-muted-foreground/60 tabular-nums">
+                                  Tax: ${taxVal >= 1000 ? `${Math.round(taxVal / 1000)}K` : taxVal.toLocaleString()}
+                                </p>
+                              ) : null;
+                            })()}
                             {p.equity_percent != null ? (
                               <p className={cn(
-                                "text-[11px] font-semibold tabular-nums",
+                                "text-[10px] font-semibold tabular-nums",
                                 p.equity_percent >= 60 ? "text-neon" : p.equity_percent >= 30 ? "text-yellow-400" : "text-muted-foreground/70"
                               )}>
-                                {Math.round(p.equity_percent)}% equity
+                                {Math.round(p.equity_percent)}% eq
                               </p>
                             ) : p.is_free_clear ? (
-                              <p className="text-[11px] font-semibold text-neon">Free &amp; Clear</p>
+                              <p className="text-[10px] font-semibold text-neon">Free &amp; Clear</p>
                             ) : null}
                           </div>
                         </td>

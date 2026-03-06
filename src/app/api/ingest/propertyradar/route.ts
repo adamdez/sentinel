@@ -392,6 +392,23 @@ export async function POST(request: NextRequest) {
       isNotSameMailingOrExempt: prProperty.isNotSameMailingOrExempt,
     });
 
+    // ── 5b. Value cap — skip properties with AVM above $450K ────────
+    const MAX_AVM_VALUE = 450_000;
+    const rawAvm = Number(prProperty.AVM) || 0;
+    if (rawAvm > MAX_AVM_VALUE) {
+      log(`Step 5b — SKIPPED: AVM $${rawAvm.toLocaleString()} exceeds $${MAX_AVM_VALUE.toLocaleString()} cap`);
+      return NextResponse.json(
+        {
+          error: `Property AVM ($${rawAvm.toLocaleString()}) exceeds the $${MAX_AVM_VALUE.toLocaleString()} value cap — not a viable wholesale deal`,
+          avm: rawAvm,
+          maxAllowed: MAX_AVM_VALUE,
+          address: prProperty.Address ?? prProperty.FullAddress,
+          debugLog,
+        },
+        { status: 422 }
+      );
+    }
+
     // ── 6. Normalize fields ──────────────────────────────────────────
 
     const apn = prProperty.APN ?? body.apn ?? "";

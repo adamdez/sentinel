@@ -283,8 +283,11 @@ export async function POST(req: NextRequest) {
     // MLS-listed properties cannot be wholesaled — skip entirely
     if (detection.isMLSListed) continue;
 
-    const equityPct = toNumber(pr.EquityPercent) ?? 50;
+    // Value cap — skip properties with AVM above $450K
     const avm = toNumber(pr.AVM) ?? 0;
+    if (avm > 450_000) continue;
+
+    const equityPct = toNumber(pr.EquityPercent) ?? 50;
     const loanBal = toNumber(pr.TotalLoanBalance) ?? 0;
     const compRatio = avm > 0 && loanBal > 0 ? avm / loanBal : 1.1;
 

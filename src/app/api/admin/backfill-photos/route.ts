@@ -66,23 +66,25 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ success: true, updated: 0, message: "No properties with pr_raw found" });
     }
 
-    // Filter to only those missing photos
+    // Filter to properties missing photos OR tax_assessed_value
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const needsPhotos = properties.filter((p: any) => {
+    const needsBackfill = properties.filter((p: any) => {
       const flags = p.owner_flags ?? {};
       const photos = flags.photos;
-      return !Array.isArray(photos) || photos.length === 0;
+      const missingPhotos = !Array.isArray(photos) || photos.length === 0;
+      const missingTaxValue = flags.tax_assessed_value == null;
+      return missingPhotos || missingTaxValue;
     });
 
-    console.log(`[BackfillPhotos] ${needsPhotos.length} of ${properties.length} properties need photo backfill`);
+    console.log(`[BackfillPhotos] ${needsBackfill.length} of ${properties.length} properties need backfill`);
 
     let updated = 0;
     let skipped = 0;
     const errors: string[] = [];
 
     // Process in chunks of 100
-    for (let i = 0; i < needsPhotos.length; i += 100) {
-      const chunk = needsPhotos.slice(i, i + 100);
+    for (let i = 0; i < needsBackfill.length; i += 100) {
+      const chunk = needsBackfill.slice(i, i + 100);
 
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       for (const prop of chunk as any[]) {
@@ -123,21 +125,28 @@ export async function POST(req: NextRequest) {
             });
           }
 
-          if (extractedPhotos.length === 0) {
+          // Also extract tax assessed value from pr_raw
+          const assessedValue = toNumber(pr.AssessedValue);
+
+          if (extractedPhotos.length === 0 && assessedValue == null) {
             skipped++;
             continue;
           }
 
-          // Update property with extracted photos
+          // Build updated flags
+          const updatedFlags: Record<string, unknown> = { ...flags };
+          if (extractedPhotos.length > 0) {
+            updatedFlags.photos = extractedPhotos;
+            updatedFlags.photos_fetched_at = now;
+          }
+          if (assessedValue != null && !flags.tax_assessed_value) {
+            updatedFlags.tax_assessed_value = Math.round(assessedValue);
+          }
+
+          // Update property
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           const { error: updateErr } = await (sb.from("properties") as any)
-            .update({
-              owner_flags: {
-                ...flags,
-                photos: extractedPhotos,
-                photos_fetched_at: now,
-              },
-            })
+            .update({ owner_flags: updatedFlags })
             .eq("id", prop.id);
 
           if (updateErr) {
@@ -160,7 +169,7 @@ export async function POST(req: NextRequest) {
       entity_id: "backfill_photos",
       details: {
         total: properties.length,
-        needsPhotos: needsPhotos.length,
+        needsBackfill: needsBackfill.length,
         updated,
         skipped,
         errors: errors.length,
@@ -173,7 +182,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({
       success: true,
       total: properties.length,
-      needsPhotos: needsPhotos.length,
+      needsBackfill: needsBackfill.length,
       updated,
       skipped,
       errors: errors.length,
