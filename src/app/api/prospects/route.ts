@@ -311,7 +311,7 @@ export async function POST(req: NextRequest) {
         .maybeSingle();
 
       const existingFlags = (existingProp?.owner_flags ?? {}) as Record<string, unknown>;
-      const mergedFlags = { ...existingFlags, enrichment_pending: true };
+      const mergedFlags: Record<string, unknown> = { ...existingFlags, enrichment_pending: true };
       if (!existingProp) mergedFlags.manual_entry = true;
 
       const baseProperty: Record<string, unknown> = {
