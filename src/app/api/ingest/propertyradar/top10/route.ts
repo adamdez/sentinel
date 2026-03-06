@@ -447,8 +447,8 @@ export async function POST(req: NextRequest) {
     "ForeclosureStage", "ForeclosureRecDate", "DefaultAmount",
     "DelinquentYear", "DelinquentAmount",
     // Distress date fields — needed for stale signal detection
-    "DeceasedDate", "BankruptcyRecDate", "DivorceRecDate", "SaleDate", "DefaultAsOf",
-    "AssessedValue", "Owner2",
+    // DeceasedDate, BankruptcyRecDate, DivorceRecDate are NOT valid PR field names
+    "SaleDate", "DefaultAsOf", "AssessedValue", "Owner2",
   ].join(",");
 
   // ── 3. Single Broad Pull + Client-Side Lens Filtering ──────────────

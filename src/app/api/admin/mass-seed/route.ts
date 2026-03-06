@@ -42,7 +42,7 @@ const PR_FIELDS = [
   "PropertyHasOpenLiens", "PropertyHasOpenPersonLiens",
   "ForeclosureStage", "ForeclosureRecDate", "DefaultAmount", "DefaultAsOf",
   "DelinquentYear", "DelinquentAmount",
-  "DeceasedDate", "BankruptcyRecDate", "DivorceRecDate",
+  // DeceasedDate, BankruptcyRecDate, DivorceRecDate are NOT valid PR field names
   "Phone1", "Phone2", "Email", "PhoneAvailability", "EmailAvailability",
   "MailAddress", "MailCity", "MailState", "MailZip",
 ].join(",");

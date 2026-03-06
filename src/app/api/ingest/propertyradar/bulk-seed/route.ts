@@ -41,8 +41,8 @@ const PR_FIELDS = [
   "ForeclosureStage", "ForeclosureRecDate", "DefaultAmount",
   "DelinquentYear", "DelinquentAmount",
   // Distress date fields — needed for stale signal detection
-  "DeceasedDate", "BankruptcyRecDate", "DivorceRecDate", "SaleDate", "DefaultAsOf",
-  "AssessedValue", "Owner2",
+  // DeceasedDate, BankruptcyRecDate, DivorceRecDate are NOT valid PR field names
+  "SaleDate", "DefaultAsOf", "AssessedValue", "Owner2",
   // Phone & email fields from county records
   "Phone1", "Phone2", "Email", "PhoneAvailability", "EmailAvailability",
   // Mailing address for contact tab
