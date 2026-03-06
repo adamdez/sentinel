@@ -34,7 +34,7 @@ const PR_FIELDS = [
   "PropertyHasOpenLiens", "PropertyHasOpenPersonLiens",
   "ForeclosureStage", "ForeclosureRecDate", "DefaultAmount", "DefaultAsOf",
   "DelinquentYear", "DelinquentAmount",
-  "MailAddress", "MailCity", "MailState", "MailZip",
+  // MailAddress, MailCity, MailState, MailZip are NOT valid for list-based queries
 ].join(",");
 
 const COUNTY_STATE_MAP: Record<string, string> = {
