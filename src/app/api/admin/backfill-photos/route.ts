@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@/lib/supabase";
 
 export const dynamic = "force-dynamic";
@@ -24,14 +24,26 @@ function toNumber(v: unknown): number | null {
  * that have PR data but no photos yet. Zero additional API cost — purely
  * reads from data already stored in the DB.
  */
-export async function POST() {
+export async function POST(req: NextRequest) {
   const sb = createServerClient();
 
-  // Auth check
-  const {
-    data: { user },
-  } = await sb.auth.getUser();
-  if (!user?.email || !ADMIN_EMAILS.includes(user.email)) {
+  // Auth: CRON_SECRET or admin session
+  const cronSecret = req.headers.get("authorization");
+  const expectedSecret = process.env.CRON_SECRET;
+  let authorized = false;
+
+  if (expectedSecret && cronSecret === `Bearer ${expectedSecret}`) {
+    authorized = true;
+  } else {
+    const {
+      data: { user },
+    } = await sb.auth.getUser();
+    if (user?.email && ADMIN_EMAILS.includes(user.email)) {
+      authorized = true;
+    }
+  }
+
+  if (!authorized) {
     return NextResponse.json({ error: "Unauthorized — admin only" }, { status: 401 });
   }
 
@@ -142,7 +154,7 @@ export async function POST() {
     // Audit log
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     await (sb.from("event_log") as any).insert({
-      user_id: user.id,
+      user_id: "00000000-0000-0000-0000-000000000000",
       action: "admin.backfill_photos",
       entity_type: "system",
       entity_id: "backfill_photos",
