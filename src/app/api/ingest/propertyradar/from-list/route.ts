@@ -133,7 +133,7 @@ export async function POST(req: NextRequest) {
   // Paginate through the list
   for (let page = 0; page < 50; page++) { // safety cap at 50 pages (10,000 properties)
     const url = `${PR_API_BASE}/properties?Purchase=1&Limit=${PAGE_SIZE}&Start=${offset}&Fields=${PR_FIELDS}`;
-    const criteria = { Criteria: [{ name: "InList", value: String(listId) }] };
+    const criteria = { Criteria: [{ name: "InList", value: [String(listId)] }] };
 
     const resp = await fetch(url, {
       method: "POST",
