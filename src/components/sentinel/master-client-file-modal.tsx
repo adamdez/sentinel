@@ -1654,11 +1654,13 @@ function OwnerPortfolio({
   ownerName,
   county,
   ownerFlags,
+  estimatedValue,
 }: {
   propertyId: string;
   ownerName: string;
   county: string;
   ownerFlags: Record<string, unknown>;
+  estimatedValue: number | null;
 }) {
   const [parcels, setParcels] = useState<RelatedParcel[]>([]);
   const [loading, setLoading] = useState(true);
@@ -1721,11 +1723,7 @@ function OwnerPortfolio({
   if (parcels.length === 0) return null; // Single-parcel owner — nothing to show
 
   const portfolioCount = parcels.length + 1; // +1 for the current property
-  const currentValue = (ownerFlags?.pr_raw as Record<string, unknown>)?.AVM
-    ? Number((ownerFlags.pr_raw as Record<string, unknown>).AVM)
-    : null;
-  const estimatedValueFromFlags = ownerFlags?.estimated_value as number | null;
-  const thisPropertyValue = currentValue ?? estimatedValueFromFlags ?? 0;
+  const thisPropertyValue = estimatedValue ?? 0;
   const portfolioTotal = parcels.reduce(
     (sum, p) => sum + (p.estimatedValue ?? 0),
     thisPropertyValue
@@ -3391,6 +3389,7 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
         ownerName={cf.ownerName}
         county={cf.county}
         ownerFlags={cf.ownerFlags}
+        estimatedValue={cf.estimatedValue}
       />
 
       {/* ═══ 5. MAO BREAKDOWN — Full formula so agents trust the math ═══ */}
