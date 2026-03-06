@@ -24,22 +24,43 @@ const SYSTEM_USER_ID = "00000000-0000-0000-0000-000000000000";
  */
 export async function POST(request: NextRequest) {
   try {
-    const sbAuth = createServerClient();
+    // Auth: CRON_SECRET or Supabase user token
     const authHeader = request.headers.get("authorization");
     const token = authHeader?.replace("Bearer ", "");
-    const { data: { user } } = await sbAuth.auth.getUser(token);
-    if (!user) {
+    const expectedSecret = process.env.CRON_SECRET;
+    let authorized = false;
+
+    if (expectedSecret && token === expectedSecret) {
+      authorized = true;
+    } else {
+      const sbAuth = createServerClient();
+      const { data: { user } } = await sbAuth.auth.getUser(token);
+      if (user) authorized = true;
+    }
+
+    if (!authorized) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
     const body = await request.json();
-    const propertyIds: string[] = body.property_ids ?? (body.property_id ? [body.property_id] : []);
+    let propertyIds: string[] = body.property_ids ?? (body.property_id ? [body.property_id] : []);
+
+    // If batch_all_active is set, fetch all active prospect/lead property IDs
+    if (body.batch_all_active && propertyIds.length === 0) {
+      const sb = createServerClient();
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data: leads } = await (sb.from("leads") as any)
+        .select("property_id")
+        .in("status", ["prospect", "lead", "negotiation"]);
+      propertyIds = (leads ?? []).map((l: { property_id: string }) => l.property_id).filter(Boolean);
+    }
 
     if (propertyIds.length === 0) {
       return NextResponse.json({ error: "property_ids required" }, { status: 400 });
     }
 
-    if (propertyIds.length > 50) {
+    // Allow larger batches when using batch_all_active
+    if (!body.batch_all_active && propertyIds.length > 50) {
       return NextResponse.json({ error: "Max 50 properties per batch" }, { status: 400 });
     }
 
