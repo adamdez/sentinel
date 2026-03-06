@@ -8,11 +8,12 @@ export const maxDuration = 120;
 /**
  * POST /api/admin/reset-obit-attempts
  *
- * Resets enrichment_attempts for CRAWL-* properties so the new
- * deceased-search pipeline can re-process them from scratch.
+ * Resets enrichment_attempts for properties so the enrichment pipeline
+ * can re-process them from scratch.
  *
- * Also resets the lead status to "staging" if currently stuck at
- * enrichment_status = "partial" or "failed".
+ * Query params:
+ *   ?scope=crawl  — only CRAWL-* properties (default)
+ *   ?scope=all    — ALL exhausted properties (attempts >= 3)
  *
  * Auth: CRON_SECRET header.
  */
@@ -27,14 +28,20 @@ export async function POST(req: NextRequest) {
   const sb = createServerClient();
 
   try {
-    console.log("[ResetObitAttempts] Finding CRAWL-* properties...");
+    const scope = new URL(req.url).searchParams.get("scope") ?? "crawl";
+    console.log(`[ResetObitAttempts] Finding properties (scope=${scope})...`);
 
-    // Find all properties with CRAWL-* APNs that have enrichment_attempts >= 1
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data: properties, error: queryErr } = await (sb.from("properties") as any)
+    let query = (sb.from("properties") as any)
       .select("id, apn, owner_flags")
-      .like("apn", "CRAWL-%")
       .limit(5000);
+
+    if (scope === "crawl") {
+      query = query.like("apn", "CRAWL-%");
+    }
+    // scope=all — no APN filter, just find exhausted properties
+
+    const { data: properties, error: queryErr } = await query;
 
     if (queryErr) {
       console.error("[ResetObitAttempts] Query error:", queryErr.message);
@@ -42,18 +49,19 @@ export async function POST(req: NextRequest) {
     }
 
     if (!properties || properties.length === 0) {
-      return NextResponse.json({ success: true, message: "No CRAWL-* properties found", reset: 0 });
+      return NextResponse.json({ success: true, message: "No matching properties found", reset: 0 });
     }
 
-    // Filter to those with enrichment_attempts > 0
+    // Filter to those with enrichment_attempts >= 3 (exhausted)
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const needsReset = properties.filter((p: any) => {
       const flags = p.owner_flags ?? {};
       const attempts = flags.enrichment_attempts ?? 0;
-      return attempts > 0;
+      const status = flags.enrichment_status;
+      return attempts >= 3 && status !== "enriched";
     });
 
-    console.log(`[ResetObitAttempts] ${needsReset.length} of ${properties.length} CRAWL-* properties need reset`);
+    console.log(`[ResetObitAttempts] ${needsReset.length} of ${properties.length} properties need reset (scope=${scope})`);
 
     let resetCount = 0;
     const errors: string[] = [];
