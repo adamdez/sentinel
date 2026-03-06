@@ -302,6 +302,18 @@ export async function POST(req: NextRequest) {
 
     // @ts-expect-error — propertyId may not be set yet if pre-enriched path failed
     if (!propertyId) {
+      // Check if property already exists — merge owner_flags to preserve deep_crawl, photos, etc.
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data: existingProp } = await (sb.from("properties") as any)
+        .select("id, owner_flags")
+        .eq("apn", finalApn)
+        .eq("county", finalCounty)
+        .maybeSingle();
+
+      const existingFlags = (existingProp?.owner_flags ?? {}) as Record<string, unknown>;
+      const mergedFlags = { ...existingFlags, enrichment_pending: true };
+      if (!existingProp) mergedFlags.manual_entry = true;
+
       const baseProperty: Record<string, unknown> = {
         apn: finalApn,
         county: finalCounty,
@@ -313,7 +325,7 @@ export async function POST(req: NextRequest) {
         owner_phone: owner_phone?.trim() || null,
         owner_email: owner_email?.trim() || null,
         property_type: property_type || "SFR",
-        owner_flags: { manual_entry: true, enrichment_pending: true },
+        owner_flags: mergedFlags,
         updated_at: new Date().toISOString(),
       };
 

@@ -53,6 +53,7 @@ export interface AgentPayload {
   lat?: number;
   lng?: number;
   distressSignals?: string[];
+  lastSaleDate?: string;         // date current owner purchased — filters pre-ownership records
   additionalContext?: Record<string, unknown>;
 }
 
@@ -146,20 +147,26 @@ function buildAgentPrompt(agentId: string, payload: AgentPayload): string {
     `City: ${payload.city}, ${payload.state}`,
     `County: ${payload.county}`,
     payload.apn ? `APN: ${payload.apn}` : null,
+    payload.lastSaleDate ? `Current owner purchased: ${payload.lastSaleDate}` : null,
     payload.distressSignals?.length ? `Known distress signals: ${payload.distressSignals.join(", ")}` : null,
   ].filter(Boolean).join("\n");
+
+  const ownershipWarning = payload.lastSaleDate
+    ? `\n\nIMPORTANT — OWNERSHIP DATE FILTER: The current owner purchased this property on ${payload.lastSaleDate}. IGNORE all records, filings, liens, and events dated BEFORE this date — those belong to a previous owner, not "${payload.ownerName}". Only include findings from AFTER the purchase date.`
+    : "";
 
   const prompts: Record<string, string> = {
     court_records: `You are a court records research agent. Search for any court filings involving the property owner.
 
 ## Property Context
-${ctx}
+${ctx}${ownershipWarning}
 
 ## Instructions
 1. Search for "${payload.ownerName}" in ${payload.county} County court records
 2. Search for related filings: probate, divorce, bankruptcy, foreclosure, civil suits, liens
 3. Check PACER for federal bankruptcy filings if relevant
 4. For each filing found, extract: case type, filing date, case number, parties, amounts, status
+5. VERIFY each record actually belongs to the current owner — check names and dates carefully
 
 ## Output Format
 Return a JSON array of findings:
@@ -180,7 +187,7 @@ Return ONLY the JSON array, no other text.`,
     obituary_probate: `You are an obituary and probate research agent. Search for recent deaths in the owner's family.
 
 ## Property Context
-${ctx}
+${ctx}${ownershipWarning}
 
 ## Instructions
 1. Search for "${payload.ownerName}" obituary in ${payload.city}, ${payload.state}
@@ -235,7 +242,7 @@ Return ONLY the JSON array, no other text. Return empty array [] if nothing foun
     county_records: `You are a county records research agent. Search county assessor and recorder websites for property intelligence.
 
 ## Property Context
-${ctx}
+${ctx}${ownershipWarning}
 
 ## Instructions
 1. Search the ${payload.county} County assessor website for this property
@@ -324,7 +331,7 @@ Return ONLY the JSON array, no other text. Return empty array [] if nothing foun
     financial_distress: `You are a financial distress research agent. Find liens, judgments, bankruptcies, code violations, and other financial stress indicators that commercial databases miss or lag behind on.
 
 ## Property Context
-${ctx}
+${ctx}${ownershipWarning}
 
 ## Instructions
 1. Search PACER (Public Access to Court Electronic Records) for "${payload.ownerName}" bankruptcy filings → extract case number, chapter, filing date, status

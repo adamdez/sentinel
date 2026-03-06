@@ -155,12 +155,15 @@ async function verifyExistingSignals(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   pr: any,
 ): Promise<{ verified: number; resolved: number }> {
-  // Fetch existing non-resolved events for this property
+  // Fetch existing non-resolved events for this property.
+  // Only verify signals from data providers (PR, ATTOM, CSV) — NOT OpenClaw/deep_crawl
+  // signals, which PR wouldn't know about and would incorrectly resolve.
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data: existing } = await (sb.from("distress_events") as any)
-    .select("id, event_type, status, event_date")
+    .select("id, event_type, status, event_date, source")
     .eq("property_id", propertyId)
-    .in("status", ["active", "unknown"]);
+    .in("status", ["active", "unknown"])
+    .in("source", ["propertyradar", "attom", "csv", "bulk_seed"]);
 
   if (!existing || existing.length === 0) {
     return { verified: 0, resolved: 0 };

@@ -331,17 +331,28 @@ async function processRow(
     year_built: toInt(getField(row, mapping, "year_built")) ?? null,
     lot_size: toInt(getField(row, mapping, "lot_size")) ?? null,
     property_type: getField(row, mapping, "property_type") || null,
-    owner_flags: {
-      source: `csv:${meta.source}`,
-      enrichment_pending: true,
-      enrichment_status: "pending",
-      enrichment_attempts: 0,
-      imported_at: new Date().toISOString(),
-      csv_raw: Object.fromEntries(
-        Object.entries(row).slice(0, 20) // cap raw data to prevent huge JSON
-      ),
-    },
     updated_at: new Date().toISOString(),
+  };
+
+  // Read existing flags first to preserve deep_crawl, photos, enrichment data
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: existingProp } = await (sb.from("properties") as any)
+    .select("owner_flags")
+    .eq("apn", propertyRow.apn)
+    .eq("county", propertyRow.county)
+    .maybeSingle();
+
+  const existingFlags = (existingProp?.owner_flags ?? {}) as Record<string, unknown>;
+  propertyRow.owner_flags = {
+    ...existingFlags,
+    source: `csv:${meta.source}`,
+    enrichment_pending: true,
+    enrichment_status: "pending",
+    enrichment_attempts: existingFlags.enrichment_attempts ?? 0,
+    imported_at: new Date().toISOString(),
+    csv_raw: Object.fromEntries(
+      Object.entries(row).slice(0, 20) // cap raw data to prevent huge JSON
+    ),
   };
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any

@@ -44,6 +44,8 @@ interface PropertyContext {
   hasSkipTraced: boolean;        // has property been skip traced?
   hasDistressEvents: boolean;    // any existing distress_events?
   equityPercent?: number;        // equity % for hidden lien detection
+  // Ownership timeline
+  lastSaleDate?: string;         // date current owner purchased (filters pre-ownership records)
   // Data freshness
   hasPhotos: boolean;            // existing street-level photos?
   prDataAgeHours?: number;       // hours since last PR pull
@@ -108,6 +110,7 @@ export function buildAgentPlan(ctx: PropertyContext): OrchestrationPlan {
     lat: ctx.lat,
     lng: ctx.lng,
     distressSignals: ctx.distressSignals,
+    lastSaleDate: ctx.lastSaleDate,
   };
 
   // ── ALWAYS run: court records ──
@@ -317,6 +320,7 @@ export function buildPropertyContext(
     hasSkipTraced: !!ownerFlags.skip_traced,
     hasDistressEvents: distressSignalTypes.length > 0,
     equityPercent,
+    lastSaleDate: (prRaw.LastDocSaleDate ?? prRaw.LastTransferRecDate ?? ownerFlags.last_sale_date) as string | undefined,
     hasPhotos: !!(ownerFlags.deep_crawl?.photos?.length > 0),
     prDataAgeHours: ownerFlags.pr_raw_updated_at
       ? (Date.now() - new Date(ownerFlags.pr_raw_updated_at as string).getTime()) / 3600000

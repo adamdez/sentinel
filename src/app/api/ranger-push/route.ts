@@ -77,6 +77,16 @@ export async function POST(request: NextRequest) {
     const county = payload.county ?? "maricopa";
 
     // ── 1. Idempotent property upsert (APN + county = canonical identity) ──
+    // Read existing flags first to preserve deep_crawl, photos, enrichment data
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: existingProp } = await (sb.from("properties") as any)
+      .select("owner_flags")
+      .eq("apn", payload.apn)
+      .eq("county", county)
+      .maybeSingle();
+
+    const existingFlags = (existingProp?.owner_flags ?? {}) as Record<string, unknown>;
+    const mergedFlags = { ...existingFlags, ranger_pushed: true, ghost_mode: payload.ghost_mode_used };
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { data: property, error: propError } = await (sb.from("properties") as any)
@@ -86,7 +96,7 @@ export async function POST(request: NextRequest) {
           county,
           address: payload.address,
           owner_name: payload.owner_name,
-          owner_flags: { ranger_pushed: true, ghost_mode: payload.ghost_mode_used },
+          owner_flags: mergedFlags,
           updated_at: new Date().toISOString(),
         },
         { onConflict: "apn,county" }

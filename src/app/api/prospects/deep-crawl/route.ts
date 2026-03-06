@@ -652,9 +652,24 @@ export async function POST(req: NextRequest) {
           }
 
           // 4c. Create new distress_events from financial_distress agent findings
+          // Safety net: filter out findings dated before the current owner's purchase
+          const lastSaleDate = pr?.LastDocSaleDate ?? pr?.LastTransferRecDate ?? null;
+          const ownershipCutoff = lastSaleDate ? new Date(lastSaleDate) : null;
+
           if (allAgentFindings.length > 0) {
             const financialFindings = allAgentFindings.filter(
-              f => f.structuredData?.eventType && f.structuredData?.filingDate
+              f => {
+                if (!f.structuredData?.eventType || !f.structuredData?.filingDate) return false;
+                // Reject findings from before current owner's purchase date
+                if (ownershipCutoff && f.structuredData.filingDate) {
+                  const filingDate = new Date(f.structuredData.filingDate);
+                  if (!isNaN(filingDate.getTime()) && filingDate < ownershipCutoff) {
+                    console.log(`[DeepCrawl] Filtered out pre-ownership finding: ${f.structuredData.eventType} filed ${f.structuredData.filingDate} (owner purchased ${lastSaleDate})`);
+                    return false;
+                  }
+                }
+                return true;
+              }
             );
             for (const f of financialFindings) {
               const sd = f.structuredData!;
