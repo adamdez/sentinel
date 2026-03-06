@@ -478,26 +478,39 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "PROPERTYRADAR_API_KEY not configured" }, { status: 500 });
   }
 
-  const listsUrl = `${PR_API_BASE}/lists?Fields=ListID,ListName,TotalCount,ListType&Limit=200`;
+  // Try with minimal params first, then with Fields
+  const listsUrl = `${PR_API_BASE}/lists?Limit=200`;
+  console.log(`[FromList:GET] Fetching lists from: ${listsUrl}`);
+
   const resp = await fetch(listsUrl, {
     headers: { Authorization: `Bearer ${apiKey}`, Accept: "application/json" },
   });
 
   if (!resp.ok) {
     const errText = await resp.text();
-    return NextResponse.json({ error: `PR API error: HTTP ${resp.status}`, detail: errText.slice(0, 300) }, { status: 502 });
+    console.error(`[FromList:GET] Lists API error (HTTP ${resp.status}): ${errText.slice(0, 500)}`);
+    return NextResponse.json({ error: `PR API error: HTTP ${resp.status}`, detail: errText.slice(0, 500) }, { status: 502 });
   }
 
-  const data = await resp.json();
-  const lists = data.results ?? data ?? [];
+  const rawText = await resp.text();
+  console.log(`[FromList:GET] Raw response (${rawText.length} chars): ${rawText.slice(0, 500)}`);
+
+  let data;
+  try { data = JSON.parse(rawText); } catch { return NextResponse.json({ error: "JSON parse error", raw: rawText.slice(0, 500) }, { status: 502 }); }
+
+  // Handle various response shapes
+  const lists = Array.isArray(data) ? data : (data.results ?? data.items ?? data.Lists ?? []);
+  console.log(`[FromList:GET] Parsed ${lists.length} lists. Keys in response: ${Object.keys(data).join(", ")}`);
 
   return NextResponse.json({
+    _raw_keys: Object.keys(data),
+    _raw_sample: JSON.stringify(data).slice(0, 500),
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    lists: lists.map((l: any) => ({
-      id: l.ListID,
-      name: l.ListName,
-      count: l.TotalCount,
-      type: l.ListType,
-    })),
+    lists: Array.isArray(lists) ? lists.map((l: any) => ({
+      id: l.ListID ?? l.listId ?? l.id,
+      name: l.ListName ?? l.listName ?? l.name,
+      count: l.TotalCount ?? l.totalCount ?? l.count,
+      type: l.ListType ?? l.listType ?? l.type,
+    })) : [],
   });
 }
