@@ -4,7 +4,7 @@ import { createServerClient } from "@/lib/supabase";
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
-const VALID_STATUSES = ["negotiation", "disposition", "nurture", "dead"];
+const VALID_STATUSES = ["staging", "prospect", "negotiation", "disposition", "nurture", "dead"];
 
 // ── GET /api/leads/by-status?status=X — Shared handler for funnel pages ──
 
