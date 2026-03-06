@@ -489,6 +489,12 @@ async function processRow(
     property_type: getField(row, mapping, "property_type") || null,
     owner_flags: {
       ...existingFlags,
+      // Clear stale portfolio data — re-computed by post-processing rollup
+      portfolio_count: null,
+      portfolio_total_value: null,
+      related_parcels: null,
+      rolled_into: null,
+      rolled_into_apn: null,
       source: `csv:${meta.source}`,
       enrichment_pending: true,
       enrichment_status: "pending",
