@@ -140,8 +140,8 @@ export async function POST(request: NextRequest) {
   if (!meta.source) {
     meta.source = "csv_import";
   }
-  if (!meta.distressTypes || meta.distressTypes.length === 0) {
-    meta.distressTypes = ["vacant"];
+  if (!meta.distressTypes) {
+    meta.distressTypes = [];
   }
 
   // ── 3. Parse CSV ───────────────────────────────────────────────────
