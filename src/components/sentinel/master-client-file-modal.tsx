@@ -1629,6 +1629,200 @@ interface DistressEvent {
   raw_data: Record<string, any> | null;
 }
 
+// ── Owner Portfolio Component ─────────────────────────────────────────
+// Shows all parcels owned by the same person in the same county.
+// Data sources: (1) owner_flags.related_parcels from import rollup, (2) live DB query.
+
+interface RelatedParcel {
+  propertyId: string;
+  apn: string;
+  address: string;
+  estimatedValue: number | null;
+  lotSize: number | null;
+  sqft: number | null;
+  propertyType: string | null;
+  isVacant: boolean;
+}
+
+const PROPERTY_TYPE_LABELS: Record<string, string> = {
+  SFR: "Single Family", RES: "Residential", CND: "Condo", MFR: "Multi-Family",
+  COM: "Commercial", IND: "Industrial", AGR: "Agricultural", VAC: "Vacant Land",
+};
+
+function OwnerPortfolio({
+  propertyId,
+  ownerName,
+  county,
+  ownerFlags,
+}: {
+  propertyId: string;
+  ownerName: string;
+  county: string;
+  ownerFlags: Record<string, unknown>;
+}) {
+  const [parcels, setParcels] = useState<RelatedParcel[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    async function load() {
+      setLoading(true);
+      try {
+        // Source 1: related_parcels from import-time rollup (already in owner_flags)
+        const rolledUp = (ownerFlags?.related_parcels as RelatedParcel[]) ?? [];
+
+        // Source 2: Live query for other properties with same owner + county
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const { data: dbProps } = await (supabase.from("properties") as any)
+          .select("id, apn, address, estimated_value, lot_size, sqft, property_type, owner_flags")
+          .eq("county", county)
+          .ilike("owner_name", ownerName.split(",")[0] + "%") // Match on last name prefix
+          .neq("id", propertyId)
+          .limit(20);
+
+        const liveResults: RelatedParcel[] = (dbProps ?? [])
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          .filter((p: any) => {
+            // Skip properties that were rolled into another (avoid double-counting)
+            const flags = (p.owner_flags ?? {}) as Record<string, unknown>;
+            return !flags.rolled_into;
+          })
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          .map((p: any) => ({
+            propertyId: p.id,
+            apn: p.apn,
+            address: p.address || "Vacant Land",
+            estimatedValue: p.estimated_value,
+            lotSize: p.lot_size,
+            sqft: p.sqft,
+            propertyType: p.property_type,
+            isVacant: !p.sqft && !p.address?.match(/\d/),
+          }));
+
+        // Merge + deduplicate by APN
+        const seen = new Set<string>();
+        const merged: RelatedParcel[] = [];
+        for (const p of [...rolledUp, ...liveResults]) {
+          if (!seen.has(p.apn)) {
+            seen.add(p.apn);
+            merged.push(p);
+          }
+        }
+
+        setParcels(merged);
+      } catch {
+        /* ignore */
+      }
+      setLoading(false);
+    }
+    load();
+  }, [propertyId, ownerName, county, ownerFlags]);
+
+  if (loading) return null; // Don't flash a loading state — it's supplementary info
+  if (parcels.length === 0) return null; // Single-parcel owner — nothing to show
+
+  const portfolioCount = parcels.length + 1; // +1 for the current property
+  const currentValue = (ownerFlags?.pr_raw as Record<string, unknown>)?.AVM
+    ? Number((ownerFlags.pr_raw as Record<string, unknown>).AVM)
+    : null;
+  const estimatedValueFromFlags = ownerFlags?.estimated_value as number | null;
+  const thisPropertyValue = currentValue ?? estimatedValueFromFlags ?? 0;
+  const portfolioTotal = parcels.reduce(
+    (sum, p) => sum + (p.estimatedValue ?? 0),
+    thisPropertyValue
+  );
+
+  const sqftToAcres = (sqft: number | null) =>
+    sqft ? (sqft / 43560).toFixed(2) : null;
+
+  return (
+    <div className="rounded-[12px] border border-indigo-500/20 bg-indigo-500/[0.03] p-4 space-y-3">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <div className="h-6 w-6 rounded-md bg-indigo-500/10 flex items-center justify-center">
+            <Building className="h-3 w-3 text-indigo-400" />
+          </div>
+          <p className="text-[11px] text-indigo-300 uppercase tracking-wider font-semibold">
+            Owner Portfolio
+          </p>
+        </div>
+        <div className="text-right">
+          <span className="text-sm font-bold text-indigo-300 tabular-nums">
+            {formatCurrency(portfolioTotal)}
+          </span>
+          <span className="text-[9px] text-muted-foreground ml-1.5">
+            across {portfolioCount} parcel{portfolioCount !== 1 ? "s" : ""}
+          </span>
+        </div>
+      </div>
+
+      {/* Summary banner */}
+      <div className="px-3 py-2 rounded-lg bg-indigo-500/[0.06] border border-indigo-500/15">
+        <p className="text-[10px] text-muted-foreground">
+          <span className="font-semibold text-indigo-300">{ownerName}</span> owns{" "}
+          <span className="font-semibold text-foreground">{portfolioCount} parcels</span> in{" "}
+          {county} County. If acquiring from this estate, additional lots may be included in the deal.
+        </p>
+      </div>
+
+      {/* Parcel cards */}
+      <div className="grid gap-2">
+        {parcels.map((p) => (
+          <div
+            key={p.apn}
+            className={cn(
+              "flex items-center gap-3 px-3 py-2 rounded-[10px] border transition-colors",
+              p.isVacant
+                ? "border-emerald-500/15 bg-emerald-500/[0.03]"
+                : "border-white/[0.06] bg-white/[0.02]"
+            )}
+          >
+            {/* Icon */}
+            <div className={cn(
+              "h-7 w-7 rounded-md flex items-center justify-center shrink-0",
+              p.isVacant ? "bg-emerald-500/10" : "bg-white/[0.04]"
+            )}>
+              {p.isVacant
+                ? <LandPlot className="h-3.5 w-3.5 text-emerald-400" />
+                : <Home className="h-3.5 w-3.5 text-muted-foreground" />}
+            </div>
+
+            {/* Details */}
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-1.5">
+                <span className="text-[11px] font-semibold text-foreground truncate">
+                  {p.isVacant ? "Vacant Land" : p.address}
+                </span>
+                {p.propertyType && (
+                  <span className="text-[8px] px-1.5 py-0.5 rounded border border-white/[0.08] bg-white/[0.04] text-muted-foreground font-medium shrink-0">
+                    {PROPERTY_TYPE_LABELS[p.propertyType] ?? p.propertyType}
+                  </span>
+                )}
+              </div>
+              <div className="flex items-center gap-2 text-[9px] text-muted-foreground mt-0.5">
+                <span>APN: {p.apn}</span>
+                {p.lotSize && <span>• {sqftToAcres(p.lotSize)} acres</span>}
+                {p.sqft && <span>• {p.sqft.toLocaleString()} sqft</span>}
+              </div>
+            </div>
+
+            {/* Value */}
+            <div className="text-right shrink-0">
+              {p.estimatedValue ? (
+                <span className="text-xs font-bold tabular-nums text-foreground">
+                  {formatCurrency(p.estimatedValue)}
+                </span>
+              ) : (
+                <span className="text-[10px] text-muted-foreground/50">—</span>
+              )}
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function ResearchFindings({ propertyId, ownerFlags }: { propertyId: string; ownerFlags: Record<string, unknown> }) {
   const [findings, setFindings] = useState<DistressEvent[]>([]);
   const [loading, setLoading] = useState(true);
@@ -3190,6 +3384,14 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
           )}
         </div>
       </div>
+
+      {/* ═══ 4b. OWNER PORTFOLIO — Adjacent parcels for deal context ═══ */}
+      <OwnerPortfolio
+        propertyId={cf.propertyId}
+        ownerName={cf.ownerName}
+        county={cf.county}
+        ownerFlags={cf.ownerFlags}
+      />
 
       {/* ═══ 5. MAO BREAKDOWN — Full formula so agents trust the math ═══ */}
       {mao != null && mao > 0 && (

@@ -177,6 +177,7 @@ export async function POST(request: NextRequest) {
   };
 
   const mapping = meta.columnMapping ?? {};
+  const importedProperties: NonNullable<ProcessOutcome["propertyData"]>[] = [];
 
   for (let i = 0; i < rows.length; i += BATCH_SIZE) {
     const batch = rows.slice(i, i + BATCH_SIZE);
@@ -193,6 +194,7 @@ export async function POST(request: NextRequest) {
             result.eventsDeduped += outcome.eventsDeduped;
             result.scored++;
             if (outcome.promoted) result.promoted++;
+            if (outcome.propertyData) importedProperties.push(outcome.propertyData);
             break;
           case "skipped":
             result.skipped++;
@@ -216,6 +218,107 @@ export async function POST(request: NextRequest) {
     }
   }
 
+  // ── 4b. Portfolio rollup — group same-owner parcels ──────────────
+  let portfolioRolledUp = 0;
+  if (importedProperties.length > 1) {
+    // Group by normalized owner + county
+    const ownerGroups = new Map<string, typeof importedProperties>();
+    for (const p of importedProperties) {
+      const key = `${normalizeOwnerForGrouping(p.ownerName)}::${p.county.toLowerCase()}`;
+      const group = ownerGroups.get(key) ?? [];
+      group.push(p);
+      ownerGroups.set(key, group);
+    }
+
+    for (const [, group] of ownerGroups) {
+      if (group.length < 2) continue;
+
+      // Primary = has real address + structure (sqft or beds), highest value among those
+      const withAddress = group.filter((p) => !isVacantLand(p));
+      const vacantLand = group.filter((p) => isVacantLand(p));
+
+      if (withAddress.length === 0 || vacantLand.length === 0) continue;
+
+      // Pick the primary: highest estimated value among addressed properties
+      const primary = withAddress.sort(
+        (a, b) => (b.estimatedValue ?? 0) - (a.estimatedValue ?? 0)
+      )[0];
+
+      // Build related parcels array (vacant lots + other addressed properties)
+      const relatedParcels = group
+        .filter((p) => p.propertyId !== primary.propertyId)
+        .map((p) => ({
+          propertyId: p.propertyId,
+          apn: p.apn,
+          address: p.address || "Vacant Land",
+          estimatedValue: p.estimatedValue,
+          lotSize: p.lotSize,
+          sqft: p.sqft,
+          propertyType: p.propertyType,
+          isVacant: isVacantLand(p),
+        }));
+
+      const portfolioTotalValue = group.reduce(
+        (sum, p) => sum + (p.estimatedValue ?? 0),
+        0
+      );
+
+      // Update primary property's owner_flags with portfolio data
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data: primaryProp } = await (sb.from("properties") as any)
+        .select("owner_flags")
+        .eq("id", primary.propertyId)
+        .single();
+
+      const existFlags = (primaryProp?.owner_flags ?? {}) as Record<string, unknown>;
+
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      await (sb.from("properties") as any)
+        .update({
+          owner_flags: {
+            ...existFlags,
+            portfolio_count: group.length,
+            portfolio_total_value: portfolioTotalValue,
+            related_parcels: relatedParcels,
+          },
+        })
+        .eq("id", primary.propertyId);
+
+      // Mark vacant-land properties as rolled into primary + delete their leads
+      for (const vp of vacantLand) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const { data: vpProp } = await (sb.from("properties") as any)
+          .select("owner_flags")
+          .eq("id", vp.propertyId)
+          .single();
+
+        const vpFlags = (vpProp?.owner_flags ?? {}) as Record<string, unknown>;
+
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        await (sb.from("properties") as any)
+          .update({
+            owner_flags: {
+              ...vpFlags,
+              rolled_into: primary.propertyId,
+              rolled_into_apn: primary.apn,
+            },
+          })
+          .eq("id", vp.propertyId);
+
+        // Delete the lead for the vacant parcel — it shouldn't be a separate prospect
+        if (vp.leadId) {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          await (sb.from("leads") as any).delete().eq("id", vp.leadId);
+          portfolioRolledUp++;
+        }
+      }
+
+      console.log(
+        `[CsvUpload] Portfolio rollup: ${primary.ownerName} in ${primary.county} — ${group.length} parcels, $${portfolioTotalValue.toLocaleString()} total. Rolled ${vacantLand.length} vacant lots into primary.`
+      );
+    }
+  }
+
   result.elapsed_ms = Date.now() - startTime;
 
   // ── 5. Audit log ───────────────────────────────────────────────────
@@ -231,6 +334,7 @@ export async function POST(request: NextRequest) {
       source: meta.source,
       distressTypes: meta.distressTypes,
       ...result,
+      portfolioRolledUp,
       timestamp: new Date().toISOString(),
     },
   });
@@ -251,6 +355,40 @@ interface ProcessOutcome {
   eventsCreated: number;
   eventsDeduped: number;
   message?: string;
+  // For portfolio rollup — returned when status === "upserted"
+  propertyData?: {
+    propertyId: string;
+    leadId?: string;
+    ownerName: string;
+    county: string;
+    address: string;
+    city: string;
+    apn: string;
+    estimatedValue: number | null;
+    lotSize: number | null;
+    sqft: number | null;
+    bedrooms: number | null;
+    propertyType: string | null;
+  };
+}
+
+// ── Portfolio Rollup Utilities ──────────────────────────────────────
+
+function normalizeOwnerForGrouping(name: string): string {
+  return name
+    .toLowerCase()
+    .replace(/[,.\-']/g, " ")
+    .replace(/\s+(jr|sr|ii|iii|iv|v|trust|etal|et\s*al|&)\s*/gi, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function isVacantLand(data: ProcessOutcome["propertyData"]): boolean {
+  if (!data) return false;
+  const addr = data.address.toLowerCase();
+  if (addr.includes("unknown") || !addr || addr === data.ownerName.toLowerCase()) return true;
+  if (!data.sqft && !data.bedrooms) return true;
+  return false;
 }
 
 function getField(
@@ -492,20 +630,43 @@ async function processRow(
     .in("status", ["staging", "prospect", "lead", "negotiation", "nurture"])
     .maybeSingle();
 
+  let leadId: string | undefined;
   if (!existingLead) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    await (sb.from("leads") as any).insert({
+    const { data: newLead } = await (sb.from("leads") as any).insert({
       property_id: prop.id,
       status: "staging",
       source: `csv:${meta.source}`,
       priority: blended,
       tags: meta.distressTypes,
       notes: `CSV import from ${meta.source}. Preliminary score: ${blended}. Queued for enrichment.`,
-    });
+    }).select("id").single();
+    leadId = newLead?.id;
     promoted = true; // "promoted" here means "lead created" for the import stats
+  } else {
+    leadId = existingLead.id;
   }
 
-  return { status: "upserted", promoted, eventsCreated, eventsDeduped };
+  return {
+    status: "upserted",
+    promoted,
+    eventsCreated,
+    eventsDeduped,
+    propertyData: {
+      propertyId: prop.id,
+      leadId,
+      ownerName,
+      county,
+      address: fullAddress,
+      city,
+      apn,
+      estimatedValue,
+      lotSize: toInt(getField(row, mapping, "lot_size")) ?? null,
+      sqft: toInt(getField(row, mapping, "sqft")) ?? null,
+      bedrooms: toInt(getField(row, mapping, "bedrooms")) ?? null,
+      propertyType: getField(row, mapping, "property_type") || null,
+    },
+  };
 }
 
 /**
