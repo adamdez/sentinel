@@ -253,10 +253,179 @@ function parseAddress(raw: string): ParsedAddress {
   return result;
 }
 
+// ── Data Quality Gates (Phase 0a) ────────────────────────────────────
+
+/**
+ * Fuzzy name match — normalize and compare two names.
+ * Returns confidence 0–100. Used to verify crawler findings against property owner.
+ */
+function fuzzyNameMatch(nameA: string, nameB: string): number {
+  if (!nameA || !nameB) return 0;
+  // Normalize: lowercase, strip suffixes, remove punctuation
+  const normalize = (n: string) =>
+    n.toLowerCase()
+      .replace(/\b(jr|sr|ii|iii|iv|v|esq|md|phd|dds|inc|llc|trust|estate)\b\.?/gi, "")
+      .replace(/[^a-z\s]/g, "")
+      .replace(/\s+/g, " ")
+      .trim();
+
+  const a = normalize(nameA);
+  const b = normalize(nameB);
+
+  if (a === b) return 100;
+
+  // Check if one contains the other (e.g. "John Smith" vs "John A Smith")
+  const aParts = a.split(" ").filter(Boolean);
+  const bParts = b.split(" ").filter(Boolean);
+
+  // Match first + last name (most common format)
+  const aFirst = aParts[0] ?? "";
+  const aLast = aParts[aParts.length - 1] ?? "";
+  const bFirst = bParts[0] ?? "";
+  const bLast = bParts[bParts.length - 1] ?? "";
+
+  if (aFirst === bFirst && aLast === bLast) return 90;
+  if (aLast === bLast) return 60;  // Same last name
+  if (aFirst === bFirst) return 40; // Same first name only
+
+  // Check overlap of all name parts
+  const overlap = aParts.filter((p) => bParts.includes(p)).length;
+  const maxParts = Math.max(aParts.length, bParts.length);
+  return maxParts > 0 ? Math.round((overlap / maxParts) * 80) : 0;
+}
+
+/**
+ * Check if property has changed ownership since a distress event.
+ * Returns { changed: boolean, transferDate, previousOwner? }
+ */
+function checkOwnershipChange(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  prData: Record<string, any>,
+  distressEvents: { event_type: string; created_at: string; event_date?: string }[],
+): { changed: boolean; transferDate: string | null; note: string | null } {
+  const transferDateStr = prData.LastTransferRecDate ?? prData.SaleDate;
+  if (!transferDateStr) return { changed: false, transferDate: null, note: null };
+
+  const transferDate = new Date(transferDateStr);
+  if (isNaN(transferDate.getTime())) return { changed: false, transferDate: null, note: null };
+
+  // Check if any distress event predates the transfer
+  for (const evt of distressEvents) {
+    const evtDateStr = evt.event_date ?? evt.created_at;
+    const evtDate = new Date(evtDateStr);
+    if (isNaN(evtDate.getTime())) continue;
+
+    if (transferDate > evtDate) {
+      return {
+        changed: true,
+        transferDate: transferDateStr,
+        note: `Property transferred ${transferDateStr} — after ${evt.event_type} event (${evtDateStr.slice(0, 10)}). Previous distress may not apply to current owner.`,
+      };
+    }
+  }
+
+  return { changed: false, transferDate: transferDateStr, note: null };
+}
+
+/**
+ * MLS re-check during enrichment — flags properties currently listed for sale.
+ * Agents should know if property is on MLS before making contact.
+ */
+function checkMLSStatus(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  prData: Record<string, any>,
+): { isListed: boolean; detectedAt: string | null } {
+  const listed = isTruthy(prData.isListedForSale);
+  return {
+    isListed: listed,
+    detectedAt: listed ? new Date().toISOString() : null,
+  };
+}
+
+/**
+ * Run deep crawl for a property during staging enrichment.
+ * Queries existing distress_events from all crawlers and adds
+ * ownership verification notes. Actual crawlers run on their own
+ * schedule via cron — this function verifies/annotates existing findings.
+ */
+async function runDeepCrawlVerification(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  sb: any,
+  propertyId: string,
+  ownerName: string,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  prData: Record<string, any>,
+): Promise<{ verifiedFindings: number; ownershipChanged: boolean; note: string | null }> {
+  // Fetch all existing distress events for this property
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: events } = await (sb.from("distress_events") as any)
+    .select("id, event_type, source, created_at, event_date, raw_data, status")
+    .eq("property_id", propertyId)
+    .neq("status", "resolved")
+    .order("created_at", { ascending: false })
+    .limit(50);
+
+  if (!events || events.length === 0) {
+    return { verifiedFindings: 0, ownershipChanged: false, note: null };
+  }
+
+  // ── Ownership verification gate ──
+  const ownership = checkOwnershipChange(prData, events as { event_type: string; created_at: string; event_date?: string }[]);
+
+  let verifiedCount = 0;
+  const now = new Date().toISOString();
+
+  for (const evt of events as { id: string; event_type: string; source: string; raw_data: Record<string, unknown> }[]) {
+    // ── Name match verification ──
+    // If crawler found a person (e.g. obituary), verify name matches current owner
+    const crawlerName = (evt.raw_data?.name as string) ?? "";
+    let nameVerified = true;
+    let nameNote = "";
+
+    if (crawlerName && ownerName) {
+      const confidence = fuzzyNameMatch(crawlerName, ownerName);
+      if (confidence < 60) {
+        nameVerified = false;
+        nameNote = `Name mismatch: crawler found "${crawlerName}" but property owner is "${ownerName}" (confidence: ${confidence}%)`;
+      }
+    }
+
+    // Update event with verification metadata
+    const updateData: Record<string, unknown> = {
+      last_verified_at: now,
+      raw_data: {
+        ...(evt.raw_data ?? {}),
+        name_verified: nameVerified,
+        name_confidence: crawlerName && ownerName ? fuzzyNameMatch(crawlerName, ownerName) : null,
+        ownership_changed: ownership.changed,
+        ...(nameNote ? { name_mismatch_note: nameNote } : {}),
+        ...(ownership.note ? { ownership_note: ownership.note } : {}),
+      },
+    };
+
+    // If ownership changed AND this is a person-specific event, flag as unverified
+    if (ownership.changed && ["probate", "inherited", "bankruptcy", "divorce"].includes(evt.event_type)) {
+      updateData.status = "unverified";
+      (updateData.raw_data as Record<string, unknown>).unverified_reason =
+        "Property ownership changed after this distress event — may apply to previous owner";
+    }
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    await (sb.from("distress_events") as any).update(updateData).eq("id", evt.id);
+    if (nameVerified && !ownership.changed) verifiedCount++;
+  }
+
+  return {
+    verifiedFindings: verifiedCount,
+    ownershipChanged: ownership.changed,
+    note: ownership.note,
+  };
+}
+
 // ── Single Property Enrichment ───────────────────────────────────────
 
 /**
- * Enrich a single property + lead using PropertyRadar → scoring → promote.
+ * Enrich a single property + lead using PropertyRadar → deep crawl verify → scoring → promote.
  * Returns the result of the enrichment attempt.
  */
 export async function enrichProperty(
@@ -312,15 +481,49 @@ export async function enrichProperty(
         }
       }
 
-      // ── Step 3: Full scoring pipeline (BEFORE skip-trace) ──────
+      // ── Step 3: MLS re-check ────────────────────────────────────
+      const mlsStatus = checkMLSStatus(prResult.pr);
+      if (mlsStatus.isListed) {
+        console.log(`[Enrich] MLS LISTED: Property ${propertyId} is currently on MLS`);
+      }
+
+      // ── Step 4: Deep crawl verification + ownership gate ───────
+      const ownerName = prResult.pr.Owner1 ?? prResult.pr.OwnerFullName ?? property.owner_name ?? "";
+      const crawlVerify = await runDeepCrawlVerification(sb, propertyId, ownerName, prResult.pr);
+
+      if (crawlVerify.ownershipChanged) {
+        console.log(`[Enrich] OWNERSHIP CHANGED for ${propertyId}: ${crawlVerify.note}`);
+      }
+      if (crawlVerify.verifiedFindings > 0) {
+        console.log(`[Enrich] Verified ${crawlVerify.verifiedFindings} crawler findings for ${propertyId}`);
+      }
+
+      // Update owner_flags with quality gate results
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const existingFlags = ((await (sb.from("properties") as any).select("owner_flags").eq("id", propertyId).single()).data?.owner_flags ?? {}) as Record<string, unknown>;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      await (sb.from("properties") as any).update({
+        owner_flags: {
+          ...existingFlags,
+          mls_listed: mlsStatus.isListed,
+          ...(mlsStatus.detectedAt ? { mls_detected_at: mlsStatus.detectedAt } : {}),
+          ownership_verified: !crawlVerify.ownershipChanged,
+          ...(crawlVerify.ownershipChanged ? { ownership_change_note: crawlVerify.note } : {}),
+          deep_crawl_verified_at: new Date().toISOString(),
+          deep_crawl_verified_count: crawlVerify.verifiedFindings,
+        },
+        updated_at: new Date().toISOString(),
+      }).eq("id", propertyId);
+
+      // ── Step 5: Full scoring pipeline ──────────────────────────
       const score = await runScoringPipeline(sb, propertyId, property, prResult.pr, signals);
 
-      // ── Step 4: Skip-trace deferred to manual agent action ───────
+      // ── Step 6: Skip-trace deferred to manual agent action ───────
       // Auto skip-trace disabled to conserve BatchData/PR credits.
       // Agents trigger skip-trace manually via "Enrich" button in prospect folder.
       console.log(`[Enrich] Skip-trace deferred to manual agent action for ${propertyId} (score ${score.blended})`);
 
-      // ── Step 5: Finalize lead (score + tag, keep in staging) ────
+      // ── Step 7: Finalize lead (score + tag → auto-promote) ─────
       await finalizeEnrichment(sb, leadId, propertyId, score.blended, signals, "propertyradar", attempts);
 
       return {
@@ -1217,6 +1420,44 @@ async function runScoringPipeline(
   pr: any,
   signals: DetectedSignal[],
 ): Promise<ScoreResult> {
+  // ── Signal Accumulation ─────────────────────────────────────────────
+  // Query ALL active distress_events for this property (not just current enrichment)
+  // so signals from multiple PR list imports stack correctly.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: allEvents } = await (sb.from("distress_events") as any)
+    .select("event_type, severity, created_at, status")
+    .eq("property_id", propertyId)
+    .neq("status", "resolved")
+    .order("created_at", { ascending: false })
+    .limit(50);
+
+  // Merge current enrichment signals with all DB signals, deduplicate by type (keep highest severity)
+  const signalMap = new Map<string, { type: string; severity: number; daysSinceEvent: number }>();
+
+  // Add current enrichment signals first
+  for (const s of signals) {
+    const existing = signalMap.get(s.type);
+    if (!existing || s.severity > existing.severity) {
+      signalMap.set(s.type, { type: s.type, severity: s.severity, daysSinceEvent: s.daysSinceEvent });
+    }
+  }
+
+  // Add accumulated DB signals (fill gaps from other imports)
+  if (allEvents) {
+    for (const e of allEvents as { event_type: string; severity: number; created_at: string }[]) {
+      const daysSince = Math.max(1, Math.round((Date.now() - new Date(e.created_at).getTime()) / 86400000));
+      const existing = signalMap.get(e.event_type);
+      if (!existing || e.severity > existing.severity) {
+        signalMap.set(e.event_type, { type: e.event_type, severity: e.severity, daysSinceEvent: daysSince });
+      }
+    }
+  }
+
+  const accumulatedSignals = Array.from(signalMap.values()) as { type: DistressType; severity: number; daysSinceEvent: number }[];
+  if (accumulatedSignals.length > signals.length) {
+    console.log(`[Scoring] Signal accumulation: ${signals.length} current + ${accumulatedSignals.length - signals.length} from DB = ${accumulatedSignals.length} total for property ${propertyId}`);
+  }
+
   // Deterministic scoring
   const equityPct = toNumber(pr.EquityPercent) ?? 50;
   const avm = toNumber(pr.AVM) ?? 0;
@@ -1224,7 +1465,7 @@ async function runScoringPipeline(
   const compRatio = avm > 0 && loanBal > 0 ? avm / loanBal : 1.1;
 
   const scoringInput: ScoringInput = {
-    signals: signals.map((s) => ({ type: s.type, severity: s.severity, daysSinceEvent: s.daysSinceEvent })),
+    signals: accumulatedSignals,
     ownerFlags: {
       absentee: isTruthy(pr.isNotSameMailingOrExempt),
       corporate: false,
@@ -1303,10 +1544,37 @@ async function runScoringPipelineFromFlags(
   property: Record<string, any>,
   signals: DetectedSignal[],
 ): Promise<ScoreResult> {
+  // ── Signal Accumulation (same as runScoringPipeline) ────────────────
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: allEventsFF } = await (sb.from("distress_events") as any)
+    .select("event_type, severity, created_at, status")
+    .eq("property_id", propertyId)
+    .neq("status", "resolved")
+    .order("created_at", { ascending: false })
+    .limit(50);
+
+  const signalMapFF = new Map<string, { type: string; severity: number; daysSinceEvent: number }>();
+  for (const s of signals) {
+    const existing = signalMapFF.get(s.type);
+    if (!existing || s.severity > existing.severity) {
+      signalMapFF.set(s.type, { type: s.type, severity: s.severity, daysSinceEvent: s.daysSinceEvent });
+    }
+  }
+  if (allEventsFF) {
+    for (const e of allEventsFF as { event_type: string; severity: number; created_at: string }[]) {
+      const daysSince = Math.max(1, Math.round((Date.now() - new Date(e.created_at).getTime()) / 86400000));
+      const existing = signalMapFF.get(e.event_type);
+      if (!existing || e.severity > existing.severity) {
+        signalMapFF.set(e.event_type, { type: e.event_type, severity: e.severity, daysSinceEvent: daysSince });
+      }
+    }
+  }
+  const accumulatedSignalsFF = Array.from(signalMapFF.values()) as { type: DistressType; severity: number; daysSinceEvent: number }[];
+
   const equityPct = toNumber(property.equity_percent) ?? 50;
 
   const scoringInput: ScoringInput = {
-    signals: signals.map((s) => ({ type: s.type, severity: s.severity, daysSinceEvent: s.daysSinceEvent })),
+    signals: accumulatedSignalsFF,
     ownerFlags: {
       absentee: (property.owner_flags as Record<string, unknown>)?.absentee === true,
       corporate: false,
@@ -1395,11 +1663,10 @@ async function finalizeEnrichment(
   const scoreLabelTag = `score-${label}`;
   const signalTags = signals.map((s) => s.type);
 
-  // Auto-promote: leads scoring ≥70 go directly to prospect (skip manual promote)
-  // Lower scores stay in staging until admin pulls them
-  const AUTO_PROMOTE_THRESHOLD = 50;
-  const shouldAutoPromote = blendedScore >= AUTO_PROMOTE_THRESHOLD;
-  const finalStatus = shouldAutoPromote ? "prospect" : "staging";
+  // Auto-promote ALL enriched leads to prospect.
+  // Score determines agent call order (priority), not whether it's a prospect.
+  // Every property from a curated PR list has distress by definition — the list IS the filter.
+  const finalStatus = "prospect";
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   await (sb.from("leads") as any)
@@ -1407,7 +1674,7 @@ async function finalizeEnrichment(
       priority: blendedScore,
       status: finalStatus,
       tags: [scoreLabelTag, ...signalTags],
-      notes: `Enriched [${source}] — Heat ${blendedScore} (${label}). ${signals.length} signal(s). Attempts: ${attempts}${shouldAutoPromote ? " [auto-promoted]" : ""}`,
+      notes: `Enriched [${source}] — Heat ${blendedScore} (${label}). ${signals.length} signal(s). Attempts: ${attempts} [auto-promoted]`,
       updated_at: new Date().toISOString(),
     })
     .eq("id", leadId);
@@ -1416,7 +1683,7 @@ async function finalizeEnrichment(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   await (sb.from("event_log") as any).insert({
     user_id: SYSTEM_USER_ID,
-    action: shouldAutoPromote ? "enrichment.auto_promoted" : "enrichment.finalized",
+    action: "enrichment.auto_promoted",
     entity_type: "lead",
     entity_id: leadId,
     details: {
@@ -1430,7 +1697,7 @@ async function finalizeEnrichment(
     },
   });
 
-  console.log(`[Enrich] Lead ${leadId} enriched (${finalStatus}): score ${blendedScore} (${label}), source: ${source}${shouldAutoPromote ? " [AUTO-PROMOTED]" : ""}`);
+  console.log(`[Enrich] Lead ${leadId} enriched → prospect: score ${blendedScore} (${label}), source: ${source} [auto-promoted]`);
 }
 
 // ── Promote Leads from Staging → Prospect (admin pull) ───────────────

@@ -10,6 +10,7 @@ import {
   Mail,
   Calendar,
   CalendarDays,
+  Clock,
   UserPlus,
   Users,
   Handshake,
@@ -126,6 +127,7 @@ const sections: NavSection[] = [
   {
     title: "Deal Funnel",
     items: [
+      { label: "Staging", href: "/sales-funnel/staging", icon: Clock, badge: "staging-dot" },
       { label: "Prospects", href: "/sales-funnel/prospects", icon: UserPlus, badge: "prospect-dot" },
       { label: "FSBO", href: "/sales-funnel/fsbo", icon: Home, badge: "fsbo-dot" },
       { label: "Leads", href: "/leads", icon: Users },

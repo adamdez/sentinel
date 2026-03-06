@@ -6,7 +6,7 @@ import {
   UserPlus, Search, Filter, ArrowUpDown, ArrowUp, ArrowDown,
   Phone, MoreHorizontal, Radar, Loader2, AlertCircle,
   RefreshCw, Shield, UserCheck, Home, Trash2, Eye,
-  Database, ArrowRightCircle, Sparkles, ChevronDown, ChevronUp,
+  Clock,
   HeartOff,
 } from "lucide-react";
 import { PageShell } from "@/components/sentinel/page-shell";
@@ -248,62 +248,24 @@ export default function ProspectsPage() {
     filteredProspects = filteredProspects.filter((p) => p.tags.includes(signalFilter));
   }
 
-  // ── Staging Reservoir State ──────────────────────────────────────
-  interface StagingSummary {
-    total: number;
-    enriched: number;
-    pending: number;
-    tiers: { tier: string; count: number; min: number; max: number }[];
-  }
-  const [staging, setStaging] = useState<StagingSummary>({ total: 0, enriched: 0, pending: 0, tiers: [] });
-  const [reservoirOpen, setReservoirOpen] = useState(false);
-  const [promoting, setPromoting] = useState<string | null>(null);
+  // ── Staging count (lightweight poll for banner) ──────────────────
+  const [stagingCount, setStagingCount] = useState(0);
 
-  const fetchStagingSummary = useCallback(async () => {
+  const fetchStagingCount = useCallback(async () => {
     try {
       const res = await fetch("/api/enrichment/promote");
       if (res.ok) {
         const data = await res.json();
-        setStaging({ total: data.total ?? 0, enriched: data.enriched ?? 0, pending: data.pending ?? 0, tiers: data.tiers ?? [] });
+        setStagingCount(data.total ?? 0);
       }
     } catch { /* ignore */ }
   }, []);
 
   useEffect(() => {
-    fetchStagingSummary();
-    const interval = setInterval(fetchStagingSummary, 60000);
+    fetchStagingCount();
+    const interval = setInterval(fetchStagingCount, 60000);
     return () => clearInterval(interval);
-  }, [fetchStagingSummary]);
-
-  const handlePromote = async (tier: string) => {
-    setPromoting(tier);
-    try {
-      const res = await fetch("/api/enrichment/promote", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ tier }),
-      });
-      const data = await res.json();
-      if (res.ok && data.promoted > 0) {
-        toast.success(`${data.promoted} ${tier} leads promoted to prospects`, {
-          description: `Score range: ${data.scoreRange.min}–${data.scoreRange.max}`,
-          duration: 5000,
-        });
-        fetchStagingSummary();
-        if (typeof refetch === "function") refetch();
-      } else if (res.ok && data.promoted === 0) {
-        toast.info(`No enriched ${tier} leads ready to promote`, {
-          description: "Leads may still be enriching. Check back soon.",
-        });
-      } else {
-        toast.error(data.error ?? "Promote failed");
-      }
-    } catch (err) {
-      toast.error("Network error promoting leads");
-    } finally {
-      setPromoting(null);
-    }
-  };
+  }, [fetchStagingCount]);
 
   const rangerCount = prospects.filter((p) => p.source === "ranger_push").length;
   const prCount = prospects.filter((p) => p.source === "propertyradar").length;
@@ -502,146 +464,26 @@ export default function ProspectsPage() {
         </div>
       }
     >
-      {/* ── Staging Reservoir Panel ── */}
-      {staging.total > 0 && (
+      {/* ── Staging Link Banner ── */}
+      {stagingCount > 0 && (
         <motion.div
           initial={{ opacity: 0, y: -8 }}
           animate={{ opacity: 1, y: 0 }}
-          className="mb-3 rounded-lg border border-cyan-500/20 bg-cyan-500/[0.04] overflow-hidden"
+          className="mb-3"
         >
-          {/* Header row — always visible */}
-          <button
-            onClick={() => setReservoirOpen(!reservoirOpen)}
-            className="w-full px-4 py-2.5 flex items-center gap-3 hover:bg-cyan-500/[0.04] transition-colors"
+          <a
+            href="/sales-funnel/staging"
+            className="flex items-center gap-2 px-4 py-2 rounded-lg border border-cyan-500/20 bg-cyan-500/[0.04] hover:bg-cyan-500/[0.08] transition-colors"
           >
-            <Database className="h-3.5 w-3.5 text-cyan-400 shrink-0" />
+            <Clock className="h-3.5 w-3.5 text-cyan-400 shrink-0" />
             <span className="text-xs font-semibold text-cyan-300">
-              Staging Reservoir
+              {stagingCount} in staging
             </span>
             <span className="text-[10px] text-muted-foreground">
-              {staging.enriched} enriched · {staging.pending > 0 ? `${staging.pending} enriching` : "all done"} · {staging.total} total
+              Properties enriching and awaiting auto-promotion
             </span>
-            {staging.pending > 0 && (
-              <Loader2 className="h-3 w-3 text-cyan-400/60 animate-spin shrink-0" />
-            )}
-            <div className="ml-auto flex items-center gap-2">
-              {/* Quick tier counts */}
-              {staging.tiers.filter((t) => t.count > 0).map((t) => (
-                <span
-                  key={t.tier}
-                  className={cn(
-                    "text-[9px] px-1.5 py-0.5 rounded font-bold tabular-nums",
-                    t.tier === "platinum" ? "text-cyan-300 bg-cyan-500/10" :
-                    t.tier === "gold" ? "text-amber-400 bg-amber-500/10" :
-                    t.tier === "silver" ? "text-slate-300 bg-slate-500/10" :
-                    "text-orange-400 bg-orange-500/10"
-                  )}
-                >
-                  {t.count} {t.tier[0].toUpperCase() + t.tier.slice(1)}
-                </span>
-              ))}
-              {reservoirOpen ? (
-                <ChevronUp className="h-3 w-3 text-muted-foreground" />
-              ) : (
-                <ChevronDown className="h-3 w-3 text-muted-foreground" />
-              )}
-            </div>
-          </button>
-
-          {/* Expanded panel — tier cards with promote buttons */}
-          <AnimatePresence>
-            {reservoirOpen && (
-              <motion.div
-                initial={{ height: 0, opacity: 0 }}
-                animate={{ height: "auto", opacity: 1 }}
-                exit={{ height: 0, opacity: 0 }}
-                transition={{ duration: 0.2 }}
-                className="overflow-hidden"
-              >
-                <div className="px-4 pb-3 pt-1 border-t border-cyan-500/10">
-                  <div className="grid grid-cols-4 gap-2 mb-2">
-                    {[
-                      { tier: "platinum", color: "cyan", label: "Platinum", emoji: "💎", range: "85-100" },
-                      { tier: "gold", color: "amber", label: "Gold", emoji: "🥇", range: "65-84" },
-                      { tier: "silver", color: "slate", label: "Silver", emoji: "🥈", range: "40-64" },
-                      { tier: "bronze", color: "orange", label: "Bronze", emoji: "🥉", range: "0-39" },
-                    ].map((t) => {
-                      const tierData = staging.tiers.find((st) => st.tier === t.tier);
-                      const count = tierData?.count ?? 0;
-                      return (
-                        <div
-                          key={t.tier}
-                          className={cn(
-                            "rounded-lg border p-2.5 flex flex-col items-center gap-1.5 transition-all",
-                            count > 0
-                              ? `border-${t.color}-500/20 bg-${t.color}-500/[0.04]`
-                              : "border-white/[0.06] bg-white/[0.02] opacity-50"
-                          )}
-                        >
-                          <div className="text-center">
-                            <p className={cn(
-                              "text-lg font-bold tabular-nums",
-                              t.tier === "platinum" ? "text-cyan-300" :
-                              t.tier === "gold" ? "text-amber-400" :
-                              t.tier === "silver" ? "text-slate-300" :
-                              "text-orange-400"
-                            )}>
-                              {count}
-                            </p>
-                            <p className="text-[10px] text-muted-foreground font-medium">
-                              {t.label} <span className="opacity-60">({t.range})</span>
-                            </p>
-                          </div>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            disabled={count === 0 || promoting === t.tier}
-                            onClick={(e) => { e.stopPropagation(); handlePromote(t.tier); }}
-                            className={cn(
-                              "text-[10px] h-6 px-2 gap-1 w-full",
-                              count > 0 && t.tier === "platinum" && "border-cyan-500/30 text-cyan-300 hover:bg-cyan-500/10",
-                              count > 0 && t.tier === "gold" && "border-amber-500/30 text-amber-400 hover:bg-amber-500/10",
-                              count > 0 && t.tier === "silver" && "border-slate-500/30 text-slate-300 hover:bg-slate-500/10",
-                              count > 0 && t.tier === "bronze" && "border-orange-500/30 text-orange-400 hover:bg-orange-500/10",
-                            )}
-                          >
-                            {promoting === t.tier ? (
-                              <Loader2 className="h-2.5 w-2.5 animate-spin" />
-                            ) : (
-                              <ArrowRightCircle className="h-2.5 w-2.5" />
-                            )}
-                            Pull to Prospects
-                          </Button>
-                        </div>
-                      );
-                    })}
-                  </div>
-
-                  {/* Pull All button */}
-                  <div className="flex items-center justify-between pt-1 border-t border-white/[0.04]">
-                    <p className="text-[10px] text-muted-foreground">
-                      <Sparkles className="h-2.5 w-2.5 inline mr-1 text-cyan-400" />
-                      Enriched leads stay here until you pull them. Agents only see prospects.
-                    </p>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      disabled={staging.enriched === 0 || promoting === "all"}
-                      onClick={(e) => { e.stopPropagation(); handlePromote("all"); }}
-                      className="text-[10px] h-6 px-3 gap-1"
-                    >
-                      {promoting === "all" ? (
-                        <Loader2 className="h-2.5 w-2.5 animate-spin" />
-                      ) : (
-                        <ArrowRightCircle className="h-2.5 w-2.5" />
-                      )}
-                      Pull All ({staging.enriched})
-                    </Button>
-                  </div>
-                </div>
-              </motion.div>
-            )}
-          </AnimatePresence>
+            <span className="ml-auto text-[10px] text-cyan-400 font-medium">View Staging &rarr;</span>
+          </a>
         </motion.div>
       )}
 

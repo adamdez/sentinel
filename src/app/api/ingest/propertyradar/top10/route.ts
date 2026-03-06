@@ -731,7 +731,14 @@ export async function POST(req: NextRequest) {
 
     console.log(`[Top10] Processing ${i + 1}/${allStorable.length}: ${address} (${apn}) [${label}]`);
 
+    // Merge with existing owner_flags to preserve signals from other imports
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: existingProp } = await (sb.from("properties") as any)
+      .select("owner_flags").eq("apn", apn).eq("county", county).maybeSingle();
+    const existFlags = (existingProp?.owner_flags ?? {}) as Record<string, unknown>;
+
     const ownerFlags: Record<string, unknown> = {
+      ...existFlags,
       source: "propertyradar",
       radar_id: pr.RadarID ?? null,
       pr_raw: pr,

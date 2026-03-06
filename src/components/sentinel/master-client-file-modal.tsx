@@ -1569,6 +1569,229 @@ function CrawlProgressIndicator({ steps }: { steps: CrawlStep[] }) {
 }
 
 // ═══════════════════════════════════════════════════════════════════════
+// RESEARCH FINDINGS — distress events with source links for agent verification
+// ═══════════════════════════════════════════════════════════════════════
+
+const FINDING_ICONS: Record<string, typeof FileText> = {
+  probate: Flame,
+  pre_foreclosure: AlertTriangle,
+  tax_lien: DollarSign,
+  bankruptcy: Scale,
+  divorce: Users,
+  vacant: Home,
+  code_violation: ShieldAlert,
+  water_shutoff: AlertTriangle,
+  inherited: Users,
+  absentee: MapPinned,
+  fsbo: Building,
+  tired_landlord: Briefcase,
+};
+
+const FINDING_COLORS: Record<string, { text: string; bg: string; border: string }> = {
+  probate: { text: "text-red-400", bg: "bg-red-500/10", border: "border-red-500/20" },
+  pre_foreclosure: { text: "text-orange-400", bg: "bg-orange-500/10", border: "border-orange-500/20" },
+  tax_lien: { text: "text-yellow-400", bg: "bg-yellow-500/10", border: "border-yellow-500/20" },
+  bankruptcy: { text: "text-red-500", bg: "bg-red-500/10", border: "border-red-500/20" },
+  divorce: { text: "text-purple-400", bg: "bg-purple-500/10", border: "border-purple-500/20" },
+  vacant: { text: "text-emerald-400", bg: "bg-emerald-500/10", border: "border-emerald-500/20" },
+  code_violation: { text: "text-pink-400", bg: "bg-pink-500/10", border: "border-pink-500/20" },
+  water_shutoff: { text: "text-blue-400", bg: "bg-blue-500/10", border: "border-blue-500/20" },
+  inherited: { text: "text-amber-400", bg: "bg-amber-500/10", border: "border-amber-500/20" },
+  absentee: { text: "text-cyan-400", bg: "bg-cyan-500/10", border: "border-cyan-500/20" },
+  fsbo: { text: "text-blue-300", bg: "bg-blue-500/10", border: "border-blue-500/20" },
+  tired_landlord: { text: "text-amber-400", bg: "bg-amber-500/10", border: "border-amber-500/20" },
+};
+
+const FINDING_LABELS: Record<string, string> = {
+  probate: "Probate / Deceased",
+  pre_foreclosure: "Pre-Foreclosure",
+  tax_lien: "Tax Lien",
+  bankruptcy: "Bankruptcy",
+  divorce: "Divorce",
+  vacant: "Vacant Property",
+  code_violation: "Code Violation",
+  water_shutoff: "Water Shut-off",
+  inherited: "Inherited",
+  absentee: "Absentee Owner",
+  fsbo: "For Sale by Owner",
+  tired_landlord: "Tired Landlord",
+};
+
+interface DistressEvent {
+  id: string;
+  event_type: string;
+  source: string;
+  severity: number;
+  created_at: string;
+  event_date: string | null;
+  status: string;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  raw_data: Record<string, any> | null;
+}
+
+function ResearchFindings({ propertyId, ownerFlags }: { propertyId: string; ownerFlags: Record<string, unknown> }) {
+  const [findings, setFindings] = useState<DistressEvent[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    async function load() {
+      setLoading(true);
+      try {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const { data, error } = await (supabase.from("distress_events") as any)
+          .select("id, event_type, source, severity, created_at, event_date, status, raw_data")
+          .eq("property_id", propertyId)
+          .order("created_at", { ascending: false })
+          .limit(30);
+        if (!error && data) setFindings(data);
+      } catch { /* ignore */ }
+      setLoading(false);
+    }
+    load();
+  }, [propertyId]);
+
+  // Quality gate badges from owner_flags
+  const mlsListed = ownerFlags?.mls_listed === true;
+  const ownershipVerified = ownerFlags?.ownership_verified;
+  const ownershipNote = ownerFlags?.ownership_change_note as string | null;
+
+  if (loading) {
+    return (
+      <div className="rounded-[12px] border border-white/[0.06] bg-white/[0.02] p-4">
+        <div className="flex items-center gap-2 text-muted-foreground">
+          <Loader2 className="h-3 w-3 animate-spin" />
+          <span className="text-[10px]">Loading research findings...</span>
+        </div>
+      </div>
+    );
+  }
+
+  if (findings.length === 0 && !mlsListed && ownershipVerified !== false) {
+    return null; // No findings to show
+  }
+
+  return (
+    <div className="rounded-[12px] border border-white/[0.06] bg-white/[0.02] p-4 space-y-3">
+      <p className="text-[10px] text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
+        <Search className="h-3 w-3" />Research Findings ({findings.length})
+      </p>
+
+      {/* Quality gate alerts */}
+      {mlsListed && (
+        <div className="flex items-center gap-2 px-3 py-2 rounded-lg border border-amber-500/20 bg-amber-500/[0.06]">
+          <AlertTriangle className="h-3.5 w-3.5 text-amber-400 shrink-0" />
+          <span className="text-[11px] font-semibold text-amber-300">MLS Listed</span>
+          <span className="text-[10px] text-muted-foreground">This property is currently listed on MLS</span>
+        </div>
+      )}
+
+      {ownershipVerified === false && (
+        <div className="flex items-start gap-2 px-3 py-2 rounded-lg border border-orange-500/20 bg-orange-500/[0.06]">
+          <AlertTriangle className="h-3.5 w-3.5 text-orange-400 shrink-0 mt-0.5" />
+          <div>
+            <span className="text-[11px] font-semibold text-orange-300">Ownership Changed</span>
+            {ownershipNote && (
+              <p className="text-[10px] text-muted-foreground mt-0.5">{ownershipNote}</p>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Event cards */}
+      <div className="space-y-2">
+        {findings.map((evt) => {
+          const colors = FINDING_COLORS[evt.event_type] ?? { text: "text-muted-foreground", bg: "bg-white/[0.04]", border: "border-white/[0.08]" };
+          const Icon = FINDING_ICONS[evt.event_type] ?? FileText;
+          const label = FINDING_LABELS[evt.event_type] ?? evt.event_type;
+          const sourceUrl = evt.raw_data?.link as string | null;
+          const snippet = evt.raw_data?.snippet as string | null;
+          const nameInFinding = evt.raw_data?.name as string | null;
+          const nameVerified = evt.raw_data?.name_verified;
+          const nameMismatchNote = evt.raw_data?.name_mismatch_note as string | null;
+          const ownershipChanged = evt.raw_data?.ownership_changed === true;
+          const unverifiedReason = evt.raw_data?.unverified_reason as string | null;
+          const daysSinceFound = Math.round((Date.now() - new Date(evt.created_at).getTime()) / 86400000);
+
+          return (
+            <div
+              key={evt.id}
+              className={cn(
+                "rounded-[10px] border p-3 space-y-1.5",
+                evt.status === "unverified" ? "border-orange-500/20 bg-orange-500/[0.03]" :
+                evt.status === "resolved" ? "border-white/[0.06] bg-white/[0.01] opacity-60" :
+                `${colors.border} ${colors.bg}`,
+              )}
+            >
+              {/* Header row */}
+              <div className="flex items-center gap-2">
+                <div className={cn("h-6 w-6 rounded-md flex items-center justify-center shrink-0", colors.bg)}>
+                  <Icon className={cn("h-3 w-3", colors.text)} />
+                </div>
+                <span className={cn("text-[11px] font-semibold", colors.text)}>{label}</span>
+
+                {/* Status badges */}
+                {evt.status === "unverified" && (
+                  <Badge variant="outline" className="text-[7px] py-0 px-1 border-orange-500/30 text-orange-400">UNVERIFIED</Badge>
+                )}
+                {evt.status === "resolved" && (
+                  <Badge variant="outline" className="text-[7px] py-0 px-1 border-white/20 text-muted-foreground">RESOLVED</Badge>
+                )}
+                {nameVerified === true && (
+                  <Badge variant="outline" className="text-[7px] py-0 px-1 border-emerald-500/30 text-emerald-400">NAME MATCH</Badge>
+                )}
+                {nameVerified === false && (
+                  <Badge variant="outline" className="text-[7px] py-0 px-1 border-red-500/30 text-red-400">NAME MISMATCH</Badge>
+                )}
+
+                {/* Source link */}
+                <div className="ml-auto flex items-center gap-1.5">
+                  <span className="text-[9px] text-muted-foreground">{daysSinceFound === 0 ? "Today" : `${daysSinceFound}d ago`}</span>
+                  {sourceUrl && (
+                    <a
+                      href={sourceUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center gap-0.5 text-[9px] text-cyan hover:underline"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <ExternalLink className="h-2.5 w-2.5" />Source
+                    </a>
+                  )}
+                </div>
+              </div>
+
+              {/* Details */}
+              {nameInFinding && (
+                <p className="text-[10px] text-foreground/80 pl-8">
+                  <span className="text-muted-foreground">Subject: </span>{nameInFinding}
+                </p>
+              )}
+              {snippet && (
+                <p className="text-[10px] text-muted-foreground/70 pl-8 line-clamp-2">{snippet}</p>
+              )}
+              {nameMismatchNote && (
+                <p className="text-[10px] text-orange-400/80 pl-8">{nameMismatchNote}</p>
+              )}
+              {unverifiedReason && (
+                <p className="text-[10px] text-orange-400/80 pl-8">{unverifiedReason}</p>
+              )}
+
+              {/* Source attribution */}
+              <div className="flex items-center gap-2 pl-8">
+                <span className="text-[9px] text-muted-foreground/50">
+                  via {evt.source} &middot; severity {evt.severity}/10
+                  {evt.event_date && ` &middot; event ${evt.event_date.slice(0, 10)}`}
+                </span>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════
 // CONTACT TAB — Editable phones, emails, addresses + street view
 // ═══════════════════════════════════════════════════════════════════════
 
@@ -2072,6 +2295,9 @@ function ContactTab({ cf, overlay, onSkipTrace, skipTracing, onDial, onSms, call
           </div>
         </div>
       )}
+
+      {/* ── Research Findings (distress events with source links) ── */}
+      <ResearchFindings propertyId={cf.propertyId} ownerFlags={cf.ownerFlags} />
     </div>
   );
 }
