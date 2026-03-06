@@ -11,10 +11,6 @@
     {
       "path": "/api/cron/daily-verse",
       "schedule": "0 12 * * *"
-    },
-    {
-      "path": "/api/ingest/marketplace-poll",
-      "schedule": "*/15 * * * *"
     }
   ]
 }

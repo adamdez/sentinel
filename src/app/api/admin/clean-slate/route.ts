@@ -27,7 +27,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  let body: { confirm?: boolean };
+  let body: { confirm?: boolean; source?: string };
   try {
     body = await req.json();
   } catch {
@@ -44,6 +44,8 @@ export async function POST(req: NextRequest) {
     );
   }
 
+  const sourceFilter = body.source; // optional: only delete leads from this source
+
   const sb = createServerClient();
 
   try {
@@ -51,9 +53,11 @@ export async function POST(req: NextRequest) {
     console.log("[CleanSlate] Counting staging + prospect leads...");
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { count: stagingCount, error: stagingCountErr } = await (sb.from("leads") as any)
+    let stagingQ = (sb.from("leads") as any)
       .select("id", { count: "exact", head: true })
       .eq("status", "staging");
+    if (sourceFilter) stagingQ = stagingQ.eq("source", sourceFilter);
+    const { count: stagingCount, error: stagingCountErr } = await stagingQ;
 
     if (stagingCountErr) {
       console.error("[CleanSlate] Staging count error:", stagingCountErr.message);
@@ -61,9 +65,11 @@ export async function POST(req: NextRequest) {
     }
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { count: prospectCount, error: prospectCountErr } = await (sb.from("leads") as any)
+    let prospectQ = (sb.from("leads") as any)
       .select("id", { count: "exact", head: true })
       .eq("status", "prospect");
+    if (sourceFilter) prospectQ = prospectQ.eq("source", sourceFilter);
+    const { count: prospectCount, error: prospectCountErr } = await prospectQ;
 
     if (prospectCountErr) {
       console.error("[CleanSlate] Prospect count error:", prospectCountErr.message);
@@ -89,9 +95,9 @@ export async function POST(req: NextRequest) {
 
     // ── 2. Delete staging leads ────────────────────────────────────────
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { error: delStagingErr } = await (sb.from("leads") as any)
-      .delete()
-      .eq("status", "staging");
+    let delStagingQ = (sb.from("leads") as any).delete().eq("status", "staging");
+    if (sourceFilter) delStagingQ = delStagingQ.eq("source", sourceFilter);
+    const { error: delStagingErr } = await delStagingQ;
 
     if (delStagingErr) {
       console.error("[CleanSlate] Delete staging error:", delStagingErr.message);
@@ -103,9 +109,9 @@ export async function POST(req: NextRequest) {
 
     // ── 3. Delete prospect leads ───────────────────────────────────────
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { error: delProspectErr } = await (sb.from("leads") as any)
-      .delete()
-      .eq("status", "prospect");
+    let delProspectQ = (sb.from("leads") as any).delete().eq("status", "prospect");
+    if (sourceFilter) delProspectQ = delProspectQ.eq("source", sourceFilter);
+    const { error: delProspectErr } = await delProspectQ;
 
     if (delProspectErr) {
       console.error("[CleanSlate] Delete prospect error:", delProspectErr.message);
@@ -130,6 +136,7 @@ export async function POST(req: NextRequest) {
         deleted_staging: totalStaging,
         deleted_prospect: totalProspect,
         total_deleted: totalToDelete,
+        source_filter: sourceFilter ?? "all",
         timestamp: new Date().toISOString(),
       },
     });
