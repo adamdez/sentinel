@@ -28,7 +28,15 @@ export type SentinelField =
   | "lot_size"
   | "property_type"
   | "equity_percent"
-  | "loan_balance";
+  | "loan_balance"
+  // Per-row distress boolean columns (PropertyRadar CSVs)
+  | "deceased_owner"
+  | "bankruptcy"
+  | "divorce"
+  | "foreclosure"
+  | "site_vacant"
+  | "owner_occupied"
+  | "tax_delinquent";
 
 /**
  * Header pattern → Sentinel field mapping.
@@ -163,6 +171,35 @@ const HEADER_PATTERNS: { field: SentinelField; patterns: RegExp[] }[] = [
       /^mtg[_ ]?bal/,
     ],
   },
+  // Per-row distress boolean columns (PropertyRadar CSVs)
+  {
+    field: "deceased_owner",
+    patterns: [/deceased\s*owner/i, /^deceased\??$/i],
+  },
+  {
+    field: "bankruptcy",
+    patterns: [/^bankruptcy\??$/i, /^in\s*bankruptcy\??$/i],
+  },
+  {
+    field: "divorce",
+    patterns: [/^divorce\??$/i, /^in\s*divorce\??$/i],
+  },
+  {
+    field: "foreclosure",
+    patterns: [/^foreclosure\??$/i, /^in\s*foreclosure\??$/i, /^pre[_ ]?foreclosure\??$/i],
+  },
+  {
+    field: "site_vacant",
+    patterns: [/site\s*vacant/i, /^vacant\??$/i],
+  },
+  {
+    field: "owner_occupied",
+    patterns: [/owner\s*occup/i, /^occupied\??$/i],
+  },
+  {
+    field: "tax_delinquent",
+    patterns: [/tax\s*delinq/i, /^delinquent\??$/i, /^tax\s*default\??$/i],
+  },
 ];
 
 export interface ColumnMapping {
@@ -240,4 +277,12 @@ export const ALL_SENTINEL_FIELDS: { field: SentinelField; label: string }[] = [
   { field: "property_type", label: "Property Type" },
   { field: "equity_percent", label: "Equity %" },
   { field: "loan_balance", label: "Loan Balance" },
+  // Per-row distress boolean columns (PropertyRadar CSVs)
+  { field: "deceased_owner", label: "Deceased Owner?" },
+  { field: "bankruptcy", label: "Bankruptcy?" },
+  { field: "divorce", label: "Divorce?" },
+  { field: "foreclosure", label: "Foreclosure?" },
+  { field: "site_vacant", label: "Site Vacant?" },
+  { field: "owner_occupied", label: "Owner Occupied?" },
+  { field: "tax_delinquent", label: "Tax Delinquent?" },
 ];

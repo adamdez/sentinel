@@ -123,16 +123,18 @@ export async function POST(req: NextRequest) {
     console.log(`[FromList] Resolved "${listName}" → ListID ${listId} (${match.TotalCount} properties)`);
   }
 
-  // ── Fetch Properties using InList criterion ────────────────────────
+  // ── Fetch Properties ─────────────────────────────────────────────
+  // Strategy 1: Try InList criterion (works if API key owns the list)
+  // Strategy 2: Fallback to list items endpoint → get RadarIDs → fetch each property
   console.log(`[FromList] Fetching properties from list ${listId}...`);
 
   const allProperties: PRProperty[] = [];
   const PAGE_SIZE = 200;
-  let offset = 0;
 
-  // Paginate through the list
-  for (let page = 0; page < 50; page++) { // safety cap at 50 pages (10,000 properties)
-    const url = `${PR_API_BASE}/properties?Purchase=1&Limit=${PAGE_SIZE}&Start=${offset}&Fields=${PR_FIELDS}`;
+  // ── Strategy 1: InList criterion (most efficient — one API call) ──
+  let inListWorked = false;
+  {
+    const url = `${PR_API_BASE}/properties?Purchase=1&Limit=${PAGE_SIZE}&Start=0&Fields=${PR_FIELDS}`;
     const criteria = { Criteria: [{ name: "InList", value: [String(listId)] }] };
 
     const resp = await fetch(url, {
@@ -145,25 +147,103 @@ export async function POST(req: NextRequest) {
       body: JSON.stringify(criteria),
     });
 
-    if (!resp.ok) {
-      const errText = await resp.text();
-      console.error(`[FromList] Properties API error page ${page} (HTTP ${resp.status}): ${errText.slice(0, 300)}`);
-      if (allProperties.length === 0) {
-        return NextResponse.json({ error: `PR API error: HTTP ${resp.status}`, detail: errText.slice(0, 300) }, { status: 502 });
+    if (resp.ok) {
+      const data = await resp.json();
+      const results = data.results ?? data ?? [];
+      if (Array.isArray(results) && results.length > 0) {
+        allProperties.push(...results);
+        inListWorked = true;
+        console.log(`[FromList] InList strategy: got ${results.length} properties`);
+
+        // Paginate if needed
+        if (results.length >= PAGE_SIZE) {
+          let offset = PAGE_SIZE;
+          for (let page = 1; page < 50; page++) {
+            const nextUrl = `${PR_API_BASE}/properties?Purchase=1&Limit=${PAGE_SIZE}&Start=${offset}&Fields=${PR_FIELDS}`;
+            const nextResp = await fetch(nextUrl, {
+              method: "POST",
+              headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json", Accept: "application/json" },
+              body: JSON.stringify(criteria),
+            });
+            if (!nextResp.ok) break;
+            const nextData = await nextResp.json();
+            const nextResults = nextData.results ?? [];
+            if (!Array.isArray(nextResults) || nextResults.length === 0) break;
+            allProperties.push(...nextResults);
+            if (nextResults.length < PAGE_SIZE) break;
+            offset += PAGE_SIZE;
+          }
+        }
       }
-      break; // Use what we have
+    } else {
+      const errText = await resp.text();
+      console.log(`[FromList] InList strategy failed (HTTP ${resp.status}): ${errText.slice(0, 200)}. Trying list items fallback...`);
     }
+  }
 
-    const data = await resp.json();
-    const results = data.results ?? data ?? [];
+  // ── Strategy 2: List items → RadarIDs → fetch each property ──
+  if (!inListWorked) {
+    console.log(`[FromList] Trying list items endpoint for list ${listId}...`);
 
-    if (!Array.isArray(results) || results.length === 0) break;
+    const itemsUrl = `${PR_API_BASE}/lists/${listId}/items?Limit=10000`;
+    const itemsResp = await fetch(itemsUrl, {
+      headers: { Authorization: `Bearer ${apiKey}`, Accept: "application/json" },
+    });
 
-    allProperties.push(...results);
-    console.log(`[FromList] Page ${page + 1}: got ${results.length} (total so far: ${allProperties.length})`);
+    if (!itemsResp.ok) {
+      const errText = await itemsResp.text();
+      console.error(`[FromList] List items endpoint also failed (HTTP ${itemsResp.status}): ${errText.slice(0, 300)}`);
 
-    if (results.length < PAGE_SIZE) break; // Last page
-    offset += PAGE_SIZE;
+      // ── Strategy 3: Accept RadarIDs directly in the request body ──
+      const radarIds: string[] = body.radarIds ?? [];
+      if (radarIds.length === 0) {
+        return NextResponse.json({
+          error: "Cannot access list via API. The API key may not own this list.",
+          detail: "Try one of: (1) Export list as CSV from PropertyRadar and use /api/ingest/csv-upload, (2) Pass radarIds array directly: { radarIds: [\"P8A0E18D\", ...] }",
+          listId,
+        }, { status: 403 });
+      }
+
+      console.log(`[FromList] Using ${radarIds.length} RadarIDs from request body`);
+      for (const rid of radarIds) {
+        const propUrl = `${PR_API_BASE}/properties/${rid}?Purchase=1&Fields=${PR_FIELDS}`;
+        const propResp = await fetch(propUrl, {
+          headers: { Authorization: `Bearer ${apiKey}`, Accept: "application/json" },
+        });
+        if (propResp.ok) {
+          const propData = await propResp.json();
+          const result = propData.results?.[0] ?? propData;
+          if (result && result.APN) allProperties.push(result);
+        }
+        await new Promise((r) => setTimeout(r, 200)); // Rate limit
+      }
+    } else {
+      const itemsData = await itemsResp.json();
+      const items = itemsData.results ?? itemsData ?? [];
+      console.log(`[FromList] Got ${items.length} items from list. Fetching full property data...`);
+
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const radarIds = items.map((item: any) => item.RadarID ?? item.radarId ?? item).filter(Boolean);
+
+      for (let i = 0; i < radarIds.length; i++) {
+        const rid = typeof radarIds[i] === "string" ? radarIds[i] : String(radarIds[i]);
+        const propUrl = `${PR_API_BASE}/properties/${rid}?Purchase=1&Fields=${PR_FIELDS}`;
+        const propResp = await fetch(propUrl, {
+          headers: { Authorization: `Bearer ${apiKey}`, Accept: "application/json" },
+        });
+        if (propResp.ok) {
+          const propData = await propResp.json();
+          const result = propData.results?.[0] ?? propData;
+          if (result && result.APN) {
+            allProperties.push(result);
+            if (i < 3 || i % 10 === 0) console.log(`[FromList] Fetched ${i + 1}/${radarIds.length}: ${result.Address ?? result.APN}`);
+          }
+        } else {
+          console.warn(`[FromList] Failed to fetch RadarID ${rid}: HTTP ${propResp.status}`);
+        }
+        if (i < radarIds.length - 1) await new Promise((r) => setTimeout(r, 200)); // Rate limit
+      }
+    }
   }
 
   if (allProperties.length === 0) {

@@ -43,6 +43,7 @@ import type { SentinelField } from "@/lib/csv-column-map";
 const SYSTEM_USER_ID = "00000000-0000-0000-0000-000000000000";
 const PROMOTION_THRESHOLD = 75;
 const BATCH_SIZE = 50;
+const MAX_ARV = 490_000; // $490K ARV ceiling — no lead created for properties above this
 
 const ADMIN_EMAILS = [
   "adam@dominionhomedeals.com",
@@ -341,9 +342,15 @@ export async function POST(request: NextRequest) {
 
   console.log(`[CsvUpload] Complete:`, result);
 
+  // Collect property IDs with leads (for follow-up csv-post-enrich call)
+  const importedPropertyIds = importedProperties
+    .filter((p) => p.leadId) // Only properties that got leads (excludes ARV-capped)
+    .map((p) => p.propertyId);
+
   return NextResponse.json({
     success: true,
     ...result,
+    importedPropertyIds,
   });
 }
 
@@ -526,6 +533,7 @@ async function processRow(
   let eventsCreated = 0;
   let eventsDeduped = 0;
 
+  // 1. Blanket distress types from import metadata
   for (const distressType of meta.distressTypes) {
     const fp = distressFingerprint(apn, county, distressType, `csv:${meta.source}`);
 
@@ -549,6 +557,50 @@ async function processRow(
       console.error(`[CsvUpload] Event insert error for ${apn}:`, evtErr);
     } else {
       eventsCreated++;
+    }
+  }
+
+  // 2. Per-row distress detection from CSV boolean columns (e.g., "Deceased Owner?", "Bankruptcy?")
+  const CSV_DISTRESS_MAP: Record<string, { distressType: DistressType; severity: number }> = {
+    deceased_owner: { distressType: "probate", severity: 9 },
+    bankruptcy:     { distressType: "bankruptcy", severity: 8 },
+    divorce:        { distressType: "divorce", severity: 7 },
+    foreclosure:    { distressType: "pre_foreclosure", severity: 8 },
+    site_vacant:    { distressType: "vacant", severity: 5 },
+    tax_delinquent: { distressType: "tax_lien", severity: 6 },
+  };
+
+  for (const [csvField, { distressType, severity }] of Object.entries(CSV_DISTRESS_MAP)) {
+    const rawVal = getField(row, mapping, csvField as SentinelField);
+    if (!rawVal || !/^(yes|true|1|y|x)$/i.test(rawVal.trim())) continue;
+    // Skip if this distress type was already created by blanket meta.distressTypes
+    if (meta.distressTypes.includes(distressType)) continue;
+
+    const fp = distressFingerprint(apn, county, distressType, `csv:${meta.source}:row`);
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { error: evtErr } = await (sb.from("distress_events") as any).insert({
+      property_id: prop.id,
+      event_type: distressType,
+      source: `csv:${meta.source}`,
+      severity,
+      fingerprint: fp,
+      raw_data: {
+        import_source: meta.source,
+        csv_column: csvField,
+        csv_value: rawVal,
+        original_address: address,
+        original_owner: ownerName,
+      },
+    });
+
+    if (isDuplicateError(evtErr)) {
+      eventsDeduped++;
+    } else if (evtErr) {
+      console.error(`[CsvUpload] Per-row event insert error for ${apn} (${csvField}):`, evtErr);
+    } else {
+      eventsCreated++;
+      console.log(`[CsvUpload] Per-row distress: ${apn} → ${distressType} (from ${csvField}=${rawVal})`);
     }
   }
 
@@ -631,6 +683,43 @@ async function processRow(
 
   // ── Blend scores ───────────────────────────────────────────────────
   const blended = blendHeatScore(scoreResult.composite, predOutput.predictiveScore, predOutput.confidence);
+
+  // ── ARV cap — skip lead creation for high-value properties ─────────
+  // $490K+ ARV = too expensive for wholesale buyers (buyer pool shrinks, margins thin)
+  if (estimatedValue && estimatedValue > MAX_ARV) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: existFlags } = await (sb.from("properties") as any)
+      .select("owner_flags")
+      .eq("id", prop.id)
+      .single();
+    const flags = (existFlags?.owner_flags ?? {}) as Record<string, unknown>;
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    await (sb.from("properties") as any).update({
+      owner_flags: { ...flags, arv_excluded: true, arv_value: estimatedValue },
+      updated_at: new Date().toISOString(),
+    }).eq("id", prop.id);
+
+    console.log(`[CsvUpload] ARV cap: ${apn} ($${estimatedValue.toLocaleString()}) exceeds $490K — no lead created`);
+
+    return {
+      status: "upserted",
+      promoted: false,
+      eventsCreated,
+      eventsDeduped,
+      message: `Skipped lead: ARV $${estimatedValue.toLocaleString()} exceeds $490K cap`,
+      propertyData: {
+        propertyId: prop.id,
+        leadId: undefined,
+        ownerName, county, address: fullAddress, city, apn,
+        estimatedValue,
+        lotSize: toInt(getField(row, mapping, "lot_size")) ?? null,
+        sqft: toInt(getField(row, mapping, "sqft")) ?? null,
+        bedrooms: toInt(getField(row, mapping, "bedrooms")) ?? null,
+        propertyType: getField(row, mapping, "property_type") || null,
+      },
+    };
+  }
 
   // ── Promote to lead if above threshold ─────────────────────────────
   let promoted = false;
