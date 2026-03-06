@@ -2155,6 +2155,12 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
   const mailingAddr = cf.isAbsentee ? ((persons[0] as any)?.mailing_address ?? prRaw.MailAddress ?? prRaw.MailingAddress ?? null) : null;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const heirContacts = (cf.ownerFlags?.heir_contacts as any[]) ?? [];
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const obitNextOfKin = (cf.ownerFlags?.obit_next_of_kin as any[]) ?? [];
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const obitMailAddress = cf.ownerFlags?.obit_mail_address as { address: string; city: string; state: string; zip: string } | null ?? null;
+  const obitMatchConfidence = cf.ownerFlags?.obit_match_confidence as number | undefined;
+  const isObitRecord = !!(cf.ownerFlags?.crawler_source as string)?.startsWith("obituary:");
 
   const warningFlags = useMemo(() => {
     const flags: { label: string; color: string }[] = [];
@@ -2470,6 +2476,46 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
                   {heir.mailing && <div className="pl-5 text-muted-foreground">{heir.mailing}</div>}
                 </div>
               ))}
+            </div>
+          )}
+
+          {/* Obituary: Next-of-Kin + Match Confidence */}
+          {isObitRecord && (
+            <div className="mt-3 space-y-2">
+              <p className="text-[10px] text-purple-400/80 uppercase tracking-wider font-semibold flex items-center gap-1.5">
+                <AlertTriangle className="h-3 w-3" />Obituary Record
+                {obitMatchConfidence != null && (
+                  <span className={cn("ml-auto text-[9px] font-mono", obitMatchConfidence >= 0.90 ? "text-emerald-400" : obitMatchConfidence >= 0.70 ? "text-amber-400" : "text-red-400")}>
+                    Match: {Math.round(obitMatchConfidence * 100)}%
+                  </span>
+                )}
+              </p>
+
+              {obitMailAddress && (
+                <div className="rounded-md border border-purple-500/15 bg-purple-500/[0.04] p-2.5 text-xs space-y-0.5">
+                  <div className="flex items-center gap-2">
+                    <MapPin className="h-3 w-3 text-purple-400/60" />
+                    <span className="text-muted-foreground">Mailing Address</span>
+                  </div>
+                  <div className="pl-5 text-foreground">
+                    {obitMailAddress.address}{obitMailAddress.city ? `, ${obitMailAddress.city}` : ""}{obitMailAddress.state ? ` ${obitMailAddress.state}` : ""} {obitMailAddress.zip ?? ""}
+                  </div>
+                </div>
+              )}
+
+              {obitNextOfKin.length > 0 && (
+                <>
+                  <p className="text-[10px] text-purple-400/60 uppercase tracking-wider">Next of Kin (from obituary)</p>
+                  {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
+                  {obitNextOfKin.map((kin: any, i: number) => (
+                    <div key={i} className="rounded-md border border-purple-500/15 bg-purple-500/[0.04] p-2 text-xs flex items-center gap-2">
+                      <User className="h-3 w-3 text-purple-400/60 shrink-0" />
+                      <span className="font-semibold text-foreground">{kin.name}</span>
+                      <span className="text-muted-foreground text-[10px]">({kin.relationship})</span>
+                    </div>
+                  ))}
+                </>
+              )}
             </div>
           )}
 

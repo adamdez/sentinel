@@ -33,6 +33,7 @@ import {
 import { distressFingerprint, isDuplicateError, normalizeCounty, daysSince } from "@/lib/dedup";
 import { dualSkipTrace, skipTraceResultToOwnerFlags, type SkipTraceResult } from "@/lib/skip-trace";
 import { detectDistressSignals, type DetectedSignal } from "@/lib/distress-signals";
+import { COUNTY_FIPS } from "@/lib/attom";
 import type { DistressType } from "@/lib/types";
 
 const SYSTEM_USER_ID = "00000000-0000-0000-0000-000000000000";
@@ -452,9 +453,66 @@ async function enrichFromPropertyRadar(
   const state = property.state ?? "";
   const zip = property.zip ?? "";
 
+  const isCrawlerRecord = property.apn?.startsWith("CRAWL-");
+  const hasPlaceholderAddress = !isRealStreetAddress(address);
+
+  // ── Obituary / Crawler records: deceased owner search ──────────
+  // When the record came from a crawler (CRAWL-* APN) and has no real
+  // street address, try to find the property by searching PropertyRadar
+  // for deceased properties in the same county and matching by owner name.
+  if (isCrawlerRecord && hasPlaceholderAddress) {
+    const ownerName = property.owner_name ?? "";
+    const county = property.county ?? "";
+    const st = property.state ?? "WA";
+
+    if (!ownerName || ownerName === "Unknown") {
+      return { success: false, error: "Crawler record has no owner name for deceased search" };
+    }
+
+    console.log(`[Enrich] Crawler record detected (${property.apn}) — routing to deceased owner search for "${ownerName}" in ${county}`);
+
+    const deceasedResult = await enrichByDeceasedSearch(apiKey, sb, propertyId, ownerName, county, st);
+
+    if (deceasedResult.success && deceasedResult.pr) {
+      // Store match confidence and extract next-of-kin from obituary snippet
+      const flags = (property.owner_flags ?? {}) as Record<string, unknown>;
+      const snippet = (flags.snippet as string) ?? "";
+      const nextOfKin = extractNextOfKin(snippet);
+
+      // Extract mailing address from PR match (heir mailing address)
+      const pr = deceasedResult.pr;
+      const mailAddress = pr.MailAddress ? {
+        address: pr.MailAddress,
+        city: pr.MailCity ?? "",
+        state: pr.MailState ?? "",
+        zip: pr.MailZip ?? "",
+      } : null;
+
+      // Persist obituary-specific enrichment data
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const currentFlags = ((await (sb.from("properties") as any).select("owner_flags").eq("id", propertyId).single())?.data?.owner_flags ?? {}) as Record<string, unknown>;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      await (sb.from("properties") as any).update({
+        owner_flags: {
+          ...currentFlags,
+          obit_match_confidence: deceasedResult.matchConfidence,
+          obit_match_method: "deceased_county_search",
+          obit_next_of_kin: nextOfKin.length > 0 ? nextOfKin : undefined,
+          obit_mail_address: mailAddress,
+          obit_matched_at: new Date().toISOString(),
+        },
+        updated_at: new Date().toISOString(),
+      }).eq("id", propertyId);
+
+      console.log(`[Enrich] Obituary enrichment complete for "${ownerName}": confidence=${deceasedResult.matchConfidence?.toFixed(2)}, kin=${nextOfKin.length}, mail=${mailAddress ? "yes" : "no"}`);
+    }
+
+    return deceasedResult;
+  }
+
   if (!address || address === "Unknown" || address.startsWith("APN ")) {
     // If no address, try APN lookup
-    if (property.apn && !property.apn.startsWith("MANUAL-") && !property.apn.startsWith("CSV-")) {
+    if (property.apn && !property.apn.startsWith("MANUAL-") && !property.apn.startsWith("CSV-") && !isCrawlerRecord) {
       return enrichByAPN(apiKey, sb, propertyId, property.apn, property.county);
     }
     return { success: false, error: "No valid address or APN for lookup" };
@@ -549,6 +607,198 @@ async function enrichByAPN(
   } catch (err) {
     return { success: false, error: err instanceof Error ? err.message : String(err) };
   }
+}
+
+// ── Obituary Property Resolution (Deceased Owner Search) ─────────────
+
+/**
+ * Normalize a name for fuzzy matching: lowercase, strip suffixes, collapse whitespace.
+ */
+function normalizeName(name: string): string {
+  return name
+    .toLowerCase()
+    .replace(/\b(jr|sr|ii|iii|iv|esq|md|phd|dr|mr|mrs|ms|miss)\b\.?/gi, "")
+    .replace(/[^a-z\s]/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+/**
+ * Score how well two names match. Returns 0–1.
+ * 1.0 = exact match, 0.85+ = last name match + partial first, etc.
+ */
+function nameMatchScore(crawledName: string, prOwner: string): number {
+  const a = normalizeName(crawledName);
+  const b = normalizeName(prOwner);
+
+  if (!a || !b) return 0;
+  if (a === b) return 1.0;
+
+  const aParts = a.split(" ");
+  const bParts = b.split(" ");
+
+  // Last names must match
+  const aLast = aParts[aParts.length - 1];
+  const bLast = bParts[bParts.length - 1];
+  if (aLast !== bLast) return 0;
+
+  // Last name matches — check first name
+  const aFirst = aParts[0] ?? "";
+  const bFirst = bParts[0] ?? "";
+
+  if (aFirst === bFirst) return 0.95; // Full name match (minor formatting diff)
+  if (aFirst && bFirst && (aFirst.startsWith(bFirst) || bFirst.startsWith(aFirst))) return 0.85; // Partial first name
+  if (aFirst && bFirst && aFirst[0] === bFirst[0]) return 0.70; // Same initial
+
+  // Only last name matches
+  return 0.50;
+}
+
+/**
+ * Check if an address is a real street address (has a street number).
+ * Returns false for placeholders like "Spokane, WA" or "County — pending enrichment".
+ */
+function isRealStreetAddress(addr: string): boolean {
+  if (!addr || addr.length < 8) return false;
+  // Must start with a digit (street number) — e.g. "1234 N Main St"
+  if (!/^\d/.test(addr.trim())) return false;
+  // Must not contain "pending" placeholder text
+  if (/pending\s+enrichment/i.test(addr)) return false;
+  return true;
+}
+
+/**
+ * Search PropertyRadar for recently deceased properties in a county,
+ * then fuzzy-match the deceased person's name against Owner fields.
+ *
+ * This is the "army" that goes looking for obituary-sourced properties.
+ * Returns the best match with a confidence score.
+ */
+async function enrichByDeceasedSearch(
+  apiKey: string,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  sb: any,
+  propertyId: string,
+  ownerName: string,
+  county: string,
+  state: string,
+): Promise<PREnrichResult & { matchConfidence?: number }> {
+  // Resolve county to FIPS code
+  const normalizedCounty = county.charAt(0).toUpperCase() + county.slice(1).toLowerCase();
+  const fips = COUNTY_FIPS[normalizedCounty] ?? COUNTY_FIPS[county];
+  if (!fips) {
+    return { success: false, error: `No FIPS mapping for county "${county}" — cannot search deceased` };
+  }
+
+  console.log(`[Enrich/ObitSearch] Searching deceased properties in ${county} (FIPS ${fips}) for "${ownerName}"`);
+
+  try {
+    // Pull recent deceased properties from this county
+    const criteria = [
+      { name: "isDeceasedProperty", value: [1] },
+      { name: "County", value: [fips] },
+    ];
+
+    const prUrl = `${PR_API_BASE}?Purchase=1&Limit=50&Fields=All`;
+    const prResponse = await fetch(prUrl, {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+        "Accept": "application/json",
+      },
+      body: JSON.stringify({ Criteria: criteria }),
+    });
+
+    if (!prResponse.ok) {
+      return { success: false, error: `PropertyRadar deceased search HTTP ${prResponse.status}` };
+    }
+
+    const prData = await prResponse.json();
+    const results = prData.results ?? [];
+
+    if (results.length === 0) {
+      return { success: false, error: `No deceased properties found in ${county}` };
+    }
+
+    console.log(`[Enrich/ObitSearch] Got ${results.length} deceased properties in ${county}, matching against "${ownerName}"`);
+
+    // Score each result against the deceased person's name
+    let bestMatch: { pr: Record<string, unknown>; score: number } | null = null;
+
+    for (const pr of results) {
+      const prOwner = (pr.Owner ?? pr.Taxpayer ?? "") as string;
+      const prOwner2 = (pr.Owner2 ?? "") as string;
+
+      const score1 = nameMatchScore(ownerName, prOwner);
+      const score2 = prOwner2 ? nameMatchScore(ownerName, prOwner2) : 0;
+      const bestScore = Math.max(score1, score2);
+
+      if (bestScore > (bestMatch?.score ?? 0)) {
+        bestMatch = { pr, score: bestScore };
+      }
+    }
+
+    if (!bestMatch || bestMatch.score < 0.70) {
+      console.log(`[Enrich/ObitSearch] No confident match for "${ownerName}" in ${county} (best score: ${bestMatch?.score?.toFixed(2) ?? "none"})`);
+      return { success: false, error: `No confident owner name match (best: ${bestMatch?.score?.toFixed(2) ?? "0"})` };
+    }
+
+    const matchedPr = bestMatch.pr;
+    const matchedOwner = (matchedPr.Owner ?? matchedPr.Taxpayer ?? "unknown") as string;
+    console.log(`[Enrich/ObitSearch] MATCHED "${ownerName}" → "${matchedOwner}" (confidence: ${bestMatch.score.toFixed(2)}, RadarID: ${matchedPr.RadarID})`);
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    await updatePropertyFromPR(sb, propertyId, matchedPr as any, {} as any);
+
+    return { success: true, pr: matchedPr, matchConfidence: bestMatch.score };
+  } catch (err) {
+    return { success: false, error: err instanceof Error ? err.message : String(err) };
+  }
+}
+
+/**
+ * Extract next-of-kin names from obituary text snippet.
+ * Parses "survived by" sections for family members.
+ */
+function extractNextOfKin(snippet: string): { name: string; relationship: string }[] {
+  if (!snippet) return [];
+
+  const kin: { name: string; relationship: string }[] = [];
+
+  // Find "survived by" section — this is where living relatives are listed
+  const survivedMatch = snippet.match(/survived\s+by\s+([\s\S]*?)(?:\.|preceded|memorial|service|born|was a|in lieu|$)/i);
+  if (!survivedMatch) return kin;
+
+  const survivedText = survivedMatch[1];
+
+  // Relationship patterns — extract "relationship Name" pairs
+  const relPatterns: { re: RegExp; rel: string }[] = [
+    { re: /\b(?:his|her)\s+(?:beloved\s+)?wife\s*,?\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+){0,2})/gi, rel: "spouse" },
+    { re: /\b(?:his|her)\s+(?:beloved\s+)?husband\s*,?\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+){0,2})/gi, rel: "spouse" },
+    { re: /\bspouse\s*,?\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+){0,2})/gi, rel: "spouse" },
+    { re: /\bson(?:s)?\s*,?\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+){0,2})/gi, rel: "child" },
+    { re: /\bdaughter(?:s)?\s*,?\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+){0,2})/gi, rel: "child" },
+    { re: /\bchildren?\s*,?\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+){0,2})/gi, rel: "child" },
+    { re: /\bbrother(?:s)?\s*,?\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+){0,2})/gi, rel: "sibling" },
+    { re: /\bsister(?:s)?\s*,?\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+){0,2})/gi, rel: "sibling" },
+  ];
+
+  for (const { re, rel } of relPatterns) {
+    let match: RegExpExecArray | null;
+    while ((match = re.exec(survivedText)) !== null) {
+      const name = match[1].trim();
+      // Skip common false positives
+      if (name.length > 2 && !/^(and|the|his|her|of|in|at|on)$/i.test(name)) {
+        // Avoid duplicates
+        if (!kin.some((k) => k.name === name)) {
+          kin.push({ name, relationship: rel });
+        }
+      }
+    }
+  }
+
+  return kin;
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -1256,16 +1506,15 @@ export async function promoteByTier(filter: PromoteFilter): Promise<PromoteResul
   });
 
   // ── Data quality gate ─────────────────────────────────────────────
-  // Reject leads whose property has no real address or owner name.
-  // These are garbage records from bulk-seed where PropertyRadar
-  // returned empty/null Address fields.
+  // Reject leads whose property has no real street address or owner name.
+  // Catches garbage records and unresolved obituary placeholders.
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const qualityFiltered = enrichedLeads.filter((l) => {
     const addr = (l.properties?.address ?? "").trim();
     const owner = (l.properties?.owner_name ?? "").trim();
 
-    // Address must be > 5 chars and not just a state code
-    const hasAddress = addr.length > 5 && !/^\s*[A-Z]{2}\s*,?\s*\d{0,5}\s*$/.test(addr);
+    // Address must be a real street address (starts with a number, not a placeholder)
+    const hasAddress = isRealStreetAddress(addr);
     // Owner must not be "Unknown" or empty
     const hasOwner = owner.length > 0
       && owner.toLowerCase() !== "unknown"
@@ -1273,7 +1522,7 @@ export async function promoteByTier(filter: PromoteFilter): Promise<PromoteResul
       && owner.toLowerCase() !== "n/a";
 
     if (!hasAddress || !hasOwner) {
-      console.log(`[Promote] BLOCKED garbage lead ${l.id}: addr="${addr}", owner="${owner}"`);
+      console.log(`[Promote] BLOCKED lead ${l.id}: addr="${addr.slice(0, 40)}", owner="${owner}" (${!hasAddress ? "bad address" : "bad owner"})`);
       return false;
     }
     return true;
@@ -1348,9 +1597,38 @@ export async function promoteByTier(filter: PromoteFilter): Promise<PromoteResul
     console.log(`[Promote] Tag filter: required=[${requiredTags.join(",")}] anyOf=[${anyOfTags.join(",")}] → ${tagFiltered.length} of ${valueFiltered.length} matched`);
   }
 
-  console.log(`[Promote] ${enrichedLeads.length} enriched, ${garbageCount} blocked (bad data), ${valueBlockedCount} blocked (value cap), ${tagFiltered.length} promotable (absentee/deceased), ${qualityFiltered.length - promotable.length} held in reservoir`);
+  // ── Obituary confidence gate ──────────────────────────────────────
+  // Crawler-sourced obituary records require high-confidence property match
+  // before promotion. Unresolved obituaries (no match or low confidence) stay in staging.
+  const MIN_OBIT_CONFIDENCE = 0.70;
+  const confidenceFiltered = tagFiltered.filter((l) => {
+    const flags = l.properties?.owner_flags ?? {};
+    const crawlerSource = flags.crawler_source as string | undefined;
 
-  if (tagFiltered.length === 0) {
+    // Only gate obituary-sourced records
+    if (!crawlerSource?.startsWith("obituary:")) return true;
+
+    const confidence = flags.obit_match_confidence as number | undefined;
+    if (confidence == null) {
+      // Obituary record that hasn't been through deceased search yet — block
+      console.log(`[Promote] BLOCKED obit lead ${l.id}: no property match yet (unresolved obituary)`);
+      return false;
+    }
+    if (confidence < MIN_OBIT_CONFIDENCE) {
+      console.log(`[Promote] BLOCKED obit lead ${l.id}: low match confidence (${confidence.toFixed(2)} < ${MIN_OBIT_CONFIDENCE})`);
+      return false;
+    }
+    return true;
+  });
+
+  const obitBlockedCount = tagFiltered.length - confidenceFiltered.length;
+  if (obitBlockedCount > 0) {
+    console.log(`[Promote] Obituary confidence gate blocked ${obitBlockedCount} leads (unresolved or low confidence)`);
+  }
+
+  console.log(`[Promote] ${enrichedLeads.length} enriched, ${garbageCount} blocked (bad data), ${valueBlockedCount} blocked (value cap), ${obitBlockedCount} blocked (obit confidence), ${confidenceFiltered.length} promotable (absentee/deceased), ${qualityFiltered.length - promotable.length} held in reservoir`);
+
+  if (confidenceFiltered.length === 0) {
     return { promoted: 0, tier, scoreRange: { min: minScore, max: maxScore }, leads: [] };
   }
 
@@ -1358,8 +1636,8 @@ export async function promoteByTier(filter: PromoteFilter): Promise<PromoteResul
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const promotedLeads: { id: string; score: number; label: string }[] = [];
 
-  for (let i = 0; i < tagFiltered.length; i += 100) {
-    const batch = tagFiltered.slice(i, i + 100);
+  for (let i = 0; i < confidenceFiltered.length; i += 100) {
+    const batch = confidenceFiltered.slice(i, i + 100);
     const ids = batch.map((l: { id: string }) => l.id);
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
