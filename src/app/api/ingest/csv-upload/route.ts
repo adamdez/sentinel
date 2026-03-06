@@ -375,10 +375,15 @@ interface ProcessOutcome {
 // ── Portfolio Rollup Utilities ──────────────────────────────────────
 
 function normalizeOwnerForGrouping(name: string): string {
-  return name
+  // PropertyRadar embeds mailing address in the owner field as extra lines —
+  // use only the first line (the actual name) for grouping.
+  let firstLine = name.split(/[\r\n]/)[0];
+  // Strip "& SECOND_NAME" suffix (e.g., "DOAN,CHESTER E & CHESTER E" → "DOAN,CHESTER E")
+  firstLine = firstLine.replace(/\s*&\s*.+$/, "");
+  return firstLine
     .toLowerCase()
     .replace(/[,.\-']/g, " ")
-    .replace(/\s+(jr|sr|ii|iii|iv|v|trust|etal|et\s*al|&)\s*/gi, " ")
+    .replace(/\s+(jr|sr|ii|iii|iv|v|trust|etal|et\s*al)\s*/gi, " ")
     .replace(/\s+/g, " ")
     .trim();
 }
@@ -386,8 +391,10 @@ function normalizeOwnerForGrouping(name: string): string {
 function isVacantLand(data: ProcessOutcome["propertyData"]): boolean {
   if (!data) return false;
   const addr = data.address.toLowerCase();
-  if (addr.includes("unknown") || !addr || addr === data.ownerName.toLowerCase()) return true;
-  if (!data.sqft && !data.bedrooms) return true;
+  // Only treat as vacant if address is literally "Unknown" or empty.
+  // Do NOT use sqft/beds — many PropertyRadar "RES" properties are real houses
+  // that simply lack building data in the county records.
+  if (!addr || addr.includes("unknown")) return true;
   return false;
 }
 
