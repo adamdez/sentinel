@@ -85,7 +85,7 @@ export function detectDistressSignals(pr: any): SignalDetectionResult {
     signals.push({
       type: "probate",
       severity: 9,
-      daysSinceEvent: pr.DeceasedDate ? daysSince(pr.DeceasedDate) : 30,
+      daysSinceEvent: pr.DeceasedDate ? daysSince(pr.DeceasedDate) : 730,
       detectedFrom: "isDeceasedProperty",
     });
   }
@@ -96,7 +96,7 @@ export function detectDistressSignals(pr: any): SignalDetectionResult {
     signals.push({
       type: "pre_foreclosure",
       severity: defaultAmt > 50000 ? 9 : 7,
-      daysSinceEvent: pr.ForeclosureRecDate ? daysSince(pr.ForeclosureRecDate) : 30,
+      daysSinceEvent: pr.ForeclosureRecDate ? daysSince(pr.ForeclosureRecDate) : 365,
       detectedFrom: isTruthy(pr.isPreforeclosure) ? "isPreforeclosure" : "inForeclosure",
     });
   }
@@ -109,7 +109,7 @@ export function detectDistressSignals(pr: any): SignalDetectionResult {
       severity: delAmt > 10000 ? 8 : 6,
       daysSinceEvent: pr.DelinquentYear
         ? Math.max(365 * (new Date().getFullYear() - Number(pr.DelinquentYear)), 30)
-        : 90,
+        : 365,
       detectedFrom: "inTaxDelinquency",
     });
   }
@@ -119,7 +119,7 @@ export function detectDistressSignals(pr: any): SignalDetectionResult {
     signals.push({
       type: "bankruptcy",
       severity: 8,
-      daysSinceEvent: pr.BankruptcyRecDate ? daysSince(pr.BankruptcyRecDate) : 60,
+      daysSinceEvent: pr.BankruptcyRecDate ? daysSince(pr.BankruptcyRecDate) : 365,
       detectedFrom: "inBankruptcyProperty",
     });
   }
@@ -129,7 +129,7 @@ export function detectDistressSignals(pr: any): SignalDetectionResult {
     signals.push({
       type: "divorce",
       severity: 7,
-      daysSinceEvent: pr.DivorceRecDate ? daysSince(pr.DivorceRecDate) : 60,
+      daysSinceEvent: pr.DivorceRecDate ? daysSince(pr.DivorceRecDate) : 365,
       detectedFrom: "inDivorce",
     });
   }

@@ -1397,7 +1397,7 @@ async function finalizeEnrichment(
 
   // Auto-promote: leads scoring ≥70 go directly to prospect (skip manual promote)
   // Lower scores stay in staging until admin pulls them
-  const AUTO_PROMOTE_THRESHOLD = 70;
+  const AUTO_PROMOTE_THRESHOLD = 50;
   const shouldAutoPromote = blendedScore >= AUTO_PROMOTE_THRESHOLD;
   const finalStatus = shouldAutoPromote ? "prospect" : "staging";
 
@@ -1750,7 +1750,7 @@ export async function processEnrichmentBatch(
     .select("id, property_id, priority, source, tags, notes")
     .eq("status", "staging")
     .order("created_at", { ascending: true })
-    .limit(1000); // Fetch all staging leads — filter pre-enriched in memory
+    .limit(5000); // Fetch all staging leads — filter pre-enriched in memory
 
   if (queryErr) {
     console.error("[Enrich/Batch] Query error:", queryErr.message);

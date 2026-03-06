@@ -40,6 +40,9 @@ const PR_FIELDS = [
   "PropertyHasOpenLiens", "PropertyHasOpenPersonLiens",
   "ForeclosureStage", "ForeclosureRecDate", "DefaultAmount",
   "DelinquentYear", "DelinquentAmount",
+  // Distress date fields — needed for stale signal detection
+  "DeceasedDate", "BankruptcyRecDate", "DivorceRecDate", "SaleDate", "DefaultAsOf",
+  "AssessedValue", "Owner2",
   // Phone & email fields from county records
   "Phone1", "Phone2", "Email", "PhoneAvailability", "EmailAvailability",
   // Mailing address for contact tab
@@ -91,6 +94,52 @@ interface PRProperty {
   DelinquentAmount?: number | string;
   Phone1?: string; Phone2?: string; Email?: string;
   [key: string]: unknown;
+}
+
+// ── Stale Signal Detection ────────────────────────────────────────────
+// Filters out properties where distress events are old news:
+//   1. Property transferred AFTER the distress event (new owner)
+//   2. Distress event older than 3 years
+//   3. Tax delinquency year 3+ years ago
+
+const THREE_YEARS_MS = 3 * 365.25 * 86400000;
+
+export function isStaleDistress(pr: PRProperty): { stale: boolean; reason?: string } {
+  const transferDate = (pr.LastTransferRecDate ?? pr.SaleDate) as string | undefined;
+  const transferMs = transferDate ? new Date(transferDate).getTime() : null;
+  const now = Date.now();
+
+  // Collect all distress dates with labels
+  const distressDates: { label: string; date: string }[] = [];
+  if (pr.DeceasedDate) distressDates.push({ label: "deceased", date: pr.DeceasedDate as string });
+  if (pr.ForeclosureRecDate) distressDates.push({ label: "foreclosure", date: pr.ForeclosureRecDate as string });
+  if (pr.BankruptcyRecDate) distressDates.push({ label: "bankruptcy", date: pr.BankruptcyRecDate as string });
+  if (pr.DivorceRecDate) distressDates.push({ label: "divorce", date: pr.DivorceRecDate as string });
+
+  for (const { label, date } of distressDates) {
+    const eventMs = new Date(date).getTime();
+    if (isNaN(eventMs)) continue;
+
+    // Check 1: property transferred AFTER the distress event → new owner, signal resolved
+    if (transferMs && transferMs > eventMs) {
+      return { stale: true, reason: `${label}: transferred after event (${date})` };
+    }
+
+    // Check 2: distress event older than 3 years
+    if (now - eventMs > THREE_YEARS_MS) {
+      return { stale: true, reason: `${label}: older than 3 years (${date})` };
+    }
+  }
+
+  // Check 3: tax delinquency year
+  if (pr.DelinquentYear) {
+    const yearsAgo = new Date().getFullYear() - Number(pr.DelinquentYear);
+    if (yearsAgo > 3) {
+      return { stale: true, reason: `tax delinquent year ${pr.DelinquentYear} (${yearsAgo}yr ago)` };
+    }
+  }
+
+  return { stale: false };
 }
 
 /**
@@ -275,8 +324,17 @@ export async function POST(req: NextRequest) {
   type ScoredCandidate = { pr: PRProperty; score: ReturnType<typeof computeScore>; signals: DetectedSignal[] };
   const candidates: ScoredCandidate[] = [];
 
+  let staleSkipped = 0;
   for (const pr of allResults) {
     if (!pr.APN) continue;
+
+    // Stale signal check — skip properties where distress is resolved or ancient
+    const staleCheck = isStaleDistress(pr);
+    if (staleCheck.stale) {
+      staleSkipped++;
+      continue;
+    }
+
     const detection = detectDistressSignals(pr);
     const signals = detection.signals;
 
@@ -322,7 +380,7 @@ export async function POST(req: NextRequest) {
         return false;
       });
 
-  console.log(`[BulkSeed] ${candidates.length} scored → ${absenteeFiltered.length} pass absentee filter (${candidates.length - absenteeFiltered.length} occupied-owner filtered out)`);
+  console.log(`[BulkSeed] ${allResults.length} fetched → ${staleSkipped} stale skipped → ${candidates.length} scored → ${absenteeFiltered.length} pass absentee filter (${candidates.length - absenteeFiltered.length} occupied-owner filtered out)`);
 
   const storable = absenteeFiltered.filter((c) => c.score.composite >= STORE_CUTOFF).slice(0, requestedLimit);
   const labelCounts = { platinum: 0, gold: 0, silver: 0, bronze: 0 };
@@ -571,6 +629,7 @@ export async function POST(req: NextRequest) {
     updated,
     errored,
     totalFetched: allResults.length,
+    staleSkipped,
     totalScored: candidates.length,
     aboveCutoff: storable.length,
     scoreBreakdown: labelCounts,

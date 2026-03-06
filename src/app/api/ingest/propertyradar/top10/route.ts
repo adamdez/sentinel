@@ -446,6 +446,9 @@ export async function POST(req: NextRequest) {
     "PropertyHasOpenLiens", "PropertyHasOpenPersonLiens",
     "ForeclosureStage", "ForeclosureRecDate", "DefaultAmount",
     "DelinquentYear", "DelinquentAmount",
+    // Distress date fields — needed for stale signal detection
+    "DeceasedDate", "BankruptcyRecDate", "DivorceRecDate", "SaleDate", "DefaultAsOf",
+    "AssessedValue", "Owner2",
   ].join(",");
 
   // ── 3. Single Broad Pull + Client-Side Lens Filtering ──────────────
@@ -544,6 +547,30 @@ export async function POST(req: NextRequest) {
   const allResults: PRProperty[] = [];
   const seenApns = new Set<string>();
   const lensResults: { lens: string; phase: number; count: number; cost: string }[] = [];
+  let staleSkipped = 0;
+
+  // Stale signal detection — skip properties where distress resolved or > 3 years old
+  const THREE_YEARS_MS = 3 * 365.25 * 86400000;
+  function isStaleDistress(pr: PRProperty): boolean {
+    const transferDate = (pr.LastTransferRecDate ?? (pr as any).SaleDate) as string | undefined;
+    const transferMs = transferDate ? new Date(transferDate).getTime() : null;
+    const now = Date.now();
+    const distressDates = [
+      (pr as any).DeceasedDate, pr.ForeclosureRecDate,
+      (pr as any).BankruptcyRecDate, (pr as any).DivorceRecDate,
+    ].filter(Boolean) as string[];
+    for (const dd of distressDates) {
+      const eventMs = new Date(dd).getTime();
+      if (isNaN(eventMs)) continue;
+      if (transferMs && transferMs > eventMs) return true;
+      if (now - eventMs > THREE_YEARS_MS) return true;
+    }
+    if (pr.DelinquentYear) {
+      const yearsAgo = new Date().getFullYear() - Number(pr.DelinquentYear);
+      if (yearsAgo > 3) return true;
+    }
+    return false;
+  }
 
   const phase1Lenses = DISTRESS_LENSES.filter((l) => l.phase === 1);
   const phase2Lenses = DISTRESS_LENSES.filter((l) => l.phase === 2);
@@ -555,6 +582,7 @@ export async function POST(req: NextRequest) {
     for (const pr of allRaw) {
       const apn = pr.APN;
       if (!apn || seenApns.has(apn)) continue;
+      if (isStaleDistress(pr)) { staleSkipped++; continue; }
       if (matchesLens(pr, lens)) {
         seenApns.add(apn);
         allResults.push(pr);
@@ -567,7 +595,7 @@ export async function POST(req: NextRequest) {
   }
 
   const phase1Count = allResults.length;
-  console.log(`[Top10] Phase 1 complete: ${phase1Count} unique Platinum properties`);
+  console.log(`[Top10] Phase 1 complete: ${phase1Count} unique Platinum properties (${staleSkipped} stale skipped)`);
 
   // Run Phase 2 lenses if needed
   if (phase1Count < MAX_PR_PULL) {
@@ -577,6 +605,7 @@ export async function POST(req: NextRequest) {
       for (const pr of allRaw) {
         const apn = pr.APN;
         if (!apn || seenApns.has(apn)) continue;
+        if (isStaleDistress(pr)) { staleSkipped++; continue; }
         if (matchesLens(pr, lens)) {
           seenApns.add(apn);
           allResults.push(pr);
