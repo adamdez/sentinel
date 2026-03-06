@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@/lib/supabase";
 import { getPropertyDetailByAddress } from "@/lib/attom";
-import { fanOutAgents, formatFindingsForGrok, buildDeepSkipResult } from "@/lib/openclaw-client";
-import type { AgentResult, AgentMeta, AgentFinding, DeepSkipResult, PropertyPhoto } from "@/lib/openclaw-client";
+import { fanOutAgents, formatFindingsForGrok, buildDeepSkipResult, callAgent } from "@/lib/openclaw-client";
+import type { AgentResult, AgentMeta, AgentFinding, AgentTask, DeepSkipResult, PropertyPhoto } from "@/lib/openclaw-client";
 import { buildAgentPlan, buildPropertyContext } from "@/lib/openclaw-orchestrator";
 
 /**
@@ -380,6 +380,74 @@ export async function POST(req: NextRequest) {
             } catch (err) {
               console.error("[DeepCrawl] OpenClaw fan-out error (non-fatal):", err);
               emit({ phase: "agents", status: "error", detail: "Agent research failed (continuing)" });
+            }
+          }
+
+          // ══════════════════════════════════════════════════════════════════
+          // PHASE 2.55 — Heir Skip-Trace (second-pass on discovered heirs)
+          // ══════════════════════════════════════════════════════════════════
+
+          if (allAgentFindings.length > 0 && openClawKey) {
+            const heirRoles = new Set(["heir", "executor", "attorney", "spouse", "family"]);
+            const heirsWithContact = new Set<string>();
+            const heirsWithoutContact: string[] = [];
+
+            for (const f of allAgentFindings) {
+              const sd = f.structuredData;
+              if (!sd?.personName || !sd?.personRole) continue;
+              if (!heirRoles.has(sd.personRole)) continue;
+
+              const nameLower = sd.personName.toLowerCase();
+              if (sd.phone || sd.email) {
+                heirsWithContact.add(nameLower);
+              } else if (!heirsWithContact.has(nameLower)) {
+                heirsWithoutContact.push(sd.personName);
+              }
+            }
+
+            // Deduplicate names (case-insensitive, keep original casing)
+            const uniqueHeirs = [...new Set(heirsWithoutContact.map(n => n.toLowerCase()))]
+              .map(lower => heirsWithoutContact.find(n => n.toLowerCase() === lower)!)
+              .filter(name => !heirsWithContact.has(name.toLowerCase())); // final filter
+
+            if (uniqueHeirs.length > 0) {
+              emit({
+                phase: "heir_skip_trace", status: "started",
+                detail: `Skip-tracing ${uniqueHeirs.length} heir(s): ${uniqueHeirs.join(", ")}`,
+              });
+              console.log(`[DeepCrawl] Phase 2.55 — Heir skip-trace for: ${uniqueHeirs.join(", ")}`);
+
+              try {
+                const heirTask: AgentTask = {
+                  agentId: "heir_skip_trace",
+                  payload: {
+                    ownerName: owner.name,
+                    address: property.address,
+                    city: property.city,
+                    state: property.state,
+                    county: property.county,
+                    additionalContext: { heirNames: uniqueHeirs },
+                  },
+                };
+
+                const heirResult = await callAgent(heirTask);
+
+                if (heirResult.success && heirResult.findings.length > 0) {
+                  allAgentFindings.push(...heirResult.findings);
+                  agentResults.push(heirResult);
+                  agentFindingsText = formatFindingsForGrok(agentResults);
+                  console.log(`[DeepCrawl] Heir skip-trace found ${heirResult.findings.length} contacts`);
+                }
+
+                emit({
+                  phase: "heir_skip_trace", status: "complete",
+                  detail: `Found ${heirResult.findings.length} heir contact(s)`,
+                  elapsed: Date.now() - t0,
+                });
+              } catch (err) {
+                console.warn("[DeepCrawl] Heir skip-trace error (non-fatal):", err);
+                emit({ phase: "heir_skip_trace", status: "error", detail: "Heir skip-trace failed (continuing)" });
+              }
             }
           }
 

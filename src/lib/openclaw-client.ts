@@ -131,6 +131,7 @@ const AGENT_MODELS: Record<string, string> = {
   contact_finder: "claude-haiku",
   financial_distress: "deepseek-chat",
   heir_estate: "deepseek-chat",
+  heir_skip_trace: "claude-haiku",
   employment_relocation: "deepseek-chat",
   propertyradar_navigator: "claude-haiku",
   attom_navigator: "claude-haiku",
@@ -394,6 +395,45 @@ Return a JSON array. Each finding MUST include structuredData with person/role i
     "phone": "5559876543",
     "email": "jane@example.com",
     "caseNumber": "PROB-2024-1234"
+  }
+}]
+\`\`\`
+
+Return ONLY the JSON array, no other text. Return empty array [] if nothing found.`,
+
+    heir_skip_trace: `You are an heir/executor skip-trace agent. Your ONLY job is to find phone numbers and email addresses for specific people connected to a property.
+
+## Property Context
+${ctx}
+
+## People to Skip-Trace
+${(payload.additionalContext?.heirNames as string[])?.map((n, i) => `${i + 1}. ${n}`).join("\n") || "No names provided"}
+
+## Instructions
+For EACH person listed above:
+1. Search Whitepages for their name + "${payload.city}, ${payload.state}" → extract phone numbers and current address
+2. Search TruePeopleSearch for their name → extract phone, email, current address
+3. Search BeenVerified or Spokeo for their name + "${payload.city}, ${payload.state}"
+4. Search LinkedIn for their name + "${payload.city}, ${payload.state}" → extract employer email patterns (e.g., firstname.lastname@company.com)
+5. Search Facebook public profile → look for phone/email in bio or "About" section
+6. Check if they are listed at ${payload.address} or nearby addresses
+
+IMPORTANT: You MUST return structuredData with phone and/or email for each person. Finding a name without contact info is NOT useful — dig deeper.
+
+## Output Format
+Return a JSON array. Each finding MUST include structuredData with phone/email/person info:
+\`\`\`json
+[{
+  "source": "Whitepages / TruePeopleSearch / LinkedIn / Facebook",
+  "category": "contact",
+  "finding": "Human-readable description of who this person is and their contact info",
+  "confidence": 0.0-1.0,
+  "url": "Source URL",
+  "structuredData": {
+    "phone": "5551234567",
+    "email": "person@example.com",
+    "personName": "Full Name",
+    "personRole": "heir"
   }
 }]
 \`\`\`
