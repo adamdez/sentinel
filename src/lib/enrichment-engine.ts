@@ -1190,6 +1190,10 @@ export interface PromoteFilter {
   minScore?: number;
   maxScore?: number;
   limit?: number;
+  /** If set, only promote leads that have ALL of these tags (e.g. ["probate", "tax_lien"]) */
+  requiredTags?: string[];
+  /** If set, only promote leads that have at least ONE of these tags (e.g. ["probate", "inherited"]) */
+  anyOfTags?: string[];
 }
 
 export interface PromoteResult {
@@ -1328,9 +1332,25 @@ export async function promoteByTier(filter: PromoteFilter): Promise<PromoteResul
     console.log(`[Promote] Value cap gate blocked ${valueBlockedCount} leads (AVM > $${MAX_AVM_VALUE.toLocaleString()})`);
   }
 
-  console.log(`[Promote] ${enrichedLeads.length} enriched, ${garbageCount} blocked (bad data), ${valueBlockedCount} blocked (value cap), ${valueFiltered.length} promotable (absentee/deceased), ${qualityFiltered.length - promotable.length} held in reservoir`);
+  // ── Tag filter gate (optional) ──────────────────────────────────────
+  // requiredTags = ALL must match, anyOfTags = at least ONE must match
+  const requiredTags = filter.requiredTags ?? [];
+  const anyOfTags = filter.anyOfTags ?? [];
+  let tagFiltered = valueFiltered;
 
-  if (valueFiltered.length === 0) {
+  if (requiredTags.length > 0 || anyOfTags.length > 0) {
+    tagFiltered = valueFiltered.filter((l) => {
+      const tags: string[] = l.tags ?? [];
+      const passRequired = requiredTags.length === 0 || requiredTags.every((rt) => tags.includes(rt));
+      const passAnyOf = anyOfTags.length === 0 || anyOfTags.some((at) => tags.includes(at));
+      return passRequired && passAnyOf;
+    });
+    console.log(`[Promote] Tag filter: required=[${requiredTags.join(",")}] anyOf=[${anyOfTags.join(",")}] → ${tagFiltered.length} of ${valueFiltered.length} matched`);
+  }
+
+  console.log(`[Promote] ${enrichedLeads.length} enriched, ${garbageCount} blocked (bad data), ${valueBlockedCount} blocked (value cap), ${tagFiltered.length} promotable (absentee/deceased), ${qualityFiltered.length - promotable.length} held in reservoir`);
+
+  if (tagFiltered.length === 0) {
     return { promoted: 0, tier, scoreRange: { min: minScore, max: maxScore }, leads: [] };
   }
 
@@ -1338,8 +1358,8 @@ export async function promoteByTier(filter: PromoteFilter): Promise<PromoteResul
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const promotedLeads: { id: string; score: number; label: string }[] = [];
 
-  for (let i = 0; i < valueFiltered.length; i += 100) {
-    const batch = valueFiltered.slice(i, i + 100);
+  for (let i = 0; i < tagFiltered.length; i += 100) {
+    const batch = tagFiltered.slice(i, i + 100);
     const ids = batch.map((l: { id: string }) => l.id);
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any

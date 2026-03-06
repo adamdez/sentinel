@@ -7,6 +7,7 @@ import {
   Phone, MoreHorizontal, Radar, Loader2, AlertCircle,
   RefreshCw, Shield, UserCheck, Home, Trash2, Eye,
   Database, ArrowRightCircle, Sparkles, ChevronDown, ChevronUp,
+  HeartOff,
 } from "lucide-react";
 import { PageShell } from "@/components/sentinel/page-shell";
 import { GlassCard } from "@/components/sentinel/glass-card";
@@ -68,6 +69,17 @@ const SCORE_FILTERS: { value: string; label: string; color: string; min: number;
   { value: "gold", label: "Gold", color: "text-amber-400", min: 65, max: 84 },
   { value: "silver", label: "Silver", color: "text-slate-300", min: 40, max: 64 },
   { value: "bronze", label: "Bronze", color: "text-orange-500", min: 0, max: 39 },
+];
+
+const SIGNAL_FILTERS: { value: string; label: string; color: string }[] = [
+  { value: "", label: "All Signals", color: "text-muted-foreground" },
+  { value: "probate", label: "Probate", color: "text-red-400" },
+  { value: "inherited", label: "Inherited", color: "text-amber-400" },
+  { value: "tax_lien", label: "Tax Lien", color: "text-yellow-400" },
+  { value: "pre_foreclosure", label: "Pre-Foreclosure", color: "text-orange-400" },
+  { value: "vacant", label: "Vacant", color: "text-emerald-400" },
+  { value: "divorce", label: "Divorce", color: "text-purple-400" },
+  { value: "bankruptcy", label: "Bankruptcy", color: "text-red-500" },
 ];
 
 // ── Subcomponents ─────────────────────────────────────────────────────
@@ -164,10 +176,12 @@ export default function ProspectsPage() {
   const [sortDir, setSortDir] = useState<SortDir>("desc");
   const [sourceFilter, setSourceFilter] = useState("");
   const [scoreFilter, setScoreFilter] = useState("");
+  const [signalFilter, setSignalFilter] = useState("");
   const [selectedProspect, setSelectedProspect] = useState<ProspectRow | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
   const [claiming, setClaiming] = useState<string | null>(null);
   const [deleting, setDeleting] = useState<string | null>(null);
+  const [nurturing, setNurturing] = useState<string | null>(null);
   const [testingPR, setTestingPR] = useState(false);
 
   const handleQuickTestPR = async () => {
@@ -224,11 +238,15 @@ export default function ProspectsPage() {
     sourceFilter: sourceFilter || undefined,
   });
 
-  // Apply score label filter client-side using composite_score
+  // Apply score label filter + signal filter client-side
   const activeFilter = SCORE_FILTERS.find((f) => f.value === scoreFilter);
-  const filteredProspects = activeFilter && activeFilter.value
+  let filteredProspects = activeFilter && activeFilter.value
     ? prospects.filter((p) => p.composite_score >= activeFilter.min && p.composite_score <= activeFilter.max)
     : prospects;
+
+  if (signalFilter) {
+    filteredProspects = filteredProspects.filter((p) => p.tags.includes(signalFilter));
+  }
 
   // ── Staging Reservoir State ──────────────────────────────────────
   interface StagingSummary {
@@ -397,6 +415,49 @@ export default function ProspectsPage() {
       console.error("[Prospects] delete error:", err);
     } finally {
       setDeleting(null);
+    }
+  };
+
+  const handleNurture = async (prospect: ProspectRow) => {
+    setNurturing(prospect.id);
+    try {
+      const { data: current, error: fetchErr } = await (supabase.from("leads") as any)
+        .select("lock_version")
+        .eq("id", prospect.id)
+        .single();
+
+      if (fetchErr || !current) {
+        toast.error("Could not fetch lead. Refresh and try again.");
+        return;
+      }
+
+      const res = await fetch("/api/prospects", {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          "x-lock-version": String(current.lock_version ?? 0),
+        },
+        body: JSON.stringify({
+          lead_id: prospect.id,
+          status: "nurture",
+          actor_id: currentUser.id,
+        }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        toast.error(`Move to nurture failed: ${data.detail ?? data.error ?? "Unknown error"}`);
+      } else {
+        toast.success(`${prospect.owner_name} moved to nurture`, {
+          description: prospect.address || "No address",
+        });
+        if (typeof refetch === "function") refetch();
+      }
+    } catch (err) {
+      toast.error("Network error — could not move to nurture");
+    } finally {
+      setNurturing(null);
     }
   };
 
@@ -634,6 +695,31 @@ export default function ProspectsPage() {
                 >
                   {sf.label}
                   <span className="opacity-60">({count})</span>
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Distress signal filter */}
+          <div className="flex items-center gap-1">
+            <span className="text-[10px] text-muted-foreground font-medium">Signal:</span>
+            {SIGNAL_FILTERS.map((sf) => {
+              const count = sf.value
+                ? prospects.filter((p) => p.tags.includes(sf.value)).length
+                : prospects.length;
+              return (
+                <button
+                  key={sf.value}
+                  onClick={() => setSignalFilter(sf.value)}
+                  className={cn(
+                    "text-[10px] px-2 py-1 rounded border transition-all inline-flex items-center gap-1",
+                    signalFilter === sf.value
+                      ? `${sf.color} border-current/20 bg-current/8`
+                      : "text-muted-foreground border-glass-border hover:text-foreground hover:border-white/10"
+                  )}
+                >
+                  {sf.label}
+                  {sf.value && <span className="opacity-60">({count})</span>}
                 </button>
               );
             })}
@@ -922,6 +1008,14 @@ export default function ProspectsPage() {
                                 <DropdownMenuItem className="gap-2 text-xs">
                                   <Shield className="h-3 w-3" />
                                   Skip Trace
+                                </DropdownMenuItem>
+                                <DropdownMenuItem
+                                  onClick={() => handleNurture(p)}
+                                  disabled={nurturing === p.id}
+                                  className="gap-2 text-xs text-amber-400 focus:text-amber-400 focus:bg-amber-500/10"
+                                >
+                                  {nurturing === p.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <HeartOff className="h-3 w-3" />}
+                                  Move to Nurture
                                 </DropdownMenuItem>
                                 <DropdownMenuSeparator />
                                 <DropdownMenuItem

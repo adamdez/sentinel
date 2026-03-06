@@ -48,6 +48,8 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     const tier = body.tier ?? "all";
     const limit = body.limit ?? 500;
+    const requiredTags: string[] = body.requiredTags ?? [];
+    const anyOfTags: string[] = body.anyOfTags ?? [];
 
     const validTiers = ["platinum", "gold", "silver", "bronze", "all"];
     if (!validTiers.includes(tier)) {
@@ -57,9 +59,13 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    console.log(`[Enrichment/Promote] Admin request: tier=${tier}, limit=${limit}`);
+    const tagInfo = [
+      requiredTags.length > 0 ? `requiredTags=[${requiredTags.join(",")}]` : "",
+      anyOfTags.length > 0 ? `anyOfTags=[${anyOfTags.join(",")}]` : "",
+    ].filter(Boolean).join(", ");
+    console.log(`[Enrichment/Promote] Admin request: tier=${tier}, limit=${limit}${tagInfo ? `, ${tagInfo}` : ""}`);
 
-    const result = await promoteByTier({ tier, limit });
+    const result = await promoteByTier({ tier, limit, requiredTags, anyOfTags });
 
     return NextResponse.json({
       success: true,
