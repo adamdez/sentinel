@@ -1789,6 +1789,7 @@ export async function processEnrichmentBatch(
   const needsEnrichment: any[] = [];
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const alreadyEnriched: any[] = [];
+  let exhaustedCount = 0;
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   for (const lead of stagingLeads as any[]) {
@@ -1798,6 +1799,16 @@ export async function processEnrichmentBatch(
       continue;
     }
     const flags = prop.owner_flags ?? {};
+
+    // Skip exhausted leads — already hit MAX_ATTEMPTS and were finalized as partial/failed
+    // These would just re-finalize every batch, wasting slots
+    const priorAttempts = (flags.enrichment_attempts as number) ?? 0;
+    const isExhausted = priorAttempts >= MAX_ATTEMPTS && flags.enrichment_status !== "enriched" && flags.enrichment_status !== "pending";
+    if (isExhausted) {
+      exhaustedCount++;
+      continue;
+    }
+
     // A lead is pre-enriched ONLY if it still has a score (priority > 0).
     // Flushed leads get priority reset to 0, forcing re-enrichment even if
     // the property still has enrichment_status = "enriched".
@@ -1814,7 +1825,7 @@ export async function processEnrichmentBatch(
     }
   }
 
-  console.log(`[Enrich/Batch] ${alreadyEnriched.length} pre-enriched (skip), ${needsEnrichment.length} need enrichment`);
+  console.log(`[Enrich/Batch] ${alreadyEnriched.length} pre-enriched (skip), ${exhaustedCount} exhausted (skip), ${needsEnrichment.length} need enrichment`);
 
   // Take only `limit` leads that actually need enrichment
   const toProcess = needsEnrichment.slice(0, limit);
