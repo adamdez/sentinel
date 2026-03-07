@@ -34,6 +34,7 @@ import { distressFingerprint, isDuplicateError, normalizeCounty, daysSince } fro
 import { dualSkipTrace, skipTraceResultToOwnerFlags, type SkipTraceResult } from "@/lib/skip-trace";
 import { detectDistressSignals, type DetectedSignal } from "@/lib/distress-signals";
 import { COUNTY_FIPS } from "@/lib/attom";
+import { checkDataSufficiency } from "@/lib/enrichment-gate";
 import type { DistressType } from "@/lib/types";
 
 const SYSTEM_USER_ID = "00000000-0000-0000-0000-000000000000";
@@ -63,6 +64,8 @@ export interface BatchResult {
   results: EnrichmentResult[];
   elapsed_ms: number;
 }
+
+// ── Data sufficiency gate is in src/lib/enrichment-gate.ts (pure, testable) ──
 
 // ── Helpers ──────────────────────────────────────────────────────────
 
@@ -1877,6 +1880,8 @@ async function runScoringPipelineFromFlags(
 }
 
 // ── Finalize Lead (score + tag → promote if sufficient data) ─────────
+// Uses the tested gate from src/lib/enrichment-gate.ts
+// See src/lib/__tests__/enrichment-gate.test.ts for the business rules.
 
 async function finalizeEnrichment(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -1892,36 +1897,45 @@ async function finalizeEnrichment(
   const scoreLabelTag = `score-${label}`;
   const signalTags = signals.map((s) => s.type);
 
-  // ── Data sufficiency gate ──────────────────────────────────────────
-  // Properties missing critical info stay in staging for manual review/deletion.
-  // A wholesale agent needs at minimum: owner name + property value + distress signals.
+  // ── Fetch property data for sufficiency check ──
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data: prop } = await (sb.from("properties") as any)
-    .select("owner_name, estimated_value, address")
+    .select("owner_name, estimated_value, address, owner_flags")
     .eq("id", propertyId)
     .single();
 
-  const ownerName = (prop?.owner_name ?? "").trim();
-  const hasOwner = ownerName !== "" && ownerName !== "Unknown" && ownerName !== "Unknown Owner" && ownerName !== "N/A";
-  const hasValue = (prop?.estimated_value ?? 0) > 0;
-  const hasSignals = signals.length > 0;
-  const hasAddress = !!(prop?.address && /^\d/.test(prop.address.trim()));
+  // Extract mailing address from owner_flags (set by enrichment pipeline)
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const ownerFlags = (prop?.owner_flags ?? {}) as Record<string, any>;
+  const mailingAddr = ownerFlags.mailing_address;
+  const mailingStr = typeof mailingAddr === "string"
+    ? mailingAddr
+    : typeof mailingAddr === "object" && mailingAddr !== null
+      ? [mailingAddr.address, mailingAddr.city, mailingAddr.state, mailingAddr.zip].filter(Boolean).join(", ")
+      : "";
 
-  const missingFields: string[] = [];
-  if (!hasOwner) missingFields.push("owner");
-  if (!hasValue) missingFields.push("value/ARV");
-  if (!hasSignals) missingFields.push("distress signals");
-  if (!hasAddress) missingFields.push("valid address");
+  // All signals from the enrichment pipeline are verified (PR flags, county records, ATTOM data)
+  // They come from detectDistressSignals() which checks actual data source flags
+  const hasVerifiedSignal = signals.length > 0;
 
-  // Promote to prospect only if we have enough actionable data.
-  // Minimum: valid address + owner name + (value OR distress signals).
-  // Without at least address + owner, an agent can't do anything with this lead.
-  const isSufficient = hasAddress && hasOwner && (hasValue || hasSignals);
-  const finalStatus = isSufficient ? "prospect" : "staging";
+  // ── Run the tested sufficiency gate ──
+  const gate = checkDataSufficiency({
+    ownerName: prop?.owner_name ?? null,
+    address: prop?.address ?? null,
+    mailingAddress: mailingStr || null,
+    estimatedValue: prop?.estimated_value ?? null,
+    signalCount: signals.length,
+    hasVerifiedSignal,
+  });
 
-  const statusNote = isSufficient
+  const finalStatus = gate.isSufficient ? "prospect" : "staging";
+
+  const statusNote = gate.isSufficient
     ? `[auto-promoted]`
-    : `[kept in staging — missing: ${missingFields.join(", ")}]`;
+    : `[kept in staging — missing: ${gate.missingFields.join(", ")}]`;
+  const warningNote = gate.warnings.length > 0
+    ? ` (soft warnings: ${gate.warnings.join(", ")})`
+    : "";
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   await (sb.from("leads") as any)
@@ -1929,7 +1943,7 @@ async function finalizeEnrichment(
       priority: blendedScore,
       status: finalStatus,
       tags: [scoreLabelTag, ...signalTags],
-      notes: `Enriched [${source}] — Heat ${blendedScore} (${label}). ${signals.length} signal(s). Attempts: ${attempts} ${statusNote}`,
+      notes: `Enriched [${source}] — Heat ${blendedScore} (${label}). ${signals.length} signal(s). Attempts: ${attempts} ${statusNote}${warningNote}`,
       updated_at: new Date().toISOString(),
     })
     .eq("id", leadId);
@@ -1938,7 +1952,7 @@ async function finalizeEnrichment(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   await (sb.from("event_log") as any).insert({
     user_id: SYSTEM_USER_ID,
-    action: isSufficient ? "enrichment.auto_promoted" : "enrichment.kept_staging",
+    action: gate.isSufficient ? "enrichment.auto_promoted" : "enrichment.kept_staging",
     entity_type: "lead",
     entity_id: leadId,
     details: {
@@ -1949,11 +1963,12 @@ async function finalizeEnrichment(
       signals: signals.length,
       attempts,
       status: finalStatus,
-      ...(missingFields.length > 0 ? { missing_fields: missingFields } : {}),
+      ...(gate.missingFields.length > 0 ? { missing_fields: gate.missingFields } : {}),
+      ...(gate.warnings.length > 0 ? { soft_warnings: gate.warnings } : {}),
     },
   });
 
-  console.log(`[Enrich] Lead ${leadId} enriched → ${finalStatus}: score ${blendedScore} (${label}), source: ${source} ${statusNote}`);
+  console.log(`[Enrich] Lead ${leadId} enriched → ${finalStatus}: score ${blendedScore} (${label}), source: ${source} ${statusNote}${warningNote}`);
 }
 
 // ── Promote Leads from Staging → Prospect (admin pull) ───────────────

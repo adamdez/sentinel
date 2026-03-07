@@ -8,6 +8,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
+    "test": "vitest run",
+    "test:watch": "vitest",
     "test:smoke": "npx playwright test --config e2e/playwright.config.ts --project smoke"
   },
   "dependencies": {
@@ -67,6 +69,7 @@
     "eslint-config-next": "^15.1.0",
     "tailwindcss": "^4.0.0",
     "tw-animate-css": "^1.2.0",
-    "typescript": "^5.7.0"
+    "typescript": "^5.7.0",
+    "vitest": "^4.0.18"
   }
 }
