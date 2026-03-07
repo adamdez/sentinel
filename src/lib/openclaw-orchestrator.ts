@@ -76,6 +76,12 @@ const AGENT_COSTS: Record<string, number> = {
   employment_relocation: 0.003,
   propertyradar_navigator: 0.005,
   attom_navigator: 0.005,
+  // New specialized agents
+  tax_auction_search: 0.001,
+  title_lien_search: 0.002,
+  rehab_condition_estimator: 0.002,
+  market_demand_analyzer: 0.002,
+  business_entity_search: 0.003,
 };
 
 const AGENT_DURATIONS_MS: Record<string, number> = {
@@ -91,6 +97,12 @@ const AGENT_DURATIONS_MS: Record<string, number> = {
   employment_relocation: 30_000,
   propertyradar_navigator: 60_000,
   attom_navigator: 60_000,
+  // New specialized agents
+  tax_auction_search: 30_000,
+  title_lien_search: 35_000,
+  rehab_condition_estimator: 35_000,
+  market_demand_analyzer: 30_000,
+  business_entity_search: 30_000,
 };
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -221,6 +233,64 @@ export function buildAgentPlan(ctx: PropertyContext): OrchestrationPlan {
   if (!ctx.hasPhotos && (ctx.lat || ctx.lng)) {
     tasks.push({ agentId: "property_photos", payload });
     rationale.push("Property photos: no existing street-level photos, coordinates available");
+  }
+
+  // ── CONDITIONAL: tax auction search ──
+  // Run if: tax delinquency signal or tax lien signal
+  if (
+    ctx.hasTaxLien ||
+    ctx.distressSignals.some(s => s.includes("tax"))
+  ) {
+    tasks.push({ agentId: "tax_auction_search", payload });
+    rationale.push("Tax auction search: tax lien/delinquency detected — checking for upcoming tax sales");
+  }
+
+  // ── CONDITIONAL: title/lien search ──
+  // Run if: open liens, foreclosure, or high equity (hidden liens kill deals)
+  if (
+    ctx.hasForeclosure ||
+    ctx.distressSignals.some(s => s.includes("lien") || s.includes("lis_pendens")) ||
+    (ctx.equityPercent != null && ctx.equityPercent > 50)
+  ) {
+    tasks.push({ agentId: "title_lien_search", payload });
+    rationale.push(
+      ctx.hasForeclosure
+        ? "Title/Lien search: foreclosure — checking for additional encumbrances"
+        : "Title/Lien search: checking for hidden liens on high-equity property"
+    );
+  }
+
+  // ── CONDITIONAL: rehab condition estimator ──
+  // Run if: property has coordinates (needed for street view assessment)
+  // Skipped only if property is vacant land
+  if (
+    (ctx.lat || ctx.lng) &&
+    !ctx.distressSignals.some(s => s === "vacant_land")
+  ) {
+    tasks.push({ agentId: "rehab_condition_estimator", payload });
+    rationale.push("Rehab estimator: assessing property condition via permits, code violations, visual data");
+  }
+
+  // ── CONDITIONAL: market demand analyzer ──
+  // Run on all properties — market context is always valuable for offer pricing
+  tasks.push({ agentId: "market_demand_analyzer", payload });
+  rationale.push("Market demand: ALWAYS — comp sales, DOM trends, market direction for offer strategy");
+
+  // ── CONDITIONAL: business entity search ──
+  // Run if: owner name looks like a business entity (LLC, Inc, Corp, Trust, Estate)
+  const ownerNameUpper = ctx.ownerName.toUpperCase();
+  if (
+    ctx.isLlcOwned ||
+    ownerNameUpper.includes("LLC") ||
+    ownerNameUpper.includes("INC") ||
+    ownerNameUpper.includes("CORP") ||
+    ownerNameUpper.includes("TRUST") ||
+    ownerNameUpper.includes("ESTATE") ||
+    ownerNameUpper.includes("LP") ||
+    ownerNameUpper.includes("PARTNERSHIP")
+  ) {
+    tasks.push({ agentId: "business_entity_search", payload });
+    rationale.push(`Business entity search: "${ctx.ownerName}" appears to be a business entity — finding beneficial owners`);
   }
 
   // ── Future: PropertyRadar web navigator ──

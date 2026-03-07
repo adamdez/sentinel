@@ -4221,6 +4221,17 @@ function CompDetailPanel({ comp, onClose }: { comp: CompProperty; onClose: () =>
   const [photos, setPhotos] = useState<string[]>([]);
   const [photoIdx, setPhotoIdx] = useState(0);
   const [loading, setLoading] = useState(false);
+  const [enrichData, setEnrichData] = useState<{
+    saleHistory?: { saleAmount: number; saleDate: string | null; buyer?: string | null; seller?: string | null; pricePerSqft?: number | null }[];
+    assessmentHistory?: { year: number; assessedValue: number; marketValue?: number | null; taxAmount?: number | null }[];
+    avmTrend?: { date: string; value: number }[];
+    rentalAvm?: number | null;
+    rentalAvmHigh?: number | null;
+    rentalAvmLow?: number | null;
+    countySales?: { date: string; price: number; year: number }[];
+  } | null>(null);
+  const [enriching, setEnriching] = useState(false);
+  const [activeEnrichTab, setActiveEnrichTab] = useState<"details" | "history" | "values">("details");
 
   // Build full address for photo lookup
   const fullAddress = [comp.streetAddress, comp.city, comp.state, comp.zip].filter(Boolean).join(", ");
@@ -4251,6 +4262,41 @@ function CompDetailPanel({ comp, onClose }: { comp: CompProperty; onClose: () =>
     return () => { cancelled = true; };
   }, [fullAddress]);
 
+  // Auto-fetch enrichment data (sale history, assessment history, AVM trends, rental AVM)
+  useEffect(() => {
+    if (!comp.apn && !comp.streetAddress) return;
+    let cancelled = false;
+    setEnriching(true);
+    setEnrichData(null);
+    (async () => {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        const address2 = [comp.city, comp.state, comp.zip].filter(Boolean).join(", ");
+        const res = await fetch("/api/comps/enrich", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${session?.access_token ?? ""}`,
+          },
+          body: JSON.stringify({
+            apn: comp.apn || undefined,
+            address: comp.streetAddress || undefined,
+            address2: address2 || undefined,
+            county: comp.county || undefined,
+            state: comp.state || undefined,
+          }),
+        });
+        if (cancelled) return;
+        const data = await res.json();
+        if (data.success) {
+          setEnrichData(data);
+        }
+      } catch { /* ignore — enrichment is best-effort */ }
+      if (!cancelled) setEnriching(false);
+    })();
+    return () => { cancelled = true; };
+  }, [comp.apn, comp.streetAddress, comp.city, comp.state, comp.zip, comp.county]);
+
   // Fallback image sources
   const fallbackSrc = comp.photoUrl
     ?? comp.streetViewUrl
@@ -4259,12 +4305,24 @@ function CompDetailPanel({ comp, onClose }: { comp: CompProperty; onClose: () =>
   const allPhotos = photos.length > 0 ? photos : (fallbackSrc ? [fallbackSrc] : []);
   const safeIdx = allPhotos.length > 0 ? photoIdx % allPhotos.length : 0;
 
+  const hasSaleHistory = (enrichData?.saleHistory?.length ?? 0) > 0;
+  const hasAssessment = (enrichData?.assessmentHistory?.length ?? 0) > 0;
+  const hasAvmTrend = (enrichData?.avmTrend?.length ?? 0) > 0;
+  const hasRental = enrichData?.rentalAvm != null;
+  const hasCountySales = (enrichData?.countySales?.length ?? 0) > 0;
+  const hasEnrichData = hasSaleHistory || hasAssessment || hasAvmTrend || hasRental || hasCountySales;
+
   return (
     <div className="rounded-[10px] border border-cyan/20 bg-[rgba(12,12,22,0.6)] backdrop-blur-xl overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200">
       <div className="flex items-center justify-between px-4 py-2 border-b border-white/[0.06] bg-cyan/[0.04]">
         <p className="text-xs font-semibold flex items-center gap-1.5">
           <Eye className="h-3 w-3 text-cyan" />
           {comp.streetAddress}
+          {comp.source && (
+            <span className="text-[8px] px-1.5 py-0.5 rounded-full bg-white/[0.06] text-muted-foreground font-normal">
+              {comp.source === "propertyradar" ? "PR" : comp.source === "attom" ? "ATTOM" : comp.source === "county_arcgis" ? "County" : comp.source}
+            </span>
+          )}
         </p>
         <button onClick={onClose} className="text-muted-foreground hover:text-white">
           <X className="h-3.5 w-3.5" />
@@ -4336,6 +4394,19 @@ function CompDetailPanel({ comp, onClose }: { comp: CompProperty; onClose: () =>
             {comp.sqft != null && (comp.lastSalePrice ?? comp.avm) ? (
               <div><span className="text-muted-foreground">$/sqft:</span> <span className="font-medium">${Math.round((comp.lastSalePrice ?? comp.avm ?? 0) / comp.sqft)}</span></div>
             ) : null}
+            {hasRental && (
+              <div className="col-span-2 pt-1 border-t border-white/[0.06]">
+                <span className="text-muted-foreground">Rental Est:</span>{" "}
+                <span className="font-medium text-emerald-400">
+                  {formatCurrency(enrichData!.rentalAvm!)}/mo
+                </span>
+                {enrichData!.rentalAvmLow != null && enrichData!.rentalAvmHigh != null && (
+                  <span className="text-[9px] text-muted-foreground ml-1">
+                    ({formatCurrency(enrichData!.rentalAvmLow)} – {formatCurrency(enrichData!.rentalAvmHigh)})
+                  </span>
+                )}
+              </div>
+            )}
           </div>
           <div className="flex flex-wrap gap-1.5 mt-2">
             {comp.isVacant && <span className="px-1.5 py-0.5 rounded text-[9px] bg-amber-500/10 text-amber-400 border border-amber-500/20">Vacant</span>}
@@ -4358,6 +4429,175 @@ function CompDetailPanel({ comp, onClose }: { comp: CompProperty; onClose: () =>
           )}
         </div>
       </div>
+
+      {/* Enhanced data tabs (ATTOM + County) */}
+      {enriching && (
+        <div className="px-4 py-2 border-t border-white/[0.06] flex items-center gap-2 text-[10px] text-muted-foreground">
+          <Loader2 className="h-3 w-3 animate-spin text-cyan" />
+          Loading sale history, valuations & market data…
+        </div>
+      )}
+      {hasEnrichData && (
+        <div className="border-t border-white/[0.06]">
+          {/* Sub-tabs */}
+          <div className="flex border-b border-white/[0.06]">
+            {[
+              { key: "details" as const, label: "Details" },
+              ...(hasSaleHistory || hasCountySales ? [{ key: "history" as const, label: `Sale History (${(enrichData?.saleHistory?.length ?? 0) + (enrichData?.countySales?.length ?? 0)})` }] : []),
+              ...(hasAssessment || hasAvmTrend ? [{ key: "values" as const, label: "Value Trends" }] : []),
+            ].map((tab) => (
+              <button
+                key={tab.key}
+                onClick={() => setActiveEnrichTab(tab.key)}
+                className={cn(
+                  "px-3 py-1.5 text-[10px] font-medium transition-colors",
+                  activeEnrichTab === tab.key
+                    ? "text-cyan border-b border-cyan bg-cyan/[0.04]"
+                    : "text-muted-foreground hover:text-white"
+                )}
+              >
+                {tab.label}
+              </button>
+            ))}
+          </div>
+
+          {/* Sale History tab */}
+          {activeEnrichTab === "history" && (hasSaleHistory || hasCountySales) && (
+            <div className="max-h-40 overflow-y-auto">
+              <table className="w-full text-[10px]">
+                <thead>
+                  <tr className="border-b border-white/[0.06] bg-white/[0.03]">
+                    <th className="text-left px-3 py-1.5 font-medium text-muted-foreground">Date</th>
+                    <th className="text-right px-3 py-1.5 font-medium text-muted-foreground">Price</th>
+                    <th className="text-right px-3 py-1.5 font-medium text-muted-foreground">$/sqft</th>
+                    <th className="text-left px-3 py-1.5 font-medium text-muted-foreground">Buyer</th>
+                    <th className="text-left px-3 py-1.5 font-medium text-muted-foreground">Src</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {enrichData?.saleHistory?.map((s, i) => (
+                    <tr key={`attom-${i}`} className="border-b border-white/[0.06]/50 hover:bg-white/[0.03]">
+                      <td className="px-3 py-1">{s.saleDate ? new Date(s.saleDate).toLocaleDateString("en-US", { month: "short", year: "numeric" }) : "—"}</td>
+                      <td className="px-3 py-1 text-right font-medium">{formatCurrency(s.saleAmount)}</td>
+                      <td className="px-3 py-1 text-right">{s.pricePerSqft ? `$${Math.round(s.pricePerSqft)}` : "—"}</td>
+                      <td className="px-3 py-1 truncate max-w-[120px]">{s.buyer ?? "—"}</td>
+                      <td className="px-3 py-1"><span className="text-[8px] px-1 py-0.5 rounded bg-blue-500/10 text-blue-400">ATTOM</span></td>
+                    </tr>
+                  ))}
+                  {enrichData?.countySales?.map((s, i) => (
+                    <tr key={`county-${i}`} className="border-b border-white/[0.06]/50 hover:bg-white/[0.03]">
+                      <td className="px-3 py-1">{s.date ? new Date(s.date).toLocaleDateString("en-US", { month: "short", year: "numeric" }) : "—"}</td>
+                      <td className="px-3 py-1 text-right font-medium">{formatCurrency(s.price)}</td>
+                      <td className="px-3 py-1 text-right">—</td>
+                      <td className="px-3 py-1">—</td>
+                      <td className="px-3 py-1"><span className="text-[8px] px-1 py-0.5 rounded bg-emerald-500/10 text-emerald-400">County</span></td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+
+          {/* Value Trends tab */}
+          {activeEnrichTab === "values" && (hasAssessment || hasAvmTrend) && (
+            <div className="px-3 py-2 space-y-3 max-h-48 overflow-y-auto">
+              {/* Assessment history */}
+              {hasAssessment && (
+                <div>
+                  <p className="text-[9px] font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">
+                    Assessment History
+                  </p>
+                  <div className="space-y-1">
+                    {enrichData?.assessmentHistory?.slice(0, 5).map((a, i) => {
+                      const prevYear = enrichData.assessmentHistory?.[i + 1];
+                      const pctChange = prevYear?.assessedValue
+                        ? Math.round(((a.assessedValue - prevYear.assessedValue) / prevYear.assessedValue) * 100)
+                        : null;
+                      return (
+                        <div key={a.year} className="flex items-center gap-3 text-[10px]">
+                          <span className="text-muted-foreground w-8">{a.year}</span>
+                          <span className="font-medium flex-1">{formatCurrency(a.assessedValue)}</span>
+                          {a.marketValue != null && (
+                            <span className="text-muted-foreground">Mkt: {formatCurrency(a.marketValue)}</span>
+                          )}
+                          {a.taxAmount != null && (
+                            <span className="text-muted-foreground">Tax: {formatCurrency(a.taxAmount)}</span>
+                          )}
+                          {pctChange != null && (
+                            <span className={cn("text-[9px] font-medium",
+                              pctChange > 0 ? "text-emerald-400" : pctChange < 0 ? "text-red-400" : "text-muted-foreground"
+                            )}>
+                              {pctChange > 0 ? "+" : ""}{pctChange}%
+                            </span>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {/* AVM trend */}
+              {hasAvmTrend && (
+                <div>
+                  <p className="text-[9px] font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">
+                    AVM Trend
+                  </p>
+                  <div className="space-y-1">
+                    {enrichData?.avmTrend?.slice(-5).reverse().map((p, i, arr) => {
+                      const prevPoint = arr[i + 1];
+                      const pctChange = prevPoint
+                        ? Math.round(((p.value - prevPoint.value) / prevPoint.value) * 100)
+                        : null;
+                      return (
+                        <div key={p.date} className="flex items-center gap-3 text-[10px]">
+                          <span className="text-muted-foreground w-20">{new Date(p.date).toLocaleDateString("en-US", { month: "short", year: "numeric" })}</span>
+                          <span className="font-medium text-neon flex-1">{formatCurrency(p.value)}</span>
+                          {pctChange != null && (
+                            <span className={cn("text-[9px] font-medium",
+                              pctChange > 0 ? "text-emerald-400" : pctChange < 0 ? "text-red-400" : "text-muted-foreground"
+                            )}>
+                              {pctChange > 0 ? "+" : ""}{pctChange}%
+                            </span>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Details tab (default — shows when no enrichment sub-tab is active) */}
+          {activeEnrichTab === "details" && hasRental && (
+            <div className="px-3 py-2 text-[10px] space-y-1">
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Monthly Rental Est.</span>
+                <span className="font-medium text-emerald-400">{formatCurrency(enrichData!.rentalAvm!)}/mo</span>
+              </div>
+              {enrichData!.rentalAvmLow != null && (
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Rental Range</span>
+                  <span className="font-medium">{formatCurrency(enrichData!.rentalAvmLow!)} – {formatCurrency(enrichData!.rentalAvmHigh!)}</span>
+                </div>
+              )}
+              {comp.avm && enrichData!.rentalAvm && (
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Gross Rent Multiplier</span>
+                  <span className="font-medium">{(comp.avm / (enrichData!.rentalAvm! * 12)).toFixed(1)}</span>
+                </div>
+              )}
+              {comp.lastSalePrice && enrichData!.rentalAvm && (
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Cap Rate (est.)</span>
+                  <span className="font-medium">{((enrichData!.rentalAvm! * 12 * 0.55) / comp.lastSalePrice * 100).toFixed(1)}%</span>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }

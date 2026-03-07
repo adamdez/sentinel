@@ -40,6 +40,22 @@ const Tooltip = dynamic(
 
 // ── Types ─────────────────────────────────────────────────────────────
 
+export interface CompSaleHistoryEntry {
+  saleAmount: number;
+  saleDate: string | null;
+  buyer?: string | null;
+  seller?: string | null;
+  docType?: string | null;
+  pricePerSqft?: number | null;
+}
+
+export interface CompAssessmentEntry {
+  year: number;
+  assessedValue: number;
+  marketValue?: number | null;
+  taxAmount?: number | null;
+}
+
 export interface CompProperty {
   radarId: string | null;
   apn: string;
@@ -76,6 +92,17 @@ export interface CompProperty {
   isRecentSale: boolean;
   photoUrl?: string | null;
   streetViewUrl?: string | null;
+  // ── Enhanced ATTOM data (populated by /api/comps/enrich) ──
+  saleHistory?: CompSaleHistoryEntry[] | null;
+  assessmentHistory?: CompAssessmentEntry[] | null;
+  avmTrend?: { date: string; value: number }[] | null;
+  rentalAvm?: number | null;
+  rentalAvmHigh?: number | null;
+  rentalAvmLow?: number | null;
+  pricePerSqft?: number | null;
+  // County ArcGIS comp data
+  countySales?: { date: string; price: number; year: number }[] | null;
+  source?: string;
 }
 
 export interface SubjectProperty {

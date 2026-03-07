@@ -590,6 +590,90 @@ export async function enrichProperty(
         }
       }
 
+      // ── Step 2e: County ArcGIS data (free owner + comp sales) ──
+      // For Spokane County: query county ArcGIS REST API for free
+      // owner name verification and historical comp sales data.
+      // This runs AFTER PR + ATTOM, filling gaps they missed.
+      const propertyCounty = (property.county ?? "") as string;
+      try {
+        const { isCountySupported, getSpokaneCountyData } = await import("@/lib/county-data");
+        if (isCountySupported(propertyCounty)) {
+          const countyApn = (property.apn ?? "") as string;
+          if (countyApn) {
+            const countyData = await getSpokaneCountyData(countyApn);
+
+            // Re-fetch owner status (may have been resolved by earlier steps)
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const { data: preCountyProp } = await (sb.from("properties") as any)
+              .select("owner_name, estimated_value, owner_flags")
+              .eq("id", propertyId)
+              .single();
+
+            const countyFlags: Record<string, unknown> = {};
+            let countyUpdates: Record<string, unknown> = {};
+
+            // Owner name from county records (free verification / gap-fill)
+            if (countyData.owner && countyData.owner.ownerName) {
+              const currentOwner = (preCountyProp?.owner_name ?? "").trim();
+              const isUnknownOwner = !currentOwner || currentOwner === "Unknown" ||
+                currentOwner === "Unknown Owner" || currentOwner === "N/A";
+
+              if (isUnknownOwner) {
+                // Gap-fill: county data resolves owner when PR/ATTOM couldn't
+                countyUpdates.owner_name = countyData.owner.ownerName;
+                countyFlags.owner_resolution_method = "county_arcgis";
+                console.log(`[Enrich] County ArcGIS resolved owner: ${countyData.owner.ownerName}`);
+              } else {
+                // Verification: store county owner for cross-reference
+                countyFlags.county_owner_name = countyData.owner.ownerName;
+                countyFlags.county_owner_matches = currentOwner.toUpperCase().includes(
+                  countyData.owner.ownerName.split(",")[0]?.trim().toUpperCase() ?? ""
+                );
+              }
+
+              countyFlags.county_seg_status = countyData.owner.segStatus;
+              countyFlags.county_tax_year = countyData.owner.taxYear;
+            }
+
+            // Comp sales from county (free ARV validation)
+            if (countyData.sales.length > 0) {
+              const latestSale = countyData.sales[0];
+              countyFlags.county_last_sale_price = latestSale.grossSalePrice;
+              countyFlags.county_last_sale_date = latestSale.documentDate;
+              countyFlags.county_sale_count = countyData.sales.length;
+              countyFlags.county_sales_summary = countyData.sales.slice(0, 5).map(s => ({
+                price: s.grossSalePrice,
+                date: s.documentDate,
+                vacant: s.vacantLandFlag,
+              }));
+
+              // If we have no estimated_value, use latest county sale as estimate
+              const currentValue = (preCountyProp?.estimated_value ?? 0) as number;
+              if (currentValue <= 0 && latestSale.grossSalePrice > 0) {
+                countyUpdates.estimated_value = latestSale.grossSalePrice;
+                countyFlags.value_source = "county_last_sale";
+                console.log(`[Enrich] County sale data filled value: $${latestSale.grossSalePrice.toLocaleString()}`);
+              }
+            }
+
+            // Persist county data in owner_flags
+            if (Object.keys(countyFlags).length > 0) {
+              const preFlags = (preCountyProp?.owner_flags ?? {}) as Record<string, unknown>;
+              countyUpdates = {
+                ...countyUpdates,
+                owner_flags: { ...preFlags, county_data: countyFlags, county_data_at: new Date().toISOString() },
+                updated_at: new Date().toISOString(),
+              };
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              await (sb.from("properties") as any).update(countyUpdates).eq("id", propertyId);
+              console.log(`[Enrich] County ArcGIS data persisted for ${countyApn}`);
+            }
+          }
+        }
+      } catch (err) {
+        console.log(`[Enrich] County data lookup skipped: ${err instanceof Error ? err.message : err}`);
+      }
+
       // ── Step 3: MLS re-check ────────────────────────────────────
       const mlsStatus = checkMLSStatus(prResult.pr);
       if (mlsStatus.isListed) {

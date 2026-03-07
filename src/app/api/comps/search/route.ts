@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@/lib/supabase";
 import { getSaleSnapshot, COUNTY_FIPS, type AttomSale } from "@/lib/attom";
+import { querySpokaneRecentSales, isCountySupported } from "@/lib/county-data";
 
 const PR_API_BASE = "https://api.propertyradar.com/v1/properties";
 
@@ -250,6 +251,21 @@ export async function POST(req: NextRequest) {
       });
     }
 
+    // ── Strategy 4: County ArcGIS fallback (free, Spokane only) ────
+    const countyName = county?.replace(/\s+county$/i, "").trim() ?? "";
+    if (isCountySupported(countyName)) {
+      console.log("[Comps] ATTOM returned 0, trying Spokane County ArcGIS");
+      const countyComps = await fetchCountyComps(latNum, lngNum, body.radiusMiles ?? 5);
+      if (countyComps.length > 0) {
+        return NextResponse.json({
+          success: true,
+          count: countyComps.length,
+          source: "county_arcgis",
+          comps: countyComps,
+        });
+      }
+    }
+
     return NextResponse.json({
       success: true,
       count: 0,
@@ -418,6 +434,72 @@ function mapCompSalesResult(r: any) {
     photoUrl: r.PropertyImageUrl ?? null,
     streetViewUrl: r.StreetViewUrl ?? null,
   };
+}
+
+/**
+ * Strategy 4: Spokane County ArcGIS free comp data.
+ * Queries the current year's sales layer — returns arm's-length sales.
+ */
+async function fetchCountyComps(
+  lat: number,
+  lng: number,
+  radiusMiles: number,
+): Promise<Record<string, unknown>[]> {
+  try {
+    const currentYear = new Date().getFullYear();
+    const sales = await querySpokaneRecentSales(currentYear, 200, 50000);
+    if (!sales.length) {
+      // Try previous year if current year is thin
+      const prevSales = await querySpokaneRecentSales(currentYear - 1, 200, 50000);
+      sales.push(...prevSales);
+    }
+
+    console.log(`[Comps] County ArcGIS returned ${sales.length} raw sales`);
+
+    // We don't have lat/lng from county data, so return all and let the UI handle distance
+    // when the subject property is in Spokane County these are relevant nearby sales
+    return sales.map((s) => ({
+      radarId: null,
+      apn: s.parcel,
+      address: `Parcel ${s.parcel}`,
+      streetAddress: `Parcel ${s.parcel}`,
+      city: "Spokane",
+      state: "WA",
+      zip: "",
+      county: "Spokane",
+      lat: null,
+      lng: null,
+      owner: "—",
+      propertyType: s.propUseCode ?? null,
+      beds: null,
+      baths: null,
+      sqft: null,
+      yearBuilt: null,
+      lotSize: null,
+      avm: null,
+      assessedValue: null,
+      equityPercent: null,
+      availableEquity: null,
+      totalLoanBalance: null,
+      lastSalePrice: s.grossSalePrice,
+      lastSaleDate: s.documentDate,
+      lastSaleType: null,
+      isVacant: s.vacantLandFlag,
+      isAbsentee: false,
+      isFreeAndClear: false,
+      isHighEquity: false,
+      isForeclosure: false,
+      isTaxDelinquent: false,
+      isListedForSale: false,
+      isRecentSale: true,
+      photoUrl: null,
+      streetViewUrl: null,
+      source: "county_arcgis",
+    }));
+  } catch (err) {
+    console.error("[Comps] County ArcGIS fallback error:", err);
+    return [];
+  }
 }
 
 function haversine(lat1: number, lng1: number, lat2: number, lng2: number): number {

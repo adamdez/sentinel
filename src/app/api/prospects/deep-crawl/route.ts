@@ -1129,11 +1129,16 @@ function buildGrokSystemPrompt(
     lines.push(
       "1. SYNTHESIZE the research agent findings above with the structured property data. Look for connections: a court filing + a LinkedIn relocation = high motivation to sell.",
       "2. Analyze each distress signal with actual dates, dollar amounts, and timeline pressure. Calculate days until critical deadlines.",
-      "3. Profile the owner's likely mindset, situation, and motivation to sell — use agent findings for depth.",
-      "4. Assess deal economics: equity position, maximum allowable offer (MAO) range assuming 65-70% of ARV minus repairs.",
-      "5. Suggest specific approach strategy and talking points tailored to this owner's situation. Reference specific findings.",
-      "6. Flag any red flags (litigator risk, title issues, environmental concerns, etc).",
-      "7. Cite relevant agent findings in your webFindings array — include the agent's source URLs and dates.",
+      "3. If tax auction data is present, calculate days until auction and redemption deadline — this is the #1 urgency factor.",
+      "4. If lien/title data is present, assess total encumbrance burden vs equity — hidden liens kill deals.",
+      "5. If property condition/rehab data is present, factor estimated repair costs into MAO calculation.",
+      "6. If market demand data is present, use comp sales and DOM trends to refine ARV estimate.",
+      "7. If business entity data is present, identify the actual human decision-maker behind the LLC/Corp/Trust.",
+      "8. Profile the owner's likely mindset, situation, and motivation to sell — use agent findings for depth.",
+      "9. Assess deal economics: equity position, maximum allowable offer (MAO) range assuming 65-70% of ARV minus repairs.",
+      "10. Suggest specific approach strategy and talking points tailored to this owner's situation. Reference specific findings.",
+      "11. Flag any red flags (litigator risk, title issues, environmental concerns, etc).",
+      "12. Cite relevant agent findings in your webFindings array — include the agent's source URLs and dates.",
     );
   } else {
     lines.push(

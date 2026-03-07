@@ -11,6 +11,11 @@
  *   4. Sale Snapshot — recent sales in a geography
  *   5. Foreclosure — pre-foreclosure and auction data
  *   6. Owner Detail — owner demographics and contact
+ *   7. Daily Delta Pull — date range filtered snapshots
+ *   8. Sales History — full sale chain per property (5+ years)
+ *   9. Assessment History — year-over-year assessed/market values
+ *  10. AVM History — historical AVM trajectory over time
+ *  11. Rental AVM — estimated rental value for investor analysis
  *
  * Auth: API key via `apikey` header (env: ATTOM_API_KEY).
  * Base URL: https://api.gateway.attomdata.com/propertyapi/v1.0.0
@@ -553,6 +558,223 @@ export async function pullDailyDelta(
     totalForeclosurePages: Math.min(Math.ceil(allForeclosures.length / pagesize), 2),
     apiCalls,
   };
+}
+
+// ── 8. Sales History (full sale chain per property) ──────────────────
+
+export interface AttomSaleHistoryEntry {
+  amount?: { saleAmt?: number; saleRecDate?: string; saleTransDate?: string };
+  calculation?: { pricePerBed?: number; pricePerSizeUnit?: number };
+  sequenceSaleHistory?: number;
+  sellerName?: string;
+  buyerName?: string;
+  documentType?: string;
+  transactionType?: string;
+}
+
+export interface AttomSaleHistoryProperty {
+  identifier?: AttomProperty["identifier"];
+  address?: AttomProperty["address"];
+  location?: AttomProperty["location"];
+  saleHistory?: AttomSaleHistoryEntry[];
+}
+
+export interface AttomSaleHistoryResponse {
+  status?: { version?: string; code?: number; msg?: string; total?: number; page?: number; pagesize?: number };
+  property?: AttomSaleHistoryProperty[];
+}
+
+/**
+ * Get full sales history for a property (5+ years, multiple transactions).
+ * Returns the complete sale chain: sale amounts, dates, buyer/seller names.
+ * Endpoint: /saleshistory/detail
+ */
+export async function getSalesHistory(
+  apn: string,
+  fips: string,
+): Promise<AttomSaleHistoryProperty | null> {
+  try {
+    const data = await attomFetch<AttomSaleHistoryResponse>(
+      "/saleshistory/detail",
+      { apn, fips },
+    );
+    return data.property?.[0] ?? null;
+  } catch (err) {
+    if (err instanceof AttomApiError && err.status === 404) return null;
+    throw err;
+  }
+}
+
+export async function getSalesHistoryByAddress(
+  address1: string,
+  address2: string,
+): Promise<AttomSaleHistoryProperty | null> {
+  try {
+    const data = await attomFetch<AttomSaleHistoryResponse>(
+      "/saleshistory/detail",
+      { address1, address2 },
+    );
+    return data.property?.[0] ?? null;
+  } catch (err) {
+    if (err instanceof AttomApiError && err.status === 404) return null;
+    throw err;
+  }
+}
+
+// ── 9. Assessment History (year-over-year assessed values) ──────────
+
+export interface AttomAssessmentHistoryEntry {
+  assessed?: {
+    assdImprValue?: number;
+    assdLandValue?: number;
+    assdTtlValue?: number;
+  };
+  market?: {
+    mktImprValue?: number;
+    mktLandValue?: number;
+    mktTtlValue?: number;
+  };
+  tax?: {
+    taxAmt?: number;
+    taxYear?: number;
+  };
+  sequenceAssessmentHistory?: number;
+}
+
+export interface AttomAssessmentHistoryProperty {
+  identifier?: AttomProperty["identifier"];
+  address?: AttomProperty["address"];
+  assessmenthistory?: AttomAssessmentHistoryEntry[];
+}
+
+export interface AttomAssessmentHistoryResponse {
+  status?: { version?: string; code?: number; msg?: string; total?: number; page?: number; pagesize?: number };
+  property?: AttomAssessmentHistoryProperty[];
+}
+
+/**
+ * Get assessment history for a property (year-over-year assessed & market values).
+ * Shows value trends, tax amount changes. Great for spotting declining properties.
+ * Endpoint: /assessmenthistory/detail
+ */
+export async function getAssessmentHistory(
+  apn: string,
+  fips: string,
+): Promise<AttomAssessmentHistoryProperty | null> {
+  try {
+    const data = await attomFetch<AttomAssessmentHistoryResponse>(
+      "/assessmenthistory/detail",
+      { apn, fips },
+    );
+    return data.property?.[0] ?? null;
+  } catch (err) {
+    if (err instanceof AttomApiError && err.status === 404) return null;
+    throw err;
+  }
+}
+
+// ── 10. AVM History (historical AVM trajectory) ─────────────────────
+
+export interface AttomAVMHistoryEntry {
+  amount?: {
+    value?: number;
+    high?: number;
+    low?: number;
+    scr?: number;
+  };
+  eventDate?: string;
+  sequenceAVMHistory?: number;
+}
+
+export interface AttomAVMHistoryProperty {
+  identifier?: AttomProperty["identifier"];
+  address?: AttomProperty["address"];
+  avmhistory?: AttomAVMHistoryEntry[];
+}
+
+export interface AttomAVMHistoryResponse {
+  status?: { version?: string; code?: number; msg?: string; total?: number; page?: number; pagesize?: number };
+  property?: AttomAVMHistoryProperty[];
+}
+
+/**
+ * Get AVM (Automated Valuation Model) history over time.
+ * Shows how estimated value has changed — useful for trend analysis.
+ * Endpoint: /avmhistory/detail
+ */
+export async function getAVMHistory(
+  apn: string,
+  fips: string,
+): Promise<AttomAVMHistoryProperty | null> {
+  try {
+    const data = await attomFetch<AttomAVMHistoryResponse>(
+      "/avmhistory/detail",
+      { apn, fips },
+    );
+    return data.property?.[0] ?? null;
+  } catch (err) {
+    if (err instanceof AttomApiError && err.status === 404) return null;
+    throw err;
+  }
+}
+
+// ── 11. Rental AVM (estimated rental value) ─────────────────────────
+
+export interface AttomRentalAVM {
+  identifier?: AttomProperty["identifier"];
+  address?: AttomProperty["address"];
+  building?: AttomProperty["building"];
+  rentalAvm?: {
+    amount?: {
+      value?: number;
+      high?: number;
+      low?: number;
+      scr?: number;
+    };
+    eventDate?: string;
+  };
+}
+
+export interface AttomRentalAVMResponse {
+  status?: { version?: string; code?: number; msg?: string; total?: number; page?: number; pagesize?: number };
+  property?: AttomRentalAVM[];
+}
+
+/**
+ * Get estimated rental value (Rental AVM) for a property.
+ * Useful for investor analysis: gross rent multiplier, cap rate estimation.
+ * Endpoint: /valuation/rentalavm
+ */
+export async function getRentalAVM(
+  apn: string,
+  fips: string,
+): Promise<AttomRentalAVM | null> {
+  try {
+    const data = await attomFetch<AttomRentalAVMResponse>(
+      "/valuation/rentalavm",
+      { apn, fips },
+    );
+    return data.property?.[0] ?? null;
+  } catch (err) {
+    if (err instanceof AttomApiError && err.status === 404) return null;
+    throw err;
+  }
+}
+
+export async function getRentalAVMByAddress(
+  address1: string,
+  address2: string,
+): Promise<AttomRentalAVM | null> {
+  try {
+    const data = await attomFetch<AttomRentalAVMResponse>(
+      "/valuation/rentalavm",
+      { address1, address2 },
+    );
+    return data.property?.[0] ?? null;
+  } catch (err) {
+    if (err instanceof AttomApiError && err.status === 404) return null;
+    throw err;
+  }
 }
 
 // ── Helpers ──────────────────────────────────────────────────────────
