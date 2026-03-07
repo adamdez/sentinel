@@ -53,12 +53,7 @@ export async function POST(req: NextRequest) {
   // Get all property IDs
   const propertyIds = stagingLeads.map((l: { property_id: string }) => l.property_id).filter(Boolean);
 
-  // Batch fetch all properties
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { data: properties } = await (sb.from("properties") as any)
-    .select("id, owner_name, address, estimated_value, owner_flags")
-    .in("id", propertyIds);
-
+  // Batch fetch properties in chunks of 50 (Supabase URL length limit)
   const propMap = new Map<string, {
     owner_name: string | null;
     address: string | null;
@@ -66,9 +61,20 @@ export async function POST(req: NextRequest) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     owner_flags: Record<string, any> | null;
   }>();
-  for (const p of (properties ?? [])) {
-    propMap.set(p.id, p);
+
+  const CHUNK_SIZE = 50;
+  for (let i = 0; i < propertyIds.length; i += CHUNK_SIZE) {
+    const chunk = propertyIds.slice(i, i + CHUNK_SIZE);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: properties } = await (sb.from("properties") as any)
+      .select("id, owner_name, address, estimated_value, owner_flags")
+      .in("id", chunk);
+    for (const p of (properties ?? [])) {
+      propMap.set(p.id, p);
+    }
   }
+
+  console.log(`[ReEval] Fetched ${propMap.size} properties for ${propertyIds.length} property IDs`);
 
   const promoted: { leadId: string; propertyId: string; address: string; score: number }[] = [];
   const stillStaging: { leadId: string; missing: string[] }[] = [];
