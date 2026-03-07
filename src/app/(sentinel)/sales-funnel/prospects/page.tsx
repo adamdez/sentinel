@@ -128,15 +128,71 @@ function SourceBadge({ source }: { source: string }) {
   );
 }
 
-/** Color-coded distress signal pill */
-function SignalPill({ signal }: { signal: string }) {
+/** Map ForeclosureStage from PR to short label */
+function formatForeclosureStage(stage: string | null | undefined): string | null {
+  if (!stage) return null;
+  const s = stage.toLowerCase();
+  if (s.includes("auction")) return "Auction";
+  if (s.includes("notice of sale") || s.includes("nos")) return "NOS";
+  if (s.includes("notice of default") || s.includes("nod")) return "NOD";
+  if (s.includes("bank") || s.includes("reo")) return "REO";
+  if (s.includes("lis pendens")) return "Lis Pendens";
+  return stage.length > 12 ? stage.slice(0, 10) + "…" : stage;
+}
+
+/** Map stage string to short label */
+function formatStage(stage: string): string {
+  const labels: Record<string, string> = {
+    notice_of_default: "NOD",
+    notice_of_sale: "NOS",
+    auction_scheduled: "Auction",
+    bank_owned: "REO",
+    pre_foreclosure: "Pre-FC",
+    delinquent: "Delinquent",
+    escalating: "Escalating",
+    tax_sale_risk: "Tax Sale Risk",
+    active_filing: "Active",
+    estate_in_probate: "In Probate",
+    active_proceedings: "Active",
+    lien_active: "Active Lien",
+  };
+  return labels[stage] ?? stage.replace(/_/g, " ");
+}
+
+/** Derive stage label for a signal from prospect data */
+function getStageLabel(signal: string, p: ProspectRow): string | null {
+  if (signal === "pre_foreclosure" && p.foreclosure_stage) {
+    return formatForeclosureStage(p.foreclosure_stage);
+  }
+  if (signal === "tax_lien") {
+    const prRaw = (p.owner_flags?.pr_raw ?? {}) as Record<string, unknown>;
+    const installments = prRaw.NumberDelinquentInstallments;
+    if (installments && Number(installments) >= 2) return `${installments} inst.`;
+  }
+  // For other types, check raw_data stage from distress events if available
+  const prRaw = (p.owner_flags?.pr_raw ?? {}) as Record<string, unknown>;
+  if (signal === "bankruptcy" && (prRaw.inBankruptcyProperty === true || prRaw.inBankruptcyProperty === "Yes" || prRaw.inBankruptcyProperty === 1)) {
+    return "Active";
+  }
+  if (signal === "probate" && (prRaw.isDeceasedProperty === true || prRaw.isDeceasedProperty === "Yes" || prRaw.isDeceasedProperty === 1)) {
+    return "In Probate";
+  }
+  if (signal === "divorce" && (prRaw.inDivorce === true || prRaw.inDivorce === "Yes" || prRaw.inDivorce === 1)) {
+    return "Active";
+  }
+  return null;
+}
+
+/** Color-coded distress signal pill with optional stage label */
+function SignalPill({ signal, stageLabel }: { signal: string; stageLabel?: string | null }) {
   // Filter out non-distress tags (like "score-silver")
   const label = DISTRESS_LABELS[signal];
   if (!label) return null;
   const colors = DISTRESS_COLORS[signal] ?? { text: "text-muted-foreground", bg: "bg-white/[0.04]", border: "border-white/[0.08]" };
+  const displayLabel = stageLabel ? `${label}: ${stageLabel}` : label;
   return (
     <span className={cn("text-[9px] px-1.5 py-0.5 rounded border font-medium whitespace-nowrap", colors.text, colors.bg, colors.border)}>
-      {label}
+      {displayLabel}
     </span>
   );
 }
@@ -728,7 +784,7 @@ export default function ProspectsPage() {
                             {validSignals.length > 0 ? (
                               <>
                                 {validSignals.slice(0, 4).map((s) => (
-                                  <SignalPill key={s} signal={s} />
+                                  <SignalPill key={s} signal={s} stageLabel={getStageLabel(s, p)} />
                                 ))}
                                 {validSignals.length > 4 && (
                                   <span className="text-[9px] text-muted-foreground/50 self-center">+{validSignals.length - 4}</span>

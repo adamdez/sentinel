@@ -22,6 +22,16 @@ export interface DetectedSignal {
   severity: number;
   daysSinceEvent: number;
   detectedFrom: string;
+  /** Legal stage (e.g. "notice_of_default", "auction_scheduled", "tax_sale_risk") */
+  stage?: string;
+  /** ISO date when this stage was recorded */
+  stageDate?: string;
+  /** Human-readable next action (e.g. "Auction scheduled", "Tax sale pending") */
+  nextAction?: string;
+  /** ISO date of next escalation event */
+  nextActionDate?: string;
+  /** Dollar amount (default amount, delinquent amount, etc.) */
+  amount?: number;
 }
 
 export interface SignalDetectionResult {
@@ -81,56 +91,121 @@ export function detectDistressSignals(pr: any): SignalDetectionResult {
   // ── Core distress signals ─────────────────────────────────────────
 
   // Probate / Deceased
+  // NOTE: DeceasedDate is NOT a valid PropertyRadar field — PR only provides boolean
   if (isTruthy(pr.isDeceasedProperty)) {
     signals.push({
       type: "probate",
       severity: 9,
-      daysSinceEvent: pr.DeceasedDate ? daysSince(pr.DeceasedDate) : 730,
-      detectedFrom: "isDeceasedProperty",
+      daysSinceEvent: 730, // PR doesn't provide DeceasedDate — default to ~2 years
+      detectedFrom: "pr_probate_active",
+      stage: "estate_in_probate",
+      nextAction: "Deceased owner — estate likely in probate",
     });
   }
 
-  // Pre-foreclosure / Foreclosure
+  // Pre-foreclosure / Foreclosure — with full stage tracking
   if (isTruthy(pr.isPreforeclosure) || isTruthy(pr.inForeclosure)) {
     const defaultAmt = toNumber(pr.DefaultAmount) ?? 0;
+    const foreclosureStage = pr.ForeclosureStage as string | undefined;
+    const isAuction = isTruthy(pr.isAuction);
+
+    // Map PR ForeclosureStage to escalation stages
+    let stage = "pre_foreclosure";
+    let nextAction = "Foreclosure proceedings active";
+    let severity = defaultAmt > 50_000 ? 9 : defaultAmt > 20_000 ? 8 : 7;
+
+    if (isAuction || foreclosureStage?.toLowerCase().includes("auction")) {
+      stage = "auction_scheduled";
+      nextAction = "Property going to auction";
+      severity = 10; // Maximum urgency — auction imminent
+    } else if (foreclosureStage?.toLowerCase().includes("notice of sale") ||
+               foreclosureStage?.toLowerCase().includes("nos")) {
+      stage = "notice_of_sale";
+      nextAction = "Notice of Sale filed — auction upcoming";
+      severity = 9;
+    } else if (foreclosureStage?.toLowerCase().includes("notice of default") ||
+               foreclosureStage?.toLowerCase().includes("nod")) {
+      stage = "notice_of_default";
+      nextAction = "Notice of Default filed — 90-day cure period";
+      severity = Math.max(severity, 7);
+    } else if (isTruthy(pr.isBankOwned)) {
+      stage = "bank_owned";
+      nextAction = "Bank-owned (REO) — may accept discount offers";
+      severity = 6; // Lower urgency, bank already owns it
+    }
+
     signals.push({
       type: "pre_foreclosure",
-      severity: defaultAmt > 50000 ? 9 : 7,
+      severity,
       daysSinceEvent: pr.ForeclosureRecDate ? daysSince(pr.ForeclosureRecDate) : 365,
-      detectedFrom: isTruthy(pr.isPreforeclosure) ? "isPreforeclosure" : "inForeclosure",
+      detectedFrom: `pr_foreclosure_${stage}`,
+      stage,
+      stageDate: pr.ForeclosureRecDate ?? pr.DefaultAsOf ?? undefined,
+      nextAction,
+      amount: defaultAmt || undefined,
     });
   }
 
-  // Tax delinquency
+  // Tax delinquency — with installment escalation tracking
   if (isTruthy(pr.inTaxDelinquency)) {
     const delAmt = toNumber(pr.DelinquentAmount) ?? 0;
+    const installments = toNumber(pr.NumberDelinquentInstallments) ?? 0;
+    const delinquentYear = toNumber(pr.DelinquentYear);
+    const yearsSinceDelinquent = delinquentYear ? (new Date().getFullYear() - delinquentYear) : 0;
+
+    let stage = "delinquent";
+    let nextAction = "Tax delinquent";
+    let severity = delAmt > 10_000 ? 8 : delAmt > 3_000 ? 7 : 6;
+
+    if (installments >= 4 || yearsSinceDelinquent >= 3) {
+      stage = "tax_sale_risk";
+      nextAction = installments > 0
+        ? `${installments} delinquent installments — tax sale risk`
+        : `${yearsSinceDelinquent}+ years delinquent — tax sale risk`;
+      severity = Math.max(severity, 9);
+    } else if (installments >= 2) {
+      stage = "escalating";
+      nextAction = `${installments} delinquent installments — escalating`;
+      severity = Math.max(severity, 7);
+    }
+
     signals.push({
       type: "tax_lien",
-      severity: delAmt > 10000 ? 8 : 6,
-      daysSinceEvent: pr.DelinquentYear
-        ? Math.max(365 * (new Date().getFullYear() - Number(pr.DelinquentYear)), 30)
+      severity,
+      daysSinceEvent: delinquentYear
+        ? Math.max(365 * yearsSinceDelinquent, 30)
         : 365,
-      detectedFrom: "inTaxDelinquency",
+      detectedFrom: `pr_tax_${stage}`,
+      stage,
+      stageDate: delinquentYear ? `${delinquentYear}-01-01` : undefined,
+      nextAction,
+      amount: delAmt || undefined,
     });
   }
 
   // Bankruptcy
+  // NOTE: BankruptcyRecDate is NOT a valid PropertyRadar field — PR only provides boolean
   if (isTruthy(pr.inBankruptcyProperty)) {
     signals.push({
       type: "bankruptcy",
       severity: 8,
-      daysSinceEvent: pr.BankruptcyRecDate ? daysSince(pr.BankruptcyRecDate) : 365,
-      detectedFrom: "inBankruptcyProperty",
+      daysSinceEvent: 365, // PR doesn't provide BankruptcyRecDate
+      detectedFrom: "pr_bankruptcy_active",
+      stage: "active_filing",
+      nextAction: "Active bankruptcy — automatic stay may apply",
     });
   }
 
   // Divorce
+  // NOTE: DivorceRecDate is NOT a valid PropertyRadar field — PR only provides boolean
   if (isTruthy(pr.inDivorce)) {
     signals.push({
       type: "divorce",
       severity: 7,
-      daysSinceEvent: pr.DivorceRecDate ? daysSince(pr.DivorceRecDate) : 365,
-      detectedFrom: "inDivorce",
+      daysSinceEvent: 365, // PR doesn't provide DivorceRecDate
+      detectedFrom: "pr_divorce_active",
+      stage: "active_proceedings",
+      nextAction: "Divorce proceedings — property may need to be sold for settlement",
     });
   }
 
@@ -164,6 +239,8 @@ export function detectDistressSignals(pr: any): SignalDetectionResult {
       severity: 5,
       daysSinceEvent: 90,
       detectedFrom: "PropertyHasOpenLiens",
+      stage: "lien_active",
+      nextAction: "Open lien(s) on property — may escalate to foreclosure",
     });
   }
 

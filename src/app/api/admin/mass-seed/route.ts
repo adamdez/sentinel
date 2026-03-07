@@ -41,7 +41,11 @@ const PR_FIELDS = [
   "isFreeAndClear", "isHighEquity", "isCashBuyer",
   "PropertyHasOpenLiens", "PropertyHasOpenPersonLiens",
   "ForeclosureStage", "ForeclosureRecDate", "DefaultAmount", "DefaultAsOf",
-  "DelinquentYear", "DelinquentAmount",
+  "DelinquentYear", "DelinquentAmount", "NumberDelinquentInstallments",
+  // Foreclosure stage fields
+  "isAuction", "isBankOwned", "isUnderwater",
+  // Composite signal fields (tired_landlord, owner age)
+  "Units", "AdvancedPropertyType", "EstOwnerAge",
   // DeceasedDate, BankruptcyRecDate, DivorceRecDate are NOT valid PR field names
   "Phone1", "Phone2", "Email", "PhoneAvailability", "EmailAvailability",
   "MailAddress", "MailCity", "MailState", "MailZip",

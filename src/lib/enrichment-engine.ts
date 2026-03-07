@@ -107,13 +107,13 @@ const SIGNAL_PR_FLAGS: Record<string, string[]> = {
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function extractEventDate(pr: any, signalType: string): string | null {
   switch (signalType) {
-    case "probate": return pr.DeceasedDate ?? null;
-    case "pre_foreclosure": return pr.ForeclosureRecDate ?? null;
+    case "probate": return null; // DeceasedDate is NOT a valid PR field
+    case "pre_foreclosure": return pr.ForeclosureRecDate ?? pr.DefaultAsOf ?? null;
     case "tax_lien":
       if (pr.DelinquentYear) return `${pr.DelinquentYear}-01-01`;
       return null;
-    case "bankruptcy": return pr.BankruptcyRecDate ?? null;
-    case "divorce": return pr.DivorceRecDate ?? null;
+    case "bankruptcy": return null; // BankruptcyRecDate is NOT a valid PR field
+    case "divorce": return null; // DivorceRecDate is NOT a valid PR field
     default: return null;
   }
 }
@@ -470,11 +470,20 @@ export async function enrichProperty(
           source: "propertyradar",
           severity: signal.severity,
           fingerprint: fp,
-          raw_data: { detected_from: signal.detectedFrom, radar_id: prResult.pr.RadarID },
+          raw_data: {
+            detected_from: signal.detectedFrom,
+            radar_id: prResult.pr.RadarID,
+            // Stage tracking data
+            ...(signal.stage ? { stage: signal.stage } : {}),
+            ...(signal.stageDate ? { stage_date: signal.stageDate } : {}),
+            ...(signal.nextAction ? { next_action: signal.nextAction } : {}),
+            ...(signal.nextActionDate ? { next_action_date: signal.nextActionDate } : {}),
+            ...(signal.amount ? { amount: signal.amount } : {}),
+          },
           confidence: signal.severity >= 7 ? "0.900" : signal.severity >= 4 ? "0.750" : "0.600",
           status: "active",
           last_verified_at: now,
-          event_date: extractEventDate(prResult.pr, signal.type),
+          event_date: signal.stageDate ?? extractEventDate(prResult.pr, signal.type),
         });
         if (evtErr && !isDuplicateError(evtErr)) {
           console.error(`[Enrich] Event insert error (${signal.type}):`, evtErr.message);
@@ -528,6 +537,56 @@ export async function enrichProperty(
           } else {
             console.log(`[Enrich] ATTOM gap-fill failed for ${propertyId}: ${attomGap.error}`);
           }
+        }
+      }
+
+      // ── Step 2d: Mailing address owner resolution ──────────────
+      // If PR has a mailing address different from site address,
+      // the mail recipient is likely the owner (or heir/estate rep).
+      // Try ATTOM lookup on the mailing address to resolve owner name.
+      const prMailAddr = prResult.pr.MailAddress as string | undefined;
+      const prMailCity = prResult.pr.MailCity as string | undefined;
+      const prMailState = prResult.pr.MailState as string | undefined;
+      const prMailZip = prResult.pr.MailZip as string | undefined;
+      const siteAddr = prResult.pr.Address as string | undefined;
+
+      // Re-fetch to check if owner was resolved by ATTOM gap-fill
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data: postGapProp } = await (sb.from("properties") as any)
+        .select("owner_name, owner_flags")
+        .eq("id", propertyId)
+        .single();
+      const stillUnknown = !postGapProp?.owner_name ||
+        postGapProp.owner_name === "Unknown" ||
+        postGapProp.owner_name === "Unknown Owner";
+
+      if (stillUnknown && prMailAddr && prMailAddr !== siteAddr) {
+        console.log(`[Enrich] Mailing address differs (${prMailAddr}) — trying ATTOM lookup on mail address`);
+        try {
+          const { getPropertyDetailByAddress } = await import("@/lib/attom");
+          const mailAddress2 = [prMailCity, prMailState, prMailZip].filter(Boolean).join(", ");
+          const mailProp = await getPropertyDetailByAddress(prMailAddr, mailAddress2);
+
+          if (mailProp) {
+            const mailOwner = mailProp.assessment?.owner?.owner1?.fullName;
+            if (mailOwner) {
+              console.log(`[Enrich] Mailing address ATTOM resolved owner: ${mailOwner}`);
+              const existingFlags2 = (postGapProp?.owner_flags ?? {}) as Record<string, unknown>;
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              await (sb.from("properties") as any).update({
+                owner_name: mailOwner,
+                owner_flags: {
+                  ...existingFlags2,
+                  mail_resolved_owner: mailOwner,
+                  mail_address: { address: prMailAddr, city: prMailCity, state: prMailState, zip: prMailZip },
+                  owner_resolution_method: "mailing_address_attom",
+                },
+                updated_at: new Date().toISOString(),
+              }).eq("id", propertyId);
+            }
+          }
+        } catch (err) {
+          console.log(`[Enrich] Mailing address ATTOM lookup failed: ${err instanceof Error ? err.message : err}`);
         }
       }
 
@@ -1140,6 +1199,17 @@ async function updatePropertyFromPR(sb: any, propertyId: string, pr: any, existi
       ownerFlags.photos = extractedPhotos;
       ownerFlags.photos_fetched_at = now;
     }
+  }
+
+  // Persist mailing address if different from site address (confirms absentee owner)
+  if (pr.MailAddress && pr.MailAddress !== pr.Address) {
+    ownerFlags.mailing_address = {
+      address: pr.MailAddress,
+      city: pr.MailCity ?? "",
+      state: pr.MailState ?? "",
+      zip: pr.MailZip ?? "",
+    };
+    ownerFlags.is_absentee_confirmed = true;
   }
 
   if (isTruthy(pr.isNotSameMailingOrExempt)) ownerFlags.absentee = true;
