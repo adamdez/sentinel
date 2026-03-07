@@ -1791,7 +1791,7 @@ async function runScoringPipelineFromFlags(
   return { composite: score.composite, predictive: predOutput.predictiveScore, blended };
 }
 
-// ── Finalize Lead (score + tag but KEEP in staging) ──────────────────
+// ── Finalize Lead (score + tag → promote if sufficient data) ─────────
 
 async function finalizeEnrichment(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -1807,10 +1807,36 @@ async function finalizeEnrichment(
   const scoreLabelTag = `score-${label}`;
   const signalTags = signals.map((s) => s.type);
 
-  // Auto-promote ALL enriched leads to prospect.
-  // Score determines agent call order (priority), not whether it's a prospect.
-  // Every property from a curated PR list has distress by definition — the list IS the filter.
-  const finalStatus = "prospect";
+  // ── Data sufficiency gate ──────────────────────────────────────────
+  // Properties missing critical info stay in staging for manual review/deletion.
+  // A wholesale agent needs at minimum: owner name + property value + distress signals.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: prop } = await (sb.from("properties") as any)
+    .select("owner_name, estimated_value, address")
+    .eq("id", propertyId)
+    .single();
+
+  const ownerName = (prop?.owner_name ?? "").trim();
+  const hasOwner = ownerName !== "" && ownerName !== "Unknown" && ownerName !== "Unknown Owner" && ownerName !== "N/A";
+  const hasValue = (prop?.estimated_value ?? 0) > 0;
+  const hasSignals = signals.length > 0;
+  const hasAddress = !!(prop?.address && /^\d/.test(prop.address.trim()));
+
+  const missingFields: string[] = [];
+  if (!hasOwner) missingFields.push("owner");
+  if (!hasValue) missingFields.push("value/ARV");
+  if (!hasSignals) missingFields.push("distress signals");
+  if (!hasAddress) missingFields.push("valid address");
+
+  // Promote to prospect only if we have enough actionable data.
+  // Minimum: valid address + owner name + (value OR distress signals).
+  // Without at least address + owner, an agent can't do anything with this lead.
+  const isSufficient = hasAddress && hasOwner && (hasValue || hasSignals);
+  const finalStatus = isSufficient ? "prospect" : "staging";
+
+  const statusNote = isSufficient
+    ? `[auto-promoted]`
+    : `[kept in staging — missing: ${missingFields.join(", ")}]`;
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   await (sb.from("leads") as any)
@@ -1818,7 +1844,7 @@ async function finalizeEnrichment(
       priority: blendedScore,
       status: finalStatus,
       tags: [scoreLabelTag, ...signalTags],
-      notes: `Enriched [${source}] — Heat ${blendedScore} (${label}). ${signals.length} signal(s). Attempts: ${attempts} [auto-promoted]`,
+      notes: `Enriched [${source}] — Heat ${blendedScore} (${label}). ${signals.length} signal(s). Attempts: ${attempts} ${statusNote}`,
       updated_at: new Date().toISOString(),
     })
     .eq("id", leadId);
@@ -1827,7 +1853,7 @@ async function finalizeEnrichment(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   await (sb.from("event_log") as any).insert({
     user_id: SYSTEM_USER_ID,
-    action: "enrichment.auto_promoted",
+    action: isSufficient ? "enrichment.auto_promoted" : "enrichment.kept_staging",
     entity_type: "lead",
     entity_id: leadId,
     details: {
@@ -1838,10 +1864,11 @@ async function finalizeEnrichment(
       signals: signals.length,
       attempts,
       status: finalStatus,
+      ...(missingFields.length > 0 ? { missing_fields: missingFields } : {}),
     },
   });
 
-  console.log(`[Enrich] Lead ${leadId} enriched → prospect: score ${blendedScore} (${label}), source: ${source} [auto-promoted]`);
+  console.log(`[Enrich] Lead ${leadId} enriched → ${finalStatus}: score ${blendedScore} (${label}), source: ${source} ${statusNote}`);
 }
 
 // ── Promote Leads from Staging → Prospect (admin pull) ───────────────
