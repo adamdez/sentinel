@@ -635,6 +635,23 @@ export async function enrichProperty(
                 );
               }
 
+              // Address gap-fill from county records
+              if (countyData.owner.siteAddress) {
+                const currentAddr = (preCountyProp?.address ?? property.address ?? "").trim();
+                const isUnknownAddr = !currentAddr || currentAddr === "Unknown" ||
+                  !isRealStreetAddress(currentAddr);
+                if (isUnknownAddr && isRealStreetAddress(countyData.owner.siteAddress)) {
+                  const countyFullAddr = [
+                    countyData.owner.siteAddress,
+                    countyData.owner.siteState ?? "",
+                    countyData.owner.siteZip ?? "",
+                  ].filter(Boolean).join(", ");
+                  countyUpdates.address = countyFullAddr;
+                  countyFlags.address_resolution_method = "county_arcgis";
+                  console.log(`[Enrich] County ArcGIS resolved address: ${countyFullAddr}`);
+                }
+              }
+
               countyFlags.county_seg_status = countyData.owner.segStatus;
               countyFlags.county_tax_year = countyData.owner.taxYear;
             }
@@ -733,19 +750,125 @@ export async function enrichProperty(
       };
     }
 
-    // ── PropertyRadar failed — try ATTOM fallback ────────────────
+    // ── PropertyRadar failed — aggressive fallback chain ────────
+    // Order: County ArcGIS (FREE) → ATTOM (paid) → existing DB signals
+    // The philosophy: exhaust every source before giving up.
     console.log(`[Enrich] PropertyRadar lookup failed for ${propertyId}: ${prResult.error}`);
 
-    const attomResult = await enrichFromAttom(sb, propertyId, property);
+    // ── Fallback Step A: County ArcGIS (FREE — try first) ──────
+    // If property has a real APN in a supported county, county records
+    // can resolve owner name + address that PR/ATTOM need.
+    const propertyCountyFB = (property.county ?? "") as string;
+    let countyFilled = false;
+    try {
+      const { isCountySupported, getSpokaneCountyData } = await import("@/lib/county-data");
+      if (isCountySupported(propertyCountyFB)) {
+        const countyApnFB = (property.apn ?? "") as string;
+        const isCrawlerApnFB = countyApnFB.startsWith("CRAWL-") || countyApnFB.startsWith("TEMP-");
+        if (countyApnFB && !isCrawlerApnFB) {
+          console.log(`[Enrich] Trying county ArcGIS fallback for APN ${countyApnFB}`);
+          const countyData = await getSpokaneCountyData(countyApnFB);
+
+          const countyFlagsFB: Record<string, unknown> = {};
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          let countyUpdatesFB: Record<string, any> = {};
+
+          // Owner name from county (free gap-fill)
+          if (countyData.owner && countyData.owner.ownerName) {
+            const currentOwner = (property.owner_name ?? "").trim();
+            const isUnknownOwner = !currentOwner || currentOwner === "Unknown" ||
+              currentOwner === "Unknown Owner" || currentOwner === "N/A";
+
+            if (isUnknownOwner) {
+              countyUpdatesFB.owner_name = countyData.owner.ownerName;
+              countyFlagsFB.owner_resolution_method = "county_arcgis_fallback";
+              countyFilled = true;
+              console.log(`[Enrich] County ArcGIS fallback resolved owner: ${countyData.owner.ownerName}`);
+            }
+
+            // Site address from county records (gap-fill for Unknown addresses)
+            if (countyData.owner.siteAddress) {
+              const currentAddr = (property.address ?? "").trim();
+              const isUnknownAddr = !currentAddr || currentAddr === "Unknown" ||
+                !isRealStreetAddress(currentAddr);
+              if (isUnknownAddr) {
+                // Build full address from county fields
+                const countyFullAddr = [
+                  countyData.owner.siteAddress,
+                  countyData.owner.siteState ? `${countyData.owner.siteState}` : "",
+                  countyData.owner.siteZip ?? "",
+                ].filter(Boolean).join(", ");
+                if (isRealStreetAddress(countyData.owner.siteAddress)) {
+                  countyUpdatesFB.address = countyFullAddr;
+                  countyFlagsFB.address_resolution_method = "county_arcgis_fallback";
+                  countyFilled = true;
+                  console.log(`[Enrich] County ArcGIS fallback resolved address: ${countyFullAddr}`);
+                }
+              }
+            }
+
+            countyFlagsFB.county_seg_status = countyData.owner.segStatus;
+            countyFlagsFB.county_tax_year = countyData.owner.taxYear;
+          }
+
+          // Comp sales for value gap-fill
+          if (countyData.sales.length > 0) {
+            const latestSale = countyData.sales[0];
+            countyFlagsFB.county_last_sale_price = latestSale.grossSalePrice;
+            countyFlagsFB.county_last_sale_date = latestSale.documentDate;
+            countyFlagsFB.county_sale_count = countyData.sales.length;
+            countyFlagsFB.county_sales_summary = countyData.sales.slice(0, 5).map(s => ({
+              price: s.grossSalePrice,
+              date: s.documentDate,
+              vacant: s.vacantLandFlag,
+            }));
+
+            const currentValue = (property.estimated_value ?? 0) as number;
+            if (currentValue <= 0 && latestSale.grossSalePrice > 0) {
+              countyUpdatesFB.estimated_value = latestSale.grossSalePrice;
+              countyFlagsFB.value_source = "county_last_sale_fallback";
+              countyFilled = true;
+              console.log(`[Enrich] County fallback filled value: $${latestSale.grossSalePrice.toLocaleString()}`);
+            }
+          }
+
+          // Persist county data
+          if (Object.keys(countyFlagsFB).length > 0) {
+            const preFlagsFB = (property.owner_flags ?? {}) as Record<string, unknown>;
+            countyUpdatesFB = {
+              ...countyUpdatesFB,
+              owner_flags: { ...preFlagsFB, county_data: countyFlagsFB, county_data_at: new Date().toISOString() },
+              updated_at: new Date().toISOString(),
+            };
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            await (sb.from("properties") as any).update(countyUpdatesFB).eq("id", propertyId);
+            console.log(`[Enrich] County ArcGIS fallback data persisted for ${countyApnFB}`);
+          }
+        }
+      }
+    } catch (err) {
+      console.log(`[Enrich] County fallback skipped: ${err instanceof Error ? err.message : err}`);
+    }
+
+    // ── Fallback Step B: ATTOM (with potentially county-updated data) ──
+    // Re-fetch property if county filled gaps — ATTOM needs updated address
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const attomProperty = countyFilled
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      ? ((await (sb.from("properties") as any).select("*").eq("id", propertyId).single()).data ?? property)
+      : property;
+
+    const attomResult = await enrichFromAttom(sb, propertyId, attomProperty);
 
     if (attomResult.success) {
       const signals = attomResult.signals ?? [];
-      const score = await runScoringPipelineFromFlags(sb, propertyId, property, signals);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const freshForScore = (await (sb.from("properties") as any).select("*").eq("id", propertyId).single()).data ?? attomProperty;
+      const score = await runScoringPipelineFromFlags(sb, propertyId, freshForScore, signals);
 
-      // Auto skip-trace disabled — agents trigger manually via "Enrich" button
       console.log(`[Enrich] Skip-trace deferred to manual agent action for ${propertyId} (ATTOM path, score ${score.blended})`);
 
-      await finalizeEnrichment(sb, leadId, propertyId, score.blended, signals, "attom", attempts);
+      await finalizeEnrichment(sb, leadId, propertyId, score.blended, signals, countyFilled ? "county+attom" : "attom", attempts);
 
       return {
         propertyId, leadId, success: true,
@@ -757,8 +880,45 @@ export async function enrichProperty(
       };
     }
 
-    // ── Both failed ─────────────────────────────────────────────
+    // ── Fallback Step C: County-only path ─────────────────────────
+    // Both PR and ATTOM failed, but county may have given us enough data.
+    // Check if we now have owner + address + existing DB signals.
+    // This catches properties where crawlers already found distress events.
     console.log(`[Enrich] ATTOM fallback also failed for ${propertyId}: ${attomResult.error}`);
+
+    // Query existing distress events from crawlers/imports (they count as verified)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: existingSignals } = await (sb.from("distress_events") as any)
+      .select("event_type, severity, created_at, source")
+      .eq("property_id", propertyId)
+      .in("status", ["active", "unknown"])
+      .order("severity", { ascending: false })
+      .limit(20);
+
+    const dbSignals: DetectedSignal[] = (existingSignals ?? []).map((e: { event_type: string; severity: number; created_at: string }) => ({
+      type: e.event_type as DistressType,
+      severity: e.severity,
+      daysSinceEvent: Math.max(1, Math.round((Date.now() - new Date(e.created_at).getTime()) / 86400000)),
+      detectedFrom: "existing_db",
+    }));
+
+    if (countyFilled && dbSignals.length > 0) {
+      // County gave us data AND we have existing signals — try to finalize!
+      console.log(`[Enrich] County-only path: ${dbSignals.length} existing signals found — attempting to score and finalize`);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const freshForCountyScore = (await (sb.from("properties") as any).select("*").eq("id", propertyId).single()).data ?? attomProperty;
+      const score = await runScoringPipelineFromFlags(sb, propertyId, freshForCountyScore, dbSignals);
+      await finalizeEnrichment(sb, leadId, propertyId, score.blended, dbSignals, "county_only", attempts);
+
+      return {
+        propertyId, leadId, success: true,
+        enrichmentSource: "partial" as const,
+        score: score.blended,
+        label: getScoreLabel(score.blended),
+        signalsDetected: dbSignals.length,
+        elapsed_ms: Date.now() - startTime,
+      };
+    }
 
     // Track attempt in owner_flags
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -768,23 +928,24 @@ export async function enrichProperty(
         enrichment_pending: true,
         enrichment_attempts: attempts,
         enrichment_last_attempt: new Date().toISOString(),
-        enrichment_status: "failed",
+        enrichment_status: countyFilled ? "county_partial" : "failed",
+        ...(countyFilled ? { county_fallback_used: true } : {}),
       },
       updated_at: new Date().toISOString(),
     }).eq("id", propertyId);
 
-    // Safety net: after MAX_ATTEMPTS, finalize with partial data (stays in staging)
+    // Safety net: after MAX_ATTEMPTS, finalize with whatever we have
     if (attempts >= MAX_ATTEMPTS) {
-      console.log(`[Enrich] Max attempts (${MAX_ATTEMPTS}) reached for ${propertyId} — finalizing with partial data`);
-      await finalizeEnrichment(sb, leadId, propertyId, lead.priority ?? 30, [], "partial", attempts);
+      console.log(`[Enrich] Max attempts (${MAX_ATTEMPTS}) reached for ${propertyId} — finalizing with partial data (${dbSignals.length} DB signals)`);
+      await finalizeEnrichment(sb, leadId, propertyId, lead.priority ?? 30, dbSignals, "partial", attempts);
 
       return {
         propertyId, leadId, success: false,
         enrichmentSource: "partial",
         score: lead.priority ?? 30,
         label: getScoreLabel(lead.priority ?? 30),
-        signalsDetected: 0,
-        error: `Failed after ${MAX_ATTEMPTS} attempts — finalized with partial data`,
+        signalsDetected: dbSignals.length,
+        error: `Failed after ${MAX_ATTEMPTS} attempts — finalized with partial data (${dbSignals.length} DB signals)`,
         elapsed_ms: Date.now() - startTime,
       };
     }
@@ -1561,22 +1722,40 @@ async function enrichFromAttom(
   if (!attomKey) return { success: false, error: "ATTOM_API_KEY not configured" };
 
   const address = property.address ?? "";
-  if (!address || address === "Unknown") {
-    return { success: false, error: "No address for ATTOM lookup" };
-  }
+  const hasRealAddress = address && address !== "Unknown" && isRealStreetAddress(address);
 
   try {
     // Dynamic import to avoid issues if attom module isn't fully configured
-    const { getPropertyDetailByAddress } = await import("@/lib/attom");
+    const { getPropertyDetailByAddress, getPropertyDetailByAPN } = await import("@/lib/attom");
 
-    // Call ATTOM property detail by address
-    // ATTOM expects address1 (street) and address2 (city, state, zip)
-    const parts = address.split(",").map((s: string) => s.trim());
-    const address1 = parts[0] ?? address;
-    const address2 = parts.slice(1).join(", ") || `${property.city ?? ""} ${property.state ?? ""} ${property.zip ?? ""}`.trim();
-    const detail = await getPropertyDetailByAddress(address1, address2);
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const prop = (detail as any)?.property?.[0];
+    let prop: any = null;
+
+    // Try address-based lookup first
+    if (hasRealAddress) {
+      // ATTOM expects address1 (street) and address2 (city, state, zip)
+      const parts = address.split(",").map((s: string) => s.trim());
+      const address1 = parts[0] ?? address;
+      const address2 = parts.slice(1).join(", ") || `${property.city ?? ""} ${property.state ?? ""} ${property.zip ?? ""}`.trim();
+      const detail = await getPropertyDetailByAddress(address1, address2);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      prop = (detail as any)?.property?.[0] ?? detail;
+    }
+
+    // If address lookup failed/unavailable, try APN-based lookup
+    if (!prop && property.apn && !property.apn.startsWith("CRAWL-") && !property.apn.startsWith("TEMP-") && !property.apn.startsWith("MANUAL-") && !property.apn.startsWith("CSV-")) {
+      const fips = COUNTY_FIPS[normalizeCounty(property.county ?? "", "Unknown")] ?? "";
+      if (fips) {
+        console.log(`[Enrich] ATTOM address lookup ${hasRealAddress ? "failed" : "skipped (no address)"} — trying APN ${property.apn} (FIPS ${fips})`);
+        const apnDetail = await getPropertyDetailByAPN(property.apn, fips);
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        prop = apnDetail as any;
+      }
+    }
+
+    if (!prop && !hasRealAddress) {
+      return { success: false, error: "No address or valid APN for ATTOM lookup" };
+    }
 
     if (!prop) return { success: false, error: "No ATTOM result for address" };
 
@@ -1611,8 +1790,18 @@ async function enrichFromAttom(
 
     // Update owner name if ATTOM has it and current is Unknown
     const attomOwner = prop.assessment?.owner?.owner1?.fullName;
-    if (attomOwner && (property.owner_name === "Unknown" || property.owner_name === "Unknown Owner")) {
+    if (attomOwner && (!property.owner_name || property.owner_name === "Unknown" || property.owner_name === "Unknown Owner" || property.owner_name === "N/A")) {
       update.owner_name = attomOwner;
+    }
+
+    // Address gap-fill from ATTOM when current address is Unknown
+    const attomAddr = prop.address?.oneLine ?? prop.address?.line1;
+    if (attomAddr && (!hasRealAddress)) {
+      update.address = attomAddr;
+      if (prop.address?.locality) update.city = prop.address.locality;
+      if (prop.address?.countrySubd) update.state = prop.address.countrySubd;
+      if (prop.address?.postal1) update.zip = prop.address.postal1;
+      console.log(`[Enrich] ATTOM resolved address: ${attomAddr}`);
     }
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
