@@ -850,6 +850,80 @@ export async function enrichProperty(
       console.log(`[Enrich] County fallback skipped: ${err instanceof Error ? err.message : err}`);
     }
 
+    // ── Fallback Step A.2: Detect signals from existing property data ──
+    // County fills names/addresses but doesn't detect distress. However, we
+    // can infer distress from data already in the DB (mailing address mismatch,
+    // long ownership, tax flags, etc.).
+    const inferredSignals: DetectedSignal[] = [];
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const propForSignals = countyFilled
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        ? ((await (sb.from("properties") as any).select("*").eq("id", propertyId).single()).data ?? property)
+        : property;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const flagsForSignals = (propForSignals.owner_flags ?? {}) as Record<string, any>;
+
+      // Absentee: mailing address differs from site address
+      const siteAddr = ((propForSignals.address ?? "") as string).toLowerCase().replace(/[^a-z0-9]/g, "").slice(0, 20);
+      const mailRaw = flagsForSignals.mailing_address;
+      const mailAddr = (typeof mailRaw === "string" ? mailRaw : typeof mailRaw === "object" && mailRaw?.address ? String(mailRaw.address) : "")
+        .toLowerCase().replace(/[^a-z0-9]/g, "").slice(0, 20);
+      if (siteAddr && mailAddr && siteAddr !== mailAddr) {
+        inferredSignals.push({ type: "absentee" as DistressType, severity: 5, daysSinceEvent: 90, detectedFrom: "data_inference" });
+      }
+
+      // Absentee: county has zero homeowner exemption in a county that offers it
+      const countyDataFlags = flagsForSignals.county_data as Record<string, unknown> | undefined;
+      if (countyDataFlags && typeof countyDataFlags.county_seg_status === "string") {
+        // Some seg statuses indicate issues (e.g., "Inactive", "Exempt")
+        const seg = (countyDataFlags.county_seg_status as string).toLowerCase();
+        if (seg.includes("inactive") || seg.includes("exempt")) {
+          console.log(`[Enrich] County seg_status "${countyDataFlags.county_seg_status}" noted for ${propertyId}`);
+        }
+      }
+
+      // Long ownership → potential tired landlord (only if multi-unit or absentee)
+      const lastSaleDate = flagsForSignals.last_sale_date as string | undefined ??
+        (countyDataFlags?.county_last_sale_date as string | undefined);
+      if (lastSaleDate) {
+        const yearsSinceSale = (Date.now() - new Date(lastSaleDate).getTime()) / (365.25 * 86400000);
+        if (yearsSinceSale >= 15 && inferredSignals.some(s => s.type === "absentee")) {
+          inferredSignals.push({ type: "tired_landlord" as DistressType, severity: 5, daysSinceEvent: 30, detectedFrom: "data_inference" });
+        }
+      }
+
+      // Persist inferred signals to distress_events
+      for (const sig of inferredSignals) {
+        const fp = distressFingerprint(
+          (propForSignals.apn ?? "") as string,
+          (propForSignals.county ?? "") as string,
+          sig.type,
+          "data_inference"
+        );
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const { error: sigErr } = await (sb.from("distress_events") as any).insert({
+          property_id: propertyId,
+          lead_id: leadId ?? null,
+          event_type: sig.type,
+          source: "data_inference",
+          status: "unknown",
+          severity: sig.severity,
+          fingerprint: fp,
+          confidence: "0.600",
+          raw_data: { detected_from: "data_inference", method: sig.type === "absentee" ? "mailing_mismatch" : "long_ownership" },
+        });
+        if (sigErr && !isDuplicateError(sigErr)) {
+          console.error(`[Enrich] Inferred signal insert error (${sig.type}):`, sigErr.message);
+        }
+      }
+      if (inferredSignals.length > 0) {
+        console.log(`[Enrich] Detected ${inferredSignals.length} signals from existing data for ${propertyId}: ${inferredSignals.map(s => s.type).join(", ")}`);
+      }
+    } catch (err) {
+      console.log(`[Enrich] Inferred signal detection error: ${err instanceof Error ? err.message : err}`);
+    }
+
     // ── Fallback Step B: ATTOM (with potentially county-updated data) ──
     // Re-fetch property if county filled gaps — ATTOM needs updated address
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -861,7 +935,7 @@ export async function enrichProperty(
     const attomResult = await enrichFromAttom(sb, propertyId, attomProperty);
 
     if (attomResult.success) {
-      const signals = attomResult.signals ?? [];
+      const signals = [...(attomResult.signals ?? []), ...inferredSignals];
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const freshForScore = (await (sb.from("properties") as any).select("*").eq("id", propertyId).single()).data ?? attomProperty;
       const score = await runScoringPipelineFromFlags(sb, propertyId, freshForScore, signals);
@@ -882,11 +956,10 @@ export async function enrichProperty(
 
     // ── Fallback Step C: County-only path ─────────────────────────
     // Both PR and ATTOM failed, but county may have given us enough data.
-    // Check if we now have owner + address + existing DB signals.
-    // This catches properties where crawlers already found distress events.
+    // Check if we now have owner + address + existing DB signals + inferred signals.
     console.log(`[Enrich] ATTOM fallback also failed for ${propertyId}: ${attomResult.error}`);
 
-    // Query existing distress events from crawlers/imports (they count as verified)
+    // Query existing distress events from crawlers/imports/inferred (they count as verified)
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { data: existingSignals } = await (sb.from("distress_events") as any)
       .select("event_type, severity, created_at, source")
@@ -1807,13 +1880,18 @@ async function enrichFromAttom(
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     await (sb.from("properties") as any).update(update).eq("id", propertyId);
 
-    // Detect signals from ATTOM data
-    const signals: DetectedSignal[] = [];
-    if (prop.summary?.absenteeInd === "Y") {
-      signals.push({ type: "absentee", severity: 5, daysSinceEvent: 60, detectedFrom: "attom_absentee" });
-    }
+    // Detect signals from ATTOM data using the full detection function
+    const { detectAttomDistressSignals } = await import("@/lib/attom");
+    const attomSignals = detectAttomDistressSignals(prop);
+    const signals: DetectedSignal[] = attomSignals.map(s => ({
+      type: s.type as DistressType,
+      severity: s.severity,
+      daysSinceEvent: 60,
+      detectedFrom: s.source,
+    }));
+    // Also check assessed/AVM ratio for tax stress (not in detectAttomDistressSignals)
     if (assessed && avm && (assessed / avm) > 1.5) {
-      signals.push({ type: "tax_lien", severity: 5, daysSinceEvent: 90, detectedFrom: "attom_tax_inference" });
+      signals.push({ type: "tax_lien" as DistressType, severity: 5, daysSinceEvent: 90, detectedFrom: "attom_tax_inference" });
     }
 
     console.log(`[Enrich] Property ${propertyId} enriched from ATTOM (${prop.identifier?.attomId})`);

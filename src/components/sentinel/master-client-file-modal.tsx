@@ -5016,56 +5016,33 @@ function CompsTab({ cf, selectedComps, onAddComp, onRemoveComp, onSkipTrace, com
     );
   }
 
-  if (!lat || !lng) {
-    const handleRetryGeocode = async () => {
-      if (!cf.fullAddress) return;
-      setGeocoding(true);
-      setGeocodeError(null);
-      try {
-        const q = encodeURIComponent(cf.fullAddress);
-        const res = await fetch(
-          `https://nominatim.openstreetmap.org/search?q=${q}&format=json&limit=1`,
-          { headers: { "User-Agent": "SentinelERP/1.0" } },
-        );
-        const data = await res.json();
-        if (data?.[0]?.lat && data?.[0]?.lon) {
-          setGeocodedCoords({ lat: parseFloat(data[0].lat), lng: parseFloat(data[0].lon) });
-        } else {
-          setGeocodeError("Could not geocode — try enriching from PropertyRadar");
-        }
-      } catch {
-        setGeocodeError("Geocoding service unavailable");
-      } finally {
-        setGeocoding(false);
+  const handleRetryGeocode = async () => {
+    if (!cf.fullAddress) return;
+    setGeocoding(true);
+    setGeocodeError(null);
+    try {
+      const q = encodeURIComponent(cf.fullAddress);
+      const res = await fetch(
+        `https://nominatim.openstreetmap.org/search?q=${q}&format=json&limit=1`,
+        { headers: { "User-Agent": "SentinelERP/1.0" } },
+      );
+      const data = await res.json();
+      if (data?.[0]?.lat && data?.[0]?.lon) {
+        setGeocodedCoords({ lat: parseFloat(data[0].lat), lng: parseFloat(data[0].lon) });
+      } else {
+        setGeocodeError("Could not geocode — try enriching from PropertyRadar");
       }
-    };
+    } catch {
+      setGeocodeError("Geocoding service unavailable");
+    } finally {
+      setGeocoding(false);
+    }
+  };
 
-    return (
-      <div className="text-center py-12">
-        <MapPinned className="h-10 w-10 text-muted-foreground mx-auto mb-3" />
-        <p className="text-sm text-muted-foreground mb-2">
-          {geocodeError ?? "No location data available"}
-        </p>
-        <p className="text-xs text-muted-foreground/60 mb-3">
-          This property needs enrichment from PropertyRadar to get latitude/longitude,
-          or you can try geocoding the address.
-        </p>
-        <div className="flex gap-2 justify-center">
-          <Button variant="outline" size="sm" onClick={handleRetryGeocode} className="gap-1.5">
-            <MapPinned className="h-3 w-3" /> Retry Geocode
-          </Button>
-          {onSkipTrace && (
-            <Button variant="outline" size="sm" onClick={onSkipTrace} className="gap-1.5">
-              <Globe className="h-3 w-3" /> Enrich + Skip Trace
-            </Button>
-          )}
-        </div>
-      </div>
-    );
-  }
+  const hasCoords = !!(lat && lng);
 
   const subject: SubjectProperty = {
-    lat, lng, address: cf.fullAddress,
+    lat: lat ?? 0, lng: lng ?? 0, address: cf.fullAddress,
     beds: cf.bedrooms, baths: cf.bathrooms,
     sqft: cf.sqft, yearBuilt: cf.yearBuilt,
     propertyType: cf.propertyType, avm: cf.estimatedValue,
@@ -5104,14 +5081,30 @@ function CompsTab({ cf, selectedComps, onAddComp, onRemoveComp, onSkipTrace, com
         </div>
       </div>
 
-      {/* Interactive map */}
-      <CompsMap
-        subject={subject}
-        selectedComps={selectedComps}
-        onAddComp={onAddComp}
-        onRemoveComp={onRemoveComp}
-        focusedComp={focusedComp}
-      />
+      {/* Interactive map — only when we have coordinates */}
+      {hasCoords ? (
+        <CompsMap
+          subject={subject}
+          selectedComps={selectedComps}
+          onAddComp={onAddComp}
+          onRemoveComp={onRemoveComp}
+          focusedComp={focusedComp}
+        />
+      ) : (
+        <div className="rounded-[10px] border border-amber-500/20 bg-amber-500/5 p-4 text-center">
+          <MapPin className="h-6 w-6 text-amber-400 mx-auto mb-2" />
+          <p className="text-xs font-medium text-amber-300 mb-1">No coordinates available</p>
+          <p className="text-[10px] text-muted-foreground mb-3">Map view requires lat/lng. ARV and deal numbers still work below.</p>
+          <button
+            onClick={handleRetryGeocode}
+            disabled={geocoding}
+            className="px-3 py-1.5 rounded-md text-[10px] font-medium bg-amber-500/15 text-amber-300 hover:bg-amber-500/25 border border-amber-500/20 transition-colors"
+          >
+            {geocoding ? "Geocoding..." : "Try Geocode"}
+          </button>
+          {geocodeError && <p className="text-[10px] text-red-400 mt-2">{geocodeError}</p>}
+        </div>
+      )}
 
       {/* Selected comps table */}
       {selectedComps.length > 0 && (
