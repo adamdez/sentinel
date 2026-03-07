@@ -17,6 +17,11 @@ export const maxDuration = 120;
  *   ?dry=true  — preview only, don't actually promote
  *   ?limit=500 — max leads to evaluate (default 500)
  */
+/** GET handler for Vercel cron — delegates to POST logic */
+export async function GET(req: NextRequest) {
+  return POST(req);
+}
+
 export async function POST(req: NextRequest) {
   const authHeader = req.headers.get("authorization");
   const cronSecret = req.headers.get("x-cron-secret");

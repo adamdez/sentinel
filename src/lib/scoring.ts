@@ -97,7 +97,7 @@ const FRESHNESS_MULTIPLIERS: Record<SignalStatus, number> = {
 
 // ── Owner Factor Weights ────────────────────────────────────────────
 export const OWNER_FACTORS = {
-  absentee: 10,
+  absentee: 0, // v2.2: zeroed — absentee already counted via signal weight (22) + amplifier (1.3×)
   corporate: -3,
   inherited: 8,
   elderly: 4,

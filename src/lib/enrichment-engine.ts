@@ -599,12 +599,12 @@ export async function enrichProperty(
       // This runs AFTER PR + ATTOM, filling gaps they missed.
       const propertyCounty = (property.county ?? "") as string;
       try {
-        const { isCountySupported, getSpokaneCountyData } = await import("@/lib/county-data");
+        const { isCountySupported, getCountyData } = await import("@/lib/county-data");
         if (isCountySupported(propertyCounty)) {
           const countyApn = (property.apn ?? "") as string;
           const isCrawlerApn = countyApn.startsWith("CRAWL-") || countyApn.startsWith("TEMP-");
           if (countyApn && !isCrawlerApn) {
-            const countyData = await getSpokaneCountyData(countyApn);
+            const countyData = await getCountyData(propertyCounty, countyApn);
 
             // Re-fetch owner status (may have been resolved by earlier steps)
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -761,13 +761,13 @@ export async function enrichProperty(
     const propertyCountyFB = (property.county ?? "") as string;
     let countyFilled = false;
     try {
-      const { isCountySupported, getSpokaneCountyData } = await import("@/lib/county-data");
+      const { isCountySupported, getCountyData } = await import("@/lib/county-data");
       if (isCountySupported(propertyCountyFB)) {
         const countyApnFB = (property.apn ?? "") as string;
         const isCrawlerApnFB = countyApnFB.startsWith("CRAWL-") || countyApnFB.startsWith("TEMP-");
         if (countyApnFB && !isCrawlerApnFB) {
           console.log(`[Enrich] Trying county ArcGIS fallback for APN ${countyApnFB}`);
-          const countyData = await getSpokaneCountyData(countyApnFB);
+          const countyData = await getCountyData(propertyCountyFB, countyApnFB);
 
           const countyFlagsFB: Record<string, unknown> = {};
           // eslint-disable-next-line @typescript-eslint/no-explicit-any

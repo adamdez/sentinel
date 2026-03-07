@@ -752,13 +752,17 @@ export async function POST(req: NextRequest) {
                     lead_id: lead_id ?? null,
                     event_type: sd.eventType,
                     source: `openclaw_${f.source}`,
+                    status: "unverified", // AI agents can hallucinate — mark unverified until corroborated
+                    confidence: f.confidence ? String(Math.min(f.confidence * 0.5, 0.5)) : "0.300", // halve AI confidence
                     raw_data: {
                       finding: f.finding,
                       amount: sd.amount,
                       caseNumber: sd.caseNumber,
                       filing_date: sd.filingDate,
                       url: f.url,
-                      confidence: f.confidence,
+                      ai_confidence: f.confidence,
+                      ai_generated: true,
+                      needs_human_verification: true,
                     },
                   }),
                 );

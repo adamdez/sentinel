@@ -42,7 +42,7 @@ const COURT_SOURCES: CourtSource[] = [
   {
     id: "kootenai_district",
     name: "Kootenai County District Court",
-    indexUrl: "https://www.idcourts.us/repository/caseSearch.do?roession=&county=Kootenai",
+    indexUrl: "https://mycourts.idaho.gov/odysseyportal/Home/Dashboard/29",
     county: "Kootenai",
     state: "ID",
     caseTypes: [

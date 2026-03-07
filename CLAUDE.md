@@ -64,7 +64,7 @@ Revenue target: $1,000,000 net profit in 11 months. At ~$25K avg assignment fee,
 ## Environment Variables
 - `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY` — Supabase connection
 - `CRON_SECRET` — Auth for cron/admin endpoints
-- `PROPERTYRADAR_TOKEN` — PropertyRadar API access
+- `PROPERTYRADAR_API_KEY` — PropertyRadar API access
 - `ATTOM_API_KEY` — ATTOM API access (optional — all calls degrade gracefully)
 - `OPENCLAW_API_KEY` — OpenClaw gateway access for AI agents
 - `XAI_API_KEY` — Grok API access for synthesis

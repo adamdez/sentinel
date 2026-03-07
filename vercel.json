@@ -11,6 +11,10 @@
     {
       "path": "/api/cron/daily-verse",
       "schedule": "0 12 * * *"
+    },
+    {
+      "path": "/api/enrichment/re-evaluate",
+      "schedule": "0 4 * * *"
     }
   ]
 }

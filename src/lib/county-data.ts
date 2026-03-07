@@ -360,11 +360,137 @@ export async function getSpokaneCountyData(apn: string): Promise<{
   return { owner, sales };
 }
 
+// ── Kootenai County ArcGIS (kcgov.us) ────────────────────────────────────────
+// Primary: gis.kcgov.us Assessor_Layers/MapServer/6 (TaxParcels D2)
+// Fallback: IDWR state parcels (PIN + OWNER only, always online)
+
+const KC_ASSESSOR_URL =
+  "https://gis.kcgov.us/arcgis/rest/services/Assessor_Layers/MapServer/6/query";
+
+const IDWR_PARCELS_URL =
+  "https://gis.idwr.idaho.gov/hosting/rest/services/Reference/Parcels/MapServer/0/query";
+
+/**
+ * Look up property owner by PIN from Kootenai County GIS.
+ * Tries KC Assessor first, falls back to IDWR state parcels.
+ */
+export async function queryKootenaiOwnerByPIN(
+  pin: string
+): Promise<CountyOwnerData | null> {
+  const normalizedPin = pin.trim();
+
+  // Try KC Assessor first (richer data)
+  try {
+    const data = await queryArcGIS(
+      KC_ASSESSOR_URL,
+      `PIN='${normalizedPin}'`,
+      "PIN,LastName_Primary,Situs_StreetNumber,Situs_Predirectional,Situs_StreetName,Situs_StreetType,AssessValue_Net,AssessValue_Land,AssessValue_Imp,HO_Exemption,PclArea_Acres",
+      1
+    );
+
+    if (data.features?.length) {
+      const attrs = data.features[0].attributes;
+      const streetParts = [
+        attrs.Situs_StreetNumber,
+        attrs.Situs_Predirectional,
+        attrs.Situs_StreetName,
+        attrs.Situs_StreetType,
+      ].filter(Boolean).join(" ");
+
+      const result: CountyOwnerData = {
+        apn: (attrs.PIN as string) ?? normalizedPin,
+        ownerName: (attrs.LastName_Primary as string)?.trim() || null,
+        siteAddress: streetParts || null,
+        taxYear: null,
+        assessmentYear: null,
+        segStatus: null,
+        siteState: "ID",
+        siteZip: null,
+        exemptionAmount: (attrs.HO_Exemption as number) ?? null,
+        rawAttributes: attrs,
+      };
+
+      console.log(
+        `[CountyData] KC Assessor found: ${result.ownerName ?? "no owner"} at ${result.siteAddress ?? "no address"}`
+      );
+      return result;
+    }
+  } catch (err) {
+    console.warn(
+      `[CountyData] KC Assessor query failed for PIN ${normalizedPin}:`,
+      err instanceof Error ? err.message : err
+    );
+  }
+
+  // Fallback: IDWR state-level parcels (PIN + OWNER only)
+  try {
+    const data = await queryArcGIS(
+      IDWR_PARCELS_URL,
+      `PIN='${normalizedPin}' AND COUNTY='Kootenai'`,
+      "PIN,OWNER,COUNTY",
+      1
+    );
+
+    if (data.features?.length) {
+      const attrs = data.features[0].attributes;
+      const result: CountyOwnerData = {
+        apn: (attrs.PIN as string) ?? normalizedPin,
+        ownerName: (attrs.OWNER as string)?.trim() || null,
+        siteAddress: null,
+        taxYear: null,
+        assessmentYear: null,
+        segStatus: null,
+        siteState: "ID",
+        siteZip: null,
+        exemptionAmount: null,
+        rawAttributes: attrs,
+      };
+
+      console.log(
+        `[CountyData] IDWR fallback found: ${result.ownerName ?? "no owner"} for PIN ${normalizedPin}`
+      );
+      return result;
+    }
+  } catch (err) {
+    console.warn(
+      `[CountyData] IDWR parcels query failed for PIN ${normalizedPin}:`,
+      err instanceof Error ? err.message : err
+    );
+  }
+
+  return null;
+}
+
+/**
+ * Full county data lookup for a Kootenai County property.
+ * Owner lookup only (no sales history layers confirmed yet).
+ */
+export async function getKootenaiCountyData(apn: string): Promise<{
+  owner: CountyOwnerData | null;
+  sales: CountySaleRecord[];
+}> {
+  const owner = await queryKootenaiOwnerByPIN(apn);
+  return { owner, sales: [] }; // No confirmed sales layer yet
+}
+
 /**
  * Check if a county is supported for direct ArcGIS queries.
- * Currently only Spokane County, WA is supported.
- * When new counties are added, extend this function.
+ * Supported: Spokane (WA), Kootenai (ID).
  */
 export function isCountySupported(county: string): boolean {
-  return county.toLowerCase().includes("spokane");
+  const c = county.toLowerCase();
+  return c.includes("spokane") || c.includes("kootenai");
+}
+
+/**
+ * Generic county data lookup — routes to the correct county's ArcGIS client.
+ */
+export async function getCountyData(county: string, apn: string): Promise<{
+  owner: CountyOwnerData | null;
+  sales: CountySaleRecord[];
+}> {
+  const c = county.toLowerCase();
+  if (c.includes("spokane")) return getSpokaneCountyData(apn);
+  if (c.includes("kootenai")) return getKootenaiCountyData(apn);
+  return { owner: null, sales: [] };
 }

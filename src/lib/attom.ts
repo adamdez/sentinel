@@ -26,15 +26,25 @@
 
 const ATTOM_BASE = "https://api.gateway.attomdata.com/propertyapi/v1.0.0";
 
-// Spokane County, WA = FIPS 53063 | Kootenai County, ID = FIPS 16055
+// All target market county FIPS codes (WA + ID)
 export const COUNTY_FIPS: Record<string, string> = {
   Spokane: "53063",
   Kootenai: "16055",
+  Bonner: "16017",
+  Latah: "16057",
+  Whitman: "53075",
+  Lincoln: "53043",
+  Stevens: "53065",
 };
 
 export const FIPS_TO_STATE: Record<string, string> = {
   "53063": "WA",
   "16055": "ID",
+  "16017": "ID",
+  "16057": "ID",
+  "53075": "WA",
+  "53043": "WA",
+  "53065": "WA",
 };
 
 // ── Error Class ──────────────────────────────────────────────────────

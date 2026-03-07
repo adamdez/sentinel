@@ -96,7 +96,7 @@ export function detectDistressSignals(pr: any): SignalDetectionResult {
     signals.push({
       type: "probate",
       severity: 9,
-      daysSinceEvent: 730, // PR doesn't provide DeceasedDate — default to ~2 years
+      daysSinceEvent: 14, // PR only provides boolean — assume recent for scoring (recency decay is aggressive)
       detectedFrom: "pr_probate_active",
       stage: "estate_in_probate",
       nextAction: "Deceased owner — estate likely in probate",
@@ -137,7 +137,7 @@ export function detectDistressSignals(pr: any): SignalDetectionResult {
     signals.push({
       type: "pre_foreclosure",
       severity,
-      daysSinceEvent: pr.ForeclosureRecDate ? daysSince(pr.ForeclosureRecDate) : 365,
+      daysSinceEvent: pr.ForeclosureRecDate ? daysSince(pr.ForeclosureRecDate) : 14,
       detectedFrom: `pr_foreclosure_${stage}`,
       stage,
       stageDate: pr.ForeclosureRecDate ?? pr.DefaultAsOf ?? undefined,
@@ -189,7 +189,7 @@ export function detectDistressSignals(pr: any): SignalDetectionResult {
     signals.push({
       type: "bankruptcy",
       severity: 8,
-      daysSinceEvent: 365, // PR doesn't provide BankruptcyRecDate
+      daysSinceEvent: 14, // PR only provides boolean — assume recent for scoring
       detectedFrom: "pr_bankruptcy_active",
       stage: "active_filing",
       nextAction: "Active bankruptcy — automatic stay may apply",
@@ -202,7 +202,7 @@ export function detectDistressSignals(pr: any): SignalDetectionResult {
     signals.push({
       type: "divorce",
       severity: 7,
-      daysSinceEvent: 365, // PR doesn't provide DivorceRecDate
+      daysSinceEvent: 14, // PR only provides boolean — assume recent for scoring
       detectedFrom: "pr_divorce_active",
       stage: "active_proceedings",
       nextAction: "Divorce proceedings — property may need to be sold for settlement",
