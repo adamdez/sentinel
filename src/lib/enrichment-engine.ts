@@ -599,7 +599,8 @@ export async function enrichProperty(
         const { isCountySupported, getSpokaneCountyData } = await import("@/lib/county-data");
         if (isCountySupported(propertyCounty)) {
           const countyApn = (property.apn ?? "") as string;
-          if (countyApn) {
+          const isCrawlerApn = countyApn.startsWith("CRAWL-") || countyApn.startsWith("TEMP-");
+          if (countyApn && !isCrawlerApn) {
             const countyData = await getSpokaneCountyData(countyApn);
 
             // Re-fetch owner status (may have been resolved by earlier steps)

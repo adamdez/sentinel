@@ -258,6 +258,115 @@ const DISTRESS_CFG: Record<string, { label: string; icon: typeof AlertTriangle; 
   underwater:       { label: "Underwater",       icon: AlertTriangle, color: "text-red-400 bg-red-500/10 border-red-500/20" },
 };
 
+/** Urgency tiers for distress signals — determines sort order, visual treatment, and pitch approach */
+type UrgencyTier = "CRITICAL" | "URGENT" | "MODERATE" | "LOW";
+
+interface DistressUrgency {
+  tier: UrgencyTier;
+  /** Estimated days until a hard deadline (auction, hearing, etc.) — null if no deadline */
+  daysUntilCritical: number | null;
+  /** Color classes for the urgency badge */
+  color: string;
+  /** Short pitch suggestion for the agent */
+  pitch: string;
+}
+
+const URGENCY_TIER_STYLES: Record<UrgencyTier, { color: string; badge: string }> = {
+  CRITICAL: { color: "text-red-400 border-red-500/40 bg-red-500/[0.08]", badge: "bg-red-500/20 text-red-400 border-red-500/30 animate-pulse" },
+  URGENT:   { color: "text-orange-400 border-orange-500/30 bg-orange-500/[0.06]", badge: "bg-orange-500/15 text-orange-400 border-orange-500/30" },
+  MODERATE: { color: "text-amber-400 border-amber-500/20 bg-amber-500/[0.04]", badge: "bg-amber-500/10 text-amber-400 border-amber-500/20" },
+  LOW:      { color: "text-slate-400 border-white/[0.06] bg-white/[0.02]", badge: "bg-white/[0.04] text-slate-400 border-white/10" },
+};
+
+/** Calculate urgency tier for a distress event based on type and timing */
+function getDistressUrgency(evtType: string, createdAt: string, rawData?: Record<string, unknown>): DistressUrgency {
+  const daysSinceDetected = Math.floor((Date.now() - new Date(createdAt).getTime()) / 86400000);
+
+  // Extract known deadline dates from raw_data
+  const auctionDate = rawData?.AuctionDate ?? rawData?.auction_date ?? rawData?.sale_date;
+  const hearingDate = rawData?.HearingDate ?? rawData?.hearing_date ?? rawData?.court_date;
+  const deadlineDate = rawData?.deadline ?? rawData?.redemption_deadline;
+  const deadlineStr = auctionDate ?? hearingDate ?? deadlineDate;
+
+  let daysUntilCritical: number | null = null;
+  if (deadlineStr && typeof deadlineStr === "string") {
+    try {
+      daysUntilCritical = Math.max(0, Math.floor((new Date(deadlineStr).getTime() - Date.now()) / 86400000));
+    } catch { /* ignore parse failures */ }
+  }
+
+  // CRITICAL (0-30 days): auction, foreclosure sale, redemption deadline approaching
+  if (evtType === "pre_foreclosure" || evtType === "foreclosure") {
+    if (daysUntilCritical !== null && daysUntilCritical <= 30) {
+      return { tier: "CRITICAL", daysUntilCritical, color: URGENCY_TIER_STYLES.CRITICAL.color, pitch: "Mention timeline pressure — they may lose the property in days" };
+    }
+    if (daysSinceDetected <= 30) {
+      return { tier: "URGENT", daysUntilCritical, color: URGENCY_TIER_STYLES.URGENT.color, pitch: "Position as solution to their foreclosure — time is limited" };
+    }
+    return { tier: "MODERATE", daysUntilCritical, color: URGENCY_TIER_STYLES.MODERATE.color, pitch: "Build urgency around avoiding foreclosure damage to credit" };
+  }
+
+  if (evtType === "tax_lien" || evtType === "tax_delinquency") {
+    const installments = Number(rawData?.NumberDelinquentInstallments ?? 0);
+    if (daysUntilCritical !== null && daysUntilCritical <= 30) {
+      return { tier: "CRITICAL", daysUntilCritical, color: URGENCY_TIER_STYLES.CRITICAL.color, pitch: "Tax auction imminent — emphasize losing the property entirely" };
+    }
+    if (installments >= 3 || daysSinceDetected <= 30) {
+      return { tier: "URGENT", daysUntilCritical, color: URGENCY_TIER_STYLES.URGENT.color, pitch: "Position as way to resolve tax debt before auction" };
+    }
+    return { tier: "MODERATE", daysUntilCritical, color: URGENCY_TIER_STYLES.MODERATE.color, pitch: "Mention accumulating penalties and interest on the tax debt" };
+  }
+
+  if (evtType === "probate" || evtType === "deceased") {
+    if (daysSinceDetected <= 60) {
+      return { tier: "URGENT", daysUntilCritical: null, color: URGENCY_TIER_STYLES.URGENT.color, pitch: "Heirs often want quick liquidation — offer convenience and speed" };
+    }
+    return { tier: "MODERATE", daysUntilCritical: null, color: URGENCY_TIER_STYLES.MODERATE.color, pitch: "Estate may be stalled — offer to simplify the process" };
+  }
+
+  if (evtType === "bankruptcy") {
+    if (daysSinceDetected <= 30) {
+      return { tier: "URGENT", daysUntilCritical: null, color: URGENCY_TIER_STYLES.URGENT.color, pitch: "Motivated to resolve debts — cash offer can help restructure" };
+    }
+    return { tier: "MODERATE", daysUntilCritical: null, color: URGENCY_TIER_STYLES.MODERATE.color, pitch: "Offer a clean sale that simplifies their financial situation" };
+  }
+
+  if (evtType === "divorce") {
+    if (daysSinceDetected <= 60) {
+      return { tier: "URGENT", daysUntilCritical: null, color: URGENCY_TIER_STYLES.URGENT.color, pitch: "Court may force partition sale — offer a quick private alternative" };
+    }
+    return { tier: "MODERATE", daysUntilCritical: null, color: URGENCY_TIER_STYLES.MODERATE.color, pitch: "Position as clean split solution — no Realtor, no showings" };
+  }
+
+  if (evtType === "code_violation" || evtType === "condemned") {
+    if (daysUntilCritical !== null && daysUntilCritical <= 30) {
+      return { tier: "CRITICAL", daysUntilCritical, color: URGENCY_TIER_STYLES.CRITICAL.color, pitch: "Hearing imminent — daily fines may escalate rapidly" };
+    }
+    if (evtType === "condemned") {
+      return { tier: "URGENT", daysUntilCritical, color: URGENCY_TIER_STYLES.URGENT.color, pitch: "Property condemned — offer to buy as-is and save them demo costs" };
+    }
+    return { tier: "MODERATE", daysUntilCritical, color: URGENCY_TIER_STYLES.MODERATE.color, pitch: "Mention accumulating fines — cash offer avoids repair costs" };
+  }
+
+  if (evtType === "water_shutoff") {
+    return { tier: "URGENT", daysUntilCritical: null, color: URGENCY_TIER_STYLES.URGENT.color, pitch: "Utility shutoff signals abandonment — act fast before property degrades" };
+  }
+
+  if (evtType === "underwater") {
+    return { tier: "MODERATE", daysUntilCritical: null, color: URGENCY_TIER_STYLES.MODERATE.color, pitch: "Potential short sale — may need lender approval, be patient" };
+  }
+
+  // LOW urgency: absentee, vacant, tired_landlord, inherited (no deadline), fsbo
+  if (evtType === "vacant" || evtType === "absentee" || evtType === "tired_landlord" || evtType === "fsbo" || evtType === "inherited") {
+    return { tier: "LOW", daysUntilCritical: null, color: URGENCY_TIER_STYLES.LOW.color, pitch: "Long-game approach — build rapport, emphasize convenience over speed" };
+  }
+
+  return { tier: "LOW", daysUntilCritical: null, color: URGENCY_TIER_STYLES.LOW.color, pitch: "Build rapport, learn about their situation before pitching" };
+}
+
+/** Sort order for urgency tiers */
+const URGENCY_SORT: Record<UrgencyTier, number> = { CRITICAL: 0, URGENT: 1, MODERATE: 2, LOW: 3 };
+
 const SCORE_LABEL_CFG: Record<AIScore["label"], { text: string; color: string; bg: string }> = {
   platinum: { text: "PLATINUM", color: "text-cyan-300",    bg: "bg-cyan-400/10 border-cyan-400/30" },
   gold:     { text: "GOLD",    color: "text-amber-400",   bg: "bg-amber-500/10 border-amber-500/30" },
@@ -404,11 +513,11 @@ function ScoreBreakdownModal({ cf, scoreType, onClose }: { cf: ClientFile; score
   const eqPct = cf.equityPercent ?? 0;
   const availableEquity = cf.availableEquity ?? (arv > 0 ? Math.round(arv * eqPct / 100) : 0);
   const rehabEst = 40000;
-  const offerPct = 65;
-  const offer = Math.round(arv * (offerPct / 100));
-  const totalCost = offer + rehabEst;
-  const profit = arv - totalCost;
-  const roi = totalCost > 0 ? Math.round((profit / totalCost) * 100) : 0;
+  const assignFee = 15000;
+  // Wholesale: Buyer's MAO = ARV × 70% − Rehab; Your MAO = Buyer's MAO − Assignment Fee
+  const buyerMaoCalc = Math.round(arv * 0.70 - rehabEst);
+  const yourMaoCalc = Math.round(buyerMaoCalc - assignFee);
+  const wholesaleSpread = assignFee;
 
   return (
     <AnimatePresence>
@@ -565,41 +674,56 @@ function ScoreBreakdownModal({ cf, scoreType, onClose }: { cf: ClientFile; score
                   </p>
                 </div>
 
-                {/* Per-signal detailed breakdown */}
-                {cf.tags.length > 0 ? (
-                  <div className="space-y-1.5">
-                    <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Active Distress Signals</p>
-                    {cf.tags.map((tag) => {
-                      const cfg = DISTRESS_CFG[tag];
-                      const TagIcon = cfg?.icon ?? Tag;
-                      const baseWeight = SIGNAL_WEIGHTS[tag as DistressType] ?? 10;
-                      const factor = factors.find((f) => f.name === tag);
-                      return (
-                        <div key={tag} className="rounded-[8px] border border-white/[0.04] bg-white/[0.02] px-3 py-2.5">
-                          <div className="flex items-center gap-2 mb-1.5">
-                            <TagIcon className={cn("h-3.5 w-3.5", cfg?.color?.split(" ")[0] ?? "text-muted-foreground")} />
-                            <span className={cn("text-xs font-semibold", cfg?.color?.split(" ")[0] ?? "text-foreground")}>{cfg?.label ?? tag}</span>
-                            {factor && <span className="ml-auto font-mono text-xs font-bold text-foreground">+{factor.contribution}</span>}
+                {/* Per-signal detailed breakdown — sorted by urgency */}
+                {cf.tags.length > 0 ? (() => {
+                  // Sort tags by urgency tier
+                  const sortedTags = [...cf.tags].sort((a, b) => {
+                    const urgA = getDistressUrgency(a, new Date().toISOString());
+                    const urgB = getDistressUrgency(b, new Date().toISOString());
+                    return URGENCY_SORT[urgA.tier] - URGENCY_SORT[urgB.tier];
+                  });
+                  return (
+                    <div className="space-y-1.5">
+                      <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Active Distress Signals</p>
+                      {sortedTags.map((tag) => {
+                        const cfg = DISTRESS_CFG[tag];
+                        const TagIcon = cfg?.icon ?? Tag;
+                        const baseWeight = SIGNAL_WEIGHTS[tag as DistressType] ?? 10;
+                        const factor = factors.find((f) => f.name === tag);
+                        const urgency = getDistressUrgency(tag, new Date().toISOString());
+                        const tierStyle = URGENCY_TIER_STYLES[urgency.tier];
+                        return (
+                          <div key={tag} className={cn("rounded-[8px] border px-3 py-2.5", tierStyle.color)}>
+                            <div className="flex items-center gap-2 mb-1.5">
+                              <TagIcon className={cn("h-3.5 w-3.5", cfg?.color?.split(" ")[0] ?? "text-muted-foreground")} />
+                              <span className={cn("text-xs font-semibold", cfg?.color?.split(" ")[0] ?? "text-foreground")}>{cfg?.label ?? tag}</span>
+                              <span className={cn("text-[7px] font-bold px-1.5 py-0 rounded-full border uppercase tracking-widest ml-1", tierStyle.badge)}>
+                                {urgency.tier}
+                              </span>
+                              {factor && <span className="ml-auto font-mono text-xs font-bold text-foreground">+{factor.contribution}</span>}
+                            </div>
+                            <div className="grid grid-cols-3 gap-2 text-[10px]">
+                              <div>
+                                <span className="text-muted-foreground/60">Base Weight</span>
+                                <p className="font-mono font-semibold">{baseWeight}</p>
+                              </div>
+                              <div>
+                                <span className="text-muted-foreground/60">Source</span>
+                                <p className="font-medium">{cf.source}</p>
+                              </div>
+                              <div>
+                                <span className="text-muted-foreground/60">Severity</span>
+                                <p className="font-mono font-semibold">{factor ? Math.round(factor.contribution / baseWeight * 10) / 10 : "—"}×</p>
+                              </div>
+                            </div>
+                            {/* Pitch hint for agents */}
+                            <p className="text-[9px] italic opacity-60 mt-1.5">{urgency.pitch}</p>
                           </div>
-                          <div className="grid grid-cols-3 gap-2 text-[10px]">
-                            <div>
-                              <span className="text-muted-foreground/60">Base Weight</span>
-                              <p className="font-mono font-semibold">{baseWeight}</p>
-                            </div>
-                            <div>
-                              <span className="text-muted-foreground/60">Source</span>
-                              <p className="font-medium">{cf.source}</p>
-                            </div>
-                            <div>
-                              <span className="text-muted-foreground/60">Severity</span>
-                              <p className="font-mono font-semibold">{factor ? Math.round(factor.contribution / baseWeight * 10) / 10 : "—"}×</p>
-                            </div>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                ) : (
+                        );
+                      })}
+                    </div>
+                  );
+                })() : (
                   <div className="text-center py-6 text-xs text-muted-foreground/60">
                     No active distress signals detected
                   </div>
@@ -692,36 +816,32 @@ function ScoreBreakdownModal({ cf, scoreType, onClose }: { cf: ClientFile; score
                   </div>
                 </div>
 
-                {/* Profit projection */}
+                {/* Wholesale profit projection */}
                 {arv > 0 && (
                   <div className="space-y-1.5">
-                    <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Quick Profit Projection</p>
+                    <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Wholesale Spread</p>
                     <div className="rounded-[10px] border border-white/[0.06] bg-white/[0.02] p-3 space-y-1.5 text-xs">
                       <div className="flex justify-between">
                         <span className="text-muted-foreground">ARV</span>
                         <span className="font-mono font-medium">{formatCurrency(arv)}</span>
                       </div>
                       <div className="flex justify-between">
-                        <span className="text-muted-foreground">Offer @ {offerPct}%</span>
-                        <span className="font-mono text-red-400">-{formatCurrency(offer)}</span>
+                        <span className="text-muted-foreground">Buyer{"'"}s MAO (70%)</span>
+                        <span className="font-mono font-medium">{formatCurrency(buyerMaoCalc)}</span>
                       </div>
                       <div className="flex justify-between">
-                        <span className="text-muted-foreground">Rehab Est.</span>
-                        <span className="font-mono text-red-400">-{formatCurrency(rehabEst)}</span>
+                        <span className="text-muted-foreground">Your Offer</span>
+                        <span className="font-mono font-medium">{formatCurrency(yourMaoCalc)}</span>
                       </div>
                       <div className="border-t border-white/[0.06] pt-1.5 mt-1.5 flex justify-between">
-                        <span className="font-semibold">Net Profit</span>
-                        <span className={cn("font-mono font-bold text-lg", profit >= 0 ? "text-neon" : "text-red-400")} style={profit >= 0 ? { textShadow: "0 0 10px rgba(0,212,255,0.25)" } : {}}>
-                          {formatCurrency(profit)}
+                        <span className="font-semibold">Assignment Spread</span>
+                        <span className={cn("font-mono font-bold text-lg", wholesaleSpread >= 0 ? "text-neon" : "text-red-400")} style={wholesaleSpread >= 0 ? { textShadow: "0 0 10px rgba(0,212,255,0.25)" } : {}}>
+                          {formatCurrency(wholesaleSpread)}
                         </span>
-                      </div>
-                      <div className="flex justify-between text-[10px]">
-                        <span className="text-muted-foreground">ROI</span>
-                        <span className={cn("font-mono font-semibold", roi >= 0 ? "text-neon" : "text-red-400")}>{roi}%</span>
                       </div>
                     </div>
                     <p className="text-[9px] text-muted-foreground/40 italic">
-                      Assumptions: {offerPct}% MAO, ${(rehabEst / 1000).toFixed(0)}k rehab, 3% holding, 8% selling costs. Adjust in Offer Calculator tab.
+                      70% rule, ${(rehabEst / 1000).toFixed(0)}k rehab, ${(assignFee / 1000).toFixed(0)}k assignment fee. Adjust in Offer Calculator tab.
                     </p>
                   </div>
                 )}
@@ -1163,6 +1283,41 @@ interface PhoneDetail {
   dnc: boolean;
   carrier?: string;
   source: "propertyradar" | "batchdata" | `openclaw_${string}` | string;
+}
+
+/** Score and rank phones by likelihood of reaching the owner. Higher = better. */
+function rankPhones(phones: PhoneDetail[]): (PhoneDetail & { rankScore: number })[] {
+  return phones
+    .map((p) => {
+      let score = 0;
+
+      // Line type: mobile most likely to answer, voip okay, landline worst
+      if (p.lineType === "mobile") score += 30;
+      else if (p.lineType === "voip") score += 10;
+      else if (p.lineType === "landline") score += 0;
+      else score += 5; // unknown — slightly above landline
+
+      // Confidence: direct contribution (0-100 scale → 0-40 points)
+      score += Math.round((p.confidence ?? 50) * 0.4);
+
+      // Source quality: BatchData most reliable, then OpenClaw, then PropertyRadar
+      if (p.source === "batchdata") score += 15;
+      else if (String(p.source).startsWith("openclaw")) score += 10;
+      else if (p.source === "propertyradar") score += 5;
+
+      // DNC penalty: push to bottom
+      if (p.dnc) score -= 1000;
+
+      return { ...p, rankScore: score };
+    })
+    .sort((a, b) => b.rankScore - a.rankScore);
+}
+
+/** Color class for phone rank score badge */
+function phoneRankColor(score: number): string {
+  if (score >= 65) return "text-emerald-400 border-emerald-500/30";
+  if (score >= 45) return "text-amber-400 border-amber-500/30";
+  return "text-red-400 border-red-500/30";
 }
 
 interface EmailDetail {
@@ -2005,9 +2160,11 @@ function ContactTab({ cf, overlay, onSkipTrace, skipTracing, onDial, onSms, call
 
   // ── Phone & email data ──
   const persons = overlay?.persons ?? (cf.ownerFlags?.persons as Record<string, unknown>[]) ?? [];
-  const phoneDetails: PhoneDetail[] = overlay?.phoneDetails
+  const rawPhoneDetails: PhoneDetail[] = overlay?.phoneDetails
     ?? (cf.ownerFlags?.all_phones as PhoneDetail[] | undefined)?.filter((p) => typeof p === "object" && p !== null && "number" in p)
     ?? [];
+  // Rank phones: mobile > voip > landline, high confidence first, DNC last
+  const phoneDetails = rankPhones(rawPhoneDetails);
   const emailDetails: EmailDetail[] = overlay?.emailDetails
     ?? (cf.ownerFlags?.all_emails as EmailDetail[] | undefined)?.filter((e) => typeof e === "object" && e !== null && "email" in e)
     ?? [];
@@ -2067,7 +2224,9 @@ function ContactTab({ cf, overlay, onSkipTrace, skipTracing, onDial, onSms, call
     if (overlay) {
       const newPhones: string[] = [];
       if (overlay.phoneDetails) {
-        for (const pd of overlay.phoneDetails) newPhones.push(pd.number);
+        // Rank phones before populating slots
+        const ranked = rankPhones(overlay.phoneDetails);
+        for (const pd of ranked) newPhones.push(pd.number);
       } else if (overlay.phones) {
         for (const ph of overlay.phones) newPhones.push(ph);
       }
@@ -2336,8 +2495,14 @@ function ContactTab({ cf, overlay, onSkipTrace, skipTracing, onDial, onSms, call
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-1.5">
                       <span className="text-sm font-bold font-mono text-foreground">{phone}</span>
-                      {i === 0 && <Badge variant="outline" className="text-[7px] py-0 px-1 border-cyan/30 text-cyan">BEST</Badge>}
+                      {i === 0 && !detail?.dnc && <Badge variant="outline" className="text-[7px] py-0 px-1 border-cyan/30 text-cyan">BEST</Badge>}
                       {detail?.dnc && <Badge variant="outline" className="text-[7px] py-0 px-1 border-red-500/30 text-red-400">DNC</Badge>}
+                      {/* Rank score indicator */}
+                      {"rankScore" in (detail ?? {}) && (
+                        <span className={cn("text-[9px] font-mono font-bold", phoneRankColor((detail as PhoneDetail & { rankScore: number }).rankScore))}>
+                          {(detail as PhoneDetail & { rankScore: number }).rankScore}
+                        </span>
+                      )}
                     </div>
                     <div className="flex items-center gap-1.5 mt-0.5">
                       {detail?.lineType && (
@@ -2525,10 +2690,11 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
   const allPhones = overlay?.phones ?? (cf.ownerFlags?.all_phones as string[]) ?? [];
   const allEmails = overlay?.emails ?? (cf.ownerFlags?.all_emails as string[]) ?? [];
 
-  // Rich phone/email details from dual skip-trace
-  const phoneDetails: PhoneDetail[] = overlay?.phoneDetails
+  // Rich phone/email details from dual skip-trace — ranked by contact likelihood
+  const rawPhoneDetailsOverview: PhoneDetail[] = overlay?.phoneDetails
     ?? (cf.ownerFlags?.all_phones as PhoneDetail[] | undefined)?.filter((p) => typeof p === "object" && p !== null && "number" in p)
     ?? [];
+  const phoneDetails = rankPhones(rawPhoneDetailsOverview);
   const emailDetails: EmailDetail[] = overlay?.emailDetails
     ?? (cf.ownerFlags?.all_emails as EmailDetail[] | undefined)?.filter((e) => typeof e === "object" && e !== null && "email" in e)
     ?? [];
@@ -2541,7 +2707,8 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
 
   const { brief, loading: briefLoading, regenerate: regenerateBrief } = usePreCallBrief(cf.id);
 
-  const bestPhone = allPhones[0] ?? (phoneDetails[0]?.number) ?? displayPhone;
+  // Use ranked best phone (not just first phone in insertion order)
+  const bestPhone = (phoneDetails[0]?.number) ?? allPhones[0] ?? displayPhone;
   const phoneConfidence = phoneDetails.length > 0
     ? phoneDetails[0]?.confidence ?? 70
     : allPhones.length >= 3 ? 95 : allPhones.length === 2 ? 80 : allPhones.length === 1 ? 65 : null;
@@ -3042,39 +3209,76 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
               </button>
             )}
           </div>
-          {distressEvents.length > 0 ? (
-            <div className="flex flex-wrap gap-1.5">
-              {distressEvents.slice(0, 6).map((evt) => {
-                const cfg = DISTRESS_CFG[evt.event_type];
-                const EvtIcon = cfg?.icon ?? AlertTriangle;
-                const evtDate = getEventDate(evt);
-                const daysAgo = Math.floor((Date.now() - new Date(evt.created_at).getTime()) / 86400000);
-                const isRecent = daysAgo <= 30;
-                const motivation = getSignalMotivation(evt.event_type, evt.raw_data ?? undefined);
-                return (
-                  <span
-                    key={evt.id}
-                    title={`${motivation}\nPer ${sourceName(evt.source)} · ${evtDate.isActual ? "filed" : "detected"} ${evtDate.date}`}
-                    className={cn(
-                      "inline-flex items-center gap-1 px-2 py-1 rounded-full text-[10px] font-semibold border cursor-default transition-colors",
-                      cfg?.color ?? "text-cyan/70 bg-cyan/[0.06] border-cyan/20",
-                      isRecent && "ring-1 ring-orange-400/30"
-                    )}
-                  >
-                    <EvtIcon className="h-2.5 w-2.5 shrink-0" />
-                    {cfg?.label ?? evt.event_type.replace(/_/g, " ")}
-                    <span className="text-[8px] opacity-60">· {evtDate.date.replace(/\/\d{4}$/, "")}</span>
-                    {isRecent && <Flame className="h-2.5 w-2.5 text-red-400 shrink-0" />}
+          {distressEvents.length > 0 ? (() => {
+            // Sort events by urgency tier (CRITICAL first) then by recency
+            const eventsWithUrgency = distressEvents.map((evt) => ({
+              ...evt,
+              urgency: getDistressUrgency(evt.event_type, evt.created_at, evt.raw_data ?? undefined),
+            })).sort((a, b) => {
+              const tierDiff = URGENCY_SORT[a.urgency.tier] - URGENCY_SORT[b.urgency.tier];
+              if (tierDiff !== 0) return tierDiff;
+              return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+            });
+
+            return (
+              <div className="space-y-1.5">
+                {eventsWithUrgency.slice(0, 8).map((evt) => {
+                  const cfg = DISTRESS_CFG[evt.event_type];
+                  const EvtIcon = cfg?.icon ?? AlertTriangle;
+                  const evtDate = getEventDate(evt);
+                  const tierStyle = URGENCY_TIER_STYLES[evt.urgency.tier];
+                  const countdown = evt.urgency.daysUntilCritical;
+
+                  return (
+                    <div
+                      key={evt.id}
+                      title={evt.urgency.pitch}
+                      className={cn(
+                        "rounded-[8px] border px-2.5 py-1.5 cursor-default transition-colors",
+                        tierStyle.color,
+                        evt.urgency.tier === "CRITICAL" && "ring-1 ring-red-500/40",
+                      )}
+                    >
+                      <div className="flex items-center gap-1.5">
+                        <EvtIcon className="h-3 w-3 shrink-0" />
+                        <span className="text-[10px] font-bold uppercase tracking-wider flex-1">
+                          {cfg?.label ?? evt.event_type.replace(/_/g, " ")}
+                        </span>
+                        {/* Urgency tier badge */}
+                        <span className={cn("text-[7px] font-bold px-1.5 py-0 rounded-full border uppercase tracking-widest", tierStyle.badge)}>
+                          {evt.urgency.tier}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-2 mt-0.5">
+                        <span className="text-[9px] opacity-70">
+                          {evtDate.isActual ? "Filed" : "Detected"} {evtDate.date}
+                        </span>
+                        {countdown !== null && countdown <= 90 && (
+                          <span className={cn(
+                            "text-[9px] font-bold font-mono",
+                            countdown <= 7 ? "text-red-400" : countdown <= 30 ? "text-orange-400" : "text-amber-400",
+                          )}>
+                            {countdown === 0 ? "TODAY" : countdown === 1 ? "TOMORROW" : `${countdown}d left`}
+                          </span>
+                        )}
+                        {/* Pitch hint — only show for CRITICAL/URGENT */}
+                        {(evt.urgency.tier === "CRITICAL" || evt.urgency.tier === "URGENT") && (
+                          <span className="text-[8px] opacity-50 italic truncate flex-1 text-right">
+                            {evt.urgency.pitch.split("—")[0]?.trim()}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+                {eventsWithUrgency.length > 8 && (
+                  <span className="inline-flex items-center px-2 py-1 rounded-full text-[10px] font-semibold border border-white/10 text-muted-foreground bg-white/[0.03]">
+                    +{eventsWithUrgency.length - 8} more
                   </span>
-                );
-              })}
-              {distressEvents.length > 6 && (
-                <span className="inline-flex items-center px-2 py-1 rounded-full text-[10px] font-semibold border border-white/10 text-muted-foreground bg-white/[0.03]">
-                  +{distressEvents.length - 6} more
-                </span>
-              )}
-            </div>
-          ) : (
+                )}
+              </div>
+            );
+          })() : (
             <p className="text-[10px] text-muted-foreground/50">No distress signals detected</p>
           )}
         </div>
@@ -3359,17 +3563,29 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
             )}
           </div>
 
-          {/* Distress type pill badges */}
+          {/* Distress type pill badges — sorted by urgency */}
           {(cf.tags.length > 0 || warningFlags.length > 0) && (
             <div className="flex flex-wrap gap-1.5">
-              {cf.tags.filter((t) => !t.startsWith("score-")).map((tag) => {
+              {[...cf.tags].filter((t) => !t.startsWith("score-"))
+                .sort((a, b) => {
+                  const urgA = getDistressUrgency(a, new Date().toISOString());
+                  const urgB = getDistressUrgency(b, new Date().toISOString());
+                  return URGENCY_SORT[urgA.tier] - URGENCY_SORT[urgB.tier];
+                })
+                .map((tag) => {
                 const cfg = DISTRESS_CFG[tag];
+                const urgency = getDistressUrgency(tag, new Date().toISOString());
+                const tierStyle = URGENCY_TIER_STYLES[urgency.tier];
                 return (
-                  <span key={tag} className={cn(
-                    "text-[9px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider border",
-                    cfg?.color ?? "text-cyan/70 bg-cyan/[0.06] border-cyan/20"
+                  <span key={tag} title={urgency.pitch} className={cn(
+                    "inline-flex items-center gap-1 text-[9px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider border",
+                    tierStyle.color,
+                    urgency.tier === "CRITICAL" && "animate-pulse",
                   )}>
                     {cfg?.label ?? tag.replace(/_/g, " ")}
+                    {urgency.tier !== "LOW" && (
+                      <span className={cn("text-[7px] opacity-80")}>{urgency.tier === "CRITICAL" ? "!!!" : urgency.tier === "URGENT" ? "!!" : "!"}</span>
+                    )}
                   </span>
                 );
               })}
@@ -4697,8 +4913,8 @@ function CompsTab({ cf, selectedComps, onAddComp, onRemoveComp, onSkipTrace, com
 
   // ARV adjustment state
   const [conditionAdj, setConditionAdj] = useState(0);
-  const [offerPct, setOfferPct] = useState(65);
   const [rehabEst, setRehabEst] = useState(40000);
+  const [assignFeeEst, setAssignFeeEst] = useState(15000);
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const oFlagsComps = (cf.ownerFlags ?? {}) as any;
@@ -4784,10 +5000,10 @@ function CompsTab({ cf, selectedComps, onAddComp, onRemoveComp, onSkipTrace, com
   const arv = Math.round(baseArv * (1 + conditionAdj / 100));
   const avgPpsqft = sqftComps.length > 0 ? Math.round(sqftComps.reduce((a, m) => a + m.ppsqft!, 0) / sqftComps.length) : null;
 
-  const offer = Math.round(arv * (offerPct / 100));
-  const totalCost = offer + rehabEst;
-  const profit = arv - totalCost;
-  const roi = totalCost > 0 ? Math.round((profit / totalCost) * 100) : 0;
+  // Wholesale math: Buyer's MAO = ARV × 70% − Rehab; Your MAO = Buyer's MAO − Assignment Fee
+  const compsBuyerMao = Math.round(arv * 0.70 - rehabEst);
+  const compsYourMao = Math.round(compsBuyerMao - assignFeeEst);
+  const compsSpread = assignFeeEst;
 
   useEffect(() => { if (arv > 0) onArvChange(arv); }, [arv, onArvChange]);
 
@@ -5062,7 +5278,7 @@ function CompsTab({ cf, selectedComps, onAddComp, onRemoveComp, onSkipTrace, com
         <div className="rounded-[12px] border border-glass-border bg-secondary/10 p-4">
           <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-3 flex items-center gap-1.5">
             <DollarSign className="h-3 w-3" />
-            Quick Profit Projection
+            Wholesale Spread
           </p>
           <div className="space-y-1 text-xs">
             <div className="flex justify-between">
@@ -5071,28 +5287,31 @@ function CompsTab({ cf, selectedComps, onAddComp, onRemoveComp, onSkipTrace, com
             </div>
             <div className="flex justify-between items-center">
               <span className="text-muted-foreground flex items-center gap-1">
-                Offer
-                <input type="range" min={50} max={80} step={5} value={offerPct} onChange={(e) => setOfferPct(Number(e.target.value))} className="w-14 h-1 accent-[#00d4ff]" />
-                <span className="text-[10px] font-mono w-7 text-right">{offerPct}%</span>
-              </span>
-              <span className="font-medium text-red-400">-{formatCurrency(offer)}</span>
-            </div>
-            <div className="flex justify-between items-center">
-              <span className="text-muted-foreground flex items-center gap-1">
                 Rehab
                 <input type="number" value={rehabEst} onChange={(e) => setRehabEst(Number(e.target.value) || 0)} className="w-16 h-5 text-[10px] text-right bg-white/[0.06] border border-white/[0.1] rounded px-1 font-mono" />
               </span>
               <span className="font-medium text-red-400">-{formatCurrency(rehabEst)}</span>
             </div>
-            <div className="pt-1.5 mt-1.5 border-t border-white/[0.06] flex justify-between">
-              <span className="font-semibold">Net Profit</span>
-              <span className={cn("font-bold text-lg", profit >= 0 ? "text-neon" : "text-red-400")} style={profit >= 0 ? { textShadow: "0 0 10px rgba(0,212,255,0.3)" } : {}}>
-                {formatCurrency(profit)}
-              </span>
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Buyer{"'"}s MAO (70%)</span>
+              <span className="font-medium">{formatCurrency(compsBuyerMao)}</span>
             </div>
-            <div className="flex justify-between text-[10px]">
-              <span className="text-muted-foreground">ROI</span>
-              <span className={cn("font-semibold", roi >= 0 ? "text-neon" : "text-red-400")}>{roi}%</span>
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Your Offer</span>
+              <span className="font-medium">{formatCurrency(compsYourMao)}</span>
+            </div>
+            <div className="flex justify-between items-center">
+              <span className="text-muted-foreground flex items-center gap-1">
+                Assign Fee
+                <input type="number" value={assignFeeEst} onChange={(e) => setAssignFeeEst(Number(e.target.value) || 0)} className="w-16 h-5 text-[10px] text-right bg-white/[0.06] border border-white/[0.1] rounded px-1 font-mono" />
+              </span>
+              <span className="font-medium text-emerald-400">+{formatCurrency(assignFeeEst)}</span>
+            </div>
+            <div className="pt-1.5 mt-1.5 border-t border-white/[0.06] flex justify-between">
+              <span className="font-semibold">Assignment Spread</span>
+              <span className={cn("font-bold text-lg", compsSpread >= 0 ? "text-neon" : "text-red-400")} style={compsSpread >= 0 ? { textShadow: "0 0 10px rgba(0,212,255,0.3)" } : {}}>
+                {formatCurrency(compsSpread)}
+              </span>
             </div>
           </div>
         </div>
@@ -5111,30 +5330,25 @@ function OfferCalcTab({ cf, computedArv }: { cf: ClientFile; computedArv: number
 
   // Auto-fill ARV when Comps tab computes one
   useEffect(() => { if (computedArv > 0) setArv(computedArv.toString()); }, [computedArv]);
-  const defaultMao = bestArv > 0 ? Math.round(bestArv * 0.75 - 40000).toString() : "";
-  const [purchase, setPurchase] = useState(defaultMao);
   const [rehab, setRehab] = useState("40000");
-  const [holdMonths, setHoldMonths] = useState("3");
-  const [monthlyHold, setMonthlyHold] = useState("1500");
-  const [closing, setClosing] = useState("5000");
   const [assignmentFee, setAssignmentFee] = useState("15000");
+  const [closing, setClosing] = useState("3000");
 
   const arvNum = parseFloat(arv) || 0;
-  const purchaseNum = parseFloat(purchase) || 0;
   const rehabNum = parseFloat(rehab) || 0;
-  const holdNum = (parseFloat(holdMonths) || 0) * (parseFloat(monthlyHold) || 0);
-  const closingNum = parseFloat(closing) || 0;
   const feeNum = parseFloat(assignmentFee) || 0;
+  const closingNum = parseFloat(closing) || 0;
 
-  const mao = arvNum > 0 ? Math.round(arvNum * 0.75 - rehabNum) : 0;
-  const totalCosts = purchaseNum + rehabNum + holdNum + closingNum;
-  const grossProfit = arvNum - totalCosts;
-  const netProfit = grossProfit - feeNum;
-  const roi = totalCosts > 0 && purchaseNum > 0 ? ((grossProfit / totalCosts) * 100).toFixed(1) : null;
+  // Wholesale math: Buyer's MAO = ARV × 70% − Rehab
+  const buyerMao = arvNum > 0 ? Math.round(arvNum * 0.70 - rehabNum) : 0;
+  // Your MAO = Buyer's MAO − Your Assignment Fee
+  const yourMao = buyerMao > 0 ? Math.round(buyerMao - feeNum) : 0;
+  // If you offer at Your MAO, your spread = assignment fee
+  const assignmentSpread = feeNum;
 
   return (
     <div className="space-y-4">
-      <Section title="Deal Inputs" icon={Calculator}>
+      <Section title="Wholesale Deal Inputs" icon={Calculator}>
         {computedArv > 0 && (
           <div className="flex items-center gap-1.5 text-[10px] text-cyan/70 mb-2">
             <CheckCircle2 className="h-3 w-3" />
@@ -5143,50 +5357,53 @@ function OfferCalcTab({ cf, computedArv }: { cf: ClientFile; computedArv: number
         )}
         <div className="grid grid-cols-2 gap-3">
           <NumericInput label="ARV (After Repair Value)" value={arv} onChange={setArv} prefix="$" min={0} />
-          <NumericInput label="Purchase Price" value={purchase} onChange={setPurchase} prefix="$" min={0} />
           <NumericInput label="Rehab Estimate" value={rehab} onChange={setRehab} prefix="$" min={0} />
-          <NumericInput label="Closing Costs" value={closing} onChange={setClosing} prefix="$" min={0} />
-          <NumericInput label="Holding Period (months)" value={holdMonths} onChange={setHoldMonths} min={0} max={60} allowDecimals={false} />
-          <NumericInput label="Monthly Holding Cost" value={monthlyHold} onChange={setMonthlyHold} prefix="$" min={0} />
-          <NumericInput label="Assignment Fee Target" value={assignmentFee} onChange={setAssignmentFee} prefix="$" min={0} />
+          <NumericInput label="Assignment Fee" value={assignmentFee} onChange={setAssignmentFee} prefix="$" min={0} />
+          <NumericInput label="Closing / Earnest" value={closing} onChange={setClosing} prefix="$" min={0} />
         </div>
       </Section>
 
-      <Section title="Profit Projection" icon={TrendingUp}>
+      <Section title="Wholesale Profit Projection" icon={TrendingUp}>
         <div className="grid grid-cols-2 gap-3">
           <div className="rounded-lg border border-cyan/20 bg-cyan/4 p-3 text-center">
-            <p className="text-[10px] text-muted-foreground uppercase">MAO (75% Rule)</p>
+            <p className="text-[10px] text-muted-foreground uppercase">Buyer{"'"}s MAO</p>
             <p className="text-xl font-bold text-neon" style={{ textShadow: "0 0 10px rgba(0,212,255,0.3)" }}>
-              {mao > 0 ? formatCurrency(mao) : "—"}
+              {buyerMao > 0 ? formatCurrency(buyerMao) : "—"}
             </p>
-            <p className="text-[10px] text-muted-foreground mt-0.5">ARV × 0.75 − Rehab</p>
+            <p className="text-[10px] text-muted-foreground mt-0.5">ARV × 70% − Rehab</p>
           </div>
-          <div className="rounded-[10px] border border-white/[0.06] bg-white/[0.04] p-3 text-center">
-            <p className="text-[10px] text-muted-foreground uppercase">Total Costs</p>
-            <p className="text-xl font-bold">{totalCosts > 0 ? formatCurrency(totalCosts) : "—"}</p>
-            <p className="text-[10px] text-muted-foreground mt-0.5">Purchase + Rehab + Hold + Close</p>
-          </div>
-          <div className={cn("rounded-[10px] border p-3 text-center", grossProfit > 0 ? "border-emerald-500/30 bg-emerald-500/5" : "border-red-500/30 bg-red-500/5")}>
-            <p className="text-[10px] text-muted-foreground uppercase">Gross Profit</p>
-            <p className={cn("text-xl font-bold", grossProfit > 0 ? "text-emerald-400" : "text-red-400")}>
-              {arvNum > 0 && purchaseNum > 0 ? formatCurrency(grossProfit) : "—"}
+          <div className="rounded-lg border border-emerald-500/20 bg-emerald-500/4 p-3 text-center">
+            <p className="text-[10px] text-muted-foreground uppercase">Your MAO (Offer)</p>
+            <p className={cn("text-xl font-bold", yourMao > 0 ? "text-emerald-400" : "text-red-400")} style={yourMao > 0 ? { textShadow: "0 0 10px rgba(0,255,136,0.3)" } : undefined}>
+              {yourMao > 0 ? formatCurrency(yourMao) : "—"}
             </p>
-            <p className="text-[10px] text-muted-foreground mt-0.5">ROI: {roi != null ? `${roi}%` : "—"}</p>
+            <p className="text-[10px] text-muted-foreground mt-0.5">Buyer{"'"}s MAO − Assignment Fee</p>
           </div>
-          <div className={cn("rounded-lg border p-3 text-center", netProfit > 0 ? "border-cyan/20 bg-cyan/4" : "border-red-500/30 bg-red-500/5")}>
-            <p className="text-[10px] text-muted-foreground uppercase">Net After Assignment</p>
-            <p className={cn("text-xl font-bold", netProfit > 0 ? "text-neon" : "text-red-400")} style={netProfit > 0 ? { textShadow: "0 0 10px rgba(0,212,255,0.3)" } : undefined}>
-              {arvNum > 0 && purchaseNum > 0 ? formatCurrency(netProfit) : "—"}
+          <div className={cn("rounded-[10px] border p-3 text-center col-span-2", assignmentSpread > 0 ? "border-cyan/20 bg-cyan/4" : "border-white/[0.06] bg-white/[0.04]")}>
+            <p className="text-[10px] text-muted-foreground uppercase">Assignment Spread</p>
+            <p className={cn("text-2xl font-bold", assignmentSpread > 0 ? "text-neon" : "text-muted-foreground")} style={assignmentSpread > 0 ? { textShadow: "0 0 12px rgba(0,212,255,0.4)" } : undefined}>
+              {assignmentSpread > 0 ? formatCurrency(assignmentSpread) : "—"}
             </p>
-            <p className="text-[10px] text-muted-foreground mt-0.5">Gross − Assignment Fee</p>
+            <p className="text-[10px] text-muted-foreground mt-0.5">Your profit on this assignment</p>
           </div>
         </div>
+        <p className="text-[9px] text-muted-foreground/50 italic mt-2">
+          70% rule: Cash buyer pays ARV × 70% minus rehab. You make the assignment fee spread.
+        </p>
       </Section>
 
-      {purchaseNum > mao && mao > 0 && (
-        <div className="flex items-center gap-2 text-xs text-amber-400 bg-amber-500/5 border border-amber-500/20 rounded-md px-3 py-2">
+      {yourMao < 0 && arvNum > 0 && (
+        <div className="flex items-center gap-2 text-xs text-red-400 bg-red-500/5 border border-red-500/20 rounded-md px-3 py-2">
           <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
-          Purchase price exceeds MAO by {formatCurrency(purchaseNum - mao)} — negotiate lower or increase ARV.
+          Negative MAO — rehab costs exceed the deal margin. Lower rehab estimate or increase ARV.
+        </div>
+      )}
+
+      {buyerMao > 0 && arvNum > 0 && (
+        <div className="rounded-[10px] border border-white/[0.06] bg-white/[0.02] p-3 text-[10px] text-muted-foreground space-y-1">
+          <p className="font-semibold text-foreground/80 mb-1">Script Helper</p>
+          <p>{"\""}I can offer you <span className="font-bold text-neon">{formatCurrency(yourMao)}</span> for the property at {cf.fullAddress}. That{"'"}s a cash offer, close in 2-3 weeks, no inspections, we handle all closing costs.{"\""}
+          </p>
         </div>
       )}
     </div>
