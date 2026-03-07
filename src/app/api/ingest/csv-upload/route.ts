@@ -225,7 +225,12 @@ export async function POST(request: NextRequest) {
     // Group by normalized owner + county
     const ownerGroups = new Map<string, typeof importedProperties>();
     for (const p of importedProperties) {
-      const key = `${normalizeOwnerForGrouping(p.ownerName)}::${p.county.toLowerCase()}`;
+      const normalized = normalizeOwnerForGrouping(p.ownerName);
+      // Don't group "Unknown" / "Unknown Owner" — they're different people
+      // who will be resolved individually by ATTOM gap-fill during post-enrich.
+      if (!normalized || normalized === "unknown" || normalized === "unknown owner") continue;
+
+      const key = `${normalized}::${p.county.toLowerCase()}`;
       const group = ownerGroups.get(key) ?? [];
       group.push(p);
       ownerGroups.set(key, group);

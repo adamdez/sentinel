@@ -481,6 +481,56 @@ export async function enrichProperty(
         }
       }
 
+      // ── Step 2c: ATTOM gap-fill for partial PR matches ────────
+      // PR matched the property but may lack owner name or AVM —
+      // call ATTOM to fill those gaps without re-running signals.
+      const prOwner = prResult.pr.Owner ?? prResult.pr.Taxpayer;
+      const prAVM = prResult.pr.AVM;
+      const needsGapFill = !prOwner || prOwner === "Unknown" || !prAVM;
+
+      if (needsGapFill) {
+        console.log(
+          `[Enrich] PR match partial (owner=${prOwner ?? "null"}, AVM=${prAVM ?? "null"}) — trying ATTOM gap-fill for ${propertyId}`
+        );
+        // Re-fetch property to get latest data after PR update
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const { data: freshProp } = await (sb.from("properties") as any)
+          .select("*")
+          .eq("id", propertyId)
+          .single();
+
+        if (freshProp) {
+          const attomGap = await enrichFromAttom(sb, propertyId, freshProp);
+          if (attomGap.success) {
+            console.log(`[Enrich] ATTOM gap-fill succeeded for ${propertyId}`);
+            // Merge any ATTOM-discovered signals into the current batch
+            if (attomGap.signals?.length) {
+              for (const sig of attomGap.signals) {
+                const attomFp = distressFingerprint(apn, county, sig.type, "attom");
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                const { error: attomEvtErr } = await (sb.from("distress_events") as any).insert({
+                  property_id: propertyId,
+                  event_type: sig.type,
+                  source: "attom",
+                  severity: sig.severity,
+                  fingerprint: attomFp,
+                  raw_data: { detected_from: sig.detectedFrom },
+                  confidence: sig.severity >= 7 ? "0.900" : "0.600",
+                  status: "active",
+                  last_verified_at: now,
+                });
+                if (attomEvtErr && !isDuplicateError(attomEvtErr)) {
+                  console.error(`[Enrich] ATTOM event insert error (${sig.type}):`, attomEvtErr.message);
+                }
+                signals.push(sig);
+              }
+            }
+          } else {
+            console.log(`[Enrich] ATTOM gap-fill failed for ${propertyId}: ${attomGap.error}`);
+          }
+        }
+      }
+
       // ── Step 3: MLS re-check ────────────────────────────────────
       const mlsStatus = checkMLSStatus(prResult.pr);
       if (mlsStatus.isListed) {
@@ -716,7 +766,7 @@ async function enrichFromPropertyRadar(
   if (!address || address === "Unknown" || address.startsWith("APN ")) {
     // If no address, try APN lookup
     if (property.apn && !property.apn.startsWith("MANUAL-") && !property.apn.startsWith("CSV-") && !isCrawlerRecord) {
-      return enrichByAPN(apiKey, sb, propertyId, property.apn, property.county);
+      return enrichByAPN(apiKey, sb, propertyId, property.apn, property.county, property);
     }
     return { success: false, error: "No valid address or APN for lookup" };
   }
@@ -754,7 +804,30 @@ async function enrichFromPropertyRadar(
     const pr = prData.results?.[0];
 
     if (!pr) {
+      // Address not found — fall back to APN if available
+      const hasRealAPN = property.apn && !property.apn.startsWith("MANUAL-") && !property.apn.startsWith("CSV-") && !isCrawlerRecord;
+      if (hasRealAPN) {
+        console.log(`[Enrich] PR address miss — falling back to APN ${property.apn}`);
+        return enrichByAPN(apiKey, sb, propertyId, property.apn, property.county, property);
+      }
       return { success: false, error: "No property found in PropertyRadar" };
+    }
+
+    // Address found but sparse — try APN supplement if owner is missing
+    const hasOwner = pr.Owner || pr.Taxpayer;
+    const hasRealAPN = property.apn && !property.apn.startsWith("MANUAL-") && !property.apn.startsWith("CSV-") && !isCrawlerRecord;
+    if (!hasOwner && hasRealAPN) {
+      console.log(`[Enrich] PR address match has no owner — trying APN supplement for ${property.apn}`);
+      const apnResult = await enrichByAPN(apiKey, sb, propertyId, property.apn, property.county, property);
+      if (apnResult.success && apnResult.pr) {
+        const apnOwner = apnResult.pr.Owner ?? apnResult.pr.Taxpayer;
+        if (apnOwner) {
+          console.log(`[Enrich] APN lookup found owner: ${apnOwner}`);
+          return apnResult; // Use the richer APN result
+        }
+      }
+      // APN didn't help either — fall through to use the original address result
+      console.log(`[Enrich] APN supplement also has no owner — using address result`);
     }
 
     // Update property with enriched data
@@ -773,6 +846,8 @@ async function enrichByAPN(
   propertyId: string,
   apn: string,
   county?: string,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  existingProperty?: Record<string, any>,
 ): Promise<PREnrichResult> {
   try {
     const criteria: { name: string; value: (string | number)[] }[] = [
@@ -804,8 +879,7 @@ async function enrichByAPN(
       return { success: false, error: "No property found by APN" };
     }
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    await updatePropertyFromPR(sb, propertyId, pr, {} as any);
+    await updatePropertyFromPR(sb, propertyId, pr, existingProperty ?? {});
     return { success: true, pr };
   } catch (err) {
     return { success: false, error: err instanceof Error ? err.message : String(err) };
