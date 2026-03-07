@@ -19,6 +19,8 @@
  * Accepts: multipart/form-data with CSV file + JSON metadata.
  */
 
+export const maxDuration = 300; // 5 min — large CSV imports need time
+
 import { NextRequest, NextResponse } from "next/server";
 import Papa from "papaparse";
 import { createHash } from "crypto";
