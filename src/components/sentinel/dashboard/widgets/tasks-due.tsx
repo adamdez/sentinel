@@ -1,6 +1,7 @@
 "use client";
 
 import { motion } from "framer-motion";
+import type { ComponentType } from "react";
 import {
   AlertCircle,
   Clock,
@@ -15,37 +16,32 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useMorningQueue, type QueueBucket } from "@/hooks/use-morning-queue";
+import { formatDueDateLabel } from "@/lib/due-date-label";
 
-// ── Icon map for each queue bucket ──────────────────────────────────────
-
-const BUCKET_ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
+const BUCKET_ICONS: Record<string, ComponentType<{ className?: string }>> = {
   "new-inbound": Phone,
   "offers-pending": DollarSign,
   "due-today": Clock,
-  "overdue": AlertCircle,
+  overdue: AlertCircle,
   "needs-qualification": ClipboardCheck,
   "comps-to-run": Calculator,
-  "escalations": ShieldAlert,
+  escalations: ShieldAlert,
   "stale-nurture": Leaf,
 };
 
-// ── Navigation helper — go to leads page with the lead selected ───
-
 function openLead(leadId: string) {
-  // Navigate to leads page — the lead list will show it.
-  // If we're already on leads, this is a no-op; otherwise it routes there.
   window.location.href = `/leads?open=${leadId}`;
 }
 
-// ── Compact row for a single lead in a bucket ─────────────────────────
-
-function QueueRow({ item, idx }: { item: { leadId: string; address: string; ownerName: string; dueAt: string | null }; idx: number }) {
-  const overdue = item.dueAt ? new Date(item.dueAt) < new Date() : false;
-  const timeLabel = item.dueAt
-    ? overdue
-      ? "OVERDUE"
-      : new Date(item.dueAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })
-    : "—";
+function QueueRow({
+  item,
+  idx,
+}: {
+  item: { leadId: string; address: string; ownerName: string; dueAt: string | null };
+  idx: number;
+}) {
+  const due = formatDueDateLabel(item.dueAt);
+  const dueLabel = due.text === "n/a" ? "No due date" : due.text;
 
   return (
     <motion.button
@@ -56,14 +52,20 @@ function QueueRow({ item, idx }: { item: { leadId: string; address: string; owne
       className="w-full flex items-center justify-between text-[11px] py-0.5 px-1 rounded hover:bg-white/5 transition-colors text-left"
     >
       <span className="truncate flex-1 mr-2">{item.address || item.ownerName}</span>
-      <span className={overdue ? "text-red-400 font-bold shrink-0" : "text-muted-foreground shrink-0"}>
-        {timeLabel}
+      <span
+        className={
+          due.overdue
+            ? "text-red-400 font-semibold shrink-0"
+            : due.urgent
+              ? "text-yellow-300 shrink-0"
+              : "text-muted-foreground shrink-0"
+        }
+      >
+        {dueLabel}
       </span>
     </motion.button>
   );
 }
-
-// ── Single bucket summary chip ────────────────────────────────────────
 
 function BucketChip({ bucket, idx }: { bucket: QueueBucket; idx: number }) {
   const Icon = BUCKET_ICONS[bucket.key] ?? CheckCircle2;
@@ -78,17 +80,12 @@ function BucketChip({ bucket, idx }: { bucket: QueueBucket; idx: number }) {
     >
       <Icon className="h-3 w-3 mb-0.5 text-muted-foreground" />
       <p className="text-lg font-black leading-none">{bucket.count}</p>
-      <Badge
-        variant={dimmed ? "outline" : bucket.variant}
-        className="text-[7px] mt-0.5 px-1"
-      >
+      <Badge variant={dimmed ? "outline" : bucket.variant} className="text-[7px] mt-0.5 px-1">
         {bucket.label}
       </Badge>
     </motion.div>
   );
 }
-
-// ── Main widget component ─────────────────────────────────────────────
 
 export function TasksDue() {
   const { buckets, loading, isAdmin } = useMorningQueue();
@@ -103,27 +100,26 @@ export function TasksDue() {
     );
   }
 
-  // Filter admin-only buckets for non-admins
   const visibleBuckets = buckets.filter((b) => !b.adminOnly || isAdmin);
   const totalDue = visibleBuckets.reduce((s, b) => s + b.count, 0);
-
-  // Top priority bucket with items to show expanded
   const topBucket = visibleBuckets.find((b) => b.count > 0 && b.items.length > 0);
 
   return (
     <div className="space-y-2.5">
-      {/* Priority grid — 4 per row */}
+      <p className="text-[10px] text-muted-foreground/65">
+        Daily order: Overdue, Due Today, Needs Qualification, then New Inbound.
+      </p>
+
       <div className="grid grid-cols-4 gap-1.5">
         {visibleBuckets.map((bucket, i) => (
           <BucketChip key={bucket.key} bucket={bucket} idx={i} />
         ))}
       </div>
 
-      {/* Expanded preview of the top-priority non-empty bucket */}
       {topBucket && topBucket.items.length > 0 && (
         <div className="space-y-0.5">
           <p className="text-[10px] uppercase tracking-widest text-muted-foreground">
-            {topBucket.label} — Top {Math.min(topBucket.items.length, 4)}
+            {topBucket.label} - Top {Math.min(topBucket.items.length, 4)}
           </p>
           {topBucket.items.slice(0, 4).map((item, i) => (
             <QueueRow key={item.leadId || i} item={item} idx={i} />
@@ -133,7 +129,7 @@ export function TasksDue() {
 
       {totalDue === 0 && (
         <div className="text-center py-3 text-xs text-muted-foreground">
-          Queue clear — no action items right now.
+          Queue clear - no due follow-up work right now.
         </div>
       )}
     </div>

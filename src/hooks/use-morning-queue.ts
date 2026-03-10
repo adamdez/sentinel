@@ -60,13 +60,19 @@ export function useMorningQueue() {
       const allLeads: any[] = leadsRes.data ?? [];
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const allTasks: any[] = tasksRes.data ?? [];
+      const scopedLeads = isAdmin
+        ? allLeads
+        : allLeads.filter((l) => !l.assigned_to || l.assigned_to === currentUser.id);
+      const scopedTasks = isAdmin
+        ? allTasks
+        : allTasks.filter((t) => !t.assigned_to || t.assigned_to === currentUser.id);
 
       const propIds = new Set<string>();
-      allLeads.forEach((l) => {
+      scopedLeads.forEach((l) => {
         if (l.property_id) propIds.add(l.property_id);
       });
 
-      const taskLeadIds = allTasks.map((t) => t.lead_id).filter(Boolean);
+      const taskLeadIds = scopedTasks.map((t) => t.lead_id).filter(Boolean);
       if (taskLeadIds.length > 0) {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const { data: taskLeads } = await (supabase.from("leads") as any)
@@ -104,44 +110,44 @@ export function useMorningQueue() {
         };
       };
 
-      const newInbound = allLeads.filter(
+      const newInbound = scopedLeads.filter(
         (l) => (l.status === "lead" || l.status === "prospect") && new Date(l.created_at) >= startOfDay,
       );
 
-      const offersPending = allLeads.filter(
+      const offersPending = scopedLeads.filter(
         (l) => l.qualification_route === "offer_ready" && (l.status === "negotiation" || l.status === "disposition"),
       );
 
       const { dueTodayLeadIds, overdueLeadIds } = classifyQueueDueWork({
-        leads: allLeads,
-        tasks: allTasks,
+        leads: scopedLeads,
+        tasks: scopedTasks,
         now,
       });
 
-      const followUpsDueToday = allLeads.filter(
+      const followUpsDueToday = scopedLeads.filter(
         (l) => dueTodayLeadIds.has(l.id) && l.status !== "dead" && l.status !== "closed",
       );
 
-      const overdue = allLeads.filter(
+      const overdue = scopedLeads.filter(
         (l) => overdueLeadIds.has(l.id) && l.status !== "dead" && l.status !== "closed",
       );
 
-      const needsQualification = allLeads.filter(
+      const needsQualification = scopedLeads.filter(
         (l) => l.status === "lead" && !l.qualification_route && (l.total_calls ?? 0) > 0,
       );
 
-      const compsToRun = allTasks.filter((t) => {
+      const compsToRun = scopedTasks.filter((t) => {
         const text = `${t.title ?? ""} ${t.description ?? ""}`.toLowerCase();
         return text.includes("comp");
       });
 
-      const escalations = allTasks.filter((t) => {
+      const escalations = scopedTasks.filter((t) => {
         const text = `${t.title ?? ""} ${t.description ?? ""}`.toLowerCase();
         const looksEscalated = text.includes("escalation") || text.includes("adam review");
         return looksEscalated && t.assigned_to === currentUser.id;
       });
 
-      const staleNurture = allLeads.filter((l) => {
+      const staleNurture = scopedLeads.filter((l) => {
         if (l.status !== "nurture") return false;
         const followUp = getEffectiveFollowUpAt(l);
         if (!followUp) return true;
@@ -175,6 +181,27 @@ export function useMorningQueue() {
 
       const result: QueueBucket[] = [
         {
+          key: "overdue",
+          label: "Overdue",
+          count: overdue.length,
+          items: overdue.slice(0, 5).map((l) => toItem(l)),
+          variant: "destructive",
+        },
+        {
+          key: "due-today",
+          label: "Due Today",
+          count: followUpsDueToday.length,
+          items: followUpsDueToday.slice(0, 5).map((l) => toItem(l)),
+          variant: "neon",
+        },
+        {
+          key: "needs-qualification",
+          label: "Needs Qualification",
+          count: needsQualification.length,
+          items: needsQualification.slice(0, 5).map((l) => toItem(l)),
+          variant: "secondary",
+        },
+        {
           key: "new-inbound",
           label: "New Inbound",
           count: newInbound.length,
@@ -189,25 +216,12 @@ export function useMorningQueue() {
           variant: "cyan",
         },
         {
-          key: "due-today",
-          label: "Due Today",
-          count: followUpsDueToday.length,
-          items: followUpsDueToday.slice(0, 5).map((l) => toItem(l)),
-          variant: "neon",
-        },
-        {
-          key: "overdue",
-          label: "Overdue",
-          count: overdue.length,
-          items: overdue.slice(0, 5).map((l) => toItem(l)),
+          key: "escalations",
+          label: "Escalations",
+          count: escalations.length,
+          items: escalations.slice(0, 5).map(taskToItem),
           variant: "destructive",
-        },
-        {
-          key: "needs-qualification",
-          label: "Needs Qual",
-          count: needsQualification.length,
-          items: needsQualification.slice(0, 5).map((l) => toItem(l)),
-          variant: "secondary",
+          adminOnly: true,
         },
         {
           key: "comps-to-run",
@@ -215,14 +229,6 @@ export function useMorningQueue() {
           count: compsToRun.length,
           items: compsToRun.slice(0, 5).map(taskToItem),
           variant: "secondary",
-        },
-        {
-          key: "escalations",
-          label: "Escalations",
-          count: escalations.length,
-          items: escalations.slice(0, 5).map(taskToItem),
-          variant: "destructive",
-          adminOnly: true,
         },
         {
           key: "stale-nurture",

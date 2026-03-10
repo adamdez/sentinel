@@ -296,14 +296,16 @@ export function LeadTable({
         const needsQualificationFlag = needsQualification(lead);
         const offerLabel = offerVisibilityLabel(lead.offerStatus);
         const offerPrepPathActive = lead.qualificationRoute === "offer_ready" || lead.offerStatus === "preparing_offer";
-        const offerPrepPathStale = offerPrepPathActive && (needsFollowUpFlag || !followUpDueIso);
+        const offerPrepMissing = offerPrepPathActive && lead.offerPrepHealth === "missing";
+        const offerPrepStale = offerPrepPathActive && lead.offerPrepHealth === "stale";
+        const offerPrepNeedsAttention = offerPrepMissing || offerPrepStale;
         const nextActionView = deriveNextActionVisibility({
           status: lead.status,
           qualificationRoute: lead.qualificationRoute,
           nextCallScheduledAt: lead.nextCallScheduledAt,
           nextFollowUpAt: lead.followUpDate,
         });
-        const actionableNow = needsFollowUpFlag || needsQualificationFlag || offerPrepPathStale;
+        const actionableNow = needsFollowUpFlag || needsQualificationFlag || offerPrepNeedsAttention;
         const ownerActionLabel = actionableNow
           ? !lead.assignedTo
             ? "Assign owner now"
@@ -405,17 +407,20 @@ export function LeadTable({
                     Offer Progress: {offerLabel}
                   </span>
                 )}
-                {offerPrepPathActive && (
+                {offerPrepMissing && (
                   <span
-                    className={cn(
-                      "text-[9px] px-1.5 py-0 rounded border shrink-0",
-                      offerPrepPathStale
-                        ? "bg-amber-500/12 text-amber-300 border-amber-500/30"
-                        : "bg-cyan/10 text-cyan border-cyan/20",
-                    )}
-                    title="Offer-ready path visibility"
+                    className="text-[9px] px-1.5 py-0 rounded border shrink-0 bg-amber-500/12 text-amber-300 border-amber-500/30"
+                    title="Offer-ready path is active, but offer prep snapshot is missing core fields"
                   >
-                    {offerPrepPathStale ? "Offer Prep Stale" : "Offer Prep Active"}
+                    Offer Prep Missing
+                  </span>
+                )}
+                {offerPrepStale && (
+                  <span
+                    className="text-[9px] px-1.5 py-0 rounded border shrink-0 bg-amber-500/12 text-amber-300 border-amber-500/30"
+                    title="Offer-ready path is active, but prep snapshot is stale"
+                  >
+                    Offer Prep Stale
                   </span>
                 )}
               </div>

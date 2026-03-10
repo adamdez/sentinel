@@ -78,12 +78,12 @@ export default function LeadsPage() {
     label: string;
     count: number;
   }> = [
-    { id: "new_inbound", label: "New Today (No Contact)", count: needsAttention.newInbound },
     { id: "overdue", label: "Needs Follow-Up", count: needsAttention.overdue },
-    { id: "unassigned_hot", label: "Unassigned Priority", count: needsAttention.unassignedHot },
-    { id: "slow_or_missing", label: "Slow/Missing Response", count: needsAttention.slowOrMissing },
+    { id: "new_inbound", label: "New Today (No Contact)", count: needsAttention.newInbound },
     { id: "needs_qualification", label: "Needs Qualification", count: needsAttention.needsQualification },
     { id: "escalated_review", label: "Escalated Review", count: needsAttention.escalatedReview },
+    { id: "unassigned_hot", label: "Unassigned Priority", count: needsAttention.unassignedHot },
+    { id: "slow_or_missing", label: "Slow/Missing Response", count: needsAttention.slowOrMissing },
   ];
   const speedLabel = inboxMetrics.estimatedSpeedSampleCount > 0 ? "First Response (est)" : "First Response";
 
@@ -172,7 +172,7 @@ export default function LeadsPage() {
             )}
           </div>
           <p className="mt-2 text-[10px] text-muted-foreground/70">
-            Work order: Needs Follow-Up, New Today (No Contact), Needs Qualification, Escalated Review, then Unassigned Priority.
+            Work order: Needs Follow-Up, New Today, Needs Qualification, Escalated Review, then Unassigned Priority.
           </p>
         </div>
 

@@ -95,6 +95,15 @@ export async function PATCH(req: NextRequest) {
         ? (fields.owner_flags as Record<string, unknown>)
         : {};
       const isArvUpdate = "comp_arv" in ownerFlagsPatch || "comp_arv_updated_at" in ownerFlagsPatch;
+      const isOfferPrepUpdate =
+        "offer_prep_snapshot" in ownerFlagsPatch
+        || "offer_prep_arv_used" in ownerFlagsPatch
+        || "offer_prep_rehab_estimate" in ownerFlagsPatch
+        || "offer_prep_mao_low" in ownerFlagsPatch
+        || "offer_prep_mao_high" in ownerFlagsPatch
+        || "offer_prep_confidence" in ownerFlagsPatch
+        || "offer_prep_sheet_url" in ownerFlagsPatch
+        || "offer_prep_updated_at" in ownerFlagsPatch;
       const isContactUpdate = (
         "owner_phone" in propUpdate
         || "owner_email" in propUpdate
@@ -107,12 +116,24 @@ export async function PATCH(req: NextRequest) {
       await (sb.from("event_log") as any).insert({
         entity_type: "lead",
         entity_id: lead_id,
-        action: isArvUpdate ? "PROPERTY_ARV_UPDATED" : isContactUpdate ? "PROPERTY_CONTACT_UPDATED" : "PROPERTY_EDITED",
+        action: isArvUpdate
+          ? "PROPERTY_ARV_UPDATED"
+          : isOfferPrepUpdate
+            ? "PROPERTY_OFFER_PREP_UPDATED"
+            : isContactUpdate
+              ? "PROPERTY_CONTACT_UPDATED"
+              : "PROPERTY_EDITED",
         user_id: user.id,
         details: {
           property_id,
           fields_changed: changedFields,
-          update_type: isArvUpdate ? "arv" : isContactUpdate ? "contact" : "details",
+          update_type: isArvUpdate
+            ? "arv"
+            : isOfferPrepUpdate
+              ? "offer_prep"
+              : isContactUpdate
+                ? "contact"
+                : "details",
         },
       });
     }

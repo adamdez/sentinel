@@ -19,12 +19,15 @@ import { cn, formatCurrency } from "@/lib/utils";
 import type { ProspectRow } from "@/hooks/use-prospects";
 import {
   buyerFitVisibilityLabel,
+  deriveOfferPrepHealth,
   deriveBuyerDispoVisibility,
   deriveNextActionVisibility,
   deriveOfferVisibilityStatus,
   dispoReadinessVisibilityLabel,
+  extractOfferPrepSnapshot,
   offerVisibilityLabel,
   type LeadRow,
+  type OfferPrepConfidence,
   type OfferVisibilityStatus,
 } from "@/lib/leads-data";
 import type { AIScore, DistressType, LeadStatus, SellerTimeline, QualificationRoute } from "@/lib/types";
@@ -313,6 +316,14 @@ type QualificationDraft = {
   occupancyScore: number | null;
   equityFlexibilityScore: number | null;
 };
+type OfferPrepSnapshotDraft = {
+  arvUsed: string;
+  rehabEstimate: string;
+  maoLow: string;
+  maoHigh: string;
+  confidence: OfferPrepConfidence | "";
+  sheetUrl: string;
+};
 type CloseoutNextAction = "follow_up_call" | "nurture_check_in" | "escalation_review";
 type CloseoutPresetId =
   | "call_tomorrow"
@@ -364,6 +375,11 @@ const QUALIFICATION_ROUTE_OPTIONS: Array<{ id: QualificationRoute; label: string
   { id: "escalate", label: "Escalate Review" },
 ];
 const QUALIFICATION_ROUTE_IDS = new Set<QualificationRoute>(QUALIFICATION_ROUTE_OPTIONS.map((option) => option.id));
+const OFFER_PREP_CONFIDENCE_OPTIONS: Array<{ id: OfferPrepConfidence; label: string }> = [
+  { id: "low", label: "Low" },
+  { id: "medium", label: "Medium" },
+  { id: "high", label: "High" },
+];
 
 function parseSuggestedRoute(value: unknown): QualificationRoute | null {
   if (typeof value !== "string") return null;
@@ -638,6 +654,33 @@ function getQualificationDraft(cf: ClientFile | null | undefined): Qualification
     qualificationRoute: cf?.qualificationRoute ?? null,
     occupancyScore: cf?.occupancyScore ?? null,
     equityFlexibilityScore: cf?.equityFlexibilityScore ?? null,
+  };
+}
+
+function toDraftCurrency(value: number | null | undefined): string {
+  if (value == null || !Number.isFinite(value)) return "";
+  return String(Math.round(value));
+}
+
+function parseDraftCurrency(value: string): number | null {
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+  const parsed = Number.parseInt(trimmed.replace(/[$,\s]/g, ""), 10);
+  if (!Number.isFinite(parsed)) return null;
+  return Math.max(0, parsed);
+}
+
+function getOfferPrepDraft(cf: ClientFile | null | undefined): OfferPrepSnapshotDraft {
+  const snapshot = extractOfferPrepSnapshot((cf?.ownerFlags ?? null) as Record<string, unknown> | null);
+  const fallbackArv = typeof cf?.ownerFlags?.comp_arv === "number" ? (cf?.ownerFlags?.comp_arv as number) : null;
+
+  return {
+    arvUsed: toDraftCurrency(snapshot.arvUsed ?? fallbackArv),
+    rehabEstimate: toDraftCurrency(snapshot.rehabEstimate),
+    maoLow: toDraftCurrency(snapshot.maoLow),
+    maoHigh: toDraftCurrency(snapshot.maoHigh),
+    confidence: snapshot.confidence ?? "",
+    sheetUrl: snapshot.sheetUrl ?? "",
   };
 }
 
@@ -2525,7 +2568,7 @@ function ContactTab({ cf, overlay, onSkipTrace, skipTracing, onDial, onSms, call
 // OVERVIEW TAB
 // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
-function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceMs, overlay, skipTraceError, onSkipTrace, onManualSkipTrace, onEdit, onDial, onSms, calling, dialHistory, autofilling, onAutofill, deepCrawling, deepCrawlResult, deepCrawlExpanded, setDeepCrawlExpanded, executeDeepCrawl, hasSavedReport, loadingReport, loadSavedReport, crawlSteps, deepSkipResult, qualification, qualificationDirty, qualificationSaving, qualificationEditable, qualificationSuggestedRoute, onQualificationChange, onQualificationRouteSelect, onQualificationSave }: {
+function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceMs, overlay, skipTraceError, onSkipTrace, onManualSkipTrace, onEdit, onDial, onSms, calling, dialHistory, autofilling, onAutofill, deepCrawling, deepCrawlResult, deepCrawlExpanded, setDeepCrawlExpanded, executeDeepCrawl, hasSavedReport, loadingReport, loadSavedReport, crawlSteps, deepSkipResult, qualification, qualificationDirty, qualificationSaving, qualificationEditable, qualificationSuggestedRoute, onQualificationChange, onQualificationRouteSelect, onQualificationSave, offerPrepDraft, offerPrepEditing, offerPrepSaving, onOfferPrepDraftChange, onOfferPrepEditToggle, onOfferPrepSave }: {
   cf: ClientFile; computedArv: number; skipTracing: boolean; skipTraceResult: string | null; skipTraceMs: number | null;
   overlay: SkipTraceOverlay | null; skipTraceError: SkipTraceError | null;
   onSkipTrace: () => void; onManualSkipTrace: () => void; onEdit: () => void;
@@ -2548,6 +2591,12 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
   onQualificationChange: (patch: Partial<QualificationDraft>) => void;
   onQualificationRouteSelect: (route: QualificationRoute) => void;
   onQualificationSave: () => void;
+  offerPrepDraft: OfferPrepSnapshotDraft;
+  offerPrepEditing: boolean;
+  offerPrepSaving: boolean;
+  onOfferPrepDraftChange: (patch: Partial<OfferPrepSnapshotDraft>) => void;
+  onOfferPrepEditToggle: (next: boolean) => void;
+  onOfferPrepSave: () => void;
 }) {
   const displayPhone = overlay?.primaryPhone ?? cf.ownerPhone ?? (cf.ownerFlags?.contact_phone as string | null) ?? null;
   const displayEmail = overlay?.primaryEmail ?? cf.ownerEmail ?? (cf.ownerFlags?.contact_email as string | null) ?? null;
@@ -2879,12 +2928,23 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
         : cf.offerStatus === "declined"
           ? "Derived from stage + qualification route: offer path appears closed for now."
           : "Derived from stage + qualification route: no offer progress signal yet.";
+  const offerPrepSnapshot = extractOfferPrepSnapshot((cf.ownerFlags ?? null) as Record<string, unknown> | null);
   const offerPrepActive = cf.qualificationRoute === "offer_ready" || cf.offerStatus === "preparing_offer";
   const offerPrepDueIso = cf.nextCallScheduledAt ?? cf.followUpDate;
   const offerPrepDueMs = offerPrepDueIso ? new Date(offerPrepDueIso).getTime() : NaN;
   const offerPrepMissingNextAction = !offerPrepDueIso || Number.isNaN(offerPrepDueMs);
-  const offerPrepStale = offerPrepActive && (offerPrepMissingNextAction || offerPrepDueMs < Date.now());
+  const offerPrepHealth = deriveOfferPrepHealth({
+    status: cf.status,
+    qualificationRoute: cf.qualificationRoute,
+    snapshot: offerPrepSnapshot,
+    nextCallScheduledAt: cf.nextCallScheduledAt,
+    nextFollowUpAt: cf.followUpDate,
+  });
+  const offerPrepStale = offerPrepHealth.state === "stale";
+  const offerPrepMissing = offerPrepHealth.state === "missing";
   const offerPrepDueLabel = offerPrepDueIso ? formatDateTimeShort(offerPrepDueIso) : "Not set";
+  const offerPrepUpdatedLabel = offerPrepSnapshot.updatedAt ? formatDateTimeShort(offerPrepSnapshot.updatedAt) : "Not set";
+  const canEditOfferPrep = cf.status !== "dead" && cf.status !== "closed";
   const buyerDispo = deriveBuyerDispoVisibility({
     status: cf.status,
     qualificationRoute: cf.qualificationRoute,
@@ -3297,7 +3357,7 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
         {offerPrepActive && (
           <div className={cn(
             "rounded-[8px] border px-2.5 py-2 space-y-1.5",
-            offerPrepStale ? "border-amber-500/30 bg-amber-500/[0.08]" : "border-cyan/20 bg-cyan/[0.06]",
+            offerPrepStale || offerPrepMissing ? "border-amber-500/30 bg-amber-500/[0.08]" : "border-cyan/20 bg-cyan/[0.06]",
           )}>
             <p className="text-[10px] text-foreground/90">
               Workload: <span className="font-semibold">Run comps + prepare offer range</span>
@@ -3305,13 +3365,152 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
             <p className="text-[10px] text-muted-foreground/80">
               Next offer-prep follow-up: <span className="text-foreground font-medium">{offerPrepDueLabel}</span>
             </p>
-            <p className={cn("text-[10px]", offerPrepStale ? "text-amber-300" : "text-cyan/80")}>
-              {offerPrepStale
-                ? offerPrepMissingNextAction
-                  ? "Offer-prep path is missing a next action. Set callback/follow-up."
-                  : "Offer-prep path is stale. Follow-up is overdue."
+            <p className={cn("text-[10px]", offerPrepStale || offerPrepMissing ? "text-amber-300" : "text-cyan/80")}>
+              {offerPrepStale || offerPrepMissing
+                ? offerPrepHealth.hint
                 : "Offer-prep path is active and on track."}
             </p>
+          </div>
+        )}
+      </div>
+
+      <div className="rounded-[12px] border border-white/[0.06] bg-white/[0.02] p-3 space-y-2">
+        <div className="flex items-center gap-2">
+          <Calculator className="h-3.5 w-3.5 text-cyan" />
+          <p className="text-[11px] text-muted-foreground uppercase tracking-wider font-semibold">Offer Prep Snapshot</p>
+          <Badge variant="outline" className="text-[9px] border-white/[0.14] text-muted-foreground">Operator entered</Badge>
+          {offerPrepHealth.state !== "not_applicable" && (
+            <Badge
+              variant="outline"
+              className={cn(
+                "text-[9px]",
+                offerPrepHealth.state === "ready"
+                  ? "border-emerald-500/25 text-emerald-300"
+                  : "border-amber-500/30 text-amber-300",
+              )}
+            >
+              {offerPrepHealth.label}
+            </Badge>
+          )}
+          {canEditOfferPrep && (
+            <button
+              type="button"
+              onClick={() => onOfferPrepEditToggle(!offerPrepEditing)}
+              className="ml-auto text-[10px] text-cyan/75 hover:text-cyan transition-colors"
+              disabled={offerPrepSaving}
+            >
+              {offerPrepEditing ? "Cancel" : "Edit"}
+            </button>
+          )}
+        </div>
+        <p className="text-[10px] text-muted-foreground/70">
+          Offer progress is derived. Offer prep snapshot is operator-entered and should reflect your current comping assumptions.
+        </p>
+
+        {offerPrepEditing ? (
+          <div className="space-y-2.5">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+              <label className="space-y-1">
+                <span className="text-[9px] uppercase tracking-wider text-muted-foreground">ARV Used</span>
+                <input
+                  type="number"
+                  min={0}
+                  step={1000}
+                  value={offerPrepDraft.arvUsed}
+                  onChange={(e) => onOfferPrepDraftChange({ arvUsed: e.target.value })}
+                  className="h-8 w-full rounded-[8px] border border-white/[0.12] bg-white/[0.04] px-2.5 text-xs text-foreground focus:outline-none focus:border-cyan/30"
+                />
+              </label>
+              <label className="space-y-1">
+                <span className="text-[9px] uppercase tracking-wider text-muted-foreground">Rehab Estimate</span>
+                <input
+                  type="number"
+                  min={0}
+                  step={1000}
+                  value={offerPrepDraft.rehabEstimate}
+                  onChange={(e) => onOfferPrepDraftChange({ rehabEstimate: e.target.value })}
+                  className="h-8 w-full rounded-[8px] border border-white/[0.12] bg-white/[0.04] px-2.5 text-xs text-foreground focus:outline-none focus:border-cyan/30"
+                />
+              </label>
+              <label className="space-y-1">
+                <span className="text-[9px] uppercase tracking-wider text-muted-foreground">MAO Low</span>
+                <input
+                  type="number"
+                  min={0}
+                  step={1000}
+                  value={offerPrepDraft.maoLow}
+                  onChange={(e) => onOfferPrepDraftChange({ maoLow: e.target.value })}
+                  className="h-8 w-full rounded-[8px] border border-white/[0.12] bg-white/[0.04] px-2.5 text-xs text-foreground focus:outline-none focus:border-cyan/30"
+                />
+              </label>
+              <label className="space-y-1">
+                <span className="text-[9px] uppercase tracking-wider text-muted-foreground">MAO High</span>
+                <input
+                  type="number"
+                  min={0}
+                  step={1000}
+                  value={offerPrepDraft.maoHigh}
+                  onChange={(e) => onOfferPrepDraftChange({ maoHigh: e.target.value })}
+                  className="h-8 w-full rounded-[8px] border border-white/[0.12] bg-white/[0.04] px-2.5 text-xs text-foreground focus:outline-none focus:border-cyan/30"
+                />
+              </label>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+              <label className="space-y-1">
+                <span className="text-[9px] uppercase tracking-wider text-muted-foreground">Confidence</span>
+                <select
+                  value={offerPrepDraft.confidence}
+                  onChange={(e) => onOfferPrepDraftChange({ confidence: (e.target.value as OfferPrepConfidence | "") })}
+                  className="h-8 w-full rounded-[8px] border border-white/[0.12] bg-white/[0.04] px-2.5 text-xs text-foreground focus:outline-none focus:border-cyan/30"
+                >
+                  <option value="">Select confidence</option>
+                  {OFFER_PREP_CONFIDENCE_OPTIONS.map((option) => (
+                    <option key={option.id} value={option.id}>{option.label}</option>
+                  ))}
+                </select>
+              </label>
+              <label className="space-y-1">
+                <span className="text-[9px] uppercase tracking-wider text-muted-foreground">Sheet / Calculator Link (optional)</span>
+                <input
+                  type="url"
+                  value={offerPrepDraft.sheetUrl}
+                  onChange={(e) => onOfferPrepDraftChange({ sheetUrl: e.target.value })}
+                  placeholder="https://docs.google.com/..."
+                  className="h-8 w-full rounded-[8px] border border-white/[0.12] bg-white/[0.04] px-2.5 text-xs text-foreground placeholder:text-muted-foreground/55 focus:outline-none focus:border-cyan/30"
+                />
+              </label>
+            </div>
+            <div className="flex items-center justify-between gap-2">
+              <p className="text-[10px] text-muted-foreground/65">
+                Last updated: <span className="text-foreground/85">{offerPrepUpdatedLabel}</span>
+              </p>
+              <Button size="sm" className="h-7 text-[11px]" disabled={offerPrepSaving} onClick={onOfferPrepSave}>
+                {offerPrepSaving ? <Loader2 className="h-3 w-3 animate-spin" /> : <Save className="h-3 w-3" />}
+                Save Snapshot
+              </Button>
+            </div>
+          </div>
+        ) : (
+          <div className="space-y-2">
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-2 text-[11px]">
+              <p className="text-muted-foreground">ARV Used: <span className="text-foreground font-medium">{offerPrepSnapshot.arvUsed != null ? formatCurrency(offerPrepSnapshot.arvUsed) : "Not set"}</span></p>
+              <p className="text-muted-foreground">Rehab: <span className="text-foreground font-medium">{offerPrepSnapshot.rehabEstimate != null ? formatCurrency(offerPrepSnapshot.rehabEstimate) : "Not set"}</span></p>
+              <p className="text-muted-foreground">MAO Low: <span className="text-foreground font-medium">{offerPrepSnapshot.maoLow != null ? formatCurrency(offerPrepSnapshot.maoLow) : "Not set"}</span></p>
+              <p className="text-muted-foreground">MAO High: <span className="text-foreground font-medium">{offerPrepSnapshot.maoHigh != null ? formatCurrency(offerPrepSnapshot.maoHigh) : "Not set"}</span></p>
+              <p className="text-muted-foreground">Confidence: <span className="text-foreground font-medium">{offerPrepSnapshot.confidence ? offerPrepSnapshot.confidence[0].toUpperCase() + offerPrepSnapshot.confidence.slice(1) : "Not set"}</span></p>
+              <p className="text-muted-foreground">Last updated: <span className="text-foreground font-medium">{offerPrepUpdatedLabel}</span></p>
+            </div>
+            {offerPrepSnapshot.sheetUrl && (
+              <a
+                href={offerPrepSnapshot.sheetUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1 text-[10px] text-cyan/80 hover:text-cyan"
+              >
+                <ExternalLink className="h-2.5 w-2.5" />
+                Open comp/calculator sheet
+              </a>
+            )}
           </div>
         )}
       </div>
@@ -5625,6 +5824,9 @@ export function MasterClientFileModal({ clientFile, open, onClose, onClaim, onRe
   const [selectedStage, setSelectedStage] = useState<WorkflowStageId>("prospect");
   const [stageUpdating, setStageUpdating] = useState(false);
   const [qualificationDraft, setQualificationDraft] = useState<QualificationDraft>(() => getQualificationDraft(clientFile));
+  const [offerPrepDraft, setOfferPrepDraft] = useState<OfferPrepSnapshotDraft>(() => getOfferPrepDraft(clientFile));
+  const [offerPrepEditing, setOfferPrepEditing] = useState(false);
+  const [offerPrepSaving, setOfferPrepSaving] = useState(false);
   const [qualificationSuggestedRoute, setQualificationSuggestedRoute] = useState<QualificationRoute | null>(null);
   const [qualificationSaving, setQualificationSaving] = useState(false);
   const [nextActionAt, setNextActionAt] = useState("");
@@ -5640,6 +5842,8 @@ export function MasterClientFileModal({ clientFile, open, onClose, onClaim, onRe
   const [closeoutAction, setCloseoutAction] = useState<CloseoutNextAction>("follow_up_call");
   const [closeoutPreset, setCloseoutPreset] = useState<CloseoutPresetId>("call_3_days");
   const [closeoutAt, setCloseoutAt] = useState("");
+  const [closeoutPresetTouched, setCloseoutPresetTouched] = useState(false);
+  const [closeoutDateTouched, setCloseoutDateTouched] = useState(false);
 
   // â”€â”€ Deep Crawl state â”€â”€
   const [deepCrawling, setDeepCrawling] = useState(false);
@@ -5768,6 +5972,8 @@ export function MasterClientFileModal({ clientFile, open, onClose, onClaim, onRe
 
   useEffect(() => {
     setQualificationDraft(getQualificationDraft(clientFile));
+    setOfferPrepDraft(getOfferPrepDraft(clientFile));
+    setOfferPrepEditing(false);
     setQualificationSuggestedRoute(null);
     const existingNextAction = toLocalDateTimeInput(clientFile?.nextCallScheduledAt ?? clientFile?.followUpDate);
     setNextActionAt(existingNextAction);
@@ -5781,6 +5987,8 @@ export function MasterClientFileModal({ clientFile, open, onClose, onClaim, onRe
     setCloseoutAction("follow_up_call");
     setCloseoutPreset("call_3_days");
     setCloseoutAt(existingNextAction || presetDateTimeLocal(3));
+    setCloseoutPresetTouched(false);
+    setCloseoutDateTouched(false);
   }, [clientFile?.id, clientFile?.nextCallScheduledAt, clientFile?.followUpDate, clientFile?.dispositionCode]);
 
   useEffect(() => {
@@ -5828,6 +6036,8 @@ export function MasterClientFileModal({ clientFile, open, onClose, onClaim, onRe
       setSelectedComps([]);
       setComputedArv((clientFile?.ownerFlags?.comp_arv as number) ?? 0);
       setSelectedStage(normalizeWorkflowStage(clientFile?.status));
+      setOfferPrepDraft(getOfferPrepDraft(clientFile));
+      setOfferPrepEditing(false);
       setDialHistoryMap({});
       // Reset deep crawl
       setDeepCrawling(false);
@@ -6031,6 +6241,100 @@ export function MasterClientFileModal({ clientFile, open, onClose, onClaim, onRe
     setQualificationDraft((prev) => ({ ...prev, ...patch }));
   }, []);
 
+  const handleOfferPrepDraftChange = useCallback((patch: Partial<OfferPrepSnapshotDraft>) => {
+    setOfferPrepDraft((prev) => ({ ...prev, ...patch }));
+  }, []);
+
+  const handleSaveOfferPrepSnapshot = useCallback(async () => {
+    if (!clientFile?.propertyId) return;
+
+    const arvUsed = parseDraftCurrency(offerPrepDraft.arvUsed);
+    const rehabEstimate = parseDraftCurrency(offerPrepDraft.rehabEstimate);
+    const maoLow = parseDraftCurrency(offerPrepDraft.maoLow);
+    const maoHigh = parseDraftCurrency(offerPrepDraft.maoHigh);
+    const confidence = offerPrepDraft.confidence || null;
+    const sheetUrl = offerPrepDraft.sheetUrl.trim().length > 0 ? offerPrepDraft.sheetUrl.trim() : null;
+
+    if (
+      arvUsed == null
+      || rehabEstimate == null
+      || maoLow == null
+      || maoHigh == null
+      || !confidence
+    ) {
+      toast.error("Fill ARV, rehab, MAO low/high, and confidence before saving.");
+      return;
+    }
+
+    if (maoHigh < maoLow) {
+      toast.error("MAO high must be greater than or equal to MAO low.");
+      return;
+    }
+
+    if (sheetUrl) {
+      try {
+        // eslint-disable-next-line no-new
+        new URL(sheetUrl);
+      } catch {
+        toast.error("Sheet link must be a valid URL.");
+        return;
+      }
+    }
+
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session?.access_token) {
+      toast.error("Session expired - cannot save offer prep snapshot.");
+      return;
+    }
+
+    setOfferPrepSaving(true);
+    try {
+      const nowIso = new Date().toISOString();
+      const payload = {
+        property_id: clientFile.propertyId,
+        lead_id: clientFile.id,
+        fields: {
+          owner_flags: {
+            offer_prep_snapshot: {
+              arv_used: arvUsed,
+              rehab_estimate: rehabEstimate,
+              mao_low: maoLow,
+              mao_high: maoHigh,
+              confidence,
+              sheet_url: sheetUrl,
+              updated_at: nowIso,
+              updated_by: currentUserName ?? currentUserId ?? null,
+            },
+          },
+        },
+      };
+
+      const res = await fetch("/api/properties/update", {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify(payload),
+      });
+
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || data.error || !data.success) {
+        toast.error(`Could not save offer prep snapshot: ${data.detail ?? data.error ?? `HTTP ${res.status}`}`);
+        return;
+      }
+
+      setOfferPrepEditing(false);
+      toast.success("Offer prep snapshot saved");
+      onRefresh?.();
+    } catch (err) {
+      console.error("[MCF] Offer prep save error:", err);
+      toast.error("Could not save offer prep snapshot");
+    } finally {
+      setOfferPrepSaving(false);
+    }
+  }, [clientFile?.id, clientFile?.propertyId, currentUserId, currentUserName, offerPrepDraft, onRefresh]);
+
   const persistQualification = useCallback(async (routeOverride?: QualificationRoute): Promise<boolean> => {
     if (!clientFile) return false;
 
@@ -6231,6 +6535,7 @@ export function MasterClientFileModal({ clientFile, open, onClose, onClaim, onRe
   const handleCloseoutPresetSelect = useCallback((presetId: CloseoutPresetId) => {
     const preset = CLOSEOUT_PRESETS.find((item) => item.id === presetId);
     if (!preset) return;
+    setCloseoutPresetTouched(true);
     setCloseoutPreset(preset.id);
     setCloseoutAction(preset.action);
     if (preset.daysFromNow != null) {
@@ -6254,13 +6559,15 @@ export function MasterClientFileModal({ clientFile, open, onClose, onClaim, onRe
 
     const routeToApply = routeForCloseoutAction(closeoutAction);
     const existingNextIso = clientFile.nextCallScheduledAt ?? clientFile.followUpDate ?? null;
+    const explicitDueIntent = closeoutPresetTouched || closeoutDateTouched;
     const normalizedOutcome = closeoutOutcome.trim() || null;
     const outcomeChanged = normalizedOutcome !== (clientFile.dispositionCode ?? null);
     const nextChanged = nextIso !== existingNextIso;
     const noteText = closeoutNote.trim();
     const routeChanged = routeToApply != null && routeToApply !== (clientFile.qualificationRoute ?? null);
+    const shouldSendDueDates = explicitDueIntent && nextChanged;
 
-    if (!outcomeChanged && !nextChanged && noteText.length === 0 && !routeChanged) {
+    if (!outcomeChanged && !shouldSendDueDates && noteText.length === 0 && !routeChanged) {
       toast.message("No closeout changes to save.");
       return;
     }
@@ -6291,7 +6598,7 @@ export function MasterClientFileModal({ clientFile, open, onClose, onClaim, onRe
       if (noteText.length > 0) {
         payload.note_append = noteText;
       }
-      if (nextChanged || closeoutAction !== "escalation_review") {
+      if (shouldSendDueDates) {
         payload.next_call_scheduled_at = nextIso;
         payload.next_follow_up_at = nextIso;
       }
@@ -6322,6 +6629,8 @@ export function MasterClientFileModal({ clientFile, open, onClose, onClaim, onRe
       setQualificationSuggestedRoute(parseSuggestedRoute(data.suggested_route));
       setCloseoutNote("");
       setCloseoutOpen(false);
+      setCloseoutPresetTouched(false);
+      setCloseoutDateTouched(false);
       setNextActionAt(toLocalDateTimeInput(nextIso));
       toast.success("Call closeout saved");
       onRefresh?.();
@@ -6331,7 +6640,16 @@ export function MasterClientFileModal({ clientFile, open, onClose, onClaim, onRe
     } finally {
       setCloseoutSaving(false);
     }
-  }, [clientFile, closeoutAction, closeoutAt, closeoutNote, closeoutOutcome, onRefresh]);
+  }, [
+    clientFile,
+    closeoutAction,
+    closeoutAt,
+    closeoutDateTouched,
+    closeoutNote,
+    closeoutOutcome,
+    closeoutPresetTouched,
+    onRefresh,
+  ]);
 
   const handleDial = useCallback(async (phoneNumber?: string) => {
     const numberToDial = phoneNumber || displayPhone;
@@ -6857,7 +7175,21 @@ export function MasterClientFileModal({ clientFile, open, onClose, onClaim, onRe
                     variant="outline"
                     className="gap-2 border-cyan/25 hover:border-cyan/45 hover:bg-cyan/[0.08]"
                     onClick={() => {
-                      setCloseoutOpen((v) => !v);
+                      setCloseoutOpen((v) => {
+                        const next = !v;
+                        if (next) {
+                          setCloseoutOutcome(clientFile.dispositionCode ?? "");
+                          setCloseoutNote("");
+                          setCloseoutAction("follow_up_call");
+                          setCloseoutPreset("call_3_days");
+                          setCloseoutAt(
+                            toLocalDateTimeInput(clientFile.nextCallScheduledAt ?? clientFile.followUpDate) || presetDateTimeLocal(3),
+                          );
+                          setCloseoutPresetTouched(false);
+                          setCloseoutDateTouched(false);
+                        }
+                        return next;
+                      });
                       setNextActionEditorOpen(false);
                       setNoteEditorOpen(false);
                     }}
@@ -6995,13 +7327,19 @@ export function MasterClientFileModal({ clientFile, open, onClose, onClaim, onRe
                               </button>
                             ))}
                           </div>
+                          <p className="text-[10px] text-muted-foreground/75">
+                            Call presets schedule lead follow-up dates; only route actions create workflow tasks.
+                          </p>
                         </div>
                         <label className="space-y-1 block">
                           <span className="text-[9px] uppercase tracking-wider text-muted-foreground">Follow-Up Date</span>
                           <input
                             type="datetime-local"
                             value={closeoutAt}
-                            onChange={(e) => setCloseoutAt(e.target.value)}
+                            onChange={(e) => {
+                              setCloseoutDateTouched(true);
+                              setCloseoutAt(e.target.value);
+                            }}
                             className="h-8 w-full rounded-[8px] border border-white/[0.12] bg-white/[0.04] px-2.5 text-xs text-foreground focus:outline-none focus:border-cyan/30"
                           />
                         </label>
@@ -7035,6 +7373,8 @@ export function MasterClientFileModal({ clientFile, open, onClose, onClaim, onRe
                               setCloseoutAt(
                                 toLocalDateTimeInput(clientFile.nextCallScheduledAt ?? clientFile.followUpDate) || presetDateTimeLocal(3),
                               );
+                              setCloseoutPresetTouched(false);
+                              setCloseoutDateTouched(false);
                             }}
                           >
                             Cancel
@@ -7242,6 +7582,12 @@ export function MasterClientFileModal({ clientFile, open, onClose, onClaim, onRe
                         onQualificationChange={handleQualificationChange}
                         onQualificationRouteSelect={handleQualificationRouteSelect}
                         onQualificationSave={() => void persistQualification()}
+                        offerPrepDraft={offerPrepDraft}
+                        offerPrepEditing={offerPrepEditing}
+                        offerPrepSaving={offerPrepSaving}
+                        onOfferPrepDraftChange={handleOfferPrepDraftChange}
+                        onOfferPrepEditToggle={setOfferPrepEditing}
+                        onOfferPrepSave={() => void handleSaveOfferPrepSnapshot()}
                       />
                     )}
                     {activeTab === "contact" && (

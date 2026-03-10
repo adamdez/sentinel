@@ -12,6 +12,25 @@ export type OfferVisibilityStatus =
   | "seller_reviewing"
   | "declined";
 
+export type OfferPrepConfidence = "low" | "medium" | "high";
+export type OfferPrepHealth = "not_applicable" | "missing" | "stale" | "ready";
+
+export interface OfferPrepSnapshot {
+  arvUsed: number | null;
+  rehabEstimate: number | null;
+  maoLow: number | null;
+  maoHigh: number | null;
+  confidence: OfferPrepConfidence | null;
+  sheetUrl: string | null;
+  updatedAt: string | null;
+}
+
+export interface OfferPrepHealthInfo {
+  state: OfferPrepHealth;
+  label: string;
+  hint: string;
+}
+
 export type BuyerFitVisibility = "broad" | "narrow" | "unknown";
 export type DispoReadinessVisibility = "not_ready" | "needs_review" | "ready";
 
@@ -35,6 +54,124 @@ export interface NextActionVisibility {
   label: string;
   dueAt: string | null;
   isOverdue: boolean;
+}
+
+function toObject(value: unknown): Record<string, unknown> | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  return value as Record<string, unknown>;
+}
+
+function toNullableNumber(value: unknown): number | null {
+  if (typeof value === "number") return Number.isFinite(value) ? value : null;
+  if (typeof value === "string" && value.trim().length > 0) {
+    const parsed = Number.parseFloat(value.replace(/[$,%\s,]/g, ""));
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+  return null;
+}
+
+function toNullableString(value: unknown): string | null {
+  if (typeof value !== "string") return null;
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : null;
+}
+
+function toOfferPrepConfidence(value: unknown): OfferPrepConfidence | null {
+  if (typeof value !== "string") return null;
+  const normalized = value.trim().toLowerCase();
+  if (normalized === "low" || normalized === "medium" || normalized === "high") {
+    return normalized as OfferPrepConfidence;
+  }
+  return null;
+}
+
+export function extractOfferPrepSnapshot(
+  ownerFlags: Record<string, unknown> | null | undefined,
+): OfferPrepSnapshot {
+  const flags = toObject(ownerFlags);
+  const nested = toObject(flags?.offer_prep_snapshot);
+
+  const arvUsed = toNullableNumber(nested?.arv_used ?? flags?.offer_prep_arv_used);
+  const rehabEstimate = toNullableNumber(nested?.rehab_estimate ?? flags?.offer_prep_rehab_estimate);
+  const maoLow = toNullableNumber(nested?.mao_low ?? flags?.offer_prep_mao_low);
+  const maoHigh = toNullableNumber(nested?.mao_high ?? flags?.offer_prep_mao_high);
+  const confidence = toOfferPrepConfidence(nested?.confidence ?? flags?.offer_prep_confidence);
+  const sheetUrl = toNullableString(nested?.sheet_url ?? flags?.offer_prep_sheet_url);
+  const updatedAt = toNullableString(nested?.updated_at ?? flags?.offer_prep_updated_at);
+
+  return {
+    arvUsed,
+    rehabEstimate,
+    maoLow,
+    maoHigh,
+    confidence,
+    sheetUrl,
+    updatedAt,
+  };
+}
+
+export function deriveOfferPrepHealth(input: {
+  status: LeadStatus | string | null | undefined;
+  qualificationRoute?: QualificationRoute | null;
+  snapshot: OfferPrepSnapshot;
+  nextCallScheduledAt?: string | null;
+  nextFollowUpAt?: string | null;
+  nowMs?: number;
+}): OfferPrepHealthInfo {
+  const status = (input.status ?? "").toLowerCase();
+  const route = input.qualificationRoute ?? null;
+  const activePath =
+    route === "offer_ready"
+    || status === "negotiation"
+    || status === "disposition";
+
+  if (!activePath) {
+    return {
+      state: "not_applicable",
+      label: "Not in Offer Prep",
+      hint: "Offer-prep snapshot is only expected for active offer-ready/negotiation paths.",
+    };
+  }
+
+  const hasCoreFields =
+    input.snapshot.arvUsed != null
+    && input.snapshot.rehabEstimate != null
+    && input.snapshot.maoLow != null
+    && input.snapshot.maoHigh != null
+    && input.snapshot.confidence != null
+    && input.snapshot.updatedAt != null;
+
+  if (!hasCoreFields) {
+    return {
+      state: "missing",
+      label: "Missing",
+      hint: "Add ARV, rehab, MAO range, and confidence to anchor offer prep.",
+    };
+  }
+
+  const nowMs = input.nowMs ?? Date.now();
+  const updatedMs = input.snapshot.updatedAt ? new Date(input.snapshot.updatedAt).getTime() : NaN;
+  const dueIso = input.nextCallScheduledAt ?? input.nextFollowUpAt ?? null;
+  const dueMs = dueIso ? new Date(dueIso).getTime() : NaN;
+
+  const staleByAge = !Number.isNaN(updatedMs) && nowMs - updatedMs > 7 * 24 * 60 * 60 * 1000;
+  const staleByDue = !Number.isNaN(dueMs) && dueMs < nowMs;
+
+  if (staleByAge || staleByDue) {
+    return {
+      state: "stale",
+      label: "Stale",
+      hint: staleByDue
+        ? "Offer-prep follow-up is overdue."
+        : "Offer-prep snapshot is older than 7 days.",
+    };
+  }
+
+  return {
+    state: "ready",
+    label: "Ready",
+    hint: "Offer-prep snapshot is present and current.",
+  };
 }
 
 export function deriveOfferVisibilityStatus(input: {
@@ -257,6 +394,8 @@ export interface LeadRow {
   equityFlexibilityScore: number | null;
   qualificationScoreTotal: number | null;
   offerStatus: OfferVisibilityStatus;
+  offerPrepSnapshot: OfferPrepSnapshot;
+  offerPrepHealth: OfferPrepHealth;
   promotedAt: string;
   source: string;
   tags: string[];

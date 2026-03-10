@@ -1,5 +1,10 @@
 [
   {
+    "hash": "677cd864",
+    "date": "2026-03-10",
+    "message": "feat: ship phase 2 workflow hardening and call closeout"
+  },
+  {
     "hash": "7f5a0d54",
     "date": "2026-03-10",
     "message": "feat: finalize dominion v1 workflow and operator polish"
@@ -118,10 +123,5 @@
     "hash": "77b25aca",
     "date": "2026-03-06",
     "message": "fix: disable FSBO cron + add source filter to clean-slate"
-  },
-  {
-    "hash": "8b80ab0f",
-    "date": "2026-03-06",
-    "message": "fix: add staging and prospect to valid statuses for leads/by-status API"
   }
 ]

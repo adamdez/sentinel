@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { supabase } from "@/lib/supabase";
 import { scrubLeadClient } from "@/lib/compliance";
 import { useSentinelStore } from "@/lib/store";
+import type { QualificationRoute } from "@/lib/types";
 
 // ── Queue Lead shape ──────────────────────────────────────────────────
 
@@ -18,10 +19,24 @@ export interface QueueLead {
   assigned_to: string | null;
   lock_version: number;
   next_call_scheduled_at: string | null;
+  next_follow_up_at: string | null;
+  follow_up_date?: string | null;
+  last_contact_at: string | null;
+  promoted_at: string | null;
   call_sequence_step: number;
   total_calls: number;
   live_answers: number;
   voicemails_left: number;
+  disposition_code: string | null;
+  qualification_route: QualificationRoute | null;
+  qualification_score_total: number | null;
+  motivation_level: number | null;
+  seller_timeline: string | null;
+  condition_level: number | null;
+  decision_maker_confirmed: boolean | null;
+  price_expectation: number | null;
+  occupancy_score: number | null;
+  equity_flexibility_score: number | null;
   properties: {
     id: string;
     address: string;
@@ -124,8 +139,30 @@ export function useDialerQueue(limit = 7) {
         return { ...lead, predictiveScore: predScore, blendedPriority };
       });
 
-      // Sort by blended priority (higher = first)
-      enriched.sort((a, b) => b.blendedPriority - a.blendedPriority);
+      // Prioritize due work first, then scheduled work, then unscheduled.
+      // Within each bucket, order by soonest due date then blended priority.
+      const nowMs = Date.now();
+      const toMs = (iso: string | null | undefined): number | null => {
+        if (!iso) return null;
+        const ms = new Date(iso).getTime();
+        return Number.isNaN(ms) ? null : ms;
+      };
+      const effectiveDueMs = (lead: QueueLead): number | null =>
+        toMs(lead.next_call_scheduled_at) ?? toMs(lead.next_follow_up_at) ?? toMs(lead.follow_up_date);
+      const rank = (lead: QueueLead): { bucket: number; dueMs: number } => {
+        const dueMs = effectiveDueMs(lead);
+        if (dueMs != null && dueMs <= nowMs) return { bucket: 0, dueMs };
+        if (dueMs != null) return { bucket: 1, dueMs };
+        return { bucket: 2, dueMs: Number.POSITIVE_INFINITY };
+      };
+
+      enriched.sort((a, b) => {
+        const ra = rank(a);
+        const rb = rank(b);
+        if (ra.bucket !== rb.bucket) return ra.bucket - rb.bucket;
+        if (ra.dueMs !== rb.dueMs) return ra.dueMs - rb.dueMs;
+        return b.blendedPriority - a.blendedPriority;
+      });
 
       const withPhone = enriched
         .filter((l) => l.properties?.owner_phone)

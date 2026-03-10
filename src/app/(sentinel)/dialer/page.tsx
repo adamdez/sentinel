@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Device, Call } from "@twilio/voice-sdk";
 import {
@@ -27,6 +27,8 @@ import { usePreCallBrief } from "@/hooks/use-pre-call-brief";
 import { CallSequenceGuide } from "@/components/sentinel/call-sequence-guide";
 import { useCallHistory, type CallHistoryEntry } from "@/hooks/use-call-history";
 import { MasterClientFileModal, clientFileFromRaw } from "@/components/sentinel/master-client-file-modal";
+import { deriveNextActionVisibility } from "@/lib/leads-data";
+import { formatDueDateLabel } from "@/lib/due-date-label";
 import { Eye } from "lucide-react";
 
 async function authHeaders(): Promise<Record<string, string>> {
@@ -249,6 +251,70 @@ function getScoreLabel(score: number): { label: string; variant: "platinum" | "g
   if (score >= 70) return { label: "GOLD", variant: "gold" };
   if (score >= 50) return { label: "SILVER", variant: "silver" };
   return { label: "BRONZE", variant: "bronze" };
+}
+
+function stageLabel(status: string | null | undefined): string {
+  const normalized = (status ?? "").toLowerCase();
+  if (normalized === "lead") return "Lead";
+  if (normalized === "negotiation") return "Negotiation";
+  if (normalized === "disposition") return "Disposition";
+  if (normalized === "nurture") return "Nurture";
+  if (normalized === "dead") return "Dead";
+  if (normalized === "closed") return "Closed";
+  if (normalized === "prospect") return "Prospect";
+  return "Unknown";
+}
+
+function qualificationRouteLabel(route: string | null | undefined): string {
+  const normalized = (route ?? "").toLowerCase();
+  if (!normalized) return "Not routed";
+  if (normalized === "offer_ready") return "Offer Ready";
+  if (normalized === "follow_up") return "Follow-Up";
+  if (normalized === "nurture") return "Nurture";
+  if (normalized === "dead") return "Dead";
+  if (normalized === "escalate") return "Escalate Review";
+  return normalized.replace(/_/g, " ");
+}
+
+function notePreview(note: string | null | undefined, max = 110): string {
+  const cleaned = (note ?? "").replace(/\s+/g, " ").trim();
+  if (!cleaned) return "No recent note";
+  if (cleaned.length <= max) return cleaned;
+  return `${cleaned.slice(0, max - 1)}…`;
+}
+
+function countQualificationGaps(lead: QueueLead): number {
+  let gaps = 0;
+  if (lead.motivation_level == null) gaps += 1;
+  if (lead.seller_timeline == null) gaps += 1;
+  if (lead.condition_level == null) gaps += 1;
+  if (lead.decision_maker_confirmed !== true) gaps += 1;
+  if (lead.price_expectation == null) gaps += 1;
+  return gaps;
+}
+
+function compactCallAssistPrompts(params: {
+  route: string | null;
+  nextActionLabel: string;
+  hasDueDate: boolean;
+  totalCalls: number;
+}): string[] {
+  const prompts: string[] = [];
+  if (params.route === "offer_ready") {
+    prompts.push("Confirm seller timeline + decision maker before ending the call.");
+  }
+  if (!params.hasDueDate) {
+    prompts.push("Before ending, lock one specific follow-up date/time.");
+  } else if (params.route === "escalate") {
+    prompts.push("Set expectation: Adam review is requested, ownership stays with current assignee.");
+  }
+  if (params.totalCalls <= 1) {
+    prompts.push("Use a short trust opener: local direct-buyer, no listing pressure.");
+  }
+  if (prompts.length === 0) {
+    prompts.push(`Close with a clear next step: ${params.nextActionLabel.toLowerCase()}.`);
+  }
+  return prompts.slice(0, 2);
 }
 
 function formatUsPhone(digits: string): string {
@@ -920,6 +986,39 @@ export default function DialerPage() {
 
   const kpiKeys: KpiKey[] = ["myOutbound", "myInbound", "myLiveAnswers", "myAvgTalkTime", "teamOutbound", "teamInbound"];
 
+  const dialerContext = useMemo(() => {
+    if (!currentLead) return null;
+
+    const nextAction = deriveNextActionVisibility({
+      status: currentLead.status,
+      qualificationRoute: (currentLead.qualification_route as "offer_ready" | "follow_up" | "nurture" | "dead" | "escalate" | null) ?? null,
+      nextCallScheduledAt: currentLead.next_call_scheduled_at,
+      nextFollowUpAt: currentLead.next_follow_up_at,
+    });
+    const leadHistory = callHistory.find((entry) => entry.lead_id === currentLead.id);
+    const recentOutcome = leadHistory?.disposition ?? currentLead.disposition_code ?? "none";
+    const dueText = nextAction.dueAt ? formatDueDateLabel(nextAction.dueAt).text : "No due date";
+    const qualificationGaps = countQualificationGaps(currentLead);
+    const assistPrompts = compactCallAssistPrompts({
+      route: currentLead.qualification_route ?? null,
+      nextActionLabel: nextAction.label,
+      hasDueDate: Boolean(nextAction.dueAt),
+      totalCalls: currentLead.total_calls ?? 0,
+    });
+
+    return {
+      stage: stageLabel(currentLead.status),
+      route: qualificationRouteLabel(currentLead.qualification_route),
+      nextActionLabel: nextAction.label,
+      dueText,
+      qualificationScore: currentLead.qualification_score_total,
+      qualificationGaps,
+      recentOutcome: recentOutcome.replace(/_/g, " "),
+      notePreview: notePreview(currentLead.notes),
+      assistPrompts,
+    };
+  }, [callHistory, currentLead]);
+
   return (
     <PageShell
       title="Power Dialer"
@@ -1224,6 +1323,9 @@ export default function DialerPage() {
                 Refresh
               </button>
             </div>
+            <p className="text-[10px] text-muted-foreground/60 mb-2">
+              Ordered for today: overdue and due follow-up first, then unscheduled owner work.
+            </p>
 
             {queueLoading ? (
               <div className="space-y-2">
@@ -1250,6 +1352,15 @@ export default function DialerPage() {
                   const isActive = currentLead?.id === lead.id;
                   const score = lead.priority ?? 0;
                   const sl = getScoreLabel(score);
+                  const rowNextAction = deriveNextActionVisibility({
+                    status: lead.status,
+                    qualificationRoute: lead.qualification_route,
+                    nextCallScheduledAt: lead.next_call_scheduled_at,
+                    nextFollowUpAt: lead.next_follow_up_at ?? lead.follow_up_date ?? null,
+                  });
+                  const rowDueIso = lead.next_call_scheduled_at ?? lead.next_follow_up_at ?? lead.follow_up_date ?? null;
+                  const rowDue = formatDueDateLabel(rowDueIso);
+                  const rowDueLabel = rowDue.text === "n/a" ? "No due date" : rowDue.text;
 
                   return (
                     <button
@@ -1269,9 +1380,24 @@ export default function DialerPage() {
                             <RelationshipBadgeCompact data={{ tags: lead.tags }} />
                           </p>
                           <p className="text-xs text-muted-foreground/80 truncate">{lead.properties?.address ?? "No address"}</p>
+                          <p className="text-[10px] text-muted-foreground/65 truncate">
+                            {stageLabel(lead.status)} - {qualificationRouteLabel(lead.qualification_route)} - Next: {rowNextAction.label}
+                          </p>
                         </div>
                         <span className="text-[9px] text-muted-foreground/60 font-mono shrink-0" title={getCadencePosition(lead.total_calls ?? 0).label}>
                           {(lead.total_calls ?? 0)}/{getCadencePosition(lead.total_calls ?? 0).totalTouches}
+                        </span>
+                        <span
+                          className={
+                            rowDue.overdue
+                              ? "text-[9px] px-1.5 py-0 rounded border border-red-500/35 bg-red-500/10 text-red-300 shrink-0"
+                              : rowDue.urgent
+                                ? "text-[9px] px-1.5 py-0 rounded border border-yellow-500/35 bg-yellow-500/10 text-yellow-300 shrink-0"
+                                : "text-[9px] px-1.5 py-0 rounded border border-white/12 bg-white/[0.04] text-muted-foreground shrink-0"
+                          }
+                          title="Next action due state"
+                        >
+                          {rowDueLabel}
                         </span>
                         <Badge variant={sl.variant} className="text-[9px] px-1.5 py-0 shrink-0">
                           {score}
@@ -1380,7 +1506,7 @@ export default function DialerPage() {
                           className="mt-1 inline-flex items-center gap-1 text-[10px] text-cyan hover:text-cyan/80 hover:underline transition-colors"
                         >
                           <Eye className="h-3 w-3" />
-                          View Full File
+                          Open Lead Detail
                         </button>
                       </div>
                       <div className="flex flex-col items-end gap-1">
@@ -1404,6 +1530,58 @@ export default function DialerPage() {
                         )}
                       </div>
                     </div>
+
+                    {dialerContext && (
+                      <div className="rounded-[10px] bg-white/[0.03] border border-white/[0.06] p-2.5 space-y-2">
+                        <div className="flex flex-wrap items-center gap-1.5">
+                          <Badge variant="outline" className="text-[9px] px-1.5 py-0 border-cyan/20 text-cyan/80">
+                            Stage: {dialerContext.stage}
+                          </Badge>
+                          <Badge variant="outline" className="text-[9px] px-1.5 py-0 border-white/[0.14]">
+                            Route: {dialerContext.route}
+                          </Badge>
+                          <Badge variant="outline" className="text-[9px] px-1.5 py-0 border-amber-500/20 text-amber-300">
+                            Next: {dialerContext.nextActionLabel}
+                          </Badge>
+                          <Badge variant="outline" className="text-[9px] px-1.5 py-0 border-white/[0.14]">
+                            Due: {dialerContext.dueText}
+                          </Badge>
+                        </div>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-1.5 text-[11px] text-muted-foreground/85">
+                          <p>
+                            Qualification:{" "}
+                            <span className="text-foreground font-medium">
+                              {dialerContext.qualificationScore != null
+                                ? `${dialerContext.qualificationScore}/35`
+                                : "Not scored"}
+                            </span>{" "}
+                            · {dialerContext.qualificationGaps} gap{dialerContext.qualificationGaps === 1 ? "" : "s"}
+                          </p>
+                          <p>
+                            Recent outcome:{" "}
+                            <span className="text-foreground font-medium capitalize">{dialerContext.recentOutcome}</span>
+                          </p>
+                        </div>
+                        <p className="text-[11px] text-muted-foreground/80">
+                          Latest note: <span className="text-foreground/90">{dialerContext.notePreview}</span>
+                        </p>
+                        <div className="space-y-1">
+                          {dialerContext.assistPrompts.map((prompt, idx) => (
+                            <p key={idx} className="text-[11px] text-cyan/85">
+                              • {prompt}
+                            </p>
+                          ))}
+                        </div>
+                        <Button
+                          variant="outline"
+                          className="w-full mt-1 gap-2 border-cyan/25 text-cyan hover:bg-cyan/10"
+                          onClick={() => setFileModalOpen(true)}
+                        >
+                          <Eye className="h-3.5 w-3.5" />
+                          Open Lead Detail to close out
+                        </Button>
+                      </div>
+                    )}
 
                     <div className="grid grid-cols-3 gap-2">
                       {[
@@ -1645,6 +1823,18 @@ export default function DialerPage() {
                     <span className="text-[10px] opacity-40 ml-auto">Keyboard shortcuts active</span>
                   </h2>
 
+                  <Button
+                    variant="outline"
+                    className="w-full mb-2.5 gap-2 border-cyan/25 text-cyan hover:bg-cyan/10"
+                    onClick={() => setFileModalOpen(true)}
+                  >
+                    <Eye className="h-3.5 w-3.5" />
+                    Open Lead Detail to close out
+                  </Button>
+                  <p className="text-[10px] text-muted-foreground/65 mb-3">
+                    Use Lead Detail for call closeout saves; Dialer here is context + handoff only.
+                  </p>
+
                   <div className="grid grid-cols-1 gap-1.5">
                     {DISPOSITIONS.map((d) => {
                       const Icon = d.icon;
@@ -1775,7 +1965,20 @@ export default function DialerPage() {
               notes: currentLead.notes,
               assigned_to: currentLead.assigned_to,
               lock_version: currentLead.lock_version,
+              promoted_at: currentLead.promoted_at,
+              last_contact_at: currentLead.last_contact_at,
               next_call_scheduled_at: currentLead.next_call_scheduled_at,
+              next_follow_up_at: currentLead.next_follow_up_at,
+              disposition_code: currentLead.disposition_code,
+              qualification_route: currentLead.qualification_route,
+              qualification_score_total: currentLead.qualification_score_total,
+              motivation_level: currentLead.motivation_level,
+              seller_timeline: currentLead.seller_timeline,
+              condition_level: currentLead.condition_level,
+              decision_maker_confirmed: currentLead.decision_maker_confirmed,
+              price_expectation: currentLead.price_expectation,
+              occupancy_score: currentLead.occupancy_score,
+              equity_flexibility_score: currentLead.equity_flexibility_score,
               call_sequence_step: currentLead.call_sequence_step,
               total_calls: currentLead.total_calls,
               live_answers: currentLead.live_answers,

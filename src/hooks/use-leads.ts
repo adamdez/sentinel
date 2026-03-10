@@ -2,8 +2,10 @@
 
 import { useState, useMemo, useCallback, useEffect, useRef } from "react";
 import {
+  deriveOfferPrepHealth,
   type DynamicTeamMember,
   deriveOfferVisibilityStatus,
+  extractOfferPrepSnapshot,
   type LeadRow,
   type LeadSegment,
 } from "@/lib/leads-data";
@@ -180,6 +182,15 @@ function isEscalatedReviewAttention(lead: LeadRow): boolean {
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function mapToLeadRow(raw: any, prop: any, firstAttemptAt: string | null = null): LeadRow {
   const composite = raw.priority ?? 0;
+  const offerPrepSnapshot = extractOfferPrepSnapshot(prop.owner_flags ?? null);
+  const offerPrepHealth = deriveOfferPrepHealth({
+    status: raw.status ?? "prospect",
+    qualificationRoute: raw.qualification_route ?? null,
+    snapshot: offerPrepSnapshot,
+    nextCallScheduledAt: raw.next_call_scheduled_at ?? null,
+    nextFollowUpAt: raw.next_follow_up_at ?? raw.follow_up_date ?? null,
+  }).state;
+
   return {
     id: raw.id,
     propertyId: raw.property_id ?? "",
@@ -225,6 +236,8 @@ function mapToLeadRow(raw: any, prop: any, firstAttemptAt: string | null = null)
       status: raw.status ?? "prospect",
       qualificationRoute: (raw.qualification_route ?? null),
     }),
+    offerPrepSnapshot,
+    offerPrepHealth,
     promotedAt: raw.promoted_at ?? raw.created_at ?? new Date().toISOString(),
     source: raw.source ?? "unknown",
     tags: raw.tags ?? [],
