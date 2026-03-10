@@ -7,6 +7,13 @@ import { scrubLead } from "@/lib/compliance";
 import { distressFingerprint, normalizeCounty as globalNormalizeCounty, isDuplicateError } from "@/lib/dedup";
 import { detectDistressSignals, type DetectedSignal } from "@/lib/distress-signals";
 import { captureStageTransition } from "@/lib/conversion-tracking";
+import {
+  computeQualificationScoreTotal,
+  mergeQualificationScoreState,
+  resolveQualificationTaskAssignee,
+  type QualificationScorePatch,
+  type QualificationScoreState,
+} from "@/lib/qualification-workflow";
 const SYSTEM_USER_ID = "00000000-0000-0000-0000-000000000000";
 const PR_API_BASE = "https://api.propertyradar.com/v1/properties";
 const US_STATES: Record<string, string> = {
@@ -43,6 +50,21 @@ const DEAD_DISPOSITION_SIGNALS = new Set([
   "ghost",
   "not_interested",
   "not_qualified",
+]);
+const DISPOSITION_CODES = new Set([
+  "interested",
+  "callback",
+  "appointment",
+  "appointment_set",
+  "contract",
+  "voicemail",
+  "no_answer",
+  "wrong_number",
+  "disconnected",
+  "do_not_call",
+  "not_interested",
+  "dead",
+  "ghost",
 ]);
 
 type StageEntryPrereqInput = {
@@ -218,12 +240,15 @@ export async function PATCH(req: NextRequest) {
       next_call_scheduled_at,
       next_follow_up_at,
       note_append,
+      disposition_code,
       motivation_level,
       seller_timeline,
       condition_level,
       decision_maker_confirmed,
       price_expectation,
       qualification_route,
+      occupancy_score,
+      equity_flexibility_score,
     } = body;
 
     const clientLockVersion = req.headers.get("x-lock-version");
@@ -238,12 +263,25 @@ export async function PATCH(req: NextRequest) {
       || next_call_scheduled_at !== undefined
       || next_follow_up_at !== undefined
       || note_append !== undefined
+      || disposition_code !== undefined
       || motivation_level !== undefined
       || seller_timeline !== undefined
       || condition_level !== undefined
       || decision_maker_confirmed !== undefined
       || price_expectation !== undefined
-      || qualification_route !== undefined;
+      || qualification_route !== undefined
+      || occupancy_score !== undefined
+      || equity_flexibility_score !== undefined;
+
+    const hasQualificationMutation =
+      motivation_level !== undefined
+      || seller_timeline !== undefined
+      || condition_level !== undefined
+      || decision_maker_confirmed !== undefined
+      || price_expectation !== undefined
+      || qualification_route !== undefined
+      || occupancy_score !== undefined
+      || equity_flexibility_score !== undefined;
 
     if (!hasMutation) {
       return NextResponse.json(
@@ -295,7 +333,17 @@ export async function PATCH(req: NextRequest) {
     const parsedTimeline = parseOptionalEnum<SellerTimeline>(seller_timeline, SELLER_TIMELINES);
     const parsedCondition = parseOptionalSmallInt(condition_level, 1, 5);
     const parsedPriceExpectation = parseOptionalInteger(price_expectation, 0);
+    const parsedDisposition = parseOptionalEnum<string>(disposition_code, DISPOSITION_CODES);
     const parsedQualificationRoute = parseOptionalEnum<QualificationRoute>(qualification_route, QUALIFICATION_ROUTES);
+    const parsedOccupancy = parseOptionalSmallInt(occupancy_score, 1, 5);
+    const parsedEquityFlex = parseOptionalSmallInt(equity_flexibility_score, 1, 5);
+
+    if (!parsedOccupancy.valid) {
+      return NextResponse.json({ error: "occupancy_score must be 1-5" }, { status: 400 });
+    }
+    if (!parsedEquityFlex.valid) {
+      return NextResponse.json({ error: "equity_flexibility_score must be 1-5" }, { status: 400 });
+    }
 
     if (!parsedNextCall.valid || !parsedNextFollowUp.valid) {
       return NextResponse.json(
@@ -324,6 +372,10 @@ export async function PATCH(req: NextRequest) {
       return NextResponse.json({ error: "price_expectation must be a non-negative integer" }, { status: 400 });
     }
 
+    if (!parsedDisposition.valid) {
+      return NextResponse.json({ error: "disposition_code is invalid" }, { status: 400 });
+    }
+
     if (!parsedQualificationRoute.valid) {
       return NextResponse.json({ error: "qualification_route is invalid" }, { status: 400 });
     }
@@ -343,12 +395,30 @@ export async function PATCH(req: NextRequest) {
     // Fetch current lead for transition validation and optimistic lock baseline.
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { data: currentLead, error: fetchErr } = await (sb.from("leads") as any)
-      .select("status, lock_version, notes, qualification_route, assigned_to, property_id, last_contact_at, total_calls, disposition_code, next_call_scheduled_at, next_follow_up_at")
+      .select(
+        "status, lock_version, notes, qualification_route, assigned_to, property_id, last_contact_at, total_calls, disposition_code, next_call_scheduled_at, next_follow_up_at, motivation_level, seller_timeline, condition_level, decision_maker_confirmed, price_expectation, occupancy_score, equity_flexibility_score",
+      )
       .eq("id", lead_id)
       .single();
 
     if (fetchErr || !currentLead) {
       return NextResponse.json({ error: "Lead not found", detail: fetchErr?.message }, { status: 404 });
+    }
+
+    let estimatedValueForQualification: number | null = null;
+    if (hasQualificationMutation && currentLead.property_id) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data: propertyForScore, error: propertyScoreErr } = await (sb.from("properties") as any)
+        .select("estimated_value")
+        .eq("id", currentLead.property_id)
+        .single();
+
+      if (propertyScoreErr) {
+        console.warn("[API/prospects PATCH] Could not load property estimated_value for qualification score:", propertyScoreErr.message);
+      } else if (propertyForScore?.estimated_value != null) {
+        const numericEstimatedValue = Number(propertyForScore.estimated_value);
+        estimatedValueForQualification = Number.isFinite(numericEstimatedValue) ? numericEstimatedValue : null;
+      }
     }
 
     let expectedVersion = currentLead.lock_version ?? 0;
@@ -480,6 +550,10 @@ export async function PATCH(req: NextRequest) {
       ? parsedNextCall.iso
       : (currentLead.next_call_scheduled_at ?? null);
 
+    const effectiveDispositionCode = parsedDisposition.provided
+      ? parsedDisposition.value
+      : (typeof currentLead.disposition_code === "string" ? currentLead.disposition_code : null);
+
     const effectiveNextFollowUpAt = parsedNextFollowUp.provided
       ? parsedNextFollowUp.iso
       : (plannedTask?.nextFollowUpAt ?? (parsedNextCall.provided ? parsedNextCall.iso : (currentLead.next_follow_up_at ?? null)));
@@ -487,7 +561,7 @@ export async function PATCH(req: NextRequest) {
     const hasContactEvidence =
       Boolean(currentLead.last_contact_at)
       || Number(currentLead.total_calls ?? 0) > 0
-      || (typeof currentLead.disposition_code === "string" && currentLead.disposition_code.trim().length > 0);
+      || (typeof effectiveDispositionCode === "string" && effectiveDispositionCode.trim().length > 0);
 
     const offerReadyRequested = qualificationRouteChanged && nextQualificationRoute === "offer_ready";
     if (offerReadyRequested && !effectiveAssignedTo) {
@@ -532,7 +606,7 @@ export async function PATCH(req: NextRequest) {
         nextQualificationRoute,
         noteAppendText,
         existingNotes: typeof currentLead.notes === "string" ? currentLead.notes : null,
-        dispositionCode: typeof currentLead.disposition_code === "string" ? currentLead.disposition_code : null,
+        dispositionCode: effectiveDispositionCode,
       });
 
       if (prereqError) {
@@ -615,6 +689,13 @@ export async function PATCH(req: NextRequest) {
       updateData.notes = currentNotes ? `${currentNotes}\n\n${stampedLine}` : stampedLine;
     }
 
+    if (parsedDisposition.provided) {
+      updateData.disposition_code = parsedDisposition.value;
+      if (parsedDisposition.value) {
+        updateData.last_contact_at = nowIso;
+      }
+    }
+
     if (parsedMotivation.provided) {
       updateData.motivation_level = parsedMotivation.value;
     }
@@ -639,7 +720,62 @@ export async function PATCH(req: NextRequest) {
       updateData.qualification_route = parsedQualificationRoute.value;
     }
 
-    const taskAssignee = effectiveAssignedTo ?? user.id;
+    if (parsedOccupancy.provided) {
+      updateData.occupancy_score = parsedOccupancy.value;
+    }
+
+    if (parsedEquityFlex.provided) {
+      updateData.equity_flexibility_score = parsedEquityFlex.value;
+    }
+
+    const currentScoreState: QualificationScoreState = {
+      motivationLevel: currentLead.motivation_level ?? null,
+      sellerTimeline: (currentLead.seller_timeline as SellerTimeline | null) ?? null,
+      conditionLevel: currentLead.condition_level ?? null,
+      occupancyScore: currentLead.occupancy_score ?? null,
+      equityFlexibilityScore: currentLead.equity_flexibility_score ?? null,
+      decisionMakerConfirmed: currentLead.decision_maker_confirmed ?? false,
+      priceExpectation: currentLead.price_expectation ?? null,
+      estimatedValue: estimatedValueForQualification,
+    };
+    const scorePatch: QualificationScorePatch = {
+      motivationLevel: parsedMotivation.provided ? parsedMotivation.value : undefined,
+      sellerTimeline: parsedTimeline.provided ? parsedTimeline.value : undefined,
+      conditionLevel: parsedCondition.provided ? parsedCondition.value : undefined,
+      occupancyScore: parsedOccupancy.provided ? parsedOccupancy.value : undefined,
+      equityFlexibilityScore: parsedEquityFlex.provided ? parsedEquityFlex.value : undefined,
+      decisionMakerConfirmed: decision_maker_confirmed !== undefined ? decision_maker_confirmed : undefined,
+      priceExpectation: parsedPriceExpectation.provided ? parsedPriceExpectation.value : undefined,
+      estimatedValue: estimatedValueForQualification,
+    };
+    const effectiveScoreState = mergeQualificationScoreState(currentScoreState, scorePatch);
+    const timelineScoreMap: Record<SellerTimeline, number> = { immediate: 5, "30_days": 4, "60_days": 3, flexible: 2, unknown: 1 };
+    const effectiveMotivation = effectiveScoreState.motivationLevel;
+    const effectiveTimeline = effectiveScoreState.sellerTimeline;
+    const timelineScore = effectiveTimeline ? timelineScoreMap[effectiveTimeline] : null;
+    const dmScore = effectiveScoreState.decisionMakerConfirmed ? 5 : 2;
+
+    if (hasQualificationMutation) {
+      // Recompute on every qualification mutation so partial updates never leave stale totals.
+      updateData.qualification_score_total = computeQualificationScoreTotal(effectiveScoreState);
+    }
+
+    const taskAssigneeResult = resolveQualificationTaskAssignee({
+      escalationReviewOnly: plannedTask?.escalationReviewOnly === true,
+      escalationTargetUserId: process.env.ESCALATION_TARGET_USER_ID,
+      effectiveAssignedTo,
+      actorUserId: user.id,
+    });
+    if ("error" in taskAssigneeResult) {
+      return NextResponse.json(
+        {
+          error: "Escalation target misconfigured",
+          detail: taskAssigneeResult.error,
+        },
+        { status: 500 },
+      );
+    }
+    const taskAssignee = taskAssigneeResult.assignee;
 
     let createdTaskId: string | null = null;
 
@@ -724,13 +860,7 @@ export async function PATCH(req: NextRequest) {
       );
     }
 
-    const qualificationMutation =
-      parsedMotivation.provided
-      || parsedTimeline.provided
-      || parsedCondition.provided
-      || decision_maker_confirmed !== undefined
-      || parsedPriceExpectation.provided
-      || parsedQualificationRoute.provided;
+    const qualificationMutation = hasQualificationMutation;
 
     const action = qualificationMutation
       ? (qualificationRouteChanged ? "QUALIFICATION_ROUTED" : "QUALIFICATION_UPDATED")
@@ -738,6 +868,8 @@ export async function PATCH(req: NextRequest) {
         ? "CLAIMED"
         : statusChanged
           ? "STATUS_CHANGED"
+          : parsedDisposition.provided
+            ? "CALL_OUTCOME_UPDATED"
           : noteAppendText
             ? "NOTE_ADDED"
             : "FOLLOW_UP_UPDATED";
@@ -753,6 +885,8 @@ export async function PATCH(req: NextRequest) {
           status_before: currentStatus,
           status_after: finalStatus,
           assigned_to: updateData.assigned_to,
+          disposition_code_before: typeof currentLead.disposition_code === "string" ? currentLead.disposition_code : null,
+          disposition_code_after: parsedDisposition.provided ? parsedDisposition.value : (typeof currentLead.disposition_code === "string" ? currentLead.disposition_code : null),
           next_call_scheduled_at: parsedNextCall.provided ? parsedNextCall.iso : undefined,
           next_follow_up_at: parsedNextFollowUp.provided
             ? parsedNextFollowUp.iso
@@ -763,6 +897,9 @@ export async function PATCH(req: NextRequest) {
           condition_level: parsedCondition.provided ? parsedCondition.value : undefined,
           decision_maker_confirmed: decision_maker_confirmed,
           price_expectation: parsedPriceExpectation.provided ? parsedPriceExpectation.value : undefined,
+          occupancy_score: parsedOccupancy.provided ? parsedOccupancy.value : undefined,
+          equity_flexibility_score: parsedEquityFlex.provided ? parsedEquityFlex.value : undefined,
+          qualification_score_total: updateData.qualification_score_total ?? undefined,
           qualification_route_before: currentQualificationRoute,
           qualification_route_after: parsedQualificationRoute.provided ? parsedQualificationRoute.value : currentQualificationRoute,
           qualification_task_id: createdTaskId,
@@ -778,6 +915,21 @@ export async function PATCH(req: NextRequest) {
         }
       });
 
+    // Compute suggested route from score total (suggestion only, not auto-applied)
+    let suggestedRoute: string | undefined;
+    const scoreTotalForSuggestion = updateData.qualification_score_total as number | null | undefined;
+    if (scoreTotalForSuggestion != null) {
+      if (scoreTotalForSuggestion >= 25 && (effectiveMotivation ?? 0) >= 4 && dmScore >= 3) {
+        suggestedRoute = "offer_ready";
+      } else if (scoreTotalForSuggestion >= 18 || ((effectiveMotivation ?? 0) >= 3 && (timelineScore ?? 0) <= 3)) {
+        suggestedRoute = "follow_up";
+      } else if (scoreTotalForSuggestion >= 12) {
+        suggestedRoute = "nurture";
+      } else {
+        suggestedRoute = "dead";
+      }
+    }
+
     return NextResponse.json({
       success: true,
       lead_id,
@@ -786,9 +938,12 @@ export async function PATCH(req: NextRequest) {
       next_follow_up_at: parsedNextFollowUp.provided
         ? parsedNextFollowUp.iso
         : (plannedTask?.nextFollowUpAt ?? undefined),
+      disposition_code: parsedDisposition.provided ? parsedDisposition.value : (typeof currentLead.disposition_code === "string" ? currentLead.disposition_code : null),
       qualification_route: parsedQualificationRoute.provided ? parsedQualificationRoute.value : currentQualificationRoute,
       qualification_task_id: createdTaskId,
       escalation_review_only: plannedTask?.escalationReviewOnly === true,
+      qualification_score_total: scoreTotalForSuggestion,
+      suggested_route: suggestedRoute,
     });
   } catch (err) {
     console.error("[API/prospects PATCH] Error:", err);
@@ -1400,3 +1555,4 @@ function toIntHelper(val: unknown): number | undefined {
 }
 
 // Distress Signal Detection — uses shared module from @/lib/distress-signals
+

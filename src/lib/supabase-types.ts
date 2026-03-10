@@ -77,6 +77,9 @@ interface LeadRow {
   decision_maker_confirmed: boolean;
   price_expectation: number | null;
   qualification_route: "offer_ready" | "follow_up" | "nurture" | "dead" | "escalate" | null;
+  occupancy_score: number | null;
+  equity_flexibility_score: number | null;
+  qualification_score_total: number | null;
   disposition_code: string | null;
   notes: string | null;
   tags: string[];

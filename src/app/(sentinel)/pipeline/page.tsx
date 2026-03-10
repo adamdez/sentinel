@@ -843,11 +843,21 @@ function LeadCard({
                 Needs Qualification
               </span>
             )}
-            {followUpOverdue && (
+            {followUpOverdue && lead.status !== "nurture" && (
               <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded border bg-red-500/12 text-red-300 border-red-500/30">
                 Needs Follow-Up
               </span>
             )}
+            {lead.status === "nurture" && (() => {
+              const fuMs = lead.follow_up_at ? new Date(lead.follow_up_at).getTime() : NaN;
+              const sevenDaysAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
+              const isStale = !Number.isNaN(fuMs) ? fuMs < sevenDaysAgo : true; // no follow-up = stale
+              return isStale ? (
+                <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded border bg-red-500/12 text-red-300 border-red-500/30">
+                  Stale Nurture
+                </span>
+              ) : null;
+            })()}
             {lead.qualification_route === "escalate" && (
               <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded border bg-amber-500/12 text-amber-300 border-amber-500/30">
                 Escalated Review

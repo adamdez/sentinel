@@ -1,106 +1,97 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef } from "react";
 import { motion } from "framer-motion";
-import { AlertCircle, Clock, CheckCircle2 } from "lucide-react";
+import {
+  AlertCircle,
+  Clock,
+  CheckCircle2,
+  Phone,
+  DollarSign,
+  ClipboardCheck,
+  Calculator,
+  ShieldAlert,
+  Leaf,
+} from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { supabase } from "@/lib/supabase";
-import { useSentinelStore } from "@/lib/store";
+import { useMorningQueue, type QueueBucket } from "@/hooks/use-morning-queue";
 
-interface TaskGroup {
-  label: string;
-  count: number;
-  variant: "destructive" | "neon" | "secondary";
-  icon: React.ComponentType<{ className?: string }>;
+// ── Icon map for each queue bucket ──────────────────────────────────────
+
+const BUCKET_ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
+  "new-inbound": Phone,
+  "offers-pending": DollarSign,
+  "due-today": Clock,
+  "overdue": AlertCircle,
+  "needs-qualification": ClipboardCheck,
+  "comps-to-run": Calculator,
+  "escalations": ShieldAlert,
+  "stale-nurture": Leaf,
+};
+
+// ── Navigation helper — go to leads page with the lead selected ───
+
+function openLead(leadId: string) {
+  // Navigate to leads page — the lead list will show it.
+  // If we're already on leads, this is a no-op; otherwise it routes there.
+  window.location.href = `/leads?open=${leadId}`;
 }
 
+// ── Compact row for a single lead in a bucket ─────────────────────────
+
+function QueueRow({ item, idx }: { item: { leadId: string; address: string; ownerName: string; dueAt: string | null }; idx: number }) {
+  const overdue = item.dueAt ? new Date(item.dueAt) < new Date() : false;
+  const timeLabel = item.dueAt
+    ? overdue
+      ? "OVERDUE"
+      : new Date(item.dueAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })
+    : "—";
+
+  return (
+    <motion.button
+      initial={{ opacity: 0, x: -4 }}
+      animate={{ opacity: 1, x: 0 }}
+      transition={{ delay: 0.05 + idx * 0.03 }}
+      onClick={() => openLead(item.leadId)}
+      className="w-full flex items-center justify-between text-[11px] py-0.5 px-1 rounded hover:bg-white/5 transition-colors text-left"
+    >
+      <span className="truncate flex-1 mr-2">{item.address || item.ownerName}</span>
+      <span className={overdue ? "text-red-400 font-bold shrink-0" : "text-muted-foreground shrink-0"}>
+        {timeLabel}
+      </span>
+    </motion.button>
+  );
+}
+
+// ── Single bucket summary chip ────────────────────────────────────────
+
+function BucketChip({ bucket, idx }: { bucket: QueueBucket; idx: number }) {
+  const Icon = BUCKET_ICONS[bucket.key] ?? CheckCircle2;
+  const dimmed = bucket.count === 0;
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, scale: 0.9 }}
+      animate={{ opacity: dimmed ? 0.4 : 1, scale: 1 }}
+      transition={{ delay: idx * 0.04 }}
+      className="flex flex-col items-center text-center py-1.5 px-1 rounded-[10px] bg-secondary/20 min-w-[60px]"
+    >
+      <Icon className="h-3 w-3 mb-0.5 text-muted-foreground" />
+      <p className="text-lg font-black leading-none">{bucket.count}</p>
+      <Badge
+        variant={dimmed ? "outline" : bucket.variant}
+        className="text-[7px] mt-0.5 px-1"
+      >
+        {bucket.label}
+      </Badge>
+    </motion.div>
+  );
+}
+
+// ── Main widget component ─────────────────────────────────────────────
+
 export function TasksDue() {
-  const { currentUser } = useSentinelStore();
-  const [groups, setGroups] = useState<TaskGroup[]>([]);
-  const [upcoming, setUpcoming] = useState<{ address: string; time: string }[]>([]);
-  const [loading, setLoading] = useState(true);
-  const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
-
-  const fetchData = useCallback(async () => {
-    const now = new Date();
-    const endOfDay = new Date(now);
-    endOfDay.setHours(23, 59, 59, 999);
-    const tomorrow = new Date(now);
-    tomorrow.setDate(tomorrow.getDate() + 1);
-    tomorrow.setHours(23, 59, 59, 999);
-
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data: leads } = await (supabase.from("leads") as any)
-      .select("id, next_call_scheduled_at, property_id, status")
-      .eq("assigned_to", currentUser.id)
-      .not("next_call_scheduled_at", "is", null)
-      .lte("next_call_scheduled_at", tomorrow.toISOString())
-      .in("status", ["lead", "negotiation", "prospect"])
-      .order("next_call_scheduled_at", { ascending: true });
-
-    const rows = (leads ?? []) as { id: string; next_call_scheduled_at: string; property_id: string; status: string }[];
-
-    let overdue = 0;
-    let dueToday = 0;
-    let dueTomorrow = 0;
-    const upcomingList: { address: string; time: string }[] = [];
-
-    for (const r of rows) {
-      const scheduled = new Date(r.next_call_scheduled_at);
-      if (scheduled < now) overdue++;
-      else if (scheduled <= endOfDay) dueToday++;
-      else dueTomorrow++;
-
-      if (upcomingList.length < 4) {
-        const h = scheduled.getHours();
-        const m = scheduled.getMinutes();
-        const ampm = h >= 12 ? "PM" : "AM";
-        const displayH = h % 12 || 12;
-        const timeStr = scheduled < now
-          ? "OVERDUE"
-          : `${displayH}:${String(m).padStart(2, "0")} ${ampm}`;
-        upcomingList.push({ address: r.property_id.slice(0, 8) + "…", time: timeStr });
-      }
-    }
-
-    // Fetch addresses for the upcoming ones
-    if (upcomingList.length > 0 && rows.length > 0) {
-      const propIds = rows.slice(0, 4).map((r) => r.property_id).filter(Boolean);
-      if (propIds.length > 0) {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const { data: props } = await (supabase.from("properties") as any)
-          .select("id, street_address")
-          .in("id", propIds);
-        const propMap: Record<string, string> = {};
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        for (const p of (props ?? []) as any[]) propMap[p.id] = p.street_address ?? "";
-        rows.slice(0, 4).forEach((r, i) => {
-          if (upcomingList[i] && propMap[r.property_id]) {
-            upcomingList[i].address = propMap[r.property_id];
-          }
-        });
-      }
-    }
-
-    setGroups([
-      { label: "Overdue", count: overdue, variant: "destructive", icon: AlertCircle },
-      { label: "Due Today", count: dueToday, variant: "neon", icon: Clock },
-      { label: "Tomorrow", count: dueTomorrow, variant: "secondary", icon: CheckCircle2 },
-    ]);
-    setUpcoming(upcomingList);
-    setLoading(false);
-  }, [currentUser.id]);
-
-  useEffect(() => {
-    fetchData();
-    const channel = supabase
-      .channel("tasks_due_rt")
-      .on("postgres_changes", { event: "*", schema: "public", table: "leads" }, () => fetchData())
-      .subscribe();
-    channelRef.current = channel;
-    return () => { if (channelRef.current) supabase.removeChannel(channelRef.current); };
-  }, [fetchData]);
+  const { buckets, loading, isAdmin } = useMorningQueue();
 
   if (loading) {
     return (
@@ -112,52 +103,37 @@ export function TasksDue() {
     );
   }
 
-  const totalDue = groups.reduce((s, g) => s + g.count, 0);
+  // Filter admin-only buckets for non-admins
+  const visibleBuckets = buckets.filter((b) => !b.adminOnly || isAdmin);
+  const totalDue = visibleBuckets.reduce((s, b) => s + b.count, 0);
+
+  // Top priority bucket with items to show expanded
+  const topBucket = visibleBuckets.find((b) => b.count > 0 && b.items.length > 0);
 
   return (
     <div className="space-y-2.5">
-      <div className="flex items-center gap-2">
-        {groups.map((g, i) => {
-          const Icon = g.icon;
-          return (
-            <motion.div
-              key={g.label}
-              initial={{ opacity: 0, scale: 0.9 }}
-              animate={{ opacity: 1, scale: 1 }}
-              transition={{ delay: i * 0.06 }}
-              className="flex-1 text-center py-1.5 rounded-[10px] bg-secondary/20"
-            >
-              <Icon className="h-3 w-3 mx-auto mb-0.5 text-muted-foreground" />
-              <p className="text-lg font-black">{g.count}</p>
-              <Badge variant={g.variant} className="text-[8px]">{g.label}</Badge>
-            </motion.div>
-          );
-        })}
+      {/* Priority grid — 4 per row */}
+      <div className="grid grid-cols-4 gap-1.5">
+        {visibleBuckets.map((bucket, i) => (
+          <BucketChip key={bucket.key} bucket={bucket} idx={i} />
+        ))}
       </div>
 
-      {upcoming.length > 0 && (
-        <div className="space-y-1">
-          <p className="text-[10px] uppercase tracking-widest text-muted-foreground">Next Up</p>
-          {upcoming.map((u, i) => (
-            <motion.div
-              key={i}
-              initial={{ opacity: 0, x: -4 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ delay: 0.2 + i * 0.05 }}
-              className="flex items-center justify-between text-[11px] py-0.5"
-            >
-              <span className="truncate flex-1 mr-2">{u.address}</span>
-              <span className={u.time === "OVERDUE" ? "text-red-400 font-bold" : "text-muted-foreground"}>
-                {u.time}
-              </span>
-            </motion.div>
+      {/* Expanded preview of the top-priority non-empty bucket */}
+      {topBucket && topBucket.items.length > 0 && (
+        <div className="space-y-0.5">
+          <p className="text-[10px] uppercase tracking-widest text-muted-foreground">
+            {topBucket.label} — Top {Math.min(topBucket.items.length, 4)}
+          </p>
+          {topBucket.items.slice(0, 4).map((item, i) => (
+            <QueueRow key={item.leadId || i} item={item} idx={i} />
           ))}
         </div>
       )}
 
       {totalDue === 0 && (
         <div className="text-center py-3 text-xs text-muted-foreground">
-          No follow-ups scheduled — queue is clear.
+          Queue clear — no action items right now.
         </div>
       )}
     </div>

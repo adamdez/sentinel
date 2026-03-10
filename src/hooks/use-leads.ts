@@ -218,6 +218,9 @@ function mapToLeadRow(raw: any, prop: any, firstAttemptAt: string | null = null)
     decisionMakerConfirmed: raw.decision_maker_confirmed === true,
     priceExpectation: raw.price_expectation != null ? Number(raw.price_expectation) : null,
     qualificationRoute: raw.qualification_route ?? null,
+    occupancyScore: raw.occupancy_score != null ? Number(raw.occupancy_score) : null,
+    equityFlexibilityScore: raw.equity_flexibility_score != null ? Number(raw.equity_flexibility_score) : null,
+    qualificationScoreTotal: raw.qualification_score_total != null ? Number(raw.qualification_score_total) : null,
     offerStatus: deriveOfferVisibilityStatus({
       status: raw.status ?? "prospect",
       qualificationRoute: (raw.qualification_route ?? null),

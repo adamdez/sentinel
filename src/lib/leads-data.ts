@@ -253,6 +253,9 @@ export interface LeadRow {
   decisionMakerConfirmed: boolean;
   priceExpectation: number | null;
   qualificationRoute: QualificationRoute | null;
+  occupancyScore: number | null;
+  equityFlexibilityScore: number | null;
+  qualificationScoreTotal: number | null;
   offerStatus: OfferVisibilityStatus;
   promotedAt: string;
   source: string;

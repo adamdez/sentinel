@@ -29,7 +29,7 @@ import {
 } from "@/lib/leads-data";
 import type { AIScore, DistressType, LeadStatus, SellerTimeline, QualificationRoute } from "@/lib/types";
 import { SIGNAL_WEIGHTS } from "@/lib/scoring";
-import { getSequenceLabel, getSequenceProgress } from "@/lib/call-scheduler";
+import { getSequenceLabel, getSequenceProgress, getCadencePosition, suggestNextCadenceDate } from "@/lib/call-scheduler";
 import { useCallNotes, type CallNote } from "@/hooks/use-call-notes";
 import { CompsMap, getSatelliteTileUrl, getGoogleStreetViewLink, type CompProperty, type SubjectProperty } from "@/components/sentinel/comps/comps-map";
 import { PredictiveDistressBadge, type PredictiveDistressData } from "@/components/sentinel/predictive-distress-badge";
@@ -38,6 +38,8 @@ import { NumericInput } from "@/components/sentinel/numeric-input";
 import { usePreCallBrief } from "@/hooks/use-pre-call-brief";
 import { supabase } from "@/lib/supabase";
 import { precheckWorkflowStageChange } from "@/lib/workflow-stage-precheck";
+import { IntakeGuideSection } from "@/components/sentinel/intake-guide-section";
+import { formatDueDateLabel } from "@/lib/due-date-label";
 import { toast } from "sonner";
 
 // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
@@ -71,6 +73,9 @@ export interface ClientFile {
   decisionMakerConfirmed: boolean;
   priceExpectation: number | null;
   qualificationRoute: QualificationRoute | null;
+  occupancyScore: number | null;
+  equityFlexibilityScore: number | null;
+  qualificationScoreTotal: number | null;
   offerStatus: OfferVisibilityStatus;
   complianceClean: boolean;
   compositeScore: number;
@@ -150,6 +155,9 @@ export function clientFileFromProspect(p: ProspectRow): ClientFile {
     decisionMakerConfirmed: p.decision_maker_confirmed ?? false,
     priceExpectation: p.price_expectation ?? null,
     qualificationRoute: p.qualification_route ?? null,
+    occupancyScore: p.occupancy_score ?? null,
+    equityFlexibilityScore: p.equity_flexibility_score ?? null,
+    qualificationScoreTotal: p.qualification_score_total ?? null,
     offerStatus: deriveOfferVisibilityStatus({
       status: p.status,
       qualificationRoute: p.qualification_route ?? null,
@@ -188,6 +196,9 @@ export function clientFileFromLead(l: LeadRow): ClientFile {
     decisionMakerConfirmed: l.decisionMakerConfirmed,
     priceExpectation: l.priceExpectation,
     qualificationRoute: l.qualificationRoute,
+    occupancyScore: l.occupancyScore ?? null,
+    equityFlexibilityScore: l.equityFlexibilityScore ?? null,
+    qualificationScoreTotal: l.qualificationScoreTotal ?? null,
     offerStatus: l.offerStatus,
     complianceClean: l.complianceClean,
     compositeScore: l.score.composite, motivationScore: l.score.motivation,
@@ -238,6 +249,9 @@ export function clientFileFromRaw(lead: Record<string, any>, prop: Record<string
     decisionMakerConfirmed: lead.decision_maker_confirmed === true,
     priceExpectation: lead.price_expectation != null ? Number(lead.price_expectation) : null,
     qualificationRoute: (lead.qualification_route as QualificationRoute | null) ?? null,
+    occupancyScore: lead.occupancy_score != null ? Number(lead.occupancy_score) : null,
+    equityFlexibilityScore: lead.equity_flexibility_score != null ? Number(lead.equity_flexibility_score) : null,
+    qualificationScoreTotal: lead.qualification_score_total != null ? Number(lead.qualification_score_total) : null,
     offerStatus: deriveOfferVisibilityStatus({
       status: lead.status ?? "prospect",
       qualificationRoute: (lead.qualification_route as QualificationRoute | null) ?? null,
@@ -296,7 +310,43 @@ type QualificationDraft = {
   decisionMakerConfirmed: boolean;
   priceExpectation: number | null;
   qualificationRoute: QualificationRoute | null;
+  occupancyScore: number | null;
+  equityFlexibilityScore: number | null;
 };
+type CloseoutNextAction = "follow_up_call" | "nurture_check_in" | "escalation_review";
+type CloseoutPresetId =
+  | "call_tomorrow"
+  | "call_3_days"
+  | "call_next_week"
+  | "nurture_14_days"
+  | "escalate_review";
+
+const CALL_OUTCOME_OPTIONS = [
+  { id: "interested", label: "Interested" },
+  { id: "callback", label: "Callback" },
+  { id: "appointment", label: "Appointment" },
+  { id: "appointment_set", label: "Appointment Set" },
+  { id: "contract", label: "Contract Discussed" },
+  { id: "voicemail", label: "Voicemail" },
+  { id: "no_answer", label: "No Answer" },
+  { id: "not_interested", label: "Not Interested" },
+  { id: "wrong_number", label: "Wrong Number" },
+  { id: "disconnected", label: "Disconnected" },
+  { id: "do_not_call", label: "Do Not Call" },
+] as const;
+
+const CLOSEOUT_PRESETS: Array<{
+  id: CloseoutPresetId;
+  label: string;
+  daysFromNow: number | null;
+  action: CloseoutNextAction;
+}> = [
+  { id: "call_tomorrow", label: "Call tomorrow", daysFromNow: 1, action: "follow_up_call" },
+  { id: "call_3_days", label: "Call in 3 days", daysFromNow: 3, action: "follow_up_call" },
+  { id: "call_next_week", label: "Call next week", daysFromNow: 7, action: "follow_up_call" },
+  { id: "nurture_14_days", label: "Nurture 14 days", daysFromNow: 14, action: "nurture_check_in" },
+  { id: "escalate_review", label: "Escalate review", daysFromNow: null, action: "escalation_review" },
+];
 
 const SELLER_TIMELINE_OPTIONS: Array<{ id: SellerTimeline; label: string }> = [
   { id: "immediate", label: "Immediate" },
@@ -313,6 +363,12 @@ const QUALIFICATION_ROUTE_OPTIONS: Array<{ id: QualificationRoute; label: string
   { id: "dead", label: "Dead" },
   { id: "escalate", label: "Escalate Review" },
 ];
+const QUALIFICATION_ROUTE_IDS = new Set<QualificationRoute>(QUALIFICATION_ROUTE_OPTIONS.map((option) => option.id));
+
+function parseSuggestedRoute(value: unknown): QualificationRoute | null {
+  if (typeof value !== "string") return null;
+  return QUALIFICATION_ROUTE_IDS.has(value as QualificationRoute) ? (value as QualificationRoute) : null;
+}
 
 function qualificationRouteLabel(route: QualificationRoute | null | undefined): string {
   switch (route) {
@@ -539,6 +595,25 @@ function fromLocalDateTimeInput(localValue: string): string | null {
   return d.toISOString();
 }
 
+function presetDateTimeLocal(daysFromNow: number): string {
+  const d = new Date();
+  d.setSeconds(0, 0);
+  d.setDate(d.getDate() + daysFromNow);
+  return toLocalDateTimeInput(d.toISOString());
+}
+
+function routeForCloseoutAction(action: CloseoutNextAction): QualificationRoute | null {
+  if (action === "nurture_check_in") return "nurture";
+  if (action === "escalation_review") return "escalate";
+  return null;
+}
+
+function closeoutActionLabel(action: CloseoutNextAction): string {
+  if (action === "nurture_check_in") return "Nurture Check-In";
+  if (action === "escalation_review") return "Escalation Review";
+  return "Follow-Up Call";
+}
+
 function formatRelativeFromNow(iso: string | null | undefined): string {
   if (!iso) return "n/a";
   const d = new Date(iso);
@@ -546,11 +621,11 @@ function formatRelativeFromNow(iso: string | null | undefined): string {
   const diffMs = Date.now() - d.getTime();
   const mins = Math.floor(Math.abs(diffMs) / 60000);
   if (mins < 1) return "just now";
-  if (mins < 60) return `${mins}m ${diffMs >= 0 ? "ago" : "from now"}`;
+  if (mins < 60) return diffMs >= 0 ? `${mins}m ago` : `in ${mins}m`;
   const hrs = Math.floor(mins / 60);
-  if (hrs < 24) return `${hrs}h ${diffMs >= 0 ? "ago" : "from now"}`;
+  if (hrs < 24) return diffMs >= 0 ? `${hrs}h ago` : `in ${hrs}h`;
   const days = Math.floor(hrs / 24);
-  return `${days}d ${diffMs >= 0 ? "ago" : "from now"}`;
+  return diffMs >= 0 ? `${days}d ago` : `in ${days}d`;
 }
 
 function getQualificationDraft(cf: ClientFile | null | undefined): QualificationDraft {
@@ -561,6 +636,8 @@ function getQualificationDraft(cf: ClientFile | null | undefined): Qualification
     decisionMakerConfirmed: cf?.decisionMakerConfirmed ?? false,
     priceExpectation: cf?.priceExpectation ?? null,
     qualificationRoute: cf?.qualificationRoute ?? null,
+    occupancyScore: cf?.occupancyScore ?? null,
+    equityFlexibilityScore: cf?.equityFlexibilityScore ?? null,
   };
 }
 
@@ -576,7 +653,7 @@ function getNextActionUrgency(cf: ClientFile): {
 
   if (!Number.isNaN(nextMs)) {
     if (nextMs < now) {
-      return { label: "Overdue Follow-up", detail: `${formatRelativeFromNow(nextIso)} (scheduled)`, tone: "danger" };
+      return { label: "Overdue Follow-up", detail: formatDueDateLabel(nextIso).text, tone: "danger" };
     }
     const hoursUntil = Math.floor((nextMs - now) / 3600000);
     if (hoursUntil <= 24) {
@@ -2448,7 +2525,7 @@ function ContactTab({ cf, overlay, onSkipTrace, skipTracing, onDial, onSms, call
 // OVERVIEW TAB
 // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
-function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceMs, overlay, skipTraceError, onSkipTrace, onManualSkipTrace, onEdit, onDial, onSms, calling, dialHistory, autofilling, onAutofill, deepCrawling, deepCrawlResult, deepCrawlExpanded, setDeepCrawlExpanded, executeDeepCrawl, hasSavedReport, loadingReport, loadSavedReport, crawlSteps, deepSkipResult, qualification, qualificationDirty, qualificationSaving, qualificationEditable, onQualificationChange, onQualificationRouteSelect, onQualificationSave }: {
+function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceMs, overlay, skipTraceError, onSkipTrace, onManualSkipTrace, onEdit, onDial, onSms, calling, dialHistory, autofilling, onAutofill, deepCrawling, deepCrawlResult, deepCrawlExpanded, setDeepCrawlExpanded, executeDeepCrawl, hasSavedReport, loadingReport, loadSavedReport, crawlSteps, deepSkipResult, qualification, qualificationDirty, qualificationSaving, qualificationEditable, qualificationSuggestedRoute, onQualificationChange, onQualificationRouteSelect, onQualificationSave }: {
   cf: ClientFile; computedArv: number; skipTracing: boolean; skipTraceResult: string | null; skipTraceMs: number | null;
   overlay: SkipTraceOverlay | null; skipTraceError: SkipTraceError | null;
   onSkipTrace: () => void; onManualSkipTrace: () => void; onEdit: () => void;
@@ -2467,6 +2544,7 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
   qualificationDirty: boolean;
   qualificationSaving: boolean;
   qualificationEditable: boolean;
+  qualificationSuggestedRoute: QualificationRoute | null;
   onQualificationChange: (patch: Partial<QualificationDraft>) => void;
   onQualificationRouteSelect: (route: QualificationRoute) => void;
   onQualificationSave: () => void;
@@ -2752,6 +2830,8 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
     qualification.motivationLevel != null
     || qualification.sellerTimeline != null
     || qualification.conditionLevel != null
+    || qualification.occupancyScore != null
+    || qualification.equityFlexibilityScore != null
     || qualification.decisionMakerConfirmed
     || qualification.priceExpectation != null
     || qualification.qualificationRoute != null;
@@ -2760,11 +2840,17 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
     { label: "Motivation", complete: qualification.motivationLevel != null },
     { label: "Timeline", complete: qualification.sellerTimeline != null },
     { label: "Condition", complete: qualification.conditionLevel != null },
+    { label: "Occupancy", complete: qualification.occupancyScore != null },
+    { label: "Equity Flex", complete: qualification.equityFlexibilityScore != null },
     { label: "Decision Maker", complete: qualification.decisionMakerConfirmed === true },
     { label: "Asking Price", complete: qualification.priceExpectation != null },
   ];
   const qualificationCompleteCount = qualificationCompletenessItems.filter((item) => item.complete).length;
-  const qualificationCompletenessPct = Math.round((qualificationCompleteCount / qualificationCompletenessItems.length) * 100);
+  const qualificationCompletenessTotal = qualificationCompletenessItems.length;
+  const qualificationCompletenessRatio = qualificationCompletenessTotal > 0
+    ? qualificationCompleteCount / qualificationCompletenessTotal
+    : 0;
+  const qualificationCompletenessPct = Math.round(qualificationCompletenessRatio * 100);
   const qualificationMissingLabels = qualificationCompletenessItems
     .filter((item) => !item.complete)
     .map((item) => item.label);
@@ -3270,6 +3356,9 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
         </div>
       </div>
 
+      {/* Intake Guide — visible for early-stage leads (prospect/lead with 0-1 calls) */}
+      <IntakeGuideSection cf={cf} />
+
       {showQualificationBlock && (
         <div className="rounded-[12px] border border-white/[0.06] bg-white/[0.02] p-3 space-y-3">
           <div className="flex items-center gap-2">
@@ -3287,16 +3376,24 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
                   <span className="uppercase tracking-wider text-muted-foreground font-semibold">Qualification Completeness</span>
                   <span className={cn(
                     "font-semibold",
-                    qualificationCompleteCount >= 4 ? "text-emerald-300" : qualificationCompleteCount >= 2 ? "text-amber-300" : "text-red-300"
+                    qualificationCompletenessRatio >= 0.8
+                      ? "text-emerald-300"
+                      : qualificationCompletenessRatio >= 0.4
+                        ? "text-amber-300"
+                        : "text-red-300"
                   )}>
-                    {qualificationCompleteCount}/5
+                    {qualificationCompleteCount}/{qualificationCompletenessTotal}
                   </span>
                 </div>
                 <div className="h-1.5 rounded-full bg-white/[0.06] overflow-hidden">
                   <div
                     className={cn(
                       "h-full transition-all",
-                      qualificationCompleteCount >= 4 ? "bg-emerald-400/80" : qualificationCompleteCount >= 2 ? "bg-amber-400/80" : "bg-red-400/80",
+                      qualificationCompletenessRatio >= 0.8
+                        ? "bg-emerald-400/80"
+                        : qualificationCompletenessRatio >= 0.4
+                          ? "bg-amber-400/80"
+                          : "bg-red-400/80",
                     )}
                     style={{ width: `${qualificationCompletenessPct}%` }}
                   />
@@ -3356,6 +3453,52 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
                 <div className="space-y-1.5">
+                  <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">Occupancy</p>
+                  <div className="flex items-center gap-1.5">
+                    {[1, 2, 3, 4, 5].map((level) => (
+                      <button
+                        key={level}
+                        type="button"
+                        onClick={() => onQualificationChange({ occupancyScore: level })}
+                        className={cn(
+                          "h-7 w-7 rounded-[8px] border text-[11px] font-semibold transition-colors",
+                          qualification.occupancyScore === level
+                            ? "border-cyan/40 bg-cyan/[0.12] text-cyan"
+                            : "border-white/[0.12] bg-white/[0.04] text-muted-foreground hover:border-white/[0.2]"
+                        )}
+                      >
+                        {level}
+                      </button>
+                    ))}
+                    <span className="text-[9px] text-muted-foreground/60 ml-1">1=occupied · 5=vacant</span>
+                  </div>
+                </div>
+
+                <div className="space-y-1.5">
+                  <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">Equity / Flexibility</p>
+                  <div className="flex items-center gap-1.5">
+                    {[1, 2, 3, 4, 5].map((level) => (
+                      <button
+                        key={level}
+                        type="button"
+                        onClick={() => onQualificationChange({ equityFlexibilityScore: level })}
+                        className={cn(
+                          "h-7 w-7 rounded-[8px] border text-[11px] font-semibold transition-colors",
+                          qualification.equityFlexibilityScore === level
+                            ? "border-cyan/40 bg-cyan/[0.12] text-cyan"
+                            : "border-white/[0.12] bg-white/[0.04] text-muted-foreground hover:border-white/[0.2]"
+                        )}
+                      >
+                        {level}
+                      </button>
+                    ))}
+                    <span className="text-[9px] text-muted-foreground/60 ml-1">1=rigid · 5=flexible</span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
+                <div className="space-y-1.5">
                   <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">Timeline</p>
                   <select
                     value={qualification.sellerTimeline ?? ""}
@@ -3398,9 +3541,45 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
                 Decision maker confirmed
               </label>
 
-              {offerReadySuggested && (
+              {/* Qualification Score Badge */}
+              {cf.qualificationScoreTotal != null && (
+                <div className={cn(
+                  "rounded-[8px] border px-2.5 py-2 text-[11px] flex items-center justify-between",
+                  cf.qualificationScoreTotal >= 25
+                    ? "border-emerald-500/20 bg-emerald-500/[0.06] text-emerald-300"
+                    : cf.qualificationScoreTotal >= 18
+                      ? "border-cyan/20 bg-cyan/[0.06] text-cyan"
+                      : cf.qualificationScoreTotal >= 12
+                        ? "border-amber-400/20 bg-amber-400/[0.06] text-amber-300"
+                        : "border-zinc-500/20 bg-zinc-500/[0.06] text-zinc-400"
+                )}>
+                  <span>
+                    Score: <span className="font-semibold">{cf.qualificationScoreTotal}/35</span>
+                    {cf.qualificationScoreTotal >= 25 && " — Offer Ready"}
+                    {cf.qualificationScoreTotal >= 18 && cf.qualificationScoreTotal < 25 && " — Follow Up"}
+                    {cf.qualificationScoreTotal >= 12 && cf.qualificationScoreTotal < 18 && " — Nurture"}
+                    {cf.qualificationScoreTotal < 12 && " — Likely Dead"}
+                  </span>
+                </div>
+              )}
+              {offerReadySuggested && cf.qualificationScoreTotal == null && (
                 <div className="rounded-[8px] border border-emerald-500/20 bg-emerald-500/[0.06] px-2.5 py-2 text-[11px] text-emerald-300">
                   Suggestion: this lead looks <span className="font-semibold">Offer Ready</span> based on motivation, timeline, and lead score.
+                </div>
+              )}
+              {qualificationSuggestedRoute && qualificationSuggestedRoute !== qualification.qualificationRoute && (
+                <div className="rounded-[8px] border border-cyan/20 bg-cyan/[0.06] px-2.5 py-2 text-[11px] text-cyan flex items-center justify-between gap-2">
+                  <span>
+                    Server suggestion: <span className="font-semibold">{qualificationRouteLabel(qualificationSuggestedRoute)}</span>
+                  </span>
+                  <Button
+                    size="sm"
+                    className="h-6 text-[10px]"
+                    disabled={qualificationSaving}
+                    onClick={() => onQualificationRouteSelect(qualificationSuggestedRoute)}
+                  >
+                    Accept suggestion
+                  </Button>
                 </div>
               )}
 
@@ -3452,6 +3631,8 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
             <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-xs">
               {qualification.motivationLevel != null && <p className="text-muted-foreground">Motivation: <span className="text-foreground font-medium">{qualification.motivationLevel}/5</span></p>}
               {qualification.conditionLevel != null && <p className="text-muted-foreground">Condition: <span className="text-foreground font-medium">{qualification.conditionLevel}/5</span></p>}
+              {qualification.occupancyScore != null && <p className="text-muted-foreground">Occupancy: <span className="text-foreground font-medium">{qualification.occupancyScore}/5</span></p>}
+              {qualification.equityFlexibilityScore != null && <p className="text-muted-foreground">Equity/Flex: <span className="text-foreground font-medium">{qualification.equityFlexibilityScore}/5</span></p>}
               {qualification.sellerTimeline && <p className="text-muted-foreground">Timeline: <span className="text-foreground font-medium">{qualification.sellerTimeline.replace("_", " ")}</span></p>}
               {qualification.priceExpectation != null && <p className="text-muted-foreground">Asking Price: <span className="text-foreground font-medium">{formatCurrency(qualification.priceExpectation)}</span></p>}
               {qualification.qualificationRoute && <p className="text-muted-foreground">Route: <span className="text-foreground font-medium">{qualificationRouteLabel(qualification.qualificationRoute)}</span></p>}
@@ -3466,6 +3647,14 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
                 </p>
               )}
               <p className="text-muted-foreground">Decision Maker: <span className="text-foreground font-medium">{qualification.decisionMakerConfirmed ? "Confirmed" : "Not confirmed"}</span></p>
+              {cf.qualificationScoreTotal != null && (
+                <p className={cn(
+                  "font-medium",
+                  cf.qualificationScoreTotal >= 25 ? "text-emerald-300" : cf.qualificationScoreTotal >= 18 ? "text-cyan" : cf.qualificationScoreTotal >= 12 ? "text-amber-300" : "text-zinc-400"
+                )}>
+                  Score: {cf.qualificationScoreTotal}/35
+                </p>
+              )}
             </div>
           )}
         </div>
@@ -4102,7 +4291,11 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
           <div className="flex items-center gap-2 mb-1">
             <PhoneForwarded className="h-3.5 w-3.5 text-cyan" />
             <p className="text-[11px] text-muted-foreground uppercase tracking-wider font-semibold">Call History &amp; Notes</p>
-            {cf.totalCalls > 0 && <span className="text-[10px] text-cyan/60 ml-auto font-medium">{getSequenceLabel(cf.callSequenceStep)}</span>}
+            {cf.totalCalls > 0 && (
+              <span className="text-[10px] text-cyan/60 ml-auto font-medium">
+                {getCadencePosition(cf.totalCalls).label}
+              </span>
+            )}
           </div>
 
           {cf.totalCalls > 0 && (
@@ -4111,7 +4304,7 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
                 <div
                   className="absolute inset-y-0 left-0 rounded-full transition-all duration-500"
                   style={{
-                    width: `${getSequenceProgress(cf.callSequenceStep) * 100}%`,
+                    width: `${(getCadencePosition(cf.totalCalls).touchNumber / getCadencePosition(cf.totalCalls).totalTouches) * 100}%`,
                     background: "linear-gradient(90deg, rgba(0,229,255,0.6), rgba(0,255,136,0.6))",
                     boxShadow: "0 0 8px rgba(0,229,255,0.3)",
                   }}
@@ -5432,6 +5625,7 @@ export function MasterClientFileModal({ clientFile, open, onClose, onClaim, onRe
   const [selectedStage, setSelectedStage] = useState<WorkflowStageId>("prospect");
   const [stageUpdating, setStageUpdating] = useState(false);
   const [qualificationDraft, setQualificationDraft] = useState<QualificationDraft>(() => getQualificationDraft(clientFile));
+  const [qualificationSuggestedRoute, setQualificationSuggestedRoute] = useState<QualificationRoute | null>(null);
   const [qualificationSaving, setQualificationSaving] = useState(false);
   const [nextActionAt, setNextActionAt] = useState("");
   const [settingNextAction, setSettingNextAction] = useState(false);
@@ -5439,6 +5633,13 @@ export function MasterClientFileModal({ clientFile, open, onClose, onClaim, onRe
   const [noteDraft, setNoteDraft] = useState("");
   const [savingNote, setSavingNote] = useState(false);
   const [noteEditorOpen, setNoteEditorOpen] = useState(false);
+  const [closeoutOpen, setCloseoutOpen] = useState(false);
+  const [closeoutSaving, setCloseoutSaving] = useState(false);
+  const [closeoutOutcome, setCloseoutOutcome] = useState<string>("");
+  const [closeoutNote, setCloseoutNote] = useState("");
+  const [closeoutAction, setCloseoutAction] = useState<CloseoutNextAction>("follow_up_call");
+  const [closeoutPreset, setCloseoutPreset] = useState<CloseoutPresetId>("call_3_days");
+  const [closeoutAt, setCloseoutAt] = useState("");
 
   // â”€â”€ Deep Crawl state â”€â”€
   const [deepCrawling, setDeepCrawling] = useState(false);
@@ -5567,11 +5768,20 @@ export function MasterClientFileModal({ clientFile, open, onClose, onClaim, onRe
 
   useEffect(() => {
     setQualificationDraft(getQualificationDraft(clientFile));
-    setNextActionAt(toLocalDateTimeInput(clientFile?.nextCallScheduledAt ?? clientFile?.followUpDate));
+    setQualificationSuggestedRoute(null);
+    const existingNextAction = toLocalDateTimeInput(clientFile?.nextCallScheduledAt ?? clientFile?.followUpDate);
+    setNextActionAt(existingNextAction);
     setNoteDraft("");
     setNextActionEditorOpen(false);
     setNoteEditorOpen(false);
-  }, [clientFile?.id, clientFile?.nextCallScheduledAt, clientFile?.followUpDate]);
+    setCloseoutOpen(false);
+    setCloseoutSaving(false);
+    setCloseoutOutcome(clientFile?.dispositionCode ?? "");
+    setCloseoutNote("");
+    setCloseoutAction("follow_up_call");
+    setCloseoutPreset("call_3_days");
+    setCloseoutAt(existingNextAction || presetDateTimeLocal(3));
+  }, [clientFile?.id, clientFile?.nextCallScheduledAt, clientFile?.followUpDate, clientFile?.dispositionCode]);
 
   useEffect(() => {
     let active = true;
@@ -5821,8 +6031,8 @@ export function MasterClientFileModal({ clientFile, open, onClose, onClaim, onRe
     setQualificationDraft((prev) => ({ ...prev, ...patch }));
   }, []);
 
-  const persistQualification = useCallback(async (routeOverride?: QualificationRoute) => {
-    if (!clientFile) return;
+  const persistQualification = useCallback(async (routeOverride?: QualificationRoute): Promise<boolean> => {
+    if (!clientFile) return false;
 
     const nextDraft: QualificationDraft = routeOverride
       ? { ...qualificationDraft, qualificationRoute: routeOverride }
@@ -5831,7 +6041,7 @@ export function MasterClientFileModal({ clientFile, open, onClose, onClaim, onRe
     const { data: { session } } = await supabase.auth.getSession();
     if (!session?.access_token) {
       toast.error("Session expired - cannot save qualification");
-      return;
+      return false;
     }
 
     setQualificationSaving(true);
@@ -5844,7 +6054,7 @@ export function MasterClientFileModal({ clientFile, open, onClose, onClaim, onRe
 
       if (fetchErr || !current) {
         toast.error("Could not load current lead state. Refresh and try again.");
-        return;
+        return false;
       }
 
       const res = await fetch("/api/prospects", {
@@ -5862,21 +6072,26 @@ export function MasterClientFileModal({ clientFile, open, onClose, onClaim, onRe
           decision_maker_confirmed: nextDraft.decisionMakerConfirmed,
           price_expectation: nextDraft.priceExpectation,
           qualification_route: nextDraft.qualificationRoute,
+          occupancy_score: nextDraft.occupancyScore,
+          equity_flexibility_score: nextDraft.equityFlexibilityScore,
         }),
       });
 
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
         toast.error(`Could not save qualification: ${data.detail ?? data.error ?? `HTTP ${res.status}`}`);
-        return;
+        return false;
       }
 
+      setQualificationSuggestedRoute(parseSuggestedRoute(data.suggested_route));
       setQualificationDraft(nextDraft);
       toast.success("Qualification updated");
       onRefresh?.();
+      return true;
     } catch (err) {
       console.error("[MCF] Qualification save error:", err);
       toast.error("Could not save qualification");
+      return false;
     } finally {
       setQualificationSaving(false);
     }
@@ -5887,9 +6102,15 @@ export function MasterClientFileModal({ clientFile, open, onClose, onClaim, onRe
       toast.error("Assign this lead before escalating for Adam review.");
       return;
     }
+    const previousRoute = qualificationDraft.qualificationRoute ?? null;
     setQualificationDraft((prev) => ({ ...prev, qualificationRoute: route }));
-    void persistQualification(route);
-  }, [clientFile?.assignedTo, persistQualification]);
+    void (async () => {
+      const saved = await persistQualification(route);
+      if (!saved) {
+        setQualificationDraft((prev) => ({ ...prev, qualificationRoute: previousRoute }));
+      }
+    })();
+  }, [clientFile?.assignedTo, persistQualification, qualificationDraft.qualificationRoute]);
 
   const handleSetNextAction = useCallback(async () => {
     if (!clientFile) return;
@@ -6006,6 +6227,111 @@ export function MasterClientFileModal({ clientFile, open, onClose, onClaim, onRe
       setSavingNote(false);
     }
   }, [clientFile, noteDraft, onRefresh]);
+
+  const handleCloseoutPresetSelect = useCallback((presetId: CloseoutPresetId) => {
+    const preset = CLOSEOUT_PRESETS.find((item) => item.id === presetId);
+    if (!preset) return;
+    setCloseoutPreset(preset.id);
+    setCloseoutAction(preset.action);
+    if (preset.daysFromNow != null) {
+      setCloseoutAt(presetDateTimeLocal(preset.daysFromNow));
+    }
+  }, []);
+
+  const handleSaveCallCloseout = useCallback(async () => {
+    if (!clientFile) return;
+
+    const nextIso = closeoutAt.trim() ? fromLocalDateTimeInput(closeoutAt) : null;
+    if (closeoutAt.trim() && !nextIso) {
+      toast.error("Enter a valid follow-up date and time.");
+      return;
+    }
+
+    if (closeoutAction !== "escalation_review" && !nextIso) {
+      toast.error("Select a follow-up date for this closeout.");
+      return;
+    }
+
+    const routeToApply = routeForCloseoutAction(closeoutAction);
+    const existingNextIso = clientFile.nextCallScheduledAt ?? clientFile.followUpDate ?? null;
+    const normalizedOutcome = closeoutOutcome.trim() || null;
+    const outcomeChanged = normalizedOutcome !== (clientFile.dispositionCode ?? null);
+    const nextChanged = nextIso !== existingNextIso;
+    const noteText = closeoutNote.trim();
+    const routeChanged = routeToApply != null && routeToApply !== (clientFile.qualificationRoute ?? null);
+
+    if (!outcomeChanged && !nextChanged && noteText.length === 0 && !routeChanged) {
+      toast.message("No closeout changes to save.");
+      return;
+    }
+
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session?.access_token) {
+      toast.error("Session expired - cannot save closeout");
+      return;
+    }
+
+    setCloseoutSaving(true);
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data: current, error: fetchErr } = await (supabase.from("leads") as any)
+        .select("lock_version")
+        .eq("id", clientFile.id)
+        .single();
+
+      if (fetchErr || !current) {
+        toast.error("Could not load current lead state. Refresh and try again.");
+        return;
+      }
+
+      const payload: Record<string, unknown> = { lead_id: clientFile.id };
+      if (outcomeChanged) {
+        payload.disposition_code = normalizedOutcome;
+      }
+      if (noteText.length > 0) {
+        payload.note_append = noteText;
+      }
+      if (nextChanged || closeoutAction !== "escalation_review") {
+        payload.next_call_scheduled_at = nextIso;
+        payload.next_follow_up_at = nextIso;
+      }
+      if (routeChanged && routeToApply) {
+        payload.qualification_route = routeToApply;
+      }
+
+      const res = await fetch("/api/prospects", {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${session.access_token}`,
+          "x-lock-version": String(current.lock_version ?? 0),
+        },
+        body: JSON.stringify(payload),
+      });
+
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        if (res.status === 409) {
+          toast.error("Closeout conflict: refresh and try again.");
+        } else {
+          toast.error(`Could not save closeout: ${data.detail ?? data.error ?? `HTTP ${res.status}`}`);
+        }
+        return;
+      }
+
+      setQualificationSuggestedRoute(parseSuggestedRoute(data.suggested_route));
+      setCloseoutNote("");
+      setCloseoutOpen(false);
+      setNextActionAt(toLocalDateTimeInput(nextIso));
+      toast.success("Call closeout saved");
+      onRefresh?.();
+    } catch (err) {
+      console.error("[MCF] Call closeout save error:", err);
+      toast.error("Could not save call closeout");
+    } finally {
+      setCloseoutSaving(false);
+    }
+  }, [clientFile, closeoutAction, closeoutAt, closeoutNote, closeoutOutcome, onRefresh]);
 
   const handleDial = useCallback(async (phoneNumber?: string) => {
     const numberToDial = phoneNumber || displayPhone;
@@ -6381,7 +6707,7 @@ export function MasterClientFileModal({ clientFile, open, onClose, onClaim, onRe
   const UrgencyIcon = nextActionUrgency.tone === "danger" ? AlertTriangle : Clock;
   const currentSequenceLabel =
     clientFile.totalCalls > 0
-      ? getSequenceLabel(clientFile.callSequenceStep)
+      ? getCadencePosition(clientFile.totalCalls).label
       : "No sequence activity";
   const nextActionIso = clientFile.nextCallScheduledAt ?? clientFile.followUpDate;
   const missingNextAction = !nextActionIso;
@@ -6392,7 +6718,9 @@ export function MasterClientFileModal({ clientFile, open, onClose, onClaim, onRe
     || (qualificationDraft.conditionLevel ?? null) !== (clientFile.conditionLevel ?? null)
     || qualificationDraft.decisionMakerConfirmed !== (clientFile.decisionMakerConfirmed ?? false)
     || (qualificationDraft.priceExpectation ?? null) !== (clientFile.priceExpectation ?? null)
-    || (qualificationDraft.qualificationRoute ?? null) !== (clientFile.qualificationRoute ?? null);
+    || (qualificationDraft.qualificationRoute ?? null) !== (clientFile.qualificationRoute ?? null)
+    || (qualificationDraft.occupancyScore ?? null) !== (clientFile.occupancyScore ?? null)
+    || (qualificationDraft.equityFlexibilityScore ?? null) !== (clientFile.equityFlexibilityScore ?? null);
   const stageChanged = selectedStage !== currentStage;
   const stagePrecheck = precheckWorkflowStageChange({
     currentStatus: currentStage as LeadStatus,
@@ -6470,6 +6798,17 @@ export function MasterClientFileModal({ clientFile, open, onClose, onClaim, onRe
                           <AlertTriangle className="h-2.5 w-2.5" />Escalated Review
                         </Badge>
                       )}
+                      {clientFile.status === "nurture" && (() => {
+                        const fuIso = clientFile.followUpDate ?? clientFile.nextCallScheduledAt;
+                        const fuMs = fuIso ? new Date(fuIso).getTime() : NaN;
+                        const sevenDaysAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
+                        const isStale = !Number.isNaN(fuMs) ? fuMs < sevenDaysAgo : true;
+                        return isStale ? (
+                          <Badge variant="outline" className="text-[9px] gap-1 border-red-500/25 text-red-300">
+                            <AlertTriangle className="h-2.5 w-2.5" />Stale Nurture
+                          </Badge>
+                        ) : null;
+                      })()}
                     </div>
                   </div>
                   <div className="flex items-start gap-2 shrink-0">
@@ -6515,6 +6854,18 @@ export function MasterClientFileModal({ clientFile, open, onClose, onClaim, onRe
                   </Button>
                   <Button
                     size="sm"
+                    variant="outline"
+                    className="gap-2 border-cyan/25 hover:border-cyan/45 hover:bg-cyan/[0.08]"
+                    onClick={() => {
+                      setCloseoutOpen((v) => !v);
+                      setNextActionEditorOpen(false);
+                      setNoteEditorOpen(false);
+                    }}
+                  >
+                    <CheckCircle2 className="h-3.5 w-3.5 text-cyan" />Call Closeout
+                  </Button>
+                  <Button
+                    size="sm"
                     className="gap-2"
                     disabled={claiming || isAssignedToCurrentUser}
                     onClick={handleClaimLead}
@@ -6526,7 +6877,10 @@ export function MasterClientFileModal({ clientFile, open, onClose, onClaim, onRe
                     size="sm"
                     variant="outline"
                     className="gap-2 border-amber-500/20 hover:border-amber-500/40 hover:bg-amber-500/[0.06]"
-                    onClick={() => setNextActionEditorOpen((v) => !v)}
+                    onClick={() => {
+                      setNextActionEditorOpen((v) => !v);
+                      setCloseoutOpen(false);
+                    }}
                   >
                     <Calendar className="h-3.5 w-3.5 text-amber-400" />Set Next Action
                   </Button>
@@ -6534,7 +6888,10 @@ export function MasterClientFileModal({ clientFile, open, onClose, onClaim, onRe
                     size="sm"
                     variant="outline"
                     className="gap-2 border-white/[0.14] hover:border-white/[0.25] hover:bg-white/[0.06]"
-                    onClick={() => setNoteEditorOpen((v) => !v)}
+                    onClick={() => {
+                      setNoteEditorOpen((v) => !v);
+                      setCloseoutOpen(false);
+                    }}
                   >
                     <FileText className="h-3.5 w-3.5" />Log Note
                   </Button>
@@ -6569,8 +6926,123 @@ export function MasterClientFileModal({ clientFile, open, onClose, onClaim, onRe
                     <span className="font-medium">{stagePrecheck.requiredActions[0]}</span>
                   </p>
                 )}
-                {(nextActionEditorOpen || noteEditorOpen) && (
-                  <div className="mt-2 grid grid-cols-1 lg:grid-cols-2 gap-2">
+                {(closeoutOpen || nextActionEditorOpen || noteEditorOpen) && (
+                  <div className="mt-2 grid grid-cols-1 lg:grid-cols-3 gap-2">
+                    {closeoutOpen && (
+                      <div className="rounded-[10px] border border-cyan/20 bg-cyan/[0.06] p-2.5 space-y-2">
+                        <div className="flex items-center justify-between gap-2">
+                          <p className="text-[10px] uppercase tracking-wider font-semibold text-cyan">Call Closeout</p>
+                          <span className="text-[9px] text-cyan/80">{closeoutActionLabel(closeoutAction)}</span>
+                        </div>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                          <label className="space-y-1">
+                            <span className="text-[9px] uppercase tracking-wider text-muted-foreground">Call Outcome</span>
+                            <select
+                              value={closeoutOutcome}
+                              onChange={(e) => setCloseoutOutcome(e.target.value)}
+                              className="h-8 w-full rounded-[8px] border border-white/[0.12] bg-white/[0.04] px-2 text-xs text-foreground focus:outline-none focus:border-cyan/30"
+                            >
+                              <option value="">No change</option>
+                              {closeoutOutcome && !CALL_OUTCOME_OPTIONS.some((opt) => opt.id === closeoutOutcome) && (
+                                <option value={closeoutOutcome}>{closeoutOutcome.replace(/_/g, " ")}</option>
+                              )}
+                              {CALL_OUTCOME_OPTIONS.map((opt) => (
+                                <option key={opt.id} value={opt.id}>{opt.label}</option>
+                              ))}
+                            </select>
+                          </label>
+                          <label className="space-y-1">
+                            <span className="text-[9px] uppercase tracking-wider text-muted-foreground">Next Action</span>
+                            <select
+                              value={closeoutAction}
+                              onChange={(e) => {
+                                const action = e.target.value as CloseoutNextAction;
+                                setCloseoutAction(action);
+                                if (action === "nurture_check_in") {
+                                  setCloseoutPreset("nurture_14_days");
+                                  setCloseoutAt(presetDateTimeLocal(14));
+                                } else if (action === "escalation_review") {
+                                  setCloseoutPreset("escalate_review");
+                                } else {
+                                  setCloseoutPreset("call_3_days");
+                                  setCloseoutAt(presetDateTimeLocal(3));
+                                }
+                              }}
+                              className="h-8 w-full rounded-[8px] border border-white/[0.12] bg-white/[0.04] px-2 text-xs text-foreground focus:outline-none focus:border-cyan/30"
+                            >
+                              <option value="follow_up_call">Follow-Up Call</option>
+                              <option value="nurture_check_in">Nurture Check-In</option>
+                              <option value="escalation_review">Escalate Review</option>
+                            </select>
+                          </label>
+                        </div>
+                        <div className="space-y-1">
+                          <p className="text-[9px] uppercase tracking-wider text-muted-foreground">Follow-Up Preset</p>
+                          <div className="flex flex-wrap gap-1.5">
+                            {CLOSEOUT_PRESETS.map((preset) => (
+                              <button
+                                key={preset.id}
+                                type="button"
+                                onClick={() => handleCloseoutPresetSelect(preset.id)}
+                                className={cn(
+                                  "h-6 px-2 rounded-[7px] border text-[10px] transition-colors",
+                                  closeoutPreset === preset.id
+                                    ? "border-cyan/40 text-cyan bg-cyan/[0.12]"
+                                    : "border-white/[0.12] text-muted-foreground hover:text-foreground hover:border-white/[0.24]",
+                                )}
+                              >
+                                {preset.label}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                        <label className="space-y-1 block">
+                          <span className="text-[9px] uppercase tracking-wider text-muted-foreground">Follow-Up Date</span>
+                          <input
+                            type="datetime-local"
+                            value={closeoutAt}
+                            onChange={(e) => setCloseoutAt(e.target.value)}
+                            className="h-8 w-full rounded-[8px] border border-white/[0.12] bg-white/[0.04] px-2.5 text-xs text-foreground focus:outline-none focus:border-cyan/30"
+                          />
+                        </label>
+                        <textarea
+                          value={closeoutNote}
+                          onChange={(e) => setCloseoutNote(e.target.value)}
+                          placeholder="Quick call summary note..."
+                          className="w-full h-16 rounded-[8px] border border-white/[0.12] bg-white/[0.04] px-2.5 py-2 text-xs text-foreground placeholder:text-muted-foreground/50 resize-none focus:outline-none focus:border-cyan/30"
+                          maxLength={1000}
+                        />
+                        <div className="flex items-center gap-2">
+                          <Button
+                            size="sm"
+                            className="h-7 text-[11px]"
+                            disabled={closeoutSaving}
+                            onClick={handleSaveCallCloseout}
+                          >
+                            {closeoutSaving ? <Loader2 className="h-3 w-3 animate-spin" /> : <Save className="h-3 w-3" />}
+                            Save Closeout
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="h-7 text-[11px] text-muted-foreground"
+                            onClick={() => {
+                              setCloseoutOpen(false);
+                              setCloseoutOutcome(clientFile.dispositionCode ?? "");
+                              setCloseoutNote("");
+                              setCloseoutAction("follow_up_call");
+                              setCloseoutPreset("call_3_days");
+                              setCloseoutAt(
+                                toLocalDateTimeInput(clientFile.nextCallScheduledAt ?? clientFile.followUpDate) || presetDateTimeLocal(3),
+                              );
+                            }}
+                          >
+                            Cancel
+                          </Button>
+                          <span className="ml-auto text-[9px] text-muted-foreground/50">{closeoutNote.length}/1000</span>
+                        </div>
+                      </div>
+                    )}
                     {nextActionEditorOpen && (
                       <div className="rounded-[10px] border border-amber-500/20 bg-amber-500/[0.06] p-2.5 space-y-2">
                         <p className="text-[10px] uppercase tracking-wider font-semibold text-amber-300">Next Action</p>
@@ -6766,6 +7238,7 @@ export function MasterClientFileModal({ clientFile, open, onClose, onClaim, onRe
                         qualificationDirty={qualificationDirty}
                         qualificationSaving={qualificationSaving}
                         qualificationEditable={qualificationEditable}
+                        qualificationSuggestedRoute={qualificationSuggestedRoute}
                         onQualificationChange={handleQualificationChange}
                         onQualificationRouteSelect={handleQualificationRouteSelect}
                         onQualificationSave={() => void persistQualification()}

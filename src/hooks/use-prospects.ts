@@ -23,6 +23,9 @@ export interface ProspectRow {
   decision_maker_confirmed: boolean;
   price_expectation: number | null;
   qualification_route: QualificationRoute | null;
+  occupancy_score: number | null;
+  equity_flexibility_score: number | null;
+  qualification_score_total: number | null;
   created_at: string;
   apn: string;
   county: string;
@@ -127,6 +130,9 @@ function buildRows(leadsData: any[], propertiesMap: Record<string, any>, predict
       decision_maker_confirmed: lead.decision_maker_confirmed === true,
       price_expectation: lead.price_expectation != null ? Number(lead.price_expectation) : null,
       qualification_route: (lead.qualification_route as QualificationRoute | null) ?? null,
+      occupancy_score: lead.occupancy_score != null ? Number(lead.occupancy_score) : null,
+      equity_flexibility_score: lead.equity_flexibility_score != null ? Number(lead.equity_flexibility_score) : null,
+      qualification_score_total: lead.qualification_score_total != null ? Number(lead.qualification_score_total) : null,
       created_at: lead.created_at,
       apn: prop.apn ?? "",
       county: prop.county ?? "",

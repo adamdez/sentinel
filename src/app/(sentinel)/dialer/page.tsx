@@ -21,7 +21,7 @@ import { useSentinelStore } from "@/lib/store";
 import { supabase } from "@/lib/supabase";
 import { useDialerQueue, useDialerStats, useCallTimer, fetchDialerKpis, type QueueLead, type DialerStats } from "@/hooks/use-dialer";
 import { RelationshipBadgeCompact } from "@/components/sentinel/relationship-badge";
-import { getSequenceLabel } from "@/lib/call-scheduler";
+import { getSequenceLabel, getCadencePosition } from "@/lib/call-scheduler";
 import { useCallNotes } from "@/hooks/use-call-notes";
 import { usePreCallBrief } from "@/hooks/use-pre-call-brief";
 import { CallSequenceGuide } from "@/components/sentinel/call-sequence-guide";
@@ -1270,7 +1270,9 @@ export default function DialerPage() {
                           </p>
                           <p className="text-xs text-muted-foreground/80 truncate">{lead.properties?.address ?? "No address"}</p>
                         </div>
-                        <span className="text-[9px] text-muted-foreground/60 font-mono shrink-0">{lead.call_sequence_step ?? 1}/7</span>
+                        <span className="text-[9px] text-muted-foreground/60 font-mono shrink-0" title={getCadencePosition(lead.total_calls ?? 0).label}>
+                          {(lead.total_calls ?? 0)}/{getCadencePosition(lead.total_calls ?? 0).totalTouches}
+                        </span>
                         <Badge variant={sl.variant} className="text-[9px] px-1.5 py-0 shrink-0">
                           {score}
                         </Badge>
@@ -1393,7 +1395,7 @@ export default function DialerPage() {
                         })()}
                         <Badge variant="outline" className="text-[9px] gap-1 border-cyan/20 text-cyan/70">
                           <Phone className="h-2.5 w-2.5" />
-                          {getSequenceLabel(currentLead.call_sequence_step ?? 1)}
+                          {getCadencePosition(currentLead.total_calls ?? 0).label}
                         </Badge>
                         {!currentLead.compliant && !ghostMode && (
                           <Badge variant="destructive" className="text-[10px]">

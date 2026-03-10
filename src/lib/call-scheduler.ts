@@ -114,3 +114,84 @@ export function getSequenceLabel(step: number): string {
 export function getSequenceProgress(step: number): number {
   return Math.min(step / 7, 1);
 }
+
+// ── 30-Day Follow-Up Cadence ───────────────────────────────────────────
+//
+// After the initial 7-touch power sequence, leads transition to a 30-day
+// cadence: Day 1, 3, 7, 10, 14, 21, 30. Each "touch" is a scheduled
+// follow-up call. The cadence is suggestion-only — the operator confirms.
+
+const CADENCE_DAYS = [1, 3, 7, 10, 14, 21, 30] as const;
+
+export interface CadencePosition {
+  /** Which touch in the cadence (1-7) */
+  touchNumber: number;
+  /** The day in the schedule this touch falls on */
+  cadenceDay: number;
+  /** Total touches in the cadence */
+  totalTouches: number;
+  /** Whether the cadence is complete */
+  isComplete: boolean;
+  /** Label like "Touch 3/7, Day 7" */
+  label: string;
+}
+
+/**
+ * Map a call count to a cadence position. This maps calls made (totalCalls)
+ * to a position in the 7-touch, 30-day cadence.
+ *
+ * If totalCalls is 0, we haven't started. If > 7, cadence is complete.
+ */
+export function getCadencePosition(totalCalls: number): CadencePosition {
+  if (totalCalls <= 0) {
+    return {
+      touchNumber: 0,
+      cadenceDay: 0,
+      totalTouches: CADENCE_DAYS.length,
+      isComplete: false,
+      label: "Not started",
+    };
+  }
+
+  const idx = Math.min(totalCalls, CADENCE_DAYS.length) - 1;
+  const isComplete = totalCalls >= CADENCE_DAYS.length;
+
+  return {
+    touchNumber: Math.min(totalCalls, CADENCE_DAYS.length),
+    cadenceDay: CADENCE_DAYS[idx],
+    totalTouches: CADENCE_DAYS.length,
+    isComplete,
+    label: isComplete
+      ? "Cadence Complete"
+      : `Touch ${totalCalls}/${CADENCE_DAYS.length}, Day ${CADENCE_DAYS[idx]}`,
+  };
+}
+
+/**
+ * Suggest the next follow-up date based on the cadence schedule.
+ * Takes the date of the last call and the current touch number,
+ * and returns the suggested next call date.
+ */
+export function suggestNextCadenceDate(
+  lastCallDate: string | Date,
+  currentTouchNumber: number,
+): Date | null {
+  const nextIdx = currentTouchNumber; // 0-indexed: after touch 1, next is index 1 (Day 3)
+  if (nextIdx >= CADENCE_DAYS.length) return null; // cadence complete
+
+  const lastCall = typeof lastCallDate === "string" ? new Date(lastCallDate) : lastCallDate;
+  if (isNaN(lastCall.getTime())) return null;
+
+  // Days from cadence start to next touch
+  const currentDay = currentTouchNumber > 0 ? CADENCE_DAYS[currentTouchNumber - 1] : 0;
+  const nextDay = CADENCE_DAYS[nextIdx];
+  const deltaDays = nextDay - currentDay;
+
+  const suggested = new Date(lastCall);
+  suggested.setDate(suggested.getDate() + deltaDays);
+
+  // Snap to a reasonable hour (10 AM local)
+  suggested.setHours(10, 0, 0, 0);
+
+  return suggested;
+}

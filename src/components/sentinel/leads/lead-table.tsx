@@ -26,6 +26,7 @@ import { deriveNextActionVisibility, offerVisibilityLabel, type LeadRow } from "
 import type { SortField, SortDir } from "@/hooks/use-leads";
 import type { DistressType } from "@/lib/types";
 import { cn } from "@/lib/utils";
+import { formatDueDateLabel } from "@/lib/due-date-label";
 
 interface LeadTableProps {
   leads: LeadRow[];
@@ -113,17 +114,7 @@ function formatFollowUp(date: string | null): {
   overdue: boolean;
   urgent: boolean;
 } {
-  if (!date) return { text: "n/a", overdue: false, urgent: false };
-  const d = new Date(date);
-  const now = new Date();
-  const diff = d.getTime() - now.getTime();
-  const days = Math.round(diff / 86400000);
-
-  if (days < -1) return { text: `${Math.abs(days)}d overdue`, overdue: true, urgent: true };
-  if (days < 0) return { text: "Overdue today", overdue: true, urgent: true };
-  if (days === 0) return { text: "Today", overdue: false, urgent: true };
-  if (days === 1) return { text: "Tomorrow", overdue: false, urgent: true };
-  return { text: `In ${days}d`, overdue: false, urgent: false };
+  return formatDueDateLabel(date);
 }
 
 function timeAgo(iso: string | null): string {

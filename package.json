@@ -8,8 +8,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "test": "vitest run",
-    "test:watch": "vitest",
+    "test": "npx vitest run",
+    "test:watch": "npx vitest",
     "test:smoke": "npx playwright test --config e2e/playwright.config.ts --project smoke"
   },
   "dependencies": {

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@/lib/supabase";
 import { scrubLead } from "@/lib/compliance";
-import { scheduleNextCall } from "@/lib/call-scheduler";
+import { scheduleNextCall, suggestNextCadenceDate } from "@/lib/call-scheduler";
 import { getTwilioCredentials, isTwilioError, friendlyTwilioError } from "@/lib/twilio";
 import { validateStatusTransition } from "@/lib/lead-guardrails";
 import type { LeadStatus } from "@/lib/types";
@@ -519,15 +519,29 @@ export async function PATCH(req: NextRequest) {
       const isLive = !["no_answer", "voicemail", "ghost", "skip_trace", "in_progress", "initiating", "sms_outbound"].includes(body.disposition);
       const isVM = body.disposition === "voicemail";
       const currentStatus = normalizeLeadStatus(lead.status);
+      const newTotalCalls = (lead.total_calls ?? 0) + 1;
+
+      // Use 30-day cadence for follow-up scheduling (Day 1, 3, 7, 10, 14, 21, 30)
+      // Falls back to power sequence for special dispositions (interested, dead, etc.)
       const sched = scheduleNextCall(step, endedAt, body.disposition);
+      const cadenceNext = suggestNextCadenceDate(endedAt, newTotalCalls);
       const sequenceCompleteWithoutLiveAnswer = sched.isComplete && !isLive;
 
+      // Prefer cadence-based scheduling for standard follow-ups;
+      // use power sequence override for hot dispositions (interested/appointment)
+      const isHotDispo = ["interested", "appointment", "contract"].includes(body.disposition);
+      const nextCallAt = isHotDispo
+        ? sched.nextCallAt
+        : cadenceNext
+          ? cadenceNext.toISOString()
+          : sched.nextCallAt;
+
       const updatePayload: Record<string, unknown> = {
-        total_calls: (lead.total_calls ?? 0) + 1,
+        total_calls: newTotalCalls,
         live_answers: (lead.live_answers ?? 0) + (isLive ? 1 : 0),
         voicemails_left: (lead.voicemails_left ?? 0) + (isVM ? 1 : 0),
         call_sequence_step: sched.sequenceStep,
-        next_call_scheduled_at: sched.nextCallAt,
+        next_call_scheduled_at: nextCallAt,
         last_contact_at: endedAt,
         updated_at: new Date().toISOString(),
       };
