@@ -24,6 +24,7 @@ import {
   ArrowRight,
   Flame,
   User,
+  Upload,
   type LucideIcon,
 } from "lucide-react";
 import { useSentinelStore } from "@/lib/store";
@@ -55,21 +56,13 @@ type SearchResult = NavCommand | DataResult;
 
 const NAV_COMMANDS: NavCommand[] = [
   { kind: "nav", label: "Dashboard", href: "/dashboard", icon: LayoutDashboard, group: "Pages" },
+  { kind: "nav", label: "Leads", href: "/leads", icon: Users, group: "Pages" },
+  { kind: "nav", label: "Pipeline", href: "/pipeline", icon: Zap, group: "Pages" },
   { kind: "nav", label: "Dialer", href: "/dialer", icon: Phone, group: "Pages" },
-  { kind: "nav", label: "Gmail", href: "/gmail", icon: Mail, group: "Pages" },
-  { kind: "nav", label: "Team Calendar", href: "/team-calendar", icon: Calendar, group: "Pages" },
-  { kind: "nav", label: "My Calendar", href: "/my-calendar", icon: Calendar, group: "Pages" },
-  { kind: "nav", label: "Prospects", href: "/sales-funnel/prospects", icon: UserPlus, group: "Deal Funnel" },
-  { kind: "nav", label: "Leads Hub", href: "/leads", icon: Users, group: "Deal Funnel" },
-  { kind: "nav", label: "Negotiation", href: "/sales-funnel/negotiation", icon: Zap, group: "Deal Funnel" },
-  { kind: "nav", label: "Disposition", href: "/sales-funnel/disposition", icon: Zap, group: "Deal Funnel" },
-  { kind: "nav", label: "Contacts", href: "/contacts", icon: Contact, group: "Pages" },
-  { kind: "nav", label: "DocuSign", href: "/docusign", icon: FileSignature, group: "Pages" },
-  { kind: "nav", label: "Campaigns", href: "/campaigns", icon: Megaphone, group: "Pages" },
+  { kind: "nav", label: "Ads", href: "/ads", icon: Home, group: "Pages" },
   { kind: "nav", label: "Analytics", href: "/analytics", icon: BarChart3, group: "Pages" },
   { kind: "nav", label: "Settings", href: "/settings", icon: Settings, group: "Pages" },
-  { kind: "nav", label: "PPL", href: "/sales-funnel/ppl", icon: DollarSign, group: "Deal Funnel" },
-  { kind: "nav", label: "FSBO", href: "/sales-funnel/fsbo", icon: Home, group: "Deal Funnel" },
+  { kind: "nav", label: "Import", href: "/admin/import", icon: Upload, group: "Pages" },
 ];
 
 const CONTACT_DATA = [
