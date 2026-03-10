@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { useSentinelStore } from "@/lib/store";
-import type { AIScore } from "@/lib/types";
+import type { AIScore, SellerTimeline, QualificationRoute } from "@/lib/types";
 
 // ── Joined row shape from leads + properties ──────────────────────────
 
@@ -17,6 +17,12 @@ export interface ProspectRow {
   notes: string | null;
   promoted_at: string | null;
   assigned_to: string | null;
+  motivation_level: number | null;
+  seller_timeline: SellerTimeline | null;
+  condition_level: number | null;
+  decision_maker_confirmed: boolean;
+  price_expectation: number | null;
+  qualification_route: QualificationRoute | null;
   created_at: string;
   apn: string;
   county: string;
@@ -115,6 +121,12 @@ function buildRows(leadsData: any[], propertiesMap: Record<string, any>, predict
       notes: lead.notes ?? null,
       promoted_at: lead.promoted_at ?? null,
       assigned_to: lead.assigned_to ?? null,
+      motivation_level: lead.motivation_level != null ? Number(lead.motivation_level) : null,
+      seller_timeline: (lead.seller_timeline as SellerTimeline | null) ?? null,
+      condition_level: lead.condition_level != null ? Number(lead.condition_level) : null,
+      decision_maker_confirmed: lead.decision_maker_confirmed === true,
+      price_expectation: lead.price_expectation != null ? Number(lead.price_expectation) : null,
+      qualification_route: (lead.qualification_route as QualificationRoute | null) ?? null,
       created_at: lead.created_at,
       apn: prop.apn ?? "",
       county: prop.county ?? "",

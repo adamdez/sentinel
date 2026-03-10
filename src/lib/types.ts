@@ -10,6 +10,20 @@ export type LeadStatus =
   | "dead"
   | "closed";
 
+export type SellerTimeline =
+  | "immediate"
+  | "30_days"
+  | "60_days"
+  | "flexible"
+  | "unknown";
+
+export type QualificationRoute =
+  | "offer_ready"
+  | "follow_up"
+  | "nurture"
+  | "dead"
+  | "escalate";
+
 export type DistressType =
   | "probate"
   | "pre_foreclosure"
@@ -90,6 +104,12 @@ export interface LeadInstance {
   promoted_at: string;
   last_contact_at?: string;
   next_action_at?: string;
+  motivation_level?: number | null;
+  seller_timeline?: SellerTimeline | null;
+  condition_level?: number | null;
+  decision_maker_confirmed?: boolean;
+  price_expectation?: number | null;
+  qualification_route?: QualificationRoute | null;
   disposition_code?: string;
   notes?: string;
   created_at: string;

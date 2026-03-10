@@ -17,8 +17,17 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { cn, formatCurrency } from "@/lib/utils";
 import type { ProspectRow } from "@/hooks/use-prospects";
-import type { LeadRow } from "@/lib/leads-data";
-import type { AIScore, DistressType } from "@/lib/types";
+import {
+  buyerFitVisibilityLabel,
+  deriveBuyerDispoVisibility,
+  deriveNextActionVisibility,
+  deriveOfferVisibilityStatus,
+  dispoReadinessVisibilityLabel,
+  offerVisibilityLabel,
+  type LeadRow,
+  type OfferVisibilityStatus,
+} from "@/lib/leads-data";
+import type { AIScore, DistressType, LeadStatus, SellerTimeline, QualificationRoute } from "@/lib/types";
 import { SIGNAL_WEIGHTS } from "@/lib/scoring";
 import { getSequenceLabel, getSequenceProgress } from "@/lib/call-scheduler";
 import { useCallNotes, type CallNote } from "@/hooks/use-call-notes";
@@ -28,11 +37,12 @@ import { RelationshipBadge } from "@/components/sentinel/relationship-badge";
 import { NumericInput } from "@/components/sentinel/numeric-input";
 import { usePreCallBrief } from "@/hooks/use-pre-call-brief";
 import { supabase } from "@/lib/supabase";
+import { precheckWorkflowStageChange } from "@/lib/workflow-stage-precheck";
 import { toast } from "sonner";
 
-// ═══════════════════════════════════════════════════════════════════════
-// ClientFile — single unified shape for every funnel stage
-// ═══════════════════════════════════════════════════════════════════════
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// ClientFile â€” single unified shape for every funnel stage
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 export interface ClientFile {
   id: string;
@@ -55,6 +65,13 @@ export interface ClientFile {
   promotedAt: string | null;
   lastContactAt: string | null;
   followUpDate: string | null;
+  motivationLevel: number | null;
+  sellerTimeline: SellerTimeline | null;
+  conditionLevel: number | null;
+  decisionMakerConfirmed: boolean;
+  priceExpectation: number | null;
+  qualificationRoute: QualificationRoute | null;
+  offerStatus: OfferVisibilityStatus;
   complianceClean: boolean;
   compositeScore: number;
   motivationScore: number;
@@ -92,6 +109,7 @@ export interface ClientFile {
   totalCalls: number;
   liveAnswers: number;
   voicemailsLeft: number;
+  dispositionCode: string | null;
   prediction?: {
     predictiveScore: number;
     daysUntilDistress: number;
@@ -103,9 +121,9 @@ export interface ClientFile {
   } | null;
 }
 
-// ═══════════════════════════════════════════════════════════════════════
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 // Adapters
-// ═══════════════════════════════════════════════════════════════════════
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 function buildAddress(...parts: (string | null | undefined)[]) {
   const filtered = parts.filter((p): p is string => !!p);
@@ -125,7 +143,18 @@ export function clientFileFromProspect(p: ProspectRow): ClientFile {
     ownerName: p.owner_name, ownerPhone: p.owner_phone, ownerEmail: p.owner_email,
     status: p.status, assignedTo: p.assigned_to, source: p.source,
     tags: p.tags, notes: p.notes, promotedAt: p.promoted_at,
-    lastContactAt: null, followUpDate: null, complianceClean: true,
+    lastContactAt: null, followUpDate: null,
+    motivationLevel: p.motivation_level ?? null,
+    sellerTimeline: p.seller_timeline ?? null,
+    conditionLevel: p.condition_level ?? null,
+    decisionMakerConfirmed: p.decision_maker_confirmed ?? false,
+    priceExpectation: p.price_expectation ?? null,
+    qualificationRoute: p.qualification_route ?? null,
+    offerStatus: deriveOfferVisibilityStatus({
+      status: p.status,
+      qualificationRoute: p.qualification_route ?? null,
+    }),
+    complianceClean: true,
     compositeScore: p.composite_score, motivationScore: p.motivation_score,
     dealScore: p.deal_score, scoreLabel: p.score_label,
     aiBoost: p.ai_boost, factors: p.factors, modelVersion: p.model_version,
@@ -139,7 +168,7 @@ export function clientFileFromProspect(p: ProspectRow): ClientFile {
     isAbsentee: p.is_absentee, isFreeClear: p.is_free_clear,
     isHighEquity: p.is_high_equity, isCashBuyer: p.is_cash_buyer,
     ownerFlags: p.owner_flags, radarId: p.radar_id, enriched: p.enriched,
-    nextCallScheduledAt: null, callSequenceStep: 1, totalCalls: 0, liveAnswers: 0, voicemailsLeft: 0,
+    nextCallScheduledAt: null, callSequenceStep: 1, totalCalls: 0, liveAnswers: 0, voicemailsLeft: 0, dispositionCode: null,
     prediction: p._prediction ?? null,
   };
 }
@@ -153,6 +182,13 @@ export function clientFileFromLead(l: LeadRow): ClientFile {
     status: l.status, assignedTo: l.assignedTo, source: l.source,
     tags: l.tags, notes: l.notes, promotedAt: l.promotedAt,
     lastContactAt: l.lastContactAt, followUpDate: l.followUpDate,
+    motivationLevel: l.motivationLevel,
+    sellerTimeline: l.sellerTimeline,
+    conditionLevel: l.conditionLevel,
+    decisionMakerConfirmed: l.decisionMakerConfirmed,
+    priceExpectation: l.priceExpectation,
+    qualificationRoute: l.qualificationRoute,
+    offerStatus: l.offerStatus,
     complianceClean: l.complianceClean,
     compositeScore: l.score.composite, motivationScore: l.score.motivation,
     dealScore: Math.round(l.score.composite * 0.75), scoreLabel: l.score.label,
@@ -166,7 +202,7 @@ export function clientFileFromLead(l: LeadRow): ClientFile {
     isVacant: false, isAbsentee: l.ownerBadge === "absentee",
     isFreeClear: false, isHighEquity: false, isCashBuyer: false,
     ownerFlags: {}, radarId: null, enriched: false,
-    nextCallScheduledAt: null, callSequenceStep: 1, totalCalls: 0, liveAnswers: 0, voicemailsLeft: 0,
+    nextCallScheduledAt: l.nextCallScheduledAt, callSequenceStep: l.callSequenceStep, totalCalls: l.totalCalls, liveAnswers: l.liveAnswers, voicemailsLeft: l.voicemailsLeft, dispositionCode: l.dispositionCode ?? null,
     prediction: null,
   };
 }
@@ -195,7 +231,18 @@ export function clientFileFromRaw(lead: Record<string, any>, prop: Record<string
     status: lead.status ?? "prospect", assignedTo: lead.assigned_to ?? null,
     source: lead.source ?? "unknown", tags: lead.tags ?? [], notes: lead.notes ?? null,
     promotedAt: lead.promoted_at ?? null, lastContactAt: lead.last_contact_at ?? null,
-    followUpDate: lead.follow_up_date ?? null, complianceClean: true,
+    followUpDate: lead.follow_up_date ?? null,
+    motivationLevel: lead.motivation_level != null ? Number(lead.motivation_level) : null,
+    sellerTimeline: (lead.seller_timeline as SellerTimeline | null) ?? null,
+    conditionLevel: lead.condition_level != null ? Number(lead.condition_level) : null,
+    decisionMakerConfirmed: lead.decision_maker_confirmed === true,
+    priceExpectation: lead.price_expectation != null ? Number(lead.price_expectation) : null,
+    qualificationRoute: (lead.qualification_route as QualificationRoute | null) ?? null,
+    offerStatus: deriveOfferVisibilityStatus({
+      status: lead.status ?? "prospect",
+      qualificationRoute: (lead.qualification_route as QualificationRoute | null) ?? null,
+    }),
+    complianceClean: true,
     compositeScore: composite, motivationScore: Math.round(composite * 0.85),
     dealScore: Math.round(composite * 0.75), scoreLabel: sl(composite),
     aiBoost: 0, factors: [], modelVersion: null,
@@ -223,13 +270,14 @@ export function clientFileFromRaw(lead: Record<string, any>, prop: Record<string
     totalCalls: lead.total_calls ?? 0,
     liveAnswers: lead.live_answers ?? 0,
     voicemailsLeft: lead.voicemails_left ?? 0,
+    dispositionCode: lead.disposition_code ?? null,
     prediction: lead._prediction ?? null,
   };
 }
 
-// ═══════════════════════════════════════════════════════════════════════
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 // Constants
-// ═══════════════════════════════════════════════════════════════════════
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 const TABS = [
   { id: "overview", label: "Overview", icon: LayoutDashboard },
@@ -240,6 +288,313 @@ const TABS = [
 ] as const;
 
 type TabId = (typeof TABS)[number]["id"];
+type WorkflowStageId = "prospect" | "lead" | "negotiation" | "disposition" | "nurture" | "dead" | "closed";
+type QualificationDraft = {
+  motivationLevel: number | null;
+  sellerTimeline: SellerTimeline | null;
+  conditionLevel: number | null;
+  decisionMakerConfirmed: boolean;
+  priceExpectation: number | null;
+  qualificationRoute: QualificationRoute | null;
+};
+
+const SELLER_TIMELINE_OPTIONS: Array<{ id: SellerTimeline; label: string }> = [
+  { id: "immediate", label: "Immediate" },
+  { id: "30_days", label: "30 Days" },
+  { id: "60_days", label: "60 Days" },
+  { id: "flexible", label: "Flexible" },
+  { id: "unknown", label: "Unknown" },
+];
+
+const QUALIFICATION_ROUTE_OPTIONS: Array<{ id: QualificationRoute; label: string }> = [
+  { id: "offer_ready", label: "Offer Ready" },
+  { id: "follow_up", label: "Follow-Up" },
+  { id: "nurture", label: "Nurture" },
+  { id: "dead", label: "Dead" },
+  { id: "escalate", label: "Escalate Review" },
+];
+
+function qualificationRouteLabel(route: QualificationRoute | null | undefined): string {
+  switch (route) {
+    case "offer_ready":
+      return "Offer Ready";
+    case "follow_up":
+      return "Follow-Up";
+    case "nurture":
+      return "Nurture";
+    case "dead":
+      return "Dead";
+    case "escalate":
+      return "Escalate Review";
+    default:
+      return "Unknown";
+  }
+}
+
+type CallAssistCard = {
+  id: string;
+  title: string;
+  summary: string;
+  talkingPoints: string[];
+  actionHint: string;
+  score: (cf: ClientFile) => number;
+};
+
+const CALL_ASSIST_CARDS: CallAssistCard[] = [
+  {
+    id: "think_about_it",
+    title: "I want to think about it",
+    summary: "Slow the pace, isolate the real concern, and leave with a clear next step.",
+    talkingPoints: [
+      "Totally fair. What part feels unclear right now: price, timing, or process?",
+      "Would a short follow-up after you review options be helpful?",
+      "If we reconnect, what would you want ready before that call?",
+    ],
+    actionHint: "If undecided, set a specific follow-up date before ending the call.",
+    score: (cf) => (cf.qualificationRoute === "follow_up" || cf.qualificationRoute === "nurture" ? 3 : 0),
+  },
+  {
+    id: "why_offer_lower",
+    title: "Why is your cash offer lower?",
+    summary: "Explain certainty, speed, and repair/holding risk without sounding defensive.",
+    talkingPoints: [
+      "A cash offer usually trades top price for speed, certainty, and no repair prep.",
+      "Our range has to account for repairs, closing costs, and resale risk.",
+      "If needed, we can walk line-by-line through how we got to the number.",
+    ],
+    actionHint: "Use this when asking price and cash range are far apart.",
+    score: (cf) => {
+      const hasAsk = cf.priceExpectation != null;
+      const hasValue = cf.estimatedValue != null;
+      if (hasAsk && hasValue && (cf.priceExpectation as number) > (cf.estimatedValue as number) * 0.9) return 3;
+      if (hasAsk) return 2;
+      return cf.qualificationRoute === "offer_ready" ? 1 : 0;
+    },
+  },
+  {
+    id: "are_you_agent",
+    title: "Are you an agent?",
+    summary: "Answer clearly and keep expectations transparent.",
+    talkingPoints: [
+      "No, we are local direct buyers. We are not listing your home on market.",
+      "Sometimes we buy directly, and sometimes we assign our contract to another buyer.",
+      "If we are not the right fit, we will tell you quickly and respectfully.",
+    ],
+    actionHint: "Keep language direct and compliance-safe.",
+    score: (cf) => ((cf.totalCalls ?? 0) <= 1 ? 2 : 0),
+  },
+  {
+    id: "how_got_info",
+    title: "How did you get my info?",
+    summary: "Use a plain, respectful explanation and offer to stop outreach when requested.",
+    talkingPoints: [
+      "We use public property records and marketing responses to identify possible sellers.",
+      "If you prefer no more outreach, we can mark that immediately.",
+      "I can also share exactly what property details we had on file.",
+    ],
+    actionHint: "Good for first-touch conversations and ad-generated leads.",
+    score: (cf) => {
+      const source = (cf.source ?? "").toLowerCase();
+      const adLikeSource =
+        source.includes("google") || source.includes("facebook") || source.includes("craigslist") || source.includes("ads");
+      if ((cf.totalCalls ?? 0) === 0) return 3;
+      return adLikeSource ? 2 : 0;
+    },
+  },
+  {
+    id: "want_retail",
+    title: "I want retail",
+    summary: "Acknowledge the goal and honestly compare speed/certainty versus listing.",
+    talkingPoints: [
+      "That makes sense. Retail can be best when time and repairs are not a constraint.",
+      "Our option is usually best when speed, convenience, or certainty matters more.",
+      "If listing is likely better for you, we would rather be upfront now.",
+    ],
+    actionHint: "If seller wants retail, route to nurture or close out respectfully.",
+    score: (cf) => {
+      if (cf.qualificationRoute === "nurture") return 3;
+      if ((cf.motivationLevel ?? 0) > 0 && (cf.motivationLevel as number) <= 3) return 2;
+      return cf.sellerTimeline === "flexible" ? 2 : 0;
+    },
+  },
+  {
+    id: "verbal_offer_framing",
+    title: "Verbal offer framing",
+    summary: "Set expectations before giving numbers, then confirm next decision step.",
+    talkingPoints: [
+      "Based on what you shared, I can give a rough range before a final written offer.",
+      "If that range works for you, we can move to simple next steps right away.",
+      "If it does not fit, we can pause and schedule a clean follow-up.",
+    ],
+    actionHint: "Best used when lead looks offer-ready.",
+    score: (cf) => {
+      if (cf.qualificationRoute === "offer_ready") return 4;
+      const fastTimeline = cf.sellerTimeline === "immediate" || cf.sellerTimeline === "30_days";
+      return (cf.motivationLevel ?? 0) >= 4 && fastTimeline ? 2 : 0;
+    },
+  },
+  {
+    id: "local_trust",
+    title: "Local trust / who we are",
+    summary: "Lead with clarity on who Dominion is and how your process works.",
+    talkingPoints: [
+      "We are a small local home-buying team serving both Spokane and Kootenai markets.",
+      "Our goal is a clear process, straightforward communication, and no pressure.",
+      "You can take time to review and decide what path is best for your situation.",
+    ],
+    actionHint: "Use when trust is low or the seller is guarded.",
+    score: (cf) => ((cf.totalCalls ?? 0) <= 1 || cf.qualificationRoute === "escalate" ? 2 : 1),
+  },
+];
+
+function selectCallAssistCards(cf: ClientFile): { defaultCards: CallAssistCard[]; allCards: CallAssistCard[] } {
+  const scored = CALL_ASSIST_CARDS
+    .map((card) => ({ card, score: card.score(cf) }))
+    .sort((a, b) => b.score - a.score);
+
+  const top = scored.filter((entry) => entry.score > 0).slice(0, 3).map((entry) => entry.card);
+  const fallbackIds = new Set(["think_about_it", "verbal_offer_framing", "local_trust"]);
+  const fallback = CALL_ASSIST_CARDS.filter((card) => fallbackIds.has(card.id)).slice(0, 3);
+  const defaultCards = top.length > 0 ? top : fallback;
+
+  return {
+    defaultCards,
+    allCards: CALL_ASSIST_CARDS,
+  };
+}
+
+const PRIMARY_TAB_IDS = new Set<TabId>(["overview", "contact"]);
+const ADVANCED_TAB_IDS = new Set<TabId>(["comps", "calculator", "documents"]);
+
+const WORKFLOW_STAGE_OPTIONS: Array<{ id: WorkflowStageId; label: string }> = [
+  { id: "prospect", label: "Prospect" },
+  { id: "lead", label: "Lead" },
+  { id: "negotiation", label: "Negotiation" },
+  { id: "disposition", label: "Disposition" },
+  { id: "nurture", label: "Nurture" },
+  { id: "dead", label: "Dead" },
+  { id: "closed", label: "Closed" },
+];
+
+const WORKFLOW_STAGE_SET = new Set<WorkflowStageId>(WORKFLOW_STAGE_OPTIONS.map((s) => s.id));
+
+function normalizeWorkflowStage(status: string | null | undefined): WorkflowStageId {
+  const normalized = (status ?? "").toLowerCase().replace(/\s+/g, "_");
+  if (WORKFLOW_STAGE_SET.has(normalized as WorkflowStageId)) {
+    return normalized as WorkflowStageId;
+  }
+  // Legacy compatibility only: "My Leads" is assignment segmentation, not a workflow stage.
+  if (normalized === "my_lead" || normalized === "my_leads" || normalized === "my_lead_status") {
+    return "lead";
+  }
+  return "prospect";
+}
+
+function workflowStageLabel(status: string | null | undefined): string {
+  const normalized = normalizeWorkflowStage(status);
+  return WORKFLOW_STAGE_OPTIONS.find((s) => s.id === normalized)?.label ?? "Prospect";
+}
+
+function sourceDisplayLabel(source: string | null | undefined): string {
+  const normalized = (source ?? "unknown").trim().toLowerCase();
+  if (normalized === "propertyradar") return "PropertyRadar";
+  if (normalized === "ranger_push") return "Ranger";
+  if (normalized === "google_ads") return "Google Ads";
+  if (normalized === "facebook_ads") return "Facebook Ads";
+  return normalized
+    .replace(/^csv:/, "CSV ")
+    .replace(/[_-]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .replace(/\b\w/g, (m) => m.toUpperCase());
+}
+
+function marketDisplayLabel(county: string | null | undefined): string {
+  const c = (county ?? "").toLowerCase();
+  if (c.includes("spokane")) return "Spokane County, WA";
+  if (c.includes("kootenai")) return "Kootenai County, ID";
+  if (!county) return "Other Market";
+  return county.toLowerCase().includes("county") ? county : `${county} County`;
+}
+
+function formatDateTimeShort(iso: string | null | undefined): string {
+  if (!iso) return "n/a";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "n/a";
+  return `${d.toLocaleDateString("en-US", { month: "short", day: "numeric" })} ${d.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}`;
+}
+
+function toLocalDateTimeInput(iso: string | null | undefined): string {
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "";
+  const local = new Date(d.getTime() - d.getTimezoneOffset() * 60000);
+  return local.toISOString().slice(0, 16);
+}
+
+function fromLocalDateTimeInput(localValue: string): string | null {
+  if (!localValue) return null;
+  const d = new Date(localValue);
+  if (Number.isNaN(d.getTime())) return null;
+  return d.toISOString();
+}
+
+function formatRelativeFromNow(iso: string | null | undefined): string {
+  if (!iso) return "n/a";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "n/a";
+  const diffMs = Date.now() - d.getTime();
+  const mins = Math.floor(Math.abs(diffMs) / 60000);
+  if (mins < 1) return "just now";
+  if (mins < 60) return `${mins}m ${diffMs >= 0 ? "ago" : "from now"}`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `${hrs}h ${diffMs >= 0 ? "ago" : "from now"}`;
+  const days = Math.floor(hrs / 24);
+  return `${days}d ${diffMs >= 0 ? "ago" : "from now"}`;
+}
+
+function getQualificationDraft(cf: ClientFile | null | undefined): QualificationDraft {
+  return {
+    motivationLevel: cf?.motivationLevel ?? null,
+    sellerTimeline: cf?.sellerTimeline ?? null,
+    conditionLevel: cf?.conditionLevel ?? null,
+    decisionMakerConfirmed: cf?.decisionMakerConfirmed ?? false,
+    priceExpectation: cf?.priceExpectation ?? null,
+    qualificationRoute: cf?.qualificationRoute ?? null,
+  };
+}
+
+function getNextActionUrgency(cf: ClientFile): {
+  label: string;
+  detail: string;
+  tone: "normal" | "warn" | "danger";
+} {
+  const now = Date.now();
+  const nextIso = cf.nextCallScheduledAt ?? cf.followUpDate;
+  const nextMs = nextIso ? new Date(nextIso).getTime() : NaN;
+  const promotedMs = cf.promotedAt ? new Date(cf.promotedAt).getTime() : NaN;
+
+  if (!Number.isNaN(nextMs)) {
+    if (nextMs < now) {
+      return { label: "Overdue Follow-up", detail: `${formatRelativeFromNow(nextIso)} (scheduled)`, tone: "danger" };
+    }
+    const hoursUntil = Math.floor((nextMs - now) / 3600000);
+    if (hoursUntil <= 24) {
+      return { label: "Due Soon", detail: `Follow-up in ${hoursUntil <= 0 ? "<1" : hoursUntil}h`, tone: "warn" };
+    }
+    return { label: "Scheduled", detail: `Next follow-up ${formatDateTimeShort(nextIso)}`, tone: "normal" };
+  }
+
+  if ((cf.totalCalls ?? 0) === 0 && !Number.isNaN(promotedMs)) {
+    const ageMs = now - promotedMs;
+    if (ageMs > 15 * 60 * 1000) {
+      return { label: "Needs First Contact", detail: `No attempt after ${formatRelativeFromNow(cf.promotedAt)}`, tone: "danger" };
+    }
+    return { label: "New Lead", detail: "Awaiting first contact", tone: "warn" };
+  }
+
+  return { label: "No Follow-up Set", detail: "Set next call to keep momentum", tone: "warn" };
+}
 
 const DISTRESS_CFG: Record<string, { label: string; icon: typeof AlertTriangle; color: string }> = {
   probate:          { label: "Probate",          icon: AlertTriangle, color: "text-red-400 bg-red-500/10 border-red-500/20" },
@@ -257,115 +612,6 @@ const DISTRESS_CFG: Record<string, { label: string; icon: typeof AlertTriangle; 
   tired_landlord:   { label: "Tired Landlord",  icon: AlertTriangle, color: "text-amber-400 bg-amber-500/10 border-amber-500/20" },
   underwater:       { label: "Underwater",       icon: AlertTriangle, color: "text-red-400 bg-red-500/10 border-red-500/20" },
 };
-
-/** Urgency tiers for distress signals — determines sort order, visual treatment, and pitch approach */
-type UrgencyTier = "CRITICAL" | "URGENT" | "MODERATE" | "LOW";
-
-interface DistressUrgency {
-  tier: UrgencyTier;
-  /** Estimated days until a hard deadline (auction, hearing, etc.) — null if no deadline */
-  daysUntilCritical: number | null;
-  /** Color classes for the urgency badge */
-  color: string;
-  /** Short pitch suggestion for the agent */
-  pitch: string;
-}
-
-const URGENCY_TIER_STYLES: Record<UrgencyTier, { color: string; badge: string }> = {
-  CRITICAL: { color: "text-red-400 border-red-500/40 bg-red-500/[0.08]", badge: "bg-red-500/20 text-red-400 border-red-500/30 animate-pulse" },
-  URGENT:   { color: "text-orange-400 border-orange-500/30 bg-orange-500/[0.06]", badge: "bg-orange-500/15 text-orange-400 border-orange-500/30" },
-  MODERATE: { color: "text-amber-400 border-amber-500/20 bg-amber-500/[0.04]", badge: "bg-amber-500/10 text-amber-400 border-amber-500/20" },
-  LOW:      { color: "text-slate-400 border-white/[0.06] bg-white/[0.02]", badge: "bg-white/[0.04] text-slate-400 border-white/10" },
-};
-
-/** Calculate urgency tier for a distress event based on type and timing */
-function getDistressUrgency(evtType: string, createdAt: string, rawData?: Record<string, unknown>): DistressUrgency {
-  const daysSinceDetected = Math.floor((Date.now() - new Date(createdAt).getTime()) / 86400000);
-
-  // Extract known deadline dates from raw_data
-  const auctionDate = rawData?.AuctionDate ?? rawData?.auction_date ?? rawData?.sale_date;
-  const hearingDate = rawData?.HearingDate ?? rawData?.hearing_date ?? rawData?.court_date;
-  const deadlineDate = rawData?.deadline ?? rawData?.redemption_deadline;
-  const deadlineStr = auctionDate ?? hearingDate ?? deadlineDate;
-
-  let daysUntilCritical: number | null = null;
-  if (deadlineStr && typeof deadlineStr === "string") {
-    try {
-      daysUntilCritical = Math.max(0, Math.floor((new Date(deadlineStr).getTime() - Date.now()) / 86400000));
-    } catch { /* ignore parse failures */ }
-  }
-
-  // CRITICAL (0-30 days): auction, foreclosure sale, redemption deadline approaching
-  if (evtType === "pre_foreclosure" || evtType === "foreclosure") {
-    if (daysUntilCritical !== null && daysUntilCritical <= 30) {
-      return { tier: "CRITICAL", daysUntilCritical, color: URGENCY_TIER_STYLES.CRITICAL.color, pitch: "Mention timeline pressure — they may lose the property in days" };
-    }
-    if (daysSinceDetected <= 30) {
-      return { tier: "URGENT", daysUntilCritical, color: URGENCY_TIER_STYLES.URGENT.color, pitch: "Position as solution to their foreclosure — time is limited" };
-    }
-    return { tier: "MODERATE", daysUntilCritical, color: URGENCY_TIER_STYLES.MODERATE.color, pitch: "Build urgency around avoiding foreclosure damage to credit" };
-  }
-
-  if (evtType === "tax_lien" || evtType === "tax_delinquency") {
-    const installments = Number(rawData?.NumberDelinquentInstallments ?? 0);
-    if (daysUntilCritical !== null && daysUntilCritical <= 30) {
-      return { tier: "CRITICAL", daysUntilCritical, color: URGENCY_TIER_STYLES.CRITICAL.color, pitch: "Tax auction imminent — emphasize losing the property entirely" };
-    }
-    if (installments >= 3 || daysSinceDetected <= 30) {
-      return { tier: "URGENT", daysUntilCritical, color: URGENCY_TIER_STYLES.URGENT.color, pitch: "Position as way to resolve tax debt before auction" };
-    }
-    return { tier: "MODERATE", daysUntilCritical, color: URGENCY_TIER_STYLES.MODERATE.color, pitch: "Mention accumulating penalties and interest on the tax debt" };
-  }
-
-  if (evtType === "probate" || evtType === "deceased") {
-    if (daysSinceDetected <= 60) {
-      return { tier: "URGENT", daysUntilCritical: null, color: URGENCY_TIER_STYLES.URGENT.color, pitch: "Heirs often want quick liquidation — offer convenience and speed" };
-    }
-    return { tier: "MODERATE", daysUntilCritical: null, color: URGENCY_TIER_STYLES.MODERATE.color, pitch: "Estate may be stalled — offer to simplify the process" };
-  }
-
-  if (evtType === "bankruptcy") {
-    if (daysSinceDetected <= 30) {
-      return { tier: "URGENT", daysUntilCritical: null, color: URGENCY_TIER_STYLES.URGENT.color, pitch: "Motivated to resolve debts — cash offer can help restructure" };
-    }
-    return { tier: "MODERATE", daysUntilCritical: null, color: URGENCY_TIER_STYLES.MODERATE.color, pitch: "Offer a clean sale that simplifies their financial situation" };
-  }
-
-  if (evtType === "divorce") {
-    if (daysSinceDetected <= 60) {
-      return { tier: "URGENT", daysUntilCritical: null, color: URGENCY_TIER_STYLES.URGENT.color, pitch: "Court may force partition sale — offer a quick private alternative" };
-    }
-    return { tier: "MODERATE", daysUntilCritical: null, color: URGENCY_TIER_STYLES.MODERATE.color, pitch: "Position as clean split solution — no Realtor, no showings" };
-  }
-
-  if (evtType === "code_violation" || evtType === "condemned") {
-    if (daysUntilCritical !== null && daysUntilCritical <= 30) {
-      return { tier: "CRITICAL", daysUntilCritical, color: URGENCY_TIER_STYLES.CRITICAL.color, pitch: "Hearing imminent — daily fines may escalate rapidly" };
-    }
-    if (evtType === "condemned") {
-      return { tier: "URGENT", daysUntilCritical, color: URGENCY_TIER_STYLES.URGENT.color, pitch: "Property condemned — offer to buy as-is and save them demo costs" };
-    }
-    return { tier: "MODERATE", daysUntilCritical, color: URGENCY_TIER_STYLES.MODERATE.color, pitch: "Mention accumulating fines — cash offer avoids repair costs" };
-  }
-
-  if (evtType === "water_shutoff") {
-    return { tier: "URGENT", daysUntilCritical: null, color: URGENCY_TIER_STYLES.URGENT.color, pitch: "Utility shutoff signals abandonment — act fast before property degrades" };
-  }
-
-  if (evtType === "underwater") {
-    return { tier: "MODERATE", daysUntilCritical: null, color: URGENCY_TIER_STYLES.MODERATE.color, pitch: "Potential short sale — may need lender approval, be patient" };
-  }
-
-  // LOW urgency: absentee, vacant, tired_landlord, inherited (no deadline), fsbo
-  if (evtType === "vacant" || evtType === "absentee" || evtType === "tired_landlord" || evtType === "fsbo" || evtType === "inherited") {
-    return { tier: "LOW", daysUntilCritical: null, color: URGENCY_TIER_STYLES.LOW.color, pitch: "Long-game approach — build rapport, emphasize convenience over speed" };
-  }
-
-  return { tier: "LOW", daysUntilCritical: null, color: URGENCY_TIER_STYLES.LOW.color, pitch: "Build rapport, learn about their situation before pitching" };
-}
-
-/** Sort order for urgency tiers */
-const URGENCY_SORT: Record<UrgencyTier, number> = { CRITICAL: 0, URGENT: 1, MODERATE: 2, LOW: 3 };
 
 const SCORE_LABEL_CFG: Record<AIScore["label"], { text: string; color: string; bg: string }> = {
   platinum: { text: "PLATINUM", color: "text-cyan-300",    bg: "bg-cyan-400/10 border-cyan-400/30" },
@@ -395,9 +641,9 @@ const COUNTY_LINKS: Record<string, { name: string; gis: (apn: string) => string;
   },
 };
 
-// ═══════════════════════════════════════════════════════════════════════
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 // Shared sub-components
-// ═══════════════════════════════════════════════════════════════════════
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 function InfoRow({ icon: Icon, label, value, mono, highlight }: {
   icon: typeof MapPin; label: string; value: string | number | null | undefined; mono?: boolean; highlight?: boolean;
@@ -413,7 +659,6 @@ function InfoRow({ icon: Icon, label, value, mono, highlight }: {
     </div>
   );
 }
-
 function Section({ title, icon: Icon, children }: { title: string; icon: typeof Home; children: React.ReactNode }) {
   return (
     <div className="rounded-[12px] border border-glass-border bg-secondary/10 p-4">
@@ -478,15 +723,15 @@ function ScoreCard({ label, value, onClick }: { label: string; value: number; on
         <div className={cn("h-full rounded-full transition-all", tc.bar)} style={{ width: `${pct}%` }} />
       </div>
       <p className={cn("text-[8px] mt-1.5 transition-colors relative z-10 uppercase tracking-widest font-semibold", tc.text, "opacity-60 group-hover:opacity-100")}>
-        {tier.toUpperCase()} — tap to drill
+        {tier.toUpperCase()} â€” tap to drill
       </p>
     </button>
   );
 }
 
-// ═══════════════════════════════════════════════════════════════════════
-// Score Breakdown Modal — full score intelligence overlay
-// ═══════════════════════════════════════════════════════════════════════
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// Score Breakdown Modal â€” full score intelligence overlay
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 const SIGNAL_WEIGHT_LABELS: Record<string, string> = {
   probate: "Probate Filing", pre_foreclosure: "Pre-Foreclosure", tax_lien: "Tax Lien",
@@ -513,11 +758,11 @@ function ScoreBreakdownModal({ cf, scoreType, onClose }: { cf: ClientFile; score
   const eqPct = cf.equityPercent ?? 0;
   const availableEquity = cf.availableEquity ?? (arv > 0 ? Math.round(arv * eqPct / 100) : 0);
   const rehabEst = 40000;
-  const assignFee = 15000;
-  // Wholesale: Buyer's MAO = ARV × 70% − Rehab; Your MAO = Buyer's MAO − Assignment Fee
-  const buyerMaoCalc = Math.round(arv * 0.70 - rehabEst);
-  const yourMaoCalc = Math.round(buyerMaoCalc - assignFee);
-  const wholesaleSpread = assignFee;
+  const offerPct = 65;
+  const offer = Math.round(arv * (offerPct / 100));
+  const totalCost = offer + rehabEst;
+  const profit = arv - totalCost;
+  const roi = totalCost > 0 ? Math.round((profit / totalCost) * 100) : 0;
 
   return (
     <AnimatePresence>
@@ -557,7 +802,7 @@ function ScoreBreakdownModal({ cf, scoreType, onClose }: { cf: ClientFile; score
                   {scoreType === "composite" ? "Composite Score" : scoreType === "motivation" ? "Motivation Score" : "Deal Score"} Breakdown
                 </h3>
                 <p className="text-[10px] text-muted-foreground">
-                  {cf.ownerName} — {cf.fullAddress}
+                  {cf.ownerName} â€” {cf.fullAddress}
                 </p>
               </div>
             </div>
@@ -574,7 +819,7 @@ function ScoreBreakdownModal({ cf, scoreType, onClose }: { cf: ClientFile; score
                 <div className="text-center py-3">
                   <p className="text-5xl font-black tabular-nums" style={{ textShadow: "0 0 24px rgba(0,212,255,0.3), 0 0 60px rgba(0,212,255,0.1)" }}>{cf.compositeScore}</p>
                   <p className="text-[10px] text-muted-foreground uppercase tracking-widest mt-1">
-                    {cf.scoreLabel.toUpperCase()} — Model {cf.modelVersion ?? "v2.0"}
+                    {cf.scoreLabel.toUpperCase()} â€” Model {cf.modelVersion ?? "v2.0"}
                   </p>
                 </div>
 
@@ -607,7 +852,7 @@ function ScoreBreakdownModal({ cf, scoreType, onClose }: { cf: ClientFile; score
                 {signalFactors.length > 0 && (
                   <div className="space-y-1.5">
                     <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
-                      <AlertTriangle className="h-3 w-3" />Distress Signals — {Math.round(totalSignalPts)} pts
+                      <AlertTriangle className="h-3 w-3" />Distress Signals â€” {Math.round(totalSignalPts)} pts
                     </p>
                     {signalFactors.map((f, i) => {
                       const maxPts = (SIGNAL_WEIGHTS[f.name as DistressType] ?? 10) * 1.8;
@@ -639,7 +884,7 @@ function ScoreBreakdownModal({ cf, scoreType, onClose }: { cf: ClientFile; score
                 {bonusFactors.length > 0 && (
                   <div className="space-y-1.5">
                     <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
-                      <TrendingUp className="h-3 w-3" />Adjustments — {Math.round(totalBonusPts)} pts
+                      <TrendingUp className="h-3 w-3" />Adjustments â€” {Math.round(totalBonusPts)} pts
                     </p>
                     {bonusFactors.map((f, i) => (
                       <div key={i} className="flex items-center justify-between text-xs px-3 py-1.5 rounded-[8px] bg-white/[0.02] border border-white/[0.04]">
@@ -654,7 +899,7 @@ function ScoreBreakdownModal({ cf, scoreType, onClose }: { cf: ClientFile; score
 
                 {factors.length === 0 && (
                   <div className="text-center py-6 text-xs text-muted-foreground/60">
-                    No detailed factor breakdown available — run enrichment to populate
+                    No detailed factor breakdown available â€” run enrichment to populate
                   </div>
                 )}
               </>
@@ -664,66 +909,51 @@ function ScoreBreakdownModal({ cf, scoreType, onClose }: { cf: ClientFile; score
               <>
                 <div className="text-center py-3">
                   <p className="text-5xl font-black tabular-nums text-orange-400" style={{ textShadow: "0 0 24px rgba(249,115,22,0.3)" }}>{cf.motivationScore}</p>
-                  <p className="text-[10px] text-muted-foreground uppercase tracking-widest mt-1">Motivation Score — Owner Distress Intensity</p>
+                  <p className="text-[10px] text-muted-foreground uppercase tracking-widest mt-1">Motivation Score â€” Owner Distress Intensity</p>
                 </div>
 
                 <div className="rounded-[10px] border border-orange-500/15 bg-orange-500/[0.03] p-3">
                   <p className="text-[10px] font-semibold text-orange-400 uppercase tracking-wider mb-2">Formula</p>
                   <p className="text-xs text-muted-foreground font-mono leading-relaxed">
-                    BaseSignalScore × RecencyDecay × 1.2 (capped at 100)
+                    BaseSignalScore Ã— RecencyDecay Ã— 1.2 (capped at 100)
                   </p>
                 </div>
 
-                {/* Per-signal detailed breakdown — sorted by urgency */}
-                {cf.tags.length > 0 ? (() => {
-                  // Sort tags by urgency tier
-                  const sortedTags = [...cf.tags].sort((a, b) => {
-                    const urgA = getDistressUrgency(a, new Date().toISOString());
-                    const urgB = getDistressUrgency(b, new Date().toISOString());
-                    return URGENCY_SORT[urgA.tier] - URGENCY_SORT[urgB.tier];
-                  });
-                  return (
-                    <div className="space-y-1.5">
-                      <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Active Distress Signals</p>
-                      {sortedTags.map((tag) => {
-                        const cfg = DISTRESS_CFG[tag];
-                        const TagIcon = cfg?.icon ?? Tag;
-                        const baseWeight = SIGNAL_WEIGHTS[tag as DistressType] ?? 10;
-                        const factor = factors.find((f) => f.name === tag);
-                        const urgency = getDistressUrgency(tag, new Date().toISOString());
-                        const tierStyle = URGENCY_TIER_STYLES[urgency.tier];
-                        return (
-                          <div key={tag} className={cn("rounded-[8px] border px-3 py-2.5", tierStyle.color)}>
-                            <div className="flex items-center gap-2 mb-1.5">
-                              <TagIcon className={cn("h-3.5 w-3.5", cfg?.color?.split(" ")[0] ?? "text-muted-foreground")} />
-                              <span className={cn("text-xs font-semibold", cfg?.color?.split(" ")[0] ?? "text-foreground")}>{cfg?.label ?? tag}</span>
-                              <span className={cn("text-[7px] font-bold px-1.5 py-0 rounded-full border uppercase tracking-widest ml-1", tierStyle.badge)}>
-                                {urgency.tier}
-                              </span>
-                              {factor && <span className="ml-auto font-mono text-xs font-bold text-foreground">+{factor.contribution}</span>}
-                            </div>
-                            <div className="grid grid-cols-3 gap-2 text-[10px]">
-                              <div>
-                                <span className="text-muted-foreground/60">Base Weight</span>
-                                <p className="font-mono font-semibold">{baseWeight}</p>
-                              </div>
-                              <div>
-                                <span className="text-muted-foreground/60">Source</span>
-                                <p className="font-medium">{cf.source}</p>
-                              </div>
-                              <div>
-                                <span className="text-muted-foreground/60">Severity</span>
-                                <p className="font-mono font-semibold">{factor ? Math.round(factor.contribution / baseWeight * 10) / 10 : "—"}×</p>
-                              </div>
-                            </div>
-                            {/* Pitch hint for agents */}
-                            <p className="text-[9px] italic opacity-60 mt-1.5">{urgency.pitch}</p>
+                {/* Per-signal detailed breakdown */}
+                {cf.tags.length > 0 ? (
+                  <div className="space-y-1.5">
+                    <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Active Distress Signals</p>
+                    {cf.tags.map((tag) => {
+                      const cfg = DISTRESS_CFG[tag];
+                      const TagIcon = cfg?.icon ?? Tag;
+                      const baseWeight = SIGNAL_WEIGHTS[tag as DistressType] ?? 10;
+                      const factor = factors.find((f) => f.name === tag);
+                      return (
+                        <div key={tag} className="rounded-[8px] border border-white/[0.04] bg-white/[0.02] px-3 py-2.5">
+                          <div className="flex items-center gap-2 mb-1.5">
+                            <TagIcon className={cn("h-3.5 w-3.5", cfg?.color?.split(" ")[0] ?? "text-muted-foreground")} />
+                            <span className={cn("text-xs font-semibold", cfg?.color?.split(" ")[0] ?? "text-foreground")}>{cfg?.label ?? tag}</span>
+                            {factor && <span className="ml-auto font-mono text-xs font-bold text-foreground">+{factor.contribution}</span>}
                           </div>
-                        );
-                      })}
-                    </div>
-                  );
-                })() : (
+                          <div className="grid grid-cols-3 gap-2 text-[10px]">
+                            <div>
+                              <span className="text-muted-foreground/60">Base Weight</span>
+                              <p className="font-mono font-semibold">{baseWeight}</p>
+                            </div>
+                            <div>
+                              <span className="text-muted-foreground/60">Source</span>
+                              <p className="font-medium">{cf.source}</p>
+                            </div>
+                            <div>
+                              <span className="text-muted-foreground/60">Severity</span>
+                              <p className="font-mono font-semibold">{factor ? Math.round(factor.contribution / baseWeight * 10) / 10 : "â€”"}Ã—</p>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : (
                   <div className="text-center py-6 text-xs text-muted-foreground/60">
                     No active distress signals detected
                   </div>
@@ -775,13 +1005,13 @@ function ScoreBreakdownModal({ cf, scoreType, onClose }: { cf: ClientFile; score
               <>
                 <div className="text-center py-3">
                   <p className="text-5xl font-black tabular-nums text-emerald-400" style={{ textShadow: "0 0 24px rgba(16,185,129,0.3)" }}>{cf.dealScore}</p>
-                  <p className="text-[10px] text-muted-foreground uppercase tracking-widest mt-1">Deal Score — Investment Viability Index</p>
+                  <p className="text-[10px] text-muted-foreground uppercase tracking-widest mt-1">Deal Score â€” Investment Viability Index</p>
                 </div>
 
                 <div className="rounded-[10px] border border-emerald-500/15 bg-emerald-500/[0.03] p-3">
                   <p className="text-[10px] font-semibold text-emerald-400 uppercase tracking-wider mb-2">Formula</p>
                   <p className="text-xs text-muted-foreground font-mono leading-relaxed">
-                    EquityFactor × 2 + AIBoost + StackingBonus × 0.5 (capped at 100)
+                    EquityFactor Ã— 2 + AIBoost + StackingBonus Ã— 0.5 (capped at 100)
                   </p>
                 </div>
 
@@ -790,58 +1020,54 @@ function ScoreBreakdownModal({ cf, scoreType, onClose }: { cf: ClientFile; score
                   <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Property Financials</p>
                   <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs">
                     <div className="flex justify-between px-3 py-1.5 rounded-[8px] bg-white/[0.02] border border-white/[0.04]">
-                      <span className="text-muted-foreground">AVM</span>
-                      <span className="font-mono font-bold text-neon">{arv > 0 ? formatCurrency(arv) : "—"}</span>
-                    </div>
-                    <div className="flex justify-between px-3 py-1.5 rounded-[8px] bg-white/[0.02] border border-white/[0.04]">
-                      <span className="text-muted-foreground">Tax Assessed</span>
-                      <span className="font-mono font-bold text-amber-400">{(() => { const tv = Number(cf.ownerFlags?.tax_assessed_value) || 0; return tv > 0 ? formatCurrency(tv) : "—"; })()}</span>
+                      <span className="text-muted-foreground">ARV / AVM</span>
+                      <span className="font-mono font-bold text-neon">{arv > 0 ? formatCurrency(arv) : "â€”"}</span>
                     </div>
                     <div className="flex justify-between px-3 py-1.5 rounded-[8px] bg-white/[0.02] border border-white/[0.04]">
                       <span className="text-muted-foreground">Equity %</span>
-                      <span className="font-mono font-bold">{eqPct > 0 ? `${eqPct}%` : "—"}</span>
-                    </div>
-                    <div className="flex justify-between px-3 py-1.5 rounded-[8px] bg-white/[0.02] border border-white/[0.04]">
-                      <span className="text-muted-foreground">AVM vs Tax</span>
-                      <span className="font-mono font-semibold text-cyan">{(() => { const tv = Number(cf.ownerFlags?.tax_assessed_value) || 0; if (arv > 0 && tv > 0) { const delta = arv - tv; return `${delta >= 0 ? "+" : ""}${formatCurrency(delta)}`; } return "—"; })()}</span>
+                      <span className="font-mono font-bold">{eqPct > 0 ? `${eqPct}%` : "â€”"}</span>
                     </div>
                     <div className="flex justify-between px-3 py-1.5 rounded-[8px] bg-white/[0.02] border border-white/[0.04]">
                       <span className="text-muted-foreground">Available Equity</span>
-                      <span className="font-mono font-semibold">{availableEquity > 0 ? formatCurrency(availableEquity) : "—"}</span>
+                      <span className="font-mono font-semibold">{availableEquity > 0 ? formatCurrency(availableEquity) : "â€”"}</span>
                     </div>
                     <div className="flex justify-between px-3 py-1.5 rounded-[8px] bg-white/[0.02] border border-white/[0.04]">
                       <span className="text-muted-foreground">Total Loans</span>
-                      <span className="font-mono font-semibold">{cf.totalLoanBalance ? formatCurrency(cf.totalLoanBalance) : "—"}</span>
+                      <span className="font-mono font-semibold">{cf.totalLoanBalance ? formatCurrency(cf.totalLoanBalance) : "â€”"}</span>
                     </div>
                   </div>
                 </div>
 
-                {/* Wholesale profit projection */}
+                {/* Profit projection */}
                 {arv > 0 && (
                   <div className="space-y-1.5">
-                    <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Wholesale Spread</p>
+                    <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Quick Profit Projection</p>
                     <div className="rounded-[10px] border border-white/[0.06] bg-white/[0.02] p-3 space-y-1.5 text-xs">
                       <div className="flex justify-between">
                         <span className="text-muted-foreground">ARV</span>
                         <span className="font-mono font-medium">{formatCurrency(arv)}</span>
                       </div>
                       <div className="flex justify-between">
-                        <span className="text-muted-foreground">Buyer{"'"}s MAO (70%)</span>
-                        <span className="font-mono font-medium">{formatCurrency(buyerMaoCalc)}</span>
+                        <span className="text-muted-foreground">Offer @ {offerPct}%</span>
+                        <span className="font-mono text-red-400">-{formatCurrency(offer)}</span>
                       </div>
                       <div className="flex justify-between">
-                        <span className="text-muted-foreground">Your Offer</span>
-                        <span className="font-mono font-medium">{formatCurrency(yourMaoCalc)}</span>
+                        <span className="text-muted-foreground">Rehab Est.</span>
+                        <span className="font-mono text-red-400">-{formatCurrency(rehabEst)}</span>
                       </div>
                       <div className="border-t border-white/[0.06] pt-1.5 mt-1.5 flex justify-between">
-                        <span className="font-semibold">Assignment Spread</span>
-                        <span className={cn("font-mono font-bold text-lg", wholesaleSpread >= 0 ? "text-neon" : "text-red-400")} style={wholesaleSpread >= 0 ? { textShadow: "0 0 10px rgba(0,212,255,0.25)" } : {}}>
-                          {formatCurrency(wholesaleSpread)}
+                        <span className="font-semibold">Net Profit</span>
+                        <span className={cn("font-mono font-bold text-lg", profit >= 0 ? "text-neon" : "text-red-400")} style={profit >= 0 ? { textShadow: "0 0 10px rgba(0,212,255,0.25)" } : {}}>
+                          {formatCurrency(profit)}
                         </span>
+                      </div>
+                      <div className="flex justify-between text-[10px]">
+                        <span className="text-muted-foreground">ROI</span>
+                        <span className={cn("font-mono font-semibold", roi >= 0 ? "text-neon" : "text-red-400")}>{roi}%</span>
                       </div>
                     </div>
                     <p className="text-[9px] text-muted-foreground/40 italic">
-                      70% rule, ${(rehabEst / 1000).toFixed(0)}k rehab, ${(assignFee / 1000).toFixed(0)}k assignment fee. Adjust in Offer Calculator tab.
+                      Assumptions: {offerPct}% MAO, ${(rehabEst / 1000).toFixed(0)}k rehab, 3% holding, 8% selling costs. Adjust in Offer Calculator tab.
                     </p>
                   </div>
                 )}
@@ -865,7 +1091,7 @@ function ScoreBreakdownModal({ cf, scoreType, onClose }: { cf: ClientFile; score
 
                 {arv === 0 && (
                   <div className="text-center py-4 text-xs text-muted-foreground/60">
-                    No property value data — run enrichment to populate ARV and financial details
+                    No property value data â€” run enrichment to populate ARV and financial details
                   </div>
                 )}
               </>
@@ -875,7 +1101,7 @@ function ScoreBreakdownModal({ cf, scoreType, onClose }: { cf: ClientFile; score
           {/* Footer */}
           <div className="shrink-0 px-5 py-3 border-t border-white/[0.06] flex items-center justify-between">
             <p className="text-[9px] text-muted-foreground/40 font-mono">
-              Scoring Engine {cf.modelVersion ?? "v2.0"} • {cf.tags.length} signal(s) • {cf.source}
+              Scoring Engine {cf.modelVersion ?? "v2.0"} â€¢ {cf.tags.length} signal(s) â€¢ {cf.source}
             </p>
             <Button size="sm" variant="outline" onClick={onClose} className="text-[10px] h-7 px-3">
               Close
@@ -905,9 +1131,9 @@ function OwnerFlag({ active, label, icon: Icon }: { active: boolean; label: stri
   );
 }
 
-// ═══════════════════════════════════════════════════════════════════════
-// Edit Details Modal — inline property editing from MCF
-// ═══════════════════════════════════════════════════════════════════════
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// Edit Details Modal â€” inline property editing from MCF
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 interface EditFields {
   address: string;
@@ -972,10 +1198,19 @@ function EditDetailsModal({ cf, onClose, onSaved }: { cf: ClientFile; onClose: (
     setSaving(true);
     setError(null);
     try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) {
+        setError("Session expired. Please sign in again.");
+        return;
+      }
+
       const fullAddr = [fields.address, fields.city, fields.state, fields.zip].filter(Boolean).join(", ");
       const res = await fetch("/api/properties/update", {
         method: "PATCH",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${session.access_token}`,
+        },
         body: JSON.stringify({
           property_id: cf.propertyId,
           lead_id: cf.id,
@@ -1114,9 +1349,9 @@ function EditDetailsModal({ cf, onClose, onSaved }: { cf: ClientFile; onClose: (
   );
 }
 
-// ═══════════════════════════════════════════════════════════════════════
-// Delete Confirmation Modal — "type yes" to permanently delete
-// ═══════════════════════════════════════════════════════════════════════
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// Delete Confirmation Modal â€” "type yes" to permanently delete
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 function DeleteConfirmationModal({
   cf,
@@ -1272,9 +1507,9 @@ function DeleteConfirmationModal({
   );
 }
 
-// ═══════════════════════════════════════════════════════════════════════
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 // Tab: Overview
-// ═══════════════════════════════════════════════════════════════════════
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 interface PhoneDetail {
   number: string;
@@ -1283,41 +1518,6 @@ interface PhoneDetail {
   dnc: boolean;
   carrier?: string;
   source: "propertyradar" | "batchdata" | `openclaw_${string}` | string;
-}
-
-/** Score and rank phones by likelihood of reaching the owner. Higher = better. */
-function rankPhones(phones: PhoneDetail[]): (PhoneDetail & { rankScore: number })[] {
-  return phones
-    .map((p) => {
-      let score = 0;
-
-      // Line type: mobile most likely to answer, voip okay, landline worst
-      if (p.lineType === "mobile") score += 30;
-      else if (p.lineType === "voip") score += 10;
-      else if (p.lineType === "landline") score += 0;
-      else score += 5; // unknown — slightly above landline
-
-      // Confidence: direct contribution (0-100 scale → 0-40 points)
-      score += Math.round((p.confidence ?? 50) * 0.4);
-
-      // Source quality: BatchData most reliable, then OpenClaw, then PropertyRadar
-      if (p.source === "batchdata") score += 15;
-      else if (String(p.source).startsWith("openclaw")) score += 10;
-      else if (p.source === "propertyradar") score += 5;
-
-      // DNC penalty: push to bottom
-      if (p.dnc) score -= 1000;
-
-      return { ...p, rankScore: score };
-    })
-    .sort((a, b) => b.rankScore - a.rankScore);
-}
-
-/** Color class for phone rank score badge */
-function phoneRankColor(score: number): string {
-  if (score >= 65) return "text-emerald-400 border-emerald-500/30";
-  if (score >= 45) return "text-amber-400 border-amber-500/30";
-  return "text-red-400 border-red-500/30";
 }
 
 interface EmailDetail {
@@ -1355,9 +1555,9 @@ function dispositionColor(disp: string): string {
   return "text-muted-foreground";
 }
 
-// ═══════════════════════════════════════════════════════════════════════
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 // DEEP CRAWL RESULTS PANEL
-// ═══════════════════════════════════════════════════════════════════════
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 const URGENCY_COLORS: Record<string, string> = {
   CRITICAL: "text-red-400 bg-red-500/[0.12] border-red-500/30",
@@ -1529,7 +1729,7 @@ function DeepCrawlPanel({ result, onRecrawl, isRecrawling }: { result: any; onRe
             disabled={isRecrawling}
             className="text-[11px] text-amber-400/70 hover:text-amber-400 transition-colors disabled:opacity-50"
           >
-            {isRecrawling ? "Re-crawling…" : "↻ Re-crawl"}
+            {isRecrawling ? "Re-crawlingâ€¦" : "â†» Re-crawl"}
           </button>
         )}
       </div>
@@ -1537,9 +1737,9 @@ function DeepCrawlPanel({ result, onRecrawl, isRecrawling }: { result: any; onRe
   );
 }
 
-// ═══════════════════════════════════════════════════════════════════════
-// DEEP SKIP PANEL — People intelligence from agents
-// ═══════════════════════════════════════════════════════════════════════
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// DEEP SKIP PANEL â€” People intelligence from agents
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 const ROLE_COLORS: Record<string, string> = {
   owner: "text-cyan bg-cyan/10 border-cyan/30",
@@ -1562,10 +1762,10 @@ function DeepSkipPanel({ result }: { result: any }) {
       {/* Header */}
       <div className="flex items-center gap-2">
         <Users className="h-3.5 w-3.5 text-purple-400" />
-        <p className="text-[11px] text-purple-400/80 uppercase tracking-wider font-semibold">Deep Skip Report — People Intelligence</p>
+        <p className="text-[11px] text-purple-400/80 uppercase tracking-wider font-semibold">Deep Skip Report â€” People Intelligence</p>
         {result.agentMeta && (
           <span className="text-[10px] text-muted-foreground/50 ml-auto">
-            {result.agentMeta.agentsSucceeded?.length ?? 0} agents · {result.people?.length ?? 0} people found
+            {result.agentMeta.agentsSucceeded?.length ?? 0} agents Â· {result.people?.length ?? 0} people found
           </span>
         )}
       </div>
@@ -1668,9 +1868,9 @@ function DeepSkipPanel({ result }: { result: any }) {
   );
 }
 
-// ═══════════════════════════════════════════════════════════════════════
-// DEEP CRAWL PROGRESS INDICATOR — SSE streaming steps
-// ═══════════════════════════════════════════════════════════════════════
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// DEEP CRAWL PROGRESS INDICATOR â€” SSE streaming steps
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 interface CrawlStep {
   phase: string;
@@ -1723,424 +1923,9 @@ function CrawlProgressIndicator({ steps }: { steps: CrawlStep[] }) {
   );
 }
 
-// ═══════════════════════════════════════════════════════════════════════
-// RESEARCH FINDINGS — distress events with source links for agent verification
-// ═══════════════════════════════════════════════════════════════════════
-
-const FINDING_ICONS: Record<string, typeof FileText> = {
-  probate: Flame,
-  pre_foreclosure: AlertTriangle,
-  tax_lien: DollarSign,
-  bankruptcy: Scale,
-  divorce: Users,
-  vacant: Home,
-  code_violation: ShieldAlert,
-  water_shutoff: AlertTriangle,
-  inherited: Users,
-  absentee: MapPinned,
-  fsbo: Building,
-  tired_landlord: Briefcase,
-};
-
-const FINDING_COLORS: Record<string, { text: string; bg: string; border: string }> = {
-  probate: { text: "text-red-400", bg: "bg-red-500/10", border: "border-red-500/20" },
-  pre_foreclosure: { text: "text-orange-400", bg: "bg-orange-500/10", border: "border-orange-500/20" },
-  tax_lien: { text: "text-yellow-400", bg: "bg-yellow-500/10", border: "border-yellow-500/20" },
-  bankruptcy: { text: "text-red-500", bg: "bg-red-500/10", border: "border-red-500/20" },
-  divorce: { text: "text-purple-400", bg: "bg-purple-500/10", border: "border-purple-500/20" },
-  vacant: { text: "text-emerald-400", bg: "bg-emerald-500/10", border: "border-emerald-500/20" },
-  code_violation: { text: "text-pink-400", bg: "bg-pink-500/10", border: "border-pink-500/20" },
-  water_shutoff: { text: "text-blue-400", bg: "bg-blue-500/10", border: "border-blue-500/20" },
-  inherited: { text: "text-amber-400", bg: "bg-amber-500/10", border: "border-amber-500/20" },
-  absentee: { text: "text-cyan-400", bg: "bg-cyan-500/10", border: "border-cyan-500/20" },
-  fsbo: { text: "text-blue-300", bg: "bg-blue-500/10", border: "border-blue-500/20" },
-  tired_landlord: { text: "text-amber-400", bg: "bg-amber-500/10", border: "border-amber-500/20" },
-};
-
-const FINDING_LABELS: Record<string, string> = {
-  probate: "Probate / Deceased",
-  pre_foreclosure: "Pre-Foreclosure",
-  tax_lien: "Tax Lien",
-  bankruptcy: "Bankruptcy",
-  divorce: "Divorce",
-  vacant: "Vacant Property",
-  code_violation: "Code Violation",
-  water_shutoff: "Water Shut-off",
-  inherited: "Inherited",
-  absentee: "Absentee Owner",
-  fsbo: "For Sale by Owner",
-  tired_landlord: "Tired Landlord",
-};
-
-interface DistressEvent {
-  id: string;
-  event_type: string;
-  source: string;
-  severity: number;
-  created_at: string;
-  event_date: string | null;
-  status: string;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  raw_data: Record<string, any> | null;
-}
-
-// ── Owner Portfolio Component ─────────────────────────────────────────
-// Shows all parcels owned by the same person in the same county.
-// Data sources: (1) owner_flags.related_parcels from import rollup, (2) live DB query.
-
-interface RelatedParcel {
-  propertyId: string;
-  apn: string;
-  address: string;
-  estimatedValue: number | null;
-  lotSize: number | null;
-  sqft: number | null;
-  propertyType: string | null;
-  isVacant: boolean;
-}
-
-const PROPERTY_TYPE_LABELS: Record<string, string> = {
-  SFR: "Single Family", RES: "Residential", CND: "Condo", MFR: "Multi-Family",
-  COM: "Commercial", IND: "Industrial", AGR: "Agricultural", VAC: "Vacant Land",
-};
-
-function OwnerPortfolio({
-  propertyId,
-  ownerName,
-  county,
-  ownerFlags,
-  estimatedValue,
-}: {
-  propertyId: string;
-  ownerName: string;
-  county: string;
-  ownerFlags: Record<string, unknown>;
-  estimatedValue: number | null;
-}) {
-  const [parcels, setParcels] = useState<RelatedParcel[]>([]);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    async function load() {
-      setLoading(true);
-      try {
-        // Source 1: related_parcels from import-time rollup (already in owner_flags)
-        const rolledUp = (ownerFlags?.related_parcels as RelatedParcel[]) ?? [];
-
-        // Source 2: Live query for other properties with same owner + county
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const { data: dbProps } = await (supabase.from("properties") as any)
-          .select("id, apn, address, estimated_value, lot_size, sqft, property_type, owner_flags")
-          .eq("county", county)
-          .ilike("owner_name", ownerName.split(",")[0] + "%") // Match on last name prefix
-          .neq("id", propertyId)
-          .limit(20);
-
-        const liveResults: RelatedParcel[] = (dbProps ?? [])
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          .filter((p: any) => {
-            // Skip properties that were rolled into another (avoid double-counting)
-            const flags = (p.owner_flags ?? {}) as Record<string, unknown>;
-            return !flags.rolled_into;
-          })
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          .map((p: any) => ({
-            propertyId: p.id,
-            apn: p.apn,
-            address: p.address || "Vacant Land",
-            estimatedValue: p.estimated_value,
-            lotSize: p.lot_size,
-            sqft: p.sqft,
-            propertyType: p.property_type,
-            isVacant: !p.sqft && !p.address?.match(/\d/),
-          }));
-
-        // Merge + deduplicate by APN
-        const seen = new Set<string>();
-        const merged: RelatedParcel[] = [];
-        for (const p of [...rolledUp, ...liveResults]) {
-          if (!seen.has(p.apn)) {
-            seen.add(p.apn);
-            merged.push(p);
-          }
-        }
-
-        setParcels(merged);
-      } catch {
-        /* ignore */
-      }
-      setLoading(false);
-    }
-    load();
-  }, [propertyId, ownerName, county, ownerFlags]);
-
-  if (loading) return null; // Don't flash a loading state — it's supplementary info
-  if (parcels.length === 0) return null; // Single-parcel owner — nothing to show
-
-  const portfolioCount = parcels.length + 1; // +1 for the current property
-  const thisPropertyValue = estimatedValue ?? 0;
-  const portfolioTotal = parcels.reduce(
-    (sum, p) => sum + (p.estimatedValue ?? 0),
-    thisPropertyValue
-  );
-
-  const sqftToAcres = (sqft: number | null) =>
-    sqft ? (sqft / 43560).toFixed(2) : null;
-
-  return (
-    <div className="rounded-[12px] border border-indigo-500/20 bg-indigo-500/[0.03] p-4 space-y-3">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <div className="h-6 w-6 rounded-md bg-indigo-500/10 flex items-center justify-center">
-            <Building className="h-3 w-3 text-indigo-400" />
-          </div>
-          <p className="text-[11px] text-indigo-300 uppercase tracking-wider font-semibold">
-            Owner Portfolio
-          </p>
-        </div>
-        <div className="text-right">
-          <span className="text-sm font-bold text-indigo-300 tabular-nums">
-            {formatCurrency(portfolioTotal)}
-          </span>
-          <span className="text-[9px] text-muted-foreground ml-1.5">
-            across {portfolioCount} parcel{portfolioCount !== 1 ? "s" : ""}
-          </span>
-        </div>
-      </div>
-
-      {/* Summary banner */}
-      <div className="px-3 py-2 rounded-lg bg-indigo-500/[0.06] border border-indigo-500/15">
-        <p className="text-[10px] text-muted-foreground">
-          <span className="font-semibold text-indigo-300">{ownerName}</span> owns{" "}
-          <span className="font-semibold text-foreground">{portfolioCount} parcels</span> in{" "}
-          {county} County. If acquiring from this estate, additional lots may be included in the deal.
-        </p>
-      </div>
-
-      {/* Parcel cards */}
-      <div className="grid gap-2">
-        {parcels.map((p) => (
-          <div
-            key={p.apn}
-            className={cn(
-              "flex items-center gap-3 px-3 py-2 rounded-[10px] border transition-colors",
-              p.isVacant
-                ? "border-emerald-500/15 bg-emerald-500/[0.03]"
-                : "border-white/[0.06] bg-white/[0.02]"
-            )}
-          >
-            {/* Icon */}
-            <div className={cn(
-              "h-7 w-7 rounded-md flex items-center justify-center shrink-0",
-              p.isVacant ? "bg-emerald-500/10" : "bg-white/[0.04]"
-            )}>
-              {p.isVacant
-                ? <LandPlot className="h-3.5 w-3.5 text-emerald-400" />
-                : <Home className="h-3.5 w-3.5 text-muted-foreground" />}
-            </div>
-
-            {/* Details */}
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-1.5">
-                <span className="text-[11px] font-semibold text-foreground truncate">
-                  {p.isVacant ? "Vacant Land" : p.address}
-                </span>
-                {p.propertyType && (
-                  <span className="text-[8px] px-1.5 py-0.5 rounded border border-white/[0.08] bg-white/[0.04] text-muted-foreground font-medium shrink-0">
-                    {PROPERTY_TYPE_LABELS[p.propertyType] ?? p.propertyType}
-                  </span>
-                )}
-              </div>
-              <div className="flex items-center gap-2 text-[9px] text-muted-foreground mt-0.5">
-                <span>APN: {p.apn}</span>
-                {p.lotSize && <span>• {sqftToAcres(p.lotSize)} acres</span>}
-                {p.sqft && <span>• {p.sqft.toLocaleString()} sqft</span>}
-              </div>
-            </div>
-
-            {/* Value */}
-            <div className="text-right shrink-0">
-              {p.estimatedValue ? (
-                <span className="text-xs font-bold tabular-nums text-foreground">
-                  {formatCurrency(p.estimatedValue)}
-                </span>
-              ) : (
-                <span className="text-[10px] text-muted-foreground/50">—</span>
-              )}
-            </div>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-function ResearchFindings({ propertyId, ownerFlags }: { propertyId: string; ownerFlags: Record<string, unknown> }) {
-  const [findings, setFindings] = useState<DistressEvent[]>([]);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    async function load() {
-      setLoading(true);
-      try {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const { data, error } = await (supabase.from("distress_events") as any)
-          .select("id, event_type, source, severity, created_at, event_date, status, raw_data")
-          .eq("property_id", propertyId)
-          .order("created_at", { ascending: false })
-          .limit(30);
-        if (!error && data) setFindings(data);
-      } catch { /* ignore */ }
-      setLoading(false);
-    }
-    load();
-  }, [propertyId]);
-
-  // Quality gate badges from owner_flags
-  const mlsListed = ownerFlags?.mls_listed === true;
-  const ownershipVerified = ownerFlags?.ownership_verified;
-  const ownershipNote = ownerFlags?.ownership_change_note as string | null;
-
-  if (loading) {
-    return (
-      <div className="rounded-[12px] border border-white/[0.06] bg-white/[0.02] p-4">
-        <div className="flex items-center gap-2 text-muted-foreground">
-          <Loader2 className="h-3 w-3 animate-spin" />
-          <span className="text-[10px]">Loading research findings...</span>
-        </div>
-      </div>
-    );
-  }
-
-  if (findings.length === 0 && !mlsListed && ownershipVerified !== false) {
-    return null; // No findings to show
-  }
-
-  return (
-    <div className="rounded-[12px] border border-white/[0.06] bg-white/[0.02] p-4 space-y-3">
-      <p className="text-[10px] text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
-        <Search className="h-3 w-3" />Research Findings ({findings.length})
-      </p>
-
-      {/* Quality gate alerts */}
-      {mlsListed && (
-        <div className="flex items-center gap-2 px-3 py-2 rounded-lg border border-amber-500/20 bg-amber-500/[0.06]">
-          <AlertTriangle className="h-3.5 w-3.5 text-amber-400 shrink-0" />
-          <span className="text-[11px] font-semibold text-amber-300">MLS Listed</span>
-          <span className="text-[10px] text-muted-foreground">This property is currently listed on MLS</span>
-        </div>
-      )}
-
-      {ownershipVerified === false && (
-        <div className="flex items-start gap-2 px-3 py-2 rounded-lg border border-orange-500/20 bg-orange-500/[0.06]">
-          <AlertTriangle className="h-3.5 w-3.5 text-orange-400 shrink-0 mt-0.5" />
-          <div>
-            <span className="text-[11px] font-semibold text-orange-300">Ownership Changed</span>
-            {ownershipNote && (
-              <p className="text-[10px] text-muted-foreground mt-0.5">{ownershipNote}</p>
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* Event cards */}
-      <div className="space-y-2">
-        {findings.map((evt) => {
-          const colors = FINDING_COLORS[evt.event_type] ?? { text: "text-muted-foreground", bg: "bg-white/[0.04]", border: "border-white/[0.08]" };
-          const Icon = FINDING_ICONS[evt.event_type] ?? FileText;
-          const label = FINDING_LABELS[evt.event_type] ?? evt.event_type;
-          const sourceUrl = evt.raw_data?.link as string | null;
-          const snippet = evt.raw_data?.snippet as string | null;
-          const nameInFinding = evt.raw_data?.name as string | null;
-          const nameVerified = evt.raw_data?.name_verified;
-          const nameMismatchNote = evt.raw_data?.name_mismatch_note as string | null;
-          const ownershipChanged = evt.raw_data?.ownership_changed === true;
-          const unverifiedReason = evt.raw_data?.unverified_reason as string | null;
-          const daysSinceFound = Math.round((Date.now() - new Date(evt.created_at).getTime()) / 86400000);
-
-          return (
-            <div
-              key={evt.id}
-              className={cn(
-                "rounded-[10px] border p-3 space-y-1.5",
-                evt.status === "unverified" ? "border-orange-500/20 bg-orange-500/[0.03]" :
-                evt.status === "resolved" ? "border-white/[0.06] bg-white/[0.01] opacity-60" :
-                `${colors.border} ${colors.bg}`,
-              )}
-            >
-              {/* Header row */}
-              <div className="flex items-center gap-2">
-                <div className={cn("h-6 w-6 rounded-md flex items-center justify-center shrink-0", colors.bg)}>
-                  <Icon className={cn("h-3 w-3", colors.text)} />
-                </div>
-                <span className={cn("text-[11px] font-semibold", colors.text)}>{label}</span>
-
-                {/* Status badges */}
-                {evt.status === "unverified" && (
-                  <Badge variant="outline" className="text-[7px] py-0 px-1 border-orange-500/30 text-orange-400">UNVERIFIED</Badge>
-                )}
-                {evt.status === "resolved" && (
-                  <Badge variant="outline" className="text-[7px] py-0 px-1 border-white/20 text-muted-foreground">RESOLVED</Badge>
-                )}
-                {nameVerified === true && (
-                  <Badge variant="outline" className="text-[7px] py-0 px-1 border-emerald-500/30 text-emerald-400">NAME MATCH</Badge>
-                )}
-                {nameVerified === false && (
-                  <Badge variant="outline" className="text-[7px] py-0 px-1 border-red-500/30 text-red-400">NAME MISMATCH</Badge>
-                )}
-
-                {/* Source link */}
-                <div className="ml-auto flex items-center gap-1.5">
-                  <span className="text-[9px] text-muted-foreground">{daysSinceFound === 0 ? "Today" : `${daysSinceFound}d ago`}</span>
-                  {sourceUrl && (
-                    <a
-                      href={sourceUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="flex items-center gap-0.5 text-[9px] text-cyan hover:underline"
-                      onClick={(e) => e.stopPropagation()}
-                    >
-                      <ExternalLink className="h-2.5 w-2.5" />Source
-                    </a>
-                  )}
-                </div>
-              </div>
-
-              {/* Details */}
-              {nameInFinding && (
-                <p className="text-[10px] text-foreground/80 pl-8">
-                  <span className="text-muted-foreground">Subject: </span>{nameInFinding}
-                </p>
-              )}
-              {snippet && (
-                <p className="text-[10px] text-muted-foreground/70 pl-8 line-clamp-2">{snippet}</p>
-              )}
-              {nameMismatchNote && (
-                <p className="text-[10px] text-orange-400/80 pl-8">{nameMismatchNote}</p>
-              )}
-              {unverifiedReason && (
-                <p className="text-[10px] text-orange-400/80 pl-8">{unverifiedReason}</p>
-              )}
-
-              {/* Source attribution */}
-              <div className="flex items-center gap-2 pl-8">
-                <span className="text-[9px] text-muted-foreground/50">
-                  via {evt.source} &middot; severity {evt.severity}/10
-                  {evt.event_date && ` &middot; event ${evt.event_date.slice(0, 10)}`}
-                </span>
-              </div>
-            </div>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
-
-// ═══════════════════════════════════════════════════════════════════════
-// CONTACT TAB — Editable phones, emails, addresses + street view
-// ═══════════════════════════════════════════════════════════════════════
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// CONTACT TAB â€” Editable phones, emails, addresses + street view
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 function ContactTab({ cf, overlay, onSkipTrace, skipTracing, onDial, onSms, calling, onRefresh }: {
   cf: ClientFile; overlay: SkipTraceOverlay | null;
@@ -2151,25 +1936,23 @@ function ContactTab({ cf, overlay, onSkipTrace, skipTracing, onDial, onSms, call
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const prRaw = (cf.ownerFlags?.pr_raw ?? {}) as Record<string, any>;
 
-  // ── Image (Street View or satellite fallback) ──
+  // â”€â”€ Image (Street View or satellite fallback) â”€â”€
   const { lat: propLat, lng: propLng } = extractLatLng(cf);
   const streetViewUrl = prRaw.StreetViewUrl ?? prRaw.PropertyImageUrl ?? (prRaw.Photos?.[0]) ?? null;
   const satelliteFallbackUrl = (!streetViewUrl && propLat && propLng) ? getSatelliteTileUrl(propLat, propLng, 18) : null;
   const imageUrl = streetViewUrl ?? satelliteFallbackUrl;
   const streetViewLink = propLat && propLng ? getGoogleStreetViewLink(propLat, propLng) : null;
 
-  // ── Phone & email data ──
+  // â”€â”€ Phone & email data â”€â”€
   const persons = overlay?.persons ?? (cf.ownerFlags?.persons as Record<string, unknown>[]) ?? [];
-  const rawPhoneDetails: PhoneDetail[] = overlay?.phoneDetails
+  const phoneDetails: PhoneDetail[] = overlay?.phoneDetails
     ?? (cf.ownerFlags?.all_phones as PhoneDetail[] | undefined)?.filter((p) => typeof p === "object" && p !== null && "number" in p)
     ?? [];
-  // Rank phones: mobile > voip > landline, high confidence first, DNC last
-  const phoneDetails = rankPhones(rawPhoneDetails);
   const emailDetails: EmailDetail[] = overlay?.emailDetails
     ?? (cf.ownerFlags?.all_emails as EmailDetail[] | undefined)?.filter((e) => typeof e === "object" && e !== null && "email" in e)
     ?? [];
 
-  // ── Mailing address from PR raw data ──
+  // â”€â”€ Mailing address from PR raw data â”€â”€
   const prMailAddr = prRaw.MailAddress ?? prRaw.MailingAddress ?? null;
   const prMailCity = prRaw.MailCity ?? null;
   const prMailState = prRaw.MailState ?? null;
@@ -2188,7 +1971,7 @@ function ContactTab({ cf, overlay, onSkipTrace, skipTracing, onDial, onSms, call
     ? [prMailAddr, prMailCity, prMailState, prMailZip].filter(Boolean).join(", ")
     : safeMailing(mailingFromPersons?.mailing_address) || safeMailing(mailingFromPersons?.mailingAddress);
 
-  // ── Editable state ──
+  // â”€â”€ Editable state â”€â”€
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
   const [propertyAddr, setPropertyAddr] = useState(cf.address ?? "");
@@ -2197,7 +1980,7 @@ function ContactTab({ cf, overlay, onSkipTrace, skipTracing, onDial, onSms, call
   const [propertyZip, setPropertyZip] = useState(cf.zip ?? "");
   const [mailingAddr, setMailingAddr] = useState(defaultMailing);
 
-  // Dynamic phone slots — show all returned phones, minimum 5 empty slots
+  // Dynamic phone slots â€” show all returned phones, minimum 5 empty slots
   const initialPhones = (() => {
     const phones: string[] = [];
     for (const pd of phoneDetails) phones.push(pd.number);
@@ -2208,7 +1991,7 @@ function ContactTab({ cf, overlay, onSkipTrace, skipTracing, onDial, onSms, call
   })();
   const [phoneSlots, setPhoneSlots] = useState<string[]>(initialPhones);
 
-  // Dynamic email slots — show all returned emails, minimum 2 empty slots
+  // Dynamic email slots â€” show all returned emails, minimum 2 empty slots
   const initialEmails = (() => {
     const emails: string[] = [];
     for (const ed of emailDetails) emails.push(ed.email);
@@ -2224,9 +2007,7 @@ function ContactTab({ cf, overlay, onSkipTrace, skipTracing, onDial, onSms, call
     if (overlay) {
       const newPhones: string[] = [];
       if (overlay.phoneDetails) {
-        // Rank phones before populating slots
-        const ranked = rankPhones(overlay.phoneDetails);
-        for (const pd of ranked) newPhones.push(pd.number);
+        for (const pd of overlay.phoneDetails) newPhones.push(pd.number);
       } else if (overlay.phones) {
         for (const ph of overlay.phones) newPhones.push(ph);
       }
@@ -2269,31 +2050,44 @@ function ContactTab({ cf, overlay, onSkipTrace, skipTracing, onDial, onSms, call
   const handleSave = async () => {
     setSaving(true);
     try {
-      const existingFlags = (cf.ownerFlags ?? {}) as Record<string, unknown>;
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) {
+        toast.error("Session expired. Please sign in again.");
+        return;
+      }
+
       const filledPhones = phoneSlots.filter((p) => p.trim().length >= 7);
       const filledEmails = emailSlots.filter((e) => e.includes("@"));
-
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const update: Record<string, any> = {
-        address: propertyAddr.trim(),
-        city: propertyCity.trim(),
-        state: propertyState.trim(),
-        zip: propertyZip.trim(),
-        owner_phone: filledPhones[0] || null,
-        owner_email: filledEmails[0] || null,
-        owner_flags: {
-          ...existingFlags,
-          mailing_address: mailingAddr.trim() || null,
-          manual_phones: filledPhones,
-          manual_emails: filledEmails,
-          contact_updated_at: new Date().toISOString(),
+      const res = await fetch("/api/properties/update", {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${session.access_token}`,
         },
-        updated_at: new Date().toISOString(),
-      };
+        body: JSON.stringify({
+          property_id: cf.propertyId,
+          lead_id: cf.id,
+          fields: {
+            address: propertyAddr.trim(),
+            city: propertyCity.trim(),
+            state: propertyState.trim(),
+            zip: propertyZip.trim(),
+            owner_phone: filledPhones[0] || null,
+            owner_email: filledEmails[0] || null,
+            owner_flags: {
+              mailing_address: mailingAddr.trim() || null,
+              manual_phones: filledPhones,
+              manual_emails: filledEmails,
+              contact_updated_at: new Date().toISOString(),
+            },
+          },
+        }),
+      });
 
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { error } = await (supabase.from("properties") as any).update(update).eq("id", cf.propertyId);
-      if (error) throw error;
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || data.error || !data.success) {
+        throw new Error(data.detail ?? data.error ?? `HTTP ${res.status}`);
+      }
 
       toast.success("Contact info saved");
       setEditing(false);
@@ -2311,7 +2105,7 @@ function ContactTab({ cf, overlay, onSkipTrace, skipTracing, onDial, onSms, call
 
   return (
     <div className="space-y-4 max-w-[680px] mx-auto">
-      {/* ── Street View / Satellite Image ── */}
+      {/* â”€â”€ Street View / Satellite Image â”€â”€ */}
       {imageUrl && (
         <div className="rounded-[12px] border border-white/[0.06] overflow-hidden">
           <a
@@ -2342,7 +2136,7 @@ function ContactTab({ cf, overlay, onSkipTrace, skipTracing, onDial, onSms, call
         </div>
       )}
 
-      {/* ── Edit / Save controls ── */}
+      {/* â”€â”€ Edit / Save controls â”€â”€ */}
       <div className="flex items-center justify-between">
         <h3 className="text-sm font-semibold text-foreground flex items-center gap-2">
           <Contact2 className="h-4 w-4 text-cyan/60" />
@@ -2375,7 +2169,7 @@ function ContactTab({ cf, overlay, onSkipTrace, skipTracing, onDial, onSms, call
         </div>
       </div>
 
-      {/* ── Property Address ── */}
+      {/* â”€â”€ Property Address â”€â”€ */}
       <div className="rounded-[12px] border border-white/[0.06] bg-white/[0.02] p-4 space-y-3">
         <p className="text-[10px] text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
           <MapPin className="h-3 w-3" />Property Address
@@ -2411,13 +2205,13 @@ function ContactTab({ cf, overlay, onSkipTrace, skipTracing, onDial, onSms, call
           </div>
         ) : (
           <div className="flex items-center gap-2">
-            <p className="text-sm font-semibold text-foreground">{buildAddress(propertyAddr, propertyCity, propertyState, propertyZip) || "—"}</p>
+            <p className="text-sm font-semibold text-foreground">{buildAddress(propertyAddr, propertyCity, propertyState, propertyZip) || "â€”"}</p>
             {(propertyAddr || propertyCity) && <CopyBtn text={buildAddress(propertyAddr, propertyCity, propertyState, propertyZip)} />}
           </div>
         )}
       </div>
 
-      {/* ── Mailing Address ── */}
+      {/* â”€â”€ Mailing Address â”€â”€ */}
       <div className="rounded-[12px] border border-white/[0.06] bg-white/[0.02] p-4 space-y-3">
         <p className="text-[10px] text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
           <Mail className="h-3 w-3" />Mailing Address
@@ -2434,7 +2228,7 @@ function ContactTab({ cf, overlay, onSkipTrace, skipTracing, onDial, onSms, call
         )}
       </div>
 
-      {/* ── Phone Numbers (5 slots) ── */}
+      {/* â”€â”€ Phone Numbers (5 slots) â”€â”€ */}
       <div className="rounded-[12px] border border-white/[0.06] bg-white/[0.02] p-4 space-y-3">
         <div className="flex items-center justify-between">
           <p className="text-[10px] text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
@@ -2477,7 +2271,7 @@ function ContactTab({ cf, overlay, onSkipTrace, skipTracing, onDial, onSms, call
                     <div className="h-7 w-7 rounded-lg bg-white/[0.03] flex items-center justify-center shrink-0">
                       <Lock className="h-3.5 w-3.5 text-muted-foreground/20" />
                     </div>
-                    <span className="text-sm font-mono text-muted-foreground/15">(•••) •••-••••</span>
+                    <span className="text-sm font-mono text-muted-foreground/15">(â€¢â€¢â€¢) â€¢â€¢â€¢-â€¢â€¢â€¢â€¢</span>
                   </div>
                 </div>
               );
@@ -2495,14 +2289,8 @@ function ContactTab({ cf, overlay, onSkipTrace, skipTracing, onDial, onSms, call
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-1.5">
                       <span className="text-sm font-bold font-mono text-foreground">{phone}</span>
-                      {i === 0 && !detail?.dnc && <Badge variant="outline" className="text-[7px] py-0 px-1 border-cyan/30 text-cyan">BEST</Badge>}
+                      {i === 0 && <Badge variant="outline" className="text-[7px] py-0 px-1 border-cyan/30 text-cyan">BEST</Badge>}
                       {detail?.dnc && <Badge variant="outline" className="text-[7px] py-0 px-1 border-red-500/30 text-red-400">DNC</Badge>}
-                      {/* Rank score indicator */}
-                      {"rankScore" in (detail ?? {}) && (
-                        <span className={cn("text-[9px] font-mono font-bold", phoneRankColor((detail as PhoneDetail & { rankScore: number }).rankScore))}>
-                          {(detail as PhoneDetail & { rankScore: number }).rankScore}
-                        </span>
-                      )}
                     </div>
                     <div className="flex items-center gap-1.5 mt-0.5">
                       {detail?.lineType && (
@@ -2546,7 +2334,7 @@ function ContactTab({ cf, overlay, onSkipTrace, skipTracing, onDial, onSms, call
         </div>
       </div>
 
-      {/* ── Emails (dynamic slots) ── */}
+      {/* â”€â”€ Emails (dynamic slots) â”€â”€ */}
       <div className="rounded-[12px] border border-white/[0.06] bg-white/[0.02] p-4 space-y-3">
         <p className="text-[10px] text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
           <Mail className="h-3 w-3" />Emails ({emailSlots.filter((e) => e.includes("@")).length}/{emailSlots.length})
@@ -2575,7 +2363,7 @@ function ContactTab({ cf, overlay, onSkipTrace, skipTracing, onDial, onSms, call
                 <div key={i} className="rounded-[10px] border border-dashed border-white/[0.06] bg-white/[0.01] p-2.5">
                   <div className="flex items-center gap-2.5">
                     <Lock className="h-3.5 w-3.5 text-muted-foreground/20" />
-                    <span className="text-sm font-mono text-muted-foreground/15">•••••••@•••••.com</span>
+                    <span className="text-sm font-mono text-muted-foreground/15">â€¢â€¢â€¢â€¢â€¢â€¢â€¢@â€¢â€¢â€¢â€¢â€¢.com</span>
                   </div>
                 </div>
               );
@@ -2607,7 +2395,7 @@ function ContactTab({ cf, overlay, onSkipTrace, skipTracing, onDial, onSms, call
         </div>
       </div>
 
-      {/* ── Associated Persons ── */}
+      {/* â”€â”€ Associated Persons â”€â”€ */}
       {persons.length > 0 && (
         <div className="rounded-[12px] border border-white/[0.06] bg-white/[0.02] p-4 space-y-3">
           <p className="text-[10px] text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
@@ -2652,18 +2440,15 @@ function ContactTab({ cf, overlay, onSkipTrace, skipTracing, onDial, onSms, call
           </div>
         </div>
       )}
-
-      {/* ── Research Findings (distress events with source links) ── */}
-      <ResearchFindings propertyId={cf.propertyId} ownerFlags={cf.ownerFlags} />
     </div>
   );
 }
 
-// ═══════════════════════════════════════════════════════════════════════
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 // OVERVIEW TAB
-// ═══════════════════════════════════════════════════════════════════════
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
-function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceMs, overlay, skipTraceError, onSkipTrace, onManualSkipTrace, onEdit, onDial, onSms, calling, dialHistory, autofilling, onAutofill, deepCrawling, deepCrawlResult, deepCrawlExpanded, setDeepCrawlExpanded, executeDeepCrawl, hasSavedReport, loadingReport, loadSavedReport, crawlSteps, deepSkipResult }: {
+function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceMs, overlay, skipTraceError, onSkipTrace, onManualSkipTrace, onEdit, onDial, onSms, calling, dialHistory, autofilling, onAutofill, deepCrawling, deepCrawlResult, deepCrawlExpanded, setDeepCrawlExpanded, executeDeepCrawl, hasSavedReport, loadingReport, loadSavedReport, crawlSteps, deepSkipResult, qualification, qualificationDirty, qualificationSaving, qualificationEditable, onQualificationChange, onQualificationRouteSelect, onQualificationSave }: {
   cf: ClientFile; computedArv: number; skipTracing: boolean; skipTraceResult: string | null; skipTraceMs: number | null;
   overlay: SkipTraceOverlay | null; skipTraceError: SkipTraceError | null;
   onSkipTrace: () => void; onManualSkipTrace: () => void; onEdit: () => void;
@@ -2678,23 +2463,29 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
   crawlSteps: CrawlStep[];
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   deepSkipResult: any;
+  qualification: QualificationDraft;
+  qualificationDirty: boolean;
+  qualificationSaving: boolean;
+  qualificationEditable: boolean;
+  onQualificationChange: (patch: Partial<QualificationDraft>) => void;
+  onQualificationRouteSelect: (route: QualificationRoute) => void;
+  onQualificationSave: () => void;
 }) {
-  const skipTraced = !!overlay || !!cf.ownerFlags?.skip_traced;
   const displayPhone = overlay?.primaryPhone ?? cf.ownerPhone ?? (cf.ownerFlags?.contact_phone as string | null) ?? null;
   const displayEmail = overlay?.primaryEmail ?? cf.ownerEmail ?? (cf.ownerFlags?.contact_email as string | null) ?? null;
   const { notes: callHistory } = useCallNotes(cf.id, 5);
   const [notesExpanded, setNotesExpanded] = useState(false);
+  const [showAllCallAssist, setShowAllCallAssist] = useState(false);
   const summaryNotes = callHistory.filter((n) => n.ai_summary);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const persons = overlay?.persons ?? (cf.ownerFlags?.persons as any[]) ?? [];
   const allPhones = overlay?.phones ?? (cf.ownerFlags?.all_phones as string[]) ?? [];
   const allEmails = overlay?.emails ?? (cf.ownerFlags?.all_emails as string[]) ?? [];
 
-  // Rich phone/email details from dual skip-trace — ranked by contact likelihood
-  const rawPhoneDetailsOverview: PhoneDetail[] = overlay?.phoneDetails
+  // Rich phone/email details from dual skip-trace
+  const phoneDetails: PhoneDetail[] = overlay?.phoneDetails
     ?? (cf.ownerFlags?.all_phones as PhoneDetail[] | undefined)?.filter((p) => typeof p === "object" && p !== null && "number" in p)
     ?? [];
-  const phoneDetails = rankPhones(rawPhoneDetailsOverview);
   const emailDetails: EmailDetail[] = overlay?.emailDetails
     ?? (cf.ownerFlags?.all_emails as EmailDetail[] | undefined)?.filter((e) => typeof e === "object" && e !== null && "email" in e)
     ?? [];
@@ -2707,8 +2498,7 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
 
   const { brief, loading: briefLoading, regenerate: regenerateBrief } = usePreCallBrief(cf.id);
 
-  // Use ranked best phone (not just first phone in insertion order)
-  const bestPhone = (phoneDetails[0]?.number) ?? allPhones[0] ?? displayPhone;
+  const bestPhone = allPhones[0] ?? (phoneDetails[0]?.number) ?? displayPhone;
   const phoneConfidence = phoneDetails.length > 0
     ? phoneDetails[0]?.confidence ?? 70
     : allPhones.length >= 3 ? 95 : allPhones.length === 2 ? 80 : allPhones.length === 1 ? 65 : null;
@@ -2740,12 +2530,6 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
   const mailingAddr = cf.isAbsentee ? ((persons[0] as any)?.mailing_address ?? prRaw.MailAddress ?? prRaw.MailingAddress ?? null) : null;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const heirContacts = (cf.ownerFlags?.heir_contacts as any[]) ?? [];
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const obitNextOfKin = (cf.ownerFlags?.obit_next_of_kin as any[]) ?? [];
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const obitMailAddress = cf.ownerFlags?.obit_mail_address as { address: string; city: string; state: string; zip: string } | null ?? null;
-  const obitMatchConfidence = cf.ownerFlags?.obit_match_confidence as number | undefined;
-  const isObitRecord = !!(cf.ownerFlags?.crawler_source as string)?.startsWith("obituary:");
 
   const warningFlags = useMemo(() => {
     const flags: { label: string; color: string }[] = [];
@@ -2815,7 +2599,7 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
 
   const streetViewUrl = prRaw.StreetViewUrl ?? prRaw.PropertyImageUrl ?? (prRaw.Photos?.[0]) ?? null;
 
-  // ── Zillow photo carousel ──
+  // â”€â”€ Zillow photo carousel â”€â”€
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const oFlags = cf.ownerFlags as any;
   const cachedPhotos: string[] = (oFlags?.photos ?? oFlags?.deep_crawl?.photos ?? [])
@@ -2852,7 +2636,7 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
 
   const allPhotos = zillowPhotos.length > 0 ? zillowPhotos : [];
 
-  // ── Geocode if no lat/lng from data (same as Comps tab) ──
+  // â”€â”€ Geocode if no lat/lng from data (same as Comps tab) â”€â”€
   const extracted = extractLatLng(cf);
   const [geocodedCoords, setGeocodedCoords] = useState<{ lat: number; lng: number } | null>(null);
   useEffect(() => {
@@ -2878,14 +2662,14 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
   const propLat = extracted.lat ?? geocodedCoords?.lat ?? null;
   const propLng = extracted.lng ?? geocodedCoords?.lng ?? null;
 
-  // ── Clickable Street View → Google Maps ──
+  // â”€â”€ Clickable Street View â†’ Google Maps â”€â”€
   const streetViewLink = propLat && propLng ? getGoogleStreetViewLink(propLat, propLng) : null;
 
-  // ── Satellite tile fallback when no Street View available ──
+  // â”€â”€ Satellite tile fallback when no Street View available â”€â”€
   const satelliteFallbackUrl = (!streetViewUrl && propLat && propLng) ? getSatelliteTileUrl(propLat, propLng, 18) : null;
   const imageUrl = streetViewUrl ?? satelliteFallbackUrl;
   const imageLabel = streetViewUrl ? "Street View" : "Satellite";
-  // ── Small thumbnail for property tile (always satellite for compact view) ──
+  // â”€â”€ Small thumbnail for property tile (always satellite for compact view) â”€â”€
   const thumbUrl = propLat && propLng ? getSatelliteTileUrl(propLat, propLng, 17) : null;
 
   const sectionOwner = useRef<HTMLDivElement>(null);
@@ -2894,7 +2678,7 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
   const sectionProperty = useRef<HTMLDivElement>(null);
   const scrollTo = (ref: React.RefObject<HTMLDivElement | null>) => ref.current?.scrollIntoView({ behavior: "smooth", block: "start" });
 
-  // ── MAO Formula: ARV × 75% − Repairs (10%) − Assignment Fee ($15K) ──
+  // â”€â”€ MAO Formula: ARV Ã— 75% âˆ’ Repairs (10%) âˆ’ Assignment Fee ($15K) â”€â”€
   const persistedCompArv = (cf.ownerFlags?.comp_arv as number) ?? 0;
   const bestArv = computedArv > 0 ? computedArv : persistedCompArv > 0 ? persistedCompArv : cf.estimatedValue ?? 0;
   const arvSource: "comps" | "avm" = (computedArv > 0 || persistedCompArv > 0) ? "comps" : "avm";
@@ -2907,31 +2691,31 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
   const repairEstimate = bestArv > 0 ? Math.round(bestArv * repairRate) : 0;
   const mao = bestArv > 0 ? Math.round(wholesaleValue - repairEstimate - assignmentFee) : null;
 
-  // ── Signal-specific motivation text ──
+  // â”€â”€ Signal-specific motivation text â”€â”€
   const getSignalMotivation = (evtType: string, rd?: Record<string, unknown>): string => {
     switch (evtType) {
       case "pre_foreclosure": case "foreclosure": {
         const d = rd?.ForeclosureRecDate ?? rd?.event_date;
-        return d ? `Foreclosure filed ${new Date(String(d)).toLocaleDateString()} — auction pressure` : "Foreclosure filing — auction pressure mounting";
+        return d ? `Foreclosure filed ${new Date(String(d)).toLocaleDateString()} â€” auction pressure` : "Foreclosure filing â€” auction pressure mounting";
       }
       case "tax_lien": case "tax_delinquency": {
         const amt = rd?.DelinquentAmount ?? rd?.delinquent_amount;
         const inst = rd?.NumberDelinquentInstallments;
-        return amt ? `Tax delinquent $${Number(amt).toLocaleString()}${inst ? ` — ${inst} installments behind` : ""}` : "Tax delinquent — penalties accumulating";
+        return amt ? `Tax delinquent $${Number(amt).toLocaleString()}${inst ? ` â€” ${inst} installments behind` : ""}` : "Tax delinquent â€” penalties accumulating";
       }
-      case "divorce": return "Divorce filing — forced partition possible";
-      case "probate": case "deceased": return "Estate in probate — heirs likely want quick liquidation";
-      case "bankruptcy": return "Bankruptcy filing — motivated to resolve debts";
-      case "code_violation": return "Code violations — mounting fines, pressure to sell";
-      case "vacant": return "Vacant property — carrying costs with no income";
-      case "inherited": return "Inherited property — heirs may want fast liquidation";
-      case "tired_landlord": return "Long-term landlord showing signs of fatigue — may want to exit their rental portfolio";
-      case "underwater": return "Negative equity means the owner owes more than the home is worth — potential short sale candidate";
-      default: return "Distress signal — may be motivated to sell";
+      case "divorce": return "Divorce filing â€” forced partition possible";
+      case "probate": case "deceased": return "Estate in probate â€” heirs likely want quick liquidation";
+      case "bankruptcy": return "Bankruptcy filing â€” motivated to resolve debts";
+      case "code_violation": return "Code violations â€” mounting fines, pressure to sell";
+      case "vacant": return "Vacant property â€” carrying costs with no income";
+      case "inherited": return "Inherited property â€” heirs may want fast liquidation";
+      case "tired_landlord": return "Long-term landlord showing signs of fatigue â€” may want to exit their rental portfolio";
+      case "underwater": return "Negative equity means the owner owes more than the home is worth â€” potential short sale candidate";
+      default: return "Distress signal â€” may be motivated to sell";
     }
   };
 
-  // ── Actual event date extraction from raw_data ──
+  // â”€â”€ Actual event date extraction from raw_data â”€â”€
   const getEventDate = (evt: { created_at: string; raw_data?: Record<string, unknown> }): { date: string; isActual: boolean } => {
     const rd = evt.raw_data ?? {};
     const dateVal = rd.ForeclosureRecDate ?? rd.event_date ?? rd.filing_date ?? rd.recording_date ?? rd.delinquent_date ?? null;
@@ -2941,7 +2725,7 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
     return { date: new Date(evt.created_at).toLocaleDateString(), isActual: false };
   };
 
-  // ── Humanize source name ──
+  // â”€â”€ Humanize source name â”€â”€
   const sourceName = (s?: string): string => {
     switch (s) {
       case "propertyradar": return "PropertyRadar";
@@ -2956,35 +2740,112 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
     ? Math.floor((Date.now() - new Date(cf.promotedAt).getTime()) / 86400000)
     : null;
 
-  const nextAction = useMemo(() => {
-    if (isLitigator || hasDncNumbers) return { label: "DO NOT CALL", color: "bg-red-600 text-white", icon: ShieldAlert };
-    if (cf.totalCalls === 0 && bestPhone) return { label: "CALL NOW", color: "bg-emerald-500 text-black", icon: Phone };
-    if (cf.totalCalls > 0 && cf.lastContactAt) {
-      const daysSince = Math.floor((Date.now() - new Date(cf.lastContactAt).getTime()) / 86400000);
-      if (daysSince >= 2 && daysSince <= 7) return { label: "FOLLOW UP", color: "bg-amber-500 text-black", icon: PhoneForwarded };
-      if (daysSince > 7) return { label: "SEND MAILER", color: "bg-blue-500 text-white", icon: Mail };
-    }
-    if (!bestPhone && !skipTraced) return { label: "ENRICH FIRST", color: "bg-cyan-500 text-black", icon: Crosshair };
-    if (bestPhone) return { label: "CALL NOW", color: "bg-emerald-500 text-black", icon: Phone };
-    return { label: "SKIP", color: "bg-zinc-600 text-white", icon: ArrowRight };
-  }, [isLitigator, hasDncNumbers, cf.totalCalls, cf.lastContactAt, bestPhone, skipTraced]);
+  const [timelinesOpen, setTimelinesOpen] = useState(false);
+  const [advancedOpen, setAdvancedOpen] = useState(false);
+  const hasDeepIntel = deepCrawling || hasSavedReport || Boolean(deepCrawlResult);
+  const { defaultCards: callAssistDefaultCards, allCards: callAssistAllCards } = useMemo(
+    () => selectCallAssistCards(cf),
+    [cf],
+  );
+  const callAssistVisibleCards = showAllCallAssist ? callAssistAllCards : callAssistDefaultCards;
+  const hasQualificationData =
+    qualification.motivationLevel != null
+    || qualification.sellerTimeline != null
+    || qualification.conditionLevel != null
+    || qualification.decisionMakerConfirmed
+    || qualification.priceExpectation != null
+    || qualification.qualificationRoute != null;
+  const showQualificationBlock = qualificationEditable || hasQualificationData;
+  const qualificationCompletenessItems = [
+    { label: "Motivation", complete: qualification.motivationLevel != null },
+    { label: "Timeline", complete: qualification.sellerTimeline != null },
+    { label: "Condition", complete: qualification.conditionLevel != null },
+    { label: "Decision Maker", complete: qualification.decisionMakerConfirmed === true },
+    { label: "Asking Price", complete: qualification.priceExpectation != null },
+  ];
+  const qualificationCompleteCount = qualificationCompletenessItems.filter((item) => item.complete).length;
+  const qualificationCompletenessPct = Math.round((qualificationCompleteCount / qualificationCompletenessItems.length) * 100);
+  const qualificationMissingLabels = qualificationCompletenessItems
+    .filter((item) => !item.complete)
+    .map((item) => item.label);
+  const offerReadySuggested =
+    (qualification.motivationLevel ?? 0) >= 4
+    && (qualification.sellerTimeline === "immediate" || qualification.sellerTimeline === "30_days")
+    && cf.compositeScore >= 65;
+  const offerStatusLabel = offerVisibilityLabel(cf.offerStatus);
+  const offerStatusToneClass =
+    cf.offerStatus === "preparing_offer"
+      ? "border-cyan/25 bg-cyan/[0.06] text-cyan"
+      : cf.offerStatus === "offer_made"
+        ? "border-blue-500/25 bg-blue-500/[0.07] text-blue-300"
+        : cf.offerStatus === "seller_reviewing"
+          ? "border-purple-500/25 bg-purple-500/[0.07] text-purple-300"
+          : cf.offerStatus === "declined"
+            ? "border-zinc-500/25 bg-zinc-500/[0.07] text-zinc-300"
+            : "border-white/[0.12] bg-white/[0.03] text-muted-foreground";
+  const offerStatusHint =
+    cf.offerStatus === "preparing_offer"
+      ? "Derived from stage + qualification route: qualified and queued for offer prep."
+      : cf.offerStatus === "offer_made"
+        ? "Derived from stage + qualification route: active offer conversation signal."
+        : cf.offerStatus === "seller_reviewing"
+          ? "Derived from stage + qualification route: waiting on seller decision/disposition."
+        : cf.offerStatus === "declined"
+          ? "Derived from stage + qualification route: offer path appears closed for now."
+          : "Derived from stage + qualification route: no offer progress signal yet.";
+  const offerPrepActive = cf.qualificationRoute === "offer_ready" || cf.offerStatus === "preparing_offer";
+  const offerPrepDueIso = cf.nextCallScheduledAt ?? cf.followUpDate;
+  const offerPrepDueMs = offerPrepDueIso ? new Date(offerPrepDueIso).getTime() : NaN;
+  const offerPrepMissingNextAction = !offerPrepDueIso || Number.isNaN(offerPrepDueMs);
+  const offerPrepStale = offerPrepActive && (offerPrepMissingNextAction || offerPrepDueMs < Date.now());
+  const offerPrepDueLabel = offerPrepDueIso ? formatDateTimeShort(offerPrepDueIso) : "Not set";
+  const buyerDispo = deriveBuyerDispoVisibility({
+    status: cf.status,
+    qualificationRoute: cf.qualificationRoute,
+    offerStatus: cf.offerStatus,
+    conditionLevel: cf.conditionLevel,
+    priceExpectation: cf.priceExpectation,
+    estimatedValue: cf.estimatedValue,
+  });
+  const buyerFitLabel = buyerFitVisibilityLabel(buyerDispo.buyerFit);
+  const dispoReadinessLabel = dispoReadinessVisibilityLabel(buyerDispo.dispoReadiness);
+  const buyerDispoNextActionIso = cf.nextCallScheduledAt ?? cf.followUpDate;
+  const buyerDispoNextActionMs = buyerDispoNextActionIso ? new Date(buyerDispoNextActionIso).getTime() : NaN;
+  const buyerDispoNextActionMissing = !buyerDispoNextActionIso || Number.isNaN(buyerDispoNextActionMs);
+  const buyerDispoReadinessHigh = buyerDispo.dispoReadiness === "ready" || buyerDispo.dispoReadiness === "needs_review";
+  const buyerDispoActionMissing = buyerDispoReadinessHigh && buyerDispoNextActionMissing;
+  const buyerDispoActionStale = buyerDispoReadinessHigh && !buyerDispoNextActionMissing && buyerDispoNextActionMs < Date.now();
+  const buyerDispoNextActionLabel = buyerDispoNextActionIso ? formatDateTimeShort(buyerDispoNextActionIso) : "Not set";
+  const buyerFitToneClass =
+    buyerDispo.buyerFit === "broad"
+      ? "border-emerald-500/25 bg-emerald-500/[0.08] text-emerald-300"
+      : buyerDispo.buyerFit === "narrow"
+        ? "border-amber-500/25 bg-amber-500/[0.08] text-amber-300"
+        : "border-white/[0.12] bg-white/[0.03] text-muted-foreground";
+  const dispoReadinessToneClass =
+    buyerDispo.dispoReadiness === "ready"
+      ? "border-blue-500/25 bg-blue-500/[0.08] text-blue-300"
+      : buyerDispo.dispoReadiness === "needs_review"
+        ? "border-cyan/25 bg-cyan/[0.08] text-cyan"
+        : "border-white/[0.12] bg-white/[0.03] text-muted-foreground";
 
-  const [timelinesOpen, setTimelinesOpen] = useState(cf.totalCalls > 0);
-  const [metadataOpen, setMetadataOpen] = useState(false);
+  useEffect(() => {
+    setShowAllCallAssist(false);
+  }, [cf.id]);
 
   return (
     <div className="space-y-5">
-      {/* ═══ 1. CALL CARD — WHO + NUMBER (hero section) ═══ */}
+      {/* â•â•â• 1. CALL CARD â€” WHO + NUMBER (hero section) â•â•â• */}
       <div ref={sectionOwner} className="rounded-[12px] border-2 border-cyan/30 bg-cyan/[0.03] p-4 relative overflow-hidden shadow-[0_0_20px_rgba(0,212,255,0.08)]">
         <div className="absolute inset-0 bg-gradient-to-br from-cyan/[0.05] via-transparent to-transparent pointer-events-none" />
         <div className="absolute top-0 inset-x-0 h-[1px] bg-gradient-to-r from-transparent via-cyan/50 to-transparent" />
 
         <div className="relative z-10">
-          {/* Owner name + badges + next action */}
+          {/* Owner name + badges */}
           <div className="flex items-center gap-3 mb-3">
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2 flex-wrap">
-                <p className="text-lg font-bold text-foreground truncate">{cf.ownerName || "—"}</p>
+                <p className="text-lg font-bold text-foreground truncate">{cf.ownerName || "â€”"}</p>
                 <RelationshipBadge data={{
                   ownerAgeInference: cf.prediction?.ownerAgeInference,
                   lifeEventProbability: cf.prediction?.lifeEventProbability,
@@ -2994,11 +2855,6 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
                 {ownerAge && <span className="text-[10px] text-muted-foreground/60">Age ~{ownerAge}</span>}
                 {pipelineDays != null && <Badge variant="outline" className="text-[8px] border-white/10 text-muted-foreground/60">{pipelineDays}d</Badge>}
               </div>
-            </div>
-            {/* Next Best Action as inline badge */}
-            <div className={cn("rounded-md px-2.5 py-1.5 flex items-center gap-1.5 text-[10px] font-bold shrink-0 shadow-lg", nextAction.color)}>
-              <nextAction.icon className="h-3.5 w-3.5" />
-              {nextAction.label}
             </div>
           </div>
 
@@ -3064,46 +2920,6 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
             </div>
           )}
 
-          {/* Obituary: Next-of-Kin + Match Confidence */}
-          {isObitRecord && (
-            <div className="mt-3 space-y-2">
-              <p className="text-[10px] text-purple-400/80 uppercase tracking-wider font-semibold flex items-center gap-1.5">
-                <AlertTriangle className="h-3 w-3" />Obituary Record
-                {obitMatchConfidence != null && (
-                  <span className={cn("ml-auto text-[9px] font-mono", obitMatchConfidence >= 0.90 ? "text-emerald-400" : obitMatchConfidence >= 0.70 ? "text-amber-400" : "text-red-400")}>
-                    Match: {Math.round(obitMatchConfidence * 100)}%
-                  </span>
-                )}
-              </p>
-
-              {obitMailAddress && (
-                <div className="rounded-md border border-purple-500/15 bg-purple-500/[0.04] p-2.5 text-xs space-y-0.5">
-                  <div className="flex items-center gap-2">
-                    <MapPin className="h-3 w-3 text-purple-400/60" />
-                    <span className="text-muted-foreground">Mailing Address</span>
-                  </div>
-                  <div className="pl-5 text-foreground">
-                    {obitMailAddress.address}{obitMailAddress.city ? `, ${obitMailAddress.city}` : ""}{obitMailAddress.state ? ` ${obitMailAddress.state}` : ""} {obitMailAddress.zip ?? ""}
-                  </div>
-                </div>
-              )}
-
-              {obitNextOfKin.length > 0 && (
-                <>
-                  <p className="text-[10px] text-purple-400/60 uppercase tracking-wider">Next of Kin (from obituary)</p>
-                  {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
-                  {obitNextOfKin.map((kin: any, i: number) => (
-                    <div key={i} className="rounded-md border border-purple-500/15 bg-purple-500/[0.04] p-2 text-xs flex items-center gap-2">
-                      <User className="h-3 w-3 text-purple-400/60 shrink-0" />
-                      <span className="font-semibold text-foreground">{kin.name}</span>
-                      <span className="text-muted-foreground text-[10px]">({kin.relationship})</span>
-                    </div>
-                  ))}
-                </>
-              )}
-            </div>
-          )}
-
           {skipTraceResult && !skipTraceError && (
             <div className={cn("mt-2 text-xs px-3 py-2 rounded-md border", skipTraceResult.startsWith("Found") ? "text-cyan bg-cyan/4 border-cyan/15" : "text-red-400 bg-red-500/5 border-red-500/20")}>
               <div className="flex items-center justify-between gap-2">
@@ -3149,20 +2965,20 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
                 className="w-full gap-2 bg-amber-600 hover:bg-amber-500 text-white border-0 shadow-[0_0_14px_rgba(245,158,11,0.25)] hover:shadow-[0_0_22px_rgba(245,158,11,0.4)] transition-all"
               >
                 {skipTracing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Zap className="h-3.5 w-3.5" />}
-                Manual Skip Trace — Force Partial Lookup
+                Manual Skip Trace â€” Force Partial Lookup
               </Button>
             </div>
           )}
         </div>
       </div>
 
-      {/* ═══ 2. COMPLIANCE GATE — DNC / Litigator ═══ */}
+      {/* â•â•â• 2. COMPLIANCE GATE â€” DNC / Litigator â•â•â• */}
       {(isLitigator || hasDncNumbers) && (
         <div className="rounded-[10px] border border-red-500/40 bg-red-500/[0.12] p-3 flex items-center gap-3">
           <ShieldAlert className="h-5 w-5 text-red-400 shrink-0" />
           <div>
             <p className="text-xs font-bold text-red-400 uppercase tracking-wide">
-              {isLitigator ? "TCPA Litigator — DO NOT CONTACT" : "DNC Numbers Detected"}
+              {isLitigator ? "TCPA Litigator â€” DO NOT CONTACT" : "DNC Numbers Detected"}
             </p>
             <p className="text-[10px] text-red-300/70 mt-0.5">
               {isLitigator ? "High litigation risk. No calls, texts, or mailers to this owner." : "One or more phone numbers are on the DNC list. Check before dialing."}
@@ -3171,119 +2987,54 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
         </div>
       )}
 
-      {/* ═══ 3. DISTRESS SIGNALS + EXTERNAL LINKS — side by side ═══ */}
+      {/* â•â•â• 3. DISTRESS SIGNALS + EXTERNAL LINKS â€” side by side â•â•â• */}
       <div className="flex gap-3">
-        {/* Distress Signals — left half */}
+        {/* Distress Signals â€” left half */}
         <div ref={sectionSignals} className="flex-1 min-w-0 rounded-[12px] border border-white/[0.06] bg-white/[0.02] p-3">
           <div className="flex items-center justify-between mb-2">
             <div className="flex items-center gap-2">
               <AlertTriangle className="h-3 w-3 text-orange-400" />
               <p className="text-[10px] text-orange-400/80 uppercase tracking-wider font-semibold">Distress Signals</p>
             </div>
-            {/* Deep Crawl button — 4 states: idle, crawling, saved (not loaded), loaded */}
-            {deepCrawlResult ? (
-              <button
-                onClick={() => setDeepCrawlExpanded(!deepCrawlExpanded)}
-                className="h-6 px-2.5 rounded-md text-[9px] font-semibold border flex items-center gap-1 transition-colors border-emerald-500/30 bg-emerald-500/[0.06] text-emerald-400 hover:bg-emerald-500/[0.12]"
-              >
-                <FileText className="h-3 w-3" />
-                {deepCrawlExpanded ? "Hide Report" : "Deep Crawl Report"}
-              </button>
-            ) : hasSavedReport ? (
-              <button
-                onClick={loadSavedReport}
-                disabled={loadingReport}
-                className="h-6 px-2.5 rounded-md text-[9px] font-semibold border flex items-center gap-1 transition-colors border-emerald-500/30 bg-emerald-500/[0.06] text-emerald-400 hover:bg-emerald-500/[0.12]"
-              >
-                {loadingReport ? <Loader2 className="h-3 w-3 animate-spin" /> : <FileText className="h-3 w-3" />}
-                {loadingReport ? "Loading Report..." : "View Saved Report"}
-              </button>
-            ) : (
-              <button
-                onClick={executeDeepCrawl}
-                disabled={deepCrawling}
-                className="h-6 px-2.5 rounded-md text-[9px] font-semibold border flex items-center gap-1 transition-colors border-amber-500/30 bg-amber-500/[0.06] text-amber-400 hover:bg-amber-500/[0.12]"
-              >
-                {deepCrawling ? <Loader2 className="h-3 w-3 animate-spin" /> : <Search className="h-3 w-3" />}
-                {deepCrawling ? "Deep Crawling..." : "~120s Deep Crawl"}
-              </button>
-            )}
           </div>
-          {distressEvents.length > 0 ? (() => {
-            // Sort events by urgency tier (CRITICAL first) then by recency
-            const eventsWithUrgency = distressEvents.map((evt) => ({
-              ...evt,
-              urgency: getDistressUrgency(evt.event_type, evt.created_at, evt.raw_data ?? undefined),
-            })).sort((a, b) => {
-              const tierDiff = URGENCY_SORT[a.urgency.tier] - URGENCY_SORT[b.urgency.tier];
-              if (tierDiff !== 0) return tierDiff;
-              return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
-            });
-
-            return (
-              <div className="space-y-1.5">
-                {eventsWithUrgency.slice(0, 8).map((evt) => {
-                  const cfg = DISTRESS_CFG[evt.event_type];
-                  const EvtIcon = cfg?.icon ?? AlertTriangle;
-                  const evtDate = getEventDate(evt);
-                  const tierStyle = URGENCY_TIER_STYLES[evt.urgency.tier];
-                  const countdown = evt.urgency.daysUntilCritical;
-
-                  return (
-                    <div
-                      key={evt.id}
-                      title={evt.urgency.pitch}
-                      className={cn(
-                        "rounded-[8px] border px-2.5 py-1.5 cursor-default transition-colors",
-                        tierStyle.color,
-                        evt.urgency.tier === "CRITICAL" && "ring-1 ring-red-500/40",
-                      )}
-                    >
-                      <div className="flex items-center gap-1.5">
-                        <EvtIcon className="h-3 w-3 shrink-0" />
-                        <span className="text-[10px] font-bold uppercase tracking-wider flex-1">
-                          {cfg?.label ?? evt.event_type.replace(/_/g, " ")}
-                        </span>
-                        {/* Urgency tier badge */}
-                        <span className={cn("text-[7px] font-bold px-1.5 py-0 rounded-full border uppercase tracking-widest", tierStyle.badge)}>
-                          {evt.urgency.tier}
-                        </span>
-                      </div>
-                      <div className="flex items-center gap-2 mt-0.5">
-                        <span className="text-[9px] opacity-70">
-                          {evtDate.isActual ? "Filed" : "Detected"} {evtDate.date}
-                        </span>
-                        {countdown !== null && countdown <= 90 && (
-                          <span className={cn(
-                            "text-[9px] font-bold font-mono",
-                            countdown <= 7 ? "text-red-400" : countdown <= 30 ? "text-orange-400" : "text-amber-400",
-                          )}>
-                            {countdown === 0 ? "TODAY" : countdown === 1 ? "TOMORROW" : `${countdown}d left`}
-                          </span>
-                        )}
-                        {/* Pitch hint — only show for CRITICAL/URGENT */}
-                        {(evt.urgency.tier === "CRITICAL" || evt.urgency.tier === "URGENT") && (
-                          <span className="text-[8px] opacity-50 italic truncate flex-1 text-right">
-                            {evt.urgency.pitch.split("—")[0]?.trim()}
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                  );
-                })}
-                {eventsWithUrgency.length > 8 && (
-                  <span className="inline-flex items-center px-2 py-1 rounded-full text-[10px] font-semibold border border-white/10 text-muted-foreground bg-white/[0.03]">
-                    +{eventsWithUrgency.length - 8} more
+          {distressEvents.length > 0 ? (
+            <div className="flex flex-wrap gap-1.5">
+              {distressEvents.slice(0, 6).map((evt) => {
+                const cfg = DISTRESS_CFG[evt.event_type];
+                const EvtIcon = cfg?.icon ?? AlertTriangle;
+                const evtDate = getEventDate(evt);
+                const daysAgo = Math.floor((Date.now() - new Date(evt.created_at).getTime()) / 86400000);
+                const isRecent = daysAgo <= 30;
+                const motivation = getSignalMotivation(evt.event_type, evt.raw_data ?? undefined);
+                return (
+                  <span
+                    key={evt.id}
+                    title={`${motivation}\nPer ${sourceName(evt.source)} Â· ${evtDate.isActual ? "filed" : "detected"} ${evtDate.date}`}
+                    className={cn(
+                      "inline-flex items-center gap-1 px-2 py-1 rounded-full text-[10px] font-semibold border cursor-default transition-colors",
+                      cfg?.color ?? "text-cyan/70 bg-cyan/[0.06] border-cyan/20",
+                      isRecent && "ring-1 ring-orange-400/30"
+                    )}
+                  >
+                    <EvtIcon className="h-2.5 w-2.5 shrink-0" />
+                    {cfg?.label ?? evt.event_type.replace(/_/g, " ")}
+                    <span className="text-[8px] opacity-60">Â· {evtDate.date.replace(/\/\d{4}$/, "")}</span>
+                    {isRecent && <Flame className="h-2.5 w-2.5 text-red-400 shrink-0" />}
                   </span>
-                )}
-              </div>
-            );
-          })() : (
+                );
+              })}
+              {distressEvents.length > 6 && (
+                <span className="inline-flex items-center px-2 py-1 rounded-full text-[10px] font-semibold border border-white/10 text-muted-foreground bg-white/[0.03]">
+                  +{distressEvents.length - 6} more
+                </span>
+              )}
+            </div>
+          ) : (
             <p className="text-[10px] text-muted-foreground/50">No distress signals detected</p>
           )}
         </div>
 
-        {/* External Links + County Records — right half */}
+        {/* External Links + County Records â€” right half */}
         <div className="flex-1 min-w-0 rounded-[12px] border border-white/[0.06] bg-white/[0.02] p-3">
           <div className="flex items-center gap-2 mb-2">
             <Globe className="h-3 w-3 text-muted-foreground" />
@@ -3364,49 +3115,465 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
         </div>
       </div>
 
-      {/* ═══ 3b. DEEP CRAWL PROGRESS + RESULTS (collapsible) ═══ */}
-      <AnimatePresence>
-        {/* SSE Progress Indicator (during active crawl) */}
-        {deepCrawling && crawlSteps.length > 0 && !deepCrawlResult && (
-          <motion.div
-            initial={{ opacity: 0, height: 0 }}
-            animate={{ opacity: 1, height: "auto" }}
-            exit={{ opacity: 0, height: 0 }}
-            className="overflow-hidden"
+      <div className="rounded-[12px] border border-white/[0.06] bg-white/[0.02] p-3 space-y-2.5">
+        <div className="flex items-center gap-2">
+          <Clock className="h-3.5 w-3.5 text-cyan" />
+          <p className="text-[11px] text-muted-foreground uppercase tracking-wider font-semibold">Recent Communication</p>
+          {activityLog.length > 0 && (
+            <Badge variant="outline" className="text-[9px] ml-1">{Math.min(activityLog.length, 4)}</Badge>
+          )}
+          <button
+            className="ml-auto text-[10px] text-cyan/70 hover:text-cyan transition-colors"
+            onClick={() => setTimelinesOpen(true)}
           >
-            <CrawlProgressIndicator steps={crawlSteps} />
-          </motion.div>
+            Open full timeline
+          </button>
+        </div>
+        {activityLog.length > 0 ? (
+          <div className="space-y-1.5">
+            {activityLog.slice(0, 4).map((entry) => {
+              const dispositionLabel = entry.disposition?.replace(/_/g, " ") ?? entry.type;
+              const noteText = entry.notes?.replace(/\s+/g, " ").trim() ?? "";
+              const notePreview = noteText.length > 0
+                ? noteText.startsWith("{")
+                  ? "Event details logged"
+                  : noteText.length > 80
+                    ? `${noteText.slice(0, 80)}...`
+                    : noteText
+                : null;
+              return (
+                <div key={entry.id} className="flex items-start justify-between gap-2 rounded-[8px] border border-white/[0.06] bg-white/[0.02] px-2.5 py-2 text-xs">
+                  <div className="min-w-0">
+                    <p className="font-semibold text-foreground capitalize">{dispositionLabel}</p>
+                    {notePreview && <p className="text-[10px] text-muted-foreground/65 truncate max-w-[430px]">{notePreview}</p>}
+                  </div>
+                  <p className="shrink-0 text-[9px] text-muted-foreground/50">{formatRelativeFromNow(entry.created_at)}</p>
+                </div>
+              );
+            })}
+          </div>
+        ) : (
+          <p className="text-[11px] text-muted-foreground/55">No calls, texts, or notes logged yet.</p>
         )}
+      </div>
 
-        {/* Deep Crawl Report */}
-        {deepCrawlResult && deepCrawlExpanded && (
-          <motion.div
-            initial={{ opacity: 0, height: 0 }}
-            animate={{ opacity: 1, height: "auto" }}
-            exit={{ opacity: 0, height: 0 }}
-            className="overflow-hidden"
-          >
-            <DeepCrawlPanel result={deepCrawlResult} onRecrawl={executeDeepCrawl} isRecrawling={deepCrawling} />
-          </motion.div>
+      <div className="rounded-[12px] border border-white/[0.06] bg-white/[0.02] p-3 space-y-2.5">
+        <div className="flex items-center gap-2">
+          <Phone className="h-3.5 w-3.5 text-cyan" />
+          <p className="text-[11px] text-muted-foreground uppercase tracking-wider font-semibold">Call Assist</p>
+          <Badge variant="outline" className="text-[9px] ml-1 border-white/[0.14] text-muted-foreground">
+            Talking points
+          </Badge>
+          {callAssistAllCards.length > callAssistDefaultCards.length && (
+            <button
+              type="button"
+              onClick={() => setShowAllCallAssist((prev) => !prev)}
+              className="ml-auto text-[10px] text-cyan/70 hover:text-cyan transition-colors"
+            >
+              {showAllCallAssist ? "Show less" : `Show all (${callAssistAllCards.length})`}
+            </button>
+          )}
+        </div>
+        <p className="text-[10px] text-muted-foreground/60">
+          Compact scaffolding for live calls. Adapt naturally to seller context.
+        </p>
+        <div className="space-y-2">
+          {callAssistVisibleCards.map((card) => (
+            <div key={card.id} className="rounded-[8px] border border-white/[0.06] bg-white/[0.015] px-2.5 py-2">
+              <p className="text-[11px] font-semibold text-foreground">{card.title}</p>
+              <p className="text-[10px] text-muted-foreground/65 mt-0.5">{card.summary}</p>
+              <div className="mt-1.5 space-y-1">
+                {card.talkingPoints.slice(0, 2).map((point, idx) => (
+                  <p key={idx} className="text-[10px] text-foreground/85">
+                    <span className="text-cyan/70 mr-1">&#8226;</span>{point}
+                  </p>
+                ))}
+              </div>
+              <p className="text-[9px] text-amber-300/80 mt-1.5">{card.actionHint}</p>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div className="rounded-[12px] border border-white/[0.06] bg-white/[0.02] p-3 space-y-2">
+        <div className="flex items-center gap-2">
+          <Briefcase className="h-3.5 w-3.5 text-cyan" />
+          <p className="text-[11px] text-muted-foreground uppercase tracking-wider font-semibold">Offer Progress</p>
+        </div>
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className={cn("text-[10px] px-2 py-0.5 rounded border font-medium", offerStatusToneClass)}>
+            {offerStatusLabel}
+          </span>
+          <span className="text-[10px] text-muted-foreground/70">
+            {offerStatusHint}
+          </span>
+        </div>
+        {offerPrepActive && (
+          <div className={cn(
+            "rounded-[8px] border px-2.5 py-2 space-y-1.5",
+            offerPrepStale ? "border-amber-500/30 bg-amber-500/[0.08]" : "border-cyan/20 bg-cyan/[0.06]",
+          )}>
+            <p className="text-[10px] text-foreground/90">
+              Workload: <span className="font-semibold">Run comps + prepare offer range</span>
+            </p>
+            <p className="text-[10px] text-muted-foreground/80">
+              Next offer-prep follow-up: <span className="text-foreground font-medium">{offerPrepDueLabel}</span>
+            </p>
+            <p className={cn("text-[10px]", offerPrepStale ? "text-amber-300" : "text-cyan/80")}>
+              {offerPrepStale
+                ? offerPrepMissingNextAction
+                  ? "Offer-prep path is missing a next action. Set callback/follow-up."
+                  : "Offer-prep path is stale. Follow-up is overdue."
+                : "Offer-prep path is active and on track."}
+            </p>
+          </div>
         )}
+      </div>
 
-        {/* Deep Skip Report (people intelligence) */}
-        {deepCrawlExpanded && (deepSkipResult || deepCrawlResult?.deepSkip) && (
-          <motion.div
-            initial={{ opacity: 0, height: 0 }}
-            animate={{ opacity: 1, height: "auto" }}
-            exit={{ opacity: 0, height: 0 }}
-            className="overflow-hidden"
-          >
-            <DeepSkipPanel result={deepSkipResult ?? deepCrawlResult?.deepSkip} />
-          </motion.div>
-        )}
-      </AnimatePresence>
+      <div className="rounded-[12px] border border-white/[0.06] bg-white/[0.02] p-3 space-y-2">
+        <div className="flex items-center gap-2">
+          <Users className="h-3.5 w-3.5 text-cyan" />
+          <p className="text-[11px] text-muted-foreground uppercase tracking-wider font-semibold">Buyer / Dispo Visibility</p>
+          <Badge variant="outline" className="text-[9px] border-white/[0.14] text-muted-foreground">Derived</Badge>
+          {(buyerDispoActionMissing || buyerDispoActionStale) && (
+            <Badge variant="outline" className="text-[9px] border-amber-500/30 text-amber-300">
+              Action Needed
+            </Badge>
+          )}
+        </div>
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className={cn("text-[10px] px-2 py-0.5 rounded border font-medium", buyerFitToneClass)}>
+            Buyer Fit: {buyerFitLabel}
+          </span>
+          <span className={cn("text-[10px] px-2 py-0.5 rounded border font-medium", dispoReadinessToneClass)}>
+            Dispo Readiness: {dispoReadinessLabel}
+          </span>
+        </div>
+        <p className="text-[10px] text-muted-foreground/70">{buyerDispo.hint}</p>
+        <div className="rounded-[8px] border border-white/[0.08] bg-white/[0.02] px-2.5 py-2 space-y-1.5">
+          <p className="text-[10px] text-foreground/90">
+            Next step: <span className="font-medium">{buyerDispo.nextStep}</span>
+          </p>
+          {buyerDispoReadinessHigh && (
+            <p className="text-[10px] text-muted-foreground/80">
+              Buyer/dispo follow-up: <span className="text-foreground font-medium">{buyerDispoNextActionLabel}</span>
+            </p>
+          )}
+          {(buyerDispoActionMissing || buyerDispoActionStale) && (
+            <p className="text-[10px] text-amber-300">
+              {buyerDispoActionMissing
+                ? "Buyer/dispo readiness is high, but no next action is set."
+                : "Buyer/dispo readiness is high, and next action is overdue."}
+              {" "}Use <span className="font-semibold">Set Next Action</span> to keep this path active.
+            </p>
+          )}
+        </div>
+      </div>
 
-      {/* ═══ 4. PROPERTY SNAPSHOT — Photo Carousel + Address + Badges ═══ */}
+      {showQualificationBlock && (
+        <div className="rounded-[12px] border border-white/[0.06] bg-white/[0.02] p-3 space-y-3">
+          <div className="flex items-center gap-2">
+            <CheckCircle2 className="h-3.5 w-3.5 text-cyan" />
+            <p className="text-[11px] text-muted-foreground uppercase tracking-wider font-semibold">Qualification</p>
+            {!qualificationEditable && (
+              <Badge variant="outline" className="text-[9px] ml-1 border-white/[0.14] text-muted-foreground">Read-only</Badge>
+            )}
+          </div>
+
+          {qualificationEditable ? (
+            <div className="space-y-3">
+              <div className="rounded-[8px] border border-white/[0.08] bg-white/[0.015] px-2.5 py-2 space-y-1.5">
+                <div className="flex items-center justify-between text-[10px]">
+                  <span className="uppercase tracking-wider text-muted-foreground font-semibold">Qualification Completeness</span>
+                  <span className={cn(
+                    "font-semibold",
+                    qualificationCompleteCount >= 4 ? "text-emerald-300" : qualificationCompleteCount >= 2 ? "text-amber-300" : "text-red-300"
+                  )}>
+                    {qualificationCompleteCount}/5
+                  </span>
+                </div>
+                <div className="h-1.5 rounded-full bg-white/[0.06] overflow-hidden">
+                  <div
+                    className={cn(
+                      "h-full transition-all",
+                      qualificationCompleteCount >= 4 ? "bg-emerald-400/80" : qualificationCompleteCount >= 2 ? "bg-amber-400/80" : "bg-red-400/80",
+                    )}
+                    style={{ width: `${qualificationCompletenessPct}%` }}
+                  />
+                </div>
+                {qualificationMissingLabels.length > 0 ? (
+                  <p className="text-[10px] text-muted-foreground/75">
+                    Missing before routing: <span className="text-foreground/85">{qualificationMissingLabels.join(", ")}</span>
+                  </p>
+                ) : (
+                  <p className="text-[10px] text-emerald-300/90">Core qualification inputs are complete.</p>
+                )}
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
+                <div className="space-y-1.5">
+                  <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">Motivation</p>
+                  <div className="flex items-center gap-1.5">
+                    {[1, 2, 3, 4, 5].map((level) => (
+                      <button
+                        key={level}
+                        type="button"
+                        onClick={() => onQualificationChange({ motivationLevel: level })}
+                        className={cn(
+                          "h-7 w-7 rounded-[8px] border text-[11px] font-semibold transition-colors",
+                          qualification.motivationLevel === level
+                            ? "border-cyan/40 bg-cyan/[0.12] text-cyan"
+                            : "border-white/[0.12] bg-white/[0.04] text-muted-foreground hover:border-white/[0.2]"
+                        )}
+                      >
+                        {level}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="space-y-1.5">
+                  <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">Condition</p>
+                  <div className="flex items-center gap-1.5">
+                    {[1, 2, 3, 4, 5].map((level) => (
+                      <button
+                        key={level}
+                        type="button"
+                        onClick={() => onQualificationChange({ conditionLevel: level })}
+                        className={cn(
+                          "h-7 w-7 rounded-[8px] border text-[11px] font-semibold transition-colors",
+                          qualification.conditionLevel === level
+                            ? "border-cyan/40 bg-cyan/[0.12] text-cyan"
+                            : "border-white/[0.12] bg-white/[0.04] text-muted-foreground hover:border-white/[0.2]"
+                        )}
+                      >
+                        {level}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
+                <div className="space-y-1.5">
+                  <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">Timeline</p>
+                  <select
+                    value={qualification.sellerTimeline ?? ""}
+                    onChange={(e) => onQualificationChange({ sellerTimeline: (e.target.value || null) as SellerTimeline | null })}
+                    className="h-8 w-full rounded-[8px] border border-white/[0.12] bg-white/[0.04] px-2.5 text-xs text-foreground focus:outline-none focus:border-cyan/30"
+                  >
+                    <option value="">Not set</option>
+                    {SELLER_TIMELINE_OPTIONS.map((option) => (
+                      <option key={option.id} value={option.id}>{option.label}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="space-y-1.5">
+                  <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">Asking Price</p>
+                  <input
+                    type="number"
+                    min={0}
+                    step={1000}
+                    value={qualification.priceExpectation ?? ""}
+                    onChange={(e) => {
+                      const value = e.target.value;
+                      onQualificationChange({
+                        priceExpectation: value === "" ? null : Math.max(0, Number.parseInt(value, 10) || 0),
+                      });
+                    }}
+                    placeholder="Optional"
+                    className="h-8 w-full rounded-[8px] border border-white/[0.12] bg-white/[0.04] px-2.5 text-xs text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:border-cyan/30"
+                  />
+                </div>
+              </div>
+
+              <label className="inline-flex items-center gap-2 text-xs text-foreground">
+                <input
+                  type="checkbox"
+                  checked={qualification.decisionMakerConfirmed}
+                  onChange={(e) => onQualificationChange({ decisionMakerConfirmed: e.target.checked })}
+                  className="h-3.5 w-3.5 rounded border-white/[0.2] bg-white/[0.04]"
+                />
+                Decision maker confirmed
+              </label>
+
+              {offerReadySuggested && (
+                <div className="rounded-[8px] border border-emerald-500/20 bg-emerald-500/[0.06] px-2.5 py-2 text-[11px] text-emerald-300">
+                  Suggestion: this lead looks <span className="font-semibold">Offer Ready</span> based on motivation, timeline, and lead score.
+                </div>
+              )}
+
+              <div className="space-y-1.5">
+                <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">Route</p>
+                <div className="flex flex-wrap items-center gap-1.5">
+                  {QUALIFICATION_ROUTE_OPTIONS.map((route) => (
+                    <button
+                      key={route.id}
+                      type="button"
+                      disabled={qualificationSaving}
+                      onClick={() => onQualificationRouteSelect(route.id)}
+                      className={cn(
+                        "h-7 px-2.5 rounded-[8px] border text-[11px] font-medium transition-colors",
+                        qualification.qualificationRoute === route.id
+                          ? "border-cyan/40 bg-cyan/[0.12] text-cyan"
+                          : "border-white/[0.12] bg-white/[0.04] text-muted-foreground hover:border-white/[0.2]",
+                        qualificationSaving && "opacity-60 cursor-not-allowed"
+                      )}
+                    >
+                      {route.label}
+                    </button>
+                  ))}
+                  <Button
+                    size="sm"
+                    className="h-7 text-[11px] ml-auto"
+                    disabled={qualificationSaving || !qualificationDirty}
+                    onClick={onQualificationSave}
+                  >
+                    {qualificationSaving ? <Loader2 className="h-3 w-3 animate-spin" /> : <Save className="h-3 w-3" />}
+                    Save
+                  </Button>
+                </div>
+                {qualification.qualificationRoute === "escalate" && (
+                  <p className={cn("text-[10px]", cf.assignedTo ? "text-amber-300/85" : "text-red-300")}>
+                    {cf.assignedTo
+                      ? "Escalation creates an Adam review task. Ownership stays with the current assignee until manually reassigned."
+                      : "Escalation requires an assigned owner first. Claim or assign this lead before saving."}
+                  </p>
+                )}
+                {qualification.qualificationRoute === "offer_ready" && (
+                  <p className="text-[10px] text-cyan/85">
+                    Offer Ready creates an offer-prep task and keeps this lead on an active offer-prep follow-up path.
+                  </p>
+                )}
+              </div>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-xs">
+              {qualification.motivationLevel != null && <p className="text-muted-foreground">Motivation: <span className="text-foreground font-medium">{qualification.motivationLevel}/5</span></p>}
+              {qualification.conditionLevel != null && <p className="text-muted-foreground">Condition: <span className="text-foreground font-medium">{qualification.conditionLevel}/5</span></p>}
+              {qualification.sellerTimeline && <p className="text-muted-foreground">Timeline: <span className="text-foreground font-medium">{qualification.sellerTimeline.replace("_", " ")}</span></p>}
+              {qualification.priceExpectation != null && <p className="text-muted-foreground">Asking Price: <span className="text-foreground font-medium">{formatCurrency(qualification.priceExpectation)}</span></p>}
+              {qualification.qualificationRoute && <p className="text-muted-foreground">Route: <span className="text-foreground font-medium">{qualificationRouteLabel(qualification.qualificationRoute)}</span></p>}
+              {qualification.qualificationRoute === "escalate" && (
+                <p className="text-amber-300/85">
+                  Escalated for Adam review. Ownership remains with {cf.assignedTo ? "the assigned operator" : "the current claimant once assigned"}.
+                </p>
+              )}
+              {qualification.qualificationRoute === "offer_ready" && (
+                <p className={cn(offerPrepStale ? "text-amber-300/85" : "text-cyan/85")}>
+                  Offer-prep follow-up: {offerPrepDueLabel}{offerPrepStale ? " (stale)" : ""}
+                </p>
+              )}
+              <p className="text-muted-foreground">Decision Maker: <span className="text-foreground font-medium">{qualification.decisionMakerConfirmed ? "Confirmed" : "Not confirmed"}</span></p>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Advanced intelligence + metadata (collapsed by default) */}
+      <div className="rounded-[12px] border border-white/[0.06] bg-white/[0.015]">
+        <button
+          onClick={() => setAdvancedOpen(!advancedOpen)}
+          className="w-full flex items-center gap-2 p-4 text-left"
+        >
+          <Eye className="h-3.5 w-3.5 text-muted-foreground" />
+          <p className="text-[11px] text-muted-foreground uppercase tracking-wider font-semibold">Advanced</p>
+          <span className="text-[9px] text-muted-foreground/50">
+            {hasDeepIntel ? "Deep Crawl + Metadata" : "Intelligence tools"}
+          </span>
+          <ChevronDown className={cn("h-3.5 w-3.5 text-muted-foreground/40 ml-auto transition-transform", advancedOpen && "rotate-180")} />
+        </button>
+
+        <AnimatePresence>
+          {advancedOpen && (
+            <motion.div
+              initial={{ height: 0, opacity: 0 }}
+              animate={{ height: "auto", opacity: 1 }}
+              exit={{ height: 0, opacity: 0 }}
+              transition={{ duration: 0.2 }}
+              className="overflow-hidden"
+            >
+              <div className="px-4 pb-4 space-y-3">
+                <div className="rounded-[10px] border border-white/[0.06] bg-white/[0.02] p-3">
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold">Deep Crawl Intelligence</p>
+                    {deepCrawlResult ? (
+                      <button
+                        onClick={() => setDeepCrawlExpanded(!deepCrawlExpanded)}
+                        className="h-6 px-2.5 rounded-md text-[9px] font-semibold border flex items-center gap-1 transition-colors border-emerald-500/30 bg-emerald-500/[0.06] text-emerald-400 hover:bg-emerald-500/[0.12]"
+                      >
+                        <FileText className="h-3 w-3" />
+                        {deepCrawlExpanded ? "Hide Report" : "Deep Crawl Report"}
+                      </button>
+                    ) : hasSavedReport ? (
+                      <button
+                        onClick={loadSavedReport}
+                        disabled={loadingReport}
+                        className="h-6 px-2.5 rounded-md text-[9px] font-semibold border flex items-center gap-1 transition-colors border-emerald-500/30 bg-emerald-500/[0.06] text-emerald-400 hover:bg-emerald-500/[0.12]"
+                      >
+                        {loadingReport ? <Loader2 className="h-3 w-3 animate-spin" /> : <FileText className="h-3 w-3" />}
+                        {loadingReport ? "Loading Report..." : "View Saved Report"}
+                      </button>
+                    ) : (
+                      <button
+                        onClick={executeDeepCrawl}
+                        disabled={deepCrawling}
+                        className="h-6 px-2.5 rounded-md text-[9px] font-semibold border flex items-center gap-1 transition-colors border-amber-500/30 bg-amber-500/[0.06] text-amber-400 hover:bg-amber-500/[0.12]"
+                      >
+                        {deepCrawling ? <Loader2 className="h-3 w-3 animate-spin" /> : <Search className="h-3 w-3" />}
+                        {deepCrawling ? "Deep Crawling..." : "~120s Deep Crawl"}
+                      </button>
+                    )}
+                  </div>
+                  <p className="mt-2 text-[10px] text-muted-foreground/60">
+                    Detailed intelligence and metadata are hidden by default to keep the operator workflow focused.
+                  </p>
+                </div>
+
+                {/* SSE Progress Indicator (during active crawl) */}
+                {deepCrawling && crawlSteps.length > 0 && !deepCrawlResult && (
+                  <CrawlProgressIndicator steps={crawlSteps} />
+                )}
+
+                {/* Deep Crawl Report */}
+                {deepCrawlResult && deepCrawlExpanded && (
+                  <DeepCrawlPanel result={deepCrawlResult} onRecrawl={executeDeepCrawl} isRecrawling={deepCrawling} />
+                )}
+
+                {/* Deep Skip Report (people intelligence) */}
+                {deepCrawlExpanded && (deepSkipResult || deepCrawlResult?.deepSkip) && (
+                  <DeepSkipPanel result={deepSkipResult ?? deepCrawlResult?.deepSkip} />
+                )}
+
+                <div className="rounded-[10px] border border-white/[0.06] bg-white/[0.02] p-3">
+                  <p className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold mb-2">Metadata</p>
+                  <div className="grid grid-cols-2 gap-x-6">
+                    <InfoRow icon={Zap} label="Source" value={cf.source} />
+                    <InfoRow icon={Clock} label="Promoted" value={cf.promotedAt ? new Date(cf.promotedAt).toLocaleDateString() : null} />
+                    <InfoRow icon={Clock} label="Last Contact" value={cf.lastContactAt ? new Date(cf.lastContactAt).toLocaleDateString() : null} />
+                    <InfoRow icon={Calendar} label="Follow-Up" value={cf.followUpDate ? new Date(cf.followUpDate).toLocaleDateString() : null} />
+                    <InfoRow icon={Copy} label="Model Version" value={cf.modelVersion} />
+                    <InfoRow icon={ExternalLink} label="Radar ID" value={cf.radarId} mono />
+                    <InfoRow icon={Clock} label="Last Enriched" value={cf.ownerFlags?.last_enriched ? new Date(cf.ownerFlags.last_enriched as string).toLocaleString() : (cf.enriched ? "Enriched (time unknown)" : null)} highlight={!!cf.ownerFlags?.last_enriched} />
+                  </div>
+                  {cf.notes && (
+                    <div className="mt-2">
+                      <p className="text-[10px] text-muted-foreground uppercase tracking-wider mb-0.5">Notes</p>
+                      <p className="text-xs text-foreground/80">{cf.notes}</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
+
+      {/* â•â•â• 4. PROPERTY SNAPSHOT â€” Photo Carousel + Address + Badges â•â•â• */}
       <div ref={sectionProperty} className="rounded-[12px] border border-white/[0.06] bg-white/[0.02] overflow-hidden">
         {(allPhotos.length > 0 || imageUrl) && (
-          <div className="relative block h-40 group">
+          <div className="relative block h-32 group">
             {allPhotos.length > 0 ? (
               <>
                 <img
@@ -3479,20 +3646,20 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
                 )}
               </div>
               <div className="flex items-center gap-1 text-[9px] text-white/50">
-                <ImageIcon className="h-2.5 w-2.5" />{allPhotos.length > 0 ? `${allPhotos.length} photos · Zillow` : streetViewLink ? `Click to explore · ${imageLabel}` : imageLabel}
+                <ImageIcon className="h-2.5 w-2.5" />{allPhotos.length > 0 ? `${allPhotos.length} photos Â· Zillow` : streetViewLink ? `Click to explore Â· ${imageLabel}` : imageLabel}
               </div>
             </div>
           </div>
         )}
         <div className="p-4 space-y-3">
-          {/* Address + County + APN — with satellite thumbnail on the right */}
+          {/* Address + County + APN â€” with satellite thumbnail on the right */}
           <div className="flex gap-3">
             <div className="flex-1 min-w-0 space-y-2">
               <div className="flex items-start gap-2">
                 <MapPin className="h-3.5 w-3.5 text-cyan/60 mt-0.5 shrink-0" />
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-1.5">
-                    <p className="text-sm font-semibold text-foreground truncate">{cf.fullAddress || "—"}</p>
+                    <p className="text-sm font-semibold text-foreground truncate">{cf.fullAddress || "â€”"}</p>
                     {cf.fullAddress && <CopyBtn text={cf.fullAddress} />}
                   </div>
                   <div className="flex items-center gap-3 mt-0.5">
@@ -3563,29 +3730,17 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
             )}
           </div>
 
-          {/* Distress type pill badges — sorted by urgency */}
+          {/* Distress type pill badges */}
           {(cf.tags.length > 0 || warningFlags.length > 0) && (
             <div className="flex flex-wrap gap-1.5">
-              {[...cf.tags].filter((t) => !t.startsWith("score-"))
-                .sort((a, b) => {
-                  const urgA = getDistressUrgency(a, new Date().toISOString());
-                  const urgB = getDistressUrgency(b, new Date().toISOString());
-                  return URGENCY_SORT[urgA.tier] - URGENCY_SORT[urgB.tier];
-                })
-                .map((tag) => {
+              {cf.tags.filter((t) => !t.startsWith("score-")).map((tag) => {
                 const cfg = DISTRESS_CFG[tag];
-                const urgency = getDistressUrgency(tag, new Date().toISOString());
-                const tierStyle = URGENCY_TIER_STYLES[urgency.tier];
                 return (
-                  <span key={tag} title={urgency.pitch} className={cn(
-                    "inline-flex items-center gap-1 text-[9px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider border",
-                    tierStyle.color,
-                    urgency.tier === "CRITICAL" && "animate-pulse",
+                  <span key={tag} className={cn(
+                    "text-[9px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider border",
+                    cfg?.color ?? "text-cyan/70 bg-cyan/[0.06] border-cyan/20"
                   )}>
                     {cfg?.label ?? tag.replace(/_/g, " ")}
-                    {urgency.tier !== "LOW" && (
-                      <span className={cn("text-[7px] opacity-80")}>{urgency.tier === "CRITICAL" ? "!!!" : urgency.tier === "URGENT" ? "!!" : "!"}</span>
-                    )}
                   </span>
                 );
               })}
@@ -3599,16 +3754,7 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
         </div>
       </div>
 
-      {/* ═══ 4b. OWNER PORTFOLIO — Adjacent parcels for deal context ═══ */}
-      <OwnerPortfolio
-        propertyId={cf.propertyId}
-        ownerName={cf.ownerName}
-        county={cf.county}
-        ownerFlags={cf.ownerFlags}
-        estimatedValue={cf.estimatedValue}
-      />
-
-      {/* ═══ 5. MAO BREAKDOWN — Full formula so agents trust the math ═══ */}
+      {/* â•â•â• 5. MAO BREAKDOWN â€” Full formula so agents trust the math â•â•â• */}
       {mao != null && mao > 0 && (
         <div className="rounded-[12px] border border-cyan/20 bg-cyan/[0.03] p-4 space-y-2">
           <div className="flex items-center justify-between">
@@ -3627,16 +3773,16 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
               <span className="text-foreground font-semibold">{formatCurrency(bestArv)}</span>
             </div>
             <div className="flex items-center justify-between text-muted-foreground">
-              <span>× 75% wholesale</span>
+              <span>Ã— 75% wholesale</span>
               <span className="text-foreground">{formatCurrency(wholesaleValue)}</span>
             </div>
             <div className="flex items-center justify-between text-red-400/70">
-              <span>− Repairs (est. 10%)</span>
-              <span>−{formatCurrency(repairEstimate)}</span>
+              <span>âˆ’ Repairs (est. 10%)</span>
+              <span>âˆ’{formatCurrency(repairEstimate)}</span>
             </div>
             <div className="flex items-center justify-between text-red-400/70">
-              <span>− Assignment fee</span>
-              <span>−{formatCurrency(assignmentFee)}</span>
+              <span>âˆ’ Assignment fee</span>
+              <span>âˆ’{formatCurrency(assignmentFee)}</span>
             </div>
             <div className="border-t border-white/[0.08] pt-1.5 mt-1 flex items-center justify-between">
               <span className="text-cyan font-bold text-sm">MAO</span>
@@ -3646,7 +3792,7 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
         </div>
       )}
 
-      {/* ═══ 6. LEAD INTELLIGENCE — 4 Tiles ═══ */}
+      {/* â•â•â• 6. LEAD INTELLIGENCE â€” 4 Tiles â•â•â• */}
       <div className="rounded-[12px] border border-cyan/15 bg-cyan/[0.02] p-4 space-y-3">
         <div className="flex items-center gap-2">
           <TrendingUp className="h-3.5 w-3.5 text-cyan" />
@@ -3693,18 +3839,17 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
             <div className="flex items-center gap-3 relative z-10">
               <p className={cn("text-3xl font-black tabular-nums", equityIsGreen ? "text-emerald-400" : "text-foreground")}
                 style={{ textShadow: equityIsGreen ? "0 0 16px rgba(52,211,153,0.35)" : undefined }}>
-                {cf.equityPercent != null ? `${cf.equityPercent}%` : "—"}
+                {cf.equityPercent != null ? `${cf.equityPercent}%` : "â€”"}
               </p>
               <div className="text-[10px] text-muted-foreground space-y-0.5">
                 {cf.estimatedValue != null && <p>AVM {formatCurrency(cf.estimatedValue)}</p>}
-                {(() => { const tv = Number(cf.ownerFlags?.tax_assessed_value) || 0; return tv > 0 ? <p className="text-amber-400/80">Tax {formatCurrency(tv)}</p> : null; })()}
                 {cf.availableEquity != null && <p>{formatCurrency(cf.availableEquity)} avail.</p>}
                 {estimatedOwed != null && <p>Owed ~{formatCurrency(estimatedOwed)}</p>}
               </div>
             </div>
             {roomLabel && (
               <p className={cn("text-[9px] mt-1.5 relative z-10 font-semibold", roomColor.split(" ")[0])}>
-                {roomLabel === "HIGH SPREAD" ? "Room to negotiate — strong equity" : roomLabel === "MODERATE" ? "Some room — watch margins" : "Tight spread — proceed with caution"}
+                {roomLabel === "HIGH SPREAD" ? "Room to negotiate â€” strong equity" : roomLabel === "MODERATE" ? "Some room â€” watch margins" : "Tight spread â€” proceed with caution"}
               </p>
             )}
           </button>
@@ -3728,9 +3873,9 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
                   <p className="text-[9px] text-muted-foreground/50">since newest</p>
                 </div>
                 <p className="text-[9px] text-orange-300/70 mt-1 font-semibold">
-                  {freshestDays != null && freshestDays <= 7 ? "Very fresh — call ASAP before competitors" :
-                   freshestDays != null && freshestDays <= 30 ? "Recent signal — still a warm window" :
-                   "Aging signal — may need re-verification"}
+                  {freshestDays != null && freshestDays <= 7 ? "Very fresh â€” call ASAP before competitors" :
+                   freshestDays != null && freshestDays <= 30 ? "Recent signal â€” still a warm window" :
+                   "Aging signal â€” may need re-verification"}
                 </p>
               </>
             ) : cf.tags.length > 0 ? (
@@ -3764,11 +3909,11 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
                 {cf.isVacant && <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-purple-500/10 text-purple-400 border border-purple-500/20">VACANT</span>}
               </div>
               <p className="text-[9px] text-muted-foreground/70 font-semibold">
-                {cf.isAbsentee && ownerAge && ownerAge >= 65 ? "Elderly absentee — likely estate/caretaker situation" :
-                 cf.isAbsentee ? "Absentee owner — may be motivated to offload" :
-                 cf.isFreeClear ? "Free & clear — no mortgage pressure, but no urgency either" :
-                 yearsOwned != null && yearsOwned >= 20 ? `${yearsOwned}yr owner — long tenure, may be ready to move` :
-                 ownerAge ? `Owner ~${ownerAge} — ${ownerAge >= 65 ? "senior, life transition likely" : "younger owner"}` :
+                {cf.isAbsentee && ownerAge && ownerAge >= 65 ? "Elderly absentee â€” likely estate/caretaker situation" :
+                 cf.isAbsentee ? "Absentee owner â€” may be motivated to offload" :
+                 cf.isFreeClear ? "Free & clear â€” no mortgage pressure, but no urgency either" :
+                 yearsOwned != null && yearsOwned >= 20 ? `${yearsOwned}yr owner â€” long tenure, may be ready to move` :
+                 ownerAge ? `Owner ~${ownerAge} â€” ${ownerAge >= 65 ? "senior, life transition likely" : "younger owner"}` :
                  "Standard owner situation"}
               </p>
             </div>
@@ -3780,7 +3925,7 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
         <ScoreBreakdownModal cf={cf} scoreType={scoreBreakdown} onClose={() => setScoreBreakdown(null)} />
       )}
 
-      {/* ── Quick Call Summary (compact inline) ── */}
+      {/* â”€â”€ Quick Call Summary (compact inline) â”€â”€ */}
       {(cf.totalCalls > 0 || cf.lastContactAt) && (
         <div className="flex items-center gap-3 rounded-[10px] border border-white/[0.06] bg-white/[0.02] px-3 py-2">
           <Phone className="h-3.5 w-3.5 text-cyan shrink-0" />
@@ -3830,7 +3975,7 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
         </div>
       )}
 
-      {/* ── Call Playbook — Grok AI (upgraded pre-call brief) ── */}
+      {/* â”€â”€ Call Playbook â€” Grok AI (upgraded pre-call brief) â”€â”€ */}
       {brief || briefLoading ? (
         <div className="rounded-[12px] border border-purple-500/20 bg-purple-500/[0.04] p-4 relative overflow-hidden">
           <div className="absolute inset-0 bg-gradient-to-br from-purple-500/[0.06] via-transparent to-cyan/[0.03] pointer-events-none" />
@@ -3931,7 +4076,7 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
             ) : (
               <div className="flex items-center justify-center py-4 gap-2">
                 <Loader2 className="h-4 w-4 text-purple-400 animate-spin" />
-                <span className="text-xs text-purple-300/60">Generating playbook…</span>
+                <span className="text-xs text-purple-300/60">Generating playbookâ€¦</span>
               </div>
             )}
           </div>
@@ -3951,7 +4096,7 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
         </div>
       )}
 
-      {/* ═══ 8. CALL HISTORY + AI NOTES (merged) ═══ */}
+      {/* â•â•â• 8. CALL HISTORY + AI NOTES (merged) â•â•â• */}
       {(cf.totalCalls > 0 || cf.nextCallScheduledAt || summaryNotes.length > 0) && (
         <div className="rounded-[12px] border border-white/[0.06] bg-white/[0.02] p-4 space-y-3">
           <div className="flex items-center gap-2 mb-1">
@@ -4059,7 +4204,7 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
         </div>
       )}
 
-      {/* ═══ 9. PROPERTY DETAILS — Tax/Transfer + Predictive (no address — moved to Snapshot) ═══ */}
+      {/* â•â•â• 9. PROPERTY DETAILS â€” Tax/Transfer + Predictive (no address â€” moved to Snapshot) â•â•â• */}
       <div ref={sectionEquity} className="rounded-[12px] border border-white/[0.06] bg-white/[0.02] p-4 space-y-3">
         <div className="flex items-center gap-2 mb-1">
           <Home className="h-3.5 w-3.5 text-muted-foreground" />
@@ -4080,21 +4225,21 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
 
         <div className="grid grid-cols-2 gap-2.5">
           {/* Tax & Transfer Details */}
-          {(prRaw.AssessedValue || cf.ownerFlags?.tax_assessed_value || lastTransferType || cf.lastSalePrice) && (
+          {(prRaw.AssessedValue || lastTransferType || cf.lastSalePrice) && (
             <div className="rounded-[10px] border border-white/[0.06] bg-white/[0.03] p-2.5 col-span-2">
               <div className="flex items-start gap-2">
                 <Banknote className="h-3.5 w-3.5 text-cyan/60 mt-0.5 shrink-0" />
                 <div className="flex-1 min-w-0">
                   <p className="text-[9px] text-muted-foreground/60 uppercase tracking-widest mb-1">Tax &amp; Transfer</p>
                   <div className="grid grid-cols-2 gap-x-4 gap-y-0.5 text-xs">
-                    {(prRaw.AssessedValue || cf.ownerFlags?.tax_assessed_value) && (
-                      <p className="text-muted-foreground">Tax Assessed: <span className="text-amber-400 font-medium">{formatCurrency(Number(prRaw.AssessedValue || cf.ownerFlags?.tax_assessed_value))}</span></p>
+                    {prRaw.AssessedValue && (
+                      <p className="text-muted-foreground">Tax Assessed: <span className="text-foreground font-medium">{formatCurrency(Number(prRaw.AssessedValue))}</span></p>
                     )}
                     {cf.lastSalePrice != null && (
                       <p className="text-muted-foreground">Last Sale: <span className="text-foreground font-medium">{formatCurrency(cf.lastSalePrice)}</span>{cf.lastSaleDate ? ` (${new Date(cf.lastSaleDate).toLocaleDateString()})` : ""}</p>
                     )}
                     {lastTransferType && (
-                      <p className="text-muted-foreground">Transfer: <span className="text-foreground font-medium">{lastTransferType}</span>{lastTransferValue ? ` — ${formatCurrency(lastTransferValue)}` : ""}</p>
+                      <p className="text-muted-foreground">Transfer: <span className="text-foreground font-medium">{lastTransferType}</span>{lastTransferValue ? ` â€” ${formatCurrency(lastTransferValue)}` : ""}</p>
                     )}
                     {prRaw.DelinquentYear && (
                       <p className="text-amber-400">Delinquent: <span className="font-medium">Year {prRaw.DelinquentYear}</span>{prRaw.NumberDelinquentInstallments ? ` (${prRaw.NumberDelinquentInstallments} installments)` : ""}</p>
@@ -4149,55 +4294,14 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
         </div>
       </div>
 
-      {/* ═══ 10. EDIT DETAILS ═══ */}
+      {/* â•â•â• 10. EDIT DETAILS â•â•â• */}
       {canEdit && (
         <button onClick={onEdit} className="flex items-center gap-1.5 px-3 py-1.5 rounded-[10px] text-[11px] font-semibold text-cyan bg-cyan/[0.06] border border-cyan/20 hover:bg-cyan/[0.12] hover:border-cyan/30 shadow-[0_0_10px_rgba(0,212,255,0.06)] hover:shadow-[0_0_18px_rgba(0,212,255,0.12)] transition-all active:scale-[0.97]">
           <Pencil className="h-3 w-3" />Edit Details
         </button>
       )}
 
-      {/* ═══ 11. METADATA — Collapsible ═══ */}
-      <div className="rounded-[12px] border border-glass-border bg-secondary/10">
-        <button
-          onClick={() => setMetadataOpen(!metadataOpen)}
-          className="w-full flex items-center gap-2 p-4 text-left"
-        >
-          <Eye className="h-3.5 w-3.5 text-muted-foreground" />
-          <p className="text-[11px] text-muted-foreground uppercase tracking-wider font-semibold">Metadata</p>
-          <ChevronDown className={cn("h-3.5 w-3.5 text-muted-foreground/40 ml-auto transition-transform", metadataOpen && "rotate-180")} />
-        </button>
-        <AnimatePresence>
-          {metadataOpen && (
-            <motion.div
-              initial={{ height: 0, opacity: 0 }}
-              animate={{ height: "auto", opacity: 1 }}
-              exit={{ height: 0, opacity: 0 }}
-              transition={{ duration: 0.2 }}
-              className="overflow-hidden"
-            >
-              <div className="px-4 pb-4">
-                <div className="grid grid-cols-2 gap-x-6">
-                  <InfoRow icon={Zap} label="Source" value={cf.source} />
-                  <InfoRow icon={Clock} label="Promoted" value={cf.promotedAt ? new Date(cf.promotedAt).toLocaleDateString() : null} />
-                  <InfoRow icon={Clock} label="Last Contact" value={cf.lastContactAt ? new Date(cf.lastContactAt).toLocaleDateString() : null} />
-                  <InfoRow icon={Calendar} label="Follow-Up" value={cf.followUpDate ? new Date(cf.followUpDate).toLocaleDateString() : null} />
-                  <InfoRow icon={Copy} label="Model Version" value={cf.modelVersion} />
-                  <InfoRow icon={ExternalLink} label="Radar ID" value={cf.radarId} mono />
-                  <InfoRow icon={Clock} label="Last Enriched" value={cf.ownerFlags?.last_enriched ? new Date(cf.ownerFlags.last_enriched as string).toLocaleString() : (cf.enriched ? "Enriched (time unknown)" : null)} highlight={!!cf.ownerFlags?.last_enriched} />
-                </div>
-                {cf.notes && (
-                  <div className="mt-2">
-                    <p className="text-[10px] text-muted-foreground uppercase tracking-wider mb-0.5">Notes</p>
-                    <p className="text-xs text-foreground/80">{cf.notes}</p>
-                  </div>
-                )}
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
-      </div>
-
-      {/* ═══ 12. ACTIVITY TIMELINE — Collapsible ═══ */}
+      {/* 12. Full Activity Timeline */}
       {activityLog.length > 0 && (
         <div className="rounded-[12px] border border-white/[0.06] bg-white/[0.02]">
           <button
@@ -4205,8 +4309,9 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
             className="w-full flex items-center gap-2 p-4 text-left"
           >
             <Clock className="h-3.5 w-3.5 text-cyan" />
-            <p className="text-[11px] text-muted-foreground uppercase tracking-wider font-semibold">Activity Timeline</p>
+            <p className="text-[11px] text-muted-foreground uppercase tracking-wider font-semibold">Full Activity Timeline</p>
             <Badge variant="outline" className="text-[9px] ml-1">{activityLog.length}</Badge>
+            <span className="text-[9px] text-muted-foreground/45">calls, texts, updates</span>
             <ChevronDown className={cn("h-3.5 w-3.5 text-muted-foreground/40 ml-auto transition-transform", timelinesOpen && "rotate-180")} />
           </button>
           <AnimatePresence>
@@ -4218,23 +4323,43 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
                 transition={{ duration: 0.2 }}
                 className="overflow-hidden"
               >
-                <div className="px-4 pb-4 space-y-1 max-h-48 overflow-y-auto scrollbar-thin">
+                <div className="px-4 pb-4 space-y-2 max-h-56 overflow-y-auto scrollbar-thin">
                   {activityLog.map((entry) => {
                     const isCall = entry.type === "call";
                     const isSms = entry.type === "sms";
                     const EntryIcon = isCall ? Phone : isSms ? MessageSquare : Zap;
                     const iconColor = isCall ? "text-cyan" : isSms ? "text-emerald-400" : "text-purple-400";
+                    const dispositionLabel = entry.disposition?.replace(/_/g, " ") ?? entry.type;
+                    const noteText = entry.notes?.replace(/\s+/g, " ").trim() ?? "";
+                    const notePreview = noteText.length === 0
+                      ? null
+                      : noteText.startsWith("{")
+                        ? "Event details logged"
+                        : (noteText.length > 96 ? `${noteText.slice(0, 96)}...` : noteText);
                     return (
-                      <div key={entry.id} className="flex items-center gap-2.5 px-3 py-2 rounded-[8px] border border-white/[0.04] bg-white/[0.02] text-xs">
-                        <EntryIcon className={cn("h-3.5 w-3.5 shrink-0", iconColor)} />
-                        <div className="flex-1 min-w-0">
-                          <span className="font-semibold text-foreground capitalize">{entry.disposition?.replace(/_/g, " ") ?? entry.type}</span>
-                          {entry.phone && <span className="text-muted-foreground/50 ml-1.5 font-mono">***{entry.phone.slice(-4)}</span>}
-                          {entry.duration_sec != null && entry.duration_sec > 0 && (
-                            <span className="text-muted-foreground/50 ml-1.5">{Math.floor(entry.duration_sec / 60)}:{(entry.duration_sec % 60).toString().padStart(2, "0")}</span>
-                          )}
+                      <div key={entry.id} className="flex items-start justify-between gap-2.5 px-3 py-2.5 rounded-[8px] border border-white/[0.04] bg-white/[0.02] text-xs">
+                        <div className="flex items-start gap-2.5 min-w-0">
+                          <EntryIcon className={cn("h-3.5 w-3.5 shrink-0 mt-0.5", iconColor)} />
+                          <div className="min-w-0">
+                            <div className="flex flex-wrap items-center gap-1.5">
+                              <span className="font-semibold text-foreground capitalize">{dispositionLabel}</span>
+                              {entry.phone && <span className="text-muted-foreground/50 font-mono">***{entry.phone.slice(-4)}</span>}
+                              {entry.duration_sec != null && entry.duration_sec > 0 && (
+                                <span className="text-muted-foreground/50">{Math.floor(entry.duration_sec / 60)}:{(entry.duration_sec % 60).toString().padStart(2, "0")}</span>
+                              )}
+                            </div>
+                            {notePreview && (
+                              <p className="text-[10px] text-muted-foreground/60 mt-0.5 truncate max-w-[420px]">{notePreview}</p>
+                            )}
+                          </div>
                         </div>
-                        <p className="text-[9px] text-muted-foreground/40 shrink-0">{new Date(entry.created_at).toLocaleDateString()} {new Date(entry.created_at).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}</p>
+                        <div className="shrink-0 text-right">
+                          <p className="text-[9px] text-muted-foreground/45">
+                            {new Date(entry.created_at).toLocaleDateString("en-US", { month: "short", day: "numeric" })}{" "}
+                            {new Date(entry.created_at).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}
+                          </p>
+                          <p className="text-[9px] text-muted-foreground/35">{formatRelativeFromNow(entry.created_at)}</p>
+                        </div>
                       </div>
                     );
                   })}
@@ -4250,9 +4375,9 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
   );
 }
 
-// ═══════════════════════════════════════════════════════════════════════
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 // Tab: PropertyRadar Data
-// ═══════════════════════════════════════════════════════════════════════
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 function PropertyRadarTab({ cf }: { cf: ClientFile }) {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -4301,16 +4426,16 @@ function PropertyRadarTab({ cf }: { cf: ClientFile }) {
       {cf.enriched && (
         <div className="flex items-center gap-2 text-xs text-cyan/70">
           <CheckCircle2 className="h-3.5 w-3.5" />
-          <span>Enriched from PropertyRadar{cf.radarId ? ` — RadarID: ${cf.radarId}` : ""}</span>
+          <span>Enriched from PropertyRadar{cf.radarId ? ` â€” RadarID: ${cf.radarId}` : ""}</span>
         </div>
       )}
     </div>
   );
 }
 
-// ═══════════════════════════════════════════════════════════════════════
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 // Tab: County Records
-// ═══════════════════════════════════════════════════════════════════════
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 function CountyRecordsTab({ cf }: { cf: ClientFile }) {
   const countyKey = cf.county.toLowerCase().replace(/\s+county$/i, "").trim();
@@ -4332,20 +4457,20 @@ function CountyRecordsTab({ cf }: { cf: ClientFile }) {
           <div className="space-y-2">
             <a href={countyInfo.gis(cf.apn ?? "")} target="_blank" rel="noopener noreferrer">
               <Button size="sm" variant="outline" className="gap-2 text-xs w-full justify-start">
-                <Map className="h-3.5 w-3.5 text-cyan" />GIS / Parcel Map — {countyInfo.name}
+                <Map className="h-3.5 w-3.5 text-cyan" />GIS / Parcel Map â€” {countyInfo.name}
                 <ExternalLink className="h-3 w-3 ml-auto text-muted-foreground" />
               </Button>
             </a>
             <a href={countyInfo.assessor(cf.apn ?? "")} target="_blank" rel="noopener noreferrer">
               <Button size="sm" variant="outline" className="gap-2 text-xs w-full justify-start">
-                <Building className="h-3.5 w-3.5 text-cyan" />Assessor&apos;s Office — {countyInfo.name}
+                <Building className="h-3.5 w-3.5 text-cyan" />Assessor&apos;s Office â€” {countyInfo.name}
                 <ExternalLink className="h-3 w-3 ml-auto text-muted-foreground" />
               </Button>
             </a>
             {countyInfo.treasurer && (
               <a href={countyInfo.treasurer(cf.apn ?? "")} target="_blank" rel="noopener noreferrer">
                 <Button size="sm" variant="outline" className="gap-2 text-xs w-full justify-start">
-                  <DollarSign className="h-3.5 w-3.5 text-cyan" />Treasurer / Tax Records — {countyInfo.name}
+                  <DollarSign className="h-3.5 w-3.5 text-cyan" />Treasurer / Tax Records â€” {countyInfo.name}
                   <ExternalLink className="h-3 w-3 ml-auto text-muted-foreground" />
                 </Button>
               </a>
@@ -4371,9 +4496,9 @@ function CountyRecordsTab({ cf }: { cf: ClientFile }) {
   );
 }
 
-// ═══════════════════════════════════════════════════════════════════════
-// Tab: Comps & ARV — Interactive Leaflet Map + PropertyRadar Search
-// ═══════════════════════════════════════════════════════════════════════
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// Tab: Comps & ARV â€” Interactive Leaflet Map + PropertyRadar Search
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 function SubjectPhotoCarousel({ photos, onSkipTrace }: { photos: string[]; onSkipTrace?: () => void }) {
   const [idx, setIdx] = useState(0);
@@ -4431,23 +4556,12 @@ function SubjectPhotoCarousel({ photos, onSkipTrace }: { photos: string[]; onSki
   );
 }
 
-// ── Comp detail panel with auto-fetching Zillow photo carousel ────────
+// â”€â”€ Comp detail panel with auto-fetching Zillow photo carousel â”€â”€â”€â”€â”€â”€â”€â”€
 
 function CompDetailPanel({ comp, onClose }: { comp: CompProperty; onClose: () => void }) {
   const [photos, setPhotos] = useState<string[]>([]);
   const [photoIdx, setPhotoIdx] = useState(0);
   const [loading, setLoading] = useState(false);
-  const [enrichData, setEnrichData] = useState<{
-    saleHistory?: { saleAmount: number; saleDate: string | null; buyer?: string | null; seller?: string | null; pricePerSqft?: number | null }[];
-    assessmentHistory?: { year: number; assessedValue: number; marketValue?: number | null; taxAmount?: number | null }[];
-    avmTrend?: { date: string; value: number }[];
-    rentalAvm?: number | null;
-    rentalAvmHigh?: number | null;
-    rentalAvmLow?: number | null;
-    countySales?: { date: string; price: number; year: number }[];
-  } | null>(null);
-  const [enriching, setEnriching] = useState(false);
-  const [activeEnrichTab, setActiveEnrichTab] = useState<"details" | "history" | "values">("details");
 
   // Build full address for photo lookup
   const fullAddress = [comp.streetAddress, comp.city, comp.state, comp.zip].filter(Boolean).join(", ");
@@ -4472,46 +4586,11 @@ function CompDetailPanel({ comp, onClose }: { comp: CompProperty; onClose: () =>
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           setPhotos(data.photos.map((p: any) => (typeof p === "string" ? p : p?.url)).filter(Boolean));
         }
-      } catch { /* ignore — fallback to street view / satellite */ }
+      } catch { /* ignore â€” fallback to street view / satellite */ }
       if (!cancelled) setLoading(false);
     })();
     return () => { cancelled = true; };
   }, [fullAddress]);
-
-  // Auto-fetch enrichment data (sale history, assessment history, AVM trends, rental AVM)
-  useEffect(() => {
-    if (!comp.apn && !comp.streetAddress) return;
-    let cancelled = false;
-    setEnriching(true);
-    setEnrichData(null);
-    (async () => {
-      try {
-        const { data: { session } } = await supabase.auth.getSession();
-        const address2 = [comp.city, comp.state, comp.zip].filter(Boolean).join(", ");
-        const res = await fetch("/api/comps/enrich", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${session?.access_token ?? ""}`,
-          },
-          body: JSON.stringify({
-            apn: comp.apn || undefined,
-            address: comp.streetAddress || undefined,
-            address2: address2 || undefined,
-            county: comp.county || undefined,
-            state: comp.state || undefined,
-          }),
-        });
-        if (cancelled) return;
-        const data = await res.json();
-        if (data.success) {
-          setEnrichData(data);
-        }
-      } catch { /* ignore — enrichment is best-effort */ }
-      if (!cancelled) setEnriching(false);
-    })();
-    return () => { cancelled = true; };
-  }, [comp.apn, comp.streetAddress, comp.city, comp.state, comp.zip, comp.county]);
 
   // Fallback image sources
   const fallbackSrc = comp.photoUrl
@@ -4521,24 +4600,12 @@ function CompDetailPanel({ comp, onClose }: { comp: CompProperty; onClose: () =>
   const allPhotos = photos.length > 0 ? photos : (fallbackSrc ? [fallbackSrc] : []);
   const safeIdx = allPhotos.length > 0 ? photoIdx % allPhotos.length : 0;
 
-  const hasSaleHistory = (enrichData?.saleHistory?.length ?? 0) > 0;
-  const hasAssessment = (enrichData?.assessmentHistory?.length ?? 0) > 0;
-  const hasAvmTrend = (enrichData?.avmTrend?.length ?? 0) > 0;
-  const hasRental = enrichData?.rentalAvm != null;
-  const hasCountySales = (enrichData?.countySales?.length ?? 0) > 0;
-  const hasEnrichData = hasSaleHistory || hasAssessment || hasAvmTrend || hasRental || hasCountySales;
-
   return (
     <div className="rounded-[10px] border border-cyan/20 bg-[rgba(12,12,22,0.6)] backdrop-blur-xl overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200">
       <div className="flex items-center justify-between px-4 py-2 border-b border-white/[0.06] bg-cyan/[0.04]">
         <p className="text-xs font-semibold flex items-center gap-1.5">
           <Eye className="h-3 w-3 text-cyan" />
           {comp.streetAddress}
-          {comp.source && (
-            <span className="text-[8px] px-1.5 py-0.5 rounded-full bg-white/[0.06] text-muted-foreground font-normal">
-              {comp.source === "propertyradar" ? "PR" : comp.source === "attom" ? "ATTOM" : comp.source === "county_arcgis" ? "County" : comp.source}
-            </span>
-          )}
         </p>
         <button onClick={onClose} className="text-muted-foreground hover:text-white">
           <X className="h-3.5 w-3.5" />
@@ -4550,7 +4617,7 @@ function CompDetailPanel({ comp, onClose }: { comp: CompProperty; onClose: () =>
           {loading && allPhotos.length === 0 ? (
             <div className="h-full flex items-center justify-center">
               <Loader2 className="h-5 w-5 text-cyan animate-spin" />
-              <span className="ml-2 text-[10px] text-muted-foreground">Fetching photos…</span>
+              <span className="ml-2 text-[10px] text-muted-foreground">Fetching photosâ€¦</span>
             </div>
           ) : allPhotos.length > 0 ? (
             <>
@@ -4595,12 +4662,12 @@ function CompDetailPanel({ comp, onClose }: { comp: CompProperty; onClose: () =>
         {/* Property details */}
         <div className="flex-1 p-3 min-w-0">
           <div className="grid grid-cols-2 gap-x-6 gap-y-1.5 text-[11px]">
-            <div><span className="text-muted-foreground">Beds:</span> <span className="font-medium">{comp.beds ?? "—"}</span></div>
-            <div><span className="text-muted-foreground">Baths:</span> <span className="font-medium">{comp.baths ?? "—"}</span></div>
-            <div><span className="text-muted-foreground">Sqft:</span> <span className="font-medium">{comp.sqft?.toLocaleString() ?? "—"}</span></div>
-            <div><span className="text-muted-foreground">Year:</span> <span className="font-medium">{comp.yearBuilt ?? "—"}</span></div>
-            <div><span className="text-muted-foreground">AVM:</span> <span className="font-medium text-neon">{comp.avm ? formatCurrency(comp.avm) : "—"}</span></div>
-            <div><span className="text-muted-foreground">Last Sale:</span> <span className="font-medium">{comp.lastSalePrice ? formatCurrency(comp.lastSalePrice) : "—"}</span></div>
+            <div><span className="text-muted-foreground">Beds:</span> <span className="font-medium">{comp.beds ?? "â€”"}</span></div>
+            <div><span className="text-muted-foreground">Baths:</span> <span className="font-medium">{comp.baths ?? "â€”"}</span></div>
+            <div><span className="text-muted-foreground">Sqft:</span> <span className="font-medium">{comp.sqft?.toLocaleString() ?? "â€”"}</span></div>
+            <div><span className="text-muted-foreground">Year:</span> <span className="font-medium">{comp.yearBuilt ?? "â€”"}</span></div>
+            <div><span className="text-muted-foreground">AVM:</span> <span className="font-medium text-neon">{comp.avm ? formatCurrency(comp.avm) : "â€”"}</span></div>
+            <div><span className="text-muted-foreground">Last Sale:</span> <span className="font-medium">{comp.lastSalePrice ? formatCurrency(comp.lastSalePrice) : "â€”"}</span></div>
             {comp.lastSaleDate && (
               <div><span className="text-muted-foreground">Sale Date:</span> <span className="font-medium">{new Date(comp.lastSaleDate).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}</span></div>
             )}
@@ -4610,19 +4677,6 @@ function CompDetailPanel({ comp, onClose }: { comp: CompProperty; onClose: () =>
             {comp.sqft != null && (comp.lastSalePrice ?? comp.avm) ? (
               <div><span className="text-muted-foreground">$/sqft:</span> <span className="font-medium">${Math.round((comp.lastSalePrice ?? comp.avm ?? 0) / comp.sqft)}</span></div>
             ) : null}
-            {hasRental && (
-              <div className="col-span-2 pt-1 border-t border-white/[0.06]">
-                <span className="text-muted-foreground">Rental Est:</span>{" "}
-                <span className="font-medium text-emerald-400">
-                  {formatCurrency(enrichData!.rentalAvm!)}/mo
-                </span>
-                {enrichData!.rentalAvmLow != null && enrichData!.rentalAvmHigh != null && (
-                  <span className="text-[9px] text-muted-foreground ml-1">
-                    ({formatCurrency(enrichData!.rentalAvmLow)} – {formatCurrency(enrichData!.rentalAvmHigh)})
-                  </span>
-                )}
-              </div>
-            )}
           </div>
           <div className="flex flex-wrap gap-1.5 mt-2">
             {comp.isVacant && <span className="px-1.5 py-0.5 rounded text-[9px] bg-amber-500/10 text-amber-400 border border-amber-500/20">Vacant</span>}
@@ -4645,180 +4699,11 @@ function CompDetailPanel({ comp, onClose }: { comp: CompProperty; onClose: () =>
           )}
         </div>
       </div>
-
-      {/* Enhanced data tabs (ATTOM + County) */}
-      {enriching && (
-        <div className="px-4 py-2 border-t border-white/[0.06] flex items-center gap-2 text-[10px] text-muted-foreground">
-          <Loader2 className="h-3 w-3 animate-spin text-cyan" />
-          Loading sale history, valuations & market data…
-        </div>
-      )}
-      {hasEnrichData && (
-        <div className="border-t border-white/[0.06]">
-          {/* Sub-tabs */}
-          <div className="flex border-b border-white/[0.06]">
-            {[
-              { key: "details" as const, label: "Details" },
-              ...(hasSaleHistory || hasCountySales ? [{ key: "history" as const, label: `Sale History (${(enrichData?.saleHistory?.length ?? 0) + (enrichData?.countySales?.length ?? 0)})` }] : []),
-              ...(hasAssessment || hasAvmTrend ? [{ key: "values" as const, label: "Value Trends" }] : []),
-            ].map((tab) => (
-              <button
-                key={tab.key}
-                onClick={() => setActiveEnrichTab(tab.key)}
-                className={cn(
-                  "px-3 py-1.5 text-[10px] font-medium transition-colors",
-                  activeEnrichTab === tab.key
-                    ? "text-cyan border-b border-cyan bg-cyan/[0.04]"
-                    : "text-muted-foreground hover:text-white"
-                )}
-              >
-                {tab.label}
-              </button>
-            ))}
-          </div>
-
-          {/* Sale History tab */}
-          {activeEnrichTab === "history" && (hasSaleHistory || hasCountySales) && (
-            <div className="max-h-40 overflow-y-auto">
-              <table className="w-full text-[10px]">
-                <thead>
-                  <tr className="border-b border-white/[0.06] bg-white/[0.03]">
-                    <th className="text-left px-3 py-1.5 font-medium text-muted-foreground">Date</th>
-                    <th className="text-right px-3 py-1.5 font-medium text-muted-foreground">Price</th>
-                    <th className="text-right px-3 py-1.5 font-medium text-muted-foreground">$/sqft</th>
-                    <th className="text-left px-3 py-1.5 font-medium text-muted-foreground">Buyer</th>
-                    <th className="text-left px-3 py-1.5 font-medium text-muted-foreground">Src</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {enrichData?.saleHistory?.map((s, i) => (
-                    <tr key={`attom-${i}`} className="border-b border-white/[0.06]/50 hover:bg-white/[0.03]">
-                      <td className="px-3 py-1">{s.saleDate ? new Date(s.saleDate).toLocaleDateString("en-US", { month: "short", year: "numeric" }) : "—"}</td>
-                      <td className="px-3 py-1 text-right font-medium">{formatCurrency(s.saleAmount)}</td>
-                      <td className="px-3 py-1 text-right">{s.pricePerSqft ? `$${Math.round(s.pricePerSqft)}` : "—"}</td>
-                      <td className="px-3 py-1 truncate max-w-[120px]">{s.buyer ?? "—"}</td>
-                      <td className="px-3 py-1"><span className="text-[8px] px-1 py-0.5 rounded bg-blue-500/10 text-blue-400">ATTOM</span></td>
-                    </tr>
-                  ))}
-                  {enrichData?.countySales?.map((s, i) => (
-                    <tr key={`county-${i}`} className="border-b border-white/[0.06]/50 hover:bg-white/[0.03]">
-                      <td className="px-3 py-1">{s.date ? new Date(s.date).toLocaleDateString("en-US", { month: "short", year: "numeric" }) : "—"}</td>
-                      <td className="px-3 py-1 text-right font-medium">{formatCurrency(s.price)}</td>
-                      <td className="px-3 py-1 text-right">—</td>
-                      <td className="px-3 py-1">—</td>
-                      <td className="px-3 py-1"><span className="text-[8px] px-1 py-0.5 rounded bg-emerald-500/10 text-emerald-400">County</span></td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-
-          {/* Value Trends tab */}
-          {activeEnrichTab === "values" && (hasAssessment || hasAvmTrend) && (
-            <div className="px-3 py-2 space-y-3 max-h-48 overflow-y-auto">
-              {/* Assessment history */}
-              {hasAssessment && (
-                <div>
-                  <p className="text-[9px] font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">
-                    Assessment History
-                  </p>
-                  <div className="space-y-1">
-                    {enrichData?.assessmentHistory?.slice(0, 5).map((a, i) => {
-                      const prevYear = enrichData.assessmentHistory?.[i + 1];
-                      const pctChange = prevYear?.assessedValue
-                        ? Math.round(((a.assessedValue - prevYear.assessedValue) / prevYear.assessedValue) * 100)
-                        : null;
-                      return (
-                        <div key={a.year} className="flex items-center gap-3 text-[10px]">
-                          <span className="text-muted-foreground w-8">{a.year}</span>
-                          <span className="font-medium flex-1">{formatCurrency(a.assessedValue)}</span>
-                          {a.marketValue != null && (
-                            <span className="text-muted-foreground">Mkt: {formatCurrency(a.marketValue)}</span>
-                          )}
-                          {a.taxAmount != null && (
-                            <span className="text-muted-foreground">Tax: {formatCurrency(a.taxAmount)}</span>
-                          )}
-                          {pctChange != null && (
-                            <span className={cn("text-[9px] font-medium",
-                              pctChange > 0 ? "text-emerald-400" : pctChange < 0 ? "text-red-400" : "text-muted-foreground"
-                            )}>
-                              {pctChange > 0 ? "+" : ""}{pctChange}%
-                            </span>
-                          )}
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
-
-              {/* AVM trend */}
-              {hasAvmTrend && (
-                <div>
-                  <p className="text-[9px] font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">
-                    AVM Trend
-                  </p>
-                  <div className="space-y-1">
-                    {enrichData?.avmTrend?.slice(-5).reverse().map((p, i, arr) => {
-                      const prevPoint = arr[i + 1];
-                      const pctChange = prevPoint
-                        ? Math.round(((p.value - prevPoint.value) / prevPoint.value) * 100)
-                        : null;
-                      return (
-                        <div key={p.date} className="flex items-center gap-3 text-[10px]">
-                          <span className="text-muted-foreground w-20">{new Date(p.date).toLocaleDateString("en-US", { month: "short", year: "numeric" })}</span>
-                          <span className="font-medium text-neon flex-1">{formatCurrency(p.value)}</span>
-                          {pctChange != null && (
-                            <span className={cn("text-[9px] font-medium",
-                              pctChange > 0 ? "text-emerald-400" : pctChange < 0 ? "text-red-400" : "text-muted-foreground"
-                            )}>
-                              {pctChange > 0 ? "+" : ""}{pctChange}%
-                            </span>
-                          )}
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* Details tab (default — shows when no enrichment sub-tab is active) */}
-          {activeEnrichTab === "details" && hasRental && (
-            <div className="px-3 py-2 text-[10px] space-y-1">
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Monthly Rental Est.</span>
-                <span className="font-medium text-emerald-400">{formatCurrency(enrichData!.rentalAvm!)}/mo</span>
-              </div>
-              {enrichData!.rentalAvmLow != null && (
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Rental Range</span>
-                  <span className="font-medium">{formatCurrency(enrichData!.rentalAvmLow!)} – {formatCurrency(enrichData!.rentalAvmHigh!)}</span>
-                </div>
-              )}
-              {comp.avm && enrichData!.rentalAvm && (
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Gross Rent Multiplier</span>
-                  <span className="font-medium">{(comp.avm / (enrichData!.rentalAvm! * 12)).toFixed(1)}</span>
-                </div>
-              )}
-              {comp.lastSalePrice && enrichData!.rentalAvm && (
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Cap Rate (est.)</span>
-                  <span className="font-medium">{((enrichData!.rentalAvm! * 12 * 0.55) / comp.lastSalePrice * 100).toFixed(1)}%</span>
-                </div>
-              )}
-            </div>
-          )}
-        </div>
-      )}
     </div>
   );
 }
 
-// ── Lat/Lng extraction with fallbacks ─────────────────────────────────
+// â”€â”€ Lat/Lng extraction with fallbacks â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function extractLatLng(cf: ClientFile): { lat: number | null; lng: number | null } {
@@ -4850,12 +4735,12 @@ function extractLatLng(cf: ClientFile): { lat: number | null; lng: number | null
   return { lat, lng };
 }
 
-// ── ARV adjustment helpers ────────────────────────────────────────────
+// â”€â”€ ARV adjustment helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 const CONDITION_LABELS: Record<number, string> = {
-  [-15]: "Poor (–15%)",
-  [-10]: "Below Avg (–10%)",
-  [-5]: "Fair (–5%)",
+  [-15]: "Poor (â€“15%)",
+  [-10]: "Below Avg (â€“10%)",
+  [-5]: "Fair (â€“5%)",
   [0]: "Average",
   [5]: "Good (+5%)",
 };
@@ -4873,7 +4758,7 @@ function CompsTab({ cf, selectedComps, onAddComp, onRemoveComp, onSkipTrace, com
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const prRaw = (cf.ownerFlags?.pr_raw ?? {}) as Record<string, any>;
 
-  // ── Lat/lng with multi-source fallback + geocoding ──
+  // â”€â”€ Lat/lng with multi-source fallback + geocoding â”€â”€
   const extracted = extractLatLng(cf);
   const [geocodedCoords, setGeocodedCoords] = useState<{ lat: number; lng: number } | null>(null);
   const [geocoding, setGeocoding] = useState(false);
@@ -4913,8 +4798,8 @@ function CompsTab({ cf, selectedComps, onAddComp, onRemoveComp, onSkipTrace, com
 
   // ARV adjustment state
   const [conditionAdj, setConditionAdj] = useState(0);
+  const [offerPct, setOfferPct] = useState(65);
   const [rehabEst, setRehabEst] = useState(40000);
-  const [assignFeeEst, setAssignFeeEst] = useState(15000);
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const oFlagsComps = (cf.ownerFlags ?? {}) as any;
@@ -5000,10 +4885,10 @@ function CompsTab({ cf, selectedComps, onAddComp, onRemoveComp, onSkipTrace, com
   const arv = Math.round(baseArv * (1 + conditionAdj / 100));
   const avgPpsqft = sqftComps.length > 0 ? Math.round(sqftComps.reduce((a, m) => a + m.ppsqft!, 0) / sqftComps.length) : null;
 
-  // Wholesale math: Buyer's MAO = ARV × 70% − Rehab; Your MAO = Buyer's MAO − Assignment Fee
-  const compsBuyerMao = Math.round(arv * 0.70 - rehabEst);
-  const compsYourMao = Math.round(compsBuyerMao - assignFeeEst);
-  const compsSpread = assignFeeEst;
+  const offer = Math.round(arv * (offerPct / 100));
+  const totalCost = offer + rehabEst;
+  const profit = arv - totalCost;
+  const roi = totalCost > 0 ? Math.round((profit / totalCost) * 100) : 0;
 
   useEffect(() => { if (arv > 0) onArvChange(arv); }, [arv, onArvChange]);
 
@@ -5016,33 +4901,56 @@ function CompsTab({ cf, selectedComps, onAddComp, onRemoveComp, onSkipTrace, com
     );
   }
 
-  const handleRetryGeocode = async () => {
-    if (!cf.fullAddress) return;
-    setGeocoding(true);
-    setGeocodeError(null);
-    try {
-      const q = encodeURIComponent(cf.fullAddress);
-      const res = await fetch(
-        `https://nominatim.openstreetmap.org/search?q=${q}&format=json&limit=1`,
-        { headers: { "User-Agent": "SentinelERP/1.0" } },
-      );
-      const data = await res.json();
-      if (data?.[0]?.lat && data?.[0]?.lon) {
-        setGeocodedCoords({ lat: parseFloat(data[0].lat), lng: parseFloat(data[0].lon) });
-      } else {
-        setGeocodeError("Could not geocode — try enriching from PropertyRadar");
+  if (!lat || !lng) {
+    const handleRetryGeocode = async () => {
+      if (!cf.fullAddress) return;
+      setGeocoding(true);
+      setGeocodeError(null);
+      try {
+        const q = encodeURIComponent(cf.fullAddress);
+        const res = await fetch(
+          `https://nominatim.openstreetmap.org/search?q=${q}&format=json&limit=1`,
+          { headers: { "User-Agent": "SentinelERP/1.0" } },
+        );
+        const data = await res.json();
+        if (data?.[0]?.lat && data?.[0]?.lon) {
+          setGeocodedCoords({ lat: parseFloat(data[0].lat), lng: parseFloat(data[0].lon) });
+        } else {
+          setGeocodeError("Could not geocode â€” try enriching from PropertyRadar");
+        }
+      } catch {
+        setGeocodeError("Geocoding service unavailable");
+      } finally {
+        setGeocoding(false);
       }
-    } catch {
-      setGeocodeError("Geocoding service unavailable");
-    } finally {
-      setGeocoding(false);
-    }
-  };
+    };
 
-  const hasCoords = !!(lat && lng);
+    return (
+      <div className="text-center py-12">
+        <MapPinned className="h-10 w-10 text-muted-foreground mx-auto mb-3" />
+        <p className="text-sm text-muted-foreground mb-2">
+          {geocodeError ?? "No location data available"}
+        </p>
+        <p className="text-xs text-muted-foreground/60 mb-3">
+          This property needs enrichment from PropertyRadar to get latitude/longitude,
+          or you can try geocoding the address.
+        </p>
+        <div className="flex gap-2 justify-center">
+          <Button variant="outline" size="sm" onClick={handleRetryGeocode} className="gap-1.5">
+            <MapPinned className="h-3 w-3" /> Retry Geocode
+          </Button>
+          {onSkipTrace && (
+            <Button variant="outline" size="sm" onClick={onSkipTrace} className="gap-1.5">
+              <Globe className="h-3 w-3" /> Enrich + Skip Trace
+            </Button>
+          )}
+        </div>
+      </div>
+    );
+  }
 
   const subject: SubjectProperty = {
-    lat: lat ?? 0, lng: lng ?? 0, address: cf.fullAddress,
+    lat, lng, address: cf.fullAddress,
     beds: cf.bedrooms, baths: cf.bathrooms,
     sqft: cf.sqft, yearBuilt: cf.yearBuilt,
     propertyType: cf.propertyType, avm: cf.estimatedValue,
@@ -5081,30 +4989,14 @@ function CompsTab({ cf, selectedComps, onAddComp, onRemoveComp, onSkipTrace, com
         </div>
       </div>
 
-      {/* Interactive map — only when we have coordinates */}
-      {hasCoords ? (
-        <CompsMap
-          subject={subject}
-          selectedComps={selectedComps}
-          onAddComp={onAddComp}
-          onRemoveComp={onRemoveComp}
-          focusedComp={focusedComp}
-        />
-      ) : (
-        <div className="rounded-[10px] border border-amber-500/20 bg-amber-500/5 p-4 text-center">
-          <MapPin className="h-6 w-6 text-amber-400 mx-auto mb-2" />
-          <p className="text-xs font-medium text-amber-300 mb-1">No coordinates available</p>
-          <p className="text-[10px] text-muted-foreground mb-3">Map view requires lat/lng. ARV and deal numbers still work below.</p>
-          <button
-            onClick={handleRetryGeocode}
-            disabled={geocoding}
-            className="px-3 py-1.5 rounded-md text-[10px] font-medium bg-amber-500/15 text-amber-300 hover:bg-amber-500/25 border border-amber-500/20 transition-colors"
-          >
-            {geocoding ? "Geocoding..." : "Try Geocode"}
-          </button>
-          {geocodeError && <p className="text-[10px] text-red-400 mt-2">{geocodeError}</p>}
-        </div>
-      )}
+      {/* Interactive map */}
+      <CompsMap
+        subject={subject}
+        selectedComps={selectedComps}
+        onAddComp={onAddComp}
+        onRemoveComp={onRemoveComp}
+        focusedComp={focusedComp}
+      />
 
       {/* Selected comps table */}
       {selectedComps.length > 0 && (
@@ -5156,12 +5048,12 @@ function CompsTab({ cf, selectedComps, onAddComp, onRemoveComp, onSkipTrace, com
                         </div>
                       )}
                     </td>
-                    <td className="px-3 py-2 text-right">{comp.beds ?? "—"}</td>
-                    <td className="px-3 py-2 text-right">{comp.baths ?? "—"}</td>
-                    <td className="px-3 py-2 text-right">{comp.sqft?.toLocaleString() ?? "—"}</td>
-                    <td className="px-3 py-2 text-right">{comp.yearBuilt ?? "—"}</td>
-                    <td className="px-3 py-2 text-right font-medium text-neon">{comp.avm ? formatCurrency(comp.avm) : "—"}</td>
-                    <td className="px-3 py-2 text-right">{comp.lastSalePrice ? formatCurrency(comp.lastSalePrice) : "—"}</td>
+                    <td className="px-3 py-2 text-right">{comp.beds ?? "â€”"}</td>
+                    <td className="px-3 py-2 text-right">{comp.baths ?? "â€”"}</td>
+                    <td className="px-3 py-2 text-right">{comp.sqft?.toLocaleString() ?? "â€”"}</td>
+                    <td className="px-3 py-2 text-right">{comp.yearBuilt ?? "â€”"}</td>
+                    <td className="px-3 py-2 text-right font-medium text-neon">{comp.avm ? formatCurrency(comp.avm) : "â€”"}</td>
+                    <td className="px-3 py-2 text-right">{comp.lastSalePrice ? formatCurrency(comp.lastSalePrice) : "â€”"}</td>
                     <td className="px-3 py-2 text-center">
                       <button onClick={() => onRemoveComp(comp.apn)} className="text-red-400 hover:text-red-300">
                         <X className="h-3 w-3" />
@@ -5220,7 +5112,7 @@ function CompsTab({ cf, selectedComps, onAddComp, onRemoveComp, onSkipTrace, com
               {arvLow > 0 && arvHigh > 0 && (
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Range</span>
-                  <span className="font-medium">{formatCurrency(arvLow)} – {formatCurrency(arvHigh)}</span>
+                  <span className="font-medium">{formatCurrency(arvLow)} â€“ {formatCurrency(arvHigh)}</span>
                 </div>
               )}
               {conditionAdj !== 0 && (
@@ -5238,7 +5130,7 @@ function CompsTab({ cf, selectedComps, onAddComp, onRemoveComp, onSkipTrace, com
                 </span>
               </div>
               <p className="text-[9px] text-muted-foreground/60 pt-1">
-                {avgPpsqft != null ? `Based on ${sqftComps.length} comp${sqftComps.length > 1 ? "s" : ""} × ${subjectSqft.toLocaleString()} sqft` : `Average of ${compMetrics.length} comp sale price${compMetrics.length > 1 ? "s" : ""}`}
+                {avgPpsqft != null ? `Based on ${sqftComps.length} comp${sqftComps.length > 1 ? "s" : ""} Ã— ${subjectSqft.toLocaleString()} sqft` : `Average of ${compMetrics.length} comp sale price${compMetrics.length > 1 ? "s" : ""}`}
               </p>
             </div>
           ) : cf.estimatedValue ? (
@@ -5271,7 +5163,7 @@ function CompsTab({ cf, selectedComps, onAddComp, onRemoveComp, onSkipTrace, com
         <div className="rounded-[12px] border border-glass-border bg-secondary/10 p-4">
           <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-3 flex items-center gap-1.5">
             <DollarSign className="h-3 w-3" />
-            Wholesale Spread
+            Quick Profit Projection
           </p>
           <div className="space-y-1 text-xs">
             <div className="flex justify-between">
@@ -5280,31 +5172,28 @@ function CompsTab({ cf, selectedComps, onAddComp, onRemoveComp, onSkipTrace, com
             </div>
             <div className="flex justify-between items-center">
               <span className="text-muted-foreground flex items-center gap-1">
+                Offer
+                <input type="range" min={50} max={80} step={5} value={offerPct} onChange={(e) => setOfferPct(Number(e.target.value))} className="w-14 h-1 accent-[#00d4ff]" />
+                <span className="text-[10px] font-mono w-7 text-right">{offerPct}%</span>
+              </span>
+              <span className="font-medium text-red-400">-{formatCurrency(offer)}</span>
+            </div>
+            <div className="flex justify-between items-center">
+              <span className="text-muted-foreground flex items-center gap-1">
                 Rehab
                 <input type="number" value={rehabEst} onChange={(e) => setRehabEst(Number(e.target.value) || 0)} className="w-16 h-5 text-[10px] text-right bg-white/[0.06] border border-white/[0.1] rounded px-1 font-mono" />
               </span>
               <span className="font-medium text-red-400">-{formatCurrency(rehabEst)}</span>
             </div>
-            <div className="flex justify-between">
-              <span className="text-muted-foreground">Buyer{"'"}s MAO (70%)</span>
-              <span className="font-medium">{formatCurrency(compsBuyerMao)}</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-muted-foreground">Your Offer</span>
-              <span className="font-medium">{formatCurrency(compsYourMao)}</span>
-            </div>
-            <div className="flex justify-between items-center">
-              <span className="text-muted-foreground flex items-center gap-1">
-                Assign Fee
-                <input type="number" value={assignFeeEst} onChange={(e) => setAssignFeeEst(Number(e.target.value) || 0)} className="w-16 h-5 text-[10px] text-right bg-white/[0.06] border border-white/[0.1] rounded px-1 font-mono" />
-              </span>
-              <span className="font-medium text-emerald-400">+{formatCurrency(assignFeeEst)}</span>
-            </div>
             <div className="pt-1.5 mt-1.5 border-t border-white/[0.06] flex justify-between">
-              <span className="font-semibold">Assignment Spread</span>
-              <span className={cn("font-bold text-lg", compsSpread >= 0 ? "text-neon" : "text-red-400")} style={compsSpread >= 0 ? { textShadow: "0 0 10px rgba(0,212,255,0.3)" } : {}}>
-                {formatCurrency(compsSpread)}
+              <span className="font-semibold">Net Profit</span>
+              <span className={cn("font-bold text-lg", profit >= 0 ? "text-neon" : "text-red-400")} style={profit >= 0 ? { textShadow: "0 0 10px rgba(0,212,255,0.3)" } : {}}>
+                {formatCurrency(profit)}
               </span>
+            </div>
+            <div className="flex justify-between text-[10px]">
+              <span className="text-muted-foreground">ROI</span>
+              <span className={cn("font-semibold", roi >= 0 ? "text-neon" : "text-red-400")}>{roi}%</span>
             </div>
           </div>
         </div>
@@ -5313,9 +5202,9 @@ function CompsTab({ cf, selectedComps, onAddComp, onRemoveComp, onSkipTrace, com
   );
 }
 
-// ═══════════════════════════════════════════════════════════════════════
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 // Tab: Offer Calculator
-// ═══════════════════════════════════════════════════════════════════════
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 function OfferCalcTab({ cf, computedArv }: { cf: ClientFile; computedArv: number }) {
   const bestArv = computedArv > 0 ? computedArv : cf.estimatedValue ?? 0;
@@ -5323,25 +5212,30 @@ function OfferCalcTab({ cf, computedArv }: { cf: ClientFile; computedArv: number
 
   // Auto-fill ARV when Comps tab computes one
   useEffect(() => { if (computedArv > 0) setArv(computedArv.toString()); }, [computedArv]);
+  const defaultMao = bestArv > 0 ? Math.round(bestArv * 0.75 - 40000).toString() : "";
+  const [purchase, setPurchase] = useState(defaultMao);
   const [rehab, setRehab] = useState("40000");
+  const [holdMonths, setHoldMonths] = useState("3");
+  const [monthlyHold, setMonthlyHold] = useState("1500");
+  const [closing, setClosing] = useState("5000");
   const [assignmentFee, setAssignmentFee] = useState("15000");
-  const [closing, setClosing] = useState("3000");
 
   const arvNum = parseFloat(arv) || 0;
+  const purchaseNum = parseFloat(purchase) || 0;
   const rehabNum = parseFloat(rehab) || 0;
-  const feeNum = parseFloat(assignmentFee) || 0;
+  const holdNum = (parseFloat(holdMonths) || 0) * (parseFloat(monthlyHold) || 0);
   const closingNum = parseFloat(closing) || 0;
+  const feeNum = parseFloat(assignmentFee) || 0;
 
-  // Wholesale math: Buyer's MAO = ARV × 70% − Rehab
-  const buyerMao = arvNum > 0 ? Math.round(arvNum * 0.70 - rehabNum) : 0;
-  // Your MAO = Buyer's MAO − Your Assignment Fee
-  const yourMao = buyerMao > 0 ? Math.round(buyerMao - feeNum) : 0;
-  // If you offer at Your MAO, your spread = assignment fee
-  const assignmentSpread = feeNum;
+  const mao = arvNum > 0 ? Math.round(arvNum * 0.75 - rehabNum) : 0;
+  const totalCosts = purchaseNum + rehabNum + holdNum + closingNum;
+  const grossProfit = arvNum - totalCosts;
+  const netProfit = grossProfit - feeNum;
+  const roi = totalCosts > 0 && purchaseNum > 0 ? ((grossProfit / totalCosts) * 100).toFixed(1) : null;
 
   return (
     <div className="space-y-4">
-      <Section title="Wholesale Deal Inputs" icon={Calculator}>
+      <Section title="Deal Inputs" icon={Calculator}>
         {computedArv > 0 && (
           <div className="flex items-center gap-1.5 text-[10px] text-cyan/70 mb-2">
             <CheckCircle2 className="h-3 w-3" />
@@ -5350,62 +5244,59 @@ function OfferCalcTab({ cf, computedArv }: { cf: ClientFile; computedArv: number
         )}
         <div className="grid grid-cols-2 gap-3">
           <NumericInput label="ARV (After Repair Value)" value={arv} onChange={setArv} prefix="$" min={0} />
+          <NumericInput label="Purchase Price" value={purchase} onChange={setPurchase} prefix="$" min={0} />
           <NumericInput label="Rehab Estimate" value={rehab} onChange={setRehab} prefix="$" min={0} />
-          <NumericInput label="Assignment Fee" value={assignmentFee} onChange={setAssignmentFee} prefix="$" min={0} />
-          <NumericInput label="Closing / Earnest" value={closing} onChange={setClosing} prefix="$" min={0} />
+          <NumericInput label="Closing Costs" value={closing} onChange={setClosing} prefix="$" min={0} />
+          <NumericInput label="Holding Period (months)" value={holdMonths} onChange={setHoldMonths} min={0} max={60} allowDecimals={false} />
+          <NumericInput label="Monthly Holding Cost" value={monthlyHold} onChange={setMonthlyHold} prefix="$" min={0} />
+          <NumericInput label="Assignment Fee Target" value={assignmentFee} onChange={setAssignmentFee} prefix="$" min={0} />
         </div>
       </Section>
 
-      <Section title="Wholesale Profit Projection" icon={TrendingUp}>
+      <Section title="Profit Projection" icon={TrendingUp}>
         <div className="grid grid-cols-2 gap-3">
           <div className="rounded-lg border border-cyan/20 bg-cyan/4 p-3 text-center">
-            <p className="text-[10px] text-muted-foreground uppercase">Buyer{"'"}s MAO</p>
+            <p className="text-[10px] text-muted-foreground uppercase">MAO (75% Rule)</p>
             <p className="text-xl font-bold text-neon" style={{ textShadow: "0 0 10px rgba(0,212,255,0.3)" }}>
-              {buyerMao > 0 ? formatCurrency(buyerMao) : "—"}
+              {mao > 0 ? formatCurrency(mao) : "â€”"}
             </p>
-            <p className="text-[10px] text-muted-foreground mt-0.5">ARV × 70% − Rehab</p>
+            <p className="text-[10px] text-muted-foreground mt-0.5">ARV Ã— 0.75 âˆ’ Rehab</p>
           </div>
-          <div className="rounded-lg border border-emerald-500/20 bg-emerald-500/4 p-3 text-center">
-            <p className="text-[10px] text-muted-foreground uppercase">Your MAO (Offer)</p>
-            <p className={cn("text-xl font-bold", yourMao > 0 ? "text-emerald-400" : "text-red-400")} style={yourMao > 0 ? { textShadow: "0 0 10px rgba(0,255,136,0.3)" } : undefined}>
-              {yourMao > 0 ? formatCurrency(yourMao) : "—"}
-            </p>
-            <p className="text-[10px] text-muted-foreground mt-0.5">Buyer{"'"}s MAO − Assignment Fee</p>
+          <div className="rounded-[10px] border border-white/[0.06] bg-white/[0.04] p-3 text-center">
+            <p className="text-[10px] text-muted-foreground uppercase">Total Costs</p>
+            <p className="text-xl font-bold">{totalCosts > 0 ? formatCurrency(totalCosts) : "â€”"}</p>
+            <p className="text-[10px] text-muted-foreground mt-0.5">Purchase + Rehab + Hold + Close</p>
           </div>
-          <div className={cn("rounded-[10px] border p-3 text-center col-span-2", assignmentSpread > 0 ? "border-cyan/20 bg-cyan/4" : "border-white/[0.06] bg-white/[0.04]")}>
-            <p className="text-[10px] text-muted-foreground uppercase">Assignment Spread</p>
-            <p className={cn("text-2xl font-bold", assignmentSpread > 0 ? "text-neon" : "text-muted-foreground")} style={assignmentSpread > 0 ? { textShadow: "0 0 12px rgba(0,212,255,0.4)" } : undefined}>
-              {assignmentSpread > 0 ? formatCurrency(assignmentSpread) : "—"}
+          <div className={cn("rounded-[10px] border p-3 text-center", grossProfit > 0 ? "border-emerald-500/30 bg-emerald-500/5" : "border-red-500/30 bg-red-500/5")}>
+            <p className="text-[10px] text-muted-foreground uppercase">Gross Profit</p>
+            <p className={cn("text-xl font-bold", grossProfit > 0 ? "text-emerald-400" : "text-red-400")}>
+              {arvNum > 0 && purchaseNum > 0 ? formatCurrency(grossProfit) : "â€”"}
             </p>
-            <p className="text-[10px] text-muted-foreground mt-0.5">Your profit on this assignment</p>
+            <p className="text-[10px] text-muted-foreground mt-0.5">ROI: {roi != null ? `${roi}%` : "â€”"}</p>
+          </div>
+          <div className={cn("rounded-lg border p-3 text-center", netProfit > 0 ? "border-cyan/20 bg-cyan/4" : "border-red-500/30 bg-red-500/5")}>
+            <p className="text-[10px] text-muted-foreground uppercase">Net After Assignment</p>
+            <p className={cn("text-xl font-bold", netProfit > 0 ? "text-neon" : "text-red-400")} style={netProfit > 0 ? { textShadow: "0 0 10px rgba(0,212,255,0.3)" } : undefined}>
+              {arvNum > 0 && purchaseNum > 0 ? formatCurrency(netProfit) : "â€”"}
+            </p>
+            <p className="text-[10px] text-muted-foreground mt-0.5">Gross âˆ’ Assignment Fee</p>
           </div>
         </div>
-        <p className="text-[9px] text-muted-foreground/50 italic mt-2">
-          70% rule: Cash buyer pays ARV × 70% minus rehab. You make the assignment fee spread.
-        </p>
       </Section>
 
-      {yourMao < 0 && arvNum > 0 && (
-        <div className="flex items-center gap-2 text-xs text-red-400 bg-red-500/5 border border-red-500/20 rounded-md px-3 py-2">
+      {purchaseNum > mao && mao > 0 && (
+        <div className="flex items-center gap-2 text-xs text-amber-400 bg-amber-500/5 border border-amber-500/20 rounded-md px-3 py-2">
           <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
-          Negative MAO — rehab costs exceed the deal margin. Lower rehab estimate or increase ARV.
-        </div>
-      )}
-
-      {buyerMao > 0 && arvNum > 0 && (
-        <div className="rounded-[10px] border border-white/[0.06] bg-white/[0.02] p-3 text-[10px] text-muted-foreground space-y-1">
-          <p className="font-semibold text-foreground/80 mb-1">Script Helper</p>
-          <p>{"\""}I can offer you <span className="font-bold text-neon">{formatCurrency(yourMao)}</span> for the property at {cf.fullAddress}. That{"'"}s a cash offer, close in 2-3 weeks, no inspections, we handle all closing costs.{"\""}
-          </p>
+          Purchase price exceeds MAO by {formatCurrency(purchaseNum - mao)} â€” negotiate lower or increase ARV.
         </div>
       )}
     </div>
   );
 }
 
-// ═══════════════════════════════════════════════════════════════════════
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 // Tab: Documents / PSA
-// ═══════════════════════════════════════════════════════════════════════
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 function DocumentsTab({ cf, computedArv }: { cf: ClientFile; computedArv: number }) {
   const today = new Date().toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" });
@@ -5451,7 +5342,7 @@ function DocumentsTab({ cf, computedArv }: { cf: ClientFile; computedArv: number
   const handlePrint = useCallback(() => {
     const w = window.open("", "_blank", "width=800,height=1100");
     if (!w) return;
-    w.document.write(`<!DOCTYPE html><html><head><title>PSA — ${cf.fullAddress}</title>
+    w.document.write(`<!DOCTYPE html><html><head><title>PSA â€” ${cf.fullAddress}</title>
       <style>body{font-family:Courier,monospace;padding:40px;font-size:12px;line-height:1.6;white-space:pre-wrap;color:#000;}</style>
       </head><body>${psaBody}</body></html>`);
     w.document.close();
@@ -5459,7 +5350,7 @@ function DocumentsTab({ cf, computedArv }: { cf: ClientFile; computedArv: number
   }, [cf.fullAddress, psaBody]);
 
   const gmailUrl = useMemo(() => {
-    const subject = encodeURIComponent(`PSA — ${cf.fullAddress} — ${cf.ownerName}`);
+    const subject = encodeURIComponent(`PSA â€” ${cf.fullAddress} â€” ${cf.ownerName}`);
     const body = encodeURIComponent(`Hi ${cf.ownerName.split(" ")[0]},\n\nPlease find the Purchase and Sale Agreement for the property at:\n${cf.fullAddress}\nAPN: ${cf.apn}\n\nI'll follow up shortly to discuss terms.\n\nBest,\nAdam DesJardin\nDominion Homes LLC`);
     return `https://mail.google.com/mail/?view=cm&su=${subject}&body=${body}`;
   }, [cf]);
@@ -5489,21 +5380,21 @@ function DocumentsTab({ cf, computedArv }: { cf: ClientFile; computedArv: number
 
       <div className="flex items-center gap-2 text-xs text-cyan/70 bg-cyan/4 border border-cyan/15 rounded-md px-3 py-2">
         <Shield className="h-3.5 w-3.5 shrink-0" />
-        RCW 61.40.010 compliant — wholesaler disclosure included in all documents.
+        RCW 61.40.010 compliant â€” wholesaler disclosure included in all documents.
       </div>
 
       {/* Auto-filled data summary */}
       <div className="text-[10px] text-muted-foreground/50 space-y-0.5">
-        <p>Auto-filled from client file: {cf.ownerName} • {cf.fullAddress} • APN {cf.apn}</p>
-        <p>Heat Score: {cf.compositeScore} ({cf.scoreLabel.toUpperCase()}) • Equity: {cf.equityPercent ?? "—"}% • ARV: {cf.estimatedValue ? formatCurrency(cf.estimatedValue) : "—"}</p>
+        <p>Auto-filled from client file: {cf.ownerName} â€¢ {cf.fullAddress} â€¢ APN {cf.apn}</p>
+        <p>Heat Score: {cf.compositeScore} ({cf.scoreLabel.toUpperCase()}) â€¢ Equity: {cf.equityPercent ?? "â€”"}% â€¢ ARV: {cf.estimatedValue ? formatCurrency(cf.estimatedValue) : "â€”"}</p>
       </div>
     </div>
   );
 }
 
-// ═══════════════════════════════════════════════════════════════════════
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 // Main Modal
-// ═══════════════════════════════════════════════════════════════════════
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 interface MasterClientFileModalProps {
   clientFile: ClientFile | null;
@@ -5535,8 +5426,21 @@ export function MasterClientFileModal({ clientFile, open, onClose, onClaim, onRe
   const [smsPhone, setSmsPhone] = useState<string | null>(null);
   const [dialHistoryMap, setDialHistoryMap] = useState<Record<string, { count: number; lastDate: string; lastDisposition: string }>>({});
   const [autofilling, setAutofilling] = useState(false);
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  const [currentUserName, setCurrentUserName] = useState<string | null>(null);
+  const [assigneeLabel, setAssigneeLabel] = useState("Unassigned");
+  const [selectedStage, setSelectedStage] = useState<WorkflowStageId>("prospect");
+  const [stageUpdating, setStageUpdating] = useState(false);
+  const [qualificationDraft, setQualificationDraft] = useState<QualificationDraft>(() => getQualificationDraft(clientFile));
+  const [qualificationSaving, setQualificationSaving] = useState(false);
+  const [nextActionAt, setNextActionAt] = useState("");
+  const [settingNextAction, setSettingNextAction] = useState(false);
+  const [nextActionEditorOpen, setNextActionEditorOpen] = useState(false);
+  const [noteDraft, setNoteDraft] = useState("");
+  const [savingNote, setSavingNote] = useState(false);
+  const [noteEditorOpen, setNoteEditorOpen] = useState(false);
 
-  // ── Deep Crawl state ──
+  // â”€â”€ Deep Crawl state â”€â”€
   const [deepCrawling, setDeepCrawling] = useState(false);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [deepCrawlResult, setDeepCrawlResult] = useState<any>(null);
@@ -5625,6 +5529,82 @@ export function MasterClientFileModal({ clientFile, open, onClose, onClaim, onRe
 
   const displayPhone = overlay?.primaryPhone ?? clientFile?.ownerPhone ?? null;
 
+  useEffect(() => {
+    let active = true;
+    if (!open) return;
+
+    (async () => {
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!active) return;
+        setCurrentUserId(user?.id ?? null);
+        if (!user?.id) {
+          setCurrentUserName(null);
+          return;
+        }
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const { data } = await (supabase.from("user_profiles") as any)
+          .select("full_name")
+          .eq("id", user.id)
+          .maybeSingle();
+        if (!active) return;
+        const fullName = (data?.full_name as string | undefined)?.trim();
+        setCurrentUserName(fullName && fullName.length > 0 ? fullName : null);
+      } catch {
+        if (active) {
+          setCurrentUserId(null);
+          setCurrentUserName(null);
+        }
+      }
+    })();
+
+    return () => { active = false; };
+  }, [open]);
+
+  useEffect(() => {
+    setSelectedStage(normalizeWorkflowStage(clientFile?.status));
+  }, [clientFile?.id, clientFile?.status]);
+
+  useEffect(() => {
+    setQualificationDraft(getQualificationDraft(clientFile));
+    setNextActionAt(toLocalDateTimeInput(clientFile?.nextCallScheduledAt ?? clientFile?.followUpDate));
+    setNoteDraft("");
+    setNextActionEditorOpen(false);
+    setNoteEditorOpen(false);
+  }, [clientFile?.id, clientFile?.nextCallScheduledAt, clientFile?.followUpDate]);
+
+  useEffect(() => {
+    let active = true;
+    const assignedTo = clientFile?.assignedTo ?? null;
+
+    if (!assignedTo) {
+      setAssigneeLabel("Unassigned");
+      return () => { active = false; };
+    }
+
+    if (currentUserId && assignedTo === currentUserId) {
+      setAssigneeLabel(currentUserName ? `${currentUserName} (You)` : "You");
+      return () => { active = false; };
+    }
+
+    (async () => {
+      try {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const { data } = await (supabase.from("user_profiles") as any)
+          .select("full_name")
+          .eq("id", assignedTo)
+          .maybeSingle();
+        if (!active) return;
+        const fullName = (data?.full_name as string | undefined)?.trim();
+        setAssigneeLabel(fullName && fullName.length > 0 ? fullName : `${assignedTo.slice(0, 8)}...`);
+      } catch {
+        if (active) setAssigneeLabel(`${assignedTo.slice(0, 8)}...`);
+      }
+    })();
+
+    return () => { active = false; };
+  }, [clientFile?.assignedTo, currentUserId, currentUserName]);
+
   // Reset all skip-trace / enrichment state when switching to a different prospect
   // Without this, overlay data from the previous prospect bleeds into the new one
   const prevPropertyIdRef = useRef(clientFile?.propertyId);
@@ -5637,6 +5617,7 @@ export function MasterClientFileModal({ clientFile, open, onClose, onClaim, onRe
       setSkipTraceError(null);
       setSelectedComps([]);
       setComputedArv((clientFile?.ownerFlags?.comp_arv as number) ?? 0);
+      setSelectedStage(normalizeWorkflowStage(clientFile?.status));
       setDialHistoryMap({});
       // Reset deep crawl
       setDeepCrawling(false);
@@ -5650,7 +5631,7 @@ export function MasterClientFileModal({ clientFile, open, onClose, onClaim, onRe
     }
   }, [clientFile?.propertyId, clientFile?.ownerFlags]);
 
-  // Fetch dial history for this lead — groups calls_log by phone_dialed
+  // Fetch dial history for this lead â€” groups calls_log by phone_dialed
   const fetchDialHistory = useCallback(async () => {
     if (!clientFile?.id) return;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -5690,9 +5671,14 @@ export function MasterClientFileModal({ clientFile, open, onClose, onClaim, onRe
 
   const handleClaimLead = useCallback(async () => {
     if (!clientFile) return;
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session?.access_token) {
+      toast.error("Session expired - cannot claim");
+      return;
+    }
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) {
-      toast.error("Not logged in — cannot claim");
+      toast.error("Not logged in â€” cannot claim");
       return;
     }
 
@@ -5714,12 +5700,12 @@ export function MasterClientFileModal({ clientFile, open, onClose, onClaim, onRe
         headers: {
           "Content-Type": "application/json",
           "x-lock-version": String(current.lock_version ?? 0),
+          Authorization: `Bearer ${session.access_token}`,
         },
         body: JSON.stringify({
           lead_id: clientFile.id,
           status: "lead",
           assigned_to: user.id,
-          actor_id: user.id,
         }),
       });
 
@@ -5747,6 +5733,279 @@ export function MasterClientFileModal({ clientFile, open, onClose, onClaim, onRe
       setClaiming(false);
     }
   }, [clientFile, onClaim, onRefresh]);
+
+  const handleMoveStage = useCallback(async () => {
+    if (!clientFile) return;
+    const currentStatus = normalizeWorkflowStage(clientFile.status);
+    if (selectedStage === currentStatus) {
+      toast.message(`Already in ${workflowStageLabel(currentStatus)}`);
+      return;
+    }
+    const precheck = precheckWorkflowStageChange({
+      currentStatus: currentStatus as LeadStatus,
+      targetStatus: selectedStage as LeadStatus,
+      assignedTo: clientFile.assignedTo,
+      lastContactAt: clientFile.lastContactAt,
+      totalCalls: clientFile.totalCalls,
+      dispositionCode: clientFile.dispositionCode,
+      nextCallScheduledAt: clientFile.nextCallScheduledAt,
+      nextFollowUpAt: clientFile.followUpDate,
+      qualificationRoute: clientFile.qualificationRoute,
+      notes: clientFile.notes,
+    });
+    if (!precheck.ok) {
+      toast.error(precheck.blockingReason ?? "Stage move is missing required context.");
+      return;
+    }
+
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session?.access_token) {
+      toast.error("Session expired - cannot move stage");
+      return;
+    }
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      toast.error("Not logged in â€” cannot move stage");
+      return;
+    }
+
+    setStageUpdating(true);
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data: current, error: fetchErr } = await (supabase.from("leads") as any)
+        .select("status, lock_version")
+        .eq("id", clientFile.id)
+        .single();
+
+      if (fetchErr || !current) {
+        toast.error("Stage update failed: Could not fetch current lead state.");
+        return;
+      }
+
+      const res = await fetch("/api/prospects", {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          "x-lock-version": String(current.lock_version ?? 0),
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({
+          lead_id: clientFile.id,
+          status: selectedStage,
+        }),
+      });
+
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        if (res.status === 409) {
+          toast.error("Stage update conflict: Refresh and try again.");
+        } else if (res.status === 422) {
+          toast.error(`Invalid stage transition: ${data.detail ?? data.error ?? "not allowed"}`);
+        } else {
+          toast.error(`Stage update failed: ${data.error ?? `HTTP ${res.status}`}`);
+        }
+        return;
+      }
+
+      toast.success(`Moved to ${workflowStageLabel(selectedStage)}`);
+      onRefresh?.();
+    } catch (err) {
+      console.error("[MCF] Move stage error:", err);
+      toast.error("Stage update failed: Network error");
+    } finally {
+      setStageUpdating(false);
+    }
+  }, [clientFile, onRefresh, selectedStage]);
+
+  const handleQualificationChange = useCallback((patch: Partial<QualificationDraft>) => {
+    setQualificationDraft((prev) => ({ ...prev, ...patch }));
+  }, []);
+
+  const persistQualification = useCallback(async (routeOverride?: QualificationRoute) => {
+    if (!clientFile) return;
+
+    const nextDraft: QualificationDraft = routeOverride
+      ? { ...qualificationDraft, qualificationRoute: routeOverride }
+      : qualificationDraft;
+
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session?.access_token) {
+      toast.error("Session expired - cannot save qualification");
+      return;
+    }
+
+    setQualificationSaving(true);
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data: current, error: fetchErr } = await (supabase.from("leads") as any)
+        .select("lock_version")
+        .eq("id", clientFile.id)
+        .single();
+
+      if (fetchErr || !current) {
+        toast.error("Could not load current lead state. Refresh and try again.");
+        return;
+      }
+
+      const res = await fetch("/api/prospects", {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${session.access_token}`,
+          "x-lock-version": String(current.lock_version ?? 0),
+        },
+        body: JSON.stringify({
+          lead_id: clientFile.id,
+          motivation_level: nextDraft.motivationLevel,
+          seller_timeline: nextDraft.sellerTimeline,
+          condition_level: nextDraft.conditionLevel,
+          decision_maker_confirmed: nextDraft.decisionMakerConfirmed,
+          price_expectation: nextDraft.priceExpectation,
+          qualification_route: nextDraft.qualificationRoute,
+        }),
+      });
+
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        toast.error(`Could not save qualification: ${data.detail ?? data.error ?? `HTTP ${res.status}`}`);
+        return;
+      }
+
+      setQualificationDraft(nextDraft);
+      toast.success("Qualification updated");
+      onRefresh?.();
+    } catch (err) {
+      console.error("[MCF] Qualification save error:", err);
+      toast.error("Could not save qualification");
+    } finally {
+      setQualificationSaving(false);
+    }
+  }, [clientFile, onRefresh, qualificationDraft]);
+
+  const handleQualificationRouteSelect = useCallback((route: QualificationRoute) => {
+    if (route === "escalate" && !clientFile?.assignedTo) {
+      toast.error("Assign this lead before escalating for Adam review.");
+      return;
+    }
+    setQualificationDraft((prev) => ({ ...prev, qualificationRoute: route }));
+    void persistQualification(route);
+  }, [clientFile?.assignedTo, persistQualification]);
+
+  const handleSetNextAction = useCallback(async () => {
+    if (!clientFile) return;
+    const nextIso = nextActionAt.trim() ? fromLocalDateTimeInput(nextActionAt) : null;
+    if (nextActionAt.trim() && !nextIso) {
+      toast.error("Enter a valid callback date and time.");
+      return;
+    }
+
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session?.access_token) {
+      toast.error("Session expired - cannot set next action");
+      return;
+    }
+
+    setSettingNextAction(true);
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data: current, error: fetchErr } = await (supabase.from("leads") as any)
+        .select("lock_version")
+        .eq("id", clientFile.id)
+        .single();
+
+      if (fetchErr || !current) {
+        toast.error("Could not load current lead state. Refresh and try again.");
+        return;
+      }
+
+      const res = await fetch("/api/prospects", {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${session.access_token}`,
+          "x-lock-version": String(current.lock_version ?? 0),
+        },
+        body: JSON.stringify({
+          lead_id: clientFile.id,
+          next_call_scheduled_at: nextIso,
+          next_follow_up_at: nextIso,
+        }),
+      });
+
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        toast.error(`Could not save next action: ${data.error ?? `HTTP ${res.status}`}`);
+        return;
+      }
+
+      toast.success(nextIso ? "Next action updated" : "Next action cleared");
+      setNextActionEditorOpen(false);
+      onRefresh?.();
+    } catch (err) {
+      console.error("[MCF] Set next action error:", err);
+      toast.error("Could not save next action");
+    } finally {
+      setSettingNextAction(false);
+    }
+  }, [clientFile, nextActionAt, onRefresh]);
+
+  const handleAppendNote = useCallback(async () => {
+    if (!clientFile) return;
+    const note = noteDraft.trim();
+    if (!note) {
+      toast.message("Enter a note before saving.");
+      return;
+    }
+
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session?.access_token) {
+      toast.error("Session expired - cannot save note");
+      return;
+    }
+
+    setSavingNote(true);
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data: current, error: fetchErr } = await (supabase.from("leads") as any)
+        .select("lock_version")
+        .eq("id", clientFile.id)
+        .single();
+
+      if (fetchErr || !current) {
+        toast.error("Could not load current lead state. Refresh and try again.");
+        return;
+      }
+
+      const res = await fetch("/api/prospects", {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${session.access_token}`,
+          "x-lock-version": String(current.lock_version ?? 0),
+        },
+        body: JSON.stringify({
+          lead_id: clientFile.id,
+          note_append: note,
+        }),
+      });
+
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        toast.error(`Could not save note: ${data.error ?? `HTTP ${res.status}`}`);
+        return;
+      }
+
+      toast.success("Note added");
+      setNoteDraft("");
+      setNoteEditorOpen(false);
+      onRefresh?.();
+    } catch (err) {
+      console.error("[MCF] Append note error:", err);
+      toast.error("Could not save note");
+    } finally {
+      setSavingNote(false);
+    }
+  }, [clientFile, noteDraft, onRefresh]);
 
   const handleDial = useCallback(async (phoneNumber?: string) => {
     const numberToDial = phoneNumber || displayPhone;
@@ -5781,7 +6040,7 @@ export function MasterClientFileModal({ clientFile, open, onClose, onClaim, onRe
     } catch {
       setCallStatus(null);
       setCalling(false);
-      toast.error("Network error — call failed");
+      toast.error("Network error â€” call failed");
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [clientFile, displayPhone, fetchDialHistory]);
@@ -5822,7 +6081,7 @@ export function MasterClientFileModal({ clientFile, open, onClose, onClaim, onRe
         toast.error(data.error ?? "SMS failed");
       }
     } catch {
-      toast.error("Network error — SMS failed");
+      toast.error("Network error â€” SMS failed");
     } finally {
       setSmsSending(false);
     }
@@ -5840,19 +6099,36 @@ export function MasterClientFileModal({ clientFile, open, onClose, onClaim, onRe
     setComputedArv(arv);
     if (!clientFile?.propertyId || arv <= 0) return;
     try {
-      await (supabase.from("properties") as any)
-        .update({
-          owner_flags: {
-            ...clientFile.ownerFlags,
-            comp_arv: arv,
-            comp_arv_updated_at: new Date().toISOString(),
-            comp_count: selectedComps.length,
-            comp_addresses: selectedComps.map(c => c.address).slice(0, 5),
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) return;
+
+      const res = await fetch("/api/properties/update", {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({
+          property_id: clientFile.propertyId,
+          lead_id: clientFile.id,
+          fields: {
+            owner_flags: {
+              comp_arv: arv,
+              comp_arv_updated_at: new Date().toISOString(),
+              comp_count: selectedComps.length,
+              comp_addresses: selectedComps.map((c) => c.address).slice(0, 5),
+            },
           },
-        })
-        .eq("id", clientFile.propertyId);
-    } catch { /* silent — non-critical persistence */ }
-  }, [clientFile?.propertyId, clientFile?.ownerFlags, selectedComps]);
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || data.error || !data.success) {
+        throw new Error(data.detail ?? data.error ?? `HTTP ${res.status}`);
+      }
+    } catch (err) {
+      console.warn("[MCF] ARV persistence failed:", err);
+    }
+  }, [clientFile?.id, clientFile?.propertyId, selectedComps]);
 
   const executeSkipTrace = useCallback(async (manual: boolean) => {
     if (!clientFile) return;
@@ -5863,9 +6139,17 @@ export function MasterClientFileModal({ clientFile, open, onClose, onClaim, onRe
     const t0 = performance.now();
 
     try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) {
+        setSkipTraceResult("Session expired - please sign in again");
+        return;
+      }
       const res = await fetch("/api/prospects/skip-trace", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${session.access_token}`,
+        },
         body: JSON.stringify({ property_id: clientFile.propertyId, lead_id: clientFile.id, manual }),
       });
       const tApi = performance.now();
@@ -5888,7 +6172,7 @@ export function MasterClientFileModal({ clientFile, open, onClose, onClaim, onRe
         if (data.phones?.length) parts.push(`${data.phones.length} phone(s)`);
         if (data.emails?.length) parts.push(`${data.emails.length} email(s)`);
         if (data.persons?.length) parts.push(`${data.persons.length} person(s)`);
-        setSkipTraceResult(parts.length > 0 ? `Found ${parts.join(", ")}` : "Complete — no contact info found");
+        setSkipTraceResult(parts.length > 0 ? `Found ${parts.join(", ")}` : "Complete â€” no contact info found");
         console.log(`[SkipTrace Perf] Total: ${total}ms | API: ${Math.round(tApi - t0)}ms`);
         onRefresh?.();
       } else {
@@ -5916,23 +6200,31 @@ export function MasterClientFileModal({ clientFile, open, onClose, onClaim, onRe
   const handleSkipTrace = useCallback(() => executeSkipTrace(false), [executeSkipTrace]);
   const handleManualSkipTrace = useCallback(() => executeSkipTrace(true), [executeSkipTrace]);
 
-  // ── Deep Crawl handler ──
+  // â”€â”€ Deep Crawl handler â”€â”€
   const executeDeepCrawl = useCallback(async () => {
     if (!clientFile) return;
     setDeepCrawling(true);
     setCrawlSteps([]);
     setDeepCrawlExpanded(true); // Show progress immediately
     try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) {
+        toast.error("Session expired - please sign in again.");
+        return;
+      }
       const res = await fetch("/api/prospects/deep-crawl", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${session.access_token}`,
+        },
         body: JSON.stringify({ property_id: clientFile.propertyId, lead_id: clientFile.id }),
       });
 
       // Check if this is an SSE stream or regular JSON (cached responses are still JSON)
       const contentType = res.headers.get("content-type") ?? "";
       if (contentType.includes("text/event-stream") && res.body) {
-        // SSE streaming mode — read events as they arrive
+        // SSE streaming mode â€” read events as they arrive
         const reader = res.body.getReader();
         const decoder = new TextDecoder();
         let buffer = "";
@@ -5954,7 +6246,7 @@ export function MasterClientFileModal({ clientFile, open, onClose, onClaim, onRe
               const event = JSON.parse(dataLine.slice(6));
 
               if (event.phase === "complete" && event.result) {
-                // Final event — the full result
+                // Final event â€” the full result
                 setDeepCrawlResult(event.result);
                 setHasSavedReport(true);
                 // deepSkip is sent as a sibling field (not nested inside result)
@@ -5994,7 +6286,7 @@ export function MasterClientFileModal({ clientFile, open, onClose, onClaim, onRe
                     });
                   }
                 }
-                toast.success(`Deep Crawl complete — ${event.result.sources?.join(", ") ?? "done"}`);
+                toast.success(`Deep Crawl complete â€” ${event.result.sources?.join(", ") ?? "done"}`);
                 // Also re-fetch from parent to get full updated data
                 onRefresh?.();
               } else if (event.phase === "error") {
@@ -6028,7 +6320,7 @@ export function MasterClientFileModal({ clientFile, open, onClose, onClaim, onRe
           setHasSavedReport(true);
           // Backward compat: cached results may still have nested deepSkip
           if (data.deepSkip) setDeepSkipResult(data.deepSkip);
-          toast.success(`Deep Crawl complete — ${data.sources?.join(", ") ?? "done"}`);
+          toast.success(`Deep Crawl complete â€” ${data.sources?.join(", ") ?? "done"}`);
           onRefresh?.();
         }
       }
@@ -6057,10 +6349,10 @@ export function MasterClientFileModal({ clientFile, open, onClose, onClaim, onRe
       } else if (data.success && data.filled?.length === 0) {
         toast.info("All property details already populated");
       } else {
-        // ATTOM failed — offer Zillow link
+        // ATTOM failed â€” offer Zillow link
         const zUrl = data.zillow_url;
         toast.error(
-          `${data.error ?? "Autofill failed"}${zUrl ? " — opening Zillow for manual lookup" : ""}`,
+          `${data.error ?? "Autofill failed"}${zUrl ? " â€” opening Zillow for manual lookup" : ""}`,
           { duration: 6000 },
         );
         if (zUrl) window.open(zUrl, "_blank", "noopener,noreferrer");
@@ -6075,6 +6367,57 @@ export function MasterClientFileModal({ clientFile, open, onClose, onClaim, onRe
   if (!clientFile) return null;
 
   const lbl = SCORE_LABEL_CFG[clientFile.scoreLabel];
+  const currentStage = normalizeWorkflowStage(clientFile.status);
+  const currentStageLabel = workflowStageLabel(clientFile.status);
+  const marketLabel = marketDisplayLabel(clientFile.county);
+  const sourceLabel = sourceDisplayLabel(clientFile.source);
+  const nextActionUrgency = getNextActionUrgency(clientFile);
+  const urgencyToneClass =
+    nextActionUrgency.tone === "danger"
+      ? "text-red-300 bg-red-500/[0.08] border-red-500/30"
+      : nextActionUrgency.tone === "warn"
+        ? "text-amber-300 bg-amber-500/[0.08] border-amber-500/30"
+        : "text-cyan/80 bg-cyan/[0.06] border-cyan/20";
+  const UrgencyIcon = nextActionUrgency.tone === "danger" ? AlertTriangle : Clock;
+  const currentSequenceLabel =
+    clientFile.totalCalls > 0
+      ? getSequenceLabel(clientFile.callSequenceStep)
+      : "No sequence activity";
+  const nextActionIso = clientFile.nextCallScheduledAt ?? clientFile.followUpDate;
+  const missingNextAction = !nextActionIso;
+  const qualificationEditable = currentStage === "lead";
+  const qualificationDirty =
+    (qualificationDraft.motivationLevel ?? null) !== (clientFile.motivationLevel ?? null)
+    || (qualificationDraft.sellerTimeline ?? null) !== (clientFile.sellerTimeline ?? null)
+    || (qualificationDraft.conditionLevel ?? null) !== (clientFile.conditionLevel ?? null)
+    || qualificationDraft.decisionMakerConfirmed !== (clientFile.decisionMakerConfirmed ?? false)
+    || (qualificationDraft.priceExpectation ?? null) !== (clientFile.priceExpectation ?? null)
+    || (qualificationDraft.qualificationRoute ?? null) !== (clientFile.qualificationRoute ?? null);
+  const stageChanged = selectedStage !== currentStage;
+  const stagePrecheck = precheckWorkflowStageChange({
+    currentStatus: currentStage as LeadStatus,
+    targetStatus: selectedStage as LeadStatus,
+    assignedTo: clientFile.assignedTo,
+    lastContactAt: clientFile.lastContactAt,
+    totalCalls: clientFile.totalCalls,
+    dispositionCode: clientFile.dispositionCode,
+    nextCallScheduledAt: clientFile.nextCallScheduledAt,
+    nextFollowUpAt: clientFile.followUpDate,
+    qualificationRoute: clientFile.qualificationRoute,
+    notes: clientFile.notes,
+  });
+  const nextActionView = deriveNextActionVisibility({
+    status: clientFile.status,
+    qualificationRoute: clientFile.qualificationRoute,
+    nextCallScheduledAt: clientFile.nextCallScheduledAt,
+    nextFollowUpAt: clientFile.followUpDate,
+  });
+  const isAssignedToCurrentUser = !!currentUserId && clientFile.assignedTo === currentUserId;
+  const claimButtonLabel = !clientFile.assignedTo
+    ? "Claim"
+    : isAssignedToCurrentUser
+      ? "Assigned to You"
+      : "Assign to Me";
 
   return (
     <AnimatePresence>
@@ -6094,17 +6437,13 @@ export function MasterClientFileModal({ clientFile, open, onClose, onClaim, onRe
           >
             <div className="flex-1 overflow-hidden rounded-[16px] border border-white/[0.08] modal-glass holo-border wet-shine flex flex-col">
               {/* Header */}
-              <div className="shrink-0 flex items-center justify-between px-6 py-4 border-b border-white/[0.06] bg-[rgba(4,4,12,0.88)] backdrop-blur-2xl rounded-t-[16px]">
-                <div className="flex items-center gap-3 min-w-0">
-                  <div className={cn("flex items-center gap-1.5 px-2.5 py-1 rounded-md border text-xs font-bold", lbl.bg, lbl.color)}>
-                    <Zap className="h-3 w-3" />{clientFile.compositeScore} {lbl.text}
-                  </div>
-                  {clientFile.prediction && (
-                    <PredictiveDistressBadge data={clientFile.prediction as PredictiveDistressData} size="sm" />
-                  )}
-                  <div className="min-w-0">
-                    <div className="flex items-center gap-2">
-                      <h2 className="text-lg font-bold truncate" style={{ textShadow: "0 0 12px rgba(0,212,255,0.12)" }}>{clientFile.ownerName}</h2>
+              <div className="shrink-0 border-b border-white/[0.06] bg-[rgba(4,4,12,0.88)] backdrop-blur-2xl rounded-t-[16px]">
+                <div className="flex items-start justify-between gap-4 px-6 py-4">
+                  <div className="min-w-0 space-y-2">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <h2 className="text-lg font-bold truncate" style={{ textShadow: "0 0 12px rgba(0,212,255,0.12)" }}>
+                        {clientFile.ownerName || "Unknown Seller"}
+                      </h2>
                       <RelationshipBadge data={{
                         ownerAgeInference: clientFile.prediction?.ownerAgeInference,
                         lifeEventProbability: clientFile.prediction?.lifeEventProbability,
@@ -6113,24 +6452,241 @@ export function MasterClientFileModal({ clientFile, open, onClose, onClaim, onRe
                       }} />
                     </div>
                     <p className="text-xs text-muted-foreground truncate">{clientFile.fullAddress}</p>
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      <Badge variant="outline" className="text-[9px] gap-1 border-white/[0.14]">
+                        <MapPin className="h-2.5 w-2.5" />{marketLabel}
+                      </Badge>
+                      <Badge variant="outline" className="text-[9px] gap-1 border-white/[0.14]">
+                        <Radar className="h-2.5 w-2.5" />{sourceLabel}
+                      </Badge>
+                      <Badge variant="outline" className="text-[9px] gap-1 border-cyan/20 text-cyan">
+                        <Target className="h-2.5 w-2.5" />{currentStageLabel}
+                      </Badge>
+                      <Badge variant="outline" className="text-[9px] gap-1 border-white/[0.14]">
+                        <Users className="h-2.5 w-2.5" />Owner: {assigneeLabel}
+                      </Badge>
+                      {clientFile.qualificationRoute === "escalate" && (
+                        <Badge variant="outline" className="text-[9px] gap-1 border-amber-500/25 text-amber-300">
+                          <AlertTriangle className="h-2.5 w-2.5" />Escalated Review
+                        </Badge>
+                      )}
+                    </div>
+                  </div>
+                  <div className="flex items-start gap-2 shrink-0">
+                    <div className={cn("flex items-center gap-1.5 px-2.5 py-1 rounded-md border text-xs font-bold", lbl.bg, lbl.color)}>
+                      <Zap className="h-3 w-3" />{clientFile.compositeScore} {lbl.text}
+                    </div>
+                    {clientFile.prediction && (
+                      <PredictiveDistressBadge data={clientFile.prediction as PredictiveDistressData} size="sm" />
+                    )}
+                    {clientFile.enriched && (
+                      <Badge variant="outline" className="text-[9px] gap-1 text-cyan border-cyan/20">
+                        <CheckCircle2 className="h-2.5 w-2.5" />Enriched
+                      </Badge>
+                    )}
+                    <button onClick={onClose} className="p-1.5 rounded-[10px] hover:bg-white/[0.04] transition-colors text-muted-foreground hover:text-foreground">
+                      <X className="h-4 w-4" />
+                    </button>
                   </div>
                 </div>
-                <div className="flex items-center gap-2 shrink-0">
-                  {clientFile.enriched && (
-                    <Badge variant="outline" className="text-[9px] gap-1 text-cyan border-cyan/20">
-                      <CheckCircle2 className="h-2.5 w-2.5" />Enriched
-                    </Badge>
-                  )}
-                  <Badge variant="outline" className="text-[9px] capitalize">{clientFile.status.replace(/_/g, " ")}</Badge>
-                  <button onClick={onClose} className="p-1.5 rounded-[10px] hover:bg-white/[0.04] transition-colors text-muted-foreground hover:text-foreground">
-                    <X className="h-4 w-4" />
-                  </button>
+              </div>
+
+              {/* Primary operator actions */}
+              <div className="shrink-0 px-4 py-3 border-b border-white/[0.06] bg-[rgba(12,12,22,0.6)]">
+                <div className="flex flex-wrap items-center gap-2">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="gap-2 border-cyan/20 hover:border-cyan/40 hover:bg-cyan/[0.06]"
+                    disabled={!displayPhone || calling}
+                    onClick={() => handleDial()}
+                  >
+                    {calling ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Phone className="h-3.5 w-3.5" />}
+                    {calling ? "Dialing..." : "Call"}
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="gap-2 border-emerald-500/20 hover:border-emerald-500/40 hover:bg-emerald-500/[0.06]"
+                    disabled={!displayPhone}
+                    onClick={() => setSmsOpen((v) => !v)}
+                  >
+                    <MessageSquare className="h-3.5 w-3.5 text-emerald-400" />Text
+                  </Button>
+                  <Button
+                    size="sm"
+                    className="gap-2"
+                    disabled={claiming || isAssignedToCurrentUser}
+                    onClick={handleClaimLead}
+                  >
+                    {claiming ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Users className="h-3.5 w-3.5" />}
+                    {claiming ? "Saving..." : claimButtonLabel}
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="gap-2 border-amber-500/20 hover:border-amber-500/40 hover:bg-amber-500/[0.06]"
+                    onClick={() => setNextActionEditorOpen((v) => !v)}
+                  >
+                    <Calendar className="h-3.5 w-3.5 text-amber-400" />Set Next Action
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="gap-2 border-white/[0.14] hover:border-white/[0.25] hover:bg-white/[0.06]"
+                    onClick={() => setNoteEditorOpen((v) => !v)}
+                  >
+                    <FileText className="h-3.5 w-3.5" />Log Note
+                  </Button>
+
+                  <div className="ml-auto flex items-center gap-2">
+                    <select
+                      value={selectedStage}
+                      onChange={(e) => setSelectedStage(e.target.value as WorkflowStageId)}
+                      disabled={stageUpdating}
+                      className="h-8 rounded-[8px] border border-white/[0.12] bg-white/[0.04] px-2.5 text-xs text-foreground focus:outline-none focus:border-cyan/30"
+                      aria-label="Move lead stage"
+                    >
+                      {WORKFLOW_STAGE_OPTIONS.map((stage) => (
+                        <option key={stage.id} value={stage.id}>{stage.label}</option>
+                      ))}
+                    </select>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="gap-1.5 border-cyan/20 hover:border-cyan/40 hover:bg-cyan/[0.06]"
+                      disabled={stageUpdating || !stageChanged || !stagePrecheck.ok}
+                      onClick={handleMoveStage}
+                    >
+                      {stageUpdating ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <ArrowRight className="h-3.5 w-3.5" />}
+                      Move Stage
+                    </Button>
+                  </div>
+                </div>
+                {stageChanged && !stagePrecheck.ok && (
+                  <p className="mt-2 text-[10px] text-amber-300">
+                    Before moving to {workflowStageLabel(selectedStage)}:{" "}
+                    <span className="font-medium">{stagePrecheck.requiredActions[0]}</span>
+                  </p>
+                )}
+                {(nextActionEditorOpen || noteEditorOpen) && (
+                  <div className="mt-2 grid grid-cols-1 lg:grid-cols-2 gap-2">
+                    {nextActionEditorOpen && (
+                      <div className="rounded-[10px] border border-amber-500/20 bg-amber-500/[0.06] p-2.5 space-y-2">
+                        <p className="text-[10px] uppercase tracking-wider font-semibold text-amber-300">Next Action</p>
+                        <input
+                          type="datetime-local"
+                          value={nextActionAt}
+                          onChange={(e) => setNextActionAt(e.target.value)}
+                          className="h-8 w-full rounded-[8px] border border-white/[0.12] bg-white/[0.04] px-2.5 text-xs text-foreground focus:outline-none focus:border-cyan/30"
+                        />
+                        <div className="flex items-center gap-2">
+                          <Button
+                            size="sm"
+                            className="h-7 text-[11px]"
+                            disabled={settingNextAction}
+                            onClick={handleSetNextAction}
+                          >
+                            {settingNextAction ? <Loader2 className="h-3 w-3 animate-spin" /> : <Save className="h-3 w-3" />}
+                            {nextActionAt ? "Save Next Action" : "Clear Next Action"}
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="h-7 text-[11px] text-muted-foreground"
+                            onClick={() => {
+                              setNextActionAt(toLocalDateTimeInput(clientFile.nextCallScheduledAt ?? clientFile.followUpDate));
+                              setNextActionEditorOpen(false);
+                            }}
+                          >
+                            Cancel
+                          </Button>
+                        </div>
+                      </div>
+                    )}
+                    {noteEditorOpen && (
+                      <div className="rounded-[10px] border border-white/[0.12] bg-white/[0.03] p-2.5 space-y-2">
+                        <p className="text-[10px] uppercase tracking-wider font-semibold text-muted-foreground">Lead Note</p>
+                        <textarea
+                          value={noteDraft}
+                          onChange={(e) => setNoteDraft(e.target.value)}
+                          placeholder="Add operator note, outcome, or seller update..."
+                          className="w-full h-20 rounded-[8px] border border-white/[0.12] bg-white/[0.04] px-2.5 py-2 text-xs text-foreground placeholder:text-muted-foreground/50 resize-none focus:outline-none focus:border-cyan/30"
+                          maxLength={1000}
+                        />
+                        <div className="flex items-center gap-2">
+                          <Button
+                            size="sm"
+                            className="h-7 text-[11px]"
+                            disabled={savingNote || !noteDraft.trim()}
+                            onClick={handleAppendNote}
+                          >
+                            {savingNote ? <Loader2 className="h-3 w-3 animate-spin" /> : <Save className="h-3 w-3" />}
+                            Save Note
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="h-7 text-[11px] text-muted-foreground"
+                            onClick={() => {
+                              setNoteDraft("");
+                              setNoteEditorOpen(false);
+                            }}
+                          >
+                            Cancel
+                          </Button>
+                          <span className="ml-auto text-[9px] text-muted-foreground/50">{noteDraft.length}/1000</span>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              {/* Next action strip */}
+              <div className="shrink-0 px-4 py-2.5 border-b border-white/[0.06] bg-[rgba(8,10,18,0.55)]">
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-2">
+                  <div className={cn("rounded-[10px] border px-3 py-2", urgencyToneClass)}>
+                    <p className="text-[9px] uppercase tracking-wider font-semibold">Contact Urgency</p>
+                    <div className="mt-1 flex items-center gap-1.5 text-xs">
+                      <UrgencyIcon className="h-3.5 w-3.5 shrink-0" />
+                      <span className="font-semibold">{nextActionUrgency.label}</span>
+                    </div>
+                    <p className="text-[10px] opacity-80 mt-0.5">{nextActionUrgency.detail}</p>
+                    <p className="text-[10px] opacity-80 mt-0.5">
+                      Next Action Type: <span className="font-medium">{nextActionView.label}</span>
+                    </p>
+                    <p className={cn("text-[10px] mt-1", !clientFile.assignedTo ? "text-amber-300" : "opacity-80")}>
+                      {!clientFile.assignedTo
+                        ? "Owner unassigned. Claim or assign to keep this lead active."
+                        : isAssignedToCurrentUser
+                          ? "You own this next action."
+                          : `Next action owned by ${assigneeLabel}.`}
+                    </p>
+                    {missingNextAction && (
+                      <p className="text-[10px] mt-1 font-semibold">Set a next action to keep momentum.</p>
+                    )}
+                  </div>
+                  <div className="rounded-[10px] border border-white/[0.08] bg-white/[0.02] px-3 py-2">
+                    <p className="text-[9px] uppercase tracking-wider text-muted-foreground font-semibold">Last Contact Attempt</p>
+                    <p className="text-xs mt-1 text-foreground">{formatDateTimeShort(clientFile.lastContactAt)}</p>
+                  </div>
+                  <div className="rounded-[10px] border border-white/[0.08] bg-white/[0.02] px-3 py-2">
+                    <p className="text-[9px] uppercase tracking-wider text-muted-foreground font-semibold">Next Action</p>
+                    <p className={cn("text-xs mt-1", missingNextAction ? "text-amber-300 font-semibold" : "text-foreground")}>
+                      {missingNextAction ? "Not set" : `${nextActionView.label} • ${formatDateTimeShort(nextActionIso)}`}
+                    </p>
+                  </div>
+                  <div className="rounded-[10px] border border-white/[0.08] bg-white/[0.02] px-3 py-2">
+                    <p className="text-[9px] uppercase tracking-wider text-muted-foreground font-semibold">Call Sequence</p>
+                    <p className="text-xs mt-1 text-foreground">{currentSequenceLabel}</p>
+                  </div>
                 </div>
               </div>
 
               {/* Tabs */}
               <div className="shrink-0 flex items-center gap-1 px-4 py-2 border-b border-white/[0.06] bg-[rgba(12,12,22,0.5)] overflow-x-auto scrollbar-none">
-                {TABS.map((tab) => (
+                {TABS.filter((tab) => PRIMARY_TAB_IDS.has(tab.id)).map((tab) => (
                   <button
                     key={tab.id}
                     onClick={() => setActiveTab(tab.id)}
@@ -6139,6 +6695,25 @@ export function MasterClientFileModal({ clientFile, open, onClose, onClaim, onRe
                       activeTab === tab.id
                         ? "text-cyan bg-cyan/8 border border-cyan/20 shadow-[0_0_8px_rgba(0,212,255,0.1)]"
                         : "text-muted-foreground hover:text-foreground border border-transparent hover:border-glass-border"
+                    )}
+                  >
+                    <tab.icon className="h-3 w-3" />{tab.label}
+                  </button>
+                ))}
+
+                <span className="ml-1 mr-0.5 px-1.5 text-[8px] uppercase tracking-[0.16em] text-muted-foreground/35 border-l border-white/[0.08]">
+                  Advanced
+                </span>
+
+                {TABS.filter((tab) => ADVANCED_TAB_IDS.has(tab.id)).map((tab) => (
+                  <button
+                    key={tab.id}
+                    onClick={() => setActiveTab(tab.id)}
+                    className={cn(
+                      "flex items-center gap-1.5 px-2.5 py-1.5 rounded-[10px] text-[10px] font-medium transition-all whitespace-nowrap",
+                      activeTab === tab.id
+                        ? "text-cyan bg-cyan/8 border border-cyan/20 shadow-[0_0_8px_rgba(0,212,255,0.1)]"
+                        : "text-muted-foreground/55 hover:text-muted-foreground border border-transparent hover:border-white/[0.08]"
                     )}
                   >
                     <tab.icon className="h-3 w-3" />{tab.label}
@@ -6160,7 +6735,41 @@ export function MasterClientFileModal({ clientFile, open, onClose, onClaim, onRe
                     transition={{ duration: 0.15 }}
                   >
                     {activeTab === "overview" && (
-                      <OverviewTab cf={clientFile} computedArv={computedArv} skipTracing={skipTracing} skipTraceResult={skipTraceResult} skipTraceMs={skipTraceMs} overlay={overlay} skipTraceError={skipTraceError} onSkipTrace={handleSkipTrace} onManualSkipTrace={handleManualSkipTrace} onEdit={() => setEditOpen(true)} onDial={handleDial} onSms={handleSendSms} calling={calling} dialHistory={dialHistoryMap} autofilling={autofilling} onAutofill={handleAutofill} deepCrawling={deepCrawling} deepCrawlResult={deepCrawlResult} deepCrawlExpanded={deepCrawlExpanded} setDeepCrawlExpanded={setDeepCrawlExpanded} executeDeepCrawl={executeDeepCrawl} hasSavedReport={hasSavedReport} loadingReport={loadingReport} loadSavedReport={loadSavedReport} crawlSteps={crawlSteps} deepSkipResult={deepSkipResult} />
+                      <OverviewTab
+                        cf={clientFile}
+                        computedArv={computedArv}
+                        skipTracing={skipTracing}
+                        skipTraceResult={skipTraceResult}
+                        skipTraceMs={skipTraceMs}
+                        overlay={overlay}
+                        skipTraceError={skipTraceError}
+                        onSkipTrace={handleSkipTrace}
+                        onManualSkipTrace={handleManualSkipTrace}
+                        onEdit={() => setEditOpen(true)}
+                        onDial={handleDial}
+                        onSms={handleSendSms}
+                        calling={calling}
+                        dialHistory={dialHistoryMap}
+                        autofilling={autofilling}
+                        onAutofill={handleAutofill}
+                        deepCrawling={deepCrawling}
+                        deepCrawlResult={deepCrawlResult}
+                        deepCrawlExpanded={deepCrawlExpanded}
+                        setDeepCrawlExpanded={setDeepCrawlExpanded}
+                        executeDeepCrawl={executeDeepCrawl}
+                        hasSavedReport={hasSavedReport}
+                        loadingReport={loadingReport}
+                        loadSavedReport={loadSavedReport}
+                        crawlSteps={crawlSteps}
+                        deepSkipResult={deepSkipResult}
+                        qualification={qualificationDraft}
+                        qualificationDirty={qualificationDirty}
+                        qualificationSaving={qualificationSaving}
+                        qualificationEditable={qualificationEditable}
+                        onQualificationChange={handleQualificationChange}
+                        onQualificationRouteSelect={handleQualificationRouteSelect}
+                        onQualificationSave={() => void persistQualification()}
+                      />
                     )}
                     {activeTab === "contact" && (
                       <ContactTab cf={clientFile} overlay={overlay} onSkipTrace={handleSkipTrace} skipTracing={skipTracing} onDial={handleDial} onSms={handleSendSms} calling={calling} onRefresh={onRefresh} />
@@ -6198,7 +6807,7 @@ export function MasterClientFileModal({ clientFile, open, onClose, onClaim, onRe
                     <textarea
                       value={smsMessage}
                       onChange={(e) => setSmsMessage(e.target.value)}
-                      placeholder="Type your message…"
+                      placeholder="Type your messageâ€¦"
                       className="w-full h-16 rounded-[8px] border border-white/[0.08] bg-white/[0.04] px-3 py-2 text-xs text-foreground placeholder:text-muted-foreground/40 resize-none focus:outline-none focus:border-cyan/30"
                       maxLength={320}
                     />
@@ -6206,45 +6815,23 @@ export function MasterClientFileModal({ clientFile, open, onClose, onClaim, onRe
                       <span className="text-[9px] text-muted-foreground/40">{smsMessage.length}/320</span>
                       <Button size="sm" className="gap-1.5" disabled={smsSending || !smsMessage.trim()} onClick={() => handleSendSms()}>
                         {smsSending ? <Loader2 className="h-3 w-3 animate-spin" /> : <Send className="h-3 w-3" />}
-                        {smsSending ? "Sending…" : "Send SMS"}
+                        {smsSending ? "Sendingâ€¦" : "Send SMS"}
                       </Button>
                     </div>
                   </div>
                 )}
-                <div className="flex items-center gap-3 px-6 py-3">
-                  {onClaim && (
-                    <Button size="sm" className="gap-2" disabled={claiming} onClick={handleClaimLead}>
-                      {claiming ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <CheckCircle2 className="h-3.5 w-3.5" />}
-                      {claiming ? "Claiming…" : "Claim Lead"}
-                    </Button>
-                  )}
-                  {displayPhone && (
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      className="gap-2 border-cyan/20 hover:border-cyan/40 hover:bg-cyan/[0.06]"
-                      disabled={calling}
-                      onClick={() => handleDial()}
-                    >
-                      {calling ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Phone className="h-3.5 w-3.5" />}
-                      {calling ? "Dialing…" : `Dial ${displayPhone.slice(-4)}`}
-                    </Button>
-                  )}
-                  {displayPhone && (
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      className="gap-2 border-emerald-500/20 hover:border-emerald-500/40 hover:bg-emerald-500/[0.06]"
-                      onClick={() => setSmsOpen(!smsOpen)}
-                    >
-                      <MessageSquare className="h-3.5 w-3.5 text-emerald-400" />SMS
-                    </Button>
-                  )}
+                <div className="flex items-center gap-2 px-6 py-3">
+                  <Button size="sm" variant="outline" className="gap-2" onClick={() => setEditOpen(true)}>
+                    <Pencil className="h-3.5 w-3.5" />Edit Details
+                  </Button>
                   {clientFile.ownerEmail && (
                     <Button size="sm" variant="outline" className="gap-2" asChild>
                       <a href={`mailto:${clientFile.ownerEmail}`}><Mail className="h-3.5 w-3.5" />Email</a>
                     </Button>
                   )}
+                  <div className="ml-auto text-[10px] text-muted-foreground">
+                    Lead ID: {clientFile.id.slice(0, 8)} â€¢ {sourceLabel}
+                  </div>
                   <Button
                     size="sm"
                     variant="destructive"
@@ -6253,9 +6840,6 @@ export function MasterClientFileModal({ clientFile, open, onClose, onClaim, onRe
                   >
                     <Trash2 className="h-3.5 w-3.5" />Delete
                   </Button>
-                  <div className="ml-auto text-[10px] text-muted-foreground">
-                    ID: {clientFile.id.slice(0, 8)} • {clientFile.source}
-                  </div>
                 </div>
               </div>
             </div>
@@ -6285,3 +6869,4 @@ export function MasterClientFileModal({ clientFile, open, onClose, onClaim, onRe
     </AnimatePresence>
   );
 }
+

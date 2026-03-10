@@ -14,7 +14,7 @@ import { cn, formatCurrency } from "@/lib/utils";
 import { useFsboLeads } from "@/hooks/use-fsbo-leads";
 import { MasterClientFileModal, clientFileFromRaw } from "@/components/sentinel/master-client-file-modal";
 import type { ProspectRow } from "@/hooks/use-prospects";
-import { supabase } from "@/lib/supabase";
+import { deleteLeadCustomerFile } from "@/lib/lead-write-helpers";
 import { toast } from "sonner";
 
 // ── Constants ─────────────────────────────────────────────────────────
@@ -121,13 +121,14 @@ export default function FsboPage() {
     if (!confirm(`Delete "${row.owner_name}" at ${row.address}?\n\nThis will remove the FSBO lead.`)) return;
     setDeleting(row.id);
     try {
-      const { error: delErr } = await supabase.from("leads").delete().eq("id", row.id);
-      if (delErr) {
-        toast.error(`Delete failed: ${delErr.message}`);
-      } else {
-        toast.success(`Deleted: ${row.owner_name}`);
-        refetch();
+      const result = await deleteLeadCustomerFile(row.id);
+      if (!result.ok) {
+        toast.error(`Delete failed: ${result.error}`);
+        return;
       }
+
+      toast.success(`Deleted: ${row.owner_name}`);
+      refetch();
     } finally {
       setDeleting(null);
     }

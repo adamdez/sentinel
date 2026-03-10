@@ -47,13 +47,22 @@ const SCORE_COLORS: Record<string, string> = {
 const STATUS_LABELS: Record<string, string> = {
   prospect: "Prospect",
   lead: "Lead",
-  my_lead: "My Lead",
   negotiation: "Negotiation",
   disposition: "Disposition",
   nurture: "Nurture",
   dead: "Dead",
   closed: "Closed",
 };
+
+function statusLabel(status: string | null | undefined): string {
+  if (!status) return "Unknown";
+  const normalized = status.toLowerCase().replace(/\s+/g, "_");
+  // Legacy compatibility: "My Leads" is an assignment segment, not a canonical stage.
+  if (normalized === "my_lead" || normalized === "my_leads" || normalized === "my_lead_status") {
+    return "Lead (Assigned)";
+  }
+  return STATUS_LABELS[normalized] ?? status;
+}
 
 const KIND_ICONS: Record<string, LucideIcon> = {
   prospect: UserPlus,
@@ -499,7 +508,7 @@ export function GlobalSearch() {
 
                           {rec.status && (
                             <span className="text-[9px] px-1.5 py-0.5 rounded bg-white/[0.04] text-muted-foreground border border-white/[0.06] shrink-0">
-                              {STATUS_LABELS[rec.status] ?? rec.status}
+                              {statusLabel(rec.status)}
                             </span>
                           )}
 

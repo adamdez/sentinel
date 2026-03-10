@@ -254,7 +254,7 @@ export function NewProspectModal() {
       if (!res.ok || !data.success) {
         toast.error("Claim failed: " + (data.error ?? "Unknown error"));
       } else {
-        toast.success("Claimed — moved to My Leads. Check Pipeline to see it.");
+        toast.success("Claimed - assigned to you. Check Pipeline > My Leads segment.");
       }
     } catch (err) {
       console.error("[NewProspect] Claim error:", err);
@@ -611,3 +611,4 @@ export function NewProspectModal() {
     </Dialog>
   );
 }
+

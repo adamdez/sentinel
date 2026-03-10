@@ -24,11 +24,13 @@ import { toast } from "sonner";
 import { supabase, getCurrentUser } from "@/lib/supabase";
 import { cn } from "@/lib/utils";
 import { getAuthenticatedProspectPatchHeaders } from "@/lib/prospect-api-client";
+import { precheckWorkflowStageChange } from "@/lib/workflow-stage-precheck";
+import type { LeadStatus, QualificationRoute } from "@/lib/types";
 import { MasterClientFileModal, clientFileFromRaw, type ClientFile } from "@/components/sentinel/master-client-file-modal";
 
-// ── Stage definitions ──────────────────────────────────────────────────
+// ── Pipeline lane definitions (workflow stages + assignment segment) ──────────────────────────────────────────────────
 
-const STAGES = [
+const PIPELINE_LANES = [
   {
     id: "prospect",
     title: "Prospects",
@@ -46,7 +48,7 @@ const STAGES = [
     text: "text-emerald-400",
   },
   {
-    id: "my_lead",
+    id: "mine",
     title: "My Leads",
     accent: "#8b5cf6",
     bg: "rgba(139,92,246,0.08)",
@@ -87,8 +89,17 @@ const STAGES = [
   },
 ] as const;
 
-type StageId = (typeof STAGES)[number]["id"];
-type CanonicalStageId = Exclude<StageId, "my_lead">;
+type LaneId = (typeof PIPELINE_LANES)[number]["id"];
+type CanonicalStageId = Exclude<LaneId, "mine">;
+const LANE_HINTS: Record<LaneId, string> = {
+  prospect: "Newly promoted records to triage",
+  lead: "Active team workload queue",
+  mine: "Assignment segment: owned by you",
+  negotiation: "Active offer and terms conversations",
+  disposition: "Buyer-side coordination signals",
+  nurture: "Scheduled long-cycle follow-up",
+  dead: "Closed-out or non-viable records",
+};
 
 const CANONICAL_STAGE_IDS = new Set<CanonicalStageId>([
   "prospect",
@@ -105,7 +116,7 @@ interface Lead {
   address: string;
   owner_name: string;
   heat_score: number;
-  status: StageId;
+  status: CanonicalStageId;
   owner_id: string | null;
   claimed_at: string | null;
   claim_expires_at: string | null;
@@ -113,6 +124,10 @@ interface Lead {
   source: string | null;
   daysUntilDistress: number | null;
   predictiveLabel: string | null;
+  follow_up_at: string | null;
+  promoted_at: string | null;
+  qualification_route: string | null;
+  assignee_name: string | null;
 }
 
 // ── Helpers ────────────────────────────────────────────────────────────
@@ -128,22 +143,33 @@ function isClaimExpired(expires?: string | null) {
   return expires ? new Date(expires) < new Date() : false;
 }
 
-function normalizeStatus(raw: string | null | undefined): CanonicalStageId {
-  if (!raw) return "prospect";
+function firstName(name: string | null | undefined): string | null {
+  if (!name) return null;
+  const trimmed = name.trim();
+  if (!trimmed) return null;
+  return trimmed.split(" ")[0] ?? null;
+}
+
+function normalizeStatus(raw: string | null | undefined): CanonicalStageId | null {
+  if (!raw) return null;
   const lower = raw.toLowerCase().replace(/\s+/g, "_");
   if (CANONICAL_STAGE_IDS.has(lower as CanonicalStageId)) return lower as CanonicalStageId;
   if (lower === "prospects") return "prospect";
+  // Legacy compatibility: old rows may still hold "my_lead*" values. Canonicalize to "lead".
   if (lower === "leads" || lower === "my_lead" || lower === "my_leads" || lower === "my leads") return "lead";
-  return "prospect";
+  // Closed/staging are intentionally excluded from active pipeline lanes.
+  if (lower === "closed" || lower === "staging") return null;
+  console.warn(`[Pipeline] Ignoring unsupported lead status "${raw}"`);
+  return null;
 }
 
-function resolveUiStage(
+function resolveLane(
   status: CanonicalStageId,
   assignedTo: string | null,
   currentUserId: string | null
-): StageId {
+): LaneId {
   if (status === "lead" && assignedTo && currentUserId && assignedTo === currentUserId) {
-    return "my_lead";
+    return "mine";
   }
   return status;
 }
@@ -151,20 +177,21 @@ function resolveUiStage(
 // ── Main component ─────────────────────────────────────────────────────
 
 export default function PipelinePage() {
-  const [leadsByStage, setLeadsByStage] = useState<Record<StageId, Lead[]>>(
-    () => Object.fromEntries(STAGES.map((s) => [s.id, []])) as unknown as Record<StageId, Lead[]>
+  const [leadsByLane, setLeadsByLane] = useState<Record<LaneId, Lead[]>>(
+    () => Object.fromEntries(PIPELINE_LANES.map((s) => [s.id, []])) as unknown as Record<LaneId, Lead[]>
   );
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [adding, setAdding] = useState(false);
+  const showQuickAddTestProspect = process.env.NODE_ENV === "development";
   const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const rawDataRef = useRef<Record<string, { lead: any; prop: any }>>({});
   const [selectedClientFile, setSelectedClientFile] = useState<ClientFile | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
 
-  // ── Fetch all leads + properties, group by stage ─────────────────────
+  // ── Fetch all leads + properties, group by lane ─────────────────────
 
   const fetchLeads = useCallback(async () => {
     console.log("[Pipeline] fetchLeads triggered");
@@ -174,6 +201,8 @@ export default function PipelinePage() {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { data: leadsRaw, error: leadsErr } = await (supabase.from("leads") as any)
         .select("*")
+        .neq("status", "staging")
+        .neq("status", "closed")
         .order("priority", { ascending: false });
 
       if (leadsErr) {
@@ -185,7 +214,10 @@ export default function PipelinePage() {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const propertyIds: string[] = [...new Set((leadsRaw as any[]).map((l: any) => l.property_id).filter(Boolean))];
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const assignedUserIds: string[] = [...new Set((leadsRaw as any[]).map((l: any) => l.assigned_to).filter(Boolean))];
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const propsMap: Record<string, any> = {};
+      const assigneeNames: Record<string, string> = {};
 
       if (propertyIds.length > 0) {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -196,6 +228,19 @@ export default function PipelinePage() {
         if (propsData) {
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           for (const p of propsData as any[]) propsMap[p.id] = p;
+        }
+      }
+
+      if (assignedUserIds.length > 0) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const { data: assignees } = await (supabase.from("user_profiles") as any)
+          .select("id, full_name")
+          .in("id", assignedUserIds);
+
+        if (assignees) {
+          for (const profile of assignees as Array<{ id: string; full_name: string | null }>) {
+            assigneeNames[profile.id] = profile.full_name ?? "";
+          }
         }
       }
 
@@ -223,7 +268,7 @@ export default function PipelinePage() {
         }
       }
 
-      const grouped = Object.fromEntries(STAGES.map((s) => [s.id, []])) as unknown as Record<StageId, Lead[]>;
+      const grouped = Object.fromEntries(PIPELINE_LANES.map((s) => [s.id, []])) as unknown as Record<LaneId, Lead[]>;
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const rawMap: Record<string, { lead: any; prop: any }> = {};
 
@@ -231,7 +276,10 @@ export default function PipelinePage() {
       for (const raw of leadsRaw as any[]) {
         const prop = propsMap[raw.property_id] ?? {};
         const canonicalStatus = normalizeStatus(raw.status);
-        const status = resolveUiStage(canonicalStatus, raw.assigned_to ?? null, currentUserId);
+        if (!canonicalStatus) {
+          continue;
+        }
+        const lane = resolveLane(canonicalStatus, raw.assigned_to ?? null, currentUserId);
         const pred = predsMap[raw.property_id];
         if (pred) {
           raw._prediction = {
@@ -246,13 +294,13 @@ export default function PipelinePage() {
         }
         rawMap[raw.id] = { lead: raw, prop };
 
-        grouped[status].push({
+        grouped[lane].push({
           id: raw.id,
           apn: prop.apn ?? raw.property_id?.slice(0, 12) ?? "—",
           address: prop.address ?? "Unknown address",
           owner_name: prop.owner_name ?? "Unknown",
           heat_score: raw.priority ?? 0,
-          status,
+          status: canonicalStatus,
           owner_id: raw.assigned_to ?? null,
           claimed_at: raw.claimed_at ?? null,
           claim_expires_at: raw.claim_expires_at ?? null,
@@ -260,12 +308,16 @@ export default function PipelinePage() {
           source: raw.source ?? null,
           daysUntilDistress: pred?.days ?? null,
           predictiveLabel: pred?.label ?? null,
+          follow_up_at: raw.next_call_scheduled_at ?? raw.next_follow_up_at ?? raw.follow_up_date ?? null,
+          promoted_at: raw.promoted_at ?? raw.created_at ?? null,
+          qualification_route: raw.qualification_route ?? null,
+          assignee_name: raw.assigned_to ? (assigneeNames[raw.assigned_to] ?? null) : null,
         });
       }
       rawDataRef.current = rawMap;
 
       console.log("[Pipeline] Grouped:", Object.fromEntries(Object.entries(grouped).map(([k, v]) => [k, v.length])));
-      setLeadsByStage(grouped);
+      setLeadsByLane(grouped);
     } catch (err) {
       console.error("[Pipeline] fetchLeads error:", err);
     } finally {
@@ -312,7 +364,7 @@ export default function PipelinePage() {
   ): Promise<boolean> => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { data: current, error: currentErr } = await (supabase.from("leads") as any)
-      .select("status, lock_version")
+      .select("status, lock_version, assigned_to, last_contact_at, total_calls, disposition_code, next_call_scheduled_at, next_follow_up_at, qualification_route, notes")
       .eq("id", leadId)
       .single();
 
@@ -322,6 +374,10 @@ export default function PipelinePage() {
     }
 
     const currentStatus = normalizeStatus(current.status);
+    if (!currentStatus) {
+      toast.error("Lead is not in an active pipeline stage.");
+      return false;
+    }
     let nextStatus = desiredStatus;
 
     if (promoteProspectOnClaim && currentStatus === "prospect") {
@@ -329,6 +385,26 @@ export default function PipelinePage() {
     }
     if (nextStatus === currentStatus) {
       nextStatus = undefined;
+    }
+
+    if (nextStatus) {
+      const precheck = precheckWorkflowStageChange({
+        currentStatus: currentStatus as LeadStatus,
+        targetStatus: nextStatus as LeadStatus,
+        assignedTo: assignedTo ?? (current.assigned_to ?? null),
+        lastContactAt: current.last_contact_at ?? null,
+        totalCalls: Number(current.total_calls ?? 0),
+        dispositionCode: current.disposition_code ?? null,
+        nextCallScheduledAt: current.next_call_scheduled_at ?? null,
+        nextFollowUpAt: current.next_follow_up_at ?? null,
+        qualificationRoute: (current.qualification_route as QualificationRoute | null) ?? null,
+        notes: current.notes ?? null,
+      });
+
+      if (!precheck.ok) {
+        toast.error(precheck.blockingReason ?? "Stage move is missing required context.");
+        return false;
+      }
     }
 
     const body: Record<string, unknown> = { lead_id: leadId };
@@ -380,7 +456,7 @@ export default function PipelinePage() {
       return;
     }
 
-    toast.success("Lead assigned to you - visible in My Leads");
+    toast.success("Lead assigned to you - visible in the My Leads segment");
     await fetchLeads();
   }, [currentUserId, patchLead, fetchLeads]);
 
@@ -390,35 +466,39 @@ export default function PipelinePage() {
     const { destination, source, draggableId } = result;
     if (!destination || destination.droppableId === source.droppableId) return;
 
-    const sourceStage = source.droppableId as StageId;
-    const newStatus = destination.droppableId as StageId;
+    const sourceLane = source.droppableId as LaneId;
+    const destinationLane = destination.droppableId as LaneId;
     const leadId = draggableId;
 
     // "My Leads" is an assignment segment (assigned_to === current user), not a persisted status.
-    if (newStatus === "my_lead") {
+    if (destinationLane === "mine") {
       await claimLead(leadId);
       return;
     }
 
     // Dragging from My Leads back to Leads is a no-op because assignment still applies.
-    if (sourceStage === "my_lead" && newStatus === "lead") {
+    if (sourceLane === "mine" && destinationLane === "lead") {
       toast("My Leads is assignment-based. Use a stage move to change status.");
       return;
     }
 
-    const ok = await patchLead(leadId, { desiredStatus: newStatus });
+    const ok = await patchLead(leadId, { desiredStatus: destinationLane });
     if (!ok) {
       await fetchLeads();
       return;
     }
 
-    toast.success(`Moved to ${STAGES.find((s) => s.id === newStatus)?.title ?? newStatus}`);
+    toast.success(`Moved to ${PIPELINE_LANES.find((s) => s.id === destinationLane)?.title ?? destinationLane}`);
     await fetchLeads();
   }, [claimLead, patchLead, fetchLeads]);
 
   // ── Quick Add Test Prospect ──────────────────────────────────────────
 
   const addTestProspect = useCallback(async () => {
+    if (!showQuickAddTestProspect) {
+      toast.error("Quick add is only available in development.");
+      return;
+    }
     setAdding(true);
     try {
       const ts = Date.now();
@@ -461,13 +541,13 @@ export default function PipelinePage() {
     } finally {
       setAdding(false);
     }
-  }, [currentUserId, fetchLeads]);
+  }, [currentUserId, fetchLeads, showQuickAddTestProspect]);
 
   // ── Filter by search ─────────────────────────────────────────────────
 
-  const filteredByStage = Object.fromEntries(
-    STAGES.map((s) => {
-      const leads = leadsByStage[s.id] ?? [];
+  const filteredByLane = Object.fromEntries(
+    PIPELINE_LANES.map((s) => {
+      const leads = leadsByLane[s.id] ?? [];
       if (!search) return [s.id, leads];
       const q = search.toLowerCase();
       return [
@@ -481,9 +561,9 @@ export default function PipelinePage() {
         ),
       ];
     })
-  ) as Record<StageId, Lead[]>;
+  ) as Record<LaneId, Lead[]>;
 
-  const totalLeads = Object.values(leadsByStage).reduce((sum, arr) => sum + arr.length, 0);
+  const totalLeads = Object.values(leadsByLane).reduce((sum, arr) => sum + arr.length, 0);
 
   // ── Render ───────────────────────────────────────────────────────────
 
@@ -497,7 +577,10 @@ export default function PipelinePage() {
             Pipeline
           </h1>
           <p className="text-sm text-muted-foreground mt-0.5">
-            Drag leads between stages — {totalLeads} total across {STAGES.length} stages
+            Drag leads between workflow stages - {totalLeads} total across {PIPELINE_LANES.length} lanes
+          </p>
+          <p className="text-[11px] text-muted-foreground/70 mt-1">
+            My Leads is assignment-based. Move stages for lifecycle changes.
           </p>
         </div>
 
@@ -513,14 +596,16 @@ export default function PipelinePage() {
             />
           </div>
 
-          <button
-            onClick={addTestProspect}
-            disabled={adding}
-            className="flex items-center gap-2 px-4 py-2 bg-emerald-500/90 hover:bg-emerald-500 text-black text-sm font-semibold rounded-[12px] transition-all active:scale-95 disabled:opacity-50 shadow-[0_0_12px_rgba(16,185,129,0.3)]"
-          >
-            <Plus className={cn("h-4 w-4", adding && "animate-spin")} />
-            {adding ? "Adding..." : "Quick Add Test Prospect"}
-          </button>
+          {showQuickAddTestProspect && (
+            <button
+              onClick={addTestProspect}
+              disabled={adding}
+              className="flex items-center gap-2 px-4 py-2 bg-emerald-500/90 hover:bg-emerald-500 text-black text-sm font-semibold rounded-[12px] transition-all active:scale-95 disabled:opacity-50 shadow-[0_0_12px_rgba(16,185,129,0.3)]"
+            >
+              <Plus className={cn("h-4 w-4", adding && "animate-spin")} />
+              {adding ? "Adding..." : "Quick Add Test Prospect"}
+            </button>
+          )}
 
           <button
             onClick={fetchLeads}
@@ -535,23 +620,28 @@ export default function PipelinePage() {
       {/* Kanban Board */}
       <div className="flex-1 overflow-x-auto p-4">
         <DragDropContext onDragEnd={onDragEnd}>
-          <div className="flex gap-3 h-full min-h-0" style={{ minWidth: STAGES.length * 280 }}>
-            {STAGES.map((stage) => {
-              const leads = filteredByStage[stage.id] ?? [];
+          <div className="flex gap-3 h-full min-h-0" style={{ minWidth: PIPELINE_LANES.length * 280 }}>
+            {PIPELINE_LANES.map((stage) => {
+              const leads = filteredByLane[stage.id] ?? [];
 
               return (
                 <div key={stage.id} className="flex flex-col w-[280px] shrink-0">
                   {/* Column header */}
                   <div
-                    className="flex items-center justify-between px-3 py-2.5 rounded-t-[14px] border border-b-0"
+                    className="flex items-start justify-between px-3 py-2.5 rounded-t-[14px] border border-b-0"
                     style={{
                       background: stage.bg,
                       borderColor: stage.border,
                     }}
                   >
-                    <span className={cn("text-sm font-semibold", stage.text)}>
-                      {stage.title}
-                    </span>
+                    <div className="min-w-0">
+                      <span className={cn("text-sm font-semibold", stage.text)}>
+                        {stage.title}
+                      </span>
+                      <p className="text-[9px] text-muted-foreground/70 mt-0.5">
+                        {LANE_HINTS[stage.id]}
+                      </p>
+                    </div>
                     <span
                       className="text-[11px] font-mono px-2 py-0.5 rounded-full"
                       style={{
@@ -581,7 +671,7 @@ export default function PipelinePage() {
                               key={lead.id}
                               lead={lead}
                               index={index}
-                              stageId={stage.id}
+                              laneId={stage.id}
                               currentUserId={currentUserId}
                               onClaim={claimLead}
                               onOpenDetail={(id) => {
@@ -598,7 +688,9 @@ export default function PipelinePage() {
                         {leads.length === 0 && !loading && (
                           <div className="flex flex-col items-center justify-center py-12 text-muted-foreground/40">
                             <Award className="h-8 w-8 mb-2" />
-                            <span className="text-xs">No leads</span>
+                            <span className="text-xs">
+                              {stage.id === "mine" ? "No leads assigned to you" : "No leads in this lane"}
+                            </span>
                           </div>
                         )}
 
@@ -629,14 +721,14 @@ export default function PipelinePage() {
 function LeadCard({
   lead,
   index,
-  stageId,
+  laneId,
   currentUserId,
   onClaim,
   onOpenDetail,
 }: {
   lead: Lead;
   index: number;
-  stageId: StageId;
+  laneId: LaneId;
   currentUserId: string | null;
   onClaim: (id: string) => Promise<void>;
   onOpenDetail: (id: string) => void;
@@ -644,7 +736,19 @@ function LeadCard({
   const sc = scoreColor(lead.heat_score);
   const expired = isClaimExpired(lead.claim_expires_at);
   const isMine = lead.owner_id === currentUserId;
-  const canClaim = stageId !== "my_lead" && !lead.owner_id;
+  const canClaim = laneId !== "mine" && !lead.owner_id;
+  const followUpDueMs = lead.follow_up_at ? new Date(lead.follow_up_at).getTime() : NaN;
+  const followUpOverdue =
+    lead.status !== "dead" &&
+    !Number.isNaN(followUpDueMs) &&
+    followUpDueMs < Date.now();
+  const promotedMs = lead.promoted_at ? new Date(lead.promoted_at).getTime() : NaN;
+  const needsQualification =
+    lead.status === "lead" &&
+    !lead.qualification_route &&
+    !Number.isNaN(promotedMs) &&
+    Date.now() - promotedMs > 48 * 60 * 60 * 1000;
+  const assigneeFirstName = firstName(lead.assignee_name);
 
   return (
     <Draggable draggableId={lead.id} index={index}>
@@ -734,13 +838,28 @@ function LeadCard({
                 {lead.source}
               </span>
             )}
+            {needsQualification && (
+              <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded border bg-amber-500/12 text-amber-300 border-amber-500/30">
+                Needs Qualification
+              </span>
+            )}
+            {followUpOverdue && (
+              <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded border bg-red-500/12 text-red-300 border-red-500/30">
+                Needs Follow-Up
+              </span>
+            )}
+            {lead.qualification_route === "escalate" && (
+              <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded border bg-amber-500/12 text-amber-300 border-amber-500/30">
+                Escalated Review
+              </span>
+            )}
           </div>
 
           <div className="mt-3 flex items-center justify-between">
             {lead.owner_id && !expired ? (
               <div className="flex items-center gap-1.5 text-[11px] text-emerald-400">
                 <UserCheck className="h-3.5 w-3.5" />
-                {isMine ? "Mine" : "Owned"}
+                {isMine ? "Assigned: You" : assigneeFirstName ? `Assigned: ${assigneeFirstName}` : "Assigned"}
               </div>
             ) : expired ? (
               <div className="flex items-center gap-1.5 text-[11px] text-rose-400">
@@ -769,4 +888,6 @@ function LeadCard({
     </Draggable>
   );
 }
+
+
 

@@ -1,9 +1,10 @@
--- ══════════════════════════════════════════════════════════════════════════════
--- Extend lead_status enum: add 'My Leads'
--- Run in Supabase SQL Editor (copy-paste the entire file)
--- ══════════════════════════════════════════════════════════════════════════════
-
-ALTER TYPE lead_status ADD VALUE IF NOT EXISTS 'My Leads';
-
--- Confirm all values now exist
-SELECT unnest(enum_range(NULL::lead_status)) AS status_value;
+-- DEPRECATED (Dominion v1 workflow semantics)
+-- ------------------------------------------------------------
+-- "My Leads" is an assignment segment/filter, NOT a lead_status enum value.
+-- Do NOT run legacy SQL that adds "My Leads" to lead_status.
+--
+-- Canonical lead_status values remain:
+-- staging, prospect, lead, negotiation, disposition, nurture, dead, closed
+--
+-- This file is intentionally a no-op placeholder to prevent accidental use
+-- of old guidance while preserving historical context.

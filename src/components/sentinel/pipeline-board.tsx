@@ -201,6 +201,15 @@ function mapToScore(priority: number): AIScore {
   };
 }
 
+function normalizeLegacyPipelineStatus(raw: string | null | undefined): string {
+  const normalized = (raw ?? "").toLowerCase().replace(/\s+/g, "_");
+  // Legacy compatibility only: "my_lead*" was an old assignment pseudo-status.
+  if (normalized === "my_lead" || normalized === "my_leads" || normalized === "my_lead_status") {
+    return "lead";
+  }
+  return normalized || "prospect";
+}
+
 export function PipelineBoard() {
   const [items, setItems] = useState<PipelineItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -238,7 +247,7 @@ export function PipelineBoard() {
             name: prop?.owner_name ?? "Unknown Owner",
             address: addr,
             phone: prop?.owner_phone ?? undefined,
-            status: row.status === "my_lead" ? "lead" : row.status,
+            status: normalizeLegacyPipelineStatus(row.status),
             score: mapToScore(row.priority ?? 0),
             distressType: row.tags?.[0] ?? row.source ?? "Unknown",
             propertyId: prop?.id,

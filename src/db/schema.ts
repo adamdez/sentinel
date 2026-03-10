@@ -5,6 +5,7 @@ import {
   text,
   varchar,
   integer,
+  smallint,
   numeric,
   boolean,
   timestamp,
@@ -154,6 +155,12 @@ export const leads = pgTable("leads", {
   lastContactAt: timestamp("last_contact_at", { withTimezone: true }),
   nextFollowUpAt: timestamp("next_follow_up_at", { withTimezone: true }),
   dispositionCode: varchar("disposition_code", { length: 50 }),
+  motivationLevel: smallint("motivation_level"),
+  sellerTimeline: varchar("seller_timeline", { length: 20 }),
+  conditionLevel: smallint("condition_level"),
+  decisionMakerConfirmed: boolean("decision_maker_confirmed").notNull().default(false),
+  priceExpectation: integer("price_expectation"),
+  qualificationRoute: varchar("qualification_route", { length: 20 }),
   notes: text("notes"),
   tags: text("tags").array().notNull().default([]),
   lockVersion: integer("lock_version").notNull().default(0),
@@ -173,6 +180,7 @@ export const leads = pgTable("leads", {
   index("idx_leads_priority").on(table.priority),
   index("idx_leads_follow_up").on(table.nextFollowUpAt),
   index("idx_leads_next_call").on(table.nextCallScheduledAt),
+  index("idx_leads_qualification_route").on(table.qualificationRoute),
 ]);
 
 // ── Deals ───────────────────────────────────────────────────────────

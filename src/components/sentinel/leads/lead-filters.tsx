@@ -5,15 +5,13 @@ import {
   Search,
   SlidersHorizontal,
   X,
-  ShieldCheck,
-  Flame,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import type { LeadFilters as FilterState } from "@/hooks/use-leads";
-import type { DistressType, LeadStatus } from "@/lib/types";
+import type { LeadFilters as FilterState, FollowUpFilter, MarketFilter } from "@/hooks/use-leads";
+import type { LeadStatus } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
 interface LeadFiltersProps {
@@ -22,38 +20,29 @@ interface LeadFiltersProps {
   onReset: () => void;
   totalFiltered: number;
   totalAll: number;
+  sourceOptions: Array<{ value: string; label: string; count: number }>;
 }
 
 const STATUS_OPTIONS: { value: LeadStatus; label: string; color: string }[] = [
-  { value: "prospect", label: "Prospect", color: "bg-blue-500/20 text-blue-400 border-blue-500/30" },
   { value: "lead", label: "Lead", color: "bg-green-500/20 text-green-400 border-green-500/30" },
   { value: "negotiation", label: "Negotiation", color: "bg-yellow-500/20 text-yellow-400 border-yellow-500/30" },
+  { value: "disposition", label: "Disposition", color: "bg-rose-500/20 text-rose-400 border-rose-500/30" },
   { value: "nurture", label: "Nurture", color: "bg-purple-500/20 text-purple-400 border-purple-500/30" },
   { value: "dead", label: "Dead", color: "bg-zinc-500/20 text-zinc-400 border-zinc-500/30" },
 ];
 
-const DISTRESS_OPTIONS: { value: DistressType; label: string }[] = [
-  { value: "probate", label: "Probate" },
-  { value: "pre_foreclosure", label: "Pre-Foreclosure" },
-  { value: "tax_lien", label: "Tax Lien" },
-  { value: "code_violation", label: "Code Violation" },
-  { value: "vacant", label: "Vacant" },
-  { value: "divorce", label: "Divorce" },
-  { value: "bankruptcy", label: "Bankruptcy" },
-  { value: "fsbo", label: "FSBO" },
-  { value: "absentee", label: "Absentee" },
-  { value: "inherited", label: "Inherited" },
-  { value: "water_shutoff", label: "Water Shut-off" },
-  { value: "condemned", label: "Condemned" },
-  { value: "tired_landlord", label: "Tired Landlord" },
-  { value: "underwater", label: "Underwater" },
+const MARKET_OPTIONS: { value: MarketFilter; label: string }[] = [
+  { value: "spokane", label: "Spokane" },
+  { value: "kootenai", label: "Kootenai" },
+  { value: "other", label: "Other" },
 ];
 
-const SCORE_PRESETS = [
-  { label: "All", value: 0 },
-  { label: "40+", value: 40 },
-  { label: "65+", value: 65 },
-  { label: "85+", value: 85 },
+const FOLLOW_UP_OPTIONS: { value: FollowUpFilter; label: string }[] = [
+  { value: "all", label: "All" },
+  { value: "overdue", label: "Overdue" },
+  { value: "today", label: "Due Today" },
+  { value: "urgent_uncontacted", label: "Slow/Missing Response" },
+  { value: "uncontacted", label: "No Contact Yet" },
 ];
 
 export function LeadFilters({
@@ -62,13 +51,18 @@ export function LeadFilters({
   onReset,
   totalFiltered,
   totalAll,
+  sourceOptions,
 }: LeadFiltersProps) {
   const [expanded, setExpanded] = useState(false);
-  const hasFilters =
-    filters.statuses.length > 0 ||
-    filters.distressTypes.length > 0 ||
-    filters.minScore > 0 ||
-    filters.complianceOnly;
+  const activeFilterCount = [
+    filters.search.trim().length > 0,
+    filters.statuses.length > 0,
+    filters.markets.length > 0,
+    filters.sources.length > 0,
+    filters.followUp !== "all",
+    filters.unassignedOnly,
+  ].filter(Boolean).length;
+  const hasFilters = activeFilterCount > 0;
 
   const toggleStatus = (s: LeadStatus) => {
     const next = filters.statuses.includes(s)
@@ -77,11 +71,18 @@ export function LeadFilters({
     onUpdate("statuses", next);
   };
 
-  const toggleDistress = (d: DistressType) => {
-    const next = filters.distressTypes.includes(d)
-      ? filters.distressTypes.filter((v) => v !== d)
-      : [...filters.distressTypes, d];
-    onUpdate("distressTypes", next);
+  const toggleMarket = (m: MarketFilter) => {
+    const next = filters.markets.includes(m)
+      ? filters.markets.filter((v) => v !== m)
+      : [...filters.markets, m];
+    onUpdate("markets", next);
+  };
+
+  const toggleSource = (s: string) => {
+    const next = filters.sources.includes(s)
+      ? filters.sources.filter((v) => v !== s)
+      : [...filters.sources, s];
+    onUpdate("sources", next);
   };
 
   return (
@@ -105,7 +106,7 @@ export function LeadFilters({
           )}
         </div>
 
-          <Button
+        <Button
           variant="outline"
           size="sm"
           className={cn("gap-1.5 text-xs", expanded && "border-cyan/20 text-cyan")}
@@ -115,7 +116,7 @@ export function LeadFilters({
           Filters
           {hasFilters && (
             <span className="bg-cyan/15 text-cyan text-[10px] px-1.5 rounded-full">
-              active
+              {activeFilterCount} active
             </span>
           )}
         </Button>
@@ -147,7 +148,7 @@ export function LeadFilters({
               {/* Status */}
               <div>
                 <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-2">
-                  Status
+                  Stage
                 </p>
                 <div className="flex flex-wrap gap-1.5">
                   {STATUS_OPTIONS.map((opt) => (
@@ -167,19 +168,69 @@ export function LeadFilters({
                 </div>
               </div>
 
-              {/* Distress Signals */}
+              {/* Market + Source */}
+              <div className="grid md:grid-cols-2 gap-4">
+                <div>
+                  <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-2">
+                    Market
+                  </p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {MARKET_OPTIONS.map((opt) => (
+                      <button
+                        key={opt.value}
+                        onClick={() => toggleMarket(opt.value)}
+                        className={cn(
+                          "text-[11px] px-2.5 py-1 rounded-md border transition-all",
+                          filters.markets.includes(opt.value)
+                            ? "bg-cyan/12 text-cyan border-cyan/20"
+                            : "border-glass-border text-muted-foreground hover:text-foreground hover:border-white/15"
+                        )}
+                      >
+                        {opt.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div>
+                  <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-2">
+                    Source
+                  </p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {sourceOptions.map((opt) => (
+                      <button
+                        key={opt.value}
+                        onClick={() => toggleSource(opt.value)}
+                        className={cn(
+                          "text-[11px] px-2.5 py-1 rounded-md border transition-all",
+                          filters.sources.includes(opt.value)
+                            ? "bg-cyan/12 text-cyan border-cyan/20"
+                            : "border-glass-border text-muted-foreground hover:text-foreground hover:border-white/15"
+                        )}
+                      >
+                        {opt.label} <span className="opacity-60">({opt.count})</span>
+                      </button>
+                    ))}
+                    {sourceOptions.length === 0 && (
+                      <span className="text-[11px] text-muted-foreground/50">No source data</span>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* Next Action */}
               <div>
                 <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-2">
-                  Distress Signals
+                  Next Action
                 </p>
                 <div className="flex flex-wrap gap-1.5">
-                  {DISTRESS_OPTIONS.map((opt) => (
+                  {FOLLOW_UP_OPTIONS.map((opt) => (
                     <button
                       key={opt.value}
-                      onClick={() => toggleDistress(opt.value)}
+                      onClick={() => onUpdate("followUp", opt.value)}
                       className={cn(
                         "text-[11px] px-2.5 py-1 rounded-md border transition-all",
-                        filters.distressTypes.includes(opt.value)
+                        filters.followUp === opt.value
                           ? "bg-cyan/12 text-cyan border-cyan/20"
                           : "border-glass-border text-muted-foreground hover:text-foreground hover:border-white/15"
                       )}
@@ -190,43 +241,24 @@ export function LeadFilters({
                 </div>
               </div>
 
-              {/* Min Score + Compliance */}
-              <div className="flex items-end gap-6">
-                <div>
-                  <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-2">
-                    <Flame className="inline h-3 w-3 mr-1" />
-                    Min Heat Score
-                  </p>
-                  <div className="flex gap-1.5">
-                    {SCORE_PRESETS.map((p) => (
-                      <button
-                        key={p.value}
-                        onClick={() => onUpdate("minScore", p.value)}
-                        className={cn(
-                          "text-[11px] px-2.5 py-1 rounded-md border transition-all",
-                          filters.minScore === p.value
-                            ? "bg-cyan/12 text-cyan border-cyan/20"
-                            : "border-glass-border text-muted-foreground hover:text-foreground hover:border-white/15"
-                        )}
-                      >
-                        {p.label}
-                      </button>
-                    ))}
-                  </div>
+              {/* Assignment */}
+              <div>
+                <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-2">
+                  Assignment
+                </p>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <button
+                    onClick={() => onUpdate("unassignedOnly", !filters.unassignedOnly)}
+                    className={cn(
+                      "flex items-center gap-1.5 text-[11px] px-3 py-1 rounded-md border transition-all",
+                      filters.unassignedOnly
+                        ? "bg-yellow-500/15 text-yellow-400 border-yellow-500/30"
+                        : "border-white/[0.06] text-muted-foreground hover:text-foreground hover:border-white/15"
+                    )}
+                  >
+                    Unassigned only
+                  </button>
                 </div>
-
-                <button
-                  onClick={() => onUpdate("complianceOnly", !filters.complianceOnly)}
-                  className={cn(
-                    "flex items-center gap-1.5 text-[11px] px-3 py-1 rounded-md border transition-all",
-                    filters.complianceOnly
-                      ? "bg-green-500/15 text-green-400 border-green-500/30"
-                      : "border-white/[0.06] text-muted-foreground hover:text-foreground hover:border-white/15"
-                  )}
-                >
-                  <ShieldCheck className="h-3 w-3" />
-                  Compliance clean only
-                </button>
               </div>
             </div>
           </motion.div>

@@ -1,127 +1,127 @@
 [
   {
-    "hash": "d4abfb5d",
-    "date": "2026-03-03",
-    "message": "chore: increase FSBO crawler frequency from 2 hours to 15 minutes"
+    "hash": "69d1f6d4",
+    "date": "2026-03-10",
+    "message": "refactor: derive prospect audit actors server-side and tighten modal write auth"
   },
   {
-    "hash": "48fbfb74",
-    "date": "2026-03-03",
-    "message": "merge: resolve vercel.json conflict — keep both daily-verse and marketplace-poll crons"
+    "hash": "8c0599d6",
+    "date": "2026-03-10",
+    "message": "refactor: de-emphasize advanced Lead Detail surfaces for Dominion v1"
   },
   {
-    "hash": "3a7c334a",
-    "date": "2026-03-03",
-    "message": "feat: add FSBO pipeline with Craigslist crawler, rename from Facebook/Craigslist"
+    "hash": "311adc0e",
+    "date": "2026-03-09",
+    "message": "chore: remove misplaced dialer UI page from api tree"
   },
   {
-    "hash": "77ea7709",
-    "date": "2026-03-03",
-    "message": "Daily verse cron to 5am Pacific (12pm UTC) + auto-prefix ESV API Token header"
+    "hash": "8ba0fb74",
+    "date": "2026-03-09",
+    "message": "chore: archive low-risk legacy Sentinel pages"
   },
   {
-    "hash": "ef819782",
-    "date": "2026-03-03",
-    "message": "Merge branch 'claude/practical-mcclintock'"
+    "hash": "5f4b8df6",
+    "date": "2026-03-09",
+    "message": "chore: reduce visible nav to Dominion v1 operator surface"
   },
   {
-    "hash": "0caa9172",
-    "date": "2026-03-03",
-    "message": "feat: upgrade deal funnel pages with real data, tables, and MCF modal"
+    "hash": "bd1b8abf",
+    "date": "2026-03-05",
+    "message": "feat: heir skip-trace second-pass on deep crawl"
   },
   {
-    "hash": "a2194ae7",
-    "date": "2026-03-03",
-    "message": "Replace Generate Cursor Fix with Create Upgrade Request — one-click email to Adam + event_log"
+    "hash": "6f2ede2d",
+    "date": "2026-03-05",
+    "message": "fix: resolve TypeScript build errors in csv-upload and prospects routes"
   },
   {
-    "hash": "235f72c9",
-    "date": "2026-03-03",
-    "message": "Inject live date/time + model identity into all Grok system prompts for accurate temporal reasoning"
+    "hash": "da54788f",
+    "date": "2026-03-05",
+    "message": "fix: prevent owner_flags data loss + filter deep crawl by ownership date"
   },
   {
-    "hash": "983ec3b7",
-    "date": "2026-03-03",
-    "message": "Merge delete response fix"
+    "hash": "c73be00a",
+    "date": "2026-03-05",
+    "message": "fix: re-fetch photos when old cache has < 3 items"
   },
   {
-    "hash": "c4b5ebd7",
-    "date": "2026-03-03",
-    "message": "fix: normalize RPC result and show error detail in delete confirmation"
+    "hash": "64505f67",
+    "date": "2026-03-05",
+    "message": "fix: multi-angle Street View + satellite photos for all properties"
   },
   {
-    "hash": "24d376c2",
-    "date": "2026-03-03",
-    "message": "feat: upgrade Grok model from grok-4-fast-reasoning to grok-4-1-fast-reasoning (Nov 2025 release)"
+    "hash": "1350e403",
+    "date": "2026-03-05",
+    "message": "fix: property photos — add Google Place Photos, fix Comps & ARV auto-fetch (#4)"
   },
   {
-    "hash": "cf0443c6",
-    "date": "2026-03-03",
-    "message": "Merge delete customer file feature"
+    "hash": "853f3f39",
+    "date": "2026-03-05",
+    "message": "feat: search bar overhaul — TopBar placement, Places Autocomplete, enrichment-on-preview (#3)"
   },
   {
-    "hash": "20bfbaac",
-    "date": "2026-03-03",
-    "message": "feat: add delete customer file with type-yes confirmation"
+    "hash": "5bee493f",
+    "date": "2026-03-05",
+    "message": "feat: nationwide search autocomplete, auto-extract PR photos, fix OpenClaw health check"
   },
   {
-    "hash": "78d4ce79",
-    "date": "2026-03-03",
-    "message": "fix: Widget Library dialog positioning - remove translateZ(0) override on modal-glass that broke fixed centering"
+    "hash": "04bb024e",
+    "date": "2026-03-05",
+    "message": "feat: UI overhaul — data density + agent speed improvements across all views"
   },
   {
-    "hash": "08363761",
-    "date": "2026-03-03",
-    "message": "Merge branch 'claude/practical-mcclintock'"
+    "hash": "4f02432a",
+    "date": "2026-03-05",
+    "message": "fix: property photos 502 — switch Apify to async start+poll, add maxDuration"
   },
   {
-    "hash": "c46cf7dc",
-    "date": "2026-03-03",
-    "message": "fix: correct agent names — Nathan Walsh and Logan Anyan"
+    "hash": "c11539ea",
+    "date": "2026-03-05",
+    "message": "fix: use sjc region for transcription server (sea deprecated)"
   },
   {
-    "hash": "8edd47a7",
-    "date": "2026-03-03",
-    "message": "Merge branch 'claude/practical-mcclintock'"
+    "hash": "cf997f85",
+    "date": "2026-03-05",
+    "message": "feat: dialer overhaul — client file modal, VoIP text fix, live AI call notes"
   },
   {
-    "hash": "cd9c8538",
-    "date": "2026-03-03",
-    "message": "fix: add missing auth headers to Gmail page API calls"
+    "hash": "35adde16",
+    "date": "2026-03-05",
+    "message": "feat: Apify Zillow photo integration — interior/exterior photos across all property views"
   },
   {
-    "hash": "4ea6862d",
-    "date": "2026-03-02",
-    "message": "Merge branch 'claude/practical-mcclintock'"
+    "hash": "5070387b",
+    "date": "2026-03-04",
+    "message": "feat: global search overhaul — nationwide lookup, property preview, search bar relocation + prospect fixes"
   },
   {
-    "hash": "dd210451",
-    "date": "2026-03-02",
-    "message": "fix: remove infinite recursion in Grok chat auth that caused HTTP 500"
+    "hash": "018acf03",
+    "date": "2026-03-04",
+    "message": "feat: signal verification, conversion tracking, auto-promote, pipeline depth control"
   },
   {
-    "hash": "dfbf59ba",
-    "date": "2026-03-02",
-    "message": "feat: daily Bible verse with Reformed commentary in top bar - ESV API + Bible Hub scraper + Grok fallback"
+    "hash": "cdde25ce",
+    "date": "2026-03-04",
+    "message": "feat: scoring v2.2 — primary-signal-dominant, signal lifecycle, new distress types"
   },
   {
-    "hash": "221a589e",
-    "date": "2026-03-02",
-    "message": "feat: smart comps engine - fix PR 400, ATTOM fallback, weighted scoring, auto-suggest, dollar/sqft ARV, 40k rehab default"
+    "hash": "c1ff3971",
+    "date": "2026-03-04",
+    "message": "fix: deduplicate owner_flags storage, fix Contact tab refresh, extend PhoneDetail type"
   },
   {
-    "hash": "ce0dbbc6",
-    "date": "2026-03-02",
-    "message": "feat: full prospect modal overhaul - agent speed optimization with Next Best Action banner, Call Playbook, compliance gate, clickable tiles, MAO calc, tab consolidation, Deal Calculator fixes, phone validation"
+    "hash": "5977ca62",
+    "date": "2026-03-04",
+    "message": "fix: Street View API key exposure + state leak on property switch"
   },
   {
-    "hash": "094544f9",
-    "date": "2026-03-02",
-    "message": "fix: Comps tab crash - move useEffect before early returns to fix React hooks order violation; add dual-source skip-trace and phone dialer cards"
+    "hash": "4b1d2432",
+    "date": "2026-03-04",
+    "message": "feat: OpenClaw Phase 2 — expanded agents, Deep Skip report, photos, SSE streaming"
   },
   {
-    "hash": "dadbd748",
-    "date": "2026-03-02",
-    "message": "fix: remove redundant admin self-tab, use real Supabase UUIDs for team segments"
+    "hash": "ac556c1c",
+    "date": "2026-03-04",
+    "message": "chore: Update fly.toml with Fly.io generated config"
   }
 ]

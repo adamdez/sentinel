@@ -1,77 +1,218 @@
-# Sentinel CRM — Project Instructions
+# Sentinel / Dominion Home Deals - Claude Working Guide
 
-## Claude Identity
-You are an expert in data/research for real estate investing, marketing, and deal-making, as well as CRM/ERP building and setup for agents/users to maximize efficiency. Your mission is to help the company Dominion Home Deals net $1,000,000 in the next 11 months through wholesale real estate transactions. Every feature, data integration, and system improvement should be evaluated through the lens of: "Does this help us find more deals, close faster, or reduce costs?"
+## Mission
+Help build Sentinel into a simple, fast, reliable acquisitions operating system for Dominion Home Deals.
 
-## Business Context
-Sentinel is a wholesale real estate lead-generation platform for Dominion Home Deals.
-Target markets: Spokane County WA, Kootenai County ID, and surrounding counties (Bonner, Latah, Whitman, Lincoln, Stevens).
-Business model: identify distressed properties, contact owners, negotiate off-market purchases below market value.
-Key data needs per property: owner identity, contact info (phone/email), distress signals with urgency/stage, property value (ARV), timeline to action (auction dates, redemption deadlines).
-Revenue target: $1,000,000 net profit in 11 months. At ~$25K avg assignment fee, that means ~40 closed deals, which requires ~200 offers, which requires ~2,000 qualified prospects, which requires ~10,000+ leads in the pipeline.
+The system should help the team:
+- respond to inbound leads faster
+- qualify sellers more consistently
+- follow up without leads getting lost
+- make more offers
+- track outcomes by market and source
+- keep operations clean for a very small team
 
-## Proactivity Directives
-- When working on data pipelines, PROACTIVELY research free/public data sources for target markets (county ArcGIS REST APIs, bulk CSV downloads from assessor/recorder sites, court record portals, open data catalogs). Don't wait to be asked.
-- When adding or modifying any API integration, audit: Are there cheaper/free alternatives? Are there endpoints we're paying for but not calling? Are there county/state data sources we're not using?
-- After completing any feature, suggest 2-3 related improvements that would add business value.
-- When a paid API is used (ATTOM at $500/mo, PropertyRadar), check if the same data is available free from county assessor/recorder websites or state open data portals.
-- Flag any data gaps you notice — missing fields, unused API response fields, phantom references to nonexistent fields, detection logic that can never fire due to missing field requests.
-- When a new county/market is added, immediately research that county's GIS portal, assessor website, recorder portal, and open data catalog for machine-readable endpoints.
-- Proactively identify when AI agents are being asked to do tasks that could be done via direct API calls (e.g., asking an LLM to "search county records" when the county has a REST API).
+If a change does not clearly help Adam or Logan do one of those things, it probably does not belong.
 
-## Known Free Data Sources (Spokane County)
-- ArcGIS REST (owner names, parcel status): `gismo.spokanecounty.org/arcgis/rest/services/SCOUT/Queries/MapServer/2`
-- ArcGIS REST (comp sales 2015-2026): `gismo.spokanecounty.org/arcgis/rest/services/OpenData/Property/MapServer` (layers 5-20)
-- Bulk CSV Downloads (assessment roll): `spokanecounty.gov/4123/Property-Information-Downloads`
-- Tax Auction Listings: `spokanecounty.gov/845/Tax-Title-for-Auction-Property-Listings`
-- Recorder Guest Access: `recording.spokanecounty.org/recorder/web/loginPOST.jsp?guest=true`
-- City of Spokane Open Data: `data-spokane.opendata.arcgis.com`
-- WA Secretary of State (LLC/corp search): `ccfs.sos.wa.gov`
+---
 
-## Architecture Overview
-- **Stack:** Next.js 14 App Router + Supabase (Postgres + Auth + Storage) + Vercel (production: sentinel.dominionhomedeals.com)
-- **PropertyRadar:** Primary property/owner/distress data source via REST API. Bulk-seed and mass-seed endpoints for initial ingestion. Fields=All for per-property enrichment.
-- **ATTOM:** Supplementary property detail, valuation (AVM), foreclosure data. $500/mo — may be cancelled. All ATTOM calls have graceful degradation (skip if no API key).
-- **OpenClaw Gateway:** AI agent fan-out for deep research via `openclaw-gateway-frosty-darkness-4048.fly.dev`. Uses DeepSeek V3 (deepseek-chat) and Claude Haiku. 180s global timeout, 120s per agent.
-- **Grok 4.1 Fast:** Synthesis engine for agent findings into actionable prospect dossiers. Called via `api.x.ai/v1/responses`.
-- **Enrichment Pipeline:** staging → enrichment batch cron (every 15 min, 100 leads) → PR API lookup → signal detection → scoring → data sufficiency gate → prospect (or stays in staging if insufficient data).
-- **Deep Crawl:** On-demand per-prospect research triggered from UI. Phase 1 (data gathering) → Phase 2.5 (OpenClaw agent fan-out) → Phase 3 (Grok synthesis) → Phase 4 (DB persistence).
-- **Daily Crawlers:** Cron-driven crawlers for court dockets, obituaries, utility shutoffs, Craigslist FSBO. Feed the staging pipeline.
+## Current product direction
+Sentinel is being narrowed into a Dominion-first acquisitions CRM.
 
-## Key Files
-- `src/lib/enrichment-engine.ts` — Central enrichment pipeline (PR lookup → ATTOM gap-fill → signal detection → scoring → promotion gate)
-- `src/lib/distress-signals.ts` — Signal detection from PR/ATTOM data (probate, foreclosure, tax lien, bankruptcy, divorce, vacant, absentee, etc.)
-- `src/lib/openclaw-client.ts` — Agent definitions, prompts, models, fan-out execution
-- `src/lib/openclaw-orchestrator.ts` — Agent selection logic based on property context
-- `src/app/api/prospects/deep-crawl/route.ts` — Deep research pipeline (agents + Grok synthesis)
-- `src/lib/attom.ts` — ATTOM API wrapper (6 endpoints + daily delta pull)
-- `src/lib/county-data.ts` — Spokane County ArcGIS REST client (free owner verification + comp sales)
-- `src/lib/crawlers/` — Daily data crawlers (court-docket, obituary, utility-shutoff, craigslist-fsbo)
-- `src/app/api/ingest/propertyradar/bulk-seed/route.ts` — PR bulk property ingestion
-- `src/app/api/enrichment/batch/route.ts` — Every-15-min enrichment cron
-- `vercel.json` — Cron job schedules
+Primary focus areas:
+- Lead Inbox
+- Lead Detail
+- Pipeline
+- Dialer / Twilio workflow
+- Follow-up / next actions
+- Offer workflow
+- Lightweight analytics
+- Source / market attribution
 
-## Coding Standards
-- TypeScript strict mode. Use `// eslint-disable-next-line @typescript-eslint/no-explicit-any` before unavoidable `any` casts.
-- Supabase queries use `(sb.from("table") as any)` pattern for type flexibility with dynamic schemas.
-- All API routes that accept external calls include CRON_SECRET auth check via `x-cron-secret` header or `Authorization: Bearer` header.
-- `export const maxDuration = 300` on long-running routes (Vercel Pro 5-minute limit).
-- Rate limit delays between external API calls: 500ms between PR calls, 1000ms between ATTOM calls.
-- Console logging format: `[ModuleName] message` (e.g., `[Enrich]`, `[CsvPostEnrich]`, `[DeepCrawl]`).
-- Distress event deduplication via fingerprint: `distressFingerprint(apn, county, type, source)`.
-- Agent output follows `AgentFinding` interface with `structuredData` for typed extraction.
+This is **not** an enterprise ERP, internal social app, or general-purpose investor platform.
 
-## Environment Variables
-- `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY` — Supabase connection
-- `CRON_SECRET` — Auth for cron/admin endpoints
-- `PROPERTYRADAR_API_KEY` — PropertyRadar API access
-- `ATTOM_API_KEY` — ATTOM API access (optional — all calls degrade gracefully)
-- `OPENCLAW_API_KEY` — OpenClaw gateway access for AI agents
-- `XAI_API_KEY` — Grok API access for synthesis
-- `APIFY_API_KEY` — Apify for Zillow photo scraping
-- `GOOGLE_MAPS_API_KEY` — Street View imagery
+---
 
-## Team
-- adam@dominionhomedeals.com (admin)
-- nathan@dominionhomedeals.com (admin)
-- logan@dominionhomedeals.com (admin)
+## Primary operators
+- **Logan**: inbound response, acquisitions, most seller calls, follow-up
+- **Adam**: backend operations, KPIs, Google Ads, CRM build, management review
+
+When choosing between elegance and operator usefulness, prefer operator usefulness.
+
+---
+
+## Market context
+- Primary market: **Spokane County, WA**
+- Secondary market: **Kootenai County, ID**
+- Rural leads are acceptable
+- Default reporting and operator visibility should preserve Spokane vs Kootenai clarity
+
+---
+
+## Core product principle
+The CRM should be the operational source of truth.
+
+Prefer:
+- CRM-native workflows
+- Lead Detail as the working surface
+- guarded write paths for critical mutations
+- explicit next actions
+- stage clarity
+- visible ownership
+- trustworthy metrics
+
+Avoid:
+- paper-first systems
+- sidecar systems that become the real workflow
+- scattered notes that bypass the CRM
+- speculative complexity
+
+A spreadsheet may be acceptable temporarily for comping / underwriting, but the final outcome should still flow back into the CRM.
+
+---
+
+## Workflow integrity rules
+- `stage/status` means workflow position, not ownership
+- `assigned_to` means ownership
+- “My Leads” is a filtered view, not a real pipeline stage
+- critical changes should prefer guarded server/API paths over direct client-side writes
+- stage changes, assignment changes, compliance-sensitive changes, and major lead mutations should be handled safely and consistently
+- avoid introducing alternate hidden workflow paths
+- do not make it easy for a lead to move forward without clear next-step visibility
+- avoid designs that let leads disappear without follow-up context
+
+---
+
+## Lead handling philosophy
+The system should support a real acquisitions workflow, not a call-center vanity workflow.
+
+Prioritize:
+- speed-to-lead
+- contact attempts
+- seller qualification
+- follow-up discipline
+- clear next actions
+- offer movement
+- seller/property context
+- source and market attribution
+
+Do not prioritize:
+- vanity leaderboards
+- dial-count theater
+- overly broad dashboards
+- complex features that do not improve execution
+
+---
+
+## Lead Detail expectations
+Lead Detail should act as an acquisitions workspace.
+
+It should help the operator:
+- understand who the seller is
+- understand the property and situation quickly
+- call or text only if compliant with workflow rules
+- log notes and outcomes
+- move stage safely
+- set next actions
+- review recent communication
+- understand ownership, source, and market
+- decide whether to offer, nurture, or disqualify
+
+Lead Detail should not become a bloated mini-ERP page.
+
+---
+
+## Dialer / call assist expectations
+Dialer and Twilio features should support real live seller conversations.
+
+Prefer:
+- click-to-call
+- simple call outcome logging
+- callback / next action capture
+- short contextual scripts or prompts
+- objection handling prompts that are brief and usable live
+
+Avoid:
+- call-center style complexity
+- overbuilt scripting engines
+- fake productivity widgets
+
+Important:
+- Washington outbound follow-up in this system is call-only unless explicitly changed by the user
+- do not introduce cold SMS workflows by default
+
+---
+
+## Analytics expectations
+Analytics should reflect trustworthy business outcomes.
+
+Prefer:
+- market split visibility
+- source outcomes
+- pipeline health
+- speed-to-lead with honest labeling
+- real deal revenue where available
+- operator-readable caveats
+
+Avoid:
+- synthetic revenue
+- mixed-truth metrics presented as hard facts
+- flashy dashboards with weak trust
+- duplicating the Ads workspace inside Analytics
+
+---
+
+## Copy and tone rules
+Use tone that is:
+- local
+- respectful
+- direct
+- calm
+- trustworthy
+- practical
+
+Avoid:
+- investor-bro language
+- manipulative sales language
+- fake urgency
+- generic guru advice
+- enterprise sales jargon
+- bloated consultant wording
+
+Write for real operators and real seller conversations.
+
+---
+
+## Build decision filter
+Before suggesting a new page, workflow, field, or component, ask:
+
+1. Does this help Adam or Logan move a real lead forward?
+2. Does this reduce missed follow-up or improve speed-to-lead?
+3. Does this improve qualification, offer movement, or attribution?
+4. Does this keep the CRM as the source of truth?
+5. Is this simpler than the alternative?
+6. Can this be added without creating new workflow confusion?
+
+If the answer is mostly no, do not add it.
+
+---
+
+## What to avoid
+Do not drift into:
+- enterprise CRM sprawl
+- broad ERP behavior
+- internal chat/social features
+- speculative AI orchestration
+- vanity analytics
+- duplicate systems of record
+- features added mainly because they are technically possible
+
+---
+
+## Output preference
+When proposing work:
+- prefer small safe refinements
+- preserve build stability
+- preserve existing operator workflows unless there is a clear gain
+- explain where something should live in the product
+- map recommendations to actual CRM surfaces, fields, stages, and tasks
+- prefer concrete implementation guidance over abstract advice

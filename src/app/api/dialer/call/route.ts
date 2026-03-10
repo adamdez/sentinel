@@ -3,8 +3,123 @@ import { createServerClient } from "@/lib/supabase";
 import { scrubLead } from "@/lib/compliance";
 import { scheduleNextCall } from "@/lib/call-scheduler";
 import { getTwilioCredentials, isTwilioError, friendlyTwilioError } from "@/lib/twilio";
+import { validateStatusTransition } from "@/lib/lead-guardrails";
+import type { LeadStatus } from "@/lib/types";
 
 const SYSTEM_USER_ID = "00000000-0000-0000-0000-000000000000";
+const LEAD_STATUS_SET = new Set<LeadStatus>([
+  "staging",
+  "prospect",
+  "lead",
+  "negotiation",
+  "disposition",
+  "nurture",
+  "dead",
+  "closed",
+]);
+
+function normalizeLeadStatus(raw: string | null | undefined): LeadStatus {
+  const normalized = (raw ?? "").toLowerCase().replace(/\s+/g, "_");
+  // Legacy compatibility only: "My Leads" is an assignment segment, never a canonical stage.
+  if (normalized === "my_lead" || normalized === "my_leads" || normalized === "my_lead_status") {
+    return "lead";
+  }
+  if (LEAD_STATUS_SET.has(normalized as LeadStatus)) {
+    return normalized as LeadStatus;
+  }
+  return "prospect";
+}
+
+function resolveDialerNoContactStatusTarget(currentStatus: LeadStatus): LeadStatus | null {
+  if (
+    (currentStatus === "lead" || currentStatus === "negotiation" || currentStatus === "disposition")
+    && validateStatusTransition(currentStatus, "nurture")
+  ) {
+    return "nurture";
+  }
+  return null;
+}
+
+type GuardedWorkflowResult =
+  | { ok: true; statusAfter: LeadStatus; statusTarget: LeadStatus | null }
+  | { ok: false; status: number; detail: string };
+
+async function applyGuardedDialerWorkflowMutation(args: {
+  req: NextRequest;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  sb: any;
+  bearerToken: string;
+  leadId: string;
+  lockVersion: number;
+  currentStatus: LeadStatus;
+}): Promise<GuardedWorkflowResult> {
+  const { req, sb, bearerToken, leadId } = args;
+
+  const tryPatch = async (lockVersion: number, currentStatus: LeadStatus): Promise<GuardedWorkflowResult> => {
+    const statusTarget = resolveDialerNoContactStatusTarget(currentStatus);
+    const patchBody: Record<string, unknown> = {
+      lead_id: leadId,
+      assigned_to: null,
+      next_call_scheduled_at: null,
+      next_follow_up_at: null,
+    };
+    if (statusTarget && statusTarget !== currentStatus) {
+      patchBody.status = statusTarget;
+    }
+
+    const prospectsUrl = new URL("/api/prospects", req.url).toString();
+    const res = await fetch(prospectsUrl, {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${bearerToken}`,
+        "x-lock-version": String(lockVersion),
+      },
+      body: JSON.stringify(patchBody),
+    });
+
+    const payload = await res.json().catch(() => ({} as Record<string, unknown>));
+    if (!res.ok) {
+      return {
+        ok: false,
+        status: res.status,
+        detail: String(payload.detail ?? payload.error ?? `HTTP ${res.status}`),
+      };
+    }
+
+    const statusAfterRaw = typeof payload.status === "string" ? payload.status : currentStatus;
+    return {
+      ok: true,
+      statusAfter: normalizeLeadStatus(statusAfterRaw),
+      statusTarget,
+    };
+  };
+
+  const first = await tryPatch(args.lockVersion, args.currentStatus);
+  if (first.ok || first.status !== 409) {
+    return first;
+  }
+
+  // Retry once after lock conflict using fresh lock/status.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: latestLead, error: latestErr } = await (sb.from("leads") as any)
+    .select("lock_version, status")
+    .eq("id", leadId)
+    .single();
+
+  if (latestErr || !latestLead) {
+    return {
+      ok: false,
+      status: 409,
+      detail: "Workflow update conflict and latest lead state could not be loaded.",
+    };
+  }
+
+  return tryPatch(
+    Number.isInteger(latestLead.lock_version) ? latestLead.lock_version : 0,
+    normalizeLeadStatus(latestLead.status),
+  );
+}
 
 /**
  * POST /api/dialer/call
@@ -14,11 +129,12 @@ const SYSTEM_USER_ID = "00000000-0000-0000-0000-000000000000";
  * Body: { phone, leadId, propertyId, userId, ghostMode? }
  *
  * Flow:
- *   1. Compliance scrub (unless ghost mode)
- *   2. Create Twilio call via REST API
- *   3. Insert calls_log record
- *   4. Audit log
- *   5. Return call SID
+ *   1. First-call consent guard (lead-linked calls)
+ *   2. Compliance scrub (unless ghost mode)
+ *   3. Create Twilio call via REST API
+ *   4. Insert calls_log record
+ *   5. Audit log
+ *   6. Return call SID
  */
 export async function POST(req: NextRequest) {
   const sb = createServerClient();
@@ -69,7 +185,36 @@ export async function POST(req: NextRequest) {
   const e164 = `+1${phone}`;
   const userId = user.id;
 
-  // 1. Compliance scrub
+  // 1. Lead-linked first-call consent guard (server-side authority).
+  if (body.leadId) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: leadRecord, error: leadErr } = await (sb.from("leads") as any)
+      .select("id, call_consent, total_calls")
+      .eq("id", body.leadId)
+      .single();
+
+    if (leadErr || !leadRecord) {
+      return NextResponse.json({ error: "Lead not found for call" }, { status: 404 });
+    }
+
+    const totalCalls = Number.isFinite(Number(leadRecord.total_calls))
+      ? Number(leadRecord.total_calls)
+      : 0;
+    const consentGranted = leadRecord.call_consent === true;
+
+    if (totalCalls <= 0 && !consentGranted) {
+      return NextResponse.json(
+        {
+          error: "Call consent required before first outbound call",
+          code: "CALL_CONSENT_REQUIRED",
+          lead_id: body.leadId,
+        },
+        { status: 403 },
+      );
+    }
+  }
+
+  // 2. Compliance scrub
   const scrub = await scrubLead(body.phone, userId, body.ghostMode ?? false);
   if (!scrub.allowed) {
     return NextResponse.json(
@@ -80,7 +225,7 @@ export async function POST(req: NextRequest) {
 
   const callMode = body.mode ?? "voip";
 
-  // 2. Lookup agent's profile
+  // 3. Lookup agent's profile
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data: agentProfile } = await (sb.from("user_profiles") as any)
     .select("personal_cell, twilio_phone_number, full_name")
@@ -359,17 +504,23 @@ export async function PATCH(req: NextRequest) {
 
   if (callRow?.lead_id) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data: lead } = await (sb.from("leads") as any)
-      .select("call_sequence_step, total_calls, live_answers, voicemails_left")
+    const { data: lead, error: leadFetchErr } = await (sb.from("leads") as any)
+      .select("status, lock_version, call_sequence_step, total_calls, live_answers, voicemails_left")
       .eq("id", callRow.lead_id)
       .single();
+
+    if (leadFetchErr) {
+      console.error("[Dialer] leads fetch failed:", leadFetchErr);
+      return NextResponse.json({ error: "Could not load lead state for call update" }, { status: 500 });
+    }
 
     if (lead) {
       const step: number = lead.call_sequence_step ?? 1;
       const isLive = !["no_answer", "voicemail", "ghost", "skip_trace", "in_progress", "initiating", "sms_outbound"].includes(body.disposition);
       const isVM = body.disposition === "voicemail";
-
+      const currentStatus = normalizeLeadStatus(lead.status);
       const sched = scheduleNextCall(step, endedAt, body.disposition);
+      const sequenceCompleteWithoutLiveAnswer = sched.isComplete && !isLive;
 
       const updatePayload: Record<string, unknown> = {
         total_calls: (lead.total_calls ?? 0) + 1,
@@ -381,18 +532,65 @@ export async function PATCH(req: NextRequest) {
         updated_at: new Date().toISOString(),
       };
 
-      // Auto-revert to prospect after 7-day sequence with no live answer
-      if (sched.isComplete && !isLive) {
-        updatePayload.status = "prospect";
-        updatePayload.assigned_to = null;
+      // Keep sequence counters in this dialer route; workflow-status/assignment
+      // mutations are delegated to guarded /api/prospects flow below.
+      if (sequenceCompleteWithoutLiveAnswer) {
         updatePayload.call_sequence_step = 1;
         updatePayload.next_call_scheduled_at = null;
       }
 
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      await (sb.from("leads") as any)
+      const { error: leadUpdateErr } = await (sb.from("leads") as any)
         .update(updatePayload)
         .eq("id", callRow.lead_id);
+
+      if (leadUpdateErr) {
+        console.error("[Dialer] lead counters update failed:", leadUpdateErr);
+        return NextResponse.json({ error: "Could not update lead call sequence" }, { status: 500 });
+      }
+
+      if (sequenceCompleteWithoutLiveAnswer) {
+        if (!patchToken) {
+          return NextResponse.json({ error: "Missing auth token for guarded workflow update" }, { status: 401 });
+        }
+
+        const guardedResult = await applyGuardedDialerWorkflowMutation({
+          req,
+          sb,
+          bearerToken: patchToken,
+          leadId: callRow.lead_id,
+          lockVersion: Number.isInteger(lead.lock_version) ? lead.lock_version : 0,
+          currentStatus,
+        });
+
+        if (!guardedResult.ok) {
+          console.error("[Dialer] guarded workflow mutation failed:", guardedResult.detail);
+          return NextResponse.json(
+            { error: "Workflow update failed", detail: guardedResult.detail },
+            { status: guardedResult.status },
+          );
+        }
+
+        // Non-blocking dialer-specific workflow audit context.
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (sb.from("event_log") as any).insert({
+          user_id: patchUser.id,
+          action: "dialer.sequence_routed",
+          entity_type: "lead",
+          entity_id: callRow.lead_id,
+          details: {
+            trigger: "7_day_no_live_answer",
+            status_before: currentStatus,
+            status_target: guardedResult.statusTarget,
+            status_after: guardedResult.statusAfter,
+            assignment_cleared: true,
+          },
+        }).then(({ error: auditErr }: { error: unknown }) => {
+          if (auditErr) {
+            console.error("[Dialer] sequence route audit failed (non-fatal):", auditErr);
+          }
+        });
+      }
     }
   }
 

@@ -71,6 +71,12 @@ interface LeadRow {
   promoted_at: string | null;
   last_contact_at: string | null;
   next_follow_up_at: string | null;
+  motivation_level: number | null;
+  seller_timeline: "immediate" | "30_days" | "60_days" | "flexible" | "unknown" | null;
+  condition_level: number | null;
+  decision_maker_confirmed: boolean;
+  price_expectation: number | null;
+  qualification_route: "offer_ready" | "follow_up" | "nurture" | "dead" | "escalate" | null;
   disposition_code: string | null;
   notes: string | null;
   tags: string[];

@@ -1,60 +1,152 @@
-/**
- * Analytics Query Helpers
- *
- * Charter v3.0 §Analytics Domain:
- *   - Conversion analysis, Signal ROI, Model performance
- *   - Never mutates operational data
- *   - Read-only queries against calls_log + leads
- */
-
 import { supabase } from "@/lib/supabase";
 
-// ── Types ──────────────────────────────────────────────────────────────
-
 export type TimePeriod = "today" | "week" | "month" | "all";
+export type MarketKey = "spokane" | "kootenai" | "other";
+export type PipelineStage = "prospect" | "lead" | "negotiation" | "disposition" | "nurture" | "closed" | "dead";
 
-export interface KPIData {
-  totalDials: number;
-  connects: number;
-  connectRate: number;
-  voicemails: number;
-  appointments: number;
-  contracts: number;
-  deadLeads: number;
-  nurtures: number;
-  avgCallDuration: number;
-  revenue: number;
+const MARKET_ORDER: MarketKey[] = ["spokane", "kootenai", "other"];
+const PIPELINE_STAGE_ORDER: PipelineStage[] = ["prospect", "lead", "negotiation", "disposition", "nurture", "closed", "dead"];
+const SPEED_TO_LEAD_SLA_MS = 15 * 60 * 1000;
+
+interface RawLead {
+  id: string;
+  property_id: string | null;
+  status: string | null;
+  source: string | null;
+  promoted_at: string | null;
+  created_at: string | null;
+  last_contact_at: string | null;
+  next_call_scheduled_at: string | null;
+  total_calls: number | null;
 }
 
-export interface AgentRow {
-  userId: string;
-  name: string;
-  color: string;
-  kpis: KPIData;
+interface RawProperty {
+  id: string;
+  county: string | null;
 }
 
-export interface DailyDialPoint {
-  date: string;
-  dials: number;
-  connects: number;
-  connectRate: number;
+interface RawCallAttempt {
+  lead_id: string | null;
+  started_at: string | null;
 }
 
-export interface FunnelStep {
+interface RawDeal {
+  id: string;
+  lead_id: string | null;
+  status: string | null;
+  assignment_fee: number | null;
+  closed_at: string | null;
+}
+
+interface EnrichedLead {
+  id: string;
+  market: MarketKey;
+  sourceKey: string;
+  sourceLabel: string;
+  stage: PipelineStage;
+  intakeMs: number | null;
+  firstAttemptMs: number | null;
+  firstAttemptEstimated: boolean;
+  nextFollowUpMs: number | null;
+  totalCalls: number;
+}
+
+interface ClosedDealFact {
+  id: string;
+  leadId: string;
+  market: MarketKey;
+  sourceKey: string;
+  assignmentFee: number;
+}
+
+export interface MarketScoreRow {
+  market: MarketKey;
   label: string;
-  value: number;
-  color: string;
+  totalLeads: number;
+  activePipeline: number;
+  newLeads: number;
+  contactedRatePct: number | null;
+  overdueFollowUps: number;
+  awaitingFirstContact: number;
+  closedDeals: number;
+  assignmentRevenue: number;
+  medianSpeedToLeadMinutes: number | null;
 }
 
-// ── Team roster (matches login page) ───────────────────────────────────
+export interface SourceOutcomeRow {
+  sourceKey: string;
+  sourceLabel: string;
+  leads: number;
+  spokaneLeads: number;
+  kootenaiLeads: number;
+  contactedRatePct: number | null;
+  closedDeals: number;
+  assignmentRevenue: number;
+  medianSpeedToLeadMinutes: number | null;
+}
 
-export const TEAM_ROSTER = [
-  { name: "Adam D.", email: "adam@dominionhomedeals.com", color: "#00ff88" },
-  { name: "Nathan Walsh", email: "nathan@dominionhomedeals.com", color: "#0099ff" },
-  { name: "Logan Anyan", email: "logan@dominionhomedeals.com", color: "#a855f7" },
-];
+export interface PipelineHealthRow {
+  market: MarketKey;
+  label: string;
+  active: number;
+  prospect: number;
+  lead: number;
+  negotiation: number;
+  disposition: number;
+  nurture: number;
+  closed: number;
+  dead: number;
+}
 
-// ── Date range helpers ─────────────────────────────────────────────────
+export interface SpeedToLeadMarketRow {
+  market: MarketKey;
+  label: string;
+  sampleCount: number;
+  medianMinutes: number | null;
+  within15mRatePct: number | null;
+  slowOrMissingCount: number;
+}
+
+export interface SpeedToLeadSummary {
+  sampleCount: number;
+  estimatedSampleCount: number;
+  medianMinutes: number | null;
+  within15mRatePct: number | null;
+  slowOrMissingCount: number;
+  coveragePct: number;
+  byMarket: SpeedToLeadMarketRow[];
+}
+
+export interface RevenueByMarketRow {
+  market: MarketKey;
+  label: string;
+  closedDeals: number;
+  assignmentRevenue: number;
+}
+
+export interface RevenueSummary {
+  closedDeals: number;
+  assignmentRevenue: number;
+  avgAssignmentFee: number | null;
+  undatedClosedDealsExcluded: number;
+  byMarket: RevenueByMarketRow[];
+}
+
+export interface DominionAnalyticsData {
+  generatedAt: string;
+  periodStart: string | null;
+  marketScoreboard: MarketScoreRow[];
+  sourceOutcomes: SourceOutcomeRow[];
+  pipelineHealth: PipelineHealthRow[];
+  speedToLead: SpeedToLeadSummary;
+  revenue: RevenueSummary;
+}
+
+export interface ConversionSnapshotSummary {
+  snapshotCount: number;
+  funnelCounts: Record<string, number>;
+  avgDaysByStage: Record<string, number>;
+}
 
 export function getPeriodStart(period: TimePeriod): string | null {
   const now = new Date();
@@ -81,185 +173,507 @@ export function getPeriodStart(period: TimePeriod): string | null {
   }
 }
 
-export function getPreviousPeriodStart(period: TimePeriod): string | null {
-  const now = new Date();
-  switch (period) {
-    case "today": {
-      const d = new Date(now);
-      d.setDate(d.getDate() - 1);
-      d.setHours(0, 0, 0, 0);
-      return d.toISOString();
-    }
-    case "week": {
-      const d = new Date(now);
-      d.setDate(d.getDate() - 14);
-      d.setHours(0, 0, 0, 0);
-      return d.toISOString();
-    }
-    case "month": {
-      const d = new Date(now);
-      d.setDate(d.getDate() - 60);
-      d.setHours(0, 0, 0, 0);
-      return d.toISOString();
-    }
-    case "all":
-      return null;
-  }
+export function formatCurrency(value: number): string {
+  return new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "USD",
+    maximumFractionDigits: 0,
+  }).format(value || 0);
 }
 
-// ── Core KPI query ─────────────────────────────────────────────────────
+export function formatPercent(value: number | null): string {
+  if (value == null) return "n/a";
+  return `${value.toFixed(1)}%`;
+}
 
-const CONNECT_DISPOS = ["interested", "appointment", "contract", "nurture", "dead", "skip_trace", "ghost"];
+export function formatMinutes(value: number | null): string {
+  if (value == null) return "n/a";
+  return `${value}m`;
+}
 
-export async function fetchKPIs(
-  periodStart: string | null,
-  periodEnd: string | null,
-  userId?: string
-): Promise<KPIData> {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  let callsQuery = (supabase.from("calls_log") as any).select("disposition, duration_sec");
-  if (periodStart) callsQuery = callsQuery.gte("started_at", periodStart);
-  if (periodEnd) callsQuery = callsQuery.lt("started_at", periodEnd);
-  if (userId) callsQuery = callsQuery.eq("user_id", userId);
+function toMs(iso: string | null | undefined): number | null {
+  if (!iso) return null;
+  const ms = new Date(iso).getTime();
+  return Number.isNaN(ms) ? null : ms;
+}
 
-  const { data: calls } = await callsQuery;
-  const callRows: { disposition: string; duration_sec: number }[] = calls ?? [];
+function round1(n: number): number {
+  return Math.round(n * 10) / 10;
+}
 
-  const totalDials = callRows.length;
-  const connects = callRows.filter((c) => CONNECT_DISPOS.includes(c.disposition)).length;
-  const voicemails = callRows.filter((c) => c.disposition === "voicemail").length;
-  const appointments = callRows.filter((c) => c.disposition === "appointment").length;
-  const contracts = callRows.filter((c) => c.disposition === "contract").length;
-  const deadLeads = callRows.filter((c) => c.disposition === "dead").length;
-  const nurtures = callRows.filter((c) => c.disposition === "nurture").length;
-  const totalDuration = callRows.reduce((s, c) => s + (c.duration_sec ?? 0), 0);
-  const avgCallDuration = totalDials > 0 ? Math.round(totalDuration / totalDials) : 0;
-  const connectRate = totalDials > 0 ? Math.round((connects / totalDials) * 100) : 0;
+function median(values: number[]): number | null {
+  if (values.length === 0) return null;
+  const sorted = [...values].sort((a, b) => a - b);
+  return sorted[Math.floor(sorted.length / 2)];
+}
 
-  // Revenue from closed leads assigned to this user
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  let leadsQuery = (supabase.from("leads") as any)
-    .select("id", { count: "exact", head: true })
-    .eq("status", "closed");
-  if (userId) leadsQuery = leadsQuery.eq("assigned_to", userId);
+function marketFromCounty(county: string | null | undefined): MarketKey {
+  const c = (county ?? "").toLowerCase();
+  if (c.includes("spokane")) return "spokane";
+  if (c.includes("kootenai")) return "kootenai";
+  return "other";
+}
 
-  const { count: closedCount } = await leadsQuery;
-  const revenue = (closedCount ?? 0) * 15000;
+function marketLabel(market: MarketKey): string {
+  if (market === "spokane") return "Spokane";
+  if (market === "kootenai") return "Kootenai";
+  return "Unknown/Other County";
+}
 
+function sourceKey(source: string | null | undefined): string {
+  return (source ?? "unknown").trim().toLowerCase();
+}
+
+function sourceLabel(source: string | null | undefined): string {
+  const normalized = sourceKey(source);
+  if (normalized === "unknown") return "Uncategorized / Unknown";
+  if (normalized === "propertyradar") return "PropertyRadar";
+  if (normalized === "ranger_push") return "Ranger";
+  if (normalized === "google_ads") return "Google Ads";
+  if (normalized === "facebook_ads") return "Facebook Ads";
+  return normalized
+    .replace(/^csv:/, "CSV ")
+    .replace(/[_-]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .replace(/\b\w/g, (m) => m.toUpperCase());
+}
+
+function normalizeStage(status: string | null | undefined): PipelineStage {
+  const s = (status ?? "").toLowerCase();
+  // Legacy compatibility only: assignment segment aliases are not canonical workflow stages.
+  if (s === "my_lead" || s === "my_leads" || s === "my_lead_status") return "lead";
+  if (PIPELINE_STAGE_ORDER.includes(s as PipelineStage)) return s as PipelineStage;
+  return "lead";
+}
+
+function isClosedDeal(deal: RawDeal): boolean {
+  const status = (deal.status ?? "").toLowerCase();
+  return status === "closed" || Boolean(deal.closed_at);
+}
+
+function shouldIncludeClosedDealForPeriod(deal: RawDeal, periodStartMs: number | null): boolean {
+  if (!isClosedDeal(deal)) return false;
+  if (periodStartMs == null) return true;
+  const closedMs = toMs(deal.closed_at);
+  return closedMs != null && closedMs >= periodStartMs;
+}
+
+function emptyPipelineRow(market: MarketKey): PipelineHealthRow {
   return {
-    totalDials, connects, connectRate, voicemails,
-    appointments, contracts, deadLeads, nurtures,
-    avgCallDuration, revenue,
+    market,
+    label: marketLabel(market),
+    active: 0,
+    prospect: 0,
+    lead: 0,
+    negotiation: 0,
+    disposition: 0,
+    nurture: 0,
+    closed: 0,
+    dead: 0,
   };
 }
 
-// ── Per-agent breakdown ────────────────────────────────────────────────
+function emptyMarketScoreRow(market: MarketKey): MarketScoreRow {
+  return {
+    market,
+    label: marketLabel(market),
+    totalLeads: 0,
+    activePipeline: 0,
+    newLeads: 0,
+    contactedRatePct: null,
+    overdueFollowUps: 0,
+    awaitingFirstContact: 0,
+    closedDeals: 0,
+    assignmentRevenue: 0,
+    medianSpeedToLeadMinutes: null,
+  };
+}
 
-export async function fetchAgentBreakdown(periodStart: string | null): Promise<AgentRow[]> {
-  // Get user_profiles to resolve user IDs
+function emptyAnalytics(periodStart: string | null): DominionAnalyticsData {
+  return {
+    generatedAt: new Date().toISOString(),
+    periodStart,
+    marketScoreboard: [emptyMarketScoreRow("spokane"), emptyMarketScoreRow("kootenai")],
+    sourceOutcomes: [],
+    pipelineHealth: [emptyPipelineRow("spokane"), emptyPipelineRow("kootenai")],
+    speedToLead: {
+      sampleCount: 0,
+      estimatedSampleCount: 0,
+      medianMinutes: null,
+      within15mRatePct: null,
+      slowOrMissingCount: 0,
+      coveragePct: 0,
+      byMarket: [
+        { market: "spokane", label: "Spokane", sampleCount: 0, medianMinutes: null, within15mRatePct: null, slowOrMissingCount: 0 },
+        { market: "kootenai", label: "Kootenai", sampleCount: 0, medianMinutes: null, within15mRatePct: null, slowOrMissingCount: 0 },
+      ],
+    },
+    revenue: {
+      closedDeals: 0,
+      assignmentRevenue: 0,
+      avgAssignmentFee: null,
+      undatedClosedDealsExcluded: 0,
+      byMarket: [
+        { market: "spokane", label: "Spokane", closedDeals: 0, assignmentRevenue: 0 },
+        { market: "kootenai", label: "Kootenai", closedDeals: 0, assignmentRevenue: 0 },
+      ],
+    },
+  };
+}
+
+function buildSpeedSummary(leads: EnrichedLead[], nowMs: number): SpeedToLeadSummary {
+  const samplesMs: number[] = [];
+  let estimatedSampleCount = 0;
+  let slowOrMissingCount = 0;
+  let intakeCount = 0;
+
+  const perMarket = new Map<MarketKey, { samples: number[]; withinSla: number; slowMissing: number }>();
+  for (const market of MARKET_ORDER) {
+    perMarket.set(market, { samples: [], withinSla: 0, slowMissing: 0 });
+  }
+
+  for (const lead of leads) {
+    if (lead.intakeMs == null) continue;
+    intakeCount++;
+
+    const marketBucket = perMarket.get(lead.market) ?? { samples: [], withinSla: 0, slowMissing: 0 };
+
+    if (lead.firstAttemptMs != null && lead.firstAttemptMs >= lead.intakeMs) {
+      const delta = lead.firstAttemptMs - lead.intakeMs;
+      samplesMs.push(delta);
+      marketBucket.samples.push(delta);
+      if (delta <= SPEED_TO_LEAD_SLA_MS) {
+        marketBucket.withinSla += 1;
+      }
+      if (lead.firstAttemptEstimated) estimatedSampleCount++;
+    } else if (nowMs - lead.intakeMs > SPEED_TO_LEAD_SLA_MS) {
+      slowOrMissingCount++;
+      marketBucket.slowMissing += 1;
+    }
+
+    perMarket.set(lead.market, marketBucket);
+  }
+
+  const sampleCount = samplesMs.length;
+  const withinSla = samplesMs.filter((ms) => ms <= SPEED_TO_LEAD_SLA_MS).length;
+  const medianMs = median(samplesMs);
+
+  const byMarketMarkets: MarketKey[] = ["spokane", "kootenai"];
+  const byMarket: SpeedToLeadMarketRow[] = byMarketMarkets.map((market) => {
+    const bucket = perMarket.get(market) ?? { samples: [], withinSla: 0, slowMissing: 0 };
+    const marketMedian = median(bucket.samples);
+    return {
+      market,
+      label: marketLabel(market),
+      sampleCount: bucket.samples.length,
+      medianMinutes: marketMedian == null ? null : Math.round(marketMedian / 60000),
+      within15mRatePct: bucket.samples.length > 0 ? round1((bucket.withinSla / bucket.samples.length) * 100) : null,
+      slowOrMissingCount: bucket.slowMissing,
+    };
+  });
+
+  return {
+    sampleCount,
+    estimatedSampleCount,
+    medianMinutes: medianMs == null ? null : Math.round(medianMs / 60000),
+    within15mRatePct: sampleCount > 0 ? round1((withinSla / sampleCount) * 100) : null,
+    slowOrMissingCount,
+    coveragePct: intakeCount > 0 ? round1((sampleCount / intakeCount) * 100) : 0,
+    byMarket,
+  };
+}
+
+export async function fetchDominionAnalytics(periodStart: string | null, userId?: string): Promise<DominionAnalyticsData> {
+  const periodStartMs = toMs(periodStart);
+  const nowMs = Date.now();
+
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { data: profiles } = await (supabase.from("user_profiles") as any)
-    .select("id, full_name, email");
+  let leadsQuery = (supabase.from("leads") as any)
+    .select("id, property_id, status, source, promoted_at, created_at, last_contact_at, next_call_scheduled_at, total_calls")
+    .neq("status", "staging");
 
-  const profileList: { id: string; full_name: string; email: string }[] = profiles ?? [];
+  if (userId) {
+    leadsQuery = leadsQuery.eq("assigned_to", userId);
+  }
 
-  const agents: AgentRow[] = [];
+  const { data: leadsRaw, error: leadsError } = await leadsQuery;
+  if (leadsError) {
+    throw leadsError;
+  }
 
-  for (const roster of TEAM_ROSTER) {
-    const profile = profileList.find((p) => p.email === roster.email);
-    const userId = profile?.id;
+  const rawLeads: RawLead[] = (leadsRaw ?? []) as RawLead[];
+  if (rawLeads.length === 0) {
+    return emptyAnalytics(periodStart);
+  }
 
-    if (!userId) {
-      agents.push({
-        userId: "",
-        name: roster.name,
-        color: roster.color,
-        kpis: emptyKPIs(),
+  const leadIds = [...new Set(rawLeads.map((l) => l.id).filter(Boolean))];
+  const propertyIds = [...new Set(rawLeads.map((l) => l.property_id).filter((id): id is string => Boolean(id)))];
+
+  const propertyCountyById = new Map<string, string | null>();
+  if (propertyIds.length > 0) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: properties } = await (supabase.from("properties") as any)
+      .select("id, county")
+      .in("id", propertyIds);
+
+    for (const prop of (properties ?? []) as RawProperty[]) {
+      propertyCountyById.set(prop.id, prop.county ?? null);
+    }
+  }
+
+  const firstAttemptByLeadId = new Map<string, string>();
+  if (leadIds.length > 0) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: calls } = await (supabase.from("calls_log") as any)
+      .select("lead_id, started_at")
+      .in("lead_id", leadIds)
+      .order("started_at", { ascending: true });
+
+    for (const row of (calls ?? []) as RawCallAttempt[]) {
+      if (!row.lead_id || !row.started_at) continue;
+      if (!firstAttemptByLeadId.has(row.lead_id)) {
+        firstAttemptByLeadId.set(row.lead_id, row.started_at);
+      }
+    }
+  }
+
+  const dealsByLeadId = new Map<string, RawDeal[]>();
+  if (leadIds.length > 0) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: deals } = await (supabase.from("deals") as any)
+      .select("id, lead_id, status, assignment_fee, closed_at")
+      .in("lead_id", leadIds);
+
+    for (const deal of (deals ?? []) as RawDeal[]) {
+      if (!deal.lead_id) continue;
+      const existing = dealsByLeadId.get(deal.lead_id) ?? [];
+      existing.push(deal);
+      dealsByLeadId.set(deal.lead_id, existing);
+    }
+  }
+
+  const enrichedLeads: EnrichedLead[] = rawLeads.map((lead) => {
+    const county = lead.property_id ? propertyCountyById.get(lead.property_id) ?? null : null;
+    const callAttemptIso = firstAttemptByLeadId.get(lead.id) ?? null;
+    const fallbackAttemptIso = lead.last_contact_at ?? null;
+    const intakeMs = toMs(lead.promoted_at ?? lead.created_at);
+
+    return {
+      id: lead.id,
+      market: marketFromCounty(county),
+      sourceKey: sourceKey(lead.source),
+      sourceLabel: sourceLabel(lead.source),
+      stage: normalizeStage(lead.status),
+      intakeMs,
+      firstAttemptMs: toMs(callAttemptIso ?? fallbackAttemptIso),
+      firstAttemptEstimated: !callAttemptIso && Boolean(fallbackAttemptIso),
+      nextFollowUpMs: toMs(lead.next_call_scheduled_at),
+      totalCalls: Number(lead.total_calls ?? 0),
+    };
+  });
+
+  const leadById = new Map(enrichedLeads.map((lead) => [lead.id, lead]));
+  const periodLeads = periodStartMs == null
+    ? enrichedLeads
+    : enrichedLeads.filter((lead) => lead.intakeMs != null && lead.intakeMs >= periodStartMs);
+
+  const closedDealFacts: ClosedDealFact[] = [];
+  let undatedClosedDealsExcluded = 0;
+
+  for (const [leadId, deals] of dealsByLeadId.entries()) {
+    const lead = leadById.get(leadId);
+    if (!lead) continue;
+
+    for (const deal of deals) {
+      if (!isClosedDeal(deal)) continue;
+      if (periodStartMs != null && !deal.closed_at) {
+        undatedClosedDealsExcluded++;
+      }
+      if (!shouldIncludeClosedDealForPeriod(deal, periodStartMs)) continue;
+
+      closedDealFacts.push({
+        id: deal.id,
+        leadId,
+        market: lead.market,
+        sourceKey: lead.sourceKey,
+        assignmentFee: Number(deal.assignment_fee ?? 0),
       });
+    }
+  }
+
+  const speedToLead = buildSpeedSummary(periodLeads, nowMs);
+
+  const marketScoreboard: MarketScoreRow[] = [];
+  for (const market of MARKET_ORDER) {
+    const marketAll = enrichedLeads.filter((lead) => lead.market === market);
+    const marketPeriod = periodLeads.filter((lead) => lead.market === market);
+    const marketDeals = closedDealFacts.filter((deal) => deal.market === market);
+
+    if (
+      market === "other" &&
+      marketAll.length === 0 &&
+      marketDeals.length === 0
+    ) {
       continue;
     }
 
-    const kpis = await fetchKPIs(periodStart, null, userId);
-    agents.push({ userId, name: roster.name, color: roster.color, kpis });
+    const contacted = marketPeriod.filter((lead) => lead.firstAttemptMs != null).length;
+    const overdue = marketAll.filter((lead) => lead.nextFollowUpMs != null && lead.nextFollowUpMs < nowMs).length;
+    const awaitingFirstContact = marketAll.filter((lead) => lead.firstAttemptMs == null && lead.totalCalls === 0).length;
+    const activePipeline = marketAll.filter((lead) => !["closed", "dead"].includes(lead.stage)).length;
+    const speedMarket = speedToLead.byMarket.find((row) => row.market === market);
+
+    marketScoreboard.push({
+      market,
+      label: marketLabel(market),
+      totalLeads: marketAll.length,
+      activePipeline,
+      newLeads: marketPeriod.length,
+      contactedRatePct: marketPeriod.length > 0 ? round1((contacted / marketPeriod.length) * 100) : null,
+      overdueFollowUps: overdue,
+      awaitingFirstContact,
+      closedDeals: marketDeals.length,
+      assignmentRevenue: marketDeals.reduce((sum, deal) => sum + deal.assignmentFee, 0),
+      medianSpeedToLeadMinutes: speedMarket?.medianMinutes ?? null,
+    });
   }
 
-  return agents;
-}
+  const pipelineHealthByMarket = new Map<MarketKey, PipelineHealthRow>();
+  for (const market of MARKET_ORDER) {
+    pipelineHealthByMarket.set(market, emptyPipelineRow(market));
+  }
+  for (const lead of enrichedLeads) {
+    const row = pipelineHealthByMarket.get(lead.market) ?? emptyPipelineRow(lead.market);
+    row[lead.stage] += 1;
+    row.active = row.prospect + row.lead + row.negotiation + row.disposition + row.nurture;
+    pipelineHealthByMarket.set(lead.market, row);
+  }
+  const pipelineHealth = Array.from(pipelineHealthByMarket.values()).filter((row) => {
+    if (row.market !== "other") return true;
+    const total = row.active + row.closed + row.dead;
+    return total > 0;
+  });
 
-// ── Daily dials chart data (last 30 days) ──────────────────────────────
+  const sourceRows = new Map<
+    string,
+    {
+      sourceLabel: string;
+      leads: number;
+      spokaneLeads: number;
+      kootenaiLeads: number;
+      contacted: number;
+      speedSamplesMs: number[];
+      closedDeals: number;
+      assignmentRevenue: number;
+    }
+  >();
 
-export async function fetchDailyDials(userId?: string): Promise<DailyDialPoint[]> {
-  const thirtyAgo = new Date();
-  thirtyAgo.setDate(thirtyAgo.getDate() - 30);
-  thirtyAgo.setHours(0, 0, 0, 0);
+  for (const lead of periodLeads) {
+    const existing = sourceRows.get(lead.sourceKey) ?? {
+      sourceLabel: lead.sourceLabel,
+      leads: 0,
+      spokaneLeads: 0,
+      kootenaiLeads: 0,
+      contacted: 0,
+      speedSamplesMs: [],
+      closedDeals: 0,
+      assignmentRevenue: 0,
+    };
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  let query = (supabase.from("calls_log") as any)
-    .select("started_at, disposition")
-    .gte("started_at", thirtyAgo.toISOString())
-    .order("started_at", { ascending: true });
+    existing.leads += 1;
+    if (lead.market === "spokane") existing.spokaneLeads += 1;
+    if (lead.market === "kootenai") existing.kootenaiLeads += 1;
 
-  if (userId) query = query.eq("user_id", userId);
+    if (lead.firstAttemptMs != null) {
+      existing.contacted += 1;
+    }
+    if (lead.intakeMs != null && lead.firstAttemptMs != null && lead.firstAttemptMs >= lead.intakeMs) {
+      existing.speedSamplesMs.push(lead.firstAttemptMs - lead.intakeMs);
+    }
 
-  const { data } = await query;
-  const rows: { started_at: string; disposition: string }[] = data ?? [];
-
-  const byDay = new Map<string, { dials: number; connects: number }>();
-
-  // Pre-fill 30 days
-  for (let i = 0; i < 30; i++) {
-    const d = new Date();
-    d.setDate(d.getDate() - (29 - i));
-    const key = d.toISOString().slice(0, 10);
-    byDay.set(key, { dials: 0, connects: 0 });
+    sourceRows.set(lead.sourceKey, existing);
   }
 
-  for (const row of rows) {
-    const key = row.started_at.slice(0, 10);
-    const entry = byDay.get(key) ?? { dials: 0, connects: 0 };
-    entry.dials++;
-    if (CONNECT_DISPOS.includes(row.disposition)) entry.connects++;
-    byDay.set(key, entry);
+  for (const deal of closedDealFacts) {
+    const existing = sourceRows.get(deal.sourceKey) ?? {
+      sourceLabel: sourceLabel(deal.sourceKey),
+      leads: 0,
+      spokaneLeads: 0,
+      kootenaiLeads: 0,
+      contacted: 0,
+      speedSamplesMs: [],
+      closedDeals: 0,
+      assignmentRevenue: 0,
+    };
+
+    existing.closedDeals += 1;
+    existing.assignmentRevenue += deal.assignmentFee;
+    sourceRows.set(deal.sourceKey, existing);
   }
 
-  return Array.from(byDay.entries()).map(([date, v]) => ({
-    date,
-    dials: v.dials,
-    connects: v.connects,
-    connectRate: v.dials > 0 ? Math.round((v.connects / v.dials) * 100) : 0,
-  }));
-}
+  const sourceOutcomes: SourceOutcomeRow[] = Array.from(sourceRows.entries())
+    .map(([key, row]) => {
+      const medianMs = median(row.speedSamplesMs);
+      return {
+        sourceKey: key,
+        sourceLabel: row.sourceLabel,
+        leads: row.leads,
+        spokaneLeads: row.spokaneLeads,
+        kootenaiLeads: row.kootenaiLeads,
+        contactedRatePct: row.leads > 0 ? round1((row.contacted / row.leads) * 100) : null,
+        closedDeals: row.closedDeals,
+        assignmentRevenue: row.assignmentRevenue,
+        medianSpeedToLeadMinutes: medianMs == null ? null : Math.round(medianMs / 60000),
+      };
+    })
+    .sort((a, b) => {
+      if (b.leads !== a.leads) return b.leads - a.leads;
+      return b.assignmentRevenue - a.assignmentRevenue;
+    });
 
-// ── Funnel data ────────────────────────────────────────────────────────
+  const revenueByMarketMap = new Map<MarketKey, RevenueByMarketRow>();
+  for (const market of MARKET_ORDER) {
+    revenueByMarketMap.set(market, {
+      market,
+      label: marketLabel(market),
+      closedDeals: 0,
+      assignmentRevenue: 0,
+    });
+  }
+  for (const deal of closedDealFacts) {
+    const existing = revenueByMarketMap.get(deal.market) ?? {
+      market: deal.market,
+      label: marketLabel(deal.market),
+      closedDeals: 0,
+      assignmentRevenue: 0,
+    };
+    existing.closedDeals += 1;
+    existing.assignmentRevenue += deal.assignmentFee;
+    revenueByMarketMap.set(deal.market, existing);
+  }
 
-export async function fetchFunnelData(periodStart: string | null, userId?: string): Promise<FunnelStep[]> {
-  const kpis = await fetchKPIs(periodStart, null, userId);
+  const revenueRows = Array.from(revenueByMarketMap.values()).filter((row) => {
+    if (row.market !== "other") return true;
+    return row.closedDeals > 0 || row.assignmentRevenue > 0;
+  });
 
-  return [
-    { label: "Connects", value: kpis.connects, color: "#0099ff" },
-    { label: "Appointments", value: kpis.appointments, color: "#00ff88" },
-    { label: "Contracts", value: kpis.contracts, color: "#ff6b35" },
-  ];
-}
+  const totalRevenue = closedDealFacts.reduce((sum, deal) => sum + deal.assignmentFee, 0);
+  const closedDeals = closedDealFacts.length;
 
-// ── Helpers ─────────────────────────────────────────────────────────────
-
-function emptyKPIs(): KPIData {
   return {
-    totalDials: 0, connects: 0, connectRate: 0, voicemails: 0,
-    appointments: 0, contracts: 0, deadLeads: 0, nurtures: 0,
-    avgCallDuration: 0, revenue: 0,
+    generatedAt: new Date().toISOString(),
+    periodStart,
+    marketScoreboard,
+    sourceOutcomes,
+    pipelineHealth,
+    speedToLead,
+    revenue: {
+      closedDeals,
+      assignmentRevenue: totalRevenue,
+      avgAssignmentFee: closedDeals > 0 ? totalRevenue / closedDeals : null,
+      undatedClosedDealsExcluded: periodStartMs == null ? 0 : undatedClosedDealsExcluded,
+      byMarket: revenueRows,
+    },
   };
-}
-
-export function formatDuration(seconds: number): string {
-  const m = Math.floor(seconds / 60);
-  const s = seconds % 60;
-  return `${m}:${s.toString().padStart(2, "0")}`;
-}
-
-export function pctChange(current: number, previous: number): number | null {
-  if (previous === 0 && current === 0) return null;
-  if (previous === 0) return 100;
-  return Math.round(((current - previous) / previous) * 100);
 }

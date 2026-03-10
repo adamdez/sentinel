@@ -506,10 +506,18 @@ export default function DialerPage() {
 
   const grantConsent = useCallback(async () => {
     if (!currentLead) return;
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    await (supabase.from("leads") as any)
-      .update({ call_consent: true, call_consent_at: new Date().toISOString() })
-      .eq("id", currentLead.id);
+
+    const res = await fetch("/api/dialer/consent", {
+      method: "POST",
+      headers: await authHeaders(),
+      body: JSON.stringify({ leadId: currentLead.id }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok || !data?.success) {
+      toast.error(data?.error ?? `Consent save failed (HTTP ${res.status})`);
+      return;
+    }
+
     setConsentPending(false);
     setConsentGranted(true);
   }, [currentLead]);
