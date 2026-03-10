@@ -33,6 +33,15 @@ const US_STATES: Record<string, string> = {
   WYOMING: "WY",
 };
 
+async function requireAuthenticatedUser(req: NextRequest, sb: ReturnType<typeof createServerClient>) {
+  const authHeader = req.headers.get("authorization");
+  const token = authHeader?.startsWith("Bearer ") ? authHeader.slice(7) : null;
+  if (!token) return null;
+  const { data, error } = await sb.auth.getUser(token);
+  if (error || !data.user) return null;
+  return data.user;
+}
+
 // ── GET /api/prospects — Fetch all prospects (server-side, bypasses RLS) ──
 
 export async function GET() {
@@ -121,8 +130,12 @@ export async function PATCH(req: NextRequest) {
   try {
     const body = await req.json();
     const sb = createServerClient();
+    const user = await requireAuthenticatedUser(req, sb);
+    if (!user) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
 
-    const { lead_id, status, assigned_to, actor_id } = body;
+    const { lead_id, status, assigned_to } = body;
     const clientLockVersion = req.headers.get("x-lock-version");
 
     if (!lead_id) {
@@ -170,7 +183,7 @@ export async function PATCH(req: NextRequest) {
           .single();
 
         if (property?.owner_phone) {
-          const scrub = await scrubLead(property.owner_phone, actor_id, ghostMode);
+          const scrub = await scrubLead(property.owner_phone, user.id, ghostMode);
           if (!scrub.allowed) {
             return NextResponse.json(
               { error: "Compliance blocked", detail: scrub.reason, blockedReasons: scrub.blockedReasons },
@@ -231,7 +244,7 @@ export async function PATCH(req: NextRequest) {
       entity_type: "lead",
       entity_id: lead_id,
       action: assigned_to ? "CLAIMED" : "STATUS_CHANGED",
-      user_id: actor_id || null,
+      user_id: user.id,
       details: { status, assigned_to },
     }).then(({ error: auditErr }: { error: unknown }) => {
       if (auditErr) console.error("[API/prospects PATCH] Audit log insert failed (non-fatal):", auditErr);
@@ -253,6 +266,7 @@ export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
     const sb = createServerClient();
+    const actorUser = await requireAuthenticatedUser(req, sb);
 
     const {
       property_id: preEnrichedPropertyId,
@@ -403,7 +417,7 @@ export async function POST(req: NextRequest) {
       entity_type: "lead",
       entity_id: lead.id,
       action: "CREATED",
-      user_id: body.actor_id || null,
+      user_id: actorUser?.id ?? null,
       details: {
         source: "manual",
         address,

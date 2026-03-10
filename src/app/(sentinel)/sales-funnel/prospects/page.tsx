@@ -19,11 +19,13 @@ import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { useProspects, type ProspectRow, type SortField, type SortDir } from "@/hooks/use-prospects";
 import { supabase } from "@/lib/supabase";
+import { getAuthenticatedProspectPatchHeaders } from "@/lib/prospect-api-client";
 import { useSentinelStore } from "@/lib/store";
 import { useModal } from "@/providers/modal-provider";
 import type { AIScore } from "@/lib/types";
 import { toast } from "sonner";
 import { RelationshipBadgeCompact } from "@/components/sentinel/relationship-badge";
+import { deleteLeadCustomerFile } from "@/lib/lead-write-helpers";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem,
   DropdownMenuTrigger, DropdownMenuSeparator,
@@ -369,17 +371,14 @@ export default function ProspectsPage() {
         return;
       }
 
+      const headers = await getAuthenticatedProspectPatchHeaders(current.lock_version ?? 0);
       const res = await fetch("/api/prospects", {
         method: "PATCH",
-        headers: {
-          "Content-Type": "application/json",
-          "x-lock-version": String(current.lock_version ?? 0),
-        },
+        headers,
         body: JSON.stringify({
           lead_id: leadId,
           status: "lead",
           assigned_to: userId,
-          actor_id: userId,
         }),
       });
 
@@ -416,18 +415,15 @@ export default function ProspectsPage() {
 
     setDeleting(prospect.id);
     try {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { error: delLeadErr } = await (supabase.from("leads") as any)
-        .delete()
-        .eq("id", prospect.id);
-
-      if (delLeadErr) {
-        console.error("[Prospects] DELETE FAILED:", delLeadErr);
-        toast.error(`Delete failed: ${delLeadErr.message}`);
-      } else {
-        toast.success(`Deleted prospect: ${prospect.owner_name}`);
-        if (typeof refetch === "function") refetch();
+      const result = await deleteLeadCustomerFile(prospect.id);
+      if (!result.ok) {
+        console.error("[Prospects] DELETE FAILED:", result.error);
+        toast.error(`Delete failed: ${result.error}`);
+        return;
       }
+
+      toast.success(`Deleted prospect: ${prospect.owner_name}`);
+      if (typeof refetch === "function") refetch();
     } catch (err) {
       toast.error("Network error — could not delete");
       console.error("[Prospects] delete error:", err);

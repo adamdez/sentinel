@@ -20,6 +20,7 @@ import { toast } from "sonner";
 import { useSentinelStore } from "@/lib/store";
 import { useModal } from "@/providers/modal-provider";
 import { cn } from "@/lib/utils";
+import { getAuthenticatedProspectPatchHeaders } from "@/lib/prospect-api-client";
 
 // ── Types ──────────────────────────────────────────────────────────────
 
@@ -237,14 +238,14 @@ export function NewProspectModal() {
     setSaving(true);
 
     try {
+      const headers = await getAuthenticatedProspectPatchHeaders();
       const res = await fetch("/api/prospects", {
         method: "PATCH",
-        headers: { "Content-Type": "application/json" },
+        headers,
         body: JSON.stringify({
           lead_id: createdLeadId,
           status: "lead",
           assigned_to: currentUser.id,
-          actor_id: currentUser.id,
         }),
       });
 

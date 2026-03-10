@@ -1,6 +1,7 @@
 "use client";
 
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { getAuthenticatedProspectPatchHeaders } from "@/lib/prospect-api-client";
 
 export interface OptimisticUpdateParams {
   id: string;
@@ -21,12 +22,10 @@ async function patchProspect({
   payload,
   lockVersion,
 }: OptimisticUpdateParams): Promise<PatchResponse> {
+  const headers = await getAuthenticatedProspectPatchHeaders(lockVersion);
   const res = await fetch("/api/prospects", {
     method: "PATCH",
-    headers: {
-      "Content-Type": "application/json",
-      "x-lock-version": String(lockVersion),
-    },
+    headers,
     body: JSON.stringify({ lead_id: id, ...payload }),
   });
 

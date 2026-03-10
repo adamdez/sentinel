@@ -26,6 +26,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import type { AIScore, LeadStatus } from "@/lib/types";
 import { supabase } from "@/lib/supabase";
+import { getAuthenticatedProspectPatchHeaders } from "@/lib/prospect-api-client";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 
@@ -289,9 +290,10 @@ export function PipelineBoard() {
     );
 
     try {
+      const headers = await getAuthenticatedProspectPatchHeaders();
       const res = await fetch("/api/prospects", {
         method: "PATCH",
-        headers: { "Content-Type": "application/json" },
+        headers,
         body: JSON.stringify({ lead_id: draggedItem.id, status: newStatus }),
       });
       if (!res.ok) {

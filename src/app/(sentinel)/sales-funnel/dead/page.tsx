@@ -14,6 +14,7 @@ import { cn } from "@/lib/utils";
 import { useLeadsByStatus } from "@/hooks/use-leads-by-status";
 import { MasterClientFileModal, clientFileFromRaw } from "@/components/sentinel/master-client-file-modal";
 import { supabase } from "@/lib/supabase";
+import { getAuthenticatedProspectPatchHeaders } from "@/lib/prospect-api-client";
 import { toast } from "sonner";
 import type { ProspectRow } from "@/hooks/use-prospects";
 
@@ -101,16 +102,13 @@ export default function DeadPage() {
         .eq("id", row.id)
         .single();
 
+      const headers = await getAuthenticatedProspectPatchHeaders(current?.lock_version ?? 0);
       const res = await fetch("/api/prospects", {
         method: "PATCH",
-        headers: {
-          "Content-Type": "application/json",
-          "x-lock-version": String(current?.lock_version ?? 0),
-        },
+        headers,
         body: JSON.stringify({
           lead_id: row.id,
           status: "nurture",
-          actor_id: user.id,
         }),
       });
 

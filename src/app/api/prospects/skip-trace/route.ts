@@ -43,6 +43,15 @@ const ZIP_TO_CITY: Record<string, string> = {
   "83876": "Worley", "83801": "Athol",
 };
 
+async function requireAuthenticatedUser(req: NextRequest, sb: ReturnType<typeof createServerClient>) {
+  const authHeader = req.headers.get("authorization");
+  const token = authHeader?.startsWith("Bearer ") ? authHeader.slice(7) : null;
+  if (!token) return null;
+  const { data, error } = await sb.auth.getUser(token);
+  if (error || !data.user) return null;
+  return data.user;
+}
+
 /**
  * POST /api/prospects/skip-trace
  *
@@ -65,14 +74,18 @@ export async function POST(req: NextRequest) {
   }
 
   try {
+    const sb = createServerClient();
+    const user = await requireAuthenticatedUser(req, sb);
+    if (!user) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
     const body = await req.json();
     const { property_id, lead_id, manual = false } = body;
 
     if (!property_id) {
       return NextResponse.json({ error: "property_id is required" }, { status: 400 });
     }
-
-    const sb = createServerClient();
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { data: property, error: propErr } = await (sb.from("properties") as any)
@@ -92,7 +105,7 @@ export async function POST(req: NextRequest) {
     if (!radarId) {
       console.log("[SkipTrace] No radar_id — auto-enriching via multi-tier fallback");
       const tEnrichStart = Date.now();
-      const enrichResult = await enrichProperty(sb, apiKey, property, lead_id, manual);
+      const enrichResult = await enrichProperty(sb, apiKey, property, lead_id, user.id, manual);
       console.log(`[SkipTrace Perf] Enrichment: ${Date.now() - tEnrichStart}ms`);
       if (!enrichResult.success) {
         console.error("[SkipTrace] Enrichment failed:", enrichResult.error, "| tier:", enrichResult.tier);
@@ -205,6 +218,7 @@ export async function POST(req: NextRequest) {
           entity_type: "lead",
           entity_id: lead_id,
           action: "SKIP_TRACED",
+          user_id: user.id,
           details: {
             radar_id: radarId,
             providers: skipResult.providers,
@@ -324,7 +338,14 @@ async function prLookup(
 // ── Auto-enrich from PropertyRadar (multi-tier fallback) ─────────────
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function enrichProperty(sb: any, apiKey: string, property: any, leadId?: string, manual = false): Promise<EnrichResult> {
+async function enrichProperty(
+  sb: any,
+  apiKey: string,
+  property: any,
+  leadId?: string,
+  actorUserId?: string,
+  manual = false,
+): Promise<EnrichResult> {
   const address = property.address ?? "";
   if (!address && !property.apn) {
     return { success: false, error: "No address on property", reason: "Property has no address or APN", suggestion: "Add an address or APN before skip-tracing", tier: "none" };
@@ -617,6 +638,7 @@ async function enrichProperty(sb: any, apiKey: string, property: any, leadId?: s
         entity_type: "lead",
         entity_id: leadId,
         action: "ENRICHED",
+        user_id: actorUserId ?? null,
         details: { source: "propertyradar", radar_id: pr.RadarID, score: score.composite },
       }),
     );

@@ -115,6 +115,15 @@ function safeStr(v: unknown): string | null {
   return String(v);
 }
 
+async function requireAuthenticatedUser(req: NextRequest, sb: ReturnType<typeof createServerClient>) {
+  const authHeader = req.headers.get("authorization");
+  const token = authHeader?.startsWith("Bearer ") ? authHeader.slice(7) : null;
+  if (!token) return null;
+  const { data, error } = await sb.auth.getUser(token);
+  if (error || !data.user) return null;
+  return data.user;
+}
+
 // ── Main Handler ────────────────────────────────────────────────────
 
 // ── SSE streaming helpers ──────────────────────────────────────────
@@ -131,6 +140,13 @@ function sseEmit(controller: SSEController, encoder: TextEncoder, event: Record<
 
 export async function POST(req: NextRequest) {
   const t0 = Date.now();
+  const sb = createServerClient();
+  const user = await requireAuthenticatedUser(req, sb);
+  if (!user) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const tbl = (name: string) => sb.from(name) as any;
 
   // ── Pre-flight: parse body and validate ──
   let body: Record<string, unknown>;
@@ -144,10 +160,6 @@ export async function POST(req: NextRequest) {
   if (!property_id) {
     return NextResponse.json({ error: "property_id is required" }, { status: 400 });
   }
-
-  const sb = createServerClient();
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const tbl = (name: string) => sb.from(name) as any;
 
   // ── Fetch property ──
   const { data: property, error: propErr } = await tbl("properties")
@@ -777,6 +789,7 @@ export async function POST(req: NextRequest) {
                 entity_type: "lead",
                 entity_id: lead_id,
                 action: "DEEP_CRAWL",
+                user_id: user.id,
                 details: {
                   property_id,
                   sources,

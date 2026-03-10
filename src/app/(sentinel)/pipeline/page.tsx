@@ -23,6 +23,7 @@ import {
 import { toast } from "sonner";
 import { supabase, getCurrentUser } from "@/lib/supabase";
 import { cn } from "@/lib/utils";
+import { getAuthenticatedProspectPatchHeaders } from "@/lib/prospect-api-client";
 import { MasterClientFileModal, clientFileFromRaw, type ClientFile } from "@/components/sentinel/master-client-file-modal";
 
 // ── Stage definitions ──────────────────────────────────────────────────
@@ -87,8 +88,16 @@ const STAGES = [
 ] as const;
 
 type StageId = (typeof STAGES)[number]["id"];
+type CanonicalStageId = Exclude<StageId, "my_lead">;
 
-const VALID_STAGE_IDS = new Set<string>(STAGES.map((s) => s.id));
+const CANONICAL_STAGE_IDS = new Set<CanonicalStageId>([
+  "prospect",
+  "lead",
+  "negotiation",
+  "disposition",
+  "nurture",
+  "dead",
+]);
 
 interface Lead {
   id: string;
@@ -119,14 +128,24 @@ function isClaimExpired(expires?: string | null) {
   return expires ? new Date(expires) < new Date() : false;
 }
 
-function normalizeStatus(raw: string | null | undefined): StageId {
+function normalizeStatus(raw: string | null | undefined): CanonicalStageId {
   if (!raw) return "prospect";
   const lower = raw.toLowerCase().replace(/\s+/g, "_");
-  if (VALID_STAGE_IDS.has(lower)) return lower as StageId;
+  if (CANONICAL_STAGE_IDS.has(lower as CanonicalStageId)) return lower as CanonicalStageId;
   if (lower === "prospects") return "prospect";
-  if (lower === "leads") return "lead";
-  if (lower === "my_leads" || lower === "my leads") return "my_lead";
+  if (lower === "leads" || lower === "my_lead" || lower === "my_leads" || lower === "my leads") return "lead";
   return "prospect";
+}
+
+function resolveUiStage(
+  status: CanonicalStageId,
+  assignedTo: string | null,
+  currentUserId: string | null
+): StageId {
+  if (status === "lead" && assignedTo && currentUserId && assignedTo === currentUserId) {
+    return "my_lead";
+  }
+  return status;
 }
 
 // ── Main component ─────────────────────────────────────────────────────
@@ -211,7 +230,8 @@ export default function PipelinePage() {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       for (const raw of leadsRaw as any[]) {
         const prop = propsMap[raw.property_id] ?? {};
-        const status = normalizeStatus(raw.status);
+        const canonicalStatus = normalizeStatus(raw.status);
+        const status = resolveUiStage(canonicalStatus, raw.assigned_to ?? null, currentUserId);
         const pred = predsMap[raw.property_id];
         if (pred) {
           raw._prediction = {
@@ -251,12 +271,15 @@ export default function PipelinePage() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [currentUserId]);
 
   // ── Init + realtime ──────────────────────────────────────────────────
 
   useEffect(() => {
     getCurrentUser().then((u) => setCurrentUserId(u?.id ?? null));
+  }, []);
+
+  useEffect(() => {
     fetchLeads();
 
     const channel = supabase
@@ -275,43 +298,91 @@ export default function PipelinePage() {
 
   // ── Claim lead ───────────────────────────────────────────────────────
 
+  const patchLead = useCallback(async (
+    leadId: string,
+    {
+      desiredStatus,
+      assignedTo,
+      promoteProspectOnClaim,
+    }: {
+      desiredStatus?: CanonicalStageId;
+      assignedTo?: string;
+      promoteProspectOnClaim?: boolean;
+    }
+  ): Promise<boolean> => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: current, error: currentErr } = await (supabase.from("leads") as any)
+      .select("status, lock_version")
+      .eq("id", leadId)
+      .single();
+
+    if (currentErr || !current) {
+      toast.error("Unable to load current lead state. Refresh and retry.");
+      return false;
+    }
+
+    const currentStatus = normalizeStatus(current.status);
+    let nextStatus = desiredStatus;
+
+    if (promoteProspectOnClaim && currentStatus === "prospect") {
+      nextStatus = "lead";
+    }
+    if (nextStatus === currentStatus) {
+      nextStatus = undefined;
+    }
+
+    const body: Record<string, unknown> = { lead_id: leadId };
+    if (nextStatus) body.status = nextStatus;
+    if (assignedTo) body.assigned_to = assignedTo;
+
+    let headers: Record<string, string>;
+    try {
+      headers = await getAuthenticatedProspectPatchHeaders(current.lock_version ?? 0);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Session expired. Please sign in again.");
+      return false;
+    }
+
+    const res = await fetch("/api/prospects", {
+      method: "PATCH",
+      headers,
+      body: JSON.stringify(body),
+    });
+
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      const detail = data?.detail ?? data?.error ?? `HTTP ${res.status}`;
+      if (res.status === 409) {
+        toast.error("Update conflict. Refresh and retry.");
+      } else if (res.status === 422) {
+        toast.error(`Invalid stage transition: ${detail}`);
+      } else {
+        toast.error(`Lead update failed: ${detail}`);
+      }
+      return false;
+    }
+
+    return true;
+  }, [currentUserId]);
+
   const claimLead = useCallback(async (leadId: string) => {
     if (!currentUserId) {
-      toast.error("Not authenticated — cannot claim");
+      toast.error("Not authenticated - cannot claim");
       return;
     }
 
-    const expires = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
-
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { error } = await (supabase.from("leads") as any)
-      .update({
-        status: "my_lead",
-        assigned_to: currentUserId,
-        claimed_at: new Date().toISOString(),
-        claim_expires_at: expires,
-      })
-      .eq("id", leadId);
-
-    if (error) {
-      console.error("[Pipeline] Claim failed:", error);
-      toast.error("Claim failed: " + error.message);
+    const ok = await patchLead(leadId, {
+      assignedTo: currentUserId,
+      promoteProspectOnClaim: true,
+    });
+    if (!ok) {
       await fetchLeads();
       return;
     }
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    await (supabase.from("event_log") as any).insert({
-      entity_type: "lead",
-      entity_id: leadId,
-      action: "CLAIMED",
-      user_id: currentUserId,
-      details: { note: "24-hour soft lock applied via Pipeline" },
-    });
-
-    toast.success("Lead claimed — moved to My Leads");
+    toast.success("Lead assigned to you - visible in My Leads");
     await fetchLeads();
-  }, [currentUserId, fetchLeads]);
+  }, [currentUserId, patchLead, fetchLeads]);
 
   // ── Drag end ─────────────────────────────────────────────────────────
 
@@ -319,56 +390,31 @@ export default function PipelinePage() {
     const { destination, source, draggableId } = result;
     if (!destination || destination.droppableId === source.droppableId) return;
 
+    const sourceStage = source.droppableId as StageId;
     const newStatus = destination.droppableId as StageId;
     const leadId = draggableId;
 
-    // Optimistic move
-    setLeadsByStage((prev) => {
-      const next = { ...prev };
-      const srcStage = source.droppableId as StageId;
-      const lead = next[srcStage].find((l) => l.id === leadId);
-      if (!lead) return prev;
-
-      next[srcStage] = next[srcStage].filter((l) => l.id !== leadId);
-      const updated = { ...lead, status: newStatus };
-      const destList = [...next[newStatus]];
-      destList.splice(destination.index, 0, updated);
-      next[newStatus] = destList;
-      return next;
-    });
-
-    // Auto-claim if dragging to My Leads and unclaimed
+    // "My Leads" is an assignment segment (assigned_to === current user), not a persisted status.
     if (newStatus === "my_lead") {
       await claimLead(leadId);
       return;
     }
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { error } = await (supabase.from("leads") as any)
-      .update({ status: newStatus })
-      .eq("id", leadId);
+    // Dragging from My Leads back to Leads is a no-op because assignment still applies.
+    if (sourceStage === "my_lead" && newStatus === "lead") {
+      toast("My Leads is assignment-based. Use a stage move to change status.");
+      return;
+    }
 
-    if (error) {
-      console.error("[Pipeline] Status update failed:", error);
-      toast.error("Move failed — reverting");
+    const ok = await patchLead(leadId, { desiredStatus: newStatus });
+    if (!ok) {
       await fetchLeads();
       return;
     }
 
-    if (currentUserId) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      await (supabase.from("event_log") as any).insert({
-        entity_type: "lead",
-        entity_id: leadId,
-        action: "STATUS_CHANGED",
-        user_id: currentUserId,
-        details: { from: source.droppableId, to: newStatus },
-      });
-    }
-
     toast.success(`Moved to ${STAGES.find((s) => s.id === newStatus)?.title ?? newStatus}`);
     await fetchLeads();
-  }, [claimLead, currentUserId, fetchLeads]);
+  }, [claimLead, patchLead, fetchLeads]);
 
   // ── Quick Add Test Prospect ──────────────────────────────────────────
 
@@ -376,55 +422,38 @@ export default function PipelinePage() {
     setAdding(true);
     try {
       const ts = Date.now();
-      const testApn = `TEST-${ts}`;
-
-      // Step 1: create a property
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { data: prop, error: propErr } = await (supabase.from("properties") as any)
-        .upsert(
-          {
-            apn: testApn,
-            county: "spokane",
-            address: "1234 Test Prospect Lane",
-            city: "Spokane",
-            state: "WA",
-            zip: "99201",
-            owner_name: "Test Owner",
-            estimated_value: 285000,
-            equity_percent: 42,
-            property_type: "SFR",
-            owner_flags: { test: true },
-          },
-          { onConflict: "apn,county" }
-        )
-        .select("id")
-        .single();
-
-      if (propErr || !prop) {
-        console.error("[Pipeline] Test property insert failed:", propErr);
-        toast.error("Failed to create test property: " + (propErr?.message ?? "no data"));
-        return;
-      }
-
-      // Step 2: create lead linked to that property
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { error: leadErr } = await (supabase.from("leads") as any).insert({
-        property_id: prop.id,
-        status: "prospect",
-        priority: 92,
-        source: "manual-test",
-        tags: ["manual-test", "high-priority"],
-        notes: "Quick add test prospect from Pipeline",
-        promoted_at: new Date().toISOString(),
+      const res = await fetch("/api/prospects", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          apn: `TEST-${ts}`,
+          county: "spokane",
+          address: "1234 Test Prospect Lane",
+          city: "Spokane",
+          state: "WA",
+          zip: "99201",
+          owner_name: "Test Owner",
+          estimated_value: 285000,
+          equity_percent: 70,
+          property_type: "SFR",
+          distress_tags: ["manual-test", "high-priority", "vacant", "absentee"],
+          notes: "Quick add test prospect from Pipeline",
+          source: "manual-test",
+          actor_id: currentUserId,
+        }),
       });
-
-      if (leadErr) {
-        console.error("[Pipeline] Test lead insert failed:", leadErr);
-        toast.error("Failed to create test lead: " + leadErr.message);
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data?.success) {
+        const detail = data?.detail ?? data?.error ?? `HTTP ${res.status}`;
+        console.error("[Pipeline] Test prospect API failed:", detail);
+        toast.error("Failed to create test prospect: " + detail);
         return;
       }
 
-      toast.success("Test Prospect created (score 92 FIRE) — check Prospects column");
+      const scoreNote = typeof data?.score === "number" ? ` (score ${data.score})` : "";
+      toast.success(`Test prospect created${scoreNote} — check Prospects column`);
       await fetchLeads();
     } catch (err) {
       console.error("[Pipeline] addTestProspect error:", err);
@@ -432,7 +461,7 @@ export default function PipelinePage() {
     } finally {
       setAdding(false);
     }
-  }, [fetchLeads]);
+  }, [currentUserId, fetchLeads]);
 
   // ── Filter by search ─────────────────────────────────────────────────
 
@@ -740,3 +769,4 @@ function LeadCard({
     </Draggable>
   );
 }
+
