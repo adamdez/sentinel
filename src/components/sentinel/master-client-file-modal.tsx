@@ -48,6 +48,8 @@ import {
   BuyerDispoVisibilityCard,
   OfferStatusTruthCard,
 } from "@/components/sentinel/master-client-file/workflow-truth-cards";
+import { useCoachSurface } from "@/providers/coach-provider";
+import { CoachPanel, CoachToggle } from "@/components/sentinel/coach-panel";
 import { NumericInput } from "@/components/sentinel/numeric-input";
 import { usePreCallBrief } from "@/hooks/use-pre-call-brief";
 import { supabase } from "@/lib/supabase";
@@ -6105,6 +6107,44 @@ export function MasterClientFileModal({ clientFile: incomingClientFile, open, on
     [incomingClientFile, clientFilePatch, ownerFlagsOverride],
   );
 
+  // ── Coach context: push lead state into the coach engine ──
+  const qualCompleteness = useMemo(() => {
+    if (!clientFile) return 0;
+    let filled = 0;
+    if (clientFile.motivationLevel != null && clientFile.motivationLevel > 0) filled++;
+    if (clientFile.sellerTimeline) filled++;
+    if (clientFile.conditionLevel != null && clientFile.conditionLevel > 0) filled++;
+    if (clientFile.decisionMakerConfirmed) filled++;
+    if (clientFile.priceExpectation != null && clientFile.priceExpectation > 0) filled++;
+    return filled / 5;
+  }, [clientFile]);
+
+  useCoachSurface(
+    closeoutOpen ? "lead_detail_closeout" : "lead_detail",
+    {
+      lead: clientFile ? {
+        id: clientFile.id,
+        status: clientFile.status,
+        qualification_route: clientFile.qualificationRoute ?? undefined,
+        assigned_to: clientFile.assignedTo ?? undefined,
+        calls_count: clientFile.totalCalls ?? 0,
+        next_action_at: clientFile.followUpDate ?? clientFile.nextCallScheduledAt ?? undefined,
+        last_contact_at: clientFile.lastContactAt ?? undefined,
+        qualification_completeness: qualCompleteness,
+        offer_amount: clientFile.offerAmount ?? undefined,
+        has_note_context: !!(clientFile.notes?.length),
+        has_disposition: !!clientFile.dispositionCode,
+        address: clientFile.fullAddress ?? undefined,
+      } : undefined,
+      closeout: closeoutOpen ? {
+        action_type: closeoutAction,
+        has_date: !!closeoutAt,
+        has_disposition: closeoutOutcome !== "" && closeoutOutcome !== "no_change",
+        has_note: !!closeoutNote?.trim(),
+      } : undefined,
+    },
+  );
+
   useEffect(() => {
     const propId = clientFile?.propertyId;
     if (!propId || deepCrawlCheckedRef.current === propId) return;
@@ -7674,7 +7714,8 @@ export function MasterClientFileModal({ clientFile: incomingClientFile, open, on
             transition={{ type: "spring", damping: 25, stiffness: 300 }}
             className={cn("fixed inset-x-4 top-[2%] bottom-[2%] md:inset-x-auto md:left-1/2 md:-translate-x-1/2 z-50 flex flex-col transition-all duration-300", activeTab === "comps" ? "md:w-[1060px]" : "md:w-[860px]")}
           >
-            <div className="flex-1 overflow-hidden rounded-[16px] border border-white/[0.08] modal-glass holo-border wet-shine flex flex-col">
+            <div className="flex-1 overflow-hidden rounded-[16px] border border-white/[0.08] modal-glass holo-border wet-shine flex flex-row">
+            <div className="flex-1 overflow-hidden flex flex-col min-w-0">
               {/* Header */}
               <div className="shrink-0 border-b border-white/[0.06] bg-[rgba(4,4,12,0.88)] backdrop-blur-2xl rounded-t-[16px]">
                 <div className="flex items-start justify-between gap-4 px-6 py-4">
@@ -7734,6 +7775,7 @@ export function MasterClientFileModal({ clientFile: incomingClientFile, open, on
                         <CheckCircle2 className="h-2.5 w-2.5" />Enriched
                       </Badge>
                     )}
+                    <CoachToggle className="ml-1" />
                     <button onClick={onClose} className="p-1.5 rounded-[10px] hover:bg-white/[0.04] transition-colors text-muted-foreground hover:text-foreground">
                       <X className="h-4 w-4" />
                     </button>
@@ -8293,7 +8335,9 @@ export function MasterClientFileModal({ clientFile: incomingClientFile, open, on
                   </Button>
                 </div>
               </div>
-            </div>
+            </div>{/* end inner flex-col */}
+            <CoachPanel variant="modal" />
+            </div>{/* end outer flex-row */}
           </motion.div>
 
           {editOpen && (
