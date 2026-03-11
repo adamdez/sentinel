@@ -6131,7 +6131,9 @@ export function MasterClientFileModal({ clientFile: incomingClientFile, open, on
         next_action_at: clientFile.followUpDate ?? clientFile.nextCallScheduledAt ?? undefined,
         last_contact_at: clientFile.lastContactAt ?? undefined,
         qualification_completeness: qualCompleteness,
-        offer_amount: clientFile.offerAmount ?? undefined,
+        offer_amount: (clientFile.ownerFlags as Record<string, unknown>)?.offer_status_snapshot
+          ? ((clientFile.ownerFlags as Record<string, unknown>)?.offer_status_snapshot as Record<string, unknown>)?.amount as number | undefined
+          : undefined,
         has_note_context: !!(clientFile.notes?.length),
         has_disposition: !!clientFile.dispositionCode,
         address: clientFile.fullAddress ?? undefined,
