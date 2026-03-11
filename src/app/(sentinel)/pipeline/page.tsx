@@ -27,6 +27,8 @@ import { getAuthenticatedProspectPatchHeaders } from "@/lib/prospect-api-client"
 import { precheckWorkflowStageChange } from "@/lib/workflow-stage-precheck";
 import type { LeadStatus, QualificationRoute } from "@/lib/types";
 import { MasterClientFileModal, clientFileFromRaw, type ClientFile } from "@/components/sentinel/master-client-file-modal";
+import { useCoachSurface } from "@/providers/coach-provider";
+import { CoachPanel, CoachToggle } from "@/components/sentinel/coach-panel";
 
 // ── Pipeline lane definitions (workflow stages + assignment segment) ──────────────────────────────────────────────────
 
@@ -199,6 +201,8 @@ export default function PipelinePage() {
   const rawDataRef = useRef<Record<string, { lead: any; prop: any }>>({});
   const [selectedClientFile, setSelectedClientFile] = useState<ClientFile | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
+
+  useCoachSurface("pipeline", {});
 
   // ── Fetch all leads + properties, group by lane ─────────────────────
 
@@ -622,10 +626,12 @@ export default function PipelinePage() {
             <RefreshCw className={cn("h-4 w-4", loading && "animate-spin")} />
             Refresh
           </button>
+          <CoachToggle />
         </div>
       </div>
 
-      {/* Kanban Board */}
+      {/* Kanban Board + Coach */}
+      <div className="flex-1 flex min-h-0">
       <div className="flex-1 overflow-x-auto p-4">
         <DragDropContext onDragEnd={onDragEnd}>
           <div className="flex gap-3 h-full min-h-0" style={{ minWidth: PIPELINE_LANES.length * 280 }}>
@@ -711,6 +717,8 @@ export default function PipelinePage() {
             })}
           </div>
         </DragDropContext>
+      </div>
+      <CoachPanel />
       </div>
 
       <MasterClientFileModal
