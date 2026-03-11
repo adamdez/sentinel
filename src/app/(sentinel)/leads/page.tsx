@@ -1,6 +1,8 @@
 "use client";
 
 import { Shield, Radio } from "lucide-react";
+import { useCoachSurface } from "@/providers/coach-provider";
+import { CoachPanel, CoachToggle } from "@/components/sentinel/coach-panel";
 import { PageShell } from "@/components/sentinel/page-shell";
 import { Badge } from "@/components/ui/badge";
 import { LeadSegmentControl } from "@/components/sentinel/leads/lead-segment-control";
@@ -93,6 +95,15 @@ export default function LeadsPage() {
   ];
   const speedLabel = inboxMetrics.estimatedSpeedSampleCount > 0 ? "First Response (est)" : "First Response";
 
+  useCoachSurface("leads_inbox", {
+    inbox: {
+      overdue_count: needsAttention.overdue,
+      new_inbound_count: needsAttention.newInbound,
+      unqualified_count: needsAttention.needsQualification,
+      escalated_count: needsAttention.escalatedReview,
+    },
+  });
+
   return (
     <PageShell
       title="Lead Inbox"
@@ -107,6 +118,7 @@ export default function LeadsPage() {
             <Shield className="h-2.5 w-2.5" />
             Role: {currentUser.role}
           </Badge>
+          <CoachToggle />
         </div>
       }
     >
@@ -288,11 +300,7 @@ export default function LeadsPage() {
         onRefresh={refetch}
       />
 
-      {/* TODO: Real-time Supabase subscription for lead updates (channel: leads_changes) */}
-      {/* TODO: Optimistic locking on claim/update (lock_version check) */}
-      {/* TODO: Compliance gating before dial eligibility */}
-      {/* TODO: Audit log on every lead action */}
-      {/* TODO: TanStack Query integration for server state */}
+      <CoachPanel />
     </PageShell>
   );
 }
