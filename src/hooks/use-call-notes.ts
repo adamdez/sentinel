@@ -14,7 +14,7 @@ export interface CallNote {
   ended_at: string | null;
 }
 
-export function useCallNotes(leadId: string | null | undefined, limit = 5) {
+export function useCallNotes(leadId: string | null | undefined, limit = 5, refreshKey?: number) {
   const [notes, setNotes] = useState<CallNote[]>([]);
   const [loading, setLoading] = useState(false);
 
@@ -31,7 +31,7 @@ export function useCallNotes(leadId: string | null | undefined, limit = 5) {
     setLoading(false);
   }, [leadId, limit]);
 
-  useEffect(() => { fetch_(); }, [fetch_]);
+  useEffect(() => { fetch_(); }, [fetch_, refreshKey]);
 
   const latestSummary = notes.find((n) => n.ai_summary)?.ai_summary ?? null;
   const latestSummaryTime = notes.find((n) => n.ai_summary)?.summary_timestamp ?? null;

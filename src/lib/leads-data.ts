@@ -3,7 +3,7 @@
  * All lead data is fetched live from Supabase.
  */
 
-import type { DistressType, AIScore, LeadStatus, SellerTimeline, QualificationRoute } from "./types";
+import type { AIScore, LeadStatus, SellerTimeline, QualificationRoute } from "./types";
 
 export type OfferVisibilityStatus =
   | "none"
@@ -476,7 +476,7 @@ export interface LeadRow {
   ownerPhone: string | null;
   ownerEmail: string | null;
   ownerBadge: "absentee" | "corporate" | "inherited" | "elderly" | "out-of-state" | null;
-  distressSignals: DistressType[];
+  distressSignals: string[];
   status: LeadStatus;
   assignedTo: string | null;
   assignedName: string | null;
@@ -501,6 +501,28 @@ export interface LeadRow {
   offerPrepHealth: OfferPrepHealth;
   promotedAt: string;
   source: string;
+  sourceChannel: string | null;
+  sourceVendor: string | null;
+  sourceListName: string | null;
+  sourcePullDate: string | null;
+  sourceCampaign: string | null;
+  intakeMethod: string | null;
+  rawSourceRef: string | null;
+  duplicateStatus: string | null;
+  receivedAt: string | null;
+  nicheTag: string | null;
+  importBatchId: string | null;
+  outreachType: string | null;
+  assignedAt: string | null;
+  skipTraceStatus: string | null;
+  outboundStatus: string | null;
+  outboundAttemptCount: number | null;
+  outboundFirstCallAt: string | null;
+  outboundLastCallAt: string | null;
+  firstContactAt: string | null;
+  wrongNumber: boolean;
+  doNotCall: boolean;
+  badRecord: boolean;
   tags: string[];
   complianceClean: boolean;
   notes: string | null;
@@ -510,6 +532,7 @@ export interface LeadRow {
   callSequenceStep: number;
   nextCallScheduledAt: string | null;
   dispositionCode: string | null;
+  ownerFlags: Record<string, unknown>;
 }
 
 /**

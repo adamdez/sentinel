@@ -56,7 +56,12 @@ export default function LeadsPage() {
     setSelectedId,
     segmentCounts,
     sourceOptions,
+    nicheOptions,
+    importBatchOptions,
+    callStatusOptions,
     inboxMetrics,
+    outboundSourceMetrics,
+    nicheMetrics,
     totalFiltered,
     currentUser,
     teamMembers,
@@ -190,7 +195,7 @@ export default function LeadsPage() {
           My Leads is your ownership queue. Stage remains workflow position.
         </p>
         <p className="text-[11px] text-muted-foreground/60">
-          Closed records are intentionally excluded from this inbox queue.
+          Closed records stay hidden by default, but can be surfaced with the `Include closed` filter for recovery and lookup.
         </p>
 
         {/* Filters + search */}
@@ -201,7 +206,68 @@ export default function LeadsPage() {
           totalFiltered={totalFiltered}
           totalAll={segmentTotal}
           sourceOptions={sourceOptions}
+          nicheOptions={nicheOptions}
+          importBatchOptions={importBatchOptions}
+          callStatusOptions={callStatusOptions}
         />
+
+        <div className="grid gap-4 lg:grid-cols-[1.7fr_1fr]">
+          <div className="rounded-[12px] border border-glass-border bg-glass/40 p-3">
+            <div className="flex items-center justify-between gap-2">
+              <div>
+                <p className="text-xs font-semibold text-foreground">Source Snapshot</p>
+                <p className="text-[10px] text-muted-foreground/70">
+                  Contact, offer-path, and closed rates are directionally useful. Closed rate reflects `closed` only; contract is not yet modeled separately.
+                </p>
+              </div>
+            </div>
+            <div className="mt-3 space-y-2">
+              {outboundSourceMetrics.length > 0 ? outboundSourceMetrics.map((item) => (
+                <div key={item.label} className="grid grid-cols-[1.4fr_repeat(4,80px)] gap-2 rounded-[10px] border border-white/[0.06] bg-white/[0.02] px-3 py-2 text-[11px]">
+                  <div>
+                    <p className="font-semibold text-foreground">{item.label}</p>
+                    <p className="text-[10px] text-muted-foreground/65">{item.leads} leads</p>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-muted-foreground/70">Contact</p>
+                    <p className="font-medium text-foreground">{item.contactRate}%</p>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-muted-foreground/70">Offer Path</p>
+                    <p className="font-medium text-foreground">{item.offerPathRate}%</p>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-muted-foreground/70">Closed</p>
+                    <p className="font-medium text-foreground">{item.closedRate}%</p>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-muted-foreground/70">Count</p>
+                    <p className="font-medium text-foreground">{item.leads}</p>
+                  </div>
+                </div>
+              )) : (
+                <p className="text-[11px] text-muted-foreground/60">Source metrics will appear once prospecting intake metadata is used.</p>
+              )}
+            </div>
+          </div>
+
+          <div className="rounded-[12px] border border-glass-border bg-glass/40 p-3">
+            <p className="text-xs font-semibold text-foreground">Top Niches</p>
+            <p className="text-[10px] text-muted-foreground/70 mt-0.5">
+              Quick read on what kinds of outbound lists are turning into live CRM work.
+            </p>
+            <div className="mt-3 space-y-2">
+              {nicheMetrics.length > 0 ? nicheMetrics.map((item) => (
+                <div key={item.tag} className="flex items-center justify-between rounded-[10px] border border-white/[0.06] bg-white/[0.02] px-3 py-2 text-[11px]">
+                  <span className="font-medium text-foreground">{item.label}</span>
+                  <span className="text-muted-foreground/75">{item.count}</span>
+                </div>
+              )) : (
+                <p className="text-[11px] text-muted-foreground/60">No niche tags tracked yet.</p>
+              )}
+            </div>
+          </div>
+        </div>
 
         {/* Lead table */}
         <LeadTable

@@ -56,6 +56,7 @@ import { getAllowedTransitions } from "@/lib/lead-guardrails";
 import { IntakeGuideSection } from "@/components/sentinel/intake-guide-section";
 import { formatDueDateLabel } from "@/lib/due-date-label";
 import { toast } from "sonner";
+import { extractProspectingSnapshot, sourceChannelLabel, tagLabel } from "@/lib/prospecting";
 
 // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 // ClientFile â€” single unified shape for every funnel stage
@@ -227,7 +228,7 @@ export function clientFileFromLead(l: LeadRow): ClientFile {
     foreclosureStage: null, defaultAmount: null, delinquentAmount: null,
     isVacant: false, isAbsentee: l.ownerBadge === "absentee",
     isFreeClear: false, isHighEquity: false, isCashBuyer: false,
-    ownerFlags: {}, radarId: null, enriched: false,
+    ownerFlags: l.ownerFlags ?? {}, radarId: null, enriched: false,
     nextCallScheduledAt: l.nextCallScheduledAt, callSequenceStep: l.callSequenceStep, totalCalls: l.totalCalls, liveAnswers: l.liveAnswers, voicemailsLeft: l.voicemailsLeft, dispositionCode: l.dispositionCode ?? null,
     prediction: null,
   };
@@ -2668,7 +2669,8 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
 }) {
   const displayPhone = overlay?.primaryPhone ?? cf.ownerPhone ?? (cf.ownerFlags?.contact_phone as string | null) ?? null;
   const displayEmail = overlay?.primaryEmail ?? cf.ownerEmail ?? (cf.ownerFlags?.contact_email as string | null) ?? null;
-  const { notes: callHistory } = useCallNotes(cf.id, 5);
+  const { notes: callHistory } = useCallNotes(cf.id, 5, activityRefreshToken);
+  const prospectingSnapshot = useMemo(() => extractProspectingSnapshot(cf.ownerFlags), [cf.ownerFlags]);
   const [notesExpanded, setNotesExpanded] = useState(false);
   const [showAllCallAssist, setShowAllCallAssist] = useState(false);
   const summaryNotes = callHistory.filter((n) => n.ai_summary);
@@ -2757,6 +2759,33 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [activityLog, setActivityLog] = useState<{ id: string; type: string; disposition?: string; notes?: string; created_at: string; duration_sec?: number; phone?: string }[]>([]);
+  const activityEventLabel = useCallback((action: string, details: Record<string, unknown> | null): string => {
+    const statusAfter = typeof details?.status_after === "string" ? details.status_after.replace(/_/g, " ") : null;
+    const routeAfter = typeof details?.qualification_route_after === "string" ? details.qualification_route_after.replace(/_/g, " ") : null;
+    const dispositionAfter = typeof details?.disposition_code_after === "string" ? details.disposition_code_after.replace(/_/g, " ") : null;
+
+    switch (action) {
+      case "NOTE_ADDED":
+        return "Note added";
+      case "CALL_CLOSEOUT":
+        return dispositionAfter ? `Call closeout: ${dispositionAfter}` : "Call closeout";
+      case "FOLLOW_UP_UPDATED":
+        return "Next action updated";
+      case "CALL_OUTCOME_UPDATED":
+        return dispositionAfter ? `Call outcome: ${dispositionAfter}` : "Call outcome updated";
+      case "QUALIFICATION_ROUTED":
+        return routeAfter === "escalate" ? "Escalation review requested" : routeAfter ? `Qualification: ${routeAfter}` : "Qualification routed";
+      case "QUALIFICATION_UPDATED":
+        return "Qualification updated";
+      case "STATUS_CHANGED":
+        return statusAfter ? `Stage moved to ${statusAfter}` : "Stage updated";
+      case "CLAIMED":
+        return "Owner updated";
+      default:
+        return action.replace(/_/g, " ").toLowerCase();
+    }
+  }, []);
+
   useEffect(() => {
     if (!cf.id) return;
     (async () => {
@@ -2782,15 +2811,27 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
           created_at: c.started_at, duration_sec: c.duration_sec, phone: c.phone_dialed,
         })),
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        ...(eventsRes.data ?? []).map((e: any) => ({
-          id: e.id, type: "event", disposition: e.action,
-          notes: typeof e.details === "object" ? JSON.stringify(e.details) : e.details,
+        ...(eventsRes.data ?? []).map((e: any) => {
+          const details = e.details && typeof e.details === "object" && !Array.isArray(e.details)
+            ? e.details as Record<string, unknown>
+            : null;
+          const eventNote = typeof details?.note_appended === "string" && details.note_appended.trim().length > 0
+            ? details.note_appended.trim()
+            : typeof e.details === "string"
+              ? e.details
+              : null;
+          return {
+            id: e.id,
+            type: "event",
+            disposition: activityEventLabel(e.action, details),
+            notes: eventNote,
           created_at: e.created_at,
-        })),
+          };
+        }),
       ].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()).slice(0, 30);
       setActivityLog(merged);
     })();
-  }, [activityRefreshToken, cf.id, cf.propertyId]);
+  }, [activityEventLabel, activityRefreshToken, cf.id, cf.propertyId]);
 
   const streetViewUrl = prRaw.StreetViewUrl ?? prRaw.PropertyImageUrl ?? (prRaw.Photos?.[0]) ?? null;
 
@@ -3366,6 +3407,59 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
           })()}
         </div>
       </div>
+
+      {(prospectingSnapshot.sourceChannel || prospectingSnapshot.nicheTag || prospectingSnapshot.importBatchId || prospectingSnapshot.outboundStatus) && (
+        <div className="rounded-[12px] border border-white/[0.06] bg-white/[0.02] p-3 space-y-2.5">
+          <div className="flex items-center gap-2">
+            <Radar className="h-3.5 w-3.5 text-cyan" />
+            <p className="text-[11px] text-muted-foreground uppercase tracking-wider font-semibold">Prospecting Intake</p>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-[11px]">
+            <div className="rounded-[8px] border border-white/[0.06] bg-white/[0.02] px-2.5 py-2">
+              <p className="text-[10px] text-muted-foreground/65">Source Channel</p>
+              <p className="font-medium text-foreground">{sourceChannelLabel(prospectingSnapshot.sourceChannel ?? cf.source)}</p>
+              {prospectingSnapshot.sourceVendor && (
+                <p className="text-[10px] text-muted-foreground/65 mt-0.5">Vendor: {prospectingSnapshot.sourceVendor}</p>
+              )}
+              {prospectingSnapshot.sourceListName && (
+                <p className="text-[10px] text-muted-foreground/65">List: {prospectingSnapshot.sourceListName}</p>
+              )}
+            </div>
+            <div className="rounded-[8px] border border-white/[0.06] bg-white/[0.02] px-2.5 py-2">
+              <p className="text-[10px] text-muted-foreground/65">Import / Niche</p>
+              <p className="font-medium text-foreground">{prospectingSnapshot.nicheTag ? tagLabel(prospectingSnapshot.nicheTag) : "Not tagged"}</p>
+              {prospectingSnapshot.importBatchId && (
+                <p className="text-[10px] text-muted-foreground/65 mt-0.5">Batch: {prospectingSnapshot.importBatchId}</p>
+              )}
+              {prospectingSnapshot.sourcePullDate && (
+                <p className="text-[10px] text-muted-foreground/65">Pulled: {prospectingSnapshot.sourcePullDate}</p>
+              )}
+            </div>
+            <div className="rounded-[8px] border border-white/[0.06] bg-white/[0.02] px-2.5 py-2">
+              <p className="text-[10px] text-muted-foreground/65">Outbound Triage</p>
+              <p className="font-medium text-foreground">{prospectingSnapshot.outboundStatus ? tagLabel(prospectingSnapshot.outboundStatus) : "Not set"}</p>
+              {prospectingSnapshot.outreachType && (
+                <p className="text-[10px] text-muted-foreground/65 mt-0.5">Outreach: {tagLabel(prospectingSnapshot.outreachType)}</p>
+              )}
+              {prospectingSnapshot.skipTraceStatus && (
+                <p className="text-[10px] text-muted-foreground/65">Skip trace: {tagLabel(prospectingSnapshot.skipTraceStatus)}</p>
+              )}
+            </div>
+            <div className="rounded-[8px] border border-white/[0.06] bg-white/[0.02] px-2.5 py-2">
+              <p className="text-[10px] text-muted-foreground/65">Call Truth</p>
+              <p className="font-medium text-foreground">Attempts: {prospectingSnapshot.attemptCount ?? cf.totalCalls ?? 0}</p>
+              <p className="text-[10px] text-muted-foreground/65 mt-0.5">
+                Last outcome: {prospectingSnapshot.callOutcome ? tagLabel(prospectingSnapshot.callOutcome) : (cf.dispositionCode ? tagLabel(cf.dispositionCode) : "None")}
+              </p>
+              {(prospectingSnapshot.doNotCall || prospectingSnapshot.badRecord || prospectingSnapshot.wrongNumber) && (
+                <p className="text-[10px] text-amber-300 mt-0.5">
+                  {[prospectingSnapshot.doNotCall ? "DNC" : null, prospectingSnapshot.badRecord ? "Bad record" : null, prospectingSnapshot.wrongNumber ? "Wrong number" : null].filter(Boolean).join(" • ")}
+                </p>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="rounded-[12px] border border-white/[0.06] bg-white/[0.02] p-3 space-y-2.5">
         <div className="flex items-center gap-2">
@@ -5909,7 +6003,27 @@ interface MasterClientFileModalProps {
   onRefresh?: () => void;
 }
 
-export function MasterClientFileModal({ clientFile, open, onClose, onClaim, onRefresh }: MasterClientFileModalProps) {
+function mergeClientFileState(
+  base: ClientFile | null,
+  patch: Partial<ClientFile> | null,
+  ownerFlagsOverride: Record<string, unknown> | null,
+): ClientFile | null {
+  if (!base) return null;
+  if (!patch && !ownerFlagsOverride) return base;
+  return {
+    ...base,
+    ...(patch ?? {}),
+    ownerFlags: ownerFlagsOverride ?? patch?.ownerFlags ?? base.ownerFlags,
+  };
+}
+
+function readResponseString(payload: Record<string, unknown>, key: string): string | null | undefined {
+  if (!Object.prototype.hasOwnProperty.call(payload, key)) return undefined;
+  const value = payload[key];
+  return typeof value === "string" ? value : value == null ? null : undefined;
+}
+
+export function MasterClientFileModal({ clientFile: incomingClientFile, open, onClose, onClaim, onRefresh }: MasterClientFileModalProps) {
   const [activeTab, setActiveTab] = useState<TabId>("overview");
   const [skipTracing, setSkipTracing] = useState(false);
   const [skipTraceResult, setSkipTraceResult] = useState<string | null>(null);
@@ -5918,7 +6032,7 @@ export function MasterClientFileModal({ clientFile, open, onClose, onClaim, onRe
   const [skipTraceError, setSkipTraceError] = useState<SkipTraceError | null>(null);
   const [selectedComps, setSelectedComps] = useState<CompProperty[]>([]);
   const [computedArv, setComputedArv] = useState(
-    () => (clientFile?.ownerFlags?.comp_arv as number) ?? 0
+    () => (incomingClientFile?.ownerFlags?.comp_arv as number) ?? 0
   );
   const [editOpen, setEditOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
@@ -5936,11 +6050,12 @@ export function MasterClientFileModal({ clientFile, open, onClose, onClaim, onRe
   const [assigneeLabel, setAssigneeLabel] = useState("Unassigned");
   const [selectedStage, setSelectedStage] = useState<WorkflowStageId>("prospect");
   const [stageUpdating, setStageUpdating] = useState(false);
-  const [qualificationDraft, setQualificationDraft] = useState<QualificationDraft>(() => getQualificationDraft(clientFile));
-  const [offerPrepDraft, setOfferPrepDraft] = useState<OfferPrepSnapshotDraft>(() => getOfferPrepDraft(clientFile));
-  const [offerStatusDraft, setOfferStatusDraft] = useState<OfferStatusSnapshotDraft>(() => getOfferStatusDraft(clientFile));
-  const [buyerDispoTruthDraft, setBuyerDispoTruthDraft] = useState<BuyerDispoTruthDraft>(() => getBuyerDispoTruthDraft(clientFile));
+  const [qualificationDraft, setQualificationDraft] = useState<QualificationDraft>(() => getQualificationDraft(incomingClientFile));
+  const [offerPrepDraft, setOfferPrepDraft] = useState<OfferPrepSnapshotDraft>(() => getOfferPrepDraft(incomingClientFile));
+  const [offerStatusDraft, setOfferStatusDraft] = useState<OfferStatusSnapshotDraft>(() => getOfferStatusDraft(incomingClientFile));
+  const [buyerDispoTruthDraft, setBuyerDispoTruthDraft] = useState<BuyerDispoTruthDraft>(() => getBuyerDispoTruthDraft(incomingClientFile));
   const [ownerFlagsOverride, setOwnerFlagsOverride] = useState<Record<string, unknown> | null>(null);
+  const [clientFilePatch, setClientFilePatch] = useState<Partial<ClientFile> | null>(null);
   const [offerPrepEditing, setOfferPrepEditing] = useState(false);
   const [offerPrepSaving, setOfferPrepSaving] = useState(false);
   const [offerStatusEditing, setOfferStatusEditing] = useState(false);
@@ -5985,6 +6100,10 @@ export function MasterClientFileModal({ clientFile, open, onClose, onClaim, onRe
   const [hasSavedReport, setHasSavedReport] = useState(false);
   const [loadingReport, setLoadingReport] = useState(false);
   const deepCrawlCheckedRef = useRef<string | null>(null);
+  const clientFile = useMemo(
+    () => mergeClientFileState(incomingClientFile, clientFilePatch, ownerFlagsOverride),
+    [incomingClientFile, clientFilePatch, ownerFlagsOverride],
+  );
 
   useEffect(() => {
     const propId = clientFile?.propertyId;
@@ -6019,7 +6138,8 @@ export function MasterClientFileModal({ clientFile, open, onClose, onClaim, onRe
 
   useEffect(() => {
     setOwnerFlagsOverride(null);
-  }, [clientFile?.id, clientFile?.ownerFlags]);
+    setClientFilePatch(null);
+  }, [incomingClientFile?.id, incomingClientFile?.ownerFlags]);
 
   // Load saved report from DB when user clicks "View Report"
   const loadSavedReport = useCallback(async () => {
@@ -6271,6 +6391,41 @@ export function MasterClientFileModal({ clientFile, open, onClose, onClaim, onRe
     return updatedOwnerFlags;
   }, [extractUpdatedOwnerFlags]);
 
+  const applyLeadPatchFromResponse = useCallback((payload: unknown) => {
+    if (!payload || typeof payload !== "object" || Array.isArray(payload)) return;
+    const response = payload as Record<string, unknown>;
+    setClientFilePatch((prev) => {
+      const next: Partial<ClientFile> = { ...(prev ?? {}) };
+      const status = readResponseString(response, "status");
+      if (status !== undefined) next.status = status ?? "prospect";
+      if (Object.prototype.hasOwnProperty.call(response, "assigned_to")) {
+        next.assignedTo = typeof response.assigned_to === "string" ? response.assigned_to : null;
+      }
+      const nextCall = readResponseString(response, "next_call_scheduled_at");
+      if (nextCall !== undefined) next.nextCallScheduledAt = nextCall;
+      const nextFollowUp = readResponseString(response, "next_follow_up_at");
+      if (nextFollowUp !== undefined) next.followUpDate = nextFollowUp;
+      const lastContact = readResponseString(response, "last_contact_at");
+      if (lastContact !== undefined) next.lastContactAt = lastContact;
+      const disposition = readResponseString(response, "disposition_code");
+      if (disposition !== undefined) next.dispositionCode = disposition;
+      if (Object.prototype.hasOwnProperty.call(response, "qualification_route")) {
+        next.qualificationRoute = parseSuggestedRoute(response.qualification_route);
+      }
+      const notes = readResponseString(response, "notes");
+      if (notes !== undefined) next.notes = notes;
+      if (Object.prototype.hasOwnProperty.call(response, "qualification_score_total")) {
+        next.qualificationScoreTotal = typeof response.qualification_score_total === "number"
+          ? response.qualification_score_total
+          : null;
+      }
+      if (Object.prototype.hasOwnProperty.call(response, "lock_version")) {
+        next.lockVersion = typeof response.lock_version === "number" ? response.lock_version : next.lockVersion;
+      }
+      return next;
+    });
+  }, []);
+
   const handleClaimLead = useCallback(async () => {
     if (!clientFile) return;
     const normalizedStatus = normalizeWorkflowStage(clientFile.status);
@@ -6336,6 +6491,7 @@ export function MasterClientFileModal({ clientFile, open, onClose, onClaim, onRe
         return;
       }
 
+      applyLeadPatchFromResponse(data);
       toast.success(canClaimToLead ? "Lead claimed successfully" : "Lead assignment updated");
       onClaim?.(clientFile.id);
       onRefresh?.();
@@ -6345,7 +6501,7 @@ export function MasterClientFileModal({ clientFile, open, onClose, onClaim, onRe
     } finally {
       setClaiming(false);
     }
-  }, [assigneeLabel, clientFile, onClaim, onRefresh]);
+  }, [applyLeadPatchFromResponse, assigneeLabel, clientFile, onClaim, onRefresh]);
 
   const handleReassignLead = useCallback(async () => {
     if (!clientFile) return;
@@ -6408,6 +6564,7 @@ export function MasterClientFileModal({ clientFile, open, onClose, onClaim, onRe
         return;
       }
 
+      applyLeadPatchFromResponse(data);
       setAssigneeLabel(targetName);
       toast.success(`Lead reassigned to ${targetName}`);
       onRefresh?.();
@@ -6417,7 +6574,7 @@ export function MasterClientFileModal({ clientFile, open, onClose, onClaim, onRe
     } finally {
       setReassigning(false);
     }
-  }, [assignmentOptions, clientFile, onRefresh, reassignTargetId]);
+  }, [applyLeadPatchFromResponse, assignmentOptions, clientFile, onRefresh, reassignTargetId]);
 
   const handleMoveStage = useCallback(async () => {
     if (!clientFile) return;
@@ -6492,6 +6649,7 @@ export function MasterClientFileModal({ clientFile, open, onClose, onClaim, onRe
         return;
       }
 
+      applyLeadPatchFromResponse(data);
       toast.success(`Moved to ${workflowStageLabel(selectedStage)}`);
       onRefresh?.();
     } catch (err) {
@@ -6500,7 +6658,7 @@ export function MasterClientFileModal({ clientFile, open, onClose, onClaim, onRe
     } finally {
       setStageUpdating(false);
     }
-  }, [clientFile, onRefresh, selectedStage]);
+  }, [applyLeadPatchFromResponse, clientFile, onRefresh, selectedStage]);
 
   const handleQualificationChange = useCallback((patch: Partial<QualificationDraft>) => {
     setQualificationDraft((prev) => ({ ...prev, ...patch }));
@@ -6801,10 +6959,15 @@ export function MasterClientFileModal({ clientFile, open, onClose, onClaim, onRe
 
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        toast.error(`Could not save qualification: ${data.detail ?? data.error ?? `HTTP ${res.status}`}`);
+        if (nextDraft.qualificationRoute === "escalate") {
+          toast.error(`Escalation review failed: ${data.detail ?? data.error ?? `HTTP ${res.status}`}`);
+        } else {
+          toast.error(`Could not save qualification: ${data.detail ?? data.error ?? `HTTP ${res.status}`}`);
+        }
         return false;
       }
 
+      applyLeadPatchFromResponse(data);
       setQualificationSuggestedRoute(parseSuggestedRoute(data.suggested_route));
       setQualificationDraft(nextDraft);
       toast.success(nextDraft.qualificationRoute === "escalate" ? "Escalation review saved" : "Qualification updated");
@@ -6817,7 +6980,7 @@ export function MasterClientFileModal({ clientFile, open, onClose, onClaim, onRe
     } finally {
       setQualificationSaving(false);
     }
-  }, [clientFile, onRefresh, qualificationDraft]);
+  }, [applyLeadPatchFromResponse, clientFile, onRefresh, qualificationDraft]);
 
   const handleQualificationRouteSelect = useCallback((route: QualificationRoute) => {
     if (route === "escalate" && !clientFile?.assignedTo) {
@@ -6884,6 +7047,7 @@ export function MasterClientFileModal({ clientFile, open, onClose, onClaim, onRe
         return;
       }
 
+      applyLeadPatchFromResponse(data);
       toast.success(nextIso ? "Next action updated" : "Next action cleared");
       setNextActionEditorOpen(false);
       onRefresh?.();
@@ -6893,7 +7057,7 @@ export function MasterClientFileModal({ clientFile, open, onClose, onClaim, onRe
     } finally {
       setSettingNextAction(false);
     }
-  }, [clientFile, nextActionAt, onRefresh]);
+  }, [applyLeadPatchFromResponse, clientFile, nextActionAt, onRefresh]);
 
   const handleAppendNote = useCallback(async () => {
     if (!clientFile) return;
@@ -6941,6 +7105,7 @@ export function MasterClientFileModal({ clientFile, open, onClose, onClaim, onRe
         return;
       }
 
+      applyLeadPatchFromResponse(data);
       toast.success("Note added");
       setNoteDraft("");
       setNoteEditorOpen(false);
@@ -6952,7 +7117,7 @@ export function MasterClientFileModal({ clientFile, open, onClose, onClaim, onRe
     } finally {
       setSavingNote(false);
     }
-  }, [clientFile, noteDraft, onRefresh]);
+  }, [applyLeadPatchFromResponse, clientFile, noteDraft, onRefresh]);
 
   const handleCloseoutPresetSelect = useCallback((presetId: CloseoutPresetId) => {
     const preset = CLOSEOUT_PRESETS.find((item) => item.id === presetId);
@@ -7048,6 +7213,7 @@ export function MasterClientFileModal({ clientFile, open, onClose, onClaim, onRe
         return;
       }
 
+      applyLeadPatchFromResponse(data);
       setQualificationSuggestedRoute(parseSuggestedRoute(data.suggested_route));
       setCloseoutNote("");
       setCloseoutOpen(false);
@@ -7064,6 +7230,7 @@ export function MasterClientFileModal({ clientFile, open, onClose, onClaim, onRe
       setCloseoutSaving(false);
     }
   }, [
+    applyLeadPatchFromResponse,
     clientFile,
     closeoutAction,
     closeoutAt,
@@ -7433,10 +7600,7 @@ export function MasterClientFileModal({ clientFile, open, onClose, onClaim, onRe
 
   if (!clientFile) return null;
 
-  const overviewClientFile =
-    ownerFlagsOverride
-      ? { ...clientFile, ownerFlags: ownerFlagsOverride }
-      : clientFile;
+  const overviewClientFile = clientFile;
 
   const lbl = SCORE_LABEL_CFG[clientFile.scoreLabel];
   const currentStage = normalizeWorkflowStage(clientFile.status);

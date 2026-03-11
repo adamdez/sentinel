@@ -24,9 +24,9 @@ import {
 import { AIScoreBadge } from "@/components/sentinel/ai-score-badge";
 import { deriveNextActionVisibility, offerVisibilityLabel, type LeadRow } from "@/lib/leads-data";
 import type { SortField, SortDir } from "@/hooks/use-leads";
-import type { DistressType } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { formatDueDateLabel } from "@/lib/due-date-label";
+import { sourceChannelLabel, tagLabel } from "@/lib/prospecting";
 
 interface LeadTableProps {
   leads: LeadRow[];
@@ -37,7 +37,7 @@ interface LeadTableProps {
   currentUserId: string;
 }
 
-const DISTRESS_COLORS: Partial<Record<DistressType, string>> = {
+const DISTRESS_COLORS: Partial<Record<string, string>> = {
   probate: "bg-orange-500/15 text-orange-400 border-orange-500/30",
   pre_foreclosure: "bg-red-500/15 text-red-400 border-red-500/30",
   tax_lien: "bg-yellow-500/15 text-yellow-400 border-yellow-500/30",
@@ -52,9 +52,18 @@ const DISTRESS_COLORS: Partial<Record<DistressType, string>> = {
   condemned: "bg-rose-600/15 text-rose-400 border-rose-600/30",
   tired_landlord: "bg-amber-500/15 text-amber-400 border-amber-500/30",
   underwater: "bg-red-500/15 text-red-400 border-red-500/30",
+  tax_delinquent: "bg-yellow-500/15 text-yellow-300 border-yellow-500/30",
+  absentee_owner: "bg-cyan-500/15 text-cyan-300 border-cyan-500/30",
+  code_issue: "bg-pink-500/15 text-pink-300 border-pink-500/30",
+  rural: "bg-lime-500/15 text-lime-300 border-lime-500/30",
+  mobile_home: "bg-fuchsia-500/15 text-fuchsia-300 border-fuchsia-500/30",
+  possible_developer: "bg-orange-500/15 text-orange-300 border-orange-500/30",
+  out_of_area: "bg-blue-500/15 text-blue-300 border-blue-500/30",
+  do_not_call: "bg-red-600/15 text-red-300 border-red-600/30",
+  bad_data: "bg-zinc-500/20 text-zinc-300 border-zinc-500/30",
 };
 
-const DISTRESS_LABELS: Record<DistressType, string> = {
+const DISTRESS_LABELS: Record<string, string> = {
   probate: "Probate",
   pre_foreclosure: "Pre-Foreclosure",
   tax_lien: "Tax Lien",
@@ -69,6 +78,15 @@ const DISTRESS_LABELS: Record<DistressType, string> = {
   condemned: "Condemned",
   tired_landlord: "Tired Landlord",
   underwater: "Underwater",
+  tax_delinquent: "Tax Delinquent",
+  absentee_owner: "Absentee Owner",
+  code_issue: "Code Issue",
+  rural: "Rural",
+  mobile_home: "Mobile Home",
+  possible_developer: "Developer",
+  out_of_area: "Out of Area",
+  do_not_call: "DNC",
+  bad_data: "Bad Data",
 };
 
 // Grid definition
@@ -165,13 +183,8 @@ function marketMeta(county: string | null | undefined): { label: string; classNa
 function sourceMeta(source: string | null | undefined): { label: string; className: string } {
   const s = (source ?? "unknown").toLowerCase();
   if (s === "propertyradar") return { label: "PropertyRadar", className: "bg-cyan/10 text-cyan border-cyan/20" };
-  if (s === "ranger_push") return { label: "Ranger", className: "bg-purple-500/10 text-purple-300 border-purple-500/20" };
-  if (s === "google_ads") return { label: "Google Ads", className: "bg-sky-500/10 text-sky-300 border-sky-500/20" };
-  if (s === "facebook_ads" || s === "facebook" || s === "fb") {
-    return { label: "Facebook", className: "bg-indigo-500/10 text-indigo-300 border-indigo-500/20" };
-  }
   return {
-    label: s.replace(/^csv:/, "CSV ").replace(/[_-]/g, " ").replace(/\b\w/g, (m) => m.toUpperCase()),
+    label: sourceChannelLabel(s),
     className: "bg-zinc-500/10 text-zinc-300 border-zinc-500/20",
   };
 }
@@ -290,7 +303,7 @@ export function LeadTable({
         const isPositive = POSITIVE_DISPOSITIONS.has(lead.dispositionCode ?? "");
         const isNegative = NEGATIVE_DISPOSITIONS.has(lead.dispositionCode ?? "");
         const market = marketMeta(lead.county);
-        const source = sourceMeta(lead.source);
+        const source = sourceMeta(lead.sourceChannel ?? lead.source);
         const speed = speedToLeadMeta(lead);
         const needsFollowUpFlag = needsFollowUp(lead);
         const needsQualificationFlag = needsQualification(lead);
@@ -355,6 +368,26 @@ export function LeadTable({
                 <span className={cn("text-[9px] px-1.5 py-0 rounded border shrink-0", source.className)}>
                   {source.label}
                 </span>
+                {lead.nicheTag && (
+                  <span className="text-[9px] px-1.5 py-0 rounded border shrink-0 bg-cyan/10 text-cyan border-cyan/20">
+                    Niche: {tagLabel(lead.nicheTag)}
+                  </span>
+                )}
+                {lead.importBatchId && (
+                  <span className="text-[9px] px-1.5 py-0 rounded border shrink-0 bg-white/[0.05] text-muted-foreground border-white/[0.12]">
+                    Batch: {lead.importBatchId}
+                  </span>
+                )}
+                {lead.doNotCall && (
+                  <span className="text-[9px] px-1.5 py-0 rounded border shrink-0 bg-red-500/12 text-red-300 border-red-500/30">
+                    DNC
+                  </span>
+                )}
+                {lead.badRecord && (
+                  <span className="text-[9px] px-1.5 py-0 rounded border shrink-0 bg-zinc-500/15 text-zinc-300 border-zinc-500/30">
+                    Bad Record
+                  </span>
+                )}
                 {ownerActionLabel && (
                   <span
                     className={cn(
@@ -441,7 +474,7 @@ export function LeadTable({
                     DISTRESS_COLORS[d] ?? "border-white/[0.06] text-muted-foreground"
                   )}
                 >
-                  {DISTRESS_LABELS[d]}
+                  {DISTRESS_LABELS[d] ?? tagLabel(d)}
                 </span>
               ))}
               {hiddenDistressCount > 0 && (

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   UserPlus, MapPin, Phone, Mail, FileText, DollarSign,
@@ -21,6 +21,17 @@ import { useSentinelStore } from "@/lib/store";
 import { useModal } from "@/providers/modal-provider";
 import { cn } from "@/lib/utils";
 import { getAuthenticatedProspectPatchHeaders } from "@/lib/prospect-api-client";
+import { supabase } from "@/lib/supabase";
+import {
+  NICHE_TAG_OPTIONS,
+  OUTBOUND_STATUS_OPTIONS,
+  OUTREACH_TYPE_OPTIONS,
+  PROSPECTING_TAG_OPTIONS,
+  SKIP_TRACE_STATUS_OPTIONS,
+  SOURCE_CHANNEL_OPTIONS,
+  sourceChannelLabel,
+  tagLabel,
+} from "@/lib/prospecting";
 
 // ── Types ──────────────────────────────────────────────────────────────
 
@@ -45,6 +56,15 @@ interface FormData {
   distress_tags: string[];
   notes: string;
   source: string;
+  source_channel: string;
+  source_vendor: string;
+  source_list_name: string;
+  source_pull_date: string;
+  niche_tag: string;
+  import_batch_id: string;
+  outreach_type: string;
+  skip_trace_status: string;
+  outbound_status: string;
 }
 
 const EMPTY_FORM: FormData = {
@@ -55,30 +75,18 @@ const EMPTY_FORM: FormData = {
   property_type: "SFR",
   bedrooms: "", bathrooms: "", sqft: "", year_built: "", lot_size: "",
   distress_tags: [], notes: "", source: "manual",
-};
-
-const DISTRESS_OPTIONS = [
-  "probate", "pre_foreclosure", "tax_lien", "code_violation",
-  "vacant", "divorce", "bankruptcy", "fsbo", "absentee", "inherited",
-  "water_shutoff", "condemned", "tired_landlord", "underwater",
-];
-
-const DISTRESS_LABELS: Record<string, string> = {
-  probate: "Probate", pre_foreclosure: "Pre-Foreclosure", tax_lien: "Tax Lien",
-  code_violation: "Code Violation", vacant: "Vacant", divorce: "Divorce",
-  bankruptcy: "Bankruptcy", fsbo: "FSBO", absentee: "Absentee", inherited: "Inherited",
-  water_shutoff: "Water Shut-off", condemned: "Condemned",
-  tired_landlord: "Tired Landlord", underwater: "Underwater",
+  source_channel: "manual",
+  source_vendor: "",
+  source_list_name: "",
+  source_pull_date: "",
+  niche_tag: "",
+  import_batch_id: "",
+  outreach_type: "cold_call",
+  skip_trace_status: "not_started",
+  outbound_status: "new_import",
 };
 
 const PROPERTY_TYPES = ["SFR", "Multi-Family", "Condo", "Townhome", "Mobile", "Land", "Commercial"];
-
-const TEAM_MEMBERS = [
-  { id: "unassigned", label: "Unassigned (Prospect)" },
-  { id: "adam", label: "Adam D.", email: "adam@dominionhomedeals.com" },
-  { id: "nathan", label: "Nathan Walsh", email: "nathan@dominionhomedeals.com" },
-  { id: "logan", label: "Logan Anyan", email: "logan@dominionhomedeals.com" },
-];
 
 type Step = "form" | "confirm";
 
@@ -108,15 +116,55 @@ function Field({
 // ── Main modal ─────────────────────────────────────────────────────────
 
 export function NewProspectModal() {
-  const { activeModal, closeModal } = useModal();
+  const { activeModal, closeModal, modalData } = useModal();
   const { currentUser } = useSentinelStore();
   const [form, setForm] = useState<FormData>({ ...EMPTY_FORM });
   const [step, setStep] = useState<Step>("form");
   const [saving, setSaving] = useState(false);
   const [assignTo, setAssignTo] = useState("unassigned");
   const [createdLeadId, setCreatedLeadId] = useState<string | null>(null);
+  const [assignmentOptions, setAssignmentOptions] = useState<Array<{ id: string; label: string }>>([
+    { id: "unassigned", label: "Unassigned (Prospect)" },
+  ]);
 
   const isOpen = activeModal === "new-prospect";
+
+  useEffect(() => {
+    if (!isOpen) return;
+    let active = true;
+    (async () => {
+      try {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const { data } = await (supabase.from("user_profiles") as any)
+          .select("id, full_name")
+          .order("full_name", { ascending: true });
+        if (!active) return;
+        const options = [
+          { id: "unassigned", label: "Unassigned (Prospect)" },
+          ...((data as Array<{ id: string; full_name: string | null }> | null | undefined) ?? []).map((row) => ({
+            id: row.id,
+            label: row.full_name?.trim() || row.id.slice(0, 8),
+          })),
+        ];
+        setAssignmentOptions(options);
+      } catch {
+        if (active) {
+          setAssignmentOptions([{ id: "unassigned", label: "Unassigned (Prospect)" }]);
+        }
+      }
+    })();
+    return () => { active = false; };
+  }, [isOpen]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const initial = (modalData.initialValues as Partial<FormData> | undefined) ?? {};
+    if (Object.keys(initial).length === 0) return;
+    setForm((prev) => ({ ...prev, ...initial }));
+    if (typeof modalData.assignTo === "string" && modalData.assignTo.length > 0) {
+      setAssignTo(modalData.assignTo);
+    }
+  }, [isOpen, modalData]);
 
   const update = useCallback((field: keyof FormData, value: string | string[]) => {
     setForm((prev) => ({ ...prev, [field]: value }));
@@ -130,6 +178,11 @@ export function NewProspectModal() {
         : [...prev.distress_tags, tag],
     }));
   }, []);
+
+  const assignmentLabel = useMemo(
+    () => assignmentOptions.find((member) => member.id === assignTo)?.label ?? "selected owner",
+    [assignmentOptions, assignTo],
+  );
 
   const canSubmit = form.address.trim().length > 0 && form.county.trim().length > 0;
 
@@ -149,8 +202,6 @@ export function NewProspectModal() {
     setSaving(true);
 
     try {
-      const assignedMember = TEAM_MEMBERS.find((m) => m.id === assignTo);
-
       const payload = {
         apn: form.apn,
         county: form.county,
@@ -171,8 +222,17 @@ export function NewProspectModal() {
         lot_size: form.lot_size,
         distress_tags: form.distress_tags,
         notes: form.notes,
-        source: "manual",
-        assign_to: assignTo === "unassigned" ? null : currentUser.id,
+        source: form.source_channel,
+        source_channel: form.source_channel,
+        source_vendor: form.source_vendor,
+        source_list_name: form.source_list_name,
+        source_pull_date: form.source_pull_date,
+        niche_tag: form.niche_tag,
+        import_batch_id: form.import_batch_id,
+        outreach_type: form.outreach_type,
+        skip_trace_status: form.skip_trace_status,
+        outbound_status: form.outbound_status,
+        assign_to: assignTo === "unassigned" ? null : assignTo,
         actor_id: currentUser.id || null,
       };
 
@@ -219,7 +279,7 @@ export function NewProspectModal() {
       setStep("confirm");
       toast.success(
         assignTo !== "unassigned"
-          ? `Prospect created and assigned to ${assignedMember?.label}`
+          ? `Prospect created and assigned to ${assignmentLabel}`
           : "Prospect created in pipeline",
         { description: `${form.address} — Score ${data.score}` }
       );
@@ -467,10 +527,10 @@ export function NewProspectModal() {
               {/* ── Section: Distress Signals ─────────────── */}
               <div>
                 <p className="text-[10px] font-semibold uppercase tracking-widest text-cyan/70 mb-3">
-                  Distress Signals
+                  Prospecting Tags
                 </p>
                 <div className="flex flex-wrap gap-1.5">
-                  {DISTRESS_OPTIONS.map((tag) => {
+                  {PROSPECTING_TAG_OPTIONS.map((tag) => {
                     const active = form.distress_tags.includes(tag);
                     return (
                       <motion.button
@@ -490,7 +550,7 @@ export function NewProspectModal() {
                           )}
                         >
                           {active && <Check className="h-2.5 w-2.5 mr-1" />}
-                          {DISTRESS_LABELS[tag]}
+                          {tagLabel(tag)}
                         </Badge>
                       </motion.button>
                     );
@@ -501,10 +561,110 @@ export function NewProspectModal() {
               {/* ── Section: Assignment ───────────────────── */}
               <div>
                 <p className="text-[10px] font-semibold uppercase tracking-widest text-cyan/70 mb-3">
+                  Prospecting Intake
+                </p>
+                <div className="space-y-3">
+                  <div className="grid grid-cols-2 gap-3">
+                    <Field label="Source Channel">
+                      <select
+                        value={form.source_channel}
+                        onChange={(e) => update("source_channel", e.target.value)}
+                        className="w-full h-9 rounded-md border border-input bg-transparent px-3 py-1 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-cyan/40"
+                      >
+                        {SOURCE_CHANNEL_OPTIONS.map((option) => (
+                          <option key={option} value={option}>{sourceChannelLabel(option)}</option>
+                        ))}
+                      </select>
+                    </Field>
+                    <Field label="Vendor / Data Source">
+                      <Input
+                        placeholder="PropertyRadar, county export, skip trace vendor..."
+                        value={form.source_vendor}
+                        onChange={(e) => update("source_vendor", e.target.value)}
+                      />
+                    </Field>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <Field label="List Name">
+                      <Input
+                        placeholder="Spokane probate March pull"
+                        value={form.source_list_name}
+                        onChange={(e) => update("source_list_name", e.target.value)}
+                      />
+                    </Field>
+                    <Field label="Pull Date">
+                      <Input
+                        type="date"
+                        value={form.source_pull_date}
+                        onChange={(e) => update("source_pull_date", e.target.value)}
+                      />
+                    </Field>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <Field label="Niche Tag">
+                      <select
+                        value={form.niche_tag}
+                        onChange={(e) => update("niche_tag", e.target.value)}
+                        className="w-full h-9 rounded-md border border-input bg-transparent px-3 py-1 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-cyan/40"
+                      >
+                        <option value="">None</option>
+                        {NICHE_TAG_OPTIONS.map((option) => (
+                          <option key={option} value={option}>{tagLabel(option)}</option>
+                        ))}
+                      </select>
+                    </Field>
+                    <Field label="Import Batch ID">
+                      <Input
+                        placeholder="2026-03-11-spokane-probate"
+                        value={form.import_batch_id}
+                        onChange={(e) => update("import_batch_id", e.target.value)}
+                      />
+                    </Field>
+                  </div>
+                  <div className="grid grid-cols-3 gap-3">
+                    <Field label="Outreach Type">
+                      <select
+                        value={form.outreach_type}
+                        onChange={(e) => update("outreach_type", e.target.value)}
+                        className="w-full h-9 rounded-md border border-input bg-transparent px-3 py-1 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-cyan/40"
+                      >
+                        {OUTREACH_TYPE_OPTIONS.map((option) => (
+                          <option key={option} value={option}>{tagLabel(option)}</option>
+                        ))}
+                      </select>
+                    </Field>
+                    <Field label="Skip Trace Status">
+                      <select
+                        value={form.skip_trace_status}
+                        onChange={(e) => update("skip_trace_status", e.target.value)}
+                        className="w-full h-9 rounded-md border border-input bg-transparent px-3 py-1 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-cyan/40"
+                      >
+                        {SKIP_TRACE_STATUS_OPTIONS.map((option) => (
+                          <option key={option} value={option}>{tagLabel(option)}</option>
+                        ))}
+                      </select>
+                    </Field>
+                    <Field label="Outbound Status">
+                      <select
+                        value={form.outbound_status}
+                        onChange={(e) => update("outbound_status", e.target.value)}
+                        className="w-full h-9 rounded-md border border-input bg-transparent px-3 py-1 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-cyan/40"
+                      >
+                        {OUTBOUND_STATUS_OPTIONS.map((option) => (
+                          <option key={option} value={option}>{tagLabel(option)}</option>
+                        ))}
+                      </select>
+                    </Field>
+                  </div>
+                </div>
+              </div>
+
+              <div>
+                <p className="text-[10px] font-semibold uppercase tracking-widest text-cyan/70 mb-3">
                   Assignment
                 </p>
                 <div className="flex flex-wrap gap-2">
-                  {TEAM_MEMBERS.map((member) => (
+                  {assignmentOptions.map((member) => (
                     <button
                       key={member.id}
                       type="button"
@@ -577,11 +737,16 @@ export function NewProspectModal() {
                     <div className="flex flex-wrap justify-center gap-1 mt-2">
                       {form.distress_tags.map((t) => (
                         <Badge key={t} variant="outline" className="text-[9px]">
-                          {DISTRESS_LABELS[t]}
+                          {tagLabel(t)}
                         </Badge>
                       ))}
                     </div>
                   )}
+                  <p className="text-[10px] text-muted-foreground/70 mt-2">
+                    {sourceChannelLabel(form.source_channel)}
+                    {form.niche_tag ? ` • ${tagLabel(form.niche_tag)}` : ""}
+                    {form.import_batch_id ? ` • Batch ${form.import_batch_id}` : ""}
+                  </p>
                 </div>
               </div>
 

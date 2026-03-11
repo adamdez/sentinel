@@ -9,14 +9,16 @@ import {
   type LeadRow,
   type LeadSegment,
 } from "@/lib/leads-data";
-import type { DistressType, LeadStatus, AIScore } from "@/lib/types";
+import type { LeadStatus, AIScore } from "@/lib/types";
 import { useSentinelStore } from "@/lib/store";
 import { supabase } from "@/lib/supabase";
+import { extractProspectingSnapshot, sourceChannelLabel } from "@/lib/prospecting";
 
 export type SortField = "score" | "priority" | "followUp" | "address" | "owner" | "status" | "equity";
 export type SortDir = "asc" | "desc";
 export type FollowUpFilter = "all" | "overdue" | "today" | "uncontacted" | "urgent_uncontacted";
 export type MarketFilter = "spokane" | "kootenai" | "other";
+export type OutboundCallStatusFilter = "not_called" | "contacted" | "wrong_number" | "do_not_call" | "bad_record";
 type FollowUpState = "overdue" | "today" | "urgent_uncontacted" | "uncontacted" | "other";
 export type AttentionFocus =
   | "none"
@@ -46,8 +48,13 @@ export interface LeadFilters {
   statuses: LeadStatus[];
   markets: MarketFilter[];
   sources: string[];
+  nicheTags: string[];
+  importBatches: string[];
+  callStatuses: OutboundCallStatusFilter[];
   followUp: FollowUpFilter;
   unassignedOnly: boolean;
+  includeClosed: boolean;
+  excludeSuppressed: boolean;
 }
 
 const DEFAULT_FILTERS: LeadFilters = {
@@ -55,8 +62,13 @@ const DEFAULT_FILTERS: LeadFilters = {
   statuses: [],
   markets: [],
   sources: [],
+  nicheTags: [],
+  importBatches: [],
+  callStatuses: [],
   followUp: "all",
   unassignedOnly: false,
+  includeClosed: false,
+  excludeSuppressed: false,
 };
 
 function scoreLabel(n: number): AIScore["label"] {
@@ -74,6 +86,10 @@ function matchesSearch(lead: LeadRow, q: string): boolean {
     lead.apn.toLowerCase().includes(lower) ||
     lead.city.toLowerCase().includes(lower) ||
     lead.county.toLowerCase().includes(lower) ||
+    (lead.sourceVendor?.toLowerCase().includes(lower) ?? false) ||
+    (lead.sourceListName?.toLowerCase().includes(lower) ?? false) ||
+    (lead.importBatchId?.toLowerCase().includes(lower) ?? false) ||
+    (lead.nicheTag?.toLowerCase().includes(lower) ?? false) ||
     (lead.notes?.toLowerCase().includes(lower) ?? false)
   );
 }
@@ -90,17 +106,15 @@ function sourceKey(source: string | null | undefined): string {
 }
 
 function sourceLabel(source: string): string {
-  const normalized = sourceKey(source);
-  if (normalized === "propertyradar") return "PropertyRadar";
-  if (normalized === "ranger_push") return "Ranger";
-  if (normalized === "google_ads") return "Google Ads";
-  if (normalized === "facebook_ads") return "Facebook Ads";
-  return normalized
-    .replace(/^csv:/, "CSV ")
-    .replace(/[_-]/g, " ")
-    .replace(/\s+/g, " ")
-    .trim()
-    .replace(/\b\w/g, (m) => m.toUpperCase());
+  return sourceChannelLabel(source);
+}
+
+function outboundCallStatus(lead: LeadRow): OutboundCallStatusFilter {
+  if (lead.badRecord) return "bad_record";
+  if (lead.doNotCall) return "do_not_call";
+  if (lead.wrongNumber || lead.dispositionCode === "wrong_number") return "wrong_number";
+  if ((lead.totalCalls ?? 0) > 0 || lead.lastContactAt || lead.outboundLastCallAt) return "contacted";
+  return "not_called";
 }
 
 function followUpState(lead: LeadRow): FollowUpState {
@@ -183,6 +197,7 @@ function isEscalatedReviewAttention(lead: LeadRow): boolean {
 function mapToLeadRow(raw: any, prop: any, firstAttemptAt: string | null = null): LeadRow {
   const composite = raw.priority ?? 0;
   const offerPrepSnapshot = extractOfferPrepSnapshot(prop.owner_flags ?? null);
+  const prospecting = extractProspectingSnapshot(prop.owner_flags ?? null);
   const offerPrepHealth = deriveOfferPrepHealth({
     status: raw.status ?? "prospect",
     qualificationRoute: raw.qualification_route ?? null,
@@ -204,7 +219,7 @@ function mapToLeadRow(raw: any, prop: any, firstAttemptAt: string | null = null)
     ownerPhone: prop.owner_phone ?? null,
     ownerEmail: prop.owner_email ?? null,
     ownerBadge: prop.owner_flags?.absentee ? "absentee" : null,
-    distressSignals: (raw.tags ?? []) as DistressType[],
+    distressSignals: Array.isArray(raw.tags) ? raw.tags : [],
     status: raw.status ?? "prospect",
     assignedTo: raw.assigned_to ?? null,
     assignedName: null,
@@ -240,6 +255,28 @@ function mapToLeadRow(raw: any, prop: any, firstAttemptAt: string | null = null)
     offerPrepHealth,
     promotedAt: raw.promoted_at ?? raw.created_at ?? new Date().toISOString(),
     source: raw.source ?? "unknown",
+    sourceChannel: prospecting.sourceChannel ?? raw.source ?? "unknown",
+    sourceVendor: prospecting.sourceVendor,
+    sourceListName: prospecting.sourceListName,
+    sourcePullDate: prospecting.sourcePullDate,
+    sourceCampaign: prospecting.sourceCampaign,
+    intakeMethod: prospecting.intakeMethod,
+    rawSourceRef: prospecting.rawSourceRef,
+    duplicateStatus: prospecting.duplicateStatus,
+    receivedAt: prospecting.receivedAt,
+    nicheTag: prospecting.nicheTag,
+    importBatchId: prospecting.importBatchId,
+    outreachType: prospecting.outreachType,
+    assignedAt: prospecting.assignedAt,
+    skipTraceStatus: prospecting.skipTraceStatus,
+    outboundStatus: prospecting.outboundStatus,
+    outboundAttemptCount: prospecting.attemptCount,
+    outboundFirstCallAt: prospecting.firstCallAt,
+    outboundLastCallAt: prospecting.lastCallAt,
+    firstContactAt: prospecting.firstContactAt ?? raw.last_contact_at ?? null,
+    wrongNumber: prospecting.wrongNumber,
+    doNotCall: prospecting.doNotCall,
+    badRecord: prospecting.badRecord,
     tags: raw.tags ?? [],
     complianceClean: true,
     notes: raw.notes ?? null,
@@ -249,6 +286,7 @@ function mapToLeadRow(raw: any, prop: any, firstAttemptAt: string | null = null)
     callSequenceStep: raw.call_sequence_step ?? 1,
     nextCallScheduledAt: raw.next_call_scheduled_at ?? null,
     dispositionCode: raw.disposition_code ?? null,
+    ownerFlags: prop.owner_flags ?? {},
   };
 }
 
@@ -311,15 +349,13 @@ export function useLeads() {
   const fetchLeads = useCallback(async () => {
     setLoading(true);
     try {
-      // Fetch active inbox leads (exclude prospects/staging/closed).
-      // Prospects live on the Prospects page; staging leads are enrichment reservoir;
-      // closed outcomes are intentionally out of daily operator queue.
+      // Fetch inbox-stage leads plus closed records for compact recovery/discovery.
+      // Closed stays hidden by default in client filters so daily queue behavior remains intact.
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { data: leadsRaw, error: leadsErr } = await (supabase.from("leads") as any)
         .select("*")
         .neq("status", "prospect")
         .neq("status", "staging")
-        .neq("status", "closed")
         .order("priority", { ascending: false });
 
       if (leadsErr) {
@@ -441,22 +477,68 @@ export function useLeads() {
     return leadsWithAssigneeNames.filter((l) => l.assignedTo === segment);
   }, [leadsWithAssigneeNames, segment, currentUser.id]);
 
+  const closedVisible = filters.includeClosed || filters.statuses.includes("closed");
+
+  const discoverableSegmentedLeads = useMemo(() => (
+    closedVisible ? segmentedLeads : segmentedLeads.filter((l) => l.status !== "closed")
+  ), [closedVisible, segmentedLeads]);
+
   const sourceOptions = useMemo(() => {
     const counts: Record<string, number> = {};
-    for (const l of segmentedLeads) {
-      const k = sourceKey(l.source);
+    for (const l of discoverableSegmentedLeads) {
+      const k = sourceKey(l.sourceChannel ?? l.source);
       counts[k] = (counts[k] ?? 0) + 1;
     }
     return Object.entries(counts)
       .sort((a, b) => b[1] - a[1])
       .slice(0, 8)
       .map(([value, count]) => ({ value, label: sourceLabel(value), count }));
-  }, [segmentedLeads]);
+  }, [discoverableSegmentedLeads]);
+
+  const nicheOptions = useMemo(() => {
+    const counts: Record<string, number> = {};
+    for (const l of discoverableSegmentedLeads) {
+      if (!l.nicheTag) continue;
+      counts[l.nicheTag] = (counts[l.nicheTag] ?? 0) + 1;
+    }
+    return Object.entries(counts)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 8)
+      .map(([value, count]) => ({ value, label: sourceLabel(value), count }));
+  }, [discoverableSegmentedLeads]);
+
+  const importBatchOptions = useMemo(() => {
+    const counts: Record<string, number> = {};
+    for (const l of discoverableSegmentedLeads) {
+      if (!l.importBatchId) continue;
+      counts[l.importBatchId] = (counts[l.importBatchId] ?? 0) + 1;
+    }
+    return Object.entries(counts)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 8)
+      .map(([value, count]) => ({ value, label: value, count }));
+  }, [discoverableSegmentedLeads]);
+
+  const callStatusOptions = useMemo(() => {
+    const counts: Record<OutboundCallStatusFilter, number> = {
+      not_called: 0,
+      contacted: 0,
+      wrong_number: 0,
+      do_not_call: 0,
+      bad_record: 0,
+    };
+    for (const l of discoverableSegmentedLeads) {
+      counts[outboundCallStatus(l)] += 1;
+    }
+    return (Object.entries(counts) as Array<[OutboundCallStatusFilter, number]>)
+      .filter(([, count]) => count > 0)
+      .map(([value, count]) => ({ value, label: sourceLabel(value), count }));
+  }, [discoverableSegmentedLeads]);
 
   // Filters
 
   const filteredLeads = useMemo(() => {
-    let result = segmentedLeads;
+    let result = discoverableSegmentedLeads;
 
     if (filters.search) {
       result = result.filter((l) => matchesSearch(l, filters.search));
@@ -468,13 +550,25 @@ export function useLeads() {
       result = result.filter((l) => filters.markets.includes(marketKeyFromCounty(l.county)));
     }
     if (filters.sources.length > 0) {
-      result = result.filter((l) => filters.sources.includes(sourceKey(l.source)));
+      result = result.filter((l) => filters.sources.includes(sourceKey(l.sourceChannel ?? l.source)));
+    }
+    if (filters.nicheTags.length > 0) {
+      result = result.filter((l) => l.nicheTag != null && filters.nicheTags.includes(l.nicheTag));
+    }
+    if (filters.importBatches.length > 0) {
+      result = result.filter((l) => l.importBatchId != null && filters.importBatches.includes(l.importBatchId));
+    }
+    if (filters.callStatuses.length > 0) {
+      result = result.filter((l) => filters.callStatuses.includes(outboundCallStatus(l)));
     }
     if (filters.followUp !== "all") {
       result = result.filter((l) => followUpState(l) === filters.followUp);
     }
     if (filters.unassignedOnly) {
       result = result.filter((l) => !l.assignedTo);
+    }
+    if (filters.excludeSuppressed) {
+      result = result.filter((l) => !l.doNotCall && !l.badRecord);
     }
 
     if (attentionFocus !== "none") {
@@ -507,7 +601,7 @@ export function useLeads() {
     }
 
     return result;
-  }, [segmentedLeads, filters, attentionFocus]);
+  }, [discoverableSegmentedLeads, filters, attentionFocus]);
 
   // Sort
 
@@ -591,14 +685,17 @@ export function useLeads() {
   );
 
   const segmentCounts = useMemo(() => {
-    const all = leadsWithAssigneeNames.length;
-    const mine = leadsWithAssigneeNames.filter((l) => l.assignedTo === currentUser.id).length;
+    const base = filters.includeClosed
+      ? leadsWithAssigneeNames
+      : leadsWithAssigneeNames.filter((l) => l.status !== "closed");
+    const all = base.length;
+    const mine = base.filter((l) => l.assignedTo === currentUser.id).length;
     const byMember: Record<string, number> = {};
     for (const m of teamMembers) {
-      byMember[m.id] = leadsWithAssigneeNames.filter((l) => l.assignedTo === m.id).length;
+      byMember[m.id] = base.filter((l) => l.assignedTo === m.id).length;
     }
     return { all, mine, byMember };
-  }, [leadsWithAssigneeNames, currentUser.id, teamMembers]);
+  }, [leadsWithAssigneeNames, currentUser.id, filters.includeClosed, teamMembers]);
 
   const needsAttention = useMemo(() => {
     const now = new Date();
@@ -716,6 +813,57 @@ export function useLeads() {
     };
   }, [segmentedLeads]);
 
+  const outboundSourceMetrics = useMemo(() => {
+    const grouped = new Map<string, { label: string; leads: number; contacted: number; offerPath: number; closed: number }>();
+    for (const lead of segmentedLeads) {
+      const key = sourceKey(lead.sourceChannel ?? lead.source);
+      const existing = grouped.get(key) ?? {
+        label: sourceLabel(key),
+        leads: 0,
+        contacted: 0,
+        offerPath: 0,
+        closed: 0,
+      };
+      existing.leads += 1;
+      if ((lead.totalCalls ?? 0) > 0 || lead.firstAttemptAt || lead.lastContactAt) {
+        existing.contacted += 1;
+      }
+      if (
+        lead.status === "negotiation"
+        || lead.status === "disposition"
+        || lead.status === "closed"
+        || lead.qualificationRoute === "offer_ready"
+      ) {
+        existing.offerPath += 1;
+      }
+      if (lead.status === "closed") {
+        existing.closed += 1;
+      }
+      grouped.set(key, existing);
+    }
+    return Array.from(grouped.values())
+      .sort((a, b) => b.leads - a.leads)
+      .slice(0, 6)
+      .map((item) => ({
+        ...item,
+        contactRate: item.leads > 0 ? Math.round((item.contacted / item.leads) * 100) : 0,
+        offerPathRate: item.leads > 0 ? Math.round((item.offerPath / item.leads) * 100) : 0,
+        closedRate: item.leads > 0 ? Math.round((item.closed / item.leads) * 100) : 0,
+      }));
+  }, [segmentedLeads]);
+
+  const nicheMetrics = useMemo(() => {
+    const counts: Record<string, number> = {};
+    for (const lead of segmentedLeads) {
+      if (!lead.nicheTag) continue;
+      counts[lead.nicheTag] = (counts[lead.nicheTag] ?? 0) + 1;
+    }
+    return Object.entries(counts)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 6)
+      .map(([tag, count]) => ({ tag, label: sourceLabel(tag), count }));
+  }, [segmentedLeads]);
+
   return {
     leads: sortedLeads,
     loading,
@@ -737,7 +885,12 @@ export function useLeads() {
     setSelectedId,
     segmentCounts,
     sourceOptions,
+    nicheOptions,
+    importBatchOptions,
+    callStatusOptions,
     inboxMetrics,
+    outboundSourceMetrics,
+    nicheMetrics,
     totalFiltered: filteredLeads.length,
     currentUser,
     teamMembers: otherTeamMembers,

@@ -1,737 +1,462 @@
 "use client";
 
-import { useState, useCallback, useRef } from "react";
-import { motion, AnimatePresence } from "framer-motion";
-import {
-  Upload,
-  FileSpreadsheet,
-  CheckCircle2,
-  AlertTriangle,
-  X,
-  ArrowRight,
-  Loader2,
-  Zap,
-  BarChart3,
-  Users,
-  ShieldAlert,
-  RefreshCw,
-} from "lucide-react";
+import { useCallback, useMemo, useRef, useState } from "react";
+import { AlertTriangle, CheckCircle2, FileSpreadsheet, Loader2, RefreshCw, ShieldAlert, Upload } from "lucide-react";
+import { toast } from "sonner";
 import { PageShell } from "@/components/sentinel/page-shell";
 import { GlassCard } from "@/components/sentinel/glass-card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
+import { supabase } from "@/lib/supabase";
 import { cn } from "@/lib/utils";
 import {
-  autoMapColumns,
-  ALL_SENTINEL_FIELDS,
-  type SentinelField,
-} from "@/lib/csv-column-map";
-import type { DistressType } from "@/lib/types";
-import Papa from "papaparse";
+  type ImportTargetField,
+  type MappingSuggestion,
+  type NormalizationDefaults,
+  type NormalizedImportRecord,
+} from "@/lib/import-normalization";
+import {
+  NICHE_TAG_OPTIONS,
+  OUTREACH_TYPE_OPTIONS,
+  SKIP_TRACE_STATUS_OPTIONS,
+  SOURCE_CHANNEL_OPTIONS,
+  sourceChannelLabel,
+  tagLabel,
+} from "@/lib/prospecting";
 
-// ── Distress type options for the selector ────────────────────────────
+type ImportStep = "upload" | "mapping" | "configure" | "importing" | "done";
 
-const DISTRESS_OPTIONS: { value: DistressType; label: string; weight: number }[] = [
-  { value: "probate", label: "Probate / Deceased", weight: 28 },
-  { value: "pre_foreclosure", label: "Pre-Foreclosure", weight: 26 },
-  { value: "tax_lien", label: "Tax Lien / Delinquent", weight: 22 },
-  { value: "water_shutoff", label: "Water Shut-Off", weight: 35 },
-  { value: "code_violation", label: "Code Violation", weight: 14 },
-  { value: "condemned", label: "Condemned", weight: 20 },
-  { value: "divorce", label: "Divorce", weight: 20 },
-  { value: "bankruptcy", label: "Bankruptcy", weight: 24 },
-  { value: "inherited", label: "Inherited", weight: 25 },
-  { value: "vacant", label: "Vacant", weight: 12 },
-  { value: "absentee", label: "Absentee Owner", weight: 22 },
-  { value: "fsbo", label: "FSBO", weight: 16 },
-];
+type PreviewPayload = {
+  workbook: {
+    kind: string;
+    fileName: string;
+    chosenSheet: string;
+    sheetNames: string[];
+    sheets: Array<{ name: string; rowCount: number; headerRowIndex: number; headers: string[] }>;
+  };
+  mappingSuggestions: MappingSuggestion[];
+  effectiveMapping: Partial<Record<ImportTargetField, string>>;
+  unmappedHeaders: string[];
+  lowConfidenceFields: ImportTargetField[];
+  previewRows: NormalizedImportRecord[];
+  reviewCounts: Record<string, number>;
+  requiresReview: boolean;
+  templateMatch: { id: string; name: string; score: number; autoApplied: boolean } | null;
+  defaults: NormalizationDefaults;
+};
 
-// ── Step definitions ──────────────────────────────────────────────────
-
-type ImportStep = "upload" | "mapping" | "config" | "importing" | "done";
-
-interface ImportResults {
+type ImportResults = {
   success: boolean;
-  total: number;
-  processed: number;
-  upserted: number;
-  eventsCreated: number;
-  eventsDeduped: number;
-  scored: number;
-  promoted: number;
+  batchId: string;
+  fileName: string;
+  sheetName: string;
+  totalRows: number;
+  imported: number;
+  updated: number;
+  duplicateReviewRows: number;
   skipped: number;
   errors: number;
-  elapsed_ms: number;
-  errorDetails: string[];
+  importedStatusCounts: Record<string, number>;
+  warnings: string[];
+  skippedRows: Array<{ rowNumber: number; status: string; reason: string }>;
+  errorRows: Array<{ rowNumber: number; error: string }>;
+};
+
+const DEFAULTS: NormalizationDefaults = {
+  sourceChannel: "csv_import",
+  sourceVendor: "",
+  sourceListName: "",
+  sourcePullDate: "",
+  county: "",
+  nicheTag: "",
+  importBatchId: "",
+  outreachType: "cold_call",
+  skipTraceStatus: "not_started",
+  templateName: "",
+  templateId: "",
+};
+
+async function authHeaders() {
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session?.access_token) throw new Error("Session expired. Please sign in again.");
+  return { Authorization: `Bearer ${session.access_token}` };
 }
 
-export default function CsvImportPage() {
-  // ── State ────────────────────────────────────────────────────────────
+function Stat({ label, value }: { label: string; value: number | string }) {
+  return (
+    <div className="rounded-xl border border-white/[0.08] bg-white/[0.03] px-3 py-2">
+      <p className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground/55">{label}</p>
+      <p className="mt-1 text-sm font-semibold text-foreground">{value}</p>
+    </div>
+  );
+}
+
+export default function ImportPage() {
   const [step, setStep] = useState<ImportStep>("upload");
   const [file, setFile] = useState<File | null>(null);
-  const [headers, setHeaders] = useState<string[]>([]);
-  const [previewRows, setPreviewRows] = useState<Record<string, string>[]>([]);
-  const [editedMapping, setEditedMapping] = useState<Partial<Record<SentinelField, string>>>({});
-  const [selectedTypes, setSelectedTypes] = useState<DistressType[]>([]);
-  const [sourceLabel, setSourceLabel] = useState("");
-  const [defaultCounty, setDefaultCounty] = useState("");
-  const [defaultState, setDefaultState] = useState("WA");
-  const [importing, setImporting] = useState(false);
-  const [progress, setProgress] = useState(0);
+  const [preview, setPreview] = useState<PreviewPayload | null>(null);
   const [results, setResults] = useState<ImportResults | null>(null);
+  const [mapping, setMapping] = useState<Partial<Record<ImportTargetField, string>>>({});
+  const [defaults, setDefaults] = useState<NormalizationDefaults>({ ...DEFAULTS });
+  const [selectedSheet, setSelectedSheet] = useState("");
+  const [analyzing, setAnalyzing] = useState(false);
+  const [importing, setImporting] = useState(false);
   const [dragOver, setDragOver] = useState(false);
+  const [duplicateStrategy, setDuplicateStrategy] = useState<"skip" | "update_missing">("skip");
+  const [saveTemplate, setSaveTemplate] = useState(false);
+  const [ackReview, setAckReview] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // ── File handling ────────────────────────────────────────────────────
-  const handleFile = useCallback((f: File) => {
-    setFile(f);
-
-    Papa.parse<Record<string, string>>(f, {
-      header: true,
-      skipEmptyLines: true,
-      preview: 6, // parse first 6 rows for preview
-      transformHeader: (h: string) => h.trim(),
-      complete: (result) => {
-        const hdrs = result.meta.fields ?? [];
-        setHeaders(hdrs);
-        setPreviewRows(result.data.slice(0, 5));
-
-        // Auto-map columns
-        const mapping = autoMapColumns(hdrs);
-        setEditedMapping({ ...mapping.mapped });
-
-        // Auto-detect source label from filename
-        const baseName = f.name.replace(/\.(csv|txt|tsv)$/i, "").replace(/[^a-zA-Z0-9]/g, "_").toLowerCase();
-        setSourceLabel(baseName);
-
-        setStep("mapping");
-      },
+  const selectedSheetMeta = preview?.workbook.sheets.find((sheet) => sheet.name === selectedSheet);
+  const groupedSuggestions = useMemo(() => {
+    const grouped = new Map<string, MappingSuggestion[]>();
+    (preview?.mappingSuggestions ?? []).forEach((item) => {
+      const bucket = grouped.get(item.group) ?? [];
+      bucket.push(item);
+      grouped.set(item.group, bucket);
     });
-  }, []);
+    return [...grouped.entries()];
+  }, [preview]);
 
-  const handleDrop = useCallback(
-    (e: React.DragEvent) => {
-      e.preventDefault();
-      setDragOver(false);
-      const f = e.dataTransfer.files[0];
-      if (f && (f.name.endsWith(".csv") || f.name.endsWith(".tsv") || f.name.endsWith(".txt"))) {
-        handleFile(f);
-      }
-    },
-    [handleFile]
-  );
-
-  const handleFileInput = useCallback(
-    (e: React.ChangeEvent<HTMLInputElement>) => {
-      const f = e.target.files?.[0];
-      if (f) handleFile(f);
-    },
-    [handleFile]
-  );
-
-  // ── Column mapping edit ──────────────────────────────────────────────
-  const updateMapping = useCallback((sentinelField: SentinelField, csvCol: string) => {
-    setEditedMapping((prev) => {
-      const next = { ...prev };
-      if (csvCol === "") {
-        delete next[sentinelField];
-      } else {
-        next[sentinelField] = csvCol;
-      }
-      return next;
-    });
-  }, []);
-
-  // ── Distress type toggle ─────────────────────────────────────────────
-  const toggleType = useCallback((type: DistressType) => {
-    setSelectedTypes((prev) =>
-      prev.includes(type) ? prev.filter((t) => t !== type) : [...prev, type]
-    );
-  }, []);
-
-  // ── Import execution ─────────────────────────────────────────────────
-  const runImport = useCallback(async () => {
-    if (!file || selectedTypes.length === 0) return;
-
-    setStep("importing");
-    setImporting(true);
-    setProgress(10);
-
-    const formData = new FormData();
-    formData.append("file", file);
-    formData.append(
-      "meta",
-      JSON.stringify({
-        source: sourceLabel || "csv_import",
-        distressTypes: selectedTypes,
-        columnMapping: editedMapping,
-        defaultCounty: defaultCounty || undefined,
-        defaultState: defaultState || undefined,
-      })
-    );
-
-    // Simulate progress while waiting for API
-    const progressInterval = setInterval(() => {
-      setProgress((p) => Math.min(p + 2, 90));
-    }, 500);
-
+  const analyzeFile = useCallback(async (nextFile: File, nextSheet = selectedSheet, nextMapping = mapping, nextDefaults = defaults) => {
+    setAnalyzing(true);
     try {
-      const res = await fetch("/api/ingest/csv-upload", {
-        method: "POST",
-        body: formData,
-      });
-
-      clearInterval(progressInterval);
-      setProgress(100);
-
+      const headers = await authHeaders();
+      const formData = new FormData();
+      formData.append("file", nextFile);
+      if (nextSheet) formData.append("sheet_name", nextSheet);
+      formData.append("mapping", JSON.stringify(nextMapping));
+      formData.append("defaults", JSON.stringify(nextDefaults));
+      const res = await fetch("/api/imports/preview", { method: "POST", headers, body: formData });
       const data = await res.json();
+      if (!res.ok || !data.success) throw new Error((data.error as string | undefined) ?? `HTTP ${res.status}`);
+      const payload = data as PreviewPayload;
+      setPreview(payload);
+      setMapping(payload.effectiveMapping);
+      setDefaults(payload.defaults);
+      setSelectedSheet(payload.workbook.chosenSheet);
+      setStep("mapping");
+      if (payload.templateMatch?.autoApplied) toast.success(`Applied template: ${payload.templateMatch.name}`);
+    } catch (error) {
+      toast.error("Import preview failed", { description: error instanceof Error ? error.message : "Unknown error" });
+    } finally {
+      setAnalyzing(false);
+    }
+  }, [defaults, mapping, selectedSheet]);
 
-      setResults({
-        success: data.success ?? false,
-        total: data.total ?? 0,
-        processed: data.processed ?? 0,
-        upserted: data.upserted ?? 0,
-        eventsCreated: data.eventsCreated ?? 0,
-        eventsDeduped: data.eventsDeduped ?? 0,
-        scored: data.scored ?? 0,
-        promoted: data.promoted ?? 0,
-        skipped: data.skipped ?? 0,
-        errors: data.errors ?? 0,
-        elapsed_ms: data.elapsed_ms ?? 0,
-        errorDetails: data.errorDetails ?? [],
-      });
+  const handleFile = useCallback(async (nextFile: File) => {
+    const batchName = nextFile.name.replace(/\.[^.]+$/, "").replace(/[^a-zA-Z0-9]+/g, "_").toLowerCase();
+    setFile(nextFile);
+    setPreview(null);
+    setResults(null);
+    setMapping({});
+    setDefaults({ ...DEFAULTS, importBatchId: batchName });
+    setSelectedSheet("");
+    setAckReview(false);
+    await analyzeFile(nextFile, "", {}, { ...DEFAULTS, importBatchId: batchName });
+  }, [analyzeFile]);
 
+  const runImport = useCallback(async () => {
+    if (!file || !preview) return;
+    setImporting(true);
+    setStep("importing");
+    try {
+      const headers = await authHeaders();
+      const formData = new FormData();
+      formData.append("file", file);
+      formData.append("sheet_name", selectedSheet || preview.workbook.chosenSheet);
+      formData.append("mapping", JSON.stringify(mapping));
+      formData.append("defaults", JSON.stringify(defaults));
+      formData.append("duplicate_strategy", duplicateStrategy);
+      formData.append("save_template", String(saveTemplate));
+      formData.append("force_commit", String(ackReview));
+      const res = await fetch("/api/imports/commit", { method: "POST", headers, body: formData });
+      const data = await res.json();
+      if (!res.ok) throw new Error((data.error as string | undefined) ?? `HTTP ${res.status}`);
+      setResults(data as ImportResults);
       setStep("done");
-    } catch (err) {
-      clearInterval(progressInterval);
-      setResults({
-        success: false,
-        total: 0,
-        processed: 0,
-        upserted: 0,
-        eventsCreated: 0,
-        eventsDeduped: 0,
-        scored: 0,
-        promoted: 0,
-        skipped: 0,
-        errors: 1,
-        elapsed_ms: 0,
-        errorDetails: [err instanceof Error ? err.message : "Network error"],
-      });
-      setStep("done");
+      toast.success("Import complete", { description: `${data.imported} new records, ${data.updated} updates.` });
+    } catch (error) {
+      setStep("configure");
+      toast.error("Import failed", { description: error instanceof Error ? error.message : "Unknown error" });
     } finally {
       setImporting(false);
     }
-  }, [file, selectedTypes, editedMapping, sourceLabel, defaultCounty, defaultState]);
-
-  // ── Reset ────────────────────────────────────────────────────────────
-  const reset = useCallback(() => {
-    setStep("upload");
-    setFile(null);
-    setHeaders([]);
-    setPreviewRows([]);
-    setEditedMapping({});
-    setSelectedTypes([]);
-    setSourceLabel("");
-    setDefaultCounty("");
-    setDefaultState("WA");
-    setImporting(false);
-    setProgress(0);
-    setResults(null);
-    if (fileInputRef.current) fileInputRef.current.value = "";
-  }, []);
-
-  // ── Step indicator ───────────────────────────────────────────────────
-  const steps: { id: ImportStep; label: string }[] = [
-    { id: "upload", label: "Upload" },
-    { id: "mapping", label: "Map Columns" },
-    { id: "config", label: "Configure" },
-    { id: "importing", label: "Import" },
-    { id: "done", label: "Results" },
-  ];
-
-  const stepIndex = steps.findIndex((s) => s.id === step);
+  }, [ackReview, defaults, duplicateStrategy, file, mapping, preview, saveTemplate, selectedSheet]);
 
   return (
     <PageShell
-      title="Import Data"
-      description="Upload CSV files from any data vendor — auto-mapped, scored, and promoted through the full Sentinel pipeline."
+      title="Import Normalization"
+      description="Review-first CSV/XLSX intake for outside prospect lists. Sentinel infers mappings, flags uncertainty, and audits every batch."
+      actions={file ? <Button variant="outline" className="gap-2" onClick={() => fileInputRef.current?.click()}><RefreshCw className="h-4 w-4" />Replace File</Button> : null}
     >
-      {/* Step indicator */}
-      <div className="flex items-center gap-2 mb-6">
-        {steps.map((s, i) => (
-          <div key={s.id} className="flex items-center gap-2">
-            <div
-              className={cn(
-                "flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium transition-all",
-                i < stepIndex
-                  ? "bg-cyan/15 text-cyan border border-cyan/30"
-                  : i === stepIndex
-                    ? "bg-cyan/10 text-cyan border border-cyan/40 shadow-[0_0_8px_rgba(0,229,255,0.2)]"
-                    : "bg-white/[0.03] text-muted-foreground/50 border border-white/[0.06]"
-              )}
-            >
-              {i < stepIndex && <CheckCircle2 className="h-3 w-3" />}
-              {s.label}
-            </div>
-            {i < steps.length - 1 && (
-              <ArrowRight className="h-3 w-3 text-muted-foreground/30" />
+      <input ref={fileInputRef} type="file" accept=".csv,.xlsx" className="hidden" onChange={(event) => {
+        const nextFile = event.target.files?.[0];
+        if (nextFile) void handleFile(nextFile);
+      }} />
+
+      {step === "upload" ? (
+        <GlassCard>
+          <div
+            className={cn(
+              "cursor-pointer rounded-2xl border-2 border-dashed p-12 text-center transition-all",
+              dragOver ? "border-cyan/50 bg-cyan/[0.04]" : "border-white/[0.08] hover:border-cyan/30 hover:bg-cyan/[0.02]",
             )}
+            onClick={() => fileInputRef.current?.click()}
+            onDragOver={(event) => { event.preventDefault(); setDragOver(true); }}
+            onDragLeave={() => setDragOver(false)}
+            onDrop={(event) => {
+              event.preventDefault();
+              setDragOver(false);
+              const nextFile = event.dataTransfer.files?.[0];
+              if (nextFile) void handleFile(nextFile);
+            }}
+          >
+            <Upload className="mx-auto mb-4 h-12 w-12 text-cyan/60" />
+            <h3 className="text-lg font-semibold text-foreground">Drop a CSV or XLSX file here</h3>
+            <p className="mt-2 text-sm text-muted-foreground/70">Sentinel will inspect sheet structure, guess mappings, and stop for review if confidence is weak.</p>
           </div>
-        ))}
-      </div>
+        </GlassCard>
+      ) : null}
 
-      <AnimatePresence mode="wait">
-        {/* ── STEP 1: Upload ─────────────────────────────────────── */}
-        {step === "upload" && (
-          <motion.div
-            key="upload"
-            initial={{ opacity: 0, y: 8 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -8 }}
-          >
-            <GlassCard>
-              <div
-                className={cn(
-                  "border-2 border-dashed rounded-xl p-12 text-center transition-all cursor-pointer",
-                  dragOver
-                    ? "border-cyan/50 bg-cyan/[0.04]"
-                    : "border-white/[0.08] hover:border-cyan/30 hover:bg-cyan/[0.02]"
-                )}
-                onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
-                onDragLeave={() => setDragOver(false)}
-                onDrop={handleDrop}
-                onClick={() => fileInputRef.current?.click()}
-              >
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  accept=".csv,.tsv,.txt"
-                  className="hidden"
-                  onChange={handleFileInput}
-                />
-                <Upload className="h-12 w-12 mx-auto text-cyan/50 mb-4" />
-                <h3 className="text-lg font-semibold text-foreground mb-2">
-                  Drop your CSV file here
-                </h3>
-                <p className="text-sm text-muted-foreground/70 mb-4">
-                  or click to browse. Supports .csv, .tsv, .txt
-                </p>
-                <p className="text-xs text-muted-foreground/50">
-                  Works with RealSuperMarket, ListSource, PropStream, BatchLeads, county exports, or any CSV
-                </p>
+      {step === "mapping" && preview ? (
+        <div className="space-y-4">
+          <GlassCard>
+            <div className="flex flex-wrap items-start gap-3">
+              <FileSpreadsheet className="mt-0.5 h-5 w-5 text-cyan" />
+              <div className="flex-1">
+                <p className="text-sm font-medium">{preview.workbook.fileName}</p>
+                <p className="text-xs text-muted-foreground/60">{preview.workbook.kind.toUpperCase()} · {selectedSheetMeta?.rowCount ?? 0} rows · header row {(selectedSheetMeta?.headerRowIndex ?? 0) + 1}</p>
               </div>
-            </GlassCard>
-          </motion.div>
-        )}
+              {preview.workbook.sheetNames.length > 1 ? (
+                <select value={selectedSheet} onChange={(event) => {
+                  const nextSheet = event.target.value;
+                  setSelectedSheet(nextSheet);
+                  if (file) void analyzeFile(file, nextSheet, mapping, defaults);
+                }} className="rounded-lg border border-white/[0.08] bg-white/[0.04] px-2 py-1.5 text-xs text-foreground">
+                  {preview.workbook.sheetNames.map((name) => <option key={name} value={name}>{name}</option>)}
+                </select>
+              ) : null}
+            </div>
+          </GlassCard>
 
-        {/* ── STEP 2: Column Mapping ────────────────────────────── */}
-        {step === "mapping" && (
-          <motion.div
-            key="mapping"
-            initial={{ opacity: 0, y: 8 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -8 }}
-            className="space-y-4"
-          >
-            {/* File info */}
-            <GlassCard>
-              <div className="flex items-center gap-3">
-                <FileSpreadsheet className="h-5 w-5 text-cyan" />
-                <div className="flex-1">
-                  <p className="text-sm font-medium">{file?.name}</p>
-                  <p className="text-xs text-muted-foreground/60">
-                    {headers.length} columns detected &middot; {previewRows.length}+ rows previewed
-                  </p>
+          <div className="grid gap-4 lg:grid-cols-[1.5fr_1fr]">
+            <GlassCard className="space-y-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-semibold text-foreground">Field Mapping</p>
+                  <p className="text-xs text-muted-foreground/60">Map only what you trust. Everything else stays in raw row payload.</p>
                 </div>
-                <button
-                  onClick={reset}
-                  className="text-muted-foreground/50 hover:text-foreground transition-colors"
-                >
-                  <X className="h-4 w-4" />
-                </button>
+                <Button variant="outline" size="sm" className="gap-2" onClick={() => file && void analyzeFile(file, selectedSheet, mapping, defaults)} disabled={analyzing}>
+                  {analyzing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
+                  Refresh
+                </Button>
+              </div>
+              {groupedSuggestions.map(([group, items]) => (
+                <div key={group} className="space-y-2">
+                  <p className="text-[10px] uppercase tracking-[0.18em] text-cyan/65">{group}</p>
+                  {items.map((suggestion) => (
+                    <div key={suggestion.field} className="grid gap-2 rounded-xl border border-white/[0.06] bg-white/[0.02] p-3 lg:grid-cols-[160px_1fr_90px]">
+                      <div>
+                        <p className="text-xs font-medium text-foreground">{suggestion.label}</p>
+                        <p className="text-[11px] text-muted-foreground/55">{suggestion.reason}</p>
+                      </div>
+                      <select
+                        value={mapping[suggestion.field] ?? ""}
+                        onChange={(event) => setMapping((prev) => ({ ...prev, [suggestion.field]: event.target.value || undefined }))}
+                        className="rounded-lg border border-white/[0.08] bg-white/[0.04] px-2 py-1.5 text-xs text-foreground"
+                      >
+                        <option value="">Skip</option>
+                        {selectedSheetMeta?.headers.map((header) => <option key={header} value={header}>{header}</option>)}
+                      </select>
+                      <div className="text-right">
+                        <Badge variant="outline" className={cn(
+                          suggestion.confidenceLabel === "high" && "border-emerald-500/20 text-emerald-300",
+                          suggestion.confidenceLabel === "medium" && "border-amber-500/20 text-amber-300",
+                          suggestion.confidenceLabel === "low" && "border-rose-500/20 text-rose-300",
+                        )}>{suggestion.confidenceLabel}</Badge>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ))}
+              <div className="flex justify-end">
+                <Button onClick={() => setStep("configure")}>Next: Review</Button>
               </div>
             </GlassCard>
 
-            {/* Column mapping grid */}
-            <GlassCard>
-              <h3 className="text-sm font-semibold mb-3 flex items-center gap-2">
-                <Zap className="h-4 w-4 text-cyan" />
-                Column Mapping
-                <span className="text-xs text-muted-foreground/50 font-normal">
-                  Auto-detected — adjust if needed
-                </span>
-              </h3>
-
-              <div className="grid grid-cols-2 gap-3">
-                {ALL_SENTINEL_FIELDS.map(({ field, label }) => (
-                  <div key={field} className="flex items-center gap-2">
-                    <label className="text-xs text-muted-foreground/70 w-28 shrink-0 text-right">
-                      {label}
-                    </label>
-                    <select
-                      value={editedMapping[field] ?? ""}
-                      onChange={(e) => updateMapping(field, e.target.value)}
-                      className="flex-1 bg-white/[0.04] border border-white/[0.08] rounded-lg px-2 py-1.5 text-xs text-foreground focus:border-cyan/40 focus:outline-none transition-colors"
-                    >
-                      <option value="">— skip —</option>
-                      {headers.map((h) => (
-                        <option key={h} value={h}>
-                          {h}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                ))}
-              </div>
-            </GlassCard>
-
-            {/* Preview table */}
-            {previewRows.length > 0 && (
+            <div className="space-y-4">
               <GlassCard>
-                <h3 className="text-sm font-semibold mb-3">Preview (first 5 rows)</h3>
-                <div className="overflow-x-auto">
-                  <table className="w-full text-xs">
-                    <thead>
-                      <tr className="border-b border-white/[0.06]">
-                        {headers.slice(0, 10).map((h) => (
-                          <th key={h} className="text-left px-2 py-1.5 text-muted-foreground/60 font-medium">
-                            {h}
-                          </th>
-                        ))}
-                        {headers.length > 10 && (
-                          <th className="text-left px-2 py-1.5 text-muted-foreground/40">
-                            +{headers.length - 10} more
-                          </th>
-                        )}
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {previewRows.map((row, i) => (
-                        <tr key={i} className="border-b border-white/[0.03]">
-                          {headers.slice(0, 10).map((h) => (
-                            <td key={h} className="px-2 py-1.5 text-foreground/80 max-w-[150px] truncate">
-                              {row[h] || "—"}
-                            </td>
-                          ))}
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                <p className="text-sm font-semibold text-foreground">Preview Snapshot</p>
+                <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                  <Stat label="Preview Rows" value={preview.previewRows.length} />
+                  <Stat label="Unmapped" value={preview.unmappedHeaders.length} />
+                  <Stat label="Low Confidence" value={preview.lowConfidenceFields.length} />
+                  <Stat label="Duplicates" value={preview.previewRows.filter((row) => row.duplicate.level !== "none").length} />
                 </div>
               </GlassCard>
-            )}
-
-            <div className="flex justify-end">
-              <button
-                onClick={() => setStep("config")}
-                className="flex items-center gap-2 px-4 py-2 bg-cyan/10 hover:bg-cyan/20 border border-cyan/30 rounded-lg text-sm font-medium text-cyan transition-all"
-              >
-                Next: Configure Import
-                <ArrowRight className="h-4 w-4" />
-              </button>
-            </div>
-          </motion.div>
-        )}
-
-        {/* ── STEP 3: Configure ─────────────────────────────────── */}
-        {step === "config" && (
-          <motion.div
-            key="config"
-            initial={{ opacity: 0, y: 8 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -8 }}
-            className="space-y-4"
-          >
-            {/* Distress type selector */}
-            <GlassCard>
-              <h3 className="text-sm font-semibold mb-3 flex items-center gap-2">
-                <ShieldAlert className="h-4 w-4 text-cyan" />
-                Distress Signal Type(s)
-                <span className="text-xs text-muted-foreground/50 font-normal">
-                  What type of distress does this data represent?
-                </span>
-              </h3>
-              <div className="grid grid-cols-3 gap-2">
-                {DISTRESS_OPTIONS.map((opt) => (
-                  <button
-                    key={opt.value}
-                    onClick={() => toggleType(opt.value)}
-                    className={cn(
-                      "flex items-center justify-between px-3 py-2 rounded-lg text-xs font-medium border transition-all",
-                      selectedTypes.includes(opt.value)
-                        ? "bg-cyan/10 border-cyan/40 text-cyan"
-                        : "bg-white/[0.03] border-white/[0.06] text-muted-foreground/70 hover:border-white/[0.12]"
-                    )}
-                  >
-                    <span>{opt.label}</span>
-                    <span className="text-[10px] opacity-50">{opt.weight}pt</span>
-                  </button>
-                ))}
-              </div>
-              {selectedTypes.length === 0 && (
-                <p className="text-xs text-amber-400/70 mt-2 flex items-center gap-1">
-                  <AlertTriangle className="h-3 w-3" />
-                  Select at least one distress type
-                </p>
-              )}
-            </GlassCard>
-
-            {/* Source label + defaults */}
-            <GlassCard>
-              <h3 className="text-sm font-semibold mb-3">Import Settings</h3>
-              <div className="grid grid-cols-3 gap-4">
-                <div>
-                  <label className="text-xs text-muted-foreground/70 block mb-1">
-                    Source Label
-                  </label>
-                  <input
-                    value={sourceLabel}
-                    onChange={(e) => setSourceLabel(e.target.value)}
-                    placeholder="e.g. realsupermarket"
-                    className="w-full bg-white/[0.04] border border-white/[0.08] rounded-lg px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground/30 focus:border-cyan/40 focus:outline-none"
-                  />
-                </div>
-                <div>
-                  <label className="text-xs text-muted-foreground/70 block mb-1">
-                    Default County (if not in CSV)
-                  </label>
-                  <input
-                    value={defaultCounty}
-                    onChange={(e) => setDefaultCounty(e.target.value)}
-                    placeholder="e.g. Spokane"
-                    className="w-full bg-white/[0.04] border border-white/[0.08] rounded-lg px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground/30 focus:border-cyan/40 focus:outline-none"
-                  />
-                </div>
-                <div>
-                  <label className="text-xs text-muted-foreground/70 block mb-1">
-                    Default State
-                  </label>
-                  <input
-                    value={defaultState}
-                    onChange={(e) => setDefaultState(e.target.value)}
-                    placeholder="WA"
-                    className="w-full bg-white/[0.04] border border-white/[0.08] rounded-lg px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground/30 focus:border-cyan/40 focus:outline-none"
-                  />
-                </div>
-              </div>
-            </GlassCard>
-
-            {/* Summary before import */}
-            <GlassCard glow>
-              <h3 className="text-sm font-semibold mb-2">Ready to Import</h3>
-              <div className="grid grid-cols-4 gap-4 text-xs">
-                <div>
-                  <p className="text-muted-foreground/60">File</p>
-                  <p className="text-foreground font-medium">{file?.name}</p>
-                </div>
-                <div>
-                  <p className="text-muted-foreground/60">Mapped Fields</p>
-                  <p className="text-foreground font-medium">
-                    {Object.keys(editedMapping).length} / {ALL_SENTINEL_FIELDS.length}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-muted-foreground/60">Distress Types</p>
-                  <p className="text-foreground font-medium">
-                    {selectedTypes.length > 0
-                      ? selectedTypes.map((t) => DISTRESS_OPTIONS.find((o) => o.value === t)?.label ?? t).join(", ")
-                      : "None selected"}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-muted-foreground/60">Source</p>
-                  <p className="text-foreground font-medium">{sourceLabel || "csv_import"}</p>
-                </div>
-              </div>
-            </GlassCard>
-
-            <div className="flex justify-between">
-              <button
-                onClick={() => setStep("mapping")}
-                className="px-4 py-2 text-sm text-muted-foreground/70 hover:text-foreground transition-colors"
-              >
-                Back
-              </button>
-              <button
-                onClick={runImport}
-                disabled={selectedTypes.length === 0 || importing}
-                className={cn(
-                  "flex items-center gap-2 px-6 py-2.5 rounded-lg text-sm font-semibold transition-all",
-                  selectedTypes.length > 0
-                    ? "bg-cyan/20 hover:bg-cyan/30 border border-cyan/40 text-cyan shadow-[0_0_12px_rgba(0,229,255,0.15)]"
-                    : "bg-white/[0.04] border border-white/[0.08] text-muted-foreground/40 cursor-not-allowed"
-                )}
-              >
-                <Zap className="h-4 w-4" />
-                Run Import Pipeline
-              </button>
-            </div>
-          </motion.div>
-        )}
-
-        {/* ── STEP 4: Importing ─────────────────────────────────── */}
-        {step === "importing" && (
-          <motion.div
-            key="importing"
-            initial={{ opacity: 0, y: 8 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -8 }}
-          >
-            <GlassCard glow>
-              <div className="text-center py-8">
-                <Loader2 className="h-10 w-10 mx-auto text-cyan animate-spin mb-4" />
-                <h3 className="text-lg font-semibold mb-2">Processing Import</h3>
-                <p className="text-sm text-muted-foreground/70 mb-6">
-                  Running full Sentinel pipeline: upsert &rarr; score &rarr; predict &rarr; promote
-                </p>
-
-                {/* Progress bar */}
-                <div className="max-w-md mx-auto">
-                  <div className="h-2 bg-white/[0.06] rounded-full overflow-hidden">
-                    <motion.div
-                      className="h-full bg-gradient-to-r from-cyan/60 to-cyan rounded-full"
-                      style={{ boxShadow: "0 0 8px rgba(0,229,255,0.4)" }}
-                      initial={{ width: "0%" }}
-                      animate={{ width: `${progress}%` }}
-                      transition={{ duration: 0.5 }}
-                    />
+              {preview.requiresReview ? (
+                <GlassCard className="border-amber-500/20">
+                  <div className="flex gap-3">
+                    <ShieldAlert className="mt-0.5 h-4 w-4 text-amber-300" />
+                    <div>
+                      <p className="text-sm font-semibold text-amber-100">Review required</p>
+                      <p className="mt-1 text-xs text-muted-foreground/70">Low-confidence mappings or risky rows were found. Sentinel will not pretend those are certain.</p>
+                    </div>
                   </div>
-                  <p className="text-xs text-muted-foreground/50 mt-2">
-                    {progress}% complete
-                  </p>
-                </div>
-              </div>
-            </GlassCard>
-          </motion.div>
-        )}
-
-        {/* ── STEP 5: Results ───────────────────────────────────── */}
-        {step === "done" && results && (
-          <motion.div
-            key="done"
-            initial={{ opacity: 0, y: 8 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -8 }}
-            className="space-y-4"
-          >
-            {/* Summary card */}
-            <GlassCard glow={results.success} glowStrong={results.promoted > 0}>
-              <div className="flex items-center gap-3 mb-4">
-                {results.success ? (
-                  <CheckCircle2 className="h-6 w-6 text-cyan" />
-                ) : (
-                  <AlertTriangle className="h-6 w-6 text-amber-400" />
-                )}
-                <h3 className="text-lg font-semibold">
-                  {results.success ? "Import Complete" : "Import Failed"}
-                </h3>
-                <span className="text-xs text-muted-foreground/50 ml-auto">
-                  {(results.elapsed_ms / 1000).toFixed(1)}s
-                </span>
-              </div>
-
-              <div className="grid grid-cols-4 gap-4">
-                <StatCard
-                  icon={FileSpreadsheet}
-                  label="Total Rows"
-                  value={results.total}
-                  color="text-foreground"
-                />
-                <StatCard
-                  icon={BarChart3}
-                  label="Properties Upserted"
-                  value={results.upserted}
-                  color="text-cyan"
-                />
-                <StatCard
-                  icon={Zap}
-                  label="Events Created"
-                  value={results.eventsCreated}
-                  sub={results.eventsDeduped > 0 ? `${results.eventsDeduped} deduped` : undefined}
-                  color="text-emerald-400"
-                />
-                <StatCard
-                  icon={Users}
-                  label="Promoted to Leads"
-                  value={results.promoted}
-                  sub={`of ${results.scored} scored`}
-                  color="text-amber-400"
-                />
-              </div>
-
-              {results.skipped > 0 && (
-                <p className="text-xs text-muted-foreground/50 mt-3">
-                  {results.skipped} rows skipped (missing address/APN)
-                </p>
-              )}
-            </GlassCard>
-
-            {/* Errors */}
-            {results.errorDetails.length > 0 && (
+                </GlassCard>
+              ) : null}
               <GlassCard>
-                <h3 className="text-sm font-semibold mb-2 flex items-center gap-2 text-amber-400">
-                  <AlertTriangle className="h-4 w-4" />
-                  Errors ({results.errors})
-                </h3>
-                <div className="space-y-1 max-h-40 overflow-y-auto">
-                  {results.errorDetails.map((err, i) => (
-                    <p key={i} className="text-xs text-muted-foreground/60 font-mono">
-                      {err}
-                    </p>
+                <p className="text-sm font-semibold text-foreground">Sample Rows</p>
+                <div className="mt-3 space-y-2">
+                  {preview.previewRows.slice(0, 6).map((row) => (
+                    <div key={row.rowNumber} className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-3">
+                      <div className="flex items-start justify-between gap-2">
+                        <div>
+                          <p className="text-xs font-medium">{row.ownerName ?? "Unknown owner"}</p>
+                          <p className="text-[11px] text-muted-foreground/60">{row.propertyAddress ?? "Missing address"}</p>
+                        </div>
+                        <Badge variant="outline">{tagLabel(row.reviewStatus)}</Badge>
+                      </div>
+                      <div className="mt-2 flex flex-wrap gap-1">
+                        {row.distressTags.slice(0, 3).map((tag) => <Badge key={tag} variant="outline" className="text-[10px]">{tagLabel(tag)}</Badge>)}
+                      </div>
+                    </div>
                   ))}
                 </div>
               </GlassCard>
-            )}
-
-            {/* Actions */}
-            <div className="flex justify-end gap-3">
-              <button
-                onClick={reset}
-                className="flex items-center gap-2 px-4 py-2 bg-white/[0.04] hover:bg-white/[0.08] border border-white/[0.08] rounded-lg text-sm text-muted-foreground/70 hover:text-foreground transition-all"
-              >
-                <RefreshCw className="h-4 w-4" />
-                Import Another File
-              </button>
-              <a
-                href="/sales-funnel/prospects"
-                className="flex items-center gap-2 px-4 py-2 bg-cyan/10 hover:bg-cyan/20 border border-cyan/30 rounded-lg text-sm font-medium text-cyan transition-all"
-              >
-                <Users className="h-4 w-4" />
-                View Prospects
-                <ArrowRight className="h-4 w-4" />
-              </a>
             </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+          </div>
+        </div>
+      ) : null}
+
+      {step === "configure" && preview ? (
+        <div className="grid gap-4 lg:grid-cols-[1.2fr_0.8fr]">
+          <GlassCard className="space-y-4">
+            <div>
+              <p className="text-sm font-semibold text-foreground">Import Defaults</p>
+              <p className="text-xs text-muted-foreground/60">Set source/category once. Each row keeps raw payload and explicit warnings.</p>
+            </div>
+            <div className="grid gap-3 md:grid-cols-2">
+              <label className="space-y-1.5 text-xs"><span className="text-muted-foreground/70">Source Category</span><select value={defaults.sourceChannel} onChange={(event) => setDefaults((prev) => ({ ...prev, sourceChannel: event.target.value }))} className="w-full rounded-lg border border-white/[0.08] bg-white/[0.04] px-2 py-2 text-sm text-foreground">{SOURCE_CHANNEL_OPTIONS.map((option) => <option key={option} value={option}>{sourceChannelLabel(option)}</option>)}</select></label>
+              <label className="space-y-1.5 text-xs"><span className="text-muted-foreground/70">List Category</span><select value={defaults.nicheTag} onChange={(event) => setDefaults((prev) => ({ ...prev, nicheTag: event.target.value }))} className="w-full rounded-lg border border-white/[0.08] bg-white/[0.04] px-2 py-2 text-sm text-foreground"><option value="">Mixed / none</option>{NICHE_TAG_OPTIONS.map((option) => <option key={option} value={option}>{tagLabel(option)}</option>)}</select></label>
+              <label className="space-y-1.5 text-xs"><span className="text-muted-foreground/70">Source Vendor</span><Input value={defaults.sourceVendor} onChange={(event) => setDefaults((prev) => ({ ...prev, sourceVendor: event.target.value }))} placeholder="County export, PropStream, BatchData…" /></label>
+              <label className="space-y-1.5 text-xs"><span className="text-muted-foreground/70">List Name</span><Input value={defaults.sourceListName} onChange={(event) => setDefaults((prev) => ({ ...prev, sourceListName: event.target.value }))} placeholder="Spokane absentee pull" /></label>
+              <label className="space-y-1.5 text-xs"><span className="text-muted-foreground/70">County</span><Input value={defaults.county} onChange={(event) => setDefaults((prev) => ({ ...prev, county: event.target.value }))} placeholder="spokane" /></label>
+              <label className="space-y-1.5 text-xs"><span className="text-muted-foreground/70">Pull Date</span><Input type="date" value={defaults.sourcePullDate} onChange={(event) => setDefaults((prev) => ({ ...prev, sourcePullDate: event.target.value }))} /></label>
+              <label className="space-y-1.5 text-xs"><span className="text-muted-foreground/70">Import Batch ID</span><Input value={defaults.importBatchId} onChange={(event) => setDefaults((prev) => ({ ...prev, importBatchId: event.target.value }))} placeholder="batch_spokane_2026_03_11" /></label>
+              <label className="space-y-1.5 text-xs"><span className="text-muted-foreground/70">Outreach Type</span><select value={defaults.outreachType} onChange={(event) => setDefaults((prev) => ({ ...prev, outreachType: event.target.value }))} className="w-full rounded-lg border border-white/[0.08] bg-white/[0.04] px-2 py-2 text-sm text-foreground">{OUTREACH_TYPE_OPTIONS.map((option) => <option key={option} value={option}>{tagLabel(option)}</option>)}</select></label>
+              <label className="space-y-1.5 text-xs"><span className="text-muted-foreground/70">Skip Trace Status</span><select value={defaults.skipTraceStatus} onChange={(event) => setDefaults((prev) => ({ ...prev, skipTraceStatus: event.target.value }))} className="w-full rounded-lg border border-white/[0.08] bg-white/[0.04] px-2 py-2 text-sm text-foreground">{SKIP_TRACE_STATUS_OPTIONS.map((option) => <option key={option} value={option}>{tagLabel(option)}</option>)}</select></label>
+            </div>
+            <div className="rounded-2xl border border-white/[0.06] bg-white/[0.02] p-4">
+              <p className="text-xs font-semibold text-foreground">High-confidence duplicates</p>
+              <div className="mt-3 flex flex-wrap gap-2">
+                <Button type="button" variant={duplicateStrategy === "skip" ? "default" : "outline"} size="sm" onClick={() => setDuplicateStrategy("skip")}>Skip duplicates</Button>
+                <Button type="button" variant={duplicateStrategy === "update_missing" ? "default" : "outline"} size="sm" onClick={() => setDuplicateStrategy("update_missing")}>Update missing fields</Button>
+              </div>
+              <p className="mt-2 text-[11px] text-muted-foreground/60">Possible duplicates still stay in review instead of being auto-merged.</p>
+            </div>
+            <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={saveTemplate} onChange={(event) => setSaveTemplate(event.target.checked)} className="h-4 w-4" />Save or update a reusable template</label>
+            {saveTemplate ? <Input value={defaults.templateName} onChange={(event) => setDefaults((prev) => ({ ...prev, templateName: event.target.value }))} placeholder="Spokane county absentee export" /> : null}
+            {(preview.requiresReview || preview.lowConfidenceFields.length > 0) ? <label className="flex items-start gap-2 rounded-2xl border border-amber-500/20 bg-amber-500/[0.05] p-4 text-sm"><input type="checkbox" checked={ackReview} onChange={(event) => setAckReview(event.target.checked)} className="mt-0.5 h-4 w-4" /><span className="text-muted-foreground/75">I reviewed the low-confidence mappings and want to proceed anyway.</span></label> : null}
+            <div className="flex justify-between">
+              <Button variant="outline" onClick={() => setStep("mapping")}>Back</Button>
+              <Button onClick={() => void runImport()} disabled={importing || (preview.requiresReview && !ackReview)}>{importing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}Run Import</Button>
+            </div>
+          </GlassCard>
+          <div className="space-y-4">
+            <GlassCard>
+              <p className="text-sm font-semibold text-foreground">Preview Mix</p>
+              <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                <Stat label="Rows Previewed" value={preview.previewRows.length} />
+                <Stat label="Possible Duplicates" value={preview.previewRows.filter((row) => row.duplicate.level === "possible").length} />
+                <Stat label="Exact Duplicates" value={preview.previewRows.filter((row) => row.duplicate.level === "high").length} />
+                <Stat label="Needs Review" value={preview.previewRows.filter((row) => row.reviewStatus === "needs_review").length} />
+              </div>
+            </GlassCard>
+            <GlassCard>
+              <p className="text-sm font-semibold text-foreground">Preview Statuses</p>
+              <div className="mt-3 space-y-2">
+                {Object.entries(preview.reviewCounts).map(([status, count]) => <div key={status} className="flex items-center justify-between rounded-xl border border-white/[0.06] bg-white/[0.02] px-3 py-2"><span className="text-xs">{tagLabel(status)}</span><Badge variant="outline">{count}</Badge></div>)}
+              </div>
+            </GlassCard>
+            {preview.unmappedHeaders.length > 0 ? (
+              <GlassCard>
+                <div className="flex items-start gap-3">
+                  <AlertTriangle className="mt-0.5 h-4 w-4 text-amber-300" />
+                  <div>
+                    <p className="text-sm font-semibold text-foreground">Unmapped columns</p>
+                    <div className="mt-2 flex flex-wrap gap-1.5">
+                      {preview.unmappedHeaders.map((header) => <Badge key={header} variant="outline" className="text-[10px]">{header}</Badge>)}
+                    </div>
+                  </div>
+                </div>
+              </GlassCard>
+            ) : null}
+          </div>
+        </div>
+      ) : null}
+
+      {step === "importing" ? (
+        <GlassCard className="py-12 text-center">
+          <Loader2 className="mx-auto h-10 w-10 animate-spin text-cyan" />
+          <p className="mt-4 text-lg font-semibold">Importing into Sentinel</p>
+          <p className="mt-2 text-sm text-muted-foreground/65">Normalizing rows, checking duplicates, and writing auditable intake records.</p>
+        </GlassCard>
+      ) : null}
+
+      {step === "done" && results ? (
+        <div className="space-y-4">
+          <GlassCard>
+            <div className="flex items-center gap-3">
+              <CheckCircle2 className="h-5 w-5 text-emerald-300" />
+              <div>
+                <p className="text-sm font-semibold text-foreground">Import complete</p>
+                <p className="text-xs text-muted-foreground/60">Batch "{results.batchId}" from {results.fileName} ({results.sheetName})</p>
+              </div>
+            </div>
+            <div className="mt-4 grid gap-2 md:grid-cols-3 xl:grid-cols-6">
+              <Stat label="Rows" value={results.totalRows} />
+              <Stat label="Imported" value={results.imported} />
+              <Stat label="Updated" value={results.updated} />
+              <Stat label="Review Duplicates" value={results.duplicateReviewRows} />
+              <Stat label="Skipped" value={results.skipped} />
+              <Stat label="Errors" value={results.errors} />
+            </div>
+          </GlassCard>
+          <div className="grid gap-4 lg:grid-cols-2">
+            <GlassCard>
+              <p className="text-sm font-semibold text-foreground">Imported status mix</p>
+              <div className="mt-3 space-y-2">
+                {Object.entries(results.importedStatusCounts).length > 0 ? Object.entries(results.importedStatusCounts).map(([status, count]) => <div key={status} className="flex items-center justify-between rounded-xl border border-white/[0.06] bg-white/[0.02] px-3 py-2"><span className="text-xs">{tagLabel(status)}</span><Badge variant="outline">{count}</Badge></div>) : <p className="text-xs text-muted-foreground/60">No new prospects were created from this file.</p>}
+              </div>
+            </GlassCard>
+            <GlassCard>
+              <p className="text-sm font-semibold text-foreground">Warnings and held rows</p>
+              <div className="mt-3 space-y-2">
+                {results.warnings.slice(0, 8).map((warning) => <div key={warning} className="rounded-xl border border-white/[0.06] bg-white/[0.02] px-3 py-2 text-xs text-muted-foreground/70">{warning}</div>)}
+                {results.skippedRows.slice(0, 6).map((row) => <div key={`${row.rowNumber}-${row.status}`} className="rounded-xl border border-white/[0.06] bg-white/[0.02] px-3 py-2 text-xs text-muted-foreground/70">Row {row.rowNumber}: {tagLabel(row.status)} · {row.reason}</div>)}
+                {results.errorRows.slice(0, 6).map((row) => <div key={`${row.rowNumber}-${row.error}`} className="rounded-xl border border-rose-500/15 bg-rose-500/[0.03] px-3 py-2 text-xs text-rose-200/80">Row {row.rowNumber}: {row.error}</div>)}
+              </div>
+            </GlassCard>
+          </div>
+          <div className="flex gap-2">
+            <Button onClick={() => {
+              setStep("upload");
+              setFile(null);
+              setPreview(null);
+              setResults(null);
+              setMapping({});
+              setDefaults({ ...DEFAULTS });
+              setSelectedSheet("");
+              setSaveTemplate(false);
+              setAckReview(false);
+            }}>Import Another File</Button>
+            <Button variant="outline" onClick={() => setStep("configure")}>Back to Review</Button>
+          </div>
+        </div>
+      ) : null}
     </PageShell>
-  );
-}
-
-// ── Stat card component ──────────────────────────────────────────────
-
-function StatCard({
-  icon: Icon,
-  label,
-  value,
-  sub,
-  color,
-}: {
-  icon: React.ComponentType<{ className?: string }>;
-  label: string;
-  value: number;
-  sub?: string;
-  color: string;
-}) {
-  return (
-    <div className="bg-white/[0.02] rounded-lg p-3 border border-white/[0.04]">
-      <div className="flex items-center gap-2 mb-1">
-        <Icon className={cn("h-4 w-4", color)} />
-        <span className="text-[10px] text-muted-foreground/60 uppercase tracking-wider">
-          {label}
-        </span>
-      </div>
-      <p className={cn("text-xl font-bold", color)}>{value.toLocaleString()}</p>
-      {sub && <p className="text-[10px] text-muted-foreground/40 mt-0.5">{sub}</p>}
-    </div>
   );
 }

@@ -7,6 +7,7 @@ import { scrubLead } from "@/lib/compliance";
 import { distressFingerprint, normalizeCounty as globalNormalizeCounty, isDuplicateError } from "@/lib/dedup";
 import { detectDistressSignals, type DetectedSignal } from "@/lib/distress-signals";
 import { captureStageTransition } from "@/lib/conversion-tracking";
+import { compactObject, normalizeTagList, scoringTagCount } from "@/lib/prospecting";
 import {
   computeQualificationScoreTotal,
   mergeQualificationScoreState,
@@ -15,6 +16,13 @@ import {
   type QualificationScoreState,
 } from "@/lib/qualification-workflow";
 const SYSTEM_USER_ID = "00000000-0000-0000-0000-000000000000";
+
+// ── P0: Surface missing escalation config at first request ──
+if (!process.env.ESCALATION_TARGET_USER_ID) {
+  console.warn(
+    "[API/prospects] ⚠ ESCALATION_TARGET_USER_ID is not set. Escalation review routing will fail with HTTP 500 until configured.",
+  );
+}
 const PR_API_BASE = "https://api.propertyradar.com/v1/properties";
 const US_STATES: Record<string, string> = {
   AL: "AL", AK: "AK", AZ: "AZ", AR: "AR", CA: "CA", CO: "CO", CT: "CT",
@@ -396,7 +404,7 @@ export async function PATCH(req: NextRequest) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { data: currentLead, error: fetchErr } = await (sb.from("leads") as any)
       .select(
-        "status, lock_version, notes, qualification_route, assigned_to, property_id, last_contact_at, total_calls, disposition_code, next_call_scheduled_at, next_follow_up_at, motivation_level, seller_timeline, condition_level, decision_maker_confirmed, price_expectation, occupancy_score, equity_flexibility_score",
+        "status, lock_version, notes, qualification_route, qualification_score_total, assigned_to, property_id, last_contact_at, total_calls, disposition_code, next_call_scheduled_at, next_follow_up_at, motivation_level, seller_timeline, condition_level, decision_maker_confirmed, price_expectation, occupancy_score, equity_flexibility_score",
       )
       .eq("id", lead_id)
       .single();
@@ -618,6 +626,7 @@ export async function PATCH(req: NextRequest) {
     }
 
     const finalStatus = targetStatus ?? currentStatus;
+    const hasUpdate = (key: string) => Object.prototype.hasOwnProperty.call(updateData, key);
 
     // Charter VIII: compliance gating before dial eligibility or claim.
     const requiresScrub = Boolean(assigned_to) || finalStatus === "lead" || finalStatus === "negotiation";
@@ -694,6 +703,12 @@ export async function PATCH(req: NextRequest) {
       if (parsedDisposition.value) {
         updateData.last_contact_at = nowIso;
       }
+    }
+
+    // Closeout fallback: if a note was appended alongside a next-action schedule,
+    // treat it as a contact activity even when disposition was unchanged.
+    if (noteAppendText && !updateData.last_contact_at && (parsedNextCall.provided || parsedNextFollowUp.provided)) {
+      updateData.last_contact_at = nowIso;
     }
 
     if (parsedMotivation.provided) {
@@ -870,6 +885,8 @@ export async function PATCH(req: NextRequest) {
           ? "STATUS_CHANGED"
           : parsedDisposition.provided
             ? "CALL_OUTCOME_UPDATED"
+          : noteAppendText && (parsedNextCall.provided || parsedNextFollowUp.provided)
+            ? "CALL_CLOSEOUT"
           : noteAppendText
             ? "NOTE_ADDED"
             : "FOLLOW_UP_UPDATED";
@@ -934,15 +951,33 @@ export async function PATCH(req: NextRequest) {
       success: true,
       lead_id,
       status: finalStatus,
-      next_call_scheduled_at: parsedNextCall.provided ? parsedNextCall.iso : undefined,
-      next_follow_up_at: parsedNextFollowUp.provided
-        ? parsedNextFollowUp.iso
-        : (plannedTask?.nextFollowUpAt ?? undefined),
-      disposition_code: parsedDisposition.provided ? parsedDisposition.value : (typeof currentLead.disposition_code === "string" ? currentLead.disposition_code : null),
-      qualification_route: parsedQualificationRoute.provided ? parsedQualificationRoute.value : currentQualificationRoute,
+      lock_version: updateData.lock_version,
+      assigned_to: hasUpdate("assigned_to")
+        ? (updateData.assigned_to as string | null)
+        : (currentLead.assigned_to ?? null),
+      next_call_scheduled_at: hasUpdate("next_call_scheduled_at")
+        ? (updateData.next_call_scheduled_at as string | null)
+        : (currentLead.next_call_scheduled_at ?? null),
+      next_follow_up_at: hasUpdate("next_follow_up_at")
+        ? (updateData.next_follow_up_at as string | null)
+        : (currentLead.next_follow_up_at ?? null),
+      last_contact_at: hasUpdate("last_contact_at")
+        ? (updateData.last_contact_at as string | null)
+        : (currentLead.last_contact_at ?? null),
+      disposition_code: hasUpdate("disposition_code")
+        ? (updateData.disposition_code as string | null)
+        : (typeof currentLead.disposition_code === "string" ? currentLead.disposition_code : null),
+      qualification_route: hasUpdate("qualification_route")
+        ? (updateData.qualification_route as QualificationRoute | null)
+        : currentQualificationRoute,
+      notes: hasUpdate("notes")
+        ? (updateData.notes as string | null)
+        : (typeof currentLead.notes === "string" ? currentLead.notes : null),
       qualification_task_id: createdTaskId,
       escalation_review_only: plannedTask?.escalationReviewOnly === true,
-      qualification_score_total: scoreTotalForSuggestion,
+      qualification_score_total: hasUpdate("qualification_score_total")
+        ? (updateData.qualification_score_total as number | null)
+        : (currentLead.qualification_score_total ?? null),
       suggested_route: suggestedRoute,
     });
   } catch (err) {
@@ -965,9 +1000,17 @@ export async function POST(req: NextRequest) {
       property_id: preEnrichedPropertyId,
       apn, county, address, city, state, zip,
       owner_name, owner_phone, owner_email,
+      mailing_address, mailing_city, mailing_state, mailing_zip,
+      co_owner_name,
       estimated_value, equity_percent, property_type,
       bedrooms, bathrooms, sqft, year_built, lot_size,
       distress_tags, notes, source, assign_to,
+      source_channel, source_vendor, source_list_name, source_pull_date,
+      source_campaign, intake_method, raw_source_ref, duplicate_status,
+      received_at, assigned_at, first_contact_at,
+      niche_tag, import_batch_id, outreach_type, first_call_at, last_call_at,
+      attempt_count, skip_trace_status, call_outcome, wrong_number, do_not_call,
+      bad_record, outbound_status, source_metadata,
     } = body;
 
     if (!address || !county) {
@@ -979,6 +1022,48 @@ export async function POST(req: NextRequest) {
 
     const finalApn = apn?.trim() || `MANUAL-${Date.now()}`;
     const finalCounty = county.trim().toLowerCase();
+    const normalizedTags = normalizeTagList(distress_tags);
+    const sourceChannel = typeof source_channel === "string" && source_channel.trim().length > 0
+      ? source_channel.trim().toLowerCase()
+      : typeof source === "string" && source.trim().length > 0
+        ? source.trim().toLowerCase()
+        : "manual";
+    const sourceVendor = typeof source_vendor === "string" ? source_vendor.trim() || null : null;
+    const sourceListName = typeof source_list_name === "string" ? source_list_name.trim() || null : null;
+    const sourcePullDate = typeof source_pull_date === "string" ? source_pull_date.trim() || null : null;
+    const sourceCampaign = typeof source_campaign === "string" ? source_campaign.trim() || null : null;
+    const intakeMethod = typeof intake_method === "string" ? intake_method.trim().toLowerCase() || null : null;
+    const rawSourceRef = typeof raw_source_ref === "string" ? raw_source_ref.trim() || null : null;
+    const duplicateStatus = typeof duplicate_status === "string" ? duplicate_status.trim().toLowerCase() || null : null;
+    const receivedAt = typeof received_at === "string" ? received_at.trim() || null : null;
+    const assignedAt = typeof assigned_at === "string" ? assigned_at.trim() || null : null;
+    const firstContactAt = typeof first_contact_at === "string" ? first_contact_at.trim() || null : null;
+    const nicheTag = typeof niche_tag === "string" ? niche_tag.trim().toLowerCase() || null : null;
+    const importBatchId = typeof import_batch_id === "string" ? import_batch_id.trim() || null : null;
+    const outreachType = typeof outreach_type === "string" ? outreach_type.trim().toLowerCase() || null : null;
+    const skipTraceStatus = typeof skip_trace_status === "string" ? skip_trace_status.trim().toLowerCase() || null : null;
+    const outboundStatus = typeof outbound_status === "string" ? outbound_status.trim().toLowerCase() || null : null;
+    const firstCallAt = typeof first_call_at === "string" ? first_call_at.trim() || null : null;
+    const lastCallAt = typeof last_call_at === "string" ? last_call_at.trim() || null : null;
+    const parsedAttemptCount = attempt_count == null || attempt_count === ""
+      ? null
+      : Number.parseInt(String(attempt_count), 10);
+    const attemptCount = parsedAttemptCount != null && Number.isInteger(parsedAttemptCount) && parsedAttemptCount >= 0
+      ? parsedAttemptCount
+      : null;
+    const callOutcome = typeof call_outcome === "string" ? call_outcome.trim().toLowerCase() || null : null;
+    const wrongNumberFlag = wrong_number === true || normalizedTags.includes("wrong_number");
+    const doNotCallFlag = do_not_call === true || normalizedTags.includes("do_not_call");
+    const badRecordFlag = bad_record === true || normalizedTags.includes("bad_data");
+    const rawSourceMetadata =
+      source_metadata && typeof source_metadata === "object" && !Array.isArray(source_metadata)
+        ? source_metadata as Record<string, unknown>
+        : null;
+    const mailingAddress = typeof mailing_address === "string" ? mailing_address.trim() || null : null;
+    const mailingCity = typeof mailing_city === "string" ? mailing_city.trim() || null : null;
+    const mailingState = typeof mailing_state === "string" ? mailing_state.trim().toUpperCase() || null : null;
+    const mailingZip = typeof mailing_zip === "string" ? mailing_zip.trim() || null : null;
+    const coOwnerName = typeof co_owner_name === "string" ? co_owner_name.trim() || null : null;
 
     const toInt = (v: unknown) => { const n = parseInt(String(v), 10); return isNaN(n) ? null : n; };
     const toFloat = (v: unknown) => { const n = parseFloat(String(v)); return isNaN(n) ? null : n; };
@@ -1018,8 +1103,55 @@ export async function POST(req: NextRequest) {
         .maybeSingle();
 
       const existingFlags = (existingProp?.owner_flags ?? {}) as Record<string, unknown>;
+      const existingProspecting = (existingFlags.prospecting_intake ?? {}) as Record<string, unknown>;
+      const existingOutbound = (existingFlags.outbound_intake ?? {}) as Record<string, unknown>;
       const mergedFlags: Record<string, unknown> = { ...existingFlags, enrichment_pending: true };
       if (!existingProp) mergedFlags.manual_entry = true;
+      if (coOwnerName) mergedFlags.co_owner_name = coOwnerName;
+      if (mailingAddress) {
+        mergedFlags.mailing_address = {
+          street: mailingAddress,
+          city: mailingCity,
+          state: mailingState,
+          zip: mailingZip,
+        };
+      }
+      mergedFlags.prospecting_intake = {
+        ...existingProspecting,
+        ...compactObject({
+          source_channel: sourceChannel,
+          source_vendor: sourceVendor,
+          source_list_name: sourceListName,
+          source_pull_date: sourcePullDate,
+          source_campaign: sourceCampaign,
+          intake_method: intakeMethod,
+          raw_source_ref: rawSourceRef,
+          duplicate_status: duplicateStatus,
+          received_at: receivedAt,
+          county: finalCounty,
+          niche_tag: nicheTag,
+          import_batch_id: importBatchId,
+          raw_source_metadata: rawSourceMetadata,
+          imported_at: new Date().toISOString(),
+        }),
+      };
+      mergedFlags.outbound_intake = {
+        ...existingOutbound,
+        ...compactObject({
+          outreach_type: outreachType,
+          first_call_at: firstCallAt,
+          last_call_at: lastCallAt,
+          assigned_at: assignedAt,
+          first_contact_at: firstContactAt,
+          attempt_count: attemptCount,
+          skip_trace_status: skipTraceStatus,
+          call_outcome: callOutcome,
+          wrong_number: wrongNumberFlag || undefined,
+          do_not_call: doNotCallFlag || undefined,
+          bad_record: badRecordFlag || undefined,
+          outbound_status: outboundStatus ?? (sourceChannel === "manual" ? "working" : "new_import"),
+        }),
+      };
 
       const baseProperty: Record<string, unknown> = {
         apn: finalApn,
@@ -1066,8 +1198,8 @@ export async function POST(req: NextRequest) {
 
     // ── Step 2: Save basic lead ──────────────────────────────────────
 
-    const tags = distress_tags ?? [];
-    const baseScore = Math.min(30 + tags.length * 12, 100);
+    const tags = normalizedTags;
+    const baseScore = Math.min(30 + scoringTagCount(tags) * 12, 100);
     const eqBonus = toFloat(equity_percent) ?? 0;
     const compositeScore = Math.min(Math.round(baseScore + (eqBonus as number) * 0.2), 100);
 
@@ -1078,16 +1210,19 @@ export async function POST(req: NextRequest) {
       property_id: property.id,
       status: isAssigned ? "lead" : "prospect",
       priority: compositeScore,
-      source: source || "manual",
+      source: sourceChannel,
       tags,
-      notes: notes?.trim() || "Manually added prospect",
-      promoted_at: new Date().toISOString(),
+      notes: notes?.trim() || (sourceChannel === "manual" ? "Manually added prospect" : "Imported prospect"),
+      promoted_at: receivedAt ?? new Date().toISOString(),
     };
 
     if (isAssigned) {
       leadRow.assigned_to = assign_to;
-      leadRow.claimed_at = new Date().toISOString();
+      leadRow.claimed_at = assignedAt ?? new Date().toISOString();
       leadRow.claim_expires_at = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
+    }
+    if (firstContactAt) {
+      leadRow.last_contact_at = firstContactAt;
     }
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -1113,6 +1248,16 @@ export async function POST(req: NextRequest) {
       user_id: actorUser?.id ?? null,
       details: {
         source: "manual",
+        source_channel: sourceChannel,
+        source_vendor: sourceVendor,
+        source_list_name: sourceListName,
+        source_campaign: sourceCampaign,
+        intake_method: intakeMethod,
+        raw_source_ref: rawSourceRef,
+        duplicate_status: duplicateStatus,
+        received_at: receivedAt,
+        import_batch_id: importBatchId,
+        niche_tag: nicheTag,
         address,
         owner: owner_name,
         score: compositeScore,

@@ -1,0 +1,301 @@
+import { createServerClient } from "@/lib/supabase";
+import type { DuplicateCandidate, ImportTemplateRecord, NormalizedImportRecord } from "@/lib/import-normalization";
+
+const TEMPLATE_ACTION = "import.template.saved";
+type JsonLike = string | number | boolean | null | JsonLike[] | { [key: string]: JsonLike | undefined };
+
+type SupabaseLike = ReturnType<typeof createServerClient>;
+
+export async function requireImportUser(authHeader: string | null, sb: SupabaseLike) {
+  const token = authHeader?.startsWith("Bearer ") ? authHeader.slice(7) : null;
+  if (!token) return null;
+  const { data, error } = await sb.auth.getUser(token);
+  if (error || !data.user) return null;
+  return data.user;
+}
+
+function asObject(value: unknown): Record<string, unknown> | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  return value as Record<string, unknown>;
+}
+
+function asString(value: unknown): string | null {
+  if (typeof value !== "string") return null;
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : null;
+}
+
+export async function loadImportTemplates(sb: SupabaseLike): Promise<ImportTemplateRecord[]> {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data, error } = await (sb.from("event_log") as any)
+    .select("entity_id, details, created_at, user_id")
+    .eq("entity_type", "import_template")
+    .eq("action", TEMPLATE_ACTION)
+    .order("created_at", { ascending: false })
+    .limit(200);
+
+  if (error || !Array.isArray(data)) {
+    return [];
+  }
+
+  const seen = new Set<string>();
+  const templates: ImportTemplateRecord[] = [];
+  for (const row of data as Array<{ entity_id: string; details: unknown; created_at: string | null; user_id: string | null }>) {
+    if (!row.entity_id || seen.has(row.entity_id)) continue;
+    const details = asObject(row.details);
+    const mapping = asObject(details?.mapping) as ImportTemplateRecord["mapping"] | null;
+    const defaults = asObject(details?.defaults) ?? {};
+    const headerSignature = asString(details?.header_signature);
+    if (!mapping || !headerSignature) continue;
+    seen.add(row.entity_id);
+    templates.push({
+      id: row.entity_id,
+      name: asString(details?.name) ?? row.entity_id,
+      vendorKey: asString(details?.vendor_key),
+      sheetName: asString(details?.sheet_name),
+      headerSignature,
+      mapping,
+      defaults: defaults as Record<string, JsonLike>,
+      createdAt: row.created_at,
+      updatedAt: row.created_at,
+      updatedBy: row.user_id,
+    });
+  }
+
+  return templates;
+}
+
+export async function saveImportTemplate(args: {
+  sb: SupabaseLike;
+  templateId: string;
+  userId: string | null;
+  name: string;
+  vendorKey: string | null;
+  sheetName: string | null;
+  headerSignature: string;
+  mapping: Partial<Record<string, string>>;
+  defaults: Record<string, unknown>;
+}) {
+  const { sb, templateId, userId, name, vendorKey, sheetName, headerSignature, mapping, defaults } = args;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  await (sb.from("event_log") as any).insert({
+    user_id: userId,
+    action: TEMPLATE_ACTION,
+    entity_type: "import_template",
+    entity_id: templateId,
+    details: {
+      name,
+      vendor_key: vendorKey,
+      sheet_name: sheetName,
+      header_signature: headerSignature,
+      mapping,
+      defaults,
+    },
+  });
+}
+
+function mergeReasons(level: DuplicateCandidate["level"], reasons: string[], propertyId?: string | null, leadId?: string | null): DuplicateCandidate {
+  return { level, reasons, propertyId, leadId };
+}
+
+function cleanPhoneForQuery(value: string | null): string | null {
+  if (!value) return null;
+  const digits = value.replace(/\D/g, "");
+  if (digits.length === 10) return digits;
+  if (digits.length === 11 && digits.startsWith("1")) return digits.slice(1);
+  return digits.length >= 10 ? digits.slice(-10) : null;
+}
+
+export async function findDuplicateCandidate(
+  sb: SupabaseLike,
+  record: NormalizedImportRecord,
+  cache: Map<string, DuplicateCandidate>
+): Promise<DuplicateCandidate> {
+  const apnKey = record.apn && record.county ? `apn:${record.apn.toLowerCase()}::${record.county}` : null;
+  if (apnKey && cache.has(apnKey)) return cache.get(apnKey)!;
+
+  if (record.apn && record.county) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data } = await (sb.from("properties") as any)
+      .select("id")
+      .eq("apn", record.apn)
+      .eq("county", record.county)
+      .maybeSingle();
+    if (data?.id) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data: lead } = await (sb.from("leads") as any)
+        .select("id")
+        .eq("property_id", data.id)
+        .order("updated_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      const duplicate = mergeReasons("high", ["Matched existing APN + county"], data.id, lead?.id ?? null);
+      if (apnKey) cache.set(apnKey, duplicate);
+      return duplicate;
+    }
+  }
+
+  const phone = cleanPhoneForQuery(record.phone);
+  if (phone) {
+    const cacheKey = `phone:${phone}`;
+    if (cache.has(cacheKey)) return cache.get(cacheKey)!;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data } = await (sb.from("properties") as any)
+      .select("id, owner_phone")
+      .eq("owner_phone", phone)
+      .limit(1);
+    if (Array.isArray(data) && data[0]?.id) {
+      const duplicate = mergeReasons("possible", ["Matched existing phone"], data[0].id, null);
+      cache.set(cacheKey, duplicate);
+      return duplicate;
+    }
+  }
+
+  if (record.email) {
+    const cacheKey = `email:${record.email}`;
+    if (cache.has(cacheKey)) return cache.get(cacheKey)!;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data } = await (sb.from("properties") as any)
+      .select("id")
+      .eq("owner_email", record.email)
+      .limit(1);
+    if (Array.isArray(data) && data[0]?.id) {
+      const duplicate = mergeReasons("high", ["Matched existing email"], data[0].id, null);
+      cache.set(cacheKey, duplicate);
+      return duplicate;
+    }
+  }
+
+  if (record.propertyAddress && record.county) {
+    const cacheKey = `address:${record.propertyAddress.toLowerCase()}::${record.county}`;
+    if (cache.has(cacheKey)) return cache.get(cacheKey)!;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data } = await (sb.from("properties") as any)
+      .select("id, owner_name")
+      .eq("address", record.propertyAddress)
+      .eq("county", record.county)
+      .limit(3);
+    if (Array.isArray(data) && data.length > 0) {
+      const ownerMatch = record.ownerName
+        ? data.some((row) => asString(row.owner_name)?.toLowerCase() === record.ownerName?.toLowerCase())
+        : false;
+      const duplicate = mergeReasons(
+        ownerMatch ? "high" : "possible",
+        [ownerMatch ? "Matched existing owner + property address" : "Matched existing property address"],
+        data[0].id,
+        null,
+      );
+      cache.set(cacheKey, duplicate);
+      return duplicate;
+    }
+  }
+
+  return { level: "none", reasons: [] };
+}
+
+export async function updateExistingRecordFromImport(args: {
+  sb: SupabaseLike;
+  duplicate: DuplicateCandidate;
+  record: NormalizedImportRecord;
+  defaults: {
+    sourceChannel: string;
+    sourceVendor: string;
+    sourceListName: string;
+    sourcePullDate: string;
+    nicheTag: string;
+    importBatchId: string;
+    templateId: string;
+    skipTraceStatus: string;
+    outreachType: string;
+  };
+}) {
+  const { sb, duplicate, record, defaults } = args;
+  if (!duplicate.propertyId) return false;
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: property } = await (sb.from("properties") as any)
+    .select("owner_flags, owner_phone, owner_email, owner_name, city, state, zip")
+    .eq("id", duplicate.propertyId)
+    .single();
+
+  const ownerFlags = asObject(property?.owner_flags) ?? {};
+  const prospecting = asObject(ownerFlags.prospecting_intake) ?? {};
+  const outbound = asObject(ownerFlags.outbound_intake) ?? {};
+
+  const propertyPatch: Record<string, unknown> = {
+    owner_flags: {
+      ...ownerFlags,
+      co_owner_name: record.coOwnerName ?? ownerFlags.co_owner_name,
+      mailing_address: ownerFlags.mailing_address ?? (
+        record.mailingAddress
+          ? {
+            street: record.mailingAddress,
+            city: record.mailingCity,
+            state: record.mailingState,
+            zip: record.mailingZip,
+          }
+          : null
+      ),
+      prospecting_intake: {
+        ...prospecting,
+        source_channel: prospecting.source_channel ?? defaults.sourceChannel,
+        source_vendor: prospecting.source_vendor ?? record.sourceVendor ?? defaults.sourceVendor,
+        source_list_name: prospecting.source_list_name ?? record.sourceListName ?? defaults.sourceListName,
+        source_pull_date: prospecting.source_pull_date ?? defaults.sourcePullDate,
+        niche_tag: prospecting.niche_tag ?? defaults.nicheTag,
+        import_batch_id: defaults.importBatchId,
+        raw_source_metadata: {
+          latest_duplicate_append: {
+            row_number: record.rowNumber,
+            template_id: defaults.templateId || null,
+            raw_row_payload: record.rawRowPayload,
+            warnings: [...record.warnings, ...record.mappingWarnings, ...record.duplicate.reasons],
+          },
+        },
+      },
+      outbound_intake: {
+        ...outbound,
+        outreach_type: outbound.outreach_type ?? defaults.outreachType,
+        skip_trace_status: outbound.skip_trace_status ?? defaults.skipTraceStatus,
+        outbound_status: outbound.outbound_status ?? "needs_review",
+      },
+    },
+  };
+
+  if (!property?.owner_phone && record.phone) propertyPatch.owner_phone = record.phone;
+  if (!property?.owner_email && record.email) propertyPatch.owner_email = record.email;
+  if ((!property?.owner_name || property.owner_name === "Unknown Owner") && record.ownerName) propertyPatch.owner_name = record.ownerName;
+  if (!property?.city && record.propertyCity) propertyPatch.city = record.propertyCity;
+  if (!property?.state && record.propertyState) propertyPatch.state = record.propertyState;
+  if (!property?.zip && record.propertyZip) propertyPatch.zip = record.propertyZip;
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  await (sb.from("properties") as any).update(propertyPatch).eq("id", duplicate.propertyId);
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: lead } = await (sb.from("leads") as any)
+    .select("id, tags, notes, source")
+    .eq("property_id", duplicate.propertyId)
+    .order("updated_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (lead?.id) {
+    const nextTags = Array.from(new Set([...(Array.isArray(lead.tags) ? lead.tags : []), ...record.distressTags]));
+    const noteAppend = [`Import append from ${defaults.importBatchId || "batch import"}`, record.notes]
+      .filter(Boolean)
+      .join(" - ");
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    await (sb.from("leads") as any)
+      .update({
+        tags: nextTags,
+        source: lead.source ?? defaults.sourceChannel,
+        notes: noteAppend
+          ? [lead.notes, noteAppend].filter(Boolean).join("\n")
+          : lead.notes,
+      })
+      .eq("id", lead.id);
+  }
+
+  return true;
+}

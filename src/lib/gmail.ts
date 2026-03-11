@@ -145,6 +145,44 @@ export interface GmailMessage {
   unread: boolean;
 }
 
+export interface GmailMessageDetail extends GmailMessage {
+  bodyText: string;
+  bodyHtml: string | null;
+}
+
+function decodeBody(data: string | undefined): string {
+  if (!data) return "";
+  try {
+    return Buffer.from(data.replace(/-/g, "+").replace(/_/g, "/"), "base64").toString("utf8");
+  } catch {
+    return "";
+  }
+}
+
+function extractMessageBodies(payload: Record<string, unknown> | undefined): { text: string; html: string | null } {
+  if (!payload) return { text: "", html: null };
+  const mimeType = typeof payload.mimeType === "string" ? payload.mimeType : "";
+  const body = payload.body as { data?: string } | undefined;
+  const parts = Array.isArray(payload.parts) ? payload.parts as Array<Record<string, unknown>> : [];
+
+  if (mimeType === "text/plain") {
+    return { text: decodeBody(body?.data), html: null };
+  }
+  if (mimeType === "text/html") {
+    const html = decodeBody(body?.data);
+    return { text: html.replace(/<[^>]+>/g, " "), html };
+  }
+
+  let text = "";
+  let html: string | null = null;
+  for (const part of parts) {
+    const nested = extractMessageBodies(part);
+    if (!text && nested.text) text = nested.text;
+    if (!html && nested.html) html = nested.html;
+  }
+  return { text, html };
+}
+
 export async function fetchInbox(accessToken: string, maxResults = 10): Promise<GmailMessage[]> {
   const listRes = await fetch(
     `${GMAIL_API_BASE}/messages?maxResults=${maxResults}&labelIds=INBOX`,
@@ -182,6 +220,53 @@ export async function fetchInbox(accessToken: string, maxResults = 10): Promise<
   );
 
   return messages.filter(Boolean) as GmailMessage[];
+}
+
+export async function fetchInboxDetails(accessToken: string, maxResults = 10): Promise<GmailMessageDetail[]> {
+  const messages = await fetchInbox(accessToken, maxResults);
+  const detailed = await Promise.all(
+    messages.map(async (message) => {
+      return fetchMessageDetail(accessToken, message);
+    }),
+  );
+  return detailed.filter(Boolean) as GmailMessageDetail[];
+}
+
+export async function fetchMessageDetail(accessToken: string, message: GmailMessage | string): Promise<GmailMessageDetail | null> {
+  const baseMessage = typeof message === "string"
+    ? {
+      id: message,
+      threadId: "",
+      from: "",
+      to: "",
+      subject: "",
+      snippet: "",
+      date: "",
+      unread: false,
+    } satisfies GmailMessage
+    : message;
+
+  const res = await fetch(`${GMAIL_API_BASE}/messages/${baseMessage.id}?format=full`, {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+  if (!res.ok) return null;
+  const payload = await res.json();
+  const headers = payload.payload?.headers ?? [];
+  const getHeader = (name: string) =>
+    headers.find((h: { name: string; value: string }) => h.name.toLowerCase() === name.toLowerCase())?.value ?? "";
+  const bodies = extractMessageBodies(payload.payload as Record<string, unknown> | undefined);
+  return {
+    ...baseMessage,
+    threadId: payload.threadId ?? baseMessage.threadId,
+    from: getHeader("From") || baseMessage.from,
+    to: getHeader("To") || baseMessage.to,
+    subject: getHeader("Subject") || baseMessage.subject,
+    date: getHeader("Date") || baseMessage.date,
+    snippet: payload.snippet ?? baseMessage.snippet,
+    unread: (payload.labelIds ?? baseMessage.unread ? ["UNREAD"] : []).includes("UNREAD"),
+    bodyText: bodies.text || payload.snippet || baseMessage.snippet,
+    bodyHtml: bodies.html,
+  } satisfies GmailMessageDetail;
 }
 
 // ── MIME Message Builder ─────────────────────────────────────────────────
