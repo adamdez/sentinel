@@ -7,6 +7,7 @@ import { AuthSyncProvider } from "./auth-sync-provider";
 import { HydrationProvider } from "./hydration-provider";
 import { TooltipProvider } from "@radix-ui/react-tooltip";
 import { Toaster } from "sonner";
+import { CoachProvider } from "./coach-provider";
 
 export function Providers({ children }: { children: React.ReactNode }) {
   return (
@@ -16,7 +17,9 @@ export function Providers({ children }: { children: React.ReactNode }) {
         <RealtimeProvider>
           <TooltipProvider delayDuration={200}>
             <ModalProvider>
+              <CoachProvider>
               {children}
+              </CoachProvider>
             <Toaster
               position="bottom-right"
               theme="dark"
