@@ -10,6 +10,8 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/lib/supabase";
 import { cn } from "@/lib/utils";
+import { useCoachSurface } from "@/providers/coach-provider";
+import { CoachPanel, CoachToggle } from "@/components/sentinel/coach-panel";
 import {
   type ImportTargetField,
   type MappingSuggestion,
@@ -108,6 +110,16 @@ export default function ImportPage() {
   const [ackReview, setAckReview] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  const lowConfCount = (preview?.mappingSuggestions ?? []).filter((s) => s.confidence < 0.6).length;
+  const dupeCount = preview?.reviewCounts?.["duplicate_match"] ?? 0;
+  useCoachSurface("import", {
+    importCtx: {
+      step,
+      low_confidence_count: lowConfCount,
+      duplicate_count: dupeCount,
+    },
+  });
+
   const selectedSheetMeta = preview?.workbook.sheets.find((sheet) => sheet.name === selectedSheet);
   const groupedSuggestions = useMemo(() => {
     const grouped = new Map<string, MappingSuggestion[]>();
@@ -189,7 +201,7 @@ export default function ImportPage() {
     <PageShell
       title="Import Normalization"
       description="Review-first CSV/XLSX intake for outside prospect lists. Sentinel infers mappings, flags uncertainty, and audits every batch."
-      actions={file ? <Button variant="outline" className="gap-2" onClick={() => fileInputRef.current?.click()}><RefreshCw className="h-4 w-4" />Replace File</Button> : null}
+      actions={<div className="flex items-center gap-2">{file ? <Button variant="outline" className="gap-2" onClick={() => fileInputRef.current?.click()}><RefreshCw className="h-4 w-4" />Replace File</Button> : null}<CoachToggle /></div>}
     >
       <input ref={fileInputRef} type="file" accept=".csv,.xlsx" className="hidden" onChange={(event) => {
         const nextFile = event.target.files?.[0];
@@ -457,6 +469,7 @@ export default function ImportPage() {
           </div>
         </div>
       ) : null}
+      <CoachPanel />
     </PageShell>
   );
 }

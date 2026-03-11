@@ -30,6 +30,8 @@ import { MasterClientFileModal, clientFileFromRaw } from "@/components/sentinel/
 import { deriveNextActionVisibility } from "@/lib/leads-data";
 import { formatDueDateLabel } from "@/lib/due-date-label";
 import { Eye } from "lucide-react";
+import { useCoachSurface } from "@/providers/coach-provider";
+import { CoachPanel, CoachToggle } from "@/components/sentinel/coach-panel";
 
 async function authHeaders(): Promise<Record<string, string>> {
   const { data: { session } } = await supabase.auth.getSession();
@@ -351,6 +353,8 @@ export default function DialerPage() {
   const { brief: preCallBrief, loading: briefLoading } = usePreCallBrief(currentLead?.id ?? null);
   const { history: callHistory, loading: historyLoading } = useCallHistory(currentUser.id, 30);
   const [historyFilter, setHistoryFilter] = useState<"all" | "outbound" | "inbound">("all");
+
+  useCoachSurface("dialer", {});
   const [fileModalOpen, setFileModalOpen] = useState(false);
   const [liveNotes, setLiveNotes] = useState<string[]>([]);
 
@@ -1063,6 +1067,7 @@ export default function DialerPage() {
               : deviceStatus === "initializing" ? "Connecting…"
               : "VoIP Offline"}
           </Badge>
+          <CoachToggle />
         </div>
       }
     >
@@ -2015,6 +2020,7 @@ export default function DialerPage() {
         />
       )}
 
+      <CoachPanel />
     </PageShell>
   );
 }
