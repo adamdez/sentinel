@@ -104,6 +104,21 @@ export async function PATCH(req: NextRequest) {
         || "offer_prep_confidence" in ownerFlagsPatch
         || "offer_prep_sheet_url" in ownerFlagsPatch
         || "offer_prep_updated_at" in ownerFlagsPatch;
+      const isOfferStatusUpdate =
+        "offer_status_snapshot" in ownerFlagsPatch
+        || "offer_status" in ownerFlagsPatch
+        || "offer_status_amount" in ownerFlagsPatch
+        || "offer_status_amount_low" in ownerFlagsPatch
+        || "offer_status_amount_high" in ownerFlagsPatch
+        || "offer_status_seller_response_note" in ownerFlagsPatch
+        || "offer_status_updated_at" in ownerFlagsPatch;
+      const isBuyerDispoUpdate =
+        "buyer_dispo_snapshot" in ownerFlagsPatch
+        || "buyer_dispo_buyer_fit" in ownerFlagsPatch
+        || "buyer_dispo_status" in ownerFlagsPatch
+        || "buyer_dispo_next_step" in ownerFlagsPatch
+        || "buyer_dispo_note" in ownerFlagsPatch
+        || "buyer_dispo_updated_at" in ownerFlagsPatch;
       const isContactUpdate = (
         "owner_phone" in propUpdate
         || "owner_email" in propUpdate
@@ -120,9 +135,13 @@ export async function PATCH(req: NextRequest) {
           ? "PROPERTY_ARV_UPDATED"
           : isOfferPrepUpdate
             ? "PROPERTY_OFFER_PREP_UPDATED"
-            : isContactUpdate
-              ? "PROPERTY_CONTACT_UPDATED"
-              : "PROPERTY_EDITED",
+            : isOfferStatusUpdate
+              ? "PROPERTY_OFFER_STATUS_UPDATED"
+              : isBuyerDispoUpdate
+                ? "PROPERTY_BUYER_DISPO_UPDATED"
+              : isContactUpdate
+                ? "PROPERTY_CONTACT_UPDATED"
+                : "PROPERTY_EDITED",
         user_id: user.id,
         details: {
           property_id,
@@ -131,9 +150,13 @@ export async function PATCH(req: NextRequest) {
             ? "arv"
             : isOfferPrepUpdate
               ? "offer_prep"
-              : isContactUpdate
-                ? "contact"
-                : "details",
+              : isOfferStatusUpdate
+                ? "offer_status"
+                : isBuyerDispoUpdate
+                  ? "buyer_dispo"
+                : isContactUpdate
+                  ? "contact"
+                  : "details",
         },
       });
     }

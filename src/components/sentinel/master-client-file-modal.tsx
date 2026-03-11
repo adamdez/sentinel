@@ -18,6 +18,7 @@ import { Badge } from "@/components/ui/badge";
 import { cn, formatCurrency } from "@/lib/utils";
 import type { ProspectRow } from "@/hooks/use-prospects";
 import {
+  extractBuyerDispoTruthSnapshot,
   buyerFitVisibilityLabel,
   deriveOfferPrepHealth,
   deriveBuyerDispoVisibility,
@@ -25,9 +26,14 @@ import {
   deriveOfferVisibilityStatus,
   dispoReadinessVisibilityLabel,
   extractOfferPrepSnapshot,
+  extractOfferStatusSnapshot,
   offerVisibilityLabel,
   type LeadRow,
+  offerStatusTruthLabel,
+  type BuyerFitVisibility,
+  type DispoReadinessVisibility,
   type OfferPrepConfidence,
+  type OfferStatusTruth,
   type OfferVisibilityStatus,
 } from "@/lib/leads-data";
 import type { AIScore, DistressType, LeadStatus, SellerTimeline, QualificationRoute } from "@/lib/types";
@@ -37,10 +43,16 @@ import { useCallNotes, type CallNote } from "@/hooks/use-call-notes";
 import { CompsMap, getSatelliteTileUrl, getGoogleStreetViewLink, type CompProperty, type SubjectProperty } from "@/components/sentinel/comps/comps-map";
 import { PredictiveDistressBadge, type PredictiveDistressData } from "@/components/sentinel/predictive-distress-badge";
 import { RelationshipBadge } from "@/components/sentinel/relationship-badge";
+import {
+  BuyerDispoTruthCard,
+  BuyerDispoVisibilityCard,
+  OfferStatusTruthCard,
+} from "@/components/sentinel/master-client-file/workflow-truth-cards";
 import { NumericInput } from "@/components/sentinel/numeric-input";
 import { usePreCallBrief } from "@/hooks/use-pre-call-brief";
 import { supabase } from "@/lib/supabase";
 import { precheckWorkflowStageChange } from "@/lib/workflow-stage-precheck";
+import { getAllowedTransitions } from "@/lib/lead-guardrails";
 import { IntakeGuideSection } from "@/components/sentinel/intake-guide-section";
 import { formatDueDateLabel } from "@/lib/due-date-label";
 import { toast } from "sonner";
@@ -324,6 +336,19 @@ type OfferPrepSnapshotDraft = {
   confidence: OfferPrepConfidence | "";
   sheetUrl: string;
 };
+type OfferStatusSnapshotDraft = {
+  status: OfferStatusTruth | "";
+  amount: string;
+  amountLow: string;
+  amountHigh: string;
+  sellerResponseNote: string;
+};
+type BuyerDispoTruthDraft = {
+  buyerFit: BuyerFitVisibility | "";
+  dispoStatus: DispoReadinessVisibility | "";
+  nextStep: string;
+  dispoNote: string;
+};
 type CloseoutNextAction = "follow_up_call" | "nurture_check_in" | "escalation_review";
 type CloseoutPresetId =
   | "call_tomorrow"
@@ -379,6 +404,14 @@ const OFFER_PREP_CONFIDENCE_OPTIONS: Array<{ id: OfferPrepConfidence; label: str
   { id: "low", label: "Low" },
   { id: "medium", label: "Medium" },
   { id: "high", label: "High" },
+];
+const OFFER_STATUS_OPTIONS: Array<{ id: OfferStatusTruth; label: string }> = [
+  { id: "offer_discussed", label: "Offer Discussed" },
+  { id: "offer_sent", label: "Offer Sent" },
+  { id: "seller_reviewing", label: "Seller Reviewing" },
+  { id: "counter_needs_revision", label: "Counter / Needs Revision" },
+  { id: "accepted", label: "Accepted" },
+  { id: "passed_not_moving_forward", label: "Passed / Not Moving Forward" },
 ];
 
 function parseSuggestedRoute(value: unknown): QualificationRoute | null {
@@ -549,6 +582,7 @@ const WORKFLOW_STAGE_OPTIONS: Array<{ id: WorkflowStageId; label: string }> = [
 ];
 
 const WORKFLOW_STAGE_SET = new Set<WorkflowStageId>(WORKFLOW_STAGE_OPTIONS.map((s) => s.id));
+const LEGACY_MY_LEADS_ALIASES = new Set(["my_lead", "my_leads", "my_lead_status"]);
 
 function normalizeWorkflowStage(status: string | null | undefined): WorkflowStageId {
   const normalized = (status ?? "").toLowerCase().replace(/\s+/g, "_");
@@ -556,7 +590,7 @@ function normalizeWorkflowStage(status: string | null | undefined): WorkflowStag
     return normalized as WorkflowStageId;
   }
   // Legacy compatibility only: "My Leads" is assignment segmentation, not a workflow stage.
-  if (normalized === "my_lead" || normalized === "my_leads" || normalized === "my_lead_status") {
+  if (LEGACY_MY_LEADS_ALIASES.has(normalized)) {
     return "lead";
   }
   return "prospect";
@@ -681,6 +715,27 @@ function getOfferPrepDraft(cf: ClientFile | null | undefined): OfferPrepSnapshot
     maoHigh: toDraftCurrency(snapshot.maoHigh),
     confidence: snapshot.confidence ?? "",
     sheetUrl: snapshot.sheetUrl ?? "",
+  };
+}
+
+function getOfferStatusDraft(cf: ClientFile | null | undefined): OfferStatusSnapshotDraft {
+  const snapshot = extractOfferStatusSnapshot((cf?.ownerFlags ?? null) as Record<string, unknown> | null);
+  return {
+    status: snapshot.status ?? "",
+    amount: toDraftCurrency(snapshot.amount),
+    amountLow: toDraftCurrency(snapshot.amountLow),
+    amountHigh: toDraftCurrency(snapshot.amountHigh),
+    sellerResponseNote: snapshot.sellerResponseNote ?? "",
+  };
+}
+
+function getBuyerDispoTruthDraft(cf: ClientFile | null | undefined): BuyerDispoTruthDraft {
+  const snapshot = extractBuyerDispoTruthSnapshot((cf?.ownerFlags ?? null) as Record<string, unknown> | null);
+  return {
+    buyerFit: snapshot.buyerFit ?? "",
+    dispoStatus: snapshot.dispoStatus ?? "",
+    nextStep: snapshot.nextStep ?? "",
+    dispoNote: snapshot.dispoNote ?? "",
   };
 }
 
@@ -2568,7 +2623,7 @@ function ContactTab({ cf, overlay, onSkipTrace, skipTracing, onDial, onSms, call
 // OVERVIEW TAB
 // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
-function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceMs, overlay, skipTraceError, onSkipTrace, onManualSkipTrace, onEdit, onDial, onSms, calling, dialHistory, autofilling, onAutofill, deepCrawling, deepCrawlResult, deepCrawlExpanded, setDeepCrawlExpanded, executeDeepCrawl, hasSavedReport, loadingReport, loadSavedReport, crawlSteps, deepSkipResult, qualification, qualificationDirty, qualificationSaving, qualificationEditable, qualificationSuggestedRoute, onQualificationChange, onQualificationRouteSelect, onQualificationSave, offerPrepDraft, offerPrepEditing, offerPrepSaving, onOfferPrepDraftChange, onOfferPrepEditToggle, onOfferPrepSave }: {
+function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceMs, overlay, skipTraceError, onSkipTrace, onManualSkipTrace, onEdit, onDial, onSms, calling, dialHistory, autofilling, onAutofill, deepCrawling, deepCrawlResult, deepCrawlExpanded, setDeepCrawlExpanded, executeDeepCrawl, hasSavedReport, loadingReport, loadSavedReport, crawlSteps, deepSkipResult, qualification, qualificationDirty, qualificationSaving, qualificationEditable, qualificationSuggestedRoute, onQualificationChange, onQualificationRouteSelect, onQualificationSave, offerPrepDraft, offerPrepEditing, offerPrepSaving, onOfferPrepDraftChange, onOfferPrepEditToggle, onOfferPrepSave, offerStatusDraft, offerStatusEditing, offerStatusSaving, onOfferStatusDraftChange, onOfferStatusEditToggle, onOfferStatusSave, buyerDispoTruthDraft, buyerDispoTruthEditing, buyerDispoTruthSaving, onBuyerDispoTruthDraftChange, onBuyerDispoTruthEditToggle, onBuyerDispoTruthSave }: {
   cf: ClientFile; computedArv: number; skipTracing: boolean; skipTraceResult: string | null; skipTraceMs: number | null;
   overlay: SkipTraceOverlay | null; skipTraceError: SkipTraceError | null;
   onSkipTrace: () => void; onManualSkipTrace: () => void; onEdit: () => void;
@@ -2597,6 +2652,18 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
   onOfferPrepDraftChange: (patch: Partial<OfferPrepSnapshotDraft>) => void;
   onOfferPrepEditToggle: (next: boolean) => void;
   onOfferPrepSave: () => void;
+  offerStatusDraft: OfferStatusSnapshotDraft;
+  offerStatusEditing: boolean;
+  offerStatusSaving: boolean;
+  onOfferStatusDraftChange: (patch: Partial<OfferStatusSnapshotDraft>) => void;
+  onOfferStatusEditToggle: (next: boolean) => void;
+  onOfferStatusSave: () => void;
+  buyerDispoTruthDraft: BuyerDispoTruthDraft;
+  buyerDispoTruthEditing: boolean;
+  buyerDispoTruthSaving: boolean;
+  onBuyerDispoTruthDraftChange: (patch: Partial<BuyerDispoTruthDraft>) => void;
+  onBuyerDispoTruthEditToggle: (next: boolean) => void;
+  onBuyerDispoTruthSave: () => void;
 }) {
   const displayPhone = overlay?.primaryPhone ?? cf.ownerPhone ?? (cf.ownerFlags?.contact_phone as string | null) ?? null;
   const displayEmail = overlay?.primaryEmail ?? cf.ownerEmail ?? (cf.ownerFlags?.contact_email as string | null) ?? null;
@@ -2928,6 +2995,26 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
         : cf.offerStatus === "declined"
           ? "Derived from stage + qualification route: offer path appears closed for now."
           : "Derived from stage + qualification route: no offer progress signal yet.";
+  const offerStatusSnapshot = extractOfferStatusSnapshot((cf.ownerFlags ?? null) as Record<string, unknown> | null);
+  const offerStatusTruthLabelText = offerStatusTruthLabel(offerStatusSnapshot.status);
+  const offerStatusTruthToneClass =
+    offerStatusSnapshot.status === "accepted"
+      ? "border-emerald-500/25 bg-emerald-500/[0.08] text-emerald-300"
+      : offerStatusSnapshot.status === "passed_not_moving_forward"
+        ? "border-zinc-500/25 bg-zinc-500/[0.07] text-zinc-300"
+        : offerStatusSnapshot.status === "counter_needs_revision"
+          ? "border-amber-500/25 bg-amber-500/[0.08] text-amber-300"
+          : offerStatusSnapshot.status
+            ? "border-cyan/25 bg-cyan/[0.08] text-cyan"
+            : "border-white/[0.12] bg-white/[0.03] text-muted-foreground";
+  const offerStatusAmountLabel =
+    offerStatusSnapshot.amount != null
+      ? formatCurrency(offerStatusSnapshot.amount)
+      : offerStatusSnapshot.amountLow != null || offerStatusSnapshot.amountHigh != null
+        ? `${offerStatusSnapshot.amountLow != null ? formatCurrency(offerStatusSnapshot.amountLow) : "?"} - ${offerStatusSnapshot.amountHigh != null ? formatCurrency(offerStatusSnapshot.amountHigh) : "?"}`
+        : "Not set";
+  const offerStatusUpdatedLabel = offerStatusSnapshot.updatedAt ? formatDateTimeShort(offerStatusSnapshot.updatedAt) : "Not set";
+  const canEditOfferStatus = cf.status !== "dead" && cf.status !== "closed";
   const offerPrepSnapshot = extractOfferPrepSnapshot((cf.ownerFlags ?? null) as Record<string, unknown> | null);
   const offerPrepActive = cf.qualificationRoute === "offer_ready" || cf.offerStatus === "preparing_offer";
   const offerPrepDueIso = cf.nextCallScheduledAt ?? cf.followUpDate;
@@ -2962,6 +3049,24 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
   const buyerDispoActionMissing = buyerDispoReadinessHigh && buyerDispoNextActionMissing;
   const buyerDispoActionStale = buyerDispoReadinessHigh && !buyerDispoNextActionMissing && buyerDispoNextActionMs < Date.now();
   const buyerDispoNextActionLabel = buyerDispoNextActionIso ? formatDateTimeShort(buyerDispoNextActionIso) : "Not set";
+  const buyerDispoTruthSnapshot = extractBuyerDispoTruthSnapshot((cf.ownerFlags ?? null) as Record<string, unknown> | null);
+  const buyerDispoTruthBuyerFitLabel = buyerDispoTruthSnapshot.buyerFit ? buyerFitVisibilityLabel(buyerDispoTruthSnapshot.buyerFit) : "Not set";
+  const buyerDispoTruthStatusLabel = buyerDispoTruthSnapshot.dispoStatus ? dispoReadinessVisibilityLabel(buyerDispoTruthSnapshot.dispoStatus) : "Not set";
+  const buyerDispoReadyLabel = buyerDispoTruthSnapshot.dispoStatus === "ready" ? "Ready for Dispo" : "Not Ready for Dispo";
+  const buyerDispoTruthUpdatedLabel = buyerDispoTruthSnapshot.updatedAt ? formatDateTimeShort(buyerDispoTruthSnapshot.updatedAt) : "Not set";
+  const buyerDispoTruthFitToneClass =
+    buyerDispoTruthSnapshot.buyerFit === "broad"
+      ? "border-emerald-500/25 bg-emerald-500/[0.08] text-emerald-300"
+      : buyerDispoTruthSnapshot.buyerFit === "narrow"
+        ? "border-amber-500/25 bg-amber-500/[0.08] text-amber-300"
+        : "border-white/[0.12] bg-white/[0.03] text-muted-foreground";
+  const buyerDispoTruthStatusToneClass =
+    buyerDispoTruthSnapshot.dispoStatus === "ready"
+      ? "border-cyan/25 bg-cyan/[0.08] text-cyan"
+      : buyerDispoTruthSnapshot.dispoStatus === "needs_review"
+        ? "border-blue-500/25 bg-blue-500/[0.07] text-blue-300"
+        : "border-white/[0.12] bg-white/[0.03] text-muted-foreground";
+  const canEditBuyerDispoTruth = cf.status !== "dead" && cf.status !== "closed";
   const buyerFitToneClass =
     buyerDispo.buyerFit === "broad"
       ? "border-emerald-500/25 bg-emerald-500/[0.08] text-emerald-300"
@@ -3374,6 +3479,22 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
         )}
       </div>
 
+      <OfferStatusTruthCard
+        canEdit={canEditOfferStatus}
+        editing={offerStatusEditing}
+        saving={offerStatusSaving}
+        draft={offerStatusDraft}
+        statusLabel={offerStatusTruthLabelText}
+        statusToneClass={offerStatusTruthToneClass}
+        amountLabel={offerStatusAmountLabel}
+        sellerResponseNote={offerStatusSnapshot.sellerResponseNote}
+        updatedLabel={offerStatusUpdatedLabel}
+        options={OFFER_STATUS_OPTIONS}
+        onEditToggle={onOfferStatusEditToggle}
+        onDraftChange={onOfferStatusDraftChange}
+        onSave={onOfferStatusSave}
+      />
+
       <div className="rounded-[12px] border border-white/[0.06] bg-white/[0.02] p-3 space-y-2">
         <div className="flex items-center gap-2">
           <Calculator className="h-3.5 w-3.5 text-cyan" />
@@ -3515,45 +3636,36 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
         )}
       </div>
 
-      <div className="rounded-[12px] border border-white/[0.06] bg-white/[0.02] p-3 space-y-2">
-        <div className="flex items-center gap-2">
-          <Users className="h-3.5 w-3.5 text-cyan" />
-          <p className="text-[11px] text-muted-foreground uppercase tracking-wider font-semibold">Buyer / Dispo Visibility</p>
-          <Badge variant="outline" className="text-[9px] border-white/[0.14] text-muted-foreground">Derived</Badge>
-          {(buyerDispoActionMissing || buyerDispoActionStale) && (
-            <Badge variant="outline" className="text-[9px] border-amber-500/30 text-amber-300">
-              Action Needed
-            </Badge>
-          )}
-        </div>
-        <div className="flex items-center gap-2 flex-wrap">
-          <span className={cn("text-[10px] px-2 py-0.5 rounded border font-medium", buyerFitToneClass)}>
-            Buyer Fit: {buyerFitLabel}
-          </span>
-          <span className={cn("text-[10px] px-2 py-0.5 rounded border font-medium", dispoReadinessToneClass)}>
-            Dispo Readiness: {dispoReadinessLabel}
-          </span>
-        </div>
-        <p className="text-[10px] text-muted-foreground/70">{buyerDispo.hint}</p>
-        <div className="rounded-[8px] border border-white/[0.08] bg-white/[0.02] px-2.5 py-2 space-y-1.5">
-          <p className="text-[10px] text-foreground/90">
-            Next step: <span className="font-medium">{buyerDispo.nextStep}</span>
-          </p>
-          {buyerDispoReadinessHigh && (
-            <p className="text-[10px] text-muted-foreground/80">
-              Buyer/dispo follow-up: <span className="text-foreground font-medium">{buyerDispoNextActionLabel}</span>
-            </p>
-          )}
-          {(buyerDispoActionMissing || buyerDispoActionStale) && (
-            <p className="text-[10px] text-amber-300">
-              {buyerDispoActionMissing
-                ? "Buyer/dispo readiness is high, but no next action is set."
-                : "Buyer/dispo readiness is high, and next action is overdue."}
-              {" "}Use <span className="font-semibold">Set Next Action</span> to keep this path active.
-            </p>
-          )}
-        </div>
-      </div>
+      <BuyerDispoVisibilityCard
+        actionMissing={buyerDispoActionMissing}
+        actionStale={buyerDispoActionStale}
+        buyerFitLabel={buyerFitLabel}
+        buyerFitToneClass={buyerFitToneClass}
+        dispoReadinessLabel={dispoReadinessLabel}
+        dispoReadinessToneClass={dispoReadinessToneClass}
+        hint={buyerDispo.hint}
+        nextStep={buyerDispo.nextStep}
+        readinessHigh={buyerDispoReadinessHigh}
+        nextActionLabel={buyerDispoNextActionLabel}
+      />
+
+      <BuyerDispoTruthCard
+        canEdit={canEditBuyerDispoTruth}
+        editing={buyerDispoTruthEditing}
+        saving={buyerDispoTruthSaving}
+        draft={buyerDispoTruthDraft}
+        buyerFitLabel={buyerDispoTruthBuyerFitLabel}
+        buyerFitToneClass={buyerDispoTruthFitToneClass}
+        dispoStatusLabel={buyerDispoTruthStatusLabel}
+        dispoStatusToneClass={buyerDispoTruthStatusToneClass}
+        readyLabel={buyerDispoReadyLabel}
+        nextStep={buyerDispoTruthSnapshot.nextStep}
+        dispoNote={buyerDispoTruthSnapshot.dispoNote}
+        updatedLabel={buyerDispoTruthUpdatedLabel}
+        onEditToggle={onBuyerDispoTruthEditToggle}
+        onDraftChange={onBuyerDispoTruthDraftChange}
+        onSave={onBuyerDispoTruthSave}
+      />
 
       {/* Intake Guide — visible for early-stage leads (prospect/lead with 0-1 calls) */}
       <IntakeGuideSection cf={cf} />
@@ -5825,8 +5937,15 @@ export function MasterClientFileModal({ clientFile, open, onClose, onClaim, onRe
   const [stageUpdating, setStageUpdating] = useState(false);
   const [qualificationDraft, setQualificationDraft] = useState<QualificationDraft>(() => getQualificationDraft(clientFile));
   const [offerPrepDraft, setOfferPrepDraft] = useState<OfferPrepSnapshotDraft>(() => getOfferPrepDraft(clientFile));
+  const [offerStatusDraft, setOfferStatusDraft] = useState<OfferStatusSnapshotDraft>(() => getOfferStatusDraft(clientFile));
+  const [buyerDispoTruthDraft, setBuyerDispoTruthDraft] = useState<BuyerDispoTruthDraft>(() => getBuyerDispoTruthDraft(clientFile));
+  const [ownerFlagsOverride, setOwnerFlagsOverride] = useState<Record<string, unknown> | null>(null);
   const [offerPrepEditing, setOfferPrepEditing] = useState(false);
   const [offerPrepSaving, setOfferPrepSaving] = useState(false);
+  const [offerStatusEditing, setOfferStatusEditing] = useState(false);
+  const [offerStatusSaving, setOfferStatusSaving] = useState(false);
+  const [buyerDispoTruthEditing, setBuyerDispoTruthEditing] = useState(false);
+  const [buyerDispoTruthSaving, setBuyerDispoTruthSaving] = useState(false);
   const [qualificationSuggestedRoute, setQualificationSuggestedRoute] = useState<QualificationRoute | null>(null);
   const [qualificationSaving, setQualificationSaving] = useState(false);
   const [nextActionAt, setNextActionAt] = useState("");
@@ -5892,6 +6011,10 @@ export function MasterClientFileModal({ clientFile, open, onClose, onClaim, onRe
       }
     })();
   }, [clientFile?.propertyId, clientFile?.ownerFlags]);
+
+  useEffect(() => {
+    setOwnerFlagsOverride(null);
+  }, [clientFile?.id, clientFile?.ownerFlags]);
 
   // Load saved report from DB when user clicks "View Report"
   const loadSavedReport = useCallback(async () => {
@@ -5973,7 +6096,11 @@ export function MasterClientFileModal({ clientFile, open, onClose, onClaim, onRe
   useEffect(() => {
     setQualificationDraft(getQualificationDraft(clientFile));
     setOfferPrepDraft(getOfferPrepDraft(clientFile));
+    setOfferStatusDraft(getOfferStatusDraft(clientFile));
+    setBuyerDispoTruthDraft(getBuyerDispoTruthDraft(clientFile));
     setOfferPrepEditing(false);
+    setOfferStatusEditing(false);
+    setBuyerDispoTruthEditing(false);
     setQualificationSuggestedRoute(null);
     const existingNextAction = toLocalDateTimeInput(clientFile?.nextCallScheduledAt ?? clientFile?.followUpDate);
     setNextActionAt(existingNextAction);
@@ -6037,7 +6164,11 @@ export function MasterClientFileModal({ clientFile, open, onClose, onClaim, onRe
       setComputedArv((clientFile?.ownerFlags?.comp_arv as number) ?? 0);
       setSelectedStage(normalizeWorkflowStage(clientFile?.status));
       setOfferPrepDraft(getOfferPrepDraft(clientFile));
+      setOfferStatusDraft(getOfferStatusDraft(clientFile));
+      setBuyerDispoTruthDraft(getBuyerDispoTruthDraft(clientFile));
       setOfferPrepEditing(false);
+      setOfferStatusEditing(false);
+      setBuyerDispoTruthEditing(false);
       setDialHistoryMap({});
       // Reset deep crawl
       setDeepCrawling(false);
@@ -6089,16 +6220,35 @@ export function MasterClientFileModal({ clientFile, open, onClose, onClaim, onRe
     return () => { supabase.removeChannel(channel); };
   }, [clientFile?.id, fetchDialHistory]);
 
+  const extractUpdatedOwnerFlags = useCallback((payload: unknown): Record<string, unknown> | null => {
+    const property = (payload as { property?: unknown } | null | undefined)?.property;
+    if (!property || typeof property !== "object" || Array.isArray(property)) return null;
+    const ownerFlags = (property as { owner_flags?: unknown }).owner_flags;
+    if (!ownerFlags || typeof ownerFlags !== "object" || Array.isArray(ownerFlags)) return null;
+    return ownerFlags as Record<string, unknown>;
+  }, []);
+
+  const applyOwnerFlagsOverride = useCallback((payload: unknown): Record<string, unknown> | null => {
+    const updatedOwnerFlags = extractUpdatedOwnerFlags(payload);
+    if (updatedOwnerFlags) {
+      setOwnerFlagsOverride(updatedOwnerFlags);
+    }
+    return updatedOwnerFlags;
+  }, [extractUpdatedOwnerFlags]);
+
   const handleClaimLead = useCallback(async () => {
     if (!clientFile) return;
+    const normalizedStatus = normalizeWorkflowStage(clientFile.status);
+    const canClaimToLead = getAllowedTransitions(normalizedStatus).includes("lead");
+    const actionLabel = canClaimToLead ? "Claim" : "Assign";
     const { data: { session } } = await supabase.auth.getSession();
     if (!session?.access_token) {
-      toast.error("Session expired - cannot claim");
+      toast.error(`Session expired - cannot ${actionLabel.toLowerCase()}`);
       return;
     }
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) {
-      toast.error("Not logged in â€” cannot claim");
+      toast.error(`Not logged in - cannot ${actionLabel.toLowerCase()}`);
       return;
     }
 
@@ -6111,8 +6261,16 @@ export function MasterClientFileModal({ clientFile, open, onClose, onClaim, onRe
         .single();
 
       if (fetchErr || !current) {
-        toast.error("Claim failed: Could not fetch lead status. Refresh and try again.");
+        toast.error(`${actionLabel} failed: Could not fetch lead status. Refresh and try again.`);
         return;
+      }
+
+      const payload: Record<string, unknown> = {
+        lead_id: clientFile.id,
+        assigned_to: user.id,
+      };
+      if (canClaimToLead) {
+        payload.status = "lead";
       }
 
       const res = await fetch("/api/prospects", {
@@ -6122,33 +6280,29 @@ export function MasterClientFileModal({ clientFile, open, onClose, onClaim, onRe
           "x-lock-version": String(current.lock_version ?? 0),
           Authorization: `Bearer ${session.access_token}`,
         },
-        body: JSON.stringify({
-          lead_id: clientFile.id,
-          status: "lead",
-          assigned_to: user.id,
-        }),
+        body: JSON.stringify(payload),
       });
 
       const data = await res.json();
 
       if (!res.ok) {
-        console.error("[MCF] Claim failed:", res.status, data);
+        console.error(`[MCF] ${actionLabel.toLowerCase()} failed:`, res.status, data);
         if (res.status === 409) {
-          toast.error("Claim failed: Lead was already claimed by someone else. Refresh and try again.");
+          toast.error(`${actionLabel} failed: Lead was modified by someone else. Refresh and try again.`);
         } else if (res.status === 422) {
-          toast.error(`Claim failed: ${data.detail ?? data.error ?? "Invalid transition"}`);
+          toast.error(`${actionLabel} failed: ${data.detail ?? data.error ?? "Invalid transition"}`);
         } else {
-          toast.error(`Claim failed: ${data.error ?? `HTTP ${res.status}`}`);
+          toast.error(`${actionLabel} failed: ${data.error ?? `HTTP ${res.status}`}`);
         }
         return;
       }
 
-      toast.success("Lead claimed successfully");
+      toast.success(canClaimToLead ? "Lead claimed successfully" : "Lead assignment updated");
       onClaim?.(clientFile.id);
       onRefresh?.();
     } catch (err) {
-      console.error("[MCF] Claim error:", err);
-      toast.error("Claim failed: Network error. Check your connection and try again.");
+      console.error(`[MCF] ${actionLabel.toLowerCase()} error:`, err);
+      toast.error(`${actionLabel} failed: Network error. Check your connection and try again.`);
     } finally {
       setClaiming(false);
     }
@@ -6245,6 +6399,14 @@ export function MasterClientFileModal({ clientFile, open, onClose, onClaim, onRe
     setOfferPrepDraft((prev) => ({ ...prev, ...patch }));
   }, []);
 
+  const handleOfferStatusDraftChange = useCallback((patch: Partial<OfferStatusSnapshotDraft>) => {
+    setOfferStatusDraft((prev) => ({ ...prev, ...patch }));
+  }, []);
+
+  const handleBuyerDispoTruthDraftChange = useCallback((patch: Partial<BuyerDispoTruthDraft>) => {
+    setBuyerDispoTruthDraft((prev) => ({ ...prev, ...patch }));
+  }, []);
+
   const handleSaveOfferPrepSnapshot = useCallback(async () => {
     if (!clientFile?.propertyId) return;
 
@@ -6324,6 +6486,8 @@ export function MasterClientFileModal({ clientFile, open, onClose, onClaim, onRe
         return;
       }
 
+      applyOwnerFlagsOverride(data);
+
       setOfferPrepEditing(false);
       toast.success("Offer prep snapshot saved");
       onRefresh?.();
@@ -6333,7 +6497,150 @@ export function MasterClientFileModal({ clientFile, open, onClose, onClaim, onRe
     } finally {
       setOfferPrepSaving(false);
     }
-  }, [clientFile?.id, clientFile?.propertyId, currentUserId, currentUserName, offerPrepDraft, onRefresh]);
+  }, [applyOwnerFlagsOverride, clientFile?.id, clientFile?.propertyId, currentUserId, currentUserName, offerPrepDraft, onRefresh]);
+
+  const handleSaveOfferStatusSnapshot = useCallback(async () => {
+    if (!clientFile?.propertyId) return;
+
+    const amount = parseDraftCurrency(offerStatusDraft.amount);
+    const amountLow = parseDraftCurrency(offerStatusDraft.amountLow);
+    const amountHigh = parseDraftCurrency(offerStatusDraft.amountHigh);
+    const sellerResponseNote = offerStatusDraft.sellerResponseNote.trim().length > 0
+      ? offerStatusDraft.sellerResponseNote.trim()
+      : null;
+    const status = offerStatusDraft.status || null;
+
+    if (amountLow != null && amountHigh != null && amountHigh < amountLow) {
+      toast.error("Offer range high must be greater than or equal to offer range low.");
+      return;
+    }
+
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session?.access_token) {
+      toast.error("Session expired - cannot save offer status.");
+      return;
+    }
+
+    setOfferStatusSaving(true);
+    try {
+      const nowIso = new Date().toISOString();
+      const payload = {
+        property_id: clientFile.propertyId,
+        lead_id: clientFile.id,
+        fields: {
+          owner_flags: {
+            offer_status_snapshot: {
+              status,
+              amount,
+              amount_low: amountLow,
+              amount_high: amountHigh,
+              seller_response_note: sellerResponseNote,
+              updated_at: nowIso,
+              updated_by: currentUserName ?? currentUserId ?? null,
+            },
+          },
+        },
+      };
+
+      const res = await fetch("/api/properties/update", {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify(payload),
+      });
+
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || data.error || !data.success) {
+        toast.error(`Could not save offer status: ${data.detail ?? data.error ?? `HTTP ${res.status}`}`);
+        return;
+      }
+
+      const updatedOwnerFlags = applyOwnerFlagsOverride(data);
+      if (updatedOwnerFlags) {
+        setOfferStatusDraft(getOfferStatusDraft({ ...clientFile, ownerFlags: updatedOwnerFlags }));
+      }
+
+      setOfferStatusEditing(false);
+      toast.success("Offer status saved");
+      onRefresh?.();
+    } catch (err) {
+      console.error("[MCF] Offer status save error:", err);
+      toast.error("Could not save offer status");
+    } finally {
+      setOfferStatusSaving(false);
+    }
+  }, [applyOwnerFlagsOverride, clientFile?.id, clientFile?.propertyId, currentUserId, currentUserName, offerStatusDraft, onRefresh]);
+
+  const handleSaveBuyerDispoTruthSnapshot = useCallback(async () => {
+    if (!clientFile?.propertyId) return;
+
+    const buyerFit = buyerDispoTruthDraft.buyerFit || null;
+    const dispoStatus = buyerDispoTruthDraft.dispoStatus || null;
+    const nextStep = buyerDispoTruthDraft.nextStep.trim().length > 0
+      ? buyerDispoTruthDraft.nextStep.trim()
+      : null;
+    const dispoNote = buyerDispoTruthDraft.dispoNote.trim().length > 0
+      ? buyerDispoTruthDraft.dispoNote.trim()
+      : null;
+
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session?.access_token) {
+      toast.error("Session expired - cannot save buyer/dispo truth.");
+      return;
+    }
+
+    setBuyerDispoTruthSaving(true);
+    try {
+      const nowIso = new Date().toISOString();
+      const payload = {
+        property_id: clientFile.propertyId,
+        lead_id: clientFile.id,
+        fields: {
+          owner_flags: {
+            buyer_dispo_snapshot: {
+              buyer_fit: buyerFit,
+              dispo_status: dispoStatus,
+              next_step: nextStep,
+              dispo_note: dispoNote,
+              updated_at: nowIso,
+              updated_by: currentUserName ?? currentUserId ?? null,
+            },
+          },
+        },
+      };
+
+      const res = await fetch("/api/properties/update", {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify(payload),
+      });
+
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || data.error || !data.success) {
+        toast.error(`Could not save buyer/dispo truth: ${data.detail ?? data.error ?? `HTTP ${res.status}`}`);
+        return;
+      }
+
+      const updatedOwnerFlags = applyOwnerFlagsOverride(data);
+      if (updatedOwnerFlags) {
+        setBuyerDispoTruthDraft(getBuyerDispoTruthDraft({ ...clientFile, ownerFlags: updatedOwnerFlags }));
+      }
+
+      setBuyerDispoTruthEditing(false);
+      toast.success("Buyer/dispo truth saved");
+      onRefresh?.();
+    } catch (err) {
+      console.error("[MCF] Buyer/dispo truth save error:", err);
+      toast.error("Could not save buyer/dispo truth");
+    } finally {
+      setBuyerDispoTruthSaving(false);
+    }
+  }, [applyOwnerFlagsOverride, buyerDispoTruthDraft, clientFile, currentUserId, currentUserName, onRefresh]);
 
   const persistQualification = useCallback(async (routeOverride?: QualificationRoute): Promise<boolean> => {
     if (!clientFile) return false;
@@ -7010,6 +7317,11 @@ export function MasterClientFileModal({ clientFile, open, onClose, onClaim, onRe
 
   if (!clientFile) return null;
 
+  const overviewClientFile =
+    ownerFlagsOverride
+      ? { ...clientFile, ownerFlags: ownerFlagsOverride }
+      : clientFile;
+
   const lbl = SCORE_LABEL_CFG[clientFile.scoreLabel];
   const currentStage = normalizeWorkflowStage(clientFile.status);
   const currentStageLabel = workflowStageLabel(clientFile.status);
@@ -7058,9 +7370,10 @@ export function MasterClientFileModal({ clientFile, open, onClose, onClaim, onRe
     nextCallScheduledAt: clientFile.nextCallScheduledAt,
     nextFollowUpAt: clientFile.followUpDate,
   });
+  const canClaimToLead = getAllowedTransitions(currentStage as LeadStatus).includes("lead");
   const isAssignedToCurrentUser = !!currentUserId && clientFile.assignedTo === currentUserId;
   const claimButtonLabel = !clientFile.assignedTo
-    ? "Claim"
+    ? (canClaimToLead ? "Claim" : "Assign")
     : isAssignedToCurrentUser
       ? "Assigned to You"
       : "Assign to Me";
@@ -7548,7 +7861,7 @@ export function MasterClientFileModal({ clientFile, open, onClose, onClaim, onRe
                   >
                     {activeTab === "overview" && (
                       <OverviewTab
-                        cf={clientFile}
+                        cf={overviewClientFile}
                         computedArv={computedArv}
                         skipTracing={skipTracing}
                         skipTraceResult={skipTraceResult}
@@ -7588,6 +7901,18 @@ export function MasterClientFileModal({ clientFile, open, onClose, onClaim, onRe
                         onOfferPrepDraftChange={handleOfferPrepDraftChange}
                         onOfferPrepEditToggle={setOfferPrepEditing}
                         onOfferPrepSave={() => void handleSaveOfferPrepSnapshot()}
+                        offerStatusDraft={offerStatusDraft}
+                        offerStatusEditing={offerStatusEditing}
+                        offerStatusSaving={offerStatusSaving}
+                        onOfferStatusDraftChange={handleOfferStatusDraftChange}
+                        onOfferStatusEditToggle={setOfferStatusEditing}
+                        onOfferStatusSave={() => void handleSaveOfferStatusSnapshot()}
+                        buyerDispoTruthDraft={buyerDispoTruthDraft}
+                        buyerDispoTruthEditing={buyerDispoTruthEditing}
+                        buyerDispoTruthSaving={buyerDispoTruthSaving}
+                        onBuyerDispoTruthDraftChange={handleBuyerDispoTruthDraftChange}
+                        onBuyerDispoTruthEditToggle={setBuyerDispoTruthEditing}
+                        onBuyerDispoTruthSave={() => void handleSaveBuyerDispoTruthSnapshot()}
                       />
                     )}
                     {activeTab === "contact" && (

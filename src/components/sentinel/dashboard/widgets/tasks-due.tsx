@@ -20,7 +20,7 @@ import { formatDueDateLabel } from "@/lib/due-date-label";
 
 const BUCKET_ICONS: Record<string, ComponentType<{ className?: string }>> = {
   "new-inbound": Phone,
-  "offers-pending": DollarSign,
+  "offer-prep-needs-update": DollarSign,
   "due-today": Clock,
   overdue: AlertCircle,
   "needs-qualification": ClipboardCheck,

@@ -129,6 +129,13 @@
   --specular-bottom-purple: rgba(179, 136, 255, 0.35);
 }
 
+html {
+  /* Slight global type increase for better readability across all surfaces. */
+  font-size: 17px;
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
 /* ── Keyframes ──────────────────────────────────────────────────── */
 
 @keyframes accordion-down {
@@ -269,6 +276,7 @@ body {
   font-family: "Inter", system-ui, -apple-system, sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
   background-image:
     /* Top-edge specular gloss — intense white highlight like polished glass */
     linear-gradient(180deg, rgba(255,255,255,0.07) 0%, rgba(255,255,255,0.025) 1.5%, rgba(255,255,255,0.008) 4%, transparent 12%),
@@ -1243,6 +1251,13 @@ body {
     inset 0 0 14px rgba(0, 0, 0, 0.15),
     0 0 1px rgba(0, 229, 255, 0.6),
     0 0 4px rgba(0, 229, 255, 0.2);
+}
+
+/* Keep native dropdown menus readable (Windows renders option list on light surface). */
+select option,
+select optgroup {
+  color: #000000;
+  background-color: #ffffff;
 }
 
 /* ═══════════════════════════════════════════════════════════════════

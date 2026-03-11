@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { supabase } from "@/lib/supabase";
 import { useSentinelStore } from "@/lib/store";
 import { classifyQueueDueWork, getEffectiveFollowUpAt } from "@/lib/morning-queue-utils";
+import { deriveOfferPrepHealth, extractOfferPrepSnapshot } from "@/lib/leads-data";
 
 export interface QueueItem {
   leadId: string;
@@ -44,7 +45,7 @@ export function useMorningQueue() {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         (supabase.from("leads") as any)
           .select(
-            "id, property_id, status, assigned_to, qualification_route, next_call_scheduled_at, next_follow_up_at, follow_up_date, total_calls, created_at",
+            "id, property_id, status, assigned_to, qualification_route, next_call_scheduled_at, next_follow_up_at, total_calls, created_at",
           )
           .in("status", ["prospect", "lead", "negotiation", "disposition", "nurture"])
           .order("next_call_scheduled_at", { ascending: true }),
@@ -83,24 +84,32 @@ export function useMorningQueue() {
         });
       }
 
-      const propMap: Record<string, { address: string; owner: string }> = {};
+      const propMap: Record<string, { address: string; owner: string; ownerFlags: Record<string, unknown> | null }> = {};
       if (propIds.size > 0) {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const { data: props } = await (supabase.from("properties") as any)
-          .select("id, street_address, owner_name")
+          .select("id, address, owner_name, owner_flags")
           .in("id", Array.from(propIds).slice(0, 200));
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         (props ?? []).forEach((p: any) => {
           propMap[p.id] = {
-            address: p.street_address ?? p.id.slice(0, 8),
+            address: p.address ?? p.id.slice(0, 8),
             owner: p.owner_name ?? "Unknown",
+            ownerFlags:
+              p.owner_flags && typeof p.owner_flags === "object" && !Array.isArray(p.owner_flags)
+                ? (p.owner_flags as Record<string, unknown>)
+                : null,
           };
         });
       }
 
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const toItem = (lead: any, dueAt?: string | null): QueueItem => {
-        const prop = propMap[lead.property_id] ?? { address: lead.property_id?.slice(0, 8) ?? "-", owner: "Unknown" };
+        const prop = propMap[lead.property_id] ?? {
+          address: lead.property_id?.slice(0, 8) ?? "-",
+          owner: "Unknown",
+          ownerFlags: null,
+        };
         return {
           leadId: lead.id,
           propertyId: lead.property_id,
@@ -114,15 +123,12 @@ export function useMorningQueue() {
         (l) => (l.status === "lead" || l.status === "prospect") && new Date(l.created_at) >= startOfDay,
       );
 
-      const offersPending = scopedLeads.filter(
-        (l) => l.qualification_route === "offer_ready" && (l.status === "negotiation" || l.status === "disposition"),
-      );
-
       const { dueTodayLeadIds, overdueLeadIds } = classifyQueueDueWork({
         leads: scopedLeads,
         tasks: scopedTasks,
         now,
       });
+      const emphasizedLeadIds = new Set<string>([...dueTodayLeadIds, ...overdueLeadIds]);
 
       const followUpsDueToday = scopedLeads.filter(
         (l) => dueTodayLeadIds.has(l.id) && l.status !== "dead" && l.status !== "closed",
@@ -135,6 +141,41 @@ export function useMorningQueue() {
       const needsQualification = scopedLeads.filter(
         (l) => l.status === "lead" && !l.qualification_route && (l.total_calls ?? 0) > 0,
       );
+      const hasFollowUpAnchor = (lead: {
+        next_call_scheduled_at?: string | null;
+        next_follow_up_at?: string | null;
+        follow_up_date?: string | null;
+      }): boolean =>
+        [lead.next_call_scheduled_at, lead.next_follow_up_at, lead.follow_up_date].some((value) =>
+          typeof value === "string" ? value.trim().length > 0 : Boolean(value),
+        );
+      const offerPrepNeedsUpdate = scopedLeads.filter((l) => {
+        const normalizedStatus = String(l.status ?? "").toLowerCase();
+        if (normalizedStatus === "dead" || normalizedStatus === "closed") return false;
+
+        const isOfferPathLead =
+          l.qualification_route === "offer_ready"
+          || normalizedStatus === "negotiation"
+          || normalizedStatus === "disposition";
+        if (!isOfferPathLead) return false;
+        if (emphasizedLeadIds.has(l.id)) return false;
+
+        const snapshot = extractOfferPrepSnapshot(propMap[l.property_id]?.ownerFlags ?? null);
+        const offerPrepHealth = deriveOfferPrepHealth({
+          status: l.status,
+          qualificationRoute: l.qualification_route ?? null,
+          snapshot,
+          nextCallScheduledAt: l.next_call_scheduled_at ?? null,
+          nextFollowUpAt: l.next_follow_up_at ?? l.follow_up_date ?? null,
+        });
+        const missingFollowUpAnchor = !hasFollowUpAnchor(l);
+
+        return (
+          offerPrepHealth.state === "missing"
+          || offerPrepHealth.state === "stale"
+          || missingFollowUpAnchor
+        );
+      });
 
       const compsToRun = scopedTasks.filter((t) => {
         const text = `${t.title ?? ""} ${t.description ?? ""}`.toLowerCase();
@@ -169,7 +210,7 @@ export function useMorningQueue() {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const taskToItem = (task: any): QueueItem => {
         const propId = taskLeadPropMap[task.lead_id] ?? "";
-        const prop = propMap[propId] ?? { address: task.title, owner: "" };
+        const prop = propMap[propId] ?? { address: task.title, owner: "", ownerFlags: null };
         return {
           leadId: task.lead_id ?? "",
           propertyId: propId,
@@ -209,10 +250,10 @@ export function useMorningQueue() {
           variant: "neon",
         },
         {
-          key: "offers-pending",
-          label: "Offers Pending",
-          count: offersPending.length,
-          items: offersPending.slice(0, 5).map((l) => toItem(l)),
+          key: "offer-prep-needs-update",
+          label: "Offer Prep Needs Update",
+          count: offerPrepNeedsUpdate.length,
+          items: offerPrepNeedsUpdate.slice(0, 5).map((l) => toItem(l)),
           variant: "cyan",
         },
         {

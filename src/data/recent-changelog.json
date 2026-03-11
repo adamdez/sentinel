@@ -1,5 +1,10 @@
 [
   {
+    "hash": "3eaefbe7",
+    "date": "2026-03-10",
+    "message": "feat: ship phase 2h offer prep snapshot and operator workflow polish"
+  },
+  {
     "hash": "677cd864",
     "date": "2026-03-10",
     "message": "feat: ship phase 2 workflow hardening and call closeout"
@@ -118,10 +123,5 @@
     "hash": "368e1a93",
     "date": "2026-03-06",
     "message": "feat: owner portfolio rollup — group same-owner parcels for deal context"
-  },
-  {
-    "hash": "77b25aca",
-    "date": "2026-03-06",
-    "message": "fix: disable FSBO cron + add source filter to clean-slate"
   }
 ]

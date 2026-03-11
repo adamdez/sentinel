@@ -208,7 +208,7 @@ export const WIDGET_REGISTRY: Record<WidgetId, WidgetDefinition> = {
   "tasks-due": {
     id: "tasks-due",
     label: "Morning Queue",
-    description: "8-priority work queue: inbound, offers, follow-ups, qualification, comps, escalations",
+    description: "8-priority work queue: inbound, offer-prep updates, follow-ups, qualification, comps, escalations",
     icon: CalendarClock,
     defaultSize: "2x1",
     minSize: "1x1",

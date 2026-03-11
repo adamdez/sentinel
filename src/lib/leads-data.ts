@@ -25,6 +25,23 @@ export interface OfferPrepSnapshot {
   updatedAt: string | null;
 }
 
+export type OfferStatusTruth =
+  | "offer_discussed"
+  | "offer_sent"
+  | "seller_reviewing"
+  | "counter_needs_revision"
+  | "accepted"
+  | "passed_not_moving_forward";
+
+export interface OfferStatusSnapshot {
+  status: OfferStatusTruth | null;
+  amount: number | null;
+  amountLow: number | null;
+  amountHigh: number | null;
+  sellerResponseNote: string | null;
+  updatedAt: string | null;
+}
+
 export interface OfferPrepHealthInfo {
   state: OfferPrepHealth;
   label: string;
@@ -39,6 +56,14 @@ export interface BuyerDispoVisibility {
   dispoReadiness: DispoReadinessVisibility;
   hint: string;
   nextStep: string;
+}
+
+export interface BuyerDispoTruthSnapshot {
+  buyerFit: BuyerFitVisibility | null;
+  dispoStatus: DispoReadinessVisibility | null;
+  nextStep: string | null;
+  dispoNote: string | null;
+  updatedAt: string | null;
 }
 
 export type NextActionKind =
@@ -85,6 +110,22 @@ function toOfferPrepConfidence(value: unknown): OfferPrepConfidence | null {
   return null;
 }
 
+function toOfferStatusTruth(value: unknown): OfferStatusTruth | null {
+  if (typeof value !== "string") return null;
+  const normalized = value.trim().toLowerCase();
+  if (
+    normalized === "offer_discussed"
+    || normalized === "offer_sent"
+    || normalized === "seller_reviewing"
+    || normalized === "counter_needs_revision"
+    || normalized === "accepted"
+    || normalized === "passed_not_moving_forward"
+  ) {
+    return normalized as OfferStatusTruth;
+  }
+  return null;
+}
+
 export function extractOfferPrepSnapshot(
   ownerFlags: Record<string, unknown> | null | undefined,
 ): OfferPrepSnapshot {
@@ -107,6 +148,68 @@ export function extractOfferPrepSnapshot(
     confidence,
     sheetUrl,
     updatedAt,
+  };
+}
+
+export function extractOfferStatusSnapshot(
+  ownerFlags: Record<string, unknown> | null | undefined,
+): OfferStatusSnapshot {
+  const flags = toObject(ownerFlags);
+  const nested = toObject(flags?.offer_status_snapshot);
+
+  return {
+    status: toOfferStatusTruth(nested?.status ?? flags?.offer_status),
+    amount: toNullableNumber(nested?.amount ?? flags?.offer_status_amount),
+    amountLow: toNullableNumber(nested?.amount_low ?? flags?.offer_status_amount_low),
+    amountHigh: toNullableNumber(nested?.amount_high ?? flags?.offer_status_amount_high),
+    sellerResponseNote: toNullableString(nested?.seller_response_note ?? flags?.offer_status_seller_response_note),
+    updatedAt: toNullableString(nested?.updated_at ?? flags?.offer_status_updated_at),
+  };
+}
+
+export function offerStatusTruthLabel(value: OfferStatusTruth | null | undefined): string {
+  switch (value) {
+    case "offer_discussed":
+      return "Offer Discussed";
+    case "offer_sent":
+      return "Offer Sent";
+    case "seller_reviewing":
+      return "Seller Reviewing";
+    case "counter_needs_revision":
+      return "Counter / Needs Revision";
+    case "accepted":
+      return "Accepted";
+    case "passed_not_moving_forward":
+      return "Passed / Not Moving Forward";
+    default:
+      return "Not set";
+  }
+}
+
+export function extractBuyerDispoTruthSnapshot(
+  ownerFlags: Record<string, unknown> | null | undefined,
+): BuyerDispoTruthSnapshot {
+  const flags = toObject(ownerFlags);
+  const nested = toObject(flags?.buyer_dispo_snapshot);
+
+  const buyerFit = (() => {
+    const raw = typeof nested?.buyer_fit === "string" ? nested.buyer_fit : flags?.buyer_dispo_buyer_fit;
+    if (raw === "broad" || raw === "narrow" || raw === "unknown") return raw;
+    return null;
+  })();
+
+  const dispoStatus = (() => {
+    const raw = typeof nested?.dispo_status === "string" ? nested.dispo_status : flags?.buyer_dispo_status;
+    if (raw === "not_ready" || raw === "needs_review" || raw === "ready") return raw;
+    return null;
+  })();
+
+  return {
+    buyerFit,
+    dispoStatus,
+    nextStep: toNullableString(nested?.next_step ?? flags?.buyer_dispo_next_step),
+    dispoNote: toNullableString(nested?.dispo_note ?? flags?.buyer_dispo_note),
+    updatedAt: toNullableString(nested?.updated_at ?? flags?.buyer_dispo_updated_at),
   };
 }
 
