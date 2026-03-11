@@ -403,6 +403,18 @@ export default function DialerPage() {
     }
   }, [queue, currentLead]);
 
+  useEffect(() => {
+    if (!currentLead) return;
+    const refreshedLead = queue.find((lead) => lead.id === currentLead.id);
+    if (refreshedLead) {
+      setCurrentLead(refreshedLead);
+    }
+  }, [queue, currentLead?.id]);
+
+  const handleModalRefresh = useCallback(() => {
+    refetchQueue();
+  }, [refetchQueue]);
+
   // Auto-dial after consent granted
   useEffect(() => {
     if (consentGranted && currentLead) {
@@ -1999,6 +2011,7 @@ export default function DialerPage() {
           )}
           open={fileModalOpen}
           onClose={() => setFileModalOpen(false)}
+          onRefresh={handleModalRefresh}
         />
       )}
 

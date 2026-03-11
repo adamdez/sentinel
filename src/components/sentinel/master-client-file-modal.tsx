@@ -2623,7 +2623,7 @@ function ContactTab({ cf, overlay, onSkipTrace, skipTracing, onDial, onSms, call
 // OVERVIEW TAB
 // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
-function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceMs, overlay, skipTraceError, onSkipTrace, onManualSkipTrace, onEdit, onDial, onSms, calling, dialHistory, autofilling, onAutofill, deepCrawling, deepCrawlResult, deepCrawlExpanded, setDeepCrawlExpanded, executeDeepCrawl, hasSavedReport, loadingReport, loadSavedReport, crawlSteps, deepSkipResult, qualification, qualificationDirty, qualificationSaving, qualificationEditable, qualificationSuggestedRoute, onQualificationChange, onQualificationRouteSelect, onQualificationSave, offerPrepDraft, offerPrepEditing, offerPrepSaving, onOfferPrepDraftChange, onOfferPrepEditToggle, onOfferPrepSave, offerStatusDraft, offerStatusEditing, offerStatusSaving, onOfferStatusDraftChange, onOfferStatusEditToggle, onOfferStatusSave, buyerDispoTruthDraft, buyerDispoTruthEditing, buyerDispoTruthSaving, onBuyerDispoTruthDraftChange, onBuyerDispoTruthEditToggle, onBuyerDispoTruthSave }: {
+function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceMs, overlay, skipTraceError, onSkipTrace, onManualSkipTrace, onEdit, onDial, onSms, calling, dialHistory, autofilling, onAutofill, deepCrawling, deepCrawlResult, deepCrawlExpanded, setDeepCrawlExpanded, executeDeepCrawl, hasSavedReport, loadingReport, loadSavedReport, crawlSteps, deepSkipResult, activityRefreshToken, qualification, qualificationDirty, qualificationSaving, qualificationEditable, qualificationSuggestedRoute, onQualificationChange, onQualificationRouteSelect, onQualificationSave, offerPrepDraft, offerPrepEditing, offerPrepSaving, onOfferPrepDraftChange, onOfferPrepEditToggle, onOfferPrepSave, offerStatusDraft, offerStatusEditing, offerStatusSaving, onOfferStatusDraftChange, onOfferStatusEditToggle, onOfferStatusSave, buyerDispoTruthDraft, buyerDispoTruthEditing, buyerDispoTruthSaving, onBuyerDispoTruthDraftChange, onBuyerDispoTruthEditToggle, onBuyerDispoTruthSave }: {
   cf: ClientFile; computedArv: number; skipTracing: boolean; skipTraceResult: string | null; skipTraceMs: number | null;
   overlay: SkipTraceOverlay | null; skipTraceError: SkipTraceError | null;
   onSkipTrace: () => void; onManualSkipTrace: () => void; onEdit: () => void;
@@ -2638,6 +2638,7 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
   crawlSteps: CrawlStep[];
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   deepSkipResult: any;
+  activityRefreshToken: number;
   qualification: QualificationDraft;
   qualificationDirty: boolean;
   qualificationSaving: boolean;
@@ -2789,7 +2790,7 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
       ].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()).slice(0, 30);
       setActivityLog(merged);
     })();
-  }, [cf.id, cf.propertyId]);
+  }, [activityRefreshToken, cf.id, cf.propertyId]);
 
   const streetViewUrl = prRaw.StreetViewUrl ?? prRaw.PropertyImageUrl ?? (prRaw.Photos?.[0]) ?? null;
 
@@ -5963,6 +5964,10 @@ export function MasterClientFileModal({ clientFile, open, onClose, onClaim, onRe
   const [closeoutAt, setCloseoutAt] = useState("");
   const [closeoutPresetTouched, setCloseoutPresetTouched] = useState(false);
   const [closeoutDateTouched, setCloseoutDateTouched] = useState(false);
+  const [activityRefreshToken, setActivityRefreshToken] = useState(0);
+  const [assignmentOptions, setAssignmentOptions] = useState<Array<{ id: string; name: string }>>([]);
+  const [reassignTargetId, setReassignTargetId] = useState("");
+  const [reassigning, setReassigning] = useState(false);
 
   // â”€â”€ Deep Crawl state â”€â”€
   const [deepCrawling, setDeepCrawling] = useState(false);
@@ -6088,6 +6093,36 @@ export function MasterClientFileModal({ clientFile, open, onClose, onClaim, onRe
 
     return () => { active = false; };
   }, [open]);
+
+  useEffect(() => {
+    let active = true;
+    if (!open) return;
+
+    (async () => {
+      try {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const { data } = await (supabase.from("user_profiles") as any)
+          .select("id, full_name")
+          .order("full_name", { ascending: true });
+        if (!active) return;
+        const options = (data as Array<{ id: string; full_name: string | null }> | null | undefined)
+          ?.filter((row) => typeof row.id === "string" && row.id.length > 0)
+          .map((row) => ({
+            id: row.id,
+            name: row.full_name?.trim() && row.full_name.trim().length > 0 ? row.full_name.trim() : row.id.slice(0, 8),
+          })) ?? [];
+        setAssignmentOptions(options);
+      } catch {
+        if (active) setAssignmentOptions([]);
+      }
+    })();
+
+    return () => { active = false; };
+  }, [open]);
+
+  useEffect(() => {
+    setReassignTargetId(clientFile?.assignedTo ?? currentUserId ?? "");
+  }, [clientFile?.id, clientFile?.assignedTo, currentUserId]);
 
   useEffect(() => {
     setSelectedStage(normalizeWorkflowStage(clientFile?.status));
@@ -6251,6 +6286,10 @@ export function MasterClientFileModal({ clientFile, open, onClose, onClaim, onRe
       toast.error(`Not logged in - cannot ${actionLabel.toLowerCase()}`);
       return;
     }
+    if (clientFile.assignedTo && clientFile.assignedTo !== user.id) {
+      const confirmed = window.confirm(`This lead is currently owned by ${assigneeLabel}. Reassign it to you?`);
+      if (!confirmed) return;
+    }
 
     setClaiming(true);
     try {
@@ -6306,7 +6345,79 @@ export function MasterClientFileModal({ clientFile, open, onClose, onClaim, onRe
     } finally {
       setClaiming(false);
     }
-  }, [clientFile, onClaim, onRefresh]);
+  }, [assigneeLabel, clientFile, onClaim, onRefresh]);
+
+  const handleReassignLead = useCallback(async () => {
+    if (!clientFile) return;
+    if (!reassignTargetId) {
+      toast.error("Select an owner before reassigning.");
+      return;
+    }
+    if (reassignTargetId === (clientFile.assignedTo ?? "")) {
+      toast.message("Lead owner is already selected.");
+      return;
+    }
+
+    const targetName = assignmentOptions.find((option) => option.id === reassignTargetId)?.name ?? "selected owner";
+    const hasExistingOwner = Boolean(clientFile.assignedTo);
+    if (hasExistingOwner) {
+      const confirmed = window.confirm(`Reassign this lead to ${targetName}?`);
+      if (!confirmed) return;
+    }
+
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session?.access_token) {
+      toast.error("Session expired - cannot reassign lead");
+      return;
+    }
+
+    setReassigning(true);
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data: current, error: fetchErr } = await (supabase.from("leads") as any)
+        .select("lock_version")
+        .eq("id", clientFile.id)
+        .single();
+
+      if (fetchErr || !current) {
+        toast.error("Could not load current lead state. Refresh and try again.");
+        return;
+      }
+
+      const res = await fetch("/api/prospects", {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${session.access_token}`,
+          "x-lock-version": String(current.lock_version ?? 0),
+        },
+        body: JSON.stringify({
+          lead_id: clientFile.id,
+          assigned_to: reassignTargetId,
+        }),
+      });
+
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        const detail = data.detail ?? data.error ?? `HTTP ${res.status}`;
+        if (res.status === 409) {
+          toast.error("Reassign conflict: refresh and try again.");
+        } else {
+          toast.error(`Could not reassign lead: ${detail}`);
+        }
+        return;
+      }
+
+      setAssigneeLabel(targetName);
+      toast.success(`Lead reassigned to ${targetName}`);
+      onRefresh?.();
+    } catch (err) {
+      console.error("[MCF] Reassign lead error:", err);
+      toast.error("Could not reassign lead");
+    } finally {
+      setReassigning(false);
+    }
+  }, [assignmentOptions, clientFile, onRefresh, reassignTargetId]);
 
   const handleMoveStage = useCallback(async () => {
     if (!clientFile) return;
@@ -6696,7 +6807,7 @@ export function MasterClientFileModal({ clientFile, open, onClose, onClaim, onRe
 
       setQualificationSuggestedRoute(parseSuggestedRoute(data.suggested_route));
       setQualificationDraft(nextDraft);
-      toast.success("Qualification updated");
+      toast.success(nextDraft.qualificationRoute === "escalate" ? "Escalation review saved" : "Qualification updated");
       onRefresh?.();
       return true;
     } catch (err) {
@@ -6719,6 +6830,9 @@ export function MasterClientFileModal({ clientFile, open, onClose, onClaim, onRe
       const saved = await persistQualification(route);
       if (!saved) {
         setQualificationDraft((prev) => ({ ...prev, qualificationRoute: previousRoute }));
+        if (route === "escalate") {
+          toast.error("Escalation review failed and was not saved.");
+        }
       }
     })();
   }, [clientFile?.assignedTo, persistQualification, qualificationDraft.qualificationRoute]);
@@ -6830,6 +6944,7 @@ export function MasterClientFileModal({ clientFile, open, onClose, onClaim, onRe
       toast.success("Note added");
       setNoteDraft("");
       setNoteEditorOpen(false);
+      setActivityRefreshToken((v) => v + 1);
       onRefresh?.();
     } catch (err) {
       console.error("[MCF] Append note error:", err);
@@ -6939,6 +7054,7 @@ export function MasterClientFileModal({ clientFile, open, onClose, onClaim, onRe
       setCloseoutPresetTouched(false);
       setCloseoutDateTouched(false);
       setNextActionAt(toLocalDateTimeInput(nextIso));
+      setActivityRefreshToken((v) => v + 1);
       toast.success("Call closeout saved");
       onRefresh?.();
     } catch (err) {
@@ -7518,6 +7634,30 @@ export function MasterClientFileModal({ clientFile, open, onClose, onClaim, onRe
                     {claiming ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Users className="h-3.5 w-3.5" />}
                     {claiming ? "Saving..." : claimButtonLabel}
                   </Button>
+                  {assignmentOptions.length > 0 && (
+                    <div className="flex items-center gap-1.5 rounded-[8px] border border-white/[0.12] bg-white/[0.03] px-1.5 py-1">
+                      <select
+                        value={reassignTargetId}
+                        onChange={(e) => setReassignTargetId(e.target.value)}
+                        className="h-7 rounded-[6px] border border-white/[0.12] bg-white/[0.04] px-2 text-[11px] text-foreground focus:outline-none focus:border-cyan/30"
+                        aria-label="Select lead owner"
+                      >
+                        <option value="">Select owner</option>
+                        {assignmentOptions.map((option) => (
+                          <option key={option.id} value={option.id}>{option.name}</option>
+                        ))}
+                      </select>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-7 text-[11px] border-white/[0.18] hover:border-cyan/35"
+                        disabled={reassigning || !reassignTargetId || reassignTargetId === (clientFile.assignedTo ?? "")}
+                        onClick={handleReassignLead}
+                      >
+                        {reassigning ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : "Reassign"}
+                      </Button>
+                    </div>
+                  )}
                   <Button
                     size="sm"
                     variant="outline"
@@ -7603,6 +7743,8 @@ export function MasterClientFileModal({ clientFile, open, onClose, onClaim, onRe
                               onChange={(e) => {
                                 const action = e.target.value as CloseoutNextAction;
                                 setCloseoutAction(action);
+                                setCloseoutPresetTouched(true);
+                                setCloseoutDateTouched(false);
                                 if (action === "nurture_check_in") {
                                   setCloseoutPreset("nurture_14_days");
                                   setCloseoutAt(presetDateTimeLocal(14));
@@ -7887,6 +8029,7 @@ export function MasterClientFileModal({ clientFile, open, onClose, onClaim, onRe
                         loadSavedReport={loadSavedReport}
                         crawlSteps={crawlSteps}
                         deepSkipResult={deepSkipResult}
+                        activityRefreshToken={activityRefreshToken}
                         qualification={qualificationDraft}
                         qualificationDirty={qualificationDirty}
                         qualificationSaving={qualificationSaving}

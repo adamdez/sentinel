@@ -87,6 +87,14 @@ const PIPELINE_LANES = [
     border: "rgba(113,113,122,0.3)",
     text: "text-zinc-400",
   },
+  {
+    id: "closed",
+    title: "Closed",
+    accent: "#a855f7",
+    bg: "rgba(168,85,247,0.08)",
+    border: "rgba(168,85,247,0.3)",
+    text: "text-purple-400",
+  },
 ] as const;
 
 type LaneId = (typeof PIPELINE_LANES)[number]["id"];
@@ -99,6 +107,7 @@ const LANE_HINTS: Record<LaneId, string> = {
   disposition: "Buyer-side coordination signals",
   nurture: "Scheduled long-cycle follow-up",
   dead: "Closed-out or non-viable records",
+  closed: "Completed closed outcomes kept discoverable",
 };
 
 const CANONICAL_STAGE_IDS = new Set<CanonicalStageId>([
@@ -108,6 +117,7 @@ const CANONICAL_STAGE_IDS = new Set<CanonicalStageId>([
   "disposition",
   "nurture",
   "dead",
+  "closed",
 ]);
 
 interface Lead {
@@ -157,8 +167,7 @@ function normalizeStatus(raw: string | null | undefined): CanonicalStageId | nul
   if (lower === "prospects") return "prospect";
   // Legacy compatibility: old rows may still hold "my_lead*" values. Canonicalize to "lead".
   if (lower === "leads" || lower === "my_lead" || lower === "my_leads" || lower === "my leads") return "lead";
-  // Closed/staging are intentionally excluded from active pipeline lanes.
-  if (lower === "closed" || lower === "staging") return null;
+  if (lower === "staging") return null;
   console.warn(`[Pipeline] Ignoring unsupported lead status "${raw}"`);
   return null;
 }
@@ -202,7 +211,6 @@ export default function PipelinePage() {
       const { data: leadsRaw, error: leadsErr } = await (supabase.from("leads") as any)
         .select("*")
         .neq("status", "staging")
-        .neq("status", "closed")
         .order("priority", { ascending: false });
 
       if (leadsErr) {
@@ -843,7 +851,7 @@ function LeadCard({
                 Needs Qualification
               </span>
             )}
-            {followUpOverdue && lead.status !== "nurture" && (
+            {followUpOverdue && lead.status !== "nurture" && lead.status !== "closed" && lead.status !== "dead" && (
               <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded border bg-red-500/12 text-red-300 border-red-500/30">
                 Needs Follow-Up
               </span>

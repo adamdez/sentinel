@@ -60,6 +60,7 @@ export default function LeadsPage() {
     totalFiltered,
     currentUser,
     teamMembers,
+    refetch,
   } = useLeads();
   const segmentTotal =
     segment === "all"
@@ -218,6 +219,7 @@ export default function LeadsPage() {
         clientFile={selectedLead ? clientFileFromLead(selectedLead) : null}
         open={selectedId !== null}
         onClose={() => setSelectedId(null)}
+        onRefresh={refetch}
       />
 
       {/* TODO: Real-time Supabase subscription for lead updates (channel: leads_changes) */}

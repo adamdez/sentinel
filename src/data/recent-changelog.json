@@ -1,5 +1,10 @@
 [
   {
+    "hash": "77ecc5cd",
+    "date": "2026-03-10",
+    "message": "feat: ship phase 2k-2l workflow truth and modal cleanup"
+  },
+  {
     "hash": "3eaefbe7",
     "date": "2026-03-10",
     "message": "feat: ship phase 2h offer prep snapshot and operator workflow polish"
@@ -118,10 +123,5 @@
     "hash": "9ac67387",
     "date": "2026-03-06",
     "message": "fix: vacant land detection — only use address, not missing sqft/beds"
-  },
-  {
-    "hash": "368e1a93",
-    "date": "2026-03-06",
-    "message": "feat: owner portfolio rollup — group same-owner parcels for deal context"
   }
 ]
