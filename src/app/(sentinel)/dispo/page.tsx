@@ -8,6 +8,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { formatSellerName, fmtPrice, spreadColor } from "@/lib/display-helpers";
 import { PageShell } from "@/components/sentinel/page-shell";
 import { GlassCard } from "@/components/sentinel/glass-card";
 import { updateDealBuyer, useDispoDeals, updateDealDispoPrep } from "@/hooks/use-buyers";
@@ -25,45 +26,7 @@ import { useCoachSurface } from "@/providers/coach-provider";
 import { CoachPanel, CoachToggle } from "@/components/sentinel/coach-panel";
 
 // ── Helpers ──
-
-function fmtPrice(v: number | null | undefined): string {
-  if (v == null) return "—";
-  return `$${(v / 1000).toFixed(0)}k`;
-}
-
-function spreadColor(spread: number): string {
-  if (spread > 0) return "text-emerald-400";
-  if (spread < 0) return "text-red-400";
-  return "text-muted-foreground";
-}
-
-/** Convert ALL CAPS county-record seller names to readable format */
-function toTitleCase(s: string): string {
-  return s.toLowerCase().replace(/\b\w/g, (c) => c.toUpperCase());
-}
-
-function formatSellerName(raw: string | null): string | null {
-  if (!raw) return null;
-  // Only transform if ALL CAPS (county record format)
-  const letters = raw.replace(/[^a-zA-Z]/g, "");
-  if (!letters || letters !== letters.toUpperCase()) return raw;
-
-  // Handle "LAST,FIRST [MAILING ADDRESS]" format from county records
-  const commaIdx = raw.indexOf(",");
-  if (commaIdx > 0) {
-    const last = raw.slice(0, commaIdx).trim();
-    let rest = raw.slice(commaIdx + 1).trim();
-    // Strip mailing address: county records often append "123 STREET..." after the name
-    const digitMatch = rest.search(/\d/);
-    if (digitMatch > 0) {
-      rest = rest.slice(0, digitMatch).trim();
-    }
-    if (!rest) return toTitleCase(last);
-    return `${toTitleCase(rest)} ${toTitleCase(last)}`;
-  }
-
-  return toTitleCase(raw);
-}
+// formatSellerName, fmtPrice, spreadColor imported from @/lib/display-helpers
 
 // Statuses that indicate buyer has responded
 const RESPONDED_STATUSES = new Set(["interested", "offered", "follow_up", "selected"]);
@@ -265,6 +228,7 @@ function DispoPrepForm({ deal, onSaved }: { deal: DispoDeal; onSaved: () => void
     setSaving(true);
     try {
       await updateDealDispoPrep(deal.id, { [field]: value });
+      toast.success("Saved", { duration: 1500 });
       onSaved();
     } catch {
       toast.error("Failed to save dispo prep");

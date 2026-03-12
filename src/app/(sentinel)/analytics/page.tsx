@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { BarChart3, Clock3, DollarSign, Loader2, MapPinned, Radio, Shield, Target, TrendingUp, Users } from "lucide-react";
+import { BarChart3, Clock3, DollarSign, Loader2, MapPinned, Radio, Shield, TrendingUp, Users } from "lucide-react";
 import { PageShell } from "@/components/sentinel/page-shell";
 import { GlassCard } from "@/components/sentinel/glass-card";
 import { Badge } from "@/components/ui/badge";
@@ -168,8 +168,6 @@ export default function AnalyticsPage() {
                 ))}
               </div>
             </GlassCard>
-
-            <SourcePerformanceCard period={period} />
 
             <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
               <GlassCard hover={false} className="xl:col-span-2 !p-4">
@@ -356,100 +354,13 @@ export default function AnalyticsPage() {
   );
 }
 
-// ── Source Performance Summary ──
-
-interface SourcePerfData {
-  source_key: string;
-  source_label: string;
-  leads_count: number;
-  contacted_count: number;
-  contracts_count: number;
-  closed_count: number;
-  revenue: number;
-  contact_rate: number | null;
-  contract_rate: number | null;
-  close_rate: number | null;
-  avg_days_to_contract: number | null;
-  monthly_trend: { month: string; leads: number }[];
-}
-
-function SourcePerformanceCard({ period }: { period: TimePeriod }) {
-  const [sources, setSources] = useState<SourcePerfData[]>([]);
-  const [loading, setLoading] = useState(true);
-
-  const fetchData = useCallback(async () => {
-    try {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session?.access_token) return;
-      const res = await fetch(`/api/analytics/source-performance?period=${period}`, {
-        headers: { Authorization: `Bearer ${session.access_token}` },
-        cache: "no-store",
-      });
-      if (!res.ok) return;
-      const payload = await res.json();
-      setSources((payload.sources ?? []) as SourcePerfData[]);
-    } catch {
-      // Silently fail — informational panel
-    } finally {
-      setLoading(false);
-    }
-  }, [period]);
-
-  useEffect(() => {
-    setLoading(true);
-    fetchData();
-  }, [fetchData]);
-
-  if (loading || sources.length === 0) return null;
-
-  const totalSources = sources.length;
-  const topSource = sources[0];
-  const bestConverter = sources
-    .filter((s) => s.leads_count >= 3 && s.contract_rate != null && s.contract_rate > 0)
-    .sort((a, b) => (b.contract_rate ?? 0) - (a.contract_rate ?? 0))[0] ?? null;
-  const revenueLeader = [...sources].sort((a, b) => b.revenue - a.revenue)[0] ?? null;
-
-  return (
-    <GlassCard hover={false} className="!p-4">
-      <div className="flex items-center justify-between mb-3">
-        <h3 className="text-sm font-semibold flex items-center gap-2">
-          <Target className="h-4 w-4 text-cyan" />
-          Source Performance
-        </h3>
-        <TrustBadge type="hard" />
-      </div>
-
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-xs">
-        <Metric label="Active Sources" value={totalSources} />
-        <Metric
-          label="Top Source (by leads)"
-          value={topSource ? `${topSource.source_label} (${topSource.leads_count})` : "n/a"}
-        />
-        <Metric
-          label="Best Converter"
-          value={bestConverter ? `${bestConverter.source_label} (${bestConverter.contract_rate}%)` : "n/a"}
-          tone={bestConverter ? "positive" : "default"}
-        />
-        <Metric
-          label="Revenue Leader"
-          value={revenueLeader && revenueLeader.revenue > 0 ? `${revenueLeader.source_label} (${formatCurrency(revenueLeader.revenue)})` : "n/a"}
-          tone={revenueLeader && revenueLeader.revenue > 0 ? "positive" : "default"}
-        />
-      </div>
-
-      <p className="text-[11px] text-muted-foreground mt-3">
-        Source attribution from normalized lead source field. Best Converter requires at least 3 leads.
-      </p>
-    </GlassCard>
-  );
-}
-
-// ── Compact Dispo Funnel (P2-8) ──
+// ── Compact Dispo Funnel ──
 
 function DispoFunnelCard() {
   const [funnel, setFunnel] = useState<{
     deals: number; linked: number; contacted: number;
     responded: number; interested: number; selected: number;
+    stalledCount: number; avgDaysInDispo: number | null;
   } | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -468,6 +379,36 @@ function DispoFunnelCard() {
       const allBuyers = deals.flatMap((d: any) => d.deal_buyers ?? []);
       const respondedStatuses = new Set(["interested", "offered", "follow_up", "selected"]);
 
+      // Stall detection (lightweight: deals with no buyers or all pre-contact >1d)
+      const now = Date.now();
+      const DAY = 86400000;
+      let stalledCount = 0;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      for (const deal of deals as any[]) {
+        const dbs = deal.deal_buyers ?? [];
+        if (dbs.length === 0) {
+          const enteredAt = deal.entered_dispo_at ? new Date(deal.entered_dispo_at).getTime() : null;
+          if (enteredAt && now - enteredAt > DAY) stalledCount++;
+        } else {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const allPre = dbs.every((db: any) => db.status === "not_contacted" || db.status === "queued");
+          if (allPre) {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const oldest = Math.min(...dbs.map((db: any) => new Date(db.created_at).getTime()));
+            if (now - oldest > DAY) stalledCount++;
+          }
+        }
+      }
+
+      // Avg days in dispo
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const dispoAges = (deals as any[])
+        .map((d) => d.entered_dispo_at ? Math.max(0, Math.floor((now - new Date(d.entered_dispo_at).getTime()) / DAY)) : null)
+        .filter((d): d is number => d != null);
+      const avgDaysInDispo = dispoAges.length > 0
+        ? Math.round(dispoAges.reduce((a: number, b: number) => a + b, 0) / dispoAges.length)
+        : null;
+
       setFunnel({
         deals: deals.length,
         linked: allBuyers.length,
@@ -479,6 +420,8 @@ function DispoFunnelCard() {
         interested: allBuyers.filter((b: any) => ["interested", "offered", "selected"].includes(b.status)).length,
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         selected: allBuyers.filter((b: any) => b.status === "selected").length,
+        stalledCount,
+        avgDaysInDispo,
       });
     } catch {
       // Silently fail — this is an informational panel
@@ -517,7 +460,17 @@ function DispoFunnelCard() {
           </div>
         ))}
       </div>
-      <p className="text-[11px] text-muted-foreground mt-3">
+      <div className="flex items-center gap-4 mt-3 text-xs text-muted-foreground">
+        {funnel.avgDaysInDispo != null && (
+          <span>Avg <span className="text-foreground/80 font-medium">{funnel.avgDaysInDispo === 0 ? "< 1" : funnel.avgDaysInDispo} {funnel.avgDaysInDispo === 1 ? "day" : "days"}</span> in dispo</span>
+        )}
+        {funnel.stalledCount > 0 && (
+          <span className="text-amber-400/80">
+            <span className="font-medium">{funnel.stalledCount}</span> {funnel.stalledCount === 1 ? "deal" : "deals"} stalled
+          </span>
+        )}
+      </div>
+      <p className="text-[11px] text-muted-foreground mt-2">
         Live buyer outreach funnel for deals currently in disposition. See <a href="/dispo" className="text-cyan underline underline-offset-2">Dispo Board</a> for details.
       </p>
     </GlassCard>

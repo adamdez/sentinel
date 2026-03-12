@@ -3,22 +3,23 @@
 import { useState, useCallback, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
-  X, Phone, Mail, MessageSquare, DollarSign, Shield,
-  Tag, StickyNote, Building2, MapPin, Wrench, Home,
-  ChevronDown, Plus, Trash2, BarChart3,
+  X, Phone, Mail, MessageSquare, Shield,
+  Tag, StickyNote, Building2, MapPin,
+  ChevronDown, Trash2, BarChart3,
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
-import { useBuyerDeals, useBuyerStats, updateBuyer, createBuyer } from "@/hooks/use-buyers";
-import type { BuyerRow, DealBuyerRow } from "@/lib/buyer-types";
+import { useBuyerStats, updateBuyer, createBuyer } from "@/hooks/use-buyers";
+import type { BuyerRow } from "@/lib/buyer-types";
+import { fmtPrice } from "@/lib/display-helpers";
 import {
   MARKET_OPTIONS, ASSET_TYPE_OPTIONS, FUNDING_TYPE_OPTIONS,
   POF_STATUS_OPTIONS, REHAB_OPTIONS, STRATEGY_OPTIONS,
   OCCUPANCY_OPTIONS, BUYER_TAG_OPTIONS,
   marketLabel, assetTypeLabel, strategyLabel, fundingLabel,
   pofLabel, rehabLabel, tagLabel, formatPriceRange,
-  DEAL_BUYER_STATUS_OPTIONS, dealBuyerStatusLabel,
+  dealBuyerStatusLabel,
 } from "@/lib/buyer-types";
 import type {
   ContactMethod, FundingType, POFStatus, RehabTolerance,
@@ -129,10 +130,14 @@ export function BuyerDetailModal({ buyer, open, onClose, onSaved, isCreate }: Bu
   // Form state
   const [form, setForm] = useState<Partial<BuyerRow>>({});
   const [saving, setSaving] = useState(false);
-  const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>({});
+  // Default: Contact, Buy Box, and Performance expanded; others collapsed
+  const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>({
+    pof: true,
+    tags: true,
+    notes: true,
+  });
 
-  // Outreach history
-  const { buyerDeals, loading: dealsLoading } = useBuyerDeals(buyer?.id ?? null);
+  // Performance stats (includes outreach history via recent_deals)
   const { stats, loading: statsLoading, error: statsError } = useBuyerStats(!isCreate ? buyer?.id ?? null : null);
 
   // Initialize form from buyer
@@ -462,51 +467,10 @@ export function BuyerDetailModal({ buyer, open, onClose, onSaved, isCreate }: Bu
               </AnimatePresence>
             </div>
 
-            {/* ── Outreach History (existing buyers only) ── */}
+            {/* ── Performance & Deal History (existing buyers only) ── */}
             {!isCreate && buyer?.id && (
               <div>
-                <SectionHeader icon={DollarSign} label="Outreach History" collapsed={!!collapsedSections.outreach} onToggle={() => toggleSection("outreach")} />
-                <AnimatePresence initial={false}>
-                  {!collapsedSections.outreach && (
-                    <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="overflow-hidden">
-                      <div className="mt-2 space-y-2">
-                        {dealsLoading && (
-                          <div className="text-xs text-muted-foreground/50 py-3 text-center">Loading...</div>
-                        )}
-                        {!dealsLoading && buyerDeals.length === 0 && (
-                          <div className="text-xs text-muted-foreground/50 py-3 text-center">No deals linked yet</div>
-                        )}
-                        {buyerDeals.map((db: DealBuyerRow) => (
-                          <div key={db.id} className="flex items-center gap-3 px-3 py-2 rounded-[8px] bg-white/[0.02] border border-white/[0.04]">
-                            <div className="flex-1 min-w-0">
-                              <div className="text-sm font-medium truncate">Deal {db.deal_id.slice(0, 8)}</div>
-                              {db.date_contacted && (
-                                <div className="text-[11px] text-muted-foreground/50">
-                                  Contacted: {new Date(db.date_contacted).toLocaleDateString()}
-                                </div>
-                              )}
-                            </div>
-                            <Badge variant={db.status === "selected" ? "neon" : db.status === "interested" ? "cyan" : db.status === "passed" ? "secondary" : "outline"} className="shrink-0 text-[10px]">
-                              {dealBuyerStatusLabel(db.status)}
-                            </Badge>
-                            {db.offer_amount != null && (
-                              <span className="text-xs text-cyan/80 font-medium shrink-0">
-                                ${(db.offer_amount / 1000).toFixed(0)}k
-                              </span>
-                            )}
-                          </div>
-                        ))}
-                      </div>
-                    </motion.div>
-                  )}
-                </AnimatePresence>
-              </div>
-            )}
-
-            {/* ── Performance (existing buyers only) ── */}
-            {!isCreate && buyer?.id && (
-              <div>
-                <SectionHeader icon={BarChart3} label="Performance" collapsed={!!collapsedSections.performance} onToggle={() => toggleSection("performance")} />
+                <SectionHeader icon={BarChart3} label="Performance & Deals" collapsed={!!collapsedSections.performance} onToggle={() => toggleSection("performance")} />
                 <AnimatePresence initial={false}>
                   {!collapsedSections.performance && (
                     <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="overflow-hidden">
@@ -558,7 +522,7 @@ export function BuyerDetailModal({ buyer, open, onClose, onSaved, isCreate }: Bu
                                       {dealBuyerStatusLabel(rd.deal_buyer_status)}
                                     </Badge>
                                     {rd.offer_amount != null && (
-                                      <span className="text-cyan/70 font-medium shrink-0">${(rd.offer_amount / 1000).toFixed(0)}k</span>
+                                      <span className="text-cyan/70 font-medium shrink-0">{fmtPrice(rd.offer_amount)}</span>
                                     )}
                                   </div>
                                 ))}
