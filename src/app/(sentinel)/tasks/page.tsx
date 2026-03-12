@@ -1,0 +1,576 @@
+"use client";
+
+import { useState, useCallback, useMemo, useRef } from "react";
+import { motion, AnimatePresence } from "framer-motion";
+import {
+  CheckCircle2,
+  Clock,
+  AlertCircle,
+  Plus,
+  Trash2,
+  Calendar,
+  Edit3,
+  RotateCcw,
+  ChevronRight,
+} from "lucide-react";
+import { cn } from "@/lib/utils";
+import { PageShell } from "@/components/sentinel/page-shell";
+import { GlassCard } from "@/components/sentinel/glass-card";
+import { Badge } from "@/components/ui/badge";
+import { Skeleton } from "@/components/ui/skeleton";
+import { useTasks, type TaskItem, type TaskView } from "@/hooks/use-tasks";
+import { useHydrated } from "@/providers/hydration-provider";
+import { toast } from "sonner";
+
+// ── Helpers ──
+
+function relativeDue(dueAt: string | null): { label: string; color: string } {
+  if (!dueAt) return { label: "No date", color: "text-muted-foreground" };
+  const now = new Date();
+  const due = new Date(dueAt);
+  const diffMs = due.getTime() - now.getTime();
+  const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+
+  if (diffDays < 0) {
+    const absDays = Math.abs(diffDays);
+    return {
+      label: absDays === 1 ? "1 day overdue" : `${absDays} days overdue`,
+      color: "text-red-400",
+    };
+  }
+  if (diffDays === 0) return { label: "Due today", color: "text-amber-400" };
+  if (diffDays === 1) return { label: "Tomorrow", color: "text-foreground" };
+  if (diffDays <= 7) return { label: `In ${diffDays} days`, color: "text-foreground" };
+  return {
+    label: due.toLocaleDateString("en-US", { month: "short", day: "numeric" }),
+    color: "text-muted-foreground",
+  };
+}
+
+function priorityDot(priority: number) {
+  if (priority >= 3) return "bg-red-500 shadow-[0_0_6px_rgba(239,68,68,0.5)]";
+  if (priority === 2) return "bg-amber-400 shadow-[0_0_6px_rgba(251,191,36,0.4)]";
+  return "bg-cyan/60";
+}
+
+const TABS: { key: TaskView; label: string; badgeVariant?: "destructive" | "gold" | "cyan" }[] = [
+  { key: "overdue", label: "Overdue", badgeVariant: "destructive" },
+  { key: "today", label: "Today", badgeVariant: "gold" },
+  { key: "upcoming", label: "Upcoming", badgeVariant: "cyan" },
+  { key: "all", label: "All" },
+  { key: "completed", label: "Completed" },
+];
+
+// ── Quick Create Bar ──
+
+function QuickCreate({ onCreate }: { onCreate: (data: Partial<TaskItem>) => Promise<TaskItem> }) {
+  const [title, setTitle] = useState("");
+  const [dueAt, setDueAt] = useState("");
+  const [priority, setPriority] = useState(1);
+  const [submitting, setSubmitting] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  const handleSubmit = useCallback(async () => {
+    if (!title.trim() || submitting) return;
+    setSubmitting(true);
+    try {
+      await onCreate({
+        title: title.trim(),
+        due_at: dueAt ? new Date(dueAt).toISOString() : null,
+        priority,
+        task_type: "follow_up",
+      } as Partial<TaskItem>);
+      setTitle("");
+      setDueAt("");
+      setPriority(1);
+      toast.success("Task created");
+      inputRef.current?.focus();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to create task");
+    } finally {
+      setSubmitting(false);
+    }
+  }, [title, dueAt, priority, submitting, onCreate]);
+
+  return (
+    <GlassCard className="p-3">
+      <div className="flex items-center gap-2">
+        <Plus className="h-4 w-4 text-cyan shrink-0" />
+        <input
+          ref={inputRef}
+          type="text"
+          value={title}
+          onChange={(e) => setTitle(e.target.value)}
+          onKeyDown={(e) => { if (e.key === "Enter") handleSubmit(); }}
+          placeholder="Quick-add a task..."
+          className="flex-1 bg-transparent text-sm text-foreground placeholder:text-muted-foreground/50 focus:outline-none"
+        />
+        <input
+          type="date"
+          value={dueAt}
+          onChange={(e) => setDueAt(e.target.value)}
+          className="bg-white/[0.03] border border-white/[0.06] rounded-[6px] px-2 py-1 text-xs text-foreground focus:outline-none focus:border-cyan/30 transition-all"
+        />
+        <select
+          value={priority}
+          onChange={(e) => setPriority(Number(e.target.value))}
+          className="bg-white/[0.03] border border-white/[0.06] rounded-[6px] px-2 py-1 text-xs text-foreground focus:outline-none focus:border-cyan/30 transition-all appearance-none cursor-pointer"
+        >
+          <option value={1}>Low</option>
+          <option value={2}>Medium</option>
+          <option value={3}>High</option>
+        </select>
+        <button
+          onClick={handleSubmit}
+          disabled={!title.trim() || submitting}
+          className={cn(
+            "px-3 py-1.5 rounded-[8px] text-xs font-medium transition-all",
+            title.trim()
+              ? "bg-cyan/15 text-cyan border border-cyan/20 hover:bg-cyan/25"
+              : "bg-white/[0.03] text-muted-foreground/40 border border-white/[0.04] cursor-not-allowed"
+          )}
+        >
+          Add
+        </button>
+      </div>
+    </GlassCard>
+  );
+}
+
+// ── Task Row ──
+
+function TaskRow({
+  task,
+  onComplete,
+  onReopen,
+  onDelete,
+  onEdit,
+  idx,
+}: {
+  task: TaskItem;
+  onComplete: (id: string) => void;
+  onReopen: (id: string) => void;
+  onDelete: (id: string) => void;
+  onEdit: (task: TaskItem) => void;
+  idx: number;
+}) {
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const isCompleted = task.status === "completed";
+  const due = relativeDue(task.due_at);
+  const isOverdue = task.due_at && new Date(task.due_at) < new Date() && !isCompleted;
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 6 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, x: -20, height: 0, marginBottom: 0 }}
+      transition={{ delay: idx * 0.02, duration: 0.2 }}
+      className={cn(
+        "group flex items-center gap-3 px-3 py-2.5 rounded-[10px] transition-all border-l-2",
+        isOverdue
+          ? "border-l-red-500/80 bg-red-500/[0.03]"
+          : isCompleted
+            ? "border-l-transparent bg-white/[0.01] opacity-60"
+            : due.label === "Due today"
+              ? "border-l-amber-400/60 bg-amber-400/[0.02]"
+              : "border-l-transparent bg-white/[0.02]",
+        "hover:bg-white/[0.04]"
+      )}
+    >
+      {/* Priority dot */}
+      <div className={cn("h-2 w-2 rounded-full shrink-0", priorityDot(task.priority))} />
+
+      {/* Complete / Reopen button */}
+      <button
+        onClick={() => isCompleted ? onReopen(task.id) : onComplete(task.id)}
+        className={cn(
+          "shrink-0 h-5 w-5 rounded-full border flex items-center justify-center transition-all",
+          isCompleted
+            ? "border-neon/40 bg-neon/10 text-neon"
+            : "border-white/10 hover:border-cyan/40 hover:bg-cyan/10 text-transparent hover:text-cyan"
+        )}
+      >
+        {isCompleted ? (
+          <CheckCircle2 className="h-3.5 w-3.5" />
+        ) : (
+          <CheckCircle2 className="h-3.5 w-3.5" />
+        )}
+      </button>
+
+      {/* Content */}
+      <div className="flex-1 min-w-0">
+        <p className={cn("text-sm truncate", isCompleted && "line-through text-muted-foreground")}>
+          {task.title}
+        </p>
+        {task.lead_address && (
+          <button
+            onClick={() => {
+              if (task.lead_id) window.location.href = `/leads?open=${task.lead_id}`;
+            }}
+            className="text-[11px] text-cyan/70 hover:text-cyan truncate flex items-center gap-1 mt-0.5"
+          >
+            <ChevronRight className="h-3 w-3" />
+            {task.lead_address}
+          </button>
+        )}
+      </div>
+
+      {/* Due date */}
+      <span className={cn("text-[11px] shrink-0", due.color)}>
+        {isCompleted ? (
+          <span className="text-muted-foreground/50">
+            Done {task.completed_at
+              ? new Date(task.completed_at).toLocaleDateString("en-US", { month: "short", day: "numeric" })
+              : ""}
+          </span>
+        ) : (
+          due.label
+        )}
+      </span>
+
+      {/* Actions */}
+      <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
+        {isCompleted ? (
+          <button
+            onClick={() => onReopen(task.id)}
+            className="p-1 rounded hover:bg-white/5 text-muted-foreground hover:text-foreground transition-colors"
+            title="Reopen"
+          >
+            <RotateCcw className="h-3.5 w-3.5" />
+          </button>
+        ) : (
+          <button
+            onClick={() => onEdit(task)}
+            className="p-1 rounded hover:bg-white/5 text-muted-foreground hover:text-foreground transition-colors"
+            title="Edit"
+          >
+            <Edit3 className="h-3.5 w-3.5" />
+          </button>
+        )}
+        {confirmDelete ? (
+          <div className="flex items-center gap-1">
+            <button
+              onClick={() => { onDelete(task.id); setConfirmDelete(false); }}
+              className="px-1.5 py-0.5 rounded text-[10px] bg-red-500/20 text-red-400 hover:bg-red-500/30 transition-colors"
+            >
+              Yes
+            </button>
+            <button
+              onClick={() => setConfirmDelete(false)}
+              className="px-1.5 py-0.5 rounded text-[10px] bg-white/5 text-muted-foreground hover:bg-white/10 transition-colors"
+            >
+              No
+            </button>
+          </div>
+        ) : (
+          <button
+            onClick={() => setConfirmDelete(true)}
+            className="p-1 rounded hover:bg-red-500/10 text-muted-foreground hover:text-red-400 transition-colors"
+            title="Delete"
+          >
+            <Trash2 className="h-3.5 w-3.5" />
+          </button>
+        )}
+      </div>
+    </motion.div>
+  );
+}
+
+// ── Edit Modal (inline overlay) ──
+
+function EditOverlay({
+  task,
+  onSave,
+  onClose,
+}: {
+  task: TaskItem;
+  onSave: (id: string, data: Partial<TaskItem>) => Promise<void>;
+  onClose: () => void;
+}) {
+  const [title, setTitle] = useState(task.title);
+  const [description, setDescription] = useState(task.description ?? "");
+  const [dueAt, setDueAt] = useState(
+    task.due_at ? new Date(task.due_at).toISOString().split("T")[0] : ""
+  );
+  const [priority, setPriority] = useState(task.priority);
+  const [saving, setSaving] = useState(false);
+
+  const handleSave = useCallback(async () => {
+    if (!title.trim() || saving) return;
+    setSaving(true);
+    try {
+      await onSave(task.id, {
+        title: title.trim(),
+        description: description.trim() || null,
+        due_at: dueAt ? new Date(dueAt).toISOString() : null,
+        priority,
+      } as Partial<TaskItem>);
+      toast.success("Task updated");
+      onClose();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to update");
+    } finally {
+      setSaving(false);
+    }
+  }, [title, description, dueAt, priority, saving, task.id, onSave, onClose]);
+
+  return (
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
+      onClick={onClose}
+    >
+      <motion.div
+        initial={{ scale: 0.95, opacity: 0 }}
+        animate={{ scale: 1, opacity: 1 }}
+        exit={{ scale: 0.95, opacity: 0 }}
+        onClick={(e) => e.stopPropagation()}
+        className="w-full max-w-md mx-4"
+      >
+        <GlassCard className="p-5 space-y-4">
+          <h3 className="text-sm font-semibold">Edit Task</h3>
+          <input
+            type="text"
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            className="w-full bg-white/[0.03] border border-white/[0.06] rounded-[8px] px-3 py-2 text-sm text-foreground focus:outline-none focus:border-cyan/30 transition-all"
+            placeholder="Task title"
+          />
+          <textarea
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            rows={2}
+            className="w-full bg-white/[0.03] border border-white/[0.06] rounded-[8px] px-3 py-2 text-sm text-foreground focus:outline-none focus:border-cyan/30 transition-all resize-none"
+            placeholder="Description (optional)"
+          />
+          <div className="flex gap-3">
+            <div className="flex-1">
+              <label className="text-[10px] uppercase tracking-widest text-muted-foreground mb-1 block">
+                Due Date
+              </label>
+              <input
+                type="date"
+                value={dueAt}
+                onChange={(e) => setDueAt(e.target.value)}
+                className="w-full bg-white/[0.03] border border-white/[0.06] rounded-[6px] px-2.5 py-1.5 text-xs text-foreground focus:outline-none focus:border-cyan/30 transition-all"
+              />
+            </div>
+            <div className="flex-1">
+              <label className="text-[10px] uppercase tracking-widest text-muted-foreground mb-1 block">
+                Priority
+              </label>
+              <select
+                value={priority}
+                onChange={(e) => setPriority(Number(e.target.value))}
+                className="w-full bg-white/[0.03] border border-white/[0.06] rounded-[6px] px-2.5 py-1.5 text-xs text-foreground focus:outline-none focus:border-cyan/30 transition-all appearance-none cursor-pointer"
+              >
+                <option value={1}>Low</option>
+                <option value={2}>Medium</option>
+                <option value={3}>High</option>
+              </select>
+            </div>
+          </div>
+          <div className="flex justify-end gap-2 pt-1">
+            <button
+              onClick={onClose}
+              className="px-3 py-1.5 rounded-[8px] text-xs text-muted-foreground hover:text-foreground hover:bg-white/5 transition-all"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={handleSave}
+              disabled={!title.trim() || saving}
+              className="px-3 py-1.5 rounded-[8px] text-xs font-medium bg-cyan/15 text-cyan border border-cyan/20 hover:bg-cyan/25 transition-all disabled:opacity-40"
+            >
+              {saving ? "Saving..." : "Save"}
+            </button>
+          </div>
+        </GlassCard>
+      </motion.div>
+    </motion.div>
+  );
+}
+
+// ── Counts component ──
+
+function TaskCounts() {
+  const { tasks: overdueTasks, loading: l1 } = useTasks("overdue");
+  const { tasks: todayTasks, loading: l2 } = useTasks("today");
+  const { tasks: upcomingTasks, loading: l3 } = useTasks("upcoming");
+
+  if (l1 || l2 || l3) return null;
+
+  return (
+    <div className="flex items-center gap-2">
+      {overdueTasks.length > 0 && (
+        <Badge variant="destructive" className="text-[11px]">
+          <AlertCircle className="h-3 w-3 mr-1" />
+          {overdueTasks.length} Overdue
+        </Badge>
+      )}
+      <Badge variant="gold" className="text-[11px]">
+        <Clock className="h-3 w-3 mr-1" />
+        {todayTasks.length} Today
+      </Badge>
+      <Badge variant="cyan" className="text-[11px]">
+        <Calendar className="h-3 w-3 mr-1" />
+        {upcomingTasks.length} Upcoming
+      </Badge>
+    </div>
+  );
+}
+
+// ── Empty states ──
+
+function EmptyState({ view }: { view: TaskView }) {
+  const messages: Record<TaskView, { icon: typeof CheckCircle2; text: string }> = {
+    overdue: { icon: CheckCircle2, text: "No overdue tasks - you're caught up!" },
+    today: { icon: Clock, text: "Nothing due today." },
+    upcoming: { icon: Calendar, text: "No upcoming tasks in the next 7 days." },
+    all: { icon: CheckCircle2, text: "No pending tasks. Create one above." },
+    completed: { icon: CheckCircle2, text: "No completed tasks yet." },
+  };
+
+  const msg = messages[view];
+  const Icon = msg.icon;
+
+  return (
+    <div className="flex flex-col items-center justify-center py-12 text-center">
+      <div className="h-10 w-10 rounded-full bg-white/[0.03] flex items-center justify-center mb-3">
+        <Icon className="h-5 w-5 text-muted-foreground/40" />
+      </div>
+      <p className="text-sm text-muted-foreground/60">{msg.text}</p>
+    </div>
+  );
+}
+
+// ── Main Page ──
+
+export default function TasksPage() {
+  const hydrated = useHydrated();
+  const [activeTab, setActiveTab] = useState<TaskView>("today");
+  const [editingTask, setEditingTask] = useState<TaskItem | null>(null);
+
+  const {
+    tasks,
+    loading,
+    createTask: handleCreate,
+    updateTask: handleUpdate,
+    completeTask: handleComplete,
+    reopenTask: handleReopen,
+    deleteTask: handleDelete,
+  } = useTasks(activeTab);
+
+  const onComplete = useCallback(async (id: string) => {
+    try {
+      await handleComplete(id);
+      toast.success("Task completed");
+    } catch {
+      toast.error("Failed to complete task");
+    }
+  }, [handleComplete]);
+
+  const onReopen = useCallback(async (id: string) => {
+    try {
+      await handleReopen(id);
+      toast.success("Task reopened");
+    } catch {
+      toast.error("Failed to reopen task");
+    }
+  }, [handleReopen]);
+
+  const onDelete = useCallback(async (id: string) => {
+    try {
+      await handleDelete(id);
+      toast.success("Task deleted");
+    } catch {
+      toast.error("Failed to delete task");
+    }
+  }, [handleDelete]);
+
+  const onSaveEdit = useCallback(async (id: string, data: Partial<TaskItem>) => {
+    await handleUpdate(id, data);
+  }, [handleUpdate]);
+
+  if (!hydrated) return null;
+
+  return (
+    <PageShell title="Tasks & Follow-Up">
+      <div className="space-y-4">
+        {/* Summary badges */}
+        <TaskCounts />
+
+        {/* Quick create */}
+        <QuickCreate onCreate={handleCreate} />
+
+        {/* Tab bar */}
+        <div className="flex items-center gap-1 border-b border-white/[0.04] pb-0">
+          {TABS.map((tab) => (
+            <button
+              key={tab.key}
+              onClick={() => setActiveTab(tab.key)}
+              className={cn(
+                "relative px-3 py-2 text-xs font-medium transition-all rounded-t-[8px]",
+                activeTab === tab.key
+                  ? "text-cyan"
+                  : "text-muted-foreground hover:text-foreground"
+              )}
+            >
+              {tab.label}
+              {activeTab === tab.key && (
+                <motion.div
+                  layoutId="task-tab-indicator"
+                  className="absolute bottom-0 left-0 right-0 h-[2px] bg-cyan"
+                  style={{ boxShadow: "0 0 8px rgba(0,229,255,0.4)" }}
+                  transition={{ type: "spring", stiffness: 350, damping: 30 }}
+                />
+              )}
+            </button>
+          ))}
+        </div>
+
+        {/* Task list */}
+        <GlassCard className="p-2">
+          {loading ? (
+            <div className="space-y-2 p-2">
+              {Array.from({ length: 5 }).map((_, i) => (
+                <Skeleton key={i} className="h-12 w-full rounded-[8px]" />
+              ))}
+            </div>
+          ) : tasks.length === 0 ? (
+            <EmptyState view={activeTab} />
+          ) : (
+            <div className="space-y-1">
+              <AnimatePresence mode="popLayout">
+                {tasks.map((task, i) => (
+                  <TaskRow
+                    key={task.id}
+                    task={task}
+                    idx={i}
+                    onComplete={onComplete}
+                    onReopen={onReopen}
+                    onDelete={onDelete}
+                    onEdit={setEditingTask}
+                  />
+                ))}
+              </AnimatePresence>
+            </div>
+          )}
+        </GlassCard>
+      </div>
+
+      {/* Edit overlay */}
+      <AnimatePresence>
+        {editingTask && (
+          <EditOverlay
+            task={editingTask}
+            onSave={onSaveEdit}
+            onClose={() => setEditingTask(null)}
+          />
+        )}
+      </AnimatePresence>
+    </PageShell>
+  );
+}

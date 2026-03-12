@@ -16,6 +16,7 @@ import {
   Upload,
   Handshake,
   KanbanSquare,
+  ClipboardList,
   type LucideIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -106,6 +107,7 @@ const sections: NavSection[] = [
       { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
       { label: "Leads", href: "/leads", icon: Users },
       { label: "Pipeline", href: "/pipeline", icon: Zap },
+      { label: "Tasks", href: "/tasks", icon: ClipboardList },
       { label: "Dialer", href: "/dialer", icon: Phone },
     ],
   },
