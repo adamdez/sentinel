@@ -19,6 +19,7 @@ import {
 import type { DealBuyerRow, DispoPrep } from "@/lib/buyer-types";
 import { Badge } from "@/components/ui/badge";
 import { BuyerSearchModal } from "@/components/sentinel/buyer-search-modal";
+import { DealClosingCard } from "@/components/sentinel/deal-closing-card";
 import { useHydrated } from "@/providers/hydration-provider";
 
 // ── Helpers ──
@@ -513,6 +514,11 @@ function DealCard({ deal, expanded, onToggleExpand, onStatusChange, onLinkBuyer,
                   </motion.div>
                 )}
               </AnimatePresence>
+
+              {/* Closing coordination — shown when deal has contract price or closing status */}
+              {(deal.contract_price || deal.closing_status || deal.status === "closed") && (
+                <DealClosingCard dealId={deal.id} onUpdate={onRefetch} />
+              )}
 
               {/* Link buyer button */}
               <div className="flex items-center justify-between mb-3">

@@ -244,6 +244,8 @@ export interface DispoDeal {
   buyer_id: string | null;
   entered_dispo_at: string | null;
   dispo_prep: DispoPrep | null;
+  closing_status: string | null;
+  closing_target_date: string | null;
   lead_name: string | null;
   property_address: string | null;
   property_county: string | null;
