@@ -34,6 +34,28 @@ function spreadColor(spread: number): string {
   return "text-muted-foreground";
 }
 
+/** Convert ALL CAPS county-record seller names to readable format */
+function toTitleCase(s: string): string {
+  return s.toLowerCase().replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
+function formatSellerName(raw: string | null): string | null {
+  if (!raw) return null;
+  // Only transform if ALL CAPS (county record format)
+  const letters = raw.replace(/[^a-zA-Z]/g, "");
+  if (!letters || letters !== letters.toUpperCase()) return raw;
+
+  // Handle "LAST,FIRST..." format
+  const commaIdx = raw.indexOf(",");
+  if (commaIdx > 0) {
+    const last = raw.slice(0, commaIdx).trim();
+    const rest = raw.slice(commaIdx + 1).trim();
+    return `${toTitleCase(rest)} ${toTitleCase(last)}`;
+  }
+
+  return toTitleCase(raw);
+}
+
 // Statuses that indicate buyer has responded
 const RESPONDED_STATUSES = new Set(["interested", "offered", "follow_up", "selected"]);
 // Statuses that haven't responded yet
@@ -159,7 +181,7 @@ function OutreachFunnel({ deals }: { deals: DispoDeal[] }) {
       {stats.avgDaysInDispo != null && (
         <>
           <span className="text-muted-foreground/20 mx-1">|</span>
-          <span>avg <span className="text-foreground/70 font-medium">~{stats.avgDaysInDispo}d</span> in dispo</span>
+          <span>avg <span className="text-foreground/70 font-medium">{stats.avgDaysInDispo === 0 ? "< 1" : stats.avgDaysInDispo} {stats.avgDaysInDispo === 1 ? "day" : "days"}</span> in dispo</span>
         </>
       )}
     </div>
@@ -243,7 +265,7 @@ function DispoPrepForm({ deal, onSaved }: { deal: DispoDeal; onSaved: () => void
   }, [deal.id, onSaved]);
 
   const inputClass = "w-full bg-white/[0.03] border border-white/[0.06] rounded-[6px] px-2.5 py-1.5 text-xs text-foreground placeholder:text-muted-foreground/30 focus:outline-none focus:border-cyan/20 transition-all";
-  const labelClass = "text-[10px] uppercase tracking-wider text-muted-foreground/50 font-semibold mb-1";
+  const labelClass = "text-[10px] text-muted-foreground/50 font-medium mb-1";
 
   return (
     <div className="space-y-3">
@@ -251,23 +273,29 @@ function DispoPrepForm({ deal, onSaved }: { deal: DispoDeal; onSaved: () => void
       <div className="grid grid-cols-2 gap-3">
         <div>
           <div className={labelClass}>Asking Assignment Price</div>
-          <input
-            type="number"
-            defaultValue={prep.asking_assignment_price ?? ""}
-            placeholder="0"
-            className={inputClass}
-            onBlur={(e) => handleBlur("asking_assignment_price", e.target.value ? Number(e.target.value) : null)}
-          />
+          <div className="relative">
+            <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs text-muted-foreground/40">$</span>
+            <input
+              type="number"
+              defaultValue={prep.asking_assignment_price ?? ""}
+              placeholder="0"
+              className={cn(inputClass, "pl-6")}
+              onBlur={(e) => handleBlur("asking_assignment_price", e.target.value ? Number(e.target.value) : null)}
+            />
+          </div>
         </div>
         <div>
           <div className={labelClass}>Estimated Rehab</div>
-          <input
-            type="number"
-            defaultValue={prep.estimated_rehab ?? ""}
-            placeholder="0"
-            className={inputClass}
-            onBlur={(e) => handleBlur("estimated_rehab", e.target.value ? Number(e.target.value) : null)}
-          />
+          <div className="relative">
+            <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs text-muted-foreground/40">$</span>
+            <input
+              type="number"
+              defaultValue={prep.estimated_rehab ?? ""}
+              placeholder="0"
+              className={cn(inputClass, "pl-6")}
+              onBlur={(e) => handleBlur("estimated_rehab", e.target.value ? Number(e.target.value) : null)}
+            />
+          </div>
         </div>
       </div>
 
@@ -369,20 +397,21 @@ function SelectionReasonInput({ dbId, currentReason, onSaved }: {
 
 // ── Deal Card ──
 
-function DealCard({ deal, onStatusChange, onLinkBuyer, onRefetch }: {
+function DealCard({ deal, expanded, onToggleExpand, onStatusChange, onLinkBuyer, onRefetch }: {
   deal: DispoDeal;
+  expanded: boolean;
+  onToggleExpand: () => void;
   onStatusChange: (dbId: string, newStatus: string, prevStatus: string) => void;
   onLinkBuyer: (dealId: string) => void;
   onRefetch: () => void;
 }) {
-  const [expanded, setExpanded] = useState(false);
   const [prepOpen, setPrepOpen] = useState(false);
 
   return (
     <GlassCard hover delay={0} className="p-0 overflow-hidden">
       {/* Card header — always visible */}
       <button
-        onClick={() => setExpanded(!expanded)}
+        onClick={onToggleExpand}
         className="w-full flex items-start gap-3 p-4 text-left hover:bg-white/[0.01] transition-colors"
       >
         <div className="h-9 w-9 rounded-[10px] bg-cyan/6 border border-cyan/12 flex items-center justify-center shrink-0 mt-0.5">
@@ -394,7 +423,7 @@ function DealCard({ deal, onStatusChange, onLinkBuyer, onRefetch }: {
             {deal.property_address || "No address"}
           </div>
           {deal.lead_name && (
-            <div className="text-xs text-muted-foreground/50 mt-0.5">{deal.lead_name}</div>
+            <div className="text-xs text-muted-foreground/50 mt-0.5">{formatSellerName(deal.lead_name)}</div>
           )}
           <div className="flex items-center gap-3 mt-1.5 text-xs text-muted-foreground/60">
             <span>Contract: <span className="text-foreground/80 font-medium">{fmtPrice(deal.contract_price)}</span></span>
@@ -454,7 +483,7 @@ function DealCard({ deal, onStatusChange, onLinkBuyer, onRefetch }: {
                 className="flex items-center gap-2 mb-3 text-[11px] text-muted-foreground/60 hover:text-muted-foreground/80 transition-colors"
               >
                 <FileText className="h-3 w-3" />
-                <span className="uppercase tracking-wider font-semibold">Dispo Prep</span>
+                <span className="font-semibold tracking-wide">Dispo Prep</span>
                 <motion.div animate={{ rotate: prepOpen ? 90 : 0 }} transition={{ duration: 0.1 }}>
                   <ChevronRight className="h-3 w-3" />
                 </motion.div>
@@ -481,7 +510,7 @@ function DealCard({ deal, onStatusChange, onLinkBuyer, onRefetch }: {
 
               {/* Link buyer button */}
               <div className="flex items-center justify-between mb-3">
-                <span className="text-[11px] uppercase tracking-wider text-muted-foreground/60 font-semibold">Linked Buyers</span>
+                <span className="text-[11px] text-muted-foreground/60 font-semibold tracking-wide">Linked Buyers</span>
                 <button
                   onClick={(e) => { e.stopPropagation(); onLinkBuyer(deal.id); }}
                   className="flex items-center gap-1 px-2.5 py-1 text-[11px] font-medium text-cyan bg-cyan/8 hover:bg-cyan/12 rounded-[6px] border border-cyan/20 hover:border-cyan/30 transition-all"
@@ -586,6 +615,16 @@ export default function DispoPage() {
   const hydrated = useHydrated();
   const { deals, loading, refetch } = useDispoDeals();
   const [searchModal, setSearchModal] = useState<string | null>(null);
+  const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
+
+  const toggleExpanded = useCallback((dealId: string) => {
+    setExpandedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(dealId)) next.delete(dealId);
+      else next.add(dealId);
+      return next;
+    });
+  }, []);
 
   const handleStatusChange = useCallback(async (dbId: string, newStatus: string, prevStatus: string) => {
     try {
@@ -598,7 +637,14 @@ export default function DispoPage() {
       }
 
       await updateDealBuyer(dbId, patch as Partial<DealBuyerRow>);
-      toast.success(`Status updated to ${dealBuyerStatusLabel(newStatus)}`);
+      if (newStatus === "selected") {
+        toast.success("Buyer selected!", {
+          description: "Other linked buyers auto-passed",
+          duration: 4000,
+        });
+      } else {
+        toast.success(`Status → ${dealBuyerStatusLabel(newStatus)}`);
+      }
       refetch();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to update status");
@@ -657,6 +703,8 @@ export default function DispoPage() {
             >
               <DealCard
                 deal={deal}
+                expanded={expandedIds.has(deal.id)}
+                onToggleExpand={() => toggleExpanded(deal.id)}
                 onStatusChange={handleStatusChange}
                 onLinkBuyer={handleLinkBuyer}
                 onRefetch={refetch}

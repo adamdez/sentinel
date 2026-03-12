@@ -1,6 +1,7 @@
 "use client";
 
-import { BarChart3, Clock3, DollarSign, Loader2, MapPinned, Radio, Shield, TrendingUp } from "lucide-react";
+import { useState, useEffect, useCallback } from "react";
+import { BarChart3, Clock3, DollarSign, Loader2, MapPinned, Radio, Shield, TrendingUp, Users } from "lucide-react";
 import { PageShell } from "@/components/sentinel/page-shell";
 import { GlassCard } from "@/components/sentinel/glass-card";
 import { Badge } from "@/components/ui/badge";
@@ -8,6 +9,7 @@ import { useAnalytics } from "@/hooks/use-analytics";
 import { formatCurrency, formatMinutes, formatPercent, type TimePeriod } from "@/lib/analytics";
 import { useSentinelStore } from "@/lib/store";
 import { cn } from "@/lib/utils";
+import { supabase } from "@/lib/supabase";
 
 const PERIODS: { key: TimePeriod; label: string }[] = [
   { key: "today", label: "Today" },
@@ -332,10 +334,92 @@ export default function AnalyticsPage() {
                 </p>
               </GlassCard>
             </div>
+            {/* Dispo Funnel */}
+            <DispoFunnelCard />
           </>
         )}
       </div>
     </PageShell>
+  );
+}
+
+// ── Compact Dispo Funnel (P2-8) ──
+
+function DispoFunnelCard() {
+  const [funnel, setFunnel] = useState<{
+    deals: number; linked: number; contacted: number;
+    responded: number; interested: number; selected: number;
+  } | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  const fetchDispo = useCallback(async () => {
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) return;
+      const res = await fetch("/api/dispo", {
+        headers: { Authorization: `Bearer ${session.access_token}` },
+      });
+      if (!res.ok) return;
+      const { deals } = await res.json();
+      if (!deals) return;
+
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const allBuyers = deals.flatMap((d: any) => d.deal_buyers ?? []);
+      const respondedStatuses = new Set(["interested", "offered", "follow_up", "selected"]);
+
+      setFunnel({
+        deals: deals.length,
+        linked: allBuyers.length,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        contacted: allBuyers.filter((b: any) => b.status !== "not_contacted" && b.status !== "queued").length,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        responded: allBuyers.filter((b: any) => respondedStatuses.has(b.status) || (b.status === "passed" && b.responded_at)).length,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        interested: allBuyers.filter((b: any) => ["interested", "offered", "selected"].includes(b.status)).length,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        selected: allBuyers.filter((b: any) => b.status === "selected").length,
+      });
+    } catch {
+      // Silently fail — this is an informational panel
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { fetchDispo(); }, [fetchDispo]);
+
+  if (loading || !funnel || funnel.deals === 0) return null;
+
+  const steps = [
+    { label: "Deals", value: funnel.deals },
+    { label: "Linked", value: funnel.linked },
+    { label: "Contacted", value: funnel.contacted },
+    { label: "Responded", value: funnel.responded },
+    { label: "Interested", value: funnel.interested },
+    { label: "Selected", value: funnel.selected },
+  ];
+
+  return (
+    <GlassCard hover={false} className="!p-4">
+      <div className="flex items-center justify-between mb-3">
+        <h3 className="text-sm font-semibold flex items-center gap-2">
+          <Users className="h-4 w-4 text-cyan" />
+          Disposition Outreach
+        </h3>
+        <TrustBadge type="hard" />
+      </div>
+      <div className="grid grid-cols-6 gap-2 text-xs">
+        {steps.map((s) => (
+          <div key={s.label} className="rounded-[10px] border border-glass-border bg-glass/30 px-2.5 py-2 text-center">
+            <p className="text-sm font-semibold tabular-nums">{s.value}</p>
+            <p className="text-[10px] uppercase tracking-wider text-muted-foreground">{s.label}</p>
+          </div>
+        ))}
+      </div>
+      <p className="text-[11px] text-muted-foreground mt-3">
+        Live buyer outreach funnel for deals currently in disposition. See <a href="/dispo" className="text-cyan underline underline-offset-2">Dispo Board</a> for details.
+      </p>
+    </GlassCard>
   );
 }
 
