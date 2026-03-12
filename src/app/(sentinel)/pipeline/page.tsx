@@ -26,7 +26,16 @@ import { cn } from "@/lib/utils";
 import { getAuthenticatedProspectPatchHeaders } from "@/lib/prospect-api-client";
 import { precheckWorkflowStageChange } from "@/lib/workflow-stage-precheck";
 import type { LeadStatus, QualificationRoute } from "@/lib/types";
-import { deriveLeadActionSummary } from "@/lib/action-derivation";
+import { deriveLeadActionSummary, type UrgencyLevel } from "@/lib/action-derivation";
+
+/** Numeric rank for urgency-based lane sorting — lower = more urgent */
+const URGENCY_LANE_RANK: Record<UrgencyLevel, number> = {
+  critical: 0,
+  high: 1,
+  normal: 2,
+  low: 3,
+  none: 4,
+};
 import { MasterClientFileModal, clientFileFromRaw, type ClientFile } from "@/components/sentinel/master-client-file-modal";
 import { useCoachSurface } from "@/providers/coach-provider";
 import { CoachPanel, CoachToggle } from "@/components/sentinel/coach-panel";
@@ -328,6 +337,36 @@ export default function PipelinePage() {
         });
       }
       rawDataRef.current = rawMap;
+
+      // Sort each lane: urgency first (critical → none), then server priority
+      for (const laneId of Object.keys(grouped) as LaneId[]) {
+        grouped[laneId].sort((a, b) => {
+          const aUrgency = deriveLeadActionSummary({
+            status: a.status,
+            qualificationRoute: a.qualification_route,
+            assignedTo: a.owner_id,
+            nextFollowUpAt: a.follow_up_at,
+            lastContactAt: null,
+            totalCalls: null,
+            createdAt: a.promoted_at,
+            promotedAt: a.promoted_at,
+          }).urgency;
+          const bUrgency = deriveLeadActionSummary({
+            status: b.status,
+            qualificationRoute: b.qualification_route,
+            assignedTo: b.owner_id,
+            nextFollowUpAt: b.follow_up_at,
+            lastContactAt: null,
+            totalCalls: null,
+            createdAt: b.promoted_at,
+            promotedAt: b.promoted_at,
+          }).urgency;
+          const urgencyDiff = URGENCY_LANE_RANK[aUrgency] - URGENCY_LANE_RANK[bUrgency];
+          if (urgencyDiff !== 0) return urgencyDiff;
+          // Tie-break: higher server priority first
+          return (b.heat_score ?? 0) - (a.heat_score ?? 0);
+        });
+      }
 
       console.log("[Pipeline] Grouped:", Object.fromEntries(Object.entries(grouped).map(([k, v]) => [k, v.length])));
       setLeadsByLane(grouped);

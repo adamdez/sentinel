@@ -20,6 +20,7 @@ import {
 import type { DealBuyerRow, DispoPrep } from "@/lib/buyer-types";
 import { Badge } from "@/components/ui/badge";
 import { deriveDispoActionSummary, type DispoActionSummary } from "@/lib/dispo-action-derivation";
+import type { UrgencyLevel } from "@/lib/action-derivation";
 import { BuyerSearchModal } from "@/components/sentinel/buyer-search-modal";
 import { DealClosingCard } from "@/components/sentinel/deal-closing-card";
 import { useHydrated } from "@/providers/hydration-provider";
@@ -47,6 +48,15 @@ function deriveDealAction(deal: DispoDeal): DispoActionSummary {
     })),
   });
 }
+
+/** Numeric rank for urgency-based deal sorting — lower = more urgent */
+const DISPO_URGENCY_RANK: Record<UrgencyLevel, number> = {
+  critical: 0,
+  high: 1,
+  normal: 2,
+  low: 3,
+  none: 4,
+};
 
 function daysAgo(dateStr: string | null): number | null {
   if (!dateStr) return null;
@@ -542,9 +552,22 @@ function DealCard({ deal, expanded, onToggleExpand, onStatusChange, onLinkBuyer,
 
 export default function DispoPage() {
   const hydrated = useHydrated();
-  const { deals, loading, refetch } = useDispoDeals();
+  const { deals: rawDeals, loading, refetch } = useDispoDeals();
   const [searchModal, setSearchModal] = useState<string | null>(null);
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
+
+  // Sort deals by urgency: critical stalls first, closed deals last
+  const deals = useMemo(() => {
+    return [...rawDeals].sort((a, b) => {
+      const aUrgency = DISPO_URGENCY_RANK[deriveDealAction(a).urgency];
+      const bUrgency = DISPO_URGENCY_RANK[deriveDealAction(b).urgency];
+      if (aUrgency !== bUrgency) return aUrgency - bUrgency;
+      // Tie-break: oldest in dispo first (waiting longest)
+      const aEntered = a.entered_dispo_at ? new Date(a.entered_dispo_at).getTime() : Infinity;
+      const bEntered = b.entered_dispo_at ? new Date(b.entered_dispo_at).getTime() : Infinity;
+      return aEntered - bEntered;
+    });
+  }, [rawDeals]);
 
   // Coach context — surface-level stats about dispo health
   const stalledCount = useMemo(() => deals.filter((d) => deriveDealAction(d).isStalled).length, [deals]);

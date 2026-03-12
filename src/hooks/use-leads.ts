@@ -13,6 +13,7 @@ import type { LeadStatus, AIScore } from "@/lib/types";
 import { useSentinelStore } from "@/lib/store";
 import { supabase } from "@/lib/supabase";
 import { extractProspectingSnapshot, sourceChannelLabel } from "@/lib/prospecting";
+import { deriveLeadActionSummary, type UrgencyLevel } from "@/lib/action-derivation";
 
 export type SortField = "score" | "priority" | "followUp" | "address" | "owner" | "status" | "equity";
 export type SortDir = "asc" | "desc";
@@ -32,6 +33,15 @@ export type AttentionFocus =
 const SPEED_TO_LEAD_SLA_MS = 15 * 60 * 1000;
 const IMPORTANT_SCORE_THRESHOLD = 65;
 const NEEDS_QUALIFICATION_AGE_MS = 48 * 60 * 60 * 1000;
+
+/** Numeric rank for urgency-based sort — lower = more urgent */
+const URGENCY_SORT_RANK: Record<UrgencyLevel, number> = {
+  critical: 0,
+  high: 1,
+  normal: 2,
+  low: 3,
+  none: 4,
+};
 
 const DEFAULT_SORT_DIR_BY_FIELD: Record<SortField, SortDir> = {
   score: "desc",
@@ -609,6 +619,26 @@ export function useLeads() {
     const copy = [...filteredLeads];
     const dir = sortDir === "asc" ? 1 : -1;
 
+    // Precompute urgency ranks for followUp sort to avoid re-deriving per comparison
+    let urgencyCache: Map<string, number> | null = null;
+    if (sortField === "followUp") {
+      urgencyCache = new Map();
+      for (const lead of copy) {
+        const summary = deriveLeadActionSummary({
+          status: lead.status,
+          qualificationRoute: lead.qualificationRoute,
+          assignedTo: lead.assignedTo,
+          nextCallScheduledAt: lead.nextCallScheduledAt,
+          nextFollowUpAt: lead.followUpDate,
+          lastContactAt: lead.lastContactAt,
+          totalCalls: lead.totalCalls,
+          createdAt: lead.promotedAt,
+          promotedAt: lead.promotedAt,
+        });
+        urgencyCache.set(lead.id, URGENCY_SORT_RANK[summary.urgency]);
+      }
+    }
+
     copy.sort((a, b) => {
       switch (sortField) {
         case "score":
@@ -616,35 +646,27 @@ export function useLeads() {
         case "priority":
           return (a.predictivePriority - b.predictivePriority) * dir;
         case "followUp": {
-          const rank = (l: LeadRow): number => {
-            const state = followUpState(l);
-            if (state === "overdue") return 0;
-            if (state === "urgent_uncontacted") return 1;
-            if (state === "today") return 2;
-            if (state === "uncontacted") return 3;
-            if (l.nextCallScheduledAt) return 4;
-            return 5;
-          };
-          const ar = rank(a);
-          const br = rank(b);
+          const ar = urgencyCache!.get(a.id) ?? 4;
+          const br = urgencyCache!.get(b.id) ?? 4;
           if (ar !== br) return (ar - br) * dir;
 
-          if (ar === 0 || ar === 2 || ar === 4) {
-            const aDate = a.nextCallScheduledAt ? new Date(a.nextCallScheduledAt).getTime() : Infinity;
-            const bDate = b.nextCallScheduledAt ? new Date(b.nextCallScheduledAt).getTime() : Infinity;
-            return (aDate - bDate) * dir;
-          }
-          if (ar === 1) {
-            const aPromoted = a.promotedAt ? new Date(a.promotedAt).getTime() : Infinity;
-            const bPromoted = b.promotedAt ? new Date(b.promotedAt).getTime() : Infinity;
-            return (aPromoted - bPromoted) * dir;
-          }
-          if (ar === 3) {
-            const aPromoted = a.promotedAt ? new Date(a.promotedAt).getTime() : -Infinity;
-            const bPromoted = b.promotedAt ? new Date(b.promotedAt).getTime() : -Infinity;
-            return (bPromoted - aPromoted) * dir;
-          }
-          return (b.predictivePriority - a.predictivePriority) * dir;
+          // Tie-break: earliest scheduled action first
+          const aDate = a.nextCallScheduledAt
+            ? new Date(a.nextCallScheduledAt).getTime()
+            : a.followUpDate
+              ? new Date(a.followUpDate).getTime()
+              : Infinity;
+          const bDate = b.nextCallScheduledAt
+            ? new Date(b.nextCallScheduledAt).getTime()
+            : b.followUpDate
+              ? new Date(b.followUpDate).getTime()
+              : Infinity;
+          if (aDate !== bDate) return (aDate - bDate) * dir;
+
+          // Final tie-break: oldest promoted first (waiting longest)
+          const aP = a.promotedAt ? new Date(a.promotedAt).getTime() : Infinity;
+          const bP = b.promotedAt ? new Date(b.promotedAt).getTime() : Infinity;
+          return (aP - bP) * dir;
         }
         case "address":
           return a.address.localeCompare(b.address) * dir;
