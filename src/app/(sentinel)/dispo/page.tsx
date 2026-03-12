@@ -45,11 +45,17 @@ function formatSellerName(raw: string | null): string | null {
   const letters = raw.replace(/[^a-zA-Z]/g, "");
   if (!letters || letters !== letters.toUpperCase()) return raw;
 
-  // Handle "LAST,FIRST..." format
+  // Handle "LAST,FIRST [MAILING ADDRESS]" format from county records
   const commaIdx = raw.indexOf(",");
   if (commaIdx > 0) {
     const last = raw.slice(0, commaIdx).trim();
-    const rest = raw.slice(commaIdx + 1).trim();
+    let rest = raw.slice(commaIdx + 1).trim();
+    // Strip mailing address: county records often append "123 STREET..." after the name
+    const digitMatch = rest.search(/\d/);
+    if (digitMatch > 0) {
+      rest = rest.slice(0, digitMatch).trim();
+    }
+    if (!rest) return toTitleCase(last);
     return `${toTitleCase(rest)} ${toTitleCase(last)}`;
   }
 
