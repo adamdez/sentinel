@@ -21,6 +21,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     const allowed = [
       "status", "date_contacted", "contact_method", "response",
       "offer_amount", "follow_up_needed", "follow_up_at", "notes",
+      "responded_at", "selection_reason",
     ];
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any

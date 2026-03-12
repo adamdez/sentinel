@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from "react";
 import { supabase } from "@/lib/supabase";
-import type { BuyerRow, DealBuyerRow } from "@/lib/buyer-types";
+import type { BuyerRow, DealBuyerRow, DispoPrep } from "@/lib/buyer-types";
 
 // ── Auth helper ──
 
@@ -225,5 +225,69 @@ export async function unlinkBuyerFromDeal(id: string): Promise<void> {
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
     throw new Error(body.error || "Failed to unlink buyer");
+  }
+}
+
+// ── Dispo deals hook ──
+
+export interface DispoDeal {
+  id: string;
+  lead_id: string;
+  property_id: string;
+  status: string;
+  ask_price: number | null;
+  offer_price: number | null;
+  contract_price: number | null;
+  assignment_fee: number | null;
+  arv: number | null;
+  repair_estimate: number | null;
+  buyer_id: string | null;
+  dispo_prep: DispoPrep | null;
+  lead_name: string | null;
+  property_address: string | null;
+  property_county: string | null;
+  property_type: string | null;
+  estimated_value: number | null;
+  deal_buyers: (DealBuyerRow & { buyer?: { contact_name: string; company_name?: string | null; phone?: string | null } })[];
+}
+
+export function useDispoDeals() {
+  const [deals, setDeals] = useState<DispoDeal[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const fetch = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const headers = await getAuthHeaders();
+      const res = await window.fetch("/api/dispo", { headers });
+      if (!res.ok) throw new Error("Failed to fetch dispo deals");
+      const { deals: data } = await res.json();
+      setDeals(data ?? []);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Unknown error");
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { fetch(); }, [fetch]);
+
+  return { deals, loading, error, refetch: fetch };
+}
+
+// ── Dispo prep mutation ──
+
+export async function updateDealDispoPrep(dealId: string, prep: Partial<DispoPrep>): Promise<void> {
+  const headers = await getAuthHeaders();
+  const res = await window.fetch(`/api/dispo/${dealId}`, {
+    method: "PATCH",
+    headers,
+    body: JSON.stringify(prep),
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(body.error || "Failed to update dispo prep");
   }
 }

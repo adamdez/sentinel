@@ -9,6 +9,7 @@ export type BuyerStrategy = "flip" | "landlord" | "developer" | "wholesale";
 export type OccupancyPref = "vacant" | "occupied" | "either";
 export type DealBuyerStatus =
   | "not_contacted"
+  | "queued"
   | "sent"
   | "interested"
   | "offered"
@@ -52,12 +53,35 @@ export type DealBuyerRow = {
   offer_amount: number | null;
   follow_up_needed: boolean;
   follow_up_at: string | null;
+  responded_at: string | null;
+  selection_reason: string | null;
   notes: string | null;
   created_at: string;
   updated_at: string;
   // Joined fields (populated by API)
   buyer?: BuyerRow;
 };
+
+// ── Dispo prep type (JSONB on deals table) ──
+
+export type OccupancyStatus = "vacant" | "occupied" | "unknown";
+
+export type DispoPrep = {
+  asking_assignment_price: number | null;
+  estimated_rehab: number | null;
+  occupancy_status: OccupancyStatus | null;
+  property_highlights: string | null;
+  known_issues: string | null;
+  access_notes: string | null;
+  dispo_summary: string | null;
+  updated_at: string | null;
+};
+
+export const OCCUPANCY_STATUS_OPTIONS = [
+  { value: "vacant", label: "Vacant" },
+  { value: "occupied", label: "Occupied" },
+  { value: "unknown", label: "Unknown" },
+] as const;
 
 // ── Option arrays for UI selects/filters ──
 
@@ -117,10 +141,15 @@ export const BUYER_TAG_OPTIONS = [
   { value: "high_volume", label: "High Volume" },
   { value: "local", label: "Local" },
   { value: "out_of_state", label: "Out of State" },
+  { value: "wants_discount", label: "Wants Discount" },
+  { value: "responds_fast", label: "Responds Fast" },
+  { value: "strongest_sfr", label: "Strongest SFR" },
+  { value: "strongest_multi", label: "Strongest Multi" },
 ] as const;
 
 export const DEAL_BUYER_STATUS_OPTIONS = [
   { value: "not_contacted", label: "Not Contacted" },
+  { value: "queued", label: "Queued" },
   { value: "sent", label: "Sent" },
   { value: "interested", label: "Interested" },
   { value: "offered", label: "Offered" },

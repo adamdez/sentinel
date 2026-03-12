@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useMemo, Fragment } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { X, Search, Plus, Check, Building2 } from "lucide-react";
 import { toast } from "sonner";
@@ -12,6 +12,13 @@ import {
   marketLabel, strategyLabel, formatPriceRange, pofLabel,
 } from "@/lib/buyer-types";
 
+export interface DealContext {
+  county: string | null;
+  propertyType: string | null;
+  contractPrice: number | null;
+  estimatedValue: number | null;
+}
+
 interface BuyerSearchModalProps {
   dealId: string;
   open: boolean;
@@ -19,9 +26,69 @@ interface BuyerSearchModalProps {
   onLinked: () => void;
   /** IDs of buyers already linked to this deal — shown as disabled */
   existingBuyerIds?: string[];
+  dealContext?: DealContext;
 }
 
-export function BuyerSearchModal({ dealId, open, onClose, onLinked, existingBuyerIds = [] }: BuyerSearchModalProps) {
+const COUNTY_TO_MARKET: Record<string, string> = {
+  "spokane": "spokane_county",
+  "spokane county": "spokane_county",
+  "kootenai": "kootenai_county",
+  "kootenai county": "kootenai_county",
+};
+
+interface MatchResult {
+  score: number;
+  reasons: string[];
+}
+
+function computeMatchScore(buyer: BuyerRow, ctx: DealContext | undefined): MatchResult {
+  if (!ctx) return { score: 0, reasons: [] };
+
+  const reasons: string[] = [];
+  let score = 0;
+
+  // Market overlap: county → market key match (+3)
+  if (ctx.county && buyer.markets?.length > 0) {
+    const marketKey = COUNTY_TO_MARKET[ctx.county.toLowerCase()] ?? null;
+    if (marketKey && buyer.markets.includes(marketKey)) {
+      score += 3;
+      reasons.push("Market match");
+    }
+  }
+
+  // Price range fit: deal price within buyer's range (+2)
+  const dealPrice = ctx.contractPrice || ctx.estimatedValue;
+  if (dealPrice && (buyer.price_range_low || buyer.price_range_high)) {
+    const low = buyer.price_range_low ?? 0;
+    const high = buyer.price_range_high ?? Infinity;
+    if (dealPrice >= low && dealPrice <= high) {
+      score += 2;
+      reasons.push("Price fit");
+    }
+  }
+
+  // Asset type overlap (+1)
+  if (ctx.propertyType && buyer.asset_types?.length > 0) {
+    const typeMap: Record<string, string> = {
+      "single_family": "sfr",
+      "sfr": "sfr",
+      "multi_family": "multi",
+      "multi": "multi",
+      "land": "land",
+      "mobile": "mobile",
+      "commercial": "commercial",
+    };
+    const mapped = typeMap[ctx.propertyType.toLowerCase()] ?? ctx.propertyType.toLowerCase();
+    if (buyer.asset_types.includes(mapped)) {
+      score += 1;
+      reasons.push("Asset match");
+    }
+  }
+
+  return { score, reasons };
+}
+
+export function BuyerSearchModal({ dealId, open, onClose, onLinked, existingBuyerIds = [], dealContext }: BuyerSearchModalProps) {
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [linking, setLinking] = useState<string | null>(null);
@@ -36,6 +103,17 @@ export function BuyerSearchModal({ dealId, open, onClose, onLinked, existingBuye
     status: "active",
     search: debouncedSearch || undefined,
   });
+
+  // Sort by match score (descending), then alphabetically
+  const sortedBuyers = useMemo(() => {
+    if (!dealContext) return buyers;
+    return [...buyers].sort((a, b) => {
+      const scoreA = computeMatchScore(a, dealContext).score;
+      const scoreB = computeMatchScore(b, dealContext).score;
+      if (scoreB !== scoreA) return scoreB - scoreA;
+      return a.contact_name.localeCompare(b.contact_name);
+    });
+  }, [buyers, dealContext]);
 
   const handleLink = useCallback(async (buyer: BuyerRow) => {
     if (existingBuyerIds.includes(buyer.id)) return;
@@ -113,7 +191,7 @@ export function BuyerSearchModal({ dealId, open, onClose, onLinked, existingBuye
                 <div className="flex items-center justify-center py-8">
                   <div className="h-4 w-4 border-2 border-cyan/30 border-t-cyan rounded-full animate-spin" />
                 </div>
-              ) : buyers.length === 0 ? (
+              ) : sortedBuyers.length === 0 ? (
                 <div className="text-center py-8">
                   <p className="text-xs text-muted-foreground/50">
                     {debouncedSearch ? "No buyers match your search" : "No active buyers found"}
@@ -121,58 +199,83 @@ export function BuyerSearchModal({ dealId, open, onClose, onLinked, existingBuye
                 </div>
               ) : (
                 <div className="space-y-1.5 mt-1">
-                  {buyers.map((buyer) => {
+                  {sortedBuyers.map((buyer, idx) => {
                     const alreadyLinked = existingBuyerIds.includes(buyer.id);
                     const isLinking = linking === buyer.id;
+                    const match = computeMatchScore(buyer, dealContext);
+                    const prevMatch = idx > 0 ? computeMatchScore(sortedBuyers[idx - 1], dealContext) : null;
+                    const showSeparator = prevMatch && prevMatch.score > 0 && match.score === 0;
                     return (
-                      <button
-                        key={buyer.id}
-                        onClick={() => !alreadyLinked && handleLink(buyer)}
-                        disabled={alreadyLinked || isLinking}
-                        className={cn(
-                          "w-full flex items-center gap-3 px-3 py-2.5 rounded-[8px] text-left transition-all",
-                          alreadyLinked
-                            ? "bg-white/[0.01] opacity-50 cursor-not-allowed"
-                            : "bg-white/[0.015] border border-white/[0.04] hover:border-cyan/20 hover:bg-cyan/[0.03] cursor-pointer"
+                      <Fragment key={buyer.id}>
+                        {showSeparator && (
+                          <div className="flex items-center gap-2 py-1.5">
+                            <div className="flex-1 h-px bg-white/[0.06]" />
+                            <span className="text-[9px] text-muted-foreground/40 uppercase tracking-wider">Other buyers</span>
+                            <div className="flex-1 h-px bg-white/[0.06]" />
+                          </div>
                         )}
-                      >
-                        <div className="h-8 w-8 rounded-[8px] bg-cyan/6 border border-cyan/12 flex items-center justify-center shrink-0">
-                          <Building2 className="h-3.5 w-3.5 text-cyan/50" />
-                        </div>
-
-                        <div className="flex-1 min-w-0">
-                          <div className="text-sm font-medium text-foreground truncate">
-                            {buyer.contact_name}
-                          </div>
-                          <div className="flex items-center gap-2 mt-0.5 text-[10px] text-muted-foreground/50">
-                            {buyer.company_name && <span>{buyer.company_name}</span>}
-                            {buyer.markets?.length > 0 && (
-                              <span>{buyer.markets.map(marketLabel).join(", ")}</span>
-                            )}
-                            {buyer.buyer_strategy && <span>{strategyLabel(buyer.buyer_strategy)}</span>}
-                            <span>{formatPriceRange(buyer.price_range_low, buyer.price_range_high)}</span>
-                          </div>
-                        </div>
-
-                        {/* POF badge */}
-                        <Badge
-                          variant={buyer.proof_of_funds === "verified" ? "neon" : buyer.proof_of_funds === "submitted" ? "gold" : "secondary"}
-                          className="text-[9px] shrink-0"
-                        >
-                          {pofLabel(buyer.proof_of_funds)}
-                        </Badge>
-
-                        {/* Link/linked indicator */}
-                        <div className="shrink-0">
-                          {alreadyLinked ? (
-                            <Check className="h-4 w-4 text-neon/60" />
-                          ) : isLinking ? (
-                            <div className="h-4 w-4 border-2 border-cyan/30 border-t-cyan rounded-full animate-spin" />
-                          ) : (
-                            <Plus className="h-4 w-4 text-muted-foreground/30" />
+                        <button
+                          onClick={() => !alreadyLinked && handleLink(buyer)}
+                          disabled={alreadyLinked || isLinking}
+                          className={cn(
+                            "w-full flex items-center gap-3 px-3 py-2.5 rounded-[8px] text-left transition-all",
+                            alreadyLinked
+                              ? "bg-white/[0.01] opacity-50 cursor-not-allowed"
+                              : "bg-white/[0.015] border border-white/[0.04] hover:border-cyan/20 hover:bg-cyan/[0.03] cursor-pointer"
                           )}
-                        </div>
-                      </button>
+                        >
+                          <div className="h-8 w-8 rounded-[8px] bg-cyan/6 border border-cyan/12 flex items-center justify-center shrink-0">
+                            <Building2 className="h-3.5 w-3.5 text-cyan/50" />
+                          </div>
+
+                          <div className="flex-1 min-w-0">
+                            <div className="text-sm font-medium text-foreground truncate">
+                              {buyer.contact_name}
+                            </div>
+                            <div className="flex items-center gap-2 mt-0.5 text-[10px] text-muted-foreground/50">
+                              {buyer.company_name && <span>{buyer.company_name}</span>}
+                              {buyer.markets?.length > 0 && (
+                                <span>{buyer.markets.map(marketLabel).join(", ")}</span>
+                              )}
+                              {buyer.buyer_strategy && <span>{strategyLabel(buyer.buyer_strategy)}</span>}
+                              <span>{formatPriceRange(buyer.price_range_low, buyer.price_range_high)}</span>
+                            </div>
+                          </div>
+
+                          {/* POF badge */}
+                          <Badge
+                            variant={buyer.proof_of_funds === "verified" ? "neon" : buyer.proof_of_funds === "submitted" ? "gold" : "secondary"}
+                            className="text-[9px] shrink-0"
+                          >
+                            {pofLabel(buyer.proof_of_funds)}
+                          </Badge>
+
+                          {/* Match badges */}
+                          {(() => {
+                            if (match.reasons.length === 0) return null;
+                            return (
+                              <div className="flex gap-1 shrink-0">
+                                {match.reasons.map((r) => (
+                                  <Badge key={r} variant="cyan" className="text-[8px] px-1.5 py-0">
+                                    {r}
+                                  </Badge>
+                                ))}
+                              </div>
+                            );
+                          })()}
+
+                          {/* Link/linked indicator */}
+                          <div className="shrink-0">
+                            {alreadyLinked ? (
+                              <Check className="h-4 w-4 text-neon/60" />
+                            ) : isLinking ? (
+                              <div className="h-4 w-4 border-2 border-cyan/30 border-t-cyan rounded-full animate-spin" />
+                            ) : (
+                              <Plus className="h-4 w-4 text-muted-foreground/30" />
+                            )}
+                          </div>
+                        </button>
+                      </Fragment>
                     );
                   })}
                 </div>

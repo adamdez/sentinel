@@ -1,77 +1,24 @@
 "use client";
 
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   ChevronDown, Plus, MapPin, DollarSign, Users,
-  CalendarClock,
+  CalendarClock, ChevronRight, FileText,
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { PageShell } from "@/components/sentinel/page-shell";
 import { GlassCard } from "@/components/sentinel/glass-card";
-import { Badge } from "@/components/ui/badge";
-import { supabase } from "@/lib/supabase";
-import { updateDealBuyer } from "@/hooks/use-buyers";
+import { updateDealBuyer, useDispoDeals, updateDealDispoPrep } from "@/hooks/use-buyers";
+import type { DispoDeal } from "@/hooks/use-buyers";
 import {
   DEAL_BUYER_STATUS_OPTIONS, dealBuyerStatusLabel,
+  OCCUPANCY_STATUS_OPTIONS,
 } from "@/lib/buyer-types";
-import type { DealBuyerRow } from "@/lib/buyer-types";
+import type { DealBuyerRow, DispoPrep } from "@/lib/buyer-types";
 import { BuyerSearchModal } from "@/components/sentinel/buyer-search-modal";
 import { useHydrated } from "@/providers/hydration-provider";
-
-// ── Types ──
-
-interface DispoDeal {
-  id: string;
-  lead_id: string;
-  property_id: string;
-  status: string;
-  ask_price: number | null;
-  offer_price: number | null;
-  contract_price: number | null;
-  assignment_fee: number | null;
-  arv: number | null;
-  repair_estimate: number | null;
-  buyer_id: string | null;
-  lead_name: string | null;
-  property_address: string | null;
-  deal_buyers: (DealBuyerRow & { buyer?: { contact_name: string; company_name?: string | null; phone?: string | null } })[];
-}
-
-// ── Hook ──
-
-function useDispoDeals() {
-  const [deals, setDeals] = useState<DispoDeal[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  const fetch = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session?.access_token) throw new Error("Not authenticated");
-      const res = await window.fetch("/api/dispo", {
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${session.access_token}`,
-        },
-      });
-      if (!res.ok) throw new Error("Failed to fetch dispo deals");
-      const { deals: data } = await res.json();
-      setDeals(data ?? []);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Unknown error");
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => { fetch(); }, [fetch]);
-
-  return { deals, loading, error, refetch: fetch };
-}
 
 // ── Helpers ──
 
@@ -86,35 +33,199 @@ function spreadColor(spread: number): string {
   return "text-muted-foreground";
 }
 
-function statusBadgeVariant(status: string) {
-  switch (status) {
-    case "selected": return "neon" as const;
-    case "interested": case "offered": return "cyan" as const;
-    case "sent": case "follow_up": return "gold" as const;
-    case "passed": return "secondary" as const;
-    default: return "outline" as const;
-  }
+// Statuses that indicate buyer has responded
+const RESPONDED_STATUSES = new Set(["interested", "offered", "follow_up", "selected"]);
+// Statuses that haven't responded yet
+const PRE_RESPONSE_STATUSES = new Set(["not_contacted", "queued", "sent"]);
+
+// ── Outreach Funnel Bar ──
+
+function OutreachFunnel({ deals }: { deals: DispoDeal[] }) {
+  const stats = useMemo(() => {
+    const allBuyers = deals.flatMap((d) => d.deal_buyers);
+    const linked = allBuyers.length;
+    const contacted = allBuyers.filter((b) => b.status !== "not_contacted" && b.status !== "queued").length;
+    const responded = allBuyers.filter((b) => RESPONDED_STATUSES.has(b.status) || b.status === "passed").length;
+    const interested = allBuyers.filter((b) => b.status === "interested" || b.status === "offered" || b.status === "selected").length;
+    const selected = allBuyers.filter((b) => b.status === "selected").length;
+    return { deals: deals.length, linked, contacted, responded, interested, selected };
+  }, [deals]);
+
+  const steps = [
+    { label: "deals", count: stats.deals },
+    { label: "linked", count: stats.linked },
+    { label: "contacted", count: stats.contacted },
+    { label: "responded", count: stats.responded },
+    { label: "interested", count: stats.interested },
+    { label: "selected", count: stats.selected },
+  ];
+
+  return (
+    <div className="flex items-center gap-1 text-xs text-muted-foreground/60 flex-wrap">
+      {steps.map((step, i) => (
+        <span key={step.label} className="flex items-center gap-1">
+          {i > 0 && <ChevronRight className="h-3 w-3 text-muted-foreground/20" />}
+          <span className="text-foreground/70 font-medium">{step.count}</span>
+          <span>{step.label}</span>
+        </span>
+      ))}
+    </div>
+  );
 }
 
-function buyerStatusSummary(buyers: DealBuyerRow[]): string {
-  if (buyers.length === 0) return "No buyers linked";
-  const counts: Record<string, number> = {};
-  for (const b of buyers) {
-    counts[b.status] = (counts[b.status] || 0) + 1;
-  }
-  return Object.entries(counts)
-    .map(([s, n]) => `${n} ${dealBuyerStatusLabel(s).toLowerCase()}`)
-    .join(", ");
+// ── Dispo Prep Form ──
+
+function DispoPrepForm({ deal, onSaved }: { deal: DispoDeal; onSaved: () => void }) {
+  const prep = deal.dispo_prep || {} as Partial<DispoPrep>;
+  const [saving, setSaving] = useState(false);
+
+  const handleBlur = useCallback(async (field: keyof DispoPrep, value: string | number | null) => {
+    setSaving(true);
+    try {
+      await updateDealDispoPrep(deal.id, { [field]: value });
+      onSaved();
+    } catch {
+      toast.error("Failed to save dispo prep");
+    } finally {
+      setSaving(false);
+    }
+  }, [deal.id, onSaved]);
+
+  const inputClass = "w-full bg-white/[0.03] border border-white/[0.06] rounded-[6px] px-2.5 py-1.5 text-xs text-foreground placeholder:text-muted-foreground/30 focus:outline-none focus:border-cyan/20 transition-all";
+  const labelClass = "text-[10px] uppercase tracking-wider text-muted-foreground/50 font-semibold mb-1";
+
+  return (
+    <div className="space-y-3">
+      {/* Price row */}
+      <div className="grid grid-cols-2 gap-3">
+        <div>
+          <div className={labelClass}>Asking Assignment Price</div>
+          <input
+            type="number"
+            defaultValue={prep.asking_assignment_price ?? ""}
+            placeholder="0"
+            className={inputClass}
+            onBlur={(e) => handleBlur("asking_assignment_price", e.target.value ? Number(e.target.value) : null)}
+          />
+        </div>
+        <div>
+          <div className={labelClass}>Estimated Rehab</div>
+          <input
+            type="number"
+            defaultValue={prep.estimated_rehab ?? ""}
+            placeholder="0"
+            className={inputClass}
+            onBlur={(e) => handleBlur("estimated_rehab", e.target.value ? Number(e.target.value) : null)}
+          />
+        </div>
+      </div>
+
+      {/* Occupancy */}
+      <div>
+        <div className={labelClass}>Occupancy Status</div>
+        <select
+          defaultValue={prep.occupancy_status ?? ""}
+          className={cn(inputClass, "appearance-none cursor-pointer")}
+          onChange={(e) => handleBlur("occupancy_status", e.target.value || null)}
+        >
+          <option value="">Select...</option>
+          {OCCUPANCY_STATUS_OPTIONS.map((o) => (
+            <option key={o.value} value={o.value}>{o.label}</option>
+          ))}
+        </select>
+      </div>
+
+      {/* Text fields */}
+      <div>
+        <div className={labelClass}>Property Highlights</div>
+        <textarea
+          defaultValue={prep.property_highlights ?? ""}
+          placeholder="Key selling points..."
+          rows={2}
+          className={cn(inputClass, "resize-none")}
+          onBlur={(e) => handleBlur("property_highlights", e.target.value || null)}
+        />
+      </div>
+
+      <div>
+        <div className={labelClass}>Known Issues</div>
+        <textarea
+          defaultValue={prep.known_issues ?? ""}
+          placeholder="Foundation, roof, etc..."
+          rows={2}
+          className={cn(inputClass, "resize-none")}
+          onBlur={(e) => handleBlur("known_issues", e.target.value || null)}
+        />
+      </div>
+
+      <div>
+        <div className={labelClass}>Access Notes</div>
+        <textarea
+          defaultValue={prep.access_notes ?? ""}
+          placeholder="Lockbox, appointment only, etc..."
+          rows={1}
+          className={cn(inputClass, "resize-none")}
+          onBlur={(e) => handleBlur("access_notes", e.target.value || null)}
+        />
+      </div>
+
+      <div>
+        <div className={labelClass}>Dispo Summary</div>
+        <textarea
+          defaultValue={prep.dispo_summary ?? ""}
+          placeholder="Quick pitch for buyers..."
+          rows={2}
+          className={cn(inputClass, "resize-none")}
+          onBlur={(e) => handleBlur("dispo_summary", e.target.value || null)}
+        />
+      </div>
+
+      {saving && (
+        <div className="text-[10px] text-cyan/60">Saving...</div>
+      )}
+    </div>
+  );
+}
+
+// ── Selection Reason Input ──
+
+function SelectionReasonInput({ dbId, currentReason, onSaved }: {
+  dbId: string;
+  currentReason: string | null;
+  onSaved: () => void;
+}) {
+  const handleBlur = useCallback(async (value: string) => {
+    try {
+      await updateDealBuyer(dbId, { selection_reason: value || null } as Partial<DealBuyerRow>);
+      onSaved();
+    } catch {
+      toast.error("Failed to save selection reason");
+    }
+  }, [dbId, onSaved]);
+
+  return (
+    <div className="mt-1.5">
+      <input
+        defaultValue={currentReason ?? ""}
+        placeholder="Why this buyer? (saves on blur)"
+        className="w-full bg-white/[0.02] border border-neon/10 rounded-[4px] px-2 py-1 text-[10px] text-foreground/70 placeholder:text-muted-foreground/30 focus:outline-none focus:border-neon/30 transition-all"
+        onBlur={(e) => handleBlur(e.target.value)}
+        onClick={(e) => e.stopPropagation()}
+      />
+    </div>
+  );
 }
 
 // ── Deal Card ──
 
-function DealCard({ deal, onStatusChange, onLinkBuyer }: {
+function DealCard({ deal, onStatusChange, onLinkBuyer, onRefetch }: {
   deal: DispoDeal;
-  onStatusChange: (dbId: string, newStatus: string) => void;
+  onStatusChange: (dbId: string, newStatus: string, prevStatus: string) => void;
   onLinkBuyer: (dealId: string) => void;
+  onRefetch: () => void;
 }) {
   const [expanded, setExpanded] = useState(false);
+  const [prepOpen, setPrepOpen] = useState(false);
 
   return (
     <GlassCard hover delay={0} className="p-0 overflow-hidden">
@@ -148,7 +259,6 @@ function DealCard({ deal, onStatusChange, onLinkBuyer }: {
             <Users className="h-3 w-3 text-muted-foreground/40" />
             <span className="text-xs text-muted-foreground/60">{deal.deal_buyers.length}</span>
           </div>
-          <span className="text-[10px] text-muted-foreground/40">{buyerStatusSummary(deal.deal_buyers)}</span>
           <motion.div animate={{ rotate: expanded ? 180 : 0 }} transition={{ duration: 0.15 }}>
             <ChevronDown className="h-3.5 w-3.5 text-muted-foreground/30" />
           </motion.div>
@@ -166,6 +276,37 @@ function DealCard({ deal, onStatusChange, onLinkBuyer }: {
             className="overflow-hidden"
           >
             <div className="border-t border-white/[0.04] px-4 pb-4 pt-3">
+              {/* Dispo Prep toggle */}
+              <button
+                onClick={(e) => { e.stopPropagation(); setPrepOpen(!prepOpen); }}
+                className="flex items-center gap-2 mb-3 text-[11px] text-muted-foreground/60 hover:text-muted-foreground/80 transition-colors"
+              >
+                <FileText className="h-3 w-3" />
+                <span className="uppercase tracking-wider font-semibold">Dispo Prep</span>
+                <motion.div animate={{ rotate: prepOpen ? 90 : 0 }} transition={{ duration: 0.1 }}>
+                  <ChevronRight className="h-3 w-3" />
+                </motion.div>
+                {deal.dispo_prep?.dispo_summary && (
+                  <span className="text-[9px] text-neon/40 normal-case tracking-normal font-normal ml-1">has summary</span>
+                )}
+              </button>
+
+              <AnimatePresence initial={false}>
+                {prepOpen && (
+                  <motion.div
+                    initial={{ height: 0, opacity: 0 }}
+                    animate={{ height: "auto", opacity: 1 }}
+                    exit={{ height: 0, opacity: 0 }}
+                    transition={{ duration: 0.15 }}
+                    className="overflow-hidden mb-4"
+                  >
+                    <div className="p-3 rounded-[8px] bg-white/[0.01] border border-white/[0.04]">
+                      <DispoPrepForm deal={deal} onSaved={onRefetch} />
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+
               {/* Link buyer button */}
               <div className="flex items-center justify-between mb-3">
                 <span className="text-[11px] uppercase tracking-wider text-muted-foreground/60 font-semibold">Linked Buyers</span>
@@ -189,56 +330,70 @@ function DealCard({ deal, onStatusChange, onLinkBuyer }: {
                       ? db.offer_amount - deal.contract_price
                       : null;
                     return (
-                      <div key={db.id} className="flex items-center gap-3 px-3 py-2.5 rounded-[8px] bg-white/[0.015] border border-white/[0.04]">
-                        {/* Buyer info */}
-                        <div className="flex-1 min-w-0">
-                          <div className="text-sm font-medium text-foreground truncate">
-                            {db.buyer?.contact_name ?? "Unknown"}
+                      <div key={db.id}>
+                        <div className={cn(
+                          "flex items-center gap-3 px-3 py-2.5 rounded-[8px] bg-white/[0.015] border",
+                          db.status === "selected" ? "border-neon/20" : "border-white/[0.04]"
+                        )}>
+                          {/* Buyer info */}
+                          <div className="flex-1 min-w-0">
+                            <div className="text-sm font-medium text-foreground truncate">
+                              {db.buyer?.contact_name ?? "Unknown"}
+                            </div>
+                            {db.buyer?.company_name && (
+                              <div className="text-[11px] text-muted-foreground/40">{db.buyer.company_name}</div>
+                            )}
                           </div>
-                          {db.buyer?.company_name && (
-                            <div className="text-[11px] text-muted-foreground/40">{db.buyer.company_name}</div>
+
+                          {/* Status dropdown */}
+                          <select
+                            value={db.status}
+                            onClick={(e) => e.stopPropagation()}
+                            onChange={(e) => {
+                              e.stopPropagation();
+                              onStatusChange(db.id, e.target.value, db.status);
+                            }}
+                            className="bg-white/[0.03] border border-white/[0.08] rounded-[6px] px-2 py-1 text-[11px] text-foreground focus:outline-none focus:border-cyan/30 transition-all appearance-none cursor-pointer min-w-[100px]"
+                          >
+                            {DEAL_BUYER_STATUS_OPTIONS.map((o) => (
+                              <option key={o.value} value={o.value}>{o.label}</option>
+                            ))}
+                          </select>
+
+                          {/* Offer amount */}
+                          {db.offer_amount != null && (
+                            <span className="text-xs font-medium text-foreground/80 shrink-0">
+                              {fmtPrice(db.offer_amount)}
+                            </span>
+                          )}
+
+                          {/* Spread */}
+                          {spread != null && (
+                            <span className={cn("text-xs font-medium shrink-0", spreadColor(spread))}>
+                              {spread >= 0 ? "+" : ""}{fmtPrice(spread)}
+                            </span>
+                          )}
+
+                          {/* Follow-up indicator */}
+                          {db.follow_up_needed && (
+                            <CalendarClock className="h-3.5 w-3.5 text-amber-400/70 shrink-0" />
+                          )}
+
+                          {/* Contact date */}
+                          {db.date_contacted && (
+                            <span className="text-[10px] text-muted-foreground/40 shrink-0">
+                              {new Date(db.date_contacted).toLocaleDateString()}
+                            </span>
                           )}
                         </div>
 
-                        {/* Status dropdown */}
-                        <select
-                          value={db.status}
-                          onClick={(e) => e.stopPropagation()}
-                          onChange={(e) => {
-                            e.stopPropagation();
-                            onStatusChange(db.id, e.target.value);
-                          }}
-                          className="bg-white/[0.03] border border-white/[0.08] rounded-[6px] px-2 py-1 text-[11px] text-foreground focus:outline-none focus:border-cyan/30 transition-all appearance-none cursor-pointer min-w-[100px]"
-                        >
-                          {DEAL_BUYER_STATUS_OPTIONS.map((o) => (
-                            <option key={o.value} value={o.value}>{o.label}</option>
-                          ))}
-                        </select>
-
-                        {/* Offer amount */}
-                        {db.offer_amount != null && (
-                          <span className="text-xs font-medium text-foreground/80 shrink-0">
-                            {fmtPrice(db.offer_amount)}
-                          </span>
-                        )}
-
-                        {/* Spread */}
-                        {spread != null && (
-                          <span className={cn("text-xs font-medium shrink-0", spreadColor(spread))}>
-                            {spread >= 0 ? "+" : ""}{fmtPrice(spread)}
-                          </span>
-                        )}
-
-                        {/* Follow-up indicator */}
-                        {db.follow_up_needed && (
-                          <CalendarClock className="h-3.5 w-3.5 text-amber-400/70 shrink-0" />
-                        )}
-
-                        {/* Contact date */}
-                        {db.date_contacted && (
-                          <span className="text-[10px] text-muted-foreground/40 shrink-0">
-                            {new Date(db.date_contacted).toLocaleDateString()}
-                          </span>
+                        {/* Selection reason — shown when status = selected */}
+                        {db.status === "selected" && (
+                          <SelectionReasonInput
+                            dbId={db.id}
+                            currentReason={db.selection_reason ?? null}
+                            onSaved={onRefetch}
+                          />
                         )}
                       </div>
                     );
@@ -258,11 +413,19 @@ function DealCard({ deal, onStatusChange, onLinkBuyer }: {
 export default function DispoPage() {
   const hydrated = useHydrated();
   const { deals, loading, refetch } = useDispoDeals();
-  const [searchModal, setSearchModal] = useState<string | null>(null); // deal ID for buyer search
+  const [searchModal, setSearchModal] = useState<string | null>(null);
 
-  const handleStatusChange = useCallback(async (dbId: string, newStatus: string) => {
+  const handleStatusChange = useCallback(async (dbId: string, newStatus: string, prevStatus: string) => {
     try {
-      await updateDealBuyer(dbId, { status: newStatus as DealBuyerRow["status"] });
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const patch: Record<string, any> = { status: newStatus };
+
+      // Auto-set responded_at when transitioning from pre-response to response status
+      if (PRE_RESPONSE_STATUSES.has(prevStatus) && RESPONDED_STATUSES.has(newStatus)) {
+        patch.responded_at = new Date().toISOString();
+      }
+
+      await updateDealBuyer(dbId, patch as Partial<DealBuyerRow>);
       toast.success(`Status updated to ${dealBuyerStatusLabel(newStatus)}`);
       refetch();
     } catch (err) {
@@ -271,9 +434,17 @@ export default function DispoPage() {
   }, [refetch]);
 
   const handleLinkBuyer = useCallback((dealId: string) => {
-    // This will open the BuyerSearchModal (Task 10)
     setSearchModal(dealId);
   }, []);
+
+  // Build dealContext for the active search modal
+  const searchDeal = searchModal ? deals.find((d) => d.id === searchModal) : null;
+  const dealContext = searchDeal ? {
+    county: searchDeal.property_county ?? null,
+    propertyType: searchDeal.property_type ?? null,
+    contractPrice: searchDeal.contract_price ?? null,
+    estimatedValue: searchDeal.estimated_value ?? null,
+  } : undefined;
 
   return (
     <PageShell
@@ -298,14 +469,8 @@ export default function DispoPage() {
         </GlassCard>
       ) : (
         <div className="space-y-3">
-          {/* Summary bar */}
-          <div className="flex items-center gap-4 text-xs text-muted-foreground/60">
-            <span>{deals.length} {deals.length === 1 ? "deal" : "deals"} in disposition</span>
-            <span>·</span>
-            <span>
-              {deals.reduce((acc, d) => acc + d.deal_buyers.length, 0)} total buyer links
-            </span>
-          </div>
+          {/* Outreach funnel bar */}
+          <OutreachFunnel deals={deals} />
 
           {/* Deal cards */}
           {deals.map((deal, i) => (
@@ -319,6 +484,7 @@ export default function DispoPage() {
                 deal={deal}
                 onStatusChange={handleStatusChange}
                 onLinkBuyer={handleLinkBuyer}
+                onRefetch={refetch}
               />
             </motion.div>
           ))}
@@ -335,6 +501,7 @@ export default function DispoPage() {
           existingBuyerIds={
             deals.find((d) => d.id === searchModal)?.deal_buyers.map((db) => db.buyer_id) ?? []
           }
+          dealContext={dealContext}
         />
       )}
     </PageShell>

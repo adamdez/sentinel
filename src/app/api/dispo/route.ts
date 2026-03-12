@@ -43,7 +43,7 @@ export async function GET(req: NextRequest) {
     if (propertyIds.length > 0) {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { data: props } = await (sb.from("properties") as any)
-        .select("id, address, city, state, zip")
+        .select("id, address, city, state, zip, county, property_type, estimated_value")
         .in("id", propertyIds);
       if (props) {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -84,6 +84,10 @@ export async function GET(req: NextRequest) {
         property_address: property
           ? [property.address, property.city, property.state].filter(Boolean).join(", ")
           : null,
+        property_county: property?.county ?? null,
+        property_type: property?.property_type ?? null,
+        estimated_value: property?.estimated_value ?? null,
+        dispo_prep: deal.dispo_prep ?? null,
         deal_buyers: dealBuyersMap[deal.id] ?? [],
       };
     });
