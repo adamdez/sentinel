@@ -59,6 +59,9 @@ import { IntakeGuideSection } from "@/components/sentinel/intake-guide-section";
 import { formatDueDateLabel } from "@/lib/due-date-label";
 import { toast } from "sonner";
 import { extractProspectingSnapshot, sourceChannelLabel, tagLabel } from "@/lib/prospecting";
+import Link from "next/link";
+import { useDealBuyers } from "@/hooks/use-buyers";
+import { dealBuyerStatusLabel } from "@/lib/buyer-types";
 
 // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 // ClientFile â€” single unified shape for every funnel stage
@@ -2626,6 +2629,83 @@ function ContactTab({ cf, overlay, onSkipTrace, skipTracing, onDial, onSms, call
 // OVERVIEW TAB
 // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
+// ── Linked Buyers Summary (for Lead Detail overview) ──
+
+function LinkedBuyersSummary({ leadId }: { leadId: string }) {
+  const [dealId, setDealId] = useState<string | null>(null);
+  const [contractPrice, setContractPrice] = useState<number | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data } = await (supabase.from("deals") as any)
+        .select("id, contract_price")
+        .eq("lead_id", leadId)
+        .limit(1)
+        .maybeSingle();
+      if (!cancelled && data) {
+        setDealId(data.id);
+        setContractPrice(data.contract_price);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [leadId]);
+
+  const { dealBuyers, loading } = useDealBuyers(dealId);
+
+  if (!dealId || loading) return null;
+  if (dealBuyers.length === 0) return null;
+
+  const bestOffer = dealBuyers.reduce((max, db) => {
+    if (db.offer_amount != null && (max === null || db.offer_amount > max)) return db.offer_amount;
+    return max;
+  }, null as number | null);
+
+  const spread = bestOffer != null && contractPrice != null ? bestOffer - contractPrice : null;
+
+  const statusCounts: Record<string, number> = {};
+  for (const db of dealBuyers) {
+    statusCounts[db.status] = (statusCounts[db.status] || 0) + 1;
+  }
+  const statusSummary = Object.entries(statusCounts)
+    .map(([s, n]) => `${n} ${dealBuyerStatusLabel(s).toLowerCase()}`)
+    .join(", ");
+
+  return (
+    <div className="rounded-[12px] border border-white/[0.06] bg-white/[0.02] p-3 space-y-2">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <Users className="h-3.5 w-3.5 text-cyan/70" />
+          <span className="text-[11px] text-muted-foreground uppercase tracking-wider font-semibold">
+            Linked Buyers
+          </span>
+          <Badge variant="outline" className="text-[9px]">{dealBuyers.length}</Badge>
+        </div>
+        <Link
+          href="/dispo"
+          className="text-[10px] text-cyan/70 hover:text-cyan transition-colors flex items-center gap-1"
+        >
+          Dispo Board <ArrowRight className="h-2.5 w-2.5" />
+        </Link>
+      </div>
+      <div className="flex items-center gap-4 text-xs">
+        <span className="text-muted-foreground/60">{statusSummary}</span>
+        {bestOffer != null && (
+          <span className="text-muted-foreground/60">
+            Best offer: <span className="text-foreground/80 font-medium">${(bestOffer / 1000).toFixed(0)}k</span>
+          </span>
+        )}
+        {spread != null && (
+          <span className={cn("font-medium", spread > 0 ? "text-emerald-400" : spread < 0 ? "text-red-400" : "text-muted-foreground")}>
+            Spread: {spread >= 0 ? "+" : ""}${(spread / 1000).toFixed(0)}k
+          </span>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceMs, overlay, skipTraceError, onSkipTrace, onManualSkipTrace, onEdit, onDial, onSms, calling, dialHistory, autofilling, onAutofill, deepCrawling, deepCrawlResult, deepCrawlExpanded, setDeepCrawlExpanded, executeDeepCrawl, hasSavedReport, loadingReport, loadSavedReport, crawlSteps, deepSkipResult, activityRefreshToken, qualification, qualificationDirty, qualificationSaving, qualificationEditable, qualificationSuggestedRoute, onQualificationChange, onQualificationRouteSelect, onQualificationSave, offerPrepDraft, offerPrepEditing, offerPrepSaving, onOfferPrepDraftChange, onOfferPrepEditToggle, onOfferPrepSave, offerStatusDraft, offerStatusEditing, offerStatusSaving, onOfferStatusDraftChange, onOfferStatusEditToggle, onOfferStatusSave, buyerDispoTruthDraft, buyerDispoTruthEditing, buyerDispoTruthSaving, onBuyerDispoTruthDraftChange, onBuyerDispoTruthEditToggle, onBuyerDispoTruthSave }: {
   cf: ClientFile; computedArv: number; skipTracing: boolean; skipTraceResult: string | null; skipTraceMs: number | null;
   overlay: SkipTraceOverlay | null; skipTraceError: SkipTraceError | null;
@@ -3763,6 +3843,9 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
         onDraftChange={onBuyerDispoTruthDraftChange}
         onSave={onBuyerDispoTruthSave}
       />
+
+      {/* Linked Buyers Summary — visible when lead has a deal with linked buyers */}
+      <LinkedBuyersSummary leadId={cf.id} />
 
       {/* Intake Guide — visible for early-stage leads (prospect/lead with 0-1 calls) */}
       <IntakeGuideSection cf={cf} />
