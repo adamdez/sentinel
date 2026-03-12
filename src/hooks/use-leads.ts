@@ -96,6 +96,10 @@ function matchesSearch(lead: LeadRow, q: string): boolean {
     lead.apn.toLowerCase().includes(lower) ||
     lead.city.toLowerCase().includes(lower) ||
     lead.county.toLowerCase().includes(lower) ||
+    lead.state.toLowerCase().includes(lower) ||
+    lead.zip.toLowerCase().includes(lower) ||
+    (lead.ownerPhone?.toLowerCase().includes(lower) ?? false) ||
+    (lead.ownerEmail?.toLowerCase().includes(lower) ?? false) ||
     (lead.sourceVendor?.toLowerCase().includes(lower) ?? false) ||
     (lead.sourceListName?.toLowerCase().includes(lower) ?? false) ||
     (lead.importBatchId?.toLowerCase().includes(lower) ?? false) ||

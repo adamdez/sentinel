@@ -132,7 +132,7 @@ export function LeadFilters({
         <div className="relative flex-1 max-w-md">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
-            placeholder="Search APN, address, owner, batch..."
+            placeholder="Search name, address, phone, email, zip..."
             className="pl-9 h-9"
             value={filters.search}
             onChange={(e) => onUpdate("search", e.target.value)}
