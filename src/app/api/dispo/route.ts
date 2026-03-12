@@ -18,7 +18,7 @@ export async function GET(req: NextRequest) {
     // Step 1: Get leads in disposition
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { data: leads, error: leadsErr } = await (sb.from("leads") as any)
-      .select("id, full_name, status, property_id")
+      .select("id, contact_id, status, property_id")
       .eq("status", "disposition");
 
     if (leadsErr) return NextResponse.json({ error: leadsErr.message }, { status: 500 });
@@ -43,11 +43,26 @@ export async function GET(req: NextRequest) {
     if (propertyIds.length > 0) {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { data: props } = await (sb.from("properties") as any)
-        .select("id, address, city, state, zip, county, property_type, estimated_value")
+        .select("id, address, city, state, zip, county, property_type, estimated_value, owner_name")
         .in("id", propertyIds);
       if (props) {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         properties = Object.fromEntries(props.map((p: any) => [p.id, p]));
+      }
+    }
+
+    // Step 3b: Get contacts for seller names
+    const contactIds = [...new Set(leads.map((l: { contact_id: string }) => l.contact_id).filter(Boolean))];
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    let contacts: Record<string, any> = {};
+    if (contactIds.length > 0) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data: ctcs } = await (sb.from("contacts") as any)
+        .select("id, first_name, last_name")
+        .in("id", contactIds);
+      if (ctcs) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        contacts = Object.fromEntries(ctcs.map((c: any) => [c.id, c]));
       }
     }
 
@@ -78,9 +93,13 @@ export async function GET(req: NextRequest) {
     const result = (deals ?? []).map((deal: any) => {
       const lead = leadMap[deal.lead_id];
       const property = lead?.property_id ? properties[lead.property_id] : null;
+      const contact = lead?.contact_id ? contacts[lead.contact_id] : null;
+      const leadName = contact
+        ? [contact.first_name, contact.last_name].filter(Boolean).join(" ")
+        : (property?.owner_name ?? null);
       return {
         ...deal,
-        lead_name: lead?.full_name ?? null,
+        lead_name: leadName || null,
         property_address: property
           ? [property.address, property.city, property.state].filter(Boolean).join(", ")
           : null,

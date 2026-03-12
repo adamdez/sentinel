@@ -48,14 +48,17 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     ).length;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const responded = all.filter((r: any) =>
-      ["interested", "offered", "follow_up", "selected", "passed"].includes(r.status)
+      ["interested", "offered", "follow_up", "selected"].includes(r.status)
+      || (r.status === "passed" && r.responded_at)
     ).length;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const interested = all.filter((r: any) =>
       ["interested", "offered", "selected"].includes(r.status)
     ).length;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const offered = all.filter((r: any) => r.status === "offered").length;
+    const offered = all.filter((r: any) =>
+      ["offered", "selected"].includes(r.status)
+    ).length;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const selected = all.filter((r: any) => r.status === "selected").length;
 

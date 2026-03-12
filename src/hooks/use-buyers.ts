@@ -317,18 +317,21 @@ export interface BuyerStats {
 export function useBuyerStats(buyerId: string | null) {
   const [stats, setStats] = useState<BuyerStats | null>(null);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const fetch = useCallback(async () => {
-    if (!buyerId) { setStats(null); return; }
+    if (!buyerId) { setStats(null); setError(null); return; }
     setLoading(true);
+    setError(null);
     try {
       const headers = await getAuthHeaders();
       const res = await window.fetch(`/api/buyers/${buyerId}/stats`, { headers });
       if (!res.ok) throw new Error("Failed to fetch buyer stats");
       const { stats: data } = await res.json();
       setStats(data);
-    } catch {
+    } catch (err: unknown) {
       setStats(null);
+      setError(err instanceof Error ? err.message : "Unknown error");
     } finally {
       setLoading(false);
     }
@@ -336,5 +339,5 @@ export function useBuyerStats(buyerId: string | null) {
 
   useEffect(() => { fetch(); }, [fetch]);
 
-  return { stats, loading, refetch: fetch };
+  return { stats, loading, error, refetch: fetch };
 }

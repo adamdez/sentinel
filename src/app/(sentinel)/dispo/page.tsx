@@ -123,7 +123,7 @@ function OutreachFunnel({ deals }: { deals: DispoDeal[] }) {
     const allBuyers = deals.flatMap((d) => d.deal_buyers);
     const linked = allBuyers.length;
     const contacted = allBuyers.filter((b) => b.status !== "not_contacted" && b.status !== "queued").length;
-    const responded = allBuyers.filter((b) => RESPONDED_STATUSES.has(b.status) || b.status === "passed").length;
+    const responded = allBuyers.filter((b) => RESPONDED_STATUSES.has(b.status) || (b.status === "passed" && b.responded_at)).length;
     const interested = allBuyers.filter((b) => b.status === "interested" || b.status === "offered" || b.status === "selected").length;
     const selected = allBuyers.filter((b) => b.status === "selected").length;
 

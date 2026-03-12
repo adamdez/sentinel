@@ -30,7 +30,11 @@ export async function GET(req: NextRequest) {
     if (strategy) query = query.eq("buyer_strategy", strategy);
     if (tag) query = query.contains("tags", [tag]);
     if (pof) query = query.eq("proof_of_funds", pof);
-    if (search) query = query.or(`contact_name.ilike.%${search}%,company_name.ilike.%${search}%`);
+    if (search) {
+      // Sanitize PostgREST filter metacharacters to prevent filter syntax injection
+      const safe = search.replace(/[.,()]/g, "");
+      if (safe) query = query.or(`contact_name.ilike.%${safe}%,company_name.ilike.%${safe}%`);
+    }
 
     const { data, error } = await query;
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });

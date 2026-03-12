@@ -133,7 +133,7 @@ export function BuyerDetailModal({ buyer, open, onClose, onSaved, isCreate }: Bu
 
   // Outreach history
   const { buyerDeals, loading: dealsLoading } = useBuyerDeals(buyer?.id ?? null);
-  const { stats, loading: statsLoading } = useBuyerStats(!isCreate ? buyer?.id ?? null : null);
+  const { stats, loading: statsLoading, error: statsError } = useBuyerStats(!isCreate ? buyer?.id ?? null : null);
 
   // Initialize form from buyer
   useEffect(() => {
@@ -514,7 +514,10 @@ export function BuyerDetailModal({ buyer, open, onClose, onSaved, isCreate }: Bu
                         {statsLoading && (
                           <div className="text-xs text-muted-foreground/50 py-3 text-center">Loading...</div>
                         )}
-                        {!statsLoading && !stats && (
+                        {!statsLoading && statsError && (
+                          <div className="text-xs text-red-400/60 py-3 text-center">Failed to load stats</div>
+                        )}
+                        {!statsLoading && !statsError && !stats && (
                           <div className="text-xs text-muted-foreground/50 py-3 text-center">No performance data</div>
                         )}
                         {!statsLoading && stats && (
