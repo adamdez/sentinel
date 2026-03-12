@@ -1,14 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@/lib/supabase";
-
-async function requireAuth(req: NextRequest, sb: ReturnType<typeof createServerClient>) {
-  const authHeader = req.headers.get("authorization");
-  const token = authHeader?.startsWith("Bearer ") ? authHeader.slice(7) : null;
-  if (!token) return null;
-  const { data, error } = await sb.auth.getUser(token);
-  if (error || !data.user) return null;
-  return data.user;
-}
+import { requireAuth } from "@/lib/api-auth";
 
 /**
  * GET /api/dispo — fetch deals in disposition stage
