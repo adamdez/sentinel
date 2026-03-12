@@ -14,6 +14,8 @@ import {
   Zap,
   Target,
   Upload,
+  Handshake,
+  KanbanSquare,
   type LucideIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -105,6 +107,13 @@ const sections: NavSection[] = [
       { label: "Leads", href: "/leads", icon: Users },
       { label: "Pipeline", href: "/pipeline", icon: Zap },
       { label: "Dialer", href: "/dialer", icon: Phone },
+    ],
+  },
+  {
+    title: "Dispositions",
+    items: [
+      { label: "Buyers", href: "/buyers", icon: Handshake },
+      { label: "Dispo Board", href: "/dispo", icon: KanbanSquare },
     ],
   },
   {
