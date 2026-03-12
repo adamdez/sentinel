@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { BarChart3, Clock3, DollarSign, Loader2, MapPinned, Radio, Shield, TrendingUp, Users } from "lucide-react";
+import { BarChart3, Clock3, DollarSign, Loader2, MapPinned, Radio, Shield, Target, TrendingUp, Users } from "lucide-react";
 import { PageShell } from "@/components/sentinel/page-shell";
 import { GlassCard } from "@/components/sentinel/glass-card";
 import { Badge } from "@/components/ui/badge";
@@ -166,6 +166,8 @@ export default function AnalyticsPage() {
               </div>
             </GlassCard>
 
+            <SourcePerformanceCard period={period} />
+
             <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
               <GlassCard hover={false} className="xl:col-span-2 !p-4">
                 <div className="flex items-center justify-between mb-3">
@@ -190,23 +192,31 @@ export default function AnalyticsPage() {
                           <th className="text-right py-2 px-2">Leads</th>
                           <th className="text-right py-2 px-2">S / K</th>
                           <th className="text-right py-2 px-2">Contacted (est)</th>
+                          <th className="text-right py-2 px-2">Contract %</th>
+                          <th className="text-right py-2 px-2">Close %</th>
                           <th className="text-right py-2 px-2">Closed</th>
                           <th className="text-right py-2 px-2">Revenue</th>
                           <th className="text-right py-2 pl-2">Median First Response (est)</th>
                         </tr>
                       </thead>
                       <tbody>
-                        {sourceOutcomes.slice(0, 10).map((row) => (
-                          <tr key={row.sourceKey} className="border-b border-white/[0.03]">
-                            <td className="py-2 pr-3 font-medium">{row.sourceKey === "unknown" ? "Uncategorized / Unknown" : row.sourceLabel}</td>
-                            <td className="py-2 px-2 text-right tabular-nums">{row.leads}</td>
-                            <td className="py-2 px-2 text-right tabular-nums">{row.spokaneLeads}/{row.kootenaiLeads}</td>
-                            <td className="py-2 px-2 text-right tabular-nums">{formatPercent(row.contactedRatePct)}</td>
-                            <td className="py-2 px-2 text-right tabular-nums">{row.closedDeals}</td>
-                            <td className="py-2 px-2 text-right tabular-nums">{formatCurrency(row.assignmentRevenue)}</td>
-                            <td className="py-2 pl-2 text-right tabular-nums">{formatMinutes(row.medianSpeedToLeadMinutes)}</td>
-                          </tr>
-                        ))}
+                        {sourceOutcomes.slice(0, 10).map((row) => {
+                          const contractRate = row.leads > 0 ? Math.round((row.closedDeals / row.leads) * 1000) / 10 : null;
+                          const closeRate = row.closedDeals > 0 ? 100 : row.leads > 0 ? 0 : null;
+                          return (
+                            <tr key={row.sourceKey} className="border-b border-white/[0.03]">
+                              <td className="py-2 pr-3 font-medium">{row.sourceKey === "unknown" ? "Uncategorized / Unknown" : row.sourceLabel}</td>
+                              <td className="py-2 px-2 text-right tabular-nums">{row.leads}</td>
+                              <td className="py-2 px-2 text-right tabular-nums">{row.spokaneLeads}/{row.kootenaiLeads}</td>
+                              <td className="py-2 px-2 text-right tabular-nums">{formatPercent(row.contactedRatePct)}</td>
+                              <td className="py-2 px-2 text-right tabular-nums">{formatPercent(contractRate)}</td>
+                              <td className="py-2 px-2 text-right tabular-nums">{formatPercent(closeRate)}</td>
+                              <td className="py-2 px-2 text-right tabular-nums">{row.closedDeals}</td>
+                              <td className="py-2 px-2 text-right tabular-nums">{formatCurrency(row.assignmentRevenue)}</td>
+                              <td className="py-2 pl-2 text-right tabular-nums">{formatMinutes(row.medianSpeedToLeadMinutes)}</td>
+                            </tr>
+                          );
+                        })}
                       </tbody>
                     </table>
                   </div>
@@ -340,6 +350,94 @@ export default function AnalyticsPage() {
         )}
       </div>
     </PageShell>
+  );
+}
+
+// ── Source Performance Summary ──
+
+interface SourcePerfData {
+  source_key: string;
+  source_label: string;
+  leads_count: number;
+  contacted_count: number;
+  contracts_count: number;
+  closed_count: number;
+  revenue: number;
+  contact_rate: number | null;
+  contract_rate: number | null;
+  close_rate: number | null;
+  avg_days_to_contract: number | null;
+  monthly_trend: { month: string; leads: number }[];
+}
+
+function SourcePerformanceCard({ period }: { period: TimePeriod }) {
+  const [sources, setSources] = useState<SourcePerfData[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  const fetchData = useCallback(async () => {
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) return;
+      const res = await fetch(`/api/analytics/source-performance?period=${period}`, {
+        headers: { Authorization: `Bearer ${session.access_token}` },
+        cache: "no-store",
+      });
+      if (!res.ok) return;
+      const payload = await res.json();
+      setSources((payload.sources ?? []) as SourcePerfData[]);
+    } catch {
+      // Silently fail — informational panel
+    } finally {
+      setLoading(false);
+    }
+  }, [period]);
+
+  useEffect(() => {
+    setLoading(true);
+    fetchData();
+  }, [fetchData]);
+
+  if (loading || sources.length === 0) return null;
+
+  const totalSources = sources.length;
+  const topSource = sources[0];
+  const bestConverter = sources
+    .filter((s) => s.leads_count >= 3 && s.contract_rate != null && s.contract_rate > 0)
+    .sort((a, b) => (b.contract_rate ?? 0) - (a.contract_rate ?? 0))[0] ?? null;
+  const revenueLeader = [...sources].sort((a, b) => b.revenue - a.revenue)[0] ?? null;
+
+  return (
+    <GlassCard hover={false} className="!p-4">
+      <div className="flex items-center justify-between mb-3">
+        <h3 className="text-sm font-semibold flex items-center gap-2">
+          <Target className="h-4 w-4 text-cyan" />
+          Source Performance
+        </h3>
+        <TrustBadge type="hard" />
+      </div>
+
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-xs">
+        <Metric label="Active Sources" value={totalSources} />
+        <Metric
+          label="Top Source (by leads)"
+          value={topSource ? `${topSource.source_label} (${topSource.leads_count})` : "n/a"}
+        />
+        <Metric
+          label="Best Converter"
+          value={bestConverter ? `${bestConverter.source_label} (${bestConverter.contract_rate}%)` : "n/a"}
+          tone={bestConverter ? "positive" : "default"}
+        />
+        <Metric
+          label="Revenue Leader"
+          value={revenueLeader && revenueLeader.revenue > 0 ? `${revenueLeader.source_label} (${formatCurrency(revenueLeader.revenue)})` : "n/a"}
+          tone={revenueLeader && revenueLeader.revenue > 0 ? "positive" : "default"}
+        />
+      </div>
+
+      <p className="text-[11px] text-muted-foreground mt-3">
+        Source attribution from normalized lead source field. Best Converter requires at least 3 leads.
+      </p>
+    </GlassCard>
   );
 }
 
