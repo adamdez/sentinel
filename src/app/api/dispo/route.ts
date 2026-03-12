@@ -88,6 +88,7 @@ export async function GET(req: NextRequest) {
         property_type: property?.property_type ?? null,
         estimated_value: property?.estimated_value ?? null,
         dispo_prep: deal.dispo_prep ?? null,
+        entered_dispo_at: deal.entered_dispo_at ?? null,
         deal_buyers: dealBuyersMap[deal.id] ?? [],
       };
     });

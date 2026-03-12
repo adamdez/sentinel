@@ -242,6 +242,7 @@ export interface DispoDeal {
   arv: number | null;
   repair_estimate: number | null;
   buyer_id: string | null;
+  entered_dispo_at: string | null;
   dispo_prep: DispoPrep | null;
   lead_name: string | null;
   property_address: string | null;
@@ -290,4 +291,50 @@ export async function updateDealDispoPrep(dealId: string, prep: Partial<DispoPre
     const body = await res.json().catch(() => ({}));
     throw new Error(body.error || "Failed to update dispo prep");
   }
+}
+
+// ── Buyer stats ──
+
+export interface BuyerStats {
+  total_linked: number;
+  contacted: number;
+  responded: number;
+  interested: number;
+  offered: number;
+  selected: number;
+  response_rate: number | null;
+  avg_response_days: number | null;
+  recent_deals: {
+    deal_buyer_status: string;
+    offer_amount: number | null;
+    date_contacted: string | null;
+    linked_at: string;
+    property_address: string | null;
+    contract_price: number | null;
+  }[];
+}
+
+export function useBuyerStats(buyerId: string | null) {
+  const [stats, setStats] = useState<BuyerStats | null>(null);
+  const [loading, setLoading] = useState(false);
+
+  const fetch = useCallback(async () => {
+    if (!buyerId) { setStats(null); return; }
+    setLoading(true);
+    try {
+      const headers = await getAuthHeaders();
+      const res = await window.fetch(`/api/buyers/${buyerId}/stats`, { headers });
+      if (!res.ok) throw new Error("Failed to fetch buyer stats");
+      const { stats: data } = await res.json();
+      setStats(data);
+    } catch {
+      setStats(null);
+    } finally {
+      setLoading(false);
+    }
+  }, [buyerId]);
+
+  useEffect(() => { fetch(); }, [fetch]);
+
+  return { stats, loading, refetch: fetch };
 }

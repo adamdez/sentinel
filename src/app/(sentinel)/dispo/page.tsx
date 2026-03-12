@@ -4,7 +4,7 @@ import { useState, useCallback, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   ChevronDown, Plus, MapPin, DollarSign, Users,
-  CalendarClock, ChevronRight, FileText,
+  CalendarClock, ChevronRight, FileText, AlertTriangle,
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -17,6 +17,7 @@ import {
   OCCUPANCY_STATUS_OPTIONS,
 } from "@/lib/buyer-types";
 import type { DealBuyerRow, DispoPrep } from "@/lib/buyer-types";
+import { Badge } from "@/components/ui/badge";
 import { BuyerSearchModal } from "@/components/sentinel/buyer-search-modal";
 import { useHydrated } from "@/providers/hydration-provider";
 
@@ -38,6 +39,83 @@ const RESPONDED_STATUSES = new Set(["interested", "offered", "follow_up", "selec
 // Statuses that haven't responded yet
 const PRE_RESPONSE_STATUSES = new Set(["not_contacted", "queued", "sent"]);
 
+// ── Stall detection ──
+
+type StallReason = "no_outreach" | "no_response" | "needs_followup" | "stalled_selection";
+
+const STALL_LABELS: Record<StallReason, string> = {
+  no_outreach: "No outreach started",
+  no_response: "No responses",
+  needs_followup: "Needs follow-up",
+  stalled_selection: "Stalled selection",
+};
+
+function detectStalls(deals: DispoDeal[]): { deal: DispoDeal; reasons: StallReason[] }[] {
+  const now = Date.now();
+  const DAY = 86400000;
+  const stalled: { deal: DispoDeal; reasons: StallReason[] }[] = [];
+
+  for (const deal of deals) {
+    const reasons: StallReason[] = [];
+    const dbs = deal.deal_buyers;
+
+    if (dbs.length === 0) {
+      const enteredAt = deal.entered_dispo_at ? new Date(deal.entered_dispo_at).getTime() : null;
+      if (enteredAt && now - enteredAt > DAY) {
+        reasons.push("no_outreach");
+      }
+    } else {
+      const allPreContact = dbs.every((db) => db.status === "not_contacted" || db.status === "queued");
+      if (allPreContact) {
+        const oldest = Math.min(...dbs.map((db) => new Date(db.created_at).getTime()));
+        if (now - oldest > DAY) reasons.push("no_outreach");
+      }
+
+      const sentBuyers = dbs.filter((db) => db.status === "sent");
+      const nonSentActive = dbs.filter((db) => !["not_contacted", "queued", "sent", "passed"].includes(db.status));
+      if (sentBuyers.length > 0 && nonSentActive.length === 0) {
+        const oldestSent = Math.min(...sentBuyers.map((db) => new Date(db.date_contacted || db.updated_at).getTime()));
+        if (now - oldestSent > 3 * DAY) reasons.push("no_response");
+      }
+
+      const activeResponders = dbs.filter((db) => db.status === "interested" || db.status === "offered");
+      if (activeResponders.length > 0) {
+        // Only flag if the buyer has been in this status for >2 days without follow-up
+        const noFollowUp = activeResponders.some((db) => {
+          if (db.follow_up_needed || db.follow_up_at) return false;
+          const statusAge = now - new Date(db.responded_at || db.updated_at).getTime();
+          return statusAge > 2 * DAY;
+        });
+        if (noFollowUp) reasons.push("needs_followup");
+      }
+
+      const selectedBuyer = dbs.find((db) => db.status === "selected");
+      if (selectedBuyer) {
+        const lastUpdate = new Date(selectedBuyer.updated_at).getTime();
+        if (now - lastUpdate > 5 * DAY) reasons.push("stalled_selection");
+      }
+    }
+
+    if (reasons.length > 0) stalled.push({ deal, reasons });
+  }
+
+  return stalled;
+}
+
+function daysAgo(dateStr: string | null): number | null {
+  if (!dateStr) return null;
+  const diff = Date.now() - new Date(dateStr).getTime();
+  return Math.max(0, Math.floor(diff / 86400000));
+}
+
+function lastActivityDate(deal: DispoDeal): string | null {
+  const dates = deal.deal_buyers
+    .flatMap((db) => [db.updated_at, db.date_contacted, db.responded_at])
+    .filter(Boolean) as string[];
+  if (dates.length === 0) return null;
+  return dates.sort().reverse()[0];
+}
+
 // ── Outreach Funnel Bar ──
 
 function OutreachFunnel({ deals }: { deals: DispoDeal[] }) {
@@ -48,7 +126,16 @@ function OutreachFunnel({ deals }: { deals: DispoDeal[] }) {
     const responded = allBuyers.filter((b) => RESPONDED_STATUSES.has(b.status) || b.status === "passed").length;
     const interested = allBuyers.filter((b) => b.status === "interested" || b.status === "offered" || b.status === "selected").length;
     const selected = allBuyers.filter((b) => b.status === "selected").length;
-    return { deals: deals.length, linked, contacted, responded, interested, selected };
+
+    // Avg days in dispo
+    const dispoAges = deals
+      .map((d) => daysAgo(d.entered_dispo_at))
+      .filter((d): d is number => d != null);
+    const avgDaysInDispo = dispoAges.length > 0
+      ? Math.round(dispoAges.reduce((a, b) => a + b, 0) / dispoAges.length)
+      : null;
+
+    return { deals: deals.length, linked, contacted, responded, interested, selected, avgDaysInDispo };
   }, [deals]);
 
   const steps = [
@@ -69,7 +156,71 @@ function OutreachFunnel({ deals }: { deals: DispoDeal[] }) {
           <span>{step.label}</span>
         </span>
       ))}
+      {stats.avgDaysInDispo != null && (
+        <>
+          <span className="text-muted-foreground/20 mx-1">|</span>
+          <span>avg <span className="text-foreground/70 font-medium">~{stats.avgDaysInDispo}d</span> in dispo</span>
+        </>
+      )}
     </div>
+  );
+}
+
+// ── Stalled Deals Panel ──
+
+function StalledDealsPanel({ deals }: { deals: DispoDeal[] }) {
+  const stalled = useMemo(() => detectStalls(deals), [deals]);
+  const [open, setOpen] = useState(true);
+
+  if (stalled.length === 0) return null;
+
+  return (
+    <GlassCard hover={false} delay={0} className="p-0 overflow-hidden border-amber-500/15">
+      <button
+        onClick={() => setOpen(!open)}
+        className="w-full flex items-center gap-2 px-4 py-2.5 text-left hover:bg-white/[0.01] transition-colors"
+      >
+        <AlertTriangle className="h-3.5 w-3.5 text-amber-400/70" />
+        <span className="text-xs font-semibold uppercase tracking-wider text-amber-400/80">
+          Needs Attention
+        </span>
+        <Badge variant="gold" className="text-[9px]">{stalled.length}</Badge>
+        <div className="flex-1" />
+        <motion.div animate={{ rotate: open ? 180 : 0 }} transition={{ duration: 0.15 }}>
+          <ChevronDown className="h-3 w-3 text-muted-foreground/30" />
+        </motion.div>
+      </button>
+
+      <AnimatePresence initial={false}>
+        {open && (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: "auto", opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.15 }}
+            className="overflow-hidden"
+          >
+            <div className="px-4 pb-3 space-y-1.5">
+              {stalled.map((s) => (
+                <div key={s.deal.id} className="flex items-center gap-2 px-3 py-2 rounded-[6px] bg-amber-500/[0.03] border border-amber-500/10">
+                  <MapPin className="h-3 w-3 text-amber-400/50 shrink-0" />
+                  <span className="text-xs text-foreground/70 truncate flex-1">
+                    {s.deal.property_address || "No address"}
+                  </span>
+                  <div className="flex gap-1 shrink-0 flex-wrap">
+                    {s.reasons.map((r) => (
+                      <span key={r} className="text-[9px] text-amber-400/60 bg-amber-500/[0.06] px-1.5 py-0.5 rounded">
+                        {STALL_LABELS[r]}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </GlassCard>
   );
 }
 
@@ -259,6 +410,27 @@ function DealCard({ deal, onStatusChange, onLinkBuyer, onRefetch }: {
             <Users className="h-3 w-3 text-muted-foreground/40" />
             <span className="text-xs text-muted-foreground/60">{deal.deal_buyers.length}</span>
           </div>
+          {(() => {
+            const age = daysAgo(deal.entered_dispo_at);
+            const lastAct = daysAgo(lastActivityDate(deal));
+            return (
+              <div className="flex items-center gap-2">
+                {age != null && (
+                  <span className={cn(
+                    "text-[10px]",
+                    age > 14 ? "text-amber-400/60" : "text-muted-foreground/40"
+                  )}>
+                    {age}d in dispo
+                  </span>
+                )}
+                {lastAct != null && lastAct > 2 && (
+                  <span className="text-[10px] text-amber-400/50">
+                    {lastAct}d idle
+                  </span>
+                )}
+              </div>
+            );
+          })()}
           <motion.div animate={{ rotate: expanded ? 180 : 0 }} transition={{ duration: 0.15 }}>
             <ChevronDown className="h-3.5 w-3.5 text-muted-foreground/30" />
           </motion.div>
@@ -469,6 +641,9 @@ export default function DispoPage() {
         </GlassCard>
       ) : (
         <div className="space-y-3">
+          {/* Stalled deals panel */}
+          <StalledDealsPanel deals={deals} />
+
           {/* Outreach funnel bar */}
           <OutreachFunnel deals={deals} />
 

@@ -5,12 +5,12 @@ import { motion, AnimatePresence } from "framer-motion";
 import {
   X, Phone, Mail, MessageSquare, DollarSign, Shield,
   Tag, StickyNote, Building2, MapPin, Wrench, Home,
-  ChevronDown, Plus, Trash2,
+  ChevronDown, Plus, Trash2, BarChart3,
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
-import { useBuyerDeals, updateBuyer, createBuyer } from "@/hooks/use-buyers";
+import { useBuyerDeals, useBuyerStats, updateBuyer, createBuyer } from "@/hooks/use-buyers";
 import type { BuyerRow, DealBuyerRow } from "@/lib/buyer-types";
 import {
   MARKET_OPTIONS, ASSET_TYPE_OPTIONS, FUNDING_TYPE_OPTIONS,
@@ -133,6 +133,7 @@ export function BuyerDetailModal({ buyer, open, onClose, onSaved, isCreate }: Bu
 
   // Outreach history
   const { buyerDeals, loading: dealsLoading } = useBuyerDeals(buyer?.id ?? null);
+  const { stats, loading: statsLoading } = useBuyerStats(!isCreate ? buyer?.id ?? null : null);
 
   // Initialize form from buyer
   useEffect(() => {
@@ -495,6 +496,73 @@ export function BuyerDetailModal({ buyer, open, onClose, onSaved, isCreate }: Bu
                             )}
                           </div>
                         ))}
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
+            )}
+
+            {/* ── Performance (existing buyers only) ── */}
+            {!isCreate && buyer?.id && (
+              <div>
+                <SectionHeader icon={BarChart3} label="Performance" collapsed={!!collapsedSections.performance} onToggle={() => toggleSection("performance")} />
+                <AnimatePresence initial={false}>
+                  {!collapsedSections.performance && (
+                    <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="overflow-hidden">
+                      <div className="mt-2 space-y-3">
+                        {statsLoading && (
+                          <div className="text-xs text-muted-foreground/50 py-3 text-center">Loading...</div>
+                        )}
+                        {!statsLoading && !stats && (
+                          <div className="text-xs text-muted-foreground/50 py-3 text-center">No performance data</div>
+                        )}
+                        {!statsLoading && stats && (
+                          <>
+                            <div className="grid grid-cols-3 gap-2">
+                              {[
+                                { label: "Linked", value: stats.total_linked },
+                                { label: "Contacted", value: stats.contacted },
+                                { label: "Responded", value: stats.responded },
+                                { label: "Interested", value: stats.interested },
+                                { label: "Offered", value: stats.offered },
+                                { label: "Selected", value: stats.selected },
+                              ].map((s) => (
+                                <div key={s.label} className="px-2.5 py-2 rounded-[6px] bg-white/[0.02] border border-white/[0.04] text-center">
+                                  <div className="text-sm font-semibold text-foreground">{s.value}</div>
+                                  <div className="text-[9px] text-muted-foreground/50 uppercase tracking-wider mt-0.5">{s.label}</div>
+                                </div>
+                              ))}
+                            </div>
+                            <div className="flex items-center gap-4 text-xs text-muted-foreground/60">
+                              {stats.response_rate != null && (
+                                <span>Response rate: <span className="text-foreground/80 font-medium">{stats.response_rate}%</span></span>
+                              )}
+                              {stats.avg_response_days != null && (
+                                <span>Avg response: <span className="text-foreground/80 font-medium">~{stats.avg_response_days}d</span></span>
+                              )}
+                            </div>
+                            {stats.recent_deals.length > 0 && (
+                              <div className="space-y-1.5">
+                                <div className="text-[10px] text-muted-foreground/50 uppercase tracking-wider font-semibold">Recent Deals</div>
+                                {stats.recent_deals.map((rd, i) => (
+                                  <div key={i} className="flex items-center gap-2 px-2.5 py-1.5 rounded-[6px] bg-white/[0.015] border border-white/[0.04] text-xs">
+                                    <span className="flex-1 truncate text-foreground/70">{rd.property_address ?? "Unknown"}</span>
+                                    <Badge
+                                      variant={rd.deal_buyer_status === "selected" ? "neon" : rd.deal_buyer_status === "interested" ? "cyan" : rd.deal_buyer_status === "passed" ? "secondary" : "outline"}
+                                      className="text-[9px] shrink-0"
+                                    >
+                                      {dealBuyerStatusLabel(rd.deal_buyer_status)}
+                                    </Badge>
+                                    {rd.offer_amount != null && (
+                                      <span className="text-cyan/70 font-medium shrink-0">${(rd.offer_amount / 1000).toFixed(0)}k</span>
+                                    )}
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </>
+                        )}
                       </div>
                     </motion.div>
                   )}
