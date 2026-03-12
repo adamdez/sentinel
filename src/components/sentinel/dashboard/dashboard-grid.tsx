@@ -14,7 +14,7 @@ const DashboardGridInner = dynamic(
           <LayoutGrid className="h-4 w-4 text-cyan" />
           <span className="text-sm font-semibold">Your Dashboard</span>
         </div>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-start" style={{ gridAutoRows: "min-content" }}>
           {Array.from({ length: 4 }).map((_, i) => (
             <Skeleton
               key={i}
