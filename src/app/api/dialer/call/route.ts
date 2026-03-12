@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@/lib/supabase";
 import { scrubLead } from "@/lib/compliance";
 import { scheduleNextCall, suggestNextCadenceDate } from "@/lib/call-scheduler";
+import { dispositionCategory } from "@/lib/comm-truth";
 import { getTwilioCredentials, isTwilioError, friendlyTwilioError } from "@/lib/twilio";
 import { validateStatusTransition } from "@/lib/lead-guardrails";
 import type { LeadStatus } from "@/lib/types";
@@ -503,9 +504,10 @@ export async function PATCH(req: NextRequest) {
     .single();
 
   if (callRow?.lead_id) {
+    // ── Fetch lead state for scheduling decisions ──
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data: lead, error: leadFetchErr } = await (sb.from("leads") as any)
-      .select("status, lock_version, call_sequence_step, total_calls, live_answers, voicemails_left")
+    const { data: leadForSchedule, error: leadFetchErr } = await (sb.from("leads") as any)
+      .select("status, lock_version, call_sequence_step, total_calls")
       .eq("id", callRow.lead_id)
       .single();
 
@@ -514,12 +516,13 @@ export async function PATCH(req: NextRequest) {
       return NextResponse.json({ error: "Could not load lead state for call update" }, { status: 500 });
     }
 
-    if (lead) {
-      const step: number = lead.call_sequence_step ?? 1;
-      const isLive = !["no_answer", "voicemail", "ghost", "skip_trace", "in_progress", "initiating", "sms_outbound"].includes(body.disposition);
-      const isVM = body.disposition === "voicemail";
-      const currentStatus = normalizeLeadStatus(lead.status);
-      const newTotalCalls = (lead.total_calls ?? 0) + 1;
+    if (leadForSchedule) {
+      const step: number = leadForSchedule.call_sequence_step ?? 1;
+      const dispoCategory = dispositionCategory(body.disposition);
+      const isLive = dispoCategory === "live";
+      const isVM = dispoCategory === "voicemail";
+      const currentStatus = normalizeLeadStatus(leadForSchedule.status);
+      const newTotalCalls = (leadForSchedule.total_calls ?? 0) + 1;
 
       // Use 30-day cadence for follow-up scheduling (Day 1, 3, 7, 10, 14, 21, 30)
       // Falls back to power sequence for special dispositions (interested, dead, etc.)
@@ -536,30 +539,25 @@ export async function PATCH(req: NextRequest) {
           ? cadenceNext.toISOString()
           : sched.nextCallAt;
 
-      const updatePayload: Record<string, unknown> = {
-        total_calls: newTotalCalls,
-        live_answers: (lead.live_answers ?? 0) + (isLive ? 1 : 0),
-        voicemails_left: (lead.voicemails_left ?? 0) + (isVM ? 1 : 0),
-        call_sequence_step: sched.sequenceStep,
-        next_call_scheduled_at: nextCallAt,
-        last_contact_at: endedAt,
-        updated_at: new Date().toISOString(),
-      };
-
-      // Keep sequence counters in this dialer route; workflow-status/assignment
-      // mutations are delegated to guarded /api/prospects flow below.
-      if (sequenceCompleteWithoutLiveAnswer) {
-        updatePayload.call_sequence_step = 1;
-        updatePayload.next_call_scheduled_at = null;
-      }
-
+      // ── Atomic counter increment via RPC ──
+      // Replaces read-modify-write pattern to prevent race conditions
+      // when concurrent calls update the same lead's counters.
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { error: leadUpdateErr } = await (sb.from("leads") as any)
-        .update(updatePayload)
-        .eq("id", callRow.lead_id);
+      const { data: rpcResult, error: rpcErr } = await (sb as any).rpc(
+        "increment_lead_call_counters",
+        {
+          p_lead_id: callRow.lead_id,
+          p_is_live: isLive,
+          p_is_voicemail: isVM,
+          p_last_contact_at: endedAt,
+          p_call_sequence_step: sequenceCompleteWithoutLiveAnswer ? 1 : sched.sequenceStep,
+          p_next_call_scheduled_at: sequenceCompleteWithoutLiveAnswer ? null : nextCallAt,
+          p_clear_sequence: sequenceCompleteWithoutLiveAnswer,
+        },
+      );
 
-      if (leadUpdateErr) {
-        console.error("[Dialer] lead counters update failed:", leadUpdateErr);
+      if (rpcErr) {
+        console.error("[Dialer] atomic lead counter update failed:", rpcErr);
         return NextResponse.json({ error: "Could not update lead call sequence" }, { status: 500 });
       }
 
@@ -568,12 +566,14 @@ export async function PATCH(req: NextRequest) {
           return NextResponse.json({ error: "Missing auth token for guarded workflow update" }, { status: 401 });
         }
 
+        const lockVersion = rpcResult?.lock_version ?? (Number.isInteger(leadForSchedule.lock_version) ? leadForSchedule.lock_version : 0);
+
         const guardedResult = await applyGuardedDialerWorkflowMutation({
           req,
           sb,
           bearerToken: patchToken,
           leadId: callRow.lead_id,
-          lockVersion: Number.isInteger(lead.lock_version) ? lead.lock_version : 0,
+          lockVersion: lockVersion,
           currentStatus,
         });
 

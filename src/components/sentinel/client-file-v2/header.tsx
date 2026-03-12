@@ -1,14 +1,47 @@
-import { MapPin, AlertTriangle, ShieldAlert } from "lucide-react";
+import { MapPin, AlertTriangle, ShieldAlert, AlertCircle, Clock } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import type { ActionSummary } from "@/lib/action-derivation";
 
 interface ClientFileHeaderProps {
   ownerName: string;
   address: string;
   distressSignals: string[];
   suggestedOpener?: string;
+  /** Optional action summary from deriveLeadActionSummary() */
+  actionSummary?: ActionSummary | null;
 }
 
-export function ClientFileHeader({ ownerName, address, distressSignals, suggestedOpener }: ClientFileHeaderProps) {
+const URGENCY_STYLES = {
+  critical: {
+    border: "border-red-500/25",
+    bg: "bg-red-500/[0.06]",
+    accent: "bg-red-500/50",
+    label: "text-red-400/80",
+    text: "text-red-300",
+    icon: AlertTriangle,
+  },
+  high: {
+    border: "border-amber-500/25",
+    bg: "bg-amber-500/[0.06]",
+    accent: "bg-amber-500/50",
+    label: "text-amber-400/80",
+    text: "text-amber-300",
+    icon: AlertCircle,
+  },
+  normal: {
+    border: "border-cyan/20",
+    bg: "bg-cyan/[0.03]",
+    accent: "bg-cyan/40",
+    label: "text-cyan/70",
+    text: "text-foreground/70",
+    icon: Clock,
+  },
+} as const;
+
+export function ClientFileHeader({ ownerName, address, distressSignals, suggestedOpener, actionSummary }: ClientFileHeaderProps) {
+  const showAction = actionSummary?.isActionable && actionSummary.urgency !== "none" && actionSummary.urgency !== "low";
+  const style = showAction ? URGENCY_STYLES[actionSummary!.urgency as keyof typeof URGENCY_STYLES] : null;
+
   return (
     <div className="flex flex-col gap-4">
       {/* Primary Info */}
@@ -20,7 +53,7 @@ export function ClientFileHeader({ ownerName, address, distressSignals, suggeste
             <span className="font-mono text-sm">{address}</span>
           </div>
         </div>
-        
+
         {/* Distress Badges */}
         <div className="flex flex-col gap-2 items-end">
           {distressSignals.map((signal) => (
@@ -35,6 +68,22 @@ export function ClientFileHeader({ ownerName, address, distressSignals, suggeste
         </div>
       </div>
 
+      {/* Action Banner — compact urgency line from deriveLeadActionSummary */}
+      {showAction && style && (
+        <div className={`p-3 rounded-xl border ${style.border} ${style.bg} relative overflow-hidden`}>
+          <div className={`absolute inset-y-0 left-0 w-1 ${style.accent}`} />
+          <div className="flex items-center gap-2 pl-2">
+            <style.icon className={`w-3.5 h-3.5 ${style.label} shrink-0`} />
+            <span className={`text-sm font-semibold ${style.text}`}>
+              {actionSummary!.action}
+            </span>
+          </div>
+          <p className={`text-[11px] ${style.label} pl-7 mt-0.5 leading-snug`}>
+            {actionSummary!.reason}
+          </p>
+        </div>
+      )}
+
       {/* Suggested Hook */}
       {suggestedOpener && (
         <div className="mt-4 p-4 rounded-xl border border-purple-500/20 bg-purple-500/5 relative overflow-hidden group">
@@ -43,7 +92,7 @@ export function ClientFileHeader({ ownerName, address, distressSignals, suggeste
             <ShieldAlert className="w-3 h-3" /> Connect Hook
           </p>
           <p className="text-sm font-medium italic text-foreground/90 leading-relaxed max-w-2xl">
-            "{suggestedOpener}"
+            &ldquo;{suggestedOpener}&rdquo;
           </p>
         </div>
       )}

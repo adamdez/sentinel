@@ -15,6 +15,7 @@ import { requireAuth } from "@/lib/api-auth";
 import { getPeriodStart, type TimePeriod } from "@/lib/analytics";
 import { normalizeSource, sourceLabel } from "@/lib/source-normalization";
 import { isContractStatus } from "@/lib/analytics-helpers";
+import { isContacted } from "@/lib/comm-truth";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -187,13 +188,7 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    // Determine which contact indicates "contacted"
-    function isContacted(lead: LeadRow): boolean {
-      return (
-        (lead.last_contact_at != null && lead.last_contact_at !== "") ||
-        (lead.total_calls != null && lead.total_calls > 0)
-      );
-    }
+    // "isContacted" is now imported from @/lib/comm-truth (shared definition)
 
     // Build monthly trend for last 6 months
     function buildMonthlyTrend(monthlyLeads: Map<string, number>): { month: string; leads: number }[] {

@@ -23,6 +23,7 @@ import {
 } from "@/components/ui/tooltip";
 import { AIScoreBadge } from "@/components/sentinel/ai-score-badge";
 import { deriveNextActionVisibility, offerVisibilityLabel, type LeadRow } from "@/lib/leads-data";
+import { deriveLeadActionSummary, type ActionSummary, type UrgencyLevel } from "@/lib/action-derivation";
 import type { SortField, SortDir } from "@/hooks/use-leads";
 import { cn } from "@/lib/utils";
 import { formatDueDateLabel } from "@/lib/due-date-label";
@@ -231,6 +232,30 @@ function speedToLeadMeta(lead: LeadRow): { text: string; className: string } {
   return { text: `First response pending ${formatElapsed(ageMs)}`, className: "text-emerald-300" };
 }
 
+function urgencyTextClass(urgency: UrgencyLevel): string {
+  switch (urgency) {
+    case "critical": return "text-red-400 font-semibold";
+    case "high": return "text-amber-300";
+    case "normal": return "text-muted-foreground/70";
+    case "low": return "text-muted-foreground/50";
+    case "none": return "text-muted-foreground/40";
+  }
+}
+
+function deriveActionForLead(lead: LeadRow): ActionSummary {
+  return deriveLeadActionSummary({
+    status: lead.status,
+    qualificationRoute: lead.qualificationRoute,
+    assignedTo: lead.assignedTo,
+    nextCallScheduledAt: lead.nextCallScheduledAt,
+    nextFollowUpAt: lead.followUpDate,
+    lastContactAt: lead.lastContactAt,
+    totalCalls: lead.totalCalls,
+    createdAt: lead.promotedAt, // promotedAt is always set for leads
+    promotedAt: lead.promotedAt,
+  });
+}
+
 function needsFollowUp(lead: LeadRow): boolean {
   if (lead.status === "dead" || lead.status === "closed") return false;
   const dueIso = lead.nextCallScheduledAt ?? lead.followUpDate;
@@ -318,7 +343,8 @@ export function LeadTable({
           nextCallScheduledAt: lead.nextCallScheduledAt,
           nextFollowUpAt: lead.followUpDate,
         });
-        const actionableNow = needsFollowUpFlag || needsQualificationFlag || offerPrepNeedsAttention;
+        const actionSummary = deriveActionForLead(lead);
+        const actionableNow = actionSummary.isActionable || offerPrepNeedsAttention;
         const ownerActionLabel = actionableNow
           ? !lead.assignedTo
             ? "Assign owner now"
@@ -417,14 +443,14 @@ export function LeadTable({
                     Unassigned
                   </span>
                 )}
-                {needsQualificationFlag && (
-                  <span className="text-[9px] px-1.5 py-0 rounded bg-amber-500/12 text-amber-300 border border-amber-500/30 shrink-0">
-                    Needs Qualification
+                {actionSummary.isActionable && actionSummary.urgency === "critical" && (
+                  <span className="text-[9px] px-1.5 py-0 rounded bg-red-500/12 text-red-300 border border-red-500/30 shrink-0">
+                    Urgent
                   </span>
                 )}
-                {needsFollowUpFlag && (
-                  <span className="text-[9px] px-1.5 py-0 rounded bg-red-500/12 text-red-300 border border-red-500/30 shrink-0">
-                    Needs Follow-Up
+                {actionSummary.isActionable && actionSummary.urgency === "high" && (
+                  <span className="text-[9px] px-1.5 py-0 rounded bg-amber-500/12 text-amber-300 border border-amber-500/30 shrink-0">
+                    Attention
                   </span>
                 )}
                 {lead.qualificationRoute === "escalate" && (
@@ -536,29 +562,25 @@ export function LeadTable({
                 </span>
               )}
 
-              {/* Line 2: Next step / sequence */}
-              {followUpDueIso ? (
+              {/* Line 2: Action summary (deterministic next action) */}
+              {offerPrepNeedsAttention ? (
+                <span className="text-[10px] text-amber-300 flex items-center gap-1">
+                  <Briefcase className="h-2.5 w-2.5 shrink-0" />
+                  {offerPrepMissing ? "Offer-prep: missing data" : "Offer-prep: stale data"}
+                </span>
+              ) : (
                 <span
                   className={cn(
-                    "text-[10px] flex items-center gap-1",
-                    followUp.overdue && "text-red-400 font-semibold",
-                    followUp.urgent && !followUp.overdue && "text-yellow-400",
-                    !followUp.urgent && "text-muted-foreground/60"
+                    "text-[10px] flex items-center gap-1 truncate",
+                    urgencyTextClass(actionSummary.urgency)
                   )}
+                  title={actionSummary.reason}
                 >
-                  {followUp.overdue && <AlertTriangle className="h-2.5 w-2.5 shrink-0" />}
-                  {followUp.urgent && !followUp.overdue && <Clock className="h-2.5 w-2.5 shrink-0" />}
-                  {nextActionView.kind === "offer_prep_follow_up" && <Briefcase className="h-2.5 w-2.5 shrink-0" />}
-                  Next Action: {nextActionView.label} - {followUp.text}
+                  {actionSummary.urgency === "critical" && <AlertTriangle className="h-2.5 w-2.5 shrink-0" />}
+                  {actionSummary.urgency === "high" && <AlertCircle className="h-2.5 w-2.5 shrink-0" />}
+                  {actionSummary.urgency === "normal" && actionSummary.actionType === "call" && <Clock className="h-2.5 w-2.5 shrink-0" />}
+                  {actionSummary.action}
                 </span>
-              ) : offerPrepPathActive ? (
-                <span className="text-[10px] text-amber-300">
-                  Next Action: Offer-prep follow-up not set
-                </span>
-              ) : lead.callSequenceStep >= 7 && !lead.nextCallScheduledAt ? (
-                <span className="text-[10px] text-muted-foreground/50">Next Action: Sequence complete - set callback</span>
-              ) : (
-                <span className="text-[10px] text-amber-300">Next Action: Not set</span>
               )}
               <span className={cn("text-[10px] truncate", speed.className)}>
                 {speed.text}

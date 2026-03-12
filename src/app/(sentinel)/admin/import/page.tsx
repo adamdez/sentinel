@@ -425,7 +425,7 @@ export default function ImportPage() {
               <CheckCircle2 className="h-5 w-5 text-emerald-300" />
               <div>
                 <p className="text-sm font-semibold text-foreground">Import complete</p>
-                <p className="text-xs text-muted-foreground/60">Batch "{results.batchId}" from {results.fileName} ({results.sheetName})</p>
+                <p className="text-xs text-muted-foreground/60">Batch &ldquo;{results.batchId}&rdquo; from {results.fileName} ({results.sheetName})</p>
               </div>
             </div>
             <div className="mt-4 grid gap-2 md:grid-cols-3 xl:grid-cols-6">

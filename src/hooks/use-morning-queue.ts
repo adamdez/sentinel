@@ -5,6 +5,7 @@ import { supabase } from "@/lib/supabase";
 import { useSentinelStore } from "@/lib/store";
 import { classifyQueueDueWork, getEffectiveFollowUpAt } from "@/lib/morning-queue-utils";
 import { deriveOfferPrepHealth, extractOfferPrepSnapshot } from "@/lib/leads-data";
+import { deriveLeadActionSummary, type UrgencyLevel } from "@/lib/action-derivation";
 
 export interface QueueItem {
   leadId: string;
@@ -13,6 +14,10 @@ export interface QueueItem {
   ownerName: string;
   /** ISO string or null */
   dueAt: string | null;
+  /** Action label from deriveLeadActionSummary — e.g. "No contact attempt in 2d" */
+  actionLabel?: string;
+  /** Urgency level from deriveLeadActionSummary */
+  actionUrgency?: UrgencyLevel;
 }
 
 export interface QueueBucket {
@@ -45,7 +50,7 @@ export function useMorningQueue() {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         (supabase.from("leads") as any)
           .select(
-            "id, property_id, status, assigned_to, qualification_route, next_call_scheduled_at, next_follow_up_at, total_calls, created_at",
+            "id, property_id, status, assigned_to, qualification_route, next_call_scheduled_at, next_follow_up_at, total_calls, created_at, last_contact_at, promoted_at",
           )
           .in("status", ["prospect", "lead", "negotiation", "disposition", "nurture"])
           .order("next_call_scheduled_at", { ascending: true }),
@@ -110,12 +115,26 @@ export function useMorningQueue() {
           owner: "Unknown",
           ownerFlags: null,
         };
+        const actionSummary = deriveLeadActionSummary({
+          status: lead.status,
+          qualificationRoute: lead.qualification_route ?? null,
+          assignedTo: lead.assigned_to ?? null,
+          nextCallScheduledAt: lead.next_call_scheduled_at ?? null,
+          nextFollowUpAt: lead.next_follow_up_at ?? lead.follow_up_date ?? null,
+          lastContactAt: lead.last_contact_at ?? null,
+          totalCalls: lead.total_calls ?? null,
+          createdAt: lead.created_at ?? null,
+          promotedAt: lead.promoted_at ?? lead.created_at ?? null,
+          now,
+        });
         return {
           leadId: lead.id,
           propertyId: lead.property_id,
           address: prop.address,
           ownerName: prop.owner,
           dueAt: dueAt ?? getEffectiveFollowUpAt(lead) ?? null,
+          actionLabel: actionSummary.action,
+          actionUrgency: actionSummary.urgency,
         };
       };
 

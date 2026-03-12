@@ -26,6 +26,7 @@ import { cn } from "@/lib/utils";
 import { getAuthenticatedProspectPatchHeaders } from "@/lib/prospect-api-client";
 import { precheckWorkflowStageChange } from "@/lib/workflow-stage-precheck";
 import type { LeadStatus, QualificationRoute } from "@/lib/types";
+import { deriveLeadActionSummary } from "@/lib/action-derivation";
 import { MasterClientFileModal, clientFileFromRaw, type ClientFile } from "@/components/sentinel/master-client-file-modal";
 import { useCoachSurface } from "@/providers/coach-provider";
 import { CoachPanel, CoachToggle } from "@/components/sentinel/coach-panel";
@@ -753,17 +754,16 @@ function LeadCard({
   const expired = isClaimExpired(lead.claim_expires_at);
   const isMine = lead.owner_id === currentUserId;
   const canClaim = laneId !== "mine" && !lead.owner_id;
-  const followUpDueMs = lead.follow_up_at ? new Date(lead.follow_up_at).getTime() : NaN;
-  const followUpOverdue =
-    lead.status !== "dead" &&
-    !Number.isNaN(followUpDueMs) &&
-    followUpDueMs < Date.now();
-  const promotedMs = lead.promoted_at ? new Date(lead.promoted_at).getTime() : NaN;
-  const needsQualification =
-    lead.status === "lead" &&
-    !lead.qualification_route &&
-    !Number.isNaN(promotedMs) &&
-    Date.now() - promotedMs > 48 * 60 * 60 * 1000;
+  const actionSummary = deriveLeadActionSummary({
+    status: lead.status,
+    qualificationRoute: lead.qualification_route,
+    assignedTo: lead.owner_id,
+    nextFollowUpAt: lead.follow_up_at,
+    lastContactAt: null, // pipeline Lead type doesn't expose this
+    totalCalls: null,
+    createdAt: lead.promoted_at,
+    promotedAt: lead.promoted_at,
+  });
   const assigneeFirstName = firstName(lead.assignee_name);
 
   return (
@@ -854,26 +854,16 @@ function LeadCard({
                 {lead.source}
               </span>
             )}
-            {needsQualification && (
-              <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded border bg-amber-500/12 text-amber-300 border-amber-500/30">
-                Needs Qualification
+            {actionSummary.isActionable && actionSummary.urgency === "critical" && (
+              <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded border bg-red-500/12 text-red-300 border-red-500/30" title={actionSummary.reason}>
+                {actionSummary.action}
               </span>
             )}
-            {followUpOverdue && lead.status !== "nurture" && lead.status !== "closed" && lead.status !== "dead" && (
-              <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded border bg-red-500/12 text-red-300 border-red-500/30">
-                Needs Follow-Up
+            {actionSummary.isActionable && actionSummary.urgency === "high" && (
+              <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded border bg-amber-500/12 text-amber-300 border-amber-500/30" title={actionSummary.reason}>
+                {actionSummary.action}
               </span>
             )}
-            {lead.status === "nurture" && (() => {
-              const fuMs = lead.follow_up_at ? new Date(lead.follow_up_at).getTime() : NaN;
-              const sevenDaysAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
-              const isStale = !Number.isNaN(fuMs) ? fuMs < sevenDaysAgo : true; // no follow-up = stale
-              return isStale ? (
-                <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded border bg-red-500/12 text-red-300 border-red-500/30">
-                  Stale Nurture
-                </span>
-              ) : null;
-            })()}
             {lead.qualification_route === "escalate" && (
               <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded border bg-amber-500/12 text-amber-300 border-amber-500/30">
                 Escalated Review

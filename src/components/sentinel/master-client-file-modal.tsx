@@ -38,6 +38,7 @@ import {
 } from "@/lib/leads-data";
 import type { AIScore, DistressType, LeadStatus, SellerTimeline, QualificationRoute } from "@/lib/types";
 import { SIGNAL_WEIGHTS } from "@/lib/scoring";
+import { deriveLeadActionSummary } from "@/lib/action-derivation";
 import { getSequenceLabel, getSequenceProgress, getCadencePosition, suggestNextCadenceDate } from "@/lib/call-scheduler";
 import { useCallNotes, type CallNote } from "@/hooks/use-call-notes";
 import { CompsMap, getSatelliteTileUrl, getGoogleStreetViewLink, type CompProperty, type SubjectProperty } from "@/components/sentinel/comps/comps-map";
@@ -750,31 +751,24 @@ function getNextActionUrgency(cf: ClientFile): {
   detail: string;
   tone: "normal" | "warn" | "danger";
 } {
-  const now = Date.now();
-  const nextIso = cf.nextCallScheduledAt ?? cf.followUpDate;
-  const nextMs = nextIso ? new Date(nextIso).getTime() : NaN;
-  const promotedMs = cf.promotedAt ? new Date(cf.promotedAt).getTime() : NaN;
+  const summary = deriveLeadActionSummary({
+    status: cf.status,
+    qualificationRoute: cf.qualificationRoute,
+    assignedTo: cf.assignedTo,
+    nextCallScheduledAt: cf.nextCallScheduledAt,
+    nextFollowUpAt: cf.followUpDate,
+    lastContactAt: cf.lastContactAt,
+    totalCalls: cf.totalCalls,
+    createdAt: cf.promotedAt,
+    promotedAt: cf.promotedAt,
+  });
 
-  if (!Number.isNaN(nextMs)) {
-    if (nextMs < now) {
-      return { label: "Overdue Follow-up", detail: formatDueDateLabel(nextIso).text, tone: "danger" };
-    }
-    const hoursUntil = Math.floor((nextMs - now) / 3600000);
-    if (hoursUntil <= 24) {
-      return { label: "Due Soon", detail: `Follow-up in ${hoursUntil <= 0 ? "<1" : hoursUntil}h`, tone: "warn" };
-    }
-    return { label: "Scheduled", detail: `Next follow-up ${formatDateTimeShort(nextIso)}`, tone: "normal" };
-  }
+  const tone: "normal" | "warn" | "danger" =
+    summary.urgency === "critical" ? "danger" :
+    summary.urgency === "high" || summary.urgency === "normal" ? "warn" :
+    "normal";
 
-  if ((cf.totalCalls ?? 0) === 0 && !Number.isNaN(promotedMs)) {
-    const ageMs = now - promotedMs;
-    if (ageMs > 15 * 60 * 1000) {
-      return { label: "Needs First Contact", detail: `No attempt after ${formatRelativeFromNow(cf.promotedAt)}`, tone: "danger" };
-    }
-    return { label: "New Lead", detail: "Awaiting first contact", tone: "warn" };
-  }
-
-  return { label: "No Follow-up Set", detail: "Set next call to keep momentum", tone: "warn" };
+  return { label: summary.action, detail: summary.reason, tone };
 }
 
 const DISTRESS_CFG: Record<string, { label: string; icon: typeof AlertTriangle; color: string }> = {

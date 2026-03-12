@@ -15,8 +15,9 @@ import {
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useMorningQueue, type QueueBucket } from "@/hooks/use-morning-queue";
+import { useMorningQueue, type QueueBucket, type QueueItem } from "@/hooks/use-morning-queue";
 import { formatDueDateLabel } from "@/lib/due-date-label";
+import type { UrgencyLevel } from "@/lib/action-derivation";
 
 const BUCKET_ICONS: Record<string, ComponentType<{ className?: string }>> = {
   "new-inbound": Phone,
@@ -33,15 +34,25 @@ function openLead(leadId: string) {
   window.location.href = `/leads?open=${leadId}`;
 }
 
+function actionUrgencyClass(urgency?: UrgencyLevel): string {
+  switch (urgency) {
+    case "critical": return "text-red-400";
+    case "high": return "text-amber-300";
+    case "normal": return "text-muted-foreground/70";
+    default: return "text-muted-foreground/50";
+  }
+}
+
 function QueueRow({
   item,
   idx,
 }: {
-  item: { leadId: string; address: string; ownerName: string; dueAt: string | null };
+  item: QueueItem;
   idx: number;
 }) {
   const due = formatDueDateLabel(item.dueAt);
   const dueLabel = due.text === "n/a" ? "No due date" : due.text;
+  const hasAction = item.actionLabel && item.actionLabel !== "On track";
 
   return (
     <motion.button
@@ -49,20 +60,26 @@ function QueueRow({
       animate={{ opacity: 1, x: 0 }}
       transition={{ delay: 0.05 + idx * 0.03 }}
       onClick={() => openLead(item.leadId)}
-      className="w-full flex items-center justify-between text-[11px] py-0.5 px-1 rounded hover:bg-white/5 transition-colors text-left"
+      className="w-full flex items-center justify-between text-[11px] py-0.5 px-1 rounded hover:bg-white/5 transition-colors text-left gap-1"
     >
-      <span className="truncate flex-1 mr-2">{item.address || item.ownerName}</span>
-      <span
-        className={
-          due.overdue
-            ? "text-red-400 font-semibold shrink-0"
-            : due.urgent
-              ? "text-yellow-300 shrink-0"
-              : "text-muted-foreground shrink-0"
-        }
-      >
-        {dueLabel}
-      </span>
+      <span className="truncate flex-1 mr-1">{item.address || item.ownerName}</span>
+      {hasAction ? (
+        <span className={`truncate max-w-[45%] text-right shrink-0 ${actionUrgencyClass(item.actionUrgency)}`}>
+          {item.actionLabel}
+        </span>
+      ) : (
+        <span
+          className={
+            due.overdue
+              ? "text-red-400 font-semibold shrink-0"
+              : due.urgent
+                ? "text-yellow-300 shrink-0"
+                : "text-muted-foreground shrink-0"
+          }
+        >
+          {dueLabel}
+        </span>
+      )}
     </motion.button>
   );
 }

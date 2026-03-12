@@ -12,6 +12,7 @@ import { requireAuth } from "@/lib/api-auth";
 import { getPeriodStart, type TimePeriod } from "@/lib/analytics";
 import { normalizeSource, sourceLabel as getSourceLabel } from "@/lib/source-normalization";
 import { isContractStatus } from "@/lib/analytics-helpers";
+import { isContacted, contactRate as calcContactRate } from "@/lib/comm-truth";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -137,11 +138,8 @@ export async function GET(req: NextRequest) {
     const total_revenue = closedDeals.reduce((sum, d) => sum + Number(d.assignment_fee ?? 0), 0);
     const avg_assignment_fee = deals_closed > 0 ? Math.round(total_revenue / deals_closed) : null;
 
-    // ── 4. Contact rate ──────────────────────────────────────────────
-    const contactedCount = periodLeads.filter(
-      (l) => (l.last_contact_at != null && l.last_contact_at !== "") || (l.total_calls != null && l.total_calls > 0)
-    ).length;
-    const contact_rate = periodLeads.length > 0 ? round1((contactedCount / periodLeads.length) * 100) : null;
+    // ── 4. Contact rate (shared definition from comm-truth.ts) ──────
+    const contact_rate = calcContactRate(periodLeads);
 
     // ── 5. Conversion rates ──────────────────────────────────────────
     // Use period-filtered leads as denominator so the rate is meaningful within the selected period

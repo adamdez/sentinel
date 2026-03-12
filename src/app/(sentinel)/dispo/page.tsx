@@ -19,6 +19,7 @@ import {
 } from "@/lib/buyer-types";
 import type { DealBuyerRow, DispoPrep } from "@/lib/buyer-types";
 import { Badge } from "@/components/ui/badge";
+import { deriveDispoActionSummary, type DispoActionSummary } from "@/lib/dispo-action-derivation";
 import { BuyerSearchModal } from "@/components/sentinel/buyer-search-modal";
 import { DealClosingCard } from "@/components/sentinel/deal-closing-card";
 import { useHydrated } from "@/providers/hydration-provider";
@@ -33,67 +34,18 @@ const RESPONDED_STATUSES = new Set(["interested", "offered", "follow_up", "selec
 // Statuses that haven't responded yet
 const PRE_RESPONSE_STATUSES = new Set(["not_contacted", "queued", "sent"]);
 
-// ── Stall detection ──
+// ── Shared action derivation ──
 
-type StallReason = "no_outreach" | "no_response" | "needs_followup" | "stalled_selection";
-
-const STALL_LABELS: Record<StallReason, string> = {
-  no_outreach: "No outreach started",
-  no_response: "No responses",
-  needs_followup: "Needs follow-up",
-  stalled_selection: "Stalled selection",
-};
-
-function detectStalls(deals: DispoDeal[]): { deal: DispoDeal; reasons: StallReason[] }[] {
-  const now = Date.now();
-  const DAY = 86400000;
-  const stalled: { deal: DispoDeal; reasons: StallReason[] }[] = [];
-
-  for (const deal of deals) {
-    const reasons: StallReason[] = [];
-    const dbs = deal.deal_buyers;
-
-    if (dbs.length === 0) {
-      const enteredAt = deal.entered_dispo_at ? new Date(deal.entered_dispo_at).getTime() : null;
-      if (enteredAt && now - enteredAt > DAY) {
-        reasons.push("no_outreach");
-      }
-    } else {
-      const allPreContact = dbs.every((db) => db.status === "not_contacted" || db.status === "queued");
-      if (allPreContact) {
-        const oldest = Math.min(...dbs.map((db) => new Date(db.created_at).getTime()));
-        if (now - oldest > DAY) reasons.push("no_outreach");
-      }
-
-      const sentBuyers = dbs.filter((db) => db.status === "sent");
-      const nonSentActive = dbs.filter((db) => !["not_contacted", "queued", "sent", "passed"].includes(db.status));
-      if (sentBuyers.length > 0 && nonSentActive.length === 0) {
-        const oldestSent = Math.min(...sentBuyers.map((db) => new Date(db.date_contacted || db.updated_at).getTime()));
-        if (now - oldestSent > 3 * DAY) reasons.push("no_response");
-      }
-
-      const activeResponders = dbs.filter((db) => db.status === "interested" || db.status === "offered");
-      if (activeResponders.length > 0) {
-        // Only flag if the buyer has been in this status for >2 days without follow-up
-        const noFollowUp = activeResponders.some((db) => {
-          if (db.follow_up_needed || db.follow_up_at) return false;
-          const statusAge = now - new Date(db.responded_at || db.updated_at).getTime();
-          return statusAge > 2 * DAY;
-        });
-        if (noFollowUp) reasons.push("needs_followup");
-      }
-
-      const selectedBuyer = dbs.find((db) => db.status === "selected");
-      if (selectedBuyer) {
-        const lastUpdate = new Date(selectedBuyer.updated_at).getTime();
-        if (now - lastUpdate > 5 * DAY) reasons.push("stalled_selection");
-      }
-    }
-
-    if (reasons.length > 0) stalled.push({ deal, reasons });
-  }
-
-  return stalled;
+function deriveDealAction(deal: DispoDeal): DispoActionSummary {
+  return deriveDispoActionSummary({
+    enteredDispoAt: deal.entered_dispo_at,
+    closingStatus: deal.closing_status,
+    buyerStatuses: deal.deal_buyers.map((db) => ({
+      status: db.status,
+      dateContacted: db.date_contacted,
+      respondedAt: db.responded_at,
+    })),
+  });
 }
 
 function daysAgo(dateStr: string | null): number | null {
@@ -102,12 +54,14 @@ function daysAgo(dateStr: string | null): number | null {
   return Math.max(0, Math.floor(diff / 86400000));
 }
 
-function lastActivityDate(deal: DispoDeal): string | null {
-  const dates = deal.deal_buyers
-    .flatMap((db) => [db.updated_at, db.date_contacted, db.responded_at])
-    .filter(Boolean) as string[];
-  if (dates.length === 0) return null;
-  return dates.sort().reverse()[0];
+/** Urgency → style class for action label in deal cards */
+function dispoUrgencyClass(urgency: string): string {
+  switch (urgency) {
+    case "critical": return "text-red-400";
+    case "high": return "text-amber-300";
+    case "normal": return "text-muted-foreground/70";
+    default: return "text-muted-foreground/50";
+  }
 }
 
 // ── Outreach Funnel Bar ──
@@ -163,10 +117,17 @@ function OutreachFunnel({ deals }: { deals: DispoDeal[] }) {
 // ── Stalled Deals Panel ──
 
 function StalledDealsPanel({ deals }: { deals: DispoDeal[] }) {
-  const stalled = useMemo(() => detectStalls(deals), [deals]);
+  const stalledDeals = useMemo(() => {
+    const results: { deal: DispoDeal; summary: DispoActionSummary }[] = [];
+    for (const deal of deals) {
+      const summary = deriveDealAction(deal);
+      if (summary.isStalled) results.push({ deal, summary });
+    }
+    return results;
+  }, [deals]);
   const [open, setOpen] = useState(true);
 
-  if (stalled.length === 0) return null;
+  if (stalledDeals.length === 0) return null;
 
   return (
     <GlassCard hover={false} delay={0} className="p-0 overflow-hidden border-amber-500/15">
@@ -178,7 +139,7 @@ function StalledDealsPanel({ deals }: { deals: DispoDeal[] }) {
         <span className="text-xs font-semibold uppercase tracking-wider text-amber-400/80">
           Needs Attention
         </span>
-        <Badge variant="gold" className="text-[9px]">{stalled.length}</Badge>
+        <Badge variant="gold" className="text-[9px]">{stalledDeals.length}</Badge>
         <div className="flex-1" />
         <motion.div animate={{ rotate: open ? 180 : 0 }} transition={{ duration: 0.15 }}>
           <ChevronDown className="h-3 w-3 text-muted-foreground/30" />
@@ -195,19 +156,15 @@ function StalledDealsPanel({ deals }: { deals: DispoDeal[] }) {
             className="overflow-hidden"
           >
             <div className="px-4 pb-3 space-y-1.5">
-              {stalled.map((s) => (
+              {stalledDeals.map((s) => (
                 <div key={s.deal.id} className="flex items-center gap-2 px-3 py-2 rounded-[6px] bg-amber-500/[0.03] border border-amber-500/10">
                   <MapPin className="h-3 w-3 text-amber-400/50 shrink-0" />
                   <span className="text-xs text-foreground/70 truncate flex-1">
                     {s.deal.property_address || "No address"}
                   </span>
-                  <div className="flex gap-1 shrink-0 flex-wrap">
-                    {s.reasons.map((r) => (
-                      <span key={r} className="text-[9px] text-amber-400/60 bg-amber-500/[0.06] px-1.5 py-0.5 rounded">
-                        {STALL_LABELS[r]}
-                      </span>
-                    ))}
-                  </div>
+                  <span className={cn("text-[9px] px-1.5 py-0.5 rounded shrink-0", dispoUrgencyClass(s.summary.urgency))} title={s.summary.reason}>
+                    {s.summary.action}
+                  </span>
                 </div>
               ))}
             </div>
@@ -379,6 +336,7 @@ function DealCard({ deal, expanded, onToggleExpand, onStatusChange, onLinkBuyer,
   onRefetch: () => void;
 }) {
   const [prepOpen, setPrepOpen] = useState(false);
+  const actionSummary = useMemo(() => deriveDealAction(deal), [deal]);
 
   return (
     <GlassCard hover delay={0} className="p-0 overflow-hidden">
@@ -405,6 +363,12 @@ function DealCard({ deal, expanded, onToggleExpand, onStatusChange, onLinkBuyer,
               <span>Offer: <span className="text-foreground/80 font-medium">{fmtPrice(deal.offer_price)}</span></span>
             )}
           </div>
+          {/* Dispo action summary — compact reason line */}
+          {actionSummary.urgency !== "none" && (
+            <div className={cn("text-[10px] mt-1.5 truncate", dispoUrgencyClass(actionSummary.urgency))} title={actionSummary.reason}>
+              {actionSummary.action}
+            </div>
+          )}
         </div>
 
         <div className="flex flex-col items-end gap-1.5 shrink-0">
@@ -412,27 +376,14 @@ function DealCard({ deal, expanded, onToggleExpand, onStatusChange, onLinkBuyer,
             <Users className="h-3 w-3 text-muted-foreground/40" />
             <span className="text-xs text-muted-foreground/60">{deal.deal_buyers.length}</span>
           </div>
-          {(() => {
-            const age = daysAgo(deal.entered_dispo_at);
-            const lastAct = daysAgo(lastActivityDate(deal));
-            return (
-              <div className="flex items-center gap-2">
-                {age != null && (
-                  <span className={cn(
-                    "text-[10px]",
-                    age > 14 ? "text-amber-400/60" : "text-muted-foreground/40"
-                  )}>
-                    {age}d in dispo
-                  </span>
-                )}
-                {lastAct != null && lastAct > 2 && (
-                  <span className="text-[10px] text-amber-400/50">
-                    {lastAct}d idle
-                  </span>
-                )}
-              </div>
-            );
-          })()}
+          {actionSummary.daysInDispo != null && (
+            <span className={cn(
+              "text-[10px]",
+              actionSummary.daysInDispo > 14 ? "text-amber-400/60" : "text-muted-foreground/40"
+            )}>
+              {actionSummary.daysInDispo}d in dispo
+            </span>
+          )}
           <motion.div animate={{ rotate: expanded ? 180 : 0 }} transition={{ duration: 0.15 }}>
             <ChevronDown className="h-3.5 w-3.5 text-muted-foreground/30" />
           </motion.div>
@@ -596,7 +547,7 @@ export default function DispoPage() {
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
 
   // Coach context — surface-level stats about dispo health
-  const stalledCount = useMemo(() => detectStalls(deals).length, [deals]);
+  const stalledCount = useMemo(() => deals.filter((d) => deriveDealAction(d).isStalled).length, [deals]);
   const noBuyersCount = deals.filter((d) => d.deal_buyers.length === 0).length;
   const selectedCount = deals.reduce(
     (acc, d) => acc + d.deal_buyers.filter((db) => db.status === "selected").length, 0

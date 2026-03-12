@@ -41,6 +41,31 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       return NextResponse.json({ error: "Deal-buyer link not found" }, { status: 404 });
     }
 
+    // ── Write-path hardening: auto-set lifecycle timestamps on status transitions ──
+    if ("status" in body) {
+      const prevStatus = existing.status;
+      const newStatus = body.status;
+      const nowIso = update.updated_at;
+
+      // Auto-set date_contacted when buyer moves from pre-contact to contacted status
+      const preContactStatuses = new Set(["not_contacted", "queued"]);
+      const contactedStatuses = new Set(["sent", "interested", "offered", "follow_up", "selected", "passed"]);
+      if (preContactStatuses.has(prevStatus) && contactedStatuses.has(newStatus)) {
+        if (!update.date_contacted && !existing.date_contacted) {
+          update.date_contacted = nowIso;
+        }
+      }
+
+      // Auto-set responded_at when buyer moves from outreach to response status
+      const outreachStatuses = new Set(["not_contacted", "queued", "sent"]);
+      const responseStatuses = new Set(["interested", "offered", "follow_up", "selected"]);
+      if (outreachStatuses.has(prevStatus) && responseStatuses.has(newStatus)) {
+        if (!update.responded_at && !existing.responded_at) {
+          update.responded_at = nowIso;
+        }
+      }
+    }
+
     // Apply the update
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { data, error } = await (sb.from("deal_buyers") as any)

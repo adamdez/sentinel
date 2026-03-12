@@ -1027,7 +1027,6 @@ export async function POST(req: NextRequest) {
       } else {
         // Fallback to upsert if pre-enriched ID is stale
         console.warn(`[API/prospects POST] Pre-enriched property ${preEnrichedPropertyId} not found, falling back to upsert`);
-        preEnrichedPropertyId === undefined; // fall through
       }
     }
 
