@@ -14,6 +14,7 @@ import { createServerClient } from "@/lib/supabase";
 import { requireAuth } from "@/lib/api-auth";
 import { getPeriodStart, type TimePeriod } from "@/lib/analytics";
 import { normalizeSource, sourceLabel } from "@/lib/source-normalization";
+import { isContractStatus } from "@/lib/analytics-helpers";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -165,15 +166,7 @@ export async function GET(req: NextRequest) {
       for (const deal of leadDeals) {
         // Only count deals with meaningful contract status (not dead/draft)
         const dealStatus = (deal.status ?? "").toLowerCase();
-        const isContract =
-          dealStatus === "under_contract" ||
-          dealStatus === "contract" ||
-          dealStatus === "contracted" ||
-          dealStatus === "closed" ||
-          dealStatus === "assigned" ||
-          dealStatus === "negotiating" ||
-          Boolean(deal.closed_at);
-        if (isContract) bucket.contracts.push(deal);
+        if (isContractStatus(deal.status) || Boolean(deal.closed_at)) bucket.contracts.push(deal);
 
         // Closed deals
         if (dealStatus === "closed" || deal.closed_at) {

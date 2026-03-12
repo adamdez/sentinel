@@ -11,6 +11,7 @@ import { createServerClient } from "@/lib/supabase";
 import { requireAuth } from "@/lib/api-auth";
 import { getPeriodStart, type TimePeriod } from "@/lib/analytics";
 import { normalizeSource, sourceLabel as getSourceLabel } from "@/lib/source-normalization";
+import { isContractStatus } from "@/lib/analytics-helpers";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -119,8 +120,7 @@ export async function GET(req: NextRequest) {
 
     const offers_made = periodDeals.length;
     const contracts_signed = periodDeals.filter((d) => {
-      const s = (d.status ?? "").toLowerCase();
-      return s === "under_contract" || s === "contract" || s === "contracted" || s === "closed" || Boolean(d.closed_at);
+      return isContractStatus(d.status) || Boolean(d.closed_at);
     }).length;
 
     // Closed deals + revenue: filter on closed_at (when did it actually close?)
