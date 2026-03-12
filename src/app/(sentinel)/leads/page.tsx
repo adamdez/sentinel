@@ -1,10 +1,12 @@
 "use client";
 
-import { Shield, Radio } from "lucide-react";
+import { Shield, Radio, Plus } from "lucide-react";
 import { useCoachSurface } from "@/providers/coach-provider";
 import { CoachPanel, CoachToggle } from "@/components/sentinel/coach-panel";
 import { PageShell } from "@/components/sentinel/page-shell";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { useModal } from "@/providers/modal-provider";
 import { LeadSegmentControl } from "@/components/sentinel/leads/lead-segment-control";
 import { LeadFilters } from "@/components/sentinel/leads/lead-filters";
 import { LeadTable } from "@/components/sentinel/leads/lead-table";
@@ -69,6 +71,7 @@ export default function LeadsPage() {
     teamMembers,
     refetch,
   } = useLeads();
+  const { openModal } = useModal();
   const segmentTotal =
     segment === "all"
       ? segmentCounts.all
@@ -110,6 +113,10 @@ export default function LeadsPage() {
       description="Promoted seller leads prioritized for first contact and follow-up."
       actions={
         <div className="flex items-center gap-2">
+          <Button size="sm" className="gap-2 text-xs" onClick={() => openModal("new-prospect")}>
+            <Plus className="h-3 w-3" />
+            Add Lead
+          </Button>
           <Badge variant="outline" className="text-[10px] gap-1">
             <Radio className="h-2.5 w-2.5 text-green-400 animate-pulse" />
             Live

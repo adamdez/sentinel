@@ -1,12 +1,14 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Zap, Shield, Flame, Loader2 } from "lucide-react";
+import { Zap, Shield, Flame, Loader2, Plus } from "lucide-react";
 import { PageShell } from "@/components/sentinel/page-shell";
 import { DashboardGrid } from "@/components/sentinel/dashboard/dashboard-grid";
 import { BreakingLeadsSidebar } from "@/components/sentinel/dashboard/breaking-leads-sidebar";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { useSentinelStore } from "@/lib/store";
+import { useModal } from "@/providers/modal-provider";
 import { SCORING_MODEL_VERSION } from "@/lib/scoring";
 import { toast } from "sonner";
 
@@ -14,6 +16,7 @@ const ELITE_SEED_FLAG = "sentinel_elite_seed_done";
 
 export default function DashboardPage() {
   const { currentUser, ghostMode } = useSentinelStore();
+  const { openModal } = useModal();
   const [eliteDone, setEliteDone] = useState(true);
   const [eliteLoading, setEliteLoading] = useState(false);
 
@@ -133,6 +136,10 @@ export default function DashboardPage() {
       description="Sentinel command center — your personalized acquisition intelligence"
       actions={
         <div className="flex items-center gap-2">
+          <Button size="sm" className="gap-2 text-xs" onClick={() => openModal("new-prospect")}>
+            <Plus className="h-3 w-3" />
+            Add Lead
+          </Button>
           <button
             onClick={handleEliteSeed}
             disabled={eliteLoading}

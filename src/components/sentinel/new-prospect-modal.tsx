@@ -279,8 +279,8 @@ export function NewProspectModal() {
       setStep("confirm");
       toast.success(
         assignTo !== "unassigned"
-          ? `Prospect created and assigned to ${assignmentLabel}`
-          : "Prospect created in pipeline",
+          ? `Lead created and assigned to ${assignmentLabel}`
+          : "Lead created in pipeline",
         { description: `${form.address} — Score ${data.score}` }
       );
     } catch (err) {
@@ -331,12 +331,12 @@ export function NewProspectModal() {
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <UserPlus className="h-5 w-5 text-cyan" />
-            {step === "form" ? "Add New Prospect" : "Prospect Created"}
+            {step === "form" ? "Add New Lead" : "Lead Created"}
           </DialogTitle>
           <DialogDescription>
             {step === "form"
               ? "Fill in the property and owner details. Tab through fields. Required fields are marked."
-              : "Your prospect has been saved. Claim it or close to leave in the pipeline."}
+              : "Your lead has been saved. Claim it or close to leave in the pipeline."}
           </DialogDescription>
         </DialogHeader>
 
@@ -686,7 +686,7 @@ export function NewProspectModal() {
               {/* ── Section: Notes ────────────────────────── */}
               <Field label="Notes">
                 <textarea
-                  placeholder="Any additional info about this prospect..."
+                  placeholder="Any additional info about this lead..."
                   value={form.notes}
                   onChange={(e) => update("notes", e.target.value)}
                   rows={2}
@@ -710,7 +710,7 @@ export function NewProspectModal() {
                   ) : (
                     <UserPlus className="h-4 w-4" />
                   )}
-                  {saving ? "Saving..." : "Save Prospect"}
+                  {saving ? "Saving..." : "Save Lead"}
                 </Button>
               </div>
             </motion.div>
@@ -765,7 +765,7 @@ export function NewProspectModal() {
                     ) : (
                       <UserPlus className="h-4 w-4" />
                     )}
-                    Claim This Prospect
+                    Claim This Lead
                   </Button>
                 )}
               </div>
