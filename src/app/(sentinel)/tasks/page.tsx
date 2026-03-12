@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useMemo, useRef } from "react";
+import { useState, useCallback, useMemo, useRef, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   CheckCircle2,
@@ -19,6 +19,7 @@ import { GlassCard } from "@/components/sentinel/glass-card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useTasks, type TaskItem, type TaskView } from "@/hooks/use-tasks";
+import { supabase } from "@/lib/supabase";
 import { useHydrated } from "@/providers/hydration-provider";
 import { toast } from "sonner";
 
@@ -393,30 +394,66 @@ function EditOverlay({
   );
 }
 
-// ── Counts component ──
+// ── Counts component (single fetch, no extra websocket channels) ──
 
 function TaskCounts() {
-  const { tasks: overdueTasks, loading: l1 } = useTasks("overdue");
-  const { tasks: todayTasks, loading: l2 } = useTasks("today");
-  const { tasks: upcomingTasks, loading: l3 } = useTasks("upcoming");
+  const [counts, setCounts] = useState<{ overdue: number; today: number; upcoming: number } | null>(null);
 
-  if (l1 || l2 || l3) return null;
+  useEffect(() => {
+    let cancelled = false;
+
+    async function fetchCounts() {
+      try {
+        const { data } = await supabase.auth.getSession();
+        const token = data?.session?.access_token;
+        if (!token) return;
+        const headers = { Authorization: `Bearer ${token}` };
+
+        const [overdueRes, todayRes, upcomingRes] = await Promise.all([
+          fetch("/api/tasks?status=pending&view=overdue", { headers }),
+          fetch("/api/tasks?status=pending&view=today", { headers }),
+          fetch("/api/tasks?status=pending&view=upcoming", { headers }),
+        ]);
+
+        if (cancelled) return;
+
+        const [overdueJson, todayJson, upcomingJson] = await Promise.all([
+          overdueRes.ok ? overdueRes.json() : { tasks: [] },
+          todayRes.ok ? todayRes.json() : { tasks: [] },
+          upcomingRes.ok ? upcomingRes.json() : { tasks: [] },
+        ]);
+
+        setCounts({
+          overdue: (overdueJson.tasks ?? []).length,
+          today: (todayJson.tasks ?? []).length,
+          upcoming: (upcomingJson.tasks ?? []).length,
+        });
+      } catch {
+        // Silently fail — badges are informational
+      }
+    }
+
+    fetchCounts();
+    return () => { cancelled = true; };
+  }, []);
+
+  if (!counts) return null;
 
   return (
     <div className="flex items-center gap-2">
-      {overdueTasks.length > 0 && (
+      {counts.overdue > 0 && (
         <Badge variant="destructive" className="text-[11px]">
           <AlertCircle className="h-3 w-3 mr-1" />
-          {overdueTasks.length} Overdue
+          {counts.overdue} Overdue
         </Badge>
       )}
       <Badge variant="gold" className="text-[11px]">
         <Clock className="h-3 w-3 mr-1" />
-        {todayTasks.length} Today
+        {counts.today} Today
       </Badge>
       <Badge variant="cyan" className="text-[11px]">
         <Calendar className="h-3 w-3 mr-1" />
-        {upcomingTasks.length} Upcoming
+        {counts.upcoming} Upcoming
       </Badge>
     </div>
   );

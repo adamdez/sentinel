@@ -9,8 +9,9 @@
  *   ?period=today|week|month|all  (default: "all")
  */
 
-import { NextRequest } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@/lib/supabase";
+import { requireAuth } from "@/lib/api-auth";
 import { getPeriodStart, type TimePeriod } from "@/lib/analytics";
 
 export const dynamic = "force-dynamic";
@@ -42,6 +43,7 @@ const SOURCE_MAP: Record<string, string> = {
   website: "webform",
   referral: "referral",
   ref: "referral",
+  property_lookup: "propertyradar",
 };
 
 function normalizeSource(raw: string | null | undefined): string {
@@ -49,6 +51,8 @@ function normalizeSource(raw: string | null | undefined): string {
   const lower = raw.trim().toLowerCase();
   // Handle csv:* pattern
   if (lower.startsWith("csv:")) return "csv_import";
+  // Handle BulkSeed_* pattern (seeded data imports)
+  if (lower.startsWith("bulkseed")) return "csv_import";
   return SOURCE_MAP[lower] ?? lower;
 }
 
@@ -98,14 +102,9 @@ export async function GET(req: NextRequest) {
   const sb = createServerClient();
 
   // Auth
-  const authHeader = req.headers.get("authorization");
-  const token = authHeader?.replace("Bearer ", "");
-  const {
-    data: { user },
-    error: authErr,
-  } = await sb.auth.getUser(token ?? "");
-  if (authErr || !user) {
-    return Response.json({ error: "Unauthorized" }, { status: 401 });
+  const user = await requireAuth(req, sb);
+  if (!user) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
   // Period
@@ -310,7 +309,7 @@ export async function GET(req: NextRequest) {
       return b.revenue - a.revenue;
     });
 
-    return Response.json({
+    return NextResponse.json({
       period,
       period_start: periodStart,
       generated_at: new Date().toISOString(),
@@ -318,6 +317,6 @@ export async function GET(req: NextRequest) {
     });
   } catch (err) {
     console.error("[Analytics/SourcePerformance] Error:", err);
-    return Response.json({ error: "Failed to compute source performance" }, { status: 500 });
+    return NextResponse.json({ error: "Failed to compute source performance" }, { status: 500 });
   }
 }
