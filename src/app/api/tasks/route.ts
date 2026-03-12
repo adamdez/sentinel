@@ -56,7 +56,13 @@ export async function GET(req: NextRequest) {
     if (leadId) query = query.eq("lead_id", leadId);
     if (dealId) query = query.eq("deal_id", dealId);
 
-    query = query.order("due_at", { ascending: true, nullsFirst: false });
+    // Completed tasks: show most recently completed first
+    // Pending tasks: show soonest due first
+    if (status === "completed") {
+      query = query.order("completed_at", { ascending: false, nullsFirst: false });
+    } else {
+      query = query.order("due_at", { ascending: true, nullsFirst: false });
+    }
 
     const { data: tasks, error } = await query;
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });

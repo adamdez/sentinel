@@ -21,6 +21,8 @@ import { Badge } from "@/components/ui/badge";
 import { BuyerSearchModal } from "@/components/sentinel/buyer-search-modal";
 import { DealClosingCard } from "@/components/sentinel/deal-closing-card";
 import { useHydrated } from "@/providers/hydration-provider";
+import { useCoachSurface } from "@/providers/coach-provider";
+import { CoachPanel, CoachToggle } from "@/components/sentinel/coach-panel";
 
 // ── Helpers ──
 
@@ -629,6 +631,21 @@ export default function DispoPage() {
   const [searchModal, setSearchModal] = useState<string | null>(null);
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
 
+  // Coach context — surface-level stats about dispo health
+  const stalledCount = useMemo(() => detectStalls(deals).length, [deals]);
+  const noBuyersCount = deals.filter((d) => d.deal_buyers.length === 0).length;
+  const selectedCount = deals.reduce(
+    (acc, d) => acc + d.deal_buyers.filter((db) => db.status === "selected").length, 0
+  );
+  useCoachSurface("dispo", {
+    dispoCtx: {
+      total_deals: deals.length,
+      stalled_count: stalledCount,
+      no_buyers_linked_count: noBuyersCount,
+      selected_buyer_count: selectedCount,
+    },
+  });
+
   const toggleExpanded = useCallback((dealId: string) => {
     setExpandedIds((prev) => {
       const next = new Set(prev);
@@ -680,6 +697,7 @@ export default function DispoPage() {
     <PageShell
       title="Dispo Board"
       description="Match buyers to deals in disposition"
+      actions={<CoachToggle />}
     >
       {loading ? (
         <div className="flex items-center justify-center py-20">
@@ -739,6 +757,8 @@ export default function DispoPage() {
           dealContext={dealContext}
         />
       )}
+
+      <CoachPanel />
     </PageShell>
   );
 }

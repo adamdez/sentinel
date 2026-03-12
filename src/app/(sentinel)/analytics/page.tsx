@@ -6,6 +6,7 @@ import { PageShell } from "@/components/sentinel/page-shell";
 import { GlassCard } from "@/components/sentinel/glass-card";
 import { Badge } from "@/components/ui/badge";
 import { useAnalytics } from "@/hooks/use-analytics";
+import { KpiSummaryRow } from "@/components/sentinel/kpi-summary-row";
 import { formatCurrency, formatMinutes, formatPercent, type TimePeriod } from "@/lib/analytics";
 import { useSentinelStore } from "@/lib/store";
 import { cn } from "@/lib/utils";
@@ -97,6 +98,8 @@ export default function AnalyticsPage() {
             </button>
           ))}
         </div>
+
+        <KpiSummaryRow period={period} />
 
         {loading ? (
           <GlassCard hover={false} className="!p-8">

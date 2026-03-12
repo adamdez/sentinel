@@ -440,4 +440,108 @@ export const COACH_ITEMS: CoachItem[] = [
       ctx.importCtx?.step === "mapping",
     priority: 55,
   },
+
+  // ════════════════════════════════════════════
+  // BUYERS
+  // ════════════════════════════════════════════
+  {
+    id: "buyers-explain-pof",
+    type: "recommended",
+    category: "tip",
+    title: "Proof of funds matters",
+    body: "Verify POF before assigning a deal. Unverified buyers create closing risk — ask for a bank statement, pre-approval letter, or proof of liquid funds.",
+    surfaces: ["buyers"],
+    condition: () => true,
+    priority: 50,
+  },
+  {
+    id: "buyers-explain-buybox",
+    type: "suggestion",
+    category: "explainer",
+    title: "Buy-box = faster matching",
+    body: "Fill in markets, asset types, strategy, and price range for each buyer. The Dispo page uses buy-box criteria to surface matching buyers when you link them to deals.",
+    surfaces: ["buyers"],
+    condition: () => true,
+    priority: 100,
+  },
+  {
+    id: "buyers-next-unverified",
+    type: "recommended",
+    category: "next_step",
+    title: "Unverified buyers need POF",
+    body: (ctx) =>
+      `${ctx.buyersCtx?.unverified_pof_count ?? 0} buyer(s) have unverified proof of funds. Follow up to collect POF before assigning deals.`,
+    surfaces: ["buyers"],
+    condition: (ctx) => (ctx.buyersCtx?.unverified_pof_count ?? 0) > 0,
+    priority: 15,
+  },
+  {
+    id: "buyers-next-no-market",
+    type: "suggestion",
+    category: "next_step",
+    title: "Buyers missing market info",
+    body: (ctx) =>
+      `${ctx.buyersCtx?.no_market_count ?? 0} buyer(s) have no markets set. Add markets so they appear in Dispo matching.`,
+    surfaces: ["buyers"],
+    condition: (ctx) => (ctx.buyersCtx?.no_market_count ?? 0) > 0,
+    priority: 25,
+  },
+
+  // ════════════════════════════════════════════
+  // DISPO
+  // ════════════════════════════════════════════
+  {
+    id: "dispo-explain-flow",
+    type: "suggestion",
+    category: "explainer",
+    title: "Dispo workflow",
+    body: "Link buyers → Contact them → Track responses → Select the best buyer → Coordinate closing. The stalled deals panel flags anything stuck.",
+    surfaces: ["dispo"],
+    condition: () => true,
+    priority: 100,
+  },
+  {
+    id: "dispo-explain-prep",
+    type: "recommended",
+    category: "tip",
+    title: "Complete dispo prep first",
+    body: "Fill in asking price, rehab estimate, occupancy, and a quick pitch before contacting buyers. Buyers respond faster when you have the details ready.",
+    surfaces: ["dispo"],
+    condition: () => true,
+    priority: 50,
+  },
+  {
+    id: "dispo-next-no-buyers",
+    type: "recommended",
+    category: "next_step",
+    title: "Deals need buyers linked",
+    body: (ctx) =>
+      `${ctx.dispoCtx?.no_buyers_linked_count ?? 0} deal(s) have no buyers linked. Open the deal and click 'Link Buyer' to start outreach.`,
+    surfaces: ["dispo"],
+    condition: (ctx) => (ctx.dispoCtx?.no_buyers_linked_count ?? 0) > 0,
+    priority: 10,
+  },
+  {
+    id: "dispo-next-stalled",
+    type: "recommended",
+    category: "next_step",
+    title: "Stalled deals need attention",
+    body: (ctx) =>
+      `${ctx.dispoCtx?.stalled_count ?? 0} deal(s) are stalled. Check the 'Needs Attention' panel for specific issues.`,
+    surfaces: ["dispo"],
+    condition: (ctx) => (ctx.dispoCtx?.stalled_count ?? 0) > 0,
+    priority: 5,
+  },
+  {
+    id: "dispo-next-selection",
+    type: "suggestion",
+    category: "next_step",
+    title: "Move toward selection",
+    body: "No buyers are selected yet across your deals. Once a buyer is interested and terms work, select them to move toward closing.",
+    surfaces: ["dispo"],
+    condition: (ctx) =>
+      (ctx.dispoCtx?.total_deals ?? 0) > 0 &&
+      (ctx.dispoCtx?.selected_buyer_count ?? 0) === 0,
+    priority: 20,
+  },
 ];

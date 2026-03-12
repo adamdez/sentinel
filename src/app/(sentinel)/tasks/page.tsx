@@ -394,48 +394,51 @@ function EditOverlay({
   );
 }
 
-// ── Counts component (single fetch, no extra websocket channels) ──
+// ── Counts component (with realtime subscription for live updates) ──
 
 function TaskCounts() {
   const [counts, setCounts] = useState<{ overdue: number; today: number; upcoming: number } | null>(null);
 
-  useEffect(() => {
-    let cancelled = false;
+  const fetchCounts = useCallback(async () => {
+    try {
+      const { data } = await supabase.auth.getSession();
+      const token = data?.session?.access_token;
+      if (!token) return;
+      const headers = { Authorization: `Bearer ${token}` };
 
-    async function fetchCounts() {
-      try {
-        const { data } = await supabase.auth.getSession();
-        const token = data?.session?.access_token;
-        if (!token) return;
-        const headers = { Authorization: `Bearer ${token}` };
+      const [overdueRes, todayRes, upcomingRes] = await Promise.all([
+        fetch("/api/tasks?status=pending&view=overdue", { headers }),
+        fetch("/api/tasks?status=pending&view=today", { headers }),
+        fetch("/api/tasks?status=pending&view=upcoming", { headers }),
+      ]);
 
-        const [overdueRes, todayRes, upcomingRes] = await Promise.all([
-          fetch("/api/tasks?status=pending&view=overdue", { headers }),
-          fetch("/api/tasks?status=pending&view=today", { headers }),
-          fetch("/api/tasks?status=pending&view=upcoming", { headers }),
-        ]);
+      const [overdueJson, todayJson, upcomingJson] = await Promise.all([
+        overdueRes.ok ? overdueRes.json() : { tasks: [] },
+        todayRes.ok ? todayRes.json() : { tasks: [] },
+        upcomingRes.ok ? upcomingRes.json() : { tasks: [] },
+      ]);
 
-        if (cancelled) return;
-
-        const [overdueJson, todayJson, upcomingJson] = await Promise.all([
-          overdueRes.ok ? overdueRes.json() : { tasks: [] },
-          todayRes.ok ? todayRes.json() : { tasks: [] },
-          upcomingRes.ok ? upcomingRes.json() : { tasks: [] },
-        ]);
-
-        setCounts({
-          overdue: (overdueJson.tasks ?? []).length,
-          today: (todayJson.tasks ?? []).length,
-          upcoming: (upcomingJson.tasks ?? []).length,
-        });
-      } catch {
-        // Silently fail — badges are informational
-      }
+      setCounts({
+        overdue: (overdueJson.tasks ?? []).length,
+        today: (todayJson.tasks ?? []).length,
+        upcoming: (upcomingJson.tasks ?? []).length,
+      });
+    } catch {
+      // Silently fail — badges are informational
     }
-
-    fetchCounts();
-    return () => { cancelled = true; };
   }, []);
+
+  useEffect(() => {
+    fetchCounts();
+
+    // Subscribe to task changes so badges stay fresh
+    const channel = supabase
+      .channel("task_counts_rt")
+      .on("postgres_changes", { event: "*", schema: "public", table: "tasks" }, () => fetchCounts())
+      .subscribe();
+
+    return () => { supabase.removeChannel(channel); };
+  }, [fetchCounts]);
 
   if (!counts) return null;
 

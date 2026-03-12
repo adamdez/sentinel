@@ -1,4 +1,5 @@
 import { supabase } from "@/lib/supabase";
+import { normalizeSource, sourceLabel as canonicalSourceLabel } from "@/lib/source-normalization";
 
 export type TimePeriod = "today" | "week" | "month" | "all";
 export type MarketKey = "spokane" | "kootenai" | "other";
@@ -220,23 +221,15 @@ function marketLabel(market: MarketKey): string {
   return "Unknown/Other County";
 }
 
+// Use canonical normalization from source-normalization.ts
 function sourceKey(source: string | null | undefined): string {
-  return (source ?? "unknown").trim().toLowerCase();
+  return normalizeSource(source);
 }
 
 function sourceLabel(source: string | null | undefined): string {
-  const normalized = sourceKey(source);
-  if (normalized === "unknown") return "Uncategorized / Unknown";
-  if (normalized === "propertyradar") return "PropertyRadar";
-  if (normalized === "ranger_push") return "Ranger";
-  if (normalized === "google_ads") return "Google Ads";
-  if (normalized === "facebook_ads") return "Facebook Ads";
-  return normalized
-    .replace(/^csv:/, "CSV ")
-    .replace(/[_-]/g, " ")
-    .replace(/\s+/g, " ")
-    .trim()
-    .replace(/\b\w/g, (m) => m.toUpperCase());
+  const key = normalizeSource(source);
+  if (key === "unknown") return "Uncategorized / Unknown";
+  return canonicalSourceLabel(key);
 }
 
 function normalizeStage(status: string | null | undefined): PipelineStage {

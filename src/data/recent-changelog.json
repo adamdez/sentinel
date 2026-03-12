@@ -1,127 +1,127 @@
 [
   {
-    "hash": "77ecc5cd",
-    "date": "2026-03-10",
-    "message": "feat: ship phase 2k-2l workflow truth and modal cleanup"
+    "hash": "487c5b13",
+    "date": "2026-03-12",
+    "message": "fix: red team audit fixes for phases 6A/6B/7A/7B"
   },
   {
-    "hash": "3eaefbe7",
-    "date": "2026-03-10",
-    "message": "feat: ship phase 2h offer prep snapshot and operator workflow polish"
+    "hash": "02dd39d8",
+    "date": "2026-03-12",
+    "message": "feat(dispo): add contract-to-close coordination (Phase 7A)"
   },
   {
-    "hash": "677cd864",
-    "date": "2026-03-10",
-    "message": "feat: ship phase 2 workflow hardening and call closeout"
+    "hash": "36e043ab",
+    "date": "2026-03-12",
+    "message": "feat(tasks): add Tasks & Follow-Up page with CRUD API and sidebar nav"
   },
   {
-    "hash": "7f5a0d54",
-    "date": "2026-03-10",
-    "message": "feat: finalize dominion v1 workflow and operator polish"
+    "hash": "47235eb9",
+    "date": "2026-03-12",
+    "message": "feat(analytics): add source performance API and attribution summary"
   },
   {
-    "hash": "8f7863b8",
-    "date": "2026-03-10",
-    "message": "refactor: derive prospect audit actors server-side and tighten modal write auth"
+    "hash": "ed305ddc",
+    "date": "2026-03-11",
+    "message": "fix: eliminate large vertical gaps between dashboard tiles"
   },
   {
-    "hash": "2acce5e9",
-    "date": "2026-03-09",
-    "message": "chore: remove misplaced dialer UI page from api tree"
+    "hash": "34b57c5a",
+    "date": "2026-03-11",
+    "message": "fix(dispo): strip mailing address from county-record owner names"
   },
   {
-    "hash": "25b40a7c",
-    "date": "2026-03-09",
-    "message": "chore: archive low-risk legacy Sentinel pages"
+    "hash": "169d027f",
+    "date": "2026-03-11",
+    "message": "fix(dispo): Phase 5D pre-live polish — operator friction fixes"
   },
   {
-    "hash": "793ebdb3",
-    "date": "2026-03-09",
-    "message": "chore: reduce visible nav to Dominion v1 operator surface"
+    "hash": "eb73c825",
+    "date": "2026-03-11",
+    "message": "chore: force Vercel deployment"
   },
   {
-    "hash": "ab3426bd",
-    "date": "2026-03-07",
-    "message": "fix: pipeline signal detection gaps + comps tab fallback view"
+    "hash": "1e926899",
+    "date": "2026-03-11",
+    "message": "chore: trigger Vercel redeploy for dispo API fix"
   },
   {
-    "hash": "0440d8aa",
-    "date": "2026-03-07",
-    "message": "fix: critical scoring bugs, Kootenai County GIS, audit fixes (9 items)"
+    "hash": "59cab490",
+    "date": "2026-03-11",
+    "message": "fix: P0 dispo API crash + P1 metrics/error handling bugs"
   },
   {
-    "hash": "62fed13a",
-    "date": "2026-03-07",
-    "message": "feat: CSV backfill endpoint for bulk owner/address/mailing gap-fill by APN"
+    "hash": "cb94fa5a",
+    "date": "2026-03-11",
+    "message": "Phase 5C: dispo reporting, buyer performance, stalled deal awareness"
   },
   {
-    "hash": "8991a5ab",
-    "date": "2026-03-07",
-    "message": "fix: aggressive fallback chain when PR fails (county ArcGIS → ATTOM APN → DB signals)"
+    "hash": "37844da6",
+    "date": "2026-03-11",
+    "message": "docs: Phase 5C design and implementation plan"
   },
   {
-    "hash": "587b8153",
-    "date": "2026-03-07",
-    "message": "fix: batch property lookups in re-evaluate (Supabase URL length limit)"
+    "hash": "9d4eacc9",
+    "date": "2026-03-11",
+    "message": "Phase 5B: dispo prep, smart buyer matching, outreach funnel"
   },
   {
-    "hash": "b4c99499",
-    "date": "2026-03-07",
-    "message": "feat: testable data sufficiency gate + re-evaluate endpoint"
+    "hash": "82485706",
+    "date": "2026-03-11",
+    "message": "refactor: extract requireAuth to shared api-auth utility"
   },
   {
-    "hash": "378acb54",
-    "date": "2026-03-07",
-    "message": "feat: wholesale deal calc, smart phone ranking, distress urgency heat"
+    "hash": "f35a729c",
+    "date": "2026-03-11",
+    "message": "feat(dispo): add linked buyers summary to Lead Detail modal"
   },
   {
-    "hash": "120dac46",
-    "date": "2026-03-07",
-    "message": "feat: ATTOM deep comp enrichment + county ArcGIS integration + 5 new AI agents"
+    "hash": "8ce9fdc5",
+    "date": "2026-03-11",
+    "message": "feat(dispo): add Dispo Board page, dispo API, and BuyerSearchModal"
   },
   {
-    "hash": "8a5c1f44",
-    "date": "2026-03-06",
-    "message": "fix: add 5-min timeout to csv-upload for large imports"
+    "hash": "ecdf48cc",
+    "date": "2026-03-11",
+    "message": "feat(dispo): add Buyers list page with filters and table"
   },
   {
-    "hash": "2ff85b82",
-    "date": "2026-03-06",
-    "message": "fix: data sufficiency gate — keep under-informed properties in staging"
+    "hash": "6b10c803",
+    "date": "2026-03-11",
+    "message": "feat(dispo): add BuyerDetailModal component"
   },
   {
-    "hash": "23168d78",
-    "date": "2026-03-06",
-    "message": "feat: deep enrichment — mailing address owner lookup, legal stage tracking, signal fixes"
+    "hash": "02386715",
+    "date": "2026-03-11",
+    "message": "feat(dispo): add Dispositions section to sidebar navigation"
   },
   {
-    "hash": "d3fc724a",
-    "date": "2026-03-06",
-    "message": "feat: ATTOM gap-fill + APN-priority lookup + fix Unknown Owner portfolio rollup"
+    "hash": "31efea48",
+    "date": "2026-03-11",
+    "message": "feat(dispo): add useBuyers, useDealBuyers hooks and mutation helpers"
   },
   {
-    "hash": "760ecc7b",
-    "date": "2026-03-06",
-    "message": "fix: remove false \"vacant\" default for address-only CSV imports"
+    "hash": "c95b30cc",
+    "date": "2026-03-11",
+    "message": "feat(dispo): add buyers and deal-buyers API routes"
   },
   {
-    "hash": "a5729af3",
-    "date": "2026-03-06",
-    "message": "feat: CSV post-import enrichment + per-row distress detection + $490K ARV cap"
+    "hash": "fae62d52",
+    "date": "2026-03-11",
+    "message": "feat(dispo): add DB migration, buyer types and option constants"
   },
   {
-    "hash": "21227d17",
-    "date": "2026-03-06",
-    "message": "fix: portfolio total now includes primary property value"
+    "hash": "5b74cee5",
+    "date": "2026-03-11",
+    "message": "docs: add Phase 5A dispositions implementation plan"
   },
   {
-    "hash": "dddbde02",
-    "date": "2026-03-06",
-    "message": "fix: clear stale portfolio flags on property re-import"
+    "hash": "6ac6f301",
+    "date": "2026-03-11",
+    "message": "docs: add Phase 5A dispositions + buyer management design"
   },
   {
-    "hash": "9ac67387",
-    "date": "2026-03-06",
-    "message": "fix: vacant land detection — only use address, not missing sqft/beds"
+    "hash": "6b9e6f85",
+    "date": "2026-03-11",
+    "message": "fix(coach): resolve offerAmount type error in Lead Detail integration"
   }
 ]

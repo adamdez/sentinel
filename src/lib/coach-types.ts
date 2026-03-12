@@ -5,7 +5,9 @@ export type CoachSurface =
   | "pipeline"
   | "leads_inbox"
   | "dialer"
-  | "import";
+  | "import"
+  | "buyers"
+  | "dispo";
 
 // Content classification — always shown to operator
 export type CoachItemType = "hard_rule" | "recommended" | "suggestion";
@@ -51,6 +53,17 @@ export type CoachContext = {
     step: string;
     low_confidence_count: number;
     duplicate_count: number;
+  };
+  buyersCtx?: {
+    total_buyers: number;
+    unverified_pof_count: number;
+    no_market_count: number;
+  };
+  dispoCtx?: {
+    total_deals: number;
+    stalled_count: number;
+    no_buyers_linked_count: number;
+    selected_buyer_count: number;
   };
 };
 

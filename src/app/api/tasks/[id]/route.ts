@@ -30,8 +30,8 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       update.completed_at = new Date().toISOString();
     }
 
-    // Clear completed_at when reopening
-    if (body.status === "pending" && update.status === "pending") {
+    // Clear completed_at when reopening to pending
+    if (body.status === "pending") {
       update.completed_at = null;
     }
 

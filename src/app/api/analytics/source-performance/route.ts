@@ -13,71 +13,10 @@ import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@/lib/supabase";
 import { requireAuth } from "@/lib/api-auth";
 import { getPeriodStart, type TimePeriod } from "@/lib/analytics";
+import { normalizeSource, sourceLabel } from "@/lib/source-normalization";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
-
-// ── Source normalization ────────────────────────────────────────────
-
-const SOURCE_MAP: Record<string, string> = {
-  propertyradar: "propertyradar",
-  property_radar: "propertyradar",
-  google_ads: "google_ads",
-  google: "google_ads",
-  adwords: "google_ads",
-  facebook_ads: "facebook_ads",
-  facebook: "facebook_ads",
-  fb: "facebook_ads",
-  fb_ads: "facebook_ads",
-  csv_import: "csv_import",
-  craigslist: "craigslist",
-  cl: "craigslist",
-  zillow_fsbo: "zillow",
-  zillow: "zillow",
-  fsbo: "fsbo",
-  fsbo_com: "fsbo",
-  ranger_push: "ranger",
-  ranger: "ranger",
-  webform: "webform",
-  web_form: "webform",
-  website: "webform",
-  referral: "referral",
-  ref: "referral",
-  property_lookup: "propertyradar",
-};
-
-function normalizeSource(raw: string | null | undefined): string {
-  if (!raw || raw.trim() === "") return "unknown";
-  const lower = raw.trim().toLowerCase();
-  // Handle csv:* pattern
-  if (lower.startsWith("csv:")) return "csv_import";
-  // Handle BulkSeed_* pattern (seeded data imports)
-  if (lower.startsWith("bulkseed")) return "csv_import";
-  return SOURCE_MAP[lower] ?? lower;
-}
-
-const SOURCE_LABELS: Record<string, string> = {
-  propertyradar: "PropertyRadar",
-  google_ads: "Google Ads",
-  facebook_ads: "Facebook Ads",
-  csv_import: "CSV Import",
-  craigslist: "Craigslist",
-  zillow: "Zillow",
-  fsbo: "FSBO",
-  ranger: "Ranger",
-  webform: "Web Form",
-  referral: "Referral",
-  unknown: "Unknown",
-};
-
-function sourceLabel(key: string): string {
-  if (SOURCE_LABELS[key]) return SOURCE_LABELS[key];
-  return key
-    .replace(/[_-]/g, " ")
-    .replace(/\s+/g, " ")
-    .trim()
-    .replace(/\b\w/g, (m) => m.toUpperCase());
-}
 
 // ── Types ───────────────────────────────────────────────────────────
 
@@ -224,11 +163,19 @@ export async function GET(req: NextRequest) {
       // Deals for this lead
       const leadDeals = dealsByLeadId.get(lead.id) ?? [];
       for (const deal of leadDeals) {
-        // Any deal = contract
-        bucket.contracts.push(deal);
+        // Only count deals with meaningful contract status (not dead/draft)
+        const dealStatus = (deal.status ?? "").toLowerCase();
+        const isContract =
+          dealStatus === "under_contract" ||
+          dealStatus === "contract" ||
+          dealStatus === "contracted" ||
+          dealStatus === "closed" ||
+          dealStatus === "assigned" ||
+          dealStatus === "negotiating" ||
+          Boolean(deal.closed_at);
+        if (isContract) bucket.contracts.push(deal);
 
         // Closed deals
-        const dealStatus = (deal.status ?? "").toLowerCase();
         if (dealStatus === "closed" || deal.closed_at) {
           bucket.closed.push(deal);
           bucket.revenue += Number(deal.assignment_fee ?? 0);

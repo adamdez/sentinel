@@ -10,6 +10,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@/lib/supabase";
 import { requireAuth } from "@/lib/api-auth";
 import { getPeriodStart, type TimePeriod } from "@/lib/analytics";
+import { normalizeSource, sourceLabel as getSourceLabel } from "@/lib/source-normalization";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -98,13 +99,7 @@ export async function GET(req: NextRequest) {
       .sort((a, b) => b.count - a.count);
 
     // ── 3. Deals ─────────────────────────────────────────────────────
-    let dealsQuery = tbl(sb, "deals").select("id, lead_id, status, assignment_fee, closed_at, created_at");
-    if (periodStart) {
-      dealsQuery = dealsQuery.gte("created_at", periodStart);
-    }
-    const { data: dealsRaw, error: dealsErr } = await dealsQuery;
-    if (dealsErr) throw dealsErr;
-
+    // Offers/contracts: filter on deal created_at (when was it originated?)
     interface DealRow {
       id: string;
       lead_id: string | null;
@@ -113,17 +108,31 @@ export async function GET(req: NextRequest) {
       closed_at: string | null;
       created_at: string | null;
     }
-    const deals: DealRow[] = (dealsRaw ?? []) as DealRow[];
 
-    const offers_made = deals.length;
-    const contracts_signed = deals.filter((d) => {
+    let dealsQuery = tbl(sb, "deals").select("id, lead_id, status, assignment_fee, closed_at, created_at");
+    if (periodStart) {
+      dealsQuery = dealsQuery.gte("created_at", periodStart);
+    }
+    const { data: dealsRaw, error: dealsErr } = await dealsQuery;
+    if (dealsErr) throw dealsErr;
+    const periodDeals: DealRow[] = (dealsRaw ?? []) as DealRow[];
+
+    const offers_made = periodDeals.length;
+    const contracts_signed = periodDeals.filter((d) => {
       const s = (d.status ?? "").toLowerCase();
-      return s === "under_contract" || s === "contract" || s === "contracted" || s === "closed" || d.closed_at;
+      return s === "under_contract" || s === "contract" || s === "contracted" || s === "closed" || Boolean(d.closed_at);
     }).length;
-    const closedDeals = deals.filter((d) => {
-      const s = (d.status ?? "").toLowerCase();
-      return s === "closed" || Boolean(d.closed_at);
-    });
+
+    // Closed deals + revenue: filter on closed_at (when did it actually close?)
+    // This is intentionally a separate query so revenue reflects the period it closed in.
+    let closedQuery = tbl(sb, "deals").select("id, lead_id, status, assignment_fee, closed_at, created_at");
+    if (periodStart) {
+      closedQuery = closedQuery.gte("closed_at", periodStart);
+    }
+    // Only include deals that are actually closed
+    closedQuery = closedQuery.not("closed_at", "is", null);
+    const { data: closedRaw } = await closedQuery;
+    const closedDeals: DealRow[] = (closedRaw ?? []) as DealRow[];
     const deals_closed = closedDeals.length;
     const total_revenue = closedDeals.reduce((sum, d) => sum + Number(d.assignment_fee ?? 0), 0);
     const avg_assignment_fee = deals_closed > 0 ? Math.round(total_revenue / deals_closed) : null;
@@ -184,7 +193,7 @@ export async function GET(req: NextRequest) {
 
     // ── 7. Avg days lead to contract ─────────────────────────────────
     const daysToContract: number[] = [];
-    for (const deal of deals) {
+    for (const deal of periodDeals) {
       if (!deal.lead_id || !deal.created_at) continue;
       const lead = periodLeads.find((l) => l.id === deal.lead_id);
       if (!lead) continue;
@@ -225,19 +234,22 @@ export async function GET(req: NextRequest) {
     const { data: completedData } = await completedQuery;
     const tasks_completed_this_period = (completedData ?? []).length;
 
-    // ── 9. Source summary ────────────────────────────────────────────
+    // ── 9. Source summary (uses canonical normalization) ─────────────
     const sourceMap = new Map<string, number>();
     for (const lead of periodLeads) {
-      const src = (lead.source ?? "unknown").trim().toLowerCase();
+      const src = normalizeSource(lead.source);
       sourceMap.set(src, (sourceMap.get(src) ?? 0) + 1);
     }
     const sortedSources = Array.from(sourceMap.entries()).sort((a, b) => b[1] - a[1]);
-    const top_source = sortedSources.length > 0 ? { name: sortedSources[0][0], leads: sortedSources[0][1] } : null;
+    const top_source = sortedSources.length > 0
+      ? { name: getSourceLabel(sortedSources[0][0]), key: sortedSources[0][0], leads: sortedSources[0][1] }
+      : null;
     const source_count = sortedSources.length;
 
     // ── Build response ───────────────────────────────────────────────
     return NextResponse.json({
       period,
+      generated_at: new Date().toISOString(),
       kpis: {
         // Volume
         new_leads: periodLeads.length,

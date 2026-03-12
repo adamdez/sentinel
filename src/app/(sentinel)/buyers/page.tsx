@@ -20,6 +20,8 @@ import {
   fundingLabel, pofLabel, tagLabel, formatPriceRange,
 } from "@/lib/buyer-types";
 import { useHydrated } from "@/providers/hydration-provider";
+import { useCoachSurface } from "@/providers/coach-provider";
+import { CoachPanel, CoachToggle } from "@/components/sentinel/coach-panel";
 
 // ── Filter bar ──
 
@@ -83,6 +85,17 @@ export default function BuyersPage() {
 
   const { buyers, loading, refetch } = useBuyers(activeFilters);
 
+  // Coach context — surface-level stats about buyer list health
+  const unverifiedPof = buyers.filter((b) => b.proof_of_funds !== "verified").length;
+  const noMarket = buyers.filter((b) => !b.markets || b.markets.length === 0).length;
+  useCoachSurface("buyers", {
+    buyersCtx: {
+      total_buyers: buyers.length,
+      unverified_pof_count: unverifiedPof,
+      no_market_count: noMarket,
+    },
+  });
+
   const handleFilterChange = useCallback((key: keyof BuyerFilters, value: string) => {
     setFilters((prev) => ({ ...prev, [key]: value || undefined }));
   }, []);
@@ -114,13 +127,16 @@ export default function BuyersPage() {
       title="Buyers"
       description="Manage buyer relationships and buy-box criteria"
       actions={
-        <button
-          onClick={openCreate}
-          className="flex items-center gap-1.5 px-3.5 py-1.5 text-sm font-medium text-cyan bg-cyan/10 hover:bg-cyan/15 rounded-[10px] border border-cyan/25 hover:border-cyan/40 transition-all"
-        >
-          <Plus className="h-3.5 w-3.5" />
-          Add Buyer
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={openCreate}
+            className="flex items-center gap-1.5 px-3.5 py-1.5 text-sm font-medium text-cyan bg-cyan/10 hover:bg-cyan/15 rounded-[10px] border border-cyan/25 hover:border-cyan/40 transition-all"
+          >
+            <Plus className="h-3.5 w-3.5" />
+            Add Buyer
+          </button>
+          <CoachToggle />
+        </div>
       }
     >
       {/* Filters */}
@@ -237,6 +253,8 @@ export default function BuyersPage() {
         onSaved={handleSaved}
         isCreate={isCreate}
       />
+
+      <CoachPanel />
     </PageShell>
   );
 }
