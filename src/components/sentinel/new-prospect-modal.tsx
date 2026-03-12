@@ -327,7 +327,7 @@ export function NewProspectModal() {
 
   return (
     <Dialog open={isOpen} onOpenChange={handleClose}>
-      <DialogContent className="sm:max-w-[640px] max-h-[90vh] overflow-y-auto">
+      <DialogContent className="sm:max-w-[640px] max-h-[90vh] flex flex-col overflow-hidden">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <UserPlus className="h-5 w-5 text-cyan" />
@@ -340,6 +340,7 @@ export function NewProspectModal() {
           </DialogDescription>
         </DialogHeader>
 
+        <div className="overflow-y-auto flex-1 min-h-0 pr-1">
         <AnimatePresence mode="wait">
           {step === "form" ? (
             <motion.div
@@ -772,6 +773,7 @@ export function NewProspectModal() {
             </motion.div>
           )}
         </AnimatePresence>
+        </div>
       </DialogContent>
     </Dialog>
   );
