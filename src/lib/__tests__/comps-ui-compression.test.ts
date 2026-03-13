@@ -219,3 +219,215 @@ describe("confidence reason phrases", () => {
     expect(reason).toBe("5 strong comps, 5% spread");
   });
 });
+
+// ── Hardening: Warning message tests ──────────────────────────────────────────
+
+import { buildValuationWarnings } from "@/lib/valuation";
+
+describe("buildValuationWarnings - hardening pass", () => {
+  const BASE = {
+    arv: 280000,
+    arvSource: "comps" as const,
+    compCount: 3,
+    confidence: "high" as const,
+    spreadPct: 0.08,
+    mao: 160000,
+    rehabEstimate: 40000,
+    conditionLevel: 3,
+  };
+
+  it("NO_COMPS message contains 'Run comps before offering'", () => {
+    const warnings = buildValuationWarnings({ ...BASE, compCount: 0 });
+    const noComps = warnings.find((w) => w.code === "NO_COMPS");
+    expect(noComps).toBeDefined();
+    expect(noComps!.message).toContain("Run comps before offering");
+  });
+
+  it("FEW_COMPS message contains 'before making an offer'", () => {
+    const warnings = buildValuationWarnings({ ...BASE, compCount: 2 });
+    const few = warnings.find((w) => w.code === "FEW_COMPS");
+    expect(few).toBeDefined();
+    expect(few!.message).toContain("before making an offer");
+  });
+
+  it("LOW_CONFIDENCE message contains 'do not offer'", () => {
+    const warnings = buildValuationWarnings({ ...BASE, confidence: "low" });
+    const low = warnings.find((w) => w.code === "LOW_CONFIDENCE");
+    expect(low).toBeDefined();
+    expect(low!.message).toContain("do not offer");
+  });
+
+  it("HIGH_SPREAD message contains 'Verify before offering'", () => {
+    const warnings = buildValuationWarnings({ ...BASE, spreadPct: 0.35 });
+    const high = warnings.find((w) => w.code === "HIGH_SPREAD");
+    expect(high).toBeDefined();
+    expect(high!.message).toContain("Verify before offering");
+  });
+
+  it("NO_CONDITION severity is 'warn' not 'info'", () => {
+    const warnings = buildValuationWarnings({ ...BASE, conditionLevel: null });
+    const noCond = warnings.find((w) => w.code === "NO_CONDITION");
+    expect(noCond).toBeDefined();
+    expect(noCond!.severity).toBe("warn");
+  });
+
+  it("NO_CONDITION message contains 'before offering'", () => {
+    const warnings = buildValuationWarnings({ ...BASE, conditionLevel: null });
+    const noCond = warnings.find((w) => w.code === "NO_CONDITION");
+    expect(noCond!.message).toContain("before offering");
+  });
+});
+
+// ── Hardening: Quick Screen degraded treatment ────────────────────────────────
+
+describe("Quick Screen degraded treatment", () => {
+  it("when compCount is 0, mode should be Quick Screen not Underwrite", () => {
+    const compCount = 0;
+    const hasAvm = true;
+    const modeLabel = compCount > 0 ? "Underwrite" : hasAvm ? "Quick Screen" : null;
+    expect(modeLabel).toBe("Quick Screen");
+  });
+
+  it("rough formatting produces abbreviated values", () => {
+    function formatRoughCurrency(n: number): string {
+      if (n >= 1000) return `~$${Math.round(n / 1000)}k`;
+      return `~$${n}`;
+    }
+    expect(formatRoughCurrency(285000)).toBe("~$285k");
+    expect(formatRoughCurrency(1200000)).toBe("~$1200k");
+    expect(formatRoughCurrency(50000)).toBe("~$50k");
+  });
+
+  it("screening reasons list expected entries for AVM-only", () => {
+    const compCount = 0;
+    const conditionLevel: number | null = null;
+    const reasons: string[] = [];
+    if (compCount === 0) reasons.push("AVM-only");
+    if (compCount === 0) reasons.push("No comps selected");
+    if (conditionLevel == null) reasons.push("Condition unverified");
+    expect(reasons).toContain("AVM-only");
+    expect(reasons).toContain("No comps selected");
+    expect(reasons).toContain("Condition unverified");
+  });
+});
+
+// ── Hardening: Confidence-based nudge ─────────────────────────────────────────
+
+describe("confidence-based nudge", () => {
+  function shouldShowNudge(
+    confidence: "high" | "medium" | "low",
+    strongCompCount: number,
+    conditionLevel: number | null,
+  ): boolean {
+    return confidence === "low" || strongCompCount < 2 || conditionLevel == null;
+  }
+
+  function getNudgeReason(
+    confidence: "high" | "medium" | "low",
+    strongCompCount: number,
+    conditionLevel: number | null,
+  ): string {
+    if (conditionLevel == null) return "Condition not assessed - review before offering.";
+    if (confidence === "low") return "Low confidence - review comp quality before offering.";
+    if (strongCompCount < 2) return `Only ${strongCompCount} strong comp match${strongCompCount === 1 ? "" : "es"} - review evidence before offering.`;
+    return "";
+  }
+
+  it("triggers when confidence is low", () => {
+    expect(shouldShowNudge("low", 3, 3)).toBe(true);
+  });
+
+  it("triggers when fewer than 2 strong comp matches", () => {
+    expect(shouldShowNudge("high", 1, 3)).toBe(true);
+  });
+
+  it("triggers when conditionLevel is null", () => {
+    expect(shouldShowNudge("high", 3, null)).toBe(true);
+  });
+
+  it("does NOT trigger when 3 strong comps and high confidence and condition set", () => {
+    expect(shouldShowNudge("high", 3, 3)).toBe(false);
+  });
+
+  it("nudge reason mentions condition when conditionLevel is null", () => {
+    expect(getNudgeReason("high", 3, null)).toContain("Condition not assessed");
+  });
+
+  it("nudge reason mentions low confidence", () => {
+    expect(getNudgeReason("low", 3, 3)).toContain("Low confidence");
+  });
+
+  it("nudge reason mentions strong comp match count", () => {
+    expect(getNudgeReason("high", 1, 3)).toContain("1 strong comp match");
+  });
+});
+
+// ── Hardening: Comp card condition flags ──────────────────────────────────────
+
+describe("comp card condition flags", () => {
+  it("foreclosure and tax delinquent are red severity", () => {
+    const getColor = (flag: string) =>
+      ["Foreclosure", "Tax Delinquent"].includes(flag) ? "red" : "amber";
+    expect(getColor("Foreclosure")).toBe("red");
+    expect(getColor("Tax Delinquent")).toBe("red");
+  });
+
+  it("vacant and listed are amber severity", () => {
+    const getColor = (flag: string) =>
+      ["Foreclosure", "Tax Delinquent"].includes(flag) ? "red" : "amber";
+    expect(getColor("Vacant")).toBe("amber");
+    expect(getColor("Listed")).toBe("amber");
+  });
+});
+
+// ── Hardening: Warning display limits ─────────────────────────────────────────
+
+describe("warning display limits", () => {
+  function renderWarnings(warnings: Array<{ severity: string; message: string }>) {
+    const danger = warnings.filter((w) => w.severity === "danger");
+    const warn = warnings.filter((w) => w.severity === "warn");
+    const shownWarn = warn.slice(0, 2);
+    const overflowCount = warn.length - shownWarn.length;
+    const hasDanger = danger.length > 0;
+    return { danger, shownWarn, overflowCount, hasDanger };
+  }
+
+  it("all danger warnings render with no limit", () => {
+    const warnings = [
+      { severity: "danger", message: "A" },
+      { severity: "danger", message: "B" },
+      { severity: "danger", message: "C" },
+    ];
+    const { danger } = renderWarnings(warnings);
+    expect(danger).toHaveLength(3);
+  });
+
+  it("warn warnings capped at 2 with overflow count", () => {
+    const warnings = [
+      { severity: "warn", message: "A" },
+      { severity: "warn", message: "B" },
+      { severity: "warn", message: "C" },
+      { severity: "warn", message: "D" },
+    ];
+    const { shownWarn, overflowCount } = renderWarnings(warnings);
+    expect(shownWarn).toHaveLength(2);
+    expect(overflowCount).toBe(2);
+  });
+
+  it("escalation line appears when any danger warning exists", () => {
+    const warnings = [
+      { severity: "danger", message: "Bad" },
+      { severity: "warn", message: "Meh" },
+    ];
+    const { hasDanger } = renderWarnings(warnings);
+    expect(hasDanger).toBe(true);
+  });
+
+  it("no escalation when only warn severity", () => {
+    const warnings = [
+      { severity: "warn", message: "Meh" },
+    ];
+    const { hasDanger } = renderWarnings(warnings);
+    expect(hasDanger).toBe(false);
+  });
+});

@@ -357,7 +357,7 @@ export function buildValuationWarnings(inputs: {
     warnings.push({
       code: "NO_COMPS",
       severity: "danger",
-      message: "No comps selected. ARV has no market support.",
+      message: "No comps selected. Run comps before offering.",
     });
   }
 
@@ -365,7 +365,7 @@ export function buildValuationWarnings(inputs: {
     warnings.push({
       code: "FEW_COMPS",
       severity: "warn",
-      message: `Only ${inputs.compCount} comp${inputs.compCount === 1 ? "" : "s"} selected. 3+ recommended.`,
+      message: `Only ${inputs.compCount} comp${inputs.compCount === 1 ? "" : "s"} — add more before making an offer.`,
     });
   }
 
@@ -373,7 +373,7 @@ export function buildValuationWarnings(inputs: {
     warnings.push({
       code: "LOW_CONFIDENCE",
       severity: "warn",
-      message: "Low confidence — wide price spread or insufficient comps.",
+      message: "Low confidence — do not offer without reviewing comps.",
     });
   }
 
@@ -381,15 +381,15 @@ export function buildValuationWarnings(inputs: {
     warnings.push({
       code: "HIGH_SPREAD",
       severity: "danger",
-      message: `Comp price spread is ${(inputs.spreadPct * 100).toFixed(0)}% — comps may not be comparable.`,
+      message: `${(inputs.spreadPct * 100).toFixed(0)}% price spread — comps may not be comparable. Verify before offering.`,
     });
   }
 
   if (inputs.conditionLevel == null) {
     warnings.push({
       code: "NO_CONDITION",
-      severity: "info",
-      message: "Property condition not assessed. ARV adjustment may be needed.",
+      severity: "warn",
+      message: "Condition unknown — inspect or research before offering.",
     });
   }
 
