@@ -79,12 +79,28 @@ export interface KeywordMetrics {
 export interface SearchTermData {
   searchTerm: string;
   keywordText: string;
+  keywordId: string;
+  adGroupId: string;
   adGroupName: string;
+  campaignId: string;
   campaignName: string;
   impressions: number;
   clicks: number;
   conversions: number;
+  costMicros: number;
   cost: number;
+}
+
+export interface DailyMetricRow {
+  date: string;
+  campaignId: string;
+  adGroupId: string | null;
+  keywordId: string | null;
+  impressions: number;
+  clicks: number;
+  costMicros: number;
+  conversions: number;
+  conversionValueMicros: number;
 }
 
 // ── Helper: GAQL Query ──────────────────────────────────────────────
@@ -364,8 +380,11 @@ export async function fetchSearchTerms(
   const query = `
     SELECT
       search_term_view.search_term,
+      ad_group_criterion.criterion_id,
       ad_group_criterion.keyword.text,
+      ad_group.id,
       ad_group.name,
+      campaign.id,
       campaign.name,
       metrics.impressions,
       metrics.clicks,
@@ -383,16 +402,66 @@ export async function fetchSearchTerms(
   return rows.map((row: unknown) => {
     const r = row as Record<string, Record<string, unknown>>;
     const stv = r.search_term_view as Record<string, unknown> | undefined;
-    const keyword = (r.ad_group_criterion as Record<string, unknown> | undefined)?.keyword as Record<string, unknown> | undefined;
+    const criterion = r.ad_group_criterion as Record<string, unknown> | undefined;
+    const keyword = criterion?.keyword as Record<string, unknown> | undefined;
+    const costMicros = Number(r.metrics?.cost_micros ?? 0);
     return {
       searchTerm: String(stv?.search_term ?? ""),
       keywordText: String(keyword?.text ?? ""),
+      keywordId: String(criterion?.criterion_id ?? ""),
+      adGroupId: String(r.ad_group?.id ?? ""),
       adGroupName: String(r.ad_group?.name ?? ""),
+      campaignId: String(r.campaign?.id ?? ""),
       campaignName: String(r.campaign?.name ?? ""),
       impressions: Number(r.metrics?.impressions ?? 0),
       clicks: Number(r.metrics?.clicks ?? 0),
       conversions: Number(r.metrics?.conversions ?? 0),
-      cost: Number(r.metrics?.cost_micros ?? 0) / 1_000_000,
+      costMicros,
+      cost: costMicros / 1_000_000,
+    };
+  });
+}
+
+// ── Daily Metrics (date-segmented) ─────────────────────────────────
+
+export async function fetchDailyMetrics(
+  config: GoogleAdsConfig,
+  startDate: string,
+  endDate: string,
+): Promise<DailyMetricRow[]> {
+  const query = `
+    SELECT
+      segments.date,
+      campaign.id,
+      ad_group.id,
+      ad_group_criterion.criterion_id,
+      metrics.impressions,
+      metrics.clicks,
+      metrics.cost_micros,
+      metrics.conversions,
+      metrics.conversions_value
+    FROM keyword_view
+    WHERE segments.date BETWEEN '${startDate}' AND '${endDate}'
+      AND campaign.status != 'REMOVED'
+    ORDER BY segments.date DESC
+  `;
+
+  const rows = await gaqlQuery(config, query);
+
+  return rows.map((row: unknown) => {
+    const r = row as Record<string, Record<string, unknown>>;
+    const segments = r.segments as Record<string, unknown> | undefined;
+    const criterion = r.ad_group_criterion as Record<string, unknown> | undefined;
+    return {
+      date: String(segments?.date ?? ""),
+      campaignId: String(r.campaign?.id ?? ""),
+      adGroupId: String(r.ad_group?.id ?? ""),
+      keywordId: String(criterion?.criterion_id ?? ""),
+      impressions: Number(r.metrics?.impressions ?? 0),
+      clicks: Number(r.metrics?.clicks ?? 0),
+      costMicros: Number(r.metrics?.cost_micros ?? 0),
+      conversions: Number(r.metrics?.conversions ?? 0),
+      conversionValueMicros: Number(r.metrics?.conversions_value ?? 0) * 1_000_000,
     };
   });
 }

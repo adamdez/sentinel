@@ -4,9 +4,9 @@ import {
   refreshAccessToken,
   getGoogleAdsConfig,
   fetchCampaignPerformance,
-  fetchAdPerformance,
   fetchKeywordPerformance,
 } from "@/lib/google-ads";
+import { runNormalizedSync } from "@/lib/ads/sync";
 import { analyzeWithClaude, buildAdsSystemPrompt } from "@/lib/claude-client";
 
 export const dynamic = "force-dynamic";
@@ -18,11 +18,6 @@ export const maxDuration = 300;
  *
  * Vercel Cron endpoint — runs weekly (Sundays 8am) for full review,
  * or daily for quick health checks.
- *
- * vercel.json: { "crons": [
- *   { "path": "/api/ads/cycle?mode=daily", "schedule": "0 8 * * *" },
- *   { "path": "/api/ads/cycle?mode=weekly", "schedule": "0 8 * * 0" }
- * ]}
  *
  * Query: ?mode=daily|weekly (defaults to daily)
  */
@@ -47,7 +42,7 @@ export async function GET(req: NextRequest) {
   const results: Record<string, unknown> = { mode, steps: [] };
 
   try {
-    // Step 1: Sync latest data
+    // Step 1: Run normalized 5-stage sync
     const endDate = new Date().toISOString().split("T")[0];
     const daysBack = mode === "weekly" ? 7 : 1;
     const startDate = new Date(Date.now() - daysBack * 86400000).toISOString().split("T")[0];
@@ -55,74 +50,17 @@ export async function GET(req: NextRequest) {
     const accessToken = await refreshAccessToken(refreshToken);
     const config = getGoogleAdsConfig(accessToken);
 
-    const [campaigns, ads, keywords] = await Promise.all([
-      fetchCampaignPerformance(config, startDate, endDate),
-      fetchAdPerformance(config, startDate, endDate),
-      fetchKeywordPerformance(config, startDate, endDate),
-    ]);
-
-    const snapshotDate = new Date().toISOString();
-    const rows: Record<string, unknown>[] = [];
-
-    for (const c of campaigns) {
-      rows.push({
-        campaign_id: c.campaignId,
-        campaign_name: c.campaignName,
-        impressions: c.impressions,
-        clicks: c.clicks,
-        ctr: c.ctr,
-        avg_cpc: c.avgCpc,
-        conversions: c.conversions,
-        cost: c.cost,
-        roas: c.roas,
-        snapshot_date: snapshotDate,
-        raw_json: c,
-      });
-    }
-
-    for (const a of ads) {
-      rows.push({
-        campaign_id: a.campaignId,
-        campaign_name: a.campaignName,
-        ad_group_id: a.adGroupId,
-        ad_group_name: a.adGroupName,
-        ad_id: a.adId,
-        headline1: a.headline1,
-        headline2: a.headline2,
-        headline3: a.headline3,
-        description1: a.description1,
-        description2: a.description2,
-        impressions: a.impressions,
-        clicks: a.clicks,
-        ctr: a.ctr,
-        avg_cpc: a.avgCpc,
-        conversions: a.conversions,
-        cost: a.cost,
-        snapshot_date: snapshotDate,
-        raw_json: a,
-      });
-    }
-
-    if (rows.length > 0) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      await (sb.from("ad_snapshots") as any).insert(rows);
-    }
-
-    (results.steps as unknown[]).push({ step: "sync", campaigns: campaigns.length, ads: ads.length, keywords: keywords.length });
+    const syncResult = await runNormalizedSync(sb, config, startDate, endDate);
+    (results.steps as unknown[]).push({ step: "sync", ...syncResult });
 
     // Step 2: Quick health check (daily) — flag budget burners
+    const keywords = await fetchKeywordPerformance(config, startDate, endDate);
     const budgetBurners = keywords.filter((k) => k.cost > 10 && k.conversions === 0);
-    if (budgetBurners.length > 0) {
-      const burnerActions = budgetBurners.map((k) => ({
-        action_type: "pause_keyword",
-        target_entity: `${k.adGroupName}: ${k.keywordText}`,
-        target_id: `${k.adGroupId}~${k.keywordId}`,
-        old_value: `$${k.cost.toFixed(2)} spent, 0 conversions`,
-        new_value: "PAUSED",
-        status: "suggested",
-      }));
 
-      // Create a quick review
+    if (budgetBurners.length > 0) {
+      const snapshotDate = new Date().toISOString();
+
+      // Still write to ad_reviews for now (UI reads from here until Phase 5)
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { data: quickReview } = await (sb.from("ad_reviews") as any)
         .insert({
@@ -142,9 +80,17 @@ export async function GET(req: NextRequest) {
         .single();
 
       if (quickReview) {
-        const actionsWithReview = burnerActions.map((a) => ({ ...a, review_id: quickReview.id }));
+        const burnerActions = budgetBurners.map((k) => ({
+          review_id: quickReview.id,
+          action_type: "pause_keyword",
+          target_entity: `${k.adGroupName}: ${k.keywordText}`,
+          target_id: `${k.adGroupId}~${k.keywordId}`,
+          old_value: `$${k.cost.toFixed(2)} spent, 0 conversions`,
+          new_value: "PAUSED",
+          status: "suggested",
+        }));
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        await (sb.from("ad_actions") as any).insert(actionsWithReview);
+        await (sb.from("ad_actions") as any).insert(burnerActions);
       }
 
       (results.steps as unknown[]).push({ step: "health_check", budgetBurners: budgetBurners.length });
@@ -152,6 +98,7 @@ export async function GET(req: NextRequest) {
 
     // Step 3: Full Claude review (weekly only)
     if (mode === "weekly" && anthropicKey) {
+      const campaigns = await fetchCampaignPerformance(config, startDate, endDate);
       const totalSpend = campaigns.reduce((s, c) => s + c.cost, 0);
       const totalClicks = campaigns.reduce((s, c) => s + c.clicks, 0);
       const totalImpressions = campaigns.reduce((s, c) => s + c.impressions, 0);
@@ -175,7 +122,7 @@ export async function GET(req: NextRequest) {
         JSON.stringify(keywords.slice(0, 30), null, 2),
         "",
         "Provide a comprehensive review with findings and suggestions.",
-        "Respond with JSON: { \"summary\": \"...\", \"findings\": [...], \"suggestions\": [...] }",
+        'Respond with JSON: { "summary": "...", "findings": [...], "suggestions": [...] }',
       ].join("\n");
 
       const rawResponse = await analyzeWithClaude({ prompt, systemPrompt, apiKey: anthropicKey });
@@ -187,6 +134,8 @@ export async function GET(req: NextRequest) {
       } catch {
         parsed = { summary: rawResponse, findings: [], suggestions: [] };
       }
+
+      const snapshotDate = new Date().toISOString();
 
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { data: review } = await (sb.from("ad_reviews") as any)
