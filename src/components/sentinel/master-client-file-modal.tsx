@@ -11,7 +11,7 @@ import {
   Pencil, Save, Voicemail, PhoneForwarded, Brain, Crosshair, MapPinned,
   MessageSquare, Flame, Smartphone, ShieldAlert, PhoneOff, Circle,
   RefreshCw, Target, ArrowRight, ChevronDown, Trash2, Lock, Contact2, Plus,
-  Users, Briefcase, CheckCircle, XCircle,
+  Users, Briefcase, CheckCircle, XCircle, Camera, CameraOff,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -5766,6 +5766,17 @@ function CompsTab({ cf, selectedComps, onAddComp, onRemoveComp, onSkipTrace, com
   // Decision Summary computations
   const arvSource = arvRangeResult.compCount > 0 ? "comps" : "avm";
   const modeLabel = arvRangeResult.compCount > 0 ? "Underwrite" : cf.estimatedValue ? "Quick Screen" : null;
+  const isScreeningMode = arvRangeResult.compCount === 0;
+  const formatRoughCurrency = (n: number): string => {
+    if (n >= 1000) return `~$${Math.round(n / 1000)}k`;
+    return `~$${n}`;
+  };
+  const screeningReasons: string[] = [];
+  if (isScreeningMode) {
+    screeningReasons.push("AVM-only");
+    screeningReasons.push("No comps selected");
+  }
+  if (cf.conditionLevel == null) screeningReasons.push("Condition unverified");
 
   const decisionWarnings = buildValuationWarnings({
     arv,
@@ -5782,6 +5793,16 @@ function CompsTab({ cf, selectedComps, onAddComp, onRemoveComp, onSkipTrace, com
   const snapUpdatedAt = (cf.ownerFlags as any)?.offer_prep_snapshot?.updated_at as string | undefined;
   const daysSinceSnapshot = snapUpdatedAt ? Math.floor((Date.now() - new Date(snapUpdatedAt).getTime()) / (1000 * 60 * 60 * 24)) : null;
   const isStale = daysSinceSnapshot != null && daysSinceSnapshot > 7;
+
+  // Frozen comp provenance
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const frozenComps = ((cf.ownerFlags as any)?.offer_prep_snapshot?.frozen_comps ?? []) as Array<{ apn: string }>;
+  const frozenApns = new Set(frozenComps.map((fc: { apn: string }) => fc.apn));
+  const currentApns = new Set(selectedComps.map((c) => c.apn));
+  const frozenCount = frozenComps.length;
+  const snapDate = snapUpdatedAt ? new Date(snapUpdatedAt).toLocaleDateString("en-US", { month: "short", day: "numeric" }) : null;
+  const apnsDrifted = frozenCount > 0 && (frozenApns.size !== currentApns.size || [...frozenApns].some((apn) => !currentApns.has(apn)));
+  const countDrifted = frozenCount > 0 && frozenCount !== selectedComps.length;
 
   const confidenceReason = (() => {
     if (arvRangeResult.compCount === 0) {
@@ -5829,6 +5850,7 @@ function CompsTab({ cf, selectedComps, onAddComp, onRemoveComp, onSkipTrace, com
       {/* === SECTION 1: DECISION SUMMARY === */}
       <div className={cn(
         "rounded-[10px] border p-4 space-y-3",
+        isScreeningMode ? "border-dashed border-amber-500/30 bg-amber-500/[0.03]" :
         arvConfidence === "high" ? "border-emerald-500/20 bg-emerald-500/[0.04]" :
         arvConfidence === "medium" ? "border-amber-500/20 bg-amber-500/[0.04]" :
         "border-red-500/20 bg-red-500/[0.04]",
@@ -5839,15 +5861,30 @@ function CompsTab({ cf, selectedComps, onAddComp, onRemoveComp, onSkipTrace, com
             <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Decision Summary</span>
           </div>
           <div className="flex items-center gap-2">
-            {modeLabel && (
+            {isScreeningMode ? (
+              <span className="text-[9px] font-mono px-1.5 py-0.5 rounded border border-amber-500/30 bg-amber-500/10 text-amber-400 font-bold">
+                Screening Only
+              </span>
+            ) : modeLabel ? (
               <span className="text-[9px] font-mono px-1.5 py-0.5 rounded border border-white/10 bg-white/[0.04] text-muted-foreground">
                 {modeLabel}
               </span>
-            )}
+            ) : null}
             {isStale && (
               <span className="text-[9px] text-amber-400 flex items-center gap-0.5">
                 <Clock className="h-2.5 w-2.5" />
                 {daysSinceSnapshot}d since save
+              </span>
+            )}
+            {frozenCount > 0 && (
+              <span className={cn("text-[9px] flex items-center gap-0.5",
+                apnsDrifted ? "text-amber-400" : countDrifted ? "text-amber-400" : "text-muted-foreground/70",
+              )}>
+                {apnsDrifted
+                  ? "Saved comps differ from current selection"
+                  : countDrifted
+                    ? `Saved ${frozenCount} comps - ${selectedComps.length} now selected`
+                    : `Saved ${frozenCount} comps${snapDate ? ` - ${snapDate}` : ""}`}
               </span>
             )}
           </div>
@@ -5857,20 +5894,20 @@ function CompsTab({ cf, selectedComps, onAddComp, onRemoveComp, onSkipTrace, com
           <>
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <p className="text-[9px] text-muted-foreground uppercase mb-0.5">ARV</p>
-                <p className="text-2xl font-black text-neon font-mono tracking-tight" style={{ textShadow: "0 0 10px rgba(0,212,255,0.3)" }}>
-                  {formatCurrency(arv)}
+                <p className="text-[9px] text-muted-foreground uppercase mb-0.5">{isScreeningMode ? "Screening Estimate" : "ARV"}</p>
+                <p className={cn("text-2xl font-black font-mono tracking-tight", isScreeningMode ? "text-amber-400" : "text-neon")} style={isScreeningMode ? {} : { textShadow: "0 0 10px rgba(0,212,255,0.3)" }}>
+                  {isScreeningMode ? formatRoughCurrency(arv) : formatCurrency(arv)}
                 </p>
-                {arvLow > 0 && arvHigh > 0 && arvRangeResult.compCount > 1 && (
+                {!isScreeningMode && arvLow > 0 && arvHigh > 0 && arvRangeResult.compCount > 1 && (
                   <p className="text-[10px] text-muted-foreground/70 font-mono mt-0.5">
                     {formatCurrency(arvLow)} {"\u2014"} {formatCurrency(arvHigh)}
                   </p>
                 )}
               </div>
               <div>
-                <p className="text-[9px] text-muted-foreground uppercase mb-0.5">MAO</p>
-                <p className="text-2xl font-black text-emerald-400 font-mono tracking-tight">
-                  {compsUnderwrite.mao > 0 ? formatCurrency(compsUnderwrite.mao) : "\u2014"}
+                <p className="text-[9px] text-muted-foreground uppercase mb-0.5">{isScreeningMode ? <span className="text-amber-400">Rough MAO</span> : "MAO"}</p>
+                <p className={cn("text-2xl font-black font-mono tracking-tight", isScreeningMode ? "text-amber-400" : "text-emerald-400")}>
+                  {compsUnderwrite.mao > 0 ? (isScreeningMode ? formatRoughCurrency(compsUnderwrite.mao) : formatCurrency(compsUnderwrite.mao)) : "\u2014"}
                 </p>
                 <p className="text-[9px] text-muted-foreground/60 mt-0.5">
                   {offerPct}% - ${(rehabEst / 1000).toFixed(0)}k rehab
@@ -5878,17 +5915,32 @@ function CompsTab({ cf, selectedComps, onAddComp, onRemoveComp, onSkipTrace, com
               </div>
             </div>
 
-            <div className="flex items-start gap-2">
-              <span className={cn(
-                "text-[10px] px-1.5 py-0.5 rounded-full font-bold uppercase shrink-0",
-                arvConfidence === "high" ? "bg-emerald-500/20 text-emerald-400" :
-                arvConfidence === "medium" ? "bg-amber-500/20 text-amber-400" :
-                "bg-red-500/20 text-red-400",
-              )}>
-                {arvConfidence}
-              </span>
-              <p className="text-[11px] text-foreground/80">{confidenceReason}</p>
-            </div>
+            {isScreeningMode ? (
+              <div className="space-y-2">
+                <p className="text-[10px] text-amber-400/80 italic">
+                  AVM-only screening estimate. Run comps before offering.
+                </p>
+                {screeningReasons.length > 0 && (
+                  <div className="flex flex-wrap gap-1">
+                    {screeningReasons.map((r, i) => (
+                      <span key={i} className="text-[8px] px-1.5 py-0.5 rounded border border-amber-500/20 bg-amber-500/5 text-amber-400/70">{r}</span>
+                    ))}
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div className="flex items-start gap-2">
+                <span className={cn(
+                  "text-[10px] px-1.5 py-0.5 rounded-full font-bold uppercase shrink-0",
+                  arvConfidence === "high" ? "bg-emerald-500/20 text-emerald-400" :
+                  arvConfidence === "medium" ? "bg-amber-500/20 text-amber-400" :
+                  "bg-red-500/20 text-red-400",
+                )}>
+                  {arvConfidence}
+                </span>
+                <p className="text-[11px] text-foreground/80">{confidenceReason}</p>
+              </div>
+            )}
 
             {conditionAdj !== 0 && (
               <p className="text-[10px] text-muted-foreground/70">
@@ -5898,19 +5950,78 @@ function CompsTab({ cf, selectedComps, onAddComp, onRemoveComp, onSkipTrace, com
               </p>
             )}
 
-            {decisionWarnings.filter((w) => w.severity !== "info").slice(0, 2).map((w, i) => (
-              <p key={i} className={cn("text-[10px] flex items-center gap-1",
-                w.severity === "danger" ? "text-red-400" : "text-amber-400",
-              )}>
-                <AlertTriangle className="h-3 w-3 shrink-0" />
-                {w.message}
-              </p>
-            ))}
+            {(() => {
+              const danger = decisionWarnings.filter((w) => w.severity === "danger");
+              const warnLevel = decisionWarnings.filter((w) => w.severity === "warn");
+              const shownWarn = warnLevel.slice(0, 2);
+              const overflowCount = warnLevel.length - shownWarn.length;
+              return (
+                <>
+                  {danger.map((w, i) => (
+                    <p key={`d-${i}`} className="text-[10px] flex items-center gap-1 text-red-400">
+                      <AlertTriangle className="h-3 w-3 shrink-0" />
+                      {w.message}
+                    </p>
+                  ))}
+                  {shownWarn.map((w, i) => (
+                    <p key={`w-${i}`} className="text-[10px] flex items-center gap-1 text-amber-400">
+                      <AlertTriangle className="h-3 w-3 shrink-0" />
+                      {w.message}
+                    </p>
+                  ))}
+                  {overflowCount > 0 && (
+                    <p className="text-[9px] text-muted-foreground/50">+{overflowCount} more</p>
+                  )}
+                  {danger.length > 0 && (
+                    <p className="text-[10px] text-red-400 font-semibold mt-1">Review with Adam before offering</p>
+                  )}
+                </>
+              );
+            })()}
+
+            {isScreeningMode && (
+              <button
+                onClick={() => setResearchMode(true)}
+                className="w-full mt-1 py-1.5 rounded-[6px] border border-cyan/30 bg-cyan/10 text-cyan text-[11px] font-semibold hover:bg-cyan/20 transition-colors"
+              >
+                Underwrite with comps
+              </button>
+            )}
           </>
         ) : (
           <p className="text-sm text-muted-foreground">Add comps or enrich to generate valuation</p>
         )}
       </div>
+
+
+      {/* === NUDGE BAR === */}
+      {(() => {
+        const strongCompCount = selectedComps.filter((c) => scoreComp(c, subject).total >= 55).length;
+        const showNudge = !isScreeningMode && arv > 0 && (
+          arvConfidence === "low" || strongCompCount < 2 || cf.conditionLevel == null
+        );
+        if (!showNudge) return null;
+        const nudgeReason = cf.conditionLevel == null
+          ? "Condition not assessed \u2014 review before offering."
+          : arvConfidence === "low"
+            ? "Low confidence \u2014 review comp quality before offering."
+            : `Only ${strongCompCount} strong comp match${strongCompCount === 1 ? "" : "es"} \u2014 review evidence before offering.`;
+        return (
+          <div className="rounded-[8px] border border-amber-500/30 bg-amber-500/[0.04] px-3 py-2 flex items-start gap-2">
+            <AlertTriangle className="h-3.5 w-3.5 text-amber-400 shrink-0 mt-0.5" />
+            <div className="flex-1">
+              <p className="text-[11px] text-amber-300 font-semibold">Evidence needs strengthening</p>
+              <p className="text-[10px] text-amber-400/70 mt-0.5">{nudgeReason}</p>
+            </div>
+            <button
+              onClick={() => setResearchMode(true)}
+              className="text-[10px] text-cyan underline shrink-0"
+            >
+              Open Research Mode
+            </button>
+          </div>
+        );
+      })()}
 
       {/* === SECTION 2: TOP 3 COMP EVIDENCE === */}
       {(() => {
@@ -5968,6 +6079,26 @@ function CompsTab({ cf, selectedComps, onAddComp, onRemoveComp, onSkipTrace, com
                     </span>
                   </div>
                   <p className="text-[9px] text-muted-foreground/70 mt-1 italic">{rationale}</p>
+                  {(() => {
+                    const flags: Array<{ label: string; color: string }> = [];
+                    if (comp.isForeclosure) flags.push({ label: "Foreclosure", color: "text-red-400 border-red-400/30 bg-red-500/10" });
+                    if (comp.isTaxDelinquent) flags.push({ label: "Tax Delinquent", color: "text-red-400 border-red-400/30 bg-red-500/10" });
+                    if (comp.isVacant) flags.push({ label: "Vacant", color: "text-amber-400 border-amber-400/30 bg-amber-500/10" });
+                    if (comp.isListedForSale) flags.push({ label: "Listed", color: "text-amber-400 border-amber-400/30 bg-amber-500/10" });
+                    const hasPhoto = !!(comp.photoUrl || comp.streetViewUrl);
+                    if (flags.length === 0 && hasPhoto) return null;
+                    return (
+                      <div className="flex flex-wrap items-center gap-1 mt-1">
+                        {flags.map((f, fi) => (
+                          <span key={fi} className={cn("text-[8px] px-1 py-0.5 rounded border", f.color)}>{f.label}</span>
+                        ))}
+                        {hasPhoto
+                          ? <span className="text-[8px] text-muted-foreground/50 flex items-center gap-0.5"><Camera className="h-2.5 w-2.5" />Photo</span>
+                          : <span className="text-[8px] text-muted-foreground/40 flex items-center gap-0.5"><CameraOff className="h-2.5 w-2.5" />No photo</span>
+                        }
+                      </div>
+                    );
+                  })()}
                 </div>
               );
             })}
