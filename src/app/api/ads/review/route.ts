@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@/lib/supabase";
 import { analyzeWithClaude, buildAdsSystemPrompt } from "@/lib/claude-client";
+import { insertValidatedRecommendations } from "@/lib/ads/recommendations";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -91,9 +92,10 @@ export async function POST(req: NextRequest) {
           conversions: a.conversions,
         })), null, 2),
         "",
-        "Respond with JSON: { \"summary\": \"...\", \"findings\": [...], \"suggestions\": [...] }",
+        "Respond with JSON: { \"summary\": \"...\", \"findings\": [...], \"suggestions\": [...], \"structured_recommendations\": [...] }",
         "Each finding: { \"severity\": \"info|warning|critical\", \"title\": \"...\", \"detail\": \"...\" }",
         "Each suggestion: { \"action\": \"update_copy\", \"target\": \"<ad_group_name>\", \"target_id\": \"<ad_id>\", \"old_value\": \"<current>\", \"new_value\": \"<suggested>\", \"reason\": \"...\" }",
+        "Each structured_recommendation: { \"recommendation_type\": \"copy_suggestion\", \"risk_level\": \"yellow\", \"expected_impact\": \"...\", \"reason\": \"...\", \"related_campaign_id\": null, \"related_ad_group_id\": 123, \"related_keyword_id\": null }",
       ].join("\n");
     } else if (reviewType === "strategy") {
       analysisPrompt = [
@@ -103,9 +105,10 @@ export async function POST(req: NextRequest) {
         JSON.stringify(snapshots.slice(0, 50), null, 2),
         "",
         "Analyze: budget allocation, campaign structure, audience targeting gaps, competitive positioning.",
-        "Respond with JSON: { \"summary\": \"...\", \"findings\": [...], \"suggestions\": [...] }",
+        "Respond with JSON: { \"summary\": \"...\", \"findings\": [...], \"suggestions\": [...], \"structured_recommendations\": [...] }",
         "Each finding: { \"severity\": \"info|warning|critical\", \"title\": \"...\", \"detail\": \"...\" }",
         "Each suggestion: { \"action\": \"bid_adjust|budget_adjust|add_keyword|pause_keyword\", \"target\": \"...\", \"target_id\": \"...\", \"old_value\": \"...\", \"new_value\": \"...\", \"reason\": \"...\" }",
+        "Each structured_recommendation: { \"recommendation_type\": \"bid_adjust|budget_adjust|keyword_pause\", \"risk_level\": \"yellow\", \"expected_impact\": \"...\", \"reason\": \"...\", \"related_campaign_id\": 123, \"related_ad_group_id\": null, \"related_keyword_id\": null }",
       ].join("\n");
     } else {
       analysisPrompt = [
@@ -115,9 +118,10 @@ export async function POST(req: NextRequest) {
         JSON.stringify(snapshots.slice(0, 50), null, 2),
         "",
         "Identify: top performers, underperformers, wasted spend, optimization opportunities.",
-        "Respond with JSON: { \"summary\": \"...\", \"findings\": [...], \"suggestions\": [...] }",
+        "Respond with JSON: { \"summary\": \"...\", \"findings\": [...], \"suggestions\": [...], \"structured_recommendations\": [...] }",
         "Each finding: { \"severity\": \"info|warning|critical\", \"title\": \"...\", \"detail\": \"...\" }",
         "Each suggestion: { \"action\": \"bid_adjust|pause_keyword|enable_keyword|budget_adjust\", \"target\": \"...\", \"target_id\": \"...\", \"old_value\": \"...\", \"new_value\": \"...\", \"reason\": \"...\" }",
+        "Each structured_recommendation: { \"recommendation_type\": \"bid_adjust|waste_flag|opportunity_flag|keyword_pause\", \"risk_level\": \"green|yellow|red\", \"expected_impact\": \"...\", \"reason\": \"...\", \"related_campaign_id\": 123, \"related_ad_group_id\": null, \"related_keyword_id\": 456 }",
       ].join("\n");
     }
 
@@ -128,12 +132,12 @@ export async function POST(req: NextRequest) {
     });
 
     // Parse Claude's JSON response
-    let parsed: { summary: string; findings: unknown[]; suggestions: unknown[] };
+    let parsed: { summary: string; findings: unknown[]; suggestions: unknown[]; structured_recommendations?: unknown[] };
     try {
       const jsonMatch = rawResponse.match(/\{[\s\S]*\}/);
-      parsed = jsonMatch ? JSON.parse(jsonMatch[0]) : { summary: rawResponse, findings: [], suggestions: [] };
+      parsed = jsonMatch ? JSON.parse(jsonMatch[0]) : { summary: rawResponse, findings: [], suggestions: [], structured_recommendations: [] };
     } catch {
-      parsed = { summary: rawResponse, findings: [], suggestions: [] };
+      parsed = { summary: rawResponse, findings: [], suggestions: [], structured_recommendations: [] };
     }
 
     // Store the review
@@ -173,6 +177,17 @@ export async function POST(req: NextRequest) {
     if (actionRows.length > 0) {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       await (sb.from("ad_actions") as any).insert(actionRows);
+    }
+
+    // Phase 5 Slice 1: Process structured recommendations purely for validation and data capture
+    // This is entirely non-blocking for the legacy flow.
+    try {
+      if (Array.isArray(parsed.structured_recommendations) && parsed.structured_recommendations.length > 0) {
+        await insertValidatedRecommendations(sb, parsed.structured_recommendations, review.id);
+      }
+    } catch (recErr) {
+      console.error("[Ads/Review] Failed to process structured recommendations:", recErr);
+      // We do not return an error here so the operator still gets their legacy review output
     }
 
     return NextResponse.json({
