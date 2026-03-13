@@ -5775,7 +5775,7 @@ function CompsTab({ cf, selectedComps, onAddComp, onRemoveComp, onSkipTrace, com
     spreadPct: arvRangeResult.spreadPct,
     mao: compsUnderwrite.mao,
     rehabEstimate: rehabEst,
-    conditionLevel: 3,
+    conditionLevel: cf.conditionLevel ?? null,
   });
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
