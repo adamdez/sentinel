@@ -43,8 +43,11 @@ import {
   calculateARVRange,
   calculateArvConfidence,
   buildValuationWarnings,
+  buildValuationSnapshot,
+  FORMULA_VERSION,
   DEFAULTS as VALUATION_DEFAULTS,
   type CompMetric,
+  type ValuationSnapshotData,
 } from "@/lib/valuation";
 import { deriveLeadActionSummary } from "@/lib/action-derivation";
 import { getSequenceLabel, getSequenceProgress, getCadencePosition, suggestNextCadenceDate } from "@/lib/call-scheduler";
@@ -350,6 +353,13 @@ type OfferPrepSnapshotDraft = {
   maoHigh: string;
   confidence: OfferPrepConfidence | "";
   sheetUrl: string;
+  // Phase 2.5 — valuation packet fields
+  conditionAdjPct: number;
+  arvLow: number | null;
+  arvBase: number | null;
+  arvHigh: number | null;
+  arvSource: "comps" | "avm" | "manual" | null;
+  offerPercentage: number | null;
 };
 type OfferStatusSnapshotDraft = {
   status: OfferStatusTruth | "";
@@ -730,6 +740,13 @@ function getOfferPrepDraft(cf: ClientFile | null | undefined): OfferPrepSnapshot
     maoHigh: toDraftCurrency(snapshot.maoHigh),
     confidence: snapshot.confidence ?? "",
     sheetUrl: snapshot.sheetUrl ?? "",
+    // Phase 2.5 — restore persisted condition/ARV state
+    conditionAdjPct: snapshot.conditionAdjPct ?? 0,
+    arvLow: snapshot.arvLow ?? null,
+    arvBase: snapshot.arvBase ?? null,
+    arvHigh: snapshot.arvHigh ?? null,
+    arvSource: snapshot.arvSource ?? null,
+    offerPercentage: snapshot.offerPercentage ?? null,
   };
 }
 
@@ -3636,6 +3653,103 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
         </div>
       </div>
 
+      {/* Phase 2.5 — Valuation Summary Card */}
+      {(() => {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const snap = (cf.ownerFlags as any)?.offer_prep_snapshot;
+        if (!snap?.formula_version && !mao) return null;
+
+        const snapArvUsed = snap?.arv_used as number | undefined;
+        const snapMao = snap?.mao_result as number | undefined;
+        const snapConf = snap?.confidence as string | undefined;
+        const snapCompCount = snap?.comp_count as number | undefined;
+        const snapCondAdj = snap?.condition_adj_pct as number | undefined;
+        const snapUpdatedAt = snap?.updated_at as string | undefined;
+        const snapVersion = snap?.formula_version as string | undefined;
+        const snapWarnings = (snap?.warnings ?? []) as Array<{ code: string; severity: string; message: string }>;
+
+        // Staleness: >7 days since last save
+        const daysSinceUpdate = snapUpdatedAt
+          ? Math.floor((Date.now() - new Date(snapUpdatedAt).getTime()) / (1000 * 60 * 60 * 24))
+          : null;
+        const isStale = daysSinceUpdate != null && daysSinceUpdate > 7;
+
+        // Use persisted snapshot values, or live computation as fallback
+        const displayArv = snapArvUsed ?? bestArv;
+        const displayMao = snapMao ?? mao ?? 0;
+        const displayConf = snapConf ?? (compCount >= 3 ? "high" : compCount >= 2 ? "medium" : "low");
+        const confColor = displayConf === "high" ? "text-emerald-400" : displayConf === "medium" ? "text-amber-400" : "text-red-400";
+        const confBorder = displayConf === "high" ? "border-emerald-500/20" : displayConf === "medium" ? "border-amber-500/20" : "border-red-500/20";
+        const confBg = displayConf === "high" ? "bg-emerald-500/[0.06]" : displayConf === "medium" ? "bg-amber-500/[0.06]" : "bg-red-500/[0.06]";
+
+        const dangerWarnings = snapWarnings.filter((w) => w.severity === "danger");
+
+        return (
+          <div className={cn("rounded-[12px] border p-3 space-y-2", confBorder, confBg)}>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Scale className="h-3.5 w-3.5 text-cyan" />
+                <p className="text-[11px] text-muted-foreground uppercase tracking-wider font-semibold">Valuation Summary</p>
+              </div>
+              <div className="flex items-center gap-1.5">
+                {isStale && (
+                  <span className="text-[9px] text-amber-400 flex items-center gap-0.5">
+                    <Clock className="h-2.5 w-2.5" />
+                    {daysSinceUpdate}d ago
+                  </span>
+                )}
+                {snapVersion && (
+                  <span className="text-[8px] text-muted-foreground/50 font-mono">v{snapVersion}</span>
+                )}
+              </div>
+            </div>
+
+            <div className="grid grid-cols-3 gap-2">
+              <div>
+                <p className="text-[9px] text-muted-foreground uppercase">ARV</p>
+                <p className="text-sm font-bold text-foreground font-mono">
+                  {displayArv > 0 ? `$${(displayArv / 1000).toFixed(0)}k` : "—"}
+                </p>
+              </div>
+              <div>
+                <p className="text-[9px] text-muted-foreground uppercase">MAO</p>
+                <p className="text-sm font-bold text-emerald-400 font-mono">
+                  {displayMao > 0 ? `$${(displayMao / 1000).toFixed(0)}k` : "—"}
+                </p>
+              </div>
+              <div>
+                <p className="text-[9px] text-muted-foreground uppercase">Confidence</p>
+                <p className={cn("text-sm font-bold capitalize", confColor)}>{displayConf}</p>
+              </div>
+            </div>
+
+            {(snapCompCount != null || snapCondAdj != null) && (
+              <div className="flex items-center gap-3 text-[9px] text-muted-foreground/70">
+                {snapCompCount != null && <span>{snapCompCount} comp{snapCompCount !== 1 ? "s" : ""}</span>}
+                {snapCondAdj != null && snapCondAdj !== 0 && <span>Condition adj: {snapCondAdj > 0 ? "+" : ""}{snapCondAdj}%</span>}
+              </div>
+            )}
+
+            {dangerWarnings.length > 0 && (
+              <div className="space-y-1">
+                {dangerWarnings.map((w, i) => (
+                  <p key={i} className="text-[9px] text-red-400 flex items-center gap-1">
+                    <AlertTriangle className="h-2.5 w-2.5 shrink-0" />
+                    {w.message}
+                  </p>
+                ))}
+              </div>
+            )}
+
+            {isStale && (
+              <p className="text-[9px] text-amber-400/80">
+                Valuation is {daysSinceUpdate} days old — consider re-running comps.
+              </p>
+            )}
+          </div>
+        );
+      })()}
+
       <div className="rounded-[12px] border border-white/[0.06] bg-white/[0.02] p-3 space-y-2">
         <div className="flex items-center gap-2">
           <Briefcase className="h-3.5 w-3.5 text-cyan" />
@@ -5442,7 +5556,7 @@ const CONDITION_LABELS: Record<number, string> = {
   [5]: "Good (+5%)",
 };
 
-function CompsTab({ cf, selectedComps, onAddComp, onRemoveComp, onSkipTrace, computedArv, onArvChange }: {
+function CompsTab({ cf, selectedComps, onAddComp, onRemoveComp, onSkipTrace, computedArv, onArvChange, conditionAdj, onConditionAdjChange }: {
   cf: ClientFile;
   selectedComps: CompProperty[];
   onAddComp: (comp: CompProperty) => void;
@@ -5450,6 +5564,8 @@ function CompsTab({ cf, selectedComps, onAddComp, onRemoveComp, onSkipTrace, com
   onSkipTrace?: () => void;
   computedArv: number;
   onArvChange: (arv: number) => void;
+  conditionAdj: number;
+  onConditionAdjChange: (adj: number) => void;
 }) {
   const [focusedComp, setFocusedComp] = useState<CompProperty | null>(null);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -5493,8 +5609,7 @@ function CompsTab({ cf, selectedComps, onAddComp, onRemoveComp, onSkipTrace, com
     return () => { cancelled = true; };
   }, [extracted.lat, extracted.lng, geocodedCoords, cf.fullAddress]);
 
-  // ARV adjustment state
-  const [conditionAdj, setConditionAdj] = useState(0);
+  // ARV adjustment state — conditionAdj lifted to parent for persistence
   const [offerPct, setOfferPct] = useState(65);
   const [rehabEst, setRehabEst] = useState(40000);
 
@@ -5772,7 +5887,7 @@ function CompsTab({ cf, selectedComps, onAddComp, onRemoveComp, onSkipTrace, com
           </span>
         </div>
         <p className="text-[9px] text-muted-foreground/60 mb-2">Adjust the ARV up or down based on the subject property{"'"}s condition relative to the comps. If it needs more work than the comps, slide left. If it{"'"}s in better shape, slide right.</p>
-        <input type="range" min={-15} max={5} step={5} value={conditionAdj} onChange={(e) => setConditionAdj(Number(e.target.value))} className="w-full h-1.5 accent-[#00d4ff] bg-secondary rounded-full" />
+        <input type="range" min={-15} max={5} step={5} value={conditionAdj} onChange={(e) => onConditionAdjChange(Number(e.target.value))} className="w-full h-1.5 accent-[#00d4ff] bg-secondary rounded-full" />
       </div>
 
       {/* Live ARV + Profit projection */}
@@ -6138,6 +6253,12 @@ export function MasterClientFileModal({ clientFile: incomingClientFile, open, on
   const [selectedComps, setSelectedComps] = useState<CompProperty[]>([]);
   const [computedArv, setComputedArv] = useState(
     () => (incomingClientFile?.ownerFlags?.comp_arv as number) ?? 0
+  );
+  // Phase 2.5 — condition adjustment lifted from CompsTab for persistence
+  const [conditionAdj, setConditionAdj] = useState(
+    () => typeof (incomingClientFile?.ownerFlags as any)?.offer_prep_snapshot?.condition_adj_pct === "number"
+      ? ((incomingClientFile?.ownerFlags as any).offer_prep_snapshot.condition_adj_pct as number)
+      : 0
   );
   const [editOpen, setEditOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
@@ -6866,6 +6987,68 @@ export function MasterClientFileModal({ clientFile: incomingClientFile, open, on
     setOfferPrepSaving(true);
     try {
       const nowIso = new Date().toISOString();
+
+      // Phase 2.5 — Build full valuation snapshot via kernel + freeze comps
+      const subjectSqft = clientFile.sqft ?? 0;
+      const compMetrics: CompMetric[] = selectedComps
+        .filter((c) => (c.lastSalePrice ?? c.avm ?? 0) > 0)
+        .map((c) => {
+          const price = c.lastSalePrice ?? c.avm ?? 0;
+          const ppsf = c.sqft && c.sqft > 0 ? price / c.sqft : null;
+          return { price, sqft: c.sqft ?? 0, ppsf };
+        });
+
+      const arvRange = calculateARVRange(compMetrics, subjectSqft, conditionAdj);
+      const arvConf = calculateArvConfidence(arvRange.compCount, arvRange.spreadPct);
+      const arvSourceDerived: "comps" | "avm" | "manual" = arvRange.compCount > 0 ? "comps" : "avm";
+
+      const underwrite = calculateWholesaleUnderwrite({
+        arv: arvUsed,
+        arvSource: arvSourceDerived,
+        rehabEstimate,
+      });
+
+      const warnings = buildValuationWarnings({
+        arv: arvUsed,
+        arvSource: arvSourceDerived,
+        compCount: arvRange.compCount,
+        confidence: arvConf.confidence,
+        spreadPct: arvRange.spreadPct,
+        mao: underwrite.mao,
+        rehabEstimate,
+        conditionLevel: clientFile.conditionLevel ?? null,
+      });
+
+      const valuationSnapshot = buildValuationSnapshot({
+        arvRange,
+        arvUsed: arvUsed,
+        arvSource: arvSourceDerived,
+        conditionLevel: clientFile.conditionLevel ?? null,
+        conditionAdjPct: conditionAdj,
+        confidence: arvConf,
+        rehabEstimate,
+        underwrite,
+        quickScreen: null,
+        warnings,
+        calculatedBy: currentUserName ?? currentUserId ?? null,
+      });
+
+      // Freeze selected comps at save time (immutable record of what was used)
+      const frozenComps = selectedComps.map((c) => ({
+        apn: c.apn,
+        address: c.address,
+        lastSalePrice: c.lastSalePrice ?? null,
+        lastSaleDate: c.lastSaleDate ?? null,
+        sqft: c.sqft ?? null,
+        avm: c.avm ?? null,
+        beds: c.beds ?? null,
+        baths: c.baths ?? null,
+        yearBuilt: c.yearBuilt ?? null,
+        ppsf: c.sqft && c.sqft > 0 && (c.lastSalePrice ?? c.avm ?? 0) > 0
+          ? Math.round(((c.lastSalePrice ?? c.avm ?? 0) / c.sqft) * 100) / 100
+          : null,
+      }));
+
       const payload = {
         property_id: clientFile.propertyId,
         lead_id: clientFile.id,
@@ -6880,6 +7063,26 @@ export function MasterClientFileModal({ clientFile: incomingClientFile, open, on
               sheet_url: sheetUrl,
               updated_at: nowIso,
               updated_by: currentUserName ?? currentUserId ?? null,
+              // Phase 2.5 — full valuation packet
+              formula_version: FORMULA_VERSION,
+              formula_mode: valuationSnapshot.formulaMode,
+              arv_low: arvRange.arvLow || null,
+              arv_base: arvRange.arvBase || null,
+              arv_high: arvRange.arvHigh || null,
+              arv_source: arvSourceDerived,
+              condition_adj_pct: conditionAdj,
+              condition_level: clientFile.conditionLevel ?? null,
+              avg_ppsf: arvRange.avgPpsf,
+              comp_count: arvRange.compCount,
+              spread_pct: arvRange.spreadPct,
+              offer_percentage: underwrite.offerPercentage,
+              assignment_fee_target: underwrite.assignmentFeeTarget,
+              holding_costs: underwrite.holdingCosts,
+              closing_costs: underwrite.closingCosts,
+              mao_result: underwrite.mao,
+              warnings: warnings.map((w) => ({ code: w.code, severity: w.severity, message: w.message })),
+              frozen_comps: frozenComps,
+              frozen_at: nowIso,
             },
           },
         },
@@ -6911,7 +7114,7 @@ export function MasterClientFileModal({ clientFile: incomingClientFile, open, on
     } finally {
       setOfferPrepSaving(false);
     }
-  }, [applyOwnerFlagsOverride, clientFile?.id, clientFile?.propertyId, currentUserId, currentUserName, offerPrepDraft, onRefresh]);
+  }, [applyOwnerFlagsOverride, clientFile?.id, clientFile?.propertyId, clientFile?.sqft, clientFile?.conditionLevel, currentUserId, currentUserName, offerPrepDraft, onRefresh, selectedComps, conditionAdj]);
 
   const handleSaveOfferStatusSnapshot = useCallback(async () => {
     if (!clientFile?.propertyId) return;
@@ -8372,7 +8575,7 @@ export function MasterClientFileModal({ clientFile: incomingClientFile, open, on
                     {activeTab === "contact" && (
                       <ContactTab cf={clientFile} overlay={overlay} onSkipTrace={handleSkipTrace} skipTracing={skipTracing} onDial={handleDial} onSms={handleSendSms} calling={calling} onRefresh={onRefresh} />
                     )}
-                    {activeTab === "comps" && <CompsTab cf={clientFile} selectedComps={selectedComps} onAddComp={handleAddComp} onRemoveComp={handleRemoveComp} onSkipTrace={handleSkipTrace} computedArv={computedArv} onArvChange={handleArvChange} />}
+                    {activeTab === "comps" && <CompsTab cf={clientFile} selectedComps={selectedComps} onAddComp={handleAddComp} onRemoveComp={handleRemoveComp} onSkipTrace={handleSkipTrace} computedArv={computedArv} onArvChange={handleArvChange} conditionAdj={conditionAdj} onConditionAdjChange={setConditionAdj} />}
                     {activeTab === "calculator" && <OfferCalcTab cf={clientFile} computedArv={computedArv} />}
                     {activeTab === "documents" && <DocumentsTab cf={clientFile} computedArv={computedArv} />}
                   </motion.div>
