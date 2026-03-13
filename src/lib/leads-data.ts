@@ -525,6 +525,10 @@ export interface LeadRow {
   predictivePriority: number;
   estimatedValue: number | null;
   equityPercent: number | null;
+  bedrooms: number | null;
+  bathrooms: number | null;
+  sqft: number | null;
+  propertyType: string | null;
   followUpDate: string | null;
   lastContactAt: string | null;
   firstAttemptAt: string | null;

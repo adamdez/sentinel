@@ -1,11 +1,13 @@
 "use client";
 
+import { useState } from "react";
 import { motion } from "framer-motion";
 import {
   ArrowUpDown,
   ArrowUp,
   ArrowDown,
   Phone,
+  PhoneOutgoing,
   ShieldAlert,
   ShieldCheck,
   AlertTriangle,
@@ -28,6 +30,8 @@ import type { SortField, SortDir } from "@/hooks/use-leads";
 import { cn } from "@/lib/utils";
 import { formatDueDateLabel } from "@/lib/due-date-label";
 import { sourceChannelLabel, tagLabel } from "@/lib/prospecting";
+import { normalizeSource, sourceLabel as normalizedSourceLabel } from "@/lib/source-normalization";
+import { LogCallModal } from "./log-call-modal";
 
 interface LeadTableProps {
   leads: LeadRow[];
@@ -35,6 +39,7 @@ interface LeadTableProps {
   sortDir: SortDir;
   onSort: (field: SortField) => void;
   onSelect: (id: string) => void;
+  onRefresh?: () => void;
   currentUserId: string;
 }
 
@@ -91,7 +96,7 @@ const DISTRESS_LABELS: Record<string, string> = {
 };
 
 // Grid definition
-const GRID = "grid-cols-[1.5fr_90px_minmax(120px,1fr)_100px_200px_50px]";
+const GRID = "grid-cols-[1.5fr_90px_minmax(120px,1fr)_100px_200px_70px]";
 
 // Helpers
 
@@ -170,6 +175,53 @@ function formatCompactValue(v: number | null): string {
   return `$${v}`;
 }
 
+function propertyTypeBrief(pt: string | null): string | null {
+  if (!pt) return null;
+  const lower = pt.toLowerCase();
+  if (lower.includes("single") || lower === "sfr") return "SFR";
+  if (lower.includes("multi") || lower.includes("duplex") || lower.includes("triplex") || lower.includes("fourplex")) return "MF";
+  if (lower.includes("condo") || lower.includes("townhome") || lower.includes("townhouse")) return "Condo";
+  if (lower.includes("mobile") || lower.includes("manufactured")) return "MH";
+  if (lower.includes("land") || lower.includes("lot") || lower.includes("vacant land")) return "Land";
+  if (lower.includes("commercial")) return "Comm";
+  return pt.length > 6 ? pt.slice(0, 6) : pt;
+}
+
+function compactPropertyLine(lead: LeadRow): string {
+  const parts: string[] = [];
+  const pt = propertyTypeBrief(lead.propertyType);
+  if (pt) parts.push(pt);
+  if (lead.bedrooms != null && lead.bathrooms != null) {
+    parts.push(`${lead.bedrooms}/${lead.bathrooms}`);
+  }
+  if (lead.sqft != null) {
+    parts.push(`${lead.sqft.toLocaleString()}sf`);
+  }
+  if (lead.estimatedValue != null) {
+    parts.push(`AVM ${formatCompactValue(lead.estimatedValue)}`);
+  }
+  return parts.join(" | ");
+}
+
+/** Age-based color escalation for untouched leads */
+function ageEscalationClass(promotedAt: string | null): string {
+  if (!promotedAt) return "text-muted-foreground/70";
+  const hoursOld = (Date.now() - new Date(promotedAt).getTime()) / (1000 * 60 * 60);
+  if (hoursOld >= 72) return "text-red-400 font-semibold";
+  if (hoursOld >= 48) return "text-orange-400 font-medium";
+  if (hoursOld >= 24) return "text-amber-400";
+  return "text-muted-foreground/70";
+}
+
+function formatPhone(phone: string): string {
+  const digits = phone.replace(/\D/g, "");
+  const d = digits.startsWith("1") && digits.length === 11 ? digits.slice(1) : digits;
+  if (d.length === 10) {
+    return `(${d.slice(0, 3)}) ${d.slice(3, 6)}-${d.slice(6)}`;
+  }
+  return phone;
+}
+
 function marketMeta(county: string | null | undefined): { label: string; className: string } {
   const c = (county ?? "").toLowerCase();
   if (c.includes("spokane")) {
@@ -182,10 +234,10 @@ function marketMeta(county: string | null | undefined): { label: string; classNa
 }
 
 function sourceMeta(source: string | null | undefined): { label: string; className: string } {
-  const s = (source ?? "unknown").toLowerCase();
-  if (s === "propertyradar") return { label: "PropertyRadar", className: "bg-cyan/10 text-cyan border-cyan/20" };
+  const normalized = normalizeSource(source);
+  if (normalized === "propertyradar") return { label: "PropertyRadar", className: "bg-cyan/10 text-cyan border-cyan/20" };
   return {
-    label: sourceChannelLabel(s),
+    label: normalizedSourceLabel(normalized),
     className: "bg-zinc-500/10 text-zinc-300 border-zinc-500/20",
   };
 }
@@ -290,8 +342,10 @@ export function LeadTable({
   sortDir,
   onSort,
   onSelect,
+  onRefresh,
   currentUserId,
 }: LeadTableProps) {
+  const [logCallLead, setLogCallLead] = useState<LeadRow | null>(null);
   if (leads.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center py-16 text-center rounded-[14px] border border-glass-border bg-glass/30">
@@ -374,20 +428,34 @@ export function LeadTable({
             )}
           >
             {/* Property */}
-            <div className="flex flex-col justify-center min-w-0">
+            <div className="flex flex-col justify-center min-w-0 gap-0.5">
               <span
                 className="text-sm font-semibold truncate text-foreground"
                 style={{ WebkitFontSmoothing: "antialiased" }}
               >
                 {lead.address}{lead.city ? `, ${lead.city}` : ""}{lead.state ? `, ${lead.state}` : ""} {lead.zip}
               </span>
-              <div className="flex items-center gap-2 min-w-0">
+              {/* Compact property line */}
+              {compactPropertyLine(lead) && (
+                <span className="text-[10px] text-muted-foreground/60 truncate tabular-nums">
+                  {compactPropertyLine(lead)}
+                </span>
+              )}
+              <div className="flex items-center gap-1.5 min-w-0 overflow-hidden">
                 <span
-                  className="text-xs font-medium text-muted-foreground/90 truncate"
+                  className="text-xs font-medium text-muted-foreground/90 truncate shrink"
                   style={{ WebkitFontSmoothing: "antialiased" }}
                 >
                   {lead.ownerName}
                 </span>
+                {lead.ownerPhone && (
+                  <span className="text-[10px] text-emerald-400/80 tabular-nums shrink-0">
+                    {formatPhone(lead.ownerPhone)}
+                  </span>
+                )}
+                {!lead.ownerPhone && (
+                  <span className="text-[9px] text-muted-foreground/30 shrink-0">No phone</span>
+                )}
                 <span className={cn("text-[9px] px-1.5 py-0 rounded border shrink-0", market.className)}>
                   {market.label}
                 </span>
@@ -539,7 +607,7 @@ export function LeadTable({
             <div className="flex flex-col justify-center min-w-0">
               {/* Line 1: Last action */}
               {lead.totalCalls === 0 ? (
-                <span className="text-[11px] text-yellow-400 flex items-center gap-1">
+                <span className={cn("text-[11px] flex items-center gap-1", ageEscalationClass(lead.promotedAt))}>
                   <AlertCircle className="h-3 w-3 shrink-0" />
                   Not contacted
                 </span>
@@ -587,8 +655,19 @@ export function LeadTable({
               </span>
             </div>
 
-            {/* Actions (phone + compliance) */}
+            {/* Actions (log call + compliance) */}
             <div className="flex items-center justify-end gap-1" onClick={(e) => e.stopPropagation()}>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <button
+                    onClick={() => setLogCallLead(lead)}
+                    className="h-6 w-6 flex items-center justify-center rounded-md text-amber-400 hover:bg-amber-500/10 transition-colors"
+                  >
+                    <PhoneOutgoing className="h-3.5 w-3.5" />
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent className="text-[11px]">Log external call</TooltipContent>
+              </Tooltip>
               {lead.ownerPhone && (
                 <Tooltip>
                   <TooltipTrigger asChild>
@@ -621,6 +700,16 @@ export function LeadTable({
           </motion.div>
         );
       })}
+
+      {logCallLead && (
+        <LogCallModal
+          leadId={logCallLead.id}
+          leadAddress={`${logCallLead.address}${logCallLead.city ? `, ${logCallLead.city}` : ""}`}
+          ownerName={logCallLead.ownerName}
+          onClose={() => setLogCallLead(null)}
+          onSuccess={() => onRefresh?.()}
+        />
+      )}
     </div>
   );
 }

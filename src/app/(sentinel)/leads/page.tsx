@@ -295,6 +295,7 @@ export default function LeadsPage() {
           sortDir={sortDir}
           onSort={toggleSort}
           onSelect={setSelectedId}
+          onRefresh={refetch}
           currentUserId={currentUser.id}
         />
       </div>
