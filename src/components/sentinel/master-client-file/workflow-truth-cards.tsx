@@ -374,3 +374,152 @@ export function BuyerDispoTruthCard(props: {
     </div>
   );
 }
+export type MilestoneDraft = {
+  appointmentAt: string;
+  offerAmount: string;
+  contractAt: string;
+  assignmentFeeProjected: string;
+};
+
+export function AcquisitionsMilestoneCard(props: {
+  editing: boolean;
+  saving: boolean;
+  draft: MilestoneDraft;
+  appointmentAt: string | null;
+  offerAmount: number | null;
+  contractAt: string | null;
+  assignmentFeeProjected: number | null;
+  onEditToggle: (next: boolean) => void;
+  onDraftChange: (patch: Partial<MilestoneDraft>) => void;
+  onSave: () => void;
+}) {
+  const {
+    editing,
+    saving,
+    draft,
+    appointmentAt,
+    offerAmount,
+    contractAt,
+    assignmentFeeProjected,
+    onEditToggle,
+    onDraftChange,
+    onSave,
+  } = props;
+
+  const hasMilestones = appointmentAt || offerAmount || contractAt || assignmentFeeProjected;
+
+  return (
+    <div className="rounded-[12px] border border-white/[0.06] bg-white/[0.02] p-3 space-y-2">
+      <div className="flex items-center gap-2">
+        <Target className="h-3.5 w-3.5 text-cyan" />
+        <p className="text-[11px] text-muted-foreground uppercase tracking-wider font-semibold">Acquisitions Milestones</p>
+        <Badge variant="outline" className="text-[9px] border-white/[0.14] text-muted-foreground">Operator entered</Badge>
+        <button
+          type="button"
+          onClick={() => onEditToggle(!editing)}
+          className="ml-auto text-[10px] text-cyan/75 hover:text-cyan transition-colors"
+          disabled={saving}
+        >
+          {editing ? "Cancel" : "Edit"}
+        </button>
+      </div>
+      <p className="text-[10px] text-muted-foreground/70">
+        Manually capture key acquisitions milestones to tie marketing spend to outcomes.
+      </p>
+
+      {editing ? (
+        <div className="space-y-2.5">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+            <label className="space-y-1">
+              <span className="text-[9px] uppercase tracking-wider text-muted-foreground">Appointment Date</span>
+              <input
+                type="datetime-local"
+                value={draft.appointmentAt}
+                onChange={(e) => onDraftChange({ appointmentAt: e.target.value })}
+                className="h-8 w-full rounded-[8px] border border-white/[0.12] bg-white/[0.04] px-2.5 text-xs text-foreground focus:outline-none focus:border-cyan/30"
+              />
+            </label>
+            <label className="space-y-1">
+              <span className="text-[9px] uppercase tracking-wider text-muted-foreground">Offer Amount</span>
+              <input
+                type="number"
+                min={0}
+                step={500}
+                value={draft.offerAmount}
+                onChange={(e) => onDraftChange({ offerAmount: e.target.value })}
+                className="h-8 w-full rounded-[8px] border border-white/[0.12] bg-white/[0.04] px-2.5 text-xs text-foreground focus:outline-none focus:border-cyan/30"
+              />
+            </label>
+            <label className="space-y-1">
+              <span className="text-[9px] uppercase tracking-wider text-muted-foreground">Contract Date</span>
+              <input
+                type="datetime-local"
+                value={draft.contractAt}
+                onChange={(e) => onDraftChange({ contractAt: e.target.value })}
+                className="h-8 w-full rounded-[8px] border border-white/[0.12] bg-white/[0.04] px-2.5 text-xs text-foreground focus:outline-none focus:border-cyan/30"
+              />
+            </label>
+            <label className="space-y-1">
+              <span className="text-[9px] uppercase tracking-wider text-muted-foreground">Projected Fee</span>
+              <input
+                type="number"
+                min={0}
+                step={500}
+                value={draft.assignmentFeeProjected}
+                onChange={(e) => onDraftChange({ assignmentFeeProjected: e.target.value })}
+                className="h-8 w-full rounded-[8px] border border-white/[0.12] bg-white/[0.04] px-2.5 text-xs text-foreground focus:outline-none focus:border-cyan/30"
+              />
+            </label>
+          </div>
+          <div className="flex justify-end">
+            <Button size="sm" className="h-7 text-[11px]" disabled={saving} onClick={onSave}>
+              {saving ? <Loader2 className="h-3 w-3 animate-spin" /> : <Save className="h-3 w-3" />}
+              Save Milestones
+            </Button>
+          </div>
+        </div>
+      ) : (
+        <div className="space-y-2">
+          {!hasMilestones ? (
+            <p className="text-[10px] text-muted-foreground/50 italic">No milestones captured yet.</p>
+          ) : (
+            <div className="grid grid-cols-2 gap-y-2 gap-x-4">
+              {appointmentAt && (
+                <div className="space-y-0.5">
+                  <p className="text-[9px] uppercase tracking-wider text-muted-foreground">Appointment</p>
+                  <p className="text-[10px] text-foreground font-medium">
+                    {new Date(appointmentAt).toLocaleDateString()}
+                  </p>
+                </div>
+              )}
+              {offerAmount != null && (
+                <div className="space-y-0.5">
+                  <p className="text-[9px] uppercase tracking-wider text-muted-foreground">Offer</p>
+                  <p className="text-[10px] text-emerald-400 font-medium">
+                    ${offerAmount.toLocaleString()}
+                  </p>
+                </div>
+              )}
+              {contractAt && (
+                <div className="space-y-0.5">
+                  <p className="text-[9px] uppercase tracking-wider text-muted-foreground">Contract</p>
+                  <p className="text-[10px] text-foreground font-medium">
+                    {new Date(contractAt).toLocaleDateString()}
+                  </p>
+                </div>
+              )}
+              {assignmentFeeProjected != null && (
+                <div className="space-y-0.5">
+                  <p className="text-[9px] uppercase tracking-wider text-muted-foreground">Projected Fee</p>
+                  <p className="text-[10px] text-cyan font-medium">
+                    ${assignmentFeeProjected.toLocaleString()}
+                  </p>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}

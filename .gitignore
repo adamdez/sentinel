@@ -35,6 +35,8 @@ cursor-*.md
 .claude/plans/
 
 # playwright
+/playwright-report/
+/test-results/
 e2e/.auth/
 e2e/test-results/
 e2e/playwright-report/
@@ -46,7 +48,8 @@ yarn-error.log*
 .pnpm-debug.log*
 
 # env files
-.env*.local
+.env*
+!.env.example
 
 # vercel
 .vercel
@@ -54,3 +57,10 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# OS files
+desktop.ini
+.DS_Store
+
+# supabase
+supabase/.temp/

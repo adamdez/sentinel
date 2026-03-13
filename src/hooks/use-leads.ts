@@ -208,7 +208,7 @@ function isEscalatedReviewAttention(lead: LeadRow): boolean {
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-function mapToLeadRow(raw: any, prop: any, firstAttemptAt: string | null = null): LeadRow {
+function mapToLeadRow(raw: any, prop: any, firstAttemptAt: string | null = null, attribution: any = null): LeadRow {
   const composite = raw.priority ?? 0;
   const offerPrepSnapshot = extractOfferPrepSnapshot(prop.owner_flags ?? null);
   const prospecting = extractProspectingSnapshot(prop.owner_flags ?? null);
@@ -305,6 +305,20 @@ function mapToLeadRow(raw: any, prop: any, firstAttemptAt: string | null = null)
     nextCallScheduledAt: raw.next_call_scheduled_at ?? null,
     dispositionCode: raw.disposition_code ?? null,
     ownerFlags: prop.owner_flags ?? {},
+    // Milestone fields
+    appointmentAt: raw.appointment_at ?? null,
+    offerAmount: raw.offer_amount != null ? Number(raw.offer_amount) : null,
+    contractAt: raw.contract_at ?? null,
+    assignmentFeeProjected: raw.assignment_fee_projected != null ? Number(raw.assignment_fee_projected) : null,
+    conversionGclid: raw.conversion_gclid ?? attribution?.gclid ?? null,
+    // Attribution data
+    attribution: attribution ? {
+      campaignName: attribution.ads_campaigns?.name ?? null,
+      adGroupName: attribution.ads_ad_groups?.name ?? null,
+      keywordText: attribution.ads_keywords?.text ?? null,
+      market: attribution.market ?? null,
+      gclid: attribution.gclid ?? null
+    } : null
   };
 }
 
@@ -432,6 +446,29 @@ export function useLeads() {
         }
       }
 
+      // Batch-fetch attribution data
+      const attrMap: Record<string, any> = {};
+      if (leadIds.length > 0) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const { data: attrData } = await (supabase.from("ads_lead_attribution") as any)
+          .select(`
+            lead_id,
+            gclid,
+            market,
+            ads_campaigns(name),
+            ads_ad_groups(name),
+            ads_keywords(text)
+          `)
+          .in("lead_id", leadIds);
+
+        if (attrData) {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          for (const a of attrData as any[]) {
+            attrMap[a.lead_id] = a;
+          }
+        }
+      }
+
       // Batch-fetch predictive scores for blended priority
       const predMap: Record<string, number> = {};
       if (propIds.length > 0) {
@@ -443,7 +480,8 @@ export function useLeads() {
 
         if (predData) {
           const seen = new Set<string>();
-          for (const p of predData as { property_id: string; predictive_score: number }[]) {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          for (const p of predData as any[]) {
             if (!seen.has(p.property_id)) {
               predMap[p.property_id] = p.predictive_score;
               seen.add(p.property_id);
@@ -457,7 +495,8 @@ export function useLeads() {
       const rows = (leadsRaw as any[]).map((raw) => {
         const prop = propsMap[raw.property_id] ?? {};
         const firstAttemptAt = firstAttemptByLeadId[raw.id] ?? null;
-        const lead = mapToLeadRow(raw, prop, firstAttemptAt);
+        const attr = attrMap[raw.id] ?? null;
+        const lead = mapToLeadRow(raw, prop, firstAttemptAt, attr);
         const pred = predMap[raw.property_id] ?? null;
         if (pred !== null) {
           lead.predictivePriority = Math.round(lead.score.composite * 0.6 + pred * 0.4);

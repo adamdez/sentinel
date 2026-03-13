@@ -100,6 +100,14 @@ export interface NextActionVisibility {
   isOverdue: boolean;
 }
 
+export interface LeadAttribution {
+  campaignName: string | null;
+  adGroupName: string | null;
+  keywordText: string | null;
+  market: "spokane" | "kootenai" | "other" | null;
+  gclid: string | null;
+}
+
 function toObject(value: unknown): Record<string, unknown> | null {
   if (!value || typeof value !== "object" || Array.isArray(value)) return null;
   return value as Record<string, unknown>;
@@ -578,6 +586,14 @@ export interface LeadRow {
   nextCallScheduledAt: string | null;
   dispositionCode: string | null;
   ownerFlags: Record<string, unknown>;
+  // Milestone fields
+  appointmentAt: string | null;
+  offerAmount: number | null;
+  contractAt: string | null;
+  assignmentFeeProjected: number | null;
+  conversionGclid: string | null;
+  // Attribution data
+  attribution: LeadAttribution | null;
 }
 
 /**

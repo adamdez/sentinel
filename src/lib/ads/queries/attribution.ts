@@ -128,6 +128,33 @@ export async function resolveAttributionFKs(
 }
 
 /**
+ * Get full attribution chain for a specific lead.
+ * Used for Lead Detail header visibility.
+ */
+export async function getFullAttributionForLead(
+  supabase: SupabaseClient,
+  leadId: string
+) {
+  const { data, error } = await supabase
+    .from("ads_lead_attribution")
+    .select(`
+      gclid,
+      market,
+      ads_campaigns(name),
+      ads_ad_groups(name),
+      ads_keywords(text)
+    `)
+    .eq("lead_id", leadId)
+    .maybeSingle();
+
+  if (error) {
+    console.error(`[Attribution] Failed to fetch for lead=${leadId}:`, error.message);
+    return null;
+  }
+  return data;
+}
+
+/**
  * Extract domain from a URL string.
  */
 export function extractDomain(url: string): string | null {

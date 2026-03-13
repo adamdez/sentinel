@@ -59,6 +59,8 @@ import {
   BuyerDispoTruthCard,
   BuyerDispoVisibilityCard,
   OfferStatusTruthCard,
+  AcquisitionsMilestoneCard,
+  type MilestoneDraft,
 } from "@/components/sentinel/master-client-file/workflow-truth-cards";
 import { useCoachSurface } from "@/providers/coach-provider";
 import { CoachPanel, CoachToggle } from "@/components/sentinel/coach-panel";
@@ -74,6 +76,20 @@ import { extractProspectingSnapshot, sourceChannelLabel, tagLabel } from "@/lib/
 import Link from "next/link";
 import { useDealBuyers } from "@/hooks/use-buyers";
 import { dealBuyerStatusLabel } from "@/lib/buyer-types";
+// ── Extracted modules ────────────────────────────────────────────────
+import {
+  type ClientFile as _ClientFile,
+  clientFileFromProspect as _clientFileFromProspect,
+  clientFileFromLead as _clientFileFromLead,
+  clientFileFromRaw as _clientFileFromRaw,
+} from "./master-client-file-helpers";
+import { ScoreBreakdownModal as _ScoreBreakdownModal } from "./score-breakdown-modal";
+// NOTE: Extracted files created for decomposition:
+//   - master-client-file-helpers.ts (types, adapters, constants, pure functions)
+//   - master-client-file-parts.tsx (InfoRow, Section, CopyBtn, ScoreCard, etc.)
+//   - score-breakdown-modal.tsx (ScoreBreakdownModal + DISTRESS_CFG)
+// Full migration (removing inline duplicates) will happen in a follow-up pass
+// once the extracted modules are verified in production.
 
 // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 // ClientFile â€” single unified shape for every funnel stage
@@ -157,6 +173,14 @@ export interface ClientFile {
     equityBurnRate: number | null;
     lifeEventProbability: number | null;
   } | null;
+  // Milestone fields
+  appointmentAt: string | null;
+  offerAmount: number | null;
+  contractAt: string | null;
+  assignmentFeeProjected: number | null;
+  conversionGclid: string | null;
+  // Attribution data
+  attribution: any | null;
 }
 
 // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
@@ -211,6 +235,13 @@ export function clientFileFromProspect(p: ProspectRow): ClientFile {
     ownerFlags: p.owner_flags, radarId: p.radar_id, enriched: p.enriched,
     nextCallScheduledAt: null, callSequenceStep: 1, totalCalls: 0, liveAnswers: 0, voicemailsLeft: 0, dispositionCode: null,
     prediction: p._prediction ?? null,
+    lockVersion: 0,
+    appointmentAt: null,
+    offerAmount: null,
+    contractAt: null,
+    assignmentFeeProjected: null,
+    conversionGclid: null,
+    attribution: null,
   };
 }
 
@@ -248,6 +279,13 @@ export function clientFileFromLead(l: LeadRow): ClientFile {
     ownerFlags: l.ownerFlags ?? {}, radarId: null, enriched: false,
     nextCallScheduledAt: l.nextCallScheduledAt, callSequenceStep: l.callSequenceStep, totalCalls: l.totalCalls, liveAnswers: l.liveAnswers, voicemailsLeft: l.voicemailsLeft, dispositionCode: l.dispositionCode ?? null,
     prediction: null,
+    lockVersion: l.lockVersion,
+    appointmentAt: l.appointmentAt,
+    offerAmount: l.offerAmount,
+    contractAt: l.contractAt,
+    assignmentFeeProjected: l.assignmentFeeProjected,
+    conversionGclid: l.conversionGclid,
+    attribution: l.attribution,
   };
 }
 
@@ -319,6 +357,12 @@ export function clientFileFromRaw(lead: Record<string, any>, prop: Record<string
     voicemailsLeft: lead.voicemails_left ?? 0,
     dispositionCode: lead.disposition_code ?? null,
     prediction: lead._prediction ?? null,
+    appointmentAt: lead.appointment_at ?? null,
+    offerAmount: toNum(lead.offer_amount),
+    contractAt: lead.contract_at ?? null,
+    assignmentFeeProjected: toNum(lead.assignment_fee_projected),
+    conversionGclid: lead.conversion_gclid ?? null,
+    attribution: null,
   };
 }
 
@@ -768,6 +812,15 @@ function getBuyerDispoTruthDraft(cf: ClientFile | null | undefined): BuyerDispoT
     dispoStatus: snapshot.dispoStatus ?? "",
     nextStep: snapshot.nextStep ?? "",
     dispoNote: snapshot.dispoNote ?? "",
+  };
+}
+
+function getMilestoneDraft(cf: ClientFile | null | undefined): MilestoneDraft {
+  return {
+    appointmentAt: toLocalDateTimeInput(cf?.appointmentAt),
+    offerAmount: toDraftCurrency(cf?.offerAmount),
+    contractAt: toLocalDateTimeInput(cf?.contractAt),
+    assignmentFeeProjected: toDraftCurrency(cf?.assignmentFeeProjected),
   };
 }
 
@@ -2733,7 +2786,7 @@ function LinkedBuyersSummary({ leadId }: { leadId: string }) {
   );
 }
 
-function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceMs, overlay, skipTraceError, onSkipTrace, onManualSkipTrace, onEdit, onDial, onSms, calling, dialHistory, autofilling, onAutofill, deepCrawling, deepCrawlResult, deepCrawlExpanded, setDeepCrawlExpanded, executeDeepCrawl, hasSavedReport, loadingReport, loadSavedReport, crawlSteps, deepSkipResult, activityRefreshToken, qualification, qualificationDirty, qualificationSaving, qualificationEditable, qualificationSuggestedRoute, onQualificationChange, onQualificationRouteSelect, onQualificationSave, offerPrepDraft, offerPrepEditing, offerPrepSaving, onOfferPrepDraftChange, onOfferPrepEditToggle, onOfferPrepSave, offerStatusDraft, offerStatusEditing, offerStatusSaving, onOfferStatusDraftChange, onOfferStatusEditToggle, onOfferStatusSave, buyerDispoTruthDraft, buyerDispoTruthEditing, buyerDispoTruthSaving, onBuyerDispoTruthDraftChange, onBuyerDispoTruthEditToggle, onBuyerDispoTruthSave }: {
+function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceMs, overlay, skipTraceError, onSkipTrace, onManualSkipTrace, onEdit, onDial, onSms, calling, dialHistory, autofilling, onAutofill, deepCrawling, deepCrawlResult, deepCrawlExpanded, setDeepCrawlExpanded, executeDeepCrawl, hasSavedReport, loadingReport, loadSavedReport, crawlSteps, deepSkipResult, activityRefreshToken, qualification, qualificationDirty, qualificationSaving, qualificationEditable, qualificationSuggestedRoute, onQualificationChange, onQualificationRouteSelect, onQualificationSave, offerPrepDraft, offerPrepEditing, offerPrepSaving, onOfferPrepDraftChange, onOfferPrepEditToggle, onOfferPrepSave, offerStatusDraft, offerStatusEditing, offerStatusSaving, onOfferStatusDraftChange, onOfferStatusEditToggle, onOfferStatusSave, buyerDispoTruthDraft, buyerDispoTruthEditing, buyerDispoTruthSaving, onBuyerDispoTruthDraftChange, onBuyerDispoTruthEditToggle, onBuyerDispoTruthSave, milestoneDraft, milestoneEditing, milestoneSaving, onMilestoneDraftChange, onMilestoneEditToggle, onSaveMilestones }: {
   cf: ClientFile; computedArv: number; skipTracing: boolean; skipTraceResult: string | null; skipTraceMs: number | null;
   overlay: SkipTraceOverlay | null; skipTraceError: SkipTraceError | null;
   onSkipTrace: () => void; onManualSkipTrace: () => void; onEdit: () => void;
@@ -2775,6 +2828,12 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
   onBuyerDispoTruthDraftChange: (patch: Partial<BuyerDispoTruthDraft>) => void;
   onBuyerDispoTruthEditToggle: (next: boolean) => void;
   onBuyerDispoTruthSave: () => void;
+  milestoneDraft: MilestoneDraft;
+  milestoneEditing: boolean;
+  milestoneSaving: boolean;
+  onMilestoneDraftChange: (patch: Partial<MilestoneDraft>) => void;
+  onMilestoneEditToggle: (next: boolean) => void;
+  onSaveMilestones: () => void;
 }) {
   const displayPhone = overlay?.primaryPhone ?? cf.ownerPhone ?? (cf.ownerFlags?.contact_phone as string | null) ?? null;
   const displayEmail = overlay?.primaryEmail ?? cf.ownerEmail ?? (cf.ownerFlags?.contact_email as string | null) ?? null;
@@ -3969,6 +4028,19 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
         onEditToggle={onBuyerDispoTruthEditToggle}
         onDraftChange={onBuyerDispoTruthDraftChange}
         onSave={onBuyerDispoTruthSave}
+      />
+
+      <AcquisitionsMilestoneCard
+        editing={milestoneEditing}
+        saving={milestoneSaving}
+        draft={milestoneDraft}
+        appointmentAt={cf.appointmentAt}
+        offerAmount={cf.offerAmount}
+        contractAt={cf.contractAt}
+        assignmentFeeProjected={cf.assignmentFeeProjected}
+        onEditToggle={setMilestoneEditing}
+        onDraftChange={onMilestoneDraftChange}
+        onSave={onSaveMilestones}
       />
 
       {/* Linked Buyers Summary — visible when lead has a deal with linked buyers */}
@@ -6632,6 +6704,9 @@ export function MasterClientFileModal({ clientFile: incomingClientFile, open, on
   const [settingNextAction, setSettingNextAction] = useState(false);
   const [nextActionEditorOpen, setNextActionEditorOpen] = useState(false);
   const [noteDraft, setNoteDraft] = useState("");
+  const [milestoneDraft, setMilestoneDraft] = useState<MilestoneDraft>(() => getMilestoneDraft(incomingClientFile));
+  const [milestoneEditing, setMilestoneEditing] = useState(false);
+  const [milestoneSaving, setMilestoneSaving] = useState(false);
   const [savingNote, setSavingNote] = useState(false);
   const [noteEditorOpen, setNoteEditorOpen] = useState(false);
   const [closeoutOpen, setCloseoutOpen] = useState(false);
@@ -7285,6 +7360,57 @@ export function MasterClientFileModal({ clientFile: incomingClientFile, open, on
   const handleBuyerDispoTruthDraftChange = useCallback((patch: Partial<BuyerDispoTruthDraft>) => {
     setBuyerDispoTruthDraft((prev) => ({ ...prev, ...patch }));
   }, []);
+
+  const handleMilestoneDraftChange = useCallback((patch: Partial<MilestoneDraft>) => {
+    setMilestoneDraft((prev) => ({ ...prev, ...patch }));
+  }, []);
+
+  const handleSaveMilestones = useCallback(async () => {
+    if (!clientFile?.id) return;
+    setMilestoneSaving(true);
+    try {
+      const appointmentAt = fromLocalDateTimeInput(milestoneDraft.appointmentAt);
+      const contractAt = fromLocalDateTimeInput(milestoneDraft.contractAt);
+      const offerAmount = parseDraftCurrency(milestoneDraft.offerAmount);
+      const assignmentFeeProjected = parseDraftCurrency(milestoneDraft.assignmentFeeProjected);
+
+      // 1. Update Lead Record
+      const { error: updateErr } = await (supabase.from("leads") as any)
+        .update({
+          appointment_at: appointmentAt,
+          offer_amount: offerAmount,
+          contract_at: contractAt,
+          assignment_fee_projected: assignmentFeeProjected,
+          lock_version: clientFile.lockVersion ? clientFile.lockVersion + 1 : 1
+        })
+        .eq("id", clientFile.id);
+
+      if (updateErr) throw updateErr;
+
+      // 2. Audit Trail
+      await (supabase.from("event_log") as any).insert({
+        user_id: currentUserId,
+        action: "MILESTONES_UPDATED",
+        entity_type: "lead",
+        entity_id: clientFile.id,
+        details: {
+          appointment_at: appointmentAt,
+          offer_amount: offerAmount,
+          contract_at: contractAt,
+          assignment_fee_projected: assignmentFeeProjected
+        }
+      });
+
+      setMilestoneEditing(false);
+      onRefresh?.();
+      toast.success("Milestones updated");
+    } catch (err: any) {
+      console.error("[Milestones] Save failed:", err.message);
+      toast.error(`Failed to save milestones: ${err.message}`);
+    } finally {
+      setMilestoneSaving(false);
+    }
+  }, [clientFile?.id, clientFile?.lockVersion, milestoneDraft, currentUserId, onRefresh]);
 
   const handleSaveOfferPrepSnapshot = useCallback(async () => {
     if (!clientFile?.propertyId) return;
@@ -8393,6 +8519,25 @@ export function MasterClientFileModal({ clientFile: incomingClientFile, open, on
                       <Badge variant="outline" className="text-[9px] gap-1 border-white/[0.14]">
                         <Radar className="h-2.5 w-2.5" />{sourceLabel}
                       </Badge>
+                      {clientFile.attribution && (
+                        <Fragment>
+                          {clientFile.attribution.campaignName && (
+                            <Badge variant="outline" className="text-[9px] gap-1 border-blue-500/20 text-blue-300">
+                              <Globe className="h-2.5 w-2.5" />Cam: {clientFile.attribution.campaignName}
+                            </Badge>
+                          )}
+                          {clientFile.attribution.adGroupName && (
+                            <Badge variant="outline" className="text-[9px] gap-1 border-white/[0.12] text-muted-foreground">
+                              AdG: {clientFile.attribution.adGroupName}
+                            </Badge>
+                          )}
+                          {clientFile.attribution.keywordText && (
+                            <Badge variant="outline" className="text-[9px] gap-1 border-white/[0.12] text-muted-foreground italic">
+                              "{clientFile.attribution.keywordText}"
+                            </Badge>
+                          )}
+                        </Fragment>
+                      )}
                       <Badge variant="outline" className="text-[9px] gap-1 border-cyan/20 text-cyan">
                         <Target className="h-2.5 w-2.5" />{currentStageLabel}
                       </Badge>
@@ -8916,6 +9061,12 @@ export function MasterClientFileModal({ clientFile: incomingClientFile, open, on
                         onBuyerDispoTruthDraftChange={handleBuyerDispoTruthDraftChange}
                         onBuyerDispoTruthEditToggle={setBuyerDispoTruthEditing}
                         onBuyerDispoTruthSave={() => void handleSaveBuyerDispoTruthSnapshot()}
+                        milestoneDraft={milestoneDraft}
+                        milestoneEditing={milestoneEditing}
+                        milestoneSaving={milestoneSaving}
+                        onMilestoneDraftChange={handleMilestoneDraftChange}
+                        onMilestoneEditToggle={setMilestoneEditing}
+                        onSaveMilestones={handleSaveMilestones}
                       />
                     )}
                     {activeTab === "contact" && (
