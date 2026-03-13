@@ -337,7 +337,7 @@ export function buildValuationWarnings(inputs: {
 }): ValuationWarning[] {
   const warnings: ValuationWarning[] = [];
 
-  if (inputs.arvSource === "avm") {
+  if (inputs.arvSource === "avm" && inputs.compCount > 0) {
     warnings.push({
       code: "ARV_FROM_AVM",
       severity: "warn",
@@ -353,7 +353,7 @@ export function buildValuationWarnings(inputs: {
     });
   }
 
-  if (inputs.compCount === 0 && inputs.arvSource === "comps") {
+  if (inputs.compCount === 0) {
     warnings.push({
       code: "NO_COMPS",
       severity: "danger",

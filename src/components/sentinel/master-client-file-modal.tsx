@@ -40,7 +40,7 @@ import type { AIScore, DistressType, LeadStatus, SellerTimeline, QualificationRo
 import { SIGNAL_WEIGHTS } from "@/lib/scoring";
 import {
   calculateWholesaleUnderwrite,
-  calculateARVRange,
+  calculateARVRange, calculateQuickScreen,
   calculateArvConfidence,
   buildValuationWarnings,
   buildValuationSnapshot,
@@ -5611,7 +5611,7 @@ function CompsTab({ cf, selectedComps, onAddComp, onRemoveComp, onSkipTrace, com
   }, [extracted.lat, extracted.lng, geocodedCoords, cf.fullAddress]);
 
   // ARV adjustment state — conditionAdj lifted to parent for persistence
-  const [offerPct, setOfferPct] = useState(65);
+  const [offerPct, setOfferPct] = useState(75);
   const [rehabEst, setRehabEst] = useState(40000);
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -5674,7 +5674,7 @@ function CompsTab({ cf, selectedComps, onAddComp, onRemoveComp, onSkipTrace, com
   const arvConfResult = calculateArvConfidence(arvRangeResult.compCount, arvRangeResult.spreadPct);
 
   // Fall back to AVM if no comps
-  const baseArv = arvRangeResult.arvBase > 0 ? arvRangeResult.arvBase : cf.estimatedValue ?? 0;
+
   const arvLow = arvRangeResult.arvLow;
   const arvHigh = arvRangeResult.arvHigh;
   const arvConfidence = arvRangeResult.compCount > 0 ? arvConfResult.confidence : "low";
@@ -5687,9 +5687,9 @@ function CompsTab({ cf, selectedComps, onAddComp, onRemoveComp, onSkipTrace, com
     arvSource: arvRangeResult.compCount > 0 ? "comps" : "avm",
     offerPercentage: offerPct / 100,
     rehabEstimate: rehabEst,
-    assignmentFeeTarget: 0,
-    holdingCosts: 0,
-    closingCosts: 0,
+    assignmentFeeTarget: VALUATION_DEFAULTS.assignmentFeeTarget,
+    holdingCosts: VALUATION_DEFAULTS.holdMonths * VALUATION_DEFAULTS.monthlyHoldCost,
+    closingCosts: VALUATION_DEFAULTS.closingCosts,
   });
   const offer = compsUnderwrite.maxAllowable;
   const totalCost = offer + rehabEst;
@@ -5767,6 +5767,9 @@ function CompsTab({ cf, selectedComps, onAddComp, onRemoveComp, onSkipTrace, com
   const arvSource = arvRangeResult.compCount > 0 ? "comps" : "avm";
   const modeLabel = arvRangeResult.compCount > 0 ? "Underwrite" : cf.estimatedValue ? "Quick Screen" : null;
   const isScreeningMode = arvRangeResult.compCount === 0;
+  const quickScreenResult = isScreeningMode && (cf.estimatedValue ?? 0) > 0
+    ? calculateQuickScreen(cf.estimatedValue ?? 0)
+    : null;
   const formatRoughCurrency = (n: number): string => {
     if (n >= 1000) return `~$${Math.round(n / 1000)}k`;
     return `~$${n}`;
@@ -5905,12 +5908,12 @@ function CompsTab({ cf, selectedComps, onAddComp, onRemoveComp, onSkipTrace, com
                 )}
               </div>
               <div>
-                <p className="text-[9px] text-muted-foreground uppercase mb-0.5">{isScreeningMode ? <span className="text-amber-400">Rough MAO</span> : "MAO"}</p>
+                <p className="text-[9px] text-muted-foreground uppercase mb-0.5">{isScreeningMode ? <span className="text-amber-400">Screening Range</span> : "MAO"}</p>
                 <p className={cn("text-2xl font-black font-mono tracking-tight", isScreeningMode ? "text-amber-400" : "text-emerald-400")}>
-                  {compsUnderwrite.mao > 0 ? (isScreeningMode ? formatRoughCurrency(compsUnderwrite.mao) : formatCurrency(compsUnderwrite.mao)) : "\u2014"}
+                  {compsUnderwrite.mao > 0 ? (isScreeningMode ? (quickScreenResult ? `${formatRoughCurrency(quickScreenResult.maoLow)} - ${formatRoughCurrency(quickScreenResult.maoHigh)}` : formatRoughCurrency(compsUnderwrite.mao)) : formatCurrency(compsUnderwrite.mao)) : "\u2014"}
                 </p>
                 <p className="text-[9px] text-muted-foreground/60 mt-0.5">
-                  {offerPct}% - ${(rehabEst / 1000).toFixed(0)}k rehab
+                  {!isScreeningMode && `${offerPct}% less $${(rehabEst / 1000).toFixed(0)}k rehab, $12k fee, $9.5k costs`}
                 </p>
               </div>
             </div>
@@ -5942,13 +5945,17 @@ function CompsTab({ cf, selectedComps, onAddComp, onRemoveComp, onSkipTrace, com
               </div>
             )}
 
-            {conditionAdj !== 0 && (
-              <p className="text-[10px] text-muted-foreground/70">
-                Condition adj: <span className={cn("font-semibold", conditionAdj > 0 ? "text-emerald-400" : "text-red-400")}>
+            <p className="text-[10px] text-muted-foreground/70">
+              {cf.conditionLevel == null ? (
+                <span className="text-amber-400 font-semibold">Condition: Not assessed</span>
+              ) : conditionAdj !== 0 ? (
+                <>Condition adj: <span className={cn("font-semibold", conditionAdj > 0 ? "text-emerald-400" : "text-red-400")}>
                   {CONDITION_LABELS[conditionAdj] ?? `${conditionAdj > 0 ? "+" : ""}${conditionAdj}%`}
-                </span>
-              </p>
-            )}
+                </span></>
+              ) : (
+                <span className="text-muted-foreground">Condition: Level 4 (Light cosmetic, 0% adj)</span>
+              )}
+            </p>
 
             {(() => {
               const danger = decisionWarnings.filter((w) => w.severity === "danger");

@@ -431,3 +431,180 @@ describe("warning display limits", () => {
     expect(hasDanger).toBe(false);
   });
 });
+
+// ── Adversarial: MAO formula consistency ──────────────────────────────────────
+
+import {
+  calculateWholesaleUnderwrite,
+  calculateQuickScreen,
+  calculateARVRange,
+  calculateArvConfidence,
+  DEFAULTS,
+} from "@/lib/valuation";
+
+describe("MAO formula consistency across surfaces", () => {
+  it("Comps tab and Overview tab produce same MAO with same inputs", () => {
+    // Both should use kernel defaults when no overrides
+    const arv = 300000;
+    const overviewResult = calculateWholesaleUnderwrite({ arv, arvSource: "comps" });
+    const compsResult = calculateWholesaleUnderwrite({
+      arv,
+      arvSource: "comps",
+      offerPercentage: DEFAULTS.offerPercentage,
+      rehabEstimate: DEFAULTS.rehabEstimate,
+      assignmentFeeTarget: DEFAULTS.assignmentFeeTarget,
+      holdingCosts: DEFAULTS.holdMonths * DEFAULTS.monthlyHoldCost,
+      closingCosts: DEFAULTS.closingCosts,
+    });
+    expect(compsResult.mao).toBe(overviewResult.mao);
+  });
+
+  it("MAO includes assignment fee and holding/closing costs", () => {
+    const arv = 300000;
+    const withFee = calculateWholesaleUnderwrite({ arv });
+    const withoutFee = calculateWholesaleUnderwrite({
+      arv,
+      assignmentFeeTarget: 0,
+      holdingCosts: 0,
+      closingCosts: 0,
+    });
+    // withFee.mao should be less than withoutFee.mao by the fee amount
+    expect(withFee.mao).toBeLessThan(withoutFee.mao);
+    expect(withoutFee.mao - withFee.mao).toBe(DEFAULTS.assignmentFeeTarget);
+  });
+
+  it("default offerPercentage is 75%, not 65%", () => {
+    expect(DEFAULTS.offerPercentage).toBe(0.75);
+  });
+});
+
+// ── Adversarial: NO_COMPS warning fires without arvSource guard ───────────────
+
+describe("NO_COMPS warning - adversarial", () => {
+  it("NO_COMPS fires when compCount is 0 regardless of arvSource", () => {
+    const warningsAvm = buildValuationWarnings({
+      arv: 280000,
+      arvSource: "avm",
+      compCount: 0,
+      confidence: "low",
+      spreadPct: null,
+      mao: 160000,
+      rehabEstimate: 40000,
+      conditionLevel: 3,
+    });
+    const noComps = warningsAvm.find((w) => w.code === "NO_COMPS");
+    expect(noComps).toBeDefined();
+    expect(noComps!.severity).toBe("danger");
+  });
+
+  it("ARV_FROM_AVM does NOT fire when compCount is 0 (NO_COMPS covers it)", () => {
+    const warnings = buildValuationWarnings({
+      arv: 280000,
+      arvSource: "avm",
+      compCount: 0,
+      confidence: "low",
+      spreadPct: null,
+      mao: 160000,
+      rehabEstimate: 40000,
+      conditionLevel: 3,
+    });
+    const avmWarning = warnings.find((w) => w.code === "ARV_FROM_AVM");
+    expect(avmWarning).toBeUndefined();
+  });
+});
+
+// ── Adversarial: Quick Screen vs Underwrite separation ────────────────────────
+
+describe("Quick Screen vs Underwrite separation", () => {
+  it("calculateQuickScreen uses 50-65% range, not 75%", () => {
+    const result = calculateQuickScreen(300000);
+    expect(result.maoLow).toBe(150000); // 300k * 50%
+    expect(result.maoHigh).toBe(195000); // 300k * 65%
+    expect(result.formulaMode).toBe("quick_screen");
+  });
+
+  it("calculateWholesaleUnderwrite uses 75% default", () => {
+    const result = calculateWholesaleUnderwrite({ arv: 300000 });
+    expect(result.offerPercentage).toBe(0.75);
+    expect(result.maxAllowable).toBe(225000); // 300k * 75%
+    expect(result.formulaMode).toBe("wholesale_underwrite");
+  });
+
+  it("screening and underwrite produce different numbers for same AVM", () => {
+    const screen = calculateQuickScreen(300000);
+    const underwrite = calculateWholesaleUnderwrite({ arv: 300000 });
+    // Screening high (195k) should differ from underwrite MAO
+    expect(screen.maoHigh).not.toBe(underwrite.mao);
+  });
+});
+
+// ── Adversarial: Condition evidence attacks ───────────────────────────────────
+
+describe("condition evidence attacks", () => {
+  it("conditionLevel null generates NO_CONDITION warning with severity warn", () => {
+    const warnings = buildValuationWarnings({
+      arv: 280000,
+      arvSource: "comps",
+      compCount: 3,
+      confidence: "high",
+      spreadPct: 0.08,
+      mao: 160000,
+      rehabEstimate: 40000,
+      conditionLevel: null,
+    });
+    const noCond = warnings.find((w) => w.code === "NO_CONDITION");
+    expect(noCond).toBeDefined();
+    expect(noCond!.severity).toBe("warn");
+  });
+
+  it("conditionLevel 4 (0% adj) does NOT generate NO_CONDITION warning", () => {
+    const warnings = buildValuationWarnings({
+      arv: 280000,
+      arvSource: "comps",
+      compCount: 3,
+      confidence: "high",
+      spreadPct: 0.08,
+      mao: 160000,
+      rehabEstimate: 40000,
+      conditionLevel: 4,
+    });
+    const noCond = warnings.find((w) => w.code === "NO_CONDITION");
+    expect(noCond).toBeUndefined();
+  });
+
+  it("ARV with conditionAdj 0 is same as ARV without adjustment", () => {
+    const comps = [{ price: 280000, sqft: 1400, ppsf: 200 }];
+    const withAdj = calculateARVRange(comps, 1400, 0);
+    const withoutAdj = calculateARVRange(comps, 1400);
+    expect(withAdj.arvBase).toBe(withoutAdj.arvBase);
+  });
+});
+
+// ── Adversarial: Confidence honesty ───────────────────────────────────────────
+
+describe("confidence honesty", () => {
+  it("1 comp is always low confidence", () => {
+    const result = calculateArvConfidence(1, 0);
+    expect(result.confidence).toBe("low");
+  });
+
+  it("2 comps with tight spread is medium, not high", () => {
+    const result = calculateArvConfidence(2, 0.05);
+    expect(result.confidence).toBe("medium");
+  });
+
+  it("3 comps with >15% spread is medium, not high", () => {
+    const result = calculateArvConfidence(3, 0.20);
+    expect(result.confidence).toBe("medium");
+  });
+
+  it("3 comps with >30% spread is low", () => {
+    const result = calculateArvConfidence(3, 0.35);
+    expect(result.confidence).toBe("low");
+  });
+
+  it("0 comps is always low confidence", () => {
+    const result = calculateArvConfidence(0, null);
+    expect(result.confidence).toBe("low");
+  });
+});
