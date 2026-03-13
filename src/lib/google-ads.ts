@@ -92,13 +92,21 @@ export interface SearchTermData {
 async function gaqlQuery(config: GoogleAdsConfig, query: string): Promise<unknown[]> {
   const url = `${GOOGLE_ADS_API}/customers/${config.customerId}/googleAds:searchStream`;
 
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+    Authorization: `Bearer ${config.accessToken}`,
+    "developer-token": config.developerToken,
+  };
+
+  // Required when querying a child account through an MCC manager account
+  const loginCustomerId = process.env.GOOGLE_ADS_LOGIN_CUSTOMER_ID?.replace(/-/g, "");
+  if (loginCustomerId) {
+    headers["login-customer-id"] = loginCustomerId;
+  }
+
   const res = await fetch(url, {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${config.accessToken}`,
-      "developer-token": config.developerToken,
-    },
+    headers,
     body: JSON.stringify({ query }),
   });
 
@@ -121,8 +129,8 @@ async function gaqlQuery(config: GoogleAdsConfig, query: string): Promise<unknow
 // ── OAuth Token Refresh ─────────────────────────────────────────────
 
 export async function refreshAccessToken(refreshToken: string): Promise<string> {
-  const clientId = process.env.GOOGLE_CLIENT_ID!;
-  const clientSecret = process.env.GOOGLE_CLIENT_SECRET!;
+  const clientId = process.env.GOOGLE_ADS_CLIENT_ID!;
+  const clientSecret = process.env.GOOGLE_ADS_CLIENT_SECRET!;
 
   const res = await fetch("https://oauth2.googleapis.com/token", {
     method: "POST",
@@ -394,13 +402,20 @@ export async function fetchSearchTerms(
 async function mutate(config: GoogleAdsConfig, operations: unknown[]): Promise<unknown> {
   const url = `${GOOGLE_ADS_API}/customers/${config.customerId}/googleAds:mutate`;
 
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+    Authorization: `Bearer ${config.accessToken}`,
+    "developer-token": config.developerToken,
+  };
+
+  const loginCustomerId = process.env.GOOGLE_ADS_LOGIN_CUSTOMER_ID?.replace(/-/g, "");
+  if (loginCustomerId) {
+    headers["login-customer-id"] = loginCustomerId;
+  }
+
   const res = await fetch(url, {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${config.accessToken}`,
-      "developer-token": config.developerToken,
-    },
+    headers,
     body: JSON.stringify({ mutateOperations: operations }),
   });
 
