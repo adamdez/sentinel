@@ -23,6 +23,25 @@ export interface OfferPrepSnapshot {
   confidence: OfferPrepConfidence | null;
   sheetUrl: string | null;
   updatedAt: string | null;
+  /** Enhanced fields from valuation kernel v1.0+ (additive, nullable for backward compat) */
+  formulaVersion: string | null;
+  formulaMode: string | null;
+  arvLow: number | null;
+  arvBase: number | null;
+  arvHigh: number | null;
+  arvSource: "comps" | "avm" | "manual" | null;
+  conditionLevel: number | null;
+  conditionAdjPct: number | null;
+  avgPpsf: number | null;
+  compCount: number | null;
+  spreadPct: number | null;
+  offerPercentage: number | null;
+  assignmentFeeTarget: number | null;
+  holdingCosts: number | null;
+  closingCosts: number | null;
+  maoResult: number | null;
+  warnings: Array<{ code: string; severity: string; message: string }> | null;
+  calculatedBy: string | null;
 }
 
 export type OfferStatusTruth =
@@ -148,6 +167,28 @@ export function extractOfferPrepSnapshot(
     confidence,
     sheetUrl,
     updatedAt,
+    // Enhanced kernel fields (v1.0+) — nullable for backward compat
+    formulaVersion: toNullableString(nested?.formula_version) ?? null,
+    formulaMode: toNullableString(nested?.formula_mode) ?? null,
+    arvLow: toNullableNumber(nested?.arv_low) ?? null,
+    arvBase: toNullableNumber(nested?.arv_base) ?? null,
+    arvHigh: toNullableNumber(nested?.arv_high) ?? null,
+    arvSource: (() => {
+      const v = toNullableString(nested?.arv_source);
+      return v === "comps" || v === "avm" || v === "manual" ? v : null;
+    })(),
+    conditionLevel: toNullableNumber(nested?.condition_level) ?? null,
+    conditionAdjPct: toNullableNumber(nested?.condition_adj_pct) ?? null,
+    avgPpsf: toNullableNumber(nested?.avg_ppsf) ?? null,
+    compCount: toNullableNumber(nested?.comp_count) ?? null,
+    spreadPct: toNullableNumber(nested?.spread_pct) ?? null,
+    offerPercentage: toNullableNumber(nested?.offer_percentage) ?? null,
+    assignmentFeeTarget: toNullableNumber(nested?.assignment_fee_target) ?? null,
+    holdingCosts: toNullableNumber(nested?.holding_costs) ?? null,
+    closingCosts: toNullableNumber(nested?.closing_costs) ?? null,
+    maoResult: toNullableNumber(nested?.mao_result) ?? null,
+    warnings: Array.isArray(nested?.warnings) ? nested.warnings as Array<{ code: string; severity: string; message: string }> : null,
+    calculatedBy: toNullableString(nested?.calculated_by) ?? null,
   };
 }
 

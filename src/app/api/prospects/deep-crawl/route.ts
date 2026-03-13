@@ -4,6 +4,7 @@ import { getPropertyDetailByAddress } from "@/lib/attom";
 import { fanOutAgents, formatFindingsForGrok, buildDeepSkipResult, callAgent } from "@/lib/openclaw-client";
 import type { AgentResult, AgentMeta, AgentFinding, AgentTask, DeepSkipResult, PropertyPhoto } from "@/lib/openclaw-client";
 import { buildAgentPlan, buildPropertyContext } from "@/lib/openclaw-orchestrator";
+import { calculateQuickScreen } from "@/lib/valuation";
 
 /**
  * POST /api/prospects/deep-crawl
@@ -1210,9 +1211,8 @@ function buildFallbackDossier(data: DeepCrawlData, property: Record<string, any>
   const avm = data.financial.avm;
   let mao = null;
   if (avm) {
-    const low = Math.round(avm * 0.50);
-    const high = Math.round(avm * 0.65);
-    mao = { low, high, basis: `Based on AVM of $${avm.toLocaleString()} at 50-65%` };
+    const screen = calculateQuickScreen(avm);
+    mao = { low: screen.maoLow, high: screen.maoHigh, basis: screen.basis };
   }
 
   return {

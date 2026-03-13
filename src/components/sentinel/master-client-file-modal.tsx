@@ -38,6 +38,14 @@ import {
 } from "@/lib/leads-data";
 import type { AIScore, DistressType, LeadStatus, SellerTimeline, QualificationRoute } from "@/lib/types";
 import { SIGNAL_WEIGHTS } from "@/lib/scoring";
+import {
+  calculateWholesaleUnderwrite,
+  calculateARVRange,
+  calculateArvConfidence,
+  buildValuationWarnings,
+  DEFAULTS as VALUATION_DEFAULTS,
+  type CompMetric,
+} from "@/lib/valuation";
 import { deriveLeadActionSummary } from "@/lib/action-derivation";
 import { getSequenceLabel, getSequenceProgress, getCadencePosition, suggestNextCadenceDate } from "@/lib/call-scheduler";
 import { useCallNotes, type CallNote } from "@/hooks/use-call-notes";
@@ -932,11 +940,19 @@ function ScoreBreakdownModal({ cf, scoreType, onClose }: { cf: ClientFile; score
   const arv = cf.estimatedValue ?? 0;
   const eqPct = cf.equityPercent ?? 0;
   const availableEquity = cf.availableEquity ?? (arv > 0 ? Math.round(arv * eqPct / 100) : 0);
-  const rehabEst = 40000;
-  const offerPct = 65;
-  const offer = Math.round(arv * (offerPct / 100));
-  const totalCost = offer + rehabEst;
-  const profit = arv - totalCost;
+  // Quick profit projection via canonical kernel (screening-grade, 65% offer assumption)
+  const quickUnderwrite = calculateWholesaleUnderwrite({
+    arv,
+    arvSource: "avm",
+    offerPercentage: 0.65,
+    rehabEstimate: VALUATION_DEFAULTS.rehabEstimate,
+    assignmentFeeTarget: 0, // gross-only for quick screen
+    holdingCosts: 0,
+    closingCosts: 0,
+  });
+  const offer = quickUnderwrite.maxAllowable;
+  const totalCost = offer + quickUnderwrite.rehabEstimate;
+  const profit = quickUnderwrite.grossProfit;
   const roi = totalCost > 0 ? Math.round((profit / totalCost) * 100) : 0;
 
   return (
@@ -1223,12 +1239,12 @@ function ScoreBreakdownModal({ cf, scoreType, onClose }: { cf: ClientFile; score
                         <span className="font-mono font-medium">{formatCurrency(arv)}</span>
                       </div>
                       <div className="flex justify-between">
-                        <span className="text-muted-foreground">Offer @ {offerPct}%</span>
+                        <span className="text-muted-foreground">Offer @ 65%</span>
                         <span className="font-mono text-red-400">-{formatCurrency(offer)}</span>
                       </div>
                       <div className="flex justify-between">
                         <span className="text-muted-foreground">Rehab Est.</span>
-                        <span className="font-mono text-red-400">-{formatCurrency(rehabEst)}</span>
+                        <span className="font-mono text-red-400">-{formatCurrency(quickUnderwrite.rehabEstimate)}</span>
                       </div>
                       <div className="border-t border-white/[0.06] pt-1.5 mt-1.5 flex justify-between">
                         <span className="font-semibold">Net Profit</span>
@@ -1242,7 +1258,7 @@ function ScoreBreakdownModal({ cf, scoreType, onClose }: { cf: ClientFile; score
                       </div>
                     </div>
                     <p className="text-[9px] text-muted-foreground/40 italic">
-                      Assumptions: {offerPct}% MAO, ${(rehabEst / 1000).toFixed(0)}k rehab, 3% holding, 8% selling costs. Adjust in Offer Calculator tab.
+                      Assumptions: 65% MAO, ${(VALUATION_DEFAULTS.rehabEstimate / 1000).toFixed(0)}k rehab. Adjust in Offer Calculator tab.
                     </p>
                   </div>
                 )}
@@ -2996,12 +3012,15 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
   const arvSource: "comps" | "avm" = (computedArv > 0 || persistedCompArv > 0) ? "comps" : "avm";
   const compCount = (cf.ownerFlags?.comp_count as number) ?? 0;
 
-  const wholesaleRate = 0.75;
-  const repairRate = 0.10;
-  const assignmentFee = 15000;
-  const wholesaleValue = bestArv > 0 ? Math.round(bestArv * wholesaleRate) : 0;
-  const repairEstimate = bestArv > 0 ? Math.round(bestArv * repairRate) : 0;
-  const mao = bestArv > 0 ? Math.round(wholesaleValue - repairEstimate - assignmentFee) : null;
+  // Canonical MAO via valuation kernel
+  const overviewUnderwrite = bestArv > 0 ? calculateWholesaleUnderwrite({
+    arv: bestArv,
+    arvSource,
+  }) : null;
+  const wholesaleValue = overviewUnderwrite?.maxAllowable ?? 0;
+  const repairEstimate = overviewUnderwrite?.rehabEstimate ?? 0;
+  const assignmentFee = overviewUnderwrite?.assignmentFeeTarget ?? VALUATION_DEFAULTS.assignmentFeeTarget;
+  const mao = overviewUnderwrite?.mao ?? null;
 
   // â”€â”€ Signal-specific motivation text â”€â”€
   const getSignalMotivation = (evtType: string, rd?: Record<string, unknown>): string => {
@@ -5525,47 +5544,40 @@ function CompsTab({ cf, selectedComps, onAddComp, onRemoveComp, onSkipTrace, com
 
   const photos = cachedPhotos.length > 0 ? cachedPhotos : fetchedPhotos;
 
-  // ARV from selected comps using weighted $/sqft methodology
+  // ARV from selected comps via canonical valuation kernel
   const subjectSqft = cf.sqft ?? 0;
-  const compMetrics = selectedComps
+  const compMetrics: CompMetric[] = selectedComps
     .filter((c) => (c.lastSalePrice ?? c.avm ?? 0) > 0)
     .map((c) => {
       const price = c.lastSalePrice ?? c.avm ?? 0;
-      const ppsqft = c.sqft && c.sqft > 0 ? price / c.sqft : null;
-      return { price, sqft: c.sqft ?? 0, ppsqft };
+      const ppsf = c.sqft && c.sqft > 0 ? price / c.sqft : null;
+      return { price, sqft: c.sqft ?? 0, ppsf };
     });
 
-  const sqftComps = compMetrics.filter((m) => m.ppsqft != null);
-  let baseArv = 0;
-  let arvLow = 0;
-  let arvHigh = 0;
-  let arvConfidence: "high" | "medium" | "low" = "low";
+  const arvRangeResult = calculateARVRange(compMetrics, subjectSqft, conditionAdj);
+  const arvConfResult = calculateArvConfidence(arvRangeResult.compCount, arvRangeResult.spreadPct);
 
-  if (sqftComps.length > 0 && subjectSqft > 0) {
-    const pps = sqftComps.map((m) => m.ppsqft!);
-    const avgPps = pps.reduce((a, b) => a + b, 0) / pps.length;
-    baseArv = Math.round(avgPps * subjectSqft);
-    arvLow = Math.round(Math.min(...pps) * subjectSqft);
-    arvHigh = Math.round(Math.max(...pps) * subjectSqft);
-    const spread = arvHigh - arvLow;
-    arvConfidence = sqftComps.length >= 3 && spread / baseArv < 0.15 ? "high"
-      : sqftComps.length >= 2 && spread / baseArv < 0.30 ? "medium" : "low";
-  } else if (compMetrics.length > 0) {
-    const prices = compMetrics.map((m) => m.price);
-    baseArv = Math.round(prices.reduce((a, b) => a + b, 0) / prices.length);
-    arvLow = Math.min(...prices);
-    arvHigh = Math.max(...prices);
-    arvConfidence = compMetrics.length >= 3 ? "medium" : "low";
-  } else {
-    baseArv = cf.estimatedValue ?? 0;
-  }
+  // Fall back to AVM if no comps
+  const baseArv = arvRangeResult.arvBase > 0 ? arvRangeResult.arvBase : cf.estimatedValue ?? 0;
+  const arvLow = arvRangeResult.arvLow;
+  const arvHigh = arvRangeResult.arvHigh;
+  const arvConfidence = arvRangeResult.compCount > 0 ? arvConfResult.confidence : "low";
+  const arv = arvRangeResult.arvBase > 0 ? arvRangeResult.arvBase : (cf.estimatedValue ?? 0) > 0 ? Math.round((cf.estimatedValue ?? 0) * (1 + conditionAdj / 100)) : 0;
+  const avgPpsqft = arvRangeResult.avgPpsf != null ? Math.round(arvRangeResult.avgPpsf) : null;
 
-  const arv = Math.round(baseArv * (1 + conditionAdj / 100));
-  const avgPpsqft = sqftComps.length > 0 ? Math.round(sqftComps.reduce((a, m) => a + m.ppsqft!, 0) / sqftComps.length) : null;
-
-  const offer = Math.round(arv * (offerPct / 100));
+  // Profit projection via kernel
+  const compsUnderwrite = calculateWholesaleUnderwrite({
+    arv,
+    arvSource: arvRangeResult.compCount > 0 ? "comps" : "avm",
+    offerPercentage: offerPct / 100,
+    rehabEstimate: rehabEst,
+    assignmentFeeTarget: 0,
+    holdingCosts: 0,
+    closingCosts: 0,
+  });
+  const offer = compsUnderwrite.maxAllowable;
   const totalCost = offer + rehabEst;
-  const profit = arv - totalCost;
+  const profit = compsUnderwrite.grossProfit;
   const roi = totalCost > 0 ? Math.round((profit / totalCost) * 100) : 0;
 
   useEffect(() => { if (arv > 0) onArvChange(arv); }, [arv, onArvChange]);
@@ -5808,7 +5820,7 @@ function CompsTab({ cf, selectedComps, onAddComp, onRemoveComp, onSkipTrace, com
                 </span>
               </div>
               <p className="text-[9px] text-muted-foreground/60 pt-1">
-                {avgPpsqft != null ? `Based on ${sqftComps.length} comp${sqftComps.length > 1 ? "s" : ""} Ã— ${subjectSqft.toLocaleString()} sqft` : `Average of ${compMetrics.length} comp sale price${compMetrics.length > 1 ? "s" : ""}`}
+                {avgPpsqft != null ? `Based on ${arvRangeResult.compCount} comp${arvRangeResult.compCount > 1 ? "s" : ""} × ${subjectSqft.toLocaleString()} sqft` : `Average of ${compMetrics.length} comp sale price${compMetrics.length > 1 ? "s" : ""}`}
               </p>
             </div>
           ) : cf.estimatedValue ? (
@@ -5890,13 +5902,15 @@ function OfferCalcTab({ cf, computedArv }: { cf: ClientFile; computedArv: number
 
   // Auto-fill ARV when Comps tab computes one
   useEffect(() => { if (computedArv > 0) setArv(computedArv.toString()); }, [computedArv]);
-  const defaultMao = bestArv > 0 ? Math.round(bestArv * 0.75 - 40000).toString() : "";
+  // Default purchase price via canonical kernel
+  const defaultUnderwrite = bestArv > 0 ? calculateWholesaleUnderwrite({ arv: bestArv }) : null;
+  const defaultMao = defaultUnderwrite ? defaultUnderwrite.mao.toString() : "";
   const [purchase, setPurchase] = useState(defaultMao);
-  const [rehab, setRehab] = useState("40000");
-  const [holdMonths, setHoldMonths] = useState("3");
-  const [monthlyHold, setMonthlyHold] = useState("1500");
-  const [closing, setClosing] = useState("5000");
-  const [assignmentFee, setAssignmentFee] = useState("15000");
+  const [rehab, setRehab] = useState(VALUATION_DEFAULTS.rehabEstimate.toString());
+  const [holdMonths, setHoldMonths] = useState(VALUATION_DEFAULTS.holdMonths.toString());
+  const [monthlyHold, setMonthlyHold] = useState(VALUATION_DEFAULTS.monthlyHoldCost.toString());
+  const [closing, setClosing] = useState(VALUATION_DEFAULTS.closingCosts.toString());
+  const [assignmentFee, setAssignmentFee] = useState(VALUATION_DEFAULTS.assignmentFeeTarget.toString());
 
   const arvNum = parseFloat(arv) || 0;
   const purchaseNum = parseFloat(purchase) || 0;
@@ -5905,11 +5919,21 @@ function OfferCalcTab({ cf, computedArv }: { cf: ClientFile; computedArv: number
   const closingNum = parseFloat(closing) || 0;
   const feeNum = parseFloat(assignmentFee) || 0;
 
-  const mao = arvNum > 0 ? Math.round(arvNum * 0.75 - rehabNum) : 0;
-  const totalCosts = purchaseNum + rehabNum + holdNum + closingNum;
-  const grossProfit = arvNum - totalCosts;
-  const netProfit = grossProfit - feeNum;
-  const roi = totalCosts > 0 && purchaseNum > 0 ? ((grossProfit / totalCosts) * 100).toFixed(1) : null;
+  // All deal math via canonical kernel
+  const dealUnderwrite = calculateWholesaleUnderwrite({
+    arv: arvNum,
+    arvSource: computedArv > 0 ? "comps" : "avm",
+    rehabEstimate: rehabNum,
+    assignmentFeeTarget: feeNum,
+    holdingCosts: holdNum,
+    closingCosts: closingNum,
+    purchasePriceOverride: purchaseNum > 0 ? purchaseNum : undefined,
+  });
+  const mao = dealUnderwrite.mao;
+  const totalCosts = dealUnderwrite.totalCosts;
+  const grossProfit = dealUnderwrite.grossProfit;
+  const netProfit = dealUnderwrite.netProfit;
+  const roi = dealUnderwrite.roi != null ? dealUnderwrite.roi.toFixed(1) : null;
 
   return (
     <div className="space-y-4">
@@ -5979,7 +6003,9 @@ function OfferCalcTab({ cf, computedArv }: { cf: ClientFile; computedArv: number
 function DocumentsTab({ cf, computedArv }: { cf: ClientFile; computedArv: number }) {
   const today = new Date().toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" });
   const bestArv = computedArv > 0 ? computedArv : cf.estimatedValue ?? 0;
-  const autoMao = bestArv > 0 ? formatCurrency(Math.round(bestArv * 0.75 - 40000)) : "____________";
+  // PSA prefill via canonical kernel
+  const psaUnderwrite = bestArv > 0 ? calculateWholesaleUnderwrite({ arv: bestArv }) : null;
+  const autoMao = psaUnderwrite ? formatCurrency(psaUnderwrite.mao) : "____________";
 
   const psaBody = useMemo(() => [
     `REAL ESTATE PURCHASE AND SALE AGREEMENT`,
