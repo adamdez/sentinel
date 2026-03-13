@@ -33,6 +33,7 @@ import {
   failSyncLog,
   isSyncRunning,
 } from "./queries/sync-logs";
+import { resolveUnresolvedAttributions } from "./resolve-attribution";
 
 type AdsMarket = "spokane" | "kootenai";
 
@@ -205,6 +206,19 @@ export async function runNormalizedSync(
       records_upserted: totalUpserted,
       duration_ms: result.durationMs,
     });
+
+    // ── Post-sync: resolve pending attribution records ──────────────
+    try {
+      const attrResult = await resolveUnresolvedAttributions(supabase);
+      if (attrResult.resolved > 0 || attrResult.skippedAmbiguous > 0) {
+        console.log(
+          `[Ads/Sync] Attribution resolution: ${attrResult.resolved}/${attrResult.total} resolved, ${attrResult.skippedAmbiguous} ambiguous`,
+        );
+      }
+    } catch (attrErr) {
+      // Attribution resolution failure must not break sync
+      console.error("[Ads/Sync] Attribution resolution failed (non-fatal):", attrErr);
+    }
 
     console.log(`[Ads/Sync] Complete in ${result.durationMs}ms`, result);
     return result;

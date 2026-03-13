@@ -23,6 +23,8 @@ export interface InboundIntakeInput {
   rawText?: string | null;
   rawPayload?: Record<string, unknown> | null;
   receivedAt?: string | null;
+  gclid?: string | null;
+  landingPage?: string | null;
 }
 
 export interface NormalizedInboundCandidate {
@@ -51,6 +53,8 @@ export interface NormalizedInboundCandidate {
   reviewStatus: string;
   rawPayload: Record<string, unknown> | null;
   duplicate: DuplicateCandidate;
+  gclid: string | null;
+  landingPage: string | null;
 }
 
 const EMAIL_REGEX = /[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi;
@@ -177,6 +181,8 @@ export function normalizeInboundCandidate(input: InboundIntakeInput): Normalized
     reviewStatus,
     rawPayload: input.rawPayload ?? null,
     duplicate: { level: "none", reasons: [] },
+    gclid: cleanString(input.gclid),
+    landingPage: cleanString(input.landingPage),
   };
 }
 

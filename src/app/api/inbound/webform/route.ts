@@ -38,6 +38,8 @@ export async function POST(req: NextRequest) {
       rawText: body.message ?? body.notes ?? null,
       rawPayload: body && typeof body === "object" ? body as Record<string, unknown> : null,
       receivedAt: typeof body.received_at === "string" ? body.received_at : null,
+      gclid: typeof body.gclid === "string" ? body.gclid : null,
+      landingPage: typeof body.landing_page === "string" ? body.landing_page : null,
     });
 
     const result = await processInboundCandidate({

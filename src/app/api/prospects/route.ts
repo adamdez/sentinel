@@ -8,6 +8,7 @@ import { distressFingerprint, normalizeCounty as globalNormalizeCounty, isDuplic
 import { detectDistressSignals, type DetectedSignal } from "@/lib/distress-signals";
 import { captureStageTransition } from "@/lib/conversion-tracking";
 import { compactObject, normalizeTagList, scoringTagCount } from "@/lib/prospecting";
+import { insertAttribution, extractDomain } from "@/lib/ads/queries/attribution";
 import { evaluateStageEntryPrerequisites, type StageEntryPrereqInput } from "@/lib/lead-guards";
 import {
   computeQualificationScoreTotal,
@@ -950,6 +951,7 @@ export async function POST(req: NextRequest) {
       niche_tag, import_batch_id, outreach_type, first_call_at, last_call_at,
       attempt_count, skip_trace_status, call_outcome, wrong_number, do_not_call,
       bad_record, outbound_status, source_metadata,
+      gclid, landing_page,
     } = body;
 
     if (!address || !county) {
@@ -1175,6 +1177,30 @@ export async function POST(req: NextRequest) {
         { error: "Internal server error" },
         { status: 500 }
       );
+    }
+
+    // ── Step 2b: Create ads attribution record if gclid present ─────
+    const gclidValue = typeof gclid === "string" && gclid.trim().length > 0 ? gclid.trim() : null;
+    const landingPageValue = typeof landing_page === "string" && landing_page.trim().length > 0 ? landing_page.trim() : null;
+
+    if (gclidValue) {
+      const market = finalCounty === "kootenai" ? "kootenai" as const : "spokane" as const;
+      try {
+        const attrId = await insertAttribution(sb, {
+          lead_id: lead.id,
+          gclid: gclidValue,
+          landing_page: landingPageValue,
+          landing_domain: landingPageValue ? extractDomain(landingPageValue) : null,
+          source_channel: sourceChannel,
+          market,
+        });
+        if (attrId) {
+          console.log(`[API/prospects POST] Attribution ${attrId} created for lead ${lead.id} (gclid: ${gclidValue.slice(0, 12)}…)`);
+        }
+      } catch (attrErr) {
+        // Attribution failure must not block lead creation response
+        console.error("[API/prospects POST] Attribution insert failed (non-fatal):", attrErr);
+      }
     }
 
     // Non-blocking audit log — must not prevent save response

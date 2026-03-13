@@ -101,6 +101,8 @@ export async function processInboundCandidate(args: {
         received_at: candidate.receivedAt,
         outbound_status: candidate.reviewStatus,
         skip_trace_status: "not_started",
+        gclid: candidate.gclid,
+        landing_page: candidate.landingPage,
         source_metadata: {
           raw_payload: candidate.rawPayload,
           warnings: [...candidate.warnings, ...candidate.duplicate.reasons],
