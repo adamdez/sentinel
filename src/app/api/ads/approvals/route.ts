@@ -26,6 +26,13 @@ export async function GET(req: NextRequest) {
   const sevenDaysAgo = new Date();
   sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
 
+  // Allow fetching by status (pending or approved)
+  const { searchParams } = new URL(req.url);
+  const status = searchParams.get("status") || "pending";
+  if (!["pending", "approved"].includes(status)) {
+    return NextResponse.json({ error: "Invalid status parameter" }, { status: 400 });
+  }
+
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data: recs, error: recErr } = await (sb.from("ads_recommendations") as any)
     .select(`
@@ -40,7 +47,7 @@ export async function GET(req: NextRequest) {
       related_keyword_id,
       created_at
     `)
-    .eq("status", "pending")
+    .eq("status", status)
     .gte("created_at", sevenDaysAgo.toISOString())
     .order("created_at", { ascending: false }); // Newest first for dedupe
 

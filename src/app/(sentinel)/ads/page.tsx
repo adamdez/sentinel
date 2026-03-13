@@ -29,6 +29,7 @@ import {
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { useSentinelStore } from "@/lib/store";
+import { PendingApprovalsTable } from "@/components/sentinel/ads/pending-approvals-table";
 
 // ── Types ───────────────────────────────────────────────────────────
 
@@ -81,7 +82,7 @@ interface AdAction {
   ad_reviews?: { review_type: string; summary: string };
 }
 
-type TabId = "dashboard" | "review" | "copylab" | "landing" | "chat";
+type TabId = "dashboard" | "approvals" | "review" | "copylab" | "landing" | "chat";
 
 // ── Helpers ─────────────────────────────────────────────────────────
 
@@ -122,6 +123,7 @@ export default function AdsPage() {
 
   const tabs: { id: TabId; label: string; icon: React.ElementType }[] = [
     { id: "dashboard", label: "Performance", icon: BarChart3 },
+    { id: "approvals", label: "Approvals", icon: Zap },
     { id: "review", label: "AI Review", icon: Brain },
     { id: "copylab", label: "Ad Copy Lab", icon: FileText },
     { id: "landing", label: "Landing Page", icon: Globe },
@@ -187,6 +189,7 @@ export default function AdsPage() {
             transition={{ duration: 0.15 }}
           >
             {activeTab === "dashboard" && <DashboardTab />}
+            {activeTab === "approvals" && <PendingApprovalsTable />}
             {activeTab === "review" && <ReviewTab />}
             {activeTab === "copylab" && <CopyLabTab />}
             {activeTab === "landing" && <LandingTab />}
