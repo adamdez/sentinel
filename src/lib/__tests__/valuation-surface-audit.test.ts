@@ -20,6 +20,7 @@ const ALLOWED_FILES = new Set([
   "src/lib/__tests__/valuation-kernel.test.ts",  // Its tests
   "src/lib/__tests__/valuation-phase25.test.ts", // Phase 2.5 tests
   "src/lib/__tests__/valuation-surface-audit.test.ts",  // This file
+  "src/lib/__tests__/comps-ui-compression.test.ts", // Comps UI compression tests
   "docs/comp-calculator-template.md", // Documentation reference
 ]);
 

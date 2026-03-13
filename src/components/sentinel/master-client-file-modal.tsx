@@ -52,7 +52,7 @@ import {
 import { deriveLeadActionSummary } from "@/lib/action-derivation";
 import { getSequenceLabel, getSequenceProgress, getCadencePosition, suggestNextCadenceDate } from "@/lib/call-scheduler";
 import { useCallNotes, type CallNote } from "@/hooks/use-call-notes";
-import { CompsMap, getSatelliteTileUrl, getGoogleStreetViewLink, type CompProperty, type SubjectProperty } from "@/components/sentinel/comps/comps-map";
+import { CompsMap, getSatelliteTileUrl, getGoogleStreetViewLink, haversine, scoreComp, getCompQualityLabel, getCompRationale, type CompProperty, type SubjectProperty, type CompScore } from "@/components/sentinel/comps/comps-map";
 import { PredictiveDistressBadge, type PredictiveDistressData } from "@/components/sentinel/predictive-distress-badge";
 import { RelationshipBadge } from "@/components/sentinel/relationship-badge";
 import {
@@ -5568,6 +5568,7 @@ function CompsTab({ cf, selectedComps, onAddComp, onRemoveComp, onSkipTrace, com
   onConditionAdjChange: (adj: number) => void;
 }) {
   const [focusedComp, setFocusedComp] = useState<CompProperty | null>(null);
+  const [researchMode, setResearchMode] = useState(false);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const prRaw = (cf.ownerFlags?.pr_raw ?? {}) as Record<string, any>;
 
@@ -5762,6 +5763,37 @@ function CompsTab({ cf, selectedComps, onAddComp, onRemoveComp, onSkipTrace, com
     radarId: cf.radarId, zip: cf.zip, county: cf.county, state: cf.state,
   };
 
+  // Decision Summary computations
+  const arvSource = arvRangeResult.compCount > 0 ? "comps" : "avm";
+  const modeLabel = arvRangeResult.compCount > 0 ? "Underwrite" : cf.estimatedValue ? "Quick Screen" : null;
+
+  const decisionWarnings = buildValuationWarnings({
+    arv,
+    arvSource,
+    compCount: arvRangeResult.compCount,
+    confidence: arvConfidence,
+    spreadPct: arvRangeResult.spreadPct,
+    mao: compsUnderwrite.mao,
+    rehabEstimate: rehabEst,
+    conditionLevel: 3,
+  });
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const snapUpdatedAt = (cf.ownerFlags as any)?.offer_prep_snapshot?.updated_at as string | undefined;
+  const daysSinceSnapshot = snapUpdatedAt ? Math.floor((Date.now() - new Date(snapUpdatedAt).getTime()) / (1000 * 60 * 60 * 24)) : null;
+  const isStale = daysSinceSnapshot != null && daysSinceSnapshot > 7;
+
+  const confidenceReason = (() => {
+    if (arvRangeResult.compCount === 0) {
+      return cf.estimatedValue ? "No comps \u2014 using AVM estimate only" : "No valuation data available";
+    }
+    if (arvRangeResult.compCount === 1) return "Single comp \u2014 verify with additional sales";
+    const spreadStr = arvRangeResult.spreadPct != null ? `${Math.round(arvRangeResult.spreadPct * 100)}%` : "?%";
+    if (arvConfidence === "high") return `${arvRangeResult.compCount} strong comps, ${spreadStr} spread`;
+    if (arvRangeResult.spreadPct != null && arvRangeResult.spreadPct > 0.15) return `${arvRangeResult.compCount} comps but ${spreadStr} price spread`;
+    return `Only ${arvRangeResult.compCount} comp${arvRangeResult.compCount > 1 ? "s" : ""} \u2014 need 3+ for high confidence`;
+  })();
+
   return (
     <div className="space-y-4">
       {/* Subject property header with photo carousel */}
@@ -5794,215 +5826,378 @@ function CompsTab({ cf, selectedComps, onAddComp, onRemoveComp, onSkipTrace, com
         </div>
       </div>
 
-      {/* Interactive map */}
-      <CompsMap
-        subject={subject}
-        selectedComps={selectedComps}
-        onAddComp={onAddComp}
-        onRemoveComp={onRemoveComp}
-        focusedComp={focusedComp}
-      />
-
-      {/* Selected comps table */}
-      {selectedComps.length > 0 && (
-        <div className="rounded-[10px] border border-white/[0.06] overflow-hidden">
-          <div className="flex items-center justify-between px-4 py-2 bg-[rgba(12,12,22,0.5)] border-b border-white/[0.06]">
-            <p className="text-xs font-semibold flex items-center gap-1.5">
-              <CheckCircle2 className="h-3 w-3 text-cyan" />
-              Selected Comps ({selectedComps.length})
-            </p>
+      {/* === SECTION 1: DECISION SUMMARY === */}
+      <div className={cn(
+        "rounded-[10px] border p-4 space-y-3",
+        arvConfidence === "high" ? "border-emerald-500/20 bg-emerald-500/[0.04]" :
+        arvConfidence === "medium" ? "border-amber-500/20 bg-amber-500/[0.04]" :
+        "border-red-500/20 bg-red-500/[0.04]",
+      )}>
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Scale className="h-3.5 w-3.5 text-cyan" />
+            <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Decision Summary</span>
           </div>
-          <div className="overflow-x-auto">
-            <table className="w-full text-[11px]">
-              <thead>
-                <tr className="border-b border-white/[0.06] bg-white/[0.04]">
-                  <th className="px-2 py-2 font-medium text-muted-foreground w-[52px]"></th>
-                  <th className="text-left px-3 py-2 font-medium text-muted-foreground">Address</th>
-                  <th className="text-right px-3 py-2 font-medium text-muted-foreground">Beds</th>
-                  <th className="text-right px-3 py-2 font-medium text-muted-foreground">Baths</th>
-                  <th className="text-right px-3 py-2 font-medium text-muted-foreground">Sqft</th>
-                  <th className="text-right px-3 py-2 font-medium text-muted-foreground">Year</th>
-                  <th className="text-right px-3 py-2 font-medium text-muted-foreground">AVM</th>
-                  <th className="text-right px-3 py-2 font-medium text-muted-foreground">Last Sale</th>
-                  <th className="text-center px-3 py-2 font-medium text-muted-foreground"></th>
-                </tr>
-              </thead>
-              <tbody>
-                {selectedComps.map((comp) => {
-                  const thumbSrc = comp.photoUrl
-                    ?? comp.streetViewUrl
-                    ?? (comp.lat && comp.lng ? getSatelliteTileUrl(comp.lat, comp.lng, 17) : null);
-                  return (
-                  <tr key={comp.apn} className="border-b border-white/[0.06]/50 hover:bg-white/[0.04] cursor-pointer" onClick={() => setFocusedComp(prev => prev?.apn === comp.apn ? null : comp)}>
-                    <td className="px-2 py-1.5">
-                      {thumbSrc ? (
-                        <div className="w-10 h-8 rounded overflow-hidden bg-black/30 border border-white/[0.06]">
-                          <img src={thumbSrc} alt="" className="w-full h-full object-cover" />
-                        </div>
-                      ) : (
-                        <div className="w-10 h-8 rounded bg-white/[0.04] border border-white/[0.06] flex items-center justify-center">
-                          <Home className="h-3 w-3 text-muted-foreground" />
-                        </div>
-                      )}
-                    </td>
-                    <td className="px-3 py-2 max-w-[180px]">
-                      <div className="truncate">{comp.streetAddress}</div>
-                      {comp.lastSaleDate && (
-                        <div className="text-[9px] text-muted-foreground">
-                          Sold {new Date(comp.lastSaleDate).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
-                        </div>
-                      )}
-                    </td>
-                    <td className="px-3 py-2 text-right">{comp.beds ?? "â€”"}</td>
-                    <td className="px-3 py-2 text-right">{comp.baths ?? "â€”"}</td>
-                    <td className="px-3 py-2 text-right">{comp.sqft?.toLocaleString() ?? "â€”"}</td>
-                    <td className="px-3 py-2 text-right">{comp.yearBuilt ?? "â€”"}</td>
-                    <td className="px-3 py-2 text-right font-medium text-neon">{comp.avm ? formatCurrency(comp.avm) : "â€”"}</td>
-                    <td className="px-3 py-2 text-right">{comp.lastSalePrice ? formatCurrency(comp.lastSalePrice) : "â€”"}</td>
-                    <td className="px-3 py-2 text-center">
-                      <button onClick={() => onRemoveComp(comp.apn)} className="text-red-400 hover:text-red-300">
-                        <X className="h-3 w-3" />
-                      </button>
-                    </td>
-                  </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
-
-      {/* Focused comp detail panel with photo carousel */}
-      {focusedComp && (
-        <CompDetailPanel comp={focusedComp} onClose={() => setFocusedComp(null)} />
-      )}
-
-      {/* Condition Adjustment slider */}
-      <div className="rounded-[10px] border border-white/[0.06] bg-[rgba(12,12,22,0.5)] p-3">
-        <div className="flex items-center justify-between mb-2">
-          <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Condition Adjustment</p>
-          <span className={cn("text-xs font-bold", conditionAdj > 0 ? "text-emerald-400" : conditionAdj < 0 ? "text-red-400" : "text-muted-foreground")}>
-            {CONDITION_LABELS[conditionAdj] ?? `${conditionAdj > 0 ? "+" : ""}${conditionAdj}%`}
-          </span>
-        </div>
-        <p className="text-[9px] text-muted-foreground/60 mb-2">Adjust the ARV up or down based on the subject property{"'"}s condition relative to the comps. If it needs more work than the comps, slide left. If it{"'"}s in better shape, slide right.</p>
-        <input type="range" min={-15} max={5} step={5} value={conditionAdj} onChange={(e) => onConditionAdjChange(Number(e.target.value))} className="w-full h-1.5 accent-[#00d4ff] bg-secondary rounded-full" />
-      </div>
-
-      {/* Live ARV + Profit projection */}
-      <div className="grid grid-cols-2 gap-4">
-        <div className="rounded-lg border border-cyan/15 bg-cyan/4 p-4">
-          <p className="text-[10px] font-semibold text-cyan uppercase tracking-wider mb-3 flex items-center gap-1.5">
-            <TrendingUp className="h-3 w-3" />
-            Live ARV
-            {selectedComps.length > 0 && (
-              <span className={cn("ml-auto text-[9px] px-1.5 py-0.5 rounded-full font-medium",
-                arvConfidence === "high" ? "bg-emerald-500/20 text-emerald-400" :
-                arvConfidence === "medium" ? "bg-amber-500/20 text-amber-400" :
-                "bg-red-500/20 text-red-400"
-              )}>
-                {arvConfidence} confidence
+          <div className="flex items-center gap-2">
+            {modeLabel && (
+              <span className="text-[9px] font-mono px-1.5 py-0.5 rounded border border-white/10 bg-white/[0.04] text-muted-foreground">
+                {modeLabel}
               </span>
             )}
-          </p>
-          {selectedComps.length > 0 ? (
-            <div className="space-y-1.5 text-xs">
-              {avgPpsqft != null && (
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Avg $/sqft</span>
-                  <span className="font-bold text-neon">${avgPpsqft}</span>
-                </div>
-              )}
-              {arvLow > 0 && arvHigh > 0 && (
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Range</span>
-                  <span className="font-medium">{formatCurrency(arvLow)} â€“ {formatCurrency(arvHigh)}</span>
-                </div>
-              )}
-              {conditionAdj !== 0 && (
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Condition</span>
-                  <span className={cn("font-medium", conditionAdj > 0 ? "text-emerald-400" : "text-red-400")}>
-                    {conditionAdj > 0 ? "+" : ""}{conditionAdj}%
-                  </span>
-                </div>
-              )}
-              <div className="pt-2 mt-2 border-t border-cyan/15 flex justify-between">
-                <span className="font-medium">Estimated ARV</span>
-                <span className="font-bold text-neon text-xl" style={{ textShadow: "0 0 10px rgba(0,212,255,0.4)" }}>
-                  {formatCurrency(arv)}
-                </span>
-              </div>
-              <p className="text-[9px] text-muted-foreground/60 pt-1">
-                {avgPpsqft != null ? `Based on ${arvRangeResult.compCount} comp${arvRangeResult.compCount > 1 ? "s" : ""} × ${subjectSqft.toLocaleString()} sqft` : `Average of ${compMetrics.length} comp sale price${compMetrics.length > 1 ? "s" : ""}`}
-              </p>
-            </div>
-          ) : cf.estimatedValue ? (
-            <div className="space-y-1.5 text-xs">
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">AVM (pre-comps)</span>
-                <span className="font-bold text-neon">{formatCurrency(cf.estimatedValue)}</span>
-              </div>
-              {conditionAdj !== 0 && (
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Condition</span>
-                  <span className={cn("font-medium", conditionAdj > 0 ? "text-emerald-400" : "text-red-400")}>
-                    {conditionAdj > 0 ? "+" : ""}{conditionAdj}%
-                  </span>
-                </div>
-              )}
-              <div className="pt-2 mt-2 border-t border-cyan/15 flex justify-between">
-                <span className="font-medium">Est. ARV</span>
-                <span className="font-bold text-neon text-xl" style={{ textShadow: "0 0 10px rgba(0,212,255,0.4)" }}>
-                  {formatCurrency(arv)}
-                </span>
-              </div>
-              <p className="text-[9px] text-muted-foreground/60 pt-1">Add comps for a more accurate ARV</p>
-            </div>
-          ) : (
-            <p className="text-[10px] text-muted-foreground">Add comps to calculate</p>
-          )}
-        </div>
-
-        <div className="rounded-[12px] border border-glass-border bg-secondary/10 p-4">
-          <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-3 flex items-center gap-1.5">
-            <DollarSign className="h-3 w-3" />
-            Quick Profit Projection
-          </p>
-          <div className="space-y-1 text-xs">
-            <div className="flex justify-between">
-              <span className="text-muted-foreground">ARV</span>
-              <span className="font-medium">{formatCurrency(arv)}</span>
-            </div>
-            <div className="flex justify-between items-center">
-              <span className="text-muted-foreground flex items-center gap-1">
-                Offer
-                <input type="range" min={50} max={80} step={5} value={offerPct} onChange={(e) => setOfferPct(Number(e.target.value))} className="w-14 h-1 accent-[#00d4ff]" />
-                <span className="text-[10px] font-mono w-7 text-right">{offerPct}%</span>
+            {isStale && (
+              <span className="text-[9px] text-amber-400 flex items-center gap-0.5">
+                <Clock className="h-2.5 w-2.5" />
+                {daysSinceSnapshot}d since save
               </span>
-              <span className="font-medium text-red-400">-{formatCurrency(offer)}</span>
-            </div>
-            <div className="flex justify-between items-center">
-              <span className="text-muted-foreground flex items-center gap-1">
-                Rehab
-                <input type="number" value={rehabEst} onChange={(e) => setRehabEst(Number(e.target.value) || 0)} className="w-16 h-5 text-[10px] text-right bg-white/[0.06] border border-white/[0.1] rounded px-1 font-mono" />
-              </span>
-              <span className="font-medium text-red-400">-{formatCurrency(rehabEst)}</span>
-            </div>
-            <div className="pt-1.5 mt-1.5 border-t border-white/[0.06] flex justify-between">
-              <span className="font-semibold">Net Profit</span>
-              <span className={cn("font-bold text-lg", profit >= 0 ? "text-neon" : "text-red-400")} style={profit >= 0 ? { textShadow: "0 0 10px rgba(0,212,255,0.3)" } : {}}>
-                {formatCurrency(profit)}
-              </span>
-            </div>
-            <div className="flex justify-between text-[10px]">
-              <span className="text-muted-foreground">ROI</span>
-              <span className={cn("font-semibold", roi >= 0 ? "text-neon" : "text-red-400")}>{roi}%</span>
-            </div>
+            )}
           </div>
         </div>
+
+        {arv > 0 ? (
+          <>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <p className="text-[9px] text-muted-foreground uppercase mb-0.5">ARV</p>
+                <p className="text-2xl font-black text-neon font-mono tracking-tight" style={{ textShadow: "0 0 10px rgba(0,212,255,0.3)" }}>
+                  {formatCurrency(arv)}
+                </p>
+                {arvLow > 0 && arvHigh > 0 && arvRangeResult.compCount > 1 && (
+                  <p className="text-[10px] text-muted-foreground/70 font-mono mt-0.5">
+                    {formatCurrency(arvLow)} {"\u2014"} {formatCurrency(arvHigh)}
+                  </p>
+                )}
+              </div>
+              <div>
+                <p className="text-[9px] text-muted-foreground uppercase mb-0.5">MAO</p>
+                <p className="text-2xl font-black text-emerald-400 font-mono tracking-tight">
+                  {compsUnderwrite.mao > 0 ? formatCurrency(compsUnderwrite.mao) : "\u2014"}
+                </p>
+                <p className="text-[9px] text-muted-foreground/60 mt-0.5">
+                  {offerPct}% - ${(rehabEst / 1000).toFixed(0)}k rehab
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-start gap-2">
+              <span className={cn(
+                "text-[10px] px-1.5 py-0.5 rounded-full font-bold uppercase shrink-0",
+                arvConfidence === "high" ? "bg-emerald-500/20 text-emerald-400" :
+                arvConfidence === "medium" ? "bg-amber-500/20 text-amber-400" :
+                "bg-red-500/20 text-red-400",
+              )}>
+                {arvConfidence}
+              </span>
+              <p className="text-[11px] text-foreground/80">{confidenceReason}</p>
+            </div>
+
+            {conditionAdj !== 0 && (
+              <p className="text-[10px] text-muted-foreground/70">
+                Condition adj: <span className={cn("font-semibold", conditionAdj > 0 ? "text-emerald-400" : "text-red-400")}>
+                  {CONDITION_LABELS[conditionAdj] ?? `${conditionAdj > 0 ? "+" : ""}${conditionAdj}%`}
+                </span>
+              </p>
+            )}
+
+            {decisionWarnings.filter((w) => w.severity !== "info").slice(0, 2).map((w, i) => (
+              <p key={i} className={cn("text-[10px] flex items-center gap-1",
+                w.severity === "danger" ? "text-red-400" : "text-amber-400",
+              )}>
+                <AlertTriangle className="h-3 w-3 shrink-0" />
+                {w.message}
+              </p>
+            ))}
+          </>
+        ) : (
+          <p className="text-sm text-muted-foreground">Add comps or enrich to generate valuation</p>
+        )}
       </div>
+
+      {/* === SECTION 2: TOP 3 COMP EVIDENCE === */}
+      {(() => {
+        const compsToShow = selectedComps.length > 0
+          ? selectedComps.slice(0, 3)
+          : [];
+
+        if (compsToShow.length === 0 && arv > 0) {
+          return (
+            <div className="rounded-[10px] border border-white/[0.06] bg-white/[0.02] p-3 text-center">
+              <p className="text-[11px] text-muted-foreground">No comps selected {"\u2014"} open Research Mode to find and add comps.</p>
+            </div>
+          );
+        }
+
+        if (compsToShow.length === 0) return null;
+
+        return (
+          <div className="space-y-2">
+            <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
+              <CheckCircle2 className="h-3 w-3 text-cyan" />
+              Top {compsToShow.length} Comp Evidence
+            </p>
+            {compsToShow.map((comp, idx) => {
+              const compScore = scoreComp(comp, subject);
+              const qualityLabel = getCompQualityLabel(compScore.total);
+              const rationale = getCompRationale(compScore, comp, subject);
+              const salePrice = comp.lastSalePrice ?? comp.avm ?? 0;
+              const ppsf = salePrice > 0 && comp.sqft ? Math.round(salePrice / comp.sqft) : null;
+              const dist = comp.lat && comp.lng ? haversine(subject.lat, subject.lng, comp.lat, comp.lng) : null;
+              const saleMonths = comp.lastSaleDate
+                ? Math.round((Date.now() - new Date(comp.lastSaleDate).getTime()) / (1000 * 60 * 60 * 24 * 30.44))
+                : null;
+
+              const qualityColor = qualityLabel === "Strong" ? "text-emerald-400" : qualityLabel === "Usable" ? "text-amber-400" : "text-red-400";
+
+              return (
+                <div
+                  key={comp.apn}
+                  className="rounded-[8px] border border-white/[0.06] bg-white/[0.02] px-3 py-2.5 cursor-pointer hover:bg-white/[0.04] transition-colors"
+                  onClick={() => { setResearchMode(true); setFocusedComp(comp); }}
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0 flex-1">
+                      <p className="text-[11px] font-semibold truncate">{comp.streetAddress}</p>
+                      <div className="flex flex-wrap items-center gap-x-2.5 gap-y-0.5 mt-1 text-[10px] text-muted-foreground">
+                        {salePrice > 0 && <span className="font-semibold text-foreground">{formatCurrency(salePrice)}</span>}
+                        {ppsf != null && <span className="font-mono">${ppsf}/sqft</span>}
+                        {dist != null && <span>{dist.toFixed(1)}mi</span>}
+                        {saleMonths != null && <span>{saleMonths}mo ago</span>}
+                      </div>
+                    </div>
+                    <span className={cn("text-[10px] font-bold shrink-0 mt-0.5", qualityColor)}>
+                      {qualityLabel}
+                    </span>
+                  </div>
+                  <p className="text-[9px] text-muted-foreground/70 mt-1 italic">{rationale}</p>
+                </div>
+              );
+            })}
+          </div>
+        );
+      })()}
+
+      {/* === RESEARCH MODE TOGGLE === */}
+      <button
+        onClick={() => setResearchMode((prev) => !prev)}
+        className="w-full flex items-center justify-center gap-2 py-2 rounded-[8px] border border-white/[0.06] bg-white/[0.02] hover:bg-white/[0.04] transition-colors text-[11px] text-muted-foreground"
+      >
+        <ChevronDown className={cn("h-3 w-3 transition-transform", researchMode && "rotate-180")} />
+        {researchMode ? "Hide Research Mode" : "Research Mode \u2014 Map, all comps, score details"}
+      </button>
+
+      {/* === RESEARCH MODE CONTENT === */}
+      {researchMode && (
+        <>
+          {/* Interactive map */}
+          <CompsMap
+            subject={subject}
+            selectedComps={selectedComps}
+            onAddComp={onAddComp}
+            onRemoveComp={onRemoveComp}
+            focusedComp={focusedComp}
+          />
+
+          {/* Selected comps table */}
+          {selectedComps.length > 0 && (
+            <div className="rounded-[10px] border border-white/[0.06] overflow-hidden">
+              <div className="flex items-center justify-between px-4 py-2 bg-[rgba(12,12,22,0.5)] border-b border-white/[0.06]">
+                <p className="text-xs font-semibold flex items-center gap-1.5">
+                  <CheckCircle2 className="h-3 w-3 text-cyan" />
+                  Selected Comps ({selectedComps.length})
+                </p>
+              </div>
+              <div className="overflow-x-auto">
+                <table className="w-full text-[11px]">
+                  <thead>
+                    <tr className="border-b border-white/[0.06] bg-white/[0.04]">
+                      <th className="px-2 py-2 font-medium text-muted-foreground w-[52px]"></th>
+                      <th className="text-left px-3 py-2 font-medium text-muted-foreground">Address</th>
+                      <th className="text-right px-3 py-2 font-medium text-muted-foreground">Beds</th>
+                      <th className="text-right px-3 py-2 font-medium text-muted-foreground">Baths</th>
+                      <th className="text-right px-3 py-2 font-medium text-muted-foreground">Sqft</th>
+                      <th className="text-right px-3 py-2 font-medium text-muted-foreground">Year</th>
+                      <th className="text-right px-3 py-2 font-medium text-muted-foreground">AVM</th>
+                      <th className="text-right px-3 py-2 font-medium text-muted-foreground">Last Sale</th>
+                      <th className="text-center px-3 py-2 font-medium text-muted-foreground"></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {selectedComps.map((comp) => {
+                      const thumbSrc = comp.photoUrl
+                        ?? comp.streetViewUrl
+                        ?? (comp.lat && comp.lng ? getSatelliteTileUrl(comp.lat, comp.lng, 17) : null);
+                      return (
+                      <tr key={comp.apn} className="border-b border-white/[0.06]/50 hover:bg-white/[0.04] cursor-pointer" onClick={() => setFocusedComp(prev => prev?.apn === comp.apn ? null : comp)}>
+                        <td className="px-2 py-1.5">
+                          {thumbSrc ? (
+                            <div className="w-10 h-8 rounded overflow-hidden bg-black/30 border border-white/[0.06]">
+                              <img src={thumbSrc} alt="" className="w-full h-full object-cover" />
+                            </div>
+                          ) : (
+                            <div className="w-10 h-8 rounded bg-white/[0.04] border border-white/[0.06] flex items-center justify-center">
+                              <Home className="h-3 w-3 text-muted-foreground" />
+                            </div>
+                          )}
+                        </td>
+                        <td className="px-3 py-2 max-w-[180px]">
+                          <div className="truncate">{comp.streetAddress}</div>
+                          {comp.lastSaleDate && (
+                            <div className="text-[9px] text-muted-foreground">
+                              Sold {new Date(comp.lastSaleDate).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
+                            </div>
+                          )}
+                        </td>
+                        <td className="px-3 py-2 text-right">{comp.beds ?? "â€”"}</td>
+                        <td className="px-3 py-2 text-right">{comp.baths ?? "â€”"}</td>
+                        <td className="px-3 py-2 text-right">{comp.sqft?.toLocaleString() ?? "â€”"}</td>
+                        <td className="px-3 py-2 text-right">{comp.yearBuilt ?? "â€”"}</td>
+                        <td className="px-3 py-2 text-right font-medium text-neon">{comp.avm ? formatCurrency(comp.avm) : "â€”"}</td>
+                        <td className="px-3 py-2 text-right">{comp.lastSalePrice ? formatCurrency(comp.lastSalePrice) : "â€”"}</td>
+                        <td className="px-3 py-2 text-center">
+                          <button onClick={() => onRemoveComp(comp.apn)} className="text-red-400 hover:text-red-300">
+                            <X className="h-3 w-3" />
+                          </button>
+                        </td>
+                      </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
+          {/* Focused comp detail panel with photo carousel */}
+          {focusedComp && (
+            <CompDetailPanel comp={focusedComp} onClose={() => setFocusedComp(null)} />
+          )}
+
+          {/* Condition Adjustment slider */}
+          <div className="rounded-[10px] border border-white/[0.06] bg-[rgba(12,12,22,0.5)] p-3">
+            <div className="flex items-center justify-between mb-2">
+              <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Condition Adjustment</p>
+              <span className={cn("text-xs font-bold", conditionAdj > 0 ? "text-emerald-400" : conditionAdj < 0 ? "text-red-400" : "text-muted-foreground")}>
+                {CONDITION_LABELS[conditionAdj] ?? `${conditionAdj > 0 ? "+" : ""}${conditionAdj}%`}
+              </span>
+            </div>
+            <p className="text-[9px] text-muted-foreground/60 mb-2">Adjust the ARV up or down based on the subject property{"'"}s condition relative to the comps. If it needs more work than the comps, slide left. If it{"'"}s in better shape, slide right.</p>
+            <input type="range" min={-15} max={5} step={5} value={conditionAdj} onChange={(e) => onConditionAdjChange(Number(e.target.value))} className="w-full h-1.5 accent-[#00d4ff] bg-secondary rounded-full" />
+          </div>
+
+          {/* Live ARV + Profit projection */}
+          <div className="grid grid-cols-2 gap-4">
+            <div className="rounded-lg border border-cyan/15 bg-cyan/4 p-4">
+              <p className="text-[10px] font-semibold text-cyan uppercase tracking-wider mb-3 flex items-center gap-1.5">
+                <TrendingUp className="h-3 w-3" />
+                Live ARV
+                {selectedComps.length > 0 && (
+                  <span className={cn("ml-auto text-[9px] px-1.5 py-0.5 rounded-full font-medium",
+                    arvConfidence === "high" ? "bg-emerald-500/20 text-emerald-400" :
+                    arvConfidence === "medium" ? "bg-amber-500/20 text-amber-400" :
+                    "bg-red-500/20 text-red-400"
+                  )}>
+                    {arvConfidence} confidence
+                  </span>
+                )}
+              </p>
+              {selectedComps.length > 0 ? (
+                <div className="space-y-1.5 text-xs">
+                  {avgPpsqft != null && (
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Avg $/sqft</span>
+                      <span className="font-bold text-neon">${avgPpsqft}</span>
+                    </div>
+                  )}
+                  {arvLow > 0 && arvHigh > 0 && (
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Range</span>
+                      <span className="font-medium">{formatCurrency(arvLow)} â€“ {formatCurrency(arvHigh)}</span>
+                    </div>
+                  )}
+                  {conditionAdj !== 0 && (
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Condition</span>
+                      <span className={cn("font-medium", conditionAdj > 0 ? "text-emerald-400" : "text-red-400")}>
+                        {conditionAdj > 0 ? "+" : ""}{conditionAdj}%
+                      </span>
+                    </div>
+                  )}
+                  <div className="pt-2 mt-2 border-t border-cyan/15 flex justify-between">
+                    <span className="font-medium">Estimated ARV</span>
+                    <span className="font-bold text-neon text-xl" style={{ textShadow: "0 0 10px rgba(0,212,255,0.4)" }}>
+                      {formatCurrency(arv)}
+                    </span>
+                  </div>
+                  <p className="text-[9px] text-muted-foreground/60 pt-1">
+                    {avgPpsqft != null ? `Based on ${arvRangeResult.compCount} comp${arvRangeResult.compCount > 1 ? "s" : ""} × ${subjectSqft.toLocaleString()} sqft` : `Average of ${compMetrics.length} comp sale price${compMetrics.length > 1 ? "s" : ""}`}
+                  </p>
+                </div>
+              ) : cf.estimatedValue ? (
+                <div className="space-y-1.5 text-xs">
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">AVM (pre-comps)</span>
+                    <span className="font-bold text-neon">{formatCurrency(cf.estimatedValue)}</span>
+                  </div>
+                  {conditionAdj !== 0 && (
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Condition</span>
+                      <span className={cn("font-medium", conditionAdj > 0 ? "text-emerald-400" : "text-red-400")}>
+                        {conditionAdj > 0 ? "+" : ""}{conditionAdj}%
+                      </span>
+                    </div>
+                  )}
+                  <div className="pt-2 mt-2 border-t border-cyan/15 flex justify-between">
+                    <span className="font-medium">Est. ARV</span>
+                    <span className="font-bold text-neon text-xl" style={{ textShadow: "0 0 10px rgba(0,212,255,0.4)" }}>
+                      {formatCurrency(arv)}
+                    </span>
+                  </div>
+                  <p className="text-[9px] text-muted-foreground/60 pt-1">Add comps for a more accurate ARV</p>
+                </div>
+              ) : (
+                <p className="text-[10px] text-muted-foreground">Add comps to calculate</p>
+              )}
+            </div>
+
+            <div className="rounded-[12px] border border-glass-border bg-secondary/10 p-4">
+              <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-3 flex items-center gap-1.5">
+                <DollarSign className="h-3 w-3" />
+                Quick Profit Projection
+              </p>
+              <div className="space-y-1 text-xs">
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">ARV</span>
+                  <span className="font-medium">{formatCurrency(arv)}</span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-muted-foreground flex items-center gap-1">
+                    Offer
+                    <input type="range" min={50} max={80} step={5} value={offerPct} onChange={(e) => setOfferPct(Number(e.target.value))} className="w-14 h-1 accent-[#00d4ff]" />
+                    <span className="text-[10px] font-mono w-7 text-right">{offerPct}%</span>
+                  </span>
+                  <span className="font-medium text-red-400">-{formatCurrency(offer)}</span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-muted-foreground flex items-center gap-1">
+                    Rehab
+                    <input type="number" value={rehabEst} onChange={(e) => setRehabEst(Number(e.target.value) || 0)} className="w-16 h-5 text-[10px] text-right bg-white/[0.06] border border-white/[0.1] rounded px-1 font-mono" />
+                  </span>
+                  <span className="font-medium text-red-400">-{formatCurrency(rehabEst)}</span>
+                </div>
+                <div className="pt-1.5 mt-1.5 border-t border-white/[0.06] flex justify-between">
+                  <span className="font-semibold">Net Profit</span>
+                  <span className={cn("font-bold text-lg", profit >= 0 ? "text-neon" : "text-red-400")} style={profit >= 0 ? { textShadow: "0 0 10px rgba(0,212,255,0.3)" } : {}}>
+                    {formatCurrency(profit)}
+                  </span>
+                </div>
+                <div className="flex justify-between text-[10px]">
+                  <span className="text-muted-foreground">ROI</span>
+                  <span className={cn("font-semibold", roi >= 0 ? "text-neon" : "text-red-400")}>{roi}%</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </>
+      )}
     </div>
   );
 }

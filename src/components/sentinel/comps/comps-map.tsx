@@ -175,7 +175,7 @@ function setCache(key: string, comps: CompProperty[]) {
 
 // ── Haversine distance (miles) ───────────────────────────────────────
 
-function haversine(lat1: number, lng1: number, lat2: number, lng2: number): number {
+export function haversine(lat1: number, lng1: number, lat2: number, lng2: number): number {
   const R = 3959;
   const dLat = ((lat2 - lat1) * Math.PI) / 180;
   const dLng = ((lng2 - lng1) * Math.PI) / 180;
@@ -199,7 +199,7 @@ export interface CompScore {
   label: "good" | "marginal" | "outlier";
 }
 
-function scoreComp(comp: CompProperty, subject: SubjectProperty): CompScore {
+export function scoreComp(comp: CompProperty, subject: SubjectProperty): CompScore {
   const W = { distance: 30, recency: 25, size: 20, bedBath: 15, year: 10 };
 
   // Distance (30 pts): 0 mi = 30, 1 mi = 20, 3+ mi = 0
@@ -258,6 +258,64 @@ function scoreComp(comp: CompProperty, subject: SubjectProperty): CompScore {
 
 function classifyComp(comp: CompProperty, subject: SubjectProperty): "good" | "marginal" | "outlier" {
   return scoreComp(comp, subject).label;
+}
+
+/** Translate numeric comp score into operator-friendly label */
+export function getCompQualityLabel(score: number): "Strong" | "Usable" | "Weak" {
+  if (score >= 55) return "Strong";
+  if (score >= 30) return "Usable";
+  return "Weak";
+}
+
+/** Generate a one-line rationale explaining why this comp was selected */
+export function getCompRationale(
+  compScore: CompScore,
+  comp: CompProperty,
+  subject: SubjectProperty,
+): string {
+  const { distance, recency, size, bedBath, year, total } = compScore;
+
+  // Identify the strongest and weakest dimensions (by % of max)
+  const dims = [
+    { name: "distance", pct: distance / 30, label: "nearby match" },
+    { name: "recency", pct: recency / 25, label: "recent sale" },
+    { name: "size", pct: size / 20, label: "size match" },
+    { name: "bedBath", pct: bedBath / 15, label: "bed/bath match" },
+    { name: "year", pct: year / 10, label: "age match" },
+  ];
+  const sorted = [...dims].sort((a, b) => b.pct - a.pct);
+  const strongest = sorted[0];
+  const weakest = sorted[sorted.length - 1];
+
+  // Sale age for staleness warning
+  const saleMonthsAgo = comp.lastSaleDate
+    ? Math.round((Date.now() - new Date(comp.lastSaleDate).getTime()) / (1000 * 60 * 60 * 24 * 30.44))
+    : null;
+
+  // Borderline comp (30-40 score)
+  if (total >= 30 && total < 40) {
+    return `Borderline — weak ${weakest.label}`;
+  }
+
+  // Good match but old sale
+  if (total >= 55 && saleMonthsAgo != null && saleMonthsAgo > 12) {
+    return `Good match but ${saleMonthsAgo}mo old sale`;
+  }
+
+  // Top dimension determines the rationale
+  if (strongest.name === "distance" && distance >= 24) return "Best nearby match";
+  if (strongest.name === "recency" && recency >= 20) return "Most recent sale";
+  if (strongest.name === "size" && size >= 16) return "Closest size match";
+
+  // High overall score
+  if (total >= 70) return "Strongest overall match";
+  if (total >= 55) return "Strong comparable";
+
+  // Usable but not strong
+  if (total >= 40) return `Usable — best ${strongest.label}`;
+
+  // Weak
+  return `Weak — ${weakest.label} lacking`;
 }
 
 const QUALITY_COLORS = {
@@ -882,7 +940,7 @@ function CompDetailPanel({
           }}
         >
           <div className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: colors.fill }} />
-          {compScore.total}/100
+          {getCompQualityLabel(compScore.total)} &middot; {compScore.total}/100
         </Badge>
         {distance != null && (
           <Badge variant="outline" className="text-[9px] gap-0.5">
