@@ -407,13 +407,19 @@ export default function DialerPage() {
     }
   }, [queue, currentLead]);
 
+  // Sync currentLead with refreshed queue data when the queue updates.
+  // Deps intentionally use currentLead?.id (not currentLead) to avoid an
+  // infinite loop: setCurrentLead → currentLead changes → effect re-fires.
+  const currentLeadIdRef = useRef(currentLead?.id);
+  currentLeadIdRef.current = currentLead?.id;
   useEffect(() => {
-    if (!currentLead) return;
-    const refreshedLead = queue.find((lead) => lead.id === currentLead.id);
+    const id = currentLeadIdRef.current;
+    if (!id) return;
+    const refreshedLead = queue.find((lead) => lead.id === id);
     if (refreshedLead) {
       setCurrentLead(refreshedLead);
     }
-  }, [queue, currentLead?.id]);
+  }, [queue]);
 
   const handleModalRefresh = useCallback(() => {
     refetchQueue();
@@ -506,7 +512,6 @@ export default function DialerPage() {
         deviceRef.current = null;
       }
     };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentUser.id]);
 
   // ── Real-time call status polling ─────────────────────────────────

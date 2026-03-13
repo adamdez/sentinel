@@ -305,7 +305,7 @@ export function useMorningQueue() {
     } finally {
       setLoading(false);
     }
-  }, [currentUser.id, currentUser.role, isAdmin]);
+  }, [currentUser.id, isAdmin]);
 
   useEffect(() => {
     fetchQueue();

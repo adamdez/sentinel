@@ -1,5 +1,100 @@
 [
   {
+    "hash": "1a65c93c",
+    "date": "2026-03-13",
+    "message": "feat: Phase 3 — minimum attribution bridge (gclid → ads entities)"
+  },
+  {
+    "hash": "c2e8c641",
+    "date": "2026-03-13",
+    "message": "feat: Phase 1+2 — normalized ads schema + 5-stage sync service"
+  },
+  {
+    "hash": "a187d7cc",
+    "date": "2026-03-13",
+    "message": "chore: trigger redeploy for Google Ads env vars"
+  },
+  {
+    "hash": "21a4d490",
+    "date": "2026-03-13",
+    "message": "fix: Google Ads API connection — env var names + MCC login-customer-id header"
+  },
+  {
+    "hash": "e0f442f3",
+    "date": "2026-03-13",
+    "message": "feat(leads): operator speed pass — 8 changes for faster lead triage"
+  },
+  {
+    "hash": "6d027c84",
+    "date": "2026-03-12",
+    "message": "fix(comps): distressed comp quality cap + photo evidence nudge"
+  },
+  {
+    "hash": "4cc6eaf1",
+    "date": "2026-03-12",
+    "message": "fix(comps): adversarial break-test repairs — MAO alignment, condition honesty, warning fixes"
+  },
+  {
+    "hash": "f0c63998",
+    "date": "2026-03-12",
+    "message": "feat(comps): UI hardening pass — 6 changes for trust and speed"
+  },
+  {
+    "hash": "5983883d",
+    "date": "2026-03-12",
+    "message": "fix(comps): pass real conditionLevel to warnings instead of hardcoded 3"
+  },
+  {
+    "hash": "b074a8c3",
+    "date": "2026-03-12",
+    "message": "feat(comps): action-oriented warning messages + NO_CONDITION severity bump"
+  },
+  {
+    "hash": "11d59c84",
+    "date": "2026-03-12",
+    "message": "docs: comps UI hardening design — post-compression trust & speed pass"
+  },
+  {
+    "hash": "6a5b0dc1",
+    "date": "2026-03-12",
+    "message": "feat: comps UI compression — decision-first layout with research mode toggle"
+  },
+  {
+    "hash": "a82cb0cd",
+    "date": "2026-03-12",
+    "message": "Phase 2.5: valuation packet freeze, condition persistence, overview card"
+  },
+  {
+    "hash": "22fd7452",
+    "date": "2026-03-12",
+    "message": "feat: canonical valuation kernel — single source of truth for all MAO/ARV math"
+  },
+  {
+    "hash": "2c9def8c",
+    "date": "2026-03-12",
+    "message": "fix: Add Lead modal now scrollable on long forms"
+  },
+  {
+    "hash": "e0bca256",
+    "date": "2026-03-12",
+    "message": "fix: manual Add Lead now visible + search covers phone, email, zip"
+  },
+  {
+    "hash": "3c2d5b6f",
+    "date": "2026-03-12",
+    "message": "feat: expose Add Lead button on Leads and Dashboard pages"
+  },
+  {
+    "hash": "52807855",
+    "date": "2026-03-12",
+    "message": "feat: urgency-aware triage ordering across lead table, pipeline, and dispo"
+  },
+  {
+    "hash": "cfcf0fee",
+    "date": "2026-03-12",
+    "message": "feat: action derivation layer + UI integration + morning queue enrichment (Phases 4-7)"
+  },
+  {
     "hash": "8cadb482",
     "date": "2026-03-12",
     "message": "fix(dispo+analytics): operator polish — shared display helpers, save confirmations, analytics cleanup"
@@ -28,100 +123,5 @@
     "hash": "36e043ab",
     "date": "2026-03-12",
     "message": "feat(tasks): add Tasks & Follow-Up page with CRUD API and sidebar nav"
-  },
-  {
-    "hash": "47235eb9",
-    "date": "2026-03-12",
-    "message": "feat(analytics): add source performance API and attribution summary"
-  },
-  {
-    "hash": "ed305ddc",
-    "date": "2026-03-11",
-    "message": "fix: eliminate large vertical gaps between dashboard tiles"
-  },
-  {
-    "hash": "34b57c5a",
-    "date": "2026-03-11",
-    "message": "fix(dispo): strip mailing address from county-record owner names"
-  },
-  {
-    "hash": "169d027f",
-    "date": "2026-03-11",
-    "message": "fix(dispo): Phase 5D pre-live polish — operator friction fixes"
-  },
-  {
-    "hash": "eb73c825",
-    "date": "2026-03-11",
-    "message": "chore: force Vercel deployment"
-  },
-  {
-    "hash": "1e926899",
-    "date": "2026-03-11",
-    "message": "chore: trigger Vercel redeploy for dispo API fix"
-  },
-  {
-    "hash": "59cab490",
-    "date": "2026-03-11",
-    "message": "fix: P0 dispo API crash + P1 metrics/error handling bugs"
-  },
-  {
-    "hash": "cb94fa5a",
-    "date": "2026-03-11",
-    "message": "Phase 5C: dispo reporting, buyer performance, stalled deal awareness"
-  },
-  {
-    "hash": "37844da6",
-    "date": "2026-03-11",
-    "message": "docs: Phase 5C design and implementation plan"
-  },
-  {
-    "hash": "9d4eacc9",
-    "date": "2026-03-11",
-    "message": "Phase 5B: dispo prep, smart buyer matching, outreach funnel"
-  },
-  {
-    "hash": "82485706",
-    "date": "2026-03-11",
-    "message": "refactor: extract requireAuth to shared api-auth utility"
-  },
-  {
-    "hash": "f35a729c",
-    "date": "2026-03-11",
-    "message": "feat(dispo): add linked buyers summary to Lead Detail modal"
-  },
-  {
-    "hash": "8ce9fdc5",
-    "date": "2026-03-11",
-    "message": "feat(dispo): add Dispo Board page, dispo API, and BuyerSearchModal"
-  },
-  {
-    "hash": "ecdf48cc",
-    "date": "2026-03-11",
-    "message": "feat(dispo): add Buyers list page with filters and table"
-  },
-  {
-    "hash": "6b10c803",
-    "date": "2026-03-11",
-    "message": "feat(dispo): add BuyerDetailModal component"
-  },
-  {
-    "hash": "02386715",
-    "date": "2026-03-11",
-    "message": "feat(dispo): add Dispositions section to sidebar navigation"
-  },
-  {
-    "hash": "31efea48",
-    "date": "2026-03-11",
-    "message": "feat(dispo): add useBuyers, useDealBuyers hooks and mutation helpers"
-  },
-  {
-    "hash": "c95b30cc",
-    "date": "2026-03-11",
-    "message": "feat(dispo): add buyers and deal-buyers API routes"
-  },
-  {
-    "hash": "fae62d52",
-    "date": "2026-03-11",
-    "message": "feat(dispo): add DB migration, buyer types and option constants"
   }
 ]

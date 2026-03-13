@@ -2813,7 +2813,7 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
   const equityIsGreen = equityPct >= 50;
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const prRaw = (cf.ownerFlags?.pr_raw ?? {}) as Record<string, any>;
+  const prRaw = useMemo(() => (cf.ownerFlags?.pr_raw ?? {}) as Record<string, any>, [cf.ownerFlags?.pr_raw]);
   const tier = getTier(cf.compositeScore);
   const tc = TIER_COLORS[tier];
 
@@ -5401,7 +5401,7 @@ function CompDetailPanel({ comp, onClose }: { comp: CompProperty; onClose: () =>
       if (!cancelled) setLoading(false);
     })();
     return () => { cancelled = true; };
-  }, [fullAddress]);
+  }, [fullAddress, comp.lat, comp.lng]);
 
   // Fallback image sources
   const fallbackSrc = comp.photoUrl
@@ -5614,24 +5614,26 @@ function CompsTab({ cf, selectedComps, onAddComp, onRemoveComp, onSkipTrace, com
   const [offerPct, setOfferPct] = useState(75);
   const [rehabEst, setRehabEst] = useState(40000);
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const oFlagsComps = (cf.ownerFlags ?? {}) as any;
   const cachedPhotos = useMemo(() => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const oFlags = (cf.ownerFlags ?? {}) as any;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const pr = (cf.ownerFlags?.pr_raw ?? {}) as Record<string, any>;
     const urls: string[] = [];
     // Zillow photos from owner_flags (cached from Apify)
-    const cached = oFlagsComps?.photos ?? oFlagsComps?.deep_crawl?.photos ?? [];
+    const cached = oFlags?.photos ?? oFlags?.deep_crawl?.photos ?? [];
     if (Array.isArray(cached)) {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       urls.push(...cached.map((p: any) => (typeof p === "string" ? p : p?.url)).filter(Boolean));
     }
     // PropertyRadar photos
-    if (Array.isArray(prRaw.Photos)) urls.push(...prRaw.Photos.filter((u: unknown) => typeof u === "string"));
-    if (Array.isArray(prRaw.photos)) urls.push(...prRaw.photos.filter((u: unknown) => typeof u === "string"));
-    if (typeof prRaw.PropertyImageUrl === "string" && prRaw.PropertyImageUrl) urls.push(prRaw.PropertyImageUrl);
-    if (typeof prRaw.StreetViewUrl === "string" && prRaw.StreetViewUrl) urls.push(prRaw.StreetViewUrl);
+    if (Array.isArray(pr.Photos)) urls.push(...pr.Photos.filter((u: unknown) => typeof u === "string"));
+    if (Array.isArray(pr.photos)) urls.push(...pr.photos.filter((u: unknown) => typeof u === "string"));
+    if (typeof pr.PropertyImageUrl === "string" && pr.PropertyImageUrl) urls.push(pr.PropertyImageUrl);
+    if (typeof pr.StreetViewUrl === "string" && pr.StreetViewUrl) urls.push(pr.StreetViewUrl);
     // Deduplicate
     return [...new Set(urls)];
-  }, [prRaw, oFlagsComps]);
+  }, [cf.ownerFlags]);
 
   // Auto-fetch photos from Google Places if none cached
   const [fetchedPhotos, setFetchedPhotos] = useState<string[]>([]);
@@ -6873,6 +6875,9 @@ export function MasterClientFileModal({ clientFile: incomingClientFile, open, on
     setCloseoutAt(existingNextAction || presetDateTimeLocal(3));
     setCloseoutPresetTouched(false);
     setCloseoutDateTouched(false);
+    // Granular deps are intentional: clientFile is a useMemo that changes on any
+    // patch, but this reset should only fire on identity/field changes, not drafts.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [clientFile?.id, clientFile?.nextCallScheduledAt, clientFile?.followUpDate, clientFile?.dispositionCode]);
 
   useEffect(() => {
@@ -6937,6 +6942,9 @@ export function MasterClientFileModal({ clientFile: incomingClientFile, open, on
       setDeepSkipResult(null);
       deepCrawlCheckedRef.current = null;
     }
+    // Granular deps are intentional: this resets enrichment state only when switching
+    // properties, not on every clientFile patch (which would clear user work in progress).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [clientFile?.propertyId, clientFile?.ownerFlags]);
 
   // Fetch dial history for this lead â€” groups calls_log by phone_dialed
@@ -7524,6 +7532,9 @@ export function MasterClientFileModal({ clientFile: incomingClientFile, open, on
     } finally {
       setOfferStatusSaving(false);
     }
+    // clientFile is read inside for the spread merge but deps are intentionally
+    // granular (id/propertyId) to avoid re-creating the callback on every patch.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [applyOwnerFlagsOverride, clientFile?.id, clientFile?.propertyId, currentUserId, currentUserName, offerStatusDraft, onRefresh]);
 
   const handleSaveBuyerDispoTruthSnapshot = useCallback(async () => {
@@ -7960,7 +7971,6 @@ export function MasterClientFileModal({ clientFile: incomingClientFile, open, on
       setCalling(false);
       toast.error("Network error â€” call failed");
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [clientFile, displayPhone, fetchDialHistory]);
 
   const handleSendSms = useCallback(async (phoneNumber?: string) => {

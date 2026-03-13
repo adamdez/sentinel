@@ -191,7 +191,7 @@ export function useDialerQueue(limit = 7) {
     } finally {
       setLoading(false);
     }
-  }, [currentUser.id, currentUser.role, ghostMode, limit]);
+  }, [currentUser.id, ghostMode, limit]);
 
   useEffect(() => {
     fetchQueue();

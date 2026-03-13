@@ -491,7 +491,7 @@ export default function PipelinePage() {
     }
 
     return true;
-  }, [currentUserId]);
+  }, []);
 
   const claimLead = useCallback(async (leadId: string) => {
     if (!currentUserId) {

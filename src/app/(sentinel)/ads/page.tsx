@@ -24,6 +24,8 @@ import {
   FileText,
   Zap,
   ChevronDown,
+  Clock,
+  Filter,
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { useSentinelStore } from "@/lib/store";
@@ -37,27 +39,25 @@ interface ChatMsg {
   timestamp: string;
 }
 
-interface AdSnapshot {
-  id: string;
-  campaign_id: string;
-  campaign_name: string;
-  ad_group_name: string | null;
-  ad_id: string | null;
-  headline1: string | null;
-  headline2: string | null;
-  headline3: string | null;
-  description1: string | null;
-  description2: string | null;
+interface DailyMetric {
+  id: number;
+  report_date: string;
+  campaign_id: number | null;
+  market: "spokane" | "kootenai" | null;
   impressions: number;
   clicks: number;
-  ctr: number;
-  avg_cpc: number;
+  cost_micros: number;
   conversions: number;
-  cost: number;
-  roas: number | null;
-  quality_score: number | null;
-  snapshot_date: string;
 }
+
+interface AdsCampaign {
+  id: number;
+  name: string;
+  market: "spokane" | "kootenai";
+  status: string;
+}
+
+type MarketFilter = "all" | "spokane" | "kootenai";
 
 interface AdReview {
   id: string;
@@ -201,22 +201,49 @@ export default function AdsPage() {
 // ── Dashboard Tab ───────────────────────────────────────────────────
 
 function DashboardTab() {
-  const [snapshots, setSnapshots] = useState<AdSnapshot[]>([]);
+  const [metrics, setMetrics] = useState<DailyMetric[]>([]);
+  const [campaigns, setCampaigns] = useState<AdsCampaign[]>([]);
+  const [lastSyncAt, setLastSyncAt] = useState<string | null>(null);
+  const [marketFilter, setMarketFilter] = useState<MarketFilter>("all");
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
+  const [truncated, setTruncated] = useState(false);
 
-  const loadSnapshots = useCallback(async () => {
+  // Bounded date range: last 30 days — prevents silent truncation
+  const METRICS_DAYS = 30;
+  const METRICS_ROW_CAP = 5000;
+
+  const loadData = useCallback(async () => {
     setLoading(true);
+    const sinceDate = new Date(Date.now() - METRICS_DAYS * 24 * 60 * 60 * 1000)
+      .toISOString()
+      .slice(0, 10); // YYYY-MM-DD
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data } = await (supabase.from("ad_snapshots") as any)
-      .select("*")
-      .order("snapshot_date", { ascending: false })
-      .limit(100);
-    setSnapshots(data ?? []);
+    const [metricsRes, campaignsRes, syncRes] = await Promise.all([
+      (supabase.from("ads_daily_metrics") as any)
+        .select("id, report_date, campaign_id, market, impressions, clicks, cost_micros, conversions")
+        .gte("report_date", sinceDate)
+        .order("report_date", { ascending: false })
+        .limit(METRICS_ROW_CAP),
+      (supabase.from("ads_campaigns") as any)
+        .select("id, name, market, status")
+        .neq("status", "REMOVED"),
+      (supabase.from("ads_sync_logs") as any)
+        .select("completed_at")
+        .eq("status", "completed")
+        .order("completed_at", { ascending: false })
+        .limit(1)
+        .maybeSingle(),
+    ]);
+    const metricsData = metricsRes.data ?? [];
+    setMetrics(metricsData);
+    setTruncated(metricsData.length >= METRICS_ROW_CAP);
+    setCampaigns(campaignsRes.data ?? []);
+    setLastSyncAt(syncRes.data?.completed_at ?? null);
     setLoading(false);
   }, []);
 
-  useEffect(() => { loadSnapshots(); }, [loadSnapshots]);
+  useEffect(() => { loadData(); }, [loadData]);
 
   const handleSync = async () => {
     setSyncing(true);
@@ -226,35 +253,62 @@ function DashboardTab() {
         method: "POST",
         headers: { ...headers, "Content-Type": "application/json" },
       });
-      await loadSnapshots();
+      await loadData();
     } catch (err) {
       console.error("Sync failed:", err);
     }
     setSyncing(false);
   };
 
-  // Aggregate metrics
-  const totalSpend = snapshots.reduce((s, r) => s + Number(r.cost ?? 0), 0);
-  const totalClicks = snapshots.reduce((s, r) => s + Number(r.clicks ?? 0), 0);
-  const totalImpressions = snapshots.reduce((s, r) => s + Number(r.impressions ?? 0), 0);
-  const totalConversions = snapshots.reduce((s, r) => s + Number(r.conversions ?? 0), 0);
+  // Build campaign name map
+  const campaignNameMap = new Map(campaigns.map((c) => [c.id, c.name]));
+  const campaignMarketMap = new Map(campaigns.map((c) => [c.id, c.market]));
+
+  // Filter metrics by market
+  const filtered = marketFilter === "all"
+    ? metrics
+    : metrics.filter((m) => {
+        // Prefer metric-level market, fall back to campaign market
+        const mkt = m.market ?? (m.campaign_id ? campaignMarketMap.get(m.campaign_id) : null);
+        return mkt === marketFilter;
+      });
+
+  // Aggregate metrics (cost_micros → dollars)
+  const totalSpend = filtered.reduce((s, r) => s + Number(r.cost_micros ?? 0), 0) / 1_000_000;
+  const totalClicks = filtered.reduce((s, r) => s + Number(r.clicks ?? 0), 0);
+  const totalImpressions = filtered.reduce((s, r) => s + Number(r.impressions ?? 0), 0);
+  const totalConversions = filtered.reduce((s, r) => s + Number(r.conversions ?? 0), 0);
   const avgCpc = totalClicks > 0 ? totalSpend / totalClicks : 0;
   const avgCtr = totalImpressions > 0 ? totalClicks / totalImpressions : 0;
   const costPerLead = totalConversions > 0 ? totalSpend / totalConversions : 0;
 
-  // Campaign-level aggregation
-  const campaignMap = new Map<string, { name: string; spend: number; clicks: number; impressions: number; conversions: number }>();
-  for (const s of snapshots) {
-    if (!s.ad_id) {
-      const existing = campaignMap.get(s.campaign_id) ?? { name: s.campaign_name, spend: 0, clicks: 0, impressions: 0, conversions: 0 };
-      existing.spend += Number(s.cost ?? 0);
-      existing.clicks += Number(s.clicks ?? 0);
-      existing.impressions += Number(s.impressions ?? 0);
-      existing.conversions += Number(s.conversions ?? 0);
-      campaignMap.set(s.campaign_id, existing);
-    }
+  // Campaign-level aggregation from daily metrics
+  const campaignAgg = new Map<number, { name: string; market: string; spend: number; clicks: number; impressions: number; conversions: number }>();
+  for (const m of filtered) {
+    if (m.campaign_id == null) continue;
+    const existing = campaignAgg.get(m.campaign_id) ?? {
+      name: campaignNameMap.get(m.campaign_id) ?? `Campaign ${m.campaign_id}`,
+      market: campaignMarketMap.get(m.campaign_id) ?? "—",
+      spend: 0, clicks: 0, impressions: 0, conversions: 0,
+    };
+    existing.spend += Number(m.cost_micros ?? 0) / 1_000_000;
+    existing.clicks += Number(m.clicks ?? 0);
+    existing.impressions += Number(m.impressions ?? 0);
+    existing.conversions += Number(m.conversions ?? 0);
+    campaignAgg.set(m.campaign_id, existing);
   }
-  const campaignRows = Array.from(campaignMap.entries()).sort((a, b) => b[1].spend - a[1].spend);
+  const campaignRows = Array.from(campaignAgg.entries()).sort((a, b) => b[1].spend - a[1].spend);
+
+  // Last synced display
+  const syncAge = lastSyncAt ? Math.round((Date.now() - new Date(lastSyncAt).getTime()) / (1000 * 60)) : null;
+  const syncLabel = syncAge == null
+    ? "Never synced"
+    : syncAge < 60
+      ? `${syncAge}m ago`
+      : syncAge < 1440
+        ? `${Math.round(syncAge / 60)}h ago`
+        : `${Math.round(syncAge / 1440)}d ago`;
+  const syncStale = syncAge != null && syncAge > 24 * 60; // >24h = stale
 
   if (loading) {
     return (
@@ -266,8 +320,48 @@ function DashboardTab() {
 
   return (
     <div className="space-y-6">
-      {/* Sync Button */}
-      <div className="flex justify-end">
+      {/* Toolbar: Market filter + Sync status + Sync button */}
+      <div className="flex items-center justify-between gap-3 flex-wrap">
+        <div className="flex items-center gap-3">
+          {/* Market filter */}
+          <div className="flex items-center gap-1.5">
+            <Filter className="h-3.5 w-3.5 text-muted-foreground/50" />
+            <div className="flex rounded-lg border border-white/[0.08] overflow-hidden">
+              {(["all", "spokane", "kootenai"] as MarketFilter[]).map((mkt) => (
+                <button
+                  key={mkt}
+                  onClick={() => setMarketFilter(mkt)}
+                  className={`px-3 py-1.5 text-xs capitalize transition ${
+                    marketFilter === mkt
+                      ? "bg-cyan/15 text-cyan font-medium"
+                      : "text-muted-foreground/60 hover:text-foreground hover:bg-white/[0.03]"
+                  }`}
+                >
+                  {mkt === "all" ? "All Markets" : mkt}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Date range scope */}
+          <div className="flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-full border border-white/[0.08] text-muted-foreground/50">
+            <BarChart3 className="h-3 w-3" />
+            <span>Last {METRICS_DAYS} days</span>
+          </div>
+
+          {/* Last synced badge */}
+          <div className={`flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-full border ${
+            syncStale
+              ? "border-amber-500/20 text-amber-400 bg-amber-500/5"
+              : lastSyncAt
+                ? "border-emerald-500/20 text-emerald-400 bg-emerald-500/5"
+                : "border-white/[0.08] text-muted-foreground/50"
+          }`}>
+            <Clock className="h-3 w-3" />
+            <span>{syncLabel}</span>
+          </div>
+        </div>
+
         <button
           onClick={handleSync}
           disabled={syncing}
@@ -278,12 +372,24 @@ function DashboardTab() {
         </button>
       </div>
 
-      {snapshots.length === 0 ? (
+      {/* Truncation warning — surfaces if row cap is hit */}
+      {truncated && (
+        <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-amber-500/5 border border-amber-500/20 text-xs text-amber-400">
+          <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
+          <span>Data may be incomplete — too many metric rows for the last {METRICS_DAYS} days. Totals could be understated.</span>
+        </div>
+      )}
+
+      {filtered.length === 0 ? (
         <div className="text-center py-16">
           <Target className="h-12 w-12 mx-auto text-muted-foreground/30 mb-4" />
-          <h3 className="text-lg font-medium text-muted-foreground mb-2">No Ad Data Yet</h3>
+          <h3 className="text-lg font-medium text-muted-foreground mb-2">
+            {metrics.length === 0 ? "No Ad Data Yet" : `No data for ${marketFilter}`}
+          </h3>
           <p className="text-sm text-muted-foreground/60 max-w-md mx-auto">
-            Click &ldquo;Sync Google Ads&rdquo; to pull your campaign data, or configure your Google Ads API credentials in environment variables.
+            {metrics.length === 0
+              ? "Click \u201CSync Google Ads\u201D to pull your campaign data, or configure your Google Ads API credentials in environment variables."
+              : "Try switching the market filter or syncing fresh data."}
           </p>
         </div>
       ) : (
@@ -324,6 +430,7 @@ function DashboardTab() {
                 <thead>
                   <tr className="border-b border-white/[0.04] text-muted-foreground/60">
                     <th className="text-left px-4 py-2 font-medium">Campaign</th>
+                    <th className="text-left px-4 py-2 font-medium">Market</th>
                     <th className="text-right px-4 py-2 font-medium">Spend</th>
                     <th className="text-right px-4 py-2 font-medium">Clicks</th>
                     <th className="text-right px-4 py-2 font-medium">Impressions</th>
@@ -336,6 +443,9 @@ function DashboardTab() {
                   {campaignRows.map(([id, c]) => (
                     <tr key={id} className="border-b border-white/[0.03] hover:bg-white/[0.02] transition">
                       <td className="px-4 py-2.5 font-medium">{c.name}</td>
+                      <td className="px-4 py-2.5">
+                        <span className="text-xs px-2 py-0.5 rounded-full bg-white/[0.04] capitalize">{c.market}</span>
+                      </td>
                       <td className="px-4 py-2.5 text-right">{fmt$(c.spend)}</td>
                       <td className="px-4 py-2.5 text-right">{c.clicks.toLocaleString()}</td>
                       <td className="px-4 py-2.5 text-right">{c.impressions.toLocaleString()}</td>
@@ -605,90 +715,14 @@ function ReviewCard({ review }: { review: AdReview }) {
 // ── Copy Lab Tab ────────────────────────────────────────────────────
 
 function CopyLabTab() {
-  const [ads, setAds] = useState<AdSnapshot[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [reviewing, setReviewing] = useState(false);
-
-  useEffect(() => {
-    (async () => {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { data } = await (supabase.from("ad_snapshots") as any)
-        .select("*")
-        .not("ad_id", "is", null)
-        .order("impressions", { ascending: false })
-        .limit(20);
-      setAds(data ?? []);
-      setLoading(false);
-    })();
-  }, []);
-
-  const handleCopyReview = async () => {
-    setReviewing(true);
-    try {
-      const headers = await getAuthHeaders();
-      await fetch("/api/ads/review", {
-        method: "POST",
-        headers: { ...headers, "Content-Type": "application/json" },
-        body: JSON.stringify({ reviewType: "copy" }),
-      });
-    } catch (err) {
-      console.error("Copy review failed:", err);
-    }
-    setReviewing(false);
-  };
-
-  if (loading) {
-    return <div className="flex items-center justify-center py-20"><Loader2 className="h-6 w-6 animate-spin text-cyan/50" /></div>;
-  }
-
   return (
-    <div className="space-y-6">
-      <div className="flex justify-end">
-        <button
-          onClick={handleCopyReview}
-          disabled={reviewing}
-          className="flex items-center gap-2 px-4 py-2 text-sm rounded-lg bg-cyan/10 text-cyan hover:bg-cyan/20 border border-cyan/20 transition disabled:opacity-50"
-        >
-          <Sparkles className={`h-4 w-4 ${reviewing ? "animate-pulse" : ""}`} />
-          {reviewing ? "Reviewing Copy..." : "Review All Copy"}
-        </button>
-      </div>
-
-      {ads.length === 0 ? (
-        <div className="text-center py-16">
-          <FileText className="h-12 w-12 mx-auto text-muted-foreground/30 mb-4" />
-          <h3 className="text-lg font-medium text-muted-foreground mb-2">No Ad Copy Found</h3>
-          <p className="text-sm text-muted-foreground/60">Sync your Google Ads data first to see your ad copy here.</p>
-        </div>
-      ) : (
-        <div className="grid gap-4 md:grid-cols-2">
-          {ads.map((ad) => (
-            <div key={ad.id} className="glass-strong rounded-xl border border-white/[0.06] p-4 space-y-3">
-              <div className="flex items-center justify-between">
-                <span className="text-xs text-muted-foreground/60">{ad.campaign_name} &gt; {ad.ad_group_name}</span>
-                <div className="flex items-center gap-2 text-xs">
-                  <span className="text-cyan">{Number(ad.clicks).toLocaleString()} clicks</span>
-                  <span className="text-muted-foreground/40">&middot;</span>
-                  <span>{fmtPct(Number(ad.ctr ?? 0))} CTR</span>
-                </div>
-              </div>
-              <div className="space-y-1.5">
-                {[ad.headline1, ad.headline2, ad.headline3].filter(Boolean).map((h, i) => (
-                  <div key={i} className="text-sm font-medium text-blue-400">{h}</div>
-                ))}
-                {[ad.description1, ad.description2].filter(Boolean).map((d, i) => (
-                  <div key={i} className="text-xs text-muted-foreground/70">{d}</div>
-                ))}
-              </div>
-              <div className="flex gap-3 text-xs text-muted-foreground/50 pt-1 border-t border-white/[0.04]">
-                <span>{Number(ad.impressions).toLocaleString()} impr.</span>
-                <span>{Number(ad.conversions ?? 0).toFixed(1)} conv.</span>
-                <span>{fmt$(Number(ad.cost ?? 0))} spent</span>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
+    <div className="text-center py-16">
+      <FileText className="h-12 w-12 mx-auto text-muted-foreground/30 mb-4" />
+      <h3 className="text-lg font-medium text-muted-foreground mb-2">Ad Copy Lab</h3>
+      <p className="text-sm text-muted-foreground/60 max-w-md mx-auto">
+        Ad copy analysis will be available after creative data sync is added.
+        Use the AI Review tab to request copy reviews in the meantime.
+      </p>
     </div>
   );
 }

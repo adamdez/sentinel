@@ -54,6 +54,8 @@ export interface WidgetDefinition {
   defaultSize: WidgetSize;
   minSize: WidgetSize;
   category: "intelligence" | "workflow" | "communication" | "analytics";
+  /** Hidden widgets still render for saved layouts but don't appear in the widget library picker. */
+  hidden?: boolean;
 }
 
 export interface DashboardTile {
@@ -76,6 +78,7 @@ export const WIDGET_REGISTRY: Record<WidgetId, WidgetDefinition> = {
     defaultSize: "2x1",
     minSize: "1x1",
     category: "intelligence",
+    hidden: true,
   },
   "my-top-leads": {
     id: "my-top-leads",
@@ -94,6 +97,7 @@ export const WIDGET_REGISTRY: Record<WidgetId, WidgetDefinition> = {
     defaultSize: "2x2",
     minSize: "1x1",
     category: "intelligence",
+    hidden: true,
   },
   "breaking-leads-ticker": {
     id: "breaking-leads-ticker",
@@ -139,6 +143,7 @@ export const WIDGET_REGISTRY: Record<WidgetId, WidgetDefinition> = {
     defaultSize: "1x1",
     minSize: "1x1",
     category: "communication",
+    hidden: true,
   },
   "revenue-impact": {
     id: "revenue-impact",
@@ -157,6 +162,7 @@ export const WIDGET_REGISTRY: Record<WidgetId, WidgetDefinition> = {
     defaultSize: "1x1",
     minSize: "1x1",
     category: "communication",
+    hidden: true,
   },
   "quick-dial": {
     id: "quick-dial",
@@ -175,6 +181,7 @@ export const WIDGET_REGISTRY: Record<WidgetId, WidgetDefinition> = {
     defaultSize: "2x1",
     minSize: "1x1",
     category: "intelligence",
+    hidden: true,
   },
 
   // ── New widgets ─────────────────────────────────────────────────
@@ -256,18 +263,23 @@ export const MAX_DASHBOARD_TILES = 12;
 
 export const DEFAULT_LAYOUT: DashboardLayout = {
   tiles: [
-    { widgetId: "my-top-prospects", size: "2x1", order: 0 },
+    { widgetId: "tasks-due", size: "2x1", order: 0 },
     { widgetId: "my-top-leads", size: "2x1", order: 1 },
-    { widgetId: "tasks-due", size: "2x1", order: 2 },
-    { widgetId: "next-best-action", size: "1x1", order: 3 },
-    { widgetId: "quick-dial", size: "1x1", order: 4 },
-    { widgetId: "funnel-value", size: "2x1", order: 5 },
-    { widgetId: "grok-insights", size: "2x1", order: 6 },
+    { widgetId: "calls-today", size: "1x1", order: 2 },
+    { widgetId: "quick-dial", size: "1x1", order: 3 },
+    { widgetId: "revenue-impact", size: "1x1", order: 4 },
+    { widgetId: "next-best-action", size: "1x1", order: 5 },
+    { widgetId: "funnel-value", size: "2x1", order: 6 },
   ],
   updatedAt: new Date().toISOString(),
 };
 
 export const ALL_WIDGET_IDS = Object.keys(WIDGET_REGISTRY) as WidgetId[];
+
+/** Widget IDs visible in the Add Widget library (excludes hidden widgets). */
+export const VISIBLE_WIDGET_IDS = ALL_WIDGET_IDS.filter(
+  (id) => !WIDGET_REGISTRY[id].hidden,
+);
 
 export function getColSpan(size: WidgetSize): number {
   switch (size) {

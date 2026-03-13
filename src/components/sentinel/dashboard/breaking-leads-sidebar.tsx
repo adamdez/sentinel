@@ -231,10 +231,10 @@ export function BreakingLeadsSidebar() {
 
         <div className="px-4 py-2 border-t border-white/[0.04]">
           <Link
-            href="/sales-funnel/prospects"
+            href="/leads"
             className="flex items-center justify-center gap-1.5 text-[11px] text-cyan/80 hover:text-cyan transition-colors font-medium"
           >
-            View All Prospects
+            View All Leads
             <ExternalLink className="h-2.5 w-2.5" />
           </Link>
         </div>

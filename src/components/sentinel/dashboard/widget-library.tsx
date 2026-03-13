@@ -12,7 +12,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
-  ALL_WIDGET_IDS,
+  VISIBLE_WIDGET_IDS,
   WIDGET_REGISTRY,
   MAX_DASHBOARD_TILES,
   type WidgetId,
@@ -47,10 +47,10 @@ export function WidgetLibrary({
   const grouped = categoryOrder.map((cat) => ({
     category: cat,
     label: categoryLabels[cat],
-    widgets: ALL_WIDGET_IDS
+    widgets: VISIBLE_WIDGET_IDS
       .map((id) => WIDGET_REGISTRY[id])
       .filter((w) => w.category === cat),
-  }));
+  })).filter((g) => g.widgets.length > 0);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
