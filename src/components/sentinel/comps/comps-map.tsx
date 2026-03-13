@@ -261,7 +261,12 @@ function classifyComp(comp: CompProperty, subject: SubjectProperty): "good" | "m
 }
 
 /** Translate numeric comp score into operator-friendly label */
-export function getCompQualityLabel(score: number): "Strong" | "Usable" | "Weak" {
+export function getCompQualityLabel(score: number, isDistressed?: boolean): "Strong" | "Usable" | "Weak" {
+  if (isDistressed) {
+    // Foreclosure/tax-delinquent comps capped at Usable — not arm's-length sales
+    if (score >= 30) return "Usable";
+    return "Weak";
+  }
   if (score >= 55) return "Strong";
   if (score >= 30) return "Usable";
   return "Weak";
@@ -940,7 +945,7 @@ function CompDetailPanel({
           }}
         >
           <div className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: colors.fill }} />
-          {getCompQualityLabel(compScore.total)} &middot; {compScore.total}/100
+          {getCompQualityLabel(compScore.total, comp.isForeclosure || comp.isTaxDelinquent)} &middot; {compScore.total}/100
         </Badge>
         {distance != null && (
           <Badge variant="outline" className="text-[9px] gap-0.5">

@@ -608,3 +608,57 @@ describe("confidence honesty", () => {
     expect(result.confidence).toBe("low");
   });
 });
+
+// ── Adversarial: Distressed comp quality cap ──────────────────────────────────
+
+describe("distressed comp quality label cap", () => {
+  it("foreclosure comp with score 70 is capped at Usable, not Strong", () => {
+    expect(getCompQualityLabel(70, true)).toBe("Usable");
+  });
+
+  it("foreclosure comp with score 55 is capped at Usable", () => {
+    expect(getCompQualityLabel(55, true)).toBe("Usable");
+  });
+
+  it("foreclosure comp with score 29 is Weak", () => {
+    expect(getCompQualityLabel(29, true)).toBe("Weak");
+  });
+
+  it("non-distressed comp with score 70 is Strong", () => {
+    expect(getCompQualityLabel(70, false)).toBe("Strong");
+  });
+
+  it("non-distressed comp with score 70, no flag passed, is Strong", () => {
+    expect(getCompQualityLabel(70)).toBe("Strong");
+  });
+});
+
+// ── Adversarial: Photo evidence nudge ─────────────────────────────────────────
+
+describe("photo evidence nudge", () => {
+  it("nudge triggers when all comps lack photos", () => {
+    const comps = [
+      { photoUrl: null, streetViewUrl: null },
+      { photoUrl: null, streetViewUrl: null },
+    ];
+    const noPhotos = comps.length > 0 && comps.every((c) => !c.photoUrl && !c.streetViewUrl);
+    expect(noPhotos).toBe(true);
+  });
+
+  it("nudge does NOT trigger when at least one comp has a photo", () => {
+    const comps = [
+      { photoUrl: "https://example.com/photo.jpg", streetViewUrl: null },
+      { photoUrl: null, streetViewUrl: null },
+    ];
+    const noPhotos = comps.length > 0 && comps.every((c) => !c.photoUrl && !c.streetViewUrl);
+    expect(noPhotos).toBe(false);
+  });
+
+  it("nudge does NOT trigger when comp has streetViewUrl", () => {
+    const comps = [
+      { photoUrl: null, streetViewUrl: "https://example.com/sv.jpg" },
+    ];
+    const noPhotos = comps.length > 0 && comps.every((c) => !c.photoUrl && !c.streetViewUrl);
+    expect(noPhotos).toBe(false);
+  });
+});

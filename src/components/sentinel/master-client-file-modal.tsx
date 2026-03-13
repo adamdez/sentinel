@@ -6004,15 +6004,18 @@ function CompsTab({ cf, selectedComps, onAddComp, onRemoveComp, onSkipTrace, com
       {/* === NUDGE BAR === */}
       {(() => {
         const strongCompCount = selectedComps.filter((c) => scoreComp(c, subject).total >= 55).length;
+        const noPhotoComps = selectedComps.length > 0 && selectedComps.every((c) => !c.photoUrl && !c.streetViewUrl);
         const showNudge = !isScreeningMode && arv > 0 && (
-          arvConfidence === "low" || strongCompCount < 2 || cf.conditionLevel == null
+          arvConfidence === "low" || strongCompCount < 2 || cf.conditionLevel == null || noPhotoComps
         );
         if (!showNudge) return null;
         const nudgeReason = cf.conditionLevel == null
           ? "Condition not assessed \u2014 review before offering."
-          : arvConfidence === "low"
-            ? "Low confidence \u2014 review comp quality before offering."
-            : `Only ${strongCompCount} strong comp match${strongCompCount === 1 ? "" : "es"} \u2014 review evidence before offering.`;
+          : noPhotoComps
+            ? "No photo evidence on selected comps \u2014 verify before offering."
+            : arvConfidence === "low"
+              ? "Low confidence \u2014 review comp quality before offering."
+              : `Only ${strongCompCount} strong comp match${strongCompCount === 1 ? "" : "es"} \u2014 review evidence before offering.`;
         return (
           <div className="rounded-[8px] border border-amber-500/30 bg-amber-500/[0.04] px-3 py-2 flex items-start gap-2">
             <AlertTriangle className="h-3.5 w-3.5 text-amber-400 shrink-0 mt-0.5" />
@@ -6054,7 +6057,7 @@ function CompsTab({ cf, selectedComps, onAddComp, onRemoveComp, onSkipTrace, com
             </p>
             {compsToShow.map((comp, idx) => {
               const compScore = scoreComp(comp, subject);
-              const qualityLabel = getCompQualityLabel(compScore.total);
+              const qualityLabel = getCompQualityLabel(compScore.total, comp.isForeclosure || comp.isTaxDelinquent);
               const rationale = getCompRationale(compScore, comp, subject);
               const salePrice = comp.lastSalePrice ?? comp.avm ?? 0;
               const ppsf = salePrice > 0 && comp.sqft ? Math.round(salePrice / comp.sqft) : null;
