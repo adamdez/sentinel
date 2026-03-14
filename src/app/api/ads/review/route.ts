@@ -3,6 +3,7 @@ import { createServerClient } from "@/lib/supabase";
 import { analyzeWithClaude } from "@/lib/claude-client";
 import { loadAdsSystemPrompt } from "@/lib/ads/ads-system-prompt";
 import { insertValidatedRecommendations } from "@/lib/ads/recommendations";
+import { runAdversarialReview } from "@/lib/ads/adversarial-review";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -261,6 +262,24 @@ export async function POST(req: NextRequest) {
       parsed = { summary: rawResponse, findings: [], suggestions: [], structured_recommendations: [] };
     }
 
+    // ── Adversarial review (GPT-5.4 Pro challenges Opus 4.6) ──────────
+    let adversarialResult = null;
+    const openaiKey = process.env.OPENAI_API_KEY;
+    if (openaiKey) {
+      try {
+        adversarialResult = await runAdversarialReview({
+          rawData: analysisPrompt,
+          primaryAnalysis: rawResponse,
+          openaiKey,
+        });
+        if (adversarialResult) {
+          console.log("[Ads/Review] Adversarial verdict:", adversarialResult.verdict, "| Grade:", adversarialResult.adversarialGrade);
+        }
+      } catch (advErr) {
+        console.error("[Ads/Review] Adversarial review failed (non-blocking):", advErr);
+      }
+    }
+
     // Store the review
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { data: review, error: reviewErr } = await (sb.from("ad_reviews") as any)
@@ -270,8 +289,9 @@ export async function POST(req: NextRequest) {
         summary: parsed.summary,
         findings: parsed.findings,
         suggestions: parsed.suggestions,
-        ai_engine: "claude",
-        model_used: "claude-sonnet-4",
+        ai_engine: "claude+openai",
+        model_used: "opus-4.6+gpt-5.4-pro",
+        ...(adversarialResult ? { adversarial_review: adversarialResult } : {}),
       })
       .select("*")
       .single();
@@ -319,7 +339,17 @@ export async function POST(req: NextRequest) {
         summary: parsed.summary,
         findingsCount: parsed.findings.length,
         suggestionsCount: parsed.suggestions.length,
+        accountHealthGrade: (parsed as Record<string, unknown>).account_health_grade ?? null,
+        estimatedMonthlyWaste: (parsed as Record<string, unknown>).estimated_monthly_waste ?? null,
       },
+      adversarial: adversarialResult ? {
+        verdict: adversarialResult.verdict,
+        grade: adversarialResult.adversarialGrade,
+        assessment: adversarialResult.overallAssessment,
+        challengeCount: adversarialResult.challenges.length,
+        missedCount: adversarialResult.missedOpportunities.length,
+        finalInstruction: adversarialResult.finalInstruction,
+      } : null,
     });
   } catch (err) {
     // Log full error details for debugging Anthropic API issues

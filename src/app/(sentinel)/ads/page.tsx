@@ -1067,7 +1067,13 @@ function ChatTab() {
 
 // ── System Prompt Tab ────────────────────────────────────────────────
 
-function SystemPromptTab() {
+function PromptEditor({ promptKey, title, subtitle, modelLabel, accentColor }: {
+  promptKey: "default" | "adversarial";
+  title: string;
+  subtitle: string;
+  modelLabel: string;
+  accentColor: string;
+}) {
   const [promptText, setPromptText] = useState("");
   const [originalText, setOriginalText] = useState("");
   const [version, setVersion] = useState(0);
@@ -1082,7 +1088,7 @@ function SystemPromptTab() {
     setLoading(true);
     try {
       const headers = await getAuthHeaders();
-      const res = await fetch("/api/ads/system-prompt", { headers });
+      const res = await fetch(`/api/ads/system-prompt?key=${promptKey}`, { headers });
       if (res.ok) {
         const data = await res.json();
         setPromptText(data.prompt_text);
@@ -1091,11 +1097,11 @@ function SystemPromptTab() {
         setUpdatedAt(data.updated_at ?? null);
       }
     } catch (err) {
-      console.error("Failed to load system prompt:", err);
+      console.error(`Failed to load ${promptKey} prompt:`, err);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [promptKey]);
 
   useEffect(() => { loadPrompt(); }, [loadPrompt]);
 
@@ -1107,7 +1113,7 @@ function SystemPromptTab() {
       const res = await fetch("/api/ads/system-prompt", {
         method: "PUT",
         headers: { ...headers, "Content-Type": "application/json" },
-        body: JSON.stringify({ prompt_text: promptText }),
+        body: JSON.stringify({ prompt_key: promptKey, prompt_text: promptText }),
       });
       if (res.ok) {
         const data = await res.json();
@@ -1126,15 +1132,11 @@ function SystemPromptTab() {
     }
   };
 
-  const handleReset = () => {
-    setPromptText(originalText);
-  };
-
   if (loading) {
     return (
-      <div className="flex items-center justify-center py-20 text-muted-foreground">
-        <Loader2 className="h-5 w-5 animate-spin mr-2" />
-        Loading system prompt...
+      <div className="flex items-center justify-center py-12 text-muted-foreground">
+        <Loader2 className="h-4 w-4 animate-spin mr-2" />
+        Loading...
       </div>
     );
   }
@@ -1143,17 +1145,21 @@ function SystemPromptTab() {
   const lineCount = promptText.split("\n").length;
 
   return (
-    <div className="space-y-4">
-      {/* Header bar */}
+    <div className="space-y-3">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-base font-semibold">AI Operating Prompt</h2>
+          <div className="flex items-center gap-2">
+            <h3 className="text-sm font-semibold">{title}</h3>
+            <span className={`text-[10px] px-2 py-0.5 rounded-full border font-mono ${accentColor}`}>
+              {modelLabel}
+            </span>
+          </div>
           <p className="text-xs text-muted-foreground mt-0.5">
-            This prompt governs all AI analysis, chat, and recommendations in the Ads Command Center.
+            {subtitle}
             {version > 0 && (
-              <span className="ml-2 text-cyan/60">
+              <span className="ml-2 opacity-60">
                 v{version}
-                {updatedAt && ` · Updated ${new Date(updatedAt).toLocaleDateString()}`}
+                {updatedAt && ` · ${new Date(updatedAt).toLocaleDateString()}`}
               </span>
             )}
           </p>
@@ -1161,7 +1167,7 @@ function SystemPromptTab() {
         <div className="flex items-center gap-2">
           {hasChanges && (
             <button
-              onClick={handleReset}
+              onClick={() => setPromptText(originalText)}
               className="flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-lg border border-white/10 text-muted-foreground hover:text-foreground hover:border-white/20 transition"
             >
               <RotateCcw className="h-3.5 w-3.5" />
@@ -1173,12 +1179,8 @@ function SystemPromptTab() {
             disabled={!hasChanges || saving}
             className="flex items-center gap-1.5 px-4 py-1.5 text-xs rounded-lg bg-cyan/10 text-cyan border border-cyan/20 hover:bg-cyan/20 transition disabled:opacity-30 disabled:cursor-not-allowed"
           >
-            {saving ? (
-              <Loader2 className="h-3.5 w-3.5 animate-spin" />
-            ) : (
-              <Save className="h-3.5 w-3.5" />
-            )}
-            {saving ? "Saving..." : "Save Changes"}
+            {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
+            {saving ? "Saving..." : "Save"}
           </button>
           {saveStatus === "saved" && (
             <span className="flex items-center gap-1 text-xs text-emerald-400">
@@ -1193,35 +1195,83 @@ function SystemPromptTab() {
         </div>
       </div>
 
-      {/* Info banner */}
-      <div className="flex items-start gap-2 p-3 rounded-lg bg-cyan/5 border border-cyan/10 text-xs text-muted-foreground">
-        <Info className="h-4 w-4 text-cyan/50 shrink-0 mt-0.5" />
-        <div>
-          <span className="text-foreground/80 font-medium">Changes take effect immediately</span> on the next AI Review, Chat message, or automated cycle.
-          Live account metrics are appended automatically at analysis time — you do not need to include them here.
-          {hasChanges && (
-            <span className="block mt-1 text-amber-400/80">
-              You have unsaved changes ({Math.abs(charCount - originalText.length)} characters {charCount > originalText.length ? "added" : "removed"}).
-            </span>
-          )}
-        </div>
-      </div>
-
-      {/* Editor */}
       <div className="relative">
         <textarea
           value={promptText}
           onChange={(e) => setPromptText(e.target.value)}
-          className="w-full h-[calc(100vh-340px)] min-h-[400px] p-4 rounded-lg bg-black/30 border border-white/[0.08] text-sm font-mono text-foreground/90 leading-relaxed resize-none focus:outline-none focus:border-cyan/30 focus:ring-1 focus:ring-cyan/20 transition placeholder:text-muted-foreground/30"
-          placeholder="Enter the system prompt that governs the Ads Command Center AI..."
+          className="w-full h-[calc(100vh-420px)] min-h-[300px] p-4 rounded-lg bg-black/30 border border-white/[0.08] text-sm font-mono text-foreground/90 leading-relaxed resize-none focus:outline-none focus:border-cyan/30 focus:ring-1 focus:ring-cyan/20 transition placeholder:text-muted-foreground/30"
+          placeholder={`Enter the ${promptKey} prompt...`}
           spellCheck={false}
         />
-        {/* Footer stats */}
         <div className="absolute bottom-3 right-3 flex items-center gap-3 text-[10px] text-muted-foreground/40 font-mono">
+          {hasChanges && <span className="text-amber-400/60">{Math.abs(charCount - originalText.length)} chars {charCount > originalText.length ? "added" : "removed"}</span>}
           <span>{lineCount} lines</span>
           <span>{charCount.toLocaleString()} chars</span>
         </div>
       </div>
+    </div>
+  );
+}
+
+function SystemPromptTab() {
+  const [activePrompt, setActivePrompt] = useState<"default" | "adversarial">("default");
+
+  return (
+    <div className="space-y-4">
+      {/* Header */}
+      <div className="flex items-start gap-2 p-3 rounded-lg bg-cyan/5 border border-cyan/10 text-xs text-muted-foreground">
+        <Info className="h-4 w-4 text-cyan/50 shrink-0 mt-0.5" />
+        <div>
+          <span className="text-foreground/80 font-medium">Dual-model AI engine.</span>{" "}
+          The primary analyst (Opus 4.6) runs the full review, then the adversarial reviewer (GPT-5.4 Pro)
+          challenges every finding. Both prompts are editable — changes take effect on the next review cycle.
+        </div>
+      </div>
+
+      {/* Prompt selector tabs */}
+      <div className="flex gap-1 p-1 rounded-lg bg-black/20 border border-white/[0.06] w-fit">
+        <button
+          onClick={() => setActivePrompt("default")}
+          className={`px-4 py-2 text-xs rounded-md transition font-medium ${
+            activePrompt === "default"
+              ? "bg-cyan/10 text-cyan border border-cyan/20"
+              : "text-muted-foreground hover:text-foreground"
+          }`}
+        >
+          <Brain className="h-3.5 w-3.5 inline mr-1.5 -mt-0.5" />
+          Primary Analyst — Opus 4.6
+        </button>
+        <button
+          onClick={() => setActivePrompt("adversarial")}
+          className={`px-4 py-2 text-xs rounded-md transition font-medium ${
+            activePrompt === "adversarial"
+              ? "bg-amber-500/10 text-amber-400 border border-amber-500/20"
+              : "text-muted-foreground hover:text-foreground"
+          }`}
+        >
+          <AlertTriangle className="h-3.5 w-3.5 inline mr-1.5 -mt-0.5" />
+          Adversarial Reviewer — GPT-5.4 Pro
+        </button>
+      </div>
+
+      {/* Active editor */}
+      {activePrompt === "default" ? (
+        <PromptEditor
+          promptKey="default"
+          title="Primary Operating Prompt"
+          subtitle="Governs all AI Review, Chat, and recommendation generation."
+          modelLabel="Claude Opus 4.6"
+          accentColor="text-cyan border-cyan/20 bg-cyan/5"
+        />
+      ) : (
+        <PromptEditor
+          promptKey="adversarial"
+          title="Adversarial Review Prompt"
+          subtitle="Challenges every primary finding. Issues verdict: approve, revise, reject, or hold."
+          modelLabel="GPT-5.4 Pro"
+          accentColor="text-amber-400 border-amber-500/20 bg-amber-500/5"
+        />
+      )}
     </div>
   );
 }
