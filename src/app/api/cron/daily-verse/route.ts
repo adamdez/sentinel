@@ -52,10 +52,10 @@ async function fetchEsvText(verseRef: string): Promise<string | null> {
 // ── Main cron handler ───────────────────────────────────────────────
 
 export async function GET(request: NextRequest) {
-  // Verify cron secret
+  // Verify cron secret — require it always; if not configured, deny all requests
   const authHeader = request.headers.get("authorization");
   const cronSecret = process.env.CRON_SECRET?.trim();
-  if (cronSecret && authHeader !== `Bearer ${cronSecret}`) {
+  if (!cronSecret || authHeader !== `Bearer ${cronSecret}`) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 

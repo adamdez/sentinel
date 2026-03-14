@@ -33,7 +33,6 @@ import {
   startSyncLog,
   completeSyncLog,
   failSyncLog,
-  isSyncRunning,
 } from "./queries/sync-logs";
 import { resolveUnresolvedAttributions } from "./resolve-attribution";
 
@@ -72,11 +71,10 @@ export async function runNormalizedSync(
   endDate: string,
 ): Promise<SyncResult> {
   // ── Sync lock ──────────────────────────────────────────────────────
-  const running = await isSyncRunning(supabase);
-  if (running) {
-    throw new Error("Another sync is already running. Wait for it to complete.");
-  }
-
+  // startSyncLog is now the atomic lock: it auto-expires stale running rows,
+  // then inserts a new running row. The partial unique index on (status) WHERE
+  // status = 'running' enforces the singleton at the DB level, so concurrent
+  // requests cannot both succeed even in a serverless environment.
   const syncLogId = await startSyncLog(supabase, "full_sync", startDate, endDate);
   const syncStart = Date.now();
 

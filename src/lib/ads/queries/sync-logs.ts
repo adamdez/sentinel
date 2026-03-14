@@ -11,6 +11,13 @@ export async function startSyncLog(
   dateRangeStart: string,
   dateRangeEnd: string,
 ): Promise<number> {
+  // Auto-expire stale running rows older than 90s (maxDuration is 60s)
+  await supabase
+    .from("ads_sync_logs")
+    .update({ status: "failed", error_message: "Auto-expired: exceeded 90s without completion" })
+    .eq("status", "running")
+    .lt("started_at", new Date(Date.now() - 90_000).toISOString());
+
   const { data, error } = await supabase
     .from("ads_sync_logs")
     .insert({
@@ -22,7 +29,14 @@ export async function startSyncLog(
     })
     .select("id")
     .single();
-  if (error) throw new Error(`startSyncLog failed: ${error.message}`);
+
+  if (error) {
+    // Unique violation on running singleton index = another sync is actually running
+    if ((error as { code?: string }).code === "23505") {
+      throw new Error("Another sync is already running. Wait for it to complete.");
+    }
+    throw new Error(`startSyncLog failed: ${error.message}`);
+  }
   return data.id;
 }
 

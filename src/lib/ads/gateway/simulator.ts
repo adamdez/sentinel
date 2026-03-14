@@ -102,6 +102,10 @@ export async function simulateImplementation(
     });
 
     if (logErr) {
+      // 23505 = unique_violation: two requests raced past the step-4 check
+      if ((logErr as { code?: string }).code === "23505") {
+        return { success: false, code: "DUPLICATE_RUN", message: "This recommendation has already been simulated or implemented." };
+      }
       console.error("[Simulator] Failed to write mock log:", logErr);
       return { success: false, code: "DB_ERROR", message: "Simulation completed but log write failed." };
     }
