@@ -722,8 +722,6 @@ function ReviewCard({ review }: { review: AdReview }) {
   );
 }
 
-// ── Copy Lab Tab ────────────────────────────────────────────────────
-
 // ── Key Intelligence Tab ─────────────────────────────────────────────
 
 interface DataPoint {
@@ -1087,15 +1085,517 @@ function IntelligenceTab() {
 
 // ── Ad Copy Lab Tab ────────────────────────────────────────────────
 
+interface IntentCluster {
+  name: string;
+  search_terms: string[];
+  volume_signal: string;
+  economic_potential: string;
+}
+
+interface AdVariant {
+  angle: string;
+  headlines: string[];
+  descriptions: string[];
+}
+
+interface AdFamily {
+  target_cluster: string;
+  evidence: string;
+  confidence: string;
+  test_type: string;
+  rsa: { headlines: string[]; descriptions: string[] };
+  variants: AdVariant[];
+  landing_page_match: string;
+  success_metric: string;
+}
+
+interface CopyLabAdversarial {
+  verdict: string;
+  grade: string;
+  assessment: string;
+  challenges: Array<{ targetFinding: string; challenge: string; severity: string; alternativeInterpretation: string }>;
+  missedOpportunities: string[];
+  overconfidentClaims: string[];
+  agreesWithPrimary: string[];
+  requiredChanges: string[];
+  finalInstruction: string;
+}
+
+interface CopyLabResult {
+  generated: {
+    intent_clusters: IntentCluster[];
+    ad_families: AdFamily[];
+  };
+  adversarial: CopyLabAdversarial | null;
+}
+
 function CopyLabTab() {
+  const [result, setResult] = useState<CopyLabResult | null>(null);
+  const [generating, setGenerating] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [expandedFamilies, setExpandedFamilies] = useState<Set<number>>(new Set());
+  const [expandedVariants, setExpandedVariants] = useState<Set<string>>(new Set());
+
+  const handleGenerate = async () => {
+    setGenerating(true);
+    setError(null);
+    try {
+      const headers = await getAuthHeaders();
+      const res = await fetch("/api/ads/copy-lab", {
+        method: "POST",
+        headers: { ...headers, "Content-Type": "application/json" },
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setError(data.error ?? "Generation failed");
+      } else {
+        setResult(data);
+        // Auto-expand all families
+        const allFamilies = new Set<number>();
+        (data.generated?.ad_families ?? []).forEach((_: unknown, i: number) => allFamilies.add(i));
+        setExpandedFamilies(allFamilies);
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Generation failed");
+    }
+    setGenerating(false);
+  };
+
+  const toggleFamily = (idx: number) => {
+    setExpandedFamilies((prev) => {
+      const next = new Set(prev);
+      if (next.has(idx)) next.delete(idx);
+      else next.add(idx);
+      return next;
+    });
+  };
+
+  const toggleVariant = (key: string) => {
+    setExpandedVariants((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  };
+
+  const confidenceBadge = (level: string) => {
+    const colors: Record<string, string> = {
+      high: "bg-emerald-500/15 text-emerald-400 border-emerald-500/20",
+      moderate: "bg-cyan/10 text-cyan border-cyan/20",
+      exploratory: "bg-amber-500/10 text-amber-400 border-amber-500/20",
+    };
+    return colors[level] ?? colors.exploratory;
+  };
+
+  const verdictColor = (verdict: string) => {
+    const colors: Record<string, string> = {
+      approve: "text-emerald-400",
+      approve_with_changes: "text-amber-400",
+      reject: "text-red-400",
+      insufficient_evidence: "text-muted-foreground/60",
+    };
+    return colors[verdict] ?? "text-muted-foreground/60";
+  };
+
   return (
-    <div className="text-center py-16">
-      <FileText className="h-12 w-12 mx-auto text-muted-foreground/30 mb-4" />
-      <h3 className="text-lg font-medium text-muted-foreground mb-2">Ad Copy Lab</h3>
-      <p className="text-sm text-muted-foreground/60 max-w-md mx-auto">
-        Ad copy analysis will be available after creative data sync is added.
-        Use the AI Review tab to request copy reviews in the meantime.
-      </p>
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h3 className="text-sm font-semibold">Ad Copy Lab</h3>
+          <p className="text-xs text-muted-foreground/60">
+            Dual-model AI engine: Opus 4.6 generates, GPT-5.4 Pro challenges
+          </p>
+        </div>
+        <button
+          onClick={handleGenerate}
+          disabled={generating}
+          className="flex items-center gap-2 px-4 py-2 text-sm rounded-lg bg-cyan/10 text-cyan hover:bg-cyan/20 border border-cyan/20 transition disabled:opacity-50"
+        >
+          <Sparkles className={`h-4 w-4 ${generating ? "animate-pulse" : ""}`} />
+          {generating ? "Generating..." : "Generate Ad Concepts"}
+        </button>
+      </div>
+
+      {/* Loading state */}
+      {generating && (
+        <div className="glass-strong rounded-xl border border-white/[0.06] p-8">
+          <div className="flex flex-col items-center gap-4">
+            <Loader2 className="h-8 w-8 animate-spin text-cyan/60" />
+            <div className="text-center">
+              <p className="text-sm font-medium">Running dual-model analysis</p>
+              <p className="text-xs text-muted-foreground/50 mt-1">
+                Opus 4.6 is analyzing intent clusters and generating RSAs, then GPT-5.4 Pro will challenge the output.
+                This typically takes 30-60 seconds.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Error */}
+      {error && !generating && (
+        <div className="glass-strong rounded-xl border border-red-500/20 p-4">
+          <div className="flex items-center gap-2">
+            <AlertTriangle className="h-4 w-4 text-red-400 shrink-0" />
+            <p className="text-sm text-red-400">{error}</p>
+          </div>
+        </div>
+      )}
+
+      {/* Empty state */}
+      {!result && !generating && !error && (
+        <div className="text-center py-16">
+          <FileText className="h-12 w-12 mx-auto text-muted-foreground/30 mb-4" />
+          <h3 className="text-lg font-medium text-muted-foreground mb-2">Ad Copy Lab</h3>
+          <p className="text-sm text-muted-foreground/60 max-w-md mx-auto">
+            Generate intent-driven RSA concepts from your search term data.
+            Click &ldquo;Generate Ad Concepts&rdquo; to start.
+          </p>
+        </div>
+      )}
+
+      {/* Results */}
+      {result && !generating && (
+        <>
+          {/* Intent Clusters */}
+          {result.generated.intent_clusters.length > 0 && (
+            <div className="space-y-3">
+              <h4 className="text-xs font-semibold uppercase text-muted-foreground/60 tracking-wide">
+                Discovered Intent Clusters ({result.generated.intent_clusters.length})
+              </h4>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                {result.generated.intent_clusters.map((cluster, i) => (
+                  <div key={i} className="glass-strong rounded-xl border border-white/[0.06] p-4">
+                    <div className="flex items-center gap-2 mb-2">
+                      <Target className="h-4 w-4 text-cyan shrink-0" />
+                      <span className="text-sm font-semibold truncate">{cluster.name}</span>
+                    </div>
+                    <div className="flex items-center gap-2 mb-2">
+                      <span className={`text-xs px-2 py-0.5 rounded-full border ${
+                        cluster.volume_signal === "high"
+                          ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20"
+                          : cluster.volume_signal === "medium"
+                          ? "bg-cyan/10 text-cyan border-cyan/20"
+                          : "bg-white/[0.04] text-muted-foreground/60 border-white/[0.08]"
+                      }`}>
+                        {cluster.volume_signal} volume
+                      </span>
+                    </div>
+                    <p className="text-xs text-muted-foreground/60 mb-2">{cluster.economic_potential}</p>
+                    <div className="flex flex-wrap gap-1">
+                      {cluster.search_terms.slice(0, 5).map((term, j) => (
+                        <span key={j} className="text-[10px] px-1.5 py-0.5 rounded bg-white/[0.04] text-muted-foreground/50">
+                          {term}
+                        </span>
+                      ))}
+                      {cluster.search_terms.length > 5 && (
+                        <span className="text-[10px] px-1.5 py-0.5 text-muted-foreground/40">
+                          +{cluster.search_terms.length - 5} more
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Ad Families */}
+          {result.generated.ad_families.length > 0 && (
+            <div className="space-y-3">
+              <h4 className="text-xs font-semibold uppercase text-muted-foreground/60 tracking-wide">
+                Generated Ad Families ({result.generated.ad_families.length})
+              </h4>
+              <div className="space-y-3">
+                {result.generated.ad_families.map((family, i) => (
+                  <div key={i} className="glass-strong rounded-xl border border-white/[0.06] overflow-hidden">
+                    {/* Family header */}
+                    <button
+                      onClick={() => toggleFamily(i)}
+                      className="w-full px-4 py-3 flex items-center gap-3 text-left hover:bg-white/[0.02] transition"
+                    >
+                      <FileText className="h-5 w-5 text-cyan shrink-0" />
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="text-sm font-semibold">{family.target_cluster}</span>
+                          <span className={`text-xs px-2 py-0.5 rounded-full border ${confidenceBadge(family.confidence)}`}>
+                            {family.confidence}
+                          </span>
+                          {family.test_type && (
+                            <span className="text-xs px-2 py-0.5 rounded-full bg-white/[0.04] text-muted-foreground/50 border border-white/[0.06]">
+                              {family.test_type}
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-xs text-muted-foreground/50 mt-1 truncate">{family.evidence}</p>
+                      </div>
+                      <ChevronDown className={`h-4 w-4 text-muted-foreground/40 transition-transform shrink-0 ${expandedFamilies.has(i) ? "rotate-180" : ""}`} />
+                    </button>
+
+                    <AnimatePresence>
+                      {expandedFamilies.has(i) && (
+                        <motion.div
+                          initial={{ height: 0, opacity: 0 }}
+                          animate={{ height: "auto", opacity: 1 }}
+                          exit={{ height: 0, opacity: 0 }}
+                          transition={{ duration: 0.2 }}
+                          className="overflow-hidden"
+                        >
+                          <div className="px-4 pb-4 space-y-4 border-t border-white/[0.04] pt-3">
+                            {/* Evidence & rationale */}
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                              <div className="bg-white/[0.02] rounded-lg p-3">
+                                <h5 className="text-xs font-semibold text-muted-foreground/60 uppercase tracking-wide mb-1">Evidence</h5>
+                                <p className="text-xs text-muted-foreground/80">{family.evidence}</p>
+                              </div>
+                              <div className="bg-white/[0.02] rounded-lg p-3">
+                                <h5 className="text-xs font-semibold text-muted-foreground/60 uppercase tracking-wide mb-1">Success Metric</h5>
+                                <p className="text-xs text-muted-foreground/80">{family.success_metric}</p>
+                              </div>
+                            </div>
+                            {family.landing_page_match && (
+                              <div className="flex items-center gap-2 text-xs text-muted-foreground/50">
+                                <Globe className="h-3 w-3" />
+                                Landing page: <span className="text-cyan">{family.landing_page_match}</span>
+                              </div>
+                            )}
+
+                            {/* Headlines */}
+                            <div>
+                              <h5 className="text-xs font-semibold text-muted-foreground/60 uppercase tracking-wide mb-2">
+                                Headlines ({family.rsa.headlines.length})
+                              </h5>
+                              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-1.5">
+                                {family.rsa.headlines.map((h, j) => (
+                                  <div key={j} className="flex items-center gap-2 bg-white/[0.02] rounded px-2.5 py-1.5">
+                                    <span className="text-[10px] text-muted-foreground/30 font-mono w-4 shrink-0">{j + 1}</span>
+                                    <span className="text-xs flex-1 truncate">{h}</span>
+                                    <span className={`text-[10px] font-mono shrink-0 ${h.length > 30 ? "text-red-400" : "text-muted-foreground/30"}`}>
+                                      {h.length}
+                                    </span>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+
+                            {/* Descriptions */}
+                            <div>
+                              <h5 className="text-xs font-semibold text-muted-foreground/60 uppercase tracking-wide mb-2">
+                                Descriptions ({family.rsa.descriptions.length})
+                              </h5>
+                              <div className="space-y-1.5">
+                                {family.rsa.descriptions.map((d, j) => (
+                                  <div key={j} className="flex items-start gap-2 bg-white/[0.02] rounded px-2.5 py-1.5">
+                                    <span className="text-[10px] text-muted-foreground/30 font-mono w-4 shrink-0 mt-0.5">{j + 1}</span>
+                                    <span className="text-xs flex-1">{d}</span>
+                                    <span className={`text-[10px] font-mono shrink-0 mt-0.5 ${d.length > 90 ? "text-red-400" : "text-muted-foreground/30"}`}>
+                                      {d.length}
+                                    </span>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+
+                            {/* Variants */}
+                            {family.variants.length > 0 && (
+                              <div>
+                                <h5 className="text-xs font-semibold text-muted-foreground/60 uppercase tracking-wide mb-2">
+                                  Variants ({family.variants.length})
+                                </h5>
+                                <div className="space-y-2">
+                                  {family.variants.map((variant, vi) => {
+                                    const variantKey = `${i}-${vi}`;
+                                    return (
+                                      <div key={vi} className="border border-white/[0.04] rounded-lg overflow-hidden">
+                                        <button
+                                          onClick={() => toggleVariant(variantKey)}
+                                          className="w-full px-3 py-2 flex items-center gap-2 text-left hover:bg-white/[0.02] transition text-xs"
+                                        >
+                                          <Zap className="h-3 w-3 text-amber-400 shrink-0" />
+                                          <span className="font-medium flex-1">{variant.angle}</span>
+                                          <ChevronDown className={`h-3 w-3 text-muted-foreground/40 transition-transform ${expandedVariants.has(variantKey) ? "rotate-180" : ""}`} />
+                                        </button>
+                                        <AnimatePresence>
+                                          {expandedVariants.has(variantKey) && (
+                                            <motion.div
+                                              initial={{ height: 0, opacity: 0 }}
+                                              animate={{ height: "auto", opacity: 1 }}
+                                              exit={{ height: 0, opacity: 0 }}
+                                              transition={{ duration: 0.15 }}
+                                              className="overflow-hidden"
+                                            >
+                                              <div className="px-3 pb-3 pt-1 space-y-2 border-t border-white/[0.04]">
+                                                <div className="space-y-1">
+                                                  {variant.headlines.map((h, hi) => (
+                                                    <div key={hi} className="flex items-center gap-2 bg-white/[0.02] rounded px-2 py-1">
+                                                      <span className="text-[10px] text-muted-foreground/30 font-mono w-3 shrink-0">{hi + 1}</span>
+                                                      <span className="text-xs flex-1 truncate">{h}</span>
+                                                      <span className={`text-[10px] font-mono shrink-0 ${h.length > 30 ? "text-red-400" : "text-muted-foreground/30"}`}>
+                                                        {h.length}
+                                                      </span>
+                                                    </div>
+                                                  ))}
+                                                </div>
+                                                <div className="space-y-1">
+                                                  {variant.descriptions.map((d, di) => (
+                                                    <div key={di} className="flex items-start gap-2 bg-white/[0.02] rounded px-2 py-1">
+                                                      <span className="text-[10px] text-muted-foreground/30 font-mono w-3 shrink-0 mt-0.5">{di + 1}</span>
+                                                      <span className="text-xs flex-1">{d}</span>
+                                                      <span className={`text-[10px] font-mono shrink-0 mt-0.5 ${d.length > 90 ? "text-red-400" : "text-muted-foreground/30"}`}>
+                                                        {d.length}
+                                                      </span>
+                                                    </div>
+                                                  ))}
+                                                </div>
+                                              </div>
+                                            </motion.div>
+                                          )}
+                                        </AnimatePresence>
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Adversarial Assessment */}
+          {result.adversarial && (
+            <div className="space-y-3">
+              <h4 className="text-xs font-semibold uppercase text-muted-foreground/60 tracking-wide">
+                Adversarial Assessment (GPT-5.4 Pro)
+              </h4>
+              <div className="glass-strong rounded-xl border border-amber-500/20 overflow-hidden">
+                {/* Verdict header */}
+                <div className="px-4 py-3 border-b border-white/[0.04] flex items-center gap-3">
+                  <AlertTriangle className="h-5 w-5 text-amber-400 shrink-0" />
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className={`text-sm font-semibold ${verdictColor(result.adversarial.verdict)}`}>
+                        {result.adversarial.verdict.replace(/_/g, " ")}
+                      </span>
+                      <span className="text-xs px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-400 border border-amber-500/20">
+                        Grade: {result.adversarial.grade}
+                      </span>
+                      <span className={`text-xs px-2 py-0.5 rounded-full border ${
+                        result.adversarial.finalInstruction === "proceed"
+                          ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20"
+                          : result.adversarial.finalInstruction === "revise"
+                          ? "bg-amber-500/10 text-amber-400 border-amber-500/20"
+                          : "bg-red-500/10 text-red-400 border-red-500/20"
+                      }`}>
+                        {result.adversarial.finalInstruction}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="px-4 py-3 space-y-4">
+                  {/* Overall assessment */}
+                  <p className="text-sm text-muted-foreground/80 leading-relaxed">{result.adversarial.assessment}</p>
+
+                  {/* Challenges */}
+                  {result.adversarial.challenges.length > 0 && (
+                    <div className="space-y-2">
+                      <h5 className="text-xs font-semibold text-amber-400 uppercase tracking-wide">
+                        Challenges ({result.adversarial.challenges.length})
+                      </h5>
+                      {result.adversarial.challenges.map((c, i) => (
+                        <div key={i} className="bg-amber-500/[0.04] rounded-lg p-3 border border-amber-500/10">
+                          <div className="flex items-center gap-2 mb-1">
+                            <span className={`text-[10px] px-1.5 py-0.5 rounded uppercase font-semibold ${
+                              c.severity === "critical" ? "bg-red-500/15 text-red-400"
+                              : c.severity === "moderate" ? "bg-amber-500/15 text-amber-400"
+                              : "bg-white/[0.06] text-muted-foreground/50"
+                            }`}>
+                              {c.severity}
+                            </span>
+                            <span className="text-xs font-medium text-amber-300">{c.targetFinding}</span>
+                          </div>
+                          <p className="text-xs text-muted-foreground/70">{c.challenge}</p>
+                          {c.alternativeInterpretation && (
+                            <p className="text-xs text-muted-foreground/50 mt-1 italic">Alt: {c.alternativeInterpretation}</p>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Agrees with */}
+                  {result.adversarial.agreesWithPrimary.length > 0 && (
+                    <div>
+                      <h5 className="text-xs font-semibold text-emerald-400 uppercase tracking-wide mb-1">Agrees With</h5>
+                      <ul className="space-y-1">
+                        {result.adversarial.agreesWithPrimary.map((item, i) => (
+                          <li key={i} className="text-xs text-muted-foreground/60 flex items-start gap-1.5">
+                            <CheckCircle2 className="h-3 w-3 text-emerald-400 shrink-0 mt-0.5" />
+                            {item}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+
+                  {/* Missed opportunities */}
+                  {result.adversarial.missedOpportunities.length > 0 && (
+                    <div>
+                      <h5 className="text-xs font-semibold text-amber-400 uppercase tracking-wide mb-1">Missed Opportunities</h5>
+                      <ul className="space-y-1">
+                        {result.adversarial.missedOpportunities.map((item, i) => (
+                          <li key={i} className="text-xs text-muted-foreground/60 flex items-start gap-1.5">
+                            <TrendingUp className="h-3 w-3 text-amber-400 shrink-0 mt-0.5" />
+                            {item}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+
+                  {/* Required changes */}
+                  {result.adversarial.requiredChanges.length > 0 && (
+                    <div>
+                      <h5 className="text-xs font-semibold text-red-400 uppercase tracking-wide mb-1">Required Changes</h5>
+                      <ul className="space-y-1">
+                        {result.adversarial.requiredChanges.map((item, i) => (
+                          <li key={i} className="text-xs text-muted-foreground/60 flex items-start gap-1.5">
+                            <XCircle className="h-3 w-3 text-red-400 shrink-0 mt-0.5" />
+                            {item}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+
+                  {/* Overconfident claims */}
+                  {result.adversarial.overconfidentClaims.length > 0 && (
+                    <div>
+                      <h5 className="text-xs font-semibold text-muted-foreground/50 uppercase tracking-wide mb-1">Overconfident Claims</h5>
+                      <ul className="space-y-1">
+                        {result.adversarial.overconfidentClaims.map((item, i) => (
+                          <li key={i} className="text-xs text-muted-foreground/50 flex items-start gap-1.5">
+                            <Info className="h-3 w-3 text-muted-foreground/40 shrink-0 mt-0.5" />
+                            {item}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+        </>
+      )}
     </div>
   );
 }
