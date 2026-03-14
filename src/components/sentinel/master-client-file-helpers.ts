@@ -91,6 +91,11 @@ export interface ClientFile {
   radarId: string | null;
   enriched: boolean;
   lockVersion?: number;
+  appointmentAt: string | null;
+  offerAmount: number | null;
+  contractAt: string | null;
+  assignmentFeeProjected: number | null;
+  attribution: { campaignName?: string; adGroupName?: string; keywordText?: string; [k: string]: unknown } | null;
   nextCallScheduledAt: string | null;
   callSequenceStep: number;
   totalCalls: number;
@@ -112,7 +117,7 @@ export interface ClientFile {
 // Adapters
 // ═══════════════════════════════════════════════════════════════════════
 
-function buildAddress(...parts: (string | null | undefined)[]) {
+export function buildAddress(...parts: (string | null | undefined)[]) {
   const filtered = parts.filter((p): p is string => !!p);
   if (filtered.length <= 1) return filtered[0] ?? "";
   const [street, ...rest] = filtered;
@@ -158,6 +163,7 @@ export function clientFileFromProspect(p: ProspectRow): ClientFile {
     isAbsentee: p.is_absentee, isFreeClear: p.is_free_clear,
     isHighEquity: p.is_high_equity, isCashBuyer: p.is_cash_buyer,
     ownerFlags: p.owner_flags, radarId: p.radar_id, enriched: p.enriched,
+    appointmentAt: null, offerAmount: null, contractAt: null, assignmentFeeProjected: null, attribution: null,
     nextCallScheduledAt: null, callSequenceStep: 1, totalCalls: 0, liveAnswers: 0, voicemailsLeft: 0, dispositionCode: null,
     prediction: p._prediction ?? null,
   };
@@ -195,6 +201,7 @@ export function clientFileFromLead(l: LeadRow): ClientFile {
     isVacant: false, isAbsentee: l.ownerBadge === "absentee",
     isFreeClear: false, isHighEquity: false, isCashBuyer: false,
     ownerFlags: l.ownerFlags ?? {}, radarId: null, enriched: false,
+    appointmentAt: (l as any).appointmentAt ?? null, offerAmount: (l as any).offerAmount ?? null, contractAt: (l as any).contractAt ?? null, assignmentFeeProjected: (l as any).assignmentFeeProjected ?? null, attribution: (l as any).attribution ?? null,
     nextCallScheduledAt: l.nextCallScheduledAt, callSequenceStep: l.callSequenceStep, totalCalls: l.totalCalls, liveAnswers: l.liveAnswers, voicemailsLeft: l.voicemailsLeft, dispositionCode: l.dispositionCode ?? null,
     prediction: null,
   };
@@ -261,6 +268,7 @@ export function clientFileFromRaw(lead: Record<string, any>, prop: Record<string
     ownerFlags: flags, radarId: (flags.radar_id as string) ?? null,
     enriched: !!flags.skip_traced || (flags.all_phones as unknown[])?.length > 0,
     lockVersion: lead.lock_version ?? 0,
+    appointmentAt: lead.appointment_at ?? null, offerAmount: lead.offer_amount != null ? Number(lead.offer_amount) : null, contractAt: lead.contract_at ?? null, assignmentFeeProjected: lead.assignment_fee_projected != null ? Number(lead.assignment_fee_projected) : null, attribution: lead.attribution ?? null,
     nextCallScheduledAt: lead.next_call_scheduled_at ?? null,
     callSequenceStep: lead.call_sequence_step ?? 1,
     totalCalls: lead.total_calls ?? 0,
