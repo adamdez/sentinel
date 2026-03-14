@@ -10,8 +10,9 @@ export const maxDuration = 120;
 /**
  * POST /api/ads/review
  *
- * Triggers Claude to analyze the latest ad snapshots and produce
- * a review with findings and actionable suggestions.
+ * Triggers Claude to analyze the latest synced ads data from
+ * normalized ads_* tables and produce a review with findings
+ * and actionable suggestions.
  *
  * Body: { reviewType?: 'copy' | 'performance' | 'strategy' }
  */
@@ -38,90 +39,137 @@ export async function POST(req: NextRequest) {
   const reviewType = (body.reviewType ?? "performance") as "copy" | "performance" | "strategy";
 
   try {
-    // Fetch latest snapshots (last 7 days)
+    // ── Fetch from normalized ads_* tables (populated by sync) ──────
+    const sevenDaysAgo = new Date(Date.now() - 7 * 86400000).toISOString().split("T")[0];
+
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data: snapshots, error: snapErr } = await (sb.from("ad_snapshots") as any)
-      .select("*")
-      .gte("snapshot_date", new Date(Date.now() - 7 * 86400000).toISOString())
-      .order("snapshot_date", { ascending: false })
-      .limit(100);
+    const [campaignsRes, keywordsRes, searchTermsRes, metricsRes] = await Promise.all([
+      (sb.from("ads_campaigns") as any).select("*"),
+      (sb.from("ads_keywords") as any).select("*, ads_ad_groups(name, campaign_id, ads_campaigns(name, market))"),
+      (sb.from("ads_search_terms") as any).select("*").order("clicks", { ascending: false }).limit(100),
+      (sb.from("ads_daily_metrics") as any).select("*, ads_campaigns(name, market)").gte("report_date", sevenDaysAgo),
+    ]);
 
-    if (snapErr) {
-      return NextResponse.json({ error: "Failed to fetch snapshots" }, { status: 500 });
-    }
+    const campaigns = campaignsRes.data ?? [];
+    const keywords = keywordsRes.data ?? [];
+    const searchTerms = searchTermsRes.data ?? [];
+    const dailyMetrics = metricsRes.data ?? [];
 
-    if (!snapshots || snapshots.length === 0) {
+    if (campaigns.length === 0 && dailyMetrics.length === 0) {
       return NextResponse.json({
-        error: "No snapshots found. Run a sync first (POST /api/ads/sync).",
+        error: "No ads data found. Run a sync first (POST /api/ads/sync).",
       }, { status: 404 });
     }
 
     // Aggregate metrics for system prompt context
-    const totalSpend = snapshots.reduce((s: number, r: Record<string, unknown>) => s + Number(r.cost ?? 0), 0);
-    const totalClicks = snapshots.reduce((s: number, r: Record<string, unknown>) => s + Number(r.clicks ?? 0), 0);
-    const totalImpressions = snapshots.reduce((s: number, r: Record<string, unknown>) => s + Number(r.impressions ?? 0), 0);
-    const totalConversions = snapshots.reduce((s: number, r: Record<string, unknown>) => s + Number(r.conversions ?? 0), 0);
+    const totalSpendMicros = dailyMetrics.reduce((s: number, r: Record<string, unknown>) => s + Number(r.cost_micros ?? 0), 0);
+    const totalSpend = totalSpendMicros / 1_000_000;
+    const totalClicks = dailyMetrics.reduce((s: number, r: Record<string, unknown>) => s + Number(r.clicks ?? 0), 0);
+    const totalImpressions = dailyMetrics.reduce((s: number, r: Record<string, unknown>) => s + Number(r.impressions ?? 0), 0);
+    const totalConversions = dailyMetrics.reduce((s: number, r: Record<string, unknown>) => s + Number(r.conversions ?? 0), 0);
 
     const systemPrompt = buildAdsSystemPrompt({
       totalSpend,
       totalConversions,
       avgCpc: totalClicks > 0 ? totalSpend / totalClicks : 0,
       avgCtr: totalImpressions > 0 ? totalClicks / totalImpressions : 0,
-      campaignCount: new Set(snapshots.map((s: Record<string, unknown>) => s.campaign_id)).size,
+      campaignCount: campaigns.length,
     });
+
+    // Build analysis context from normalized tables
+    const adsContext = {
+      campaigns: campaigns.map((c: Record<string, unknown>) => ({
+        id: c.id,
+        googleId: c.google_campaign_id,
+        name: c.name,
+        market: c.market,
+        status: c.status,
+      })),
+      keywords: keywords.slice(0, 80).map((k: Record<string, unknown>) => {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const ag = k.ads_ad_groups as any;
+        return {
+          id: k.id,
+          text: k.text,
+          matchType: k.match_type,
+          status: k.status,
+          adGroup: ag?.name ?? null,
+          campaign: ag?.ads_campaigns?.name ?? null,
+          market: ag?.ads_campaigns?.market ?? null,
+        };
+      }),
+      searchTerms: searchTerms.slice(0, 50).map((st: Record<string, unknown>) => ({
+        term: st.search_term,
+        impressions: st.impressions,
+        clicks: st.clicks,
+        costDollars: Number(st.cost_micros ?? 0) / 1_000_000,
+        conversions: st.conversions,
+        isWaste: st.is_waste,
+        isOpportunity: st.is_opportunity,
+        market: st.market,
+      })),
+      dailyMetrics: dailyMetrics.slice(0, 50).map((m: Record<string, unknown>) => {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const camp = m.ads_campaigns as any;
+        return {
+          date: m.report_date,
+          campaign: camp?.name ?? null,
+          market: camp?.market ?? null,
+          impressions: m.impressions,
+          clicks: m.clicks,
+          costDollars: Number(m.cost_micros ?? 0) / 1_000_000,
+          conversions: m.conversions,
+        };
+      }),
+    };
 
     // Build the analysis prompt based on review type
     let analysisPrompt: string;
+    const jsonInstructions = [
+      "",
+      "Respond with JSON: { \"summary\": \"...\", \"findings\": [...], \"suggestions\": [...], \"structured_recommendations\": [...] }",
+      "Each finding: { \"severity\": \"info|warning|critical\", \"title\": \"...\", \"detail\": \"...\" }",
+      "Each suggestion: { \"action\": \"bid_adjust|pause_keyword|enable_keyword|update_copy|add_keyword|budget_adjust\", \"target\": \"...\", \"target_id\": \"...\", \"old_value\": \"...\", \"new_value\": \"...\", \"reason\": \"...\" }",
+      "Each structured_recommendation: { \"recommendation_type\": \"bid_adjust|waste_flag|opportunity_flag|keyword_pause|copy_suggestion|budget_adjust\", \"risk_level\": \"green|yellow|red\", \"expected_impact\": \"...\", \"reason\": \"...\", \"related_campaign_id\": <number|null>, \"related_ad_group_id\": <number|null>, \"related_keyword_id\": <number|null> }",
+    ].join("\n");
 
     if (reviewType === "copy") {
-      const adRows = snapshots.filter((s: Record<string, unknown>) => s.ad_id);
       analysisPrompt = [
-        "Review the following Google Ads copy for Dominion Home Deals (cash home buyers in Spokane/CDA).",
-        "For each ad, score the copy quality (1-10) and provide specific improvement suggestions.",
+        "Review the following Google Ads keywords and search terms for Dominion Home Deals (cash home buyers in Spokane/CDA).",
+        "Analyze keyword selection quality, match type strategy, and suggest copy improvements for ad groups.",
         "",
-        "Current ads:",
-        JSON.stringify(adRows.map((a: Record<string, unknown>) => ({
-          adId: a.ad_id,
-          adGroup: a.ad_group_name,
-          campaign: a.campaign_name,
-          headlines: [a.headline1, a.headline2, a.headline3].filter(Boolean),
-          descriptions: [a.description1, a.description2].filter(Boolean),
-          impressions: a.impressions,
-          clicks: a.clicks,
-          ctr: a.ctr,
-          conversions: a.conversions,
-        })), null, 2),
+        "Keywords:", JSON.stringify(adsContext.keywords, null, 2),
         "",
-        "Respond with JSON: { \"summary\": \"...\", \"findings\": [...], \"suggestions\": [...], \"structured_recommendations\": [...] }",
-        "Each finding: { \"severity\": \"info|warning|critical\", \"title\": \"...\", \"detail\": \"...\" }",
-        "Each suggestion: { \"action\": \"update_copy\", \"target\": \"<ad_group_name>\", \"target_id\": \"<ad_id>\", \"old_value\": \"<current>\", \"new_value\": \"<suggested>\", \"reason\": \"...\" }",
-        "Each structured_recommendation: { \"recommendation_type\": \"copy_suggestion\", \"risk_level\": \"yellow\", \"expected_impact\": \"...\", \"reason\": \"...\", \"related_campaign_id\": null, \"related_ad_group_id\": 123, \"related_keyword_id\": null }",
+        "Top Search Terms:", JSON.stringify(adsContext.searchTerms, null, 2),
+        jsonInstructions,
       ].join("\n");
     } else if (reviewType === "strategy") {
       analysisPrompt = [
         "Provide a strategic review of our Google Ads performance for Dominion Home Deals.",
         "",
-        "Data (last 7 days):",
-        JSON.stringify(snapshots.slice(0, 50), null, 2),
+        "Campaigns:", JSON.stringify(adsContext.campaigns, null, 2),
         "",
-        "Analyze: budget allocation, campaign structure, audience targeting gaps, competitive positioning.",
-        "Respond with JSON: { \"summary\": \"...\", \"findings\": [...], \"suggestions\": [...], \"structured_recommendations\": [...] }",
-        "Each finding: { \"severity\": \"info|warning|critical\", \"title\": \"...\", \"detail\": \"...\" }",
-        "Each suggestion: { \"action\": \"bid_adjust|budget_adjust|add_keyword|pause_keyword\", \"target\": \"...\", \"target_id\": \"...\", \"old_value\": \"...\", \"new_value\": \"...\", \"reason\": \"...\" }",
-        "Each structured_recommendation: { \"recommendation_type\": \"bid_adjust|budget_adjust|keyword_pause\", \"risk_level\": \"yellow\", \"expected_impact\": \"...\", \"reason\": \"...\", \"related_campaign_id\": 123, \"related_ad_group_id\": null, \"related_keyword_id\": null }",
+        "Daily Metrics (last 7 days):", JSON.stringify(adsContext.dailyMetrics, null, 2),
+        "",
+        "Search Terms:", JSON.stringify(adsContext.searchTerms, null, 2),
+        "",
+        "Analyze: budget allocation, campaign structure, market coverage (Spokane vs Kootenai), keyword strategy, wasted spend.",
+        jsonInstructions,
       ].join("\n");
     } else {
       analysisPrompt = [
         "Analyze the following Google Ads performance data for Dominion Home Deals (last 7 days).",
         "",
-        "Data:",
-        JSON.stringify(snapshots.slice(0, 50), null, 2),
+        "Campaigns:", JSON.stringify(adsContext.campaigns, null, 2),
+        "",
+        "Daily Metrics:", JSON.stringify(adsContext.dailyMetrics, null, 2),
+        "",
+        "Keywords:", JSON.stringify(adsContext.keywords.slice(0, 40), null, 2),
+        "",
+        "Search Terms:", JSON.stringify(adsContext.searchTerms, null, 2),
         "",
         "Identify: top performers, underperformers, wasted spend, optimization opportunities.",
-        "Respond with JSON: { \"summary\": \"...\", \"findings\": [...], \"suggestions\": [...], \"structured_recommendations\": [...] }",
-        "Each finding: { \"severity\": \"info|warning|critical\", \"title\": \"...\", \"detail\": \"...\" }",
-        "Each suggestion: { \"action\": \"bid_adjust|pause_keyword|enable_keyword|budget_adjust\", \"target\": \"...\", \"target_id\": \"...\", \"old_value\": \"...\", \"new_value\": \"...\", \"reason\": \"...\" }",
-        "Each structured_recommendation: { \"recommendation_type\": \"bid_adjust|waste_flag|opportunity_flag|keyword_pause\", \"risk_level\": \"green|yellow|red\", \"expected_impact\": \"...\", \"reason\": \"...\", \"related_campaign_id\": 123, \"related_ad_group_id\": null, \"related_keyword_id\": 456 }",
+        jsonInstructions,
       ].join("\n");
     }
 

@@ -9,7 +9,7 @@ export const runtime = "nodejs";
  * POST /api/ads/chat
  *
  * Streaming chat endpoint for asking Claude about your Google Ads.
- * Pre-loaded with campaign context from latest snapshots.
+ * Pre-loaded with campaign context from normalized ads_* tables.
  *
  * Body: { messages: ClaudeMessage[] }
  */
@@ -51,32 +51,71 @@ export async function POST(req: NextRequest) {
     });
   }
 
-  // Fetch latest snapshot metrics for context
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { data: snapshots } = await (sb.from("ad_snapshots") as any)
-    .select("campaign_id, campaign_name, impressions, clicks, ctr, avg_cpc, conversions, cost")
-    .gte("snapshot_date", new Date(Date.now() - 7 * 86400000).toISOString())
-    .order("snapshot_date", { ascending: false })
-    .limit(50);
+  // ── Fetch context from normalized ads_* tables ──────────────────
+  const sevenDaysAgo = new Date(Date.now() - 7 * 86400000).toISOString().split("T")[0];
 
-  const snaps = snapshots ?? [];
-  const totalSpend = snaps.reduce((s: number, r: Record<string, unknown>) => s + Number(r.cost ?? 0), 0);
-  const totalClicks = snaps.reduce((s: number, r: Record<string, unknown>) => s + Number(r.clicks ?? 0), 0);
-  const totalImpressions = snaps.reduce((s: number, r: Record<string, unknown>) => s + Number(r.impressions ?? 0), 0);
-  const totalConversions = snaps.reduce((s: number, r: Record<string, unknown>) => s + Number(r.conversions ?? 0), 0);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const [campaignsRes, metricsRes, searchTermsRes] = await Promise.all([
+    (sb.from("ads_campaigns") as any).select("id, name, market, status"),
+    (sb.from("ads_daily_metrics") as any)
+      .select("campaign_id, impressions, clicks, cost_micros, conversions, report_date, ads_campaigns(name, market)")
+      .gte("report_date", sevenDaysAgo)
+      .order("report_date", { ascending: false })
+      .limit(50),
+    (sb.from("ads_search_terms") as any)
+      .select("search_term, impressions, clicks, cost_micros, conversions, market, is_waste, is_opportunity")
+      .order("clicks", { ascending: false })
+      .limit(30),
+  ]);
+
+  const campaigns = campaignsRes.data ?? [];
+  const dailyMetrics = metricsRes.data ?? [];
+  const searchTerms = searchTermsRes.data ?? [];
+
+  const totalSpendMicros = dailyMetrics.reduce((s: number, r: Record<string, unknown>) => s + Number(r.cost_micros ?? 0), 0);
+  const totalSpend = totalSpendMicros / 1_000_000;
+  const totalClicks = dailyMetrics.reduce((s: number, r: Record<string, unknown>) => s + Number(r.clicks ?? 0), 0);
+  const totalImpressions = dailyMetrics.reduce((s: number, r: Record<string, unknown>) => s + Number(r.impressions ?? 0), 0);
+  const totalConversions = dailyMetrics.reduce((s: number, r: Record<string, unknown>) => s + Number(r.conversions ?? 0), 0);
 
   let systemPrompt = buildAdsSystemPrompt({
     totalSpend,
     totalConversions,
     avgCpc: totalClicks > 0 ? totalSpend / totalClicks : 0,
     avgCtr: totalImpressions > 0 ? totalClicks / totalImpressions : 0,
-    campaignCount: new Set(snaps.map((s: Record<string, unknown>) => s.campaign_id)).size,
+    campaignCount: campaigns.length,
   });
 
-  // Append recent snapshot data as context
-  if (snaps.length > 0) {
+  // Append campaign and performance data as context
+  if (dailyMetrics.length > 0) {
+    const metricsContext = dailyMetrics.slice(0, 20).map((m: Record<string, unknown>) => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const camp = m.ads_campaigns as any;
+      return {
+        date: m.report_date,
+        campaign: camp?.name ?? null,
+        market: camp?.market ?? null,
+        impressions: m.impressions,
+        clicks: m.clicks,
+        costDollars: Number(m.cost_micros ?? 0) / 1_000_000,
+        conversions: m.conversions,
+      };
+    });
     systemPrompt += "\n\n## Recent Campaign Data (last 7 days)\n```json\n" +
-      JSON.stringify(snaps.slice(0, 20), null, 2) +
+      JSON.stringify(metricsContext, null, 2) +
+      "\n```";
+  }
+
+  if (searchTerms.length > 0) {
+    const termsContext = searchTerms.map((st: Record<string, unknown>) => ({
+      term: st.search_term,
+      clicks: st.clicks,
+      costDollars: Number(st.cost_micros ?? 0) / 1_000_000,
+      conversions: st.conversions,
+      isWaste: st.is_waste,
+    }));
+    systemPrompt += "\n\n## Top Search Terms\n```json\n" +
+      JSON.stringify(termsContext, null, 2) +
       "\n```";
   }
 
