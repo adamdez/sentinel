@@ -76,10 +76,11 @@ describe("getAllowedTransitions", () => {
   const expected: Record<LeadStatus, ReadonlyArray<LeadStatus>> = {
     staging: ["prospect", "dead"],
     prospect: ["lead", "negotiation", "nurture", "dead"],
-    lead: ["negotiation", "nurture", "dead"],
+    lead: ["qualified", "negotiation", "nurture", "dead"],
+    qualified: ["negotiation", "nurture", "dead"],
     negotiation: ["disposition", "nurture", "dead"],
     disposition: ["closed", "nurture", "dead"],
-    nurture: ["lead", "dead"],
+    nurture: ["lead", "qualified", "dead"],
     dead: ["nurture"],
     closed: [],
   };
