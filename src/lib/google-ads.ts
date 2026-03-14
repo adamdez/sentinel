@@ -324,23 +324,24 @@ export async function fetchKeywordPerformance(
   startDate: string,
   endDate: string,
 ): Promise<KeywordMetrics[]> {
+  // keyword_view is an implicit join of ad_group_criterion (keywords only) + metrics.
+  // In v23, do NOT select ad_group_criterion.* fields from keyword_view — they are
+  // implicitly available via the keyword_view resource attributes.
   const query = `
     SELECT
-      ad_group_criterion.criterion_id,
-      ad_group_criterion.keyword.text,
-      ad_group_criterion.keyword.match_type,
+      keyword_view.resource_name,
       ad_group.id,
       ad_group.name,
       campaign.id,
       metrics.impressions,
       metrics.clicks,
+      metrics.ctr,
+      metrics.average_cpc,
       metrics.conversions,
       metrics.cost_micros
-    FROM ad_group_criterion
+    FROM keyword_view
     WHERE segments.date BETWEEN '${startDate}' AND '${endDate}'
       AND campaign.status != 'REMOVED'
-      AND ad_group_criterion.type = 'KEYWORD'
-      AND ad_group_criterion.status != 'REMOVED'
     ORDER BY metrics.cost_micros DESC
   `;
 
@@ -348,20 +349,21 @@ export async function fetchKeywordPerformance(
 
   return rows.map((row: unknown) => {
     const r = row as Record<string, Record<string, unknown>>;
-    const criterion = r.adGroupCriterion as Record<string, unknown> | undefined
-      ?? r.ad_group_criterion as Record<string, unknown> | undefined;
-    const keyword = criterion?.keyword as Record<string, unknown> | undefined;
+    // keyword_view.resource_name format: customers/{cid}/keywordViews/{adGroupId}~{criterionId}
+    const resourceName = String(r.keywordView?.resourceName ?? r.keyword_view?.resource_name ?? "");
+    const parts = resourceName.split("/").pop()?.split("~") ?? [];
+    const criterionId = parts[1] ?? "";
     return {
-      keywordId: String(criterion?.criterionId ?? criterion?.criterion_id ?? ""),
-      keywordText: String(keyword?.text ?? ""),
-      matchType: String(keyword?.matchType ?? keyword?.match_type ?? ""),
+      keywordId: criterionId,
+      keywordText: "",  // Not directly available from keyword_view; populated via separate lookup if needed
+      matchType: "",
       adGroupId: String(r.adGroup?.id ?? r.ad_group?.id ?? ""),
       adGroupName: String(r.adGroup?.name ?? r.ad_group?.name ?? ""),
       campaignId: String(r.campaign?.id ?? ""),
       impressions: Number(r.metrics?.impressions ?? 0),
       clicks: Number(r.metrics?.clicks ?? 0),
-      ctr: (() => { const imp = Number(r.metrics?.impressions ?? 0); const cl = Number(r.metrics?.clicks ?? 0); return imp > 0 ? cl / imp : 0; })(),
-      avgCpc: (() => { const cl = Number(r.metrics?.clicks ?? 0); const cost = Number(r.metrics?.cost_micros ?? r.metrics?.costMicros ?? 0); return cl > 0 ? (cost / cl) / 1_000_000 : 0; })(),
+      ctr: Number(r.metrics?.ctr ?? 0),
+      avgCpc: Number(r.metrics?.average_cpc ?? r.metrics?.averageCpc ?? 0) / 1_000_000,
       conversions: Number(r.metrics?.conversions ?? 0),
       cost: Number(r.metrics?.cost_micros ?? r.metrics?.costMicros ?? 0) / 1_000_000,
       qualityScore: null,
