@@ -1,0 +1,240 @@
+import { NextRequest, NextResponse } from "next/server";
+import { createServerClient } from "@/lib/supabase";
+import { analyzeWithClaude } from "@/lib/claude-client";
+import { loadAdsSystemPrompt } from "@/lib/ads/ads-system-prompt";
+import { runAdversarialReview } from "@/lib/ads/adversarial-review";
+
+export const dynamic = "force-dynamic";
+export const runtime = "nodejs";
+export const maxDuration = 120;
+
+/**
+ * POST /api/ads/intelligence
+ *
+ * Dual-model intelligence extraction:
+ * 1. Opus 4.6 identifies and ranks the top 30-50 actionable data points
+ * 2. GPT-5.4 Pro challenges rankings, flags blind spots, re-scores confidence
+ *
+ * Returns a reconciled intelligence briefing.
+ */
+export async function POST(req: NextRequest) {
+  const sb = createServerClient();
+
+  const authHeader = req.headers.get("authorization");
+  const token = authHeader?.replace("Bearer ", "");
+  const { data: { user }, error: authErr } = await sb.auth.getUser(token ?? "");
+  if (authErr || !user) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  const apiKey = process.env.ANTHROPIC_API_KEY;
+  const openaiKey = process.env.OPENAI_API_KEY;
+  if (!apiKey) {
+    return NextResponse.json({ error: "ANTHROPIC_API_KEY not configured" }, { status: 503 });
+  }
+
+  try {
+    // ── Pull comprehensive data ──────────────────────────────────────
+    const thirtyDaysAgo = new Date(Date.now() - 30 * 86400000).toISOString().split("T")[0];
+    const sevenDaysAgo = new Date(Date.now() - 7 * 86400000).toISOString().split("T")[0];
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const [campaignsRes, keywordsRes, searchTermsRes, metrics30Res, metrics7Res] = await Promise.all([
+      (sb.from("ads_campaigns") as any).select("*"),
+      (sb.from("ads_keywords") as any).select("*, ads_ad_groups(name, campaign_id, ads_campaigns(name, market))"),
+      (sb.from("ads_search_terms") as any).select("*").order("clicks", { ascending: false }).limit(200),
+      (sb.from("ads_daily_metrics") as any).select("*, ads_campaigns(name, market)").gte("report_date", thirtyDaysAgo),
+      (sb.from("ads_daily_metrics") as any).select("*, ads_campaigns(name, market)").gte("report_date", sevenDaysAgo),
+    ]);
+
+    const campaigns = campaignsRes.data ?? [];
+    const keywords = keywordsRes.data ?? [];
+    const searchTerms = searchTermsRes.data ?? [];
+    const metrics30 = metrics30Res.data ?? [];
+    const metrics7 = metrics7Res.data ?? [];
+
+    // Also fetch latest review for context
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: latestReview } = await (sb.from("ad_reviews") as any)
+      .select("summary, findings, suggestions, adversarial_review, review_type, created_at")
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .single();
+
+    // Aggregate metrics
+    const agg = (rows: Record<string, unknown>[]) => ({
+      spend: rows.reduce((s, r) => s + Number(r.cost_micros ?? 0), 0) / 1_000_000,
+      clicks: rows.reduce((s, r) => s + Number(r.clicks ?? 0), 0),
+      impressions: rows.reduce((s, r) => s + Number(r.impressions ?? 0), 0),
+      conversions: rows.reduce((s, r) => s + Number(r.conversions ?? 0), 0),
+    });
+
+    const last30 = agg(metrics30);
+    const last7 = agg(metrics7);
+
+    // Build context
+    const systemPrompt = await loadAdsSystemPrompt({
+      totalSpend: last7.spend,
+      totalConversions: last7.conversions,
+      avgCpc: last7.clicks > 0 ? last7.spend / last7.clicks : 0,
+      avgCtr: last7.impressions > 0 ? last7.clicks / last7.impressions : 0,
+      campaignCount: campaigns.length,
+    });
+
+    const rawDataContext = [
+      "## CAMPAIGNS",
+      JSON.stringify(campaigns.map((c: Record<string, unknown>) => ({
+        id: c.id, name: c.name, market: c.market, status: c.status,
+      })), null, 2),
+      "",
+      "## AGGREGATE METRICS",
+      `Last 7 days: $${last7.spend.toFixed(2)} spend | ${last7.clicks} clicks | ${last7.conversions} conversions | ${last7.impressions} impressions`,
+      `Last 30 days: $${last30.spend.toFixed(2)} spend | ${last30.clicks} clicks | ${last30.conversions} conversions | ${last30.impressions} impressions`,
+      "",
+      "## KEYWORDS (with ad group/campaign context)",
+      JSON.stringify(keywords.slice(0, 150).map((k: Record<string, unknown>) => {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const ag = k.ads_ad_groups as any;
+        return {
+          id: k.id, text: k.text, matchType: k.match_type, status: k.status,
+          adGroup: ag?.name ?? null, campaign: ag?.ads_campaigns?.name ?? null,
+          market: ag?.ads_campaigns?.market ?? null,
+        };
+      }), null, 2),
+      "",
+      "## SEARCH TERMS (top 200 by clicks)",
+      JSON.stringify(searchTerms.slice(0, 150).map((st: Record<string, unknown>) => ({
+        term: st.search_term, impressions: st.impressions, clicks: st.clicks,
+        costDollars: Number(st.cost_micros ?? 0) / 1_000_000, conversions: st.conversions,
+        isWaste: st.is_waste, isOpportunity: st.is_opportunity, market: st.market,
+      })), null, 2),
+      "",
+      "## DAILY METRICS (last 30 days, sample)",
+      JSON.stringify(metrics30.slice(0, 60).map((m: Record<string, unknown>) => {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const camp = m.ads_campaigns as any;
+        return {
+          date: m.report_date, campaign: camp?.name ?? null, market: camp?.market ?? null,
+          impressions: m.impressions, clicks: m.clicks,
+          costDollars: Number(m.cost_micros ?? 0) / 1_000_000, conversions: m.conversions,
+        };
+      }), null, 2),
+      "",
+      latestReview ? `## LATEST AI REVIEW (${latestReview.review_type}, ${latestReview.created_at})\n${latestReview.summary}` : "",
+    ].join("\n");
+
+    // ── Primary intelligence extraction (Opus 4.6) ──────────────────
+    const intelligencePrompt = `## KEY INTELLIGENCE EXTRACTION
+
+You have access to the full account data below. Your job is to extract and rank the TOP 30-50 most important data points, signals, and insights that the operators need to see.
+
+This is NOT a review. This is a prioritized intelligence briefing.
+
+For each data point, provide:
+- The signal (what the data shows)
+- Why it matters (business impact)
+- Confidence level (confirmed / inferred / uncertain)
+- Urgency (act now / this week / monitor / FYI)
+- Dollar impact estimate where possible
+- Market (spokane / kootenai / both)
+
+Categories to extract intelligence from:
+1. WASTE SIGNALS — money being burned on non-converting or off-target traffic
+2. OPPORTUNITY SIGNALS — converting patterns that could be expanded
+3. COMPETITIVE SIGNALS — what CTR/impression data suggests about auction position
+4. TREND SIGNALS — what's improving, declining, or shifting over time
+5. QUALITY SIGNALS — search term quality, keyword relevance, intent alignment
+6. ATTRIBUTION SIGNALS — gaps in tracking or conversion measurement
+7. STRUCTURAL SIGNALS — campaign/ad group issues affecting performance
+8. MARKET SIGNALS — Spokane vs Kootenai differences
+9. CREATIVE SIGNALS — ad copy gaps or opportunities (based on search intent mismatches)
+10. RISK SIGNALS — things that could go wrong or are already going wrong
+
+Rank ALL data points by dollar impact (highest first).
+
+Respond with a single JSON object (no markdown fences):
+{
+  "briefing_date": "${new Date().toISOString().split("T")[0]}",
+  "account_status": "healthy|caution|warning|critical",
+  "executive_summary": "<3-4 sentences — what the owner needs to know RIGHT NOW>",
+  "total_estimated_monthly_waste": <number>,
+  "total_estimated_monthly_opportunity": <number>,
+  "data_points": [
+    {
+      "rank": <1-50>,
+      "category": "waste|opportunity|competitive|trend|quality|attribution|structural|market|creative|risk",
+      "signal": "<what the data shows>",
+      "why_it_matters": "<business impact>",
+      "confidence": "confirmed|inferred|uncertain",
+      "urgency": "act_now|this_week|monitor|fyi",
+      "dollar_impact": "<estimated monthly $ impact or 'unquantifiable'>",
+      "market": "spokane|kootenai|both",
+      "entity": "<campaign/keyword/search term name if applicable>",
+      "entity_id": "<id if applicable>",
+      "recommended_action": "<specific next step>"
+    }
+  ]
+}
+
+DATA:
+${rawDataContext}`;
+
+    const rawResponse = await analyzeWithClaude({
+      prompt: intelligencePrompt,
+      systemPrompt,
+      apiKey,
+      maxTokens: 12000,
+    });
+
+    // Parse Opus response
+    let parsed: Record<string, unknown>;
+    try {
+      const jsonMatch = rawResponse.match(/\{[\s\S]*\}/);
+      parsed = jsonMatch ? JSON.parse(jsonMatch[0]) : { data_points: [], executive_summary: rawResponse };
+    } catch {
+      parsed = { data_points: [], executive_summary: rawResponse };
+    }
+
+    // ── Adversarial challenge (GPT-5.4 Pro) ─────────────────────────
+    let adversarialResult = null;
+    if (openaiKey) {
+      try {
+        adversarialResult = await runAdversarialReview({
+          rawData: rawDataContext,
+          primaryAnalysis: rawResponse,
+          openaiKey,
+        });
+      } catch (advErr) {
+        console.error("[Intelligence] Adversarial review failed (non-blocking):", advErr);
+      }
+    }
+
+    return NextResponse.json({
+      ok: true,
+      intelligence: parsed,
+      adversarial: adversarialResult ? {
+        verdict: adversarialResult.verdict,
+        grade: adversarialResult.adversarialGrade,
+        assessment: adversarialResult.overallAssessment,
+        challenges: adversarialResult.challenges,
+        missedOpportunities: adversarialResult.missedOpportunities,
+        overconfidentClaims: adversarialResult.overconfidentClaims,
+        finalInstruction: adversarialResult.finalInstruction,
+      } : null,
+    });
+  } catch (err) {
+    if (err instanceof Error) {
+      console.error("[Intelligence]", err.message);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const apiErr = err as any;
+      if (apiErr.status) console.error("[Intelligence] Status:", apiErr.status);
+      if (apiErr.error) console.error("[Intelligence] Body:", JSON.stringify(apiErr.error));
+    } else {
+      console.error("[Intelligence]", err);
+    }
+    return NextResponse.json(
+      { error: err instanceof Error ? err.message : "Intelligence extraction failed" },
+      { status: 500 },
+    );
+  }
+}

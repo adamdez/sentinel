@@ -85,7 +85,7 @@ interface AdAction {
   ad_reviews?: { review_type: string; summary: string };
 }
 
-type TabId = "dashboard" | "approvals" | "review" | "copylab" | "landing" | "chat" | "system-prompt";
+type TabId = "dashboard" | "approvals" | "review" | "intelligence" | "copylab" | "landing" | "chat" | "system-prompt";
 
 // ── Helpers ─────────────────────────────────────────────────────────
 
@@ -128,6 +128,7 @@ export default function AdsPage() {
     { id: "dashboard", label: "Performance", icon: BarChart3 },
     { id: "approvals", label: "Approvals", icon: Zap },
     { id: "review", label: "AI Review", icon: Brain },
+    { id: "intelligence", label: "Key Intel", icon: Zap },
     { id: "copylab", label: "Ad Copy Lab", icon: FileText },
     { id: "landing", label: "Landing Page", icon: Globe },
     { id: "chat", label: "Chat", icon: Sparkles },
@@ -195,6 +196,7 @@ export default function AdsPage() {
             {activeTab === "dashboard" && <DashboardTab />}
             {activeTab === "approvals" && <PendingApprovalsTable />}
             {activeTab === "review" && <ReviewTab />}
+            {activeTab === "intelligence" && <IntelligenceTab />}
             {activeTab === "copylab" && <CopyLabTab />}
             {activeTab === "landing" && <LandingTab />}
             {activeTab === "chat" && <ChatTab />}
@@ -721,6 +723,369 @@ function ReviewCard({ review }: { review: AdReview }) {
 }
 
 // ── Copy Lab Tab ────────────────────────────────────────────────────
+
+// ── Key Intelligence Tab ─────────────────────────────────────────────
+
+interface DataPoint {
+  rank: number;
+  category: string;
+  signal: string;
+  why_it_matters: string;
+  confidence: string;
+  urgency: string;
+  dollar_impact: string;
+  market: string;
+  entity?: string;
+  entity_id?: string;
+  recommended_action: string;
+}
+
+interface IntelligenceData {
+  briefing_date: string;
+  account_status: string;
+  executive_summary: string;
+  total_estimated_monthly_waste: number;
+  total_estimated_monthly_opportunity: number;
+  data_points: DataPoint[];
+}
+
+interface AdversarialIntel {
+  verdict: string;
+  grade: string;
+  assessment: string;
+  challenges: Array<{ targetFinding: string; challenge: string; severity: string; alternativeInterpretation: string }>;
+  missedOpportunities: string[];
+  overconfidentClaims: string[];
+  finalInstruction: string;
+}
+
+function IntelligenceTab() {
+  const [intelligence, setIntelligence] = useState<IntelligenceData | null>(null);
+  const [adversarial, setAdversarial] = useState<AdversarialIntel | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [categoryFilter, setCategoryFilter] = useState<string>("all");
+  const [urgencyFilter, setUrgencyFilter] = useState<string>("all");
+
+  const handleExtract = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const headers = await getAuthHeaders();
+      const res = await fetch("/api/ads/intelligence", {
+        method: "POST",
+        headers,
+      });
+      if (!res.ok) {
+        const data = await res.json();
+        setError(data.error || "Failed to extract intelligence");
+        return;
+      }
+      const data = await res.json();
+      setIntelligence(data.intelligence);
+      setAdversarial(data.adversarial);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Request failed");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const urgencyColor: Record<string, string> = {
+    act_now: "text-red-400 bg-red-400/10 border-red-400/20",
+    this_week: "text-amber-400 bg-amber-400/10 border-amber-400/20",
+    monitor: "text-cyan bg-cyan/10 border-cyan/20",
+    fyi: "text-muted-foreground bg-white/5 border-white/10",
+  };
+
+  const categoryIcon: Record<string, string> = {
+    waste: "text-red-400",
+    opportunity: "text-emerald-400",
+    competitive: "text-purple-400",
+    trend: "text-blue-400",
+    quality: "text-cyan",
+    attribution: "text-amber-400",
+    structural: "text-orange-400",
+    market: "text-indigo-400",
+    creative: "text-pink-400",
+    risk: "text-red-500",
+  };
+
+  const statusColor: Record<string, string> = {
+    healthy: "text-emerald-400 bg-emerald-400/10",
+    caution: "text-amber-400 bg-amber-400/10",
+    warning: "text-orange-400 bg-orange-400/10",
+    critical: "text-red-400 bg-red-400/10",
+  };
+
+  const filteredPoints = (intelligence?.data_points ?? []).filter((dp) => {
+    if (categoryFilter !== "all" && dp.category !== categoryFilter) return false;
+    if (urgencyFilter !== "all" && dp.urgency !== urgencyFilter) return false;
+    return true;
+  });
+
+  const categories = [...new Set((intelligence?.data_points ?? []).map((dp) => dp.category))];
+
+  if (!intelligence && !loading) {
+    return (
+      <div className="space-y-6">
+        <div className="flex items-start gap-2 p-3 rounded-lg bg-cyan/5 border border-cyan/10 text-xs text-muted-foreground">
+          <Info className="h-4 w-4 text-cyan/50 shrink-0 mt-0.5" />
+          <div>
+            <span className="text-foreground/80 font-medium">Dual-model intelligence extraction.</span>{" "}
+            Opus 4.6 scans all account data and ranks the top 30-50 most important signals.
+            GPT-5.4 Pro then challenges the rankings, flags blind spots, and adjusts confidence levels.
+          </div>
+        </div>
+
+        <div className="text-center py-16">
+          <Zap className="h-12 w-12 mx-auto text-muted-foreground/30 mb-4" />
+          <h3 className="text-lg font-medium text-muted-foreground mb-2">Key Intelligence</h3>
+          <p className="text-sm text-muted-foreground/60 max-w-md mx-auto mb-6">
+            Extract and rank the most important data points from your entire account.
+            Every signal is dollar-quantified and adversarially challenged.
+          </p>
+          <button
+            onClick={handleExtract}
+            className="flex items-center gap-2 px-6 py-2.5 text-sm rounded-lg bg-cyan/10 text-cyan hover:bg-cyan/20 border border-cyan/20 transition mx-auto"
+          >
+            <Zap className="h-4 w-4" />
+            Extract Intelligence Briefing
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  if (loading) {
+    return (
+      <div className="text-center py-20">
+        <Loader2 className="h-8 w-8 animate-spin text-cyan/50 mx-auto mb-4" />
+        <p className="text-sm text-muted-foreground">Running dual-model intelligence extraction...</p>
+        <p className="text-xs text-muted-foreground/50 mt-1">Opus 4.6 analyzing → GPT-5.4 Pro challenging</p>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="text-center py-16">
+        <XCircle className="h-8 w-8 text-red-400/60 mx-auto mb-3" />
+        <p className="text-sm text-red-400">{error}</p>
+        <button onClick={handleExtract} className="mt-4 px-4 py-2 text-xs rounded-lg bg-cyan/10 text-cyan border border-cyan/20">
+          Retry
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      {/* Executive Summary */}
+      <div className="glass-strong rounded-xl border border-white/[0.06] p-4">
+        <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center gap-3">
+            <h3 className="text-sm font-semibold">Intelligence Briefing</h3>
+            {intelligence?.account_status && (
+              <span className={`text-[10px] px-2 py-0.5 rounded-full font-mono uppercase ${statusColor[intelligence.account_status] ?? ""}`}>
+                {intelligence.account_status}
+              </span>
+            )}
+            {intelligence?.briefing_date && (
+              <span className="text-[10px] text-muted-foreground/40 font-mono">{intelligence.briefing_date}</span>
+            )}
+          </div>
+          <button
+            onClick={handleExtract}
+            disabled={loading}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-lg border border-white/10 text-muted-foreground hover:text-foreground transition"
+          >
+            <RefreshCw className={`h-3.5 w-3.5 ${loading ? "animate-spin" : ""}`} />
+            Refresh
+          </button>
+        </div>
+        <p className="text-sm text-foreground/80 leading-relaxed">{intelligence?.executive_summary}</p>
+
+        <div className="grid grid-cols-3 gap-3 mt-4">
+          <div className="p-3 rounded-lg bg-red-400/5 border border-red-400/10">
+            <div className="text-[10px] text-red-400/60 uppercase tracking-wide mb-1">Est. Monthly Waste</div>
+            <div className="text-lg font-semibold text-red-400">
+              ${(intelligence?.total_estimated_monthly_waste ?? 0).toLocaleString()}
+            </div>
+          </div>
+          <div className="p-3 rounded-lg bg-emerald-400/5 border border-emerald-400/10">
+            <div className="text-[10px] text-emerald-400/60 uppercase tracking-wide mb-1">Est. Monthly Opportunity</div>
+            <div className="text-lg font-semibold text-emerald-400">
+              ${(intelligence?.total_estimated_monthly_opportunity ?? 0).toLocaleString()}
+            </div>
+          </div>
+          <div className="p-3 rounded-lg bg-cyan/5 border border-cyan/10">
+            <div className="text-[10px] text-cyan/60 uppercase tracking-wide mb-1">Data Points</div>
+            <div className="text-lg font-semibold text-cyan">
+              {intelligence?.data_points?.length ?? 0}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Adversarial Assessment */}
+      {adversarial && (
+        <div className="glass-strong rounded-xl border border-amber-500/15 p-4">
+          <div className="flex items-center gap-2 mb-2">
+            <AlertTriangle className="h-4 w-4 text-amber-400" />
+            <h3 className="text-sm font-semibold text-amber-400">Adversarial Review — GPT-5.4 Pro</h3>
+            <span className={`text-[10px] px-2 py-0.5 rounded-full font-mono border ${
+              adversarial.verdict === "approve" ? "text-emerald-400 border-emerald-400/20 bg-emerald-400/5" :
+              adversarial.verdict === "approve_with_changes" ? "text-amber-400 border-amber-400/20 bg-amber-400/5" :
+              "text-red-400 border-red-400/20 bg-red-400/5"
+            }`}>
+              {adversarial.verdict?.replace(/_/g, " ")} · Grade: {adversarial.grade}
+            </span>
+          </div>
+          <p className="text-xs text-foreground/70 mb-3">{adversarial.assessment}</p>
+
+          {adversarial.challenges.length > 0 && (
+            <div className="space-y-2 mb-3">
+              <div className="text-[10px] text-amber-400/60 uppercase tracking-wide">Challenges</div>
+              {adversarial.challenges.slice(0, 5).map((c, i) => (
+                <div key={i} className="flex gap-2 text-xs p-2 rounded bg-amber-500/5 border border-amber-500/8">
+                  <span className={`shrink-0 text-[10px] px-1.5 py-0.5 rounded border ${
+                    c.severity === "critical" ? "text-red-400 border-red-400/20" :
+                    c.severity === "moderate" ? "text-amber-400 border-amber-400/20" :
+                    "text-muted-foreground border-white/10"
+                  }`}>{c.severity}</span>
+                  <div>
+                    <span className="text-foreground/80">{c.challenge}</span>
+                    {c.alternativeInterpretation && (
+                      <span className="block text-muted-foreground/60 mt-0.5">Alt: {c.alternativeInterpretation}</span>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {adversarial.missedOpportunities.length > 0 && (
+            <div className="mb-3">
+              <div className="text-[10px] text-amber-400/60 uppercase tracking-wide mb-1">Blind Spots Flagged</div>
+              <ul className="space-y-1">
+                {adversarial.missedOpportunities.map((m, i) => (
+                  <li key={i} className="text-xs text-foreground/70 flex gap-1.5">
+                    <span className="text-amber-400/40 shrink-0">●</span> {m}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          {adversarial.overconfidentClaims.length > 0 && (
+            <div>
+              <div className="text-[10px] text-red-400/60 uppercase tracking-wide mb-1">Overconfident Claims</div>
+              <ul className="space-y-1">
+                {adversarial.overconfidentClaims.map((c, i) => (
+                  <li key={i} className="text-xs text-foreground/70 flex gap-1.5">
+                    <span className="text-red-400/40 shrink-0">●</span> {c}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Filters */}
+      <div className="flex items-center gap-3">
+        <div className="flex items-center gap-1.5">
+          <Filter className="h-3.5 w-3.5 text-muted-foreground/40" />
+          <select
+            value={categoryFilter}
+            onChange={(e) => setCategoryFilter(e.target.value)}
+            className="text-xs bg-black/30 border border-white/[0.08] rounded-lg px-2 py-1.5 text-foreground/80"
+          >
+            <option value="all">All Categories</option>
+            {categories.map((cat) => (
+              <option key={cat} value={cat}>{cat}</option>
+            ))}
+          </select>
+        </div>
+        <select
+          value={urgencyFilter}
+          onChange={(e) => setUrgencyFilter(e.target.value)}
+          className="text-xs bg-black/30 border border-white/[0.08] rounded-lg px-2 py-1.5 text-foreground/80"
+        >
+          <option value="all">All Urgency</option>
+          <option value="act_now">Act Now</option>
+          <option value="this_week">This Week</option>
+          <option value="monitor">Monitor</option>
+          <option value="fyi">FYI</option>
+        </select>
+        <span className="text-[10px] text-muted-foreground/40 ml-auto">
+          Showing {filteredPoints.length} of {intelligence?.data_points?.length ?? 0}
+        </span>
+      </div>
+
+      {/* Data Points */}
+      <div className="space-y-2">
+        {filteredPoints.map((dp, i) => (
+          <div key={i} className="glass-strong rounded-lg border border-white/[0.06] p-3">
+            <div className="flex items-start gap-3">
+              {/* Rank */}
+              <div className="text-lg font-bold text-muted-foreground/20 w-8 text-right shrink-0">
+                {dp.rank}
+              </div>
+
+              <div className="flex-1 min-w-0">
+                {/* Header row */}
+                <div className="flex items-center gap-2 mb-1 flex-wrap">
+                  <span className={`text-[10px] px-1.5 py-0.5 rounded border border-white/10 uppercase tracking-wide ${categoryIcon[dp.category] ?? "text-muted-foreground"}`}>
+                    {dp.category}
+                  </span>
+                  <span className={`text-[10px] px-1.5 py-0.5 rounded border ${urgencyColor[dp.urgency] ?? ""}`}>
+                    {dp.urgency?.replace(/_/g, " ")}
+                  </span>
+                  <span className={`text-[10px] px-1.5 py-0.5 rounded border border-white/10 ${
+                    dp.confidence === "confirmed" ? "text-emerald-400" :
+                    dp.confidence === "inferred" ? "text-amber-400" : "text-red-400"
+                  }`}>
+                    {dp.confidence}
+                  </span>
+                  {dp.market && dp.market !== "both" && (
+                    <span className="text-[10px] px-1.5 py-0.5 rounded border border-white/10 text-muted-foreground">
+                      {dp.market}
+                    </span>
+                  )}
+                  {dp.dollar_impact && dp.dollar_impact !== "unquantifiable" && (
+                    <span className="text-[10px] font-mono text-cyan/70 ml-auto">
+                      {dp.dollar_impact}
+                    </span>
+                  )}
+                </div>
+
+                {/* Signal */}
+                <p className="text-sm text-foreground/90 font-medium">{dp.signal}</p>
+
+                {/* Why it matters */}
+                <p className="text-xs text-muted-foreground mt-1">{dp.why_it_matters}</p>
+
+                {/* Entity + Action */}
+                <div className="flex items-center gap-3 mt-2">
+                  {dp.entity && (
+                    <span className="text-[10px] text-muted-foreground/50 font-mono">{dp.entity}</span>
+                  )}
+                  {dp.recommended_action && (
+                    <span className="text-[10px] text-cyan/60">→ {dp.recommended_action}</span>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ── Ad Copy Lab Tab ────────────────────────────────────────────────
 
 function CopyLabTab() {
   return (
