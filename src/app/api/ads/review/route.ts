@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@/lib/supabase";
-import { analyzeWithClaude, buildAdsSystemPrompt } from "@/lib/claude-client";
+import { analyzeWithClaude } from "@/lib/claude-client";
+import { loadAdsSystemPrompt } from "@/lib/ads/ads-system-prompt";
 import { insertValidatedRecommendations } from "@/lib/ads/recommendations";
 
 export const dynamic = "force-dynamic";
@@ -68,7 +69,7 @@ export async function POST(req: NextRequest) {
     const totalImpressions = dailyMetrics.reduce((s: number, r: Record<string, unknown>) => s + Number(r.impressions ?? 0), 0);
     const totalConversions = dailyMetrics.reduce((s: number, r: Record<string, unknown>) => s + Number(r.conversions ?? 0), 0);
 
-    const systemPrompt = buildAdsSystemPrompt({
+    const systemPrompt = await loadAdsSystemPrompt({
       totalSpend,
       totalConversions,
       avgCpc: totalClicks > 0 ? totalSpend / totalClicks : 0,
@@ -127,16 +128,61 @@ export async function POST(req: NextRequest) {
     let analysisPrompt: string;
     const jsonInstructions = [
       "",
-      "Respond with JSON: { \"summary\": \"...\", \"findings\": [...], \"suggestions\": [...], \"structured_recommendations\": [...] }",
-      "Each finding: { \"severity\": \"info|warning|critical\", \"title\": \"...\", \"detail\": \"...\" }",
-      "Each suggestion: { \"action\": \"bid_adjust|pause_keyword|enable_keyword|update_copy|add_keyword|budget_adjust\", \"target\": \"...\", \"target_id\": \"...\", \"old_value\": \"...\", \"new_value\": \"...\", \"reason\": \"...\" }",
-      "Each structured_recommendation: { \"recommendation_type\": \"bid_adjust|waste_flag|opportunity_flag|keyword_pause|copy_suggestion|budget_adjust\", \"risk_level\": \"green|yellow|red\", \"expected_impact\": \"...\", \"reason\": \"...\", \"related_campaign_id\": <number|null>, \"related_ad_group_id\": <number|null>, \"related_keyword_id\": <number|null> }",
+      "─── REQUIRED OUTPUT FORMAT (strict JSON) ───",
+      "",
+      "Respond with a single JSON object. No markdown fences, no commentary outside the JSON.",
+      "",
+      "{ \"summary\": \"<2-4 sentence executive summary with dollar figures>\",",
+      "  \"account_health_grade\": \"A|B|C|D|F\",",
+      "  \"estimated_monthly_waste\": <number in dollars>,",
+      "  \"findings\": [",
+      "    { \"severity\": \"info|warning|critical\",",
+      "      \"title\": \"<specific, not generic>\",",
+      "      \"detail\": \"<include dollar amounts, percentages, entity names>\",",
+      "      \"dollar_impact\": \"<estimated monthly $ impact>\" }",
+      "  ],",
+      "  \"suggestions\": [",
+      "    { \"action\": \"bid_adjust|pause_keyword|enable_keyword|update_copy|add_keyword|add_negative|budget_adjust|restructure|geo_adjust|schedule_adjust|match_type_change\",",
+      "      \"target\": \"<entity name>\",",
+      "      \"target_id\": \"<id from data>\",",
+      "      \"old_value\": \"<current>\",",
+      "      \"new_value\": \"<recommended>\",",
+      "      \"reason\": \"<why, with data>\",",
+      "      \"estimated_monthly_impact\": \"<dollar amount>\",",
+      "      \"priority\": \"P1_stop_bleeding|P2_protect_winners|P3_optimize|P4_expand\" }",
+      "  ],",
+      "  \"structured_recommendations\": [",
+      "    { \"recommendation_type\": \"bid_adjust|waste_flag|opportunity_flag|keyword_pause|copy_suggestion|budget_adjust|negative_add\",",
+      "      \"risk_level\": \"green|yellow|red\",",
+      "      \"expected_impact\": \"<specific dollar or percentage impact>\",",
+      "      \"reason\": \"<data-backed rationale>\",",
+      "      \"related_campaign_id\": <number|null>,",
+      "      \"related_ad_group_id\": <number|null>,",
+      "      \"related_keyword_id\": <number|null> }",
+      "  ],",
+      "  \"negative_keywords_to_add\": [\"<term1>\", \"<term2>\"],",
+      "  \"market_split\": { \"spokane\": { \"spend\": <$>, \"leads\": <n>, \"cpl\": <$>, \"grade\": \"A-F\" }, \"kootenai\": { \"spend\": <$>, \"leads\": <n>, \"cpl\": <$>, \"grade\": \"A-F\" } }",
+      "}",
+      "",
+      "Sort suggestions by estimated_monthly_impact descending (biggest dollar impact first).",
+      "Every finding and suggestion MUST include a dollar figure. No vague recommendations.",
     ].join("\n");
 
     if (reviewType === "copy") {
       analysisPrompt = [
-        "Review the following Google Ads keywords and search terms for Dominion Home Deals (cash home buyers in Spokane/CDA).",
-        "Analyze keyword selection quality, match type strategy, and suggest copy improvements for ad groups.",
+        "## COPY & KEYWORD AUDIT",
+        "",
+        "Conduct a deep audit of keyword selection and ad copy strategy for Dominion Home Deals.",
+        "",
+        "Evaluate against the cash home buyer keyword intelligence in your system prompt.",
+        "For each keyword, assess: intent match, match type appropriateness, and whether the keyword aligns with our target seller profiles.",
+        "",
+        "For search terms, identify:",
+        "- Terms that should become exact-match keywords (proven converters)",
+        "- Terms that should become negative keywords (waste signals)",
+        "- Intent gaps — high-intent searches we're NOT capturing",
+        "",
+        "For ad copy, evaluate against the Ad Copy Standards in your system prompt.",
         "",
         "Keywords:", JSON.stringify(adsContext.keywords, null, 2),
         "",
@@ -145,7 +191,21 @@ export async function POST(req: NextRequest) {
       ].join("\n");
     } else if (reviewType === "strategy") {
       analysisPrompt = [
-        "Provide a strategic review of our Google Ads performance for Dominion Home Deals.",
+        "## STRATEGIC ACCOUNT REVIEW",
+        "",
+        "Deliver a managing-partner-level strategic review of this Google Ads account.",
+        "",
+        "Apply the Strategic Decision Framework from your system prompt (Priority 1→4).",
+        "Grade account health A through F using the industry benchmarks provided.",
+        "Break down ALL analysis by market (Spokane vs Kootenai) — never combine them in your assessment.",
+        "",
+        "Specifically analyze:",
+        "1. **Waste audit:** Total estimated monthly waste. What percentage of spend is reaching non-sellers?",
+        "2. **Campaign structure:** Does the structure follow best practices for a two-market cash buyer? What needs restructuring?",
+        "3. **Budget allocation:** Is spend distributed optimally between markets? Is any campaign budget-constrained while another wastes?",
+        "4. **Competitive position:** Based on CTR and impression data, how are we positioned vs competitors in auction?",
+        "5. **Conversion quality:** Are the leads we're getting likely to be qualified sellers based on the search terms driving them?",
+        "6. **30-day action plan:** What are the exact 5 things to do in the next 30 days, ranked by dollar impact?",
         "",
         "Campaigns:", JSON.stringify(adsContext.campaigns, null, 2),
         "",
@@ -153,12 +213,27 @@ export async function POST(req: NextRequest) {
         "",
         "Search Terms:", JSON.stringify(adsContext.searchTerms, null, 2),
         "",
-        "Analyze: budget allocation, campaign structure, market coverage (Spokane vs Kootenai), keyword strategy, wasted spend.",
+        "Keywords:", JSON.stringify(adsContext.keywords, null, 2),
         jsonInstructions,
       ].join("\n");
     } else {
       analysisPrompt = [
-        "Analyze the following Google Ads performance data for Dominion Home Deals (last 7 days).",
+        "## PERFORMANCE REVIEW (Last 7 Days)",
+        "",
+        "Deliver a performance analysis as if presenting to the business owner in a weekly account review call.",
+        "",
+        "Use the industry benchmarks in your system prompt to grade every metric. Do not use generic Google Ads averages.",
+        "Break down performance by market (Spokane vs Kootenai).",
+        "Apply the Strategic Decision Framework: identify Priority 1 issues first (stop the bleeding), then P2-P4.",
+        "",
+        "Required analysis sections:",
+        "1. **Account health grade** (A-F) with 2-sentence justification",
+        "2. **Waste report:** Estimated dollars wasted this period on non-converting or off-target traffic",
+        "3. **Top performers:** Keywords/campaigns delivering leads at acceptable CPL — protect these",
+        "4. **Underperformers:** Keywords/campaigns with spend but no/poor conversion — specific action for each",
+        "5. **Search term audit:** Flag waste terms needing negatives, flag opportunity terms needing keyword coverage",
+        "6. **Market comparison:** Spokane vs Kootenai — which market is delivering better unit economics?",
+        "7. **Immediate actions:** Top 3-5 changes ranked by dollar impact that should happen THIS WEEK",
         "",
         "Campaigns:", JSON.stringify(adsContext.campaigns, null, 2),
         "",
@@ -167,8 +242,6 @@ export async function POST(req: NextRequest) {
         "Keywords:", JSON.stringify(adsContext.keywords.slice(0, 40), null, 2),
         "",
         "Search Terms:", JSON.stringify(adsContext.searchTerms, null, 2),
-        "",
-        "Identify: top performers, underperformers, wasted spend, optimization opportunities.",
         jsonInstructions,
       ].join("\n");
     }

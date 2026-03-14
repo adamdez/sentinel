@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server";
 import { createServerClient } from "@/lib/supabase";
-import { streamClaudeChat, buildAdsSystemPrompt, type ClaudeMessage } from "@/lib/claude-client";
+import { streamClaudeChat, type ClaudeMessage } from "@/lib/claude-client";
+import { loadAdsSystemPrompt } from "@/lib/ads/ads-system-prompt";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -78,7 +79,7 @@ export async function POST(req: NextRequest) {
   const totalImpressions = dailyMetrics.reduce((s: number, r: Record<string, unknown>) => s + Number(r.impressions ?? 0), 0);
   const totalConversions = dailyMetrics.reduce((s: number, r: Record<string, unknown>) => s + Number(r.conversions ?? 0), 0);
 
-  let systemPrompt = buildAdsSystemPrompt({
+  let systemPrompt = await loadAdsSystemPrompt({
     totalSpend,
     totalConversions,
     avgCpc: totalClicks > 0 ? totalSpend / totalClicks : 0,

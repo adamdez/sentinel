@@ -7,7 +7,8 @@ import {
   fetchKeywordPerformance,
 } from "@/lib/google-ads";
 import { runNormalizedSync } from "@/lib/ads/sync";
-import { analyzeWithClaude, buildAdsSystemPrompt } from "@/lib/claude-client";
+import { analyzeWithClaude } from "@/lib/claude-client";
+import { loadAdsSystemPrompt } from "@/lib/ads/ads-system-prompt";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -104,7 +105,7 @@ export async function GET(req: NextRequest) {
       const totalImpressions = campaigns.reduce((s, c) => s + c.impressions, 0);
       const totalConversions = campaigns.reduce((s, c) => s + c.conversions, 0);
 
-      const systemPrompt = buildAdsSystemPrompt({
+      const systemPrompt = await loadAdsSystemPrompt({
         totalSpend,
         totalConversions,
         avgCpc: totalClicks > 0 ? totalSpend / totalClicks : 0,
