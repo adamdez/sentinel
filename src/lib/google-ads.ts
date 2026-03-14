@@ -334,8 +334,6 @@ export async function fetchKeywordPerformance(
       campaign.id,
       metrics.impressions,
       metrics.clicks,
-      metrics.ctr,
-      metrics.average_cpc,
       metrics.conversions,
       metrics.cost_micros
     FROM ad_group_criterion
@@ -362,8 +360,8 @@ export async function fetchKeywordPerformance(
       campaignId: String(r.campaign?.id ?? ""),
       impressions: Number(r.metrics?.impressions ?? 0),
       clicks: Number(r.metrics?.clicks ?? 0),
-      ctr: Number(r.metrics?.ctr ?? 0),
-      avgCpc: Number(r.metrics?.average_cpc ?? r.metrics?.averageCpc ?? 0) / 1_000_000,
+      ctr: (() => { const imp = Number(r.metrics?.impressions ?? 0); const cl = Number(r.metrics?.clicks ?? 0); return imp > 0 ? cl / imp : 0; })(),
+      avgCpc: (() => { const cl = Number(r.metrics?.clicks ?? 0); const cost = Number(r.metrics?.cost_micros ?? r.metrics?.costMicros ?? 0); return cl > 0 ? (cost / cl) / 1_000_000 : 0; })(),
       conversions: Number(r.metrics?.conversions ?? 0),
       cost: Number(r.metrics?.cost_micros ?? r.metrics?.costMicros ?? 0) / 1_000_000,
       qualityScore: null,
