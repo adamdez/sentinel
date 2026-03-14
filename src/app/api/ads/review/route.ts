@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@/lib/supabase";
-import { analyzeWithClaude } from "@/lib/claude-client";
+import { analyzeWithClaude, extractJsonObject } from "@/lib/claude-client";
 import { loadAdsSystemPrompt } from "@/lib/ads/ads-system-prompt";
 import { insertValidatedRecommendations } from "@/lib/ads/recommendations";
 import { runAdversarialReview } from "@/lib/ads/adversarial-review";
@@ -255,13 +255,13 @@ export async function POST(req: NextRequest) {
 
     // Parse Claude's JSON response
     let parsed: { summary: string; findings: unknown[]; suggestions: unknown[]; structured_recommendations?: unknown[] };
-    const jsonMatch = rawResponse.match(/\{[\s\S]*\}/);
-    if (!jsonMatch) {
+    const jsonStr = extractJsonObject(rawResponse);
+    if (!jsonStr) {
       console.error("[Ads/Review] Claude returned non-JSON output. First 500 chars:", rawResponse.slice(0, 500));
       return NextResponse.json({ error: "AI response could not be parsed. The model may have been truncated. Please try again." }, { status: 422 });
     }
     try {
-      parsed = JSON.parse(jsonMatch[0]);
+      parsed = JSON.parse(jsonStr);
     } catch (parseErr) {
       console.error("[Ads/Review] JSON.parse failed:", parseErr, "First 500 chars:", rawResponse.slice(0, 500));
       return NextResponse.json({ error: "AI response could not be parsed. The model may have been truncated. Please try again." }, { status: 422 });

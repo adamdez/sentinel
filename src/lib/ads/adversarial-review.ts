@@ -11,6 +11,7 @@
 
 import OpenAI from "openai";
 import { createServerClient } from "@/lib/supabase";
+import { extractJsonObject } from "@/lib/claude-client";
 
 const GPT_MODEL = "gpt-5.4-pro";
 
@@ -239,14 +240,14 @@ export async function runAdversarialReview(opts: {
 
     const text = response.choices[0]?.message?.content ?? "";
 
-    // Parse the JSON response
-    const jsonMatch = text.match(/\{[\s\S]*\}/);
-    if (!jsonMatch) {
+    // Parse the JSON response — use balanced extractor, not greedy regex
+    const jsonStr = extractJsonObject(text);
+    if (!jsonStr) {
       console.error("[Adversarial] No JSON found in GPT response");
       return null;
     }
 
-    const parsed = JSON.parse(jsonMatch[0]);
+    const parsed = JSON.parse(jsonStr);
 
     return {
       verdict: parsed.verdict ?? "insufficient_evidence",

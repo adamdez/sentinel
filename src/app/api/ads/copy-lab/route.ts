@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@/lib/supabase";
-import { analyzeWithClaude } from "@/lib/claude-client";
+import { analyzeWithClaude, extractJsonObject } from "@/lib/claude-client";
 import { loadAdsSystemPrompt } from "@/lib/ads/ads-system-prompt";
 import { runAdversarialReview } from "@/lib/ads/adversarial-review";
 
@@ -197,16 +197,55 @@ export async function POST(req: NextRequest) {
 
     // Parse response
     let parsed: { intent_clusters: unknown[]; ad_families: unknown[] };
-    const jsonMatch = rawResponse.match(/\{[\s\S]*\}/);
-    if (!jsonMatch) {
+    const jsonStr = extractJsonObject(rawResponse);
+    if (!jsonStr) {
       console.error("[Ads/CopyLab] Claude returned non-JSON output. First 500 chars:", rawResponse.slice(0, 500));
       return NextResponse.json({ error: "AI response could not be parsed. The model may have been truncated. Please try again." }, { status: 422 });
     }
     try {
-      parsed = JSON.parse(jsonMatch[0]);
+      parsed = JSON.parse(jsonStr);
     } catch (parseErr) {
       console.error("[Ads/CopyLab] JSON.parse failed:", parseErr, "First 500 chars:", rawResponse.slice(0, 500));
       return NextResponse.json({ error: "AI response could not be parsed. The model may have been truncated. Please try again." }, { status: 422 });
+    }
+
+    // ── Ad copy character validation ────────────────────────────────
+    // Google Ads hard limits: headlines ≤ 30 chars, descriptions ≤ 90 chars.
+    // Claude is prompted to respect these but can still violate them.
+    // Truncate silently and surface violations in the response so the operator
+    // knows which lines were clipped.
+    const copyViolations: string[] = [];
+    for (const family of (parsed.ad_families ?? []) as Array<Record<string, unknown>>) {
+      const rsa = family.rsa as Record<string, string[]> | undefined;
+      if (rsa?.headlines) {
+        rsa.headlines = rsa.headlines.map((h: string, i: number) => {
+          if (h.length > 30) { copyViolations.push(`RSA headline ${i + 1} truncated (${h.length}→30): "${h}"`); return h.slice(0, 30); }
+          return h;
+        });
+      }
+      if (rsa?.descriptions) {
+        rsa.descriptions = rsa.descriptions.map((d: string, i: number) => {
+          if (d.length > 90) { copyViolations.push(`RSA description ${i + 1} truncated (${d.length}→90): "${d.slice(0, 40)}…"`); return d.slice(0, 90); }
+          return d;
+        });
+      }
+      for (const variant of (family.variants ?? []) as Array<Record<string, string[]>>) {
+        if (variant.headlines) {
+          variant.headlines = variant.headlines.map((h: string, i: number) => {
+            if (h.length > 30) { copyViolations.push(`Variant headline ${i + 1} truncated (${h.length}→30): "${h}"`); return h.slice(0, 30); }
+            return h;
+          });
+        }
+        if (variant.descriptions) {
+          variant.descriptions = variant.descriptions.map((d: string, i: number) => {
+            if (d.length > 90) { copyViolations.push(`Variant description ${i + 1} truncated (${d.length}→90): "${d.slice(0, 40)}…"`); return d.slice(0, 90); }
+            return d;
+          });
+        }
+      }
+    }
+    if (copyViolations.length > 0) {
+      console.warn("[Ads/CopyLab] Character limit violations corrected:", copyViolations);
     }
 
     // ── Adversarial review (GPT-5.4 Pro challenges the ad concepts) ─
@@ -230,6 +269,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({
       ok: true,
       generated: parsed,
+      ...(copyViolations.length > 0 && { copyViolations }),
       adversarial: adversarialResult ? {
         verdict: adversarialResult.verdict,
         grade: adversarialResult.adversarialGrade,

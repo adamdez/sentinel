@@ -14,7 +14,35 @@ export interface ClaudeMessage {
   content: string;
 }
 
+// ── Balanced JSON extraction ─────────────────────────────────────────
+// Greedy regex (/\{[\s\S]*\}/) captures first '{' to LAST '}', which includes
+// trailing text or extra objects. This depth-counter stops at the matching '}'.
+
+export function extractJsonObject(text: string): string | null {
+  const start = text.indexOf("{");
+  if (start === -1) return null;
+  let depth = 0;
+  let inString = false;
+  let escape = false;
+  for (let i = start; i < text.length; i++) {
+    const ch = text[i];
+    if (escape) { escape = false; continue; }
+    if (ch === "\\" && inString) { escape = true; continue; }
+    if (ch === '"') { inString = !inString; continue; }
+    if (inString) continue;
+    if (ch === "{") depth++;
+    else if (ch === "}") {
+      depth--;
+      if (depth === 0) return text.slice(start, i + 1);
+    }
+  }
+  return null; // Unbalanced — likely truncated
+}
+
 // ── Streaming Chat ──────────────────────────────────────────────────
+
+// ~4 chars per token; 200K token context, keep 10K buffer for system + response
+const CHAT_CHAR_LIMIT = 190_000 * 4;
 
 export async function streamClaudeChat(opts: {
   messages: ClaudeMessage[];
@@ -26,12 +54,20 @@ export async function streamClaudeChat(opts: {
 
   const client = new Anthropic({ apiKey });
 
+  // Trim from oldest messages if the conversation is approaching the context limit
+  let trimmed = messages.slice(-20);
+  while (trimmed.length > 1) {
+    const totalChars = trimmed.reduce((s, m) => s + m.content.length, 0) + systemPrompt.length;
+    if (totalChars <= CHAT_CHAR_LIMIT) break;
+    trimmed = trimmed.slice(1); // Drop oldest message
+  }
+
   const stream = await client.messages.stream({
     model: CLAUDE_MODEL,
     max_tokens: 4096,
     temperature,
     system: systemPrompt,
-    messages: messages.slice(-20),
+    messages: trimmed,
   });
 
   const encoder = new TextEncoder();
@@ -79,6 +115,13 @@ export async function analyzeWithClaude(opts: {
     system: systemPrompt,
     messages: [{ role: "user", content: prompt }],
   });
+
+  if (response.stop_reason === "max_tokens") {
+    throw new Error(
+      "TRUNCATED: Claude response hit the max_tokens limit and was cut off. " +
+      "The JSON output is incomplete. Increase maxTokens or reduce the prompt size."
+    );
+  }
 
   const textBlock = response.content.find((b) => b.type === "text");
   return textBlock?.text ?? "";

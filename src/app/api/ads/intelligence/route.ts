@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@/lib/supabase";
-import { analyzeWithClaude } from "@/lib/claude-client";
+import { analyzeWithClaude, extractJsonObject } from "@/lib/claude-client";
 import { loadAdsSystemPrompt } from "@/lib/ads/ads-system-prompt";
 import { runAdversarialReview } from "@/lib/ads/adversarial-review";
 
@@ -188,13 +188,13 @@ ${rawDataContext}`;
 
     // Parse Opus response
     let parsed: Record<string, unknown>;
-    const jsonMatch = rawResponse.match(/\{[\s\S]*\}/);
-    if (!jsonMatch) {
+    const jsonStr = extractJsonObject(rawResponse);
+    if (!jsonStr) {
       console.error("[Intelligence] Claude returned non-JSON output. First 500 chars:", rawResponse.slice(0, 500));
       return NextResponse.json({ error: "AI response could not be parsed. The model may have been truncated. Please try again." }, { status: 422 });
     }
     try {
-      parsed = JSON.parse(jsonMatch[0]);
+      parsed = JSON.parse(jsonStr);
     } catch (parseErr) {
       console.error("[Intelligence] JSON.parse failed:", parseErr, "First 500 chars:", rawResponse.slice(0, 500));
       return NextResponse.json({ error: "AI response could not be parsed. The model may have been truncated. Please try again." }, { status: 422 });
