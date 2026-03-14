@@ -17,6 +17,9 @@ export async function upsertCampaign(
     market: AdsMarket;
     status: string;
     campaign_type?: string | null;
+    search_impression_share?: number | null;
+    search_top_impression_pct?: number | null;
+    search_abs_top_impression_pct?: number | null;
   },
 ): Promise<number> {
   const { data: row, error } = await supabase

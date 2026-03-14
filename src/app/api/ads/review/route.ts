@@ -42,14 +42,14 @@ export async function POST(req: NextRequest) {
 
   try {
     // ── Fetch from normalized ads_* tables (populated by sync) ──────
-    const sevenDaysAgo = new Date(Date.now() - 7 * 86400000).toISOString().split("T")[0];
+    const thirtyDaysAgo = new Date(Date.now() - 30 * 86400000).toISOString().split("T")[0];
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const [campaignsRes, keywordsRes, searchTermsRes, metricsRes] = await Promise.all([
       (sb.from("ads_campaigns") as any).select("*"),
       (sb.from("ads_keywords") as any).select("*, ads_ad_groups(name, campaign_id, ads_campaigns(name, market))"),
       (sb.from("ads_search_terms") as any).select("*").order("clicks", { ascending: false }).limit(100),
-      (sb.from("ads_daily_metrics") as any).select("*, ads_campaigns(name, market)").gte("report_date", sevenDaysAgo),
+      (sb.from("ads_daily_metrics") as any).select("*, ads_campaigns(name, market)").gte("report_date", thirtyDaysAgo),
     ]);
 
     const campaigns = campaignsRes.data ?? [];
@@ -87,7 +87,7 @@ export async function POST(req: NextRequest) {
         market: c.market,
         status: c.status,
       })),
-      keywords: keywords.slice(0, 80).map((k: Record<string, unknown>) => {
+      keywords: keywords.slice(0, 200).map((k: Record<string, unknown>) => {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const ag = k.ads_ad_groups as any;
         return {
@@ -100,7 +100,7 @@ export async function POST(req: NextRequest) {
           market: ag?.ads_campaigns?.market ?? null,
         };
       }),
-      searchTerms: searchTerms.slice(0, 50).map((st: Record<string, unknown>) => ({
+      searchTerms: searchTerms.slice(0, 100).map((st: Record<string, unknown>) => ({
         term: st.search_term,
         impressions: st.impressions,
         clicks: st.clicks,
@@ -210,7 +210,7 @@ export async function POST(req: NextRequest) {
         "",
         "Campaigns:", JSON.stringify(adsContext.campaigns, null, 2),
         "",
-        "Daily Metrics (last 7 days):", JSON.stringify(adsContext.dailyMetrics, null, 2),
+        "Daily Metrics (last 30 days):", JSON.stringify(adsContext.dailyMetrics, null, 2),
         "",
         "Search Terms:", JSON.stringify(adsContext.searchTerms, null, 2),
         "",
@@ -219,7 +219,7 @@ export async function POST(req: NextRequest) {
       ].join("\n");
     } else {
       analysisPrompt = [
-        "## PERFORMANCE REVIEW (Last 7 Days)",
+        "## PERFORMANCE REVIEW (Last 30 Days)",
         "",
         "Deliver a performance analysis as if presenting to the business owner in a weekly account review call.",
         "",

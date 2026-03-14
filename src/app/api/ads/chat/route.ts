@@ -53,14 +53,14 @@ export async function POST(req: NextRequest) {
   }
 
   // ── Fetch context from normalized ads_* tables ──────────────────
-  const sevenDaysAgo = new Date(Date.now() - 7 * 86400000).toISOString().split("T")[0];
+  const thirtyDaysAgo = new Date(Date.now() - 30 * 86400000).toISOString().split("T")[0];
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [campaignsRes, metricsRes, searchTermsRes] = await Promise.all([
     (sb.from("ads_campaigns") as any).select("id, name, market, status"),
     (sb.from("ads_daily_metrics") as any)
       .select("campaign_id, impressions, clicks, cost_micros, conversions, report_date, ads_campaigns(name, market)")
-      .gte("report_date", sevenDaysAgo)
+      .gte("report_date", thirtyDaysAgo)
       .order("report_date", { ascending: false })
       .limit(50),
     (sb.from("ads_search_terms") as any)
@@ -102,7 +102,7 @@ export async function POST(req: NextRequest) {
         conversions: m.conversions,
       };
     });
-    systemPrompt += "\n\n## Recent Campaign Data (last 7 days)\n```json\n" +
+    systemPrompt += "\n\n## Recent Campaign Data (last 30 days)\n```json\n" +
       JSON.stringify(metricsContext, null, 2) +
       "\n```";
   }

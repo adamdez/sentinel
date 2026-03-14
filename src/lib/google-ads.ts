@@ -26,6 +26,9 @@ export interface CampaignMetrics {
   conversions: number;
   cost: number;
   roas: number | null;
+  searchImpressionShare: number | null;
+  searchTopImpressionPct: number | null;
+  searchAbsTopImpressionPct: number | null;
 }
 
 export interface AdGroupMetrics {
@@ -186,7 +189,10 @@ export async function fetchCampaignPerformance(
       metrics.average_cpc,
       metrics.conversions,
       metrics.cost_micros,
-      metrics.conversions_value
+      metrics.conversions_value,
+      metrics.search_impression_share,
+      metrics.search_top_impression_percentage,
+      metrics.search_absolute_top_impression_percentage
     FROM campaign
     WHERE segments.date BETWEEN '${startDate}' AND '${endDate}'
       AND campaign.status != 'REMOVED'
@@ -210,6 +216,9 @@ export async function fetchCampaignPerformance(
       conversions: Number(r.metrics?.conversions ?? 0),
       cost: costMicros / 1_000_000,
       roas: costMicros > 0 ? convValue / (costMicros / 1_000_000) : null,
+      searchImpressionShare: r.metrics?.search_impression_share != null ? Number(r.metrics.search_impression_share) : null,
+      searchTopImpressionPct: r.metrics?.search_top_impression_percentage != null ? Number(r.metrics.search_top_impression_percentage) : null,
+      searchAbsTopImpressionPct: r.metrics?.search_absolute_top_impression_percentage != null ? Number(r.metrics.search_absolute_top_impression_percentage) : null,
     };
   });
 }
@@ -371,6 +380,50 @@ export async function fetchKeywordPerformance(
   });
 }
 
+// ── Keyword Criteria (text + match type) ────────────────────────────
+
+export interface KeywordCriterion {
+  criterionId: string;
+  keywordText: string;
+  matchType: string;
+  status: string;
+  adGroupId: string;
+  campaignId: string;
+}
+
+export async function fetchKeywordCriteria(
+  config: GoogleAdsConfig,
+): Promise<KeywordCriterion[]> {
+  const query = `
+    SELECT
+      ad_group_criterion.criterion_id,
+      ad_group_criterion.keyword.text,
+      ad_group_criterion.keyword.match_type,
+      ad_group_criterion.status,
+      ad_group.id,
+      campaign.id
+    FROM ad_group_criterion
+    WHERE ad_group_criterion.type = 'KEYWORD'
+      AND campaign.status != 'REMOVED'
+  `;
+
+  const rows = await gaqlQuery(config, query);
+
+  return rows.map((row: unknown) => {
+    const r = row as Record<string, Record<string, unknown>>;
+    const criterion = r.adGroupCriterion ?? r.ad_group_criterion ?? {};
+    const keyword = (criterion as Record<string, unknown>).keyword as Record<string, unknown> | undefined;
+    return {
+      criterionId: String((criterion as Record<string, unknown>).criterionId ?? (criterion as Record<string, unknown>).criterion_id ?? ""),
+      keywordText: String(keyword?.text ?? ""),
+      matchType: String(keyword?.matchType ?? keyword?.match_type ?? ""),
+      status: String((criterion as Record<string, unknown>).status ?? ""),
+      adGroupId: String(r.adGroup?.id ?? r.ad_group?.id ?? ""),
+      campaignId: String(r.campaign?.id ?? ""),
+    };
+  });
+}
+
 // ── Search Terms Report ─────────────────────────────────────────────
 
 export async function fetchSearchTerms(
@@ -393,7 +446,7 @@ export async function fetchSearchTerms(
     WHERE segments.date BETWEEN '${startDate}' AND '${endDate}'
       AND campaign.status != 'REMOVED'
     ORDER BY metrics.impressions DESC
-    LIMIT 200
+    LIMIT 500
   `;
 
   const rows = await gaqlQuery(config, query);

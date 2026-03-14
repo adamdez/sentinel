@@ -21,6 +21,8 @@ import {
   fetchCampaignPerformance,
   fetchAdGroupPerformance,
   fetchKeywordPerformance,
+  fetchKeywordCriteria,
+  fetchAdPerformance,
   fetchSearchTerms,
   fetchDailyMetrics,
 } from "@/lib/google-ads";
@@ -41,6 +43,8 @@ export interface SyncResult {
   campaigns: number;
   adGroups: number;
   keywords: number;
+  keywordCriteriaUpdated: number;
+  ads: number;
   searchTerms: number;
   dailyMetrics: number;
   durationMs: number;
@@ -79,6 +83,8 @@ export async function runNormalizedSync(
     campaigns: 0,
     adGroups: 0,
     keywords: 0,
+    keywordCriteriaUpdated: 0,
+    ads: 0,
     searchTerms: 0,
     dailyMetrics: 0,
     durationMs: 0,
@@ -98,6 +104,9 @@ export async function runNormalizedSync(
         market,
         status: c.status,
         campaign_type: null,
+        search_impression_share: c.searchImpressionShare,
+        search_top_impression_pct: c.searchTopImpressionPct,
+        search_abs_top_impression_pct: c.searchAbsTopImpressionPct,
       });
       campaignIdMap.set(c.campaignId, internalId);
       campaignMarketMap.set(c.campaignId, market);
@@ -149,6 +158,68 @@ export async function runNormalizedSync(
     }
     console.log(`[Ads/Sync] Stage 3: ${result.keywords} keywords`);
 
+    // ── Stage 3b: Keyword Criteria backfill (text + match_type) ────
+    try {
+      const criteria = await fetchKeywordCriteria(config);
+      for (const kc of criteria) {
+        // Only update keywords we already synced
+        const internalKeywordId = keywordIdMap.get(kc.criterionId);
+        if (internalKeywordId === undefined) continue;
+        if (!kc.keywordText) continue;
+
+        const { error: updateErr } = await supabase
+          .from("ads_keywords")
+          .update({
+            text: kc.keywordText,
+            match_type: kc.matchType,
+            status: kc.status || "ENABLED",
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", internalKeywordId);
+
+        if (!updateErr) result.keywordCriteriaUpdated++;
+      }
+      console.log(`[Ads/Sync] Stage 3b: ${result.keywordCriteriaUpdated} keywords updated with text/match_type`);
+    } catch (criteriaErr) {
+      console.error("[Ads/Sync] Stage 3b keyword criteria backfill failed (non-fatal):", criteriaErr);
+    }
+
+    // ── Stage 3c: Ad Copy ──────────────────────────────────────────
+    try {
+      const ads = await fetchAdPerformance(config, startDate, endDate);
+      for (const ad of ads) {
+        const internalCampaignId = campaignIdMap.get(ad.campaignId) ?? null;
+        const internalAdGroupId = adGroupIdMap.get(ad.adGroupId) ?? null;
+
+        const headlines = [ad.headline1, ad.headline2, ad.headline3].filter(Boolean);
+        const descriptions = [ad.description1, ad.description2].filter(Boolean);
+
+        const { error: adErr } = await supabase
+          .from("ads_ads")
+          .upsert(
+            {
+              google_ad_id: ad.adId,
+              ad_group_id: internalAdGroupId,
+              campaign_id: internalCampaignId,
+              headlines,
+              descriptions,
+              status: "ENABLED",
+              impressions: ad.impressions,
+              clicks: ad.clicks,
+              cost_micros: Math.round(ad.cost * 1_000_000),
+              conversions: ad.conversions,
+              updated_at: new Date().toISOString(),
+            },
+            { onConflict: "google_ad_id" },
+          );
+
+        if (!adErr) result.ads++;
+      }
+      console.log(`[Ads/Sync] Stage 3c: ${result.ads} ads synced`);
+    } catch (adErr) {
+      console.error("[Ads/Sync] Stage 3c ad copy sync failed (non-fatal):", adErr);
+    }
+
     // ── Stage 4: Search Terms ──────────────────────────────────────
     const searchTerms = await fetchSearchTerms(config, startDate, endDate);
     for (const st of searchTerms) {
@@ -199,7 +270,7 @@ export async function runNormalizedSync(
     // ── Done ───────────────────────────────────────────────────────
     result.durationMs = Date.now() - syncStart;
     const totalFetched = campaigns.length + adGroups.length + keywords.length + searchTerms.length + dailyRows.length;
-    const totalUpserted = result.campaigns + result.adGroups + result.keywords + result.searchTerms + result.dailyMetrics;
+    const totalUpserted = result.campaigns + result.adGroups + result.keywords + result.keywordCriteriaUpdated + result.ads + result.searchTerms + result.dailyMetrics;
 
     await completeSyncLog(supabase, syncLogId, {
       records_fetched: totalFetched,
