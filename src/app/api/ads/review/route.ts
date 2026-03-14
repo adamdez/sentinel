@@ -255,11 +255,16 @@ export async function POST(req: NextRequest) {
 
     // Parse Claude's JSON response
     let parsed: { summary: string; findings: unknown[]; suggestions: unknown[]; structured_recommendations?: unknown[] };
+    const jsonMatch = rawResponse.match(/\{[\s\S]*\}/);
+    if (!jsonMatch) {
+      console.error("[Ads/Review] Claude returned non-JSON output. First 500 chars:", rawResponse.slice(0, 500));
+      return NextResponse.json({ error: "AI response could not be parsed. The model may have been truncated. Please try again." }, { status: 422 });
+    }
     try {
-      const jsonMatch = rawResponse.match(/\{[\s\S]*\}/);
-      parsed = jsonMatch ? JSON.parse(jsonMatch[0]) : { summary: rawResponse, findings: [], suggestions: [], structured_recommendations: [] };
-    } catch {
-      parsed = { summary: rawResponse, findings: [], suggestions: [], structured_recommendations: [] };
+      parsed = JSON.parse(jsonMatch[0]);
+    } catch (parseErr) {
+      console.error("[Ads/Review] JSON.parse failed:", parseErr, "First 500 chars:", rawResponse.slice(0, 500));
+      return NextResponse.json({ error: "AI response could not be parsed. The model may have been truncated. Please try again." }, { status: 422 });
     }
 
     // ── Adversarial review (GPT-5.4 Pro challenges Opus 4.6) ──────────
@@ -269,7 +274,7 @@ export async function POST(req: NextRequest) {
       try {
         adversarialResult = await runAdversarialReview({
           rawData: analysisPrompt,
-          primaryAnalysis: rawResponse,
+          primaryAnalysis: JSON.stringify(parsed, null, 2),
           openaiKey,
         });
         if (adversarialResult) {

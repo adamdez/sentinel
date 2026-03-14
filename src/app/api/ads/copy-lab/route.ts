@@ -197,13 +197,16 @@ export async function POST(req: NextRequest) {
 
     // Parse response
     let parsed: { intent_clusters: unknown[]; ad_families: unknown[] };
+    const jsonMatch = rawResponse.match(/\{[\s\S]*\}/);
+    if (!jsonMatch) {
+      console.error("[Ads/CopyLab] Claude returned non-JSON output. First 500 chars:", rawResponse.slice(0, 500));
+      return NextResponse.json({ error: "AI response could not be parsed. The model may have been truncated. Please try again." }, { status: 422 });
+    }
     try {
-      const jsonMatch = rawResponse.match(/\{[\s\S]*\}/);
-      parsed = jsonMatch
-        ? JSON.parse(jsonMatch[0])
-        : { intent_clusters: [], ad_families: [] };
-    } catch {
-      parsed = { intent_clusters: [], ad_families: [] };
+      parsed = JSON.parse(jsonMatch[0]);
+    } catch (parseErr) {
+      console.error("[Ads/CopyLab] JSON.parse failed:", parseErr, "First 500 chars:", rawResponse.slice(0, 500));
+      return NextResponse.json({ error: "AI response could not be parsed. The model may have been truncated. Please try again." }, { status: 422 });
     }
 
     // ── Adversarial review (GPT-5.4 Pro challenges the ad concepts) ─
@@ -213,7 +216,7 @@ export async function POST(req: NextRequest) {
       try {
         adversarialResult = await runAdversarialReview({
           rawData: generationPrompt,
-          primaryAnalysis: rawResponse,
+          primaryAnalysis: JSON.stringify(parsed, null, 2),
           openaiKey,
         });
         if (adversarialResult) {

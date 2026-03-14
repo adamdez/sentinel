@@ -188,11 +188,16 @@ ${rawDataContext}`;
 
     // Parse Opus response
     let parsed: Record<string, unknown>;
+    const jsonMatch = rawResponse.match(/\{[\s\S]*\}/);
+    if (!jsonMatch) {
+      console.error("[Intelligence] Claude returned non-JSON output. First 500 chars:", rawResponse.slice(0, 500));
+      return NextResponse.json({ error: "AI response could not be parsed. The model may have been truncated. Please try again." }, { status: 422 });
+    }
     try {
-      const jsonMatch = rawResponse.match(/\{[\s\S]*\}/);
-      parsed = jsonMatch ? JSON.parse(jsonMatch[0]) : { data_points: [], executive_summary: rawResponse };
-    } catch {
-      parsed = { data_points: [], executive_summary: rawResponse };
+      parsed = JSON.parse(jsonMatch[0]);
+    } catch (parseErr) {
+      console.error("[Intelligence] JSON.parse failed:", parseErr, "First 500 chars:", rawResponse.slice(0, 500));
+      return NextResponse.json({ error: "AI response could not be parsed. The model may have been truncated. Please try again." }, { status: 422 });
     }
 
     // ── Adversarial challenge (GPT-5.4 Pro) ─────────────────────────
@@ -201,7 +206,7 @@ ${rawDataContext}`;
       try {
         adversarialResult = await runAdversarialReview({
           rawData: rawDataContext,
-          primaryAnalysis: rawResponse,
+          primaryAnalysis: JSON.stringify(parsed, null, 2),
           openaiKey,
         });
       } catch (advErr) {
