@@ -146,10 +146,11 @@ export async function POST(req: NextRequest) {
         Connection: "keep-alive",
       },
     });
-  } catch (err) {
-    console.error("[Ads/Chat]", err);
+  } catch (err: unknown) {
+    const errMsg = err instanceof Error ? err.message : String(err);
+    console.error("[Ads/Chat] Stream creation failed:", errMsg, err);
     return new Response(
-      JSON.stringify({ error: "Internal server error" }),
+      JSON.stringify({ error: `Chat failed: ${errMsg}` }),
       { status: 500, headers: { "Content-Type": "application/json" } },
     );
   }

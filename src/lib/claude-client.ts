@@ -7,7 +7,7 @@
 
 import Anthropic from "@anthropic-ai/sdk";
 
-const CLAUDE_MODEL = "claude-opus-4-0-20250514";
+const CLAUDE_MODEL = "claude-opus-4-6";
 
 export interface ClaudeMessage {
   role: "user" | "assistant";
