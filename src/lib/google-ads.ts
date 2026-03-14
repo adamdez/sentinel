@@ -5,7 +5,7 @@
  * and mutation operations (bid adjust, pause, copy updates).
  */
 
-const GOOGLE_ADS_API = "https://googleads.googleapis.com/v18";
+const GOOGLE_ADS_API = "https://googleads.googleapis.com/v23";
 
 // ── Types ───────────────────────────────────────────────────────────
 
