@@ -225,32 +225,35 @@ function DashboardTab() {
 
   const loadData = useCallback(async () => {
     setLoading(true);
-    const sinceDate = new Date(Date.now() - METRICS_DAYS * 24 * 60 * 60 * 1000)
-      .toISOString()
-      .slice(0, 10); // YYYY-MM-DD
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const [metricsRes, campaignsRes, syncRes] = await Promise.all([
-      (supabase.from("ads_daily_metrics") as any)
-        .select("id, report_date, campaign_id, market, impressions, clicks, cost_micros, conversions")
-        .gte("report_date", sinceDate)
-        .order("report_date", { ascending: false })
-        .limit(METRICS_ROW_CAP),
-      (supabase.from("ads_campaigns") as any)
-        .select("id, name, market, status")
-        .neq("status", "REMOVED"),
-      (supabase.from("ads_sync_logs") as any)
-        .select("completed_at")
-        .eq("status", "completed")
-        .order("completed_at", { ascending: false })
-        .limit(1)
-        .maybeSingle(),
-    ]);
-    const metricsData = metricsRes.data ?? [];
-    setMetrics(metricsData);
-    setTruncated(metricsData.length >= METRICS_ROW_CAP);
-    setCampaigns(campaignsRes.data ?? []);
-    setLastSyncAt(syncRes.data?.completed_at ?? null);
-    setLoading(false);
+    try {
+      const sinceDate = new Date(Date.now() - METRICS_DAYS * 24 * 60 * 60 * 1000)
+        .toISOString()
+        .slice(0, 10); // YYYY-MM-DD
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const [metricsRes, campaignsRes, syncRes] = await Promise.all([
+        (supabase.from("ads_daily_metrics") as any)
+          .select("id, report_date, campaign_id, market, impressions, clicks, cost_micros, conversions")
+          .gte("report_date", sinceDate)
+          .order("report_date", { ascending: false })
+          .limit(METRICS_ROW_CAP),
+        (supabase.from("ads_campaigns") as any)
+          .select("id, name, market, status")
+          .neq("status", "REMOVED"),
+        (supabase.from("ads_sync_logs") as any)
+          .select("completed_at")
+          .eq("status", "completed")
+          .order("completed_at", { ascending: false })
+          .limit(1)
+          .maybeSingle(),
+      ]);
+      const metricsData = metricsRes.data ?? [];
+      setMetrics(metricsData);
+      setTruncated(metricsData.length >= METRICS_ROW_CAP);
+      setCampaigns(campaignsRes.data ?? []);
+      setLastSyncAt(syncRes.data?.completed_at ?? null);
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
   useEffect(() => { loadData(); }, [loadData]);
@@ -259,10 +262,14 @@ function DashboardTab() {
     setSyncing(true);
     try {
       const headers = await getAuthHeaders();
-      await fetch("/api/ads/sync", {
+      const res = await fetch("/api/ads/sync", {
         method: "POST",
         headers: { ...headers, "Content-Type": "application/json" },
       });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        console.error("Sync failed:", body.error ?? res.status);
+      }
       await loadData();
     } catch (err) {
       console.error("Sync failed:", err);
@@ -502,21 +509,24 @@ function ReviewTab() {
 
   const loadData = useCallback(async () => {
     setLoading(true);
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const [{ data: revs }, { data: acts }] = await Promise.all([
-      (supabase.from("ad_reviews") as any)
-        .select("*")
-        .order("created_at", { ascending: false })
-        .limit(20),
-      (supabase.from("ad_actions") as any)
-        .select("*, ad_reviews(review_type, summary)")
-        .eq("status", "suggested")
-        .order("created_at", { ascending: false })
-        .limit(50),
-    ]);
-    setReviews(revs ?? []);
-    setActions(acts ?? []);
-    setLoading(false);
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const [{ data: revs }, { data: acts }] = await Promise.all([
+        (supabase.from("ad_reviews") as any)
+          .select("*")
+          .order("created_at", { ascending: false })
+          .limit(20),
+        (supabase.from("ad_actions") as any)
+          .select("*, ad_reviews(review_type, summary)")
+          .eq("status", "suggested")
+          .order("created_at", { ascending: false })
+          .limit(50),
+      ]);
+      setReviews(revs ?? []);
+      setActions(acts ?? []);
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
   useEffect(() => { loadData(); }, [loadData]);
@@ -1150,10 +1160,11 @@ function CopyLabTab() {
         setError(data.error ?? "Generation failed");
       } else {
         setResult(data);
-        // Auto-expand all families
+        // Auto-expand all families; reset any stale variant expansions from a previous run
         const allFamilies = new Set<number>();
         (data.generated?.ad_families ?? []).forEach((_: unknown, i: number) => allFamilies.add(i));
         setExpandedFamilies(allFamilies);
+        setExpandedVariants(new Set());
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Generation failed");
@@ -1609,15 +1620,18 @@ function LandingTab() {
 
   useEffect(() => {
     (async () => {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { data } = await (supabase.from("ad_reviews") as any)
-        .select("*")
-        .eq("review_type", "landing_page")
-        .order("created_at", { ascending: false })
-        .limit(1)
-        .single();
-      setReview(data ?? null);
-      setLoading(false);
+      try {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const { data } = await (supabase.from("ad_reviews") as any)
+          .select("*")
+          .eq("review_type", "landing_page")
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        setReview(data ?? null);
+      } finally {
+        setLoading(false);
+      }
     })();
   }, []);
 
@@ -1798,45 +1812,56 @@ function ChatTab() {
       let buffer = "";
       let accumulated = "";
 
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
+      try {
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
 
-        buffer += decoder.decode(value, { stream: true });
-        const lines = buffer.split("\n");
-        buffer = lines.pop() ?? "";
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split("\n");
+          buffer = lines.pop() ?? "";
 
-        for (const line of lines) {
-          if (!line.startsWith("data: ")) continue;
-          const payload = line.slice(6).trim();
-          if (payload === "[DONE]") continue;
+          for (const line of lines) {
+            if (!line.startsWith("data: ")) continue;
+            const payload = line.slice(6).trim();
+            if (payload === "[DONE]") continue;
 
-          try {
-            const parsed = JSON.parse(payload);
-            const delta = parsed.choices?.[0]?.delta?.content;
-            if (delta) {
-              accumulated += delta;
-              setMessages((prev) => {
-                const copy = [...prev];
-                copy[copy.length - 1] = { ...copy[copy.length - 1], content: accumulated };
-                return copy;
-              });
-            }
-          } catch { /* skip malformed */ }
+            try {
+              const parsed = JSON.parse(payload);
+              const delta = parsed.choices?.[0]?.delta?.content;
+              if (delta) {
+                accumulated += delta;
+                setMessages((prev) => {
+                  const copy = [...prev];
+                  copy[copy.length - 1] = { ...copy[copy.length - 1], content: accumulated };
+                  return copy;
+                });
+              }
+            } catch { /* skip malformed frame */ }
+          }
         }
+      } catch (streamErr) {
+        console.error("[Ads/Chat] Stream read error:", streamErr);
+        // Re-throw so the outer catch can set the error UI
+        throw streamErr;
       }
 
+      // Commit final state and persist — avoid side-effects inside setState
       setMessages((prev) => {
-        saveChatHistory(prev);
-        return prev;
+        const copy = [...prev];
+        copy[copy.length - 1] = { ...copy[copy.length - 1], content: accumulated };
+        return copy;
       });
+      saveChatHistory([...messages, userMsg, { ...assistantMsg, content: accumulated }]);
     } catch (err) {
       console.error("[Ads/Chat]", err);
       setMessages((prev) => {
         const copy = [...prev];
+        const last = copy[copy.length - 1];
+        // Preserve any partial content already streamed; only show error if nothing received
         copy[copy.length - 1] = {
-          ...copy[copy.length - 1],
-          content: "Sorry, something went wrong. Please try again.",
+          ...last,
+          content: last.content || "Sorry, something went wrong. Please try again.",
         };
         return copy;
       });

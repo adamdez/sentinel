@@ -123,11 +123,19 @@ async function gaqlQuery(config: GoogleAdsConfig, query: string): Promise<unknow
     headers["login-customer-id"] = loginCustomerId;
   }
 
-  const res = await fetch(url, {
-    method: "POST",
-    headers,
-    body: JSON.stringify({ query }),
-  });
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 45_000);
+  let res: Response;
+  try {
+    res = await fetch(url, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ query }),
+      signal: controller.signal,
+    });
+  } finally {
+    clearTimeout(timeoutId);
+  }
 
   if (!res.ok) {
     const errBody = await res.text().catch(() => "");
@@ -151,16 +159,24 @@ export async function refreshAccessToken(refreshToken: string): Promise<string> 
   const clientId = process.env.GOOGLE_ADS_CLIENT_ID!;
   const clientSecret = process.env.GOOGLE_ADS_CLIENT_SECRET!;
 
-  const res = await fetch("https://oauth2.googleapis.com/token", {
-    method: "POST",
-    headers: { "Content-Type": "application/x-www-form-urlencoded" },
-    body: new URLSearchParams({
-      client_id: clientId,
-      client_secret: clientSecret,
-      refresh_token: refreshToken,
-      grant_type: "refresh_token",
-    }),
-  });
+  const tokenController = new AbortController();
+  const tokenTimeout = setTimeout(() => tokenController.abort(), 15_000);
+  let res: Response;
+  try {
+    res = await fetch("https://oauth2.googleapis.com/token", {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({
+        client_id: clientId,
+        client_secret: clientSecret,
+        refresh_token: refreshToken,
+        grant_type: "refresh_token",
+      }),
+      signal: tokenController.signal,
+    });
+  } finally {
+    clearTimeout(tokenTimeout);
+  }
 
   if (!res.ok) {
     const body = await res.text().catch(() => "");
