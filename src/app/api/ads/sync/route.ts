@@ -65,6 +65,7 @@ export async function POST(req: NextRequest) {
       ok: true,
       synced: result,
       dateRange: { startDate, endDate },
+      ...(result.stageErrors.length > 0 && { warnings: result.stageErrors }),
     });
   } catch (err) {
     console.error("[Ads/Sync]", err);

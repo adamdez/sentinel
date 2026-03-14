@@ -33,17 +33,24 @@ export async function completeSyncLog(
     records_fetched: number;
     records_upserted: number;
     duration_ms: number;
+    stage_errors?: string[];
   },
 ): Promise<void> {
+  const updatePayload: Record<string, unknown> = {
+    status: "completed",
+    records_fetched: result.records_fetched,
+    records_upserted: result.records_upserted,
+    duration_ms: result.duration_ms,
+    completed_at: new Date().toISOString(),
+  };
+
+  if (result.stage_errors && result.stage_errors.length > 0) {
+    updatePayload.error_message = result.stage_errors.join(" | ").slice(0, 1000);
+  }
+
   const { error } = await supabase
     .from("ads_sync_logs")
-    .update({
-      status: "completed",
-      records_fetched: result.records_fetched,
-      records_upserted: result.records_upserted,
-      duration_ms: result.duration_ms,
-      completed_at: new Date().toISOString(),
-    })
+    .update(updatePayload)
     .eq("id", logId);
   if (error) throw new Error(`completeSyncLog failed: ${error.message}`);
 }

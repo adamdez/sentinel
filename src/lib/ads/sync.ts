@@ -48,6 +48,7 @@ export interface SyncResult {
   searchTerms: number;
   dailyMetrics: number;
   durationMs: number;
+  stageErrors: string[];
 }
 
 /**
@@ -88,6 +89,7 @@ export async function runNormalizedSync(
     searchTerms: 0,
     dailyMetrics: 0,
     durationMs: 0,
+    stageErrors: [],
   };
 
   try {
@@ -181,7 +183,9 @@ export async function runNormalizedSync(
       }
       console.log(`[Ads/Sync] Stage 3b: ${result.keywordCriteriaUpdated} keywords updated with text/match_type`);
     } catch (criteriaErr) {
+      const msg = criteriaErr instanceof Error ? criteriaErr.message : String(criteriaErr);
       console.error("[Ads/Sync] Stage 3b keyword criteria backfill failed (non-fatal):", criteriaErr);
+      result.stageErrors.push(`Stage 3b (keyword criteria): ${msg}`);
     }
 
     // ── Stage 3c: Ad Copy ──────────────────────────────────────────
@@ -217,7 +221,9 @@ export async function runNormalizedSync(
       }
       console.log(`[Ads/Sync] Stage 3c: ${result.ads} ads synced`);
     } catch (adErr) {
+      const msg = adErr instanceof Error ? adErr.message : String(adErr);
       console.error("[Ads/Sync] Stage 3c ad copy sync failed (non-fatal):", adErr);
+      result.stageErrors.push(`Stage 3c (ad copy): ${msg}`);
     }
 
     // ── Stage 4: Search Terms ──────────────────────────────────────
@@ -276,6 +282,7 @@ export async function runNormalizedSync(
       records_fetched: totalFetched,
       records_upserted: totalUpserted,
       duration_ms: result.durationMs,
+      stage_errors: result.stageErrors.length > 0 ? result.stageErrors : undefined,
     });
 
     // ── Post-sync: resolve pending attribution records ──────────────
