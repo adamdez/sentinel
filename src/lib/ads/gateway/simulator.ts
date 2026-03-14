@@ -92,13 +92,16 @@ export async function simulateImplementation(
 
     // 5. Mock Logging (The Simulation Record)
     // We log success/failure to the implementation ledger with clear MOCK branding.
+    // Column mapping matches live ads_implementation_logs schema:
+    //   implemented_by (NOT NULL), action_taken (NOT NULL), implemented_at (NOT NULL)
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { error: logErr } = await (sb.from("ads_implementation_logs") as any).insert({
       recommendation_id: recommendationId,
-      operator_id: operatorId,
-      status: "MOCK_SUCCESS",
-      details: "SIMULATION / DRY-RUN. No changes made to Google Ads.",
-      attempted_at: new Date().toISOString()
+      implemented_by: operatorId,
+      action_taken: "SIMULATION / DRY-RUN",
+      result: "MOCK_SUCCESS",
+      notes: "Dry-run only. No changes made to Google Ads.",
+      implemented_at: new Date().toISOString()
     });
 
     if (logErr) {

@@ -120,12 +120,16 @@ export async function PATCH(req: NextRequest) {
   const sevenDaysAgo = new Date();
   sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
 
+  // Map decision to valid ads_recommendation_status enum values.
+  // 'rejected' is not in the enum; use 'ignored' instead.
+  const recStatus = decision === "rejected" ? "ignored" : decision;
+
   // 1. Opportunistic Atomic Guard
   // The query MUST match 'status = pending' AND freshness bounds.
   // If another operator already clicked it, or it expired, this affects 0 rows.
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data: updatedRec, error: updateErr } = await (sb.from("ads_recommendations") as any)
-    .update({ status: decision })
+    .update({ status: recStatus })
     .match({ id: recommendationId, status: "pending" })
     .gte("created_at", sevenDaysAgo.toISOString())
     .select("id")
@@ -150,7 +154,8 @@ export async function PATCH(req: NextRequest) {
     .insert({
       recommendation_id: recommendationId,
       decided_by: user.id, // Authenticated server-side identity
-      decision: decision
+      decision: decision,
+      decided_at: new Date().toISOString()
     });
 
   if (ledgerErr) {

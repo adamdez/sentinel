@@ -164,14 +164,14 @@ export async function PATCH(req: NextRequest) {
     const errMsg = err instanceof Error ? err.message : "Apply failed";
     console.error("[Ads/Actions] Apply error:", errMsg);
 
-    // Mark as apply_failed — NOT approved. Returning ok:true here was a lie.
+    // Mark as rejected — apply_failed is not a valid enum value.
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     await (sb.from("ad_actions") as any)
-      .update({ status: "apply_failed" })
+      .update({ status: "rejected" })
       .eq("id", body.actionId);
 
     return NextResponse.json(
-      { ok: false, status: "apply_failed", error: errMsg },
+      { ok: false, status: "rejected", error: errMsg },
       { status: 500 },
     );
   }

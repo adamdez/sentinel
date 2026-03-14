@@ -58,7 +58,7 @@ export async function insertValidatedRecommendations(
     };
 
     if (reviewId) {
-      row.source_review_id = reviewId;
+      row.metadata = { source_review_id: reviewId };
     }
 
     // 2. Entity and Market Validation (The Enforcement Core)
