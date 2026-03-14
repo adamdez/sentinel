@@ -36,24 +36,42 @@ export function PendingApprovalsTable({ onDecision }: PendingApprovalsTableProps
   const [recommendations, setRecommendations] = useState<PendingRecommendation[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [decisionError, setDecisionError] = useState<string | null>(null);
   const [processingId, setProcessingId] = useState<string | null>(null);
   const [activeView, setActiveView] = useState<"needs_review" | "approved">("needs_review");
   const [simulationResult, setSimulationResult] = useState<{ id: string; success: boolean; message: string } | null>(null);
+  // IDs that already have an entry in ads_implementation_logs — persists across reloads
+  const [simulatedIds, setSimulatedIds] = useState<Set<string>>(new Set());
 
   const fetchApprovals = useCallback(async (status: "pending" | "approved" = "pending") => {
     setLoading(true);
     setError(null);
     setSimulationResult(null);
+    setDecisionError(null);
     try {
-      const { data: { session } } = await (await import("@/lib/supabase")).supabase.auth.getSession();
+      const { supabase } = await import("@/lib/supabase");
+      const { data: { session } } = await supabase.auth.getSession();
       const res = await fetch(`/api/ads/approvals?status=${status}`, {
         headers: session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}
       });
-      
+
       if (!res.ok) throw new Error("Failed to fetch recommendations");
-      
+
       const { data } = await res.json();
-      setRecommendations(data || []);
+      const recs: PendingRecommendation[] = data || [];
+      setRecommendations(recs);
+
+      // For approved view, check which have already been simulated
+      if (status === "approved" && recs.length > 0) {
+        const ids = recs.map((r) => r.id);
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const { data: logs } = await (supabase.from("ads_implementation_logs") as any)
+          .select("recommendation_id")
+          .in("recommendation_id", ids);
+        if (logs) {
+          setSimulatedIds(new Set(logs.map((l: { recommendation_id: string }) => l.recommendation_id)));
+        }
+      }
     } catch (err) {
       console.error("[PendingApprovals] Fetch error:", err);
       setError("Could not load pending approvals.");
@@ -82,8 +100,11 @@ export function PendingApprovalsTable({ onDecision }: PendingApprovalsTableProps
 
       const data = await res.json();
       setSimulationResult({ id, success: data.ok, message: data.message });
-      
-      if (!data.ok) {
+
+      if (data.ok) {
+        // Mark as simulated so the button becomes a badge across reloads
+        setSimulatedIds((prev) => new Set([...prev, id]));
+      } else {
         console.warn("[Simulator] Simulation failed:", data.code, data.message);
       }
     } catch (err) {
@@ -108,19 +129,20 @@ export function PendingApprovalsTable({ onDecision }: PendingApprovalsTableProps
       });
 
       if (res.status === 409) {
-        // Stale or already decided
-        alert("Action failed: This recommendation is stale or was already decided by another operator.");
+        // Stale or already decided — remove silently and surface inline
         setRecommendations(prev => prev.filter(r => r.id !== id));
+        setDecisionError("This recommendation is stale or was already decided by another operator.");
       } else if (!res.ok) {
-        throw new Error("Decision failed");
+        setDecisionError("Failed to submit decision. Please try again.");
       } else {
         // Success: Remove from list
+        setDecisionError(null);
         setRecommendations(prev => prev.filter(r => r.id !== id));
         if (onDecision) onDecision(id, decision);
       }
     } catch (err) {
       console.error("[PendingApprovals] Decision error:", err);
-      alert("Failed to submit decision. Please try again.");
+      setDecisionError("Failed to submit decision. Please try again.");
     } finally {
       setProcessingId(null);
     }
@@ -190,6 +212,14 @@ export function PendingApprovalsTable({ onDecision }: PendingApprovalsTableProps
         </div>
       </div>
       </div>
+
+      {decisionError && (
+        <div className="flex items-center gap-2 px-4 py-2.5 rounded-lg bg-red-500/10 border border-red-500/20 text-xs text-red-400">
+          <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
+          {decisionError}
+          <button onClick={() => setDecisionError(null)} className="ml-auto text-red-400/60 hover:text-red-400">✕</button>
+        </div>
+      )}
 
       {error ? (
         <div className="text-center py-12 border border-white/[0.06] rounded-xl bg-white/[0.02]">
@@ -305,28 +335,33 @@ export function PendingApprovalsTable({ onDecision }: PendingApprovalsTableProps
                             </div>
                           ) : (
                             <div className="flex flex-col items-end gap-1.5">
-                              <button
-                                onClick={() => handleSimulate(rec.id)}
-                                disabled={!!processingId}
-                                className={`flex items-center gap-2 px-3 py-1.5 rounded-lg border border-white/[0.06] bg-white/[0.04] text-[11px] font-bold uppercase tracking-wider hover:bg-white/[0.08] transition-all ${processingId === rec.id ? "opacity-50" : ""}`}
-                              >
-                                {processingId === rec.id ? (
-                                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                                ) : (
-                                  <Zap className="h-3.5 w-3.5 text-amber-400" />
-                                )}
-                                Run Dry-Run
-                              </button>
-                              
-                              {simulationResult?.id === rec.id && (
-                                <motion.div 
+                              {simulatedIds.has(rec.id) ? (
+                                <span className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-emerald-500/20 bg-emerald-500/10 text-[11px] font-bold uppercase tracking-wider text-emerald-400">
+                                  <CheckCircle2 className="h-3.5 w-3.5" />
+                                  Simulated
+                                </span>
+                              ) : (
+                                <button
+                                  onClick={() => handleSimulate(rec.id)}
+                                  disabled={!!processingId}
+                                  className={`flex items-center gap-2 px-3 py-1.5 rounded-lg border border-white/[0.06] bg-white/[0.04] text-[11px] font-bold uppercase tracking-wider hover:bg-white/[0.08] transition-all ${processingId === rec.id ? "opacity-50" : ""}`}
+                                >
+                                  {processingId === rec.id ? (
+                                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                  ) : (
+                                    <Zap className="h-3.5 w-3.5 text-amber-400" />
+                                  )}
+                                  Run Dry-Run
+                                </button>
+                              )}
+
+                              {simulationResult?.id === rec.id && !simulatedIds.has(rec.id) && (
+                                <motion.div
                                   initial={{ opacity: 0, y: 5 }}
                                   animate={{ opacity: 1, y: 0 }}
-                                  className={`text-[10px] font-medium px-2 py-0.5 rounded ${
-                                    simulationResult.success ? "text-emerald-400 bg-emerald-400/10" : "text-amber-400 bg-amber-400/10"
-                                  }`}
+                                  className="text-[10px] font-medium px-2 py-0.5 rounded text-amber-400 bg-amber-400/10"
                                 >
-                                  {simulationResult.success ? "Simulated Successfully" : simulationResult.message}
+                                  {simulationResult.message}
                                 </motion.div>
                               )}
                             </div>

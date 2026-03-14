@@ -161,18 +161,18 @@ export async function PATCH(req: NextRequest) {
 
     return NextResponse.json({ ok: true, status: "applied" });
   } catch (err) {
-    console.error("[Ads/Actions] Apply error:", err);
+    const errMsg = err instanceof Error ? err.message : "Apply failed";
+    console.error("[Ads/Actions] Apply error:", errMsg);
 
-    // Mark approved even if apply failed
+    // Mark as apply_failed — NOT approved. Returning ok:true here was a lie.
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     await (sb.from("ad_actions") as any)
-      .update({ status: "approved" })
+      .update({ status: "apply_failed" })
       .eq("id", body.actionId);
 
-    return NextResponse.json({
-      ok: true,
-      status: "approved",
-      applyError: err instanceof Error ? err.message : "Apply failed",
-    });
+    return NextResponse.json(
+      { ok: false, status: "apply_failed", error: errMsg },
+      { status: 500 },
+    );
   }
 }
