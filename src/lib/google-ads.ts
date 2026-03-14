@@ -337,11 +337,12 @@ export async function fetchKeywordPerformance(
       metrics.ctr,
       metrics.average_cpc,
       metrics.conversions,
-      metrics.cost_micros,
-      ad_group_criterion.quality_info.quality_score
-    FROM keyword_view
+      metrics.cost_micros
+    FROM ad_group_criterion
     WHERE segments.date BETWEEN '${startDate}' AND '${endDate}'
       AND campaign.status != 'REMOVED'
+      AND ad_group_criterion.type = 'KEYWORD'
+      AND ad_group_criterion.status != 'REMOVED'
     ORDER BY metrics.cost_micros DESC
   `;
 
@@ -349,23 +350,23 @@ export async function fetchKeywordPerformance(
 
   return rows.map((row: unknown) => {
     const r = row as Record<string, Record<string, unknown>>;
-    const criterion = r.ad_group_criterion as Record<string, unknown> | undefined;
+    const criterion = r.adGroupCriterion as Record<string, unknown> | undefined
+      ?? r.ad_group_criterion as Record<string, unknown> | undefined;
     const keyword = criterion?.keyword as Record<string, unknown> | undefined;
-    const qualityInfo = criterion?.quality_info as Record<string, unknown> | undefined;
     return {
-      keywordId: String(criterion?.criterion_id ?? ""),
+      keywordId: String(criterion?.criterionId ?? criterion?.criterion_id ?? ""),
       keywordText: String(keyword?.text ?? ""),
-      matchType: String(keyword?.match_type ?? ""),
-      adGroupId: String(r.ad_group?.id ?? ""),
-      adGroupName: String(r.ad_group?.name ?? ""),
+      matchType: String(keyword?.matchType ?? keyword?.match_type ?? ""),
+      adGroupId: String(r.adGroup?.id ?? r.ad_group?.id ?? ""),
+      adGroupName: String(r.adGroup?.name ?? r.ad_group?.name ?? ""),
       campaignId: String(r.campaign?.id ?? ""),
       impressions: Number(r.metrics?.impressions ?? 0),
       clicks: Number(r.metrics?.clicks ?? 0),
       ctr: Number(r.metrics?.ctr ?? 0),
-      avgCpc: Number(r.metrics?.average_cpc ?? 0) / 1_000_000,
+      avgCpc: Number(r.metrics?.average_cpc ?? r.metrics?.averageCpc ?? 0) / 1_000_000,
       conversions: Number(r.metrics?.conversions ?? 0),
-      cost: Number(r.metrics?.cost_micros ?? 0) / 1_000_000,
-      qualityScore: qualityInfo?.quality_score != null ? Number(qualityInfo.quality_score) : null,
+      cost: Number(r.metrics?.cost_micros ?? r.metrics?.costMicros ?? 0) / 1_000_000,
+      qualityScore: null,
     };
   });
 }
@@ -380,8 +381,6 @@ export async function fetchSearchTerms(
   const query = `
     SELECT
       search_term_view.search_term,
-      ad_group_criterion.criterion_id,
-      ad_group_criterion.keyword.text,
       ad_group.id,
       ad_group.name,
       campaign.id,
@@ -401,16 +400,15 @@ export async function fetchSearchTerms(
 
   return rows.map((row: unknown) => {
     const r = row as Record<string, Record<string, unknown>>;
-    const stv = r.search_term_view as Record<string, unknown> | undefined;
-    const criterion = r.ad_group_criterion as Record<string, unknown> | undefined;
-    const keyword = criterion?.keyword as Record<string, unknown> | undefined;
-    const costMicros = Number(r.metrics?.cost_micros ?? 0);
+    const stv = r.searchTermView as Record<string, unknown> | undefined
+      ?? r.search_term_view as Record<string, unknown> | undefined;
+    const costMicros = Number(r.metrics?.cost_micros ?? r.metrics?.costMicros ?? 0);
     return {
-      searchTerm: String(stv?.search_term ?? ""),
-      keywordText: String(keyword?.text ?? ""),
-      keywordId: String(criterion?.criterion_id ?? ""),
-      adGroupId: String(r.ad_group?.id ?? ""),
-      adGroupName: String(r.ad_group?.name ?? ""),
+      searchTerm: String(stv?.searchTerm ?? stv?.search_term ?? ""),
+      keywordText: "",
+      keywordId: "",
+      adGroupId: String(r.adGroup?.id ?? r.ad_group?.id ?? ""),
+      adGroupName: String(r.adGroup?.name ?? r.ad_group?.name ?? ""),
       campaignId: String(r.campaign?.id ?? ""),
       campaignName: String(r.campaign?.name ?? ""),
       impressions: Number(r.metrics?.impressions ?? 0),
@@ -434,13 +432,12 @@ export async function fetchDailyMetrics(
       segments.date,
       campaign.id,
       ad_group.id,
-      ad_group_criterion.criterion_id,
       metrics.impressions,
       metrics.clicks,
       metrics.cost_micros,
       metrics.conversions,
       metrics.conversions_value
-    FROM keyword_view
+    FROM ad_group
     WHERE segments.date BETWEEN '${startDate}' AND '${endDate}'
       AND campaign.status != 'REMOVED'
     ORDER BY segments.date DESC
@@ -451,17 +448,16 @@ export async function fetchDailyMetrics(
   return rows.map((row: unknown) => {
     const r = row as Record<string, Record<string, unknown>>;
     const segments = r.segments as Record<string, unknown> | undefined;
-    const criterion = r.ad_group_criterion as Record<string, unknown> | undefined;
     return {
       date: String(segments?.date ?? ""),
       campaignId: String(r.campaign?.id ?? ""),
-      adGroupId: String(r.ad_group?.id ?? ""),
-      keywordId: String(criterion?.criterion_id ?? ""),
+      adGroupId: String(r.adGroup?.id ?? r.ad_group?.id ?? ""),
+      keywordId: "",
       impressions: Number(r.metrics?.impressions ?? 0),
       clicks: Number(r.metrics?.clicks ?? 0),
-      costMicros: Number(r.metrics?.cost_micros ?? 0),
+      costMicros: Number(r.metrics?.cost_micros ?? r.metrics?.costMicros ?? 0),
       conversions: Number(r.metrics?.conversions ?? 0),
-      conversionValueMicros: Number(r.metrics?.conversions_value ?? 0) * 1_000_000,
+      conversionValueMicros: Number(r.metrics?.conversions_value ?? r.metrics?.conversionsValue ?? 0) * 1_000_000,
     };
   });
 }
