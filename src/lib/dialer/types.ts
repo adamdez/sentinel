@@ -146,3 +146,17 @@ export type DialerEventType =
   | "session.status_changed"
   | "session.twilio_linked"
   | "session.ended";
+
+// ─────────────────────────────────────────────────────────────
+// Trace metadata — PR2
+// Attached to AI-generated session notes (session_notes.trace_metadata).
+// ─────────────────────────────────────────────────────────────
+
+export interface TraceMetadata {
+  model: string;           // e.g. "claude-opus-4-6"
+  provider: string;        // "anthropic" | "openai" | "xai" | "stub"
+  latency_ms: number;
+  generated_at: string;    // ISO timestamp
+  input_tokens?: number;
+  output_tokens?: number;
+}

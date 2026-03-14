@@ -24,6 +24,7 @@ export async function POST(req: NextRequest) {
   const url = new URL(req.url);
   const callLogId = url.searchParams.get("callLogId");
   const type = url.searchParams.get("type");
+  const sessionId = url.searchParams.get("sessionId"); // PR2: dialer session to sync
 
   const formData = await req.formData();
   const sb = createServerClient();
@@ -102,6 +103,26 @@ export async function POST(req: NextRequest) {
         duration: formData.get("CallDuration")?.toString() ?? "0",
       },
     });
+
+    // PR2: sync dialer session state (fire-and-forget, non-blocking)
+    if (sessionId) {
+      const dialerSyncBase = process.env.NEXT_PUBLIC_SITE_URL
+        ?? (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "");
+      if (dialerSyncBase) {
+        fetch(`${dialerSyncBase}/api/dialer/v1/twilio/status`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "x-internal": "1" },
+          body: JSON.stringify({
+            sessionId,
+            type: "call_status",
+            callStatus,
+            callDuration: formData.get("CallDuration")?.toString(),
+          }),
+        }).catch((err: unknown) => {
+          console.error("[Twilio Status] Dialer session sync failed (non-fatal):", err);
+        });
+      }
+    }
 
     return new NextResponse(
       '<?xml version="1.0" encoding="UTF-8"?><Response></Response>',
@@ -183,6 +204,26 @@ export async function POST(req: NextRequest) {
       await (sb.from("calls_log") as any)
         .update(updatePayload)
         .eq("id", callLogId);
+    }
+
+    // PR2: sync dialer session state (fire-and-forget, non-blocking)
+    if (sessionId) {
+      const dialerSyncBase = process.env.NEXT_PUBLIC_SITE_URL
+        ?? (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "");
+      if (dialerSyncBase) {
+        fetch(`${dialerSyncBase}/api/dialer/v1/twilio/status`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "x-internal": "1" },
+          body: JSON.stringify({
+            sessionId,
+            type: "dial_complete",
+            callStatus: dialStatus,
+            callDuration,
+          }),
+        }).catch((err: unknown) => {
+          console.error("[Twilio Status] Dialer dial_complete sync failed (non-fatal):", err);
+        });
+      }
     }
 
     return new NextResponse(

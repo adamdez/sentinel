@@ -160,6 +160,7 @@ export async function POST(req: NextRequest) {
     userId?: string;
     ghostMode?: boolean;
     mode?: "voip" | "cell";
+    sessionId?: string;    // PR2: links this calls_log row to the dialer call_sessions row
   };
 
   try {
@@ -251,6 +252,7 @@ export async function POST(req: NextRequest) {
         phone_dialed: e164,
         disposition: "initiating",
         started_at: new Date().toISOString(),
+        dialer_session_id: body.sessionId ?? null,  // PR2: FK to call_sessions
       })
       .select("id")
       .single();
@@ -356,6 +358,7 @@ export async function POST(req: NextRequest) {
       transferred_to_cell: agentCellE164,
       disposition: "initiating",
       started_at: new Date().toISOString(),
+      dialer_session_id: body.sessionId ?? null,  // PR2: FK to call_sessions
     })
     .select("id")
     .single();
@@ -365,7 +368,10 @@ export async function POST(req: NextRequest) {
   }
 
   const voiceWebhookUrl = `${siteUrl}/api/twilio/voice?agentId=${encodeURIComponent(userId)}&callLogId=${encodeURIComponent(callLog?.id ?? "")}&prospectPhone=${encodeURIComponent(e164)}`;
-  const statusCallbackUrl = `${siteUrl}/api/twilio/voice/status?callLogId=${encodeURIComponent(callLog?.id ?? "")}&type=call_status`;
+  // PR2: thread sessionId into the StatusCallback URL so /api/twilio/voice/status
+  // can forward it to the internal dialer session sync route.
+  const sessionParam = body.sessionId ? `&sessionId=${encodeURIComponent(body.sessionId)}` : "";
+  const statusCallbackUrl = `${siteUrl}/api/twilio/voice/status?callLogId=${encodeURIComponent(callLog?.id ?? "")}${sessionParam}&type=call_status`;
 
   const formData = new URLSearchParams({
     To: agentCellE164,

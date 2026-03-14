@@ -28,6 +28,7 @@ async function handleBrowserVoice(req: NextRequest) {
   const agentId = formData.get("agentId") as string | null;
   let callerId = formData.get("callerId") as string | null;
   const callSid = formData.get("CallSid") as string | null;
+  const sessionId = formData.get("sessionId") as string | null; // PR2: passed via device.connect() params
 
   console.log("[BrowserVoice] Webhook hit:", {
     to: to ? `***${to.slice(-4)}` : null,
@@ -69,11 +70,14 @@ async function handleBrowserVoice(req: NextRequest) {
   const siteUrl = process.env.NEXT_PUBLIC_SITE_URL
     ?? (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "");
 
+  // PR2: thread sessionId through callback URLs so the status webhook can
+  // forward it to the internal dialer session sync route.
+  const sessionParam = sessionId ? `&amp;sessionId=${encodeURIComponent(sessionId)}` : "";
   const statusCallbackUrl = siteUrl
-    ? `${siteUrl}/api/twilio/voice/status?callLogId=${encodeURIComponent(callLogId ?? "")}&amp;type=call_status`
+    ? `${siteUrl}/api/twilio/voice/status?callLogId=${encodeURIComponent(callLogId ?? "")}${sessionParam}&amp;type=call_status`
     : "";
   const dialActionUrl = siteUrl
-    ? `${siteUrl}/api/twilio/voice/status?callLogId=${encodeURIComponent(callLogId ?? "")}&amp;type=dial_complete`
+    ? `${siteUrl}/api/twilio/voice/status?callLogId=${encodeURIComponent(callLogId ?? "")}${sessionParam}&amp;type=dial_complete`
     : "";
 
   // Build TwiML — dial the prospect directly from the browser
