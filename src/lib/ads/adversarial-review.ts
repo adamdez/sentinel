@@ -12,7 +12,7 @@
 import OpenAI from "openai";
 import { createServerClient } from "@/lib/supabase";
 
-const GPT_MODEL = "gpt-4.1";
+const GPT_MODEL = "gpt-5.4-pro";
 
 // ── Default adversarial prompt (seed) ────────────────────────────────
 export const DEFAULT_ADVERSARIAL_PROMPT = `You are the adversarial strategic reviewer and decision judge inside Sentinel's Google Ads Command Center for Dominion Home Deals.
