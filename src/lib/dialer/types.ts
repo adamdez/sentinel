@@ -1,0 +1,148 @@
+/**
+ * Dialer domain types — PR1
+ *
+ * BOUNDARY RULE: This file has ZERO imports. It is pure TypeScript types.
+ * All dialer files import from here. CRM files must never import from here.
+ *
+ * Future extraction: copy this file as-is into the dialer package.
+ */
+
+// ─────────────────────────────────────────────────────────────
+// Call Session Status State Machine
+// ─────────────────────────────────────────────────────────────
+
+export type CallSessionStatus =
+  | "initiating"  // session created, call not yet ringing
+  | "ringing"     // Twilio confirmed outbound ringing
+  | "connected"   // call answered, conversation in progress
+  | "ended"       // call completed normally (terminal)
+  | "failed";     // call failed to connect or errored (terminal)
+
+/**
+ * Valid status transitions. Enforced both here (application layer)
+ * and in the DB trigger (tg_call_session_transition).
+ *
+ * Terminal states (ended, failed) have empty arrays — no outbound transitions.
+ */
+export const VALID_TRANSITIONS: Record<CallSessionStatus, CallSessionStatus[]> = {
+  initiating: ["ringing", "connected", "failed"],
+  ringing:    ["connected", "ended", "failed"],
+  connected:  ["ended", "failed"],
+  ended:      [],
+  failed:     [],
+};
+
+export const TERMINAL_STATUSES: ReadonlySet<CallSessionStatus> = new Set([
+  "ended",
+  "failed",
+]);
+
+/** Returns true if the given status transition is valid. */
+export function isValidTransition(
+  from: CallSessionStatus,
+  to: CallSessionStatus,
+): boolean {
+  return VALID_TRANSITIONS[from]?.includes(to) ?? false;
+}
+
+// ─────────────────────────────────────────────────────────────
+// Domain Objects
+// ─────────────────────────────────────────────────────────────
+
+/**
+ * The dialer's read-only snapshot of CRM state at call start.
+ * Built by crm-bridge.ts. Stored in call_sessions.context_snapshot.
+ * Never updated after session creation.
+ *
+ * In extraction (Stage 3+), crm-bridge.ts returns this via HTTP.
+ * The shape of this interface is the API contract between CRM and dialer.
+ */
+export interface CRMLeadContext {
+  leadId: string;
+  ownerName: string | null;
+  phone: string | null;
+  address: string | null;
+
+  // Qualification signals (read-only at call time)
+  motivationLevel: number | null;       // 1–5
+  sellerTimeline: string | null;        // immediate | 30_days | 60_days | flexible | unknown
+  qualificationRoute: string | null;    // offer_ready | follow_up | nurture | dead | escalate
+
+  // Call history summary
+  totalCalls: number;
+  liveAnswers: number;
+  lastCallDisposition: string | null;
+  lastCallDate: string | null;          // ISO timestamp
+  nextCallScheduledAt: string | null;   // ISO timestamp
+}
+
+/**
+ * A dialer call session. Maps 1:1 to a call_sessions row.
+ */
+export interface CallSession {
+  id: string;
+  lead_id: string | null;
+  user_id: string;
+  twilio_sid: string | null;
+  phone_dialed: string;
+  status: CallSessionStatus;
+  started_at: string;          // ISO timestamp
+  ended_at: string | null;
+  duration_sec: number | null;
+  updated_at: string;
+  context_snapshot: CRMLeadContext | null;
+  ai_summary: string | null;
+  disposition: string | null;
+  created_at: string;
+}
+
+// ─────────────────────────────────────────────────────────────
+// Input / Output shapes for service layer
+// ─────────────────────────────────────────────────────────────
+
+export interface CreateSessionInput {
+  lead_id: string;
+  phone_dialed: string;
+  context_snapshot?: CRMLeadContext;  // built automatically by route if omitted
+}
+
+export interface UpdateSessionInput {
+  status?: CallSessionStatus;
+  twilio_sid?: string;
+  ended_at?: string;       // ISO timestamp
+  duration_sec?: number;
+  disposition?: string;
+  ai_summary?: string;
+}
+
+// ─────────────────────────────────────────────────────────────
+// Service result types
+// ─────────────────────────────────────────────────────────────
+
+export type SessionErrorCode =
+  | "NOT_FOUND"
+  | "FORBIDDEN"
+  | "INVALID_TRANSITION"
+  | "DB_ERROR"
+  | "VALIDATION_ERROR";
+
+export interface SessionResult<T> {
+  data: T | null;
+  error: string | null;
+  code?: SessionErrorCode;
+}
+
+export interface SessionListResult {
+  data: CallSession[];
+  error: string | null;
+}
+
+// ─────────────────────────────────────────────────────────────
+// Dialer event types (for dialer_events table)
+// ─────────────────────────────────────────────────────────────
+
+export type DialerEventType =
+  | "session.created"
+  | "session.status_changed"
+  | "session.twilio_linked"
+  | "session.ended";
