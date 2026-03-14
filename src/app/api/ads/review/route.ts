@@ -249,7 +249,16 @@ export async function POST(req: NextRequest) {
       },
     });
   } catch (err) {
-    console.error("[Ads/Review]", err);
+    // Log full error details for debugging Anthropic API issues
+    if (err instanceof Error) {
+      console.error("[Ads/Review]", err.message);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const apiErr = err as any;
+      if (apiErr.status) console.error("[Ads/Review] Status:", apiErr.status);
+      if (apiErr.error) console.error("[Ads/Review] Body:", JSON.stringify(apiErr.error));
+    } else {
+      console.error("[Ads/Review]", err);
+    }
     return NextResponse.json(
       { error: err instanceof Error ? err.message : "Review failed" },
       { status: 500 },
