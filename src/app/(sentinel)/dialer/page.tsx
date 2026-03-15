@@ -296,24 +296,60 @@ function countQualificationGaps(lead: QueueLead): number {
   return gaps;
 }
 
+// Builds a labeled note scaffold for fields still missing on the lead.
+// Returns empty string if all fields are already captured (no scaffold needed).
+function buildNoteScaffold(lead: QueueLead): string {
+  const lines: string[] = [];
+  if (lead.seller_timeline == null)           lines.push("Timeline: ");
+  if (lead.motivation_level == null)          lines.push("Motivation: ");
+  if (lead.decision_maker_confirmed !== true) lines.push("Decision maker: ");
+  if (lead.price_expectation == null)         lines.push("Asking price: ");
+  if (lead.condition_level == null)           lines.push("Condition: ");
+  return lines.join("\n");
+}
+
 function compactCallAssistPrompts(params: {
   route: string | null;
   nextActionLabel: string;
   hasDueDate: boolean;
   totalCalls: number;
+  missingMotivation: boolean;
+  missingTimeline: boolean;
+  missingDecisionMaker: boolean;
+  missingPriceExpectation: boolean;
+  missingCondition: boolean;
 }): string[] {
   const prompts: string[] = [];
+
+  // Route-specific prompts take slot 1 when present
   if (params.route === "offer_ready") {
-    prompts.push("Confirm seller timeline + decision maker before ending the call.");
-  }
-  if (!params.hasDueDate) {
-    prompts.push("Before ending, lock one specific follow-up date/time.");
+    prompts.push("Confirm: are you the sole decision maker, and what's your timeline for closing?");
   } else if (params.route === "escalate") {
-    prompts.push("Set expectation: Adam review is requested, ownership stays with current assignee.");
+    prompts.push("Set expectation: Adam will review this — expect a follow-up within 24 hours.");
   }
-  if (params.totalCalls <= 1) {
-    prompts.push("Use a short trust opener: local direct-buyer, no listing pressure.");
+
+  // First-call trust opener fills next available slot
+  if (params.totalCalls <= 1 && prompts.length < 2) {
+    prompts.push("Open with: 'I\u2019m a local direct buyer — no agents or listing pressure.'");
   }
+
+  // Qualification questions in priority order — fill remaining slots
+  const qualQuestions: string[] = [];
+  if (params.missingTimeline)         qualQuestions.push("Ask: what\u2019s your ideal timeline to sell?");
+  if (params.missingMotivation)       qualQuestions.push("Ask: what\u2019s driving the decision to sell right now?");
+  if (params.missingDecisionMaker)    qualQuestions.push("Ask: are you the only decision maker on this property?");
+  if (params.missingPriceExpectation) qualQuestions.push("Ask: what number would make this a done deal for you?");
+  if (params.missingCondition)        qualQuestions.push("Ask: any major repairs needed \u2014 roof, foundation, HVAC?");
+  for (const q of qualQuestions) {
+    if (prompts.length >= 2) break;
+    prompts.push(q);
+  }
+
+  // Due-date reminder fills last slot if still open
+  if (!params.hasDueDate && prompts.length < 2) {
+    prompts.push("Before ending, set a specific callback date and time.");
+  }
+
   if (prompts.length === 0) {
     prompts.push(`Close with a clear next step: ${params.nextActionLabel.toLowerCase()}.`);
   }
@@ -375,6 +411,9 @@ export default function DialerPage() {
   useCoachSurface("dialer", {});
   const [fileModalOpen, setFileModalOpen] = useState(false);
   const [liveNotes, setLiveNotes] = useState<string[]>([]);
+  // Tracks whether the note scaffold has been seeded for the current call session.
+  // Reset to false each time callState returns to idle so the next call starts fresh.
+  const noteScaffoldSeeded = useRef(false);
 
   // Subscribe to live_notes updates from transcription server via Supabase realtime
   useEffect(() => {
@@ -395,6 +434,24 @@ export default function DialerPage() {
       .subscribe();
     return () => { supabase.removeChannel(channel); };
   }, [currentCallLogId]);
+
+  // Seed structured note scaffold once when call first becomes connected (session-backed only).
+  // Only fires when callNotes is empty — never overwrites operator input.
+  useEffect(() => {
+    if (callState === "idle") {
+      noteScaffoldSeeded.current = false;
+      return;
+    }
+    if (callState !== "connected") return;
+    if (!dialerSessionId) return;         // session-backed path only
+    if (noteScaffoldSeeded.current) return;
+    if (!currentLead) return;
+    noteScaffoldSeeded.current = true;
+    setCallNotes((prev) => {
+      if (prev.trim()) return prev;       // don't overwrite if operator already typed
+      return buildNoteScaffold(currentLead);
+    });
+  }, [callState, dialerSessionId, currentLead]);
 
   // Quick Manual Dial state
   const [manualPhone, setManualPhone] = useState("");
@@ -1151,6 +1208,11 @@ export default function DialerPage() {
       nextActionLabel: nextAction.label,
       hasDueDate: Boolean(nextAction.dueAt),
       totalCalls: currentLead.total_calls ?? 0,
+      missingMotivation: currentLead.motivation_level == null,
+      missingTimeline: currentLead.seller_timeline == null,
+      missingDecisionMaker: currentLead.decision_maker_confirmed !== true,
+      missingPriceExpectation: currentLead.price_expectation == null,
+      missingCondition: currentLead.condition_level == null,
     });
 
     return {
