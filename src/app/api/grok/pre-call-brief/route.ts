@@ -51,7 +51,7 @@ export async function POST(req: NextRequest) {
       .limit(10);
 
     const { data: callLogs } = await tbl("calls_log")
-      .select("started_at, disposition, ai_note_summary")
+      .select("started_at, disposition, ai_summary")
       .eq("lead_id", body.leadId)
       .order("started_at", { ascending: false })
       .limit(5);
@@ -64,14 +64,14 @@ export async function POST(req: NextRequest) {
       address: prop.address ?? "",
       score: lead.priority ?? 0,
       distressSignals: (distressEvents ?? []).map((e: { event_type: string }) => e.event_type),
-      callHistory: (callLogs ?? []).map((c: { started_at: string; disposition: string; ai_note_summary: string | null }) => ({
+      callHistory: (callLogs ?? []).map((c: { started_at: string; disposition: string; ai_summary: string | null }) => ({
         date: new Date(c.started_at).toLocaleDateString(),
         disposition: c.disposition ?? "unknown",
-        notes: c.ai_note_summary ?? "",
+        notes: c.ai_summary ?? "",
       })),
       aiNotes: (callLogs ?? [])
-        .filter((c: { ai_note_summary: string | null }) => c.ai_note_summary)
-        .map((c: { ai_note_summary: string }) => c.ai_note_summary),
+        .filter((c: { ai_summary: string | null }) => c.ai_summary)
+        .map((c: { ai_summary: string }) => c.ai_summary),
       equityPercent: prop.equity_percent ?? undefined,
       ownershipYears: prop.ownership_years ?? undefined,
       estimatedValue: prop.estimated_value ?? undefined,
