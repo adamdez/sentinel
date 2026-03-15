@@ -4178,6 +4178,9 @@ export function MasterClientFileModal({ clientFile: incomingClientFile, open, on
   const [claiming, setClaiming] = useState(false);
   const [calling, setCalling] = useState(false);
   const [callStatus, setCallStatus] = useState<string | null>(null);
+  const [needsConsent, setNeedsConsent] = useState(false);
+  const [consentPending, setConsentPending] = useState(false);
+  const [pendingPhone, setPendingPhone] = useState<string | undefined>(undefined);
   const [smsOpen, setSmsOpen] = useState(false);
   const [smsMessage, setSmsMessage] = useState("");
   const [smsSending, setSmsSending] = useState(false);
@@ -5595,6 +5598,11 @@ export function MasterClientFileModal({ clientFile: incomingClientFile, open, on
         toast.success(`Call initiated to ...${numberToDial.slice(-4)}`);
         setTimeout(() => { setCallStatus(null); setCalling(false); }, 30000);
         fetchDialHistory();
+      } else if (data?.code === "CALL_CONSENT_REQUIRED") {
+        setCallStatus(null);
+        setCalling(false);
+        setPendingPhone(phoneNumber);
+        setNeedsConsent(true);
       } else {
         setCallStatus(null);
         setCalling(false);
@@ -5606,6 +5614,33 @@ export function MasterClientFileModal({ clientFile: incomingClientFile, open, on
       toast.error("Network error â€” call failed");
     }
   }, [clientFile, displayPhone, fetchDialHistory]);
+
+  const grantConsentAndDial = useCallback(async () => {
+    if (!clientFile) return;
+    setConsentPending(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const res = await fetch("/api/dialer/consent", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}),
+        },
+        body: JSON.stringify({ leadId: clientFile.id }),
+      });
+      if (!res.ok) {
+        toast.error("Could not save consent — try again");
+        return;
+      }
+    } catch {
+      toast.error("Network error saving consent");
+      return;
+    } finally {
+      setConsentPending(false);
+    }
+    setNeedsConsent(false);
+    handleDial(pendingPhone);
+  }, [clientFile, handleDial, pendingPhone]);
 
   const handleSendSms = useCallback(async (phoneNumber?: string) => {
     const numberToSms = phoneNumber || displayPhone;
@@ -6093,6 +6128,26 @@ export function MasterClientFileModal({ clientFile: incomingClientFile, open, on
               {/* Primary operator actions */}
               <div className="shrink-0 px-4 py-3 border-b border-white/[0.06] bg-[rgba(12,12,22,0.6)]">
                 <div className="flex flex-wrap items-center gap-2">
+                  {needsConsent ? (
+                    <div className="flex items-center gap-2 rounded-md border border-yellow-500/30 bg-yellow-500/[0.06] px-3 py-1.5">
+                      <span className="text-xs text-yellow-300/90">This person asked to be called — confirm to dial</span>
+                      <Button
+                        size="sm"
+                        className="h-6 gap-1.5 bg-yellow-500/20 hover:bg-yellow-500/30 text-yellow-200 border border-yellow-500/30 text-xs"
+                        disabled={consentPending}
+                        onClick={grantConsentAndDial}
+                      >
+                        {consentPending ? <Loader2 className="h-3 w-3 animate-spin" /> : <Phone className="h-3 w-3" />}
+                        {consentPending ? "Saving..." : "Confirm & Call"}
+                      </Button>
+                      <button
+                        className="text-xs text-muted-foreground hover:text-foreground"
+                        onClick={() => setNeedsConsent(false)}
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  ) : (
                   <Button
                     size="sm"
                     variant="outline"
@@ -6103,6 +6158,7 @@ export function MasterClientFileModal({ clientFile: incomingClientFile, open, on
                     {calling ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Phone className="h-3.5 w-3.5" />}
                     {calling ? "Dialing..." : "Call"}
                   </Button>
+                  )}
                   <Button
                     size="sm"
                     variant="outline"

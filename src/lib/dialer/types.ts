@@ -160,3 +160,67 @@ export interface TraceMetadata {
   input_tokens?: number;
   output_tokens?: number;
 }
+
+// ─────────────────────────────────────────────────────────────
+// Publish types — PR3
+// Used by publish-manager.ts and the publish route.
+// ─────────────────────────────────────────────────────────────
+
+/**
+ * Human-meaningful call outcomes accepted by the publish endpoint.
+ *
+ * "completed" is intentionally included: it signals "we talked, no richer
+ * classification needed." It is also in PROVISIONAL_DISPOSITIONS inside
+ * publish-manager.ts because Twilio sets it as a technical call-ended state
+ * that a richer human outcome should supersede. Publishing "completed"
+ * explicitly over Twilio's "completed" is a harmless no-op; publishing
+ * "voicemail" over Twilio's "completed" is the expected enrichment path.
+ *
+ * Machine/provisional states (initiated, ringing_agent, etc.) are excluded.
+ */
+export type PublishDisposition =
+  | "completed"       // connected, talked to seller — no richer outcome needed
+  | "voicemail"       // left or attempted voicemail
+  | "no_answer"       // no pickup, no voicemail left
+  | "not_interested"  // seller declined
+  | "follow_up"       // needs callback / follow-up
+  | "appointment"     // set appointment on this call
+  | "offer_made"      // made an offer on this call
+  | "disqualified";   // definitively dead
+
+export const PUBLISH_DISPOSITIONS: readonly PublishDisposition[] = [
+  "completed", "voicemail", "no_answer", "not_interested",
+  "follow_up", "appointment", "offer_made", "disqualified",
+] as const;
+
+export type SellerTimeline = "immediate" | "30_days" | "60_days" | "flexible" | "unknown";
+export const SELLER_TIMELINES: readonly SellerTimeline[] = [
+  "immediate", "30_days", "60_days", "flexible", "unknown",
+] as const;
+
+export type QualificationRoute = "offer_ready" | "follow_up" | "nurture" | "dead" | "escalate";
+export const QUALIFICATION_ROUTES: readonly QualificationRoute[] = [
+  "offer_ready", "follow_up", "nurture", "dead", "escalate",
+] as const;
+
+export interface PublishInput {
+  disposition: PublishDisposition;
+  duration_sec?: number;
+  motivation_level?: 1 | 2 | 3 | 4 | 5;
+  seller_timeline?: SellerTimeline;
+  qualification_route?: QualificationRoute;
+  summary?: string;
+}
+
+export interface PublishResult {
+  ok: boolean;
+  calls_log_id: string | null;
+  lead_id: string | null;
+  error?: string;
+  /**
+   * INVALID_TRANSITION = session not yet in a terminal state.
+   * DB_ERROR = Supabase write failed.
+   * NOT_FOUND / FORBIDDEN = session ownership check failed.
+   */
+  code?: SessionErrorCode;
+}

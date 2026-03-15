@@ -156,14 +156,20 @@ export function dispositionCategory(
   if (!disposition) return "other";
   const d = disposition.toLowerCase().trim();
 
-  // Live contact
+  // Live contact — we spoke to a person
+  // "completed", "not_interested", "offer_made", "follow_up" are publish-layer
+  // dispositions that always mean a live conversation happened (PR3).
   if (
     d === "connected" ||
     d === "interested" ||
     d === "appointment_set" ||
     d === "appointment" ||
     d === "callback" ||
-    d === "contract"
+    d === "contract" ||
+    d === "completed" ||
+    d === "not_interested" ||
+    d === "offer_made" ||
+    d === "follow_up"
   ) {
     return "live";
   }
@@ -178,13 +184,17 @@ export function dispositionCategory(
     return "no_answer";
   }
 
-  // Dead / compliance
+  // Dead / compliance — lead will not be pursued
+  // "disqualified" is a publish-layer disposition meaning the lead is permanently dead (PR3).
+  // Intentionally not "live" even if a conversation occurred, so live_answers does not increment
+  // and the call sequence resets correctly.
   if (
     d === "wrong_number" ||
     d === "disconnected" ||
     d === "do_not_call" ||
     d === "dnc" ||
-    d === "dead"
+    d === "dead" ||
+    d === "disqualified"
   ) {
     return "dead";
   }

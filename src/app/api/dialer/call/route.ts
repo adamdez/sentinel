@@ -473,6 +473,18 @@ export async function PATCH(req: NextRequest) {
     notes?: string;
     endedAt?: string;
     userId?: string;
+    /**
+     * Set by PostCallPanel when a dialer session exists.
+     * publish-manager already wrote calls_log; skip the duplicate write here
+     * so only one path owns the final calls_log outcome. Counter RPC still runs.
+     */
+    skipCallsLogWrite?: boolean;
+    /**
+     * Operator-set callback date from PostCallPanel (ISO string).
+     * Overrides cadence-calculated next_call_scheduled_at in increment_lead_call_counters.
+     * Only set for follow_up / appointment dispositions.
+     */
+    nextCallScheduledAt?: string;
   };
 
   try {
@@ -487,19 +499,23 @@ export async function PATCH(req: NextRequest) {
 
   const endedAt = body.endedAt ?? new Date().toISOString();
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { error } = await (sb.from("calls_log") as any)
-    .update({
-      disposition: body.disposition,
-      duration_sec: body.durationSec ?? 0,
-      notes: body.notes ?? null,
-      ended_at: endedAt,
-    })
-    .eq("id", body.callLogId);
+  // publish-manager owns calls_log for session-backed calls (PR3b).
+  // Skip the duplicate write; proceed to increment_lead_call_counters below.
+  if (!body.skipCallsLogWrite) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { error } = await (sb.from("calls_log") as any)
+      .update({
+        disposition: body.disposition,
+        duration_sec: body.durationSec ?? 0,
+        notes: body.notes ?? null,
+        ended_at: endedAt,
+      })
+      .eq("id", body.callLogId);
 
-  if (error) {
-    console.error("[Dialer] calls_log update failed:", error);
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+    if (error) {
+      console.error("[Dialer] calls_log update failed:", error);
+      return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+    }
   }
 
   // ── 7-Day Power Sequence: update lead counters + schedule next call ──
@@ -539,11 +555,13 @@ export async function PATCH(req: NextRequest) {
       // Prefer cadence-based scheduling for standard follow-ups;
       // use power sequence override for hot dispositions (interested/appointment)
       const isHotDispo = ["interested", "appointment", "contract"].includes(body.disposition);
-      const nextCallAt = isHotDispo
+      const calculatedNextCallAt = isHotDispo
         ? sched.nextCallAt
         : cadenceNext
           ? cadenceNext.toISOString()
           : sched.nextCallAt;
+      // Operator-set date from PostCallPanel takes precedence over cadence calculation
+      const nextCallAt = body.nextCallScheduledAt ?? calculatedNextCallAt;
 
       // ── Atomic counter increment via RPC ──
       // Replaces read-modify-write pattern to prevent race conditions

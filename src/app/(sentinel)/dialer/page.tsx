@@ -32,6 +32,7 @@ import { formatDueDateLabel } from "@/lib/due-date-label";
 import { Eye } from "lucide-react";
 import { useCoachSurface } from "@/providers/coach-provider";
 import { CoachPanel, CoachToggle } from "@/components/sentinel/coach-panel";
+import { PostCallPanel } from "@/components/sentinel/post-call-panel";
 
 async function authHeaders(): Promise<Record<string, string>> {
   const { data: { session } } = await supabase.auth.getSession();
@@ -319,6 +320,22 @@ function compactCallAssistPrompts(params: {
   return prompts.slice(0, 2);
 }
 
+const TIMELINE_SHORT: Record<string, string> = {
+  immediate: "Immediate",
+  "30_days":  "30 days",
+  "60_days":  "60 days",
+  flexible:   "Flexible",
+  unknown:    "Unknown",
+};
+
+function relativeAge(iso: string | null): string | null {
+  if (!iso) return null;
+  const days = Math.floor((Date.now() - new Date(iso).getTime()) / 86_400_000);
+  if (days === 0) return "today";
+  if (days === 1) return "yesterday";
+  return `${days}d ago`;
+}
+
 function formatUsPhone(digits: string): string {
   if (digits.length === 0) return "";
   if (digits.length <= 3) return `(${digits}`;
@@ -342,6 +359,7 @@ export default function DialerPage() {
   const [callState, setCallState] = useState<CallState>("idle");
   const [currentLead, setCurrentLead] = useState<QueueLead | null>(null);
   const [currentCallLogId, setCurrentCallLogId] = useState<string | null>(null);
+  const [dialerSessionId, setDialerSessionId] = useState<string | null>(null); // PR3b: survives call end for PostCallPanel publish
   const [muted, setMuted] = useState(false);
   const [callNotes, setCallNotes] = useState("");
   const [dispositionPending, setDispositionPending] = useState(false);
@@ -649,6 +667,24 @@ export default function DialerPage() {
     timer.start();
 
     try {
+      // Create dialer session for session notes + post-call publish (PR2/PR3).
+      // Non-blocking: if session creation fails, call proceeds without session tracking.
+      let newSessionId: string | null = null;
+      try {
+        const sessionRes = await fetch("/api/dialer/v1/sessions", {
+          method: "POST",
+          headers: await authHeaders(),
+          body: JSON.stringify({ lead_id: target.id, phone_dialed: toE164(phone) }),
+        });
+        if (sessionRes.ok) {
+          const sessionData = await sessionRes.json();
+          newSessionId = sessionData.session?.id ?? null;
+        }
+      } catch {
+        console.warn("[Dialer] Session creation failed — call will proceed without session tracking");
+      }
+      setDialerSessionId(newSessionId);
+
       // VoIP pre-flight: compliance + logging
       const res = await fetch("/api/dialer/call", {
         method: "POST",
@@ -660,6 +696,7 @@ export default function DialerPage() {
           userId: currentUser.id,
           ghostMode,
           mode: "voip",
+          sessionId: newSessionId,  // links calls_log.dialer_session_id → call_sessions
         }),
       });
 
@@ -668,6 +705,7 @@ export default function DialerPage() {
       if (!res.ok) {
         toast.error(data.error ?? "Call failed");
         setCallState("idle");
+        setDialerSessionId(null);
         timer.reset();
         return;
       }
@@ -681,6 +719,7 @@ export default function DialerPage() {
           callLogId: data.callLogId ?? "",
           agentId: currentUser.id,
           callerId: voipCallerId,
+          sessionId: newSessionId ?? "",  // forwarded by browser route into StatusCallback (PR2)
         },
       });
 
@@ -702,18 +741,48 @@ export default function DialerPage() {
       call.on("disconnect", () => {
         setLiveCallStatus("completed");
         setActiveCall(null);
-        // Don't auto-reset — let user disposition
+        setCallState("ended");
+        timer.stop();
+        // Advance session to terminal so publish can proceed (fire-and-forget; 409 is non-fatal
+        // if Twilio StatusCallback already advanced it first, or if session was never created).
+        if (newSessionId) {
+          authHeaders().then((hdrs) =>
+            fetch(`/api/dialer/v1/sessions/${newSessionId}`, {
+              method: "PATCH",
+              headers: hdrs,
+              body: JSON.stringify({ status: "ended" }),
+            })
+          ).catch(() => {});
+        }
       });
 
       call.on("error", (err: { message?: string }) => {
         toast.error(`Call error: ${err.message ?? "unknown"}`);
         setLiveCallStatus("failed");
         setActiveCall(null);
+        if (newSessionId) {
+          authHeaders().then((hdrs) =>
+            fetch(`/api/dialer/v1/sessions/${newSessionId}`, {
+              method: "PATCH",
+              headers: hdrs,
+              body: JSON.stringify({ status: "failed" }),
+            })
+          ).catch(() => {});
+        }
       });
 
       call.on("cancel", () => {
         setLiveCallStatus("canceled");
         setActiveCall(null);
+        if (newSessionId) {
+          authHeaders().then((hdrs) =>
+            fetch(`/api/dialer/v1/sessions/${newSessionId}`, {
+              method: "PATCH",
+              headers: hdrs,
+              body: JSON.stringify({ status: "failed" }),
+            })
+          ).catch(() => {});
+        }
       });
     } catch (err) {
       console.error("[Dialer]", err);
@@ -964,9 +1033,11 @@ export default function DialerPage() {
     setCallState("idle");
     setCurrentCallLogId(null);
     setCurrentCallSid(null);
+    setDialerSessionId(null);
     setLiveCallStatus(null);
     setCallNotes("");
     setTransferStatus(null);
+    setMuted(false);
     timer.reset();
     setDispositionPending(false);
 
@@ -976,12 +1047,31 @@ export default function DialerPage() {
     refetchQueue();
   }, [currentCallLogId, callState, callNotes, currentLead, currentUser.id, handleHangup, queue, refetchQueue, timer]);
 
+  // ── PostCallPanel completion handler ────────────────────────────────
+  // Shared by onComplete and onSkip — PostCallPanel handles its own API calls.
+  const handlePostCallDone = useCallback(() => {
+    setCallState("idle");
+    setCurrentCallLogId(null);
+    setCurrentCallSid(null);
+    setDialerSessionId(null);
+    setLiveCallStatus(null);
+    setCallNotes("");
+    setTransferStatus(null);
+    setMuted(false);
+    timer.reset();
+    const currentIdx = queue.findIndex((l) => l.id === currentLead?.id);
+    const nextLead = queue[currentIdx + 1] ?? queue[0] ?? null;
+    setCurrentLead(nextLead);
+    refetchQueue();
+  }, [currentLead, queue, refetchQueue, timer]);
+
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if (e.target instanceof HTMLTextAreaElement || e.target instanceof HTMLInputElement) return;
 
       const dispo = DISPOSITIONS.find((d) => d.hotkey === e.key);
-      if (dispo && (callState === "connected" || callState === "ended")) {
+      // Disable hotkeys when PostCallPanel is active (callState===ended && dialerSessionId set)
+      if (dispo && (callState === "connected" || (callState === "ended" && !dialerSessionId))) {
         e.preventDefault();
         handleDisposition(dispo.key);
         return;
@@ -1001,7 +1091,7 @@ export default function DialerPage() {
 
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
-  }, [callState, currentLead, handleDial, handleDisposition, handleHangup]);
+  }, [callState, dialerSessionId, currentLead, handleDial, handleDisposition, handleHangup]);
 
   const [activeKpi, setActiveKpi] = useState<KpiKey | null>(null);
 
@@ -1037,6 +1127,9 @@ export default function DialerPage() {
       recentOutcome: recentOutcome.replace(/_/g, " "),
       notePreview: notePreview(currentLead.notes),
       assistPrompts,
+      motivationLevel: currentLead.motivation_level,
+      sellerTimeline:  currentLead.seller_timeline,
+      lastContactAt:   currentLead.last_contact_at,
     };
   }, [callHistory, currentLead]);
 
@@ -1578,10 +1671,19 @@ export default function DialerPage() {
                                 : "Not scored"}
                             </span>{" "}
                             · {dialerContext.qualificationGaps} gap{dialerContext.qualificationGaps === 1 ? "" : "s"}
+                            {dialerContext.motivationLevel != null && (
+                              <> · Motivation: <span className="text-foreground font-medium">{dialerContext.motivationLevel}/5</span></>
+                            )}
                           </p>
                           <p>
-                            Recent outcome:{" "}
+                            {dialerContext.sellerTimeline && dialerContext.sellerTimeline !== "unknown" ? (
+                              <>Timeline: <span className="text-foreground font-medium">{TIMELINE_SHORT[dialerContext.sellerTimeline] ?? dialerContext.sellerTimeline}</span> · </>
+                            ) : null}
+                            Outcome:{" "}
                             <span className="text-foreground font-medium capitalize">{dialerContext.recentOutcome}</span>
+                            {dialerContext.lastContactAt && (
+                              <> · <span className="text-muted-foreground/50">{relativeAge(dialerContext.lastContactAt)}</span></>
+                            )}
                           </p>
                         </div>
                         <p className="text-[11px] text-muted-foreground/80">
@@ -1838,60 +1940,76 @@ export default function DialerPage() {
                 exit={{ opacity: 0, y: -10 }}
                 transition={{ duration: 0.2 }}
               >
-                <GlassCard hover={false} className="!p-3">
-                  <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3 flex items-center gap-1.5">
-                    <BarChart3 className="h-3.5 w-3.5 text-cyan" />
-                    Disposition
-                    <span className="text-[10px] opacity-40 ml-auto">Keyboard shortcuts active</span>
-                  </h2>
+                {callState === "ended" && dialerSessionId ? (
+                  /* ── PostCallPanel: session-backed calls get publish path ── */
+                  <PostCallPanel
+                    sessionId={dialerSessionId}
+                    callLogId={currentCallLogId}
+                    userId={currentUser.id}
+                    timerElapsed={timer.elapsed}
+                    initialSummary={callNotes}
+                    initialMotivationLevel={currentLead?.motivation_level ?? null}
+                    initialSellerTimeline={currentLead?.seller_timeline ?? null}
+                    onComplete={handlePostCallDone}
+                    onSkip={handlePostCallDone}
+                  />
+                ) : (
+                  /* ── Legacy disposition: live call or no-session fallback ── */
+                  <GlassCard hover={false} className="!p-3">
+                    <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3 flex items-center gap-1.5">
+                      <BarChart3 className="h-3.5 w-3.5 text-cyan" />
+                      Disposition
+                      <span className="text-[10px] opacity-40 ml-auto">Keyboard shortcuts active</span>
+                    </h2>
 
-                  <Button
-                    variant="outline"
-                    className="w-full mb-2.5 gap-2 border-cyan/25 text-cyan hover:bg-cyan/10"
-                    onClick={() => setFileModalOpen(true)}
-                  >
-                    <Eye className="h-3.5 w-3.5" />
-                    Open Lead Detail to close out
-                  </Button>
-                  <p className="text-[10px] text-muted-foreground/65 mb-3">
-                    Use Lead Detail for call closeout saves; Dialer here is context + handoff only.
-                  </p>
+                    <Button
+                      variant="outline"
+                      className="w-full mb-2.5 gap-2 border-cyan/25 text-cyan hover:bg-cyan/10"
+                      onClick={() => setFileModalOpen(true)}
+                    >
+                      <Eye className="h-3.5 w-3.5" />
+                      Open Lead Detail to close out
+                    </Button>
+                    <p className="text-[10px] text-muted-foreground/65 mb-3">
+                      Use Lead Detail for call closeout saves; Dialer here is context + handoff only.
+                    </p>
 
-                  <div className="grid grid-cols-1 gap-1.5">
-                    {DISPOSITIONS.map((d) => {
-                      const Icon = d.icon;
-                      return (
-                        <button
-                          key={d.key}
-                          onClick={() => handleDisposition(d.key)}
-                          disabled={dispositionPending}
-                          className={`flex items-center gap-3 rounded-[12px] px-3 py-2.5 text-left transition-all duration-150 border ${d.bgColor}`}
-                        >
-                          <span className="text-[10px] font-mono text-muted-foreground/55 w-3">{d.hotkey}</span>
-                          <Icon className={`h-4 w-4 ${d.color}`} />
-                          <span className="text-sm font-medium flex-1">{d.label}</span>
-                          <ChevronRight className="h-3 w-3 text-muted-foreground/30" />
-                        </button>
-                      );
-                    })}
-                  </div>
+                    <div className="grid grid-cols-1 gap-1.5">
+                      {DISPOSITIONS.map((d) => {
+                        const Icon = d.icon;
+                        return (
+                          <button
+                            key={d.key}
+                            onClick={() => handleDisposition(d.key)}
+                            disabled={dispositionPending}
+                            className={`flex items-center gap-3 rounded-[12px] px-3 py-2.5 text-left transition-all duration-150 border ${d.bgColor}`}
+                          >
+                            <span className="text-[10px] font-mono text-muted-foreground/55 w-3">{d.hotkey}</span>
+                            <Icon className={`h-4 w-4 ${d.color}`} />
+                            <span className="text-sm font-medium flex-1">{d.label}</span>
+                            <ChevronRight className="h-3 w-3 text-muted-foreground/30" />
+                          </button>
+                        );
+                      })}
+                    </div>
 
-                  <Button
-                    variant="outline"
-                    className="w-full mt-3 gap-2 text-xs"
-                    onClick={() => {
-                      const idx = queue.findIndex((l) => l.id === currentLead?.id);
-                      setCurrentLead(queue[(idx + 1) % queue.length] ?? null);
-                      setCallState("idle");
-                      setCallNotes("");
-                      timer.reset();
-                    }}
-                    disabled={queue.length <= 1}
-                  >
-                    <SkipForward className="h-3.5 w-3.5" />
-                    Next Lead
-                  </Button>
-                </GlassCard>
+                    <Button
+                      variant="outline"
+                      className="w-full mt-3 gap-2 text-xs"
+                      onClick={() => {
+                        const idx = queue.findIndex((l) => l.id === currentLead?.id);
+                        setCurrentLead(queue[(idx + 1) % queue.length] ?? null);
+                        setCallState("idle");
+                        setCallNotes("");
+                        timer.reset();
+                      }}
+                      disabled={queue.length <= 1}
+                    >
+                      <SkipForward className="h-3.5 w-3.5" />
+                      Next Lead
+                    </Button>
+                  </GlassCard>
+                )}
 
                 <GlassCard glow hover={false} className="!p-4 mt-3 text-center">
                   <Clock className="h-5 w-5 mx-auto mb-1 text-cyan" />
