@@ -21,7 +21,7 @@ import {
 import type { PublishDisposition, SellerTimeline, QualificationRoute } from "@/lib/dialer/types";
 import type { SessionErrorCode } from "@/lib/dialer/types";
 
-type RouteContext = { params: { id: string } };
+type RouteContext = { params: Promise<{ id: string }> };
 
 function errorStatus(code?: SessionErrorCode): number {
   if (code === "FORBIDDEN")           return 403;
@@ -34,7 +34,7 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
   const user = await getDialerUser(req.headers.get("authorization"));
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const { id: sessionId } = params;
+  const { id: sessionId } = await params;
 
   let body: Record<string, unknown>;
   try {

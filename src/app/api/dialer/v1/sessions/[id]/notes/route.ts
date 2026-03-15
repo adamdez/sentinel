@@ -16,7 +16,7 @@ import {
 import type { SessionNoteType, SessionNoteSpeaker } from "@/lib/dialer/schema-types";
 import type { TraceMetadata } from "@/lib/dialer/types";
 
-type RouteContext = { params: { id: string } };
+type RouteContext = { params: Promise<{ id: string }> };
 
 const VALID_NOTE_TYPES: SessionNoteType[] = [
   "transcript_chunk",
@@ -38,7 +38,7 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
   const user = await getDialerUser(req.headers.get("authorization"));
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const { id: sessionId } = params;
+  const { id: sessionId } = await params;
 
   let body: Record<string, unknown>;
   try {
@@ -104,7 +104,7 @@ export async function GET(req: NextRequest, { params }: RouteContext) {
   const user = await getDialerUser(req.headers.get("authorization"));
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const { id: sessionId } = params;
+  const { id: sessionId } = await params;
   const { searchParams } = new URL(req.url);
 
   const options: ListNotesOptions = {};

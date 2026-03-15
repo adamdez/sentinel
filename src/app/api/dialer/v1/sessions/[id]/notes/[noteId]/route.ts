@@ -9,7 +9,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createDialerClient, getDialerUser } from "@/lib/dialer/db";
 import { confirmNote } from "@/lib/dialer/note-manager";
 
-type RouteContext = { params: { id: string; noteId: string } };
+type RouteContext = { params: Promise<{ id: string; noteId: string }> };
 
 function errorStatus(code?: string): number {
   if (code === "FORBIDDEN")        return 403;
@@ -22,7 +22,7 @@ export async function PATCH(req: NextRequest, { params }: RouteContext) {
   const user = await getDialerUser(req.headers.get("authorization"));
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const { id: sessionId, noteId } = params;
+  const { id: sessionId, noteId } = await params;
 
   let body: Record<string, unknown>;
   try {

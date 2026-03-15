@@ -15,7 +15,7 @@ import { createDialerClient, getDialerUser } from "@/lib/dialer/db";
 import { getSession, updateSession } from "@/lib/dialer/session-manager";
 import type { UpdateSessionInput, CallSessionStatus } from "@/lib/dialer/types";
 
-type RouteContext = { params: { id: string } };
+type RouteContext = { params: Promise<{ id: string }> };
 
 const STATUS_CODE_MAP: Record<string, number> = {
   NOT_FOUND: 404,
@@ -38,7 +38,7 @@ export async function GET(req: NextRequest, { params }: RouteContext) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const { id } = params;
+  const { id } = await params;
   if (!id) {
     return NextResponse.json({ error: "Session ID required" }, { status: 400 });
   }
@@ -66,7 +66,7 @@ export async function PATCH(req: NextRequest, { params }: RouteContext) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const { id } = params;
+  const { id } = await params;
   if (!id) {
     return NextResponse.json({ error: "Session ID required" }, { status: 400 });
   }

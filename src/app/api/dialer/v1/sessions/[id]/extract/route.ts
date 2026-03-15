@@ -24,7 +24,7 @@ import { createNote } from "@/lib/dialer/note-manager";
 import { analyzeWithClaude, extractJsonObject } from "@/lib/claude-client";
 import { SELLER_TIMELINES } from "@/lib/dialer/types";
 
-type RouteContext = { params: { id: string } };
+type RouteContext = { params: Promise<{ id: string }> };
 
 const NULL_RESULT = {
   ok: true,
@@ -62,7 +62,7 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
   const user = await getDialerUser(req.headers.get("authorization"));
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const { id: sessionId } = params;
+  const { id: sessionId } = await params;
 
   // ── Validate body ────────────────────────────────────────────
   let notes: string;

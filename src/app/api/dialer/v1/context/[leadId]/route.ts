@@ -20,7 +20,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getDialerUser } from "@/lib/dialer/db";
 import { getCRMLeadContext } from "@/lib/dialer/crm-bridge";
 
-type RouteContext = { params: { leadId: string } };
+type RouteContext = { params: Promise<{ leadId: string }> };
 
 // ─────────────────────────────────────────────────────────────
 // GET /api/dialer/v1/context/[leadId]
@@ -31,7 +31,7 @@ export async function GET(req: NextRequest, { params }: RouteContext) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const { leadId } = params;
+  const { leadId } = await params;
   if (!leadId) {
     return NextResponse.json({ error: "leadId is required" }, { status: 400 });
   }
