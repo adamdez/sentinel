@@ -5590,6 +5590,10 @@ export function MasterClientFileModal({ clientFile: incomingClientFile, open, on
           phone: numberToDial,
           leadId: clientFile.id,
           propertyId: clientFile.propertyId,
+          // "cell" uses Twilio REST to bridge agent cell → prospect.
+          // "voip" is a pre-flight only — the browser SDK on the Dialer page
+          // handles the actual connection, so it does nothing when called here.
+          mode: "cell",
         }),
       });
       const data = await res.json();

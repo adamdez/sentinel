@@ -42,9 +42,20 @@ export function ContactTab({ cf, overlay, onSkipTrace, skipTracing, onDial, onSm
 
   // ── Phone & email data ──
   const persons = overlay?.persons ?? (cf.ownerFlags?.persons as Record<string, unknown>[]) ?? [];
+
+  // manual_phones: string[] saved by the contact editor
+  // all_phones: PhoneDetail[] from skip-trace enrichment
+  // Load priority: overlay (just ran skip-trace) → all_phones (enriched) → manual_phones (operator-entered) → ownerPhone
+  const rawManualPhones = (cf.ownerFlags?.manual_phones as string[] | undefined) ?? [];
   const phoneDetails: PhoneDetail[] = overlay?.phoneDetails
     ?? (cf.ownerFlags?.all_phones as PhoneDetail[] | undefined)?.filter((p) => typeof p === "object" && p !== null && "number" in p)
-    ?? [];
+    ?? rawManualPhones.filter(Boolean).map((number) => ({
+        number,
+        lineType: "unknown" as const,
+        confidence: 0,
+        dnc: false,
+        source: "manual",
+      }));
   const emailDetails: EmailDetail[] = overlay?.emailDetails
     ?? (cf.ownerFlags?.all_emails as EmailDetail[] | undefined)?.filter((e) => typeof e === "object" && e !== null && "email" in e)
     ?? [];
@@ -124,6 +135,15 @@ export function ContactTab({ cf, overlay, onSkipTrace, skipTracing, onDial, onSm
 
   const updatePhone = (i: number, val: string) => {
     setPhoneSlots((prev) => { const next = [...prev]; next[i] = val; return next; });
+  };
+  const promotePhone = (i: number) => {
+    // Move slot i to position 0 (becomes the BEST / owner_phone on save)
+    setPhoneSlots((prev) => {
+      const next = [...prev];
+      const [promoted] = next.splice(i, 1);
+      next.unshift(promoted);
+      return next;
+    });
   };
   const updateEmail = (i: number, val: string) => {
     setEmailSlots((prev) => { const next = [...prev]; next[i] = val; return next; });
@@ -409,6 +429,15 @@ export function ContactTab({ cf, overlay, onSkipTrace, skipTracing, onDial, onSm
                     </div>
                   </div>
                   <div className="flex items-center gap-1 shrink-0">
+                    {i > 0 && (
+                      <button
+                        onClick={() => promotePhone(i)}
+                        title="Set as primary (Best) number — click Save to persist"
+                        className="h-7 px-2 rounded-md text-[10px] font-semibold bg-amber-500/10 text-amber-400 hover:bg-amber-500/20 border border-amber-500/20 transition-all flex items-center gap-1"
+                      >
+                        ★ Best
+                      </button>
+                    )}
                     <button
                       onClick={() => onDial(phone)}
                       disabled={calling || detail?.dnc}

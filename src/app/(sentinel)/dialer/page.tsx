@@ -405,6 +405,11 @@ export default function DialerPage() {
   const [smsComposeMsg, setSmsComposeMsg] = useState("");
   const [smsComposeSending, setSmsComposeSending] = useState(false);
 
+  // Inline SMS compose for the lead card (separate from manual-dial SMS compose)
+  const [leadSmsOpen, setLeadSmsOpen] = useState(false);
+  const [leadSmsMsg, setLeadSmsMsg] = useState("");
+  const [leadSmsSending, setLeadSmsSending] = useState(false);
+
   // Twilio VoIP Device
   const [deviceStatus, setDeviceStatus] = useState<"initializing" | "ready" | "error" | "offline">("initializing");
   const [activeCall, setActiveCall] = useState<Call | null>(null);
@@ -826,6 +831,37 @@ export default function DialerPage() {
       setSmsLoading(false);
     }
   }, [currentLead, currentUser.id]);
+
+  // ── Lead card inline SMS send ──────────────────────────────────────
+  const handleLeadSmsSend = useCallback(async (phone: string) => {
+    if (!currentLead || !leadSmsMsg.trim()) return;
+    setLeadSmsSending(true);
+    try {
+      const res = await fetch("/api/dialer/sms", {
+        method: "POST",
+        headers: await authHeaders(),
+        body: JSON.stringify({
+          phone,
+          message: leadSmsMsg.trim(),
+          leadId: currentLead.id,
+          propertyId: currentLead.property_id,
+          userId: currentUser.id,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        toast.error(data.error ?? "SMS failed");
+      } else {
+        toast.success("Text sent via Dominion Homes");
+        setLeadSmsOpen(false);
+        setLeadSmsMsg("");
+      }
+    } catch {
+      toast.error("Network error — SMS not sent");
+    } finally {
+      setLeadSmsSending(false);
+    }
+  }, [currentLead, leadSmsMsg, currentUser.id]);
 
   // ── Quick Manual Dial handler ──────────────────────────────────────
   const handleManualDial = useCallback(async () => {
@@ -1798,6 +1834,45 @@ export default function DialerPage() {
                       )}
                     </AnimatePresence>
 
+                    {/* Secondary phones from skip-trace / manual entry */}
+                    {callState === "idle" && (() => {
+                      const allPhones = (currentLead.properties?.owner_flags?.all_phones as { number: string; dnc?: boolean; lineType?: string }[] | undefined) ?? [];
+                      const manualPhones = (currentLead.properties?.owner_flags?.manual_phones as string[] | undefined) ?? [];
+                      // Combine: all_phones first, then manual_phones not already in all_phones
+                      const primaryPhone = currentLead.properties?.owner_phone ?? "";
+                      const extraPhones: string[] = [];
+                      for (const p of allPhones) {
+                        const num = p.number?.replace(/\D/g, "").slice(-10);
+                        if (num && num !== primaryPhone.replace(/\D/g, "").slice(-10)) extraPhones.push(p.number);
+                      }
+                      for (const p of manualPhones) {
+                        const num = p.replace(/\D/g, "").slice(-10);
+                        if (num && num !== primaryPhone.replace(/\D/g, "").slice(-10) && !extraPhones.some(e => e.replace(/\D/g, "").slice(-10) === num)) extraPhones.push(p);
+                      }
+                      if (extraPhones.length === 0) return null;
+                      return (
+                        <div className="flex flex-wrap gap-1.5 pb-1">
+                          <span className="text-[10px] text-muted-foreground/50 w-full">Additional numbers:</span>
+                          {extraPhones.slice(0, 4).map((ph, i) => (
+                            <button
+                              key={i}
+                              type="button"
+                              onClick={() => {
+                                const digits = ph.replace(/\D/g, "").replace(/^1/, "").slice(0, 10);
+                                setManualPhone(digits);
+                                window.scrollTo({ top: 0, behavior: "smooth" });
+                                toast.info(`${formatUsPhone(digits)} loaded — hit Dial Now`);
+                              }}
+                              className="h-7 px-2.5 rounded-[8px] text-[11px] font-mono bg-cyan/8 hover:bg-cyan/18 border border-cyan/20 text-cyan transition-all flex items-center gap-1.5"
+                            >
+                              <Phone className="h-3 w-3" />
+                              {formatUsPhone(ph.replace(/\D/g, "").slice(-10))}
+                            </button>
+                          ))}
+                        </div>
+                      );
+                    })()}
+
                     <div className="flex items-center gap-2 pt-2">
                       {callState === "idle" && (
                         <>
@@ -1811,12 +1886,21 @@ export default function DialerPage() {
                             <span className="text-[10px] opacity-50 ml-1">Enter</span>
                           </Button>
                           <Button
-                            onClick={handleSendText}
-                            disabled={(!currentLead.compliant && !ghostMode) || smsLoading || !currentLead.properties?.owner_phone}
+                            onClick={() => {
+                              if (!currentLead.properties?.owner_phone) {
+                                toast.error("No phone number for this lead");
+                                return;
+                              }
+                              setLeadSmsOpen((v) => !v);
+                              if (!leadSmsMsg) {
+                                setLeadSmsMsg(`Hi ${currentLead.properties?.owner_name?.split(" ")[0] ?? "there"}, this is Dominion Homes reaching out about your property at ${currentLead.properties?.address ?? "your address"}. Would you have a few minutes to chat? Reply STOP to opt out.`);
+                              }
+                            }}
+                            disabled={(!currentLead.compliant && !ghostMode) || !currentLead.properties?.owner_phone}
                             variant="outline"
-                            className="gap-2 border-purple/25 text-purple hover:bg-purple/10"
+                            className={`gap-2 border-purple/25 text-purple hover:bg-purple/10 ${leadSmsOpen ? "bg-purple/10 border-purple/40" : ""}`}
                           >
-                            {smsLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <MessageSquare className="h-4 w-4" />}
+                            <MessageSquare className="h-4 w-4" />
                             Text
                           </Button>
                         </>
@@ -1858,6 +1942,43 @@ export default function DialerPage() {
                         <Wifi className="h-3 w-3 text-cyan/40" />
                         VoIP call via browser — Caller ID: Dominion Homes
                       </p>
+                    )}
+
+                    {/* Inline SMS compose for lead card */}
+                    {leadSmsOpen && callState === "idle" && currentLead.properties?.owner_phone && (
+                      <div className="mt-3 rounded-[12px] bg-white/[0.03] border border-purple/15 p-3 space-y-2">
+                        <div className="flex items-center justify-between">
+                          <p className="text-[11px] text-muted-foreground/60 uppercase tracking-wider">
+                            SMS to {formatUsPhone(currentLead.properties.owner_phone.replace(/\D/g, "").slice(-10))}
+                          </p>
+                          <button
+                            type="button"
+                            onClick={() => setLeadSmsOpen(false)}
+                            className="text-muted-foreground/40 hover:text-foreground"
+                          >
+                            <X className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
+                        <textarea
+                          value={leadSmsMsg}
+                          onChange={(e) => setLeadSmsMsg(e.target.value)}
+                          placeholder="Write your message..."
+                          className="w-full bg-transparent text-sm resize-none h-20 outline-none placeholder:text-muted-foreground/30 border border-white/[0.04] rounded-[8px] p-2"
+                          maxLength={500}
+                        />
+                        <div className="flex items-center justify-between">
+                          <span className="text-[10px] text-muted-foreground/50">{leadSmsMsg.length}/500</span>
+                          <Button
+                            onClick={() => handleLeadSmsSend(currentLead.properties!.owner_phone!)}
+                            disabled={leadSmsSending || !leadSmsMsg.trim()}
+                            size="sm"
+                            className="gap-1.5 bg-purple/15 hover:bg-purple/25 text-purple border border-purple/25"
+                          >
+                            {leadSmsSending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
+                            Send
+                          </Button>
+                        </div>
+                      </div>
                     )}
                   </div>
                 </GlassCard>
