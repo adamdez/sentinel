@@ -137,7 +137,7 @@ function SortableCard({ item, onCall }: { item: PipelineItem; onCall?: (phone: s
                 variant="ghost"
                 size="sm"
                 className="h-6 px-2 text-[10px] gap-1 ml-auto"
-                onClick={() => onCall?.(item.phone!)}
+                onClick={() => { window.location.href = `/leads?open=${item.id}`; }}
               >
                 <Phone className="h-3 w-3" />
                 Call

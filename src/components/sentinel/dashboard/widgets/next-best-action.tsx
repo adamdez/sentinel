@@ -69,6 +69,7 @@ export function NextBestAction() {
       const predLabel = top.predictivePriority > top.score.composite ? " [AI-boosted]" : "";
       return {
         primary: {
+          id: top.id,
           name: top.ownerName,
           phone: top.ownerPhone,
           tags: top.tags ?? [],
@@ -91,6 +92,7 @@ export function NextBestAction() {
       const predLabel = topLead.predictivePriority > topLead.score.composite ? " [AI-boosted]" : "";
       return {
         primary: {
+          id: topLead.id,
           name: topLead.ownerName,
           phone: topLead.ownerPhone,
           tags: topLead.tags ?? [],
@@ -108,6 +110,7 @@ export function NextBestAction() {
     if (topProspect) {
       return {
         primary: {
+          id: topProspect.id,
           name: topProspect.owner_name,
           phone: topProspect.owner_phone,
           tags: topProspect.tags ?? [],
@@ -207,7 +210,7 @@ export function NextBestAction() {
           {primary.reason}
         </p>
         <div className="flex items-center gap-2">
-          <Button size="sm" className="h-7 text-[11px] gap-1 flex-1" onClick={() => { if (primary.phone) window.open(`tel:${primary.phone.replace(/\D/g, "")}`); }}>
+          <Button size="sm" className="h-7 text-[11px] gap-1 flex-1" onClick={() => { if (primary.id) window.location.href = `/leads?open=${primary.id}`; }}>
             <Phone className="h-3 w-3" />
             {primary.action}
           </Button>

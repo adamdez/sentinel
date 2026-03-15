@@ -11,6 +11,7 @@ import { useSentinelStore } from "@/lib/store";
 import { cn } from "@/lib/utils";
 
 interface DialLead {
+  id: string;
   name: string;
   phone: string;
   reason: string;
@@ -64,6 +65,7 @@ export function QuickDial() {
       const tag = (l.tags?.[0] ?? l.status ?? "Lead").replace(/_/g, " ").replace(/\b\w/g, (c: string) => c.toUpperCase());
 
       setLead({
+        id: l.id,
         name: prop.name,
         phone: prop.phone,
         reason: `${tag} — Score ${l.priority}`,
@@ -91,9 +93,9 @@ export function QuickDial() {
   useEffect(() => { fetchAndScrub(); }, [fetchAndScrub]);
 
   const handleCall = () => {
-    setCalling(true);
-    if (lead?.phone) window.open(`tel:${lead.phone.replace(/\D/g, "")}`);
-    setTimeout(() => setCalling(false), 3000);
+    if (lead?.id) {
+      window.location.href = `/leads?open=${lead.id}`;
+    }
   };
 
   if (loading) {

@@ -284,7 +284,7 @@ export default function NurturePage() {
                           <td className="px-4 py-3 text-right">
                             <div className="flex items-center justify-end gap-1">
                               {row.owner_phone && (
-                                <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={(e) => { e.stopPropagation(); window.open(`tel:${row.owner_phone}`); }}>
+                                <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={(e) => { e.stopPropagation(); window.location.href = `/leads?open=${row.id}`; }}>
                                   <Phone className="h-3.5 w-3.5 text-emerald-400" />
                                 </Button>
                               )}
