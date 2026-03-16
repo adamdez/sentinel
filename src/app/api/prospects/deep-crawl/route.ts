@@ -692,6 +692,68 @@ export async function POST(req: NextRequest) {
             })(),
           );
 
+          // 4a-dossier. Fire-and-forget upsert into the dossiers table.
+          // This does NOT block the crawl, does NOT affect owner_flags, and
+          // does NOT change DeepCrawlPanel behavior.
+          // The dossier lands with status = 'proposed' and is never shown to
+          // operators until Adam reviews it via the review endpoint.
+          if (lead_id && aiDossier) {
+            (async () => {
+              try {
+                const crawlRunId = result.crawledAt; // ISO timestamp as trace ref
+                const topFacts: { fact: string; source: string }[] = [
+                  ...(aiDossier.signalAnalysis ?? []).map((s: { headline: string; actionableInsight: string }) => ({
+                    fact: s.headline,
+                    source: s.actionableInsight ?? "",
+                  })),
+                  ...(aiDossier.webFindings ?? []).map((w: { finding: string; source: string }) => ({
+                    fact: w.finding,
+                    source: w.source ?? "",
+                  })),
+                ].slice(0, 8);
+
+                const sourceLinks: { label: string; url: string }[] = (result.sources ?? [])
+                  .slice(0, 6)
+                  .map((url: string) => ({
+                    label: new URL(url).hostname.replace(/^www\./, ""),
+                    url,
+                  }))
+                  .filter((l: { label: string; url: string }) => {
+                    try { new URL(l.url); return true; } catch { return false; }
+                  });
+
+                const verificationChecklist: { item: string; verified: boolean }[] = (aiDossier.redFlags ?? [])
+                  .slice(0, 5)
+                  .map((flag: string) => ({ item: flag, verified: false }));
+
+                const dossierRecord = {
+                  lead_id,
+                  property_id: property_id ?? null,
+                  status: "proposed",
+                  situation_summary: aiDossier.summary ?? null,
+                  likely_decision_maker: aiDossier.ownerProfile
+                    ? aiDossier.ownerProfile.slice(0, 200)
+                    : null,
+                  top_facts: topFacts.length > 0 ? topFacts : null,
+                  recommended_call_angle: aiDossier.suggestedApproach ?? null,
+                  verification_checklist: verificationChecklist.length > 0 ? verificationChecklist : null,
+                  source_links: sourceLinks.length > 0 ? sourceLinks : null,
+                  raw_ai_output: aiDossier,
+                  ai_run_id: crawlRunId,
+                };
+
+                const { error: dossierErr } = await tbl("dossiers").insert(dossierRecord);
+                if (dossierErr) {
+                  console.error("[DeepCrawl] Failed to upsert dossier:", dossierErr);
+                } else {
+                  console.log("[DeepCrawl] Dossier upserted for lead", lead_id, "(status: proposed)");
+                }
+              } catch (dossierWriteErr) {
+                console.error("[DeepCrawl] Dossier write exception:", dossierWriteErr);
+              }
+            })();
+          }
+
           // 4b. Backfill distress_events.raw_data with actual dates/amounts
           for (const evt of distressEvents) {
             const enrichedSignal = signals.find(s => s.type === evt.event_type);

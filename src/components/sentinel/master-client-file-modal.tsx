@@ -140,6 +140,9 @@ import {
 } from "./master-client-file/client-file-panels";
 import { ContactTab } from "./master-client-file/contact-tab";
 import type { PhoneDetail, EmailDetail, SkipTraceOverlay, SkipTraceError } from "./master-client-file/contact-types";
+import { BuyerRadarPanel } from "./master-client-file/buyer-radar-panel";
+import { MonetizabilityEditor } from "./master-client-file/monetizability-editor";
+import { DossierBlock } from "./master-client-file/dossier-block";
 
 // Re-export for consumers that import from this file
 export type { ClientFile };
@@ -318,7 +321,7 @@ const WORKFLOW_STAGE_OPTIONS: Array<{ id: WorkflowStageId; label: string }> = [
 // Tab: Overview
 // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
-function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceMs, overlay, skipTraceError, onSkipTrace, onManualSkipTrace, onEdit, onDial, onSms, calling, dialHistory, autofilling, onAutofill, deepCrawling, deepCrawlResult, deepCrawlExpanded, setDeepCrawlExpanded, executeDeepCrawl, hasSavedReport, loadingReport, loadSavedReport, crawlSteps, deepSkipResult, activityRefreshToken, qualification, qualificationDirty, qualificationSaving, qualificationEditable, qualificationSuggestedRoute, onQualificationChange, onQualificationRouteSelect, onQualificationSave, offerPrepDraft, offerPrepEditing, offerPrepSaving, onOfferPrepDraftChange, onOfferPrepEditToggle, onOfferPrepSave, offerStatusDraft, offerStatusEditing, offerStatusSaving, onOfferStatusDraftChange, onOfferStatusEditToggle, onOfferStatusSave, buyerDispoTruthDraft, buyerDispoTruthEditing, buyerDispoTruthSaving, onBuyerDispoTruthDraftChange, onBuyerDispoTruthEditToggle, onBuyerDispoTruthSave, milestoneDraft, milestoneEditing, milestoneSaving, onMilestoneDraftChange, onMilestoneEditToggle, onSaveMilestones }: {
+function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceMs, overlay, skipTraceError, onSkipTrace, onManualSkipTrace, onEdit, onDial, onSms, calling, dialHistory, autofilling, onAutofill, deepCrawling, deepCrawlResult, deepCrawlExpanded, setDeepCrawlExpanded, executeDeepCrawl, hasSavedReport, loadingReport, loadSavedReport, crawlSteps, deepSkipResult, activityRefreshToken, qualification, qualificationDirty, qualificationSaving, qualificationEditable, qualificationSuggestedRoute, onQualificationChange, onQualificationRouteSelect, onQualificationSave, offerPrepDraft, offerPrepEditing, offerPrepSaving, onOfferPrepDraftChange, onOfferPrepEditToggle, onOfferPrepSave, offerStatusDraft, offerStatusEditing, offerStatusSaving, onOfferStatusDraftChange, onOfferStatusEditToggle, onOfferStatusSave, buyerDispoTruthDraft, buyerDispoTruthEditing, buyerDispoTruthSaving, onBuyerDispoTruthDraftChange, onBuyerDispoTruthEditToggle, onBuyerDispoTruthSave, milestoneDraft, milestoneEditing, milestoneSaving, onMilestoneDraftChange, onMilestoneEditToggle, onSaveMilestones, isAdam }: {
   cf: ClientFile; computedArv: number; skipTracing: boolean; skipTraceResult: string | null; skipTraceMs: number | null;
   overlay: SkipTraceOverlay | null; skipTraceError: SkipTraceError | null;
   onSkipTrace: () => void; onManualSkipTrace: () => void; onEdit: () => void;
@@ -366,6 +369,7 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
   onMilestoneDraftChange: (patch: Partial<MilestoneDraft>) => void;
   onMilestoneEditToggle: (next: boolean) => void;
   onSaveMilestones: () => void;
+  isAdam: boolean;
 }) {
   const displayPhone = overlay?.primaryPhone ?? cf.ownerPhone ?? (cf.ownerFlags?.contact_phone as string | null) ?? null;
   const displayEmail = overlay?.primaryEmail ?? cf.ownerEmail ?? (cf.ownerFlags?.contact_email as string | null) ?? null;
@@ -1577,6 +1581,21 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
 
       {/* Linked Buyers Summary — visible when lead has a deal with linked buyers */}
       <LinkedBuyersSummary leadId={cf.id} />
+
+      {/* Buyer Radar — ranked buyer match panel; opens on demand */}
+      <BuyerRadarPanel leadId={cf.id} isAdminView={isAdam} />
+
+      {/* Monetizability Editor — Adam-only: manually set score + friction level */}
+      {isAdam && (
+        <MonetizabilityEditor
+          leadId={cf.id}
+          initialScore={cf.monetizabilityScore ?? null}
+          initialFriction={cf.dispoFrictionLevel ?? null}
+        />
+      )}
+
+      {/* Dossier Block — renders only when a reviewed dossier exists for this lead */}
+      <DossierBlock leadId={cf.id} isAdminView={isAdam} />
 
       {/* Intake Guide — visible for early-stage leads (prospect/lead with 0-1 calls) */}
       <IntakeGuideSection cf={cf} />
@@ -6619,6 +6638,7 @@ export function MasterClientFileModal({ clientFile: incomingClientFile, open, on
                         onMilestoneDraftChange={handleMilestoneDraftChange}
                         onMilestoneEditToggle={setMilestoneEditing}
                         onSaveMilestones={handleSaveMilestones}
+                        isAdam={currentUserName?.toLowerCase().includes("adam") ?? false}
                       />
                     )}
                     {activeTab === "contact" && (

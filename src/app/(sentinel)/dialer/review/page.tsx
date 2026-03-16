@@ -14,11 +14,12 @@ import Link from "next/link";
 import {
   Phone, ArrowRight, CalendarClock, AlertTriangle,
   CheckSquare, Brain, Loader2, TrendingUp, TrendingDown,
-  Minus, RefreshCw, Flag,
+  Minus, RefreshCw, Flag, FileText,
 } from "lucide-react";
 import { PageShell } from "@/components/sentinel/page-shell";
 import { GlassCard } from "@/components/sentinel/glass-card";
 import { useDialerWeekly, type WeekBucket } from "@/hooks/use-dialer-weekly";
+import { useStaleBuyerCount } from "@/components/sentinel/buyer-stale-panel";
 
 // ── Helpers ───────────────────────────────────────────────────
 
@@ -162,6 +163,7 @@ const COLS: ColDef[] = [
 
 export default function DialerReviewPage() {
   const { data, loading, error } = useDialerWeekly(4);
+  const { count: staleBuyerCount } = useStaleBuyerCount();
 
   return (
     <PageShell
@@ -373,6 +375,25 @@ export default function DialerReviewPage() {
             >
               <RefreshCw className="h-3 w-3" />
               Back to Dialer
+            </Link>
+            <Link
+              href="/dialer/review/dossier-queue"
+              className="flex items-center gap-1.5 rounded-[10px] border border-amber-500/20 bg-amber-500/[0.04] px-3 py-2 text-[11px] text-amber-600/70 dark:text-amber-400/70 hover:text-amber-600 dark:hover:text-amber-400 hover:border-amber-500/30 transition-colors"
+            >
+              <FileText className="h-3 w-3" />
+              Dossier Review →
+            </Link>
+            <Link
+              href="/buyers"
+              className="flex items-center gap-1.5 rounded-[10px] border border-white/[0.07] bg-white/[0.03] px-3 py-2 text-[11px] text-muted-foreground hover:text-foreground hover:border-white/[0.12] transition-colors"
+            >
+              <AlertTriangle className="h-3 w-3" />
+              Buyers
+              {staleBuyerCount > 0 && (
+                <span className="ml-1 px-1.5 py-0.5 rounded-full bg-amber-500/20 text-amber-600 dark:text-amber-400 text-[9px] font-medium">
+                  {staleBuyerCount} stale
+                </span>
+              )}
             </Link>
             <Link
               href="/dialer/war-room"

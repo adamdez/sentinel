@@ -171,6 +171,11 @@ export const leads = pgTable("leads", {
   voicemailsLeft: integer("voicemails_left").notNull().default(0),
   callConsent: boolean("call_consent").notNull().default(false),
   callConsentAt: timestamp("call_consent_at", { withTimezone: true }),
+  // Buyer liquidity / dispo signals (Phase 1 foundation)
+  monetizabilityScore: smallint("monetizability_score"),
+  dispoFrictionLevel: varchar("dispo_friction_level", { length: 20 }),
+  // Dossier promotion field — written only through explicit /api/dossiers/[id]/promote
+  decisionMakerNote: text("decision_maker_note"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 }, (table) => [
@@ -196,8 +201,20 @@ export const deals = pgTable("deals", {
   assignmentFee: integer("assignment_fee"),
   arv: integer("arv"),
   repairEstimate: integer("repair_estimate"),
-  buyerId: uuid("buyer_id").references(() => contacts.id, { onDelete: "set null" }),
+  // FK now points to buyers, not contacts (see migration 20260316_buyer_foundation.sql)
+  buyerId: uuid("buyer_id").references(() => buyers.id, { onDelete: "set null" }),
   closedAt: timestamp("closed_at", { withTimezone: true }),
+  // Dispo coordination fields
+  dispoPrep: jsonb("dispo_prep"),
+  enteredDispoAt: timestamp("entered_dispo_at", { withTimezone: true }),
+  // Closing coordination fields
+  closingTargetDate: date("closing_target_date"),
+  closingStatus: varchar("closing_status", { length: 50 }),
+  closingNotes: text("closing_notes"),
+  titleCompany: text("title_company"),
+  earnestMoneyDeposited: boolean("earnest_money_deposited").notNull().default(false),
+  inspectionComplete: boolean("inspection_complete").notNull().default(false),
+  closingChecklist: jsonb("closing_checklist"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 }, (table) => [
@@ -439,4 +456,117 @@ export const dailyDevotional = pgTable("daily_devotional", {
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 }, (table) => [
   uniqueIndex("uq_devotional_date").on(table.displayDate),
+]);
+
+// ── Buyers ──────────────────────────────────────────────────────────
+// Buyer profiles for the dispo / buyer-liquidity workflow.
+// FK from deals.buyer_id points here (see migration 20260316_buyer_foundation.sql).
+
+export const buyers = pgTable("buyers", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  contactName: varchar("contact_name", { length: 255 }).notNull(),
+  companyName: varchar("company_name", { length: 255 }),
+  phone: varchar("phone", { length: 30 }),
+  email: varchar("email", { length: 255 }),
+  preferredContactMethod: varchar("preferred_contact_method", { length: 20 }).notNull().default("phone"),
+  markets: text("markets").array().notNull().default([]),
+  assetTypes: text("asset_types").array().notNull().default([]),
+  priceRangeLow: integer("price_range_low"),
+  priceRangeHigh: integer("price_range_high"),
+  fundingType: varchar("funding_type", { length: 30 }),
+  proofOfFunds: varchar("proof_of_funds", { length: 30 }).notNull().default("not_submitted"),
+  pofVerifiedAt: timestamp("pof_verified_at", { withTimezone: true }),
+  rehabTolerance: varchar("rehab_tolerance", { length: 20 }),
+  buyerStrategy: varchar("buyer_strategy", { length: 30 }),
+  occupancyPref: varchar("occupancy_pref", { length: 20 }).notNull().default("either"),
+  tags: text("tags").array().notNull().default([]),
+  notes: text("notes"),
+  status: varchar("status", { length: 20 }).notNull().default("active"),
+  // SLAUD Phase 1 rollout fields
+  arvMax: integer("arv_max"),
+  closeSpeedDays: smallint("close_speed_days"),
+  reliabilityScore: smallint("reliability_score"),
+  dealsClosed: smallint("deals_closed").notNull().default(0),
+  lastContactedAt: timestamp("last_contacted_at", { withTimezone: true }),
+  doNotContact: boolean("do_not_contact").notNull().default(false),
+  createdBy: uuid("created_by"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (table) => [
+  index("idx_buyers_status").on(table.status),
+  index("idx_buyers_last_contacted").on(table.lastContactedAt),
+]);
+
+// ── Deal Buyers ─────────────────────────────────────────────────────
+// Junction table linking buyers to deals with outreach status tracking.
+
+export const dealBuyers = pgTable("deal_buyers", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  dealId: uuid("deal_id").notNull().references(() => deals.id, { onDelete: "cascade" }),
+  buyerId: uuid("buyer_id").notNull().references(() => buyers.id, { onDelete: "cascade" }),
+  status: varchar("status", { length: 30 }).notNull().default("not_contacted"),
+  dateContacted: timestamp("date_contacted", { withTimezone: true }),
+  contactMethod: varchar("contact_method", { length: 20 }),
+  response: text("response"),
+  offerAmount: integer("offer_amount"),
+  followUpNeeded: boolean("follow_up_needed").notNull().default(false),
+  followUpAt: timestamp("follow_up_at", { withTimezone: true }),
+  respondedAt: timestamp("responded_at", { withTimezone: true }),
+  selectionReason: text("selection_reason"),
+  notes: text("notes"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (table) => [
+  index("idx_deal_buyers_deal").on(table.dealId),
+  index("idx_deal_buyers_buyer").on(table.buyerId),
+  index("idx_deal_buyers_status").on(table.status),
+  uniqueIndex("uq_deal_buyers").on(table.dealId, table.buyerId),
+]);
+
+// ── Buyer Zip Preferences ───────────────────────────────────────────
+// Per-buyer zip code preferences for future buyer-radar matching.
+
+export const buyerZipPreferences = pgTable("buyer_zip_preferences", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  buyerId: uuid("buyer_id").notNull().references(() => buyers.id, { onDelete: "cascade" }),
+  zip: varchar("zip", { length: 10 }).notNull(),
+  county: varchar("county", { length: 100 }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (table) => [
+  index("idx_buyer_zip_buyer").on(table.buyerId),
+  index("idx_buyer_zip_zip").on(table.zip),
+  uniqueIndex("uq_buyer_zip").on(table.buyerId, table.zip),
+]);
+
+// ── Dossiers ────────────────────────────────────────────────────────
+// AI-generated lead intelligence with an explicit review gate.
+// status lifecycle: proposed → reviewed | flagged → promoted
+// Only 'reviewed' dossiers are shown in Lead Detail.
+// Durable lead fields are written only through the promote path.
+
+export const dossiers = pgTable("dossiers", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  leadId: uuid("lead_id").notNull().references(() => leads.id, { onDelete: "cascade" }),
+  propertyId: uuid("property_id").references(() => properties.id, { onDelete: "set null" }),
+  status: varchar("status", { length: 20 }).notNull().default("proposed"),
+  // Structured operator-facing fields
+  situationSummary: text("situation_summary"),
+  likelyDecisionMaker: text("likely_decision_maker"),
+  topFacts: jsonb("top_facts"),
+  recommendedCallAngle: text("recommended_call_angle"),
+  verificationChecklist: jsonb("verification_checklist"),
+  sourceLinks: jsonb("source_links"),
+  // Traceability — never shown in operator UI
+  rawAiOutput: jsonb("raw_ai_output"),
+  aiRunId: varchar("ai_run_id", { length: 255 }),
+  // Review metadata
+  reviewedBy: uuid("reviewed_by"),
+  reviewedAt: timestamp("reviewed_at", { withTimezone: true }),
+  reviewNotes: text("review_notes"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (table) => [
+  index("idx_dossiers_lead_status").on(table.leadId, table.status),
+  index("idx_dossiers_lead_created").on(table.leadId, table.createdAt),
+  index("idx_dossiers_status").on(table.status),
 ]);

@@ -111,6 +111,11 @@ export interface ClientFile {
     equityBurnRate: number | null;
     lifeEventProbability: number | null;
   } | null;
+  // Buyer-liquidity fields (Phase 1) — manual, Adam-only
+  monetizabilityScore: number | null;
+  dispoFrictionLevel: string | null;
+  // Dossier promotion field — written only through the explicit promote path
+  decisionMakerNote: string | null;
 }
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -166,6 +171,9 @@ export function clientFileFromProspect(p: ProspectRow): ClientFile {
     appointmentAt: null, offerAmount: null, contractAt: null, assignmentFeeProjected: null, attribution: null,
     nextCallScheduledAt: null, callSequenceStep: 1, totalCalls: 0, liveAnswers: 0, voicemailsLeft: 0, dispositionCode: null,
     prediction: p._prediction ?? null,
+    monetizabilityScore: null,
+    dispoFrictionLevel: null,
+    decisionMakerNote: null,
   };
 }
 
@@ -204,6 +212,9 @@ export function clientFileFromLead(l: LeadRow): ClientFile {
     appointmentAt: (l as any).appointmentAt ?? null, offerAmount: (l as any).offerAmount ?? null, contractAt: (l as any).contractAt ?? null, assignmentFeeProjected: (l as any).assignmentFeeProjected ?? null, attribution: (l as any).attribution ?? null,
     nextCallScheduledAt: l.nextCallScheduledAt, callSequenceStep: l.callSequenceStep, totalCalls: l.totalCalls, liveAnswers: l.liveAnswers, voicemailsLeft: l.voicemailsLeft, dispositionCode: l.dispositionCode ?? null,
     prediction: null,
+    monetizabilityScore: (l as any).monetizability_score ?? null,
+    dispoFrictionLevel: (l as any).dispo_friction_level ?? null,
+    decisionMakerNote: (l as any).decision_maker_note ?? null,
   };
 }
 
@@ -276,6 +287,9 @@ export function clientFileFromRaw(lead: Record<string, any>, prop: Record<string
     voicemailsLeft: lead.voicemails_left ?? 0,
     dispositionCode: lead.disposition_code ?? null,
     prediction: lead._prediction ?? null,
+    monetizabilityScore: lead.monetizability_score != null ? Number(lead.monetizability_score) : null,
+    dispoFrictionLevel: lead.dispo_friction_level ?? null,
+    decisionMakerNote: lead.decision_maker_note ?? null,
   };
 }
 

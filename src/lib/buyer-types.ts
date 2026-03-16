@@ -40,6 +40,13 @@ export type BuyerRow = {
   created_by: string | null;
   created_at: string;
   updated_at: string;
+  // Phase 1 SLAUD rollout fields — nullable until populated
+  arv_max: number | null;
+  close_speed_days: number | null;
+  reliability_score: number | null;
+  deals_closed: number | null;
+  last_contacted_at: string | null;
+  do_not_contact: boolean;
 };
 
 export type DealBuyerRow = {

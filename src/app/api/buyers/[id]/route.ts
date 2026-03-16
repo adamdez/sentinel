@@ -40,6 +40,9 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       "markets", "asset_types", "price_range_low", "price_range_high",
       "funding_type", "proof_of_funds", "pof_verified_at", "rehab_tolerance",
       "buyer_strategy", "occupancy_pref", "tags", "notes", "status",
+      // SLAUD Phase 1 rollout fields
+      "arv_max", "close_speed_days", "reliability_score", "deals_closed",
+      "last_contacted_at", "do_not_contact",
     ];
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any

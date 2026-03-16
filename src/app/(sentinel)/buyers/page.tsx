@@ -4,7 +4,7 @@ import { useState, useCallback, useMemo } from "react";
 import { motion } from "framer-motion";
 import {
   Plus, Search, Filter, Phone, Mail, MessageSquare,
-  Shield, ChevronDown,
+  Shield, ChevronDown, AlertTriangle,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { PageShell } from "@/components/sentinel/page-shell";
@@ -22,6 +22,7 @@ import {
 import { useHydrated } from "@/providers/hydration-provider";
 import { useCoachSurface } from "@/providers/coach-provider";
 import { CoachPanel, CoachToggle } from "@/components/sentinel/coach-panel";
+import { BuyerStalePanel, useStaleBuyerCount } from "@/components/sentinel/buyer-stale-panel";
 
 // ── Filter bar ──
 
@@ -84,6 +85,7 @@ export default function BuyersPage() {
   }), [filters, debouncedSearch]);
 
   const { buyers, loading, refetch } = useBuyers(activeFilters);
+  const { count: staleCount } = useStaleBuyerCount();
 
   // Coach context — surface-level stats about buyer list health
   const unverifiedPof = buyers.filter((b) => b.proof_of_funds !== "verified").length;
@@ -128,6 +130,12 @@ export default function BuyersPage() {
       description="Manage buyer relationships and buy-box criteria"
       actions={
         <div className="flex items-center gap-2">
+          {staleCount > 0 && (
+            <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-[8px] border border-amber-400/40 bg-amber-500/10 text-xs text-amber-700 dark:text-amber-400">
+              <AlertTriangle className="h-3 w-3" />
+              {staleCount} stale
+            </div>
+          )}
           <button
             onClick={openCreate}
             className="flex items-center gap-1.5 px-3.5 py-1.5 text-sm font-medium text-cyan bg-cyan/10 hover:bg-cyan/15 rounded-[10px] border border-cyan/25 hover:border-cyan/40 transition-all"
@@ -158,6 +166,9 @@ export default function BuyersPage() {
           <FilterSelect value={filters.pof ?? ""} onChange={(v) => handleFilterChange("pof", v)} options={POF_STATUS_OPTIONS as unknown as { value: string; label: string }[]} placeholder="All POF" />
         </div>
       </GlassCard>
+
+      {/* Stale buyer maintenance panel — collapses when all buyers are current */}
+      <BuyerStalePanel onBuyerUpdated={refetch} />
 
       {/* Table */}
       <GlassCard hover={false} delay={0.04} className="p-0 overflow-hidden">
