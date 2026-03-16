@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef, useMemo } from "react";
+import { useSearchParams } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { Device, Call } from "@twilio/voice-sdk";
 import {
@@ -33,6 +34,7 @@ import { Eye } from "lucide-react";
 import { useCoachSurface } from "@/providers/coach-provider";
 import { CoachPanel, CoachToggle } from "@/components/sentinel/coach-panel";
 import { PostCallPanel } from "@/components/sentinel/post-call-panel";
+import { SellerMemoryPanel } from "@/components/sentinel/seller-memory-panel";
 
 async function authHeaders(): Promise<Record<string, string>> {
   const { data: { session } } = await supabase.auth.getSession();
@@ -454,7 +456,11 @@ export default function DialerPage() {
   }, [callState, dialerSessionId, currentLead]);
 
   // Quick Manual Dial state
-  const [manualPhone, setManualPhone] = useState("");
+  const searchParams = useSearchParams();
+  const [manualPhone, setManualPhone] = useState(() => {
+    const p = searchParams.get("phone") ?? "";
+    return p.replace(/\D/g, "").replace(/^1/, "").slice(0, 10);
+  });
   const [manualDialing, setManualDialing] = useState(false);
   const [manualCallLogId, setManualCallLogId] = useState<string | null>(null);
   const [manualStatus, setManualStatus] = useState<"idle" | "dialing" | "connected" | "ended">("idle");
@@ -2123,6 +2129,14 @@ export default function DialerPage() {
                 exit={{ opacity: 0, y: -10 }}
                 transition={{ duration: 0.2 }}
               >
+                {/* ── Seller Memory: visible during and after call ── */}
+                {dialerSessionId && (
+                  <SellerMemoryPanel
+                    sessionId={dialerSessionId}
+                    className="mb-3"
+                  />
+                )}
+
                 {callState === "ended" && dialerSessionId ? (
                   /* ── PostCallPanel: session-backed calls get publish path ── */
                   <PostCallPanel

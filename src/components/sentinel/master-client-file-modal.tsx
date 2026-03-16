@@ -1,6 +1,7 @@
 "use client";
 
 import { Fragment, useState, useCallback, useMemo, useEffect, useRef } from "react";
+import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   X, MapPin, User, Phone, Mail, DollarSign, Home, TrendingUp,
@@ -4157,6 +4158,7 @@ function readResponseString(payload: Record<string, unknown>, key: string): stri
 }
 
 export function MasterClientFileModal({ clientFile: incomingClientFile, open, onClose, onClaim, onRefresh }: MasterClientFileModalProps) {
+  const router = useRouter();
   const [activeTab, setActiveTab] = useState<TabId>("overview");
   const [skipTracing, setSkipTracing] = useState(false);
   const [skipTraceResult, setSkipTraceResult] = useState<string | null>(null);
@@ -5573,51 +5575,12 @@ export function MasterClientFileModal({ clientFile: incomingClientFile, open, on
     onRefresh,
   ]);
 
-  const handleDial = useCallback(async (phoneNumber?: string) => {
+  const handleDial = useCallback((phoneNumber?: string) => {
     const numberToDial = phoneNumber || displayPhone;
-    if (!clientFile || !numberToDial) return;
-    setCalling(true);
-    setCallStatus("dialing");
-    try {
-      const { data: { session } } = await supabase.auth.getSession();
-      const res = await fetch("/api/dialer/call", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          ...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}),
-        },
-        body: JSON.stringify({
-          phone: numberToDial,
-          leadId: clientFile.id,
-          propertyId: clientFile.propertyId,
-          // "cell" uses Twilio REST to bridge agent cell → prospect.
-          // "voip" is a pre-flight only — the browser SDK on the Dialer page
-          // handles the actual connection, so it does nothing when called here.
-          mode: "cell",
-        }),
-      });
-      const data = await res.json();
-      if (res.ok) {
-        setCallStatus("ringing");
-        toast.success(`Call initiated to ...${numberToDial.slice(-4)}`);
-        setTimeout(() => { setCallStatus(null); setCalling(false); }, 30000);
-        fetchDialHistory();
-      } else if (data?.code === "CALL_CONSENT_REQUIRED") {
-        setCallStatus(null);
-        setCalling(false);
-        setPendingPhone(phoneNumber);
-        setNeedsConsent(true);
-      } else {
-        setCallStatus(null);
-        setCalling(false);
-        toast.error(data.error ?? "Call failed");
-      }
-    } catch {
-      setCallStatus(null);
-      setCalling(false);
-      toast.error("Network error â€” call failed");
-    }
-  }, [clientFile, displayPhone, fetchDialHistory]);
+    if (!numberToDial) return;
+    const digits = numberToDial.replace(/\D/g, "").replace(/^1/, "").slice(0, 10);
+    router.push(`/dialer?phone=${digits}`);
+  }, [displayPhone, router]);
 
   const grantConsentAndDial = useCallback(async () => {
     if (!clientFile) return;
