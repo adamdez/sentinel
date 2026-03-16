@@ -493,17 +493,19 @@ export async function fetchDailyMetrics(
   startDate: string,
   endDate: string,
 ): Promise<DailyMetricRow[]> {
+  // Query at campaign level (not ad_group) to get one accurate row per date per
+  // campaign. Ad-group-level queries caused multiple rows to conflict on the same
+  // null ad_group_id key, silently discarding most of the data.
   const query = `
     SELECT
       segments.date,
       campaign.id,
-      ad_group.id,
       metrics.impressions,
       metrics.clicks,
       metrics.cost_micros,
       metrics.conversions,
       metrics.conversions_value
-    FROM ad_group
+    FROM campaign
     WHERE segments.date BETWEEN '${startDate}' AND '${endDate}'
       AND campaign.status != 'REMOVED'
     ORDER BY segments.date DESC
@@ -517,8 +519,8 @@ export async function fetchDailyMetrics(
     return {
       date: String(segments?.date ?? ""),
       campaignId: String(r.campaign?.id ?? ""),
-      adGroupId: String(r.adGroup?.id ?? r.ad_group?.id ?? ""),
-      keywordId: "",
+      adGroupId: null,
+      keywordId: null,
       impressions: Number(r.metrics?.impressions ?? 0),
       clicks: Number(r.metrics?.clicks ?? 0),
       costMicros: Number(r.metrics?.cost_micros ?? r.metrics?.costMicros ?? 0),
