@@ -1,5 +1,115 @@
 [
   {
+    "hash": "803cdff5",
+    "date": "2026-03-15",
+    "message": "fix: add missing ui/checkbox and ui/textarea components, fix PageShell title prop"
+  },
+  {
+    "hash": "e44c761d",
+    "date": "2026-03-15",
+    "message": "feat: buyer foundation, dossier layer, and buyer-staleness maintenance"
+  },
+  {
+    "hash": "d91bcd21",
+    "date": "2026-03-15",
+    "message": "feat: dialer phase 2 — AI traces, publish manager, review surfaces, and war room"
+  },
+  {
+    "hash": "0a9b4669",
+    "date": "2026-03-15",
+    "message": "fix: resolve Vercel build failures — TS params/Suspense errors"
+  },
+  {
+    "hash": "3155a3f7",
+    "date": "2026-03-15",
+    "message": "fix: add missing seller-memory-panel component to resolve build error"
+  },
+  {
+    "hash": "66aa41d1",
+    "date": "2026-03-15",
+    "message": "fix: default city=Spokane, state=WA, county=Spokane in Add Lead modal"
+  },
+  {
+    "hash": "53461691",
+    "date": "2026-03-15",
+    "message": "feat: add to call queue button on Leads list, Pipeline card, and Lead Detail"
+  },
+  {
+    "hash": "ff46292e",
+    "date": "2026-03-15",
+    "message": "feat: dial from lead detail navigates to Dialer page with phone pre-filled"
+  },
+  {
+    "hash": "3d82437d",
+    "date": "2026-03-15",
+    "message": "fix: daily metrics query from ad_group to campaign level — ad_group rows silently overwrote each other via null key conflict, losing most spend data"
+  },
+  {
+    "hash": "ad43967e",
+    "date": "2026-03-15",
+    "message": "fix: revert GOOGLE_ADS_CUSTOMER_ID to 8540090319 — confirmed correct account in dominion-ads-ai"
+  },
+  {
+    "hash": "9505d01d",
+    "date": "2026-03-15",
+    "message": "feat: add date range selector to Ads Performance tab (Yesterday / 7 / 14 / 30 days)"
+  },
+  {
+    "hash": "452d16cf",
+    "date": "2026-03-15",
+    "message": "fix: update GOOGLE_ADS_CUSTOMER_ID to correct account 8060969478 (was 8540090319)"
+  },
+  {
+    "hash": "7b02c029",
+    "date": "2026-03-15",
+    "message": "chore: redeploy — fix trailing newline in Google Ads OAuth credentials"
+  },
+  {
+    "hash": "d04c2808",
+    "date": "2026-03-15",
+    "message": "chore: redeploy to pick up corrected Google Ads OAuth credentials in production"
+  },
+  {
+    "hash": "30fde943",
+    "date": "2026-03-15",
+    "message": "chore: shift ads sync cron to 5am PST (13:00 UTC)"
+  },
+  {
+    "hash": "16f122d0",
+    "date": "2026-03-15",
+    "message": "Fix Google Ads sync: remove Search-only impression share fields from GAQL query, add cron jobs, wire credentials"
+  },
+  {
+    "hash": "ec035f57",
+    "date": "2026-03-15",
+    "message": "Fix pre-call brief column mismatch — wire ai_summary into seller memory loop"
+  },
+  {
+    "hash": "12037f17",
+    "date": "2026-03-15",
+    "message": "Add structured note scaffold and question-form assist prompts to power dialer"
+  },
+  {
+    "hash": "9cd4836f",
+    "date": "2026-03-15",
+    "message": "Fix all tel: link call buttons to open Lead Detail instead of OS phone dialer"
+  },
+  {
+    "hash": "79351fde",
+    "date": "2026-03-15",
+    "message": "Fix phone/SMS/dial bugs across dialer and Lead Detail"
+  },
+  {
+    "hash": "0e09fa21",
+    "date": "2026-03-15",
+    "message": "Fix call history tile: broken buttons, misleading icons, layout"
+  },
+  {
+    "hash": "6952b7c9",
+    "date": "2026-03-14",
+    "message": "fix: Next.js 15 async params for all v1 dialer route handlers"
+  },
+  {
     "hash": "49cbcc35",
     "date": "2026-03-14",
     "message": "feat: dialer PR3 — post-call publish, session extract, inline consent on lead file"
@@ -13,115 +123,5 @@
     "hash": "d98aac30",
     "date": "2026-03-14",
     "message": "feat: dialer domain foundation — bounded context, session state machine, v1 API (PR1)"
-  },
-  {
-    "hash": "5582fcc1",
-    "date": "2026-03-14",
-    "message": "fix: correct 5 schema mismatches causing silent DB write failures"
-  },
-  {
-    "hash": "7ef63bc1",
-    "date": "2026-03-14",
-    "message": "fix(wave6): apply failure, ephemeral simulation state, inline errors"
-  },
-  {
-    "hash": "9213cd2a",
-    "date": "2026-03-14",
-    "message": "fix(wave5): truncation detection, JSON extraction, ad copy validation, context guard"
-  },
-  {
-    "hash": "92c71a61",
-    "date": "2026-03-14",
-    "message": "fix(wave4): timeouts, infinite spinners, SSE race, localStorage side-effect"
-  },
-  {
-    "hash": "a14aac93",
-    "date": "2026-03-14",
-    "message": "fix(wave3): atomic sync lock, simulator race guard, cron secret bypass"
-  },
-  {
-    "hash": "67b8ef79",
-    "date": "2026-03-14",
-    "message": "fix(wave-2): fix NULL composite key duplicates, surface stage 3b/3c errors"
-  },
-  {
-    "hash": "269eb77b",
-    "date": "2026-03-14",
-    "message": "fix(wave-1): create missing workflow tables, fix adversarial wiring, surface AI parse failures"
-  },
-  {
-    "hash": "105923f7",
-    "date": "2026-03-14",
-    "message": "chore: redeploy to pick up new ANTHROPIC_API_KEY env var"
-  },
-  {
-    "hash": "50e05d2a",
-    "date": "2026-03-14",
-    "message": "feat: upgrade adversarial reviewer to GPT-5.4 Pro"
-  },
-  {
-    "hash": "7a054ec4",
-    "date": "2026-03-14",
-    "message": "fix: correct Claude model ID to claude-opus-4-6 and improve chat error handling"
-  },
-  {
-    "hash": "7a73542c",
-    "date": "2026-03-14",
-    "message": "feat: build Ad Copy Lab with dual-model ad generation"
-  },
-  {
-    "hash": "243f167f",
-    "date": "2026-03-14",
-    "message": "feat: upgrade sync pipeline for elite-level AI data access"
-  },
-  {
-    "hash": "60010897",
-    "date": "2026-03-14",
-    "message": "feat: add Key Intelligence tab with dual-model extraction"
-  },
-  {
-    "hash": "03056e33",
-    "date": "2026-03-14",
-    "message": "feat: dual-model AI engine — Opus 4.6 primary + GPT-5.4 Pro adversarial"
-  },
-  {
-    "hash": "eae19d43",
-    "date": "2026-03-13",
-    "message": "feat: add editable AI system prompt for Ads Command Center"
-  },
-  {
-    "hash": "3f932f00",
-    "date": "2026-03-13",
-    "message": "fix: improve error logging for Anthropic API failures in ads review"
-  },
-  {
-    "hash": "8407b524",
-    "date": "2026-03-13",
-    "message": "fix: wire AI Review and Chat to normalized ads tables"
-  },
-  {
-    "hash": "70e8e278",
-    "date": "2026-03-13",
-    "message": "fix: revert keyword query to keyword_view without cross-resource fields"
-  },
-  {
-    "hash": "7fe40371",
-    "date": "2026-03-13",
-    "message": "fix: remove prohibited metrics from ad_group_criterion query"
-  },
-  {
-    "hash": "4c030fe2",
-    "date": "2026-03-13",
-    "message": "fix: update Google Ads GAQL queries for v23 compatibility"
-  },
-  {
-    "hash": "13c5d190",
-    "date": "2026-03-13",
-    "message": "fix: update Google Ads API from sunset v18 to current v23"
-  },
-  {
-    "hash": "70a1c52f",
-    "date": "2026-03-13",
-    "message": "fix: update state machine tests for qualified stage transitions"
   }
 ]

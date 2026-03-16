@@ -570,3 +570,119 @@ export const dossiers = pgTable("dossiers", {
   index("idx_dossiers_lead_created").on(table.leadId, table.createdAt),
   index("idx_dossiers_status").on(table.status),
 ]);
+
+// ── Dossier Artifacts ────────────────────────────────────────────────
+// Individual pieces of operator-captured public-source evidence.
+// Each row is one source: URL, type, extracted notes, provenance.
+// Artifacts feed into proposed dossiers via the compile endpoint —
+// never written directly to leads.
+
+export const dossierArtifacts = pgTable("dossier_artifacts", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  leadId: uuid("lead_id").notNull().references(() => leads.id, { onDelete: "cascade" }),
+  propertyId: uuid("property_id").references(() => properties.id, { onDelete: "set null" }),
+  dossierId: uuid("dossier_id").references(() => dossiers.id, { onDelete: "set null" }),
+  // Source provenance
+  sourceUrl: text("source_url"),
+  sourceType: varchar("source_type", { length: 50 }).notNull().default("other"),
+  sourceLabel: text("source_label"),
+  capturedAt: timestamp("captured_at", { withTimezone: true }).notNull().defaultNow(),
+  // Extracted content
+  extractedNotes: text("extracted_notes"),
+  rawExcerpt: text("raw_excerpt"),
+  // Screenshot provenance (future storage integration)
+  screenshotKey: text("screenshot_key"),
+  screenshotUrl: text("screenshot_url"),
+  // Operator who captured it
+  capturedBy: uuid("captured_by"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (table) => [
+  index("idx_dossier_artifacts_lead").on(table.leadId, table.createdAt),
+  index("idx_dossier_artifacts_dossier").on(table.dossierId),
+]);
+
+// ── Source Policies ──────────────────────────────────────────────────────────
+// Maps each ArtifactSourceType to an evidence policy: approved | review_required | blocked.
+// One row per source_type. Updated by Adam via /settings/source-policies.
+
+export const sourcePolicies = pgTable("source_policies", {
+  id:          uuid("id").defaultRandom().primaryKey(),
+  sourceType:  text("source_type").notNull().unique(),
+  policy:      text("policy").notNull().default("review_required"),
+  rationale:   text("rationale"),
+  updatedBy:   uuid("updated_by"),
+  updatedAt:   timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  createdAt:   timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+// ── Fact Assertions ──────────────────────────────────────────────────────────
+// Discrete, reviewable claim rows derived from dossier_artifacts.
+// Every fact must trace back to an artifact — source provenance is mandatory.
+// Facts are accepted/rejected per-item before informing dossier content.
+// promoted_field is a proposal hint only — never a direct write to lead truth.
+
+export const factAssertions = pgTable("fact_assertions", {
+  id:             uuid("id").defaultRandom().primaryKey(),
+  artifactId:     uuid("artifact_id").notNull().references(() => dossierArtifacts.id, { onDelete: "cascade" }),
+  leadId:         uuid("lead_id").notNull().references(() => leads.id, { onDelete: "cascade" }),
+  factType:       text("fact_type").notNull().default("other"),
+  factValue:      text("fact_value").notNull(),
+  confidence:     text("confidence").notNull().default("unverified"),
+  reviewStatus:   text("review_status").notNull().default("pending"),
+  promotedField:  text("promoted_field"),
+  reviewedBy:     uuid("reviewed_by"),
+  reviewedAt:     timestamp("reviewed_at", { withTimezone: true }),
+  assertedBy:     uuid("asserted_by"),
+  // Nullable FK — pre-run-tracking rows have NULL
+  runId:          uuid("run_id"),
+  createdAt:      timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt:      timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (table) => [
+  index("idx_fact_assertions_lead").on(table.leadId, table.createdAt),
+  index("idx_fact_assertions_artifact").on(table.artifactId),
+]);
+
+// ── Research Runs ─────────────────────────────────────────────────────────────
+// Groups evidence-capture sessions into coherent research passes.
+// A run starts open, is closed by a compile action (→ compiled) or manually (→ closed/abandoned).
+// Artifacts and fact assertions link back via run_id (nullable, pre-run rows = NULL).
+
+// ── Prompt Registry ───────────────────────────────────────────────────────────
+// Maps (workflow, version) pairs to human-readable metadata.
+// One row per named prompt version. Status: testing | active | deprecated.
+// Does NOT control which version runs — that is a route-level constant.
+
+export const promptRegistry = pgTable("prompt_registry", {
+  id:           uuid("id").defaultRandom().primaryKey(),
+  workflow:     text("workflow").notNull(),
+  version:      text("version").notNull(),
+  status:       text("status").notNull().default("active"),
+  description:  text("description"),
+  changelog:    text("changelog"),
+  registeredBy: uuid("registered_by"),
+  updatedBy:    uuid("updated_by"),
+  createdAt:    timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt:    timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (table) => [
+  index("idx_prompt_registry_workflow").on(table.workflow, table.status),
+]);
+
+export const researchRuns = pgTable("research_runs", {
+  id:            uuid("id").defaultRandom().primaryKey(),
+  leadId:        uuid("lead_id").notNull().references(() => leads.id, { onDelete: "cascade" }),
+  propertyId:    uuid("property_id").references(() => properties.id, { onDelete: "set null" }),
+  status:        text("status").notNull().default("open"),
+  startedBy:     uuid("started_by"),
+  startedAt:     timestamp("started_at", { withTimezone: true }).notNull().defaultNow(),
+  closedAt:      timestamp("closed_at", { withTimezone: true }),
+  notes:         text("notes"),
+  dossierId:     uuid("dossier_id").references(() => dossiers.id, { onDelete: "set null" }),
+  sourceMix:     jsonb("source_mix"),
+  artifactCount: integer("artifact_count").notNull().default(0),
+  factCount:     integer("fact_count").notNull().default(0),
+  createdAt:     timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt:     timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (table) => [
+  index("idx_research_runs_lead").on(table.leadId, table.startedAt),
+]);

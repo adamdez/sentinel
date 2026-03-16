@@ -784,6 +784,8 @@ interface AdversarialIntel {
   finalInstruction: string;
 }
 
+const INTEL_CACHE_KEY = "ads_intelligence_cache";
+
 function IntelligenceTab() {
   const [intelligence, setIntelligence] = useState<IntelligenceData | null>(null);
   const [adversarial, setAdversarial] = useState<AdversarialIntel | null>(null);
@@ -791,6 +793,22 @@ function IntelligenceTab() {
   const [error, setError] = useState<string | null>(null);
   const [categoryFilter, setCategoryFilter] = useState<string>("all");
   const [urgencyFilter, setUrgencyFilter] = useState<string>("all");
+  const [cachedAt, setCachedAt] = useState<string | null>(null);
+
+  // Load from localStorage on mount
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(INTEL_CACHE_KEY);
+      if (raw) {
+        const cached = JSON.parse(raw);
+        if (cached.intelligence) setIntelligence(cached.intelligence);
+        if (cached.adversarial) setAdversarial(cached.adversarial);
+        if (cached.savedAt) setCachedAt(cached.savedAt);
+      }
+    } catch {
+      // ignore corrupt cache
+    }
+  }, []);
 
   const handleExtract = async () => {
     setLoading(true);
@@ -807,8 +825,19 @@ function IntelligenceTab() {
         return;
       }
       const data = await res.json();
+      const savedAt = new Date().toISOString();
       setIntelligence(data.intelligence);
       setAdversarial(data.adversarial);
+      setCachedAt(savedAt);
+      try {
+        localStorage.setItem(INTEL_CACHE_KEY, JSON.stringify({
+          intelligence: data.intelligence,
+          adversarial: data.adversarial,
+          savedAt,
+        }));
+      } catch {
+        // localStorage full or unavailable — data still shown in memory
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Request failed");
     } finally {
@@ -851,7 +880,7 @@ function IntelligenceTab() {
 
   const categories = [...new Set((intelligence?.data_points ?? []).map((dp) => dp.category))];
 
-  if (!intelligence && !loading) {
+  if (!intelligence && !loading && !error) {
     return (
       <div className="space-y-6">
         <div className="flex items-start gap-2 p-3 rounded-lg bg-cyan/5 border border-cyan/10 text-xs text-muted-foreground">
@@ -916,8 +945,10 @@ function IntelligenceTab() {
                 {intelligence.account_status}
               </span>
             )}
-            {intelligence?.briefing_date && (
-              <span className="text-[10px] text-muted-foreground/40 font-mono">{intelligence.briefing_date}</span>
+            {cachedAt && (
+              <span className="text-[10px] text-muted-foreground/40 font-mono" title={cachedAt}>
+                fetched {new Date(cachedAt).toLocaleDateString(undefined, { month: "short", day: "numeric" })} {new Date(cachedAt).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })}
+              </span>
             )}
           </div>
           <button

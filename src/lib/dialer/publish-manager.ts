@@ -31,6 +31,7 @@ import {
   PUBLISH_DISPOSITIONS,
   SELLER_TIMELINES,
   QUALIFICATION_ROUTES,
+  OBJECTION_TAGS,
   type PublishInput,
   type PublishResult,
   type DialerEventType,
@@ -41,7 +42,7 @@ import { getSession } from "./session-manager";
 const TASK_DISPOSITIONS = new Set(["follow_up", "appointment"]);
 
 export type { PublishInput, PublishResult };
-export { PUBLISH_DISPOSITIONS, SELLER_TIMELINES, QUALIFICATION_ROUTES };
+export { PUBLISH_DISPOSITIONS, SELLER_TIMELINES, QUALIFICATION_ROUTES, OBJECTION_TAGS };
 
 // ─────────────────────────────────────────────────────────────
 // Dialer event writer (publish-manager scope)
@@ -67,6 +68,7 @@ function writeDialerEvent(
     .insert({
       session_id: event.session_id,
       user_id:    event.user_id,
+      lead_id:    event.lead_id,
       event_type: event.event_type,
       payload:    { lead_id: event.lead_id, ...event.payload },
     })
@@ -301,6 +303,41 @@ export async function publishSession(
       console.warn("[publish-manager] task creation failed (non-fatal):", taskErr.message);
     } else {
       taskId = (taskRow?.id as string) ?? null;
+    }
+  }
+
+  // ── Step 3.5: objection tag writes ───────────────────────
+  //
+  // Writes each operator-selected objection tag as a row in lead_objection_tags.
+  // Fire-and-forget: a failed write never fails the publish response.
+  // Tags with invalid values (not in OBJECTION_TAGS allowlist) are silently dropped.
+  // Writes are skipped if lead_id is null or no tags provided.
+
+  if (leadId && input.objection_tags?.length) {
+    const allowedSet = new Set<string>(OBJECTION_TAGS);
+    const validTags = input.objection_tags.filter((t) => allowedSet.has(t.tag));
+
+    if (validTags.length > 0) {
+      const rows = validTags.map((t) => ({
+        lead_id:     leadId,
+        call_log_id: callsLogId ?? null,
+        tag:         t.tag,
+        note:        t.note ? t.note.trim().slice(0, 120) : null,
+        status:      "open",
+        tagged_by:   userId,
+      }));
+
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (sb.from("lead_objection_tags") as any)
+        .insert(rows)
+        .then(({ error }: { error: unknown }) => {
+          if (error) {
+            console.warn(
+              "[publish-manager] lead_objection_tags insert failed (non-fatal):",
+              (error as { message?: string }).message,
+            );
+          }
+        });
     }
   }
 

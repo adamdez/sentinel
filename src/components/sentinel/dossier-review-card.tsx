@@ -20,12 +20,17 @@ import {
   AlertTriangle,
   MapPin,
   ShieldCheck,
+  ShieldAlert,
+  FileWarning,
+  Info,
 } from "lucide-react";
 import type {
   DossierTopFact,
   DossierVerificationItem,
   DossierSourceLink,
 } from "@/hooks/use-dossier";
+import type { TriageResult, TriageReason, TriageSeverity } from "@/lib/dossier-triage";
+import { TRIAGE_SEVERITY_CLASSES } from "@/lib/dossier-triage";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -46,6 +51,8 @@ export interface DossierQueueItem {
   review_notes: string | null;
   created_at: string;
   updated_at: string;
+  /** Triage signals computed server-side. Present for proposed items, null otherwise. */
+  triage?: TriageResult | null;
   leads: {
     id: string;
     first_name: string | null;
@@ -74,6 +81,61 @@ export interface DossierQueueItem {
 interface DossierReviewCardProps {
   item: DossierQueueItem;
   onDone: (id: string, newStatus: "reviewed" | "flagged" | "promoted") => void;
+}
+
+// ── TriageBar ─────────────────────────────────────────────────────────────────
+// Compact header strip showing triage reason badges.
+// Visible before expanding the card so Adam can triage at a glance.
+
+const SEVERITY_ICONS: Record<TriageSeverity, React.ElementType> = {
+  critical: ShieldAlert,
+  high:     AlertTriangle,
+  medium:   FileWarning,
+  low:      Info,
+};
+
+function TriageBar({ triage }: { triage: TriageResult }) {
+  if (triage.reasons.length === 0) return null;
+
+  // Show top 3 reasons maximum to keep header compact
+  const shown = triage.reasons.slice(0, 3);
+  const overflow = triage.reasons.length - shown.length;
+
+  const highestStyle = TRIAGE_SEVERITY_CLASSES[triage.highest];
+  const HighestIcon  = SEVERITY_ICONS[triage.highest];
+
+  return (
+    <div className={`flex items-center gap-1.5 flex-wrap px-4 py-1.5 border-b border-border/50 ${
+      triage.highest === "critical"
+        ? "bg-red-500/[0.04]"
+        : triage.highest === "high"
+        ? "bg-orange-500/[0.04]"
+        : "bg-muted/10"
+    }`}>
+      {/* Severity indicator */}
+      <HighestIcon className={`h-3 w-3 shrink-0 ${highestStyle.text}`} />
+
+      {/* Reason badges */}
+      {shown.map((reason: TriageReason) => {
+        const style = TRIAGE_SEVERITY_CLASSES[reason.severity];
+        return (
+          <span
+            key={reason.code}
+            className={`inline-flex items-center text-[10px] font-medium px-1.5 py-0.5 rounded-full border ${style.badge}`}
+            title={reason.detail ?? reason.label}
+          >
+            {reason.label}
+          </span>
+        );
+      })}
+
+      {overflow > 0 && (
+        <span className="text-[9px] text-muted-foreground/40">
+          +{overflow} more
+        </span>
+      )}
+    </div>
+  );
 }
 
 // ── DossierReviewCard ─────────────────────────────────────────────────────────
@@ -181,8 +243,22 @@ export function DossierReviewCard({ item, onDone }: DossierReviewCardProps) {
     }
   }
 
+  // Determine border accent color from triage severity
+  const triageBorderClass = item.triage?.highest === "critical"
+    ? "border-red-500/40"
+    : item.triage?.highest === "high"
+    ? "border-orange-500/30"
+    : item.triage && item.triage.reasons.length > 0
+    ? "border-amber-500/20"
+    : "border-border";
+
   return (
-    <div className="rounded-lg border border-border bg-card text-card-foreground shadow-sm overflow-hidden">
+    <div className={`rounded-lg border bg-card text-card-foreground shadow-sm overflow-hidden ${triageBorderClass}`}>
+      {/* ── Triage bar (always visible, above expand) ── */}
+      {item.triage && item.triage.reasons.length > 0 && (
+        <TriageBar triage={item.triage} />
+      )}
+
       {/* ── Header ── */}
       <div
         className="flex items-start justify-between gap-3 p-4 cursor-pointer select-none hover:bg-muted/30 transition-colors"
@@ -222,6 +298,35 @@ export function DossierReviewCard({ item, onDone }: DossierReviewCardProps) {
       {/* ── Expanded content ── */}
       {expanded && (
         <div className="border-t border-border">
+
+          {/* Triage detail strip (shows all reasons with full detail text) */}
+          {item.triage && item.triage.reasons.length > 0 && (
+            <div className="px-4 py-2.5 border-b border-border/60 bg-muted/5 space-y-1">
+              <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/50 mb-1.5">
+                Review signals
+              </p>
+              {item.triage.reasons.map((reason: TriageReason) => {
+                const style   = TRIAGE_SEVERITY_CLASSES[reason.severity];
+                const Icon    = SEVERITY_ICONS[reason.severity];
+                return (
+                  <div key={reason.code} className="flex items-start gap-2">
+                    <Icon className={`h-3 w-3 shrink-0 mt-0.5 ${style.text}`} />
+                    <div>
+                      <span className={`text-[11px] font-medium ${style.text}`}>
+                        {reason.label}
+                      </span>
+                      {reason.detail && (
+                        <span className="text-[10px] text-muted-foreground/60 ml-1.5">
+                          — {reason.detail}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
           {/* Proposed vs Current CRM side-by-side */}
           <div className="grid grid-cols-1 md:grid-cols-2 divide-y md:divide-y-0 md:divide-x divide-border">
             {/* Left: Proposed intelligence */}

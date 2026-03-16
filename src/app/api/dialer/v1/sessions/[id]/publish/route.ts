@@ -17,9 +17,12 @@ import {
   PUBLISH_DISPOSITIONS,
   SELLER_TIMELINES,
   QUALIFICATION_ROUTES,
+  OBJECTION_TAGS,
 } from "@/lib/dialer/publish-manager";
 import { updateAiTraceReview } from "@/lib/dialer/ai-trace-writer";
-import type { PublishDisposition, SellerTimeline, QualificationRoute } from "@/lib/dialer/types";
+import { assemblePostCallStructure, type PostCallStructureInput } from "@/lib/dialer/post-call-structure";
+import type { WriteEvalRatingInput } from "@/lib/eval-ratings";
+import type { PublishDisposition, SellerTimeline, QualificationRoute, ObjectionTag } from "@/lib/dialer/types";
 import type { SessionErrorCode } from "@/lib/dialer/types";
 
 type RouteContext = { params: Promise<{ id: string }> };
@@ -121,9 +124,35 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
     return NextResponse.json({ error: "extract_run_id must be a string" }, { status: 400 });
   }
 
+  const summaryRunId = body.summary_run_id;
+  if (summaryRunId !== undefined && typeof summaryRunId !== "string") {
+    return NextResponse.json({ error: "summary_run_id must be a string" }, { status: 400 });
+  }
+
   const summaryFlagged = body.summary_flagged;
   if (summaryFlagged !== undefined && typeof summaryFlagged !== "boolean") {
     return NextResponse.json({ error: "summary_flagged must be a boolean" }, { status: 400 });
+  }
+
+  // ── Parse objection_tags (optional) ──────────────────────
+  // Validate structure: array of { tag: ObjectionTag, note: string|null }
+  // Invalid tags are silently dropped in publish-manager; we only validate shape here.
+  const rawObjTags = body.objection_tags;
+  let objectionTags: Array<{ tag: ObjectionTag; note: string | null }> | undefined;
+  if (Array.isArray(rawObjTags)) {
+    const allowed = new Set<string>(OBJECTION_TAGS);
+    objectionTags = rawObjTags
+      .filter(
+        (t): t is { tag: ObjectionTag; note: string | null } =>
+          t !== null &&
+          typeof t === "object" &&
+          typeof (t as Record<string, unknown>).tag === "string" &&
+          allowed.has((t as Record<string, unknown>).tag as string),
+      )
+      .map((t) => ({
+        tag:  t.tag,
+        note: typeof t.note === "string" ? t.note : null,
+      }));
   }
 
   // ── Publish ───────────────────────────────────────────────
@@ -137,6 +166,7 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
     summary:              typeof summary === "string" ? summary : undefined,
     callback_at:          typeof callbackAt === "string" ? callbackAt : undefined,
     task_assigned_to:     typeof taskAssignedTo === "string" ? taskAssignedTo : undefined,
+    objection_tags:       objectionTags,
   });
 
   if (!result.ok) {
@@ -146,10 +176,12 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
     );
   }
 
-  // ── Review signal: update dialer_ai_traces row ────────────
-  // If the operator reached Step 3 and published, they have reviewed the
-  // AI extraction. Write their review signal to the trace row now.
+  // ── Review signal: update dialer_ai_traces rows ──────────
+  // If the operator reached Step 3 and published, they have reviewed AI outputs.
+  // Write their review signal to the relevant trace rows now.
   // Fire-and-forget — never fails the publish response.
+
+  // Extract trace (motivation_level / seller_timeline)
   if (typeof extractRunId === "string") {
     const aiCorrections = body.ai_corrections as
       | { motivation_corrected?: boolean; timeline_corrected?: boolean }
@@ -167,6 +199,106 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
       },
     }).catch(() => {});
   }
+
+  // Draft note trace — operator confirmed (or flagged) the structured draft
+  const draftNoteRunId = body.draft_note_run_id;
+  const draftFlagged   = body.draft_flagged;
+  if (typeof draftNoteRunId === "string") {
+    updateAiTraceReview(sb, {
+      run_id:      draftNoteRunId,
+      review_flag: draftFlagged === true,
+      review_note_data: {
+        reviewed_at: new Date().toISOString(),
+        reviewer_id: user.id,
+        flagged:     draftFlagged === true,
+        source:      "draft_note",
+      },
+    }).catch(() => {});
+  }
+
+  // ── Post-call structure write ─────────────────────────────
+  // Fire-and-forget — dialer-domain structured record. Written whenever the
+  // client passes post_call_structure (from PostCallDraftPanel confirm or
+  // operator-entered fields). Never blocks publish. One row per session (upsert).
+  const pcsInput = body.post_call_structure as PostCallStructureInput | undefined;
+  if (pcsInput && typeof pcsInput === "object") {
+    void (async () => {
+      try {
+        const row = assemblePostCallStructure({
+          sessionId,
+          callsLogId:       result.calls_log_id,
+          leadId:           result.lead_id,
+          publishedBy:      user.id,
+          draftNoteRunId:   typeof draftNoteRunId === "string" ? draftNoteRunId : null,
+          draftWasFlagged:  draftFlagged === true,
+          input:            pcsInput,
+        });
+
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        await (sb.from("post_call_structures") as any)
+          .upsert(row, { onConflict: "session_id" });
+      } catch {
+        // non-fatal — structured data is a bonus, never blocks publish
+      }
+    })();
+  }
+
+  // ── Eval ratings side-effects ─────────────────────────────
+  // Fire-and-forget — mirrors the pattern in dossier/review and qa/[finding_id].
+  // Writes one eval_rating per AI workflow that passed through this publish.
+  // Looks up prompt_version and model from dialer_ai_traces by run_id.
+
+  void (async () => {
+    try {
+      const runIds: Array<{
+        runId: string;
+        workflow: WriteEvalRatingInput["workflow"];
+        flagged: boolean;
+      }> = [];
+
+      if (typeof extractRunId === "string")   runIds.push({ runId: extractRunId,   workflow: "extract",    flagged: summaryFlagged === true });
+      if (typeof summaryRunId === "string")    runIds.push({ runId: summaryRunId,   workflow: "summarize",  flagged: summaryFlagged === true });
+      if (typeof draftNoteRunId === "string")  runIds.push({ runId: draftNoteRunId, workflow: "draft_note", flagged: draftFlagged === true });
+
+      if (runIds.length === 0) return;
+
+      const allIds = runIds.map(r => r.runId);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data: traces } = await (sb.from("dialer_ai_traces") as any)
+        .select("run_id, prompt_version, model")
+        .in("run_id", allIds);
+
+      const traceMap = new Map<string, { prompt_version: string; model: string | null }>();
+      for (const t of (traces ?? []) as Array<{ run_id: string; prompt_version: string | null; model: string | null }>) {
+        traceMap.set(t.run_id, { prompt_version: t.prompt_version ?? "1.0.0", model: t.model });
+      }
+
+      for (const { runId, workflow, flagged } of runIds) {
+        const trace = traceMap.get(runId);
+        const verdict: WriteEvalRatingInput["verdict"] = flagged ? "needs_work" : "good";
+        const evalPayload: WriteEvalRatingInput = {
+          run_id:          runId,
+          workflow,
+          prompt_version:  trace?.prompt_version ?? "1.0.0",
+          model:           trace?.model ?? undefined,
+          lead_id:         result.lead_id ?? undefined,
+          call_log_id:     result.calls_log_id ?? undefined,
+          session_id:      sessionId,
+          verdict,
+          rubric_dimension: flagged ? "other" : "useful_and_accurate",
+        };
+
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        await (sb.from("eval_ratings") as any)
+          .upsert(
+            { ...evalPayload, reviewed_by: user.id, reviewed_at: new Date().toISOString() },
+            { onConflict: "run_id" },
+          );
+      }
+    } catch {
+      // non-fatal — never block publish
+    }
+  })();
 
   return NextResponse.json({
     ok: true,

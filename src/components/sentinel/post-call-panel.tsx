@@ -29,6 +29,10 @@ import { Button } from "@/components/ui/button";
 import { GlassCard } from "@/components/sentinel/glass-card";
 import { supabase } from "@/lib/supabase";
 import type { PublishDisposition } from "@/lib/dialer/types";
+import { PostCallDraftPanel } from "@/components/sentinel/post-call-draft-panel";
+import type { PostCallDraft, ObjectionCapture } from "@/components/sentinel/post-call-draft-panel";
+import { QualGapStripCompact } from "@/components/sentinel/qual-gap-strip";
+import type { QualCheckInput } from "@/lib/dialer/qual-checklist";
 
 async function authHeaders(): Promise<Record<string, string>> {
   const { data: { session } } = await supabase.auth.getSession();
@@ -71,6 +75,15 @@ const TIMELINE_CHIPS: { value: string; label: string }[] = [
   { value: "flexible",  label: "Flexible" },
 ];
 
+/** Minimal lead context fields needed for the qual checklist strip. */
+export interface PostCallQualContext {
+  address:                string | null;
+  decisionMakerConfirmed: boolean;
+  conditionLevel:         number | null;
+  occupancyScore:         number | null;
+  hasOpenTask:            boolean;
+}
+
 export interface PostCallPanelProps {
   sessionId: string;
   callLogId: string | null;
@@ -80,6 +93,8 @@ export interface PostCallPanelProps {
   /** Pre-populate qual confirm from current CRM values */
   initialMotivationLevel?: number | null;
   initialSellerTimeline?: string | null;
+  /** Optional: additional context for the qual gap checklist */
+  qualContext?: PostCallQualContext | null;
   onComplete: () => void;
   onSkip: () => void;
 }
@@ -92,6 +107,7 @@ export function PostCallPanel({
   initialSummary = "",
   initialMotivationLevel = null,
   initialSellerTimeline = null,
+  qualContext = null,
   onComplete,
   onSkip,
 }: PostCallPanelProps) {
@@ -120,39 +136,86 @@ export function PostCallPanel({
   const [summaryFlagged, setSummaryFlagged] = useState(false);
   const extractFired = useRef(false);
 
-  // Fire extraction once when Step 3 opens and operator notes are non-empty
-  useEffect(() => {
-    if (!qualStep || extractFired.current || !summary.trim()) return;
-    extractFired.current = true;
-    setExtracting(true);
+  // ── Draft note state ──────────────────────────────────────────
+  // draftLoading: true while waiting for /draft-note API response
+  const [draftLoading, setDraftLoading] = useState(false);
+  // draft: the AI-generated structured draft (null if not yet fetched or failed)
+  const [draft, setDraft] = useState<PostCallDraft | null>(null);
+  // draftRunId: trace run_id for the draft generation
+  const [draftRunId, setDraftRunId] = useState<string | null>(null);
+  // draftDone: true once operator confirmed or skipped the draft
+  const [draftDone, setDraftDone] = useState(false);
+  // draftFired: prevents duplicate calls if qualStep re-renders
+  const draftFired = useRef(false);
 
-    authHeaders()
-      .then((hdrs) =>
-        fetch(`/api/dialer/v1/sessions/${sessionId}/extract`, {
-          method: "POST",
-          headers: hdrs,
-          body: JSON.stringify({ notes: summary.trim() }),
-        }),
-      )
-      .then((r) => (r.ok ? r.json() : null))
-      .then((data: { ok?: boolean; motivation_level?: number | null; seller_timeline?: string | null; run_id?: string | null } | null) => {
-        if (!data?.ok) return;
-        const suggested = new Set<string>();
-        if (data.motivation_level != null) {
-          setQualMotivation(data.motivation_level);
-          suggested.add("motivation");
-        }
-        if (data.seller_timeline != null) {
-          setQualTimeline(data.seller_timeline);
-          suggested.add("timeline");
-        }
-        if (suggested.size > 0) setAiSuggested(suggested);
-        // Store run_id for review signal at publish time
-        if (data.run_id) setExtractRunId(data.run_id);
-      })
-      .catch(() => {/* non-fatal — step 3 already shows initial values */})
-      .finally(() => setExtracting(false));
-  // qualStep is the trigger; other deps are stable across the component lifetime
+  // Objection tags collected from PostCallDraftPanel (confirm or skip path)
+  const [objectionTags, setObjectionTags] = useState<ObjectionCapture[]>([]);
+
+  // Fire extraction + draft generation once when Step 3 opens and notes are non-empty
+  useEffect(() => {
+    if (!qualStep || !summary.trim()) return;
+
+    // ── Qualification extraction (motivation_level, seller_timeline) ──
+    if (!extractFired.current) {
+      extractFired.current = true;
+      setExtracting(true);
+
+      authHeaders()
+        .then((hdrs) =>
+          fetch(`/api/dialer/v1/sessions/${sessionId}/extract`, {
+            method: "POST",
+            headers: hdrs,
+            body: JSON.stringify({ notes: summary.trim() }),
+          }),
+        )
+        .then((r) => (r.ok ? r.json() : null))
+        .then((data: { ok?: boolean; motivation_level?: number | null; seller_timeline?: string | null; run_id?: string | null } | null) => {
+          if (!data?.ok) return;
+          const suggested = new Set<string>();
+          if (data.motivation_level != null) {
+            setQualMotivation(data.motivation_level);
+            suggested.add("motivation");
+          }
+          if (data.seller_timeline != null) {
+            setQualTimeline(data.seller_timeline);
+            suggested.add("timeline");
+          }
+          if (suggested.size > 0) setAiSuggested(suggested);
+          if (data.run_id) setExtractRunId(data.run_id);
+        })
+        .catch(() => {/* non-fatal — step 3 already shows initial values */})
+        .finally(() => setExtracting(false));
+    }
+
+    // ── Draft note generation ─────────────────────────────────
+    if (!draftFired.current) {
+      draftFired.current = true;
+      setDraftLoading(true);
+
+      authHeaders()
+        .then((hdrs) =>
+          fetch(`/api/dialer/v1/sessions/${sessionId}/draft-note`, {
+            method: "POST",
+            headers: hdrs,
+            body: JSON.stringify({
+              notes:       summary.trim(),
+              disposition: pendingDispo ?? undefined,
+              callback_at: pendingNextCallAt ?? undefined,
+            }),
+          }),
+        )
+        .then((r) => (r.ok ? r.json() : null))
+        .then((data: { ok?: boolean; draft?: PostCallDraft | null; run_id?: string | null } | null) => {
+          if (data?.ok && data.draft) {
+            setDraft(data.draft);
+            if (data.run_id) setDraftRunId(data.run_id);
+          }
+          // If ok=false, no draft shown — operator uses raw notes (graceful fallback)
+        })
+        .catch(() => {/* non-fatal */})
+        .finally(() => setDraftLoading(false));
+    }
+  // qualStep is the trigger; pendingDispo/pendingNextCallAt are stable at transition time
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [qualStep]);
 
@@ -191,6 +254,13 @@ export function PostCallPanel({
             timeline_corrected:   reviewSignal?.timelineCorrected   ?? false,
           },
         } : {}),
+        // draft_note run_id — included when a draft was generated (confirmed or flagged).
+        // The publish route passes this to writeAiTrace for review closure.
+        // No schema change needed — the route already handles unknown extra fields safely.
+        ...(draftRunId ? { draft_note_run_id: draftRunId, draft_flagged: summaryFlagged } : {}),
+        // Objection tags — collected from PostCallDraftPanel (confirm or skip path).
+        // Forwarded to publish-manager which writes to lead_objection_tags (non-fatal).
+        ...(objectionTags.length > 0 ? { objection_tags: objectionTags } : {}),
       }),
     }).catch(() => null);
 
@@ -370,6 +440,51 @@ export function PostCallPanel({
               </span>
             )}
           </div>
+
+          {/* ── Draft note panel ─────────────────────────────── */}
+          {(draftLoading || (draft && !draftDone)) && (
+            <PostCallDraftPanel
+              draft={draft ?? {
+                summary_line: null, promises_made: null,
+                objection: null, next_task_suggestion: null, deal_temperature: null,
+              }}
+              runId={draftRunId ?? ""}
+              loading={draftLoading}
+              disabled={publishing}
+              onConfirm={(assembledNote, confirmedRunId, tags) => {
+                setSummary(assembledNote);
+                setDraftRunId(confirmedRunId);
+                setObjectionTags(tags);
+                setDraftDone(true);
+              }}
+              onSkip={(tags) => {
+                setObjectionTags(tags);
+                setDraftDone(true);
+              }}
+              onFlag={(flaggedRunId) => {
+                setDraftRunId(flaggedRunId);
+                setSummaryFlagged(true);
+              }}
+            />
+          )}
+
+          {/* ── Qual gap strip ────────────────────────────────── */}
+          {/* Non-blocking — shows which items are still unknown after this call.
+              Uses live operator values (qualMotivation, qualTimeline) merged with
+              any context snapshot fields passed via qualContext. */}
+          <QualGapStripCompact
+            input={{
+              address:                qualContext?.address ?? null,
+              decisionMakerConfirmed: qualContext?.decisionMakerConfirmed ?? false,
+              sellerTimeline:         qualTimeline,
+              conditionLevel:         qualContext?.conditionLevel ?? null,
+              occupancyScore:         qualContext?.occupancyScore ?? null,
+              motivationLevel:        qualMotivation,
+              hasOpenTask:            qualContext?.hasOpenTask ?? false,
+            } satisfies QualCheckInput}
+            showNextQuestion={true}
+            className="mb-3 rounded-[10px] bg-white/[0.015] border border-white/[0.04] p-2.5"
+          />
 
           {/* Motivation level */}
           <div className="flex items-center gap-1.5 mb-1.5 px-0.5">

@@ -37,6 +37,14 @@ interface EventCounts {
   ai_flagged:                    number;
 }
 
+export interface WarmTransferCounts {
+  flagged_ready:   number;  // inbound.classified with warm_transfer_ready=true
+  connected:       number;  // transfer.connected
+  failed_fallback: number;  // transfer.failed_fallback (all fallback reasons)
+  no_answer:       number;  // transfer.failed_fallback with outcome=no_answer specifically
+  callback_booked: number;  // transfer.failed_fallback with outcome=callback_fallback
+}
+
 export interface DialerReviewResult {
   window_days:              number;
   since:                    string;   // ISO timestamp
@@ -58,6 +66,13 @@ export interface DialerReviewResult {
    * null when no AI outputs have been reviewed yet.
    */
   ai_flag_rate_pct:         number | null;
+  /** Warm-transfer reliability — null when no warm-transfer events in the window. */
+  warm_transfer:            WarmTransferCounts | null;
+  /**
+   * Fraction of warm-transfer-ready sellers that resulted in a connected transfer.
+   * null when no transfers have been logged yet.
+   */
+  warm_transfer_connect_pct: number | null;
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -141,6 +156,44 @@ export async function GET(req: NextRequest) {
     }
   }
 
+  // ── Warm-transfer reliability (separate query — different event types) ──────
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: transferRows } = await (sb.from("dialer_events") as any)
+    .select("event_type, metadata")
+    .in("event_type", [
+      "inbound.classified",
+      "transfer.connected",
+      "transfer.failed_fallback",
+    ])
+    .gte("created_at", since);
+
+  const wt: WarmTransferCounts = {
+    flagged_ready:   0,
+    connected:       0,
+    failed_fallback: 0,
+    no_answer:       0,
+    callback_booked: 0,
+  };
+
+  for (const row of (transferRows ?? []) as Array<{ event_type: string; metadata: Record<string, unknown> | null }>) {
+    const meta = row.metadata ?? {};
+    switch (row.event_type) {
+      case "inbound.classified":
+        if (meta.warm_transfer_ready === true) wt.flagged_ready++;
+        break;
+      case "transfer.connected":
+        wt.connected++;
+        break;
+      case "transfer.failed_fallback":
+        wt.failed_fallback++;
+        if (meta.outcome === "no_answer")         wt.no_answer++;
+        if (meta.outcome === "callback_fallback")  wt.callback_booked++;
+        break;
+    }
+  }
+
+  const hasTransferData = wt.flagged_ready > 0 || wt.connected > 0 || wt.failed_fallback > 0;
+
   // Compute rates — null when denominator is zero (no data yet)
   const pct = (num: number, denom: number): number | null =>
     denom === 0 ? null : Math.round((num / denom) * 1000) / 10; // one decimal
@@ -155,6 +208,11 @@ export async function GET(req: NextRequest) {
     task_creation_pct:       pct(counts.follow_up_task_created,       counts.call_published_follow_up),
     // AI flag rate: of reviewed outputs, how many were flagged bad?
     ai_flag_rate_pct:        pct(counts.ai_flagged,                   counts.ai_reviewed),
+    // Warm transfer reliability
+    warm_transfer:             hasTransferData ? wt : null,
+    warm_transfer_connect_pct: hasTransferData
+      ? pct(wt.connected, wt.flagged_ready)
+      : null,
   };
 
   return NextResponse.json(result);

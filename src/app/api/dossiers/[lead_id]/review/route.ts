@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@/lib/supabase";
 import { requireAuth } from "@/lib/api-auth";
+import type { WriteEvalRatingInput } from "@/lib/eval-ratings";
 
 /**
  * PATCH /api/dossiers/[lead_id]/review
@@ -88,6 +89,41 @@ export async function PATCH(
 
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
     if (!data) return NextResponse.json({ error: "Dossier not found" }, { status: 404 });
+
+    // ── Best-effort eval rating side-effect ────────────────────────────────────
+    // Write a rating to eval_ratings when Adam reviews a dossier.
+    // Verdict mapping: reviewed → good, flagged → needs_work
+    // Failure is non-fatal — dossier review has already succeeded.
+    void (async () => {
+      try {
+        // Fetch ai_run_id from dossier for the run reference
+        const { data: dossierMeta } = await (sb.from("dossiers") as any)
+          .select("ai_run_id, lead_id")
+          .eq("id", dossier_id)
+          .single();
+
+        const run_id = dossierMeta?.ai_run_id;
+        if (!run_id) return; // no trace — skip eval write
+
+        const evalPayload: WriteEvalRatingInput = {
+          run_id,
+          workflow:          "extract",
+          prompt_version:    "1.0.0", // static — dossier compile doesn't version prompts yet
+          lead_id:           dossierMeta?.lead_id ?? lead_id,
+          verdict:           status === "reviewed" ? "good" : "needs_work",
+          rubric_dimension:  status === "reviewed" ? "useful_and_accurate" : "other",
+          reviewer_note:     review_notes ?? undefined,
+          output_snapshot:   data.situation_summary
+            ? `${data.situation_summary}`.slice(0, 500)
+            : undefined,
+        };
+
+        await (sb.from("eval_ratings") as any)
+          .upsert({ ...evalPayload, reviewed_by: user.id, reviewed_at: new Date().toISOString() }, { onConflict: "run_id" });
+      } catch {
+        // non-fatal — never block dossier review
+      }
+    })();
 
     return NextResponse.json({ dossier: data });
   } catch (err) {

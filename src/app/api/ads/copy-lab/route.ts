@@ -39,7 +39,7 @@ export async function POST(req: NextRequest) {
       (sb.from("ads_keywords") as any).select("*, ads_ad_groups(name, campaign_id, ads_campaigns(name, market))"),
       (sb.from("ads_search_terms") as any).select("*").order("clicks", { ascending: false }).limit(100),
       (sb.from("ads_daily_metrics") as any).select("*, ads_campaigns(name, market)").gte("report_date", sevenDaysAgo),
-      (sb.from("ads_ads") as any).select("*").limit(50).catch(() => ({ data: null })),
+      Promise.resolve((sb.from("ads_ads") as any).select("*").limit(50)).catch(() => ({ data: null })),
     ]);
 
     const campaigns = campaignsRes.data ?? [];

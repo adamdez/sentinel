@@ -40,6 +40,8 @@ export interface DossierRow {
   recommended_call_angle: string | null;
   verification_checklist: DossierVerificationItem[] | null;
   source_links: DossierSourceLink[] | null;
+  /** Raw AI output JSONB — also stores dossier_type and policy_flags */
+  raw_ai_output: Record<string, unknown> | null;
   ai_run_id: string | null;
   reviewed_by: string | null;
   reviewed_at: string | null;

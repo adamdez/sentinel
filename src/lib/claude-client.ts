@@ -103,13 +103,14 @@ export async function analyzeWithClaude(opts: {
   apiKey: string;
   temperature?: number;
   maxTokens?: number;
+  model?: string;
 }): Promise<string> {
-  const { prompt, systemPrompt, apiKey, temperature = 0.2, maxTokens = 8192 } = opts;
+  const { prompt, systemPrompt, apiKey, temperature = 0.2, maxTokens = 8192, model = CLAUDE_MODEL } = opts;
 
   const client = new Anthropic({ apiKey });
 
   const response = await client.messages.create({
-    model: CLAUDE_MODEL,
+    model,
     max_tokens: maxTokens,
     temperature,
     system: systemPrompt,

@@ -24,12 +24,21 @@ import {
   DossierVerificationItem,
   DossierSourceLink,
 } from "@/hooks/use-dossier";
+import { EvidenceCapturePanel } from "./evidence-capture-panel";
+import { ContradictionFlagsPanel } from "@/components/sentinel/contradiction-flags-panel";
+import { AbsenteeDossierBrief } from "./absentee-dossier-brief";
+import { deriveAbsenteeDossierBrief } from "@/lib/absentee-dossier";
 
 // ── Props ─────────────────────────────────────────────────────────────────────
 
+export type LeadDossierType = "absentee_landlord" | "probate" | "generic";
+
 interface DossierBlockProps {
   leadId: string;
+  propertyId?: string | null;
   isAdminView?: boolean;
+  /** Hint to select evidence source types and dossier renderer. Detected from dossier.raw_ai_output as fallback. */
+  leadType?: LeadDossierType;
 }
 
 // ── DossierBlock ──────────────────────────────────────────────────────────────
@@ -37,7 +46,7 @@ interface DossierBlockProps {
 // Does not render for proposed or flagged dossiers.
 // Proposed dossiers are visible only to Adam in the future review queue.
 
-export function DossierBlock({ leadId, isAdminView = false }: DossierBlockProps) {
+export function DossierBlock({ leadId, propertyId, isAdminView = false, leadType }: DossierBlockProps) {
   const { dossier, loading, error, refetch } = useDossier(leadId);
 
   useEffect(() => {
@@ -45,27 +54,98 @@ export function DossierBlock({ leadId, isAdminView = false }: DossierBlockProps)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [leadId]);
 
-  if (loading) {
+  // For non-admin: render nothing unless a reviewed dossier exists
+  if (!isAdminView) {
+    if (loading) {
+      return (
+        <div className="flex items-center gap-2 text-xs text-muted-foreground py-2">
+          <Loader2 className="h-3 w-3 animate-spin" />
+          Loading intelligence…
+        </div>
+      );
+    }
+    if (error) {
+      return (
+        <div className="flex items-center gap-2 text-xs text-destructive py-1">
+          <AlertCircle className="h-3 w-3" />
+          Could not load dossier: {error}
+        </div>
+      );
+    }
+    if (!dossier) return null;
+    return <DossierRenderer dossier={dossier} leadType={leadType} isAdminView={false} onPromoted={refetch} />;
+  }
+
+  // Admin view: always render — shows reviewed dossier (if any) + evidence capture panel
+  return (
+    <div className="space-y-2">
+      {loading && (
+        <div className="flex items-center gap-2 text-xs text-muted-foreground py-2">
+          <Loader2 className="h-3 w-3 animate-spin" />
+          Loading intelligence…
+        </div>
+      )}
+      {error && (
+        <div className="flex items-center gap-2 text-xs text-destructive py-1">
+          <AlertCircle className="h-3 w-3" />
+          Could not load dossier: {error}
+        </div>
+      )}
+      {!loading && dossier && (
+        <DossierRenderer dossier={dossier} leadType={leadType} isAdminView={true} onPromoted={refetch} />
+      )}
+      <ContradictionFlagsPanel leadId={leadId} />
+      <EvidenceCapturePanel
+        leadId={leadId}
+        propertyId={propertyId}
+        onDossierCompiled={refetch}
+        leadType={leadType}
+      />
+    </div>
+  );
+}
+
+// ── DossierRenderer — routes to the right renderer based on dossier_type ─────
+
+interface DossierRendererProps {
+  dossier:     DossierRow;
+  leadType?:   LeadDossierType;
+  isAdminView: boolean;
+  onPromoted:  () => void;
+}
+
+function DossierRenderer({ dossier, leadType, isAdminView, onPromoted }: DossierRendererProps) {
+  // Detect type: explicit prop takes precedence, then raw_ai_output.dossier_type, then generic
+  const rawType = dossier.raw_ai_output?.dossier_type as string | undefined;
+  const resolvedType: LeadDossierType =
+    leadType ?? (rawType === "absentee_landlord" ? "absentee_landlord" : "generic");
+
+  if (resolvedType === "absentee_landlord") {
+    // Derive brief from the dossier's top_facts (which come from artifact extracted_notes)
+    // We pass empty artifacts here since the brief is derived at compile time and
+    // re-derived from top_facts for display. Real artifacts aren't re-fetched for rendering.
+    const topFacts = Array.isArray(dossier.top_facts) ? dossier.top_facts : [];
+    // Reconstruct minimal artifact inputs from top_facts for re-derivation
+    const pseudoArtifacts = topFacts.map((f, i) => ({
+      id:              `tf-${i}`,
+      source_type:     "other" as const,
+      source_label:    f.source ?? null,
+      source_url:      null,
+      extracted_notes: f.fact,
+      captured_at:     dossier.created_at,
+    }));
+    const brief = deriveAbsenteeDossierBrief(pseudoArtifacts);
     return (
-      <div className="flex items-center gap-2 text-xs text-muted-foreground py-2">
-        <Loader2 className="h-3 w-3 animate-spin" />
-        Loading intelligence…
-      </div>
+      <AbsenteeDossierBrief
+        dossier={dossier}
+        brief={brief}
+        isAdminView={isAdminView}
+        onPromoted={onPromoted}
+      />
     );
   }
 
-  if (error) {
-    return (
-      <div className="flex items-center gap-2 text-xs text-destructive py-1">
-        <AlertCircle className="h-3 w-3" />
-        Could not load dossier: {error}
-      </div>
-    );
-  }
-
-  if (!dossier) return null;
-
-  return <DossierContent dossier={dossier} isAdminView={isAdminView} onPromoted={refetch} />;
+  return <DossierContent dossier={dossier} isAdminView={isAdminView} onPromoted={onPromoted} />;
 }
 
 // ── DossierContent ────────────────────────────────────────────────────────────

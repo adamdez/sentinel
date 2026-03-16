@@ -1,8 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@/lib/supabase";
 import { analyzeWithClaude, extractJsonObject } from "@/lib/claude-client";
-import { loadAdsSystemPrompt } from "@/lib/ads/ads-system-prompt";
 import { runAdversarialReview } from "@/lib/ads/adversarial-review";
+
+// Compact system prompt for intelligence extraction only.
+// The full 500-line ops prompt is too large for this route — it pushes
+// total input tokens past ~12k which makes Opus take 90–120s to respond.
+const INTELLIGENCE_SYSTEM_PROMPT = `You are a senior Google Ads analyst for Dominion Home Deals, a cash home buyer in Spokane County WA (primary) and Kootenai County ID (secondary). They wholesale residential properties off-market.
+
+Key benchmarks: target CPC under $15, target CPL under $150, target CTR above 5%. Zero conversions in the data almost always means conversion tracking is broken or the account is too new — flag this as the top priority if present.
+
+Your job is to extract and rank intelligence from the provided account data. Be specific and dollar-grounded. Flag waste before opportunities. Respond ONLY with the exact JSON format requested — no commentary, no markdown, no preamble.`;
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -73,13 +81,7 @@ export async function POST(req: NextRequest) {
     const last7 = agg(metrics7);
 
     // Build context
-    const systemPrompt = await loadAdsSystemPrompt({
-      totalSpend: last7.spend,
-      totalConversions: last7.conversions,
-      avgCpc: last7.clicks > 0 ? last7.spend / last7.clicks : 0,
-      avgCtr: last7.impressions > 0 ? last7.clicks / last7.impressions : 0,
-      campaignCount: campaigns.length,
-    });
+    const systemPrompt = INTELLIGENCE_SYSTEM_PROMPT;
 
     const rawDataContext = [
       "## CAMPAIGNS",
@@ -126,7 +128,7 @@ export async function POST(req: NextRequest) {
     // ── Primary intelligence extraction (Opus 4.6) ──────────────────
     const intelligencePrompt = `## KEY INTELLIGENCE EXTRACTION
 
-You have access to the full account data below. Your job is to extract and rank the TOP 30-50 most important data points, signals, and insights that the operators need to see.
+You have access to the full account data below. Your job is to extract and rank the TOP 10-20 most important data points, signals, and insights that the operators need to see.
 
 This is NOT a review. This is a prioritized intelligence briefing.
 
@@ -150,7 +152,7 @@ Categories to extract intelligence from:
 9. CREATIVE SIGNALS — ad copy gaps or opportunities (based on search intent mismatches)
 10. RISK SIGNALS — things that could go wrong or are already going wrong
 
-Rank ALL data points by dollar impact (highest first).
+Rank ALL data points by dollar impact (highest first). Stop at 20 data points maximum.
 
 Respond with a single JSON object (no markdown fences):
 {
@@ -183,7 +185,8 @@ ${rawDataContext}`;
       prompt: intelligencePrompt,
       systemPrompt,
       apiKey,
-      maxTokens: 12000,
+      maxTokens: 6000,
+      model: "claude-opus-4-6",
     });
 
     // Parse Opus response

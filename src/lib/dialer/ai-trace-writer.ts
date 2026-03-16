@@ -40,7 +40,7 @@ export interface AiTraceReviewInput {
 
 export interface AiTraceInput {
   run_id:         string;
-  workflow:       "extract" | "summarize";
+  workflow:       "extract" | "summarize" | "draft_note" | "qa_notes";
   prompt_version: string;
   session_id?:    string | null;
   lead_id?:       string | null;

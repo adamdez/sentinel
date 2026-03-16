@@ -93,6 +93,78 @@ export interface CRMLeadContext {
   openTaskDueAt: string | null;
 }
 
+// ─────────────────────────────────────────────────────────────
+// Repeat-call memory — richer context fetched on-demand
+// ─────────────────────────────────────────────────────────────
+
+/**
+ * Source/provenance of a memory value.
+ * operator = written/confirmed by a human operator.
+ * ai        = derived by an AI model, not yet operator-confirmed.
+ * system    = computed by the system from structured data (e.g. call count).
+ */
+export type MemorySource = "operator" | "ai" | "system";
+
+/**
+ * A single historical call entry for the memory surface.
+ * Shows up to 3 of these in the repeat-call memory block.
+ */
+export interface CallMemoryEntry {
+  callLogId:    string;
+  date:         string;           // ISO timestamp
+  disposition:  string | null;
+  durationSec:  number | null;
+  /** Operator-written note (calls_log.notes). Highest trust. */
+  notes:        string | null;
+  /** AI-generated summary (calls_log.ai_summary). Lower trust. */
+  aiSummary:    string | null;
+  /** Which content field to show first: "notes" | "ai" | null */
+  preferSource: "notes" | "ai" | null;
+}
+
+/**
+ * Rich repeat-call memory block.
+ * Fetched on-demand from /api/dialer/v1/leads/[lead_id]/call-memory.
+ * NOT frozen in context_snapshot — always current at fetch time.
+ *
+ * All fields are optional / nullable — the panel must degrade gracefully
+ * when fields are absent (first contact, no notes, no dossier, etc.).
+ */
+export interface RepeatCallMemory {
+  leadId: string;
+
+  // ── Decision-maker context ────────────────────────────────
+  /** Operator-written note about who is the likely decision-maker.
+   *  Sourced from leads.decision_maker_note.
+   *  source = "operator" if decision_maker_confirmed = true, else "ai" */
+  decisionMakerNote:      string | null;
+  decisionMakerSource:    MemorySource | null;
+  decisionMakerConfirmed: boolean;
+
+  // ── Recent call history ───────────────────────────────────
+  /** Last 3 calls, most recent first. */
+  recentCalls: CallMemoryEntry[];
+
+  // ── Staleness signal ──────────────────────────────────────
+  /** Days since last live answer (disposition = completed/follow_up/appointment/offer_made).
+   *  null if no live answers on record. Used for freshness cues. */
+  daysSinceLastLiveAnswer: number | null;
+
+  /** Days since any contact (last call regardless of outcome).
+   *  null if never called. */
+  daysSinceLastContact: number | null;
+
+  // ── Structured post-call data (from most recent call) ────
+  /** Promises made during the most recent call (from post_call_structures). */
+  lastCallPromises:        string | null;
+  /** Primary unresolved objection from the most recent call. */
+  lastCallObjection:       string | null;
+  /** Suggested next action from the most recent call. */
+  lastCallNextAction:      string | null;
+  /** Deal temperature from the most recent call. */
+  lastCallDealTemperature: string | null;
+}
+
 /**
  * A dialer call session. Maps 1:1 to a call_sessions row.
  */
@@ -176,7 +248,46 @@ export type DialerEventType =
   //   Captures motivation_corrected and timeline_corrected for eval loop.
   | "ai_output.reviewed"
   // ai_output.flagged: operator explicitly flagged the AI summary as bad in Step 3.
-  | "ai_output.flagged";
+  | "ai_output.flagged"
+  // inbound.missed: a seller called the Dominion number and the call was not answered.
+  //   Creates a callback task and surfaces in the missed-inbound recovery queue.
+  | "inbound.missed"
+  // inbound.answered: the call was forwarded and the operator picked up.
+  //   Written by the Twilio action callback when DialCallStatus=in-progress.
+  //   Surfaces context on the live inbound page.
+  | "inbound.answered"
+  // inbound.outcome: operator logged the outcome of a live inbound call.
+  //   Written by POST /api/dialer/v1/inbound/[event_id]/outcome.
+  //   Mirrors the outbound PublishDisposition vocabulary.
+  | "inbound.outcome"
+  // inbound.classified: operator classified the caller type and captured structured intake.
+  //   Written by POST /api/dialer/v1/inbound/[event_id]/classify.
+  //   metadata contains caller_type, seller intake fields, routing action.
+  | "inbound.classified"
+  // transfer.attempted: operator initiated a warm transfer (three-way or handoff).
+  //   Written by POST /api/dialer/v1/inbound/[event_id]/transfer with outcome=attempted.
+  | "transfer.attempted"
+  // transfer.connected: warm transfer was completed — recipient answered and seller was connected.
+  //   Written by POST …/transfer with outcome=connected.
+  | "transfer.connected"
+  // transfer.failed_fallback: warm transfer was attempted but recipient did not answer,
+  //   or transfer failed. Operator fell back to callback booking.
+  //   Written by POST …/transfer with outcome=no_answer|callback_fallback|failed.
+  | "transfer.failed_fallback"
+  // inbound.recovered: operator explicitly marked the missed inbound as recovered
+  //   (callback was completed or lead was reached another way).
+  | "inbound.recovered"
+  // inbound.dismissed: operator dismissed the missed-inbound signal with a reason.
+  | "inbound.dismissed"
+  // inbound.draft_pending: operator has reviewed a live inbound seller call and
+  //   assembled a writeback draft (caller type, situation summary, disposition,
+  //   callback commitment) but has not yet committed it to CRM tables.
+  //   Draft fields live in metadata. The draft is non-destructive until committed.
+  | "inbound.draft_pending"
+  // inbound.committed: operator approved the inbound draft. A calls_log row was
+  //   created and (optionally) leads.notes was updated via the narrow writeback contract.
+  //   metadata contains calls_log_id and the approved field set.
+  | "inbound.committed";
 
 // ─────────────────────────────────────────────────────────────
 // Trace metadata — PR2
@@ -238,6 +349,60 @@ export const QUALIFICATION_ROUTES: readonly QualificationRoute[] = [
   "offer_ready", "follow_up", "nurture", "dead", "escalate",
 ] as const;
 
+// ─────────────────────────────────────────────────────────────
+// Objection tags — operator-facing allowlist
+// ─────────────────────────────────────────────────────────────
+
+/**
+ * Structured objection tags for post-call capture.
+ *
+ * Application-layer allowlist — the DB column is TEXT so new tags can be
+ * added here without a migration. The tag value is stored verbatim in
+ * lead_objection_tags.tag and must appear in this list to be accepted by
+ * the publish route.
+ *
+ * Add new tags here when patterns emerge from operator review.
+ * Never rename an existing tag — create a new one and deprecate the old.
+ */
+export type ObjectionTag =
+  | "price_too_low"
+  | "not_ready_to_sell"
+  | "need_to_think"
+  | "talking_to_realtor"
+  | "wants_full_retail"
+  | "inherited_dispute"
+  | "repair_concerns"
+  | "bad_timing"
+  | "pre_list"
+  | "other";
+
+export const OBJECTION_TAGS: readonly ObjectionTag[] = [
+  "price_too_low",
+  "not_ready_to_sell",
+  "need_to_think",
+  "talking_to_realtor",
+  "wants_full_retail",
+  "inherited_dispute",
+  "repair_concerns",
+  "bad_timing",
+  "pre_list",
+  "other",
+] as const;
+
+/** Human-readable labels for display. */
+export const OBJECTION_TAG_LABELS: Record<ObjectionTag, string> = {
+  price_too_low:       "Price too low",
+  not_ready_to_sell:   "Not ready to sell",
+  need_to_think:       "Needs to think",
+  talking_to_realtor:  "Talking to realtor",
+  wants_full_retail:   "Wants full retail",
+  inherited_dispute:   "Inherited / dispute",
+  repair_concerns:     "Repair concerns",
+  bad_timing:          "Bad timing",
+  pre_list:            "Pre-listing",
+  other:               "Other",
+};
+
 export interface PublishInput {
   disposition: PublishDisposition;
   duration_sec?: number;
@@ -273,6 +438,16 @@ export interface PublishInput {
     motivation_corrected: boolean;
     timeline_corrected: boolean;
   };
+  /**
+   * Structured objection tags captured at post-call time.
+   * Each entry is one objection instance.
+   * publish-manager writes these to lead_objection_tags (non-fatal on failure).
+   * Tags must be valid ObjectionTag values — invalid tags are silently dropped.
+   */
+  objection_tags?: Array<{
+    tag:  ObjectionTag;
+    note: string | null;
+  }>;
 }
 
 export interface PublishResult {
@@ -288,4 +463,100 @@ export interface PublishResult {
    * NOT_FOUND / FORBIDDEN = session ownership check failed.
    */
   code?: SessionErrorCode;
+}
+
+// ─────────────────────────────────────────────────────────────
+// Inbound writeback contract — PR inbound-summary
+// Used by inbound-writeback.ts and the inbound draft/commit routes.
+// ─────────────────────────────────────────────────────────────
+
+/**
+ * Caller type for inbound classification.
+ * Mirrors InboundCallerType in the classify route — kept here as the
+ * authoritative type so future AI receptionist behavior can reference it.
+ */
+export type InboundCallerType = "seller" | "buyer" | "vendor" | "spam" | "unknown";
+
+/**
+ * The approved field set for inbound-to-CRM writeback.
+ *
+ * This is intentionally narrower than PublishInput:
+ *   - No qualification fields (we don't know the caller is the DM yet)
+ *   - No AI trace plumbing (no session to trace against)
+ *   - No overwrite of existing disposition unless explicitly provided
+ *
+ * Fields map to their CRM targets:
+ *   caller_type        → calls_log metadata (informational, not a DB column)
+ *   subject_address    → calls_log metadata (property is not verified yet)
+ *   situation_summary  → calls_log.notes (requires operator review before write)
+ *   disposition        → calls_log.disposition
+ *   callback_at        → tasks.due_at (creates a task if present)
+ *   note_draft         → operator-edited version of situation_summary shown in the review UI
+ *
+ * Durable writes:
+ *   calls_log row created (INSERT) — one per committed inbound call
+ *   leads.notes — ONLY if update_lead_notes = true AND the inbound event has a lead_id
+ *     (never auto-written — requires explicit operator approval in the review UI)
+ */
+export interface InboundWritebackInput {
+  caller_type:        InboundCallerType;
+  subject_address?:   string | null;
+  situation_summary?: string | null;   // raw capture from classify
+  note_draft?:        string | null;   // operator-edited version (used for calls_log.notes)
+  disposition:        InboundDisposition;
+  callback_at?:       string | null;   // ISO — for task creation
+  /** If true, also writes note_draft to leads.notes (only if lead_id is known) */
+  update_lead_notes?: boolean;
+  /** Source of the note_draft — "operator" or "ai_draft" */
+  note_source?:       "operator" | "ai_draft";
+}
+
+/**
+ * Inbound call dispositions accepted by the writeback contract.
+ * Narrower than PublishDisposition — inbound calls have a different vocabulary.
+ * "seller_answered" = we talked to a known seller
+ * "new_lead"        = caller appears to be a new seller (no existing lead_id)
+ * All others match InboundDisposition from the outcome route.
+ */
+export type InboundDisposition =
+  | "seller_answered"
+  | "new_lead"
+  | "voicemail"
+  | "wrong_number"
+  | "callback_requested"
+  | "appointment"
+  | "no_action";
+
+export const INBOUND_DISPOSITIONS: readonly InboundDisposition[] = [
+  "seller_answered", "new_lead", "voicemail", "wrong_number",
+  "callback_requested", "appointment", "no_action",
+] as const;
+
+/**
+ * The reviewable draft assembled from inbound call data.
+ * Stored in dialer_events.metadata for inbound.draft_pending events.
+ * Shown to the operator for approve / edit / reject.
+ */
+export interface InboundWritebackDraft {
+  /** The inbound event_id this draft belongs to (inbound.answered or inbound.missed) */
+  inbound_event_id:  string;
+  lead_id:           string | null;
+  from_number:       string | null;
+  caller_type:       InboundCallerType;
+  subject_address:   string | null;
+  /** Raw capture from classify — may be AI-derived */
+  situation_summary: string | null;
+  /** Operator-edited note, defaults to situation_summary if not edited */
+  note_draft:        string | null;
+  disposition:       InboundDisposition;
+  callback_at:       string | null;
+  /** Source label shown in the review UI */
+  note_source:       "operator" | "ai_draft";
+  /** Whether the operator explicitly approved writing note_draft to leads.notes */
+  update_lead_notes: boolean;
+  /** ISO timestamp of when the draft was last saved */
+  saved_at:          string;
+  /** Whether this draft has already been committed (read-only after commit) */
+  committed:         boolean;
+  calls_log_id:      string | null;   // set after commit
 }

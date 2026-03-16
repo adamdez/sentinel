@@ -44,7 +44,7 @@ export type BuyerRow = {
   arv_max: number | null;
   close_speed_days: number | null;
   reliability_score: number | null;
-  deals_closed: number | null;
+  deals_closed: number;
   last_contacted_at: string | null;
   do_not_contact: boolean;
 };

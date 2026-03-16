@@ -29,6 +29,7 @@ export async function GET(
         id, lead_id, property_id, status,
         situation_summary, likely_decision_maker, top_facts,
         recommended_call_angle, verification_checklist, source_links,
+        raw_ai_output,
         ai_run_id, reviewed_by, reviewed_at, review_notes,
         created_at, updated_at
       `)

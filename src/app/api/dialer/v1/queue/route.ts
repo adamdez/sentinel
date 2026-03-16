@@ -35,6 +35,7 @@ export const runtime = "nodejs";
 
 import { NextRequest, NextResponse } from "next/server";
 import { createDialerClient, getDialerUser } from "@/lib/dialer/db";
+import { readEventTaskId } from "@/lib/dialer/dialer-events";
 
 // ─────────────────────────────────────────────────────────────
 // Output types
@@ -72,14 +73,41 @@ export interface LeakingFollowUp {
   days_since_contact: number | null;   // null when never contacted
 }
 
+export interface MissedInbound {
+  event_id:        string;
+  lead_id:         string | null;
+  from_number:     string;
+  missed_at:       string;        // ISO timestamp of the missed call
+  minutes_ago:     number;
+  task_id:         string | null;
+  task_due_at:     string | null;
+  task_overdue:    boolean;
+  lead_matched:    boolean;
+  // routing state — present if this event has been classified
+  caller_type:     string | null;   // "seller" | "buyer" | "vendor" | "spam" | "unknown" | null
+  routing_action:  string | null;   // routing action from classify event
+  is_classified:   boolean;
+}
+
+export interface UnclassifiedAnswered {
+  event_id:       string;
+  lead_id:        string | null;
+  from_number:    string;
+  answered_at:    string;     // ISO
+  minutes_ago:    number;
+  lead_matched:   boolean;
+}
+
 export interface QueueResult {
-  generated_at:        string;
-  stale_days:          number;
-  limit_per_bucket:    number;
-  overdue_tasks:       OverdueTask[];
-  defaulted_callbacks: DefaultedCallback[];
-  flagged_ai:          FlaggedAiOutput[];
-  leaking_follow_ups:  LeakingFollowUp[];
+  generated_at:            string;
+  stale_days:              number;
+  limit_per_bucket:        number;
+  overdue_tasks:           OverdueTask[];
+  defaulted_callbacks:     DefaultedCallback[];
+  flagged_ai:              FlaggedAiOutput[];
+  leaking_follow_ups:      LeakingFollowUp[];
+  missed_inbound:          MissedInbound[];
+  unclassified_answered:   UnclassifiedAnswered[];
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -144,11 +172,11 @@ export async function GET(req: NextRequest) {
   // then check which corresponding tasks are still pending.
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data: defaultedEvents, error: defaultedEventsErr } = await (sb.from("dialer_events") as any)
-    .select("payload, created_at")
+    .select("task_id, payload, created_at")
     .eq("event_type", "follow_up.callback_date_defaulted")
     .gte("created_at", new Date(now.getTime() - 90 * 86_400_000).toISOString())
     .order("created_at", { ascending: false })
-    .limit(limit * 3); // over-fetch to account for completed tasks being filtered
+    .limit(limit * 3);
 
   if (defaultedEventsErr) {
     console.error("[dialer/queue] defaulted_callbacks events query failed:", defaultedEventsErr.message);
@@ -157,8 +185,9 @@ export async function GET(req: NextRequest) {
   const defaultedTaskIds = [
     ...new Set(
       (defaultedEvents ?? [])
-        .map((e: { payload: Record<string, unknown> | null }) => e.payload?.task_id as string | undefined)
-        .filter((id: string | undefined): id is string => typeof id === "string"),
+        .map((e: { task_id?: string | null; payload?: Record<string, unknown> | null }) =>
+          readEventTaskId({ id: "", event_type: "", created_at: "", task_id: e.task_id, payload: e.payload }))
+        .filter((id: string | null): id is string => typeof id === "string"),
     ),
   ].slice(0, limit);
 
@@ -266,14 +295,145 @@ export async function GET(req: NextRequest) {
       }));
   }
 
+  // ── 5. Missed inbound calls ──────────────────────────────────
+  // Surface inbound.missed events that have NOT been recovered or dismissed.
+  // Also attach classification state if an inbound.classified event exists.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: missedEvents, error: missedErr } = await (sb.from("dialer_events") as any)
+    .select("id, lead_id, task_id, metadata, created_at")
+    .eq("event_type", "inbound.missed")
+    .order("created_at", { ascending: false })
+    .limit(limit);
+
+  if (missedErr) {
+    console.error("[dialer/queue] missed_inbound query failed:", missedErr.message);
+  }
+
+  let missedInbound: MissedInbound[] = [];
+
+  if ((missedEvents ?? []).length > 0) {
+    const missedEventIds = (missedEvents as Array<{ id: string }>).map(e => e.id);
+
+    // Resolved (recovered / dismissed)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: resolvedEvents } = await (sb.from("dialer_events") as any)
+      .select("metadata")
+      .in("event_type", ["inbound.recovered", "inbound.dismissed"])
+      .not("metadata->original_event_id", "is", null);
+
+    const resolvedOriginalIds = new Set(
+      (resolvedEvents ?? []).map(
+        (e: { metadata: { original_event_id?: string } }) => e.metadata?.original_event_id
+      ).filter(Boolean)
+    );
+
+    // Classification state
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: classifyEvents } = await (sb.from("dialer_events") as any)
+      .select("metadata")
+      .eq("event_type", "inbound.classified")
+      .in("metadata->original_event_id" as string, missedEventIds);
+
+    // Build a map: original_event_id → { caller_type, routing_action }
+    const classifyMap = new Map<string, { caller_type: string; routing_action: string }>();
+    for (const ev of (classifyEvents ?? [])) {
+      const meta = ev.metadata ?? {};
+      if (meta.original_event_id) {
+        classifyMap.set(meta.original_event_id as string, {
+          caller_type:    (meta.caller_type    as string) ?? "unknown",
+          routing_action: (meta.routing_action as string) ?? "",
+        });
+      }
+    }
+
+    missedInbound = (missedEvents ?? [])
+      .filter((e: { id: string }) => !resolvedOriginalIds.has(e.id))
+      .filter((_: unknown, idx: number) => idx < limit)
+      .map((e: { id: string; lead_id: string | null; task_id: string | null; metadata: Record<string, unknown>; created_at: string }) => {
+        const meta = e.metadata ?? {};
+        const missedAt = (meta.missed_at as string) ?? e.created_at;
+        const taskDueAt = (meta.task_due_at as string) ?? null;
+        const minutesAgo = Math.floor((now.getTime() - new Date(missedAt).getTime()) / 60_000);
+        const classifyInfo = classifyMap.get(e.id) ?? null;
+        return {
+          event_id:       e.id,
+          lead_id:        e.lead_id,
+          from_number:    (meta.from_number as string) ?? "unknown",
+          missed_at:      missedAt,
+          minutes_ago:    minutesAgo,
+          task_id:        e.task_id,
+          task_due_at:    taskDueAt,
+          task_overdue:   taskDueAt ? new Date(taskDueAt) < now : false,
+          lead_matched:   !!(meta.lead_matched),
+          caller_type:    classifyInfo?.caller_type    ?? null,
+          routing_action: classifyInfo?.routing_action ?? null,
+          is_classified:  !!classifyInfo,
+        };
+      });
+  }
+
+  // ── 6. Unclassified answered calls ───────────────────────────
+  // inbound.answered calls that have no corresponding inbound.classified event.
+  // These are answered calls where Logan never logged a caller type — routing leakage.
+  // Capped to last 24h to avoid surfacing stale calls.
+  const oneDayAgo = new Date(now.getTime() - 24 * 60 * 60_000).toISOString();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: answeredEvents, error: answeredErr } = await (sb.from("dialer_events") as any)
+    .select("id, lead_id, metadata, created_at")
+    .eq("event_type", "inbound.answered")
+    .gte("created_at", oneDayAgo)
+    .order("created_at", { ascending: false })
+    .limit(limit);
+
+  if (answeredErr) {
+    console.error("[dialer/queue] unclassified_answered query failed:", answeredErr.message);
+  }
+
+  let unclassifiedAnswered: UnclassifiedAnswered[] = [];
+
+  if ((answeredEvents ?? []).length > 0) {
+    const answeredEventIds = (answeredEvents as Array<{ id: string }>).map(e => e.id);
+
+    // Find which have been classified
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: classifiedRefs } = await (sb.from("dialer_events") as any)
+      .select("metadata->original_event_id")
+      .eq("event_type", "inbound.classified")
+      .in("metadata->original_event_id" as string, answeredEventIds);
+
+    const classifiedIds = new Set(
+      (classifiedRefs ?? []).map(
+        (r: { original_event_id?: string }) => r.original_event_id
+      ).filter(Boolean)
+    );
+
+    unclassifiedAnswered = (answeredEvents ?? [])
+      .filter((e: { id: string }) => !classifiedIds.has(e.id))
+      .slice(0, limit)
+      .map((e: { id: string; lead_id: string | null; metadata: Record<string, unknown>; created_at: string }) => {
+        const meta = e.metadata ?? {};
+        const answeredAt = (meta.answered_at as string) ?? e.created_at;
+        return {
+          event_id:    e.id,
+          lead_id:     e.lead_id,
+          from_number: (meta.from_number as string) ?? "unknown",
+          answered_at: answeredAt,
+          minutes_ago: Math.floor((now.getTime() - new Date(answeredAt).getTime()) / 60_000),
+          lead_matched: !!(meta.lead_matched),
+        };
+      });
+  }
+
   const result: QueueResult = {
-    generated_at:        now.toISOString(),
-    stale_days:          staleDays,
-    limit_per_bucket:    limit,
-    overdue_tasks:       overdueTasks,
-    defaulted_callbacks: defaultedCallbacks,
-    flagged_ai:          flaggedAi,
-    leaking_follow_ups:  leakingFollowUps,
+    generated_at:          now.toISOString(),
+    stale_days:            staleDays,
+    limit_per_bucket:      limit,
+    overdue_tasks:         overdueTasks,
+    defaulted_callbacks:   defaultedCallbacks,
+    flagged_ai:            flaggedAi,
+    leaking_follow_ups:    leakingFollowUps,
+    missed_inbound:        missedInbound,
+    unclassified_answered: unclassifiedAnswered,
   };
 
   return NextResponse.json(result);

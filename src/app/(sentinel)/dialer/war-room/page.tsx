@@ -14,12 +14,13 @@
  * No new API routes, no migrations, no write paths.
  */
 
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import {
   AlertTriangle,
   CheckSquare,
   Phone,
+  PhoneIncoming,
   BrainCircuit,
   SearchX,
   TrendingUp,
@@ -39,7 +40,10 @@ import { GlassCard } from "@/components/sentinel/glass-card";
 import { DailyBrief } from "@/components/sentinel/dashboard/widgets/daily-brief";
 import { CallQualitySnapshot } from "@/components/sentinel/dashboard/widgets/call-quality-snapshot";
 import { MissedOpportunityQueue } from "@/components/sentinel/dashboard/widgets/missed-opportunity-queue";
+import { MissedInboundQueue } from "@/components/sentinel/dashboard/widgets/missed-inbound-queue";
 import { useDialerWeekly, type WeekBucket } from "@/hooks/use-dialer-weekly";
+import { useSentinelStore } from "@/lib/store";
+import type { MissedInbound, UnclassifiedAnswered } from "@/app/api/dialer/v1/queue/route";
 
 // ─────────────────────────────────────────────────────────────
 // Weekly table helpers (mirror of /dialer/review)
@@ -232,6 +236,29 @@ function WeeklyTable() {
 export default function WarRoomPage() {
   const { data: weeklyData } = useDialerWeekly(1);
   const overdueCount = weeklyData?.overdue_tasks_now ?? 0;
+  const { currentUser } = useSentinelStore();
+  const token = (currentUser as { access_token?: string })?.access_token ?? null;
+
+  const [missedInbound, setMissedInbound] = useState<MissedInbound[]>([]);
+  const [unclassifiedAnswered, setUnclassifiedAnswered] = useState<UnclassifiedAnswered[]>([]);
+  const [missedLoading, setMissedLoading] = useState(false);
+
+  const loadMissed = useCallback(async () => {
+    setMissedLoading(true);
+    try {
+      const res = await fetch("/api/dialer/v1/queue", {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setMissedInbound(data.missed_inbound ?? []);
+        setUnclassifiedAnswered(data.unclassified_answered ?? []);
+      }
+    } catch { /* non-fatal */ }
+    finally { setMissedLoading(false); }
+  }, [token]);
+
+  useEffect(() => { loadMissed(); }, [loadMissed]);
 
   return (
     <PageShell
@@ -273,6 +300,18 @@ export default function WarRoomPage() {
           </Link>
         )}
 
+        {/* ── Missed inbound banner (highest urgency — surfaces first) ─ */}
+        {(missedLoading || missedInbound.length > 0 || unclassifiedAnswered.length > 0) && (
+          <Section title="Missed Inbound Calls" icon={PhoneIncoming} iconColor="text-red-400/80">
+            <MissedInboundQueue
+              items={missedInbound}
+              unclassified={unclassifiedAnswered}
+              loading={missedLoading}
+              onRefresh={loadMissed}
+            />
+          </Section>
+        )}
+
         {/* ── Two-column layout: brief + signals ────────────────── */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
 
@@ -301,11 +340,12 @@ export default function WarRoomPage() {
         {/* ── Action links ──────────────────────────────────────── */}
         <div className="flex flex-wrap gap-2">
           {[
-            { href: "/tasks",          label: "Tasks",          icon: CheckSquare },
-            { href: "/leads",          label: "Leads",          icon: Phone },
-            { href: "/dialer",         label: "Dialer",         icon: Phone },
-            { href: "/dialer/review",  label: "Weekly Review",  icon: TrendingUp },
-            { href: "/pipeline",       label: "Pipeline",       icon: ArrowRight },
+            { href: "/tasks",           label: "Tasks",           icon: CheckSquare },
+            { href: "/leads",           label: "Leads",           icon: Phone },
+            { href: "/dialer",          label: "Dialer",          icon: Phone },
+            { href: "/dialer/inbound",  label: "Inbound",         icon: PhoneIncoming },
+            { href: "/dialer/review",   label: "Weekly Review",   icon: TrendingUp },
+            { href: "/pipeline",        label: "Pipeline",        icon: ArrowRight },
           ].map(({ href, label, icon: Icon }) => (
             <Link
               key={href}

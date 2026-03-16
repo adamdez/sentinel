@@ -143,6 +143,8 @@ import type { PhoneDetail, EmailDetail, SkipTraceOverlay, SkipTraceError } from 
 import { BuyerRadarPanel } from "./master-client-file/buyer-radar-panel";
 import { MonetizabilityEditor } from "./master-client-file/monetizability-editor";
 import { DossierBlock } from "./master-client-file/dossier-block";
+import type { LeadDossierType } from "./master-client-file/dossier-block";
+import { NegativeIntelligenceBlock } from "./negative-intelligence-block";
 
 // Re-export for consumers that import from this file
 export type { ClientFile };
@@ -1595,7 +1597,16 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
       )}
 
       {/* Dossier Block — renders only when a reviewed dossier exists for this lead */}
-      <DossierBlock leadId={cf.id} isAdminView={isAdam} />
+      {/* leadType: absentee_landlord detected from isAbsentee flag or tag; drives renderer + source types */}
+      <DossierBlock
+        leadId={cf.id}
+        propertyId={cf.propertyId ?? null}
+        isAdminView={isAdam}
+        leadType={(cf.isAbsentee || cf.tags?.includes("absentee") || cf.tags?.includes("absentee_landlord")) ? "absentee_landlord" as LeadDossierType : undefined}
+      />
+
+      {/* Negative Intelligence — "signals worth checking"; only renders when ≥1 signal present */}
+      <NegativeIntelligenceBlock cf={cf} />
 
       {/* Intake Guide — visible for early-stage leads (prospect/lead with 0-1 calls) */}
       <IntakeGuideSection cf={cf} />
