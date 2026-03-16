@@ -1,6 +1,37 @@
+# Build artifacts
 .next
+out
+build
+
+# Dependencies
 node_modules
+sentinel-mcp/node_modules
+
+# TypeScript build info
+tsconfig.tsbuildinfo
+*.tsbuildinfo
+
+# Windows null device artifact (created when scripts redirect to nul)
+nul
+
+# Dev/test tooling
 .claude
 playwright-report
 test-results
+coverage
+
+# Supabase
 supabase/.temp
+
+# Git
+.git
+
+# Cursor
+.cursor
+
+# Large local docs
+*.docx
+agents.md.docx
+
+# Misc OS artifacts
+.DS_Store

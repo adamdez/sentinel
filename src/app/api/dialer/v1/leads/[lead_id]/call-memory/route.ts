@@ -60,7 +60,7 @@ export async function GET(req: NextRequest, { params }: RouteContext) {
   // ── 2b. Most recent structured post-call data ─────────────────────────
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data: pcs } = await (sb.from("post_call_structures") as any)
-    .select("promises_made, objection, next_task_suggestion, deal_temperature")
+    .select("promises_made, objection, next_task_suggestion, callback_timing_hint, deal_temperature")
     .eq("lead_id", lead_id)
     .order("created_at", { ascending: false })
     .limit(1)
@@ -128,6 +128,7 @@ export async function GET(req: NextRequest, { params }: RouteContext) {
     lastCallPromises:        (pcs?.promises_made as string) ?? null,
     lastCallObjection:       (pcs?.objection as string) ?? null,
     lastCallNextAction:      (pcs?.next_task_suggestion as string) ?? null,
+    lastCallCallbackTiming:  (pcs?.callback_timing_hint as string) ?? null,
     lastCallDealTemperature: (pcs?.deal_temperature as string) ?? null,
   };
 

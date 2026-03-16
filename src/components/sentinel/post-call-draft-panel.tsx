@@ -46,7 +46,7 @@ interface PostCallDraftPanelProps {
    * Called when operator confirms the draft.
    * Receives assembled note text, runId, and any selected objection tags.
    */
-  onConfirm:   (assembledNote: string, runId: string, objections: ObjectionCapture[]) => void;
+  onConfirm:   (assembledNote: string, runId: string, draft: PostCallDraft, objections: ObjectionCapture[]) => void;
   /**
    * Called when operator skips the draft.
    * Objection tags are still passed so they are captured with raw notes.
@@ -74,6 +74,7 @@ function assembleDraft(d: PostCallDraft): string {
   if (d.summary_line)         lines.push(d.summary_line);
   if (d.promises_made)        lines.push(`Promised: ${d.promises_made}`);
   if (d.next_task_suggestion) lines.push(`Next: ${d.next_task_suggestion}`);
+  if (d.callback_timing_hint) lines.push(`Best callback timing: ${d.callback_timing_hint}`);
   if (d.deal_temperature)     lines.push(`Temp: ${d.deal_temperature}`);
   return lines.join("\n");
 }
@@ -127,7 +128,9 @@ export function PostCallDraftPanel({
   // Editable local copies of draft fields
   const [summaryLine,        setSummaryLine]        = useState(draft.summary_line         ?? "");
   const [promisesMade,       setPromisesMade]        = useState(draft.promises_made        ?? "");
+  const [objectionText,      setObjectionText]       = useState(draft.objection            ?? "");
   const [nextTaskSuggestion, setNextTaskSuggestion]  = useState(draft.next_task_suggestion ?? "");
+  const [callbackTimingHint, setCallbackTimingHint]  = useState(draft.callback_timing_hint ?? "");
   const [dealTemperature,    setDealTemperature]     = useState<PostCallDraft["deal_temperature"]>(draft.deal_temperature);
   const [flagged,            setFlagged]             = useState(false);
 
@@ -163,11 +166,12 @@ export function PostCallDraftPanel({
     const edited: PostCallDraft = {
       summary_line:         summaryLine.trim()        || null,
       promises_made:        promisesMade.trim()       || null,
-      objection:            null,
+      objection:            objectionText.trim()      || null,
       next_task_suggestion: nextTaskSuggestion.trim() || null,
+      callback_timing_hint: callbackTimingHint.trim() || null,
       deal_temperature:     dealTemperature,
     };
-    onConfirm(assembleDraft(edited), runId, buildObjections());
+    onConfirm(assembleDraft(edited), runId, edited, buildObjections());
   };
 
   const handleSkip = () => {
@@ -245,12 +249,28 @@ export function PostCallDraftPanel({
         onChange={setPromisesMade}
       />
       <DraftField
+        label="Objection"
+        value={objectionText}
+        placeholder="Primary concern blocking progress…"
+        maxLength={80}
+        disabled={disabled}
+        onChange={setObjectionText}
+      />
+      <DraftField
         label="Next step"
         value={nextTaskSuggestion}
         placeholder="Suggested next action…"
         maxLength={60}
         disabled={disabled}
         onChange={setNextTaskSuggestion}
+      />
+      <DraftField
+        label="Best callback timing"
+        value={callbackTimingHint}
+        placeholder="When they are easiest to reach…"
+        maxLength={60}
+        disabled={disabled}
+        onChange={setCallbackTimingHint}
       />
 
       {/* ── Objection tag chips ───────────────────────────────── */}

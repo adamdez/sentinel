@@ -10,6 +10,7 @@ export interface PreCallBrief {
   objections: { objection: string; rebuttal: string }[];
   negotiationAnchor: string | null;
   watchOuts: string[];
+  riskFlags: string[];
 }
 
 export function usePreCallBrief(leadId: string | null) {
@@ -38,7 +39,7 @@ export function usePreCallBrief(leadId: string | null) {
       const { data: { session } } = await supabase.auth.getSession();
       const token = session?.access_token ?? "";
 
-      const res = await fetch("/api/grok/pre-call-brief", {
+      const res = await fetch("/api/dialer/v1/pre-call-brief", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -61,6 +62,7 @@ export function usePreCallBrief(leadId: string | null) {
         objections: data.objections ?? [],
         negotiationAnchor: data.negotiationAnchor ?? null,
         watchOuts: data.watchOuts ?? [],
+        riskFlags: data.riskFlags ?? [],
       };
 
       cacheRef.current.set(id, result);

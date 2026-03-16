@@ -328,7 +328,7 @@ export function buildSentinelSystemPrompt(metrics?: SentinelPromptMetrics): stri
     "│   │   ├── grok/actions/route.ts    — Execute Grok-recommended actions",
     "│   │   ├── grok/insights/route.ts   — Dashboard insights widget",
     "│   │   ├── grok/troubleshoot/route.ts — System diagnostics endpoint",
-    "│   │   ├── grok/pre-call-brief/     — AI pre-call intelligence",
+    "│   │   ├── dialer/v1/pre-call-brief/ — AI pre-call intelligence",
     "│   │   ├── dialer/call/             — Twilio voice call initiation",
     "│   │   ├── dialer/sms/              — SMS send",
     "│   │   ├── dialer/summarize/        — AI call summarization",

@@ -27,10 +27,10 @@
  * Mirrors dialer_ai_traces.workflow plus "routing" for classify outcomes.
  */
 export type EvalWorkflow =
-  | "summarize"   // Grok call summarizer → calls_log.ai_summary
+  | "summarize"   // AI call summarizer → calls_log.ai_summary
   | "extract"     // Claude extractor    → dossier artifacts
-  | "draft_note"  // Grok draft note     → post-call draft
-  | "qa_notes"    // Grok QA checker     → call_qa_findings
+  | "draft_note"  // AI draft note       → post-call draft
+  | "qa_notes"    // AI QA checker       → call_qa_findings
   | "routing";    // Classify caller type → inbound routing decision
 
 export const EVAL_WORKFLOWS: EvalWorkflow[] = [
@@ -46,10 +46,10 @@ export const EVAL_WORKFLOW_LABELS: Record<EvalWorkflow, string> = {
 };
 
 export const EVAL_WORKFLOW_DESCRIPTIONS: Record<EvalWorkflow, string> = {
-  summarize:  "Grok-generated call summary from operator notes and prior context.",
+  summarize:  "AI-generated call summary from operator notes and prior context.",
   extract:    "Claude-extracted facts from dossier artifacts (assessor, probate, etc.).",
-  draft_note: "Grok-drafted post-call structured note with summary, facts, next task.",
-  qa_notes:   "Grok QA check: trust-risk, weak follow-up, notes quality.",
+  draft_note: "AI-drafted post-call structured note with summary, facts, next task.",
+  qa_notes:   "AI QA check: trust-risk, weak follow-up, notes quality.",
   routing:    "Inbound caller classification: seller / buyer / vendor / spam / unknown.",
 };
 

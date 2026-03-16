@@ -44,18 +44,25 @@ export interface PromptMeta {
 // Keys: `${workflow}@${version}`
 
 const STATIC_FALLBACK: Record<string, PromptMeta> = {
+  "summarize@2.3.0+style@1.0.0": {
+    workflow:    "summarize",
+    version:     "2.3.0+style@1.0.0",
+    status:      "active",
+    description: "OpenAI call summarizer. 3-5 bullets: objections, motivation, property, next steps, deal temperature.",
+    changelog:   "OpenAI migration + seller conversation style overlay + prior-context trust ordering.",
+  },
   "summarize@2.1.0": {
     workflow:    "summarize",
     version:     "2.1.0",
-    status:      "active",
-    description: "Grok call summarizer. 3-5 bullets: objections, motivation, property, next steps, deal temp.",
+    status:      "deprecated",
+    description: "Legacy call summarizer. 3-5 bullets: objections, motivation, property, next steps, deal temp.",
     changelog:   "Source hierarchy enforced: operator notes first, AI summary labeled fallback.",
   },
   "summarize@2.0.0": {
     workflow:    "summarize",
     version:     "2.0.0",
     status:      "deprecated",
-    description: "Grok call summarizer with prior context block.",
+    description: "Legacy call summarizer with prior context block.",
     changelog:   "Added prior call context. Did not enforce trust order.",
   },
   "extract@1.0.0": {

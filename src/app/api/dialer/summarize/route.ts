@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@/lib/supabase";
-import { completeGrokChat, type GrokMessage } from "@/lib/grok-client";
+import { completeDialerAi, type DialerAiMessage } from "@/lib/dialer/openai-lane-client";
 import { writeAiTrace } from "@/lib/dialer/ai-trace-writer";
+import { getStyleBlock, styleVersionTag } from "@/lib/conversation-style";
 import { randomUUID } from "crypto";
 
 export const dynamic = "force-dynamic";
@@ -13,10 +14,12 @@ export const runtime = "nodejs";
 // format changes. The version is stored in summary_trace and dialer_ai_traces
 // so bad summaries can be correlated to the exact prompt that produced them.
 
-const SUMMARIZE_PROMPT_VERSION = "2.1.0";
-
+// v2.3.0 — OpenAI migration for dialer summarize lane (gpt-5-mini default)
+// v2.2.0 — seller conversation style overlay injected (conversation-style.ts)
 // v2.1.0 — source hierarchy enforced: operator notes > AI summary (labeled)
 // v2.0.0 — added prior call context block to user message
+const SUMMARIZE_PROMPT_VERSION = `2.3.0${styleVersionTag()}`;
+
 const CALL_SUMMARY_SYSTEM_PROMPT = `You are a real estate acquisitions assistant for Dominion Homes in Spokane, WA.
 
 Summarize this call in 3-5 concise bullet points covering:
@@ -28,7 +31,9 @@ Summarize this call in 3-5 concise bullet points covering:
 
 If prior call context is provided, note any change in seller position, new information, or unresolved objections from prior calls.
 
-Be direct and action-oriented. Use short phrases, not full sentences. If the call was a voicemail or no answer, state that briefly.`;
+Be direct and action-oriented. Use short phrases, not full sentences. If the call was a voicemail or no answer, state that briefly.
+
+${getStyleBlock("post_call_summary")}`;
 
 // ── Prior context source hierarchy ───────────────────────────
 //
@@ -36,7 +41,7 @@ Be direct and action-oriented. Use short phrases, not full sentences. If the cal
 //   1. calls_log.notes  — operator-written or operator-published summary.
 //      publish-manager writes the curated call summary here. This is the
 //      operator-reviewed version of what happened on the call.
-//   2. calls_log.ai_summary — raw Grok output, unreviewed by operator.
+//   2. calls_log.ai_summary — raw AI output, unreviewed by operator.
 //      Only used if calls_log.notes is absent. Labeled explicitly as
 //      AI-generated so the summarizer can weight it appropriately.
 //
@@ -113,7 +118,7 @@ async function fetchPriorCallContext(
  * POST /api/dialer/summarize
  *
  * Takes call notes (agent-written or transcription) and generates
- * a concise AI summary via Grok. Saves to calls_log and lead notes.
+ * a concise AI summary via OpenAI. Saves to calls_log and lead notes.
  *
  * v2: If leadId is provided, fetches up to 2 prior AI summaries from
  * calls_log and prepends them as context. This means repeat-call summaries
@@ -131,10 +136,9 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const apiKey = process.env.GROK_API_KEY ?? process.env.XAI_API_KEY;
-  if (!apiKey) {
-    console.error("[Grok API Error] Neither GROK_API_KEY nor XAI_API_KEY is set in environment");
-    return NextResponse.json({ error: "Grok API key not configured" }, { status: 503 });
+  if (!process.env.OPENAI_API_KEY) {
+    console.error("[Summarize] OPENAI_API_KEY is not set in environment");
+    return NextResponse.json({ error: "OpenAI API key not configured" }, { status: 503 });
   }
 
   let body: {
@@ -187,7 +191,7 @@ export async function POST(req: NextRequest) {
     priorContext +
     textToSummarize;
 
-  const messages: GrokMessage[] = [
+  const messages: DialerAiMessage[] = [
     { role: "system", content: CALL_SUMMARY_SYSTEM_PROMPT },
     { role: "user",   content: userMessage },
   ];
@@ -197,10 +201,19 @@ export async function POST(req: NextRequest) {
   const startMs = Date.now();
 
   let summary: string;
+  let aiModel = "gpt-5-mini";
+  let aiProvider = "openai" as const;
   try {
-    summary = await completeGrokChat({ messages, temperature: 0, apiKey });
+    const ai = await completeDialerAi({
+      lane: "summarize",
+      messages,
+      temperature: 0,
+    });
+    summary = ai.text;
+    aiModel = ai.model;
+    aiProvider = ai.provider;
   } catch (err) {
-    console.error("[Summarize] Grok error:", err);
+    console.error("[Summarize] OpenAI error:", err);
     return NextResponse.json({ error: "AI summarization failed" }, { status: 502 });
   }
 
@@ -216,8 +229,8 @@ export async function POST(req: NextRequest) {
       summary_trace: {
         run_id:               runId,
         prompt_version:       SUMMARIZE_PROMPT_VERSION,
-        model:                "grok-2-latest",
-        provider:             "xai",
+        model:                aiModel,
+        provider:             aiProvider,
         latency_ms:           latencyMs,
         generated_at:         now,
         had_prior_context:    priorContext.length > 0,
@@ -242,8 +255,8 @@ export async function POST(req: NextRequest) {
     session_id:     body.sessionId ?? null,
     lead_id:        body.leadId    ?? null,
     call_log_id:    body.callLogId,
-    model:          "grok-2-latest",
-    provider:       "xai",
+    model:          aiModel,
+    provider:       aiProvider,
     input_text:     userMessage,
     output_text:    summary,
     latency_ms:     latencyMs,

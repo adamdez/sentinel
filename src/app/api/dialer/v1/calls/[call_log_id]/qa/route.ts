@@ -4,7 +4,7 @@
  *
  * POST triggers QA for the specified calls_log row:
  *   1. Runs all deterministic checks (qual gaps, missing task, objections, etc.)
- *   2. Optionally runs AI notes check if notes are long enough (uses Grok)
+ *   2. Optionally runs AI notes check if notes are long enough (uses OpenAI)
  *   3. Clears previous findings for this call, writes new ones
  *   4. Returns findings list
  *
@@ -27,7 +27,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createDialerClient, getDialerUser } from "@/lib/dialer/db";
 import { runDeterministicChecks, AI_CHECK_MIN_NOTES_LENGTH } from "@/lib/dialer/qa-checks";
 import type { QaCheckResult } from "@/lib/dialer/qa-checks";
-import { completeGrokChat, type GrokMessage } from "@/lib/grok-client";
+import { completeDialerAi, type DialerAiMessage } from "@/lib/dialer/openai-lane-client";
 import { writeAiTrace } from "@/lib/dialer/ai-trace-writer";
 import { randomUUID } from "crypto";
 
@@ -35,7 +35,7 @@ type RouteContext = { params: Promise<{ call_log_id: string }> };
 
 // ── AI QA prompt ─────────────────────────────────────────────────────────────
 
-const QA_PROMPT_VERSION = "1.0.0";
+const QA_PROMPT_VERSION = "1.1.0";
 const QA_SYSTEM_PROMPT = `You are a call quality reviewer for a real estate acquisitions team.
 You review operator notes from seller calls to identify concerns.
 
@@ -188,12 +188,13 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
   const notes: string | null = callRow.notes ?? null;
   const shouldRunAi = runAi && notes !== null && notes.trim().length >= AI_CHECK_MIN_NOTES_LENGTH;
 
-  const grokApiKey = process.env.GROK_API_KEY ?? process.env.XAI_API_KEY;
+  const hasOpenAi = !!process.env.OPENAI_API_KEY;
 
-  if (shouldRunAi && grokApiKey) {
+  if (shouldRunAi && hasOpenAi) {
     const runId = randomUUID();
+    let aiModel = "gpt-5-mini";
     try {
-      const messages: GrokMessage[] = [
+      const messages: DialerAiMessage[] = [
         { role: "system", content: QA_SYSTEM_PROMPT },
         {
           role:    "user",
@@ -201,7 +202,13 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
         },
       ];
 
-      const raw = await completeGrokChat({ messages, temperature: 0, apiKey: grokApiKey });
+      const ai = await completeDialerAi({
+        lane: "qa_notes",
+        messages,
+        temperature: 0,
+      });
+      const raw = ai.text;
+      aiModel = ai.model;
       let parsed: AiQaOutput | null = null;
 
       try {
@@ -217,8 +224,8 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
           prompt_version: QA_PROMPT_VERSION,
           lead_id:        leadId ?? undefined,
           call_log_id:    call_log_id,
-          model:          "grok-3-mini",
-          provider:       "xai",
+          model:          aiModel,
+          provider:       "openai",
           output_text:    raw.slice(0, 4000),
         });
 

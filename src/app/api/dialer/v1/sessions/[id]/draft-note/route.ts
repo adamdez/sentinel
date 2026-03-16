@@ -38,7 +38,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { createDialerClient, getDialerUser } from "@/lib/dialer/db";
 import { getSession } from "@/lib/dialer/session-manager";
 import { createNote } from "@/lib/dialer/note-manager";
-import { completeGrokChat, type GrokMessage } from "@/lib/grok-client";
+import { completeDialerAi, type DialerAiMessage } from "@/lib/dialer/openai-lane-client";
+import { getStyleBlock, styleVersionTag } from "@/lib/conversation-style";
 import { randomUUID } from "crypto";
 import { writeAiTrace } from "@/lib/dialer/ai-trace-writer";
 
@@ -48,9 +49,11 @@ type RouteContext = { params: Promise<{ id: string }> };
 //
 // Bump DRAFT_NOTE_PROMPT_VERSION when the system prompt or output schema changes.
 
-const DRAFT_NOTE_PROMPT_VERSION = "1.0.0";
-const DRAFT_NOTE_MODEL           = "grok-2-latest";
-const DRAFT_NOTE_PROVIDER        = "xai";
+// v1.3.0 — adds callback_timing_hint for post-call structure capture
+// v1.1.0 — OpenAI migration for draft_note lane
+const DRAFT_NOTE_PROMPT_VERSION = `1.3.0${styleVersionTag()}`;
+const DRAFT_NOTE_MODEL_FALLBACK = "gpt-5-mini";
+const DRAFT_NOTE_PROVIDER       = "openai";
 
 // ── Output schema ────────────────────────────────────────────────────────────
 
@@ -63,6 +66,8 @@ export interface PostCallDraft {
   objection:            string | null;
   /** Suggested next task title (concise action phrase). Max 60 chars. */
   next_task_suggestion: string | null;
+  /** Best callback timing mentioned by seller/operator notes. Max 60 chars. */
+  callback_timing_hint: string | null;
   /** Deal temperature: hot | warm | cool | cold | dead */
   deal_temperature:     "hot" | "warm" | "cool" | "cold" | "dead" | null;
 }
@@ -72,6 +77,7 @@ const NULL_DRAFT: PostCallDraft = {
   promises_made:        null,
   objection:            null,
   next_task_suggestion: null,
+  callback_timing_hint: null,
   deal_temperature:     null,
 };
 
@@ -81,7 +87,8 @@ const SYSTEM_PROMPT =
   "You are a real estate acquisitions assistant for Dominion Home Deals in Spokane, WA. " +
   "Extract structured call notes from brief operator notes after a seller call. " +
   "Return ONLY valid JSON matching the schema. No prose, no markdown fences, no extra keys. " +
-  "Be conservative: return null for any field you cannot confidently extract. Never guess or embellish.";
+  "Be conservative: return null for any field you cannot confidently extract. Never guess or embellish.\n\n" +
+  getStyleBlock("objection_support");
 
 function buildPrompt(
   notes:       string,
@@ -106,14 +113,18 @@ function buildPrompt(
     `  "promises_made": <string max 80 chars or null>,\n` +
     `  "objection": <string max 80 chars or null>,\n` +
     `  "next_task_suggestion": <string max 60 chars or null>,\n` +
+    `  "callback_timing_hint": <string max 60 chars or null>,\n` +
     `  "deal_temperature": <"hot"|"warm"|"cool"|"cold"|"dead"|null>\n` +
     `}\n\n` +
     `Rules:\n` +
     `- summary_line: what happened on this call in 1-2 sentences. null if notes are too sparse.\n` +
     `- promises_made: only explicit commitments (callback by X, sending Y, etc.). null if none.\n` +
     `- objection: primary unresolved seller concern. null if none mentioned or call was no-answer/voicemail.\n` +
-    `- next_task_suggestion: concise action phrase like "Call back Thu 3pm" or "Send offer details". null if no next step mentioned.\n` +
+    `- next_task_suggestion: concise, plainspoken action phrase like "Check in Thursday afternoon" or "Follow up after seller talks with family". Avoid pushy language.\n` +
+    `- callback_timing_hint: if notes mention a preferred day/time window, capture it in plain language (e.g. "Thursday afternoon", "after 6pm"). null if not mentioned.\n` +
     `- deal_temperature: seller engagement level. null if call was no-answer/voicemail or too unclear.\n` +
+    `- Keep phrasing calm and human. Diagnose before persuasion.\n` +
+    `- Suggest question-led next steps ("ask what timing feels realistic") over pressure-led steps.\n` +
     `- Return null for any field you cannot confidently extract — never guess.`
   );
 }
@@ -133,6 +144,7 @@ function parseDraft(raw: Record<string, unknown>): PostCallDraft {
     promises_made:        str(raw.promises_made, 80),
     objection:            str(raw.objection, 80),
     next_task_suggestion: str(raw.next_task_suggestion, 60),
+    callback_timing_hint: str(raw.callback_timing_hint, 60),
     deal_temperature:     (typeof temp === "string" && VALID_TEMPS.has(temp))
       ? (temp as PostCallDraft["deal_temperature"])
       : null,
@@ -181,15 +193,14 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
   }
 
   // ── API key guard ────────────────────────────────────────────────────────
-  const apiKey = process.env.GROK_API_KEY ?? process.env.XAI_API_KEY;
-  if (!apiKey) {
-    console.error("[draft-note] GROK_API_KEY / XAI_API_KEY not set");
+  if (!process.env.OPENAI_API_KEY) {
+    console.error("[draft-note] OPENAI_API_KEY not set");
     return NextResponse.json({ ok: false, error: "AI service not configured", run_id: runId });
   }
 
-  // ── Build prompt and call Grok ───────────────────────────────────────────
+  // ── Build prompt and call OpenAI ─────────────────────────────────────────
   const userContent = buildPrompt(notes, disposition, callbackAt, ownerName, address);
-  const messages: GrokMessage[] = [
+  const messages: DialerAiMessage[] = [
     { role: "system", content: SYSTEM_PROMPT },
     { role: "user",   content: userContent },
   ];
@@ -197,12 +208,19 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
   const startMs = Date.now();
   let rawOutput = "";
   let callOk    = false;
+  let aiModel   = DRAFT_NOTE_MODEL_FALLBACK;
 
   try {
-    rawOutput = await completeGrokChat({ messages, temperature: 0, apiKey });
+    const ai = await completeDialerAi({
+      lane: "draft_note",
+      messages,
+      temperature: 0,
+    });
+    rawOutput = ai.text;
+    aiModel = ai.model;
     callOk = true;
   } catch (err) {
-    console.error("[draft-note] Grok call failed:", err);
+    console.error("[draft-note] OpenAI call failed:", err);
   }
 
   const latencyMs = Date.now() - startMs;
@@ -221,7 +239,7 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
         parseOk = true;
       }
     } catch {
-      console.warn("[draft-note] JSON parse failed from Grok output");
+      console.warn("[draft-note] JSON parse failed from OpenAI output");
     }
   }
 
@@ -232,7 +250,7 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
     prompt_version: DRAFT_NOTE_PROMPT_VERSION,
     session_id:     sessionId,
     lead_id:        sessionResult.data.lead_id ?? null,
-    model:          DRAFT_NOTE_MODEL,
+    model:          aiModel,
     provider:       DRAFT_NOTE_PROVIDER,
     input_text:     userContent,
     output_text:    rawOutput || null,
@@ -250,7 +268,7 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
       sequence_num:    0,
       is_ai_generated: true,
       trace_metadata: {
-        model:          DRAFT_NOTE_MODEL,
+        model:          aiModel,
         provider:       DRAFT_NOTE_PROVIDER,
         prompt_version: DRAFT_NOTE_PROMPT_VERSION,
         run_id:         runId,

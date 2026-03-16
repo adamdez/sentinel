@@ -33,12 +33,40 @@ import { PostCallDraftPanel } from "@/components/sentinel/post-call-draft-panel"
 import type { PostCallDraft, ObjectionCapture } from "@/components/sentinel/post-call-draft-panel";
 import { QualGapStripCompact } from "@/components/sentinel/qual-gap-strip";
 import type { QualCheckInput } from "@/lib/dialer/qual-checklist";
+import type { PostCallStructureInput } from "@/lib/dialer/post-call-structure";
 
 async function authHeaders(): Promise<Record<string, string>> {
   const { data: { session } } = await supabase.auth.getSession();
   const headers: Record<string, string> = { "Content-Type": "application/json" };
   if (session?.access_token) headers["Authorization"] = `Bearer ${session.access_token}`;
   return headers;
+}
+
+function toLocalDateTimeInput(iso?: string): string {
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return "";
+  const local = new Date(d.getTime() - d.getTimezoneOffset() * 60_000);
+  return local.toISOString().slice(0, 16);
+}
+
+function deriveStructureFromSummary(summaryText: string): PostCallStructureInput {
+  const lines = summaryText
+    .split("\n")
+    .map((l) => l.trim())
+    .filter(Boolean);
+
+  const summaryLine = lines[0] ?? null;
+  const promises = lines.find((l) => /^promised:/i.test(l))?.replace(/^promised:\s*/i, "") ?? null;
+  const next = lines.find((l) => /^next:/i.test(l))?.replace(/^next:\s*/i, "") ?? null;
+  const callbackHint = lines.find((l) => /^best callback timing:/i.test(l))?.replace(/^best callback timing:\s*/i, "") ?? null;
+
+  return {
+    summary_line: summaryLine,
+    promises_made: promises,
+    next_task_suggestion: next,
+    callback_timing_hint: callbackHint,
+  };
 }
 
 interface DispoMeta {
@@ -147,9 +175,14 @@ export function PostCallPanel({
   const [draftDone, setDraftDone] = useState(false);
   // draftFired: prevents duplicate calls if qualStep re-renders
   const draftFired = useRef(false);
+  // summarize run_id for eval closure on publish (optional)
+  const [summaryRunId, setSummaryRunId] = useState<string | null>(null);
+  const summaryRunPromise = useRef<Promise<string | null> | null>(null);
 
   // Objection tags collected from PostCallDraftPanel (confirm or skip path)
   const [objectionTags, setObjectionTags] = useState<ObjectionCapture[]>([]);
+  // Structured post-call payload captured in draft review and sent on publish.
+  const [structuredDraft, setStructuredDraft] = useState<PostCallStructureInput | null>(null);
 
   // Fire extraction + draft generation once when Step 3 opens and notes are non-empty
   useEffect(() => {
@@ -208,6 +241,14 @@ export function PostCallPanel({
         .then((data: { ok?: boolean; draft?: PostCallDraft | null; run_id?: string | null } | null) => {
           if (data?.ok && data.draft) {
             setDraft(data.draft);
+            setStructuredDraft({
+              summary_line: data.draft.summary_line,
+              promises_made: data.draft.promises_made,
+              objection: data.draft.objection,
+              next_task_suggestion: data.draft.next_task_suggestion,
+              callback_timing_hint: data.draft.callback_timing_hint,
+              deal_temperature: data.draft.deal_temperature,
+            });
             if (data.run_id) setDraftRunId(data.run_id);
           }
           // If ok=false, no draft shown — operator uses raw notes (graceful fallback)
@@ -215,9 +256,61 @@ export function PostCallPanel({
         .catch(() => {/* non-fatal */})
         .finally(() => setDraftLoading(false));
     }
+
+    // ── Summarize run_id (best-effort) ──────────────────────────
+    // Pre-generates summary trace run_id so publish can thread summary_run_id
+    // into eval side-effects. Non-fatal if unavailable.
+    void ensureSummaryRunId(pendingDispo ?? undefined);
   // qualStep is the trigger; pendingDispo/pendingNextCallAt are stable at transition time
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [qualStep]);
+
+  const ensureSummaryRunId = async (dispo?: PublishDisposition): Promise<string | null> => {
+    if (summaryRunId) return summaryRunId;
+    if (!callLogId) return null;
+    const notes = summary.trim();
+    if (notes.length < 5) return null;
+    if (summaryRunPromise.current) return summaryRunPromise.current;
+
+    const request = (async () => {
+      try {
+        const hdrs = await authHeaders();
+        const res = await fetch("/api/dialer/summarize", {
+          method: "POST",
+          headers: hdrs,
+          body: JSON.stringify({
+            callLogId,
+            sessionId,
+            notes,
+            disposition: dispo,
+            duration: timerElapsed > 0 ? timerElapsed : undefined,
+          }),
+        });
+        if (!res.ok) return null;
+        const data = await res.json() as { run_id?: string };
+        const runId = typeof data.run_id === "string" ? data.run_id : null;
+        if (runId) setSummaryRunId(runId);
+        return runId;
+      } catch {
+        return null;
+      } finally {
+        summaryRunPromise.current = null;
+      }
+    })();
+
+    summaryRunPromise.current = request;
+    return request;
+  };
+
+  const updateStructuredField = (
+    key: keyof PostCallStructureInput,
+    value: string | null,
+  ) => {
+    setStructuredDraft((prev) => ({
+      ...(prev ?? deriveStructureFromSummary(summary)),
+      [key]: value && value.trim() ? value.trim() : null,
+    }));
+  };
 
   const handlePublish = async (
     dispo: PublishDisposition,
@@ -230,6 +323,26 @@ export function PostCallPanel({
     setError(null);
 
     const hdrs = await authHeaders();
+    const summaryRunIdForPublish = await ensureSummaryRunId(dispo);
+    const fallbackStructure = deriveStructureFromSummary(summary.trim());
+    const mergedStructure: PostCallStructureInput = {
+      ...fallbackStructure,
+      ...(structuredDraft ?? {}),
+    };
+    const publishStructure = {
+      summary_line: mergedStructure.summary_line ?? null,
+      promises_made: mergedStructure.promises_made ?? null,
+      objection: mergedStructure.objection ?? null,
+      next_task_suggestion: mergedStructure.next_task_suggestion ?? null,
+      deal_temperature: mergedStructure.deal_temperature ?? null,
+    };
+    const shouldSendStructure = Boolean(
+      publishStructure.summary_line ||
+      publishStructure.promises_made ||
+      publishStructure.objection ||
+      publishStructure.next_task_suggestion ||
+      publishStructure.deal_temperature,
+    );
 
     // Publish to session — authoritative write for calls_log disposition + notes + qual fields.
     // callback_at is forwarded so publish-manager can create a tasks row for follow_up/appointment.
@@ -254,6 +367,7 @@ export function PostCallPanel({
             timeline_corrected:   reviewSignal?.timelineCorrected   ?? false,
           },
         } : {}),
+        ...(summaryRunIdForPublish ? { summary_run_id: summaryRunIdForPublish } : {}),
         // draft_note run_id — included when a draft was generated (confirmed or flagged).
         // The publish route passes this to writeAiTrace for review closure.
         // No schema change needed — the route already handles unknown extra fields safely.
@@ -261,6 +375,7 @@ export function PostCallPanel({
         // Objection tags — collected from PostCallDraftPanel (confirm or skip path).
         // Forwarded to publish-manager which writes to lead_objection_tags (non-fatal).
         ...(objectionTags.length > 0 ? { objection_tags: objectionTags } : {}),
+        ...(shouldSendStructure ? { post_call_structure: publishStructure } : {}),
       }),
     }).catch(() => null);
 
@@ -291,7 +406,9 @@ export function PostCallPanel({
           skipCallsLogWrite: true,
           ...(nextCallScheduledAt ? { nextCallScheduledAt } : {}),
         }),
-      }).catch(() => {});
+      }).catch((err) => {
+        console.warn("[PostCallPanel] /api/dialer/call counter PATCH failed (post-publish); call counters may not have incremented.", err);
+      });
     }
 
     // Brief success confirmation before advancing to next lead
@@ -314,6 +431,8 @@ export function PostCallPanel({
             durationSec: timerElapsed > 0 ? timerElapsed : undefined,
             userId,
           }),
+        }).catch((err) => {
+          console.warn("[PostCallPanel] /api/dialer/call counter PATCH failed (skip path); call counters may not have incremented.", err);
         }),
       ).catch(() => {});
     }
@@ -322,6 +441,14 @@ export function PostCallPanel({
 
   const handleDispoTap = (dispo: PublishDisposition) => {
     if (publishing) return;
+    setStructuredDraft(null);
+    setDraft(null);
+    setDraftDone(false);
+    draftFired.current = false;
+    setSummaryRunId(null);
+    summaryRunPromise.current = null;
+    setDraftRunId(null);
+    setObjectionTags([]);
     if (NEXT_STEP_DISPOS.has(dispo)) {
       // Step 1 → Step 2 (date) → Step 3 (qual confirm)
       setPendingDispo(dispo);
@@ -388,6 +515,7 @@ export function PostCallPanel({
   const minDatetime = new Date(Date.now() - new Date().getTimezoneOffset() * 60000)
     .toISOString()
     .slice(0, 16);
+  const step3CallbackValue = toLocalDateTimeInput(pendingNextCallAt);
 
   // ── Header title ─────────────────────────────────────────────
   const headerTitle = qualStep ? "Confirm Outcome" : pendingDispo ? "Set Callback" : "Log Outcome";
@@ -446,19 +574,28 @@ export function PostCallPanel({
             <PostCallDraftPanel
               draft={draft ?? {
                 summary_line: null, promises_made: null,
-                objection: null, next_task_suggestion: null, deal_temperature: null,
+                objection: null, next_task_suggestion: null, callback_timing_hint: null, deal_temperature: null,
               }}
               runId={draftRunId ?? ""}
               loading={draftLoading}
               disabled={publishing}
-              onConfirm={(assembledNote, confirmedRunId, tags) => {
+              onConfirm={(assembledNote, confirmedRunId, editedDraft, tags) => {
                 setSummary(assembledNote);
                 setDraftRunId(confirmedRunId);
+                setStructuredDraft({
+                  summary_line: editedDraft.summary_line,
+                  promises_made: editedDraft.promises_made,
+                  objection: editedDraft.objection,
+                  next_task_suggestion: editedDraft.next_task_suggestion,
+                  callback_timing_hint: editedDraft.callback_timing_hint,
+                  deal_temperature: editedDraft.deal_temperature,
+                });
                 setObjectionTags(tags);
                 setDraftDone(true);
               }}
               onSkip={(tags) => {
                 setObjectionTags(tags);
+                setStructuredDraft((prev) => prev ?? deriveStructureFromSummary(summary));
                 setDraftDone(true);
               }}
               onFlag={(flaggedRunId) => {
@@ -466,6 +603,67 @@ export function PostCallPanel({
                 setSummaryFlagged(true);
               }}
             />
+          )}
+
+          {/* ── Minimal structured corrections (no extra console) ─────── */}
+          <div className="mb-3 rounded-[10px] border border-white/[0.05] bg-white/[0.02] p-2.5 space-y-1.5">
+            <p className="text-[10px] uppercase tracking-wider text-muted-foreground/45">Post-call structure</p>
+            <textarea
+              value={structuredDraft?.promises_made ?? ""}
+              onChange={(e) => updateStructuredField("promises_made", e.target.value)}
+              placeholder="Promises made (optional)"
+              maxLength={200}
+              rows={1}
+              disabled={publishing}
+              className="w-full resize-none rounded-[8px] border border-white/[0.06] bg-white/[0.03] px-2.5 py-1.5 text-[11px] text-foreground placeholder:text-muted-foreground/30 focus:outline-none focus:border-cyan/20 disabled:opacity-50"
+            />
+            <textarea
+              value={structuredDraft?.objection ?? ""}
+              onChange={(e) => updateStructuredField("objection", e.target.value)}
+              placeholder="Primary objection (optional)"
+              maxLength={200}
+              rows={1}
+              disabled={publishing}
+              className="w-full resize-none rounded-[8px] border border-white/[0.06] bg-white/[0.03] px-2.5 py-1.5 text-[11px] text-foreground placeholder:text-muted-foreground/30 focus:outline-none focus:border-cyan/20 disabled:opacity-50"
+            />
+            <textarea
+              value={structuredDraft?.next_task_suggestion ?? ""}
+              onChange={(e) => updateStructuredField("next_task_suggestion", e.target.value)}
+              placeholder="Suggested next action (optional)"
+              maxLength={200}
+              rows={1}
+              disabled={publishing}
+              className="w-full resize-none rounded-[8px] border border-white/[0.06] bg-white/[0.03] px-2.5 py-1.5 text-[11px] text-foreground placeholder:text-muted-foreground/30 focus:outline-none focus:border-cyan/20 disabled:opacity-50"
+            />
+            <textarea
+              value={structuredDraft?.callback_timing_hint ?? ""}
+              onChange={(e) => updateStructuredField("callback_timing_hint", e.target.value)}
+              placeholder="Best callback timing phrase (optional)"
+              maxLength={120}
+              rows={1}
+              disabled={publishing}
+              className="w-full resize-none rounded-[8px] border border-white/[0.06] bg-white/[0.03] px-2.5 py-1.5 text-[11px] text-foreground placeholder:text-muted-foreground/30 focus:outline-none focus:border-cyan/20 disabled:opacity-50"
+            />
+          </div>
+
+          {NEXT_STEP_DISPOS.has(pendingDispo) && (
+            <div className="mb-3">
+              <label className="block text-[11px] text-muted-foreground/60 mb-1.5 px-0.5">
+                Callback date &amp; time <span className="opacity-50">(quick correction)</span>
+              </label>
+              <input
+                type="datetime-local"
+                value={step3CallbackValue}
+                onChange={(e) => {
+                  const v = e.target.value;
+                  setPendingNextCallAt(v ? new Date(v).toISOString() : undefined);
+                }}
+                min={minDatetime}
+                disabled={publishing}
+                style={{ colorScheme: "dark" }}
+                className="w-full rounded-[10px] border border-white/[0.06] bg-white/[0.03] px-3 py-2 text-[12px] text-foreground focus:outline-none focus:border-cyan/20 disabled:opacity-50"
+              />
+            </div>
           )}
 
           {/* ── Qual gap strip ────────────────────────────────── */}

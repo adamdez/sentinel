@@ -6,6 +6,11 @@
  * is invoked (either automatically via intent detection or manually).
  */
 
+import { getStyleBlock, styleVersionTag } from "@/lib/conversation-style";
+
+// Expose style version tag for callers that embed it in prompt_version strings
+export { styleVersionTag };
+
 export interface LeadContext {
   ownerName: string;
   address: string;
@@ -27,6 +32,13 @@ export interface LeadContext {
   lastTransferType?: string;
   delinquentAmount?: number;
   foreclosureStage?: string;
+  latestStructuredMemory?: {
+    summary_line?: string | null;
+    promises_made?: string | null;
+    objection?: string | null;
+    next_task_suggestion?: string | null;
+    deal_temperature?: string | null;
+  } | null;
 }
 
 export interface PipelineMetrics {
@@ -49,6 +61,25 @@ export function buildCallCoPilotPrompt(lead: LeadContext): string {
   const aiNotesBlock = lead.aiNotes.length > 0
     ? lead.aiNotes.map((n) => `  - ${n.slice(0, 200)}`).join("\n")
     : "  No AI notes yet.";
+
+  const memory = lead.latestStructuredMemory ?? null;
+  const hasStructuredMemory = !!(
+    memory?.summary_line ||
+    memory?.promises_made ||
+    memory?.objection ||
+    memory?.next_task_suggestion ||
+    memory?.deal_temperature
+  );
+  const latestStructuredBlock = hasStructuredMemory
+    ? [
+        "### Latest Reviewed Seller Takeaway (assistive, not authoritative)",
+        memory?.summary_line ? `- Summary: ${memory.summary_line}` : "- Summary: unknown",
+        memory?.promises_made ? `- Promises made: ${memory.promises_made}` : "- Promises made: none recorded",
+        memory?.objection ? `- Objection: ${memory.objection}` : "- Objection: none recorded",
+        memory?.next_task_suggestion ? `- Suggested next step: ${memory.next_task_suggestion}` : "- Suggested next step: none recorded",
+        memory?.deal_temperature ? `- Deal temperature: ${memory.deal_temperature}` : "- Deal temperature: unknown",
+      ].join("\n")
+    : "### Latest Reviewed Seller Takeaway (assistive, not authoritative)\n  No structured post-call takeaway available yet.";
 
   return [
     "",
@@ -80,15 +111,20 @@ export function buildCallCoPilotPrompt(lead: LeadContext): string {
     "### AI Notes from Previous Calls",
     aiNotesBlock,
     "",
+    latestStructuredBlock,
+    "",
     "### Your Output",
     "Provide:",
-    "1. A 3-bullet pre-call brief (key facts the agent should know BEFORE dialing)",
+    "1. A 3-bullet pre-call brief (key facts the agent should know BEFORE dialing, including latest reviewed takeaway when present)",
     "2. A suggested opening line tailored to the owner's situation",
     "3. 2-3 talking points based on the distress signals — what to bring up naturally",
     "4. Top 3 likely objections with one-line rebuttals",
-    "5. A negotiation anchor (MAO range based on equity + value if available)",
-    "6. Any watch-outs (compliance red flags, emotional triggers, things to avoid mentioning)",
-    "Be empathetic but direct. Remember compliance: never misrepresent who you are or why you're calling.",
+    "5. A negotiation anchor (MAO range based on equity + value if available — for Logan's reference only, not to read aloud)",
+    "6. Any watch-outs (compliance red flags, emotional triggers, things to avoid saying)",
+    "",
+    getStyleBlock("call_copilot"),
+    "",
+    "Remember compliance: never misrepresent who we are or why we're calling.",
   ].join("\n");
 }
 

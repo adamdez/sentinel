@@ -35,6 +35,7 @@ export interface PostCallStructureRow {
   promises_made:         string | null;
   objection:             string | null;
   next_task_suggestion:  string | null;
+  callback_timing_hint:  string | null;
   deal_temperature:      DealTemperature | null;
   draft_note_run_id:     string | null;
   draft_was_flagged:     boolean;
@@ -53,6 +54,7 @@ export interface PostCallStructureInput {
   promises_made?:        string | null;
   objection?:            string | null;
   next_task_suggestion?: string | null;
+  callback_timing_hint?: string | null;
   deal_temperature?:     string | null;
 }
 
@@ -98,6 +100,7 @@ export function assemblePostCallStructure(ctx: AssembleStructureContext): Record
     promises_made:         trimOrNull(input.promises_made, 200),
     objection:             trimOrNull(input.objection, 200),
     next_task_suggestion:  trimOrNull(input.next_task_suggestion, 200),
+    callback_timing_hint:  trimOrNull(input.callback_timing_hint, 120),
     deal_temperature:      dealTemp,
     draft_note_run_id:     draftNoteRunId,
     draft_was_flagged:     draftWasFlagged,
@@ -113,6 +116,7 @@ export interface PostCallCorrectionInput {
   promises_made?:        string | null;
   objection?:            string | null;
   next_task_suggestion?: string | null;
+  callback_timing_hint?: string | null;
   deal_temperature?:     string | null;
 }
 
@@ -126,6 +130,7 @@ export function buildCorrectionPatch(input: PostCallCorrectionInput): Record<str
   if (input.promises_made !== undefined)        patch.promises_made        = trimOrNull(input.promises_made, 200);
   if (input.objection !== undefined)            patch.objection            = trimOrNull(input.objection, 200);
   if (input.next_task_suggestion !== undefined) patch.next_task_suggestion = trimOrNull(input.next_task_suggestion, 200);
+  if (input.callback_timing_hint !== undefined) patch.callback_timing_hint = trimOrNull(input.callback_timing_hint, 120);
 
   if (input.deal_temperature !== undefined) {
     const tempRaw = input.deal_temperature;

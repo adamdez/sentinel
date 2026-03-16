@@ -161,6 +161,8 @@ export interface RepeatCallMemory {
   lastCallObjection:       string | null;
   /** Suggested next action from the most recent call. */
   lastCallNextAction:      string | null;
+  /** Best callback timing preference captured from most recent call. */
+  lastCallCallbackTiming:  string | null;
   /** Deal temperature from the most recent call. */
   lastCallDealTemperature: string | null;
 }

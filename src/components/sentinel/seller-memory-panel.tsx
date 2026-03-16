@@ -401,7 +401,7 @@ export function SellerMemoryPanel({ sessionId, context: contextProp, className =
           {/* Renders promises, next action, and deal temp from the most
               recent post_call_structures row (via call-memory API). Only
               shows when at least one structured field exists. */}
-          {(memory?.lastCallPromises || memory?.lastCallObjection || memory?.lastCallNextAction || memory?.lastCallDealTemperature) && (
+          {(memory?.lastCallPromises || memory?.lastCallObjection || memory?.lastCallNextAction || memory?.lastCallCallbackTiming || memory?.lastCallDealTemperature) && (
             <div className="rounded-[8px] bg-cyan/[0.03] border border-cyan/10 px-2.5 py-1.5 space-y-1">
               {memory.lastCallPromises && (
                 <div className="flex items-start gap-1.5">
@@ -418,6 +418,15 @@ export function SellerMemoryPanel({ sessionId, context: contextProp, className =
                   <div className="min-w-0 flex-1">
                     <span className="text-[9px] font-semibold uppercase tracking-wider text-emerald-400/40">Next action</span>
                     <p className="text-[11px] text-foreground/75 leading-snug">{memory.lastCallNextAction}</p>
+                  </div>
+                </div>
+              )}
+              {memory.lastCallCallbackTiming && (
+                <div className="flex items-start gap-1.5">
+                  <CalendarClock className="h-3 w-3 text-cyan/50 shrink-0 mt-0.5" />
+                  <div className="min-w-0 flex-1">
+                    <span className="text-[9px] font-semibold uppercase tracking-wider text-cyan/40">Best callback timing</span>
+                    <p className="text-[11px] text-foreground/75 leading-snug">{memory.lastCallCallbackTiming}</p>
                   </div>
                 </div>
               )}

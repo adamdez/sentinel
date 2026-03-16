@@ -1898,6 +1898,19 @@ function DialerPageInner() {
                                   <p className="text-xs text-foreground/70 italic">&ldquo;{preCallBrief.suggestedOpener}&rdquo;</p>
                                 </div>
                               )}
+                              {preCallBrief.riskFlags.length > 0 && (
+                                <div className="rounded-lg bg-amber-500/[0.06] border border-amber-500/20 p-2 mt-1.5">
+                                  <p className="text-[10px] text-amber-300/70 uppercase mb-1">Risk Flags / Things That May Not Line Up</p>
+                                  <div className="space-y-1">
+                                    {preCallBrief.riskFlags.map((flag, i) => (
+                                      <div key={i} className="flex items-start gap-1.5 text-[11px] text-amber-100/80">
+                                        <AlertTriangle className="h-3 w-3 mt-0.5 shrink-0 text-amber-400/70" />
+                                        <p>{flag}</p>
+                                      </div>
+                                    ))}
+                                  </div>
+                                </div>
+                              )}
                             </>
                           )}
                         </motion.div>

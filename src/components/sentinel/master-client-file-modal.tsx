@@ -2513,6 +2513,21 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
                     </div>
                   </div>
                 )}
+
+                {/* Risk Flags / Contradictions */}
+                {brief.riskFlags.length > 0 && (
+                  <div className="pt-2 border-t border-purple-500/10">
+                    <p className="text-[9px] text-amber-400/60 uppercase tracking-widest mb-1">Risk Flags / Things That May Not Line Up</p>
+                    <div className="space-y-1">
+                      {brief.riskFlags.map((rf, i) => (
+                        <div key={i} className="flex items-start gap-1.5 text-xs text-amber-300/85">
+                          <AlertTriangle className="h-3 w-3 mt-0.5 shrink-0" />
+                          <p>{rf}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </>
             ) : (
               <div className="flex items-center justify-center py-4 gap-2">
