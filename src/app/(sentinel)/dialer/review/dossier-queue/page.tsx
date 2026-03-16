@@ -98,7 +98,7 @@ export default function DossierQueuePage() {
   const pendingCount = status === "proposed" ? total : null;
 
   return (
-    <PageShell>
+    <PageShell title="Dossier Queue">
       <div className="max-w-4xl mx-auto px-4 py-6 space-y-6">
         {/* ── Header ── */}
         <div className="flex items-start justify-between gap-4">
