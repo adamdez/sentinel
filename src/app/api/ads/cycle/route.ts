@@ -3,24 +3,37 @@ import { createServerClient } from "@/lib/supabase";
 import {
   refreshAccessToken,
   getGoogleAdsConfig,
-  fetchCampaignPerformance,
-  fetchKeywordPerformance,
 } from "@/lib/google-ads";
 import { runNormalizedSync } from "@/lib/ads/sync";
-import { analyzeWithClaude } from "@/lib/claude-client";
+import { analyzeWithClaude, extractJsonObject } from "@/lib/claude-client";
+import { runAdversarialReview } from "@/lib/ads/adversarial-review";
+import { convertIntelToRecommendations } from "@/lib/ads/intel-to-recommendations";
+import { insertValidatedRecommendations } from "@/lib/ads/recommendations";
 import { loadAdsSystemPrompt } from "@/lib/ads/ads-system-prompt";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 export const maxDuration = 300;
 
+// ── Intelligence system prompt (compact version for cron context) ────
+const INTELLIGENCE_SYSTEM_PROMPT = `You are a senior Google Ads analyst for Dominion Home Deals, a cash home buyer in Spokane County WA (primary) and Kootenai County ID (secondary). They wholesale residential properties off-market.
+
+Key benchmarks: target CPC under $15, target CPL under $150, target CTR above 5%. Zero conversions in the data almost always means conversion tracking is broken or the account is too new — flag this as the top priority if present.
+
+Your job is to extract and rank intelligence from the provided account data. Be specific and dollar-grounded. Flag waste before opportunities. Respond ONLY with the exact JSON format requested — no commentary, no markdown, no preamble.`;
+
 /**
  * GET /api/ads/cycle
  *
- * Vercel Cron endpoint — runs weekly (Sundays 8am) for full review,
- * or daily for quick health checks.
+ * Vercel Cron endpoint — runs daily or weekly.
  *
- * Query: ?mode=daily|weekly (defaults to daily)
+ * Daily (?mode=daily):
+ *   1. Normalized sync (all 8 stages)
+ *   2. Full dual-model intelligence extraction → ads_intelligence_briefings + ads_recommendations
+ *
+ * Weekly (?mode=weekly):
+ *   1. Everything daily does
+ *   2. Copy-lab generation → copy_suggestion recommendations in ads_recommendations
  */
 export async function GET(req: NextRequest) {
   const cronSecret = req.headers.get("authorization");
@@ -34,7 +47,8 @@ export async function GET(req: NextRequest) {
   const sb = createServerClient();
 
   const refreshToken = process.env.GOOGLE_ADS_REFRESH_TOKEN;
-  const anthropicKey = process.env.ANTHROPIC_API_KEY;
+  const apiKey = process.env.ANTHROPIC_API_KEY;
+  const openaiKey = process.env.OPENAI_API_KEY;
 
   if (!refreshToken) {
     return NextResponse.json({ error: "GOOGLE_ADS_REFRESH_TOKEN not configured" }, { status: 503 });
@@ -43,7 +57,7 @@ export async function GET(req: NextRequest) {
   const results: Record<string, unknown> = { mode, steps: [] };
 
   try {
-    // Step 1: Run normalized 5-stage sync
+    // ── Step 1: Normalized sync ──────────────────────────────────────
     const endDate = new Date().toISOString().split("T")[0];
     const daysBack = mode === "weekly" ? 7 : 1;
     const startDate = new Date(Date.now() - daysBack * 86400000).toISOString().split("T")[0];
@@ -54,128 +68,34 @@ export async function GET(req: NextRequest) {
     const syncResult = await runNormalizedSync(sb, config, startDate, endDate);
     (results.steps as unknown[]).push({ step: "sync", ...syncResult });
 
-    // Step 2: Quick health check (daily) — flag budget burners
-    const keywords = await fetchKeywordPerformance(config, startDate, endDate);
-    const budgetBurners = keywords.filter((k) => k.cost > 10 && k.conversions === 0);
-
-    if (budgetBurners.length > 0) {
-      const snapshotDate = new Date().toISOString();
-
-      // Still write to ad_reviews for now (UI reads from here until Phase 5)
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { data: quickReview } = await (sb.from("ad_reviews") as any)
-        .insert({
-          snapshot_date: snapshotDate,
-          review_type: "performance",
-          summary: `Daily health check: ${budgetBurners.length} keywords burning budget with 0 conversions.`,
-          findings: budgetBurners.map((k) => ({
-            severity: "warning",
-            title: `${k.keywordText} — $${k.cost.toFixed(2)} spent, 0 conversions`,
-            detail: `Ad group: ${k.adGroupName}, CPC: $${k.avgCpc.toFixed(2)}, ${k.clicks} clicks`,
-          })),
-          suggestions: [],
-          ai_engine: "system",
-          model_used: "heuristic",
-        })
-        .select("id")
-        .single();
-
-      if (quickReview) {
-        const burnerActions = budgetBurners.map((k) => ({
-          review_id: quickReview.id,
-          action_type: "pause_keyword",
-          target_entity: `${k.adGroupName}: ${k.keywordText}`,
-          target_id: `${k.adGroupId}~${k.keywordId}`,
-          old_value: `$${k.cost.toFixed(2)} spent, 0 conversions`,
-          new_value: "PAUSED",
-          status: "suggested",
-        }));
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        await (sb.from("ad_actions") as any).insert(burnerActions);
+    // ── Step 2: Intelligence extraction ──────────────────────────────
+    if (apiKey) {
+      try {
+        const intelResult = await runIntelligenceExtraction(sb, apiKey, openaiKey, mode);
+        (results.steps as unknown[]).push({ step: "intelligence", ...intelResult });
+      } catch (intelErr) {
+        console.error("[Ads/Cycle] Intelligence extraction failed (non-blocking):", intelErr);
+        (results.steps as unknown[]).push({
+          step: "intelligence",
+          error: intelErr instanceof Error ? intelErr.message : "Intelligence extraction failed",
+        });
       }
-
-      (results.steps as unknown[]).push({ step: "health_check", budgetBurners: budgetBurners.length });
+    } else {
+      (results.steps as unknown[]).push({ step: "intelligence", skipped: "ANTHROPIC_API_KEY not configured" });
     }
 
-    // Step 3: Full Claude review (weekly only)
-    if (mode === "weekly" && anthropicKey) {
-      const campaigns = await fetchCampaignPerformance(config, startDate, endDate);
-      const totalSpend = campaigns.reduce((s, c) => s + c.cost, 0);
-      const totalClicks = campaigns.reduce((s, c) => s + c.clicks, 0);
-      const totalImpressions = campaigns.reduce((s, c) => s + c.impressions, 0);
-      const totalConversions = campaigns.reduce((s, c) => s + c.conversions, 0);
-
-      const systemPrompt = await loadAdsSystemPrompt({
-        totalSpend,
-        totalConversions,
-        avgCpc: totalClicks > 0 ? totalSpend / totalClicks : 0,
-        avgCtr: totalImpressions > 0 ? totalClicks / totalImpressions : 0,
-        campaignCount: campaigns.length,
-      });
-
-      const prompt = [
-        "Weekly Google Ads performance review for Dominion Home Deals.",
-        "",
-        "Campaign data (last 7 days):",
-        JSON.stringify(campaigns, null, 2),
-        "",
-        "Top keywords by spend:",
-        JSON.stringify(keywords.slice(0, 30), null, 2),
-        "",
-        "Provide a comprehensive review with findings and suggestions.",
-        'Respond with JSON: { "summary": "...", "findings": [...], "suggestions": [...] }',
-      ].join("\n");
-
-      const rawResponse = await analyzeWithClaude({ prompt, systemPrompt, apiKey: anthropicKey });
-
-      let parsed: { summary: string; findings: unknown[]; suggestions: unknown[] };
+    // ── Step 3: Copy-lab generation (weekly only) ────────────────────
+    if (mode === "weekly" && apiKey) {
       try {
-        const jsonMatch = rawResponse.match(/\{[\s\S]*\}/);
-        parsed = jsonMatch ? JSON.parse(jsonMatch[0]) : { summary: rawResponse, findings: [], suggestions: [] };
-      } catch {
-        parsed = { summary: rawResponse, findings: [], suggestions: [] };
-      }
-
-      const snapshotDate = new Date().toISOString();
-
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { data: review } = await (sb.from("ad_reviews") as any)
-        .insert({
-          snapshot_date: snapshotDate,
-          review_type: "performance",
-          summary: parsed.summary,
-          findings: parsed.findings,
-          suggestions: parsed.suggestions,
-          ai_engine: "claude",
-          model_used: "claude-sonnet-4",
-        })
-        .select("id")
-        .single();
-
-      if (review && Array.isArray(parsed.suggestions)) {
-        const actionRows = parsed.suggestions.map((s: unknown) => {
-          const sug = s as Record<string, string>;
-          return {
-            review_id: review.id,
-            action_type: sug.action ?? "bid_adjust",
-            target_entity: sug.target ?? "unknown",
-            target_id: sug.target_id ?? "unknown",
-            old_value: sug.old_value ?? null,
-            new_value: sug.new_value ?? null,
-            status: "suggested",
-          };
+        const copyResult = await runCopyLabGeneration(sb, apiKey, openaiKey);
+        (results.steps as unknown[]).push({ step: "copy_lab", ...copyResult });
+      } catch (copyErr) {
+        console.error("[Ads/Cycle] Copy-lab generation failed (non-blocking):", copyErr);
+        (results.steps as unknown[]).push({
+          step: "copy_lab",
+          error: copyErr instanceof Error ? copyErr.message : "Copy-lab generation failed",
         });
-        if (actionRows.length > 0) {
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          await (sb.from("ad_actions") as any).insert(actionRows);
-        }
       }
-
-      (results.steps as unknown[]).push({
-        step: "claude_review",
-        findings: parsed.findings.length,
-        suggestions: parsed.suggestions.length,
-      });
     }
 
     return NextResponse.json({ ok: true, ...results });
@@ -186,4 +106,471 @@ export async function GET(req: NextRequest) {
       { status: 500 },
     );
   }
+}
+
+// ── Intelligence extraction (inlined from /api/ads/intelligence POST) ──
+async function runIntelligenceExtraction(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  sb: any,
+  apiKey: string,
+  openaiKey: string | undefined,
+  mode: string,
+) {
+  const thirtyDaysAgo = new Date(Date.now() - 30 * 86400000).toISOString().split("T")[0];
+  const sevenDaysAgo = new Date(Date.now() - 7 * 86400000).toISOString().split("T")[0];
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const [campaignsRes, keywordsRes, searchTermsRes, metrics30Res, metrics7Res] = await Promise.all([
+    (sb.from("ads_campaigns") as any).select("*"),
+    (sb.from("ads_keywords") as any).select("*, ads_ad_groups(name, campaign_id, ads_campaigns(name, market))"),
+    (sb.from("ads_search_terms") as any).select("*").order("clicks", { ascending: false }).limit(200),
+    (sb.from("ads_daily_metrics") as any).select("*, ads_campaigns(name, market)").gte("report_date", thirtyDaysAgo),
+    (sb.from("ads_daily_metrics") as any).select("*, ads_campaigns(name, market)").gte("report_date", sevenDaysAgo),
+  ]);
+
+  const campaigns = campaignsRes.data ?? [];
+  const keywords = keywordsRes.data ?? [];
+  const searchTerms = searchTermsRes.data ?? [];
+  const metrics30 = metrics30Res.data ?? [];
+  const metrics7 = metrics7Res.data ?? [];
+
+  // Fetch latest review for context
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: latestReview } = await (sb.from("ad_reviews") as any)
+    .select("summary, findings, suggestions, adversarial_review, review_type, created_at")
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .single();
+
+  // Aggregate metrics
+  const agg = (rows: Record<string, unknown>[]) => ({
+    spend: rows.reduce((s, r) => s + Number(r.cost_micros ?? 0), 0) / 1_000_000,
+    clicks: rows.reduce((s, r) => s + Number(r.clicks ?? 0), 0),
+    impressions: rows.reduce((s, r) => s + Number(r.impressions ?? 0), 0),
+    conversions: rows.reduce((s, r) => s + Number(r.conversions ?? 0), 0),
+  });
+
+  const last30 = agg(metrics30);
+  const last7 = agg(metrics7);
+
+  const rawDataContext = [
+    "## CAMPAIGNS",
+    JSON.stringify(campaigns.map((c: Record<string, unknown>) => ({
+      id: c.id, name: c.name, market: c.market, status: c.status,
+    })), null, 2),
+    "",
+    "## AGGREGATE METRICS",
+    `Last 7 days: $${last7.spend.toFixed(2)} spend | ${last7.clicks} clicks | ${last7.conversions} conversions | ${last7.impressions} impressions`,
+    `Last 30 days: $${last30.spend.toFixed(2)} spend | ${last30.clicks} clicks | ${last30.conversions} conversions | ${last30.impressions} impressions`,
+    "",
+    "## KEYWORDS (with ad group/campaign context)",
+    JSON.stringify(keywords.slice(0, 150).map((k: Record<string, unknown>) => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const ag = k.ads_ad_groups as any;
+      return {
+        id: k.id, text: k.text, matchType: k.match_type, status: k.status,
+        adGroup: ag?.name ?? null, campaign: ag?.ads_campaigns?.name ?? null,
+        market: ag?.ads_campaigns?.market ?? null,
+      };
+    }), null, 2),
+    "",
+    "## SEARCH TERMS (top 200 by clicks)",
+    JSON.stringify(searchTerms.slice(0, 150).map((st: Record<string, unknown>) => ({
+      term: st.search_term, impressions: st.impressions, clicks: st.clicks,
+      costDollars: Number(st.cost_micros ?? 0) / 1_000_000, conversions: st.conversions,
+      isWaste: st.is_waste, isOpportunity: st.is_opportunity, market: st.market,
+    })), null, 2),
+    "",
+    "## DAILY METRICS (last 30 days, sample)",
+    JSON.stringify(metrics30.slice(0, 60).map((m: Record<string, unknown>) => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const camp = m.ads_campaigns as any;
+      return {
+        date: m.report_date, campaign: camp?.name ?? null, market: camp?.market ?? null,
+        impressions: m.impressions, clicks: m.clicks,
+        costDollars: Number(m.cost_micros ?? 0) / 1_000_000, conversions: m.conversions,
+      };
+    }), null, 2),
+    "",
+    latestReview ? `## LATEST AI REVIEW (${latestReview.review_type}, ${latestReview.created_at})\n${latestReview.summary}` : "",
+  ].join("\n");
+
+  // ── Primary intelligence extraction (Opus 4.6) ──────────────────
+  const intelligencePrompt = `## KEY INTELLIGENCE EXTRACTION
+
+You have access to the full account data below. Your job is to extract and rank the TOP 10-20 most important data points, signals, and insights that the operators need to see.
+
+This is NOT a review. This is a prioritized intelligence briefing.
+
+For each data point, provide:
+- The signal (what the data shows)
+- Why it matters (business impact)
+- Confidence level (confirmed / inferred / uncertain)
+- Urgency (act now / this week / monitor / FYI)
+- Dollar impact estimate where possible
+- Market (spokane / kootenai / both)
+
+Categories to extract intelligence from:
+1. WASTE SIGNALS — money being burned on non-converting or off-target traffic
+2. OPPORTUNITY SIGNALS — converting patterns that could be expanded
+3. COMPETITIVE SIGNALS — what CTR/impression data suggests about auction position
+4. TREND SIGNALS — what's improving, declining, or shifting over time
+5. QUALITY SIGNALS — search term quality, keyword relevance, intent alignment
+6. ATTRIBUTION SIGNALS — gaps in tracking or conversion measurement
+7. STRUCTURAL SIGNALS — campaign/ad group issues affecting performance
+8. MARKET SIGNALS — Spokane vs Kootenai differences
+9. CREATIVE SIGNALS — ad copy gaps or opportunities (based on search intent mismatches)
+10. RISK SIGNALS — things that could go wrong or are already going wrong
+
+Rank ALL data points by dollar impact (highest first). Stop at 20 data points maximum.
+
+Respond with a single JSON object (no markdown fences):
+{
+  "briefing_date": "${new Date().toISOString().split("T")[0]}",
+  "account_status": "healthy|caution|warning|critical",
+  "executive_summary": "<3-4 sentences — what the owner needs to know RIGHT NOW>",
+  "total_estimated_monthly_waste": <number>,
+  "total_estimated_monthly_opportunity": <number>,
+  "data_points": [
+    {
+      "rank": <1-50>,
+      "category": "waste|opportunity|competitive|trend|quality|attribution|structural|market|creative|risk",
+      "signal": "<what the data shows>",
+      "why_it_matters": "<business impact>",
+      "confidence": "confirmed|inferred|uncertain",
+      "urgency": "act_now|this_week|monitor|fyi",
+      "dollar_impact": "<estimated monthly $ impact or 'unquantifiable'>",
+      "market": "spokane|kootenai|both",
+      "entity": "<campaign/keyword/search term name if applicable>",
+      "entity_id": "<id if applicable>",
+      "recommended_action": "<specific next step>"
+    }
+  ]
+}
+
+DATA:
+${rawDataContext}`;
+
+  const rawResponse = await analyzeWithClaude({
+    prompt: intelligencePrompt,
+    systemPrompt: INTELLIGENCE_SYSTEM_PROMPT,
+    apiKey,
+    maxTokens: 6000,
+    model: "claude-opus-4-6",
+  });
+
+  // Parse response
+  const jsonStr = extractJsonObject(rawResponse);
+  if (!jsonStr) {
+    throw new Error("Intelligence extraction returned non-JSON output");
+  }
+
+  const parsed: Record<string, unknown> = JSON.parse(jsonStr);
+
+  // ── Adversarial challenge (GPT-5.4 Pro) ─────────────────────────
+  let adversarialResult = null;
+  if (openaiKey) {
+    try {
+      adversarialResult = await runAdversarialReview({
+        rawData: rawDataContext,
+        primaryAnalysis: JSON.stringify(parsed, null, 2),
+        openaiKey,
+      });
+    } catch (advErr) {
+      console.error("[Ads/Cycle] Adversarial review failed (non-blocking):", advErr);
+    }
+  }
+
+  // ── Persist briefing ────────────────────────────────────────────
+  const adversarialPayload = adversarialResult ? {
+    verdict: adversarialResult.verdict,
+    grade: adversarialResult.adversarialGrade,
+    assessment: adversarialResult.overallAssessment,
+    challenges: adversarialResult.challenges,
+    missedOpportunities: adversarialResult.missedOpportunities,
+    overconfidentClaims: adversarialResult.overconfidentClaims,
+    finalInstruction: adversarialResult.finalInstruction,
+  } : null;
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const dataPoints = (parsed.data_points ?? []) as any[];
+  const trigger = mode === "weekly" ? "weekly_cron" : "daily_cron";
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: savedBriefing, error: saveErr } = await (sb.from("ads_intelligence_briefings") as any)
+    .insert({
+      briefing_date: parsed.briefing_date ?? new Date().toISOString().split("T")[0],
+      account_status: parsed.account_status ?? "caution",
+      executive_summary: parsed.executive_summary ?? "",
+      total_estimated_monthly_waste: parsed.total_estimated_monthly_waste ?? 0,
+      total_estimated_monthly_opportunity: parsed.total_estimated_monthly_opportunity ?? 0,
+      data_points: dataPoints,
+      adversarial_result: adversarialPayload,
+      trigger,
+    })
+    .select("id, created_at")
+    .single();
+
+  if (saveErr) {
+    console.error("[Ads/Cycle] Failed to save briefing:", saveErr);
+  }
+
+  const briefingId = savedBriefing?.id ?? null;
+
+  // ── Convert actionable intel to recommendations ──────────────────
+  let recommendations = { created: 0, skipped: 0, total: 0 };
+  if (briefingId && dataPoints.length > 0) {
+    try {
+      recommendations = await convertIntelToRecommendations(sb, dataPoints, briefingId);
+    } catch (recErr) {
+      console.error("[Ads/Cycle] Recommendation conversion failed (non-blocking):", recErr);
+    }
+  }
+
+  // ── Create alert for act_now items ──────────────────────────────
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const actNowPoints = dataPoints.filter((dp: any) => dp.urgency === "act_now");
+  if (actNowPoints.length > 0 && briefingId) {
+    try {
+      const alertMessage = actNowPoints.length === 1
+        ? `Critical intel: ${actNowPoints[0].signal}`
+        : `${actNowPoints.length} critical signals require immediate action`;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      await (sb.from("ads_alerts") as any).insert({
+        briefing_id: briefingId,
+        severity: "critical",
+        message: alertMessage,
+      });
+    } catch (alertErr) {
+      console.error("[Ads/Cycle] Alert creation failed (non-blocking):", alertErr);
+    }
+  }
+
+  return {
+    briefingId,
+    dataPoints: dataPoints.length,
+    actNowCount: actNowPoints.length,
+    recommendations,
+    hasAdversarial: !!adversarialResult,
+  };
+}
+
+// ── Copy-lab generation (inlined from /api/ads/copy-lab POST) ──────
+async function runCopyLabGeneration(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  sb: any,
+  apiKey: string,
+  openaiKey: string | undefined,
+) {
+  const sevenDaysAgo = new Date(Date.now() - 7 * 86400000).toISOString().split("T")[0];
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const [campaignsRes, keywordsRes, searchTermsRes, metricsRes, adsRes] = await Promise.all([
+    (sb.from("ads_campaigns") as any).select("*"),
+    (sb.from("ads_keywords") as any).select("*, ads_ad_groups(name, campaign_id, ads_campaigns(name, market))"),
+    (sb.from("ads_search_terms") as any).select("*").order("clicks", { ascending: false }).limit(100),
+    (sb.from("ads_daily_metrics") as any).select("*, ads_campaigns(name, market)").gte("report_date", sevenDaysAgo),
+    Promise.resolve((sb.from("ads_ads") as any).select("*").limit(50)).catch(() => ({ data: null })),
+  ]);
+
+  const campaigns = campaignsRes.data ?? [];
+  const keywords = keywordsRes.data ?? [];
+  const searchTerms = searchTermsRes.data ?? [];
+  const dailyMetrics = metricsRes.data ?? [];
+  const existingAds = adsRes?.data ?? [];
+
+  if (searchTerms.length === 0 && keywords.length === 0) {
+    return { skipped: "No search term or keyword data found" };
+  }
+
+  // Aggregate metrics for system prompt context
+  const totalSpendMicros = dailyMetrics.reduce((s: number, r: Record<string, unknown>) => s + Number(r.cost_micros ?? 0), 0);
+  const totalSpend = totalSpendMicros / 1_000_000;
+  const totalClicks = dailyMetrics.reduce((s: number, r: Record<string, unknown>) => s + Number(r.clicks ?? 0), 0);
+  const totalImpressions = dailyMetrics.reduce((s: number, r: Record<string, unknown>) => s + Number(r.impressions ?? 0), 0);
+  const totalConversions = dailyMetrics.reduce((s: number, r: Record<string, unknown>) => s + Number(r.conversions ?? 0), 0);
+
+  const systemPrompt = await loadAdsSystemPrompt({
+    totalSpend,
+    totalConversions,
+    avgCpc: totalClicks > 0 ? totalSpend / totalClicks : 0,
+    avgCtr: totalImpressions > 0 ? totalClicks / totalImpressions : 0,
+    campaignCount: campaigns.length,
+  });
+
+  // Build context objects
+  const searchTermContext = searchTerms.map((st: Record<string, unknown>) => ({
+    term: st.search_term,
+    impressions: st.impressions,
+    clicks: st.clicks,
+    costDollars: Number(st.cost_micros ?? 0) / 1_000_000,
+    conversions: st.conversions,
+    isWaste: st.is_waste,
+    isOpportunity: st.is_opportunity,
+    market: st.market,
+  }));
+
+  const keywordContext = keywords.slice(0, 80).map((k: Record<string, unknown>) => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const ag = k.ads_ad_groups as any;
+    return {
+      text: k.text,
+      matchType: k.match_type,
+      status: k.status,
+      adGroup: ag?.name ?? null,
+      campaign: ag?.ads_campaigns?.name ?? null,
+      market: ag?.ads_campaigns?.market ?? null,
+    };
+  });
+
+  const campaignContext = campaigns.map((c: Record<string, unknown>) => ({
+    id: c.id, name: c.name, market: c.market, status: c.status,
+  }));
+
+  const existingAdContext = existingAds.length > 0
+    ? existingAds.slice(0, 30).map((a: Record<string, unknown>) => ({
+        headlines: a.headlines,
+        descriptions: a.descriptions,
+        status: a.status,
+      }))
+    : [];
+
+  // ── Build the ad generation prompt ──────────────────────────────
+  const generationPrompt = [
+    "## AD COPY LAB — GENERATE NEW RSA CONCEPTS",
+    "",
+    "You are generating new Responsive Search Ad (RSA) concepts for Dominion Home Deals.",
+    "Analyze the search term data to discover intent clusters, then generate complete RSAs tailored to each cluster.",
+    "",
+    "INSTRUCTIONS:",
+    "1. Identify the top intent clusters from the search term data (group related search terms by seller motivation/situation).",
+    "2. For each cluster, generate a complete RSA with:",
+    "   - 15 headlines (30 characters MAX each — this is a hard limit, count carefully)",
+    "   - 4 descriptions (90 characters MAX each — hard limit)",
+    "   - Target intent cluster name",
+    "   - Evidence supporting this angle from the data",
+    "   - Economic rationale (why this cluster matters for revenue)",
+    "   - Confidence level: exploratory, moderate, or high",
+    "   - Best landing page match",
+    "3. For each ad family, also generate 2-3 variant concepts with different angles/hooks.",
+    "4. Each variant needs its own set of 5 headlines and 2 descriptions.",
+    "",
+    "QUALITY RULES:",
+    "- Write for motivated sellers in Spokane/Kootenai, not generic audiences",
+    "- Use local trust signals where appropriate",
+    "- Include specific numbers (14 days, 24 hours, etc.)",
+    "- Lead with value props: cash, speed, no repairs, no commissions",
+    "- Make each ad family meaningfully different, not superficial rewrites",
+    "- Repel junk clicks: do NOT attract buyers, agents, or retail sellers",
+    "- Match ad language to the search intent cluster",
+    "",
+    existingAdContext.length > 0
+      ? `EXISTING ADS (avoid duplicating these angles):\n${JSON.stringify(existingAdContext, null, 2)}\n`
+      : "",
+    "SEARCH TERMS (top 100 by clicks):",
+    JSON.stringify(searchTermContext, null, 2),
+    "",
+    "KEYWORDS:",
+    JSON.stringify(keywordContext, null, 2),
+    "",
+    "CAMPAIGNS:",
+    JSON.stringify(campaignContext, null, 2),
+    "",
+    "─── REQUIRED OUTPUT FORMAT (strict JSON) ───",
+    "",
+    "Respond with a single JSON object. No markdown fences, no commentary outside the JSON.",
+    "",
+    JSON.stringify({
+      intent_clusters: [
+        {
+          name: "<cluster name>",
+          search_terms: ["<matching terms>"],
+          volume_signal: "high|medium|low",
+          economic_potential: "<why this cluster matters>",
+        },
+      ],
+      ad_families: [
+        {
+          target_cluster: "<cluster name>",
+          evidence: "<data-backed rationale>",
+          confidence: "exploratory|moderate|high",
+          test_type: "<what kind of test this represents>",
+          rsa: {
+            headlines: ["<15 headlines, 30 char max each>"],
+            descriptions: ["<4 descriptions, 90 char max each>"],
+          },
+          variants: [
+            {
+              angle: "<different hook/approach>",
+              headlines: ["<5 headlines, 30 char max>"],
+              descriptions: ["<2 descriptions, 90 char max>"],
+            },
+          ],
+          landing_page_match: "<best page/section>",
+          success_metric: "<how to measure if this works>",
+        },
+      ],
+    }, null, 2),
+  ].join("\n");
+
+  // ── Call Opus 4.6 ────────────────────────────────────────────────
+  const rawResponse = await analyzeWithClaude({
+    prompt: generationPrompt,
+    systemPrompt,
+    apiKey,
+    maxTokens: 12288,
+  });
+
+  // Parse response
+  const jsonStr = extractJsonObject(rawResponse);
+  if (!jsonStr) {
+    throw new Error("Copy-lab generation returned non-JSON output");
+  }
+
+  const parsed: { intent_clusters: unknown[]; ad_families: unknown[] } = JSON.parse(jsonStr);
+
+  // ── Adversarial review ──────────────────────────────────────────
+  let adversarialResult = null;
+  if (openaiKey) {
+    try {
+      adversarialResult = await runAdversarialReview({
+        rawData: generationPrompt,
+        primaryAnalysis: JSON.stringify(parsed, null, 2),
+        openaiKey,
+      });
+      if (adversarialResult) {
+        console.log("[Ads/Cycle] Copy-lab adversarial verdict:", adversarialResult.verdict, "| Grade:", adversarialResult.adversarialGrade);
+      }
+    } catch (advErr) {
+      console.error("[Ads/Cycle] Copy-lab adversarial review failed (non-blocking):", advErr);
+    }
+  }
+
+  // ── Convert ad families to copy_suggestion recommendations ──────
+  const adFamilies = (parsed.ad_families ?? []) as Array<Record<string, unknown>>;
+  let recsCreated = 0;
+
+  if (adFamilies.length > 0) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const copyRecs: any[] = adFamilies.map((family) => ({
+      recommendation_type: "copy_suggestion",
+      risk_level: "green",
+      expected_impact: `New RSA for "${family.target_cluster}" cluster — ${family.confidence} confidence`,
+      reason: typeof family.evidence === "string" ? family.evidence : "Generated from search term intent analysis",
+    }));
+
+    try {
+      const result = await insertValidatedRecommendations(sb, copyRecs);
+      recsCreated = result.inserted;
+    } catch (recErr) {
+      console.error("[Ads/Cycle] Copy-lab recommendation insert failed (non-blocking):", recErr);
+    }
+  }
+
+  return {
+    intentClusters: (parsed.intent_clusters ?? []).length,
+    adFamilies: adFamilies.length,
+    recsCreated,
+    hasAdversarial: !!adversarialResult,
+  };
 }
