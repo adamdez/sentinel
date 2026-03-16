@@ -45,7 +45,10 @@ export async function GET(req: NextRequest) {
       related_campaign_id,
       related_ad_group_id,
       related_keyword_id,
-      created_at
+      created_at,
+      ads_keywords(text, google_keyword_id),
+      ads_ad_groups:related_ad_group_id(name, google_ad_group_id),
+      ads_campaigns:related_campaign_id(name, google_campaign_id)
     `)
     .eq("status", status)
     .gte("created_at", sevenDaysAgo.toISOString())
@@ -82,7 +85,53 @@ export async function GET(req: NextRequest) {
 
   const finalActionableRecs = Array.from(dedupeMap.values());
 
-  return NextResponse.json({ data: finalActionableRecs });
+  // Enrich with entity names and executability flag
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const enriched = finalActionableRecs.map((rec: any) => {
+    // Determine entity name from joined data
+    const kw = rec.ads_keywords;
+    const ag = rec.ads_ad_groups;
+    const camp = rec.ads_campaigns;
+
+    let entityName = "Unknown";
+    let executable = true;
+
+    if (rec.related_keyword_id) {
+      entityName = kw?.text || "Unknown keyword";
+      // Can't execute if keyword or its ad group has no Google Ads ID
+      if (!kw?.google_keyword_id) executable = false;
+    } else if (rec.related_ad_group_id) {
+      entityName = ag?.name || "Unknown ad group";
+      if (!ag?.google_ad_group_id) executable = false;
+    } else if (rec.related_campaign_id) {
+      entityName = camp?.name || "Unknown campaign";
+      if (!camp?.google_campaign_id) executable = false;
+    }
+
+    // Non-mutating types don't need Google IDs
+    const nonMutating = ["waste_flag", "opportunity_flag", "copy_suggestion"];
+    if (nonMutating.includes(rec.recommendation_type)) {
+      executable = true; // These are informational, not executed in Google Ads
+    }
+
+    return {
+      id: rec.id,
+      recommendation_type: rec.recommendation_type,
+      risk_level: rec.risk_level,
+      expected_impact: rec.expected_impact,
+      reason: rec.reason,
+      market: rec.market,
+      related_campaign_id: rec.related_campaign_id,
+      related_ad_group_id: rec.related_ad_group_id,
+      related_keyword_id: rec.related_keyword_id,
+      created_at: rec.created_at,
+      entity_name: entityName,
+      campaign_name: camp?.name ?? null,
+      executable,
+    };
+  });
+
+  return NextResponse.json({ data: enriched });
 }
 
 /**

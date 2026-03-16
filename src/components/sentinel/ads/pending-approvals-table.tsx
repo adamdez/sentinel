@@ -26,6 +26,9 @@ interface PendingRecommendation {
   related_campaign_id?: number;
   related_ad_group_id?: number;
   related_keyword_id?: number;
+  entity_name?: string;
+  campaign_name?: string;
+  executable?: boolean;
 }
 
 interface PendingApprovalsTableProps {
@@ -284,9 +287,22 @@ export function PendingApprovalsTable({ onDecision }: PendingApprovalsTableProps
                           <span className="font-semibold text-foreground/90">
                             {rec.related_keyword_id ? "Keyword" : rec.related_ad_group_id ? "Ad Group" : "Campaign"}
                           </span>
-                          <span className="text-[11px] text-muted-foreground/50 font-mono">
-                            ID: {rec.related_keyword_id || rec.related_ad_group_id || rec.related_campaign_id}
+                          <span className="text-[11px] text-foreground/60 truncate max-w-[180px]" title={rec.entity_name}>
+                            {rec.entity_name && rec.entity_name !== "Unknown" && rec.entity_name !== "Unknown keyword"
+                              ? rec.entity_name
+                              : null}
                           </span>
+                          {rec.campaign_name && rec.related_keyword_id && (
+                            <span className="text-[10px] text-muted-foreground/40 truncate max-w-[180px]">
+                              in {rec.campaign_name}
+                            </span>
+                          )}
+                          {rec.executable === false && (
+                            <span className="text-[10px] text-amber-400 flex items-center gap-1 mt-0.5">
+                              <AlertTriangle className="h-3 w-3" />
+                              No Google Ads ID — needs sync
+                            </span>
+                          )}
                         </div>
                       </td>
                       <td className="px-4 py-4 align-top">
@@ -312,23 +328,30 @@ export function PendingApprovalsTable({ onDecision }: PendingApprovalsTableProps
                       <td className="px-4 py-4 align-top text-right">
                         <div className="flex flex-col items-end gap-2">
                           {activeView === "needs_review" ? (
-                            <div className="flex items-center justify-end gap-2">
-                              <button
-                                onClick={() => handleDecision(rec.id, "approved")}
-                                disabled={!!processingId}
-                                className={`p-2 rounded-lg border border-emerald-500/20 bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 transition-all ${processingId === rec.id ? "opacity-50 animate-pulse" : ""}`}
-                                title="Approve"
-                              >
-                                <CheckCircle2 className="h-4 w-4" />
-                              </button>
-                              <button
-                                onClick={() => handleDecision(rec.id, "rejected")}
-                                disabled={!!processingId}
-                                className={`p-2 rounded-lg border border-red-500/20 bg-red-500/10 text-red-400 hover:bg-red-500/20 transition-all ${processingId === rec.id ? "opacity-50" : ""}`}
-                                title="Reject"
-                              >
-                                <XCircle className="h-4 w-4" />
-                              </button>
+                            <div className="flex flex-col items-end gap-1.5">
+                              <div className="flex items-center justify-end gap-2">
+                                <button
+                                  onClick={() => handleDecision(rec.id, "approved")}
+                                  disabled={!!processingId}
+                                  className={`p-2 rounded-lg border border-emerald-500/20 bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 transition-all ${processingId === rec.id ? "opacity-50 animate-pulse" : ""}`}
+                                  title="Approve"
+                                >
+                                  <CheckCircle2 className="h-4 w-4" />
+                                </button>
+                                <button
+                                  onClick={() => handleDecision(rec.id, "rejected")}
+                                  disabled={!!processingId}
+                                  className={`p-2 rounded-lg border border-red-500/20 bg-red-500/10 text-red-400 hover:bg-red-500/20 transition-all ${processingId === rec.id ? "opacity-50" : ""}`}
+                                  title="Reject"
+                                >
+                                  <XCircle className="h-4 w-4" />
+                                </button>
+                              </div>
+                              {rec.executable === false && (
+                                <span className="text-[9px] text-amber-400/70">
+                                  ⚠ Not executable yet — needs sync
+                                </span>
+                              )}
                             </div>
                           ) : (
                             <div className="flex flex-col items-end gap-1.5">
@@ -337,6 +360,16 @@ export function PendingApprovalsTable({ onDecision }: PendingApprovalsTableProps
                                   <CheckCircle2 className="h-3.5 w-3.5" />
                                   Executed
                                 </span>
+                              ) : rec.executable === false ? (
+                                <div className="flex flex-col items-end gap-1">
+                                  <span className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-amber-500/20 bg-amber-500/5 text-[10px] text-amber-400">
+                                    <AlertTriangle className="h-3.5 w-3.5" />
+                                    Can&apos;t execute — missing Google Ads entity
+                                  </span>
+                                  <span className="text-[9px] text-muted-foreground/40">
+                                    Run a fresh sync, then re-run Key Intel
+                                  </span>
+                                </div>
                               ) : confirmingId === rec.id ? (
                                 <div className="flex flex-col items-end gap-1.5">
                                   <p className="text-[10px] text-red-400 font-medium">Type CONFIRM to execute red-risk change</p>

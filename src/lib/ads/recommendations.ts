@@ -67,25 +67,26 @@ export async function insertValidatedRecommendations(
     let isValid = true;
 
     if (raw.related_keyword_id) {
-      // Validate keyword
+      // Validate keyword — must have a real Google Ads ID to be executable
       const { data: kw } = await sb.from("ads_keywords")
-        .select("id, ad_group_id")
+        .select("id, ad_group_id, google_keyword_id")
         .eq("id", raw.related_keyword_id)
         .maybeSingle();
 
-      if (!kw) {
+      if (!kw || !kw.google_keyword_id) {
+        // Keyword doesn't exist or has no Google Ads identity — skip
         isValid = false;
       } else {
         row.related_keyword_id = kw.id;
         row.related_ad_group_id = kw.ad_group_id;
 
-        // Parent ad group
+        // Parent ad group — must also have a real Google Ads ID
         const { data: ag } = await sb.from("ads_ad_groups")
-          .select("campaign_id")
+          .select("campaign_id, google_ad_group_id")
           .eq("id", kw.ad_group_id)
           .maybeSingle();
-        
-        if (ag) {
+
+        if (ag && ag.google_ad_group_id) {
           row.related_campaign_id = ag.campaign_id;
           const { data: camp } = await sb.from("ads_campaigns").select("market").eq("id", ag.campaign_id).maybeSingle();
           trueMarket = camp?.market ?? null;
@@ -95,12 +96,12 @@ export async function insertValidatedRecommendations(
       }
 
     } else if (raw.related_ad_group_id) {
-      // Validate ad group
+      // Validate ad group — must have a real Google Ads ID
       const { data: ag } = await sb.from("ads_ad_groups")
-        .select("id, campaign_id")
+        .select("id, campaign_id, google_ad_group_id")
         .eq("id", raw.related_ad_group_id)
         .maybeSingle();
-      if (!ag) {
+      if (!ag || !ag.google_ad_group_id) {
         isValid = false;
       } else {
         row.related_ad_group_id = ag.id;
