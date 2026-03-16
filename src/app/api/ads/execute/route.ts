@@ -27,7 +27,12 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const body = await req.json();
+  let body: { recommendationId?: string; confirmation?: string };
+  try {
+    body = await req.json();
+  } catch {
+    return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
+  }
   const { recommendationId, confirmation } = body;
 
   if (!recommendationId) {
@@ -90,10 +95,11 @@ export async function POST(req: NextRequest) {
           return NextResponse.json({ error: "Cannot resolve keyword entity for execution" }, { status: 422 });
         }
         const bidMatch = rec.expected_impact?.match(/\$?([\d.]+)/);
-        const newBidMicros = bidMatch ? Math.round(parseFloat(bidMatch[1]) * 1_000_000) : null;
-        if (!newBidMicros) {
-          return NextResponse.json({ error: "Cannot determine new bid amount from expected_impact field" }, { status: 422 });
+        const bidDollars = bidMatch ? parseFloat(bidMatch[1]) : null;
+        if (!bidDollars || bidDollars < 0.01 || bidDollars > 100) {
+          return NextResponse.json({ error: "Cannot determine valid bid amount (must be $0.01–$100). Parsed: " + bidDollars }, { status: 422 });
         }
+        const newBidMicros = Math.round(bidDollars * 1_000_000);
         mutationResult = await updateKeywordBid(config, ag.google_ad_group_id, kw.google_keyword_id, newBidMicros);
         break;
       }
@@ -132,10 +138,11 @@ export async function POST(req: NextRequest) {
           .eq("campaign_id", rec.related_campaign_id)
           .maybeSingle();
         const amountMatch = rec.expected_impact?.match(/\$?([\d.]+)/);
-        const newBudgetMicros = amountMatch ? Math.round(parseFloat(amountMatch[1]) * 1_000_000) : null;
-        if (!budgetData?.google_budget_id || !newBudgetMicros) {
-          return NextResponse.json({ error: "Cannot resolve budget entity or determine new amount" }, { status: 422 });
+        const budgetDollars = amountMatch ? parseFloat(amountMatch[1]) : null;
+        if (!budgetData?.google_budget_id || !budgetDollars || budgetDollars < 1 || budgetDollars > 10000) {
+          return NextResponse.json({ error: "Cannot resolve budget entity or valid amount ($1–$10,000). Parsed: " + budgetDollars }, { status: 422 });
         }
+        const newBudgetMicros = Math.round(budgetDollars * 1_000_000);
         mutationResult = await updateCampaignBudget(config, budgetData.google_budget_id, newBudgetMicros);
         break;
       }
@@ -166,15 +173,19 @@ export async function POST(req: NextRequest) {
     const errMsg = err instanceof Error ? err.message : String(err);
     console.error("[Ads/Execute]", errMsg);
 
-    // Log failure
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    await (sb.from("ads_implementation_logs") as any).insert({
-      recommendation_id: recommendationId,
-      executed_by: user.id,
-      result: "FAILED",
-      details: errMsg,
-      executed_at: new Date().toISOString(),
-    });
+    // Log failure (non-blocking)
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      await (sb.from("ads_implementation_logs") as any).insert({
+        recommendation_id: recommendationId,
+        executed_by: user.id,
+        result: "FAILED",
+        details: errMsg,
+        executed_at: new Date().toISOString(),
+      });
+    } catch (logErr) {
+      console.error("[Ads/Execute] Failed to log execution failure:", logErr);
+    }
 
     return NextResponse.json({ error: `Execution failed: ${errMsg}` }, { status: 500 });
   }

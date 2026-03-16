@@ -18,7 +18,12 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const body = await req.json();
+  let body: { recommendations?: unknown[] };
+  try {
+    body = await req.json();
+  } catch {
+    return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
+  }
   if (!Array.isArray(body.recommendations) || body.recommendations.length === 0) {
     return NextResponse.json({ error: "recommendations array required" }, { status: 400 });
   }
