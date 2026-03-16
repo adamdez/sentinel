@@ -218,15 +218,21 @@ function DashboardTab() {
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
   const [truncated, setTruncated] = useState(false);
+  const [dateRange, setDateRange] = useState(30);
 
-  // Bounded date range: last 30 days — prevents silent truncation
-  const METRICS_DAYS = 30;
+  const DATE_RANGE_OPTIONS = [
+    { label: "Yesterday", days: 1 },
+    { label: "7 days", days: 7 },
+    { label: "14 days", days: 14 },
+    { label: "30 days", days: 30 },
+  ];
+
   const METRICS_ROW_CAP = 5000;
 
   const loadData = useCallback(async () => {
     setLoading(true);
     try {
-      const sinceDate = new Date(Date.now() - METRICS_DAYS * 24 * 60 * 60 * 1000)
+      const sinceDate = new Date(Date.now() - dateRange * 24 * 60 * 60 * 1000)
         .toISOString()
         .slice(0, 10); // YYYY-MM-DD
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -254,7 +260,7 @@ function DashboardTab() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [dateRange]);
 
   useEffect(() => { loadData(); }, [loadData]);
 
@@ -360,10 +366,21 @@ function DashboardTab() {
             </div>
           </div>
 
-          {/* Date range scope */}
-          <div className="flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-full border border-white/[0.08] text-muted-foreground/50">
-            <BarChart3 className="h-3 w-3" />
-            <span>Last {METRICS_DAYS} days</span>
+          {/* Date range selector */}
+          <div className="flex rounded-lg border border-white/[0.08] overflow-hidden">
+            {DATE_RANGE_OPTIONS.map((opt) => (
+              <button
+                key={opt.days}
+                onClick={() => setDateRange(opt.days)}
+                className={`px-3 py-1.5 text-xs transition ${
+                  dateRange === opt.days
+                    ? "bg-cyan/15 text-cyan font-medium"
+                    : "text-muted-foreground/60 hover:text-foreground hover:bg-white/[0.03]"
+                }`}
+              >
+                {opt.label}
+              </button>
+            ))}
           </div>
 
           {/* Last synced badge */}
@@ -393,7 +410,7 @@ function DashboardTab() {
       {truncated && (
         <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-amber-500/5 border border-amber-500/20 text-xs text-amber-400">
           <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
-          <span>Data may be incomplete — too many metric rows for the last {METRICS_DAYS} days. Totals could be understated.</span>
+          <span>Data may be incomplete — too many metric rows for the last {dateRange} days. Totals could be understated.</span>
         </div>
       )}
 
