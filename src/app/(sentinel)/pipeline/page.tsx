@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback, useRef } from "react";
+import { useEffect, useState, useCallback, useRef, useTransition } from "react";
 import {
   DragDropContext,
   Droppable,
@@ -19,6 +19,7 @@ import {
   GripVertical,
   Sparkles,
   Plus,
+  ListPlus,
 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase, getCurrentUser } from "@/lib/supabase";
@@ -789,6 +790,7 @@ function LeadCard({
   onClaim: (id: string) => Promise<void>;
   onOpenDetail: (id: string) => void;
 }) {
+  const [queuing, startQueuing] = useTransition();
   const sc = scoreColor(lead.heat_score);
   const expired = isClaimExpired(lead.claim_expires_at);
   const isMine = lead.owner_id === currentUserId;
@@ -925,18 +927,43 @@ function LeadCard({
               <div />
             )}
 
-            {canClaim && (
+            <div className="flex items-center gap-1.5">
               <button
                 onClick={(e) => {
                   e.stopPropagation();
-                  onClaim(lead.id);
+                  startQueuing(async () => {
+                    const { data: { session } } = await supabase.auth.getSession();
+                    const res = await fetch(`/api/leads/${lead.id}/queue`, {
+                      method: "POST",
+                      headers: {
+                        "Content-Type": "application/json",
+                        ...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}),
+                      },
+                    });
+                    if (res.ok) toast.success("Added to call queue");
+                    else toast.error("Could not add to queue");
+                  });
                 }}
-                className="text-[11px] px-3 py-1 bg-cyan/90 hover:bg-cyan text-black font-semibold rounded-[12px] flex items-center gap-1.5 transition-all active:scale-95 shadow-[0_0_8px_rgba(0,212,255,0.3)]"
+                disabled={queuing}
+                title="Add to my call queue"
+                className="h-6 w-6 flex items-center justify-center rounded-md text-cyan hover:bg-cyan/10 transition-colors disabled:opacity-40"
               >
-                <User className="h-3 w-3" />
-                CLAIM
+                <ListPlus className="h-3.5 w-3.5" />
               </button>
-            )}
+
+              {canClaim && (
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onClaim(lead.id);
+                  }}
+                  className="text-[11px] px-3 py-1 bg-cyan/90 hover:bg-cyan text-black font-semibold rounded-[12px] flex items-center gap-1.5 transition-all active:scale-95 shadow-[0_0_8px_rgba(0,212,255,0.3)]"
+                >
+                  <User className="h-3 w-3" />
+                  CLAIM
+                </button>
+              )}
+            </div>
           </div>
         </motion.div>
       )}

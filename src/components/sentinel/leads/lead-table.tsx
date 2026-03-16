@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import { motion } from "framer-motion";
 import {
   ArrowUpDown,
@@ -17,7 +17,10 @@ import {
   Voicemail,
   CheckCircle2,
   Briefcase,
+  ListPlus,
 } from "lucide-react";
+import { toast } from "sonner";
+import { supabase } from "@/lib/supabase";
 import {
   Tooltip,
   TooltipContent,
@@ -346,6 +349,29 @@ export function LeadTable({
   currentUserId,
 }: LeadTableProps) {
   const [logCallLead, setLogCallLead] = useState<LeadRow | null>(null);
+  const [queuingId, setQueuingId] = useState<string | null>(null);
+
+  const addToQueue = useCallback(async (leadId: string) => {
+    setQueuingId(leadId);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const res = await fetch(`/api/leads/${leadId}/queue`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}),
+        },
+      });
+      if (!res.ok) throw new Error("Failed");
+      toast.success("Added to call queue");
+      onRefresh?.();
+    } catch {
+      toast.error("Could not add to queue");
+    } finally {
+      setQueuingId(null);
+    }
+  }, [onRefresh]);
+
   if (leads.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center py-16 text-center rounded-[14px] border border-glass-border bg-glass/30">
@@ -655,8 +681,20 @@ export function LeadTable({
               </span>
             </div>
 
-            {/* Actions (log call + compliance) */}
+            {/* Actions (queue + log call + compliance) */}
             <div className="flex items-center justify-end gap-1" onClick={(e) => e.stopPropagation()}>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <button
+                    onClick={() => addToQueue(lead.id)}
+                    disabled={queuingId === lead.id}
+                    className="h-6 w-6 flex items-center justify-center rounded-md text-cyan hover:bg-cyan/10 transition-colors disabled:opacity-40"
+                  >
+                    <ListPlus className="h-3.5 w-3.5" />
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent className="text-[11px]">Add to my call queue</TooltipContent>
+              </Tooltip>
               <Tooltip>
                 <TooltipTrigger asChild>
                   <button

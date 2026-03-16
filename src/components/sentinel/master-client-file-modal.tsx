@@ -12,7 +12,7 @@ import {
   Pencil, Save, Voicemail, PhoneForwarded, Brain, Crosshair, MapPinned,
   MessageSquare, Flame, Smartphone, ShieldAlert, PhoneOff, Circle,
   RefreshCw, Target, ArrowRight, ChevronDown, Trash2, Lock, Contact2, Plus,
-  Users, Briefcase, CheckCircle, XCircle, Camera, CameraOff,
+  Users, Briefcase, CheckCircle, XCircle, Camera, CameraOff, ListPlus,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -6125,6 +6125,27 @@ export function MasterClientFileModal({ clientFile: incomingClientFile, open, on
                     {calling ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Phone className="h-3.5 w-3.5" />}
                     {calling ? "Dialing..." : "Call"}
                   </Button>
+                  )}
+                  {clientFile && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="gap-2 border-cyan/15 hover:border-cyan/35 hover:bg-cyan/[0.05] text-cyan/80"
+                      onClick={async () => {
+                        const { data: { session } } = await supabase.auth.getSession();
+                        const res = await fetch(`/api/leads/${clientFile.id}/queue`, {
+                          method: "POST",
+                          headers: {
+                            "Content-Type": "application/json",
+                            ...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}),
+                          },
+                        });
+                        if (res.ok) toast.success("Added to call queue");
+                        else toast.error("Could not add to queue");
+                      }}
+                    >
+                      <ListPlus className="h-3.5 w-3.5" />Queue
+                    </Button>
                   )}
                   <Button
                     size="sm"
