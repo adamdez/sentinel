@@ -106,6 +106,62 @@ export interface DailyMetricRow {
   conversionValueMicros: number;
 }
 
+export interface NegativeKeywordData {
+  criterionId: string;
+  keywordText: string;
+  matchType: string;
+  level: "campaign" | "ad_group";
+  campaignId: string;
+  adGroupId: string | null;
+}
+
+export interface CampaignBudgetData {
+  budgetId: string;
+  campaignId: string;
+  dailyBudgetMicros: number;
+  deliveryMethod: string;
+  isShared: boolean;
+}
+
+export interface ConversionActionData {
+  conversionId: string;
+  name: string;
+  type: string;
+  status: string;
+  countingType: string;
+  category: string;
+}
+
+export interface DeviceMetricRow {
+  date: string;
+  campaignId: string;
+  device: string;
+  impressions: number;
+  clicks: number;
+  costMicros: number;
+  conversions: number;
+}
+
+export interface GeoMetricRow {
+  date: string;
+  campaignId: string;
+  geoName: string;
+  geoType: string;
+  impressions: number;
+  clicks: number;
+  costMicros: number;
+  conversions: number;
+}
+
+export interface QualityScoreData {
+  criterionId: string;
+  adGroupId: string;
+  qualityScore: number | null;
+  expectedCtr: string;
+  adRelevance: string;
+  landingPageExperience: string;
+}
+
 // ── Helper: GAQL Query ──────────────────────────────────────────────
 
 async function gaqlQuery(config: GoogleAdsConfig, query: string): Promise<unknown[]> {
@@ -530,6 +586,260 @@ export async function fetchDailyMetrics(
   });
 }
 
+// ── Negative Keywords ────────────────────────────────────────────────
+
+export async function fetchNegativeKeywords(
+  config: GoogleAdsConfig,
+): Promise<NegativeKeywordData[]> {
+  // Campaign-level negative keywords
+  const campaignQuery = `
+    SELECT
+      campaign_criterion.criterion_id,
+      campaign_criterion.keyword.text,
+      campaign_criterion.keyword.match_type,
+      campaign.id
+    FROM campaign_criterion
+    WHERE campaign_criterion.negative = TRUE
+      AND campaign_criterion.type = 'KEYWORD'
+      AND campaign.status != 'REMOVED'
+  `;
+
+  // Ad-group-level negative keywords
+  const adGroupQuery = `
+    SELECT
+      ad_group_criterion.criterion_id,
+      ad_group_criterion.keyword.text,
+      ad_group_criterion.keyword.match_type,
+      ad_group.id,
+      campaign.id
+    FROM ad_group_criterion
+    WHERE ad_group_criterion.negative = TRUE
+      AND ad_group_criterion.type = 'KEYWORD'
+      AND campaign.status != 'REMOVED'
+  `;
+
+  const [campaignRows, adGroupRows] = await Promise.all([
+    gaqlQuery(config, campaignQuery),
+    gaqlQuery(config, adGroupQuery),
+  ]);
+
+  const results: NegativeKeywordData[] = [];
+
+  for (const row of campaignRows) {
+    const r = row as Record<string, Record<string, unknown>>;
+    const criterion = r.campaignCriterion ?? r.campaign_criterion ?? {};
+    const keyword = (criterion as Record<string, unknown>).keyword as Record<string, unknown> | undefined;
+    results.push({
+      criterionId: String((criterion as Record<string, unknown>).criterionId ?? (criterion as Record<string, unknown>).criterion_id ?? ""),
+      keywordText: String(keyword?.text ?? ""),
+      matchType: String(keyword?.matchType ?? keyword?.match_type ?? ""),
+      level: "campaign",
+      campaignId: String(r.campaign?.id ?? ""),
+      adGroupId: null,
+    });
+  }
+
+  for (const row of adGroupRows) {
+    const r = row as Record<string, Record<string, unknown>>;
+    const criterion = r.adGroupCriterion ?? r.ad_group_criterion ?? {};
+    const keyword = (criterion as Record<string, unknown>).keyword as Record<string, unknown> | undefined;
+    results.push({
+      criterionId: String((criterion as Record<string, unknown>).criterionId ?? (criterion as Record<string, unknown>).criterion_id ?? ""),
+      keywordText: String(keyword?.text ?? ""),
+      matchType: String(keyword?.matchType ?? keyword?.match_type ?? ""),
+      level: "ad_group",
+      campaignId: String(r.campaign?.id ?? ""),
+      adGroupId: String(r.adGroup?.id ?? r.ad_group?.id ?? ""),
+    });
+  }
+
+  return results;
+}
+
+// ── Campaign Budgets ────────────────────────────────────────────────
+
+export async function fetchCampaignBudgets(
+  config: GoogleAdsConfig,
+): Promise<CampaignBudgetData[]> {
+  const query = `
+    SELECT
+      campaign_budget.id,
+      campaign_budget.amount_micros,
+      campaign_budget.delivery_method,
+      campaign_budget.explicitly_shared,
+      campaign.id
+    FROM campaign_budget
+    WHERE campaign.status != 'REMOVED'
+  `;
+
+  const rows = await gaqlQuery(config, query);
+
+  return rows.map((row: unknown) => {
+    const r = row as Record<string, Record<string, unknown>>;
+    const budget = r.campaignBudget ?? r.campaign_budget ?? {};
+    return {
+      budgetId: String((budget as Record<string, unknown>).id ?? ""),
+      campaignId: String(r.campaign?.id ?? ""),
+      dailyBudgetMicros: Number((budget as Record<string, unknown>).amountMicros ?? (budget as Record<string, unknown>).amount_micros ?? 0),
+      deliveryMethod: String((budget as Record<string, unknown>).deliveryMethod ?? (budget as Record<string, unknown>).delivery_method ?? ""),
+      isShared: Boolean((budget as Record<string, unknown>).explicitlyShared ?? (budget as Record<string, unknown>).explicitly_shared ?? false),
+    };
+  });
+}
+
+// ── Conversion Actions ──────────────────────────────────────────────
+
+export async function fetchConversionActions(
+  config: GoogleAdsConfig,
+): Promise<ConversionActionData[]> {
+  const query = `
+    SELECT
+      conversion_action.id,
+      conversion_action.name,
+      conversion_action.type,
+      conversion_action.status,
+      conversion_action.counting_type,
+      conversion_action.category
+    FROM conversion_action
+  `;
+
+  const rows = await gaqlQuery(config, query);
+
+  return rows.map((row: unknown) => {
+    const r = row as Record<string, Record<string, unknown>>;
+    const ca = r.conversionAction ?? r.conversion_action ?? {};
+    return {
+      conversionId: String((ca as Record<string, unknown>).id ?? ""),
+      name: String((ca as Record<string, unknown>).name ?? ""),
+      type: String((ca as Record<string, unknown>).type ?? ""),
+      status: String((ca as Record<string, unknown>).status ?? ""),
+      countingType: String((ca as Record<string, unknown>).countingType ?? (ca as Record<string, unknown>).counting_type ?? ""),
+      category: String((ca as Record<string, unknown>).category ?? ""),
+    };
+  });
+}
+
+// ── Device Performance ──────────────────────────────────────────────
+
+export async function fetchDevicePerformance(
+  config: GoogleAdsConfig,
+  startDate: string,
+  endDate: string,
+): Promise<DeviceMetricRow[]> {
+  const query = `
+    SELECT
+      segments.date,
+      segments.device,
+      campaign.id,
+      metrics.impressions,
+      metrics.clicks,
+      metrics.cost_micros,
+      metrics.conversions
+    FROM campaign
+    WHERE segments.date BETWEEN '${startDate}' AND '${endDate}'
+      AND campaign.status != 'REMOVED'
+    ORDER BY segments.date DESC
+  `;
+
+  const rows = await gaqlQuery(config, query);
+
+  return rows.map((row: unknown) => {
+    const r = row as Record<string, Record<string, unknown>>;
+    const segments = r.segments as Record<string, unknown> | undefined;
+    return {
+      date: String(segments?.date ?? ""),
+      campaignId: String(r.campaign?.id ?? ""),
+      device: String(segments?.device ?? ""),
+      impressions: Number(r.metrics?.impressions ?? 0),
+      clicks: Number(r.metrics?.clicks ?? 0),
+      costMicros: Number(r.metrics?.cost_micros ?? r.metrics?.costMicros ?? 0),
+      conversions: Number(r.metrics?.conversions ?? 0),
+    };
+  });
+}
+
+// ── Geo Performance ─────────────────────────────────────────────────
+
+export async function fetchGeoPerformance(
+  config: GoogleAdsConfig,
+  startDate: string,
+  endDate: string,
+): Promise<GeoMetricRow[]> {
+  const query = `
+    SELECT
+      segments.date,
+      campaign.id,
+      geographic_view.country_criterion_id,
+      geographic_view.location_type,
+      metrics.impressions,
+      metrics.clicks,
+      metrics.cost_micros,
+      metrics.conversions
+    FROM geographic_view
+    WHERE segments.date BETWEEN '${startDate}' AND '${endDate}'
+      AND campaign.status != 'REMOVED'
+    ORDER BY metrics.cost_micros DESC
+    LIMIT 500
+  `;
+
+  const rows = await gaqlQuery(config, query);
+
+  return rows.map((row: unknown) => {
+    const r = row as Record<string, Record<string, unknown>>;
+    const segments = r.segments as Record<string, unknown> | undefined;
+    const geo = r.geographicView ?? r.geographic_view ?? {};
+    return {
+      date: String(segments?.date ?? ""),
+      campaignId: String(r.campaign?.id ?? ""),
+      geoName: String((geo as Record<string, unknown>).countryCriterionId ?? (geo as Record<string, unknown>).country_criterion_id ?? ""),
+      geoType: String((geo as Record<string, unknown>).locationType ?? (geo as Record<string, unknown>).location_type ?? ""),
+      impressions: Number(r.metrics?.impressions ?? 0),
+      clicks: Number(r.metrics?.clicks ?? 0),
+      costMicros: Number(r.metrics?.cost_micros ?? r.metrics?.costMicros ?? 0),
+      conversions: Number(r.metrics?.conversions ?? 0),
+    };
+  });
+}
+
+// ── Quality Scores ──────────────────────────────────────────────────
+
+export async function fetchQualityScores(
+  config: GoogleAdsConfig,
+): Promise<QualityScoreData[]> {
+  const query = `
+    SELECT
+      ad_group_criterion.criterion_id,
+      ad_group.id,
+      ad_group_criterion.quality_info.quality_score,
+      ad_group_criterion.quality_info.creative_quality_score,
+      ad_group_criterion.quality_info.post_click_quality_score,
+      ad_group_criterion.quality_info.search_predicted_ctr
+    FROM ad_group_criterion
+    WHERE ad_group_criterion.type = 'KEYWORD'
+      AND campaign.status != 'REMOVED'
+      AND ad_group_criterion.status != 'REMOVED'
+  `;
+
+  const rows = await gaqlQuery(config, query);
+
+  return rows.map((row: unknown) => {
+    const r = row as Record<string, Record<string, unknown>>;
+    const criterion = r.adGroupCriterion ?? r.ad_group_criterion ?? {};
+    const qualityInfo = (criterion as Record<string, unknown>).qualityInfo
+      ?? (criterion as Record<string, unknown>).quality_info ?? {};
+    const qi = qualityInfo as Record<string, unknown>;
+    const qs = qi.qualityScore ?? qi.quality_score;
+    return {
+      criterionId: String((criterion as Record<string, unknown>).criterionId ?? (criterion as Record<string, unknown>).criterion_id ?? ""),
+      adGroupId: String(r.adGroup?.id ?? r.ad_group?.id ?? ""),
+      qualityScore: qs != null ? Number(qs) : null,
+      expectedCtr: String(qi.searchPredictedCtr ?? qi.search_predicted_ctr ?? ""),
+      adRelevance: String(qi.creativeQualityScore ?? qi.creative_quality_score ?? ""),
+      landingPageExperience: String(qi.postClickQualityScore ?? qi.post_click_quality_score ?? ""),
+    };
+  });
+}
+
 // ── Mutations ───────────────────────────────────────────────────────
 
 async function mutate(config: GoogleAdsConfig, operations: unknown[]): Promise<unknown> {
@@ -606,6 +916,23 @@ export async function updateCampaignBudget(
         amountMicros: String(newBudgetMicros),
       },
       updateMask: "amount_micros",
+    },
+  }]);
+}
+
+export async function addNegativeKeyword(
+  config: GoogleAdsConfig,
+  campaignId: string,
+  keywordText: string,
+  matchType: "BROAD" | "PHRASE" | "EXACT" = "EXACT",
+): Promise<unknown> {
+  return mutate(config, [{
+    campaignCriterionOperation: {
+      create: {
+        campaign: `customers/${config.customerId}/campaigns/${campaignId}`,
+        negative: true,
+        keyword: { text: keywordText, matchType },
+      },
     },
   }]);
 }
