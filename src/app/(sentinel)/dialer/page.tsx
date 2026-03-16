@@ -1,6 +1,8 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef, useMemo } from "react";
+export const dynamic = "force-dynamic";
+
+import { useState, useEffect, useCallback, useRef, useMemo, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { Device, Call } from "@twilio/voice-sdk";
@@ -388,7 +390,7 @@ function toE164(raw: string): string {
   return `+1${digits.slice(0, 10)}`;
 }
 
-export default function DialerPage() {
+function DialerPageInner() {
   const { currentUser, ghostMode } = useSentinelStore();
   const { queue, loading: queueLoading, refetch: refetchQueue } = useDialerQueue(7);
   const { stats, loading: statsLoading } = useDialerStats();
@@ -2342,6 +2344,14 @@ export default function DialerPage() {
 
       <CoachPanel />
     </PageShell>
+  );
+}
+
+export default function DialerPage() {
+  return (
+    <Suspense fallback={null}>
+      <DialerPageInner />
+    </Suspense>
   );
 }
 

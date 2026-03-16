@@ -12,14 +12,14 @@ import { createServerClient } from "@/lib/supabase";
  */
 export async function POST(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   const sb = createServerClient();
   const token = req.headers.get("authorization")?.replace("Bearer ", "");
   const { data: { user } } = await sb.auth.getUser(token);
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const leadId = params.id;
+  const { id: leadId } = await params;
   if (!leadId) return NextResponse.json({ error: "Lead ID required" }, { status: 400 });
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
