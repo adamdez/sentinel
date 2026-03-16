@@ -805,17 +805,23 @@ function IntelligenceTab() {
           method: "GET",
           headers,
         });
-        if (!res.ok) {
-          const data = await res.json();
-          if (!cancelled) setError(data.error || "Failed to load briefing");
+        const text = await res.text();
+        let data: Record<string, unknown>;
+        try {
+          data = JSON.parse(text);
+        } catch {
+          if (!cancelled) setError("Failed to load briefing — server returned invalid response");
           return;
         }
-        const data = await res.json();
+        if (!res.ok) {
+          if (!cancelled) setError((data.error as string) || "Failed to load briefing");
+          return;
+        }
         if (!cancelled) {
           if (data.intelligence) {
-            setIntelligence(data.intelligence);
-            setAdversarial(data.adversarial ?? null);
-            setSavedAt(data.savedAt ?? null);
+            setIntelligence(data.intelligence as typeof intelligence);
+            setAdversarial((data.adversarial as typeof adversarial) ?? null);
+            setSavedAt((data.savedAt as string) ?? null);
           }
         }
       } catch (err) {
@@ -850,17 +856,26 @@ function IntelligenceTab() {
         method: "POST",
         headers,
       });
-      if (!res.ok) {
-        const data = await res.json();
-        setError(data.error || "Failed to extract intelligence");
+      // Safely parse response — Vercel may return HTML on timeout
+      const text = await res.text();
+      let data: Record<string, unknown>;
+      try {
+        data = JSON.parse(text);
+      } catch {
+        // Non-JSON response (likely Vercel timeout or 502)
+        console.error("[Intel] Non-JSON response:", text.slice(0, 200));
+        setError("The intelligence extraction timed out. This usually means the AI models took too long. Please try again — it typically works on retry.");
         return;
       }
-      const data = await res.json();
-      setIntelligence(data.intelligence);
-      setAdversarial(data.adversarial);
-      setSavedAt(data.savedAt ?? new Date().toISOString());
+      if (!res.ok) {
+        setError((data.error as string) || "Failed to extract intelligence");
+        return;
+      }
+      setIntelligence(data.intelligence as typeof intelligence);
+      setAdversarial((data.adversarial as typeof adversarial) ?? null);
+      setSavedAt((data.savedAt as string) ?? new Date().toISOString());
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Request failed");
+      setError(err instanceof Error ? err.message : "Request failed — check your connection and try again");
     } finally {
       setExtracting(false);
     }

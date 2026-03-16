@@ -15,7 +15,7 @@ Your job is to extract and rank intelligence from the provided account data. Be 
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
-export const maxDuration = 120;
+export const maxDuration = 300;
 
 /**
  * GET /api/ads/intelligence
@@ -156,25 +156,26 @@ export async function POST(req: NextRequest) {
       `Last 30 days: $${last30.spend.toFixed(2)} spend | ${last30.clicks} clicks | ${last30.conversions} conversions | ${last30.impressions} impressions`,
       "",
       "## KEYWORDS (with ad group/campaign context)",
-      JSON.stringify(keywords.slice(0, 150).map((k: Record<string, unknown>) => {
+      JSON.stringify(keywords.slice(0, 75).map((k: Record<string, unknown>) => {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const ag = k.ads_ad_groups as any;
         return {
           id: k.id, text: k.text, matchType: k.match_type, status: k.status,
+          qualityScore: k.quality_score ?? null,
           adGroup: ag?.name ?? null, campaign: ag?.ads_campaigns?.name ?? null,
           market: ag?.ads_campaigns?.market ?? null,
         };
       }), null, 2),
       "",
-      "## SEARCH TERMS (top 200 by clicks)",
-      JSON.stringify(searchTerms.slice(0, 150).map((st: Record<string, unknown>) => ({
+      "## SEARCH TERMS (top by clicks)",
+      JSON.stringify(searchTerms.slice(0, 75).map((st: Record<string, unknown>) => ({
         term: st.search_term, impressions: st.impressions, clicks: st.clicks,
         costDollars: Number(st.cost_micros ?? 0) / 1_000_000, conversions: st.conversions,
         isWaste: st.is_waste, isOpportunity: st.is_opportunity, market: st.market,
       })), null, 2),
       "",
-      "## DAILY METRICS (last 30 days, sample)",
-      JSON.stringify(metrics30.slice(0, 60).map((m: Record<string, unknown>) => {
+      "## DAILY METRICS (last 30 days)",
+      JSON.stringify(metrics30.slice(0, 45).map((m: Record<string, unknown>) => {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const camp = m.ads_campaigns as any;
         return {
@@ -247,7 +248,7 @@ ${rawDataContext}`;
       prompt: intelligencePrompt,
       systemPrompt,
       apiKey,
-      maxTokens: 6000,
+      maxTokens: 4000,
       model: "claude-opus-4-6",
     });
 
