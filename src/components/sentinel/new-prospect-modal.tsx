@@ -69,8 +69,8 @@ interface FormData {
 
 const EMPTY_FORM: FormData = {
   owner_name: "", phone: "", email: "",
-  address: "", city: "", state: "", zip: "",
-  apn: "", county: "",
+  address: "", city: "Spokane", state: "WA", zip: "",
+  apn: "", county: "Spokane",
   estimated_value: "", equity_percent: "",
   property_type: "SFR",
   bedrooms: "", bathrooms: "", sqft: "", year_built: "", lot_size: "",
@@ -367,14 +367,14 @@ export function NewProspectModal() {
                   <div className="grid grid-cols-3 gap-3">
                     <Field label="City">
                       <Input
-                        placeholder="Phoenix"
+                        placeholder="Spokane"
                         value={form.city}
                         onChange={(e) => update("city", e.target.value)}
                       />
                     </Field>
                     <Field label="State">
                       <Input
-                        placeholder="AZ"
+                        placeholder="WA"
                         maxLength={2}
                         value={form.state}
                         onChange={(e) => update("state", e.target.value)}
@@ -399,7 +399,7 @@ export function NewProspectModal() {
                     </Field>
                     <Field label="County" required>
                       <Input
-                        placeholder="Maricopa"
+                        placeholder="Spokane"
                         value={form.county}
                         onChange={(e) => update("county", e.target.value)}
                       />
