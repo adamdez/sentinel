@@ -1,12 +1,12 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { 
-  CheckCircle2, 
-  XCircle, 
-  AlertTriangle, 
-  Info, 
-  Loader2, 
+import {
+  CheckCircle2,
+  XCircle,
+  AlertTriangle,
+  Info,
+  Loader2,
   Zap,
   Target,
   BarChart3,
@@ -39,14 +39,15 @@ export function PendingApprovalsTable({ onDecision }: PendingApprovalsTableProps
   const [decisionError, setDecisionError] = useState<string | null>(null);
   const [processingId, setProcessingId] = useState<string | null>(null);
   const [activeView, setActiveView] = useState<"needs_review" | "approved">("needs_review");
-  const [simulationResult, setSimulationResult] = useState<{ id: string; success: boolean; message: string } | null>(null);
-  // IDs that already have an entry in ads_implementation_logs — persists across reloads
-  const [simulatedIds, setSimulatedIds] = useState<Set<string>>(new Set());
+  const [confirmingId, setConfirmingId] = useState<string | null>(null);
+  const [confirmText, setConfirmText] = useState("");
+  const [executionResult, setExecutionResult] = useState<{ id: string; success: boolean; message: string } | null>(null);
+  const [executedIds, setExecutedIds] = useState<Set<string>>(new Set());
 
   const fetchApprovals = useCallback(async (status: "pending" | "approved" = "pending") => {
     setLoading(true);
     setError(null);
-    setSimulationResult(null);
+    setExecutionResult(null);
     setDecisionError(null);
     try {
       const { supabase } = await import("@/lib/supabase");
@@ -60,18 +61,6 @@ export function PendingApprovalsTable({ onDecision }: PendingApprovalsTableProps
       const { data } = await res.json();
       const recs: PendingRecommendation[] = data || [];
       setRecommendations(recs);
-
-      // For approved view, check which have already been simulated
-      if (status === "approved" && recs.length > 0) {
-        const ids = recs.map((r) => r.id);
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const { data: logs } = await (supabase.from("ads_implementation_logs") as any)
-          .select("recommendation_id")
-          .in("recommendation_id", ids);
-        if (logs) {
-          setSimulatedIds(new Set(logs.map((l: { recommendation_id: string }) => l.recommendation_id)));
-        }
-      }
     } catch (err) {
       console.error("[PendingApprovals] Fetch error:", err);
       setError("Could not load pending approvals.");
@@ -84,34 +73,49 @@ export function PendingApprovalsTable({ onDecision }: PendingApprovalsTableProps
     fetchApprovals(activeView === "needs_review" ? "pending" : "approved");
   }, [fetchApprovals, activeView]);
 
-  const handleSimulate = async (id: string) => {
+  const handleExecute = async (id: string, confirmation?: string) => {
     setProcessingId(id);
-    setSimulationResult(null);
+    setExecutionResult(null);
     try {
       const { data: { session } } = await (await import("@/lib/supabase")).supabase.auth.getSession();
-      const res = await fetch("/api/ads/gateway/simulate", {
+      const res = await fetch("/api/ads/execute", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           Authorization: session?.access_token ? `Bearer ${session.access_token}` : ""
         },
-        body: JSON.stringify({ recommendationId: id })
+        body: JSON.stringify({ recommendationId: id, ...(confirmation ? { confirmation } : {}) })
       });
 
       const data = await res.json();
-      setSimulationResult({ id, success: data.ok, message: data.message });
 
-      if (data.ok) {
-        // Mark as simulated so the button becomes a badge across reloads
-        setSimulatedIds((prev) => new Set([...prev, id]));
+      if (res.status === 400 && data.requiresConfirmation) {
+        setConfirmingId(id);
+        setConfirmText("");
+        setProcessingId(null);
+        return;
+      }
+
+      if (res.status === 409) {
+        setExecutionResult({ id, success: false, message: data.error || "Recommendation is stale. Re-run intel for fresh recommendations." });
+      } else if (data.ok) {
+        setExecutionResult({ id, success: true, message: `Successfully executed: ${data.executed}` });
+        setExecutedIds((prev) => new Set([...prev, id]));
+        // Remove from list after brief delay
+        setTimeout(() => {
+          setRecommendations(prev => prev.filter(r => r.id !== id));
+          setExecutionResult(null);
+        }, 2000);
       } else {
-        console.warn("[Simulator] Simulation failed:", data.code, data.message);
+        setExecutionResult({ id, success: false, message: data.error || "Execution failed" });
       }
     } catch (err) {
-      console.error("[Simulator] Connection error:", err);
-      setSimulationResult({ id, success: false, message: "Network error during simulation." });
+      console.error("[Execute] Connection error:", err);
+      setExecutionResult({ id, success: false, message: "Network error during execution." });
     } finally {
       setProcessingId(null);
+      setConfirmingId(null);
+      setConfirmText("");
     }
   };
 
@@ -169,8 +173,8 @@ export function PendingApprovalsTable({ onDecision }: PendingApprovalsTableProps
         <button
           onClick={() => setActiveView("needs_review")}
           className={`px-4 py-1.5 rounded-lg text-xs font-semibold transition-all ${
-            activeView === "needs_review" 
-              ? "bg-cyan/10 text-cyan border border-cyan/20 shadow-lg shadow-cyan/5" 
+            activeView === "needs_review"
+              ? "bg-cyan/10 text-cyan border border-cyan/20 shadow-lg shadow-cyan/5"
               : "text-muted-foreground hover:text-foreground hover:bg-white/[0.04]"
           }`}
         >
@@ -179,35 +183,28 @@ export function PendingApprovalsTable({ onDecision }: PendingApprovalsTableProps
         <button
           onClick={() => setActiveView("approved")}
           className={`px-4 py-1.5 rounded-lg text-xs font-semibold transition-all ${
-            activeView === "approved" 
-              ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 shadow-lg shadow-emerald-500/5" 
+            activeView === "approved"
+              ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 shadow-lg shadow-emerald-500/5"
               : "text-muted-foreground hover:text-foreground hover:bg-white/[0.04]"
           }`}
         >
-          Approved (Dry-Run Ready)
+          Approved (Execute)
         </button>
       </div>
 
       <div className="space-y-4">
-      <div className="relative overflow-hidden rounded-xl bg-amber-500/5 border border-amber-500/20 p-4">
+      <div className="relative overflow-hidden rounded-xl bg-cyan/5 border border-cyan/20 p-4">
         <div className="flex items-start gap-3">
-          <AlertTriangle className="h-5 w-5 text-amber-500 shrink-0 mt-0.5" />
+          <Info className="h-5 w-5 text-cyan shrink-0 mt-0.5" />
           <div>
-            <h4 className="text-sm font-bold text-amber-400 uppercase tracking-wider">
-              {activeView === "needs_review" ? "Approval Sandbox Mode" : "Dry-Run Simulation Mode"}
+            <h4 className="text-sm font-bold text-cyan uppercase tracking-wider">
+              {activeView === "needs_review" ? "Review Queue" : "Execution Queue"}
             </h4>
-            <p className="text-xs text-amber-400/70 mt-1 leading-relaxed">
-              {activeView === "needs_review" 
-                ? "Decisions made here are recorded in the audit ledger but DO NOT execute changes in Google Ads."
-                : "Simulation proved the orchestration logic works but DID NOT make any real changes to Google Ads."}
-              <br />
-              <strong>Read-Only Environment.</strong>
+            <p className="text-xs text-cyan/70 mt-1 leading-relaxed">
+              {activeView === "needs_review"
+                ? "Approve or reject recommendations. Approved items move to the execution queue."
+                : "Execute approved changes in Google Ads. Red-risk items require typed CONFIRM."}
             </p>
-          </div>
-        </div>
-        <div className="absolute top-0 right-0 p-1">
-          <div className="text-[10px] font-mono text-amber-500/20 uppercase font-black rotate-12 translate-x-1 -translate-y-1 select-none">
-            {activeView === "needs_review" ? "Draft Only" : "Simulation"}
           </div>
         </div>
       </div>
@@ -217,7 +214,7 @@ export function PendingApprovalsTable({ onDecision }: PendingApprovalsTableProps
         <div className="flex items-center gap-2 px-4 py-2.5 rounded-lg bg-red-500/10 border border-red-500/20 text-xs text-red-400">
           <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
           {decisionError}
-          <button onClick={() => setDecisionError(null)} className="ml-auto text-red-400/60 hover:text-red-400">✕</button>
+          <button onClick={() => setDecisionError(null)} className="ml-auto text-red-400/60 hover:text-red-400">&#x2715;</button>
         </div>
       )}
 
@@ -225,7 +222,7 @@ export function PendingApprovalsTable({ onDecision }: PendingApprovalsTableProps
         <div className="text-center py-12 border border-white/[0.06] rounded-xl bg-white/[0.02]">
           <XCircle className="h-10 w-10 text-red-400 mx-auto mb-3 opacity-50" />
           <p className="text-sm text-muted-foreground">{error}</p>
-          <button 
+          <button
             onClick={() => fetchApprovals(activeView === "needs_review" ? "pending" : "approved")}
             className="mt-4 text-xs text-cyan hover:underline"
           >
@@ -239,9 +236,9 @@ export function PendingApprovalsTable({ onDecision }: PendingApprovalsTableProps
             {activeView === "needs_review" ? "No Pending Approvals" : "No Approved Items"}
           </h3>
           <p className="text-sm text-muted-foreground/40 max-w-xs mx-auto mt-2">
-            {activeView === "needs_review" 
+            {activeView === "needs_review"
               ? "Run an AI Review to generate new recommendations."
-              : "Approve a recommendation to prepare it for simulation."}
+              : "Approve a recommendation to queue it for execution."}
           </p>
         </div>
       ) : (
@@ -264,14 +261,14 @@ export function PendingApprovalsTable({ onDecision }: PendingApprovalsTableProps
                   <th className="text-left px-4 py-3 font-medium">Rationale</th>
                   <th className="text-center px-4 py-3 font-medium">Risk</th>
                   <th className="text-right px-4 py-3 font-medium">
-                    {activeView === "needs_review" ? "Actions" : "Execution Test"}
+                    {activeView === "needs_review" ? "Actions" : "Execute"}
                   </th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-white/[0.03]">
                 <AnimatePresence mode="popLayout">
                   {recommendations.map((rec) => (
-                    <motion.tr 
+                    <motion.tr
                       key={rec.id}
                       layout
                       initial={{ opacity: 0 }}
@@ -320,7 +317,7 @@ export function PendingApprovalsTable({ onDecision }: PendingApprovalsTableProps
                                 onClick={() => handleDecision(rec.id, "approved")}
                                 disabled={!!processingId}
                                 className={`p-2 rounded-lg border border-emerald-500/20 bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 transition-all ${processingId === rec.id ? "opacity-50 animate-pulse" : ""}`}
-                                title="Record Approval"
+                                title="Approve"
                               >
                                 <CheckCircle2 className="h-4 w-4" />
                               </button>
@@ -335,33 +332,74 @@ export function PendingApprovalsTable({ onDecision }: PendingApprovalsTableProps
                             </div>
                           ) : (
                             <div className="flex flex-col items-end gap-1.5">
-                              {simulatedIds.has(rec.id) ? (
+                              {executedIds.has(rec.id) ? (
                                 <span className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-emerald-500/20 bg-emerald-500/10 text-[11px] font-bold uppercase tracking-wider text-emerald-400">
                                   <CheckCircle2 className="h-3.5 w-3.5" />
-                                  Simulated
+                                  Executed
                                 </span>
+                              ) : confirmingId === rec.id ? (
+                                <div className="flex flex-col items-end gap-1.5">
+                                  <p className="text-[10px] text-red-400 font-medium">Type CONFIRM to execute red-risk change</p>
+                                  <div className="flex items-center gap-1.5">
+                                    <input
+                                      type="text"
+                                      value={confirmText}
+                                      onChange={(e) => setConfirmText(e.target.value)}
+                                      placeholder="CONFIRM"
+                                      className="w-24 px-2 py-1 rounded border border-red-500/30 bg-red-500/5 text-xs text-foreground placeholder:text-red-400/40 focus:outline-none focus:border-red-500/60"
+                                      autoFocus
+                                    />
+                                    <button
+                                      onClick={() => handleExecute(rec.id, confirmText)}
+                                      disabled={confirmText !== "CONFIRM" || !!processingId}
+                                      className={`px-3 py-1 rounded-lg border text-[11px] font-bold uppercase tracking-wider transition-all ${
+                                        confirmText === "CONFIRM"
+                                          ? "border-red-500/30 bg-red-500/10 text-red-400 hover:bg-red-500/20"
+                                          : "border-white/[0.06] bg-white/[0.02] text-muted-foreground/40 cursor-not-allowed"
+                                      }`}
+                                    >
+                                      Execute
+                                    </button>
+                                    <button
+                                      onClick={() => { setConfirmingId(null); setConfirmText(""); }}
+                                      className="px-2 py-1 rounded-lg border border-white/[0.06] bg-white/[0.02] text-[11px] text-muted-foreground/60 hover:text-foreground transition-all"
+                                    >
+                                      Cancel
+                                    </button>
+                                  </div>
+                                </div>
                               ) : (
                                 <button
-                                  onClick={() => handleSimulate(rec.id)}
+                                  onClick={() => handleExecute(rec.id)}
                                   disabled={!!processingId}
-                                  className={`flex items-center gap-2 px-3 py-1.5 rounded-lg border border-white/[0.06] bg-white/[0.04] text-[11px] font-bold uppercase tracking-wider hover:bg-white/[0.08] transition-all ${processingId === rec.id ? "opacity-50" : ""}`}
+                                  className={`flex items-center gap-2 px-3 py-1.5 rounded-lg border text-[11px] font-bold uppercase tracking-wider transition-all ${
+                                    processingId === rec.id ? "opacity-50" : ""
+                                  } ${
+                                    rec.risk_level === "red"
+                                      ? "border-amber-500/20 bg-amber-500/10 text-amber-400 hover:bg-amber-500/20"
+                                      : "border-cyan/20 bg-cyan/10 text-cyan hover:bg-cyan/20"
+                                  }`}
                                 >
                                   {processingId === rec.id ? (
                                     <Loader2 className="h-3.5 w-3.5 animate-spin" />
                                   ) : (
-                                    <Zap className="h-3.5 w-3.5 text-amber-400" />
+                                    <Zap className="h-3.5 w-3.5" />
                                   )}
-                                  Run Dry-Run
+                                  Execute in Google Ads
                                 </button>
                               )}
 
-                              {simulationResult?.id === rec.id && !simulatedIds.has(rec.id) && (
+                              {executionResult?.id === rec.id && !executedIds.has(rec.id) && (
                                 <motion.div
                                   initial={{ opacity: 0, y: 5 }}
                                   animate={{ opacity: 1, y: 0 }}
-                                  className="text-[10px] font-medium px-2 py-0.5 rounded text-amber-400 bg-amber-400/10"
+                                  className={`text-[10px] font-medium px-2 py-0.5 rounded ${
+                                    executionResult.success
+                                      ? "text-emerald-400 bg-emerald-400/10"
+                                      : "text-red-400 bg-red-400/10"
+                                  }`}
                                 >
-                                  {simulationResult.message}
+                                  {executionResult.message}
                                 </motion.div>
                               )}
                             </div>

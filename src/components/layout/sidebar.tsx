@@ -30,11 +30,12 @@ interface SidebarBadges {
   fbCraigslist: number;
   ppl: number;
   gmailConnected: boolean;
+  adsAlerts: number;
 }
 
 function useSidebarBadges(): SidebarBadges {
   const { currentUser } = useSentinelStore();
-  const [badges, setBadges] = useState<SidebarBadges>({ prospects: 0, fbCraigslist: 0, ppl: 0, gmailConnected: false });
+  const [badges, setBadges] = useState<SidebarBadges>({ prospects: 0, fbCraigslist: 0, ppl: 0, gmailConnected: false, adsAlerts: 0 });
 
   useEffect(() => {
     const fetchCounts = async () => {
@@ -53,6 +54,11 @@ function useSidebarBadges(): SidebarBadges {
         .select("id", { count: "exact", head: true })
         .eq("source", "ppl");
 
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { count: adsAlerts } = await (supabase.from("ads_alerts") as any)
+        .select("id", { count: "exact", head: true })
+        .eq("read", false);
+
       let gmailConnected = false;
       if (currentUser?.id) {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -70,6 +76,7 @@ function useSidebarBadges(): SidebarBadges {
         fbCraigslist: fbCl ?? 0,
         ppl: ppl ?? 0,
         gmailConnected,
+        adsAlerts: adsAlerts ?? 0,
       });
     };
 
@@ -79,6 +86,7 @@ function useSidebarBadges(): SidebarBadges {
       .channel("sidebar_badges")
       .on("postgres_changes", { event: "*", schema: "public", table: "leads" }, () => fetchCounts())
       .on("postgres_changes", { event: "*", schema: "public", table: "user_profiles" }, () => fetchCounts())
+      .on("postgres_changes", { event: "*", schema: "public", table: "ads_alerts" }, () => fetchCounts())
       .subscribe();
 
     return () => { supabase.removeChannel(channel); };
@@ -121,7 +129,7 @@ const sections: NavSection[] = [
   {
     title: "Growth",
     items: [
-      { label: "Ads", href: "/ads", icon: Target },
+      { label: "Ads", href: "/ads", icon: Target, badge: "ads-alerts" },
       { label: "Analytics", href: "/analytics", icon: BarChart3 },
     ],
   },
@@ -207,6 +215,7 @@ function NavLink({ item, depth = 0, badges }: { item: NavItem; depth?: number; b
       {(() => {
         if (!item.badge || !badges) return null;
         const dot =
+          item.badge === "ads-alerts" && badges.adsAlerts > 0 ? "bg-red-500" :
           item.badge === "gmail-connected" && badges.gmailConnected ? "bg-cyan" :
           item.badge === "prospect-dot" && badges.prospects > 0 ? "bg-red-500" :
           item.badge === "fsbo-dot" && badges.fbCraigslist > 0 ? "bg-red-500" :
