@@ -63,29 +63,7 @@ interface AdsCampaign {
 
 type MarketFilter = "all" | "spokane" | "kootenai";
 
-interface AdReview {
-  id: string;
-  review_type: string;
-  summary: string;
-  findings: Array<{ severity: string; title: string; detail: string }>;
-  suggestions: Array<{ action: string; target: string; target_id: string; old_value: string; new_value: string; reason: string }>;
-  ai_engine: string;
-  created_at: string;
-}
-
-interface AdAction {
-  id: string;
-  action_type: string;
-  target_entity: string;
-  target_id: string;
-  old_value: string | null;
-  new_value: string | null;
-  status: string;
-  created_at: string;
-  ad_reviews?: { review_type: string; summary: string };
-}
-
-type TabId = "dashboard" | "approvals" | "review" | "intelligence" | "copylab" | "landing" | "chat" | "system-prompt";
+type TabId = "dashboard" | "approvals" | "intelligence" | "copylab" | "landing" | "chat" | "system-prompt";
 
 // ── Helpers ─────────────────────────────────────────────────────────
 
@@ -127,8 +105,7 @@ export default function AdsPage() {
   const tabs: { id: TabId; label: string; icon: React.ElementType }[] = [
     { id: "dashboard", label: "Performance", icon: BarChart3 },
     { id: "approvals", label: "Approvals", icon: Zap },
-    { id: "review", label: "AI Review", icon: Brain },
-    { id: "intelligence", label: "Key Intel", icon: Zap },
+    { id: "intelligence", label: "Key Intel", icon: Brain },
     { id: "copylab", label: "Ad Copy Lab", icon: FileText },
     { id: "landing", label: "Landing Page", icon: Globe },
     { id: "chat", label: "Chat", icon: Sparkles },
@@ -195,7 +172,6 @@ export default function AdsPage() {
           >
             {activeTab === "dashboard" && <DashboardTab />}
             {activeTab === "approvals" && <PendingApprovalsTable />}
-            {activeTab === "review" && <ReviewTab />}
             {activeTab === "intelligence" && <IntelligenceTab />}
             {activeTab === "copylab" && <CopyLabTab />}
             {activeTab === "landing" && <LandingTab />}
@@ -511,240 +487,6 @@ function MetricCard({ icon: Icon, label, value, trend }: { icon: React.ElementTy
           {trend >= 0 ? "+" : ""}{trend.toFixed(1)}%
         </div>
       )}
-    </div>
-  );
-}
-
-// ── AI Review Tab ───────────────────────────────────────────────────
-
-function ReviewTab() {
-  const [reviews, setReviews] = useState<AdReview[]>([]);
-  const [actions, setActions] = useState<AdAction[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [reviewing, setReviewing] = useState(false);
-  const [reviewType, setReviewType] = useState<string>("performance");
-
-  const loadData = useCallback(async () => {
-    setLoading(true);
-    try {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const [{ data: revs }, { data: acts }] = await Promise.all([
-        (supabase.from("ad_reviews") as any)
-          .select("*")
-          .order("created_at", { ascending: false })
-          .limit(20),
-        (supabase.from("ad_actions") as any)
-          .select("*, ad_reviews(review_type, summary)")
-          .eq("status", "suggested")
-          .order("created_at", { ascending: false })
-          .limit(50),
-      ]);
-      setReviews(revs ?? []);
-      setActions(acts ?? []);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => { loadData(); }, [loadData]);
-
-  const handleRunReview = async () => {
-    setReviewing(true);
-    try {
-      const headers = await getAuthHeaders();
-      await fetch("/api/ads/review", {
-        method: "POST",
-        headers: { ...headers, "Content-Type": "application/json" },
-        body: JSON.stringify({ reviewType }),
-      });
-      await loadData();
-    } catch (err) {
-      console.error("Review failed:", err);
-    }
-    setReviewing(false);
-  };
-
-  const handleAction = async (actionId: string, decision: "approved" | "rejected") => {
-    try {
-      const headers = await getAuthHeaders();
-      await fetch("/api/ads/actions", {
-        method: "PATCH",
-        headers: { ...headers, "Content-Type": "application/json" },
-        body: JSON.stringify({ actionId, decision }),
-      });
-      setActions((prev) => prev.filter((a) => a.id !== actionId));
-    } catch (err) {
-      console.error("Action failed:", err);
-    }
-  };
-
-  if (loading) {
-    return <div className="flex items-center justify-center py-20"><Loader2 className="h-6 w-6 animate-spin text-cyan/50" /></div>;
-  }
-
-  return (
-    <div className="space-y-6">
-      {/* Run Review */}
-      <div className="flex items-center gap-3">
-        <select
-          value={reviewType}
-          onChange={(e) => setReviewType(e.target.value)}
-          className="bg-white/[0.04] border border-white/[0.08] rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-cyan/30"
-        >
-          <option value="performance">Performance Review</option>
-          <option value="copy">Copy Review</option>
-          <option value="strategy">Strategy Review</option>
-        </select>
-        <button
-          onClick={handleRunReview}
-          disabled={reviewing}
-          className="flex items-center gap-2 px-4 py-2 text-sm rounded-lg bg-cyan/10 text-cyan hover:bg-cyan/20 border border-cyan/20 transition disabled:opacity-50"
-        >
-          <Brain className={`h-4 w-4 ${reviewing ? "animate-pulse" : ""}`} />
-          {reviewing ? "Analyzing..." : "Run AI Review"}
-        </button>
-      </div>
-
-      {/* Pending Actions */}
-      {actions.length > 0 && (
-        <div className="glass-strong rounded-xl border border-amber-500/20 overflow-hidden">
-          <div className="px-4 py-3 border-b border-white/[0.06] flex items-center gap-2">
-            <Zap className="h-4 w-4 text-amber-400" />
-            <h3 className="text-sm font-semibold">Pending Suggestions ({actions.length})</h3>
-          </div>
-          <div className="divide-y divide-white/[0.04]">
-            {actions.map((action) => (
-              <div key={action.id} className="px-4 py-3 flex items-center gap-4">
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs px-2 py-0.5 rounded-full bg-cyan/10 text-cyan font-medium">
-                      {action.action_type.replace("_", " ")}
-                    </span>
-                    <span className="text-sm font-medium truncate">{action.target_entity}</span>
-                  </div>
-                  {action.old_value && action.new_value && (
-                    <div className="text-xs text-muted-foreground/60 mt-1">
-                      {action.old_value} → <span className="text-cyan">{action.new_value}</span>
-                    </div>
-                  )}
-                </div>
-                <div className="flex items-center gap-2 shrink-0">
-                  <button
-                    onClick={() => handleAction(action.id, "approved")}
-                    className="p-1.5 rounded-lg hover:bg-emerald-500/10 text-emerald-400 transition"
-                    title="Approve"
-                  >
-                    <CheckCircle2 className="h-5 w-5" />
-                  </button>
-                  <button
-                    onClick={() => handleAction(action.id, "rejected")}
-                    className="p-1.5 rounded-lg hover:bg-red-500/10 text-red-400 transition"
-                    title="Reject"
-                  >
-                    <XCircle className="h-5 w-5" />
-                  </button>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* Review History */}
-      {reviews.length === 0 ? (
-        <div className="text-center py-16">
-          <Brain className="h-12 w-12 mx-auto text-muted-foreground/30 mb-4" />
-          <h3 className="text-lg font-medium text-muted-foreground mb-2">No Reviews Yet</h3>
-          <p className="text-sm text-muted-foreground/60">Run an AI review to get Claude&apos;s analysis of your campaigns.</p>
-        </div>
-      ) : (
-        <div className="space-y-4">
-          {reviews.map((review) => (
-            <ReviewCard key={review.id} review={review} />
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
-function ReviewCard({ review }: { review: AdReview }) {
-  const [expanded, setExpanded] = useState(false);
-  const severityIcon = {
-    critical: <AlertTriangle className="h-4 w-4 text-red-400" />,
-    warning: <AlertTriangle className="h-4 w-4 text-amber-400" />,
-    info: <Info className="h-4 w-4 text-cyan" />,
-  };
-
-  return (
-    <div className="glass-strong rounded-xl border border-white/[0.06] overflow-hidden">
-      <button
-        onClick={() => setExpanded(!expanded)}
-        className="w-full px-4 py-3 flex items-center gap-3 text-left hover:bg-white/[0.02] transition"
-      >
-        <Brain className="h-5 w-5 text-cyan shrink-0" />
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2">
-            <span className="text-xs px-2 py-0.5 rounded-full bg-cyan/10 text-cyan font-medium capitalize">
-              {review.review_type}
-            </span>
-            <span className="text-xs text-muted-foreground/40">
-              {new Date(review.created_at).toLocaleDateString()}
-            </span>
-          </div>
-          <p className="text-sm mt-1 truncate">{review.summary}</p>
-        </div>
-        <ChevronDown className={`h-4 w-4 text-muted-foreground/40 transition-transform ${expanded ? "rotate-180" : ""}`} />
-      </button>
-      <AnimatePresence>
-        {expanded && (
-          <motion.div
-            initial={{ height: 0, opacity: 0 }}
-            animate={{ height: "auto", opacity: 1 }}
-            exit={{ height: 0, opacity: 0 }}
-            transition={{ duration: 0.2 }}
-            className="overflow-hidden"
-          >
-            <div className="px-4 pb-4 space-y-3 border-t border-white/[0.04] pt-3">
-              {/* Findings */}
-              {review.findings.length > 0 && (
-                <div className="space-y-2">
-                  <h4 className="text-xs font-semibold uppercase text-muted-foreground/60 tracking-wide">Findings</h4>
-                  {review.findings.map((f, i) => (
-                    <div key={i} className="flex items-start gap-2 text-sm">
-                      {severityIcon[f.severity as keyof typeof severityIcon] ?? severityIcon.info}
-                      <div>
-                        <span className="font-medium">{f.title}</span>
-                        <p className="text-muted-foreground/60 text-xs mt-0.5">{f.detail}</p>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-              {/* Suggestions */}
-              {review.suggestions.length > 0 && (
-                <div className="space-y-2">
-                  <h4 className="text-xs font-semibold uppercase text-muted-foreground/60 tracking-wide">Suggestions</h4>
-                  {review.suggestions.map((s, i) => (
-                    <div key={i} className="bg-white/[0.02] rounded-lg p-3 text-sm">
-                      <div className="flex items-center gap-2 mb-1">
-                        <span className="text-xs px-1.5 py-0.5 rounded bg-cyan/10 text-cyan">{s.action}</span>
-                        <span className="font-medium">{s.target}</span>
-                      </div>
-                      {s.old_value && s.new_value && (
-                        <div className="text-xs text-muted-foreground/60">
-                          <span className="line-through">{s.old_value}</span> → <span className="text-cyan">{s.new_value}</span>
-                        </div>
-                      )}
-                      <p className="text-xs text-muted-foreground/50 mt-1">{s.reason}</p>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
     </div>
   );
 }
@@ -1706,8 +1448,18 @@ function CopyLabTab() {
 
 // ── Landing Page Tab ────────────────────────────────────────────────
 
+interface LandingReview {
+  id: string;
+  review_type: string;
+  summary: string;
+  findings: Array<{ severity: string; title: string; detail: string }>;
+  suggestions: Array<{ action: string; target: string; target_id: string; old_value: string; new_value: string; reason: string }>;
+  ai_engine: string;
+  created_at: string;
+}
+
 function LandingTab() {
-  const [review, setReview] = useState<AdReview | null>(null);
+  const [review, setReview] = useState<LandingReview | null>(null);
   const [loading, setLoading] = useState(true);
   const [reviewing, setReviewing] = useState(false);
 

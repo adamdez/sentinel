@@ -198,52 +198,32 @@ async function runIntelligenceExtraction(
   // ── Primary intelligence extraction (Opus 4.6) ──────────────────
   const intelligencePrompt = `## KEY INTELLIGENCE EXTRACTION
 
-You have access to the full account data below. Your job is to extract and rank the TOP 10-20 most important data points, signals, and insights that the operators need to see.
+Extract and rank the TOP 10-12 most important data points from the account data below. This is a prioritized intelligence briefing, not a review.
 
-This is NOT a review. This is a prioritized intelligence briefing.
+Categories: waste, opportunity, competitive, trend, quality, attribution, structural, market, creative, risk.
 
-For each data point, provide:
-- The signal (what the data shows)
-- Why it matters (business impact)
-- Confidence level (confirmed / inferred / uncertain)
-- Urgency (act now / this week / monitor / FYI)
-- Dollar impact estimate where possible
-- Market (spokane / kootenai / both)
-
-Categories to extract intelligence from:
-1. WASTE SIGNALS — money being burned on non-converting or off-target traffic
-2. OPPORTUNITY SIGNALS — converting patterns that could be expanded
-3. COMPETITIVE SIGNALS — what CTR/impression data suggests about auction position
-4. TREND SIGNALS — what's improving, declining, or shifting over time
-5. QUALITY SIGNALS — search term quality, keyword relevance, intent alignment
-6. ATTRIBUTION SIGNALS — gaps in tracking or conversion measurement
-7. STRUCTURAL SIGNALS — campaign/ad group issues affecting performance
-8. MARKET SIGNALS — Spokane vs Kootenai differences
-9. CREATIVE SIGNALS — ad copy gaps or opportunities (based on search intent mismatches)
-10. RISK SIGNALS — things that could go wrong or are already going wrong
-
-Rank ALL data points by dollar impact (highest first). Stop at 20 data points maximum.
+Rank by dollar impact (highest first). Stop at 12 data points maximum. Keep all string values concise (1-2 sentences max).
 
 Respond with a single JSON object (no markdown fences):
 {
   "briefing_date": "${new Date().toISOString().split("T")[0]}",
   "account_status": "healthy|caution|warning|critical",
-  "executive_summary": "<3-4 sentences — what the owner needs to know RIGHT NOW>",
+  "executive_summary": "<2-3 sentences — what the owner needs to know NOW>",
   "total_estimated_monthly_waste": <number>,
   "total_estimated_monthly_opportunity": <number>,
   "data_points": [
     {
-      "rank": <1-50>,
+      "rank": <1-12>,
       "category": "waste|opportunity|competitive|trend|quality|attribution|structural|market|creative|risk",
-      "signal": "<what the data shows>",
-      "why_it_matters": "<business impact>",
+      "signal": "<1 sentence: what the data shows>",
+      "why_it_matters": "<1 sentence: business impact>",
       "confidence": "confirmed|inferred|uncertain",
       "urgency": "act_now|this_week|monitor|fyi",
-      "dollar_impact": "<estimated monthly $ impact or 'unquantifiable'>",
+      "dollar_impact": "<estimated monthly $ or 'unquantifiable'>",
       "market": "spokane|kootenai|both",
-      "entity": "<campaign/keyword/search term name if applicable>",
+      "entity": "<entity name if applicable>",
       "entity_id": "<id if applicable>",
-      "recommended_action": "<specific next step>"
+      "recommended_action": "<1 sentence: specific next step>"
     }
   ]
 }
