@@ -15,6 +15,18 @@
     {
       "path": "/api/enrichment/re-evaluate",
       "schedule": "0 4 * * *"
+    },
+    {
+      "path": "/api/ads/sync",
+      "schedule": "0 15 * * *"
+    },
+    {
+      "path": "/api/ads/cycle?mode=daily",
+      "schedule": "30 15 * * *"
+    },
+    {
+      "path": "/api/ads/cycle?mode=weekly",
+      "schedule": "0 15 * * 0"
     }
   ]
 }

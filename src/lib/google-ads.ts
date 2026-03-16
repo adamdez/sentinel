@@ -205,10 +205,7 @@ export async function fetchCampaignPerformance(
       metrics.average_cpc,
       metrics.conversions,
       metrics.cost_micros,
-      metrics.conversions_value,
-      metrics.search_impression_share,
-      metrics.search_top_impression_percentage,
-      metrics.search_absolute_top_impression_percentage
+      metrics.conversions_value
     FROM campaign
     WHERE segments.date BETWEEN '${startDate}' AND '${endDate}'
       AND campaign.status != 'REMOVED'
