@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@/lib/supabase";
 import { analyzeWithClaude, extractJsonObject } from "@/lib/claude-client";
 import { runAdversarialReview } from "@/lib/ads/adversarial-review";
+import { convertIntelToRecommendations } from "@/lib/ads/intel-to-recommendations";
 
 // Compact system prompt for intelligence extraction only.
 // The full 500-line ops prompt is too large for this route — it pushes
@@ -17,13 +18,68 @@ export const runtime = "nodejs";
 export const maxDuration = 120;
 
 /**
+ * GET /api/ads/intelligence
+ *
+ * Returns the latest saved intelligence briefing from the database.
+ */
+export async function GET(req: NextRequest) {
+  const sb = createServerClient();
+
+  const authHeader = req.headers.get("authorization");
+  const token = authHeader?.replace("Bearer ", "");
+  const { data: { user }, error: authErr } = await sb.auth.getUser(token ?? "");
+  if (authErr || !user) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: briefing, error: fetchErr } = await (sb.from("ads_intelligence_briefings") as any)
+      .select("*")
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (fetchErr) {
+      console.error("[Intelligence/GET] Fetch error:", fetchErr);
+      return NextResponse.json({ error: "Failed to load briefing" }, { status: 500 });
+    }
+
+    if (!briefing) {
+      return NextResponse.json({ ok: true, intelligence: null, savedAt: null });
+    }
+
+    return NextResponse.json({
+      ok: true,
+      intelligence: {
+        briefing_date: briefing.briefing_date,
+        account_status: briefing.account_status,
+        executive_summary: briefing.executive_summary,
+        total_estimated_monthly_waste: briefing.total_estimated_monthly_waste,
+        total_estimated_monthly_opportunity: briefing.total_estimated_monthly_opportunity,
+        data_points: briefing.data_points,
+      },
+      adversarial: briefing.adversarial_result,
+      savedAt: briefing.created_at,
+      briefingId: briefing.id,
+    });
+  } catch (err) {
+    console.error("[Intelligence/GET]", err);
+    return NextResponse.json(
+      { error: err instanceof Error ? err.message : "Failed to load briefing" },
+      { status: 500 },
+    );
+  }
+}
+
+/**
  * POST /api/ads/intelligence
  *
  * Dual-model intelligence extraction:
  * 1. Opus 4.6 identifies and ranks the top 30-50 actionable data points
  * 2. GPT-5.4 Pro challenges rankings, flags blind spots, re-scores confidence
  *
- * Returns a reconciled intelligence briefing.
+ * Returns a reconciled intelligence briefing, saved to the database.
  */
 export async function POST(req: NextRequest) {
   const sb = createServerClient();
@@ -34,6 +90,12 @@ export async function POST(req: NextRequest) {
   if (authErr || !user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
+
+  // Safely parse optional request body (client may send empty body)
+  const body = await req.json().catch(() => ({}));
+  const trigger = (body?.trigger === "daily_cron" || body?.trigger === "weekly_cron")
+    ? body.trigger
+    : "manual";
 
   const apiKey = process.env.ANTHROPIC_API_KEY;
   const openaiKey = process.env.OPENAI_API_KEY;
@@ -217,18 +279,81 @@ ${rawDataContext}`;
       }
     }
 
+    // ── Persist briefing to database ────────────────────────────────
+    const adversarialPayload = adversarialResult ? {
+      verdict: adversarialResult.verdict,
+      grade: adversarialResult.adversarialGrade,
+      assessment: adversarialResult.overallAssessment,
+      challenges: adversarialResult.challenges,
+      missedOpportunities: adversarialResult.missedOpportunities,
+      overconfidentClaims: adversarialResult.overconfidentClaims,
+      finalInstruction: adversarialResult.finalInstruction,
+    } : null;
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const dataPoints = (parsed.data_points ?? []) as any[];
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: savedBriefing, error: saveErr } = await (sb.from("ads_intelligence_briefings") as any)
+      .insert({
+        briefing_date: parsed.briefing_date ?? new Date().toISOString().split("T")[0],
+        account_status: parsed.account_status ?? "caution",
+        executive_summary: parsed.executive_summary ?? "",
+        total_estimated_monthly_waste: parsed.total_estimated_monthly_waste ?? 0,
+        total_estimated_monthly_opportunity: parsed.total_estimated_monthly_opportunity ?? 0,
+        data_points: dataPoints,
+        adversarial_result: adversarialPayload,
+        trigger,
+      })
+      .select("id, created_at")
+      .single();
+
+    if (saveErr) {
+      console.error("[Intelligence] Failed to save briefing:", saveErr);
+      // Non-blocking — still return the intelligence data
+    }
+
+    const briefingId = savedBriefing?.id ?? null;
+    const savedAt = savedBriefing?.created_at ?? new Date().toISOString();
+
+    // ── Convert actionable intel to recommendations ──────────────────
+    let recommendations = { created: 0, skipped: 0, total: 0 };
+    if (briefingId && dataPoints.length > 0) {
+      try {
+        recommendations = await convertIntelToRecommendations(sb, dataPoints, briefingId);
+      } catch (recErr) {
+        console.error("[Intelligence] Recommendation conversion failed (non-blocking):", recErr);
+      }
+    }
+
+    // ── Create alert if any act_now urgency data points ─────────────
+    const actNowPoints = dataPoints.filter(
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (dp: any) => dp.urgency === "act_now"
+    );
+    if (actNowPoints.length > 0 && briefingId) {
+      try {
+        const alertMessage = actNowPoints.length === 1
+          ? `Critical intel: ${actNowPoints[0].signal}`
+          : `${actNowPoints.length} critical signals require immediate action`;
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        await (sb.from("ads_alerts") as any).insert({
+          briefing_id: briefingId,
+          severity: "critical",
+          message: alertMessage,
+        });
+      } catch (alertErr) {
+        console.error("[Intelligence] Alert creation failed (non-blocking):", alertErr);
+      }
+    }
+
     return NextResponse.json({
       ok: true,
       intelligence: parsed,
-      adversarial: adversarialResult ? {
-        verdict: adversarialResult.verdict,
-        grade: adversarialResult.adversarialGrade,
-        assessment: adversarialResult.overallAssessment,
-        challenges: adversarialResult.challenges,
-        missedOpportunities: adversarialResult.missedOpportunities,
-        overconfidentClaims: adversarialResult.overconfidentClaims,
-        finalInstruction: adversarialResult.finalInstruction,
-      } : null,
+      adversarial: adversarialPayload,
+      savedAt,
+      briefingId,
+      recommendations,
     });
   } catch (err) {
     if (err instanceof Error) {

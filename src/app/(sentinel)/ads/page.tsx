@@ -784,34 +784,65 @@ interface AdversarialIntel {
   finalInstruction: string;
 }
 
-const INTEL_CACHE_KEY = "ads_intelligence_cache";
-
 function IntelligenceTab() {
   const [intelligence, setIntelligence] = useState<IntelligenceData | null>(null);
   const [adversarial, setAdversarial] = useState<AdversarialIntel | null>(null);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [extracting, setExtracting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [categoryFilter, setCategoryFilter] = useState<string>("all");
   const [urgencyFilter, setUrgencyFilter] = useState<string>("all");
-  const [cachedAt, setCachedAt] = useState<string | null>(null);
+  const [savedAt, setSavedAt] = useState<string | null>(null);
+  const [initialized, setInitialized] = useState(false);
 
-  // Load from localStorage on mount
+  // Load latest briefing from server on mount
   useEffect(() => {
-    try {
-      const raw = localStorage.getItem(INTEL_CACHE_KEY);
-      if (raw) {
-        const cached = JSON.parse(raw);
-        if (cached.intelligence) setIntelligence(cached.intelligence);
-        if (cached.adversarial) setAdversarial(cached.adversarial);
-        if (cached.savedAt) setCachedAt(cached.savedAt);
+    let cancelled = false;
+    (async () => {
+      try {
+        const headers = await getAuthHeaders();
+        const res = await fetch("/api/ads/intelligence", {
+          method: "GET",
+          headers,
+        });
+        if (!res.ok) {
+          const data = await res.json();
+          if (!cancelled) setError(data.error || "Failed to load briefing");
+          return;
+        }
+        const data = await res.json();
+        if (!cancelled) {
+          if (data.intelligence) {
+            setIntelligence(data.intelligence);
+            setAdversarial(data.adversarial ?? null);
+            setSavedAt(data.savedAt ?? null);
+          }
+        }
+      } catch (err) {
+        if (!cancelled) setError(err instanceof Error ? err.message : "Failed to load briefing");
+      } finally {
+        if (!cancelled) {
+          setLoading(false);
+          setInitialized(true);
+        }
       }
-    } catch {
-      // ignore corrupt cache
-    }
+    })();
+    return () => { cancelled = true; };
   }, []);
 
+  // Format the age of the briefing for display
+  const briefingAge = (() => {
+    if (!savedAt) return null;
+    const diffMs = Date.now() - new Date(savedAt).getTime();
+    const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
+    const diffDays = Math.floor(diffHours / 24);
+    if (diffDays > 0) return { text: `Updated ${diffDays} day${diffDays > 1 ? "s" : ""} ago`, stale: diffDays >= 1 };
+    if (diffHours > 0) return { text: `Updated ${diffHours} hour${diffHours > 1 ? "s" : ""} ago`, stale: diffHours >= 24 };
+    return { text: "Updated just now", stale: false };
+  })();
+
   const handleExtract = async () => {
-    setLoading(true);
+    setExtracting(true);
     setError(null);
     try {
       const headers = await getAuthHeaders();
@@ -825,23 +856,13 @@ function IntelligenceTab() {
         return;
       }
       const data = await res.json();
-      const savedAt = new Date().toISOString();
       setIntelligence(data.intelligence);
       setAdversarial(data.adversarial);
-      setCachedAt(savedAt);
-      try {
-        localStorage.setItem(INTEL_CACHE_KEY, JSON.stringify({
-          intelligence: data.intelligence,
-          adversarial: data.adversarial,
-          savedAt,
-        }));
-      } catch {
-        // localStorage full or unavailable — data still shown in memory
-      }
+      setSavedAt(data.savedAt ?? new Date().toISOString());
     } catch (err) {
       setError(err instanceof Error ? err.message : "Request failed");
     } finally {
-      setLoading(false);
+      setExtracting(false);
     }
   };
 
@@ -880,38 +901,16 @@ function IntelligenceTab() {
 
   const categories = [...new Set((intelligence?.data_points ?? []).map((dp) => dp.category))];
 
-  if (!intelligence && !loading && !error) {
+  if (loading || !initialized) {
     return (
-      <div className="space-y-6">
-        <div className="flex items-start gap-2 p-3 rounded-lg bg-cyan/5 border border-cyan/10 text-xs text-muted-foreground">
-          <Info className="h-4 w-4 text-cyan/50 shrink-0 mt-0.5" />
-          <div>
-            <span className="text-foreground/80 font-medium">Dual-model intelligence extraction.</span>{" "}
-            Opus 4.6 scans all account data and ranks the top 30-50 most important signals.
-            GPT-5.4 Pro then challenges the rankings, flags blind spots, and adjusts confidence levels.
-          </div>
-        </div>
-
-        <div className="text-center py-16">
-          <Zap className="h-12 w-12 mx-auto text-muted-foreground/30 mb-4" />
-          <h3 className="text-lg font-medium text-muted-foreground mb-2">Key Intelligence</h3>
-          <p className="text-sm text-muted-foreground/60 max-w-md mx-auto mb-6">
-            Extract and rank the most important data points from your entire account.
-            Every signal is dollar-quantified and adversarially challenged.
-          </p>
-          <button
-            onClick={handleExtract}
-            className="flex items-center gap-2 px-6 py-2.5 text-sm rounded-lg bg-cyan/10 text-cyan hover:bg-cyan/20 border border-cyan/20 transition mx-auto"
-          >
-            <Zap className="h-4 w-4" />
-            Extract Intelligence Briefing
-          </button>
-        </div>
+      <div className="text-center py-20">
+        <Loader2 className="h-8 w-8 animate-spin text-cyan/50 mx-auto mb-4" />
+        <p className="text-sm text-muted-foreground">Loading intelligence briefing...</p>
       </div>
     );
   }
 
-  if (loading) {
+  if (extracting) {
     return (
       <div className="text-center py-20">
         <Loader2 className="h-8 w-8 animate-spin text-cyan/50 mx-auto mb-4" />
@@ -933,6 +932,37 @@ function IntelligenceTab() {
     );
   }
 
+  if (!intelligence) {
+    return (
+      <div className="space-y-6">
+        <div className="flex items-start gap-2 p-3 rounded-lg bg-cyan/5 border border-cyan/10 text-xs text-muted-foreground">
+          <Info className="h-4 w-4 text-cyan/50 shrink-0 mt-0.5" />
+          <div>
+            <span className="text-foreground/80 font-medium">Dual-model intelligence extraction.</span>{" "}
+            Opus 4.6 scans all account data and ranks the top 30-50 most important signals.
+            GPT-5.4 Pro then challenges the rankings, flags blind spots, and adjusts confidence levels.
+          </div>
+        </div>
+
+        <div className="text-center py-16">
+          <Zap className="h-12 w-12 mx-auto text-muted-foreground/30 mb-4" />
+          <h3 className="text-lg font-medium text-muted-foreground mb-2">Key Intelligence</h3>
+          <p className="text-sm text-muted-foreground/60 max-w-md mx-auto mb-6">
+            No briefing yet. Extract and rank the most important data points from your entire account.
+            Every signal is dollar-quantified and adversarially challenged.
+          </p>
+          <button
+            onClick={handleExtract}
+            className="flex items-center gap-2 px-6 py-2.5 text-sm rounded-lg bg-cyan/10 text-cyan hover:bg-cyan/20 border border-cyan/20 transition mx-auto"
+          >
+            <Zap className="h-4 w-4" />
+            Extract Intelligence Briefing
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-4">
       {/* Executive Summary */}
@@ -945,18 +975,18 @@ function IntelligenceTab() {
                 {intelligence.account_status}
               </span>
             )}
-            {cachedAt && (
-              <span className="text-[10px] text-muted-foreground/40 font-mono" title={cachedAt}>
-                fetched {new Date(cachedAt).toLocaleDateString(undefined, { month: "short", day: "numeric" })} {new Date(cachedAt).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })}
+            {briefingAge && (
+              <span className={`text-[10px] font-mono ${briefingAge.stale ? "text-amber-400" : "text-muted-foreground/40"}`} title={savedAt ?? undefined}>
+                {briefingAge.text}{briefingAge.stale ? " — consider refreshing" : ""}
               </span>
             )}
           </div>
           <button
             onClick={handleExtract}
-            disabled={loading}
+            disabled={extracting}
             className="flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-lg border border-white/10 text-muted-foreground hover:text-foreground transition"
           >
-            <RefreshCw className={`h-3.5 w-3.5 ${loading ? "animate-spin" : ""}`} />
+            <RefreshCw className={`h-3.5 w-3.5 ${extracting ? "animate-spin" : ""}`} />
             Refresh
           </button>
         </div>
