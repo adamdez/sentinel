@@ -74,6 +74,23 @@ export interface CRMLeadContext {
   lastCallDisposition: string | null;
   lastCallDate: string | null;          // ISO timestamp
   nextCallScheduledAt: string | null;   // ISO timestamp
+
+  // Last-call content — for live-call memory surface.
+  // lastCallNotes: operator-published summary from publish-manager (highest trust).
+  //   Written by publish-manager to calls_log.notes. Shown without qualification.
+  // lastCallAiSummary: raw AI output from /api/dialer/summarize (lower trust).
+  //   Only used when lastCallNotes is absent. Always labeled as AI-generated.
+  lastCallNotes: string | null;
+  lastCallAiSummary: string | null;
+
+  // Open follow-up or appointment task for this lead, if any.
+  // Sourced from tasks table via crm-bridge (operator-created or publish-manager-created).
+  // Answers "what was promised on the last call / why are we calling now?"
+  // openTaskTitle: the task title as written at publish time (e.g. "Follow up — Sarah Johnson")
+  // openTaskDueAt: ISO timestamp of the task due date, for displaying when it was promised
+  // Both null if no pending task exists for this lead.
+  openTaskTitle: string | null;
+  openTaskDueAt: string | null;
 }
 
 /**
@@ -142,10 +159,24 @@ export interface SessionListResult {
 // ─────────────────────────────────────────────────────────────
 
 export type DialerEventType =
+  // Session lifecycle (written by session-manager.ts)
   | "session.created"
   | "session.status_changed"
   | "session.twilio_linked"
-  | "session.ended";
+  | "session.ended"
+  // Publish-time outcomes (written by publish-manager.ts)
+  // call.published: every successful publishSession — core workflow event
+  | "call.published"
+  // follow_up.task_created: a tasks row was created at publish time
+  | "follow_up.task_created"
+  // follow_up.callback_date_defaulted: operator skipped date entry; task due_at was defaulted
+  //   to next business morning. Signal for callback slippage measurement.
+  | "follow_up.callback_date_defaulted"
+  // ai_output.reviewed: operator reached Step 3 and published with an extract_run_id present.
+  //   Captures motivation_corrected and timeline_corrected for eval loop.
+  | "ai_output.reviewed"
+  // ai_output.flagged: operator explicitly flagged the AI summary as bad in Step 3.
+  | "ai_output.flagged";
 
 // ─────────────────────────────────────────────────────────────
 // Trace metadata — PR2
@@ -159,6 +190,10 @@ export interface TraceMetadata {
   generated_at: string;    // ISO timestamp
   input_tokens?: number;
   output_tokens?: number;
+  /** Semver string identifying the prompt template that produced this output. */
+  prompt_version?: string;
+  /** UUID assigned to this specific invocation for audit / eval correlation. */
+  run_id?: string;
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -210,12 +245,42 @@ export interface PublishInput {
   seller_timeline?: SellerTimeline;
   qualification_route?: QualificationRoute;
   summary?: string;
+  /**
+   * ISO8601 datetime. When provided and disposition is follow_up or appointment,
+   * publish-manager creates a tasks row for the operator.
+   */
+  callback_at?: string;
+  /**
+   * User ID to assign the created task to. Defaults to the session owner (userId).
+   */
+  task_assigned_to?: string;
+  /**
+   * run_id from the most recent extract invocation in this session.
+   * When present, the publish route updates the corresponding dialer_ai_traces
+   * row with review_flag and ai_corrections, closing the operator review loop.
+   */
+  extract_run_id?: string;
+  /**
+   * True if Logan explicitly flagged the AI summary as bad in Step 3.
+   * Sets review_flag = true on the dialer_ai_traces row for extract_run_id.
+   */
+  summary_flagged?: boolean;
+  /**
+   * Which AI-suggested qualification fields the operator corrected.
+   * Captured from the aiSuggested set in PostCallPanel at publish time.
+   */
+  ai_corrections?: {
+    motivation_corrected: boolean;
+    timeline_corrected: boolean;
+  };
 }
 
 export interface PublishResult {
   ok: boolean;
   calls_log_id: string | null;
   lead_id: string | null;
+  /** UUID of the tasks row created, if callback_at was provided. */
+  task_id?: string | null;
   error?: string;
   /**
    * INVALID_TRANSITION = session not yet in a terminal state.

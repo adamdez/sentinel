@@ -1,0 +1,21 @@
+prompts:
+
+___________________________________________________________
+Add an adversarial review agent either parallel or as a pass before finalizing.
+
+In that pass, do not defend your work by default.
+Act like a strict reviewer trying to find:
+- workflow leaks
+- boundary violations
+- happy-path assumptions
+- silent failure modes
+- places where the implementation claims more than it actually delivers
+
+Return exactly:
+1. what is solid
+2. what is fragile or misleading
+3. what would fail in real operator use
+4. the smallest fix needed now
+5. what can wait
+
+_____________________________________________________

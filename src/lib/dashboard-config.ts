@@ -19,6 +19,9 @@ import {
   Target,
   GitBranch,
   Gauge,
+  SearchX,
+  Crosshair,
+  ShieldAlert,
   type LucideIcon,
 } from "lucide-react";
 
@@ -42,7 +45,10 @@ export type WidgetId =
   | "compliance-status"
   | "cost-per-lead"
   | "conversion-rates"
-  | "lead-velocity";
+  | "lead-velocity"
+  | "missed-opportunity-queue"
+  | "daily-brief"
+  | "call-quality-snapshot";
 
 export type WidgetSize = "1x1" | "2x1" | "1x2" | "2x2";
 
@@ -256,6 +262,33 @@ export const WIDGET_REGISTRY: Record<WidgetId, WidgetDefinition> = {
     defaultSize: "1x1",
     minSize: "1x1",
     category: "analytics",
+  },
+  "missed-opportunity-queue": {
+    id: "missed-opportunity-queue",
+    label: "Missed Opportunity Queue",
+    description: "Overdue follow-ups, defaulted callbacks, and flagged AI outputs that need attention",
+    icon: SearchX,
+    defaultSize: "2x1",
+    minSize: "1x1",
+    category: "workflow",
+  },
+  "daily-brief": {
+    id: "daily-brief",
+    label: "Daily Brief",
+    description: "Top callback slippage, overdue follow-up, flagged AI output, and 3 leads needing action now",
+    icon: Crosshair,
+    defaultSize: "2x2",
+    minSize: "2x1",
+    category: "workflow",
+  },
+  "call-quality-snapshot": {
+    id: "call-quality-snapshot",
+    label: "Call Quality Snapshot",
+    description: "AI review queue: flagged traces, unreviewed items, operator correction rate",
+    icon: ShieldAlert,
+    defaultSize: "2x2",
+    minSize: "2x1",
+    category: "workflow",
   },
 };
 

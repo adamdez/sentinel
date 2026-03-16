@@ -1,127 +1,127 @@
 [
   {
-    "hash": "1a65c93c",
+    "hash": "49cbcc35",
+    "date": "2026-03-14",
+    "message": "feat: dialer PR3 — post-call publish, session extract, inline consent on lead file"
+  },
+  {
+    "hash": "69b92ed0",
+    "date": "2026-03-14",
+    "message": "feat: dialer PR2 — session notes API, STT abstraction, Twilio session sync"
+  },
+  {
+    "hash": "d98aac30",
+    "date": "2026-03-14",
+    "message": "feat: dialer domain foundation — bounded context, session state machine, v1 API (PR1)"
+  },
+  {
+    "hash": "5582fcc1",
+    "date": "2026-03-14",
+    "message": "fix: correct 5 schema mismatches causing silent DB write failures"
+  },
+  {
+    "hash": "7ef63bc1",
+    "date": "2026-03-14",
+    "message": "fix(wave6): apply failure, ephemeral simulation state, inline errors"
+  },
+  {
+    "hash": "9213cd2a",
+    "date": "2026-03-14",
+    "message": "fix(wave5): truncation detection, JSON extraction, ad copy validation, context guard"
+  },
+  {
+    "hash": "92c71a61",
+    "date": "2026-03-14",
+    "message": "fix(wave4): timeouts, infinite spinners, SSE race, localStorage side-effect"
+  },
+  {
+    "hash": "a14aac93",
+    "date": "2026-03-14",
+    "message": "fix(wave3): atomic sync lock, simulator race guard, cron secret bypass"
+  },
+  {
+    "hash": "67b8ef79",
+    "date": "2026-03-14",
+    "message": "fix(wave-2): fix NULL composite key duplicates, surface stage 3b/3c errors"
+  },
+  {
+    "hash": "269eb77b",
+    "date": "2026-03-14",
+    "message": "fix(wave-1): create missing workflow tables, fix adversarial wiring, surface AI parse failures"
+  },
+  {
+    "hash": "105923f7",
+    "date": "2026-03-14",
+    "message": "chore: redeploy to pick up new ANTHROPIC_API_KEY env var"
+  },
+  {
+    "hash": "50e05d2a",
+    "date": "2026-03-14",
+    "message": "feat: upgrade adversarial reviewer to GPT-5.4 Pro"
+  },
+  {
+    "hash": "7a054ec4",
+    "date": "2026-03-14",
+    "message": "fix: correct Claude model ID to claude-opus-4-6 and improve chat error handling"
+  },
+  {
+    "hash": "7a73542c",
+    "date": "2026-03-14",
+    "message": "feat: build Ad Copy Lab with dual-model ad generation"
+  },
+  {
+    "hash": "243f167f",
+    "date": "2026-03-14",
+    "message": "feat: upgrade sync pipeline for elite-level AI data access"
+  },
+  {
+    "hash": "60010897",
+    "date": "2026-03-14",
+    "message": "feat: add Key Intelligence tab with dual-model extraction"
+  },
+  {
+    "hash": "03056e33",
+    "date": "2026-03-14",
+    "message": "feat: dual-model AI engine — Opus 4.6 primary + GPT-5.4 Pro adversarial"
+  },
+  {
+    "hash": "eae19d43",
     "date": "2026-03-13",
-    "message": "feat: Phase 3 — minimum attribution bridge (gclid → ads entities)"
+    "message": "feat: add editable AI system prompt for Ads Command Center"
   },
   {
-    "hash": "c2e8c641",
+    "hash": "3f932f00",
     "date": "2026-03-13",
-    "message": "feat: Phase 1+2 — normalized ads schema + 5-stage sync service"
+    "message": "fix: improve error logging for Anthropic API failures in ads review"
   },
   {
-    "hash": "a187d7cc",
+    "hash": "8407b524",
     "date": "2026-03-13",
-    "message": "chore: trigger redeploy for Google Ads env vars"
+    "message": "fix: wire AI Review and Chat to normalized ads tables"
   },
   {
-    "hash": "21a4d490",
+    "hash": "70e8e278",
     "date": "2026-03-13",
-    "message": "fix: Google Ads API connection — env var names + MCC login-customer-id header"
+    "message": "fix: revert keyword query to keyword_view without cross-resource fields"
   },
   {
-    "hash": "e0f442f3",
+    "hash": "7fe40371",
     "date": "2026-03-13",
-    "message": "feat(leads): operator speed pass — 8 changes for faster lead triage"
+    "message": "fix: remove prohibited metrics from ad_group_criterion query"
   },
   {
-    "hash": "6d027c84",
-    "date": "2026-03-12",
-    "message": "fix(comps): distressed comp quality cap + photo evidence nudge"
+    "hash": "4c030fe2",
+    "date": "2026-03-13",
+    "message": "fix: update Google Ads GAQL queries for v23 compatibility"
   },
   {
-    "hash": "4cc6eaf1",
-    "date": "2026-03-12",
-    "message": "fix(comps): adversarial break-test repairs — MAO alignment, condition honesty, warning fixes"
+    "hash": "13c5d190",
+    "date": "2026-03-13",
+    "message": "fix: update Google Ads API from sunset v18 to current v23"
   },
   {
-    "hash": "f0c63998",
-    "date": "2026-03-12",
-    "message": "feat(comps): UI hardening pass — 6 changes for trust and speed"
-  },
-  {
-    "hash": "5983883d",
-    "date": "2026-03-12",
-    "message": "fix(comps): pass real conditionLevel to warnings instead of hardcoded 3"
-  },
-  {
-    "hash": "b074a8c3",
-    "date": "2026-03-12",
-    "message": "feat(comps): action-oriented warning messages + NO_CONDITION severity bump"
-  },
-  {
-    "hash": "11d59c84",
-    "date": "2026-03-12",
-    "message": "docs: comps UI hardening design — post-compression trust & speed pass"
-  },
-  {
-    "hash": "6a5b0dc1",
-    "date": "2026-03-12",
-    "message": "feat: comps UI compression — decision-first layout with research mode toggle"
-  },
-  {
-    "hash": "a82cb0cd",
-    "date": "2026-03-12",
-    "message": "Phase 2.5: valuation packet freeze, condition persistence, overview card"
-  },
-  {
-    "hash": "22fd7452",
-    "date": "2026-03-12",
-    "message": "feat: canonical valuation kernel — single source of truth for all MAO/ARV math"
-  },
-  {
-    "hash": "2c9def8c",
-    "date": "2026-03-12",
-    "message": "fix: Add Lead modal now scrollable on long forms"
-  },
-  {
-    "hash": "e0bca256",
-    "date": "2026-03-12",
-    "message": "fix: manual Add Lead now visible + search covers phone, email, zip"
-  },
-  {
-    "hash": "3c2d5b6f",
-    "date": "2026-03-12",
-    "message": "feat: expose Add Lead button on Leads and Dashboard pages"
-  },
-  {
-    "hash": "52807855",
-    "date": "2026-03-12",
-    "message": "feat: urgency-aware triage ordering across lead table, pipeline, and dispo"
-  },
-  {
-    "hash": "cfcf0fee",
-    "date": "2026-03-12",
-    "message": "feat: action derivation layer + UI integration + morning queue enrichment (Phases 4-7)"
-  },
-  {
-    "hash": "8cadb482",
-    "date": "2026-03-12",
-    "message": "fix(dispo+analytics): operator polish — shared display helpers, save confirmations, analytics cleanup"
-  },
-  {
-    "hash": "0722769d",
-    "date": "2026-03-12",
-    "message": "feat(tests): comprehensive testing strategy — 257 tests across 14 files"
-  },
-  {
-    "hash": "f8faa539",
-    "date": "2026-03-12",
-    "message": "feat: audit hardening — source normalization, KPI fixes, coach on buyers/dispo, task realtime, tests"
-  },
-  {
-    "hash": "487c5b13",
-    "date": "2026-03-12",
-    "message": "fix: red team audit fixes for phases 6A/6B/7A/7B"
-  },
-  {
-    "hash": "02dd39d8",
-    "date": "2026-03-12",
-    "message": "feat(dispo): add contract-to-close coordination (Phase 7A)"
-  },
-  {
-    "hash": "36e043ab",
-    "date": "2026-03-12",
-    "message": "feat(tasks): add Tasks & Follow-Up page with CRUD API and sidebar nav"
+    "hash": "70a1c52f",
+    "date": "2026-03-13",
+    "message": "fix: update state machine tests for qualified stage transitions"
   }
 ]

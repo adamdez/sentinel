@@ -20,7 +20,7 @@
  */
 
 import { useState, useEffect } from "react";
-import { Brain, Phone, CalendarClock, TrendingUp, Clock, Loader2, MessageSquare, Sparkles } from "lucide-react";
+import { Brain, Phone, CalendarClock, TrendingUp, Clock, Loader2, MessageSquare, Sparkles, CheckSquare } from "lucide-react";
 import { GlassCard } from "@/components/sentinel/glass-card";
 import { supabase } from "@/lib/supabase";
 import type { CRMLeadContext } from "@/lib/dialer/types";
@@ -184,6 +184,26 @@ export function SellerMemoryPanel({ sessionId, context: contextProp, className =
                   month: "short", day: "numeric", hour: "numeric", minute: "2-digit",
                 })}
               </span>
+            </div>
+          )}
+
+          {/* Open task — promised follow-up or appointment from last call */}
+          {context.openTaskTitle && (
+            <div className="flex items-start gap-1.5 rounded-[8px] bg-amber-500/[0.06] border border-amber-500/20 px-2.5 py-1.5">
+              <CheckSquare className="h-3 w-3 text-amber-400/70 shrink-0 mt-0.5" />
+              <div className="min-w-0">
+                <p className="text-[11px] text-amber-300/90 font-medium leading-snug truncate">
+                  {context.openTaskTitle}
+                </p>
+                {context.openTaskDueAt && (
+                  <p className="text-[10px] text-amber-400/50 mt-0.5">
+                    Due{" "}
+                    {new Date(context.openTaskDueAt).toLocaleDateString("en-US", {
+                      month: "short", day: "numeric", hour: "numeric", minute: "2-digit",
+                    })}
+                  </p>
+                )}
+              </div>
             </div>
           )}
 

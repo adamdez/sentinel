@@ -39,6 +39,9 @@ import { ComplianceStatus } from "./widgets/compliance-status";
 import { CostPerLead } from "./widgets/cost-per-lead";
 import { ConversionRates } from "./widgets/conversion-rates";
 import { LeadVelocity } from "./widgets/lead-velocity";
+import { MissedOpportunityQueue } from "./widgets/missed-opportunity-queue";
+import { DailyBrief } from "./widgets/daily-brief";
+import { CallQualitySnapshot } from "./widgets/call-quality-snapshot";
 import { useDashboardLayout } from "@/hooks/use-dashboard-layout";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -66,6 +69,9 @@ const WIDGET_COMPONENTS: Record<WidgetId, React.ComponentType> = {
   "cost-per-lead": CostPerLead,
   "conversion-rates": ConversionRates,
   "lead-velocity": LeadVelocity,
+  "missed-opportunity-queue": MissedOpportunityQueue,
+  "daily-brief": DailyBrief,
+  "call-quality-snapshot": CallQualitySnapshot,
 };
 
 function SortableTile({

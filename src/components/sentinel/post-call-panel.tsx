@@ -23,7 +23,7 @@ import { useState, useEffect, useRef } from "react";
 import {
   CheckCircle2, Loader2, SkipForward,
   Phone, PhoneOff, Voicemail, CalendarCheck,
-  DollarSign, Skull, X, ArrowRight, ChevronLeft,
+  DollarSign, Skull, X, ArrowRight, ChevronLeft, Flag,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { GlassCard } from "@/components/sentinel/glass-card";
@@ -114,6 +114,10 @@ export function PostCallPanel({
   const [extracting, setExtracting] = useState(false);
   // Tracks which fields were last set by AI (cleared when operator manually changes)
   const [aiSuggested, setAiSuggested] = useState<Set<string>>(new Set());
+  // run_id returned by the extract route — used for review signal at publish time
+  const [extractRunId, setExtractRunId] = useState<string | null>(null);
+  // Whether Logan flagged the AI output as bad (toggled in Step 3)
+  const [summaryFlagged, setSummaryFlagged] = useState(false);
   const extractFired = useRef(false);
 
   // Fire extraction once when Step 3 opens and operator notes are non-empty
@@ -131,7 +135,7 @@ export function PostCallPanel({
         }),
       )
       .then((r) => (r.ok ? r.json() : null))
-      .then((data: { ok?: boolean; motivation_level?: number | null; seller_timeline?: string | null } | null) => {
+      .then((data: { ok?: boolean; motivation_level?: number | null; seller_timeline?: string | null; run_id?: string | null } | null) => {
         if (!data?.ok) return;
         const suggested = new Set<string>();
         if (data.motivation_level != null) {
@@ -143,6 +147,8 @@ export function PostCallPanel({
           suggested.add("timeline");
         }
         if (suggested.size > 0) setAiSuggested(suggested);
+        // Store run_id for review signal at publish time
+        if (data.run_id) setExtractRunId(data.run_id);
       })
       .catch(() => {/* non-fatal — step 3 already shows initial values */})
       .finally(() => setExtracting(false));
@@ -154,6 +160,7 @@ export function PostCallPanel({
     dispo: PublishDisposition,
     nextCallScheduledAt?: string,
     quals?: { motivation_level?: number; seller_timeline?: string },
+    reviewSignal?: { flagged: boolean; motivationCorrected: boolean; timelineCorrected: boolean },
   ) => {
     setSelected(dispo);
     setPublishing(true);
@@ -161,7 +168,10 @@ export function PostCallPanel({
 
     const hdrs = await authHeaders();
 
-    // Publish to session — authoritative write for calls_log disposition + notes + qual fields
+    // Publish to session — authoritative write for calls_log disposition + notes + qual fields.
+    // callback_at is forwarded so publish-manager can create a tasks row for follow_up/appointment.
+    // extract_run_id + summary_flagged + ai_corrections close the operator review loop on the
+    // AI extraction — updating the corresponding dialer_ai_traces row for eval visibility.
     const publishRes = await fetch(`/api/dialer/v1/sessions/${sessionId}/publish`, {
       method: "POST",
       headers: hdrs,
@@ -169,8 +179,18 @@ export function PostCallPanel({
         disposition: dispo,
         duration_sec: timerElapsed > 0 ? timerElapsed : undefined,
         summary: summary.trim() || undefined,
+        ...(nextCallScheduledAt ? { callback_at: nextCallScheduledAt } : {}),
         ...(quals?.motivation_level != null ? { motivation_level: quals.motivation_level } : {}),
         ...(quals?.seller_timeline       ? { seller_timeline: quals.seller_timeline }       : {}),
+        // Review signal — only sent when extraction ran in this session
+        ...(extractRunId ? {
+          extract_run_id:  extractRunId,
+          summary_flagged: reviewSignal?.flagged ?? summaryFlagged,
+          ai_corrections: {
+            motivation_corrected: reviewSignal?.motivationCorrected ?? false,
+            timeline_corrected:   reviewSignal?.timelineCorrected   ?? false,
+          },
+        } : {}),
       }),
     }).catch(() => null);
 
@@ -258,13 +278,28 @@ export function PostCallPanel({
     setQualStep(true);
   };
 
-  // Called from Step 3 confirm — fires publish with qual values
+  // Called from Step 3 confirm — fires publish with qual values + review signal.
+  // Corrections are inferred: if a field was AI-suggested but is no longer in
+  // aiSuggested (operator changed it), that field was corrected.
   const handleQualConfirm = () => {
     if (!pendingDispo) return;
-    handlePublish(pendingDispo, pendingNextCallAt, {
-      motivation_level: qualMotivation ?? undefined,
-      seller_timeline:  qualTimeline   ?? undefined,
-    });
+    handlePublish(
+      pendingDispo,
+      pendingNextCallAt,
+      {
+        motivation_level: qualMotivation ?? undefined,
+        seller_timeline:  qualTimeline   ?? undefined,
+      },
+      {
+        flagged:              summaryFlagged,
+        // A field was corrected if it was previously AI-suggested but
+        // the operator changed it (removing it from aiSuggested).
+        // We detect this by checking if extractRunId exists (extraction ran)
+        // and the field is NOT in aiSuggested (operator changed it from AI value).
+        motivationCorrected: extractRunId != null && !aiSuggested.has("motivation"),
+        timelineCorrected:   extractRunId != null && !aiSuggested.has("timeline"),
+      },
+    );
   };
 
   // Back button from Step 3
@@ -405,6 +440,23 @@ export function PostCallPanel({
             Save &amp; Continue
           </Button>
 
+          {/* Flag AI output — only shown when extraction ran */}
+          {extractRunId && (
+            <button
+              type="button"
+              onClick={() => setSummaryFlagged((v) => !v)}
+              disabled={publishing}
+              className={`w-full mt-1.5 flex items-center justify-center gap-1.5 rounded-[10px] px-3 py-1.5 text-[11px] transition-all border disabled:opacity-40 ${
+                summaryFlagged
+                  ? "bg-orange-500/10 border-orange-500/25 text-orange-400"
+                  : "bg-white/[0.02] border-white/[0.04] text-muted-foreground/40 hover:text-muted-foreground/70 hover:border-white/[0.08]"
+              }`}
+            >
+              <Flag className="h-3 w-3" />
+              {summaryFlagged ? "AI output flagged" : "Flag AI output"}
+            </button>
+          )}
+
           <Button
             variant="ghost"
             size="sm"
@@ -439,11 +491,11 @@ export function PostCallPanel({
             className="w-full rounded-[10px] border border-white/[0.06] bg-white/[0.03] px-3 py-2 text-[12px] text-foreground focus:outline-none focus:border-cyan/20 disabled:opacity-50 mb-3"
           />
 
-          {/* Note textarea */}
+          {/* Note textarea — contextual prompt for follow-up/appointment path */}
           <textarea
             value={summary}
             onChange={(e) => setSummary(e.target.value)}
-            placeholder="Quick note (optional)…"
+            placeholder="What was promised? Note any objections or things to clarify next call."
             maxLength={300}
             rows={2}
             disabled={publishing}
@@ -508,7 +560,7 @@ export function PostCallPanel({
           <textarea
             value={summary}
             onChange={(e) => setSummary(e.target.value)}
-            placeholder="Quick note (optional)…"
+            placeholder="Key points from this call…"
             maxLength={300}
             rows={2}
             disabled={publishing}

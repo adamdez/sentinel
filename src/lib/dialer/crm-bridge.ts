@@ -102,17 +102,33 @@ export async function getCRMLeadContext(
     }
   }
 
-  // ── 4. Last call disposition from calls_log ────────────────
+  // ── 4. Last call disposition + content from calls_log ──────
   // Read-only cross — calls_log is CRM-owned, we only read the most recent row.
+  // We also capture:
+  //   notes:      operator-published summary (written by publish-manager) — highest trust
+  //   ai_summary: raw AI output from /summarize route — lower trust, labeled in UI if used
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data: lastCall } = await (sb.from("calls_log") as any)
-    .select("disposition, started_at")
+    .select("disposition, started_at, notes, ai_summary")
     .eq("lead_id", leadId)
     .order("started_at", { ascending: false })
     .limit(1)
     .maybeSingle();
 
-  // ── 5. Assemble context snapshot ───────────────────────────
+  // ── 5. Open follow-up / appointment task ──────────────────
+  // Reads the most recently created pending task for this lead.
+  // This is the operator's (or publish-manager's) commitment from the last call.
+  // Only fetch status=pending tasks — completed tasks are not actionable memory.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: openTask } = await (sb.from("tasks") as any)
+    .select("title, due_at")
+    .eq("lead_id", leadId)
+    .eq("status", "pending")
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  // ── 6. Assemble context snapshot ───────────────────────────
   const ctx: CRMLeadContext = {
     leadId: lead.id,
     ownerName,
@@ -129,6 +145,16 @@ export async function getCRMLeadContext(
     lastCallDisposition: lastCall?.disposition ?? null,
     lastCallDate: lastCall?.started_at ?? null,
     nextCallScheduledAt: lead.next_call_scheduled_at ?? null,
+
+    // Operator-published notes take priority. AI summary used only as fallback.
+    // Both are null on first contact — the panel handles the empty state.
+    lastCallNotes: lastCall?.notes ?? null,
+    lastCallAiSummary: lastCall?.ai_summary ?? null,
+
+    // Most recently created pending task for this lead (operator or publish-manager created).
+    // Null if no pending task exists.
+    openTaskTitle: openTask?.title ?? null,
+    openTaskDueAt: openTask?.due_at ?? null,
   };
 
   return ctx;

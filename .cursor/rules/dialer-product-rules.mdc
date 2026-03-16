@@ -1,0 +1,47 @@
+---
+description: Core product boundary and AI discipline rules for the Sentinel dialer build
+alwaysApply: true
+---
+
+# Sentinel Dialer — Product Rules
+
+## Rule 1: Protect the main product boundary
+
+Sentinel is the system of action. The dialer is the conversation runtime.
+Do not move durable CRM truth into the dialer.
+Do not make the dialer the real daily workspace.
+
+## Rule 2: No raw AI writeback
+
+Never write raw transcripts, long model dumps, or unstable inferred text directly into CRM-visible fields.
+All dialer writeback must pass through typed, minimal, reviewable contracts.
+
+## Rule 3: Optimize for founder-hour leverage
+
+Every feature must justify itself by improving contracts per founder-hour, speed-to-lead, follow-up reliability, trust, or support-labor compression.
+If not, cut or defer it.
+
+## Rule 4: Voice first, not science project first
+
+Prioritize: missed-call recovery, inbound answering, routing, callback booking, warm transfer, post-call summary, objection tagging, QA.
+Do not prioritize autonomous cold AI calling.
+
+## Rule 5: Every AI workflow must be traceable
+
+All AI-assisted voice workflows must have: run ID, prompt version, trace/event log, fallback reason, and approval/review state where relevant.
+No durable writeback from untraced runs.
+
+## Rule 6: Trust-heavy moments stay human
+
+Avoid automating negotiation, empathy-heavy inherited/family conversations, unsupported family or authority claims, and aggressive or creepy personalization.
+Logan remains the closer.
+
+## Rule 7: Prefer modular connectors
+
+Design around replaceable providers for: voice, transcription, model layer, routing logic, summary generation, SMS/callback actions.
+Avoid hard-coding assumptions that block provider swap later.
+
+## Rule 8: Keep Lead Detail clean
+
+Lead Detail is the primary working surface.
+Anything surfaced there must improve fast comprehension, next action clarity, call readiness, or follow-up discipline.

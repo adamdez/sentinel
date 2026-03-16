@@ -5,7 +5,12 @@
  * Best-effort: always returns HTTP 200 with null fields on AI failure.
  *
  * Input:  { notes: string }
- * Output: { ok: true, motivation_level: 1-5|null, seller_timeline: enum|null, rationale: string|null }
+ * Output: { ok: true, motivation_level: 1-5|null, seller_timeline: enum|null,
+ *           rationale: string|null, run_id: string }
+ *
+ * Every invocation is assigned a run_id and stores trace_metadata so
+ * bad outputs can be correlated and rolled back. The run_id is returned
+ * to the caller for optional downstream linking.
  *
  * On success, stores the result as an ai_suggestion note (is_confirmed: false)
  * for audit trail. Operator confirmation in PostCallPanel Step 3 → publishSession
@@ -23,6 +28,8 @@ import { getSession } from "@/lib/dialer/session-manager";
 import { createNote } from "@/lib/dialer/note-manager";
 import { analyzeWithClaude, extractJsonObject } from "@/lib/claude-client";
 import { SELLER_TIMELINES } from "@/lib/dialer/types";
+import { randomUUID } from "crypto";
+import { writeAiTrace } from "@/lib/dialer/ai-trace-writer";
 
 type RouteContext = { params: Promise<{ id: string }> };
 
@@ -31,9 +38,16 @@ const NULL_RESULT = {
   motivation_level: null as number | null,
   seller_timeline:  null as string | null,
   rationale:        null as string | null,
+  run_id:           null as string | null,
 };
 
-// ── Prompt ────────────────────────────────────────────────────
+// ── Prompt registry ───────────────────────────────────────────
+//
+// Version this string. When you change the prompt, bump EXTRACT_PROMPT_VERSION.
+// run_id + prompt_version in trace_metadata lets you correlate any bad output
+// to the exact prompt that produced it and compare eval sets across versions.
+
+const EXTRACT_PROMPT_VERSION = "1.0.0";
 
 const SYSTEM_PROMPT =
   "You extract seller qualification signals from brief real-estate call notes. " +
@@ -95,14 +109,21 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
     return NextResponse.json(NULL_RESULT);
   }
 
-  // ── Call Claude ───────────────────────────────────────────────
+  // ── Assign run_id ─────────────────────────────────────────────
+  //
+  // A run_id uniquely identifies this invocation. It is stored in
+  // trace_metadata on the ai_suggestion note and returned to the caller
+  // so PostCallPanel can include it in any downstream review or eval links.
+  const runId = randomUUID();
   const startMs = Date.now();
+
+  // ── Call Claude ───────────────────────────────────────────────
   let motivation_level: number | null = null;
   let seller_timeline: string | null = null;
   let rationale: string | null = null;
 
   try {
-    const raw = await analyzeWithClaude({
+    const rawText = await analyzeWithClaude({
       prompt:       buildPrompt(notes),
       systemPrompt: SYSTEM_PROMPT,
       apiKey,
@@ -110,7 +131,7 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
       maxTokens:    128,
     });
 
-    const json = extractJsonObject(raw);
+    const json = extractJsonObject(rawText);
     if (json) {
       const parsed = JSON.parse(json) as Record<string, unknown>;
 
@@ -133,25 +154,40 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
     // Fall through — return nulls
   }
 
+  // ── Write AI trace row (fire-and-forget) ─────────────────────
+  writeAiTrace(sb, {
+    run_id:         runId,
+    workflow:       "extract",
+    prompt_version: EXTRACT_PROMPT_VERSION,
+    session_id:     sessionId,
+    lead_id:        sessionResult.data.lead_id ?? null,
+    model:          "claude-opus-4-6",
+    provider:       "anthropic",
+    input_text:     notes,
+    output_text:    JSON.stringify({ motivation_level, seller_timeline, rationale }),
+    latency_ms:     Date.now() - startMs,
+  }).catch(() => {});
+
   // ── Store ai_suggestion note for audit trail ─────────────────
   // Fire-and-forget. A failed write does not fail the request.
-  if (motivation_level !== null || seller_timeline !== null) {
-    createNote(sb, sessionId, user.id, {
-      note_type:       "ai_suggestion",
-      speaker:         "ai",
-      content:         JSON.stringify({ motivation_level, seller_timeline, rationale, source: "operator_notes" }),
-      sequence_num:    0,
-      is_ai_generated: true,
-      trace_metadata: {
-        model:        "claude-opus-4-6",
-        provider:     "anthropic",
-        latency_ms:   Date.now() - startMs,
-        generated_at: new Date().toISOString(),
-      },
-    }).catch((err: unknown) => {
-      console.error("[dialer/extract] ai_suggestion note write failed (non-fatal):", err);
-    });
-  }
+  // run_id links this note to the exact invocation for eval/review.
+  createNote(sb, sessionId, user.id, {
+    note_type:       "ai_suggestion",
+    speaker:         "ai",
+    content:         JSON.stringify({ motivation_level, seller_timeline, rationale, source: "operator_notes", run_id: runId }),
+    sequence_num:    0,
+    is_ai_generated: true,
+    trace_metadata: {
+      model:          "claude-opus-4-6",
+      provider:       "anthropic",
+      prompt_version: EXTRACT_PROMPT_VERSION,
+      run_id:         runId,
+      latency_ms:     Date.now() - startMs,
+      generated_at:   new Date().toISOString(),
+    },
+  }).catch((err: unknown) => {
+    console.error("[dialer/extract] ai_suggestion note write failed (non-fatal):", err);
+  });
 
-  return NextResponse.json({ ok: true, motivation_level, seller_timeline, rationale });
+  return NextResponse.json({ ok: true, motivation_level, seller_timeline, rationale, run_id: runId });
 }

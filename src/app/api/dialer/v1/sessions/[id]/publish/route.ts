@@ -18,6 +18,7 @@ import {
   SELLER_TIMELINES,
   QUALIFICATION_ROUTES,
 } from "@/lib/dialer/publish-manager";
+import { updateAiTraceReview } from "@/lib/dialer/ai-trace-writer";
 import type { PublishDisposition, SellerTimeline, QualificationRoute } from "@/lib/dialer/types";
 import type { SessionErrorCode } from "@/lib/dialer/types";
 
@@ -95,6 +96,36 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
     return NextResponse.json({ error: "summary must be a string" }, { status: 400 });
   }
 
+  // ── Validate callback_at ──────────────────────────────────
+  const callbackAt = body.callback_at;
+  if (callbackAt !== undefined) {
+    if (typeof callbackAt !== "string" || isNaN(new Date(callbackAt).getTime())) {
+      return NextResponse.json(
+        { error: "callback_at must be a valid ISO8601 datetime string" },
+        { status: 400 },
+      );
+    }
+  }
+
+  const taskAssignedTo = body.task_assigned_to;
+  if (taskAssignedTo !== undefined && typeof taskAssignedTo !== "string") {
+    return NextResponse.json({ error: "task_assigned_to must be a string" }, { status: 400 });
+  }
+
+  // ── Review signal fields (optional) ──────────────────────
+  // extract_run_id: the run_id returned by the extract route in this session.
+  // summary_flagged: operator explicitly marked the AI output as bad.
+  // ai_corrections: which AI-suggested fields the operator overrode.
+  const extractRunId = body.extract_run_id;
+  if (extractRunId !== undefined && typeof extractRunId !== "string") {
+    return NextResponse.json({ error: "extract_run_id must be a string" }, { status: 400 });
+  }
+
+  const summaryFlagged = body.summary_flagged;
+  if (summaryFlagged !== undefined && typeof summaryFlagged !== "boolean") {
+    return NextResponse.json({ error: "summary_flagged must be a boolean" }, { status: 400 });
+  }
+
   // ── Publish ───────────────────────────────────────────────
   const sb = createDialerClient();
   const result = await publishSession(sb, sessionId, user.id, {
@@ -104,6 +135,8 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
     seller_timeline:      sellerTimeline as SellerTimeline | undefined,
     qualification_route:  qualificationRoute as QualificationRoute | undefined,
     summary:              typeof summary === "string" ? summary : undefined,
+    callback_at:          typeof callbackAt === "string" ? callbackAt : undefined,
+    task_assigned_to:     typeof taskAssignedTo === "string" ? taskAssignedTo : undefined,
   });
 
   if (!result.ok) {
@@ -113,9 +146,32 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
     );
   }
 
+  // ── Review signal: update dialer_ai_traces row ────────────
+  // If the operator reached Step 3 and published, they have reviewed the
+  // AI extraction. Write their review signal to the trace row now.
+  // Fire-and-forget — never fails the publish response.
+  if (typeof extractRunId === "string") {
+    const aiCorrections = body.ai_corrections as
+      | { motivation_corrected?: boolean; timeline_corrected?: boolean }
+      | undefined;
+
+    updateAiTraceReview(sb, {
+      run_id:      extractRunId,
+      review_flag: summaryFlagged === true,
+      review_note_data: {
+        reviewed_at:           new Date().toISOString(),
+        reviewer_id:           user.id,
+        motivation_corrected:  aiCorrections?.motivation_corrected ?? false,
+        timeline_corrected:    aiCorrections?.timeline_corrected   ?? false,
+        flagged:               summaryFlagged === true,
+      },
+    }).catch(() => {});
+  }
+
   return NextResponse.json({
     ok: true,
     calls_log_id: result.calls_log_id,
     lead_id:      result.lead_id,
+    task_id:      result.task_id ?? null,
   });
 }

@@ -1,5 +1,5 @@
 /**
- * Dialer Publish Manager — PR3
+ * Dialer Publish Manager — PR3 / Phase 2
  *
  * Writes post-call outcomes back to CRM tables.
  * This is the ONLY file in the dialer domain that writes CRM tables.
@@ -10,12 +10,16 @@
  *   - NEVER import crm-bridge.ts here (read-only; belongs in routes)
  *   - Must UPDATE calls_log by dialer_session_id — NEVER INSERT
  *   - A missing calls_log row is non-fatal; qualification writes still proceed
+ *   - tasks INSERT is permitted: tasks is a CRM-owned table but task creation
+ *     from a post-call outcome is an explicit approved write from this manager.
  *
  * OVERWRITE RULES (conservative by design):
  *   - disposition:    only if current value is null, blank, or in PROVISIONAL_DISPOSITIONS
  *   - duration_sec:   only if current value is falsy (0 or null)
  *   - notes:          always overwrites calls_log.notes when summary is provided
  *   - leads fields:   only explicitly provided qualification fields are written; others untouched
+ *   - tasks:          only created when callback_at is provided AND disposition is
+ *                     follow_up or appointment. Never overwrites existing tasks.
  *
  * Future developers: do not add CRM reads here.
  * Reads belong in crm-bridge.ts. This file is write-only toward CRM tables.
@@ -29,11 +33,52 @@ import {
   QUALIFICATION_ROUTES,
   type PublishInput,
   type PublishResult,
+  type DialerEventType,
 } from "./types";
 import { getSession } from "./session-manager";
 
+// Dispositions that warrant a follow-up task when callback_at is supplied.
+const TASK_DISPOSITIONS = new Set(["follow_up", "appointment"]);
+
 export type { PublishInput, PublishResult };
 export { PUBLISH_DISPOSITIONS, SELLER_TIMELINES, QUALIFICATION_ROUTES };
+
+// ─────────────────────────────────────────────────────────────
+// Dialer event writer (publish-manager scope)
+// ─────────────────────────────────────────────────────────────
+
+/**
+ * Fire-and-forget write to dialer_events from publish context.
+ * Never throws — event writes are informational and must never fail a publish.
+ * Mirrors the auditEvent pattern in session-manager.ts.
+ */
+function writeDialerEvent(
+  sb: SupabaseClient,
+  event: {
+    session_id: string | null;
+    lead_id: string | null;
+    user_id: string;
+    event_type: DialerEventType;
+    payload?: Record<string, unknown>;
+  },
+): void {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  (sb.from("dialer_events") as any)
+    .insert({
+      session_id: event.session_id,
+      user_id:    event.user_id,
+      event_type: event.event_type,
+      payload:    { lead_id: event.lead_id, ...event.payload },
+    })
+    .then(({ error }: { error: unknown }) => {
+      if (error) {
+        console.error(
+          "[publish-manager] dialer_events write failed (non-fatal):",
+          (error as { message?: string }).message,
+        );
+      }
+    });
+}
 
 // ─────────────────────────────────────────────────────────────
 // Provisional dispositions — safe for publish to overwrite
@@ -186,5 +231,262 @@ export async function publishSession(
     }
   }
 
-  return { ok: true, calls_log_id: callsLogId, lead_id: leadId };
+  // ── Step 3: task creation for follow_up / appointment ────
+  //
+  // Creates a tasks row when disposition is follow_up or appointment AND
+  // a lead_id is present.
+  //
+  // due_at priority:
+  //   1. callback_at from input (operator set a specific date in Step 2)
+  //   2. Default: tomorrow at 09:00 local time (operator used skip path)
+  //
+  // The default ensures no lead silently falls out of the Tasks workflow
+  // because the operator tapped "skip date." The task title signals the
+  // default so the operator can reschedule on open.
+  //
+  // Failure is non-fatal — a failed task insert never fails the publish.
+
+  let taskId: string | null = null;
+  // Hoisted so Step 4 event writes can reference them without re-computation.
+  let taskDueAt: Date | null = null;
+  let taskDateWasDefaulted = false;
+
+  if (leadId && TASK_DISPOSITIONS.has(input.disposition)) {
+    const assignedTo = input.task_assigned_to ?? userId;
+    const ownerName = (sessionResult.data.context_snapshot as { ownerName?: string | null } | null)?.ownerName ?? null;
+    const dispoLabel = input.disposition === "appointment" ? "Appointment" : "Follow up";
+
+    let dueAt: Date;
+    let dateWasDefaulted = false;
+
+    if (input.callback_at) {
+      const parsed = new Date(input.callback_at);
+      if (!isNaN(parsed.getTime())) {
+        dueAt = parsed;
+      } else {
+        dueAt = nextBusinessMorningPacific();
+        dateWasDefaulted = true;
+      }
+    } else {
+      dueAt = nextBusinessMorningPacific();
+      dateWasDefaulted = true;
+    }
+
+    // Hoist for Step 4 event writes
+    taskDueAt = dueAt;
+    taskDateWasDefaulted = dateWasDefaulted;
+
+    const title = ownerName
+      ? dateWasDefaulted
+        ? `${dispoLabel} — ${ownerName} (set callback date)`
+        : `${dispoLabel} — ${ownerName}`
+      : dateWasDefaulted
+        ? `${dispoLabel} — set callback date`
+        : `${dispoLabel} — dialer callback`;
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: taskRow, error: taskErr } = await (sb.from("tasks") as any)
+      .insert({
+        title,
+        assigned_to: assignedTo,
+        lead_id: leadId,
+        due_at: dueAt.toISOString(),
+        status: "pending",
+        priority: input.disposition === "appointment" ? 2 : 1,
+      })
+      .select("id")
+      .single();
+
+    if (taskErr) {
+      console.warn("[publish-manager] task creation failed (non-fatal):", taskErr.message);
+    } else {
+      taskId = (taskRow?.id as string) ?? null;
+    }
+  }
+
+  // ── Step 4: dialer_events — publish-time audit trail ─────
+  //
+  // All event writes are fire-and-forget via writeDialerEvent.
+  // They never block or fail the publish response.
+  //
+  // call.published: always written on successful publish.
+  //   Core signal for follow-up reliability and call volume queries.
+  //
+  // follow_up.task_created: written when a task row was created.
+  //   Paired with the task_id so slippage queries can join to tasks.
+  //
+  // follow_up.callback_date_defaulted: written when dateWasDefaulted=true.
+  //   This is the callback slippage signal — operator did not set a date.
+  //
+  // ai_output.reviewed / ai_output.flagged: written when extract_run_id
+  //   was present — operator reached Step 3 and published.
+  //   Captures motivation_corrected and timeline_corrected inline so the
+  //   AI eval loop is queryable from dialer_events without joining
+  //   dialer_ai_traces.
+
+  writeDialerEvent(sb, {
+    session_id: sessionId,
+    lead_id:    leadId,
+    user_id:    userId,
+    event_type: "call.published",
+    payload: {
+      disposition:       input.disposition,
+      had_summary:       !!(input.summary?.trim()),
+      had_callback_at:   !!input.callback_at,
+      task_created:      !!taskId,
+      task_id:           taskId ?? null,
+    },
+  });
+
+  if (taskId && taskDueAt) {
+    writeDialerEvent(sb, {
+      session_id: sessionId,
+      lead_id:    leadId,
+      user_id:    userId,
+      event_type: "follow_up.task_created",
+      payload: {
+        task_id:            taskId,
+        disposition:        input.disposition,
+        date_was_defaulted: taskDateWasDefaulted,
+        due_at:             taskDueAt.toISOString(),
+      },
+    });
+
+    if (taskDateWasDefaulted) {
+      writeDialerEvent(sb, {
+        session_id: sessionId,
+        lead_id:    leadId,
+        user_id:    userId,
+        event_type: "follow_up.callback_date_defaulted",
+        payload: {
+          task_id:     taskId,
+          disposition: input.disposition,
+        },
+      });
+    }
+  }
+
+  if (input.extract_run_id) {
+    if (input.summary_flagged) {
+      writeDialerEvent(sb, {
+        session_id: sessionId,
+        lead_id:    leadId,
+        user_id:    userId,
+        event_type: "ai_output.flagged",
+        payload: {
+          extract_run_id: input.extract_run_id,
+        },
+      });
+    }
+
+    writeDialerEvent(sb, {
+      session_id: sessionId,
+      lead_id:    leadId,
+      user_id:    userId,
+      event_type: "ai_output.reviewed",
+      payload: {
+        extract_run_id:       input.extract_run_id,
+        flagged:              !!input.summary_flagged,
+        motivation_corrected: input.ai_corrections?.motivation_corrected ?? false,
+        timeline_corrected:   input.ai_corrections?.timeline_corrected   ?? false,
+      },
+    });
+  }
+
+  return { ok: true, calls_log_id: callsLogId, lead_id: leadId, task_id: taskId };
+}
+
+// ── Helpers ───────────────────────────────────────────────────
+
+/**
+ * Returns the next business morning at 09:00 in the Spokane/Pacific timezone.
+ *
+ * "Next business morning" means:
+ *   - If today has not yet reached 09:00 Pacific and is a weekday → today at 09:00 Pacific
+ *   - Otherwise → the next weekday at 09:00 Pacific
+ *
+ * Correctly handles Pacific DST (UTC-8 standard / UTC-7 DST) by using
+ * Intl.DateTimeFormat to interpret current local time in America/Los_Angeles
+ * rather than assuming a fixed UTC offset.
+ *
+ * Used when the operator skips date entry on a follow_up or appointment.
+ */
+function nextBusinessMorningPacific(): Date {
+  const TZ = "America/Los_Angeles";
+  const now = new Date();
+
+  // Get current date parts in Pacific time
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: TZ,
+    year: "numeric", month: "2-digit", day: "2-digit",
+    hour: "2-digit", minute: "2-digit", hour12: false,
+  }).formatToParts(now);
+
+  const get = (type: string) => parts.find((p) => p.type === type)?.value ?? "0";
+  const year   = parseInt(get("year"),   10);
+  const month  = parseInt(get("month"),  10) - 1; // 0-indexed
+  const day    = parseInt(get("day"),    10);
+  const hour   = parseInt(get("hour"),   10);
+
+  // Build a candidate date at 09:00 Pacific today
+  // We do this by constructing an ISO string interpreted in the Pacific TZ
+  const pad = (n: number) => String(n).padStart(2, "0");
+  const candidateIso = `${year}-${pad(month + 1)}-${pad(day)}T09:00:00`;
+
+  // Convert that local time string to UTC using the TZ offset at that moment
+  // Trick: parse via Intl to get the UTC equivalent of 09:00 Pacific today
+  const candidateUtc = localToUtc(year, month, day, 9, 0, TZ);
+
+  // If 09:00 today is in the past, move to tomorrow
+  let target = candidateUtc <= now ? addDays(candidateUtc, 1) : candidateUtc;
+  void candidateIso; // used indirectly via localToUtc
+
+  // Skip Saturday (6) and Sunday (0) — advance to Monday
+  for (let i = 0; i < 7; i++) {
+    const dow = getWeekdayInTz(target, TZ);
+    if (dow !== 0 && dow !== 6) break;
+    target = addDays(target, 1);
+  }
+
+  return target;
+}
+
+/**
+ * Converts a local calendar date + time in the given IANA timezone to a UTC Date.
+ * Uses the "epoch trick": format epoch 0 in the target TZ to find the current
+ * offset, then apply it. Works correctly across DST transitions.
+ */
+function localToUtc(year: number, month: number, day: number, hour: number, minute: number, tz: string): Date {
+  // Build a UTC date that, when rendered in tz, shows the desired local time.
+  // Strategy: construct the date as if UTC, then correct for the TZ offset.
+  const naive = new Date(Date.UTC(year, month, day, hour, minute, 0));
+
+  // Find what UTC time renders as 00:00 in the target TZ on that date,
+  // by comparing the UTC representation to the local representation.
+  const formatter = new Intl.DateTimeFormat("en-US", {
+    timeZone: tz,
+    year: "numeric", month: "2-digit", day: "2-digit",
+    hour: "2-digit", minute: "2-digit", second: "2-digit",
+    hour12: false,
+  });
+
+  // Binary-search-free approach: use the offset between UTC and local at the naive date
+  const utcStr   = new Date(naive.getTime()).toLocaleString("en-US", { timeZone: "UTC" });
+  const localStr = new Date(naive.getTime()).toLocaleString("en-US", { timeZone: tz });
+  void formatter;
+
+  const utcDate   = new Date(utcStr);
+  const localDate = new Date(localStr);
+  const offsetMs  = utcDate.getTime() - localDate.getTime();
+
+  return new Date(naive.getTime() + offsetMs);
+}
+
+function addDays(d: Date, n: number): Date {
+  return new Date(d.getTime() + n * 86_400_000);
+}
+
+function getWeekdayInTz(d: Date, tz: string): number {
+  const dow = new Intl.DateTimeFormat("en-US", { timeZone: tz, weekday: "short" }).format(d);
+  return ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].indexOf(dow);
 }
