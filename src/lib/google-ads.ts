@@ -337,6 +337,43 @@ export async function fetchAdGroupPerformance(
   });
 }
 
+// ── All Ad Groups (no date filter — catches zero-traffic groups) ────
+
+export interface AdGroupEntity {
+  adGroupId: string;
+  adGroupName: string;
+  campaignId: string;
+  status: string;
+}
+
+export async function fetchAllAdGroups(
+  config: GoogleAdsConfig,
+): Promise<AdGroupEntity[]> {
+  const query = `
+    SELECT
+      ad_group.id,
+      ad_group.name,
+      ad_group.status,
+      campaign.id
+    FROM ad_group
+    WHERE campaign.status != 'REMOVED'
+      AND ad_group.status != 'REMOVED'
+    ORDER BY ad_group.name
+  `;
+
+  const rows = await gaqlQuery(config, query);
+
+  return rows.map((row: unknown) => {
+    const r = row as Record<string, Record<string, unknown>>;
+    return {
+      adGroupId: String(r.ad_group?.id ?? ""),
+      adGroupName: String(r.ad_group?.name ?? ""),
+      campaignId: String(r.campaign?.id ?? ""),
+      status: String(r.ad_group?.status ?? "ENABLED"),
+    };
+  });
+}
+
 // ── Ad Performance ──────────────────────────────────────────────────
 
 export async function fetchAdPerformance(

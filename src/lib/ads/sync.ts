@@ -20,6 +20,7 @@ import {
   GoogleAdsConfig,
   fetchCampaignPerformance,
   fetchAdGroupPerformance,
+  fetchAllAdGroups,
   fetchKeywordPerformance,
   fetchKeywordCriteria,
   fetchAdPerformance,
@@ -138,15 +139,33 @@ export async function runNormalizedSync(
     console.log(`[Ads/Sync] Stage 1: ${result.campaigns} campaigns`);
 
     // ── Stage 2: Ad Groups ─────────────────────────────────────────
+    // First, fetch ALL ad groups (no date filter) to catch zero-traffic groups.
+    // Then overlay performance metrics from the date-filtered query.
     const adGroupIdMap = new Map<string, number>();
 
-    const adGroups = await fetchAdGroupPerformance(config, startDate, endDate);
-    for (const ag of adGroups) {
+    const allAdGroups = await fetchAllAdGroups(config);
+    for (const ag of allAdGroups) {
       const internalCampaignId = campaignIdMap.get(ag.campaignId);
       if (internalCampaignId === undefined) {
         console.warn(`[Ads/Sync] Ad group ${ag.adGroupId} references unknown campaign ${ag.campaignId}, skipping`);
         continue;
       }
+      const internalId = await upsertAdGroup(supabase, {
+        google_ad_group_id: ag.adGroupId,
+        campaign_id: internalCampaignId,
+        name: ag.adGroupName,
+        status: ag.status,
+      });
+      adGroupIdMap.set(ag.adGroupId, internalId);
+      result.adGroups++;
+    }
+
+    // Also run the performance query to ensure we don't miss any with metrics
+    const adGroups = await fetchAdGroupPerformance(config, startDate, endDate);
+    for (const ag of adGroups) {
+      if (adGroupIdMap.has(ag.adGroupId)) continue; // Already synced above
+      const internalCampaignId = campaignIdMap.get(ag.campaignId);
+      if (internalCampaignId === undefined) continue;
       const internalId = await upsertAdGroup(supabase, {
         google_ad_group_id: ag.adGroupId,
         campaign_id: internalCampaignId,
