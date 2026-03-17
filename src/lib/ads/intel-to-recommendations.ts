@@ -17,9 +17,11 @@ interface IntelDataPoint {
 
 type RecType =
   | "keyword_pause"
+  | "keyword_add"
   | "bid_adjust"
   | "negative_add"
   | "budget_adjust"
+  | "ad_group_create"
   | "copy_suggestion"
   | "waste_flag"
   | "opportunity_flag";

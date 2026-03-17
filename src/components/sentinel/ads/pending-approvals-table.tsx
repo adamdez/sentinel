@@ -29,6 +29,7 @@ interface PendingRecommendation {
   entity_name?: string;
   campaign_name?: string;
   executable?: boolean;
+  metadata?: Record<string, unknown> | null;
 }
 
 interface PendingApprovalsTableProps {
@@ -285,13 +286,22 @@ export function PendingApprovalsTable({ onDecision }: PendingApprovalsTableProps
                             {rec.market}
                           </span>
                           <span className="font-semibold text-foreground/90">
-                            {rec.related_keyword_id ? "Keyword" : rec.related_ad_group_id ? "Ad Group" : "Campaign"}
+                            {rec.recommendation_type === "keyword_add" ? "Add Keyword" :
+                             rec.recommendation_type === "negative_add" ? "Block Term" :
+                             rec.recommendation_type === "ad_group_create" ? "New Ad Group" :
+                             rec.related_keyword_id ? "Keyword" :
+                             rec.related_ad_group_id ? "Ad Group" : "Campaign"}
                           </span>
                           <span className="text-[11px] text-foreground/60 truncate max-w-[180px]" title={rec.entity_name}>
                             {rec.entity_name && rec.entity_name !== "Unknown" && rec.entity_name !== "Unknown keyword"
                               ? rec.entity_name
-                              : null}
+                              : (rec.metadata?.keyword_text as string) ?? (rec.metadata?.ad_group_name as string) ?? null}
                           </span>
+                          {rec.metadata?.match_type ? (
+                            <span className="text-[9px] text-muted-foreground/40 font-mono uppercase">
+                              {String(rec.metadata.match_type)}
+                            </span>
+                          ) : null}
                           {rec.campaign_name && rec.related_keyword_id && (
                             <span className="text-[10px] text-muted-foreground/40 truncate max-w-[180px]">
                               in {rec.campaign_name}

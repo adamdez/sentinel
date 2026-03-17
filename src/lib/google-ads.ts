@@ -937,6 +937,45 @@ export async function addNegativeKeyword(
   }]);
 }
 
+export async function addKeyword(
+  config: GoogleAdsConfig,
+  adGroupId: string,
+  keywordText: string,
+  matchType: "BROAD" | "PHRASE" | "EXACT" = "EXACT",
+  bidMicros?: number,
+): Promise<unknown> {
+  const criterion: Record<string, unknown> = {
+    adGroup: `customers/${config.customerId}/adGroups/${adGroupId}`,
+    status: "ENABLED",
+    keyword: { text: keywordText, matchType },
+  };
+  if (bidMicros) {
+    criterion.cpcBidMicros = String(bidMicros);
+  }
+  return mutate(config, [{
+    adGroupCriterionOperation: {
+      create: criterion,
+    },
+  }]);
+}
+
+export async function createAdGroup(
+  config: GoogleAdsConfig,
+  campaignId: string,
+  adGroupName: string,
+): Promise<unknown> {
+  return mutate(config, [{
+    adGroupOperation: {
+      create: {
+        campaign: `customers/${config.customerId}/campaigns/${campaignId}`,
+        name: adGroupName,
+        status: "ENABLED",
+        type: "SEARCH_STANDARD",
+      },
+    },
+  }]);
+}
+
 // ── Config Helper ───────────────────────────────────────────────────
 
 export function getGoogleAdsConfig(accessToken: string): GoogleAdsConfig {

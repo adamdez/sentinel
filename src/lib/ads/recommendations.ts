@@ -1,13 +1,15 @@
 import { SupabaseClient } from "@supabase/supabase-js";
 
 export type RiskLevel = "green" | "yellow" | "red";
-export type RecommendationType = 
-  | "keyword_pause" 
-  | "bid_adjust" 
-  | "negative_add" 
-  | "budget_adjust" 
-  | "copy_suggestion" 
-  | "waste_flag" 
+export type RecommendationType =
+  | "keyword_pause"
+  | "keyword_add"
+  | "bid_adjust"
+  | "negative_add"
+  | "budget_adjust"
+  | "ad_group_create"
+  | "copy_suggestion"
+  | "waste_flag"
   | "opportunity_flag";
 
 export interface AIStructuredRecommendation {
@@ -39,7 +41,7 @@ export async function insertValidatedRecommendations(
 
     // 1. Strict Type Validation
     const recType = raw.recommendation_type as RecommendationType;
-    const validTypes = ["keyword_pause", "bid_adjust", "negative_add", "budget_adjust", "copy_suggestion", "waste_flag", "opportunity_flag"];
+    const validTypes = ["keyword_pause", "keyword_add", "bid_adjust", "negative_add", "budget_adjust", "ad_group_create", "copy_suggestion", "waste_flag", "opportunity_flag"];
     if (!validTypes.includes(recType)) {
       continue;
     }
@@ -123,8 +125,26 @@ export async function insertValidatedRecommendations(
         trueMarket = camp.market;
       }
     } else {
-      // A recommendation must map to at least ONE valid entity
-      isValid = false;
+      // Builder types (keyword_add, ad_group_create, negative_add) can be valid
+      // with just a campaign_id in metadata, resolved below
+      const builderTypes = ["keyword_add", "ad_group_create", "negative_add"];
+      if (!builderTypes.includes(recType)) {
+        isValid = false;
+      }
+    }
+
+    // Builder types may have campaign_id set directly without going through entity chain
+    if (isValid && !trueMarket && raw.related_campaign_id && !row.related_campaign_id) {
+      const { data: camp } = await sb.from("ads_campaigns")
+        .select("id, market")
+        .eq("id", raw.related_campaign_id)
+        .maybeSingle();
+      if (camp) {
+        row.related_campaign_id = camp.id;
+        trueMarket = camp.market;
+      } else {
+        isValid = false;
+      }
     }
 
     if (!isValid || !trueMarket) {

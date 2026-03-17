@@ -7,6 +7,8 @@ import {
   updateKeywordBid,
   updateCampaignBudget,
   addNegativeKeyword,
+  addKeyword,
+  createAdGroup,
 } from "@/lib/google-ads";
 
 export const dynamic = "force-dynamic";
@@ -104,7 +106,7 @@ export async function POST(req: NextRequest) {
         break;
       }
       case "negative_add": {
-        // Try to resolve campaign from keyword chain or directly
+        // Resolve campaign from keyword chain or directly
         let googleCampaignId: string | null = null;
         const camp = rec.ads_keywords?.ads_ad_groups?.ads_campaigns;
         if (camp?.google_campaign_id) {
@@ -120,12 +122,67 @@ export async function POST(req: NextRequest) {
         if (!googleCampaignId) {
           return NextResponse.json({ error: "Cannot resolve campaign for negative keyword" }, { status: 422 });
         }
-        // Extract keyword text from reason field (quoted text or first segment)
-        const negText = rec.reason?.match(/["']([^"']+)["']/)?.[1] ?? rec.reason?.split(".")[0]?.trim();
+        // Prefer metadata for keyword text and match type (builder mode)
+        const negMeta = rec.metadata as Record<string, unknown> | null;
+        const negText = (negMeta?.keyword_text as string)
+          ?? rec.reason?.match(/["']([^"']+)["']/)?.[1]
+          ?? rec.reason?.split(".")[0]?.trim();
         if (!negText) {
-          return NextResponse.json({ error: "Cannot extract negative keyword text from reason" }, { status: 422 });
+          return NextResponse.json({ error: "Cannot extract negative keyword text" }, { status: 422 });
         }
-        mutationResult = await addNegativeKeyword(config, googleCampaignId, negText, "EXACT");
+        const negMatchType = (negMeta?.match_type as string)?.toUpperCase() as "BROAD" | "PHRASE" | "EXACT" | undefined;
+        mutationResult = await addNegativeKeyword(config, googleCampaignId, negText, negMatchType ?? "EXACT");
+        break;
+      }
+      case "keyword_add": {
+        // Metadata must contain keyword_text, match_type, and target ad group
+        const kwMeta = rec.metadata as Record<string, unknown> | null;
+        const keywordText = kwMeta?.keyword_text as string | undefined;
+        const kwMatchType = (kwMeta?.match_type as string)?.toUpperCase() as "BROAD" | "PHRASE" | "EXACT" | undefined;
+        if (!keywordText || !kwMatchType) {
+          return NextResponse.json({ error: "keyword_add requires metadata.keyword_text and metadata.match_type" }, { status: 422 });
+        }
+
+        // Resolve the ad group's Google ID
+        let googleAdGroupId: string | null = null;
+        if (rec.related_ad_group_id) {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const { data: agData } = await (sb.from("ads_ad_groups") as any)
+            .select("google_ad_group_id")
+            .eq("id", rec.related_ad_group_id)
+            .maybeSingle();
+          googleAdGroupId = agData?.google_ad_group_id ?? null;
+        }
+        if (!googleAdGroupId) {
+          return NextResponse.json({ error: "Cannot resolve ad group for keyword_add" }, { status: 422 });
+        }
+
+        const kwBidMicros = kwMeta?.bid_micros ? Number(kwMeta.bid_micros) : undefined;
+        mutationResult = await addKeyword(config, googleAdGroupId, keywordText, kwMatchType, kwBidMicros);
+        break;
+      }
+      case "ad_group_create": {
+        const agMeta = rec.metadata as Record<string, unknown> | null;
+        const adGroupName = agMeta?.ad_group_name as string | undefined;
+        if (!adGroupName) {
+          return NextResponse.json({ error: "ad_group_create requires metadata.ad_group_name" }, { status: 422 });
+        }
+
+        // Resolve campaign Google ID
+        let googleCampId: string | null = null;
+        if (rec.related_campaign_id) {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const { data: campData } = await (sb.from("ads_campaigns") as any)
+            .select("google_campaign_id")
+            .eq("id", rec.related_campaign_id)
+            .maybeSingle();
+          googleCampId = campData?.google_campaign_id ?? null;
+        }
+        if (!googleCampId) {
+          return NextResponse.json({ error: "Cannot resolve campaign for ad_group_create" }, { status: 422 });
+        }
+
+        mutationResult = await createAdGroup(config, googleCampId, adGroupName);
         break;
       }
       case "budget_adjust": {
@@ -148,7 +205,7 @@ export async function POST(req: NextRequest) {
       }
       default:
         return NextResponse.json({
-          error: `Execution not yet supported for type: ${rec.recommendation_type}. Only keyword_pause, bid_adjust, negative_add, and budget_adjust can be executed.`
+          error: `Execution not yet supported for type: ${rec.recommendation_type}. Supported: keyword_pause, keyword_add, bid_adjust, negative_add, budget_adjust, ad_group_create.`
         }, { status: 400 });
     }
 

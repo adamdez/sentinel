@@ -46,6 +46,7 @@ export async function GET(req: NextRequest) {
       related_ad_group_id,
       related_keyword_id,
       created_at,
+      metadata,
       ads_keywords(text, google_keyword_id),
       ads_ad_groups:related_ad_group_id(name, google_ad_group_id),
       ads_campaigns:related_campaign_id(name, google_campaign_id)
@@ -114,6 +115,12 @@ export async function GET(req: NextRequest) {
       executable = true; // These are informational, not executed in Google Ads
     }
 
+    // Builder types with metadata are always executable (they create new entities)
+    const builderTypes = ["keyword_add", "ad_group_create"];
+    if (builderTypes.includes(rec.recommendation_type) && rec.metadata) {
+      executable = true;
+    }
+
     return {
       id: rec.id,
       recommendation_type: rec.recommendation_type,
@@ -128,6 +135,7 @@ export async function GET(req: NextRequest) {
       entity_name: entityName,
       campaign_name: camp?.name ?? null,
       executable,
+      metadata: rec.metadata ?? null,
     };
   });
 

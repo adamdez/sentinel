@@ -3,6 +3,7 @@ import { createServerClient } from "@/lib/supabase";
 import { analyzeWithClaude, extractJsonObject } from "@/lib/claude-client";
 import { runAdversarialReview } from "@/lib/ads/adversarial-review";
 import { convertIntelToRecommendations } from "@/lib/ads/intel-to-recommendations";
+import { convertBuilderToRecommendations } from "@/lib/ads/builder-to-recommendations";
 
 // Compact system prompt for intelligence extraction only.
 // The full 500-line ops prompt is too large for this route — it pushes
@@ -12,6 +13,16 @@ const INTELLIGENCE_SYSTEM_PROMPT = `You are a senior Google Ads analyst for Domi
 Key benchmarks: target CPC under $15, target CPL under $150, target CTR above 5%. Zero conversions in the data almost always means conversion tracking is broken or the account is too new — flag this as the top priority if present.
 
 Your job is to extract and rank intelligence from the provided account data. Be specific and dollar-grounded. Flag waste before opportunities. Respond ONLY with the exact JSON format requested — no commentary, no markdown, no preamble.`;
+
+const BUILDER_SYSTEM_PROMPT = `You are a senior Google Ads campaign architect for Dominion Home Deals, a cash home buyer in Spokane County WA (primary) and Kootenai County ID (secondary). They wholesale residential properties off-market.
+
+You deeply understand the Google Ads hierarchy: Account → Campaigns → Ad Groups → Keywords/Ads. Each ad group should be tightly themed around a specific seller intent cluster. Match types control precision: EXACT for high-intent, PHRASE for coverage, BROAD only with strong negatives.
+
+Your job is to BUILD campaign structure from scratch — ad groups, keywords, and negative keywords. The account is new or thin. Do NOT analyze performance (there isn't enough). Instead, create the foundation.
+
+Target seller intent: people who want to sell their house fast for cash. NOT buyers looking to purchase homes. NOT agents. NOT general real estate searches.
+
+Respond ONLY with the exact JSON format requested — no commentary, no markdown, no preamble.`;
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -142,6 +153,20 @@ export async function POST(req: NextRequest) {
     const last30 = agg(metrics30);
     const last7 = agg(metrics7);
 
+    // ── Account maturity detection ──────────────────────────────────
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const [negativeRes, conversionRes] = await Promise.all([
+      (sb.from("ads_negative_keywords") as any).select("id", { count: "exact", head: true }),
+      (sb.from("ads_conversion_actions") as any).select("id", { count: "exact", head: true }),
+    ]);
+
+    const realKeywords = keywords.filter((k: Record<string, unknown>) =>
+      k.text && k.text !== "" && k.google_keyword_id && k.google_keyword_id !== ""
+    );
+    const negativeCount = negativeRes.count ?? 0;
+    const conversionCount = conversionRes.count ?? 0;
+    const isBuilderMode = realKeywords.length < 5 || negativeCount < 3;
+
     // Build context
     const systemPrompt = INTELLIGENCE_SYSTEM_PROMPT;
 
@@ -188,8 +213,75 @@ export async function POST(req: NextRequest) {
       latestReview ? `## LATEST AI REVIEW (${latestReview.review_type}, ${latestReview.created_at})\n${latestReview.summary}` : "",
     ].join("\n");
 
-    // ── Primary intelligence extraction (Opus 4.6) ──────────────────
-    const intelligencePrompt = `## KEY INTELLIGENCE EXTRACTION
+    // ── Primary AI analysis ────────────────────────────────────────
+    let parsed: Record<string, unknown>;
+    let isBuilderResponse = false;
+
+    if (isBuilderMode) {
+      // ── Builder mode: generate campaign structure ──────────────────
+      console.log(`[Intelligence] Builder mode activated: ${realKeywords.length} real keywords, ${negativeCount} negatives, ${conversionCount} conversion actions`);
+
+      const builderPrompt = `## CAMPAIGN BUILDER
+
+This Google Ads account is NEW or THIN. It needs structure built, not optimization.
+
+Current state:
+- ${campaigns.length} campaigns: ${campaigns.map((c: Record<string, unknown>) => `${c.name} (${c.market}, ${c.status})`).join(", ")}
+- ${realKeywords.length} real keywords (with Google Ads IDs)
+- ${negativeCount} negative keywords
+- ${conversionCount} conversion actions
+- ${searchTerms.length} search terms observed so far
+- $${last30.spend.toFixed(2)} spent in 30 days, ${last30.clicks} clicks, ${last30.conversions} conversions
+
+${searchTerms.length > 0 ? `Search terms people actually typed (showing what traffic you're getting):
+${searchTerms.slice(0, 30).map((st: Record<string, unknown>) => `- "${st.search_term}" (${st.clicks} clicks, $${(Number(st.cost_micros ?? 0) / 1_000_000).toFixed(2)})`).join("\n")}` : "No search term data yet."}
+
+## YOUR TASK
+
+Build the campaign structure for a cash home buyer in Spokane/Kootenai:
+
+1. Suggest 2-4 ad groups organized by seller situation (e.g., "Fast Cash Sale", "Inherited Property", "Distressed/As-Is", "Foreclosure/Pre-Foreclosure"). Each ad group should target a distinct seller intent cluster.
+2. Generate 15-25 seller-intent keywords across those ad groups. Use EXACT and PHRASE match. Bid suggestion $8-15 per keyword.
+3. Generate 20-30 negative keywords to block buyer intent, agent searches, and irrelevant traffic. Use PHRASE match for broad blocks, EXACT for specific terms.
+
+Respond with a single JSON object:
+{
+  "account_assessment": "<1-2 sentences: current state and what's needed>",
+  "ad_groups": [
+    { "name": "<ad group name>", "purpose": "<1 sentence>", "campaign_name": "<target campaign>" }
+  ],
+  "keywords": [
+    { "keyword_text": "<the keyword>", "match_type": "EXACT|PHRASE", "ad_group_name": "<target ad group>", "bid_dollars": <number>, "rationale": "<1 sentence>" }
+  ],
+  "negatives": [
+    { "keyword_text": "<term to block>", "match_type": "PHRASE|EXACT", "level": "campaign", "rationale": "<1 sentence>" }
+  ]
+}`;
+
+      const rawResponse = await analyzeWithClaude({
+        prompt: builderPrompt,
+        systemPrompt: BUILDER_SYSTEM_PROMPT,
+        apiKey,
+        maxTokens: 6000,
+        model: "claude-opus-4-6",
+      });
+
+      const jsonStr = extractJsonObject(rawResponse);
+      if (!jsonStr) {
+        console.error("[Intelligence/Builder] Non-JSON response:", rawResponse.slice(0, 500));
+        return NextResponse.json({ error: "Builder response could not be parsed. Please try again." }, { status: 422 });
+      }
+      try {
+        parsed = JSON.parse(jsonStr);
+      } catch (parseErr) {
+        console.error("[Intelligence/Builder] JSON.parse failed:", parseErr);
+        return NextResponse.json({ error: "Builder response could not be parsed. Please try again." }, { status: 422 });
+      }
+      isBuilderResponse = true;
+
+    } else {
+      // ── Normal optimization mode ──────────────────────────────────
+      const intelligencePrompt = `## KEY INTELLIGENCE EXTRACTION
 
 Extract and rank the TOP 10-12 most important data points from the account data below. This is a prioritized intelligence briefing, not a review.
 
@@ -224,31 +316,30 @@ Respond with a single JSON object (no markdown fences):
 DATA:
 ${rawDataContext}`;
 
-    const rawResponse = await analyzeWithClaude({
-      prompt: intelligencePrompt,
-      systemPrompt,
-      apiKey,
-      maxTokens: 6000,
-      model: "claude-opus-4-6",
-    });
+      const rawResponse = await analyzeWithClaude({
+        prompt: intelligencePrompt,
+        systemPrompt,
+        apiKey,
+        maxTokens: 6000,
+        model: "claude-opus-4-6",
+      });
 
-    // Parse Opus response
-    let parsed: Record<string, unknown>;
-    const jsonStr = extractJsonObject(rawResponse);
-    if (!jsonStr) {
-      console.error("[Intelligence] Claude returned non-JSON output. First 500 chars:", rawResponse.slice(0, 500));
-      return NextResponse.json({ error: "AI response could not be parsed. The model may have been truncated. Please try again." }, { status: 422 });
-    }
-    try {
-      parsed = JSON.parse(jsonStr);
-    } catch (parseErr) {
-      console.error("[Intelligence] JSON.parse failed:", parseErr, "First 500 chars:", rawResponse.slice(0, 500));
-      return NextResponse.json({ error: "AI response could not be parsed. The model may have been truncated. Please try again." }, { status: 422 });
+      const jsonStr = extractJsonObject(rawResponse);
+      if (!jsonStr) {
+        console.error("[Intelligence] Claude returned non-JSON output. First 500 chars:", rawResponse.slice(0, 500));
+        return NextResponse.json({ error: "AI response could not be parsed. The model may have been truncated. Please try again." }, { status: 422 });
+      }
+      try {
+        parsed = JSON.parse(jsonStr);
+      } catch (parseErr) {
+        console.error("[Intelligence] JSON.parse failed:", parseErr, "First 500 chars:", rawResponse.slice(0, 500));
+        return NextResponse.json({ error: "AI response could not be parsed. The model may have been truncated. Please try again." }, { status: 422 });
+      }
     }
 
     // ── Adversarial challenge (GPT-5.4 Pro) ─────────────────────────
     let adversarialResult = null;
-    if (openaiKey) {
+    if (!isBuilderResponse && openaiKey) {
       try {
         adversarialResult = await runAdversarialReview({
           rawData: rawDataContext,
@@ -272,18 +363,22 @@ ${rawDataContext}`;
     } : null;
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const dataPoints = (parsed.data_points ?? []) as any[];
+    const dataPoints = isBuilderResponse ? [] : ((parsed.data_points ?? []) as any[]);
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { data: savedBriefing, error: saveErr } = await (sb.from("ads_intelligence_briefings") as any)
       .insert({
         briefing_date: parsed.briefing_date ?? new Date().toISOString().split("T")[0],
-        account_status: parsed.account_status ?? "caution",
-        executive_summary: parsed.executive_summary ?? "",
-        total_estimated_monthly_waste: parsed.total_estimated_monthly_waste ?? 0,
-        total_estimated_monthly_opportunity: parsed.total_estimated_monthly_opportunity ?? 0,
-        data_points: dataPoints,
-        adversarial_result: adversarialPayload,
+        account_status: isBuilderResponse ? "building" : (parsed.account_status ?? "caution"),
+        executive_summary: isBuilderResponse
+          ? ((parsed.account_assessment as string) ?? "Account is in builder mode — generating campaign structure.")
+          : (parsed.executive_summary ?? ""),
+        total_estimated_monthly_waste: isBuilderResponse ? 0 : (parsed.total_estimated_monthly_waste ?? 0),
+        total_estimated_monthly_opportunity: isBuilderResponse ? 0 : (parsed.total_estimated_monthly_opportunity ?? 0),
+        data_points: isBuilderResponse
+          ? [{ rank: 1, category: "structural", signal: parsed.account_assessment, urgency: "act_now", confidence: "confirmed", market: "both", recommended_action: "Review and approve the builder recommendations in the Approvals tab." }]
+          : dataPoints,
+        adversarial_result: isBuilderResponse ? null : adversarialPayload,
         trigger,
       })
       .select("id, created_at")
@@ -297,13 +392,54 @@ ${rawDataContext}`;
     const briefingId = savedBriefing?.id ?? null;
     const savedAt = savedBriefing?.created_at ?? new Date().toISOString();
 
-    // ── Convert actionable intel to recommendations ──────────────────
+    // ── Convert to recommendations ──────────────────────────────────
     let recommendations = { created: 0, skipped: 0, total: 0 };
-    if (briefingId && dataPoints.length > 0) {
+    if (briefingId && isBuilderResponse) {
+      try {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        recommendations = await convertBuilderToRecommendations(sb, parsed as any, briefingId);
+      } catch (recErr) {
+        console.error("[Intelligence] Builder recommendation conversion failed:", recErr);
+      }
+    } else if (briefingId && dataPoints.length > 0) {
       try {
         recommendations = await convertIntelToRecommendations(sb, dataPoints, briefingId);
       } catch (recErr) {
         console.error("[Intelligence] Recommendation conversion failed (non-blocking):", recErr);
+      }
+    }
+
+    // ── Auto-approve green-risk negative keywords ───────────────────
+    // Blocking bad search terms is safe — it prevents waste, not spend.
+    let autoApproved = 0;
+    if (recommendations.created > 0) {
+      try {
+        const fiveMinAgo = new Date(Date.now() - 5 * 60000).toISOString();
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const { data: greenNegs, error: autoErr } = await (sb.from("ads_recommendations") as any)
+          .update({ status: "approved" })
+          .eq("status", "pending")
+          .eq("risk_level", "green")
+          .eq("recommendation_type", "negative_add")
+          .gte("created_at", fiveMinAgo)
+          .select("id");
+
+        if (!autoErr && greenNegs) {
+          autoApproved = greenNegs.length;
+          // Log auto-approvals to ledger
+          if (autoApproved > 0) {
+            const ledgerRows = greenNegs.map((r: { id: string }) => ({
+              recommendation_id: r.id,
+              decided_by: user.id,
+              decision: "approved",
+              decided_at: new Date().toISOString(),
+            }));
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            await (sb.from("ads_approvals") as any).insert(ledgerRows);
+          }
+        }
+      } catch (autoErr) {
+        console.error("[Intelligence] Auto-approve failed (non-blocking):", autoErr);
       }
     }
 
@@ -335,6 +471,7 @@ ${rawDataContext}`;
       savedAt,
       briefingId,
       recommendations,
+      autoApproved,
     });
   } catch (err) {
     if (err instanceof Error) {
