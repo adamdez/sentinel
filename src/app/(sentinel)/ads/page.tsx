@@ -107,7 +107,7 @@ export default function AdsPage() {
     { id: "approvals", label: "Approvals", icon: Zap },
     { id: "intelligence", label: "Key Intel", icon: Brain },
     { id: "copylab", label: "Ad Copy Lab", icon: FileText },
-    { id: "landing", label: "Landing Page", icon: Globe },
+    { id: "landing", label: "Landing Pages", icon: Globe },
     { id: "chat", label: "Chat", icon: Sparkles },
     { id: "system-prompt", label: "System Prompt", icon: Settings },
   ];
@@ -1458,14 +1458,57 @@ interface LandingReview {
   created_at: string;
 }
 
+// Landing page → ad group mapping
+const LANDING_PAGES = [
+  {
+    path: "/sell",
+    label: "Fast Cash Sale",
+    adGroup: "Fast Cash Sale - Spokane",
+    description: "Primary PPC page — speed, cash, certainty",
+    intent: "Seller wants to sell fast for cash",
+  },
+  {
+    path: "/sell/as-is",
+    label: "Sell As-Is",
+    adGroup: "Sell As-Is / Ugly House",
+    description: "House needs work, skip repairs entirely",
+    intent: "Seller knows house needs work, doesn't want to deal with it",
+  },
+  {
+    path: "/sell/inherited",
+    label: "Inherited Property",
+    adGroup: "Inherited / Probate Property",
+    description: "Estate situations, probate, family complexity",
+    intent: "Seller dealing with inherited property or estate",
+  },
+  {
+    path: "/sell/foreclosure",
+    label: "Foreclosure",
+    adGroup: "Foreclosure / Behind on Payments",
+    description: "Behind on mortgage, facing foreclosure timeline",
+    intent: "Seller under financial pressure, needs speed",
+  },
+];
+
+interface AdGroupMetrics {
+  name: string;
+  clicks: number;
+  impressions: number;
+  cost: number;
+  conversions: number;
+}
+
 function LandingTab() {
   const [review, setReview] = useState<LandingReview | null>(null);
   const [loading, setLoading] = useState(true);
   const [reviewing, setReviewing] = useState(false);
+  const [selectedPage, setSelectedPage] = useState<string | null>(null);
+  const [adGroupMetrics, setAdGroupMetrics] = useState<AdGroupMetrics[]>([]);
 
   useEffect(() => {
     (async () => {
       try {
+        // Fetch latest landing page review
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const { data } = await (supabase.from("ad_reviews") as any)
           .select("*")
@@ -1474,6 +1517,46 @@ function LandingTab() {
           .limit(1)
           .maybeSingle();
         setReview(data ?? null);
+
+        // Fetch ad group performance (last 30 days)
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const { data: adGroups } = await (supabase.from("ads_ad_groups") as any)
+          .select("name, google_ad_group_id")
+          .eq("status", "ENABLED");
+
+        if (adGroups && adGroups.length > 0) {
+          const thirtyDaysAgo = new Date();
+          thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const { data: metrics } = await (supabase.from("ads_daily_metrics") as any)
+            .select("ad_group_id, impressions, clicks, cost_micros, conversions")
+            .gte("report_date", thirtyDaysAgo.toISOString().split("T")[0])
+            .not("ad_group_id", "is", null);
+
+          if (metrics) {
+            // Aggregate by ad group
+            const agMap = new Map<string, { clicks: number; impressions: number; cost: number; conversions: number }>();
+            for (const m of metrics) {
+              const existing = agMap.get(m.ad_group_id) ?? { clicks: 0, impressions: 0, cost: 0, conversions: 0 };
+              existing.clicks += m.clicks || 0;
+              existing.impressions += m.impressions || 0;
+              existing.cost += (m.cost_micros || 0) / 1_000_000;
+              existing.conversions += m.conversions || 0;
+              agMap.set(m.ad_group_id, existing);
+            }
+
+            // Map ad group DB IDs to names
+            const result: AdGroupMetrics[] = [];
+            for (const ag of adGroups) {
+              const m = agMap.get(ag.id) ?? { clicks: 0, impressions: 0, cost: 0, conversions: 0 };
+              if (ag.name) {
+                result.push({ name: ag.name, ...m });
+              }
+            }
+            setAdGroupMetrics(result);
+          }
+        }
       } finally {
         setLoading(false);
       }
@@ -1489,7 +1572,6 @@ function LandingTab() {
         headers,
       });
       if (res.ok) {
-        // Reload
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const { data } = await (supabase.from("ad_reviews") as any)
           .select("*")
@@ -1515,12 +1597,19 @@ function LandingTab() {
     info: <Info className="h-4 w-4 text-cyan" />,
   };
 
+  const getMetricsForAdGroup = (adGroupName: string) => {
+    return adGroupMetrics.find(m => m.name === adGroupName);
+  };
+
   return (
     <div className="space-y-6">
+      {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h3 className="text-sm font-semibold">dominionhomedeals.com</h3>
-          <p className="text-xs text-muted-foreground/60">Landing page conversion analysis</p>
+          <h3 className="text-sm font-semibold">Landing Pages &middot; dominionhomedeals.com</h3>
+          <p className="text-xs text-muted-foreground/60">
+            {LANDING_PAGES.length} pages mapped to {LANDING_PAGES.length} ad groups
+          </p>
         </div>
         <button
           onClick={handleReview}
@@ -1528,17 +1617,111 @@ function LandingTab() {
           className="flex items-center gap-2 px-4 py-2 text-sm rounded-lg bg-cyan/10 text-cyan hover:bg-cyan/20 border border-cyan/20 transition disabled:opacity-50"
         >
           <Globe className={`h-4 w-4 ${reviewing ? "animate-spin" : ""}`} />
-          {reviewing ? "Analyzing..." : "Review Landing Page"}
+          {reviewing ? "Analyzing..." : "Review All Pages"}
         </button>
       </div>
 
-      {!review ? (
-        <div className="text-center py-16">
-          <Globe className="h-12 w-12 mx-auto text-muted-foreground/30 mb-4" />
-          <h3 className="text-lg font-medium text-muted-foreground mb-2">No Landing Page Review</h3>
-          <p className="text-sm text-muted-foreground/60">Click &ldquo;Review Landing Page&rdquo; to have Claude analyze dominionhomedeals.com.</p>
+      {/* Landing Page Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {LANDING_PAGES.map((page) => {
+          const metrics = getMetricsForAdGroup(page.adGroup);
+          const ctr = metrics && metrics.impressions > 0 ? (metrics.clicks / metrics.impressions) : 0;
+          const cpc = metrics && metrics.clicks > 0 ? (metrics.cost / metrics.clicks) : 0;
+          const isSelected = selectedPage === page.path;
+
+          return (
+            <button
+              key={page.path}
+              onClick={() => setSelectedPage(isSelected ? null : page.path)}
+              className={`text-left glass-strong rounded-xl border p-4 transition-all ${
+                isSelected
+                  ? "border-cyan/30 bg-cyan/[0.03]"
+                  : "border-white/[0.06] hover:border-white/[0.12]"
+              }`}
+            >
+              <div className="flex items-start justify-between mb-2">
+                <div>
+                  <p className="text-sm font-semibold">{page.label}</p>
+                  <p className="text-xs text-muted-foreground/50 mt-0.5">{page.path}</p>
+                </div>
+                <span className="text-[10px] bg-cyan/10 text-cyan px-2 py-0.5 rounded-full font-medium">
+                  LIVE
+                </span>
+              </div>
+
+              <p className="text-xs text-muted-foreground/60 mb-3">{page.description}</p>
+
+              {/* Ad Group Mapping */}
+              <div className="flex items-center gap-1.5 mb-3 text-xs">
+                <Target className="h-3 w-3 text-yellow-400" />
+                <span className="text-muted-foreground/70">Ad Group:</span>
+                <span className="text-yellow-400/80 font-medium">{page.adGroup}</span>
+              </div>
+
+              {/* Metrics Row */}
+              {metrics && (metrics.clicks > 0 || metrics.impressions > 0) ? (
+                <div className="grid grid-cols-4 gap-2 pt-2 border-t border-white/[0.04]">
+                  <div>
+                    <p className="text-[10px] text-muted-foreground/40 uppercase tracking-wider">Clicks</p>
+                    <p className="text-sm font-semibold">{metrics.clicks.toLocaleString()}</p>
+                  </div>
+                  <div>
+                    <p className="text-[10px] text-muted-foreground/40 uppercase tracking-wider">CTR</p>
+                    <p className="text-sm font-semibold">{fmtPct(ctr)}</p>
+                  </div>
+                  <div>
+                    <p className="text-[10px] text-muted-foreground/40 uppercase tracking-wider">CPC</p>
+                    <p className="text-sm font-semibold">{fmt$(cpc)}</p>
+                  </div>
+                  <div>
+                    <p className="text-[10px] text-muted-foreground/40 uppercase tracking-wider">Conv.</p>
+                    <p className="text-sm font-semibold">{metrics.conversions}</p>
+                  </div>
+                </div>
+              ) : (
+                <div className="pt-2 border-t border-white/[0.04]">
+                  <p className="text-[10px] text-muted-foreground/30 italic">No metrics yet — page is new</p>
+                </div>
+              )}
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Selected Page Detail */}
+      {selectedPage && (
+        <div className="glass-strong rounded-xl border border-white/[0.06] p-4 space-y-3">
+          <div className="flex items-center gap-2 mb-1">
+            <Globe className="h-4 w-4 text-cyan" />
+            <h4 className="text-sm font-semibold">
+              {LANDING_PAGES.find(p => p.path === selectedPage)?.label} — Page Details
+            </h4>
+          </div>
+          <div className="grid grid-cols-2 gap-4 text-sm">
+            <div>
+              <p className="text-xs text-muted-foreground/40 mb-1">URL</p>
+              <p className="text-cyan text-xs font-mono">dominionhomedeals.com{selectedPage}</p>
+            </div>
+            <div>
+              <p className="text-xs text-muted-foreground/40 mb-1">Matched Ad Group</p>
+              <p className="text-yellow-400/80 text-xs">{LANDING_PAGES.find(p => p.path === selectedPage)?.adGroup}</p>
+            </div>
+            <div className="col-span-2">
+              <p className="text-xs text-muted-foreground/40 mb-1">Visitor Intent</p>
+              <p className="text-muted-foreground/70 text-xs">{LANDING_PAGES.find(p => p.path === selectedPage)?.intent}</p>
+            </div>
+          </div>
+          <div className="pt-2 border-t border-white/[0.04]">
+            <p className="text-[10px] text-muted-foreground/40">
+              Google Ads tracking: Update your ad group final URLs to point each ad group to its matching landing page.
+              Each page has gtag conversion tracking via the shared /sell layout.
+            </p>
+          </div>
         </div>
-      ) : (
+      )}
+
+      {/* AI Review Section */}
+      {review ? (
         <div className="space-y-4">
           <div className="glass-strong rounded-xl border border-white/[0.06] p-4">
             <div className="flex items-center gap-2 mb-3">
@@ -1584,7 +1767,35 @@ function LandingTab() {
             </div>
           )}
         </div>
+      ) : (
+        <div className="text-center py-8">
+          <Brain className="h-8 w-8 mx-auto text-muted-foreground/20 mb-3" />
+          <p className="text-sm text-muted-foreground/50">Click &ldquo;Review All Pages&rdquo; to get Claude&apos;s conversion analysis.</p>
+        </div>
       )}
+
+      {/* Setup Guide */}
+      <div className="glass-strong rounded-xl border border-white/[0.06] p-4 space-y-3">
+        <h4 className="text-sm font-semibold flex items-center gap-2">
+          <Settings className="h-4 w-4 text-muted-foreground/40" />
+          Google Ads Setup
+        </h4>
+        <p className="text-xs text-muted-foreground/60 leading-relaxed">
+          To connect each ad group to its landing page, update the <strong>Final URL</strong> in Google Ads:
+        </p>
+        <div className="space-y-2">
+          {LANDING_PAGES.map((page) => (
+            <div key={page.path} className="flex items-center justify-between text-xs bg-white/[0.02] rounded-lg px-3 py-2">
+              <span className="text-muted-foreground/70">{page.adGroup}</span>
+              <span className="text-cyan font-mono">dominionhomedeals.com{page.path}</span>
+            </div>
+          ))}
+        </div>
+        <p className="text-[10px] text-muted-foreground/40 leading-relaxed">
+          Add <code className="text-cyan/60">?utm_source=google&amp;utm_medium=cpc&amp;utm_campaign=spokane_seller&amp;utm_content=</code> + ad group name
+          for attribution tracking in analytics.
+        </p>
+      </div>
     </div>
   );
 }

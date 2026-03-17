@@ -3,6 +3,7 @@ import { createServerClient } from "@/lib/supabase";
 import {
   refreshAccessToken,
   getGoogleAdsConfig,
+  addNegativeKeyword,
 } from "@/lib/google-ads";
 import { runNormalizedSync } from "@/lib/ads/sync";
 import { analyzeWithClaude, extractJsonObject } from "@/lib/claude-client";
@@ -402,10 +403,11 @@ ${rawDataContext}`;
     }
   }
 
-  // ── Auto-approve green-risk negative keywords ───────────────────
-  // Green-risk negatives are safe to auto-approve — blocking bad search terms
-  // doesn't risk spend, it prevents waste. All other types require human review.
+  // ── Auto-approve AND auto-execute green-risk negative keywords ──
+  // Green-risk negatives are safe — blocking bad search terms prevents waste
+  // without risking spend. We approve them, then immediately execute in Google Ads.
   let autoApproved = 0;
+  let autoExecuted = 0;
   if (recommendations.created > 0) {
     try {
       const fiveMinAgo = new Date(Date.now() - 5 * 60000).toISOString();
@@ -416,7 +418,7 @@ ${rawDataContext}`;
         .eq("risk_level", "green")
         .eq("recommendation_type", "negative_add")
         .gte("created_at", fiveMinAgo)
-        .select("id");
+        .select("id, metadata, related_campaign_id");
 
       if (!autoErr && greenNegs) {
         autoApproved = greenNegs.length;
@@ -433,9 +435,77 @@ ${rawDataContext}`;
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           await (sb.from("ads_approvals") as any).insert(ledgerRows);
         }
+
+        // ── Auto-execute: push negatives into Google Ads immediately ──
+        // Get a fresh access token for mutations
+        const refreshToken = process.env.GOOGLE_ADS_REFRESH_TOKEN;
+        if (refreshToken && autoApproved > 0) {
+          try {
+            const execAccessToken = await refreshAccessToken(refreshToken);
+            const execConfig = getGoogleAdsConfig(execAccessToken);
+
+            // Build campaign ID → Google campaign ID lookup
+            const campaignIds = [...new Set(greenNegs.map((r: { related_campaign_id: number }) => r.related_campaign_id).filter(Boolean))];
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const { data: campLookup } = await (sb.from("ads_campaigns") as any)
+              .select("id, google_campaign_id")
+              .in("id", campaignIds);
+            const campMap = new Map<number, string>();
+            for (const c of (campLookup ?? [])) {
+              if (c.google_campaign_id) campMap.set(c.id, c.google_campaign_id);
+            }
+
+            for (const neg of greenNegs) {
+              const meta = neg.metadata as Record<string, unknown> | null;
+              const keywordText = meta?.keyword_text as string | undefined;
+              const matchType = (meta?.match_type as string)?.toUpperCase() as "BROAD" | "PHRASE" | "EXACT" | undefined;
+              const googleCampaignId = campMap.get(neg.related_campaign_id);
+
+              if (!keywordText || !googleCampaignId) {
+                console.warn(`[Ads/Cycle] Skipping auto-execute for ${neg.id}: missing keyword_text or campaign ID`);
+                continue;
+              }
+
+              try {
+                const result = await addNegativeKeyword(execConfig, googleCampaignId, keywordText, matchType ?? "EXACT");
+                // Mark as executed
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                await (sb.from("ads_recommendations") as any)
+                  .update({ status: "executed" })
+                  .eq("id", neg.id);
+                // Log execution
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                await (sb.from("ads_implementation_logs") as any).insert({
+                  recommendation_id: neg.id,
+                  implemented_by: null, // System auto-execute
+                  result: "SUCCESS",
+                  action_taken: "negative_add",
+                  notes: JSON.stringify(result),
+                  implemented_at: new Date().toISOString(),
+                });
+                autoExecuted++;
+              } catch (execErr) {
+                console.error(`[Ads/Cycle] Auto-execute failed for ${neg.id}:`, execErr);
+                // Log failure but don't roll back approval
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                await (sb.from("ads_implementation_logs") as any).insert({
+                  recommendation_id: neg.id,
+                  implemented_by: null,
+                  result: "FAILED",
+                  action_taken: "negative_add",
+                  notes: execErr instanceof Error ? execErr.message : String(execErr),
+                  implemented_at: new Date().toISOString(),
+                }).catch(() => {});
+              }
+            }
+            console.log(`[Ads/Cycle] Auto-executed ${autoExecuted}/${autoApproved} negatives in Google Ads`);
+          } catch (tokenErr) {
+            console.error("[Ads/Cycle] Auto-execute token refresh failed:", tokenErr);
+          }
+        }
       }
     } catch (autoErr) {
-      console.error("[Ads/Cycle] Auto-approve failed (non-blocking):", autoErr);
+      console.error("[Ads/Cycle] Auto-approve/execute failed (non-blocking):", autoErr);
     }
   }
 
@@ -445,7 +515,7 @@ ${rawDataContext}`;
   if ((actNowPoints.length > 0 || isBuilderResponse) && briefingId) {
     try {
       const alertMessage = isBuilderResponse
-        ? `Builder mode: ${recommendations.created} campaign structure recommendations generated (${autoApproved} negatives auto-approved)`
+        ? `Builder mode: ${recommendations.created} recommendations generated (${autoExecuted} negatives auto-executed in Google Ads, ${autoApproved - autoExecuted} approved awaiting execution)`
         : actNowPoints.length === 1
           ? `Critical intel: ${actNowPoints[0].signal}`
           : `${actNowPoints.length} critical signals require immediate action`;
@@ -467,6 +537,7 @@ ${rawDataContext}`;
     actNowCount: actNowPoints.length,
     recommendations,
     autoApproved,
+    autoExecuted,
     hasAdversarial: !!adversarialResult,
   };
 }

@@ -10,6 +10,7 @@ import {
   addKeyword,
   createAdGroup,
 } from "@/lib/google-ads";
+import { upsertAdGroup } from "@/lib/ads/queries/campaigns";
 
 export const dynamic = "force-dynamic";
 
@@ -143,7 +144,7 @@ export async function POST(req: NextRequest) {
           return NextResponse.json({ error: "keyword_add requires metadata.keyword_text and metadata.match_type" }, { status: 422 });
         }
 
-        // Resolve the ad group's Google ID
+        // Resolve the ad group's Google ID — try FK first, then look up by name
         let googleAdGroupId: string | null = null;
         if (rec.related_ad_group_id) {
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -153,8 +154,31 @@ export async function POST(req: NextRequest) {
             .maybeSingle();
           googleAdGroupId = agData?.google_ad_group_id ?? null;
         }
+
+        // Fallback: look up ad group by name from metadata
+        if (!googleAdGroupId && kwMeta?.target_ad_group_name) {
+          const targetName = (kwMeta.target_ad_group_name as string).toLowerCase();
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const { data: agByName } = await (sb.from("ads_ad_groups") as any)
+            .select("id, google_ad_group_id")
+            .ilike("name", `%${targetName}%`)
+            .not("google_ad_group_id", "is", null)
+            .limit(1)
+            .maybeSingle();
+          if (agByName?.google_ad_group_id) {
+            googleAdGroupId = agByName.google_ad_group_id;
+            // Also update the recommendation's FK for future reference
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            await (sb.from("ads_recommendations") as any)
+              .update({ related_ad_group_id: agByName.id })
+              .eq("id", recommendationId);
+          }
+        }
+
         if (!googleAdGroupId) {
-          return NextResponse.json({ error: "Cannot resolve ad group for keyword_add" }, { status: 422 });
+          return NextResponse.json({
+            error: `Cannot resolve ad group "${kwMeta?.target_ad_group_name ?? "unknown"}" for keyword_add. Create the ad group first, then retry.`
+          }, { status: 422 });
         }
 
         const kwBidMicros = kwMeta?.bid_micros ? Number(kwMeta.bid_micros) : undefined;
@@ -183,6 +207,58 @@ export async function POST(req: NextRequest) {
         }
 
         mutationResult = await createAdGroup(config, googleCampId, adGroupName);
+
+        // ── Save the new ad group to DB immediately ──
+        // Parse the Google Ads response to get the new ad group resource name
+        // Response format: { mutateOperationResponses: [{ adGroupResult: { resourceName: "customers/X/adGroups/Y" } }] }
+        try {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const responseObj = mutationResult as any;
+          const adGroupResourceName = responseObj?.mutateOperationResponses?.[0]?.adGroupResult?.resourceName;
+          if (adGroupResourceName) {
+            const newGoogleAdGroupId = adGroupResourceName.split("/").pop();
+            if (newGoogleAdGroupId) {
+              await upsertAdGroup(sb, {
+                google_ad_group_id: newGoogleAdGroupId,
+                campaign_id: rec.related_campaign_id,
+                name: adGroupName,
+                status: "ENABLED",
+              });
+              console.log(`[Ads/Execute] Saved new ad group "${adGroupName}" (Google ID: ${newGoogleAdGroupId}) to DB`);
+
+              // Link any pending keyword_add recs that target this ad group by name
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              const { data: newAg } = await (sb.from("ads_ad_groups") as any)
+                .select("id")
+                .eq("google_ad_group_id", newGoogleAdGroupId)
+                .maybeSingle();
+              if (newAg) {
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                const { data: orphanedKws } = await (sb.from("ads_recommendations") as any)
+                  .select("id, metadata")
+                  .eq("recommendation_type", "keyword_add")
+                  .is("related_ad_group_id", null)
+                  .in("status", ["pending", "approved"]);
+                const toLink = (orphanedKws ?? []).filter((r: { metadata: Record<string, unknown> | null }) => {
+                  const targetName = (r.metadata?.target_ad_group_name as string)?.toLowerCase();
+                  return targetName && adGroupName.toLowerCase().includes(targetName) || targetName?.includes(adGroupName.toLowerCase());
+                });
+                for (const kw of toLink) {
+                  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                  await (sb.from("ads_recommendations") as any)
+                    .update({ related_ad_group_id: newAg.id })
+                    .eq("id", kw.id);
+                }
+                if (toLink.length > 0) {
+                  console.log(`[Ads/Execute] Linked ${toLink.length} keyword_add recs to new ad group "${adGroupName}"`);
+                }
+              }
+            }
+          }
+        } catch (saveErr) {
+          // Non-blocking — the ad group was created in Google Ads even if DB save fails
+          console.error("[Ads/Execute] Failed to save new ad group to DB (non-blocking):", saveErr);
+        }
         break;
       }
       case "budget_adjust": {
@@ -213,10 +289,11 @@ export async function POST(req: NextRequest) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     await (sb.from("ads_implementation_logs") as any).insert({
       recommendation_id: recommendationId,
-      executed_by: user.id,
+      implemented_by: user.id,
       result: "SUCCESS",
-      details: JSON.stringify(mutationResult),
-      executed_at: new Date().toISOString(),
+      action_taken: rec.recommendation_type,
+      notes: JSON.stringify(mutationResult),
+      implemented_at: new Date().toISOString(),
     });
 
     // Update recommendation status to executed
@@ -235,10 +312,11 @@ export async function POST(req: NextRequest) {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       await (sb.from("ads_implementation_logs") as any).insert({
         recommendation_id: recommendationId,
-        executed_by: user.id,
+        implemented_by: user.id,
         result: "FAILED",
-        details: errMsg,
-        executed_at: new Date().toISOString(),
+        action_taken: rec?.recommendation_type ?? "unknown",
+        notes: errMsg,
+        implemented_at: new Date().toISOString(),
       });
     } catch (logErr) {
       console.error("[Ads/Execute] Failed to log execution failure:", logErr);

@@ -47,6 +47,8 @@ export function PendingApprovalsTable({ onDecision }: PendingApprovalsTableProps
   const [confirmText, setConfirmText] = useState("");
   const [executionResult, setExecutionResult] = useState<{ id: string; success: boolean; message: string } | null>(null);
   const [executedIds, setExecutedIds] = useState<Set<string>>(new Set());
+  const [batchProcessing, setBatchProcessing] = useState(false);
+  const [batchResult, setBatchResult] = useState<string | null>(null);
 
   const fetchApprovals = useCallback(async (status: "pending" | "approved" = "pending") => {
     setLoading(true);
@@ -156,6 +158,125 @@ export function PendingApprovalsTable({ onDecision }: PendingApprovalsTableProps
     }
   };
 
+  const handleBatchApprove = async (riskLevel?: string) => {
+    setBatchProcessing(true);
+    setBatchResult(null);
+    try {
+      const { supabase } = await import("@/lib/supabase");
+      const { data: { session } } = await supabase.auth.getSession();
+
+      const payload: Record<string, unknown> = { decision: "approved" };
+      if (riskLevel) {
+        payload.filter = { risk_level: riskLevel };
+      } else {
+        // Approve all currently visible
+        payload.ids = recommendations.map(r => r.id);
+      }
+
+      const res = await fetch("/api/ads/approvals", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: session?.access_token ? `Bearer ${session.access_token}` : ""
+        },
+        body: JSON.stringify(payload)
+      });
+
+      const data = await res.json();
+      if (data.ok) {
+        setBatchResult(`Approved ${data.count} recommendations`);
+        // Refresh the list
+        setTimeout(() => {
+          fetchApprovals("pending");
+          setBatchResult(null);
+        }, 1500);
+      } else {
+        setBatchResult(`Error: ${data.error}`);
+      }
+    } catch (err) {
+      console.error("[BatchApprove] Error:", err);
+      setBatchResult("Network error during batch approve");
+    } finally {
+      setBatchProcessing(false);
+    }
+  };
+
+  const handleBatchExecute = async () => {
+    setBatchProcessing(true);
+    setBatchResult(null);
+    let executed = 0;
+    let failed = 0;
+
+    // Sort: ad_group_create first (must exist before keywords), then negatives, then keywords
+    const typeOrder: Record<string, number> = { ad_group_create: 0, negative_add: 1, keyword_add: 2 };
+    const executableRecs = recommendations
+      .filter(r => r.executable !== false && !executedIds.has(r.id))
+      .sort((a, b) => (typeOrder[a.recommendation_type] ?? 99) - (typeOrder[b.recommendation_type] ?? 99));
+
+    for (const rec of executableRecs) {
+      try {
+        const { supabase } = await import("@/lib/supabase");
+        const { data: { session } } = await supabase.auth.getSession();
+
+        // Skip red-risk (requires manual confirmation) and non-mutating types
+        if (rec.risk_level === "red") continue;
+        if (isNonMutating(rec.recommendation_type)) continue;
+
+        const res = await fetch("/api/ads/execute", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: session?.access_token ? `Bearer ${session.access_token}` : ""
+          },
+          body: JSON.stringify({ recommendationId: rec.id })
+        });
+
+        const data = await res.json();
+        if (data.ok) {
+          executed++;
+          setExecutedIds(prev => new Set([...prev, rec.id]));
+        } else {
+          failed++;
+        }
+      } catch {
+        failed++;
+      }
+    }
+
+    setBatchResult(`Executed ${executed} in Google Ads${failed > 0 ? ` (${failed} failed)` : ""}`);
+    // Refresh after a delay
+    setTimeout(() => {
+      fetchApprovals("approved");
+      setBatchResult(null);
+    }, 2500);
+    setBatchProcessing(false);
+  };
+
+  const nonMutatingTypes = ["copy_suggestion", "waste_flag", "opportunity_flag"];
+  const isNonMutating = (type: string) => nonMutatingTypes.includes(type);
+
+  const handleDismiss = async (id: string) => {
+    setProcessingId(id);
+    try {
+      const { supabase } = await import("@/lib/supabase");
+      // Directly update the recommendation status to 'ignored' via Supabase
+      // This works for both pending and approved recs
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      await (supabase.from("ads_recommendations") as any)
+        .update({ status: "ignored" })
+        .eq("id", id);
+      setRecommendations(prev => prev.filter(r => r.id !== id));
+    } catch (err) {
+      console.error("[Dismiss] Error:", err);
+    } finally {
+      setProcessingId(null);
+    }
+  };
+
+  const greenCount = recommendations.filter(r => r.risk_level === "green").length;
+  const yellowCount = recommendations.filter(r => r.risk_level === "yellow").length;
+  const executableCount = recommendations.filter(r => r.executable !== false && !executedIds.has(r.id) && r.risk_level !== "red" && !isNonMutating(r.recommendation_type)).length;
+
   const riskColors = {
     green: "text-emerald-400 bg-emerald-500/10 border-emerald-500/20",
     yellow: "text-amber-400 bg-amber-500/10 border-amber-500/20",
@@ -213,6 +334,72 @@ export function PendingApprovalsTable({ onDecision }: PendingApprovalsTableProps
         </div>
       </div>
       </div>
+
+      {/* Batch Action Buttons */}
+      {recommendations.length > 0 && (
+        <div className="flex items-center gap-2 flex-wrap">
+          {activeView === "needs_review" ? (
+            <>
+              {greenCount > 0 && (
+                <button
+                  onClick={() => handleBatchApprove("green")}
+                  disabled={batchProcessing}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-emerald-500/20 bg-emerald-500/10 text-emerald-400 text-[11px] font-bold uppercase tracking-wider hover:bg-emerald-500/20 transition-all disabled:opacity-50"
+                >
+                  {batchProcessing ? <Loader2 className="h-3 w-3 animate-spin" /> : <CheckCircle2 className="h-3 w-3" />}
+                  Approve All Green ({greenCount})
+                </button>
+              )}
+              {yellowCount > 0 && (
+                <button
+                  onClick={() => handleBatchApprove("yellow")}
+                  disabled={batchProcessing}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-amber-500/20 bg-amber-500/10 text-amber-400 text-[11px] font-bold uppercase tracking-wider hover:bg-amber-500/20 transition-all disabled:opacity-50"
+                >
+                  {batchProcessing ? <Loader2 className="h-3 w-3 animate-spin" /> : <CheckCircle2 className="h-3 w-3" />}
+                  Approve All Yellow ({yellowCount})
+                </button>
+              )}
+              {recommendations.length > 1 && (
+                <button
+                  onClick={() => handleBatchApprove()}
+                  disabled={batchProcessing}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-cyan/20 bg-cyan/10 text-cyan text-[11px] font-bold uppercase tracking-wider hover:bg-cyan/20 transition-all disabled:opacity-50"
+                >
+                  {batchProcessing ? <Loader2 className="h-3 w-3 animate-spin" /> : <CheckCircle2 className="h-3 w-3" />}
+                  Approve All ({recommendations.length})
+                </button>
+              )}
+            </>
+          ) : (
+            <>
+              {executableCount > 0 && (
+                <button
+                  onClick={handleBatchExecute}
+                  disabled={batchProcessing}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-cyan/20 bg-cyan/10 text-cyan text-[11px] font-bold uppercase tracking-wider hover:bg-cyan/20 transition-all disabled:opacity-50"
+                >
+                  {batchProcessing ? <Loader2 className="h-3 w-3 animate-spin" /> : <Zap className="h-3 w-3" />}
+                  Execute All ({executableCount})
+                </button>
+              )}
+              <span className="text-[10px] text-muted-foreground/40">
+                Red-risk items require individual confirmation
+              </span>
+            </>
+          )}
+
+          {batchResult && (
+            <span className={`text-[11px] font-medium px-2 py-1 rounded ${
+              batchResult.startsWith("Error") || batchResult.includes("failed")
+                ? "text-red-400 bg-red-400/10"
+                : "text-emerald-400 bg-emerald-400/10"
+            }`}>
+              {batchResult}
+            </span>
+          )}
+        </div>
+      )}
 
       {decisionError && (
         <div className="flex items-center gap-2 px-4 py-2.5 rounded-lg bg-red-500/10 border border-red-500/20 text-xs text-red-400">
@@ -370,15 +557,33 @@ export function PendingApprovalsTable({ onDecision }: PendingApprovalsTableProps
                                   <CheckCircle2 className="h-3.5 w-3.5" />
                                   Executed
                                 </span>
+                              ) : isNonMutating(rec.recommendation_type) ? (
+                                <div className="flex flex-col items-end gap-1.5">
+                                  <span className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-white/[0.08] bg-white/[0.03] text-[10px] text-muted-foreground/60">
+                                    <Info className="h-3.5 w-3.5" />
+                                    Informational — no action needed
+                                  </span>
+                                  <button
+                                    onClick={() => handleDismiss(rec.id)}
+                                    disabled={!!processingId}
+                                    className="text-[10px] text-muted-foreground/40 hover:text-red-400 transition-colors"
+                                  >
+                                    Dismiss
+                                  </button>
+                                </div>
                               ) : rec.executable === false ? (
                                 <div className="flex flex-col items-end gap-1">
                                   <span className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-amber-500/20 bg-amber-500/5 text-[10px] text-amber-400">
                                     <AlertTriangle className="h-3.5 w-3.5" />
                                     Can&apos;t execute — missing Google Ads entity
                                   </span>
-                                  <span className="text-[9px] text-muted-foreground/40">
-                                    Run a fresh sync, then re-run Key Intel
-                                  </span>
+                                  <button
+                                    onClick={() => handleDismiss(rec.id)}
+                                    disabled={!!processingId}
+                                    className="text-[10px] text-muted-foreground/40 hover:text-red-400 transition-colors"
+                                  >
+                                    Dismiss
+                                  </button>
                                 </div>
                               ) : confirmingId === rec.id ? (
                                 <div className="flex flex-col items-end gap-1.5">
