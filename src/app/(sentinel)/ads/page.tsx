@@ -104,6 +104,13 @@ function fmtPct(n: number): string {
 
 export default function AdsPage() {
   const [activeTab, setActiveTab] = useState<TabId>("dashboard");
+  const [chatPreload, setChatPreload] = useState<string | null>(null);
+
+  // Called from Intel tab to send a finding to Chat
+  const sendToChat = useCallback((message: string) => {
+    setChatPreload(message);
+    setActiveTab("chat");
+  }, []);
 
   const tabs: { id: TabId; label: string; icon: React.ElementType }[] = [
     { id: "dashboard", label: "Performance", icon: BarChart3 },
@@ -177,10 +184,10 @@ export default function AdsPage() {
             {activeTab === "dashboard" && <DashboardTab />}
             {activeTab === "ad-groups" && <AdGroupsTab />}
             {activeTab === "approvals" && <PendingApprovalsTable />}
-            {activeTab === "intelligence" && <IntelligenceTab />}
+            {activeTab === "intelligence" && <IntelligenceTab onSendToChat={sendToChat} />}
             {activeTab === "copylab" && <CopyLabTab />}
             {activeTab === "landing" && <LandingTab />}
-            {activeTab === "chat" && <ChatTab />}
+            {activeTab === "chat" && <ChatTab preloadMessage={chatPreload} onPreloadConsumed={() => setChatPreload(null)} />}
             {activeTab === "system-prompt" && <SystemPromptTab />}
           </motion.div>
         </AnimatePresence>
@@ -531,7 +538,7 @@ interface AdversarialIntel {
   finalInstruction: string;
 }
 
-function IntelligenceTab() {
+function IntelligenceTab({ onSendToChat }: { onSendToChat: (message: string) => void }) {
   const [intelligence, setIntelligence] = useState<IntelligenceData | null>(null);
   const [adversarial, setAdversarial] = useState<AdversarialIntel | null>(null);
   const [loading, setLoading] = useState(true);
@@ -541,6 +548,8 @@ function IntelligenceTab() {
   const [urgencyFilter, setUrgencyFilter] = useState<string>("all");
   const [savedAt, setSavedAt] = useState<string | null>(null);
   const [initialized, setInitialized] = useState(false);
+  const [executingAction, setExecutingAction] = useState<number | null>(null);
+  const [actionResults, setActionResults] = useState<Record<number, { ok: boolean; message: string }>>({});
 
   // Load latest briefing from server on mount
   useEffect(() => {
@@ -625,6 +634,97 @@ function IntelligenceTab() {
       setError(err instanceof Error ? err.message : "Request failed — check your connection and try again");
     } finally {
       setExtracting(false);
+    }
+  };
+
+  // ── Determine if a data point has a directly executable action ──
+  function parseExecutableAction(dp: DataPoint): {
+    label: string;
+    confirmMessage: string;
+    action: string;
+    params: Record<string, unknown>;
+  } | null {
+    const rec = (dp.recommended_action ?? "").toLowerCase();
+    const signal = (dp.signal ?? "").toLowerCase();
+
+    // Negative keyword additions
+    if (rec.includes("add") && (rec.includes("negative") || rec.includes("'homes for sale'"))) {
+      // Extract quoted keywords from the recommended action
+      const quotedMatches = dp.recommended_action.match(/'([^']+)'/g);
+      if (quotedMatches && quotedMatches.length > 0) {
+        const keywords = quotedMatches.map(q => q.replace(/'/g, ""));
+        return {
+          label: `Add ${keywords.length} Negatives`,
+          confirmMessage: `Add ${keywords.length} negative keywords to the campaign?\n\n${keywords.map(k => `• "${k}"`).join("\n")}\n\nThis stops your ads from showing for these search terms.`,
+          action: "add_negatives",
+          params: { keywords, campaignId: "23643350797", matchType: "EXACT" },
+        };
+      }
+    }
+
+    // Pause broad match keywords in an ad group
+    if (rec.includes("pause") && rec.includes("broad match") && dp.entity) {
+      const adGroupName = dp.entity.replace(" ad group", "").replace("ad group ", "");
+      return {
+        label: "Pause Broad Match",
+        confirmMessage: `Pause all broad match keywords in "${adGroupName}"?\n\nThis keeps phrase and exact match keywords running but stops the broad match keywords from triggering irrelevant queries.`,
+        action: "pause_keywords_broad",
+        params: { adGroupName },
+      };
+    }
+
+    // Pause specific keyword (blank keyword or specific ID)
+    if (rec.includes("pause") && (signal.includes("blank keyword") || signal.includes("empty keyword")) && dp.entity_id) {
+      return {
+        label: "Pause Keyword",
+        confirmMessage: `Pause the blank/empty keyword (ID: ${dp.entity_id})?\n\nThis keyword is matching on random queries and wasting budget.`,
+        action: "pause_keyword",
+        params: { keywordId: dp.entity_id, adGroupId: "" }, // Will need ad group lookup
+      };
+    }
+
+    // Budget adjustment
+    if (rec.includes("reduce") && rec.includes("budget") && rec.includes("$")) {
+      const budgetMatch = rec.match(/\$(\d+)(?:\s*[-–]\s*\$?(\d+))?/);
+      if (budgetMatch) {
+        const targetBudget = budgetMatch[2] ? Number(budgetMatch[2]) : Number(budgetMatch[1]);
+        return {
+          label: `Set Budget $${targetBudget}/day`,
+          confirmMessage: `Reduce the daily budget to $${targetBudget}/day?\n\nThis takes effect immediately and limits daily spend until you change it back.`,
+          action: "budget_adjust",
+          params: { newDailyBudget: targetBudget },
+        };
+      }
+    }
+
+    return null;
+  }
+
+  const executeAction = async (dp: DataPoint, index: number) => {
+    const action = parseExecutableAction(dp);
+    if (!action) return;
+
+    if (!window.confirm(action.confirmMessage)) return;
+
+    setExecutingAction(index);
+    try {
+      const headers = await getAuthHeaders();
+      const res = await fetch("/api/ads/intel-action", {
+        method: "POST",
+        headers: { ...headers, "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: action.action,
+          params: action.params,
+          finding: { rank: dp.rank, signal: dp.signal, recommended_action: dp.recommended_action },
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "Failed");
+      setActionResults(prev => ({ ...prev, [index]: { ok: true, message: `Done — ${data.action}` } }));
+    } catch (err) {
+      setActionResults(prev => ({ ...prev, [index]: { ok: false, message: err instanceof Error ? err.message : "Failed" } }));
+    } finally {
+      setExecutingAction(null);
     }
   };
 
@@ -924,6 +1024,49 @@ function IntelligenceTab() {
                     <span className="text-[10px] text-cyan/60">→ {dp.recommended_action}</span>
                   )}
                 </div>
+
+                {/* Action Buttons */}
+                {(() => {
+                  const execAction = parseExecutableAction(dp);
+                  const result = actionResults[i];
+                  const isExecuting = executingAction === i;
+
+                  return (
+                    <div className="flex items-center gap-2 mt-3 pt-2 border-t border-white/[0.04]">
+                      {execAction && !result?.ok && (
+                        <button
+                          onClick={(e) => { e.stopPropagation(); executeAction(dp, i); }}
+                          disabled={isExecuting}
+                          className="flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-medium rounded-lg bg-cyan/10 text-cyan border border-cyan/20 hover:bg-cyan/20 transition disabled:opacity-50"
+                        >
+                          {isExecuting ? (
+                            <Loader2 className="h-3 w-3 animate-spin" />
+                          ) : (
+                            <Zap className="h-3 w-3" />
+                          )}
+                          {isExecuting ? "Applying..." : execAction.label}
+                        </button>
+                      )}
+                      {result && (
+                        <span className={`flex items-center gap-1 text-[11px] ${result.ok ? "text-emerald-400" : "text-red-400"}`}>
+                          {result.ok ? <CheckCircle2 className="h-3 w-3" /> : <XCircle className="h-3 w-3" />}
+                          {result.message}
+                        </span>
+                      )}
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          const msg = `Intel finding #${dp.rank}: "${dp.signal}"\n\nRecommended action: ${dp.recommended_action}\n\nEntity: ${dp.entity ?? "N/A"}\nCategory: ${dp.category} | Urgency: ${dp.urgency}\nImpact: ${dp.dollar_impact}\n\nHelp me understand this finding and decide what to do about it.`;
+                          onSendToChat(msg);
+                        }}
+                        className="flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-medium rounded-lg bg-white/[0.04] text-muted-foreground border border-white/[0.06] hover:text-foreground hover:bg-white/[0.08] transition"
+                      >
+                        <Sparkles className="h-3 w-3" />
+                        Discuss in Chat
+                      </button>
+                    </div>
+                  );
+                })()}
               </div>
             </div>
           </div>
@@ -2029,13 +2172,14 @@ const CHAT_SUGGESTIONS = [
   "What budget changes would you recommend?",
 ];
 
-function ChatTab() {
+function ChatTab({ preloadMessage, onPreloadConsumed }: { preloadMessage?: string | null; onPreloadConsumed?: () => void }) {
   const { currentUser } = useSentinelStore();
   const [messages, setMessages] = useState<ChatMsg[]>([]);
   const [input, setInput] = useState("");
   const [streaming, setStreaming] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  const preloadHandled = useRef(false);
 
   useEffect(() => {
     setMessages(loadChatHistory());
@@ -2143,6 +2287,19 @@ function ChatTab() {
 
     setStreaming(false);
   }, [input, streaming, messages]);
+
+  // Handle preload from Intel tab "Discuss in Chat"
+  useEffect(() => {
+    if (preloadMessage && !preloadHandled.current && !streaming) {
+      preloadHandled.current = true;
+      // Small delay to ensure chat history is loaded
+      const timer = setTimeout(() => {
+        send(preloadMessage);
+        onPreloadConsumed?.();
+      }, 200);
+      return () => clearTimeout(timer);
+    }
+  }, [preloadMessage, streaming, send, onPreloadConsumed]);
 
   const clearHistory = () => {
     setMessages([]);
