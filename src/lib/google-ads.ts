@@ -354,7 +354,8 @@ export async function fetchAllAdGroups(
       ad_group.id,
       ad_group.name,
       ad_group.status,
-      campaign.id
+      campaign.id,
+      campaign.status
     FROM ad_group
     WHERE campaign.status != 'REMOVED'
       AND ad_group.status != 'REMOVED'
@@ -705,7 +706,8 @@ export async function fetchCampaignBudgets(
       campaign_budget.amount_micros,
       campaign_budget.delivery_method,
       campaign_budget.explicitly_shared,
-      campaign.id
+      campaign.id,
+      campaign.status
     FROM campaign_budget
     WHERE campaign.status != 'REMOVED'
   `;
