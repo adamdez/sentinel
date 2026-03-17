@@ -4,6 +4,7 @@ import {
   refreshAccessToken,
   getGoogleAdsConfig,
   setKeywordStatus,
+  setAdGroupStatus,
   updateKeywordBid,
   updateCampaignBudget,
   addNegativeKeyword,
@@ -259,6 +260,34 @@ export async function POST(req: NextRequest) {
           // Non-blocking — the ad group was created in Google Ads even if DB save fails
           console.error("[Ads/Execute] Failed to save new ad group to DB (non-blocking):", saveErr);
         }
+        break;
+      }
+      case "ad_group_pause":
+      case "ad_group_enable": {
+        // Resolve ad group Google ID
+        let googleAgId: string | null = null;
+        if (rec.related_ad_group_id) {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const { data: agData } = await (sb.from("ads_ad_groups") as any)
+            .select("google_ad_group_id")
+            .eq("id", rec.related_ad_group_id)
+            .maybeSingle();
+          googleAgId = agData?.google_ad_group_id ?? null;
+        }
+        if (!googleAgId) {
+          const agMeta = rec.metadata as Record<string, unknown> | null;
+          googleAgId = agMeta?.google_ad_group_id as string ?? null;
+        }
+        if (!googleAgId) {
+          return NextResponse.json({ error: "Cannot resolve ad group for status change" }, { status: 422 });
+        }
+        const targetStatus = rec.recommendation_type === "ad_group_pause" ? "PAUSED" : "ENABLED";
+        mutationResult = await setAdGroupStatus(config, googleAgId, targetStatus);
+        // Update local DB
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        await (sb.from("ads_ad_groups") as any)
+          .update({ status: targetStatus })
+          .eq("google_ad_group_id", googleAgId);
         break;
       }
       case "budget_adjust": {

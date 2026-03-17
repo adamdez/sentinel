@@ -29,6 +29,9 @@ import {
   Settings,
   Save,
   RotateCcw,
+  Layers,
+  Play,
+  Pause,
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { useSentinelStore } from "@/lib/store";
@@ -63,7 +66,7 @@ interface AdsCampaign {
 
 type MarketFilter = "all" | "spokane" | "kootenai";
 
-type TabId = "dashboard" | "approvals" | "intelligence" | "copylab" | "landing" | "chat" | "system-prompt";
+type TabId = "dashboard" | "ad-groups" | "approvals" | "intelligence" | "copylab" | "landing" | "chat" | "system-prompt";
 
 // ── Helpers ─────────────────────────────────────────────────────────
 
@@ -104,6 +107,7 @@ export default function AdsPage() {
 
   const tabs: { id: TabId; label: string; icon: React.ElementType }[] = [
     { id: "dashboard", label: "Performance", icon: BarChart3 },
+    { id: "ad-groups", label: "Ad Groups", icon: Layers },
     { id: "approvals", label: "Approvals", icon: Zap },
     { id: "intelligence", label: "Key Intel", icon: Brain },
     { id: "copylab", label: "Ad Copy Lab", icon: FileText },
@@ -171,6 +175,7 @@ export default function AdsPage() {
             transition={{ duration: 0.15 }}
           >
             {activeTab === "dashboard" && <DashboardTab />}
+            {activeTab === "ad-groups" && <AdGroupsTab />}
             {activeTab === "approvals" && <PendingApprovalsTable />}
             {activeTab === "intelligence" && <IntelligenceTab />}
             {activeTab === "copylab" && <CopyLabTab />}
@@ -1446,6 +1451,212 @@ function CopyLabTab() {
   );
 }
 
+// ── Ad Groups Tab ──────────────────────────────────────────────────
+
+interface AdGroupRow {
+  id: string;
+  googleAdGroupId: string;
+  name: string;
+  status: string;
+  campaignName: string | null;
+  impressions: number;
+  clicks: number;
+  cost: number;
+  conversions: number;
+  ctr: number;
+  avgCpc: number;
+  keywords: { total: number; enabled: number; paused: number };
+}
+
+function AdGroupsTab() {
+  const [adGroups, setAdGroups] = useState<AdGroupRow[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [toggling, setToggling] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  const fetchAdGroups = useCallback(async () => {
+    try {
+      const headers = await getAuthHeaders();
+      const res = await fetch("/api/ads/ad-groups", { headers });
+      if (!res.ok) throw new Error(await res.text());
+      const data = await res.json();
+      setAdGroups(data.adGroups ?? []);
+      setError(null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to load ad groups");
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { fetchAdGroups(); }, [fetchAdGroups]);
+
+  const toggleStatus = async (ag: AdGroupRow) => {
+    const action = ag.status === "ENABLED" ? "pause" : "enable";
+    const confirmMsg = action === "pause"
+      ? `Pause "${ag.name}"? This will stop all ads in this ad group from serving.`
+      : `Enable "${ag.name}"? This will start serving ads in this ad group.`;
+    if (!window.confirm(confirmMsg)) return;
+
+    setToggling(ag.googleAdGroupId);
+    try {
+      const headers = await getAuthHeaders();
+      const res = await fetch("/api/ads/ad-groups", {
+        method: "PATCH",
+        headers: { ...headers, "Content-Type": "application/json" },
+        body: JSON.stringify({ googleAdGroupId: ag.googleAdGroupId, action }),
+      });
+      if (!res.ok) throw new Error(await res.text());
+      // Optimistically update local state
+      setAdGroups(prev => prev.map(g =>
+        g.googleAdGroupId === ag.googleAdGroupId
+          ? { ...g, status: action === "pause" ? "PAUSED" : "ENABLED" }
+          : g
+      ));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to update ad group");
+    } finally {
+      setToggling(null);
+    }
+  };
+
+  if (loading) {
+    return <div className="flex items-center justify-center py-20"><Loader2 className="h-6 w-6 animate-spin text-cyan/50" /></div>;
+  }
+
+  const enabled = adGroups.filter(g => g.status === "ENABLED");
+  const paused = adGroups.filter(g => g.status === "PAUSED");
+  const totalCost = adGroups.reduce((s, g) => s + g.cost, 0);
+  const totalClicks = adGroups.reduce((s, g) => s + g.clicks, 0);
+
+  return (
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h3 className="text-sm font-semibold">Ad Groups &middot; Direct Control</h3>
+          <p className="text-xs text-muted-foreground/60">
+            {enabled.length} enabled &middot; {paused.length} paused &middot; {fmt$(totalCost)} total spend &middot; {totalClicks} clicks
+          </p>
+        </div>
+        <button
+          onClick={() => { setLoading(true); fetchAdGroups(); }}
+          className="flex items-center gap-2 px-3 py-1.5 text-xs rounded-lg bg-white/[0.04] text-muted-foreground hover:text-foreground border border-white/[0.06] transition"
+        >
+          <RefreshCw className="h-3 w-3" />
+          Refresh
+        </button>
+      </div>
+
+      {error && (
+        <div className="flex items-center gap-2 p-3 rounded-lg bg-red-500/10 border border-red-500/20 text-sm text-red-400">
+          <AlertTriangle className="h-4 w-4" />
+          {error}
+        </div>
+      )}
+
+      {/* Ad Group List */}
+      <div className="space-y-2">
+        {adGroups.map((ag) => {
+          const isEnabled = ag.status === "ENABLED";
+          const isToggling = toggling === ag.googleAdGroupId;
+          const matchedPage = LANDING_PAGES.find(p => p.adGroup === ag.name);
+
+          return (
+            <div
+              key={ag.googleAdGroupId}
+              className={`glass-strong rounded-xl border p-4 transition-all ${
+                isEnabled
+                  ? "border-white/[0.06]"
+                  : "border-white/[0.04] opacity-60"
+              }`}
+            >
+              <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center gap-3">
+                  <div className={`h-2 w-2 rounded-full ${isEnabled ? "bg-emerald-400" : "bg-zinc-500"}`} />
+                  <div>
+                    <p className="text-sm font-semibold">{ag.name}</p>
+                    {ag.campaignName && (
+                      <p className="text-[10px] text-muted-foreground/40">{ag.campaignName}</p>
+                    )}
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  {matchedPage ? (
+                    <span className="text-[10px] bg-cyan/10 text-cyan px-2 py-0.5 rounded-full font-medium flex items-center gap-1">
+                      <Globe className="h-2.5 w-2.5" />
+                      {matchedPage.path}
+                    </span>
+                  ) : (
+                    <span className="text-[10px] bg-amber-500/10 text-amber-400 px-2 py-0.5 rounded-full font-medium">
+                      No Landing Page
+                    </span>
+                  )}
+                  <button
+                    onClick={() => toggleStatus(ag)}
+                    disabled={isToggling}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-lg border transition ${
+                      isEnabled
+                        ? "bg-amber-500/10 text-amber-400 border-amber-500/20 hover:bg-amber-500/20"
+                        : "bg-emerald-500/10 text-emerald-400 border-emerald-500/20 hover:bg-emerald-500/20"
+                    } disabled:opacity-50`}
+                  >
+                    {isToggling ? (
+                      <Loader2 className="h-3 w-3 animate-spin" />
+                    ) : isEnabled ? (
+                      <Pause className="h-3 w-3" />
+                    ) : (
+                      <Play className="h-3 w-3" />
+                    )}
+                    {isEnabled ? "Pause" : "Enable"}
+                  </button>
+                </div>
+              </div>
+
+              {/* Metrics */}
+              <div className="grid grid-cols-6 gap-3 mt-3 pt-3 border-t border-white/[0.04]">
+                <div>
+                  <p className="text-[10px] text-muted-foreground/40 uppercase tracking-wider">Impressions</p>
+                  <p className="text-sm font-semibold">{ag.impressions.toLocaleString()}</p>
+                </div>
+                <div>
+                  <p className="text-[10px] text-muted-foreground/40 uppercase tracking-wider">Clicks</p>
+                  <p className="text-sm font-semibold">{ag.clicks.toLocaleString()}</p>
+                </div>
+                <div>
+                  <p className="text-[10px] text-muted-foreground/40 uppercase tracking-wider">CTR</p>
+                  <p className="text-sm font-semibold">{fmtPct(ag.ctr)}</p>
+                </div>
+                <div>
+                  <p className="text-[10px] text-muted-foreground/40 uppercase tracking-wider">Avg CPC</p>
+                  <p className="text-sm font-semibold">{fmt$(ag.avgCpc)}</p>
+                </div>
+                <div>
+                  <p className="text-[10px] text-muted-foreground/40 uppercase tracking-wider">Cost</p>
+                  <p className="text-sm font-semibold">{fmt$(ag.cost)}</p>
+                </div>
+                <div>
+                  <p className="text-[10px] text-muted-foreground/40 uppercase tracking-wider">Keywords</p>
+                  <p className="text-sm font-semibold">
+                    {ag.keywords.enabled}<span className="text-muted-foreground/40 text-xs">/{ag.keywords.total}</span>
+                  </p>
+                </div>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {adGroups.length === 0 && !error && (
+        <div className="text-center py-12">
+          <Layers className="h-8 w-8 mx-auto text-muted-foreground/20 mb-3" />
+          <p className="text-sm text-muted-foreground/50">No ad groups found. Run a sync first.</p>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── Landing Page Tab ────────────────────────────────────────────────
 
 interface LandingReview {
@@ -1462,22 +1673,22 @@ interface LandingReview {
 const LANDING_PAGES = [
   {
     path: "/sell",
-    label: "Fast Cash Sale",
-    adGroup: "Fast Cash Sale - Spokane",
+    label: "Sell My House",
+    adGroup: "Sell My House",
     description: "Primary PPC page — speed, cash, certainty",
     intent: "Seller wants to sell fast for cash",
   },
   {
     path: "/sell/as-is",
     label: "Sell As-Is",
-    adGroup: "Sell As-Is / Ugly House",
+    adGroup: "As-Is / Repairs",
     description: "House needs work, skip repairs entirely",
     intent: "Seller knows house needs work, doesn't want to deal with it",
   },
   {
     path: "/sell/inherited",
     label: "Inherited Property",
-    adGroup: "Inherited / Probate Property",
+    adGroup: "Inherited / Probate",
     description: "Estate situations, probate, family complexity",
     intent: "Seller dealing with inherited property or estate",
   },
@@ -1487,6 +1698,13 @@ const LANDING_PAGES = [
     adGroup: "Foreclosure / Behind on Payments",
     description: "Behind on mortgage, facing foreclosure timeline",
     intent: "Seller under financial pressure, needs speed",
+  },
+  {
+    path: "/sell/landlord",
+    label: "Landlord Exit",
+    adGroup: "AD GROUP 4: Landlord Exit",
+    description: "Tired of being a landlord, sell rental with tenants",
+    intent: "Landlord wants out — tenants in place, no repairs, walk away clean",
   },
 ];
 

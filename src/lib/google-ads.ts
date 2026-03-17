@@ -996,6 +996,22 @@ export async function addKeyword(
   }]);
 }
 
+export async function setAdGroupStatus(
+  config: GoogleAdsConfig,
+  adGroupId: string,
+  status: "ENABLED" | "PAUSED",
+): Promise<unknown> {
+  return mutate(config, [{
+    adGroupOperation: {
+      update: {
+        resourceName: `customers/${config.customerId}/adGroups/${adGroupId}`,
+        status,
+      },
+      updateMask: "status",
+    },
+  }]);
+}
+
 export async function createAdGroup(
   config: GoogleAdsConfig,
   campaignId: string,
