@@ -205,7 +205,7 @@ export async function POST(req: NextRequest) {
           const { fetchCampaignBudgets } = await import("@/lib/google-ads");
           const apiBudgets = await fetchCampaignBudgets(config);
           if (apiBudgets.length > 0) {
-            googleBudgetId = (apiBudgets[0] as Record<string, unknown>).budgetId as string;
+            googleBudgetId = apiBudgets[0].budgetId;
           }
         }
 
