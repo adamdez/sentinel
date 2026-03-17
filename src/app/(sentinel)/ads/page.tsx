@@ -652,7 +652,7 @@ function IntelligenceTab({ onSendToChat }: { onSendToChat: (message: string) => 
       // Extract quoted keywords from the recommended action
       const quotedMatches = dp.recommended_action.match(/'([^']+)'/g);
       if (quotedMatches && quotedMatches.length > 0) {
-        const keywords = quotedMatches.map(q => q.replace(/'/g, ""));
+        const keywords = quotedMatches.map(q => q.replace(/'/g, "").replace(/[,;:]+$/g, "").trim()).filter(Boolean);
         return {
           label: `Add ${keywords.length} Negatives`,
           confirmMessage: `Add ${keywords.length} negative keywords to the campaign?\n\n${keywords.map(k => `• "${k}"`).join("\n")}\n\nThis stops your ads from showing for these search terms.`,
@@ -720,7 +720,14 @@ function IntelligenceTab({ onSendToChat }: { onSendToChat: (message: string) => 
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "Failed");
-      setActionResults(prev => ({ ...prev, [index]: { ok: true, message: `Done — ${data.action}` } }));
+      // Build a clear success message from the results
+      const resultItems = data.results as Array<{ status: string }> | undefined;
+      const successCount = resultItems?.filter((r) => r.status === "added" || r.status === "paused" || r.status === "adjusted" || r.status === "already_exists").length ?? 0;
+      const failCount = resultItems?.filter((r) => r.status === "error").length ?? 0;
+      const msg = failCount > 0
+        ? `Applied ${successCount}, ${failCount} failed — check logs`
+        : `Applied successfully (${successCount} changes)`;
+      setActionResults(prev => ({ ...prev, [index]: { ok: failCount === 0, message: msg } }));
     } catch (err) {
       setActionResults(prev => ({ ...prev, [index]: { ok: false, message: err instanceof Error ? err.message : "Failed" } }));
     } finally {

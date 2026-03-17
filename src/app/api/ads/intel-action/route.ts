@@ -83,7 +83,8 @@ export async function POST(req: NextRequest) {
         }
 
         for (const kw of keywords) {
-          const trimmed = kw.trim().toLowerCase();
+          // Strip trailing commas, quotes, and other invalid chars from parsed keywords
+          const trimmed = kw.trim().replace(/[,;:!?'"]+$/g, "").replace(/^[,;:!?'"]+/g, "").trim().toLowerCase();
           if (!trimmed) continue;
           try {
             const r = await addNegativeKeyword(config, googleCampaignId, trimmed, matchType);
@@ -129,12 +130,26 @@ export async function POST(req: NextRequest) {
           return NextResponse.json({ error: "pause_keywords_broad requires adGroupName" }, { status: 400 });
         }
 
-        // Find the ad group
+        // Find the ad group — try exact match first, then ilike, pick shortest name match
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const { data: ag } = await (sb.from("ads_ad_groups") as any)
-          .select("id, google_ad_group_id")
-          .ilike("name", `%${targetAdGroupName}%`)
+        let { data: ag } = await (sb.from("ads_ad_groups") as any)
+          .select("id, google_ad_group_id, name")
+          .eq("name", targetAdGroupName)
           .maybeSingle();
+
+        if (!ag?.google_ad_group_id) {
+          // Fallback: ilike with multiple results, pick best match
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const { data: agMatches } = await (sb.from("ads_ad_groups") as any)
+            .select("id, google_ad_group_id, name")
+            .ilike("name", `%${targetAdGroupName}%`)
+            .not("google_ad_group_id", "eq", "")
+            .order("name");
+          // Pick the shortest matching name (most specific match)
+          if (agMatches?.length) {
+            ag = agMatches.sort((a: { name: string }, b: { name: string }) => a.name.length - b.name.length)[0];
+          }
+        }
 
         if (!ag?.google_ad_group_id) {
           return NextResponse.json({ error: `Ad group "${targetAdGroupName}" not found` }, { status: 404 });
@@ -176,26 +191,39 @@ export async function POST(req: NextRequest) {
           return NextResponse.json({ error: "budget_adjust requires newDailyBudget ($1-$10,000)" }, { status: 400 });
         }
 
-        // Get the campaign budget
+        // Get the campaign budget — try DB first, fallback to API
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const { data: budgets } = await (sb.from("ads_campaign_budgets") as any)
           .select("google_budget_id, campaign_id")
           .limit(1)
           .maybeSingle();
 
-        if (!budgets?.google_budget_id) {
-          return NextResponse.json({ error: "No campaign budget found in database" }, { status: 404 });
+        let googleBudgetId = budgets?.google_budget_id;
+
+        // If DB is empty, fetch budget from Google Ads API directly
+        if (!googleBudgetId) {
+          const { fetchCampaignBudgets } = await import("@/lib/google-ads");
+          const apiBudgets = await fetchCampaignBudgets(config);
+          if (apiBudgets.length > 0) {
+            googleBudgetId = (apiBudgets[0] as Record<string, unknown>).budgetId as string;
+          }
+        }
+
+        if (!googleBudgetId) {
+          return NextResponse.json({ error: "No campaign budget found — run a sync first, or check Google Ads" }, { status: 404 });
         }
 
         const newBudgetMicros = Math.round(newDailyBudget * 1_000_000);
-        const r = await updateCampaignBudget(config, budgets.google_budget_id, newBudgetMicros);
+        const r = await updateCampaignBudget(config, googleBudgetId, newBudgetMicros);
         results.push({ newDailyBudget, status: "adjusted", result: r });
 
-        // Update local DB
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        await (sb.from("ads_campaign_budgets") as any)
-          .update({ daily_budget_micros: newBudgetMicros })
-          .eq("google_budget_id", budgets.google_budget_id);
+        // Update local DB if exists
+        if (budgets?.google_budget_id) {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          await (sb.from("ads_campaign_budgets") as any)
+            .update({ daily_budget_micros: newBudgetMicros })
+            .eq("google_budget_id", budgets.google_budget_id);
+        }
         break;
       }
 
