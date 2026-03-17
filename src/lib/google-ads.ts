@@ -323,8 +323,8 @@ export async function fetchAdGroupPerformance(
   return rows.map((row: unknown) => {
     const r = row as Record<string, Record<string, unknown>>;
     return {
-      adGroupId: String(r.ad_group?.id ?? ""),
-      adGroupName: String(r.ad_group?.name ?? ""),
+      adGroupId: String(r.adGroup?.id ?? r.ad_group?.id ?? ""),
+      adGroupName: String(r.adGroup?.name ?? r.ad_group?.name ?? ""),
       campaignId: String(r.campaign?.id ?? ""),
       campaignName: String(r.campaign?.name ?? ""),
       impressions: Number(r.metrics?.impressions ?? 0),
@@ -366,10 +366,10 @@ export async function fetchAllAdGroups(
   return rows.map((row: unknown) => {
     const r = row as Record<string, Record<string, unknown>>;
     return {
-      adGroupId: String(r.ad_group?.id ?? ""),
-      adGroupName: String(r.ad_group?.name ?? ""),
+      adGroupId: String(r.adGroup?.id ?? r.ad_group?.id ?? ""),
+      adGroupName: String(r.adGroup?.name ?? r.ad_group?.name ?? ""),
       campaignId: String(r.campaign?.id ?? ""),
-      status: String(r.ad_group?.status ?? "ENABLED"),
+      status: String(r.adGroup?.status ?? r.ad_group?.status ?? "ENABLED"),
     };
   });
 }
@@ -407,14 +407,15 @@ export async function fetchAdPerformance(
 
   return rows.map((row: unknown) => {
     const r = row as Record<string, Record<string, unknown>>;
-    const ad = r.ad_group_ad?.ad as Record<string, unknown> | undefined;
-    const rsa = ad?.responsive_search_ad as Record<string, unknown[]> | undefined;
+    const adGroupAd = r.adGroupAd ?? r.ad_group_ad;
+    const ad = (adGroupAd as Record<string, unknown>)?.ad as Record<string, unknown> | undefined;
+    const rsa = (ad?.responsiveSearchAd ?? ad?.responsive_search_ad) as Record<string, unknown[]> | undefined;
     const headlines = (rsa?.headlines ?? []) as Array<{ text?: string }>;
     const descriptions = (rsa?.descriptions ?? []) as Array<{ text?: string }>;
     return {
       adId: String(ad?.id ?? ""),
-      adGroupId: String(r.ad_group?.id ?? ""),
-      adGroupName: String(r.ad_group?.name ?? ""),
+      adGroupId: String(r.adGroup?.id ?? r.ad_group?.id ?? ""),
+      adGroupName: String(r.adGroup?.name ?? r.ad_group?.name ?? ""),
       campaignId: String(r.campaign?.id ?? ""),
       campaignName: String(r.campaign?.name ?? ""),
       headline1: headlines[0]?.text ?? "",
