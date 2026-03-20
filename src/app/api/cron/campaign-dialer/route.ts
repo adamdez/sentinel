@@ -26,6 +26,14 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
+  // Business hours guard: only run 9am-6pm Pacific Mon-Sat
+  const pstNow = new Date(new Date().toLocaleString("en-US", { timeZone: "America/Los_Angeles" }));
+  const hour = pstNow.getHours();
+  const day = pstNow.getDay(); // 0=Sun
+  if (day === 0 || hour < 9 || hour >= 18) {
+    return NextResponse.json({ skipped: true, reason: "Outside business hours (9am-6pm PT Mon-Sat)" });
+  }
+
   const sb = createServerClient();
   const now = new Date().toISOString();
   const results: CampaignResult[] = [];
