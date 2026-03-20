@@ -10,21 +10,21 @@ const TEAM = [
     name: "Adam",
     initials: "AD",
     email: "adam@dominionhomedeals.com",
-    color: "#00ff88",
+    color: "#6a8f93",
     role: "Admin",
   },
   {
     name: "Nathan",
     initials: "NJ",
     email: "nathan@dominionhomedeals.com",
-    color: "#00E5FF",
+    color: "#7a9094",
     role: "Admin",
   },
   {
     name: "Logan",
     initials: "LD",
     email: "logan@dominionhomedeals.com",
-    color: "#A855F7",
+    color: "#5f8589",
     role: "Admin",
   },
 ];
@@ -64,7 +64,7 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen sentinel-gradient sentinel-grid-bg flex flex-col items-center justify-center p-4 relative overflow-hidden">
+    <div className="min-h-screen sentinel-gradient flex flex-col items-center justify-center p-4 relative overflow-hidden">
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
@@ -76,14 +76,12 @@ export default function LoginPage() {
             initial={{ scale: 0.8, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
             transition={{ delay: 0.1, type: "spring", stiffness: 200 }}
-            className="h-16 w-16 rounded-2xl bg-cyan/8 flex items-center justify-center border border-cyan/15 mb-4"
-            style={{ boxShadow: "0 0 40px rgba(0,212,255,0.15), 0 0 80px rgba(0,212,255,0.05)" }}
+            className="h-16 w-16 rounded-2xl bg-white/[0.04] flex items-center justify-center border border-white/10 mb-4 shadow-[0_8px_32px_rgba(0,0,0,0.35)]"
           >
-            <Zap className="h-8 w-8 text-cyan" />
+            <Zap className="h-8 w-8 text-primary" />
           </motion.div>
           <h1
-            className="text-2xl font-bold tracking-tight text-foreground"
-            style={{ textShadow: "0 0 20px rgba(0,212,255,0.15)" }}
+            className="text-2xl font-semibold tracking-tight text-foreground"
           >
             SENTINEL
           </h1>
@@ -128,10 +126,9 @@ export default function LoginPage() {
                       <div
                         className="h-12 w-12 rounded-[14px] flex items-center justify-center text-sm font-bold shrink-0"
                         style={{
-                          background: `${member.color}12`,
+                          background: `${member.color}18`,
                           color: member.color,
-                          border: `1px solid ${member.color}20`,
-                          boxShadow: `0 0 15px ${member.color}15`,
+                          border: `1px solid ${member.color}35`,
                         }}
                       >
                         {member.initials}
@@ -170,10 +167,9 @@ export default function LoginPage() {
                   <div
                     className="h-12 w-12 rounded-[14px] flex items-center justify-center text-sm font-bold shrink-0"
                     style={{
-                      background: `${selectedMember.color}12`,
+                      background: `${selectedMember.color}18`,
                       color: selectedMember.color,
-                      border: `1px solid ${selectedMember.color}20`,
-                      boxShadow: `0 0 20px ${selectedMember.color}15`,
+                      border: `1px solid ${selectedMember.color}35`,
                     }}
                   >
                     {selectedMember.initials}
@@ -195,7 +191,7 @@ export default function LoginPage() {
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
                       autoFocus
-                      className="w-full pl-10 pr-4 py-3 rounded-[12px] border border-glass-border bg-glass/50 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:border-cyan/40 backdrop-blur-xl"
+                      className="w-full pl-10 pr-4 py-3 rounded-[12px] border border-glass-border bg-glass/50 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary/30 focus:border-primary/35 backdrop-blur-xl"
                       style={{ outlineColor: selectedMember.color }}
                     />
                   </div>
@@ -206,7 +202,7 @@ export default function LoginPage() {
                     className="w-full py-3 rounded-[12px] text-sm font-semibold text-black transition-all active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                     style={{
                       background: selectedMember.color,
-                      boxShadow: `0 0 25px ${selectedMember.color}25, 0 0 50px ${selectedMember.color}10`,
+                      boxShadow: "0 4px 24px rgba(0,0,0,0.35)",
                     }}
                   >
                     {signingIn ? (

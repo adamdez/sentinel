@@ -9,32 +9,10 @@ import { useProspects } from "@/hooks/use-prospects";
 import { useLeads } from "@/hooks/use-leads";
 import { RelationshipBadgeCompact } from "@/components/sentinel/relationship-badge";
 
-function GlowingOrb() {
+function NextActionIcon() {
   return (
-    <div className="relative flex items-center justify-center orbit-ring-container">
-      <motion.div
-        className="absolute h-8 w-8 rounded-full"
-        style={{
-          background: "radial-gradient(circle, rgba(0,229,255,0.45) 0%, rgba(0,229,255,0.12) 50%, transparent 70%)",
-        }}
-        animate={{
-          scale: [1, 1.3, 1],
-          opacity: [0.5, 0.85, 0.5],
-        }}
-        transition={{ duration: 2.5, repeat: Infinity, ease: "easeInOut" }}
-      />
-      <motion.div
-        className="absolute h-5 w-5 rounded-full"
-        style={{
-          background: "radial-gradient(circle, rgba(0,229,255,0.65) 0%, rgba(0,229,255,0.2) 60%, transparent 80%)",
-        }}
-        animate={{
-          scale: [1, 1.15, 1],
-          opacity: [0.7, 1, 0.7],
-        }}
-        transition={{ duration: 2, repeat: Infinity, ease: "easeInOut", delay: 0.3 }}
-      />
-      <Zap className="h-3.5 w-3.5 text-cyan relative z-10" style={{ filter: "drop-shadow(0 0 1px rgba(0,229,255,1)) drop-shadow(0 0 4px rgba(0,229,255,0.5))" }} />
+    <div className="relative flex h-9 w-9 items-center justify-center rounded-full bg-primary/10 border border-primary/15">
+      <Zap className="h-3.5 w-3.5 text-primary" />
     </div>
   );
 }
@@ -191,7 +169,7 @@ export function NextBestAction() {
         className="p-3 rounded-[12px] bg-cyan/4 border border-cyan/12 relative overflow-hidden"
       >
         <div className="flex items-center gap-2 mb-2">
-          <GlowingOrb />
+          <NextActionIcon />
           <span className="text-xs font-semibold text-cyan uppercase tracking-wider">
             AI Recommendation
           </span>

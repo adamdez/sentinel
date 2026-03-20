@@ -37,6 +37,8 @@ import { useCoachSurface } from "@/providers/coach-provider";
 import { CoachPanel, CoachToggle } from "@/components/sentinel/coach-panel";
 import { PostCallPanel } from "@/components/sentinel/post-call-panel";
 import { SellerMemoryPanel } from "@/components/sentinel/seller-memory-panel";
+import { SellerMemoryPreview } from "@/components/sentinel/seller-memory-preview";
+import { LiveAssistPanel } from "@/components/sentinel/live-assist-panel";
 
 async function authHeaders(): Promise<Record<string, string>> {
   const { data: { session } } = await supabase.auth.getSession();
@@ -74,20 +76,20 @@ function KpiCard({ kpiKey, value, loading, onClick }: { kpiKey: KpiKey; value: n
     <button
       onClick={onClick}
       className="rounded-[14px] glass-card p-3 text-center
-        transition-all duration-100 cursor-pointer hover:border-cyan/24 hover:bg-cyan/[0.04]
-        hover:shadow-[0_0_1px_rgba(0,229,255,0.6),0_0_4px_rgba(0,229,255,0.25),0_0_10px_rgba(0,229,255,0.1),0_18px_52px_rgba(0,0,0,0.5)] active:scale-[0.97] group relative overflow-hidden w-full holo-border wet-shine"
+        transition-all duration-100 cursor-pointer hover:border-primary/25 hover:bg-white/[0.03]
+        hover:shadow-[0_12px_40px_rgba(0,0,0,0.28)] active:scale-[0.98] group relative overflow-hidden w-full"
     >
       <div className="absolute inset-x-0 top-0 h-[1px] bg-gradient-to-r from-transparent via-white/[0.06] to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
       <div
         className="h-7 w-7 rounded-[8px] flex items-center justify-center mx-auto mb-1"
-        style={{ background: meta.glow, boxShadow: `0 0 10px ${meta.glow}` }}
+        style={{ background: "rgba(255,255,255,0.06)" }}
       >
         <Icon className={`h-3.5 w-3.5 ${meta.color}`} />
       </div>
       {loading ? (
         <Loader2 className="h-4 w-4 animate-spin mx-auto" />
       ) : (
-        <p className={`text-lg font-bold tracking-tight text-glow-number ${meta.color}`} style={{ textShadow: `0 0 8px ${meta.glow}` }}>{display}</p>
+        <p className={`text-lg font-semibold tracking-tight ${meta.color}`}>{display}</p>
       )}
       <p className="text-[11px] text-muted-foreground/60 uppercase tracking-wider">{meta.label}</p>
       <p className="text-[9px] text-muted-foreground/50 mt-0.5 opacity-0 group-hover:opacity-100 transition-opacity uppercase tracking-widest">Click for details</p>
@@ -128,14 +130,14 @@ function StatDetailModal({ kpiKey, userId, onClose }: { kpiKey: KpiKey; userId: 
           transition={{ type: "spring", damping: 26, stiffness: 320 }}
           onClick={(e) => e.stopPropagation()}
           className="relative max-w-md w-full mx-4 rounded-[16px] border border-white/[0.08]
-            modal-glass holo-border wet-shine flex flex-col overflow-hidden"
+            modal-glass flex flex-col overflow-hidden"
         >
-          <div className="absolute top-0 inset-x-0 h-[1px] bg-gradient-to-r from-transparent via-cyan/40 to-transparent" />
+          <div className="absolute top-0 inset-x-0 h-px bg-gradient-to-r from-transparent via-white/15 to-transparent" />
 
           {/* Header */}
           <div className="flex items-center justify-between px-5 py-3.5 border-b border-white/[0.06]">
             <div className="flex items-center gap-2.5">
-              <div className="h-8 w-8 rounded-[10px] flex items-center justify-center" style={{ background: meta.glow }}>
+              <div className="h-8 w-8 rounded-[10px] flex items-center justify-center bg-white/[0.06]">
                 <meta.icon className={`h-4 w-4 ${meta.color}`} />
               </div>
               <h3 className="text-sm font-bold text-white">{meta.label} — Breakdown</h3>
@@ -415,6 +417,9 @@ function DialerPageInner() {
   useCoachSurface("dialer", {});
   const [fileModalOpen, setFileModalOpen] = useState(false);
   const [liveNotes, setLiveNotes] = useState<string[]>([]);
+  const [savedNotes, setSavedNotes] = useState<Array<{ content: string; time: string }>>([]);
+  const [savingNote, setSavingNote] = useState(false);
+  const noteSeqRef = useRef(0);
   // Tracks whether the note scaffold has been seeded for the current call session.
   // Reset to false each time callState returns to idle so the next call starts fresh.
   const noteScaffoldSeeded = useRef(false);
@@ -465,6 +470,7 @@ function DialerPageInner() {
   });
   const [manualDialing, setManualDialing] = useState(false);
   const [manualCallLogId, setManualCallLogId] = useState<string | null>(null);
+  const [manualSessionId, setManualSessionId] = useState<string | null>(null);
   const [manualStatus, setManualStatus] = useState<"idle" | "dialing" | "connected" | "ended">("idle");
   const [smsComposeOpen, setSmsComposeOpen] = useState(false);
   const [smsComposeMsg, setSmsComposeMsg] = useState("");
@@ -966,6 +972,22 @@ function DialerPageInner() {
 
       setManualCallLogId(data.callLogId);
 
+      // Create a session so PostCallPanel can render after the call
+      try {
+        const sessRes = await fetch("/api/dialer/v1/sessions", {
+          method: "POST",
+          headers: await authHeaders(),
+          body: JSON.stringify({
+            lead_id: null,
+            phone_dialed: toE164(manualPhone),
+          }),
+        });
+        if (sessRes.ok) {
+          const sessData = await sessRes.json();
+          setManualSessionId(sessData.session?.id ?? null);
+        }
+      } catch { /* non-fatal — manual dial still works without session */ }
+
       // Connect via browser VoIP
       const call = await deviceRef.current.connect({
         params: {
@@ -1006,23 +1028,35 @@ function DialerPageInner() {
   }, [manualPhone, currentUser.id, ghostMode, deviceStatus, voipCallerId]);
 
   const handleManualHangup = useCallback(() => {
-    // Disconnect VoIP call
     if (activeCall) {
       activeCall.disconnect();
       setActiveCall(null);
     }
-    if (manualCallLogId) {
+    // End the session so PostCallPanel can publish
+    if (manualSessionId) {
       authHeaders().then((hdrs) =>
-        fetch("/api/dialer/call", {
+        fetch(`/api/dialer/v1/sessions/${manualSessionId}`, {
           method: "PATCH",
           headers: hdrs,
-          body: JSON.stringify({ callLogId: manualCallLogId, disposition: "manual_hangup", userId: currentUser.id }),
+          body: JSON.stringify({ status: "ended" }),
         }),
       ).catch(() => {});
+      setManualStatus("ended");
+    } else {
+      // No session — fall back to legacy counter PATCH and reset
+      if (manualCallLogId) {
+        authHeaders().then((hdrs) =>
+          fetch("/api/dialer/call", {
+            method: "PATCH",
+            headers: hdrs,
+            body: JSON.stringify({ callLogId: manualCallLogId, disposition: "manual_hangup", userId: currentUser.id }),
+          }),
+        ).catch(() => {});
+      }
+      setManualStatus("idle");
+      setManualCallLogId(null);
     }
-    setManualStatus("idle");
-    setManualCallLogId(null);
-  }, [manualCallLogId, currentUser.id, activeCall]);
+  }, [manualCallLogId, manualSessionId, currentUser.id, activeCall]);
 
   const handleManualSms = useCallback(async () => {
     if (manualPhone.length < 10) {
@@ -1159,12 +1193,47 @@ function DialerPageInner() {
     setCallNotes("");
     setTransferStatus(null);
     setMuted(false);
+    setSavedNotes([]);
+    noteSeqRef.current = 0;
     timer.reset();
     const currentIdx = queue.findIndex((l) => l.id === currentLead?.id);
     const nextLead = queue[currentIdx + 1] ?? queue[0] ?? null;
     setCurrentLead(nextLead);
     refetchQueue();
   }, [currentLead, queue, refetchQueue, timer]);
+
+  // ── Manual dial PostCallPanel completion handler ──────────────────
+  const handleManualPostCallDone = useCallback(() => {
+    setManualStatus("idle");
+    setManualCallLogId(null);
+    setManualSessionId(null);
+  }, []);
+
+  // ── Mid-call timestamped note save ─────────────────────────────────
+  const handleSaveNote = useCallback(async () => {
+    if (!dialerSessionId || !callNotes.trim() || savingNote) return;
+    setSavingNote(true);
+    const content = callNotes.trim();
+    try {
+      noteSeqRef.current += 1;
+      const res = await fetch(`/api/dialer/v1/sessions/${dialerSessionId}/notes`, {
+        method: "POST",
+        headers: await authHeaders(),
+        body: JSON.stringify({
+          note_type: "operator_note",
+          content,
+          speaker: "operator",
+          sequence_num: noteSeqRef.current,
+          is_ai_generated: false,
+        }),
+      });
+      if (res.ok) {
+        setSavedNotes((prev) => [...prev, { content, time: new Date().toISOString() }]);
+        toast.success("Note saved", { duration: 1500 });
+      }
+    } catch { /* non-fatal */ }
+    finally { setSavingNote(false); }
+  }, [dialerSessionId, callNotes, savingNote]);
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -1516,6 +1585,23 @@ function DialerPageInner() {
             </motion.div>
           )}
         </AnimatePresence>
+
+        {/* Manual dial PostCallPanel — session-backed publish path */}
+        {manualStatus === "ended" && manualSessionId && (
+          <div className="mt-3">
+            <PostCallPanel
+              sessionId={manualSessionId}
+              callLogId={manualCallLogId}
+              userId={currentUser.id}
+              timerElapsed={0}
+              initialSummary=""
+              initialMotivationLevel={null}
+              initialSellerTimeline={null}
+              onComplete={handleManualPostCallDone}
+              onSkip={handleManualPostCallDone}
+            />
+          </div>
+        )}
       </GlassCard>
 
       <div className="grid grid-cols-3 md:grid-cols-6 gap-3">
@@ -2103,6 +2189,38 @@ function DialerPageInner() {
                     placeholder="Call notes... (saved with disposition)"
                     className="w-full bg-transparent text-sm resize-none h-16 outline-none placeholder:text-muted-foreground/30"
                   />
+                  {/* Mid-call save button + saved notes */}
+                  {callState === "connected" && dialerSessionId && (
+                    <div className="border-t border-white/[0.04] pt-2 mt-1">
+                      <div className="flex items-center gap-2">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-6 text-[10px] px-2.5 border-cyan/20 text-cyan/60 hover:bg-cyan/10"
+                          onClick={handleSaveNote}
+                          disabled={savingNote || !callNotes.trim()}
+                        >
+                          {savingNote ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : null}
+                          Save note with timestamp
+                        </Button>
+                        {savedNotes.length > 0 && (
+                          <span className="text-[9px] text-muted-foreground/30">{savedNotes.length} saved</span>
+                        )}
+                      </div>
+                      {savedNotes.length > 0 && (
+                        <div className="mt-2 space-y-1 max-h-24 overflow-y-auto scrollbar-thin">
+                          {savedNotes.map((n, i) => (
+                            <div key={i} className="flex items-start gap-1.5 text-[10px]">
+                              <span className="text-muted-foreground/30 shrink-0 font-mono">
+                                {new Date(n.time).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" })}
+                              </span>
+                              <span className="text-foreground/50 leading-snug">{n.content}</span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </GlassCard>
               </motion.div>
             ) : (
@@ -2152,6 +2270,11 @@ function DialerPageInner() {
                   />
                 )}
 
+                {/* ── Live Assist: brief-based prompts during active call ── */}
+                {callState === "connected" && preCallBrief && (
+                  <LiveAssistPanel brief={preCallBrief} className="mb-3" />
+                )}
+
                 {callState === "ended" && dialerSessionId ? (
                   /* ── PostCallPanel: session-backed calls get publish path ── */
                   <PostCallPanel
@@ -2162,6 +2285,15 @@ function DialerPageInner() {
                     initialSummary={callNotes}
                     initialMotivationLevel={currentLead?.motivation_level ?? null}
                     initialSellerTimeline={currentLead?.seller_timeline ?? null}
+                    qualContext={currentLead ? {
+                      address: currentLead.properties?.address ?? null,
+                      decisionMakerConfirmed: currentLead.decision_maker_confirmed ?? false,
+                      conditionLevel: currentLead.condition_level ?? null,
+                      occupancyScore: currentLead.occupancy_score ?? null,
+                      hasOpenTask: false,
+                    } : null}
+                    phoneNumber={currentLead?.properties?.owner_phone ?? null}
+                    leadId={currentLead?.id ?? null}
                     onComplete={handlePostCallDone}
                     onSkip={handlePostCallDone}
                   />
@@ -2224,8 +2356,8 @@ function DialerPageInner() {
                 )}
 
                 <GlassCard glow hover={false} className="!p-4 mt-3 text-center">
-                  <Clock className="h-5 w-5 mx-auto mb-1 text-cyan" />
-                  <p className="text-3xl font-bold font-mono tracking-wider text-neon text-glow-number">
+                  <Clock className="h-5 w-5 mx-auto mb-1 text-primary" />
+                  <p className="text-3xl font-semibold font-mono tracking-wider text-foreground">
                     {timer.formatted}
                   </p>
                   <p className="text-[11px] text-muted-foreground/60 mt-1 uppercase">
@@ -2243,6 +2375,11 @@ function DialerPageInner() {
                 exit={{ opacity: 0, y: -10 }}
                 transition={{ duration: 0.2 }}
               >
+                {/* ── Pre-call seller memory (idle state) ── */}
+                {currentLead && (
+                  <SellerMemoryPreview leadId={currentLead.id} className="mb-3" />
+                )}
+
                 <GlassCard hover={false} className="!p-3">
                   <div className="flex items-center justify-between mb-3">
                     <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">

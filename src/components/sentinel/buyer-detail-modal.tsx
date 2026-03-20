@@ -250,7 +250,7 @@ export function BuyerDetailModal({ buyer, open, onClose, onSaved, isCreate }: Bu
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.95, y: 10 }}
             transition={{ duration: 0.15, ease: "easeOut" }}
-            className="relative z-50 w-full max-w-2xl max-h-[85vh] overflow-y-auto rounded-[16px] modal-glass holo-border wet-shine p-6 space-y-5 scrollbar-thin scrollbar-thumb-white/10 scrollbar-track-transparent"
+            className="relative z-50 w-full max-w-2xl max-h-[85vh] overflow-y-auto rounded-[16px] modal-glass p-6 space-y-5 scrollbar-thin scrollbar-thumb-white/10 scrollbar-track-transparent"
             style={{ boxShadow: "inset 0 0 4px rgba(0,229,255,0.18), inset 0 0 14px rgba(179,136,255,0.12), 0 8px 26px rgba(0,0,0,0.16), 0 32px 80px rgba(0,0,0,0.08)" }}
           >
             {/* Close button */}

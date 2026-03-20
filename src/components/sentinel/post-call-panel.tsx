@@ -123,6 +123,10 @@ export interface PostCallPanelProps {
   initialSellerTimeline?: string | null;
   /** Optional: additional context for the qual gap checklist */
   qualContext?: PostCallQualContext | null;
+  /** Phone number for callback confirmation SMS */
+  phoneNumber?: string | null;
+  /** Lead ID for SMS compliance check */
+  leadId?: string | null;
   onComplete: () => void;
   onSkip: () => void;
 }
@@ -136,12 +140,15 @@ export function PostCallPanel({
   initialMotivationLevel = null,
   initialSellerTimeline = null,
   qualContext = null,
+  phoneNumber = null,
+  leadId = null,
   onComplete,
   onSkip,
 }: PostCallPanelProps) {
   const [selected, setSelected] = useState<PublishDisposition | null>(null);
   const [pendingDispo, setPendingDispo] = useState<PublishDisposition | null>(null);
   const [callbackAt, setCallbackAt] = useState("");
+  const [sendConfirmSms, setSendConfirmSms] = useState(false);
   // Step 3 state
   const [qualStep, setQualStep] = useState(false);
   const [qualFromDate, setQualFromDate] = useState(false);     // came from Step 2
@@ -466,11 +473,33 @@ export function PostCallPanel({
     }
   };
 
-  // Called from Step 2 confirm — stores date, advances to Step 3
-  const handleConfirmPending = () => {
+  // Called from Step 2 confirm — stores date, advances to Step 3.
+  // If sendConfirmSms is checked and we have a phone, fire a brief confirmation.
+  const handleConfirmPending = async () => {
     if (!pendingDispo) return;
     const iso = callbackAt ? new Date(callbackAt).toISOString() : undefined;
     setPendingNextCallAt(iso);
+
+    if (sendConfirmSms && phoneNumber && callbackAt) {
+      const dateStr = new Date(callbackAt).toLocaleString("en-US", {
+        weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit",
+      });
+      const msg = `Hi, this is Dominion Homes confirming our follow-up call on ${dateStr}. Talk soon!`;
+      try {
+        await fetch("/api/dialer/sms", {
+          method: "POST",
+          headers: await authHeaders(),
+          body: JSON.stringify({
+            phone: phoneNumber,
+            message: msg,
+            leadId: leadId ?? undefined,
+            userId,
+            force: true,
+          }),
+        });
+      } catch { /* non-fatal — callback still proceeds */ }
+    }
+
     setQualFromDate(true);
     setQualStep(true);
   };
@@ -803,6 +832,26 @@ export function PostCallPanel({
             style={{ colorScheme: "dark" }}
             className="w-full rounded-[10px] border border-white/[0.06] bg-white/[0.03] px-3 py-2 text-[12px] text-foreground focus:outline-none focus:border-cyan/20 disabled:opacity-50 mb-3"
           />
+
+          {/* Callback confirmation SMS opt-in */}
+          {phoneNumber && callbackAt && (
+            <label className="flex items-start gap-2 cursor-pointer rounded-[8px] border border-white/[0.05] bg-white/[0.01] px-2.5 py-2 hover:bg-white/[0.025] transition-colors mb-3">
+              <input
+                type="checkbox"
+                checked={sendConfirmSms}
+                onChange={(e) => setSendConfirmSms(e.target.checked)}
+                className="mt-0.5 h-3 w-3 rounded border-white/20 bg-white/[0.03] accent-cyan"
+              />
+              <div>
+                <p className="text-[10px] font-medium text-foreground/65">
+                  Send confirmation SMS to seller
+                </p>
+                <p className="text-[9px] text-muted-foreground/30 leading-relaxed">
+                  Brief message confirming the callback date. Uses Dominion Homes caller ID.
+                </p>
+              </div>
+            </label>
+          )}
 
           {/* Note textarea — contextual prompt for follow-up/appointment path */}
           <textarea

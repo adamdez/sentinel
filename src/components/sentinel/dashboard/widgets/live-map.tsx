@@ -84,11 +84,11 @@ export function LiveMap() {
   return (
     <div className="space-y-2">
       <div className="relative rounded-[10px] overflow-hidden bg-white/[0.02] border border-white/[0.06] aspect-[16/9] min-h-[180px]">
-        <div className="absolute inset-0 sentinel-grid-bg opacity-30" />
         <div
-          className="absolute inset-0 pointer-events-none"
+          className="absolute inset-0 pointer-events-none opacity-40"
           style={{
-            background: "radial-gradient(ellipse at 45% 40%, rgba(0,212,255,0.04) 0%, transparent 50%), radial-gradient(ellipse at 60% 55%, rgba(255,68,68,0.03) 0%, transparent 40%)",
+            background:
+              "radial-gradient(ellipse at 45% 40%, rgba(255,255,255,0.03) 0%, transparent 55%)",
           }}
         />
 

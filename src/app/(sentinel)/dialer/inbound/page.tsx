@@ -1,52 +1,35 @@
 "use client";
 
+export const dynamic = "force-dynamic";
+
 /**
- * /dialer/inbound — Live Inbound Call Assistant
+ * /dialer/inbound — Inbound Call Review & Classification
  *
- * Logan bookmarks this page. When a seller calls, he answers on his cell and
- * opens this URL on his laptop/tablet to see instant context.
- *
- * Usage patterns:
- *   /dialer/inbound                   — shows most recent inbound event (answered or missed)
- *   /dialer/inbound?phone=+15095551234 — direct lookup by caller number
- *   /dialer/inbound?event_id=UUID     — specific inbound event
- *
- * Features:
- *   1. Caller identity + lead match status
- *   2. CRM context: stage, motivation, timeline, call history
- *   3. Last operator note / promised callback (from SellerMemoryPanel data)
- *   4. Open task (what was promised on the last call)
- *   5. Dossier snippet if a reviewed dossier exists
- *   6. Post-call outcome capture: answered / voicemail / wrong number /
- *      callback requested / appointment
- *
- * No voice control. No autonomous AI. Operator stays the caller-facing human.
+ * Wires existing inbound API routes to an operator-facing surface.
+ * Actions: classify caller, recover missed, dismiss, commit writeback.
+ * Read-only aggregation + action buttons to existing POST routes.
  */
 
-import { useState, useEffect, useCallback, Suspense } from "react";
-import Link from "next/link";
+import { useState, useEffect, useCallback } from "react";
 import { useSearchParams } from "next/navigation";
+import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
 import {
-  PhoneIncoming, Phone, User, MapPin, CheckSquare,
-  CalendarCheck, Voicemail, XCircle, ArrowRight, MessageSquare,
-  Loader2, RefreshCw, Brain, TrendingUp, FileText, CheckCircle2,
-  AlertTriangle, ExternalLink, ShoppingBag, Wrench, Ban, HelpCircle,
-  Home, Zap, ChevronRight, ChevronLeft,
+  PhoneIncoming, Phone, Users, Loader2, RefreshCw, CheckCircle2,
+  XCircle, Clock, HelpCircle, MapPin, FileText, ArrowRight,
+  AlertTriangle, ChevronDown, ChevronUp, User,
 } from "lucide-react";
+import { toast } from "sonner";
 import { PageShell } from "@/components/sentinel/page-shell";
 import { GlassCard } from "@/components/sentinel/glass-card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
 import { supabase } from "@/lib/supabase";
-import type { CRMLeadContext } from "@/lib/dialer/types";
-import type { InboundContextResponse, InboundEventMeta } from "@/app/api/dialer/v1/inbound/context/route";
-import type { InboundCallerType } from "@/app/api/dialer/v1/inbound/[event_id]/classify/route";
-import { WarmTransferCard } from "@/components/sentinel/warm-transfer-card";
-
-// ── Auth helper ───────────────────────────────────────────────────────────────
+import { InboundWritebackPanel } from "@/components/sentinel/inbound-writeback-panel";
+import type { MissedInbound, UnclassifiedAnswered } from "@/app/api/dialer/v1/queue/route";
+import type { InboundCallerType, InboundDisposition } from "@/lib/dialer/types";
+import { INBOUND_DISPOSITIONS } from "@/lib/dialer/types";
 
 async function authHeaders(): Promise<Record<string, string>> {
   const { data: { session } } = await supabase.auth.getSession();
@@ -55,777 +38,597 @@ async function authHeaders(): Promise<Record<string, string>> {
   return h;
 }
 
-// ── Caller type options (Step 1) ─────────────────────────────────────────────
-
-interface CallerTypeMeta {
-  key: InboundCallerType;
-  label: string;
-  icon: React.ElementType;
-  color: string;
-  bg: string;
-  hint: string;
+function formatAge(minutesAgo: number): string {
+  if (minutesAgo < 2) return "just now";
+  if (minutesAgo < 60) return `${minutesAgo}m ago`;
+  const h = Math.floor(minutesAgo / 60);
+  if (h < 24) return `${h}h ago`;
+  return `${Math.floor(h / 24)}d ago`;
 }
 
-const CALLER_TYPE_OPTIONS: CallerTypeMeta[] = [
-  {
-    key: "seller",
-    label: "Seller",
-    icon: Home,
-    color: "text-cyan",
-    bg: "bg-cyan/8 hover:bg-cyan/15 border-cyan/15",
-    hint: "Homeowner calling about a property",
-  },
-  {
-    key: "buyer",
-    label: "Buyer",
-    icon: ShoppingBag,
-    color: "text-purple-400",
-    bg: "bg-purple-500/10 hover:bg-purple-500/20 border-purple-500/20",
-    hint: "Investor / cash buyer looking for deals",
-  },
-  {
-    key: "vendor",
-    label: "Vendor",
-    icon: Wrench,
-    color: "text-orange-400",
-    bg: "bg-orange-500/10 hover:bg-orange-500/20 border-orange-500/20",
-    hint: "Contractor, title, agent, service provider",
-  },
-  {
-    key: "spam",
-    label: "Spam",
-    icon: Ban,
-    color: "text-red-400",
-    bg: "bg-red-500/10 hover:bg-red-500/20 border-red-500/20",
-    hint: "Robocall or telemarketer",
-  },
-  {
-    key: "unknown",
-    label: "Unknown",
-    icon: HelpCircle,
-    color: "text-zinc-400",
-    bg: "bg-zinc-500/10 hover:bg-zinc-500/20 border-zinc-500/20",
-    hint: "Couldn't determine — needs follow-up",
-  },
-];
+function ageSeverity(minutesAgo: number): "critical" | "warning" | "normal" {
+  if (minutesAgo < 30) return "critical";
+  if (minutesAgo < 240) return "warning";
+  return "normal";
+}
 
-// ── Context card helpers ──────────────────────────────────────────────────────
+const CALLER_TYPES: InboundCallerType[] = ["seller", "buyer", "vendor", "spam", "unknown"];
 
-const ROUTE_LABELS: Record<string, { label: string; color: string }> = {
-  offer_ready: { label: "Offer Ready",  color: "text-emerald-400" },
-  follow_up:   { label: "Follow Up",    color: "text-cyan" },
-  nurture:     { label: "Nurture",      color: "text-purple-400" },
-  dead:        { label: "Dead",         color: "text-red-400" },
-  escalate:    { label: "Escalate",     color: "text-orange-400" },
+const CALLER_TYPE_STYLES: Record<InboundCallerType, string> = {
+  seller: "border-cyan/25 bg-cyan/[0.08] text-cyan/80",
+  buyer: "border-emerald-500/25 bg-emerald-500/[0.08] text-emerald-400/80",
+  vendor: "border-white/10 bg-white/[0.03] text-muted-foreground/50",
+  spam: "border-red-500/25 bg-red-500/[0.08] text-red-400/60",
+  unknown: "border-yellow-500/20 bg-yellow-500/[0.05] text-yellow-400/60",
 };
 
-const TIMELINE_LABELS: Record<string, string> = {
-  immediate: "Immediate",
-  "30_days": "30 days",
-  "60_days": "60 days",
-  flexible:  "Flexible",
-  unknown:   "Unknown",
+const CALLER_TYPE_LABELS: Record<InboundCallerType, string> = {
+  seller: "Seller",
+  buyer: "Buyer",
+  vendor: "Vendor",
+  spam: "Spam",
+  unknown: "Unknown",
 };
 
-function MotivationDots({ level }: { level: number | null }) {
-  if (level == null) return <span className="text-[11px] text-muted-foreground/40">—</span>;
+// ── Classify form (expanded when operator clicks "Classify") ──────────────
+
+interface ClassifyFormProps {
+  eventId: string;
+  fromNumber: string;
+  onDone: () => void;
+}
+
+function ClassifyForm({ eventId, fromNumber, onDone }: ClassifyFormProps) {
+  const [callerType, setCallerType] = useState<InboundCallerType>("seller");
+  const [address, setAddress] = useState("");
+  const [situation, setSituation] = useState("");
+  const [notes, setNotes] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+
+  async function handleClassify() {
+    setBusy(true);
+    setErr(null);
+    try {
+      const res = await fetch(`/api/dialer/v1/inbound/${eventId}/classify`, {
+        method: "POST",
+        headers: await authHeaders(),
+        body: JSON.stringify({
+          caller_type: callerType,
+          subject_address: address.trim() || null,
+          situation_summary: situation.trim() || null,
+          notes: notes.trim() || null,
+        }),
+      });
+      if (!res.ok) {
+        const b = await res.json().catch(() => ({}));
+        throw new Error(b.error || "Classify failed");
+      }
+      const data = await res.json();
+      toast.success(`Classified as ${callerType}${data.task_id ? " — task created" : ""}`);
+      onDone();
+    } catch (e: unknown) {
+      setErr(e instanceof Error ? e.message : "Failed");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   return (
-    <div className="flex items-center gap-0.5">
-      {[1, 2, 3, 4, 5].map(n => (
-        <span
-          key={n}
-          className={`h-2 w-2 rounded-full ${n <= level
-            ? level >= 4 ? "bg-emerald-400" : level >= 2 ? "bg-cyan" : "bg-zinc-500"
-            : "bg-white/[0.08]"
-          }`}
+    <div className="space-y-2.5 p-3 border-t border-white/[0.06]">
+      <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground/50 mb-1">
+        <Phone className="h-3 w-3" />
+        Classifying {fromNumber}
+      </div>
+
+      {/* Caller type chips */}
+      <div className="space-y-1">
+        <label className="text-[9px] uppercase tracking-wider text-muted-foreground/40">Caller type</label>
+        <div className="flex flex-wrap gap-1.5">
+          {CALLER_TYPES.map((ct) => (
+            <button
+              key={ct}
+              onClick={() => setCallerType(ct)}
+              className={`rounded-[6px] border px-2 py-1 text-[10px] font-medium transition-all ${
+                callerType === ct
+                  ? CALLER_TYPE_STYLES[ct] + " ring-1 ring-white/10"
+                  : "border-white/[0.06] text-muted-foreground/40 hover:text-muted-foreground/60"
+              }`}
+            >
+              {CALLER_TYPE_LABELS[ct]}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Subject address */}
+      <div className="space-y-1">
+        <label className="flex items-center gap-1 text-[9px] uppercase tracking-wider text-muted-foreground/40">
+          <MapPin className="h-2.5 w-2.5" /> Subject address
+        </label>
+        <Input
+          value={address}
+          onChange={(e) => setAddress(e.target.value)}
+          placeholder="Property address mentioned…"
+          className="h-7 text-[11px]"
+          maxLength={300}
         />
-      ))}
-      <span className="ml-1 text-[10px] text-muted-foreground/50">{level}/5</span>
+      </div>
+
+      {/* Situation summary */}
+      <div className="space-y-1">
+        <label className="flex items-center gap-1 text-[9px] uppercase tracking-wider text-muted-foreground/40">
+          <FileText className="h-2.5 w-2.5" /> Situation / notes
+        </label>
+        <textarea
+          value={situation || notes}
+          onChange={(e) => {
+            setSituation(e.target.value);
+            setNotes(e.target.value);
+          }}
+          placeholder="Brief summary of what the caller said…"
+          maxLength={500}
+          rows={2}
+          className="w-full resize-none rounded-[7px] border border-white/[0.07] bg-white/[0.02] px-2.5 py-1.5 text-[11px] text-foreground placeholder:text-muted-foreground/25 focus:outline-none focus:border-cyan/20"
+        />
+      </div>
+
+      {err && (
+        <p className="text-[10px] text-red-400/70 flex items-center gap-1">
+          <AlertTriangle className="h-3 w-3 shrink-0" /> {err}
+        </p>
+      )}
+
+      <div className="flex gap-2">
+        <Button
+          size="sm"
+          onClick={handleClassify}
+          disabled={busy}
+          className="h-7 text-[10px] px-3 bg-cyan/10 hover:bg-cyan/20 text-cyan border border-cyan/30"
+        >
+          {busy ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <CheckCircle2 className="h-3 w-3 mr-1" />}
+          Classify & route
+        </Button>
+        <Button
+          size="sm"
+          variant="ghost"
+          onClick={onDone}
+          className="h-7 text-[10px] px-2 text-muted-foreground/40"
+        >
+          Cancel
+        </Button>
+      </div>
     </div>
   );
 }
 
-// ── Context display ───────────────────────────────────────────────────────────
+// ── InboundCallCard ───────────────────────────────────────────────────────
 
-function CallerContext({ data, phone }: { data: InboundContextResponse; phone: string }) {
-  const { lead, event, dossier_snippet } = data;
-  const ctx = lead;
+interface InboundCallCardProps {
+  item: MissedInbound | UnclassifiedAnswered;
+  type: "missed" | "unclassified";
+  idx: number;
+  onResolved: (eventId: string) => void;
+}
 
-  const routeMeta = ctx?.qualificationRoute ? ROUTE_LABELS[ctx.qualificationRoute] : null;
+function InboundCallCard({ item, type, idx, onResolved }: InboundCallCardProps) {
+  const [mode, setMode] = useState<"idle" | "classify" | "dismiss" | "writeback">("idle");
+  const [dismissReason, setDismissReason] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+
+  const minutesAgo = item.minutes_ago;
+  const severity = ageSeverity(minutesAgo);
+  const ageLabel = formatAge(minutesAgo);
+  const fromNumber = item.from_number;
+  const isMissed = type === "missed";
+  const missed = isMissed ? (item as MissedInbound) : null;
+
+  async function handleRecover() {
+    setBusy(true);
+    setErr(null);
+    try {
+      const res = await fetch(`/api/dialer/v1/inbound/${item.event_id}/recover`, {
+        method: "POST",
+        headers: await authHeaders(),
+        body: JSON.stringify({ complete_task: true }),
+      });
+      if (!res.ok) {
+        const b = await res.json().catch(() => ({}));
+        throw new Error(b.error || "Recover failed");
+      }
+      toast.success("Marked as recovered");
+      onResolved(item.event_id);
+    } catch (e: unknown) {
+      setErr(e instanceof Error ? e.message : "Failed");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleDismiss() {
+    if (dismissReason.trim().length < 3) {
+      setErr("Enter a reason (min 3 chars)");
+      return;
+    }
+    setBusy(true);
+    setErr(null);
+    try {
+      const res = await fetch(`/api/dialer/v1/inbound/${item.event_id}/dismiss`, {
+        method: "POST",
+        headers: await authHeaders(),
+        body: JSON.stringify({ reason: dismissReason.trim() }),
+      });
+      if (!res.ok) {
+        const b = await res.json().catch(() => ({}));
+        throw new Error(b.error || "Dismiss failed");
+      }
+      toast.success("Dismissed");
+      onResolved(item.event_id);
+    } catch (e: unknown) {
+      setErr(e instanceof Error ? e.message : "Failed");
+    } finally {
+      setBusy(false);
+    }
+  }
 
   return (
-    <div className="space-y-3">
-
-      {/* ── Caller identity ── */}
-      <GlassCard hover={false} className="!p-3">
-        <div className="flex items-start gap-3">
-          <div className={`h-9 w-9 rounded-full flex items-center justify-center shrink-0 ${
-            ctx ? "bg-cyan/10 border border-cyan/20" : "bg-zinc-800 border border-white/10"
-          }`}>
-            <User className={`h-4 w-4 ${ctx ? "text-cyan" : "text-muted-foreground/40"}`} />
-          </div>
+    <motion.div
+      initial={{ opacity: 0, y: 6 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ delay: 0.03 + idx * 0.03 }}
+    >
+      <GlassCard hover={false} className="!p-0 overflow-hidden">
+        {/* Header */}
+        <div className="flex items-start gap-3 p-3">
           <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2 flex-wrap">
-              <span className="text-sm font-semibold">
-                {ctx?.ownerName ?? "Unknown caller"}
+            <div className="flex items-center gap-1.5 flex-wrap mb-1">
+              <PhoneIncoming
+                className={`h-3.5 w-3.5 shrink-0 ${
+                  severity === "critical" ? "text-red-400 animate-pulse" :
+                  severity === "warning" ? "text-amber-400" :
+                  "text-muted-foreground/60"
+                }`}
+              />
+              <span className="text-sm font-medium">
+                {fromNumber !== "unknown" ? fromNumber : "Unknown number"}
               </span>
-              {!ctx && (
-                <Badge variant="outline" className="text-[9px] h-4 px-1.5 text-muted-foreground/50">
+              <span className={`text-[10px] font-medium ${
+                severity === "critical" ? "text-red-400" :
+                severity === "warning" ? "text-amber-400" :
+                "text-muted-foreground/50"
+              }`}>
+                {ageLabel}
+              </span>
+            </div>
+
+            <div className="flex items-center gap-1.5 flex-wrap">
+              {isMissed ? (
+                <Badge variant="outline" className="text-[9px] h-4 px-1.5 border-red-500/30 text-red-400/70">
+                  Missed
+                </Badge>
+              ) : (
+                <Badge variant="outline" className="text-[9px] h-4 px-1.5 border-amber-500/30 text-amber-400/70">
+                  Answered — not classified
+                </Badge>
+              )}
+              {item.lead_id ? (
+                <Badge variant="outline" className="text-[9px] h-4 px-1.5 text-cyan/60 border-cyan/20">
+                  Lead matched
+                </Badge>
+              ) : (
+                <Badge variant="outline" className="text-[9px] h-4 px-1.5 text-muted-foreground/40">
                   No lead match
                 </Badge>
               )}
-              {routeMeta && (
-                <Badge variant="outline" className={`text-[9px] h-4 px-1.5 ${routeMeta.color} border-current/20`}>
-                  {routeMeta.label}
+              {missed?.is_classified && missed.caller_type && (
+                <span className={`inline-flex items-center gap-0.5 rounded-[5px] border px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide ${
+                  CALLER_TYPE_STYLES[missed.caller_type as InboundCallerType] ?? CALLER_TYPE_STYLES.unknown
+                }`}>
+                  <User className="h-2.5 w-2.5" />
+                  {CALLER_TYPE_LABELS[missed.caller_type as InboundCallerType] ?? missed.caller_type}
+                </span>
+              )}
+              {missed?.task_overdue && (
+                <Badge variant="outline" className="text-[9px] h-4 px-1.5 border-red-500/40 text-red-400">
+                  task overdue
                 </Badge>
               )}
             </div>
-            <div className="flex items-center gap-1.5 mt-0.5">
-              <Phone className="h-3 w-3 text-muted-foreground/40" />
-              <span className="text-[11px] text-muted-foreground/60">{phone}</span>
-            </div>
-            {ctx?.address && (
-              <div className="flex items-center gap-1.5 mt-0.5">
-                <MapPin className="h-3 w-3 text-muted-foreground/40" />
-                <span className="text-[11px] text-muted-foreground/60">{ctx.address}</span>
-              </div>
-            )}
           </div>
-          {ctx && (
-            <Link
-              href={`/leads?open=${ctx.leadId}`}
-              className="shrink-0 text-[10px] text-cyan/60 hover:text-cyan flex items-center gap-0.5"
-            >
-              Lead <ExternalLink className="h-2.5 w-2.5" />
+        </div>
+
+        {/* Action bar */}
+        {mode === "idle" && (
+          <div className="flex items-center gap-1.5 flex-wrap px-3 pb-3">
+            <Link href={`/dialer?phone=${encodeURIComponent(fromNumber)}${item.lead_id ? `&lead_id=${item.lead_id}` : ""}`}>
+              <Button size="sm" className="h-7 text-[10px] px-2.5 bg-cyan/10 hover:bg-cyan/20 text-cyan border border-cyan/30">
+                <Phone className="h-3 w-3 mr-1" />
+                Call back
+              </Button>
             </Link>
-          )}
-        </div>
-      </GlassCard>
 
-      {/* ── Call event timing ── */}
-      {event && (
-        <div className={`flex items-center gap-2 rounded-[10px] px-3 py-2 text-[11px] border ${
-          event.event_type === "inbound.answered"
-            ? "bg-emerald-500/[0.05] border-emerald-500/20 text-emerald-400/80"
-            : "bg-amber-500/[0.05] border-amber-500/20 text-amber-400/80"
-        }`}>
-          <PhoneIncoming className="h-3 w-3 shrink-0" />
-          <span>
-            {event.event_type === "inbound.answered" ? "Call answered" : "Missed call"}{" "}
-            {new Date(event.occurred_at).toLocaleTimeString("en-US", {
-              hour: "numeric", minute: "2-digit", hour12: true,
-            })}
-          </span>
-          {event.has_outcome && (
-            <Badge className="ml-auto bg-emerald-500/20 text-emerald-400 border-emerald-500/30 text-[9px] h-4 px-1.5">
-              Logged
-            </Badge>
-          )}
-        </div>
-      )}
-
-      {/* ── Qualification snapshot (only if lead matched) ── */}
-      {ctx && (
-        <GlassCard hover={false} className="!p-3 space-y-2.5">
-          <div className="flex items-center gap-1.5 mb-1">
-            <Brain className="h-3 w-3 text-purple-400" />
-            <span className="text-[10px] font-semibold uppercase tracking-wider text-purple-400/80">
-              Seller Context
-            </span>
-            <span className="ml-auto text-[10px] text-muted-foreground/40">
-              {ctx.totalCalls} call{ctx.totalCalls !== 1 ? "s" : ""} · {ctx.liveAnswers} answered
-            </span>
-          </div>
-
-          <div className="grid grid-cols-2 gap-2">
-            <div>
-              <p className="text-[9px] text-muted-foreground/40 uppercase mb-1">Motivation</p>
-              <MotivationDots level={ctx.motivationLevel} />
-            </div>
-            <div>
-              <p className="text-[9px] text-muted-foreground/40 uppercase mb-1">Timeline</p>
-              <span className="text-[11px] text-foreground/80">
-                {ctx.sellerTimeline ? TIMELINE_LABELS[ctx.sellerTimeline] ?? ctx.sellerTimeline : "—"}
-              </span>
-            </div>
-          </div>
-
-          {ctx.lastCallDisposition && (
-            <div className="flex items-center justify-between text-[11px]">
-              <span className="text-muted-foreground/50">Last outcome</span>
-              <span className="font-medium capitalize text-foreground/80">
-                {ctx.lastCallDisposition.replace(/_/g, " ")}
-              </span>
-            </div>
-          )}
-
-          {/* Open task — what was promised */}
-          {ctx.openTaskTitle && (
-            <div className="flex items-start gap-1.5 rounded-[8px] bg-amber-500/[0.06] border border-amber-500/20 px-2.5 py-1.5">
-              <CheckSquare className="h-3 w-3 text-amber-400/70 shrink-0 mt-0.5" />
-              <div className="min-w-0">
-                <p className="text-[11px] text-amber-300/90 font-medium leading-snug truncate">
-                  {ctx.openTaskTitle}
-                </p>
-                {ctx.openTaskDueAt && (
-                  <p className="text-[10px] text-amber-400/50 mt-0.5">
-                    Due{" "}
-                    {new Date(ctx.openTaskDueAt).toLocaleDateString("en-US", {
-                      month: "short", day: "numeric",
-                    })}
-                  </p>
-                )}
-              </div>
-            </div>
-          )}
-
-          {/* Last call notes (operator-published — highest trust) */}
-          {ctx.lastCallNotes && (
-            <div className="space-y-1">
-              <div className="flex items-center gap-1">
-                <MessageSquare className="h-3 w-3 text-muted-foreground/40" />
-                <span className="text-[9px] text-muted-foreground/40 uppercase">Last call notes</span>
-              </div>
-              <p className="text-[11px] text-foreground/80 leading-relaxed pl-4">
-                {ctx.lastCallNotes}
-              </p>
-            </div>
-          )}
-
-          {/* AI summary as fallback only */}
-          {!ctx.lastCallNotes && ctx.lastCallAiSummary && (
-            <div className="space-y-1">
-              <div className="flex items-center gap-1">
-                <Brain className="h-3 w-3 text-purple-400/40" />
-                <span className="text-[9px] text-purple-400/50 uppercase">AI summary (unreviewed)</span>
-              </div>
-              <p className="text-[11px] text-foreground/60 leading-relaxed italic pl-4">
-                {ctx.lastCallAiSummary}
-              </p>
-            </div>
-          )}
-        </GlassCard>
-      )}
-
-      {/* ── Dossier snippet (reviewed only) ── */}
-      {dossier_snippet && (
-        <GlassCard hover={false} className="!p-3 border-cyan/10">
-          <div className="flex items-center gap-1.5 mb-1.5">
-            <FileText className="h-3 w-3 text-cyan/60" />
-            <span className="text-[10px] font-semibold uppercase tracking-wider text-cyan/60">
-              Dossier (reviewed)
-            </span>
-          </div>
-          <p className="text-[11px] text-foreground/80 leading-relaxed">{dossier_snippet}</p>
-        </GlassCard>
-      )}
-
-      {/* ── No lead match fallback ── */}
-      {!ctx && (
-        <GlassCard hover={false} className="!p-3 border-muted/20">
-          <div className="flex items-center gap-2 text-muted-foreground/50">
-            <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
-            <p className="text-[11px]">
-              No lead found for {phone}. This may be a new seller.{" "}
-              <Link href="/leads" className="text-cyan/60 hover:text-cyan">Create lead →</Link>
-            </p>
-          </div>
-        </GlassCard>
-      )}
-    </div>
-  );
-}
-
-// ── Routing action labels ─────────────────────────────────────────────────────
-
-const ROUTING_LABELS: Record<string, { label: string; color: string }> = {
-  warm_transfer_flagged: { label: "Warm transfer ready",  color: "text-red-400" },
-  callback_booked:       { label: "Callback booked",      color: "text-cyan" },
-  seller_follow_up:      { label: "Seller follow-up",     color: "text-purple-400" },
-  buyer_follow_up:       { label: "Buyer follow-up",      color: "text-blue-400" },
-  vendor_closed:         { label: "Vendor — closed",      color: "text-orange-400/60" },
-  spam_closed:           { label: "Spam — closed",        color: "text-red-400/50" },
-  clarification_needed:  { label: "Clarification needed", color: "text-amber-400" },
-};
-
-// ── ClassifyForm — 2-step: caller type → seller intake ───────────────────────
-
-interface ClassifyIntakeResult {
-  callerType: InboundCallerType;
-  routingAction: string;
-  warmTransferReady: boolean;
-  subjectAddress: string | null;
-  situationSummary: string | null;
-}
-
-function ClassifyForm({
-  eventId,
-  alreadyClassified,
-  onClassified,
-}: {
-  eventId: string;
-  alreadyClassified: boolean;
-  onClassified: (result: ClassifyIntakeResult) => void;
-}) {
-  const [step, setStep]           = useState<1 | 2>(1);
-  const [callerType, setCallerType] = useState<InboundCallerType | null>(null);
-  const [subjectAddress, setSubjectAddress]     = useState("");
-  const [situationSummary, setSituationSummary] = useState("");
-  const [preferredCallback, setPreferredCallback] = useState("");
-  const [warmTransferReady, setWarmTransferReady] = useState(false);
-  const [notes, setNotes]         = useState("");
-  const [submitting, setSubmitting] = useState(false);
-  const [done, setDone]           = useState(alreadyClassified);
-  const [result, setResult]       = useState<{ callerType: InboundCallerType; routingAction: string } | null>(null);
-  const [error, setError]         = useState<string | null>(null);
-
-  async function handleSubmit() {
-    if (!callerType) return;
-    setSubmitting(true);
-    setError(null);
-    try {
-      const h = await authHeaders();
-      const body: Record<string, unknown> = { caller_type: callerType };
-      if (callerType === "seller") {
-        if (subjectAddress)    body.subject_address    = subjectAddress.trim();
-        if (situationSummary)  body.situation_summary  = situationSummary.trim();
-        if (preferredCallback) body.preferred_callback = preferredCallback.trim();
-        body.warm_transfer_ready = warmTransferReady;
-      }
-      if (notes.trim()) body.notes = notes.trim();
-
-      const res = await fetch(`/api/dialer/v1/inbound/${eventId}/classify`, {
-        method: "POST",
-        headers: h,
-        body: JSON.stringify(body),
-      });
-      if (!res.ok) {
-        const b = await res.json().catch(() => ({}));
-        throw new Error(b.error || "Failed to classify");
-      }
-      const data = await res.json();
-      setDone(true);
-      setResult({ callerType, routingAction: data.routing_action });
-      onClassified({
-        callerType,
-        routingAction: data.routing_action,
-        warmTransferReady,
-        subjectAddress:   subjectAddress.trim() || null,
-        situationSummary: situationSummary.trim() || null,
-      });
-    } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : "Error classifying call");
-    } finally {
-      setSubmitting(false);
-    }
-  }
-
-  if (done && result) {
-    const routeMeta = ROUTING_LABELS[result.routingAction];
-    const typeMeta = CALLER_TYPE_OPTIONS.find(t => t.key === result.callerType);
-    const TypeIcon = typeMeta?.icon ?? CheckCircle2;
-    return (
-      <div className="flex items-center gap-2 rounded-[10px] bg-emerald-500/[0.06] border border-emerald-500/20 px-3 py-2.5">
-        <CheckCircle2 className="h-3.5 w-3.5 text-emerald-400 shrink-0" />
-        <div className="flex items-center gap-1.5 flex-wrap">
-          <TypeIcon className={`h-3 w-3 ${typeMeta?.color ?? "text-muted-foreground"}`} />
-          <span className={`text-[11px] font-medium ${typeMeta?.color ?? ""}`}>
-            {typeMeta?.label}
-          </span>
-          {routeMeta && (
-            <>
-              <ChevronRight className="h-2.5 w-2.5 text-muted-foreground/40" />
-              <span className={`text-[11px] ${routeMeta.color}`}>{routeMeta.label}</span>
-            </>
-          )}
-        </div>
-      </div>
-    );
-  }
-
-  if (done) {
-    return (
-      <div className="flex items-center gap-2 rounded-[10px] bg-emerald-500/[0.06] border border-emerald-500/20 px-3 py-2.5">
-        <CheckCircle2 className="h-3.5 w-3.5 text-emerald-400 shrink-0" />
-        <span className="text-[11px] text-emerald-400/90">Classified.</span>
-      </div>
-    );
-  }
-
-  return (
-    <div className="space-y-3">
-      {/* Step header */}
-      <div className="flex items-center gap-1.5">
-        <TrendingUp className="h-3.5 w-3.5 text-muted-foreground/50" />
-        <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground/60">
-          {step === 1 ? "Who is calling?" : "Seller intake"}
-        </h3>
-        {step === 2 && (
-          <button
-            onClick={() => { setStep(1); setCallerType(null); }}
-            className="ml-auto flex items-center gap-0.5 text-[10px] text-muted-foreground/40 hover:text-muted-foreground/70"
-          >
-            <ChevronLeft className="h-3 w-3" /> Back
-          </button>
-        )}
-      </div>
-
-      {/* ── Step 1: Caller type ── */}
-      {step === 1 && (
-        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-          {CALLER_TYPE_OPTIONS.map(t => {
-            const Icon = t.icon;
-            return (
-              <motion.button
-                key={t.key}
-                whileTap={{ scale: 0.97 }}
-                onClick={() => {
-                  setCallerType(t.key);
-                  if (t.key === "seller") {
-                    setStep(2);
-                  } else {
-                    // Non-seller types go straight to submit
-                    setCallerType(t.key);
-                  }
-                }}
-                className={`flex flex-col items-start gap-1 rounded-[10px] border px-3 py-2.5 text-left transition-all ${t.bg}`}
+            {!missed?.is_classified && (
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-7 text-[10px] px-2.5 border-amber-500/30 text-amber-400 hover:bg-amber-950/30"
+                onClick={() => setMode("classify")}
               >
-                <div className="flex items-center gap-1.5">
-                  <Icon className={`h-3.5 w-3.5 shrink-0 ${t.color}`} />
-                  <span className={`text-[11px] font-medium ${t.color}`}>{t.label}</span>
-                </div>
-                <span className="text-[9px] text-muted-foreground/40 leading-tight">{t.hint}</span>
-              </motion.button>
-            );
-          })}
-        </div>
-      )}
+                <Users className="h-3 w-3 mr-1" />
+                Classify
+              </Button>
+            )}
 
-      {/* ── Step 1 non-seller: show submit immediately ── */}
-      <AnimatePresence>
-        {step === 1 && callerType && callerType !== "seller" && (
-          <motion.div
-            initial={{ opacity: 0, height: 0 }}
-            animate={{ opacity: 1, height: "auto" }}
-            exit={{ opacity: 0, height: 0 }}
-            className="space-y-2"
-          >
-            <div>
-              <label className="text-[10px] text-muted-foreground/50 uppercase block mb-1">
-                Note (optional)
-              </label>
-              <Input
-                value={notes}
-                onChange={e => setNotes(e.target.value)}
-                placeholder={callerType === "vendor" ? "Company / rep name…" : "Brief note…"}
-                className="h-7 text-[11px]"
-                onKeyDown={e => e.key === "Enter" && handleSubmit()}
-              />
-            </div>
-            <Button onClick={handleSubmit} disabled={submitting} className="w-full h-8 text-xs">
-              {submitting ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" /> : <CheckCircle2 className="h-3.5 w-3.5 mr-1.5" />}
-              Log {CALLER_TYPE_OPTIONS.find(t => t.key === callerType)?.label}
+            {isMissed && (
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-7 text-[10px] px-2.5 border-emerald-500/30 text-emerald-400 hover:bg-emerald-950/30"
+                onClick={handleRecover}
+                disabled={busy}
+              >
+                {busy ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <CheckCircle2 className="h-3 w-3 mr-1" />}
+                Recovered
+              </Button>
+            )}
+
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-7 text-[10px] px-2.5 border-white/[0.06] text-muted-foreground/50 hover:bg-white/[0.03]"
+              onClick={() => setMode("writeback")}
+            >
+              <ArrowRight className="h-3 w-3 mr-1" />
+              Review & commit
             </Button>
-          </motion.div>
+
+            <Button
+              size="sm"
+              variant="ghost"
+              className="h-7 text-[10px] px-2 text-muted-foreground/40 hover:text-muted-foreground"
+              onClick={() => setMode("dismiss")}
+            >
+              <XCircle className="h-3 w-3 mr-1" />
+              Dismiss
+            </Button>
+          </div>
         )}
-      </AnimatePresence>
 
-      {/* ── Step 2: Seller intake ── */}
-      {step === 2 && callerType === "seller" && (
-        <motion.div
-          initial={{ opacity: 0, x: 8 }}
-          animate={{ opacity: 1, x: 0 }}
-          className="space-y-2.5"
-        >
-          {/* Warm transfer — most prominent since it drives the hottest action */}
-          <div
-            onClick={() => setWarmTransferReady(!warmTransferReady)}
-            className={`flex items-center gap-2 rounded-[10px] border cursor-pointer px-3 py-2 transition-all ${
-              warmTransferReady
-                ? "bg-red-500/10 border-red-500/30"
-                : "bg-white/[0.02] border-white/[0.06] hover:border-white/[0.12]"
-            }`}
-          >
-            <Zap className={`h-3.5 w-3.5 shrink-0 ${warmTransferReady ? "text-red-400" : "text-muted-foreground/30"}`} />
-            <span className={`text-[11px] font-medium ${warmTransferReady ? "text-red-400" : "text-muted-foreground/50"}`}>
-              Ready for warm transfer
-            </span>
-            <span className="ml-auto text-[9px] text-muted-foreground/30">tap to toggle</span>
-          </div>
+        {/* Classify form */}
+        {mode === "classify" && (
+          <ClassifyForm
+            eventId={item.event_id}
+            fromNumber={fromNumber}
+            onDone={() => { setMode("idle"); onResolved(item.event_id); }}
+          />
+        )}
 
-          <div>
-            <label className="text-[10px] text-muted-foreground/50 uppercase block mb-1">
-              Subject address <span className="text-muted-foreground/30">(optional)</span>
-            </label>
+        {/* Dismiss form */}
+        {mode === "dismiss" && (
+          <div className="p-3 border-t border-white/[0.06] space-y-2">
             <Input
-              value={subjectAddress}
-              onChange={e => setSubjectAddress(e.target.value)}
-              placeholder="123 Main St, Spokane WA…"
-              className="h-7 text-[11px]"
+              value={dismissReason}
+              onChange={(e) => setDismissReason(e.target.value)}
+              placeholder="Reason for dismissing (e.g. wrong number, spam)…"
+              className="h-7 text-[10px]"
+              onKeyDown={(e) => e.key === "Enter" && handleDismiss()}
+              autoFocus
             />
+            <div className="flex items-center gap-1.5">
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-7 text-[10px] px-2.5 border-red-500/40 text-red-400 hover:bg-red-950/30"
+                onClick={handleDismiss}
+                disabled={busy}
+              >
+                {busy ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <XCircle className="h-3 w-3 mr-1" />}
+                Confirm dismiss
+              </Button>
+              <Button
+                size="sm"
+                variant="ghost"
+                className="h-7 text-[10px] px-2 text-muted-foreground/40"
+                onClick={() => { setMode("idle"); setErr(null); }}
+              >
+                Cancel
+              </Button>
+            </div>
           </div>
+        )}
 
-          <div>
-            <label className="text-[10px] text-muted-foreground/50 uppercase block mb-1">
-              Situation summary <span className="text-muted-foreground/30">(optional)</span>
-            </label>
-            <Textarea
-              value={situationSummary}
-              onChange={e => setSituationSummary(e.target.value)}
-              placeholder="Inherited, probate, behind on payments, divorce, etc.…"
-              rows={2}
-              className="text-[11px] resize-none"
-            />
+        {/* Writeback panel */}
+        {mode === "writeback" && (
+          <div className="border-t border-white/[0.06]">
+            <InboundWritebackPanel inboundEventId={item.event_id} />
+            <div className="px-3 pb-2">
+              <Button
+                size="sm"
+                variant="ghost"
+                className="h-6 text-[10px] px-2 text-muted-foreground/40"
+                onClick={() => setMode("idle")}
+              >
+                ← Back to actions
+              </Button>
+            </div>
           </div>
+        )}
 
-          <div>
-            <label className="text-[10px] text-muted-foreground/50 uppercase block mb-1">
-              Preferred callback <span className="text-muted-foreground/30">(optional)</span>
-            </label>
-            <Input
-              value={preferredCallback}
-              onChange={e => setPreferredCallback(e.target.value)}
-              placeholder="Tues morning, tomorrow after 2pm, 2025-07-10T10:00…"
-              className="h-7 text-[11px]"
-            />
-          </div>
-
-          <div>
-            <label className="text-[10px] text-muted-foreground/50 uppercase block mb-1">
-              Additional notes <span className="text-muted-foreground/30">(optional)</span>
-            </label>
-            <Input
-              value={notes}
-              onChange={e => setNotes(e.target.value)}
-              placeholder="Anything else worth capturing…"
-              className="h-7 text-[11px]"
-            />
-          </div>
-
-          <Button onClick={handleSubmit} disabled={submitting} className={`w-full h-8 text-xs ${
-            warmTransferReady ? "bg-red-500/80 hover:bg-red-500 text-white border-red-500/40" : ""
-          }`}>
-            {submitting ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" /> : <CheckCircle2 className="h-3.5 w-3.5 mr-1.5" />}
-            {warmTransferReady ? "🔥 Flag warm transfer" : "Log seller intake"}
-          </Button>
-        </motion.div>
-      )}
-
-      {error && <p className="text-[11px] text-destructive mt-1">{error}</p>}
-    </div>
+        {err && <p className="text-[10px] text-red-400 px-3 pb-2">{err}</p>}
+      </GlassCard>
+    </motion.div>
   );
 }
 
-// ── Phone search form ─────────────────────────────────────────────────────────
+// ── Main page ─────────────────────────────────────────────────────────────
 
-function PhoneSearch({ onSearch }: { onSearch: (phone: string) => void }) {
-  const [value, setValue] = useState("");
-  return (
-    <div className="flex gap-2">
-      <Input
-        value={value}
-        onChange={e => setValue(e.target.value)}
-        placeholder="+15095551234"
-        className="h-8 text-sm"
-        onKeyDown={e => e.key === "Enter" && value.trim() && onSearch(value.trim())}
-      />
-      <Button
-        size="sm"
-        variant="outline"
-        className="h-8 shrink-0"
-        onClick={() => value.trim() && onSearch(value.trim())}
-      >
-        Look up
-      </Button>
-    </div>
-  );
-}
-
-// ── Inner page (needs search params) ─────────────────────────────────────────
-
-function InboundPageInner() {
+export default function InboundPage() {
   const searchParams = useSearchParams();
-  const phoneParam   = searchParams.get("phone")    ?? "";
-  const eventIdParam = searchParams.get("event_id") ?? "";
+  const eventIdParam = searchParams.get("event_id");
 
-  const [phone, setPhone]   = useState(phoneParam);
-  const [eventId, setEventId] = useState(eventIdParam);
-  const [data, setData]     = useState<InboundContextResponse | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [error, setError]   = useState<string | null>(null);
-  const [classified, setClassified] = useState(false);
-  const [classifyIntake, setClassifyIntake] = useState<ClassifyIntakeResult | null>(null);
+  const [missed, setMissed] = useState<MissedInbound[]>([]);
+  const [unclassified, setUnclassified] = useState<UnclassifiedAnswered[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  const load = useCallback(async (overridePhone?: string, overrideEventId?: string) => {
-    const targetPhone   = overridePhone   ?? phone;
-    const targetEventId = overrideEventId ?? eventId;
-
-    if (!targetPhone && !targetEventId) {
-      // Try to load the most recent inbound event with no filter
-      // Use the context endpoint without params — it returns the last event
-    }
-
+  const load = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      const h = await authHeaders();
-      const params = new URLSearchParams();
-      if (targetPhone)   params.set("phone",    targetPhone);
-      if (targetEventId) params.set("event_id", targetEventId);
-      const url = `/api/dialer/v1/inbound/context${params.toString() ? `?${params}` : ""}`;
-      const res = await fetch(url, { headers: h });
-      if (!res.ok) {
-        const b = await res.json().catch(() => ({}));
-        throw new Error(b.error || "Failed to load context");
-      }
-      const result: InboundContextResponse = await res.json();
-      setData(result);
-      // Sync event_id from response for classify form
-      if (result.event?.event_id) setEventId(result.event.event_id);
-      setClassified(result.event?.has_outcome ?? false);
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token ?? "";
+      const res = await fetch("/api/dialer/v1/queue?limit=50", {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      if (!res.ok) throw new Error("Failed to load inbound queue");
+      const data = await res.json();
+      setMissed(data.missed_inbound ?? []);
+      setUnclassified(data.unclassified_answered ?? []);
     } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : "Error loading context");
+      setError(e instanceof Error ? e.message : "Load failed");
     } finally {
       setLoading(false);
     }
-  }, [phone, eventId]);
+  }, []);
 
-  // Auto-load on mount if we have params
-  useEffect(() => {
-    if (phoneParam || eventIdParam) {
-      load(phoneParam || undefined, eventIdParam || undefined);
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []); // intentionally run once on mount only
+  useEffect(() => { load(); }, [load]);
 
-  function handleSearch(newPhone: string) {
-    setPhone(newPhone);
-    setEventId("");
-    load(newPhone, "");
+  function handleResolved(eventId: string) {
+    setMissed((prev) => prev.filter((i) => i.event_id !== eventId));
+    setUnclassified((prev) => prev.filter((i) => i.event_id !== eventId));
   }
 
+  const totalCount = missed.length + unclassified.length;
+
   return (
-    <PageShell
-      title="Inbound Call"
-      description="Live caller context — open when a seller calls in."
-      actions={
-        <div className="flex items-center gap-2">
-          <Button
-            size="sm"
-            variant="outline"
-            className="h-7 text-[10px] gap-1"
-            onClick={() => load()}
-            disabled={loading}
-          >
-            {loading ? <Loader2 className="h-3 w-3 animate-spin" /> : <RefreshCw className="h-3 w-3" />}
-            Refresh
-          </Button>
-          <Link
-            href="/dialer/war-room"
-            className="flex items-center gap-1.5 rounded-[10px] border border-white/[0.07] bg-white/[0.03] px-3 py-1.5 text-[11px] text-muted-foreground hover:text-foreground transition-colors"
-          >
-            War Room
+    <PageShell title="Inbound Calls" description="Review, classify, and recover inbound calls">
+      {/* Deep-link to specific event — show writeback panel */}
+      {eventIdParam && (
+        <GlassCard hover={false} className="!p-0 mb-4 overflow-hidden">
+          <div className="p-3 border-b border-white/[0.06]">
+            <div className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider text-cyan/60">
+              <PhoneIncoming className="h-3.5 w-3.5" />
+              Review inbound event
+            </div>
+          </div>
+          <InboundWritebackPanel inboundEventId={eventIdParam} />
+        </GlassCard>
+      )}
+
+      {/* Summary bar */}
+      <div className="flex items-center gap-3 mb-4">
+        <div className="flex items-center gap-1.5">
+          <PhoneIncoming className="h-4 w-4 text-red-400" />
+          <span className="text-sm font-semibold text-foreground/80">
+            {totalCount} inbound call{totalCount !== 1 ? "s" : ""} needing attention
+          </span>
+        </div>
+        <button
+          onClick={load}
+          className="text-muted-foreground/30 hover:text-muted-foreground/60 transition-colors"
+          title="Refresh"
+        >
+          {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+        </button>
+        <div className="ml-auto flex gap-2">
+          <Link href="/dialer/war-room">
+            <Button variant="outline" size="sm" className="h-7 text-[10px]">War Room</Button>
+          </Link>
+          <Link href="/dialer">
+            <Button variant="outline" size="sm" className="h-7 text-[10px]">Dialer</Button>
           </Link>
         </div>
-      }
-    >
-      <div className="max-w-xl mx-auto space-y-4">
+      </div>
 
-        {/* ── Phone lookup ── */}
-        <GlassCard hover={false} className="!p-3">
-          <p className="text-[10px] text-muted-foreground/50 uppercase mb-2">
-            Caller phone number
-          </p>
-          <PhoneSearch onSearch={handleSearch} />
-          <p className="text-[10px] text-muted-foreground/30 mt-1.5">
-            Or bookmark this page — it auto-loads the most recent inbound event when
-            visited without a phone/event_id.
+      {error && (
+        <div className="rounded-lg border border-red-500/20 bg-red-500/[0.05] p-3 mb-4 text-sm text-red-400 flex items-center gap-2">
+          <AlertTriangle className="h-4 w-4 shrink-0" />
+          {error}
+        </div>
+      )}
+
+      {/* Missed calls section */}
+      {missed.length > 0 && (
+        <div className="mb-6">
+          <div className="flex items-center gap-1.5 mb-3">
+            <PhoneIncoming className="h-3.5 w-3.5 text-red-400" />
+            <span className="text-[11px] font-semibold uppercase tracking-wider text-red-400/60">
+              Missed Calls
+            </span>
+            <Badge className="bg-red-500/20 text-red-400 border-red-500/30 text-[9px] h-4 px-1.5">
+              {missed.length}
+            </Badge>
+          </div>
+          <div className="space-y-3">
+            {missed.map((item, idx) => (
+              <InboundCallCard
+                key={item.event_id}
+                item={item}
+                type="missed"
+                idx={idx}
+                onResolved={handleResolved}
+              />
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Unclassified answered section */}
+      {unclassified.length > 0 && (
+        <div className="mb-6">
+          <div className="flex items-center gap-1.5 mb-3">
+            <HelpCircle className="h-3.5 w-3.5 text-amber-400/60" />
+            <span className="text-[11px] font-semibold uppercase tracking-wider text-amber-400/60">
+              Answered — Not Classified
+            </span>
+            <Badge className="bg-amber-500/15 text-amber-400 border-amber-500/25 text-[9px] h-4 px-1.5">
+              {unclassified.length}
+            </Badge>
+          </div>
+          <div className="space-y-3">
+            {unclassified.map((item, idx) => (
+              <InboundCallCard
+                key={item.event_id}
+                item={item}
+                type="unclassified"
+                idx={idx}
+                onResolved={handleResolved}
+              />
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Empty state */}
+      {!loading && totalCount === 0 && !eventIdParam && (
+        <GlassCard hover={false} className="text-center py-12">
+          <CheckCircle2 className="h-8 w-8 mx-auto text-emerald-400/30 mb-3" />
+          <p className="text-sm text-muted-foreground/60 mb-1">No inbound calls needing attention</p>
+          <p className="text-[11px] text-muted-foreground/30">
+            Missed and unclassified inbound calls will appear here.
           </p>
         </GlassCard>
+      )}
 
-        {/* ── Loading state ── */}
-        {loading && (
-          <div className="flex items-center justify-center py-8">
-            <Loader2 className="h-5 w-5 animate-spin text-muted-foreground/30" />
+      {/* SLA legend */}
+      {totalCount > 0 && (
+        <div className="flex items-center gap-3 mt-4 text-[9px] text-muted-foreground/30">
+          <div className="flex items-center gap-1">
+            <div className="h-1.5 w-1.5 rounded-full bg-red-400" />
+            &lt;30m — critical
           </div>
-        )}
-
-        {/* ── Error state ── */}
-        {error && !loading && (
-          <div className="flex items-center gap-2 rounded-[10px] bg-destructive/10 border border-destructive/20 px-3 py-2.5">
-            <AlertTriangle className="h-3.5 w-3.5 text-destructive shrink-0" />
-            <p className="text-[11px] text-destructive">{error}</p>
+          <div className="flex items-center gap-1">
+            <div className="h-1.5 w-1.5 rounded-full bg-amber-400" />
+            &lt;4h — warning
           </div>
-        )}
-
-        {/* ── Context ── */}
-        {!loading && data && (
-          <motion.div
-            initial={{ opacity: 0, y: 4 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="space-y-3"
-          >
-            <CallerContext data={data} phone={data.from_number || phone} />
-
-            {/* ── Classify + intake (only if there's an event) ── */}
-            {data.event && (
-              <GlassCard hover={false} className="!p-3">
-                <ClassifyForm
-                  eventId={data.event.event_id}
-                  alreadyClassified={classified}
-                  onClassified={(result) => {
-                    setClassified(true);
-                    setClassifyIntake(result);
-                  }}
-                />
-              </GlassCard>
-            )}
-
-            {/* ── Warm Transfer Card — shown after classify when warm_transfer_ready ── */}
-            {classified && classifyIntake?.warmTransferReady && data.event && (
-              <WarmTransferCard
-                inboundEventId={data.event.event_id}
-                subjectAddress={classifyIntake.subjectAddress}
-                situationSummary={classifyIntake.situationSummary}
-                fromNumber={data.from_number}
-                crmContext={data.lead}
-                dossierSnippet={data.dossier_snippet}
-                onOutcomeLogged={() => {
-                  // Optionally reload context after transfer logged
-                }}
-              />
-            )}
-          </motion.div>
-        )}
-
-        {/* ── Empty state (no params, no data) ── */}
-        {!loading && !data && !error && (
-          <div className="text-center py-8 space-y-1">
-            <PhoneIncoming className="h-8 w-8 text-muted-foreground/20 mx-auto" />
-            <p className="text-sm text-muted-foreground/40">
-              Enter a caller number above, or wait for an inbound call.
-            </p>
-            <p className="text-[11px] text-muted-foreground/30">
-              This page auto-populates when you navigate here after a call.
-            </p>
+          <div className="flex items-center gap-1">
+            <div className="h-1.5 w-1.5 rounded-full bg-muted-foreground/20" />
+            older
           </div>
-        )}
-
-      </div>
+          <span className="ml-auto">Speed-to-lead SLA</span>
+        </div>
+      )}
     </PageShell>
-  );
-}
-
-// ── Page export ───────────────────────────────────────────────────────────────
-
-export default function InboundPage() {
-  return (
-    <Suspense fallback={
-      <div className="flex items-center justify-center min-h-screen">
-        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground/30" />
-      </div>
-    }>
-      <InboundPageInner />
-    </Suspense>
   );
 }

@@ -135,10 +135,27 @@ export function PostCallDraftPanel({
   const [flagged,            setFlagged]             = useState(false);
 
   // Objection tag state — multi-select from allowlist + optional note for "other"
-  const [selectedTags,  setSelectedTags]  = useState<Set<ObjectionTag>>(
-    // Pre-populate from draft if AI suggested one
-    draft.objection ? new Set<ObjectionTag>() : new Set<ObjectionTag>(),
-  );
+  const [selectedTags,  setSelectedTags]  = useState<Set<ObjectionTag>>(() => {
+    if (!draft.objection) return new Set<ObjectionTag>();
+    const txt = draft.objection.toLowerCase();
+    const matched = new Set<ObjectionTag>();
+    const KEYWORDS: Record<ObjectionTag, string[]> = {
+      price_too_low:      ["price", "too low", "low offer", "lowball", "not enough"],
+      not_ready_to_sell:  ["not ready", "not sure", "maybe later", "reconsidering"],
+      need_to_think:      ["think about", "need to think", "think it over", "consider"],
+      talking_to_realtor: ["realtor", "agent", "listed", "listing", "real estate agent"],
+      wants_full_retail:  ["full retail", "market value", "full price", "retail price"],
+      inherited_dispute:  ["inherit", "probate", "estate", "family dispute", "sibling"],
+      repair_concerns:    ["repair", "condition", "fix", "maintenance", "as-is"],
+      bad_timing:         ["bad timing", "not a good time", "busy", "not now"],
+      pre_list:           ["pre-list", "about to list", "going to list"],
+      other:              [],
+    };
+    for (const [tag, kws] of Object.entries(KEYWORDS) as [ObjectionTag, string[]][]) {
+      if (kws.some((kw) => txt.includes(kw))) matched.add(tag);
+    }
+    return matched;
+  });
   const [objectionNote, setObjectionNote] = useState(draft.objection ?? "");
   const [showObjNote,   setShowObjNote]   = useState(false);
 

@@ -289,6 +289,47 @@ export async function POST(req: NextRequest) {
     });
   }
 
+  // ── 9. Live Transcription (STT) ──────────────────────────────────
+  const transcriptionUrl = process.env.TRANSCRIPTION_WS_URL;
+  if (!transcriptionUrl) {
+    checks.push({
+      name: "Live Transcription (STT)",
+      status: "warn",
+      message: "TRANSCRIPTION_WS_URL not set — live notes will be empty during calls",
+      detail: "Set TRANSCRIPTION_WS_URL to your WebSocket transcription server (e.g. wss://your-stt-server.fly.dev/media-stream). Deepgram or similar. The dialer's live notes panel requires this to populate during calls.",
+    });
+  } else if (!transcriptionUrl.startsWith("wss://") && !transcriptionUrl.startsWith("ws://")) {
+    checks.push({
+      name: "Live Transcription (STT)",
+      status: "warn",
+      message: `TRANSCRIPTION_WS_URL doesn't look like a WebSocket URL: ${transcriptionUrl.slice(0, 40)}…`,
+      detail: "Expected format: wss://your-stt-server.example.com/media-stream",
+    });
+  } else {
+    checks.push({
+      name: "Live Transcription (STT)",
+      status: "pass",
+      message: `STT: ${transcriptionUrl.slice(0, 50)}${transcriptionUrl.length > 50 ? "…" : ""}`,
+    });
+  }
+
+  // ── 10. OpenAI API Key ─────────────────────────────────────────────
+  const openaiKey = process.env.OPENAI_API_KEY;
+  if (!openaiKey) {
+    checks.push({
+      name: "OpenAI API Key",
+      status: "warn",
+      message: "OPENAI_API_KEY not set — AI pre-call briefs and post-call drafts will fail",
+      detail: "Set OPENAI_API_KEY in Vercel environment variables for AI-powered features.",
+    });
+  } else {
+    checks.push({
+      name: "OpenAI API Key",
+      status: "pass",
+      message: `Key: ${openaiKey.slice(0, 7)}…${openaiKey.slice(-4)}`,
+    });
+  }
+
   // ── Overall status ─────────────────────────────────────────────────
   const hasFail = checks.some((c) => c.status === "fail");
   const hasWarn = checks.some((c) => c.status === "warn");

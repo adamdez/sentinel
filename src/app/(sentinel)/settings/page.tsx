@@ -161,7 +161,7 @@ export default function SettingsPage() {
           {settingSections.map((section) => {
             const Icon = section.icon;
             return (
-              <GlassCard key={section.title} className="flex items-center gap-4 cursor-pointer hover:neon-glow transition-all">
+              <GlassCard key={section.title} className="flex items-center gap-4 cursor-pointer hover:border-primary/25 transition-colors">
                 <div className="p-2 rounded-[12px] bg-secondary/50">
                   <Icon className="h-5 w-5 text-cyan" />
                 </div>

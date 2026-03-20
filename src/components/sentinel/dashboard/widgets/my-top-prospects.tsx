@@ -69,7 +69,7 @@ export function MyTopProspects() {
             animate={{ opacity: 1, x: 0 }}
             transition={{ delay: i * 0.06 }}
             className={`flex items-center gap-3 p-2.5 rounded-[12px] bg-secondary/20 hover:bg-secondary/30 transition-all group relative ${
-              aiScore.label === "platinum" ? "neon-glow" : ""
+              aiScore.label === "platinum" ? "ring-1 ring-primary/25" : ""
             }`}
             style={aiScore.label === "platinum" ? {
               boxShadow: "0 0 15px rgba(0,212,255,0.12), inset 0 0 20px rgba(0,212,255,0.03)",

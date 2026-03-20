@@ -192,7 +192,7 @@ export interface CallSession {
 // ─────────────────────────────────────────────────────────────
 
 export interface CreateSessionInput {
-  lead_id: string;
+  lead_id: string | null;
   phone_dialed: string;
   context_snapshot?: CRMLeadContext;  // built automatically by route if omitted
 }

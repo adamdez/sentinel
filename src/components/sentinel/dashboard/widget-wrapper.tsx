@@ -1,6 +1,5 @@
 "use client";
 
-import { useRef, useCallback } from "react";
 import { motion } from "framer-motion";
 import { GripVertical, X, Maximize2, Minimize2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -35,25 +34,6 @@ export function WidgetWrapper({
   const colSpan = getColSpan(size);
   const rowSpan = getRowSpan(size);
   const isWide = colSpan === 2;
-  const tileRef = useRef<HTMLDivElement>(null);
-
-  const handleMouseMove = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
-    if (isDragging) return;
-    const el = tileRef.current;
-    if (!el) return;
-    const rect = el.getBoundingClientRect();
-    const x = (e.clientX - rect.left) / rect.width - 0.5;
-    const y = (e.clientY - rect.top) / rect.height - 0.5;
-    el.style.transform = `perspective(1200px) rotateY(${x * 3}deg) rotateX(${y * -3}deg) translateY(-6px) translateZ(8px)`;
-    el.style.filter = "brightness(1.15)";
-  }, [isDragging]);
-
-  const handleMouseLeave = useCallback(() => {
-    const el = tileRef.current;
-    if (!el) return;
-    el.style.transform = "perspective(1200px) rotateY(0deg) rotateX(0deg) translateY(0px) translateZ(0px)";
-    el.style.filter = "brightness(1)";
-  }, []);
 
   const toggleSize = () => {
     if (size === "1x1") onResize(widgetId, "2x1");
@@ -64,21 +44,17 @@ export function WidgetWrapper({
 
   return (
     <motion.div
-      ref={tileRef}
       layout
-      initial={{ opacity: 0, scale: 0.96, filter: "blur(3px)" }}
-      animate={{ opacity: 1, scale: 1, filter: "blur(0px)" }}
-      exit={{ opacity: 0, scale: 0.96 }}
+      initial={{ opacity: 0, scale: 0.98 }}
+      animate={{ opacity: 1, scale: 1 }}
+      exit={{ opacity: 0, scale: 0.98 }}
       transition={{ duration: 0.1 }}
-      onMouseMove={handleMouseMove}
-      onMouseLeave={handleMouseLeave}
       className={cn(
-        "rounded-[14px] border border-glass-border glass-card overflow-hidden group holo-border holo-ring wet-shine scanline-overlay",
+        "rounded-[14px] border border-glass-border glass-card overflow-hidden group",
         colSpan === 2 && "col-span-2",
         rowSpan === 2 && "row-span-2",
         isDragging && "drag-active"
       )}
-      style={{ transformStyle: "preserve-3d", willChange: "transform, filter", transition: "transform 0.12s ease, box-shadow 0.12s ease, filter 0.12s ease" }}
     >
       <div className="flex items-center justify-between px-4 pt-3 pb-1 relative z-[6]">
         <div className="flex items-center gap-2">
@@ -88,8 +64,8 @@ export function WidgetWrapper({
           >
             <GripVertical className="h-3.5 w-3.5" />
           </button>
-          <def.icon className="h-3.5 w-3.5 text-cyan" />
-          <span className="text-sm font-semibold tracking-tight text-glow-heading">{def.label}</span>
+          <def.icon className="h-3.5 w-3.5 text-primary" />
+          <span className="text-sm font-semibold tracking-tight text-foreground">{def.label}</span>
         </div>
         <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity duration-100">
           <Tooltip>

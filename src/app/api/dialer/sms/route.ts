@@ -39,6 +39,7 @@ export async function POST(req: NextRequest) {
     leadId?: string;
     propertyId?: string;
     userId?: string;
+    force?: boolean;
   };
 
   try {
@@ -62,6 +63,36 @@ export async function POST(req: NextRequest) {
       { error: "Compliance blocked", reasons: scrub.blockedReasons },
       { status: 403 },
     );
+  }
+
+  // WA state SMS compliance guard — Washington outbound follow-up is call-only
+  // unless the operator explicitly forces (e.g. appointment confirmations).
+  if (!body.force) {
+    let leadState: string | null = null;
+    if (body.leadId) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data: leadRow } = await (sb.from("leads") as any)
+        .select("property_id")
+        .eq("id", body.leadId)
+        .maybeSingle();
+      if (leadRow?.property_id) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const { data: propRow } = await (sb.from("properties") as any)
+          .select("state")
+          .eq("id", leadRow.property_id)
+          .maybeSingle();
+        leadState = propRow?.state ?? null;
+      }
+    }
+    if (leadState && leadState.toUpperCase() === "WA") {
+      return NextResponse.json(
+        {
+          error: "Washington state follow-up SMS blocked — WA outbound follow-up is call-only. Set force: true for non-follow-up SMS (e.g. appointment confirmations).",
+          wa_blocked: true,
+        },
+        { status: 403 },
+      );
+    }
   }
 
   // Send via Twilio

@@ -69,7 +69,7 @@ export function CallSequenceGuide() {
               transition={{ type: "spring", damping: 26, stiffness: 320 }}
               onClick={(e) => e.stopPropagation()}
               className="relative max-w-3xl w-full max-h-[85vh] overflow-hidden rounded-[16px] border border-white/[0.08]
-                glass-strong holo-border wet-shine flex flex-col"
+                glass-strong flex flex-col"
             >
               {/* Top accent line */}
               <div className="absolute top-0 inset-x-0 h-[1px] bg-gradient-to-r from-transparent via-purple-400/40 to-transparent" />

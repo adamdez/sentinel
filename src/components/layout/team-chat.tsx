@@ -64,7 +64,7 @@ export function TeamChat() {
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 20, scale: 0.95 }}
             transition={{ duration: 0.2 }}
-            className="fixed bottom-6 right-6 z-40 w-80 h-96 rounded-[14px] glass-strong border border-glass-border flex flex-col overflow-hidden holo-border wet-shine"
+            className="fixed bottom-6 right-6 z-40 w-80 h-96 rounded-[14px] glass-strong border border-glass-border flex flex-col overflow-hidden"
           >
             <div className="flex items-center justify-between px-4 py-3 border-b border-white/[0.06]">
               <div className="flex items-center gap-2">

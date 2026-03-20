@@ -43,8 +43,8 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
   }
 
-  if (!body.lead_id || typeof body.lead_id !== "string") {
-    return NextResponse.json({ error: "lead_id is required" }, { status: 400 });
+  if (body.lead_id && typeof body.lead_id !== "string") {
+    return NextResponse.json({ error: "lead_id must be a string" }, { status: 400 });
   }
   if (!body.phone_dialed || typeof body.phone_dialed !== "string") {
     return NextResponse.json({ error: "phone_dialed is required" }, { status: 400 });
@@ -55,12 +55,12 @@ export async function POST(req: NextRequest) {
   // If the caller didn't supply a context snapshot, fetch it from the CRM.
   // This is the only code path that crosses the dialer/CRM boundary.
   let contextSnapshot = body.context_snapshot ?? null;
-  if (!contextSnapshot) {
+  if (!contextSnapshot && body.lead_id) {
     contextSnapshot = await getCRMLeadContext(body.lead_id) ?? null;
   }
 
   const input: CreateSessionInput = {
-    lead_id: body.lead_id,
+    lead_id: body.lead_id || null,
     phone_dialed: body.phone_dialed,
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     context_snapshot: contextSnapshot as any,

@@ -42,7 +42,7 @@ import { CallQualitySnapshot } from "@/components/sentinel/dashboard/widgets/cal
 import { MissedOpportunityQueue } from "@/components/sentinel/dashboard/widgets/missed-opportunity-queue";
 import { MissedInboundQueue } from "@/components/sentinel/dashboard/widgets/missed-inbound-queue";
 import { useDialerWeekly, type WeekBucket } from "@/hooks/use-dialer-weekly";
-import { useSentinelStore } from "@/lib/store";
+import { supabase } from "@/lib/supabase";
 import type { MissedInbound, UnclassifiedAnswered } from "@/app/api/dialer/v1/queue/route";
 
 // ─────────────────────────────────────────────────────────────
@@ -236,9 +236,6 @@ function WeeklyTable() {
 export default function WarRoomPage() {
   const { data: weeklyData } = useDialerWeekly(1);
   const overdueCount = weeklyData?.overdue_tasks_now ?? 0;
-  const { currentUser } = useSentinelStore();
-  const token = (currentUser as { access_token?: string })?.access_token ?? null;
-
   const [missedInbound, setMissedInbound] = useState<MissedInbound[]>([]);
   const [unclassifiedAnswered, setUnclassifiedAnswered] = useState<UnclassifiedAnswered[]>([]);
   const [missedLoading, setMissedLoading] = useState(false);
@@ -246,6 +243,8 @@ export default function WarRoomPage() {
   const loadMissed = useCallback(async () => {
     setMissedLoading(true);
     try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token ?? "";
       const res = await fetch("/api/dialer/v1/queue", {
         headers: token ? { Authorization: `Bearer ${token}` } : {},
       });
@@ -256,7 +255,7 @@ export default function WarRoomPage() {
       }
     } catch { /* non-fatal */ }
     finally { setMissedLoading(false); }
-  }, [token]);
+  }, []);
 
   useEffect(() => { loadMissed(); }, [loadMissed]);
 

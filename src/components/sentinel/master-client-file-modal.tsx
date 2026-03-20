@@ -2581,17 +2581,17 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
               <div className="grid grid-cols-3 gap-2">
                 <div className="rounded-[10px] border border-white/[0.06] bg-white/[0.03] p-2.5 text-center">
                   <Phone className="h-3 w-3 text-cyan mx-auto mb-1" />
-                  <p className="text-lg font-bold text-foreground text-glow-number">{cf.totalCalls}</p>
+                  <p className="text-lg font-bold text-foreground">{cf.totalCalls}</p>
                   <p className="text-[9px] text-muted-foreground/60 uppercase tracking-wider">Total Calls</p>
                 </div>
                 <div className="rounded-[10px] border border-white/[0.06] bg-white/[0.03] p-2.5 text-center">
                   <PhoneForwarded className="h-3 w-3 text-emerald-400 mx-auto mb-1" />
-                  <p className="text-lg font-bold text-emerald-400 text-glow-number">{cf.liveAnswers}</p>
+                  <p className="text-lg font-bold text-emerald-400">{cf.liveAnswers}</p>
                   <p className="text-[9px] text-muted-foreground/60 uppercase tracking-wider">Live Answers</p>
                 </div>
                 <div className="rounded-[10px] border border-white/[0.06] bg-white/[0.03] p-2.5 text-center">
                   <Voicemail className="h-3 w-3 text-blue-400 mx-auto mb-1" />
-                  <p className="text-lg font-bold text-blue-400 text-glow-number">{cf.voicemailsLeft}</p>
+                  <p className="text-lg font-bold text-blue-400">{cf.voicemailsLeft}</p>
                   <p className="text-[9px] text-muted-foreground/60 uppercase tracking-wider">Voicemails</p>
                 </div>
               </div>
@@ -6049,7 +6049,7 @@ export function MasterClientFileModal({ clientFile: incomingClientFile, open, on
             transition={{ type: "spring", damping: 25, stiffness: 300 }}
             className={cn("fixed inset-x-4 top-[2%] bottom-[2%] md:inset-x-auto md:left-1/2 md:-translate-x-1/2 z-50 flex flex-col transition-all duration-300", activeTab === "comps" ? "md:w-[1060px]" : "md:w-[860px]")}
           >
-            <div className="flex-1 overflow-hidden rounded-[16px] border border-white/[0.08] modal-glass holo-border wet-shine flex flex-row">
+            <div className="flex-1 overflow-hidden rounded-[16px] border border-white/[0.08] modal-glass flex flex-row">
             <div className="flex-1 overflow-hidden flex flex-col min-w-0">
               {/* Header */}
               <div className="shrink-0 border-b border-white/[0.06] bg-[rgba(4,4,12,0.88)] backdrop-blur-2xl rounded-t-[16px]">

@@ -87,9 +87,9 @@ function SortableCard({ item, onCall }: { item: PipelineItem; onCall?: (phone: s
       ref={setNodeRef}
       style={style}
       className={cn(
-        "group rounded-[14px] border border-glass-border glass-card p-4 transition-all duration-100 holo-border holo-ring wet-shine",
+        "group rounded-[14px] border border-glass-border glass-card p-4 transition-all duration-100",
         isDragging && "drag-active",
-        item.score.label === "platinum" && "neon-glow animate-neon-pulse holo-border-always"
+        item.score.label === "platinum" && "ring-1 ring-primary/25 border-primary/20"
       )}
     >
       <div className="flex items-start gap-3">
@@ -365,7 +365,7 @@ export function PipelineBoard() {
         </div>
         <DragOverlay>
           {activeItem ? (
-            <div className="rounded-[14px] border border-cyan/30 bg-glass backdrop-blur-xl p-4 shadow-2xl neon-glow opacity-90">
+            <div className="rounded-[14px] border border-white/12 bg-glass backdrop-blur-xl p-4 shadow-[0_12px_40px_rgba(0,0,0,0.35)] ring-1 ring-primary/15 opacity-95">
               <p className="font-medium text-sm">{activeItem.name}</p>
               <p className="text-xs text-muted-foreground">{activeItem.address}</p>
             </div>

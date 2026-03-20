@@ -26,7 +26,7 @@ export function PageShell({ title, description, children, actions }: PageShellPr
               initial={hydrated ? { opacity: 0, x: -8 } : false}
               animate={{ opacity: 1, x: 0 }}
               transition={{ duration: 0.1, ease: "easeOut" }}
-              className="text-2xl font-bold tracking-tight title-holo text-glow-heading"
+              className="text-2xl font-semibold tracking-tight text-foreground"
             >
               {title}
             </motion.h1>

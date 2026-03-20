@@ -33,8 +33,8 @@ export default function DialerWidget() {
   }
 
   return (
-    <Card className="glass-card p-6 bg-[#0d0d14]/85 backdrop-blur-xl border border-white/6 shadow-[0_0_8px_#00ff88]">
-      <div className="text-[#00ff88] text-xl font-bold mb-4 flex items-center gap-2">
+    <Card className="glass-card p-6 bg-[#0d0d14]/85 backdrop-blur-xl border border-white/10 shadow-[0_12px_40px_rgba(0,0,0,0.28)]">
+      <div className="text-primary text-xl font-semibold mb-4 flex items-center gap-2">
         📞 DIALER (VoIP Only)
       </div>
       <div className="text-white/70 mb-4">{status}</div>
@@ -50,7 +50,7 @@ export default function DialerWidget() {
       <Button 
         onClick={makeCall} 
         disabled={connecting || !device}
-        className="w-full bg-[#00ff88] hover:bg-[#00ff88]/90 text-black font-bold text-lg py-6 neon-glow"
+        className="w-full bg-primary hover:bg-primary/90 text-primary-foreground font-semibold text-lg py-6 border border-white/10"
       >
         {connecting ? 'Connecting...' : 'CALL NOW'}
       </Button>

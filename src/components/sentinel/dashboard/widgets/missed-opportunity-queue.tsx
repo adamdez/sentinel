@@ -5,7 +5,7 @@ import { motion } from "framer-motion";
 import { AlertTriangle, ClipboardCheck, CalendarX, BrainCircuit, RefreshCw } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useSentinelStore } from "@/lib/store";
+import { supabase } from "@/lib/supabase";
 import type { OpportunityItem, OpportunityQueueResponse, OpportunitySignal } from "@/app/api/leads/opportunity-queue/route";
 
 const SIGNAL_META: Record<
@@ -75,7 +75,6 @@ function QueueRow({ item, idx }: { item: OpportunityItem; idx: number }) {
 }
 
 export function MissedOpportunityQueue() {
-  const { currentUser } = useSentinelStore();
   const [data, setData] = useState<OpportunityQueueResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -84,7 +83,8 @@ export function MissedOpportunityQueue() {
     setLoading(true);
     setError(null);
     try {
-      const token = (currentUser as { access_token?: string }).access_token;
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token ?? "";
       const res = await fetch("/api/leads/opportunity-queue", {
         headers: token ? { Authorization: `Bearer ${token}` } : {},
       });
@@ -98,7 +98,7 @@ export function MissedOpportunityQueue() {
     } finally {
       setLoading(false);
     }
-  }, [currentUser]);
+  }, []);
 
   useEffect(() => {
     load();

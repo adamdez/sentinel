@@ -820,7 +820,7 @@ function LeadCard({
           transition={{ duration: 0.15 }}
           onClick={() => onOpenDetail(lead.id)}
           className={cn(
-            "rounded-[14px] border border-glass-border bg-glass/60 backdrop-blur-2xl p-3 transition-all duration-150 group holo-border cursor-pointer",
+            "rounded-[14px] border border-glass-border bg-glass/60 backdrop-blur-2xl p-3 transition-all duration-150 group cursor-pointer",
             snapshot.isDragging && "scale-[1.03] shadow-[0_0_24px_rgba(0,212,255,0.15)] border-cyan/20 z-50"
           )}
         >

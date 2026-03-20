@@ -103,7 +103,7 @@ export function ScoreBreakdownModal({ cf, scoreType, onClose }: { cf: ClientFile
           transition={{ type: "spring", damping: 26, stiffness: 320 }}
           onClick={(e) => e.stopPropagation()}
           className="relative max-w-lg w-full mx-4 max-h-[85vh] overflow-hidden rounded-[16px] border border-white/[0.08]
-            modal-glass holo-border wet-shine flex flex-col"
+            modal-glass flex flex-col"
         >
           {/* Holographic top accent */}
           <div className="absolute top-0 inset-x-0 h-[1px] bg-gradient-to-r from-transparent via-cyan/40 to-transparent" />
