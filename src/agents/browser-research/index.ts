@@ -37,7 +37,7 @@ export interface ResearchResult {
 
 /**
  * Run browser research for a lead.
- * Searches multiple sources and extracts structured facts.
+ * Parallelized Firecrawl searches + capped AI extraction to stay under 60s.
  */
 export async function runBrowserResearch(input: BrowserResearchInput): Promise<ResearchResult> {
   const flag = await getFeatureFlag("agent.research.enabled");
@@ -61,17 +61,21 @@ export async function runBrowserResearch(input: BrowserResearchInput): Promise<R
   const errors: string[] = [];
   let artifactsCreated = 0;
   let factsExtracted = 0;
-  let sourcesSearched = 0;
 
   try {
-    // Build search queries based on available data
     const queries = buildSearchQueries(input);
 
-    for (const query of queries) {
-      try {
-        sourcesSearched++;
+    // Phase 1: Run ALL Firecrawl searches in parallel (fast — ~3-5s total)
+    interface SearchResult {
+      url?: string;
+      title?: string;
+      markdown?: string;
+      category: string;
+      queryText: string;
+    }
 
-        // Use Firecrawl search endpoint
+    const searchPromises = queries.map(async (query): Promise<SearchResult[]> => {
+      try {
         const searchRes = await fetch(`${FIRECRAWL_API_URL}/search`, {
           method: "POST",
           headers: {
@@ -80,70 +84,91 @@ export async function runBrowserResearch(input: BrowserResearchInput): Promise<R
           },
           body: JSON.stringify({
             query: query.query,
-            limit: 3,
+            limit: 2,
             scrapeOptions: { formats: ["markdown"] },
           }),
         });
-
         if (!searchRes.ok) {
           errors.push(`Search failed for "${query.category}": ${searchRes.status}`);
-          continue;
+          return [];
         }
-
         const searchData = await searchRes.json();
-        const results = searchData.data ?? [];
+        return (searchData.data ?? []).map((r: Record<string, string>) => ({
+          ...r,
+          category: query.category,
+          queryText: query.query,
+        }));
+      } catch (err) {
+        errors.push(`Error "${query.category}": ${err instanceof Error ? err.message : String(err)}`);
+        return [];
+      }
+    });
 
-        for (const result of results) {
-          // Store raw result as artifact
+    const allResults: SearchResult[] = (await Promise.all(searchPromises)).flat();
+    const sourcesSearched = queries.length;
+
+    // Phase 2: Store artifacts in parallel (fast — ~1-2s)
+    const artifactIds = new Map<number, string>();
+    await Promise.all(allResults.map(async (result, idx) => {
+      try {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const { data: artifact } = await (sb.from("dossier_artifacts") as any)
+          .insert({
+            lead_id: input.leadId,
+            source_type: `browser_research_${result.category}`,
+            source_provider: "firecrawl",
+            raw_payload: {
+              url: result.url,
+              title: result.title,
+              content: result.markdown?.slice(0, 5000),
+              query: result.queryText,
+            },
+            run_id: runId,
+          })
+          .select("id")
+          .single();
+        if (artifact) {
+          artifactsCreated++;
+          artifactIds.set(idx, artifact.id);
+        }
+      } catch { /* skip failed inserts */ }
+    }));
+
+    // Phase 3: AI fact extraction — cap at 4 results to stay under 60s
+    const extractable = allResults
+      .map((r, idx) => ({ ...r, idx }))
+      .filter((r) => r.markdown && process.env.ANTHROPIC_API_KEY)
+      .slice(0, 4);
+
+    for (const result of extractable) {
+      try {
+        const facts = await extractFactsFromContent(
+          result.markdown!,
+          result.category,
+          input,
+          runId,
+        );
+        for (const fact of facts) {
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          const { data: artifact } = await (sb.from("dossier_artifacts") as any)
+          await (sb.from("fact_assertions") as any)
             .insert({
               lead_id: input.leadId,
-              source_type: `browser_research_${query.category}`,
+              field_name: fact.field,
+              value: fact.value,
+              confidence: fact.confidence,
+              source_type: `browser_research_${result.category}`,
               source_provider: "firecrawl",
-              raw_payload: {
-                url: result.url,
-                title: result.title,
-                content: result.markdown?.slice(0, 5000),
-                query: query.query,
-              },
+              source_url: result.url,
+              artifact_id: artifactIds.get(result.idx),
               run_id: runId,
             })
-            .select("id")
-            .single();
-
-          if (artifact) artifactsCreated++;
-
-          // Extract facts from the content using AI
-          if (result.markdown && process.env.ANTHROPIC_API_KEY) {
-            const facts = await extractFactsFromContent(
-              result.markdown,
-              query.category,
-              input,
-              runId,
-            );
-
-            for (const fact of facts) {
-              // eslint-disable-next-line @typescript-eslint/no-explicit-any
-              await (sb.from("fact_assertions") as any)
-                .insert({
-                  lead_id: input.leadId,
-                  field_name: fact.field,
-                  value: fact.value,
-                  confidence: fact.confidence,
-                  source_type: `browser_research_${query.category}`,
-                  source_provider: "firecrawl",
-                  source_url: result.url,
-                  artifact_id: artifact?.id,
-                  run_id: runId,
-                })
-                .catch(() => {}); // Skip duplicates
-              factsExtracted++;
-            }
-          }
+            .select()
+            .then(() => {})
+            .catch(() => {}); // Skip duplicates
+          factsExtracted++;
         }
       } catch (err) {
-        errors.push(`Error in "${query.category}": ${err instanceof Error ? err.message : String(err)}`);
+        errors.push(`Extraction: ${err instanceof Error ? err.message : String(err)}`);
       }
     }
 
@@ -152,13 +177,14 @@ export async function runBrowserResearch(input: BrowserResearchInput): Promise<R
       status: "completed",
       outputs: { artifactsCreated, factsExtracted, sourcesSearched, errors },
     });
+
+    return { runId, artifactsCreated, factsExtracted, sourcesSearched, errors };
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     errors.push(msg);
     await completeAgentRun({ runId, status: "failed", error: msg });
+    return { runId, artifactsCreated, factsExtracted, sourcesSearched: 0, errors };
   }
-
-  return { runId, artifactsCreated, factsExtracted, sourcesSearched, errors };
 }
 
 // ── Search Query Builder ──────────────────────────────────────────────
@@ -282,6 +308,9 @@ Only include facts you can actually extract from the content. Empty array [] if 
     return [];
   }
 }
+
+// Suppress unused import warning — logGeneration used via claude-client
+void logGeneration;
 
 // Export for API route
 export { AGENT_NAME };
