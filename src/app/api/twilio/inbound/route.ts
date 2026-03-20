@@ -65,6 +65,68 @@ export async function POST(req: NextRequest) {
   const type = url.searchParams.get("type");
   const siteUrl = buildSiteUrl(req);
 
+  // ── type=chain_step: Logan/Adam/Jeff call chain progression ───────────────
+  if (type === "chain_step") {
+    const step = url.searchParams.get("step") ?? "";
+    const formData = await req.formData();
+    const dialStatus = formData.get("DialCallStatus")?.toString() ?? "";
+    const fromNumber = formData.get("From")?.toString() ?? "";
+    const callSid = formData.get("CallSid")?.toString() ?? "";
+
+    const adamCell = process.env.ADAM_CELL ?? "";
+    const vapiNumber = process.env.VAPI_PHONE_NUMBER ?? "";
+    const twilioNumber = process.env.TWILIO_PHONE_NUMBER ?? "";
+
+    // If the person answered, log it and we're done
+    if (dialStatus === "completed" || dialStatus === "in-progress") {
+      await handleAnsweredInbound({ fromNumber, callSid, dialDuration: formData.get("DialCallDuration")?.toString() ?? null });
+      return new NextResponse('<?xml version="1.0" encoding="UTF-8"?><Response></Response>', {
+        headers: { "Content-Type": "text/xml" },
+      });
+    }
+
+    // Person didn't answer — move to next step
+    let nextTwiml: string;
+
+    if (step === "logan" && adamCell) {
+      // Logan didn't answer → try Adam for 20 seconds
+      console.log("[inbound] Logan missed → trying Adam");
+      nextTwiml = [
+        '<?xml version="1.0" encoding="UTF-8"?>',
+        "<Response>",
+        `  <Dial callerId="${twilioNumber}" timeout="20" action="${siteUrl}/api/twilio/inbound?type=chain_step&amp;step=adam" method="POST">`,
+        `    <Number>${adamCell}</Number>`,
+        "  </Dial>",
+        "</Response>",
+      ].join("\n");
+    } else if ((step === "adam" || (step === "logan" && !adamCell)) && vapiNumber) {
+      // Adam didn't answer (or no Adam) → forward to Jeff (Vapi AI)
+      console.log(`[inbound] ${step} missed → forwarding to Jeff (Vapi)`);
+      nextTwiml = [
+        '<?xml version="1.0" encoding="UTF-8"?>',
+        "<Response>",
+        `  <Dial callerId="${twilioNumber}" timeout="30" action="${siteUrl}/api/twilio/inbound?type=call_status" method="POST">`,
+        `    <Number>${vapiNumber}</Number>`,
+        "  </Dial>",
+        "</Response>",
+      ].join("\n");
+    } else {
+      // No more fallbacks — play message, log missed call
+      console.log(`[inbound] All chain steps exhausted — missed call from ${fromNumber}`);
+      await handleMissedInbound({ fromNumber, callSid, siteUrl });
+      nextTwiml = [
+        '<?xml version="1.0" encoding="UTF-8"?>',
+        "<Response>",
+        '  <Say voice="Polly.Joanna">We missed your call. We will call you back shortly. Thank you for calling Dominion Home Deals.</Say>',
+        "</Response>",
+      ].join("\n");
+    }
+
+    return new NextResponse(nextTwiml, {
+      headers: { "Content-Type": "text/xml" },
+    });
+  }
+
   // ── type=call_status: status callback for the inbound leg ────────────────
   if (type === "call_status") {
     const formData = await req.formData();
@@ -102,26 +164,36 @@ export async function POST(req: NextRequest) {
     return new NextResponse("", { status: 204 });
   }
 
-  // ── Initial inbound webhook: return TwiML to ring-forward ─────────────────
-  const forwardTo = process.env.TWILIO_FORWARD_TO_CELL ?? "";
+  // ── Initial inbound webhook: return TwiML with call chain ──────────────────
+  // Chain: Logan (20s) → Adam (20s) → Jeff/Vapi AI (always answers)
+  // If no one picks up, Jeff gets the call and logs everything.
+  const loganCell = process.env.TWILIO_FORWARD_TO_CELL ?? "";
+  const adamCell = process.env.ADAM_CELL ?? "";
+  const vapiNumber = process.env.VAPI_PHONE_NUMBER ?? ""; // Jeff's dedicated Vapi number
   const twilioNumber = process.env.TWILIO_PHONE_NUMBER ?? "";
   const actionUrl = `${siteUrl}/api/twilio/inbound?type=call_status`;
 
   let twiml: string;
 
-  if (forwardTo) {
+  if (loganCell) {
+    // Full call chain: Logan → Adam → Jeff (Vapi AI)
+    const fallbackSteps: string[] = [];
+
+    // Step 1: Ring Logan for 20 seconds
+    fallbackSteps.push(
+      `  <Dial callerId="${twilioNumber}" timeout="20" action="${siteUrl}/api/twilio/inbound?type=chain_step&amp;step=logan" method="POST">`,
+      `    <Number>${loganCell}</Number>`,
+      "  </Dial>",
+    );
+
     twiml = [
       '<?xml version="1.0" encoding="UTF-8"?>',
       "<Response>",
-      `  <Dial callerId="${twilioNumber}" timeout="20" action="${actionUrl}" method="POST">`,
-      `    <Number>${forwardTo}</Number>`,
-      "  </Dial>",
-      // If Dial action fires (no-answer/timeout), play brief message and status callback handles the rest
-      '  <Say voice="Polly.Joanna">We missed your call. We will call you back shortly.</Say>',
+      ...fallbackSteps,
       "</Response>",
     ].join("\n");
   } else {
-    // No forward number configured — play message, status callback still fires
+    // No forward number configured — go straight to voicemail message
     twiml = [
       '<?xml version="1.0" encoding="UTF-8"?>',
       "<Response>",
@@ -176,16 +248,17 @@ async function handleMissedInbound({
     // Normalize: strip spaces/dashes for comparison
     const normalized = fromNumber.replace(/\D/g, "");
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data: leads } = await (sb.from("leads") as any)
-      .select("id, first_name, last_name, phone")
+    const { data: contacts } = await (sb.from("contacts") as any)
+      .select("id, first_name, last_name, phone, leads(id)")
       .or(
         `phone.eq.${fromNumber},phone.eq.+${normalized},phone.eq.${normalized}`
       )
       .limit(1);
 
-    if (leads && leads.length > 0) {
-      leadId = leads[0].id;
-      leadName = [leads[0].first_name, leads[0].last_name].filter(Boolean).join(" ") || "Lead";
+    if (contacts && contacts.length > 0) {
+      const contact = contacts[0];
+      leadId = contact.leads?.[0]?.id ?? null;
+      leadName = [contact.first_name, contact.last_name].filter(Boolean).join(" ") || "Lead";
     }
   }
 
@@ -261,16 +334,16 @@ async function handleAnsweredInbound({
   const sb = createServerClient();
   const now = new Date();
 
-  // Attempt to match lead by phone
+  // Attempt to match lead by phone via contacts table
   let leadId: string | null = null;
   if (fromNumber) {
     const normalized = fromNumber.replace(/\D/g, "");
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data: leads } = await (sb.from("leads") as any)
-      .select("id")
+    const { data: contacts } = await (sb.from("contacts") as any)
+      .select("id, leads(id)")
       .or(`phone.eq.${fromNumber},phone.eq.+${normalized},phone.eq.${normalized}`)
       .limit(1);
-    if (leads && leads.length > 0) leadId = leads[0].id;
+    if (contacts && contacts.length > 0) leadId = contacts[0].leads?.[0]?.id ?? null;
   }
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
