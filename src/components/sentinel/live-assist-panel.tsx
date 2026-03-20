@@ -35,30 +35,30 @@ export function LiveAssistPanel({ brief, className = "" }: Props) {
   if (!hasTalkingPoints && !hasObjections && !hasWatchOuts) return null;
 
   return (
-    <div className={`rounded-xl border border-purple-500/20 bg-purple-500/[0.03] overflow-hidden ${className}`}>
+    <div className={`rounded-xl border border-white/10 bg-white/[0.03] overflow-hidden ${className}`}>
       {/* Header */}
       <button
         type="button"
         onClick={() => setExpanded((v) => !v)}
-        className="w-full flex items-center gap-1.5 px-3 py-2 hover:bg-purple-500/[0.03] transition-colors"
+        className="w-full flex items-center gap-1.5 px-3 py-2 hover:bg-white/[0.04] transition-colors"
       >
-        <Sparkles className="h-3 w-3 text-purple-400/60" />
-        <span className="text-[10px] font-semibold uppercase tracking-wider text-purple-300/60 flex-1 text-left">
+        <Sparkles className="h-3 w-3 text-primary/70" />
+        <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground flex-1 text-left">
           Live Assist
         </span>
         <span className="text-[9px] text-muted-foreground/30">from brief</span>
         {expanded
-          ? <ChevronUp className="h-3 w-3 text-purple-400/30" />
-          : <ChevronDown className="h-3 w-3 text-purple-400/30" />
+          ? <ChevronUp className="h-3 w-3 text-muted-foreground/40" />
+          : <ChevronDown className="h-3 w-3 text-muted-foreground/40" />
         }
       </button>
 
       {expanded && (
-        <div className="px-3 pb-3 space-y-2.5 border-t border-purple-500/10 pt-2">
+        <div className="px-3 pb-3 space-y-2.5 border-t border-white/8 pt-2">
           {/* Suggested opener */}
           {brief.suggestedOpener && (
             <div className="space-y-1">
-              <div className="flex items-center gap-1 text-[9px] uppercase tracking-wider text-purple-300/40">
+              <div className="flex items-center gap-1 text-[9px] uppercase tracking-wider text-muted-foreground/50">
                 <MessageSquare className="h-2.5 w-2.5" />
                 Open with
               </div>
@@ -71,14 +71,14 @@ export function LiveAssistPanel({ brief, className = "" }: Props) {
           {/* Key talking points */}
           {hasTalkingPoints && (
             <div className="space-y-1">
-              <div className="flex items-center gap-1 text-[9px] uppercase tracking-wider text-cyan/40">
+              <div className="flex items-center gap-1 text-[9px] uppercase tracking-wider text-primary/50">
                 <Lightbulb className="h-2.5 w-2.5" />
                 Ask / discuss
               </div>
               <ul className="space-y-0.5">
                 {brief.talkingPoints.slice(0, 4).map((tp, i) => (
                   <li key={i} className="text-[10px] text-foreground/60 leading-snug flex items-start gap-1.5">
-                    <span className="text-cyan/30 mt-0.5 shrink-0">•</span>
+                    <span className="text-primary/40 mt-0.5 shrink-0">•</span>
                     {tp}
                   </li>
                 ))}
