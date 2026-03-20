@@ -207,7 +207,7 @@ export async function POST(req: NextRequest) {
         source_type: "visual_distress_ai",
         source_provider: "claude_vision",
         artifact_id: artifact?.id,
-      }).catch(() => {}),
+      }).select().then(() => {}).catch(() => {}),
     );
 
     await Promise.all(factPromises);
