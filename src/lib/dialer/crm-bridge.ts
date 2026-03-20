@@ -54,7 +54,9 @@ export async function getCRMLeadContext(
       motivation_level,
       seller_timeline,
       qualification_route,
-      last_contact_at
+      last_contact_at,
+      next_action,
+      next_action_due_at
     `,
     )
     .eq("id", leadId)
@@ -69,22 +71,25 @@ export async function getCRMLeadContext(
 
   // ── 2. Property address ────────────────────────────────────
   let address: string | null = null;
+  let propertyOwnerName: string | null = null;
   if (lead.property_id) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { data: property } = await (sb.from("properties") as any)
-      .select("street_address, city, state")
+      .select("address, city, state, owner_name")
       .eq("id", lead.property_id)
       .maybeSingle();
 
     if (property) {
-      address = [property.street_address, property.city, property.state]
+      address = [property.address, property.city, property.state]
         .filter(Boolean)
         .join(", ") || null;
+      propertyOwnerName = property.owner_name ?? null;
     }
   }
 
   // ── 3. Owner name and phone from contacts ──────────────────
-  let ownerName: string | null = null;
+  // Falls back to property.owner_name when no contact is linked.
+  let ownerName: string | null = propertyOwnerName;
   let phone: string | null = null;
 
   if (lead.contact_id) {
@@ -97,7 +102,7 @@ export async function getCRMLeadContext(
     if (contact) {
       ownerName =
         [contact.first_name, contact.last_name].filter(Boolean).join(" ") ||
-        null;
+        propertyOwnerName;
       phone = contact.phone ?? null;
     }
   }
@@ -155,6 +160,11 @@ export async function getCRMLeadContext(
     // Null if no pending task exists.
     openTaskTitle: openTask?.title ?? null,
     openTaskDueAt: openTask?.due_at ?? null,
+
+    // PR-1: next_action captures the operator's committed next step for this lead.
+    // Sourced from leads table — written by publish-manager or update_next_action MCP tool.
+    nextAction: lead.next_action ?? null,
+    nextActionDueAt: lead.next_action_due_at ?? null,
   };
 
   return ctx;

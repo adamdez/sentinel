@@ -91,6 +91,14 @@ export interface CRMLeadContext {
   // Both null if no pending task exists for this lead.
   openTaskTitle: string | null;
   openTaskDueAt: string | null;
+
+  // PR-1: the operator's committed next step for this lead.
+  // Written by publish-manager (at call end) or update_next_action MCP tool (agent/async).
+  // nextAction:       imperative description of what needs to happen next.
+  // nextActionDueAt:  ISO timestamp deadline, null if no deadline set.
+  // Both null on first contact or when no action has been committed yet.
+  nextAction: string | null;
+  nextActionDueAt: string | null;
 }
 
 // ─────────────────────────────────────────────────────────────
