@@ -138,6 +138,13 @@ export async function PATCH(
       },
     });
 
+    // ── Auto-trigger Dispo Agent on disposition stage entry (fire-and-forget) ──
+    if (target === "disposition") {
+      triggerDispoAgent(sb, id).catch((err) => {
+        console.error(`[stage-transition] Dispo agent trigger failed for lead ${id}:`, err);
+      });
+    }
+
     return NextResponse.json<StageTransitionResult>({
       success: true,
       lead_id: id,
@@ -202,4 +209,35 @@ export async function GET(
     console.error("[API/leads/id/stage] GET error:", err);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
+}
+
+// ── Dispo Agent Auto-Trigger ─────────────────────────────────────────
+// When a lead enters disposition, find its deal and trigger the Dispo Agent.
+// Fire-and-forget — failure is logged, not blocking.
+
+async function triggerDispoAgent(
+  sb: ReturnType<typeof createServerClient>,
+  leadId: string,
+) {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: deal } = await (sb.from("deals") as any)
+    .select("id")
+    .eq("lead_id", leadId)
+    .in("status", ["under_contract", "active", "pending"])
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (!deal) {
+    console.log(`[stage-transition] No active deal for lead ${leadId}, skipping dispo agent`);
+    return;
+  }
+
+  const { runDispoAgent } = await import("@/agents/dispo");
+  await runDispoAgent({
+    dealId: deal.id,
+    leadId,
+    triggerType: "deal_under_contract",
+    triggerRef: `stage-transition-to-disposition`,
+  });
 }

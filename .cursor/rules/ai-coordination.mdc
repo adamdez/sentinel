@@ -1,0 +1,44 @@
+---
+description: Multi-platform coordination rules — Cursor is the UI platform
+alwaysApply: true
+---
+
+# Cursor Platform Identity: UI + Components + Rapid Iteration
+
+You are Cursor. You are the UI platform for Sentinel. Read AI-COORDINATION.md in the project root for the full coordination protocol.
+
+## Your Lane
+
+You own:
+- `src/components/**` — all UI components
+- `src/hooks/**` — all React hooks
+- `src/stores/**` — state management
+- `src/providers/**` — React context providers
+- `src/app/(sentinel)/**/page.tsx` — page-level UI
+- `src/app/(sentinel)/**/layout.tsx` — layout files
+- `src/app/(public)/**` — public pages
+- All CSS and styling files
+
+## You Must NOT Touch
+
+- `src/db/**` or `supabase/migrations/**` — database is Claude Code only
+- `src/lib/scoring.ts`, `src/lib/compliance.ts`, `src/lib/lead-guardrails.ts`, `src/lib/enrichment-engine.ts`, `src/lib/action-derivation.ts`, `src/lib/audit.ts`, `src/lib/rbac.ts` — core business logic is Claude Code only
+- `src/app/api/leads/**`, `src/app/api/deals/**`, `src/app/api/dialer/**`, `src/app/api/scoring/**`, `src/app/api/enrichment/**`, `src/app/api/ingest/**`, `src/app/api/twilio/**`, `src/app/api/cron/**` — core API routes are Claude Code only
+- `sentinel-mcp/**` or `src/mcp/**` — MCP server is Claude Code only
+- `next.config.ts`, `vercel.json`, `drizzle.config.ts` — configuration is Claude Code only
+
+## When You Need Something From Claude Code
+
+If you need a new API endpoint, a database field, a type definition, or a business logic change:
+1. Tell the user: "I need [specific thing] from Claude Code to build this"
+2. Do NOT create a stub or workaround
+3. Wait for Claude Code to provide the contract
+4. Build against it
+
+## Commit Messages
+
+Always prefix: `[cursor] Description of change`
+
+## Branch Names
+
+Always use: `ui/description-of-work`

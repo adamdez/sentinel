@@ -1,0 +1,177 @@
+/* ═══════════════════════════════════════════════════════════════════
+   GHOST MODE / NIGHT OPS — theme pack (Phase 2: token-first)
+   Most chrome is driven by --shell-* / semantic variables. Only gradients
+   and decorative kills need explicit selectors.
+   ═══════════════════════════════════════════════════════════════════ */
+
+html[data-sentinel-theme="ghost-mode"] {
+  --background: #050607;
+  --foreground: #e7eaef;
+  --card: rgba(12, 16, 22, 0.9);
+  --card-foreground: #e7eaef;
+  --popover: rgba(10, 12, 16, 0.96);
+  --popover-foreground: #e7eaef;
+  --primary: #7eb0d0;
+  --primary-foreground: #040506;
+  --secondary: rgba(255, 255, 255, 0.045);
+  --secondary-foreground: #e7eaef;
+  --muted: #0a0c10;
+  --muted-foreground: #8b95a3;
+  --accent: rgba(126, 176, 208, 0.12);
+  --accent-foreground: #d2e4f0;
+  --destructive: #c45a5a;
+  --destructive-foreground: #ffffff;
+  --success: #3d9b72;
+  --success-foreground: #040506;
+  --warning: #c49a3a;
+  --warning-foreground: #040506;
+  --border: rgba(100, 116, 139, 0.2);
+  --input: rgba(255, 255, 255, 0.05);
+  --ring: #5fa0d4;
+  --chart-1: #6fa8cf;
+  --chart-2: #94a3b8;
+  --chart-3: #a8b0bc;
+  --chart-4: #5eb89a;
+  --chart-5: #c49a6e;
+  --sidebar: rgba(2, 3, 6, 0.97);
+  --sidebar-foreground: #7d8b99;
+  --sidebar-primary: #7eb0d0;
+  --sidebar-primary-foreground: #040506;
+  --sidebar-accent: rgba(95, 160, 212, 0.1);
+  --sidebar-accent-foreground: #d2e4f0;
+  --sidebar-border: rgba(71, 85, 105, 0.35);
+  --sidebar-ring: #5fa0d4;
+  --neon: #4ecf9a;
+  --neon-dim: #3da882;
+  --cyan: #6fa8cf;
+  --purple: #8b95a8;
+  --orange: #b8986e;
+  --glass: rgba(10, 14, 20, 0.55);
+  --glass-border: rgba(100, 116, 139, 0.22);
+  --glass-refraction: transparent;
+  --glass-inner-light: rgba(255, 255, 255, 0.02);
+  --glass-depth-shadow: rgba(0, 0, 0, 0.45);
+  --holo-cyan: transparent;
+  --holo-purple: transparent;
+  --holo-orange: transparent;
+  --specular-top: 0.22;
+  --specular-bottom-purple: 0.08;
+
+  --border-hairline: rgba(100, 116, 139, 0.14);
+  --border-hairline-hover: rgba(148, 163, 184, 0.28);
+  --surface-inset: rgba(255, 255, 255, 0.02);
+  --surface-inset-mid: rgba(255, 255, 255, 0.035);
+
+  --shell-glass-border: rgba(100, 116, 139, 0.22);
+  --shell-glass-shadow-drop: rgba(0, 0, 0, 0.42);
+  --shell-glass-inset-top: rgba(255, 255, 255, 0.03);
+  --shell-glass-specular-line: rgba(180, 200, 220, 0.14);
+  --shell-glass-after-fade: rgba(255, 255, 255, 0.025);
+  --shell-glass-surface-default: rgba(12, 16, 22, 0.55);
+  --shell-glass-surface-strong: rgba(6, 8, 12, 0.82);
+  --shell-glass-surface-card: rgba(10, 14, 20, 0.72);
+  --shell-glass-surface-ultra: rgba(8, 10, 14, 0.65);
+  --shell-sidebar-bg: rgba(2, 3, 6, 0.97);
+  --shell-sidebar-border: rgba(71, 85, 105, 0.4);
+  --shell-sidebar-edge-inset: rgba(71, 85, 105, 0.28);
+  --shell-sidebar-rail: rgba(95, 160, 212, 0.12);
+  --shell-topbar-bg: rgba(5, 6, 9, 0.9);
+  --shell-topbar-border: rgba(71, 85, 105, 0.28);
+  --shell-topbar-line: rgba(95, 160, 212, 0.15);
+  --shell-nav-active-bg: rgba(95, 160, 212, 0.12);
+  --shell-nav-active-ring: rgba(95, 160, 212, 0.2);
+  --shadow-badge-glow: 0 0 10px rgba(95, 160, 212, 0.2);
+  --shadow-badge-glow-tight: 0 0 8px rgba(95, 160, 212, 0.12);
+  --shell-modal-bg: rgba(8, 10, 14, 0.95);
+  --shell-backdrop-bg: rgba(0, 0, 0, 0.78);
+}
+
+html[data-sentinel-theme="ghost-mode"] body {
+  background: var(--background) !important;
+  background-image: none !important;
+}
+
+html[data-sentinel-theme="ghost-mode"] .sentinel-gradient {
+  background: linear-gradient(180deg, #030405 0%, #050607 45%, #040506 100%) !important;
+  background-image: none !important;
+  animation: none !important;
+}
+
+/* Kill decorative shell motion (tokens cannot express display:none) */
+html[data-sentinel-theme="ghost-mode"] .search-scan-line::after,
+html[data-sentinel-theme="ghost-mode"] .bell-pulse-ring::after,
+html[data-sentinel-theme="ghost-mode"] .scanline-overlay::after {
+  display: none !important;
+}
+
+html[data-sentinel-theme="ghost-mode"] .glass-card {
+  animation: none !important;
+}
+
+/* ── Operator-safe: full production token mirror (semantic + shell) ── */
+
+html[data-sentinel-theme="ghost-mode"] [data-operator-safe] {
+  --background: #121213;
+  --foreground: #ebebed;
+  --card: rgba(255, 255, 255, 0.04);
+  --card-foreground: #ebebed;
+  --popover: rgba(22, 22, 24, 0.94);
+  --popover-foreground: #ebebed;
+  --primary: #6a8f93;
+  --primary-foreground: #0a0a0b;
+  --secondary: rgba(255, 255, 255, 0.055);
+  --secondary-foreground: #ebebed;
+  --muted: #18181a;
+  --muted-foreground: #9a9aa2;
+  --accent: rgba(106, 143, 147, 0.12);
+  --accent-foreground: #d0dedf;
+  --destructive: #b85858;
+  --destructive-foreground: #ffffff;
+  --success: #4d8f7a;
+  --success-foreground: #0a0a0b;
+  --warning: #c9a227;
+  --warning-foreground: #0a0a0b;
+  --border: rgba(255, 255, 255, 0.09);
+  --input: rgba(255, 255, 255, 0.06);
+  --ring: #6a8f93;
+  --chart-1: #6a8f93;
+  --chart-2: #8b8e96;
+  --chart-3: #a3a3a9;
+  --chart-4: #6a8f93;
+  --chart-5: #787c80;
+  --neon: #6a8f93;
+  --neon-dim: #55787b;
+  --cyan: #6a8f93;
+  --purple: #8b8fa0;
+  --orange: #9a9086;
+  --glass: rgba(255, 255, 255, 0.035);
+  --glass-border: rgba(255, 255, 255, 0.1);
+
+  --border-hairline: rgba(255, 255, 255, 0.06);
+  --border-hairline-hover: rgba(255, 255, 255, 0.15);
+  --surface-inset: rgba(255, 255, 255, 0.02);
+  --surface-inset-mid: rgba(255, 255, 255, 0.04);
+
+  --shell-glass-border: rgba(255, 255, 255, 0.1);
+  --shell-glass-shadow-drop: rgba(0, 0, 0, 0.28);
+  --shell-glass-inset-top: rgba(255, 255, 255, 0.04);
+  --shell-glass-specular-line: rgba(255, 255, 255, 0.22);
+  --shell-glass-after-fade: rgba(255, 255, 255, 0.04);
+  --shell-glass-surface-default: rgba(255, 255, 255, 0.04);
+  --shell-glass-surface-strong: rgba(12, 12, 14, 0.72);
+  --shell-glass-surface-card: rgba(255, 255, 255, 0.045);
+  --shell-glass-surface-ultra: rgba(255, 255, 255, 0.03);
+  --shell-sidebar-bg: rgba(12, 12, 13, 0.78);
+  --shell-sidebar-border: rgba(255, 255, 255, 0.09);
+  --shell-sidebar-edge-inset: rgba(255, 255, 255, 0.04);
+  --shell-sidebar-rail: rgba(255, 255, 255, 0.06);
+  --shell-topbar-bg: rgba(14, 14, 15, 0.72);
+  --shell-topbar-border: rgba(255, 255, 255, 0.08);
+  --shell-topbar-line: rgba(255, 255, 255, 0.08);
+  --shell-nav-active-bg: rgba(106, 143, 147, 0.1);
+  --shell-nav-active-ring: rgba(106, 143, 147, 0.12);
+  --shadow-badge-glow: 0 0 10px rgba(106, 143, 147, 0.18);
+  --shadow-badge-glow-tight: 0 0 8px rgba(106, 143, 147, 0.12);
+  --shell-modal-bg: rgba(18, 18, 20, 0.94);
+  --shell-backdrop-bg: rgba(0, 0, 0, 0.72);
+}

@@ -7,9 +7,15 @@ interface PageShellProps {
   description?: string;
   children?: React.ReactNode;
   actions?: React.ReactNode;
+  /**
+   * When true, alternate themes keep workflow tokens on the default stack.
+   * Prefer `src/app/(sentinel)/dialer/layout.tsx` for `/dialer/*`; use this for
+   * ad-hoc pages (e.g. pipeline) until a route-group layout exists.
+   */
+  operatorSafe?: boolean;
 }
 
-export function PageShell({ title, description, children, actions }: PageShellProps) {
+export function PageShell({ title, description, children, actions, operatorSafe }: PageShellProps) {
   const hydrated = useHydrated();
 
   return (
@@ -18,6 +24,7 @@ export function PageShell({ title, description, children, actions }: PageShellPr
       animate={{ opacity: 1 }}
       transition={{ duration: 0.1 }}
       className="flex-1 overflow-auto"
+      {...(operatorSafe ? { "data-operator-safe": "" } : {})}
     >
       <div className="p-6 space-y-6">
         <div className="flex items-center gap-4">

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@/lib/supabase";
 import { runExceptionScan } from "@/agents/exception";
+import { notifyMorningDigest, notifyStaleFollowUp } from "@/lib/notify";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -81,6 +82,51 @@ export async function GET(req: NextRequest) {
       pipeline_snapshot: pipelineCounts,
       active_offers: activeOffers ?? [],
     };
+
+    // ── Notify via Slack (fire-and-forget) ─────────────────────────────
+    notifyMorningDigest({
+      date: brief.date,
+      exceptionSummary: brief.exception_summary,
+      exceptionTotals: brief.exception_totals,
+      criticalItems: brief.critical_exceptions.map((e) => ({
+        leadId: e.leadId,
+        ownerName: e.ownerName ?? null,
+        address: e.address ?? null,
+        description: e.description ?? "",
+      })),
+      todayCallbackCount: brief.today_callbacks.length,
+      topCallbacks: brief.today_callbacks.slice(0, 5).map((t: Record<string, unknown>) => {
+        const lead = t.lead as Record<string, unknown> | null;
+        const props = lead?.properties as Record<string, unknown> | null;
+        return {
+          title: (t.title as string) ?? "",
+          dueAt: (t.due_at as string) ?? "",
+          ownerName: (props?.owner_name as string) ?? null,
+          address: props ? [props.address, props.city, props.state].filter(Boolean).join(", ") : null,
+        };
+      }),
+      pipelineSnapshot: brief.pipeline_snapshot,
+      activeOfferCount: brief.active_offers.length,
+    }).catch(() => {});
+
+    // ── Dispatch stale follow-up nudge if overdue items exist ─────────
+    const overdueItems = [
+      ...exceptions.critical.filter((e) => e.category === "overdue_follow_up"),
+      ...exceptions.high.filter((e) => e.category === "overdue_follow_up"),
+    ];
+    if (overdueItems.length > 0) {
+      notifyStaleFollowUp({
+        overdueLeads: overdueItems.slice(0, 10).map((e) => ({
+          leadId: e.leadId,
+          ownerName: e.ownerName,
+          address: e.address,
+          nextAction: e.currentNextAction,
+          hoursOverdue: e.daysSinceLastContact ? e.daysSinceLastContact * 24 : 0,
+          severity: e.severity,
+        })),
+        totalOverdue: overdueItems.length,
+      }).catch(() => {});
+    }
 
     return NextResponse.json({ ok: true, brief });
   } catch (err) {

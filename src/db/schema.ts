@@ -176,6 +176,8 @@ export const leads = pgTable("leads", {
   dispoFrictionLevel: varchar("dispo_friction_level", { length: 20 }),
   // Dossier promotion field — written only through explicit /api/dossiers/[id]/promote
   decisionMakerNote: text("decision_maker_note"),
+  // CRM sync projection — FK to most recently promoted dossier (set by syncDossierToLead)
+  currentDossierId: uuid("current_dossier_id"),
   // Stage machine enforcement (PR-1) — enforced at API layer for stage-advancing transitions
   nextAction: text("next_action"),
   nextActionDueAt: timestamp("next_action_due_at", { withTimezone: true }),

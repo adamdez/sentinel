@@ -24,7 +24,9 @@ import {
   CheckCircle2, Loader2, SkipForward,
   Phone, PhoneOff, Voicemail, CalendarCheck,
   DollarSign, Skull, X, ArrowRight, ChevronLeft, Flag,
+  AlertTriangle, Sparkles,
 } from "lucide-react";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { GlassCard } from "@/components/sentinel/glass-card";
 import { supabase } from "@/lib/supabase";
@@ -160,6 +162,10 @@ export function PostCallPanel({
   const [publishing, setPublishing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState<string | null>(null); // dispo label shown briefly on success
+  const [promoteFactsBusy, setPromoteFactsBusy] = useState(false);
+  const [promoteFactsInfo, setPromoteFactsInfo] = useState<{ promoted: number; contradictions: number } | null>(
+    null,
+  );
 
   // ── AI extraction state ───────────────────────────────────────
   const [extracting, setExtracting] = useState(false);
@@ -422,7 +428,36 @@ export function PostCallPanel({
     const label = DISPO_OPTIONS.find((d) => d.key === dispo)?.label ?? dispo;
     setPublishing(false);
     setSaved(label);
-    setTimeout(() => onComplete(), 850);
+    setPromoteFactsInfo(null);
+    if (!leadId) {
+      setTimeout(() => onComplete(), 850);
+    }
+  };
+
+  const handlePromoteFacts = async () => {
+    setPromoteFactsBusy(true);
+    try {
+      const hdrs = await authHeaders();
+      const res = await fetch(`/api/dialer/v1/sessions/${sessionId}/promote-facts`, {
+        method: "POST",
+        headers: hdrs,
+      });
+      const data = (await res.json().catch(() => ({}))) as {
+        ok?: boolean;
+        promoted?: number;
+        contradictions?: number;
+        error?: string;
+      };
+      if (!res.ok) throw new Error(data.error ?? "Promote failed");
+      const promoted = data.promoted ?? 0;
+      const contradictions = data.contradictions ?? 0;
+      setPromoteFactsInfo({ promoted, contradictions });
+      toast.success(`Promoted ${promoted} fact${promoted === 1 ? "" : "s"} to intelligence pipeline`);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Promote failed");
+    } finally {
+      setPromoteFactsBusy(false);
+    }
   };
 
   const handleSkip = () => {
@@ -553,10 +588,56 @@ export function PostCallPanel({
     <GlassCard hover={false} className="!p-3">
       {/* ── Success confirmation (briefly shown before auto-advance) ── */}
       {saved ? (
-        <div className="flex flex-col items-center gap-2 py-5">
-          <CheckCircle2 className="h-5 w-5 text-cyan" />
-          <p className="text-sm font-medium text-foreground">Logged: {saved}</p>
-          <p className="text-[10px] text-muted-foreground/50">Moving to next lead…</p>
+        <div className="flex flex-col items-stretch gap-3 py-4 px-1">
+          <div className="flex flex-col items-center gap-2">
+            <CheckCircle2 className="h-5 w-5 text-cyan" />
+            <p className="text-sm font-medium text-foreground">Logged: {saved}</p>
+          </div>
+          {leadId ? (
+            <>
+              <div className="rounded-[10px] border border-white/[0.08] bg-white/[0.02] p-3 space-y-2">
+                <p className="text-[10px] uppercase tracking-wide text-muted-foreground font-semibold">
+                  Intelligence
+                </p>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="w-full gap-1.5 text-xs border-cyan/25 text-cyan hover:bg-cyan/10"
+                  disabled={promoteFactsBusy}
+                  onClick={() => void handlePromoteFacts()}
+                >
+                  {promoteFactsBusy ? (
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  ) : (
+                    <Sparkles className="h-3.5 w-3.5" />
+                  )}
+                  Promote Call Facts
+                </Button>
+                {promoteFactsInfo != null && (
+                  <p className="text-[11px] text-muted-foreground">
+                    Promoted {promoteFactsInfo.promoted} fact{promoteFactsInfo.promoted === 1 ? "" : "s"} to the
+                    intelligence pipeline.
+                  </p>
+                )}
+                {promoteFactsInfo != null && promoteFactsInfo.contradictions > 0 && (
+                  <div className="flex items-start gap-2 rounded-md border border-amber-500/25 bg-amber-500/[0.06] px-2 py-1.5 text-[11px] text-amber-200/90">
+                    <AlertTriangle className="h-3.5 w-3.5 shrink-0 mt-0.5" />
+                    <span>
+                      {promoteFactsInfo.contradictions} fact
+                      {promoteFactsInfo.contradictions === 1 ? "" : "s"} conflict with existing accepted data —
+                      review in the dossier / review queue.
+                    </span>
+                  </div>
+                )}
+              </div>
+              <Button size="sm" className="w-full gap-1 bg-cyan/15 hover:bg-cyan/25 text-cyan border border-cyan/25" onClick={onComplete}>
+                Continue to next lead
+                <ArrowRight className="h-3.5 w-3.5" />
+              </Button>
+            </>
+          ) : (
+            <p className="text-[10px] text-muted-foreground/50 text-center">Moving to next lead…</p>
+          )}
         </div>
       ) : (
       <>

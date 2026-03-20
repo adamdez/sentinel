@@ -70,6 +70,7 @@ import { usePreCallBrief } from "@/hooks/use-pre-call-brief";
 import { supabase } from "@/lib/supabase";
 import { precheckWorkflowStageChange } from "@/lib/workflow-stage-precheck";
 import { getAllowedTransitions } from "@/lib/lead-guardrails";
+import { LeadDossierPanel } from "@/components/sentinel/lead-dossier-panel";
 import { IntakeGuideSection } from "@/components/sentinel/intake-guide-section";
 import { formatDueDateLabel } from "@/lib/due-date-label";
 import { toast } from "sonner";
@@ -163,6 +164,7 @@ export { clientFileFromProspect, clientFileFromLead, clientFileFromRaw };
 const TABS = [
   { id: "overview", label: "Overview", icon: LayoutDashboard },
   { id: "contact", label: "Contact", icon: Contact2 },
+  { id: "dossier", label: "Dossier", icon: Brain },
   { id: "comps", label: "Comps & ARV", icon: Map },
   { id: "calculator", label: "Deal Calculator", icon: Calculator },
   { id: "documents", label: "Documents / PSA", icon: FileText },
@@ -304,7 +306,7 @@ function selectCallAssistCards(cf: ClientFile): { defaultCards: CallAssistCard[]
   };
 }
 
-const PRIMARY_TAB_IDS = new Set<TabId>(["overview", "contact"]);
+const PRIMARY_TAB_IDS = new Set<TabId>(["overview", "contact", "dossier"]);
 const ADVANCED_TAB_IDS = new Set<TabId>(["comps", "calculator", "documents"]);
 
 const WORKFLOW_STAGE_OPTIONS: Array<{ id: WorkflowStageId; label: string }> = [
@@ -6047,9 +6049,15 @@ export function MasterClientFileModal({ clientFile: incomingClientFile, open, on
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.95, y: 20 }}
             transition={{ type: "spring", damping: 25, stiffness: 300 }}
-            className={cn("fixed inset-x-4 top-[2%] bottom-[2%] md:inset-x-auto md:left-1/2 md:-translate-x-1/2 z-50 flex flex-col transition-all duration-300", activeTab === "comps" ? "md:w-[1060px]" : "md:w-[860px]")}
+            className={cn(
+              "fixed inset-x-4 top-[2%] bottom-[2%] md:inset-x-auto md:left-1/2 md:-translate-x-1/2 z-50 flex flex-col transition-all duration-300",
+              activeTab === "comps" ? "md:w-[1060px]" : activeTab === "dossier" ? "md:w-[960px]" : "md:w-[860px]",
+            )}
           >
-            <div className="flex-1 overflow-hidden rounded-[16px] border border-white/[0.08] modal-glass flex flex-row">
+            <div
+              className="flex-1 overflow-hidden rounded-[16px] border border-white/[0.08] modal-glass flex flex-row"
+              data-operator-safe
+            >
             <div className="flex-1 overflow-hidden flex flex-col min-w-0">
               {/* Header */}
               <div className="shrink-0 border-b border-white/[0.06] bg-[rgba(4,4,12,0.88)] backdrop-blur-2xl rounded-t-[16px]">
@@ -6670,6 +6678,7 @@ export function MasterClientFileModal({ clientFile: incomingClientFile, open, on
                     {activeTab === "contact" && (
                       <ContactTab cf={clientFile} overlay={overlay} onSkipTrace={handleSkipTrace} skipTracing={skipTracing} onDial={handleDial} onSms={handleSendSms} calling={calling} onRefresh={onRefresh} />
                     )}
+                    {activeTab === "dossier" && <LeadDossierPanel leadId={clientFile.id} />}
                     {activeTab === "comps" && <CompsTab cf={clientFile} selectedComps={selectedComps} onAddComp={handleAddComp} onRemoveComp={handleRemoveComp} onSkipTrace={handleSkipTrace} computedArv={computedArv} onArvChange={handleArvChange} conditionAdj={conditionAdj} onConditionAdjChange={setConditionAdj} />}
                     {activeTab === "calculator" && <OfferCalcTab cf={clientFile} computedArv={computedArv} />}
                     {activeTab === "documents" && <DocumentsTab cf={clientFile} computedArv={computedArv} />}

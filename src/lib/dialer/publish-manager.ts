@@ -37,6 +37,7 @@ import {
   type DialerEventType,
 } from "./types";
 import { getSession } from "./session-manager";
+import { notifyPostCallSummary } from "@/lib/notify";
 
 // Dispositions that warrant a follow-up task when callback_at is supplied.
 const TASK_DISPOSITIONS = new Set(["follow_up", "appointment"]);
@@ -430,6 +431,32 @@ export async function publishSession(
     });
   }
 
+  // ── Dispatch post-call summary to Slack (fire-and-forget) ──
+  notifyPostCallSummary({
+    sessionId,
+    leadId: leadId ?? "",
+    ownerName: null,
+    address: null,
+    disposition: input.disposition,
+    summaryLine: input.summary ?? null,
+    dealTemperature: input.motivation_level ? String(input.motivation_level) : null,
+    nextTaskSuggestion: input.callback_at ? `Follow-up scheduled ${input.callback_at}` : null,
+    operatorId: userId,
+    completedAt: new Date().toISOString(),
+  }).catch(() => {});
+
+  // ── Step 5: Auto-trigger QA Agent (fire-and-forget) ─────
+  //
+  // Blueprint 6.3: "Every completed call runs through the QA Agent."
+  // Only fires when we have both a calls_log row and a lead. Failure is
+  // non-fatal — a QA failure never blocks the publish response.
+
+  if (callsLogId && leadId) {
+    triggerQA(callsLogId, leadId).catch((err) => {
+      console.warn("[publish-manager] QA agent trigger failed (non-fatal):", err);
+    });
+  }
+
   return { ok: true, calls_log_id: callsLogId, lead_id: leadId, task_id: taskId };
 }
 
@@ -526,4 +553,18 @@ function addDays(d: Date, n: number): Date {
 function getWeekdayInTz(d: Date, tz: string): number {
   const dow = new Intl.DateTimeFormat("en-US", { timeZone: tz, weekday: "short" }).format(d);
   return ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].indexOf(dow);
+}
+
+/**
+ * Fire-and-forget QA Agent trigger after successful call publish.
+ * Uses dynamic import to avoid circular dependency with agent fleet.
+ */
+async function triggerQA(callLogId: string, leadId: string): Promise<void> {
+  const { runQAAgent } = await import("@/agents/qa");
+  await runQAAgent({
+    callLogId,
+    leadId,
+    triggerType: "post_call",
+    triggerRef: `publish-manager:${callLogId}`,
+  });
 }

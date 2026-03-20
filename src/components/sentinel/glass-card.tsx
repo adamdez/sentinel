@@ -38,7 +38,7 @@ export function GlassCard({
         `rounded-[14px] border border-glass-border p-5 ${glassClass}`,
         glow && "ring-1 ring-primary/30",
         glowStrong && "ring-1 ring-primary/45",
-        hover && "hover:border-white/15 transition-colors duration-150",
+        hover && "hover:border-border-hairline-hover transition-colors duration-150",
         className
       )}
       {...props}

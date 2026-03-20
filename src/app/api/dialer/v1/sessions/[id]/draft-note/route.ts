@@ -38,10 +38,17 @@ import { NextRequest, NextResponse } from "next/server";
 import { createDialerClient, getDialerUser } from "@/lib/dialer/db";
 import { getSession } from "@/lib/dialer/session-manager";
 import { createNote } from "@/lib/dialer/note-manager";
-import { completeDialerAi, type DialerAiMessage } from "@/lib/dialer/openai-lane-client";
+import { completeDialerAiLayered } from "@/lib/dialer/openai-lane-client";
 import { getStyleBlock, styleVersionTag } from "@/lib/conversation-style";
 import { randomUUID } from "crypto";
 import { writeAiTrace } from "@/lib/dialer/ai-trace-writer";
+import {
+  assemblePrompt,
+  draftNoteStableBase,
+  draftNoteSemiStable,
+  draftNoteDynamic,
+  type LayeredPrompt,
+} from "@/lib/dialer/prompt-cache";
 
 type RouteContext = { params: Promise<{ id: string }> };
 
@@ -81,53 +88,9 @@ const NULL_DRAFT: PostCallDraft = {
   deal_temperature:     null,
 };
 
-// ── System prompt ────────────────────────────────────────────────────────────
-
-const SYSTEM_PROMPT =
-  "You are a real estate acquisitions assistant for Dominion Home Deals in Spokane, WA. " +
-  "Extract structured call notes from brief operator notes after a seller call. " +
-  "Return ONLY valid JSON matching the schema. No prose, no markdown fences, no extra keys. " +
-  "Be conservative: return null for any field you cannot confidently extract. Never guess or embellish.\n\n" +
-  getStyleBlock("objection_support");
-
-function buildPrompt(
-  notes:       string,
-  disposition: string | null,
-  callbackAt:  string | null,
-  ownerName:   string | null,
-  address:     string | null,
-): string {
-  const context = [
-    ownerName    && `Seller: ${ownerName}`,
-    address      && `Property: ${address}`,
-    disposition  && `Call outcome: ${disposition.replace(/_/g, " ")}`,
-    callbackAt   && `Callback scheduled: ${new Date(callbackAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}`,
-  ].filter(Boolean).join(" | ");
-
-  return (
-    (context ? `[Context: ${context}]\n\n` : "") +
-    `Operator call notes:\n"${notes.slice(0, 800)}"\n\n` +
-    `Extract structured call notes. Return exactly this JSON:\n` +
-    `{\n` +
-    `  "summary_line": <string max 120 chars or null>,\n` +
-    `  "promises_made": <string max 80 chars or null>,\n` +
-    `  "objection": <string max 80 chars or null>,\n` +
-    `  "next_task_suggestion": <string max 60 chars or null>,\n` +
-    `  "callback_timing_hint": <string max 60 chars or null>,\n` +
-    `  "deal_temperature": <"hot"|"warm"|"cool"|"cold"|"dead"|null>\n` +
-    `}\n\n` +
-    `Rules:\n` +
-    `- summary_line: what happened on this call in 1-2 sentences. null if notes are too sparse.\n` +
-    `- promises_made: only explicit commitments (callback by X, sending Y, etc.). null if none.\n` +
-    `- objection: primary unresolved seller concern. null if none mentioned or call was no-answer/voicemail.\n` +
-    `- next_task_suggestion: concise, plainspoken action phrase like "Check in Thursday afternoon" or "Follow up after seller talks with family". Avoid pushy language.\n` +
-    `- callback_timing_hint: if notes mention a preferred day/time window, capture it in plain language (e.g. "Thursday afternoon", "after 6pm"). null if not mentioned.\n` +
-    `- deal_temperature: seller engagement level. null if call was no-answer/voicemail or too unclear.\n` +
-    `- Keep phrasing calm and human. Diagnose before persuasion.\n` +
-    `- Suggest question-led next steps ("ask what timing feels realistic") over pressure-led steps.\n` +
-    `- Return null for any field you cannot confidently extract — never guess.`
-  );
-}
+// ── System prompt (3-layer cache architecture, Blueprint §15.1) ──────────────
+// Stable base + semi-stable context + dynamic notes are assembled via prompt-cache.ts
+// so OpenAI's automatic prefix cache can hit on the stable layers.
 
 // ── Validate and truncate draft fields ───────────────────────────────────────
 
@@ -198,12 +161,17 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
     return NextResponse.json({ ok: false, error: "AI service not configured", run_id: runId });
   }
 
-  // ── Build prompt and call OpenAI ─────────────────────────────────────────
-  const userContent = buildPrompt(notes, disposition, callbackAt, ownerName, address);
-  const messages: DialerAiMessage[] = [
-    { role: "system", content: SYSTEM_PROMPT },
-    { role: "user",   content: userContent },
-  ];
+  // ── Build 3-layer prompt and call OpenAI ─────────────────────────────────
+  const layered: LayeredPrompt = {
+    layers: [
+      draftNoteStableBase(getStyleBlock("objection_support")),
+      draftNoteSemiStable({ ownerName, address, disposition, callbackAt }),
+      draftNoteDynamic(notes),
+    ],
+    version: DRAFT_NOTE_PROMPT_VERSION,
+    workflow: "draft_note",
+  };
+  const assembled = assemblePrompt(layered, "Extract structured call notes from the operator notes above.");
 
   const startMs = Date.now();
   let rawOutput = "";
@@ -211,9 +179,9 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
   let aiModel   = DRAFT_NOTE_MODEL_FALLBACK;
 
   try {
-    const ai = await completeDialerAi({
+    const ai = await completeDialerAiLayered({
       lane: "draft_note",
-      messages,
+      assembled,
       temperature: 0,
     });
     rawOutput = ai.text;
@@ -252,7 +220,7 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
     lead_id:        sessionResult.data.lead_id ?? null,
     model:          aiModel,
     provider:       DRAFT_NOTE_PROVIDER,
-    input_text:     userContent,
+    input_text:     assembled.userMessage,
     output_text:    rawOutput || null,
     latency_ms:     latencyMs,
   }).catch(() => {});

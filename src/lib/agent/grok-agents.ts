@@ -39,6 +39,15 @@ export interface LeadContext {
     next_task_suggestion?: string | null;
     deal_temperature?: string | null;
   } | null;
+
+  // Dossier projection fields (Blueprint 9.1)
+  sellerSituationSummary?: string | null;
+  recommendedCallAngle?: string | null;
+  likelyDecisionMaker?: string | null;
+  decisionMakerConfidence?: string | null;
+  topFacts?: string[];
+  opportunityScore?: number | null;
+  confidenceScore?: number | null;
 }
 
 export interface PipelineMetrics {
@@ -104,7 +113,20 @@ export function buildCallCoPilotPrompt(lead: LeadContext): string {
     lead.lastTransferType ? `- Last transfer: ${lead.lastTransferType}` : "",
     lead.delinquentAmount ? `- Delinquent amount: $${lead.delinquentAmount.toLocaleString()}` : "",
     lead.foreclosureStage ? `- Foreclosure stage: ${lead.foreclosureStage}` : "",
+    lead.opportunityScore != null ? `- Opportunity score: ${lead.opportunityScore}/100` : "",
+    lead.confidenceScore != null ? `- Intelligence confidence: ${lead.confidenceScore}/100` : "",
     "",
+    // Dossier intelligence brief — only included when Research Agent has run
+    ...(lead.sellerSituationSummary || lead.recommendedCallAngle || (lead.topFacts && lead.topFacts.length > 0)
+      ? [
+          "### Intelligence Brief (from Research Agent dossier)",
+          lead.sellerSituationSummary ? `- Situation: ${lead.sellerSituationSummary}` : "",
+          lead.recommendedCallAngle ? `- Recommended approach: ${lead.recommendedCallAngle}` : "",
+          lead.likelyDecisionMaker ? `- Decision maker: ${lead.likelyDecisionMaker} (${lead.decisionMakerConfidence ?? "unknown"} confidence)` : "",
+          ...(lead.topFacts ?? []).map((f, i) => `- Key fact ${i + 1}: ${f}`),
+          "",
+        ]
+      : []),
     "### Call History",
     historyBlock,
     "",

@@ -1,0 +1,78 @@
+{
+  "_description": "Gold dataset: Daily ads monitor scan with high CPL and waste alerts. Tests threshold detection, severity classification, and summary generation.",
+  "input": {
+    "triggerType": "daily_cron",
+    "triggerRef": "daily-2026-03-19"
+  },
+  "campaignStats": [
+    {
+      "campaign_id": "camp-001",
+      "campaign_name": "Spokane Seller Intent - Search",
+      "date": "2026-03-18",
+      "impressions": 1200,
+      "clicks": 45,
+      "cost": 380,
+      "conversions": 8,
+      "leads_generated": 6,
+      "_note": "Healthy campaign: CPL $63, CTR 3.75%"
+    },
+    {
+      "campaign_id": "camp-002",
+      "campaign_name": "Kootenai Display - Awareness",
+      "date": "2026-03-18",
+      "impressions": 8500,
+      "clicks": 42,
+      "cost": 210,
+      "conversions": 0,
+      "leads_generated": 0,
+      "_note": "Waste: $210 spend, 0 leads, CTR 0.49%"
+    },
+    {
+      "campaign_id": "camp-003",
+      "campaign_name": "Spokane PMax - Broad",
+      "date": "2026-03-18",
+      "impressions": 3200,
+      "clicks": 28,
+      "cost": 450,
+      "conversions": 2,
+      "leads_generated": 1,
+      "_note": "High CPL: $450/lead, CPC $16"
+    }
+  ],
+  "expectedAlerts": [
+    {
+      "severity": "critical",
+      "category": "waste",
+      "campaignName": "Kootenai Display - Awareness",
+      "metric": "leads",
+      "message_contains": "zero leads"
+    },
+    {
+      "severity": "critical",
+      "category": "high_cpl",
+      "campaignName": "Spokane PMax - Broad",
+      "metric": "cpl",
+      "message_contains": "$450"
+    },
+    {
+      "severity": "high",
+      "category": "high_cpl",
+      "campaignName": "Spokane Seller Intent - Search",
+      "metric": "cpl",
+      "message_contains": "$63"
+    },
+    {
+      "severity": "medium",
+      "category": "low_ctr",
+      "campaignName": "Kootenai Display - Awareness",
+      "metric": "ctr",
+      "message_contains": "0.49%"
+    }
+  ],
+  "expectedMetrics": {
+    "totalSpend": 1040,
+    "totalLeads": 7,
+    "blendedCPL": 148.57,
+    "note": "Blended CPL well above $40 target — needs campaign optimization"
+  }
+}

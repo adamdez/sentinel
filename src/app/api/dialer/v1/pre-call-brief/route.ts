@@ -1,7 +1,15 @@
 import { NextRequest } from "next/server";
 import { createServerClient } from "@/lib/supabase";
 import { buildCallCoPilotPrompt, styleVersionTag, type LeadContext } from "@/lib/agent/dialer-ai-prompts";
-import { completeDialerAi, type DialerAiMessage } from "@/lib/dialer/openai-lane-client";
+import { getStyleBlock } from "@/lib/conversation-style";
+import { completeDialerAiLayered } from "@/lib/dialer/openai-lane-client";
+import {
+  assemblePrompt,
+  preCallBriefStableBase,
+  preCallBriefSemiStable,
+  preCallBriefDynamic,
+  type LayeredPrompt,
+} from "@/lib/dialer/prompt-cache";
 
 /**
  * POST /api/dialer/v1/pre-call-brief
@@ -196,6 +204,15 @@ export async function POST(req: NextRequest) {
             deal_temperature: latestStructured.deal_temperature ?? null,
           }
         : null,
+
+      // Dossier projection fields (Blueprint 9.1)
+      sellerSituationSummary: lead.seller_situation_summary_short ?? null,
+      recommendedCallAngle: lead.recommended_call_angle ?? null,
+      likelyDecisionMaker: lead.likely_decision_maker ?? null,
+      decisionMakerConfidence: lead.decision_maker_confidence ?? null,
+      topFacts: [lead.top_fact_1, lead.top_fact_2, lead.top_fact_3].filter(Boolean) as string[],
+      opportunityScore: lead.opportunity_score ?? null,
+      confidenceScore: lead.confidence_score ?? null,
     };
     const riskSeed = deriveRiskSeed({
       lead: lead as Record<string, unknown>,
@@ -205,43 +222,29 @@ export async function POST(req: NextRequest) {
 
     const agentPrompt = buildCallCoPilotPrompt(leadCtx);
 
-    const systemPrompt = [
-      `You are the Dominion Sentinel Call Co-Pilot (OpenAI lane). Today is ${new Date().toISOString().split("T")[0]}. Use this date for all temporal reasoning — recency, days since filing, urgency calculations.`,
-      "Generate a comprehensive pre-call playbook.",
-      agentPrompt,
-      "",
-      "## OUTPUT FORMAT",
-      "Return ONLY a JSON object (no markdown, no explanation):",
-      "{",
-      '  "bullets":["bullet 1","bullet 2","bullet 3"],',
-      '  "suggestedOpener":"Opening line here",',
-      '  "talkingPoints":["point 1","point 2"],',
-      '  "objections":[{"objection":"They say X","rebuttal":"You respond Y"}],',
-      '  "negotiationAnchor":"Offer range: $X - $Y based on ...",',
-      '  "watchOuts":["compliance note","emotional trigger to avoid"],',
-      '  "riskFlags":["risk or contradiction to verify"]',
-      "}",
-      "Keep bullets under 80 chars. Opening line should be natural and empathetic.",
-      "talkingPoints: 2-3 conversation starters tied to their distress signals.",
-      "objections: 2-3 likely pushbacks with one-line rebuttals.",
-      "negotiationAnchor: a single sentence with the MAO range if data exists.",
-      "watchOuts: 1-2 compliance/emotional things to avoid.",
-      "riskFlags: 0-4 practical caution signals where data may not line up; keep plainspoken and non-creepy.",
-      "If evidence is thin, say that plainly (e.g., 'Evidence is thin — manual verification recommended').",
-      "",
-      "## RISK SEED (from observed data)",
-      ...(riskSeed.length > 0 ? riskSeed.map((r) => `- ${r}`) : ["- No clear contradiction seed from available data."]),
-    ].join("\n");
+    // 3-layer prompt cache architecture (Blueprint §15.1):
+    // Layer 1 (stable): identity + output format + style — cached across all requests
+    // Layer 2 (semi-stable): lead context — cached across calls to same lead
+    // Layer 3 (dynamic): today's date + risk seeds — unique per request
+    const layered: LayeredPrompt = {
+      layers: [
+        preCallBriefStableBase(getStyleBlock("call_copilot")),
+        preCallBriefSemiStable(agentPrompt),
+        preCallBriefDynamic(new Date().toISOString().split("T")[0], riskSeed),
+      ],
+      version: PRE_CALL_BRIEF_VERSION,
+      workflow: "pre_call_brief",
+    };
 
-    const messages: DialerAiMessage[] = [
-      { role: "system", content: systemPrompt },
-      { role: "user", content: `Generate a pre-call brief for ${leadCtx.ownerName} at ${leadCtx.address}` },
-    ];
+    const assembled = assemblePrompt(
+      layered,
+      `Generate a pre-call brief for ${leadCtx.ownerName} at ${leadCtx.address}`,
+    );
 
-    const ai = await completeDialerAi({
+    const ai = await completeDialerAiLayered({
       lane: "pre_call_brief",
       temperature: 0,
-      messages,
+      assembled,
     });
     const raw = ai.text;
 
@@ -265,6 +268,7 @@ export async function POST(req: NextRequest) {
         _promptVersion: PRE_CALL_BRIEF_VERSION,
         _provider: ai.provider,
         _model: ai.model,
+        _layerSizes: ai.layerSizes ?? null,
       };
     } catch {
       brief = {
@@ -278,6 +282,7 @@ export async function POST(req: NextRequest) {
         _promptVersion: PRE_CALL_BRIEF_VERSION,
         _provider: ai.provider,
         _model: ai.model,
+        _layerSizes: ai.layerSizes ?? null,
       };
     }
 

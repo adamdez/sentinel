@@ -84,6 +84,9 @@ interface LeadRow {
   notes: string | null;
   tags: string[];
   lock_version: number;
+  /** CRM next step text; required for some stage transitions */
+  next_action: string | null;
+  next_action_due_at: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -279,8 +282,17 @@ export interface Database {
       };
       event_log: {
         Row: EventLogRow;
-        Insert: Omit<EventLogRow, "id" | "created_at"> & { id?: string; created_at?: string };
-        Update: never;
+        Insert: {
+          id?: string;
+          user_id: string;
+          action: string;
+          entity_type: string;
+          entity_id: string;
+          details: Json;
+          ip_address?: string | null;
+          created_at?: string;
+        };
+        Update: Partial<Omit<EventLogRow, "id">>;
       };
       user_profiles: {
         Row: UserProfileRow;

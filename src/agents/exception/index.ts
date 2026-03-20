@@ -48,6 +48,10 @@ export async function runExceptionScan(
     inputs: { trigger: input.triggerType },
   });
 
+  if (!runId) {
+    return emptyReport("Exception Agent already running — skipped duplicate.");
+  }
+
   try {
     const sb = createServerClient();
     const now = new Date();

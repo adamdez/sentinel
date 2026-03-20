@@ -228,6 +228,10 @@ function DashboardTab() {
         (supabase.from("ads_daily_metrics") as any)
           .select("id, report_date, campaign_id, market, impressions, clicks, cost_micros, conversions")
           .gte("report_date", sinceDate)
+          // Campaign-level rows only — matches Google Ads campaign reports and avoids
+          // double-counting if legacy ad_group/keyword daily rows exist in the table.
+          .is("ad_group_id", null)
+          .is("keyword_id", null)
           .order("report_date", { ascending: false })
           .limit(METRICS_ROW_CAP),
         (supabase.from("ads_campaigns") as any)

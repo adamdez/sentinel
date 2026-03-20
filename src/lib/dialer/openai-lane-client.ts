@@ -1,4 +1,5 @@
 import OpenAI from "openai";
+import type { AssembledPrompt } from "./prompt-cache";
 
 export type DialerAiLane =
   | "pre_call_brief"
@@ -19,10 +20,19 @@ export interface DialerAiCompletionInput {
   temperature?: number;
 }
 
+/** Extended input that accepts a pre-assembled layered prompt. */
+export interface DialerAiLayeredInput {
+  lane: DialerAiLane;
+  assembled: AssembledPrompt;
+  temperature?: number;
+}
+
 export interface DialerAiCompletionOutput {
   text: string;
   provider: "openai";
   model: string;
+  /** Present when called via completeDialerAiLayered — layer byte sizes for cache analysis */
+  layerSizes?: { stable: number; semiStable: number; dynamic: number };
 }
 
 const DEFAULT_FAST_MODEL = "gpt-5-mini";
@@ -112,5 +122,49 @@ export async function completeDialerAi(input: DialerAiCompletionInput): Promise<
     text: extractOutputText(response),
     provider,
     model,
+  };
+}
+
+/**
+ * Complete using a pre-assembled 3-layer prompt.
+ *
+ * The assembled prompt's systemMessage is already ordered for cache optimization:
+ * stable base → semi-stable context → per-call dynamic.
+ *
+ * OpenAI automatically caches the longest matching prefix of identical tokens
+ * across requests (for prompts > 1024 tokens). By keeping stable content first,
+ * repeated calls for the same lead hit the cache on Layers 1+2.
+ */
+export async function completeDialerAiLayered(input: DialerAiLayeredInput): Promise<DialerAiCompletionOutput> {
+  const provider = resolveProvider();
+  const apiKey = getDialerOpenAiApiKey();
+  if (!apiKey) {
+    throw new Error("OPENAI_API_KEY is not configured");
+  }
+
+  const model = resolveModelForLane(input.lane);
+  const client = new OpenAI({ apiKey });
+
+  const response = await client.responses.create({
+    model,
+    temperature: input.temperature ?? 0,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    input: [
+      {
+        role: "developer" as const,
+        content: [{ type: "input_text" as const, text: input.assembled.systemMessage }],
+      },
+      {
+        role: "user" as const,
+        content: [{ type: "input_text" as const, text: input.assembled.userMessage }],
+      },
+    ] as any,
+  });
+
+  return {
+    text: extractOutputText(response),
+    provider,
+    model,
+    layerSizes: input.assembled.layerSizes,
   };
 }

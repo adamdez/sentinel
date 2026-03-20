@@ -1,0 +1,75 @@
+{
+  "_description": "Gold dataset: Dispo outreach for a single-family assignment deal in Spokane. Tests buyer-fit matching, price presentation, and deal packaging.",
+  "input": {
+    "dealId": "00000000-0000-0000-0000-000000000020",
+    "triggeredBy": "adam-manual"
+  },
+  "dealContext": {
+    "propertyAddress": "1847 E 3rd Ave, Spokane, WA 99202",
+    "contractPrice": 165000,
+    "arv": 265000,
+    "repairEstimate": 45000,
+    "assignmentFeeTarget": 15000,
+    "propertyType": "SFR",
+    "bedrooms": 3,
+    "bathrooms": 2,
+    "sqft": 1450,
+    "lotSize": 6500,
+    "yearBuilt": 1952,
+    "condition": "Needs full kitchen and bathroom remodel, new HVAC, cosmetic throughout",
+    "closingDeadline": "2026-04-15"
+  },
+  "buyerPool": [
+    {
+      "id": "buyer-001",
+      "name": "Mike Thompson",
+      "company": "Thompson Rehabs LLC",
+      "preferredMarkets": ["Spokane"],
+      "assetTypes": ["SFR"],
+      "priceRange": { "min": 100000, "max": 250000 },
+      "fundingType": "cash",
+      "rehabTolerance": "heavy",
+      "proofOfFunds": true,
+      "closeSpeedDays": 14,
+      "reliabilityScore": 92,
+      "preferredContact": "phone",
+      "lastContactDate": "2026-03-10"
+    },
+    {
+      "id": "buyer-002",
+      "name": "Sarah Kim",
+      "company": "Evergreen Investments",
+      "preferredMarkets": ["Spokane", "Kootenai"],
+      "assetTypes": ["SFR", "duplex"],
+      "priceRange": { "min": 150000, "max": 350000 },
+      "fundingType": "hard_money",
+      "rehabTolerance": "medium",
+      "proofOfFunds": true,
+      "closeSpeedDays": 21,
+      "reliabilityScore": 85,
+      "preferredContact": "email",
+      "lastContactDate": "2026-02-28"
+    }
+  ],
+  "expectedOutput": {
+    "rankedBuyers": [
+      {
+        "buyerId": "buyer-001",
+        "fitScore": 95,
+        "reasoning": "Cash buyer, heavy rehab tolerance, 14-day close, high reliability (92), active in Spokane, price in range. Top match."
+      },
+      {
+        "buyerId": "buyer-002",
+        "fitScore": 72,
+        "reasoning": "POF verified, Spokane market match, but hard money adds timeline risk and medium rehab tolerance may not fit full remodel scope."
+      }
+    ],
+    "outreachDrafts": [
+      {
+        "buyerId": "buyer-001",
+        "channel": "phone",
+        "opener": "Hey Mike, it's [operator] — got a 3/2 on East 3rd that just came under contract. 1450 sqft, needs a full kitchen and bath remodel plus HVAC. ARV around $265K, looking at $180K. You've done a few like this in the area — want to take a look?"
+      }
+    ]
+  }
+}

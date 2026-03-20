@@ -53,80 +53,15 @@
   --animate-neon-pulse: neon-pulse 2s ease-in-out infinite;
   --animate-cyan-pulse: cyan-pulse 2s ease-in-out infinite;
   --animate-float: float 3s ease-in-out infinite;
-}
-
-/* ═══════════════════════════════════════════════════════════════════
-   OBSIDIAN ABYSS AI ULTRA — Design Token System v3.0
-   Maximum volumetric wet glass · 4-layer refraction · Holographic depth
-   4-concentric-ring neon glows · Neural constellation particles
-   Cyan #00e5ff live data · Purple #b388ff accents · Orange #ff6b35 charts
-   Emerald #00ff88 ONLY for critical live numbers/actions
-   ═══════════════════════════════════════════════════════════════════ */
-
-:root {
-  --radius: 0.875rem;
-
-  --background: #020206;
-  --foreground: #e6e6f2;
-
-  --card: rgba(2, 2, 8, 0.30);
-  --card-foreground: #e6e6f2;
-  --popover: rgba(1, 1, 4, 0.96);
-  --popover-foreground: #e6e6f2;
-
-  --primary: #00e5ff;
-  --primary-foreground: #020204;
-
-  --secondary: rgba(4, 4, 12, 0.50);
-  --secondary-foreground: #e6e6f2;
-
-  --muted: #030310;
-  --muted-foreground: #9e9ec0;
-
-  --accent: rgba(179, 136, 255, 0.1);
-  --accent-foreground: #d4bfff;
-
-  --destructive: #ff4455;
-  --destructive-foreground: #ffffff;
-
-  --border: rgba(0, 229, 255, 0.07);
-  --input: rgba(3, 3, 10, 0.65);
-  --ring: #00e5ff;
-
-  --chart-1: #00e5ff;
-  --chart-2: #b388ff;
-  --chart-3: #ff6b35;
-  --chart-4: #00ff88;
-  --chart-5: #f472b6;
-
-  --sidebar: rgba(0, 0, 2, 0.98);
-  --sidebar-foreground: #8a8aa8;
-  --sidebar-primary: #00e5ff;
-  --sidebar-primary-foreground: #020204;
-  --sidebar-accent: rgba(0, 229, 255, 0.07);
-  --sidebar-accent-foreground: #00e5ff;
-  --sidebar-border: rgba(0, 229, 255, 0.05);
-  --sidebar-ring: #00e5ff;
-
-  --neon: #00ff88;
-  --neon-dim: #00cc6a;
-
-  --cyan: #00e5ff;
-  --purple: #b388ff;
-  --orange: #ff6b35;
-
-  --glass: rgba(2, 2, 8, 0.28);
-  --glass-border: rgba(0, 229, 255, 0.09);
-
-  --glass-refraction: rgba(0, 229, 255, 0.025);
-  --glass-inner-light: rgba(255, 255, 255, 0.045);
-  --glass-depth-shadow: rgba(0, 0, 0, 0.12);
-  --holo-cyan: rgba(0, 229, 255, 0.14);
-  --holo-purple: rgba(179, 136, 255, 0.1);
-  --holo-orange: rgba(255, 107, 53, 0.07);
-
-  --specular-top: rgba(255, 255, 255, 0.65);
-  --specular-bottom-purple: rgba(179, 136, 255, 0.35);
+  --color-success: var(--success);
+  --color-warning: var(--warning);
+  --color-success-foreground: var(--success-foreground);
+  --color-warning-foreground: var(--warning-foreground);
+  /* Sentinel shell / inset surfaces (theme packs override these — avoids per-class override debt) */
+  --color-border-hairline: var(--border-hairline);
+  --color-border-hairline-hover: var(--border-hairline-hover);
+  --color-surface-inset: var(--surface-inset);
+  --color-surface-inset-mid: var(--surface-inset-mid);
 }
 
 html {
@@ -1400,6 +1335,7 @@ select optgroup {
    ═══════════════════════════════════════════════════════════════════ */
 
 :root {
+  --radius: 0.875rem;
   --background: #121213;
   --foreground: #ebebed;
   --card: rgba(255, 255, 255, 0.04);
@@ -1416,6 +1352,10 @@ select optgroup {
   --accent-foreground: #d0dedf;
   --destructive: #b85858;
   --destructive-foreground: #ffffff;
+  --success: #4d8f7a;
+  --success-foreground: #0a0a0b;
+  --warning: #c9a227;
+  --warning-foreground: #0a0a0b;
   --border: rgba(255, 255, 255, 0.09);
   --input: rgba(255, 255, 255, 0.06);
   --ring: #6a8f93;
@@ -1447,6 +1387,36 @@ select optgroup {
   --holo-orange: transparent;
   --specular-top: 0.32;
   --specular-bottom-purple: 0.12;
+
+  /* Hairlines + inset panels (components: filters, numeric inputs, dense lists) */
+  --border-hairline: rgba(255, 255, 255, 0.06);
+  --border-hairline-hover: rgba(255, 255, 255, 0.15);
+  --surface-inset: rgba(255, 255, 255, 0.02);
+  --surface-inset-mid: rgba(255, 255, 255, 0.04);
+
+  /* Shell chrome — glass, sidebar, topbar (Ghost / seasonal themes retoken here) */
+  --shell-glass-border: rgba(255, 255, 255, 0.1);
+  --shell-glass-shadow-drop: rgba(0, 0, 0, 0.28);
+  --shell-glass-inset-top: rgba(255, 255, 255, 0.04);
+  --shell-glass-specular-line: rgba(255, 255, 255, 0.22);
+  --shell-glass-after-fade: rgba(255, 255, 255, 0.04);
+  --shell-glass-surface-default: rgba(255, 255, 255, 0.04);
+  --shell-glass-surface-strong: rgba(12, 12, 14, 0.72);
+  --shell-glass-surface-card: rgba(255, 255, 255, 0.045);
+  --shell-glass-surface-ultra: rgba(255, 255, 255, 0.03);
+  --shell-sidebar-bg: rgba(12, 12, 13, 0.78);
+  --shell-sidebar-border: rgba(255, 255, 255, 0.09);
+  --shell-sidebar-edge-inset: rgba(255, 255, 255, 0.04);
+  --shell-sidebar-rail: rgba(255, 255, 255, 0.06);
+  --shell-topbar-bg: rgba(14, 14, 15, 0.72);
+  --shell-topbar-border: rgba(255, 255, 255, 0.08);
+  --shell-topbar-line: rgba(255, 255, 255, 0.08);
+  --shell-nav-active-bg: rgba(106, 143, 147, 0.1);
+  --shell-nav-active-ring: rgba(106, 143, 147, 0.12);
+  --shadow-badge-glow: 0 0 10px rgba(106, 143, 147, 0.18);
+  --shadow-badge-glow-tight: 0 0 8px rgba(106, 143, 147, 0.12);
+  --shell-modal-bg: rgba(18, 18, 20, 0.94);
+  --shell-backdrop-bg: rgba(0, 0, 0, 0.72);
 }
 
 body {
@@ -1477,34 +1447,34 @@ body {
   background-image: none !important;
 }
 
-/* Core glass surfaces — neutral blur, no cyan/purple volume */
+/* Core glass surfaces — driven by --shell-* tokens (theme packs swap variables, not each rule) */
 .glass,
 .glass-strong,
 .glass-card,
 .glass-ultra {
   animation: none !important;
-  border-color: rgba(255, 255, 255, 0.1) !important;
+  border-color: var(--shell-glass-border) !important;
   box-shadow:
-    0 1px 0 rgba(255, 255, 255, 0.04) inset,
-    0 12px 40px rgba(0, 0, 0, 0.28) !important;
+    0 1px 0 var(--shell-glass-inset-top) inset,
+    0 12px 40px var(--shell-glass-shadow-drop) !important;
   backdrop-filter: blur(40px) saturate(1.05) !important;
   -webkit-backdrop-filter: blur(40px) saturate(1.05) !important;
 }
 
 .glass {
-  background: rgba(255, 255, 255, 0.04) !important;
+  background: var(--shell-glass-surface-default) !important;
 }
 
 .glass-strong {
-  background: rgba(12, 12, 14, 0.72) !important;
+  background: var(--shell-glass-surface-strong) !important;
 }
 
 .glass-card {
-  background: rgba(255, 255, 255, 0.045) !important;
+  background: var(--shell-glass-surface-card) !important;
 }
 
 .glass-ultra {
-  background: rgba(255, 255, 255, 0.03) !important;
+  background: var(--shell-glass-surface-ultra) !important;
 }
 
 .glass::before,
@@ -1514,7 +1484,7 @@ body {
   background: linear-gradient(
     90deg,
     transparent 0%,
-    rgba(255, 255, 255, 0.22) 50%,
+    var(--shell-glass-specular-line) 50%,
     transparent 100%
   ) !important;
   height: 1px !important;
@@ -1527,17 +1497,17 @@ body {
 .glass-ultra::after {
   background: linear-gradient(
     180deg,
-    rgba(255, 255, 255, 0.04) 0%,
+    var(--shell-glass-after-fade) 0%,
     transparent 40%
   ) !important;
 }
 
 .sidebar-glass {
-  background: rgba(12, 12, 13, 0.78) !important;
-  border-color: rgba(255, 255, 255, 0.09) !important;
+  background: var(--shell-sidebar-bg) !important;
+  border-color: var(--shell-sidebar-border) !important;
   box-shadow:
-    inset -1px 0 0 rgba(255, 255, 255, 0.04),
-    8px 0 40px rgba(0, 0, 0, 0.2) !important;
+    inset -1px 0 0 var(--shell-sidebar-edge-inset),
+    8px 0 40px var(--shell-glass-shadow-drop) !important;
   backdrop-filter: blur(44px) saturate(1.05) !important;
   -webkit-backdrop-filter: blur(44px) saturate(1.05) !important;
 }
@@ -1546,7 +1516,7 @@ body {
   background: linear-gradient(
     180deg,
     transparent 0%,
-    rgba(255, 255, 255, 0.06) 50%,
+    var(--shell-sidebar-rail) 50%,
     transparent 100%
   ) !important;
   width: 1px !important;
@@ -1554,14 +1524,14 @@ body {
 }
 
 .sidebar-active-item {
-  background: rgba(106, 143, 147, 0.1) !important;
-  box-shadow: inset 0 0 0 1px rgba(106, 143, 147, 0.12) !important;
+  background: var(--shell-nav-active-bg) !important;
+  box-shadow: inset 0 0 0 1px var(--shell-nav-active-ring) !important;
 }
 
 .topbar-glass {
-  background: rgba(14, 14, 15, 0.72) !important;
-  border-bottom-color: rgba(255, 255, 255, 0.08) !important;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.18) !important;
+  background: var(--shell-topbar-bg) !important;
+  border-bottom-color: var(--shell-topbar-border) !important;
+  box-shadow: 0 8px 32px var(--shell-glass-shadow-drop) !important;
   backdrop-filter: blur(36px) saturate(1.05) !important;
   -webkit-backdrop-filter: blur(36px) saturate(1.05) !important;
 }
@@ -1570,7 +1540,7 @@ body {
   background: linear-gradient(
     90deg,
     transparent 0%,
-    rgba(255, 255, 255, 0.08) 50%,
+    var(--shell-topbar-line) 50%,
     transparent 100%
   ) !important;
   height: 1px !important;
@@ -1578,11 +1548,11 @@ body {
 }
 
 .modal-glass {
-  background: rgba(18, 18, 20, 0.94) !important;
-  border-color: rgba(255, 255, 255, 0.1) !important;
+  background: var(--shell-modal-bg) !important;
+  border-color: var(--shell-glass-border) !important;
   box-shadow:
-    0 24px 64px rgba(0, 0, 0, 0.45),
-    inset 0 1px 0 rgba(255, 255, 255, 0.05) !important;
+    0 24px 64px var(--shell-glass-shadow-drop),
+    inset 0 1px 0 var(--shell-glass-inset-top) !important;
   backdrop-filter: blur(48px) saturate(1.05) !important;
   -webkit-backdrop-filter: blur(48px) saturate(1.05) !important;
 }
@@ -1590,13 +1560,13 @@ body {
 .modal-glass::after {
   background: linear-gradient(
     180deg,
-    rgba(255, 255, 255, 0.03) 0%,
+    var(--shell-glass-after-fade) 0%,
     transparent 35%
   ) !important;
 }
 
 .modal-backdrop {
-  background: rgba(0, 0, 0, 0.72) !important;
+  background: var(--shell-backdrop-bg) !important;
   backdrop-filter: blur(10px) saturate(0.85) !important;
 }
 

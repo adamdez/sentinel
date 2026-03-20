@@ -56,7 +56,16 @@ export async function getCRMLeadContext(
       qualification_route,
       last_contact_at,
       next_action,
-      next_action_due_at
+      next_action_due_at,
+      seller_situation_summary_short,
+      recommended_call_angle,
+      likely_decision_maker,
+      decision_maker_confidence,
+      top_fact_1,
+      top_fact_2,
+      top_fact_3,
+      opportunity_score,
+      confidence_score
     `,
     )
     .eq("id", leadId)
@@ -165,6 +174,18 @@ export async function getCRMLeadContext(
     // Sourced from leads table — written by publish-manager or update_next_action MCP tool.
     nextAction: lead.next_action ?? null,
     nextActionDueAt: lead.next_action_due_at ?? null,
+
+    // PR-18: Dossier projection fields (Blueprint 9.1).
+    // Synced from the most recently promoted dossier via syncDossierToLead().
+    sellerSituationSummary: lead.seller_situation_summary_short ?? null,
+    recommendedCallAngle: lead.recommended_call_angle ?? null,
+    likelyDecisionMaker: lead.likely_decision_maker ?? null,
+    decisionMakerConfidence: lead.decision_maker_confidence ?? null,
+    topFact1: lead.top_fact_1 ?? null,
+    topFact2: lead.top_fact_2 ?? null,
+    topFact3: lead.top_fact_3 ?? null,
+    opportunityScore: lead.opportunity_score ?? null,
+    confidenceScore: lead.confidence_score ?? null,
   };
 
   return ctx;

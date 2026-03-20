@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@/lib/supabase";
 import { requireAuth } from "@/lib/api-auth";
+import { resolveReviewItem } from "@/lib/control-plane";
 
 /**
  * GET /api/control-plane/review-queue
@@ -10,7 +11,8 @@ import { requireAuth } from "@/lib/api-auth";
  *
  * PATCH /api/control-plane/review-queue
  *
- * Approve or reject a review item.
+ * Approve or reject a review item. On approval, executes the proposed action
+ * (e.g., sync dossier to lead, accept/reject facts).
  * Body: { id, status: 'approved'|'rejected', review_notes? }
  */
 export async function GET(req: NextRequest) {
@@ -63,30 +65,15 @@ export async function PATCH(req: NextRequest) {
     );
   }
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { data, error } = await (sb.from("review_queue") as any)
-    .update({
-      status,
-      reviewed_by: user.id,
-      reviewed_at: new Date().toISOString(),
-      review_notes: review_notes ?? null,
-      updated_at: new Date().toISOString(),
-    })
-    .eq("id", id)
-    .eq("status", "pending")
-    .select("id, status, agent_name, entity_type, entity_id, action, proposal")
-    .single();
-
-  if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
-  }
-
-  if (!data) {
+  try {
+    const result = await resolveReviewItem(id, status, user.id, review_notes);
+    return NextResponse.json({ data: { id, status, ...result } });
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    const is404 = msg.includes("not found") || msg.includes("already resolved");
     return NextResponse.json(
-      { error: "Item not found or already reviewed" },
-      { status: 404 }
+      { error: msg },
+      { status: is404 ? 404 : 500 }
     );
   }
-
-  return NextResponse.json({ data });
 }

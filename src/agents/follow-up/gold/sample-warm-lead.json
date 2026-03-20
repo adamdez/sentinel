@@ -1,0 +1,52 @@
+{
+  "_description": "Gold dataset: Follow-up draft for a warm lead who requested a Thursday callback. Tests channel selection, personalization, and timing compliance.",
+  "input": {
+    "leadId": "00000000-0000-0000-0000-000000000001",
+    "triggeredBy": "scheduled_follow_up"
+  },
+  "leadContext": {
+    "id": "00000000-0000-0000-0000-000000000001",
+    "status": "qualified",
+    "next_action": "call_back",
+    "next_action_due_at": "2026-03-20T16:00:00Z",
+    "properties": {
+      "address": "4521 W Francis Ave",
+      "city": "Spokane",
+      "state": "WA",
+      "county": "Spokane",
+      "owner_name": "Mary Johnson"
+    },
+    "callHistory": [
+      {
+        "date": "2026-03-17",
+        "disposition": "follow_up",
+        "notes": "Good conversation. Mary is considering selling but worried about moving costs and where she'd go. Has lived there 22 years. Son lives in Spokane Valley, might help her move. Agreed to call back Thursday afternoon."
+      },
+      {
+        "date": "2026-03-14",
+        "disposition": "voicemail",
+        "notes": "Left voicemail introducing ourselves."
+      }
+    ],
+    "sellerMemory": {
+      "summary_line": "Mary considering selling, worried about moving logistics and costs",
+      "promises_made": "Call back Thursday afternoon",
+      "objection": "Moving costs and finding a new place",
+      "deal_temperature": "warm"
+    }
+  },
+  "expectedOutput": {
+    "drafts": [
+      {
+        "channel": "call",
+        "reasoning": "Seller explicitly requested call-back on Thursday afternoon. Washington state default is call. Honor her requested timing exactly.",
+        "talkingPoints": [
+          "Reference the moving costs concern — ask if she's had a chance to talk with her son",
+          "Mention that we can be flexible on closing timeline if she needs time to find a new place",
+          "Don't bring up price unless she does — focus on her logistics concern first"
+        ],
+        "opener": "Hey Mary, it's Logan with Dominion — you mentioned Thursday afternoon worked, so I wanted to follow up like we talked about."
+      }
+    ]
+  }
+}

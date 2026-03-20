@@ -13,6 +13,7 @@ import { Badge } from "@/components/ui/badge";
 import type { LeadFilters as FilterState, FollowUpFilter, MarketFilter, OutboundCallStatusFilter } from "@/hooks/use-leads";
 import type { LeadStatus } from "@/lib/types";
 import { cn } from "@/lib/utils";
+import { filterChip } from "@/lib/sentinel-ui";
 
 interface LeadFiltersProps {
   filters: FilterState;
@@ -156,7 +157,7 @@ export function LeadFilters({
           <SlidersHorizontal className="h-3 w-3" />
           Filters
           {hasFilters && (
-            <span className="bg-cyan/15 text-cyan text-[10px] px-1.5 rounded-full">
+            <span className="bg-primary/15 text-primary text-[10px] px-1.5 rounded-full">
               {activeFilterCount} active
             </span>
           )}
@@ -199,7 +200,7 @@ export function LeadFilters({
                         "text-[11px] px-2.5 py-1 rounded-md border transition-all",
                         filters.statuses.includes(opt.value)
                           ? opt.color
-                          : "border-white/[0.06] text-muted-foreground hover:text-foreground hover:border-white/15"
+                          : cn(filterChip.idle)
                       )}
                     >
                       {opt.label}
@@ -243,8 +244,8 @@ export function LeadFilters({
                         className={cn(
                           "text-[11px] px-2.5 py-1 rounded-md border transition-all",
                           filters.sources.includes(opt.value)
-                            ? "bg-cyan/12 text-cyan border-cyan/20"
-                            : "border-glass-border text-muted-foreground hover:text-foreground hover:border-white/15"
+                            ? cn(filterChip.active)
+                            : cn(filterChip.idle)
                         )}
                       >
                         {opt.label} <span className="opacity-60">({opt.count})</span>
@@ -270,8 +271,8 @@ export function LeadFilters({
                         className={cn(
                           "text-[11px] px-2.5 py-1 rounded-md border transition-all",
                           filters.nicheTags.includes(opt.value)
-                            ? "bg-cyan/12 text-cyan border-cyan/20"
-                            : "border-glass-border text-muted-foreground hover:text-foreground hover:border-white/15"
+                            ? cn(filterChip.active)
+                            : cn(filterChip.idle)
                         )}
                       >
                         {opt.label} <span className="opacity-60">({opt.count})</span>
@@ -295,8 +296,8 @@ export function LeadFilters({
                         className={cn(
                           "text-[11px] px-2.5 py-1 rounded-md border transition-all",
                           filters.importBatches.includes(opt.value)
-                            ? "bg-cyan/12 text-cyan border-cyan/20"
-                            : "border-glass-border text-muted-foreground hover:text-foreground hover:border-white/15"
+                            ? cn(filterChip.active)
+                            : cn(filterChip.idle)
                         )}
                       >
                         {opt.label} <span className="opacity-60">({opt.count})</span>
@@ -321,8 +322,8 @@ export function LeadFilters({
                       className={cn(
                         "text-[11px] px-2.5 py-1 rounded-md border transition-all",
                         filters.followUp === opt.value
-                          ? "bg-cyan/12 text-cyan border-cyan/20"
-                          : "border-glass-border text-muted-foreground hover:text-foreground hover:border-white/15"
+                          ? cn(filterChip.active)
+                          : cn(filterChip.idle)
                       )}
                     >
                       {opt.label}
@@ -343,8 +344,8 @@ export function LeadFilters({
                       className={cn(
                         "text-[11px] px-2.5 py-1 rounded-md border transition-all",
                         filters.callStatuses.includes(opt.value)
-                          ? "bg-cyan/12 text-cyan border-cyan/20"
-                          : "border-glass-border text-muted-foreground hover:text-foreground hover:border-white/15"
+                          ? cn(filterChip.active)
+                          : cn(filterChip.idle)
                       )}
                     >
                       {CALL_STATUS_LABELS[opt.value]} <span className="opacity-60">({opt.count})</span>
@@ -367,7 +368,7 @@ export function LeadFilters({
                       "flex items-center gap-1.5 text-[11px] px-3 py-1 rounded-md border transition-all",
                       filters.unassignedOnly
                         ? "bg-yellow-500/15 text-yellow-400 border-yellow-500/30"
-                        : "border-white/[0.06] text-muted-foreground hover:text-foreground hover:border-white/15"
+                        : cn(filterChip.idle)
                     )}
                   >
                     Unassigned only
@@ -378,7 +379,7 @@ export function LeadFilters({
                       "flex items-center gap-1.5 text-[11px] px-3 py-1 rounded-md border transition-all",
                       filters.includeClosed
                         ? "bg-sky-500/15 text-sky-300 border-sky-500/30"
-                        : "border-white/[0.06] text-muted-foreground hover:text-foreground hover:border-white/15"
+                        : cn(filterChip.idle)
                     )}
                   >
                     Include closed
@@ -389,7 +390,7 @@ export function LeadFilters({
                       "flex items-center gap-1.5 text-[11px] px-3 py-1 rounded-md border transition-all",
                       filters.excludeSuppressed
                         ? "bg-red-500/15 text-red-300 border-red-500/30"
-                        : "border-white/[0.06] text-muted-foreground hover:text-foreground hover:border-white/15"
+                        : cn(filterChip.idle)
                     )}
                   >
                     Exclude DNC / bad data

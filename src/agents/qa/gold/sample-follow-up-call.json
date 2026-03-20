@@ -1,0 +1,36 @@
+{
+  "_description": "Gold dataset: QA analysis of a follow-up call with live answer. Tests talk ratio, qualifying questions, and next action detection.",
+  "input": {
+    "sessionId": "00000000-0000-0000-0000-000000000010",
+    "leadId": "00000000-0000-0000-0000-000000000001",
+    "triggerType": "post_call"
+  },
+  "callContext": {
+    "disposition": "follow_up",
+    "duration_seconds": 245,
+    "operator_talk_seconds": 90,
+    "seller_talk_seconds": 140,
+    "silence_seconds": 15,
+    "had_qualifying_questions": true,
+    "had_next_action_committed": true,
+    "notes": "Spoke with Mary. She's still thinking about selling but worried about moving costs. Agreed to call back Thursday afternoon after she talks to her son."
+  },
+  "expectedOutput": {
+    "overallRating": "good",
+    "score": 78,
+    "flags": [
+      {
+        "type": "talk_ratio_ok",
+        "severity": "info",
+        "message": "Operator talked 37% of call — good listening ratio."
+      }
+    ],
+    "metrics": {
+      "talkRatioPercent": 36.7,
+      "callDurationSeconds": 245,
+      "hadQualifyingQuestions": true,
+      "hadNextAction": true,
+      "prematurePricing": false
+    }
+  }
+}

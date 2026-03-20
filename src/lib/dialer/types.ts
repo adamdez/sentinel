@@ -99,6 +99,20 @@ export interface CRMLeadContext {
   // Both null on first contact or when no action has been committed yet.
   nextAction: string | null;
   nextActionDueAt: string | null;
+
+  // PR-18: Dossier projection fields (Blueprint 9.1).
+  // Populated from leads table CRM projection columns, which are synced
+  // from the most recently promoted dossier via syncDossierToLead().
+  // All null until the Research Agent runs and a dossier is promoted.
+  sellerSituationSummary: string | null;
+  recommendedCallAngle: string | null;
+  likelyDecisionMaker: string | null;
+  decisionMakerConfidence: string | null; // weak | probable | strong | verified
+  topFact1: string | null;
+  topFact2: string | null;
+  topFact3: string | null;
+  opportunityScore: number | null;        // 0-100
+  confidenceScore: number | null;         // 0-100
 }
 
 // ─────────────────────────────────────────────────────────────

@@ -1,127 +1,127 @@
 [
   {
-    "hash": "803cdff5",
-    "date": "2026-03-15",
-    "message": "fix: add missing ui/checkbox and ui/textarea components, fix PageShell title prop"
+    "hash": "cefbf795",
+    "date": "2026-03-19",
+    "message": "fix(dialer/inbound): server Suspense wrapper for useSearchParams (Vercel build)"
   },
   {
-    "hash": "e44c761d",
-    "date": "2026-03-15",
-    "message": "feat: buyer foundation, dossier layer, and buyer-staleness maintenance"
+    "hash": "5e32180e",
+    "date": "2026-03-19",
+    "message": "docs: update AI-COORDINATION.md — PR-1 through PR-4 complete, new Cursor contracts"
   },
   {
-    "hash": "d91bcd21",
-    "date": "2026-03-15",
-    "message": "feat: dialer phase 2 — AI traces, publish manager, review surfaces, and war room"
+    "hash": "e117cea1",
+    "date": "2026-03-19",
+    "message": "feat(control-plane): PR-4 — agent runs, review queue, feature flags, Exception Agent"
   },
   {
-    "hash": "0a9b4669",
-    "date": "2026-03-15",
-    "message": "fix: resolve Vercel build failures — TS params/Suspense errors"
+    "hash": "14f3700e",
+    "date": "2026-03-19",
+    "message": "fix(dialer): fix crm-bridge address field, add owner_name fallback, wire PR-1 next_action"
   },
   {
-    "hash": "3155a3f7",
-    "date": "2026-03-15",
-    "message": "fix: add missing seller-memory-panel component to resolve build error"
+    "hash": "a092aa6b",
+    "date": "2026-03-19",
+    "message": "[cc] feat(pr-2): context snapshot MCP tools + ContextSnapshot interface"
   },
   {
-    "hash": "66aa41d1",
-    "date": "2026-03-15",
-    "message": "fix: default city=Spokane, state=WA, county=Spokane in Add Lead modal"
+    "hash": "52b6119d",
+    "date": "2026-03-19",
+    "message": "[cc] feat(pr-1): stage machine + next-action hard enforcement"
   },
   {
-    "hash": "53461691",
-    "date": "2026-03-15",
-    "message": "feat: add to call queue button on Leads list, Pipeline card, and Lead Detail"
+    "hash": "1e2adcfe",
+    "date": "2026-03-19",
+    "message": "ui: align Live Assist panel with monochrome shell"
   },
   {
-    "hash": "ff46292e",
-    "date": "2026-03-15",
-    "message": "feat: dial from lead detail navigates to Dialer page with phone pre-filled"
+    "hash": "71fdf193",
+    "date": "2026-03-19",
+    "message": "ui: monochrome glass theme, strip cosmic classes; dialer panels + sessions"
   },
   {
-    "hash": "3d82437d",
-    "date": "2026-03-15",
-    "message": "fix: daily metrics query from ad_group to campaign level — ad_group rows silently overwrote each other via null key conflict, losing most spend data"
+    "hash": "c400b843",
+    "date": "2026-03-16",
+    "message": "fix(ads): add campaign.status to SELECT in GAQL queries"
   },
   {
-    "hash": "ad43967e",
-    "date": "2026-03-15",
-    "message": "fix: revert GOOGLE_ADS_CUSTOMER_ID to 8540090319 — confirmed correct account in dominion-ads-ai"
+    "hash": "48d80135",
+    "date": "2026-03-16",
+    "message": "fix(ads): fix type cast for CampaignBudgetData in intel-action"
   },
   {
-    "hash": "9505d01d",
-    "date": "2026-03-15",
-    "message": "feat: add date range selector to Ads Performance tab (Yesterday / 7 / 14 / 30 days)"
+    "hash": "f773a6e1",
+    "date": "2026-03-16",
+    "message": "fix(ads): fix intel action execution failures"
   },
   {
-    "hash": "452d16cf",
-    "date": "2026-03-15",
-    "message": "fix: update GOOGLE_ADS_CUSTOMER_ID to correct account 8060969478 (was 8540090319)"
+    "hash": "0204c4cc",
+    "date": "2026-03-16",
+    "message": "feat(ads): add Apply Fix + Discuss in Chat buttons to Key Intel findings"
   },
   {
-    "hash": "7b02c029",
-    "date": "2026-03-15",
-    "message": "chore: redeploy — fix trailing newline in Google Ads OAuth credentials"
+    "hash": "063a8529",
+    "date": "2026-03-16",
+    "message": "fix(ads): use camelCase field names for Google Ads API v23 response"
   },
   {
-    "hash": "d04c2808",
-    "date": "2026-03-15",
-    "message": "chore: redeploy to pick up corrected Google Ads OAuth credentials in production"
+    "hash": "c7311437",
+    "date": "2026-03-16",
+    "message": "feat(ads): add Ad Groups tab with direct pause/enable control"
   },
   {
-    "hash": "30fde943",
-    "date": "2026-03-15",
-    "message": "chore: shift ads sync cron to 5am PST (13:00 UTC)"
+    "hash": "01562527",
+    "date": "2026-03-16",
+    "message": "fix(ads): sync all ad groups regardless of traffic — was missing zero-impression groups"
   },
   {
-    "hash": "16f122d0",
-    "date": "2026-03-15",
-    "message": "Fix Google Ads sync: remove Search-only impression share fields from GAQL query, add cron jobs, wire credentials"
+    "hash": "44b611b1",
+    "date": "2026-03-16",
+    "message": "feat(ads): autonomous execution, batch approvals, landing pages tab, intent-matched pages"
   },
   {
-    "hash": "ec035f57",
-    "date": "2026-03-15",
-    "message": "Fix pre-call brief column mismatch — wire ai_summary into seller memory loop"
+    "hash": "161fdb24",
+    "date": "2026-03-16",
+    "message": "feat(ads): campaign builder mode — AI generates keywords, negatives, ad groups for thin accounts"
   },
   {
-    "hash": "12037f17",
-    "date": "2026-03-15",
-    "message": "Add structured note scaffold and question-form assist prompts to power dialer"
+    "hash": "790fadda",
+    "date": "2026-03-16",
+    "message": "fix(ads): reject unexecutable recommendations, show entity names in approvals"
   },
   {
-    "hash": "9cd4836f",
-    "date": "2026-03-15",
-    "message": "Fix all tel: link call buttons to open Lead Detail instead of OS phone dialer"
+    "hash": "ee881d6d",
+    "date": "2026-03-16",
+    "message": "refactor(ads): merge AI Review into Key Intel tab, fix max_tokens truncation"
   },
   {
-    "hash": "79351fde",
-    "date": "2026-03-15",
-    "message": "Fix phone/SMS/dial bugs across dialer and Lead Detail"
+    "hash": "9d05f16a",
+    "date": "2026-03-16",
+    "message": "fix(ads): prevent Key Intel timeout errors — bump maxDuration to 300s, trim context, handle non-JSON responses"
   },
   {
-    "hash": "0e09fa21",
-    "date": "2026-03-15",
-    "message": "Fix call history tile: broken buttons, misleading icons, layout"
+    "hash": "57b95b82",
+    "date": "2026-03-16",
+    "message": "fix(ads): defensive hardening from code review — JSON parsing, sanity guards, safe logging"
   },
   {
-    "hash": "6952b7c9",
-    "date": "2026-03-14",
-    "message": "fix: Next.js 15 async params for all v1 dialer route handlers"
+    "hash": "9a88b941",
+    "date": "2026-03-16",
+    "message": "feat(ads): add real Google Ads execution from Approvals, alert badge on sidebar"
   },
   {
-    "hash": "49cbcc35",
-    "date": "2026-03-14",
-    "message": "feat: dialer PR3 — post-call publish, session extract, inline consent on lead file"
+    "hash": "2e03a08a",
+    "date": "2026-03-16",
+    "message": "feat(ads): expand chat context with full account data, add recommendation creation from chat"
   },
   {
-    "hash": "69b92ed0",
-    "date": "2026-03-14",
-    "message": "feat: dialer PR2 — session notes API, STT abstraction, Twilio session sync"
+    "hash": "93c40e48",
+    "date": "2026-03-16",
+    "message": "feat(ads): rewrite cron cycle route to use dual-model intelligence pipeline"
   },
   {
-    "hash": "d98aac30",
-    "date": "2026-03-14",
-    "message": "feat: dialer domain foundation — bounded context, session state machine, v1 API (PR1)"
+    "hash": "6063a669",
+    "date": "2026-03-16",
+    "message": "feat(ads): intel-to-recommendations converter, briefing persistence, and server-side IntelligenceTab"
   }
 ]

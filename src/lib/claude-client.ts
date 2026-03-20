@@ -6,6 +6,7 @@
  */
 
 import Anthropic from "@anthropic-ai/sdk";
+import { logGeneration } from "@/lib/langfuse";
 
 const CLAUDE_MODEL = "claude-opus-4-6";
 
@@ -104,6 +105,10 @@ export async function analyzeWithClaude(opts: {
   temperature?: number;
   maxTokens?: number;
   model?: string;
+  /** Optional: Langfuse trace ID to link this generation to an agent run */
+  traceId?: string;
+  /** Optional: name for this generation in Langfuse (e.g., "draft_follow_up") */
+  generationName?: string;
 }): Promise<string> {
   const { prompt, systemPrompt, apiKey, temperature = 0.2, maxTokens = 8192, model = CLAUDE_MODEL } = opts;
 
@@ -125,7 +130,26 @@ export async function analyzeWithClaude(opts: {
   }
 
   const textBlock = response.content.find((b) => b.type === "text");
-  return textBlock?.text ?? "";
+  const output = textBlock?.text ?? "";
+
+  // Log to Langfuse if trace ID provided (no-op if Langfuse not configured)
+  if (opts.traceId) {
+    logGeneration({
+      traceId: opts.traceId,
+      name: opts.generationName ?? "analyzeWithClaude",
+      model,
+      input: { system: systemPrompt.slice(0, 500), prompt: prompt.slice(0, 1000) },
+      output: output.slice(0, 1000),
+      usage: {
+        input: response.usage?.input_tokens,
+        output: response.usage?.output_tokens,
+        total: (response.usage?.input_tokens ?? 0) + (response.usage?.output_tokens ?? 0),
+      },
+      metadata: { temperature, maxTokens, stopReason: response.stop_reason },
+    });
+  }
+
+  return output;
 }
 
 // ── System Prompts ──────────────────────────────────────────────────

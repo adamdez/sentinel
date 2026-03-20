@@ -10,8 +10,9 @@
  * Does NOT touch publish-manager, crm-bridge, or any write path.
  */
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, Suspense } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import {
   Phone, ArrowRight, CalendarClock, AlertTriangle,
   CheckSquare, Brain, Loader2, TrendingUp, TrendingDown,
@@ -36,6 +37,8 @@ import type { QualItemKey } from "@/lib/dialer/qual-checklist";
 import { QUAL_CHECKLIST } from "@/lib/dialer/qual-checklist";
 import { CONTRADICTION_CHECK_LABELS } from "@/lib/contradiction-checks";
 import type { ContradictionCheckType } from "@/lib/contradiction-checks";
+import { AgentReviewQueuePanel } from "@/components/sentinel/agent-review-queue-panel";
+import { cn } from "@/lib/utils";
 
 // ── Helpers ───────────────────────────────────────────────────
 
@@ -245,7 +248,10 @@ function useContradictionFlagsSummary(days = 14) {
 
 // ── Page ──────────────────────────────────────────────────────
 
-export default function DialerReviewPage() {
+function DialerReviewPageInner() {
+  const searchParams = useSearchParams();
+  const panel = searchParams.get("panel") === "queue" ? "queue" : "kpi";
+
   const { data, loading, error } = useDialerWeekly(4);
   const { count: staleBuyerCount } = useStaleBuyerCount();
   const { versions: promptVersions, metaMap, loading: promptsLoading } = usePromptRegistry();
@@ -257,8 +263,46 @@ export default function DialerReviewPage() {
   return (
     <PageShell
       title="Dialer Review"
-      description="Weekly call and task discipline — last 4 ISO weeks. Deep data from dialer_events."
+      description={
+        panel === "queue"
+          ? "Approve or reject agent proposals before they execute against CRM or intelligence tables."
+          : "Weekly call and task discipline — last 4 ISO weeks. Deep data from dialer_events."
+      }
     >
+      <div className="flex flex-wrap gap-2 mb-2">
+        <Link
+          href="/dialer/review"
+          className={cn(
+            "rounded-[10px] px-3 py-1.5 text-[11px] font-medium border transition-colors",
+            panel === "kpi"
+              ? "border-cyan/30 bg-cyan/10 text-cyan"
+              : "border-white/[0.06] text-muted-foreground hover:border-white/10",
+          )}
+        >
+          Weekly KPI
+        </Link>
+        <Link
+          href="/dialer/review?panel=queue"
+          className={cn(
+            "rounded-[10px] px-3 py-1.5 text-[11px] font-medium border transition-colors",
+            panel === "queue"
+              ? "border-cyan/30 bg-cyan/10 text-cyan"
+              : "border-white/[0.06] text-muted-foreground hover:border-white/10",
+          )}
+        >
+          Agent review queue
+        </Link>
+        <Link
+          href="/dialer/review/dossier-queue"
+          className="rounded-[10px] px-3 py-1.5 text-[11px] font-medium border border-white/[0.06] text-muted-foreground hover:border-white/10 transition-colors"
+        >
+          Dossier queue
+        </Link>
+      </div>
+
+      {panel === "queue" ? (
+        <AgentReviewQueuePanel />
+      ) : (
       <div className="space-y-4">
 
         {/* ── Overdue alert ─────────────────────────────────── */}
@@ -927,6 +971,24 @@ export default function DialerReviewPage() {
         )}
 
       </div>
+      )}
     </PageShell>
+  );
+}
+
+export default function DialerReviewPage() {
+  return (
+    <Suspense
+      fallback={
+        <PageShell title="Dialer Review" description="Loading…">
+          <GlassCard hover={false} className="flex items-center justify-center gap-2 py-12 text-sm text-muted-foreground">
+            <Loader2 className="h-4 w-4 animate-spin" />
+            Loading…
+          </GlassCard>
+        </PageShell>
+      }
+    >
+      <DialerReviewPageInner />
+    </Suspense>
   );
 }

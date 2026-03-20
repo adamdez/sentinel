@@ -2,6 +2,7 @@
 
 import { useState, useCallback, useRef, type ChangeEvent } from "react";
 import { cn } from "@/lib/utils";
+import { sentinelInput } from "@/lib/sentinel-ui";
 
 interface NumericInputProps {
   value: string;
@@ -95,9 +96,8 @@ export function NumericInput({
           onFocus={() => setFocused(true)}
           onBlur={handleBlur}
           className={cn(
-            "w-full px-3 py-2 rounded-[10px] text-sm font-mono bg-white/[0.04] border border-white/[0.08] text-foreground",
-            "placeholder:text-muted-foreground/40 focus:outline-none focus:border-cyan/30 focus:ring-1 focus:ring-cyan/20",
-            "transition-all hover:border-white/[0.12]",
+            "w-full px-3 py-2",
+            sentinelInput,
             prefix && "pl-7",
             suffix && "pr-10",
             className,

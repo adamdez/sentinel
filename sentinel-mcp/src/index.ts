@@ -44,6 +44,18 @@ import { registerQueryAgentRuns } from "./tools/query-agent-runs.js";
 import { registerQueryReviewQueue } from "./tools/query-review-queue.js";
 import { registerQueryFeatureFlags } from "./tools/query-feature-flags.js";
 
+// Intelligence Pipeline Tools (PR-5)
+import { registerQueryDossiers } from "./tools/query-dossiers.js";
+import { registerQueryArtifacts } from "./tools/query-artifacts.js";
+import { registerQueryFacts } from "./tools/query-facts.js";
+
+// Voice Front Office Tools (PR-9)
+import { registerQueryVoiceSessions } from "./tools/query-voice-sessions.js";
+
+// Write Tools — Control Plane + Intelligence (PR-14)
+import { registerResolveReviewItem } from "./tools/resolve-review-item.js";
+import { registerPromoteSessionFacts } from "./tools/promote-session-facts.js";
+
 // DB shutdown
 import { shutdown } from "./db.js";
 
@@ -96,12 +108,27 @@ async function main() {
   registerQueryReviewQueue(server);  // List pending review proposals
   registerQueryFeatureFlags(server); // Check feature flag states
 
+  // ─── Intelligence Pipeline Tools (3 tools, all read-only) — PR-5 ──
+
+  registerQueryDossiers(server);     // Search/filter dossiers
+  registerQueryArtifacts(server);    // Search raw evidence artifacts
+  registerQueryFacts(server);        // Search fact assertions
+
+  // ─── Voice Front Office Tools (1 tool, read-only) — PR-9 ────────
+
+  registerQueryVoiceSessions(server); // Search AI-handled voice sessions
+
+  // ─── Write Tools — Control Plane + Intelligence — PR-14 ─────────
+
+  registerResolveReviewItem(server);   // Approve/reject review queue proposals (write + execute)
+  registerPromoteSessionFacts(server); // Promote dialer facts to intel pipeline (write)
+
   // ─── Start ────────────────────────────────────────────────────────
 
   const transport = new StdioServerTransport();
   await server.connect(transport);
 
-  console.error("[sentinel-mcp] Server started — 16 tools, 2 resources");
+  console.error("[sentinel-mcp] Server started — 22 tools, 2 resources");
 
   // Graceful shutdown
   const cleanup = async () => {

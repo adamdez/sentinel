@@ -8,11 +8,13 @@ import { HydrationProvider } from "./hydration-provider";
 import { TooltipProvider } from "@radix-ui/react-tooltip";
 import { Toaster } from "sonner";
 import { CoachProvider } from "./coach-provider";
+import { ThemeProvider } from "./theme-provider";
 
 export function Providers({ children }: { children: React.ReactNode }) {
   return (
     <QueryProvider>
       <HydrationProvider>
+      <ThemeProvider>
       <AuthSyncProvider>
         <RealtimeProvider>
           <TooltipProvider delayDuration={200}>
@@ -36,6 +38,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
           </TooltipProvider>
         </RealtimeProvider>
       </AuthSyncProvider>
+      </ThemeProvider>
       </HydrationProvider>
     </QueryProvider>
   );

@@ -1,0 +1,70 @@
+{
+  "_description": "Gold dataset: Exception scan with mixed severity findings. Tests missing next_action, speed-to-lead, overdue follow-up, and stale contact detection.",
+  "input": {
+    "triggerType": "daily_cron",
+    "triggerRef": "nightly-2026-03-19"
+  },
+  "pipelineState": {
+    "leads": [
+      {
+        "id": "lead-001",
+        "status": "qualified",
+        "next_action": null,
+        "next_action_due_at": null,
+        "last_contact_at": "2026-03-18T10:00:00Z",
+        "total_calls": 3,
+        "live_answers": 2,
+        "properties": { "address": "1234 N Monroe St", "city": "Spokane", "state": "WA", "owner_name": "Bob Smith" },
+        "_expectedCategory": "missing_next_action",
+        "_expectedSeverity": "critical"
+      },
+      {
+        "id": "lead-002",
+        "status": "prospect",
+        "next_action": "initial_call",
+        "next_action_due_at": null,
+        "created_at": "2026-03-17T08:00:00Z",
+        "last_contact_at": null,
+        "total_calls": 0,
+        "live_answers": 0,
+        "properties": { "address": "5678 E Sprague Ave", "city": "Spokane", "state": "WA", "owner_name": "Jane Doe" },
+        "_expectedCategory": "speed_to_lead_violation",
+        "_expectedSeverity": "critical"
+      },
+      {
+        "id": "lead-003",
+        "status": "negotiation",
+        "next_action": "send_offer",
+        "next_action_due_at": "2026-03-17T14:00:00Z",
+        "last_contact_at": "2026-03-16T09:00:00Z",
+        "total_calls": 5,
+        "live_answers": 4,
+        "motivation_level": 5,
+        "properties": { "address": "910 W Garland Ave", "city": "Spokane", "state": "WA", "owner_name": "Carol Williams" },
+        "_expectedCategory": "overdue_follow_up",
+        "_expectedSeverity": "high"
+      },
+      {
+        "id": "lead-004",
+        "status": "lead",
+        "next_action": "follow_up_call",
+        "next_action_due_at": "2026-03-25T10:00:00Z",
+        "last_contact_at": "2026-03-05T15:00:00Z",
+        "total_calls": 2,
+        "live_answers": 1,
+        "properties": { "address": "2200 S Grand Blvd", "city": "Spokane", "state": "WA", "owner_name": "Tom Harris" },
+        "_expectedCategory": "stale_contact",
+        "_expectedSeverity": "medium"
+      }
+    ]
+  },
+  "expectedOutput": {
+    "totals": {
+      "critical": 2,
+      "high": 1,
+      "medium": 1,
+      "total": 4
+    },
+    "summary": "2 critical, 1 high, 1 medium exceptions. Top issue: No next_action set on qualified lead Bob Smith at 1234 N Monroe St."
+  }
+}

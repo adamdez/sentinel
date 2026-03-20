@@ -1,16 +1,19 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { Settings, Shield, Bell, Palette, Database, Key, Users, Sliders, Phone, Loader2, Check } from "lucide-react";
+import { Shield, Bell, Palette, Database, Key, Users, Sliders, Phone, Loader2, Check, SlidersHorizontal, MapPin } from "lucide-react";
+import Link from "next/link";
 import { toast } from "sonner";
 import { PageShell } from "@/components/sentinel/page-shell";
 import { GlassCard } from "@/components/sentinel/glass-card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import { useSentinelStore } from "@/lib/store";
 import { supabase } from "@/lib/supabase";
+import { useSentinelTheme } from "@/providers/theme-provider";
+import { SENTINEL_THEMES } from "@/themes/registry";
+import type { SentinelThemeId } from "@/themes/types";
 
 const settingSections = [
   {
@@ -58,6 +61,7 @@ const settingSections = [
 ];
 
 export default function SettingsPage() {
+  const { theme, setTheme } = useSentinelTheme();
   const { currentUser, setCurrentUser } = useSentinelStore();
   const [personalCell, setPersonalCell] = useState(currentUser.personal_cell ?? "");
   const [saving, setSaving] = useState(false);
@@ -117,6 +121,35 @@ export default function SettingsPage() {
     >
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         <div className="lg:col-span-2 space-y-4">
+          <GlassCard hover={false}>
+            <h3 className="text-sm font-semibold mb-1 flex items-center gap-2">
+              <Palette className="h-4 w-4 text-cyan" />
+              Appearance
+            </h3>
+            <p className="text-[11px] text-muted-foreground/60 mb-3">
+              UI theme pack for the app shell. In Ghost Mode, Lead Detail and all <code className="text-[10px]">/dialer/*</code> routes keep the default workflow token stack (layout + modal boundaries).
+            </p>
+            <label htmlFor="sentinel-theme" className="text-[10px] uppercase tracking-wide text-muted-foreground block mb-1.5">
+              Theme
+            </label>
+            <select
+              id="sentinel-theme"
+              value={theme}
+              onChange={(e) => setTheme(e.target.value as SentinelThemeId)}
+              className="w-full max-w-md rounded-md border border-white/[0.1] bg-white/[0.04] px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring/30"
+            >
+              {SENTINEL_THEMES.map((t) => (
+                <option key={t.id} value={t.id}>
+                  {t.label}
+                  {t.experimental ? " (beta)" : ""}
+                </option>
+              ))}
+            </select>
+            <p className="text-[10px] text-muted-foreground/50 mt-2">
+              {SENTINEL_THEMES.find((t) => t.id === theme)?.description}
+            </p>
+          </GlassCard>
+
           {/* Personal Cell for Warm Transfer */}
           <GlassCard hover={false} glow>
             <h3 className="text-sm font-semibold mb-1 flex items-center gap-2">
@@ -180,26 +213,33 @@ export default function SettingsPage() {
         </div>
 
         <div className="space-y-4">
-          <GlassCard hover={false}>
-            <h3 className="text-sm font-semibold mb-4 flex items-center gap-2">
-              <Settings className="h-4 w-4 text-cyan" />
-              Feature Flags
+          <GlassCard hover={false} className="space-y-3">
+            <h3 className="text-sm font-semibold flex items-center gap-2">
+              <SlidersHorizontal className="h-4 w-4 text-cyan" />
+              Control plane
             </h3>
-            <div className="space-y-3">
-              {[
-                { label: "AI Scoring", enabled: true },
-                { label: "Dialer", enabled: true },
-                { label: "Ghost Mode", enabled: true },
-                { label: "Team Chat", enabled: true },
-                { label: "Campaigns", enabled: true },
-                { label: "Fast Signal Mode", enabled: false },
-              ].map((flag) => (
-                <div key={flag.label} className="flex items-center justify-between">
-                  <span className="text-xs">{flag.label}</span>
-                  <Switch defaultChecked={flag.enabled} />
-                </div>
-              ))}
-            </div>
+            <p className="text-[11px] text-muted-foreground/60">
+              Agent + voice feature flags backed by <code className="text-[10px]">feature_flags</code>.
+            </p>
+            <Link
+              href="/settings/agent-controls"
+              className="inline-flex text-xs text-cyan hover:underline font-medium"
+            >
+              Open agent controls →
+            </Link>
+          </GlassCard>
+
+          <GlassCard hover={false} className="space-y-3">
+            <h3 className="text-sm font-semibold flex items-center gap-2">
+              <MapPin className="h-4 w-4 text-cyan" />
+              Property lookup
+            </h3>
+            <p className="text-[11px] text-muted-foreground/60">
+              Multi-provider property search and promote-to-lead.
+            </p>
+            <Link href="/properties/lookup" className="inline-flex text-xs text-cyan hover:underline font-medium">
+              Open property lookup →
+            </Link>
           </GlassCard>
 
           <GlassCard hover={false}>

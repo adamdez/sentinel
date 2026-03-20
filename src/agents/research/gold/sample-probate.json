@@ -1,0 +1,89 @@
+{
+  "_description": "Gold dataset: Probate lead research — expected Research Agent output for a Spokane County probate filing.",
+  "_note": "Populate with real lead data after first production run. This is the structure template.",
+  "input": {
+    "leadId": "00000000-0000-0000-0000-000000000001",
+    "propertyId": "00000000-0000-0000-0000-000000000002",
+    "triggeredBy": "adam-manual",
+    "focusAreas": ["probate", "ownership"],
+    "operatorNotes": "Probate filing found on county docket. Need to confirm PR/executor and property condition."
+  },
+  "leadContext": {
+    "id": "00000000-0000-0000-0000-000000000001",
+    "status": "prospect",
+    "properties": {
+      "address": "1234 N Example St",
+      "city": "Spokane",
+      "state": "WA",
+      "zip": "99201",
+      "county": "Spokane",
+      "owner_name": "John Doe Estate",
+      "estimated_value": 285000
+    }
+  },
+  "expectedOutput": {
+    "artifacts": [
+      {
+        "sourceUrl": "https://www.spokanecounty.org/courts/probate/...",
+        "sourceType": "probate_filing",
+        "sourceLabel": "Spokane County Superior Court — Probate Docket",
+        "extractedNotes": "Case #26-4-00123-32. Filed 2025-11-12. Decedent: John Doe. Personal Representative: Jane Doe (daughter). Hearing date: 2026-02-15."
+      },
+      {
+        "sourceUrl": "https://www.spokanecounty.org/assessor/...",
+        "sourceType": "assessor",
+        "sourceLabel": "Spokane County Assessor",
+        "extractedNotes": "Property assessed at $275,000. Last sale 2001 for $142,000. Single family, 3bd/2ba, 1,650 sqft. Built 1972."
+      }
+    ],
+    "facts": [
+      {
+        "factType": "probate_status",
+        "factValue": "Probate filed November 2025, case #26-4-00123-32. Hearing Feb 2026.",
+        "confidence": "high",
+        "artifactIndex": 0,
+        "promotedField": "situation_summary"
+      },
+      {
+        "factType": "heir",
+        "factValue": "Jane Doe (daughter) is Personal Representative / Executor",
+        "confidence": "high",
+        "artifactIndex": 0,
+        "promotedField": "likely_decision_maker"
+      },
+      {
+        "factType": "deceased",
+        "factValue": "John Doe, original owner since 2001",
+        "confidence": "high",
+        "artifactIndex": 0
+      },
+      {
+        "factType": "property_condition",
+        "factValue": "Built 1972, 3bd/2ba, 1,650 sqft. No recent permits suggesting deferred maintenance.",
+        "confidence": "medium",
+        "artifactIndex": 1
+      }
+    ],
+    "dossier": {
+      "situationSummary": "Probate property — John Doe passed away, daughter Jane Doe is the executor (case #26-4-00123-32). Property has been in the family since 2001, likely needs updates given 1972 build with no recent permits.",
+      "likelyDecisionMaker": "Jane Doe (daughter, Personal Representative)",
+      "recommendedCallAngle": "Call as a local cash buyer who works with probate families. Mention awareness of the probate timeline. Ask about Jane's plans for the property and whether the estate needs a quick resolution. Emphasize no repairs needed, no commissions, and flexibility on closing timeline.",
+      "topFacts": [
+        { "type": "probate_status", "value": "Active probate, case #26-4-00123-32, filed Nov 2025", "confidence": "high" },
+        { "type": "heir", "value": "Jane Doe is executor/PR", "confidence": "high" },
+        { "type": "property_condition", "value": "1972 build, no recent permits, likely deferred maintenance", "confidence": "medium" }
+      ],
+      "verificationChecklist": [
+        { "item": "Verify probate case number and status on county website", "verified": false },
+        { "item": "Confirm Jane Doe is still PR (no substitution)", "verified": false },
+        { "item": "Check for any liens or encumbrances", "verified": false },
+        { "item": "Verify property is not occupied by other heirs", "verified": false }
+      ],
+      "sourceLinks": [
+        { "url": "https://www.spokanecounty.org/courts/probate/...", "label": "Spokane County Probate Docket" },
+        { "url": "https://www.spokanecounty.org/assessor/...", "label": "Spokane County Assessor" }
+      ],
+      "contradictions": []
+    }
+  }
+}

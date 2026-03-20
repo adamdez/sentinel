@@ -98,7 +98,7 @@ CREATE POLICY "feature_flags_service_write" ON feature_flags FOR ALL TO service_
 INSERT INTO feature_flags (flag_key, enabled, mode, description) VALUES
   ('agent.exception.enabled', true, 'review_required', 'Exception Agent: nightly scan + morning brief'),
   ('agent.research.enabled', false, 'off', 'Research Agent: lead enrichment + dossier drafting'),
-  ('agent.follow_up.enabled', false, 'off', 'Follow-Up Agent: personalized follow-up drafts'),
+  ('agent.follow-up.enabled', false, 'off', 'Follow-Up Agent: personalized follow-up drafts'),
   ('agent.qa.enabled', false, 'off', 'QA Agent: post-call quality analysis'),
   ('agent.dispo.enabled', false, 'off', 'Dispo Agent: buyer-fit ranking + outreach'),
   ('agent.ads_monitor.enabled', false, 'off', 'Ads Monitor Agent: performance alerts + waste detection')

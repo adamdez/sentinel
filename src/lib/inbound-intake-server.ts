@@ -3,6 +3,7 @@ import type { NextRequest } from "next/server";
 import { createServerClient } from "@/lib/supabase";
 import { findDuplicateCandidate, requireImportUser, updateExistingRecordFromImport } from "@/lib/imports-server";
 import { inboundCandidateToRecord, withDuplicateStatus, type NormalizedInboundCandidate } from "@/lib/inbound-intake";
+import { notifyNewInboundLead } from "@/lib/notify";
 
 type SupabaseLike = ReturnType<typeof createServerClient>;
 
@@ -120,6 +121,17 @@ export async function processInboundCandidate(args: {
       leadId = data.lead_id as string;
       resolved = true;
       resolution = "created";
+
+      // Speed-to-lead: instant SMS alert to Logan (fire-and-forget)
+      notifyNewInboundLead({
+        channel: candidate.sourceChannel,
+        ownerName: candidate.ownerName,
+        phone: candidate.phone,
+        propertyAddress: candidate.propertyAddress,
+        source: candidate.sourceVendor ?? candidate.sourceChannel,
+        leadId,
+        receivedAt: candidate.receivedAt,
+      }).catch(() => {});
     }
   }
 

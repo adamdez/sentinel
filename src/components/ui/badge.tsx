@@ -8,15 +8,15 @@ const badgeVariants = cva(
     variants: {
       variant: {
         default:
-          "border-cyan/15 bg-cyan/8 text-cyan",
+          "border-primary/15 bg-primary/8 text-primary shadow-[var(--shadow-badge-glow-tight)]",
         secondary:
           "border-glass-border bg-secondary text-secondary-foreground",
         destructive:
           "border-destructive/20 bg-destructive/10 text-destructive",
         outline:
-          "border-white/[0.08] text-foreground bg-white/[0.02]",
+          "border-border-hairline text-foreground bg-surface-inset",
         platinum:
-          "border-cyan-400/25 bg-cyan-400/10 text-cyan-300 shadow-[0_0_10px_rgba(0,212,255,0.2)]",
+          "border-primary/25 bg-primary/10 text-primary shadow-[var(--shadow-badge-glow)]",
         gold:
           "border-amber-500/25 bg-amber-500/10 text-amber-400 shadow-[0_0_10px_rgba(245,158,11,0.15)]",
         silver:
@@ -24,11 +24,11 @@ const badgeVariants = cva(
         bronze:
           "border-orange-600/25 bg-orange-600/10 text-orange-500",
         neon:
-          "border-neon/20 bg-neon/8 text-neon shadow-[0_0_8px_rgba(0,255,136,0.1)]",
+          "border-neon/20 bg-neon/8 text-neon shadow-[var(--shadow-badge-glow-tight)]",
         cyan:
-          "border-cyan/20 bg-cyan/8 text-cyan shadow-[0_0_8px_rgba(0,212,255,0.1)]",
+          "border-primary/20 bg-primary/8 text-primary shadow-[var(--shadow-badge-glow-tight)]",
         purple:
-          "border-purple/20 bg-purple/8 text-purple shadow-[0_0_8px_rgba(168,85,247,0.1)]",
+          "border-purple/20 bg-purple/8 text-purple shadow-[var(--shadow-badge-glow-tight)]",
       },
     },
     defaultVariants: {
