@@ -128,10 +128,34 @@ export async function GET(req: NextRequest) {
       }).catch(() => {});
     }
 
+    // ── Auto-trigger Follow-Up Agent for top 3 overdue leads (fire-and-forget) ──
+    const overdueForAgent = overdueItems.slice(0, 3);
+    for (const item of overdueForAgent) {
+      if (item.leadId) {
+        triggerFollowUpFromBrief(item.leadId).catch((err) => {
+          console.warn(`[morning-brief] Follow-up agent trigger failed for ${item.leadId}:`, err);
+        });
+      }
+    }
+
     return NextResponse.json({ ok: true, brief });
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     console.error("[cron/morning-brief] Error:", msg);
     return NextResponse.json({ ok: false, error: msg }, { status: 500 });
   }
+}
+
+// ── Follow-Up Agent Auto-Trigger from Morning Brief ─────────────────
+// Drafts follow-up actions for overdue leads. Results go to review_queue.
+// Fire-and-forget — failure is logged, not blocking.
+
+async function triggerFollowUpFromBrief(leadId: string): Promise<void> {
+  const { runFollowUpAgent } = await import("@/agents/follow-up");
+  await runFollowUpAgent({
+    leadId,
+    triggerType: "stale_lead",
+    triggerRef: `morning-brief:${new Date().toISOString().split("T")[0]}`,
+    channel: "call", // Washington outbound is call-only by default
+  });
 }

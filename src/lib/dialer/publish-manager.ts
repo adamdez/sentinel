@@ -457,6 +457,22 @@ export async function publishSession(
     });
   }
 
+  // ── Step 6: n8n outbound webhook (fire-and-forget) ─────
+  if (callsLogId) {
+    import("@/lib/n8n-dispatch").then(({ n8nCallCompleted }) => {
+      n8nCallCompleted({
+        callLogId: callsLogId,
+        leadId: leadId ?? "",
+        disposition: input.disposition,
+        summaryLine: input.summary ?? null,
+        dealTemperature: input.motivation_level ? String(input.motivation_level) : null,
+        nextAction: input.callback_at ? `Follow-up ${input.callback_at}` : null,
+        operatorId: userId,
+        durationSeconds: input.duration_sec ?? null,
+      }).catch(() => {});
+    }).catch(() => {});
+  }
+
   return { ok: true, calls_log_id: callsLogId, lead_id: leadId, task_id: taskId };
 }
 

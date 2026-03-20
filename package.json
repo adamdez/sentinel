@@ -11,7 +11,8 @@
     "test": "npx vitest run",
     "test:watch": "npx vitest",
     "test:smoke": "npx playwright test --config e2e/playwright.config.ts --project smoke",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "db:gen-types": "npx supabase gen types --lang=typescript --project-id imusghlptroddfeycpei > src/lib/supabase-generated-types.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.78.0",

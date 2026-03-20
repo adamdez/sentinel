@@ -48,6 +48,22 @@ export interface LeadContext {
   topFacts?: string[];
   opportunityScore?: number | null;
   confidenceScore?: number | null;
+
+  // Inbound voice session signals (Vapi extracted facts)
+  inboundSignals?: {
+    type: string;
+    value: string;
+    source: string;
+    date: string;
+  }[];
+
+  // Session extracted facts (structured fact rows)
+  structuredFacts?: {
+    type: string;
+    text: string;
+    value: unknown;
+    confirmed: boolean;
+  }[];
 }
 
 export interface PipelineMetrics {
@@ -135,6 +151,17 @@ export function buildCallCoPilotPrompt(lead: LeadContext): string {
     "",
     latestStructuredBlock,
     "",
+    // Inbound voice session signals
+    ...((lead.inboundSignals && lead.inboundSignals.length > 0) || (lead.structuredFacts && lead.structuredFacts.length > 0)
+      ? [
+          "### Inbound Call Intelligence (from Vapi voice sessions)",
+          ...(lead.inboundSignals ?? []).map((s) => `- [${s.type}] ${s.value} (${s.source}, ${new Date(s.date).toLocaleDateString()})`),
+          ...(lead.structuredFacts ?? []).map((f) =>
+            `- [${f.type}] ${f.text}${f.confirmed ? " ✓ confirmed" : ""}${f.value ? ` → ${JSON.stringify(f.value)}` : ""}`
+          ),
+          "",
+        ]
+      : []),
     "### Your Output",
     "Provide:",
     "1. A 3-bullet pre-call brief (key facts the agent should know BEFORE dialing, including latest reviewed takeaway when present)",

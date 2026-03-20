@@ -159,6 +159,19 @@ export async function completeAgentRun(input: CompleteRunInput): Promise<void> {
     error: input.error,
   });
   flushLangfuse().catch(() => {});
+
+  // n8n outbound webhook for agent monitoring (fire-and-forget)
+  import("@/lib/n8n-dispatch").then(({ n8nAgentRunCompleted }) => {
+    n8nAgentRunCompleted({
+      runId: input.runId,
+      agentName: "", // filled by caller if needed
+      status: input.status as "completed" | "failed",
+      leadId: null,
+      durationMs: durationMs,
+      costCents: input.costCents ?? 0,
+      error: input.error,
+    }).catch(() => {});
+  }).catch(() => {});
 }
 
 async function getRunStartedAt(runId: string): Promise<string | null> {

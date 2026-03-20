@@ -58,9 +58,10 @@ function deriveRiskSeed(args: {
     next_task_suggestion?: string | null;
     deal_temperature?: string | null;
   } | null;
+  inboundSignals?: { type: string; value: string; source: string; date: string }[];
 }): string[] {
   const out: string[] = [];
-  const { lead, callLogs, latestStructured } = args;
+  const { lead, callLogs, latestStructured, inboundSignals } = args;
 
   if (lead.decision_maker_confirmed !== true) {
     out.push("Authority still unclear — manual verification recommended before assuming decision control.");
@@ -99,8 +100,37 @@ function deriveRiskSeed(args: {
     out.push("Timeline inconsistency detected — do not assume urgency until reconfirmed.");
   }
 
+  // Check for missed preferred callback time from inbound signals
+  const callbackSignal = (inboundSignals ?? []).find(
+    (s) => s.type === "preferred_callback_time" && s.value
+  );
+  if (callbackSignal) {
+    try {
+      const preferredTime = new Date(callbackSignal.value);
+      if (!isNaN(preferredTime.getTime()) && preferredTime.getTime() < Date.now()) {
+        out.push("Seller requested a callback time that has already passed — acknowledge the delay and re-establish trust.");
+      }
+    } catch { /* non-date value, skip */ }
+  }
+
+  // Check if inbound signals provide meaningful motivation evidence
+  const hasInboundMotivation = (inboundSignals ?? []).some(
+    (s) => s.type === "motivation_signal" || s.type === "urgency_level"
+  );
+  const hasStrongInboundSignals = (inboundSignals ?? []).some(
+    (s) => {
+      const val = s.value?.toLowerCase() ?? "";
+      return val.includes("inherited") || val.includes("foreclosure") ||
+        val.includes("divorce") || val.includes("probate") ||
+        val.includes("relocat") || val.includes("behind on") ||
+        val.includes("tax lien") || val.includes("vacant");
+    }
+  );
+
   if (out.length === 0 && (!latestStructured || callLogs.length < 2)) {
-    out.push("Evidence is thin — manual verification recommended before over-chasing this lead.");
+    if (!hasInboundMotivation && !hasStrongInboundSignals) {
+      out.push("Evidence is thin — manual verification recommended before over-chasing this lead.");
+    }
   }
 
   return out.slice(0, 4);
@@ -165,6 +195,20 @@ export async function POST(req: NextRequest) {
       .limit(1)
       .maybeSingle();
 
+    // Inbound voice session extracted facts (Vapi calls)
+    const { data: voiceSessions } = await tbl("voice_sessions")
+      .select("extracted_facts, created_at, call_type")
+      .eq("lead_id", body.leadId)
+      .order("created_at", { ascending: false })
+      .limit(3);
+
+    // Structured facts from session_extracted_facts table
+    const { data: sessionFacts } = await tbl("session_extracted_facts")
+      .select("fact_type, raw_text, structured_value, is_confirmed")
+      .eq("lead_id", body.leadId)
+      .order("created_at", { ascending: false })
+      .limit(10);
+
     const prop = lead.properties || {};
     const ownerFlags = prop.owner_flags ?? {};
     const prRaw = ownerFlags.pr_raw ?? {};
@@ -213,11 +257,35 @@ export async function POST(req: NextRequest) {
       topFacts: [lead.top_fact_1, lead.top_fact_2, lead.top_fact_3].filter(Boolean) as string[],
       opportunityScore: lead.opportunity_score ?? null,
       confidenceScore: lead.confidence_score ?? null,
+
+      // Inbound voice session signals
+      inboundSignals: (voiceSessions ?? [])
+        .flatMap((vs: any) => {
+          const facts = vs.extracted_facts;
+          if (!facts || !Array.isArray(facts)) return [];
+          return facts.map((f: any) => ({
+            type: f.type ?? "unknown",
+            value: f.value ?? f.text ?? "",
+            source: "vapi_inbound",
+            date: vs.created_at,
+          }));
+        })
+        .slice(0, 8),
+
+      // Structured facts from session_extracted_facts
+      structuredFacts: (sessionFacts ?? [])
+        .map((sf: any) => ({
+          type: sf.fact_type,
+          text: sf.raw_text,
+          value: sf.structured_value,
+          confirmed: sf.is_confirmed,
+        })),
     };
     const riskSeed = deriveRiskSeed({
       lead: lead as Record<string, unknown>,
       callLogs: recentCalls,
       latestStructured: leadCtx.latestStructuredMemory ?? null,
+      inboundSignals: leadCtx.inboundSignals,
     });
 
     const agentPrompt = buildCallCoPilotPrompt(leadCtx);
