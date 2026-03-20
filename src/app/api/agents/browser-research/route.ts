@@ -25,17 +25,18 @@ export async function POST(req: NextRequest) {
 
   if (!leadId) return NextResponse.json({ error: "leadId required" }, { status: 400 });
 
-  // Get lead + property data for research context
+  // Get lead + property + contact data for research context
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data: lead } = await (sb.from("leads") as any)
-    .select("id, first_name, last_name, phone, property_id, properties(address, county, state, apn)")
+    .select("id, contact_id, property_id, properties(address, county, state, apn, owner_name), contacts(first_name, last_name, phone)")
     .eq("id", leadId)
     .single();
 
   if (!lead) return NextResponse.json({ error: "Lead not found" }, { status: 404 });
 
   const property = lead.properties;
-  const ownerName = [lead.first_name, lead.last_name].filter(Boolean).join(" ") || undefined;
+  const contact = lead.contacts;
+  const ownerName = [contact?.first_name, contact?.last_name].filter(Boolean).join(" ") || property?.owner_name || undefined;
 
   const result = await runBrowserResearch({
     leadId,
