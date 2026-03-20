@@ -1,21 +1,21 @@
 /**
  * Lead Status Transition Guardrails & Optimistic Locking
  *
- * Dominion Sentinel Development Charter v3.0 §4 — Sacred Architectural Invariants:
- *   Five unbreakable domains: Signal → Scoring → Promotion → Workflow → Analytics.
- *   Status transitions must follow the deterministic state machine below.
- *   Optimistic locking (lock_version compare-and-swap) is mandatory for all
- *   lead mutations to prevent concurrent-claim race conditions.
+ * PR-1: Stage machine + next-action hard enforcement.
  *
- * Charter v3.0 §8 — Phase 1 Requirements:
- *   "Optimistic locking on lead claims" and "Status transition guardrails"
- *   are ship-blocking deliverables.
+ * Rules:
+ *   1. All transitions must follow ALLOWED_TRANSITIONS — no skipping stages.
+ *   2. Forward-moving transitions require next_action to be set (see REQUIRES_NEXT_ACTION).
+ *   3. All writes use optimistic locking (lock_version compare-and-swap).
+ *
+ * "Forward-moving" = advancing toward disposition/closed.
+ * "Backward-moving" = recycle to nurture, dead, or re-contact.
  */
 
 import type { LeadStatus } from "@/lib/types";
 
 const ALLOWED_TRANSITIONS: Record<LeadStatus, ReadonlyArray<LeadStatus>> = {
-  staging: ["prospect", "dead"],          // enrichment engine promotes staging → prospect
+  staging: ["prospect", "dead"],
   prospect: ["lead", "negotiation", "nurture", "dead"],
   lead: ["qualified", "negotiation", "nurture", "dead"],
   qualified: ["negotiation", "nurture", "dead"],
@@ -27,9 +27,16 @@ const ALLOWED_TRANSITIONS: Record<LeadStatus, ReadonlyArray<LeadStatus>> = {
 };
 
 /**
- * Returns true if transitioning from `current` to `next` is permitted
- * by the Charter-defined state machine. Terminal states (dead, closed)
- * allow no outbound transitions.
+ * Transitions that REQUIRE next_action to be set.
+ * Any forward-moving transition is in this set.
+ * Backward moves (→ nurture, → dead) do not require it, but still accept it.
+ */
+const REQUIRES_NEXT_ACTION: ReadonlySet<LeadStatus> = new Set([
+  "prospect", "lead", "qualified", "negotiation", "disposition",
+]);
+
+/**
+ * Returns true if transitioning from `current` to `next` is permitted.
  */
 export function validateStatusTransition(
   current: LeadStatus,
@@ -49,6 +56,56 @@ export function validateStatusTransition(
 
 export function getAllowedTransitions(status: LeadStatus): ReadonlyArray<LeadStatus> {
   return ALLOWED_TRANSITIONS[status] ?? [];
+}
+
+/**
+ * Returns true if a next_action string must be provided when transitioning to `next`.
+ * Used by the stage API route to reject requests missing a next_action.
+ */
+export function requiresNextAction(next: LeadStatus): boolean {
+  return REQUIRES_NEXT_ACTION.has(next);
+}
+
+export interface StageValidationResult {
+  valid: true;
+  requiresNextAction: boolean;
+}
+
+export interface StageValidationError {
+  valid: false;
+  code: "invalid_transition" | "missing_next_action";
+  message: string;
+}
+
+/**
+ * Full stage transition validation: checks allowed transitions AND enforces
+ * next_action presence where required.
+ *
+ * Returns a typed result — no exceptions.
+ */
+export function validateStageTransition(
+  current: LeadStatus,
+  next: LeadStatus,
+  nextAction: string | null | undefined,
+): StageValidationResult | StageValidationError {
+  if (!validateStatusTransition(current, next)) {
+    return {
+      valid: false,
+      code: "invalid_transition",
+      message: `Cannot transition from "${current}" to "${next}". Allowed: [${getAllowedTransitions(current).join(", ")}]`,
+    };
+  }
+
+  const needsAction = requiresNextAction(next);
+  if (needsAction && !nextAction?.trim()) {
+    return {
+      valid: false,
+      code: "missing_next_action",
+      message: `A next_action is required when advancing to "${next}". Describe what happens next for this lead.`,
+    };
+  }
+
+  return { valid: true, requiresNextAction: needsAction };
 }
 
 /**

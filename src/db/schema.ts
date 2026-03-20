@@ -176,6 +176,9 @@ export const leads = pgTable("leads", {
   dispoFrictionLevel: varchar("dispo_friction_level", { length: 20 }),
   // Dossier promotion field — written only through explicit /api/dossiers/[id]/promote
   decisionMakerNote: text("decision_maker_note"),
+  // Stage machine enforcement (PR-1) — enforced at API layer for stage-advancing transitions
+  nextAction: text("next_action"),
+  nextActionDueAt: timestamp("next_action_due_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 }, (table) => [
@@ -186,6 +189,7 @@ export const leads = pgTable("leads", {
   index("idx_leads_follow_up").on(table.nextFollowUpAt),
   index("idx_leads_next_call").on(table.nextCallScheduledAt),
   index("idx_leads_qualification_route").on(table.qualificationRoute),
+  index("idx_leads_next_action_due").on(table.nextActionDueAt),
 ]);
 
 // ── Deals ───────────────────────────────────────────────────────────

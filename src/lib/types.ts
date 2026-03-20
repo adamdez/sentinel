@@ -177,6 +177,38 @@ export interface FeatureFlags {
   campaigns: boolean;
 }
 
+// ── Stage Machine (PR-1) ────────────────────────────────────────────
+// Contract consumed by Cursor for the stage transition UI.
+// Cursor should call PATCH /api/leads/[id]/stage with this payload.
+
+export interface StageTransitionRequest {
+  /** Target status to transition to */
+  to: LeadStatus;
+  /** Required for any forward-moving transition (enforced server-side) */
+  next_action: string;
+  /** Optional deadline for the next action */
+  next_action_due_at?: string | null;
+  /** Current lock_version for optimistic concurrency control */
+  lock_version: number;
+}
+
+export interface StageTransitionResult {
+  success: true;
+  lead_id: string;
+  previous_status: LeadStatus;
+  new_status: LeadStatus;
+  next_action: string;
+  next_action_due_at: string | null;
+  lock_version: number;
+}
+
+export interface StageTransitionError {
+  success: false;
+  error: string;
+  /** "invalid_transition" | "missing_next_action" | "lock_conflict" | "not_found" | "unauthorized" */
+  code: string;
+}
+
 export interface IngestPayload {
   source: string;
   records: Array<{
