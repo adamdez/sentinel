@@ -49,11 +49,14 @@ export async function POST(req: NextRequest) {
   if (!resolvedAddress) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { data: lead } = await (sb.from("leads") as any)
-      .select("property_id, properties(address, latitude, longitude)")
+      .select("property_id, properties(address, city, state, zip)")
       .eq("id", leadId)
       .single();
 
-    resolvedAddress = lead?.properties?.address;
+    const p = lead?.properties;
+    if (p?.address) {
+      resolvedAddress = [p.address, p.city, p.state, p.zip].filter(Boolean).join(", ");
+    }
   }
 
   if (!resolvedAddress && !lat) {
