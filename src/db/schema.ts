@@ -690,3 +690,74 @@ export const researchRuns = pgTable("research_runs", {
 }, (table) => [
   index("idx_research_runs_lead").on(table.leadId, table.startedAt),
 ]);
+
+// ── Control Plane: Agent Runs ───────────────────────────────────────
+// Every AI agent invocation gets a row. Traces inputs, outputs, cost, duration.
+// Blueprint: "No durable CRM writeback from untraced runs."
+
+export const agentRuns = pgTable("agent_runs", {
+  id:             uuid("id").defaultRandom().primaryKey(),
+  agentName:      text("agent_name").notNull(),
+  triggerType:    text("trigger_type").notNull().default("manual"),
+  triggerRef:     text("trigger_ref"),
+  status:         text("status").notNull().default("running"),
+  leadId:         uuid("lead_id").references(() => leads.id, { onDelete: "set null" }),
+  inputs:         jsonb("inputs").notNull().default({}),
+  outputs:        jsonb("outputs").notNull().default({}),
+  error:          text("error"),
+  promptVersion:  text("prompt_version"),
+  model:          text("model"),
+  inputTokens:    integer("input_tokens"),
+  outputTokens:   integer("output_tokens"),
+  costCents:      integer("cost_cents"),
+  durationMs:     integer("duration_ms"),
+  startedAt:      timestamp("started_at", { withTimezone: true }).notNull().defaultNow(),
+  completedAt:    timestamp("completed_at", { withTimezone: true }),
+  createdAt:      timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (table) => [
+  index("idx_agent_runs_agent_name").on(table.agentName, table.startedAt),
+  index("idx_agent_runs_status").on(table.status),
+  index("idx_agent_runs_lead").on(table.leadId),
+]);
+
+// ── Control Plane: Review Queue ─────────────────────────────────────
+// Proposals from agents awaiting operator approval.
+// Blueprint Section 4.4: "Agents write proposals to review queues or draft tables."
+
+export const reviewQueue = pgTable("review_queue", {
+  id:             uuid("id").defaultRandom().primaryKey(),
+  runId:          uuid("run_id").notNull().references(() => agentRuns.id, { onDelete: "cascade" }),
+  agentName:      text("agent_name").notNull(),
+  entityType:     text("entity_type").notNull(),
+  entityId:       uuid("entity_id"),
+  action:         text("action").notNull(),
+  proposal:       jsonb("proposal").notNull().default({}),
+  rationale:      text("rationale"),
+  status:         text("status").notNull().default("pending"),
+  priority:       smallint("priority").notNull().default(5),
+  reviewedBy:     uuid("reviewed_by"),
+  reviewedAt:     timestamp("reviewed_at", { withTimezone: true }),
+  reviewNotes:    text("review_notes"),
+  expiresAt:      timestamp("expires_at", { withTimezone: true }),
+  createdAt:      timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt:      timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (table) => [
+  index("idx_review_queue_status").on(table.status, table.priority),
+  index("idx_review_queue_entity").on(table.entityType, table.entityId),
+  index("idx_review_queue_agent").on(table.agentName, table.createdAt),
+]);
+
+// ── Control Plane: Feature Flags ────────────────────────────────────
+// Controls AI workflows: shadow mode, review-required, full-auto.
+
+export const featureFlags = pgTable("feature_flags", {
+  id:             uuid("id").defaultRandom().primaryKey(),
+  flagKey:        text("flag_key").notNull().unique(),
+  enabled:        boolean("enabled").notNull().default(false),
+  mode:           text("mode").notNull().default("off"),
+  description:    text("description"),
+  metadata:       jsonb("metadata").notNull().default({}),
+  updatedBy:      uuid("updated_by"),
+  createdAt:      timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt:      timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});

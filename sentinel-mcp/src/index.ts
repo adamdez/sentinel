@@ -1,13 +1,14 @@
 #!/usr/bin/env node
 
 /**
- * Sentinel MCP Server — Database Intelligence, Ads Management, Context Snapshot
+ * Sentinel MCP Server — Database Intelligence, Ads Management, Context Snapshot, Control Plane
  *
  * Claude Code superpowers:
  * 1. Query Sentinel's live Supabase DB (leads, pipeline, calls, revenue, distress)
  * 2. Read ad performance + manage Google Ads with confirmation before executing
  * 3. Get full ContextSnapshot for a lead (dialer workspace + agent fleet foundation)
  * 4. Create tasks and update next_action (guarded write tools)
+ * 5. Query control plane: agent runs, review queue, feature flags (PR-4)
  *
  * Transport: stdio (Claude Code ←→ sentinel-mcp)
  */
@@ -37,6 +38,11 @@ import { registerAdsManage } from "./tools/ads-manage.js";
 import { registerLeadContext } from "./tools/lead-context.js";
 import { registerCreateTask } from "./tools/create-task.js";
 import { registerUpdateNextAction } from "./tools/update-next-action.js";
+
+// Control Plane Tools (PR-4)
+import { registerQueryAgentRuns } from "./tools/query-agent-runs.js";
+import { registerQueryReviewQueue } from "./tools/query-review-queue.js";
+import { registerQueryFeatureFlags } from "./tools/query-feature-flags.js";
 
 // DB shutdown
 import { shutdown } from "./db.js";
@@ -84,12 +90,18 @@ async function main() {
   registerCreateTask(server);       // Create a task linked to lead/deal (write)
   registerUpdateNextAction(server); // Update next_action + due date (write, lock-safe)
 
+  // ─── Control Plane Tools (3 tools, all read-only) — PR-4 ─────────
+
+  registerQueryAgentRuns(server);    // List agent run history + tracing
+  registerQueryReviewQueue(server);  // List pending review proposals
+  registerQueryFeatureFlags(server); // Check feature flag states
+
   // ─── Start ────────────────────────────────────────────────────────
 
   const transport = new StdioServerTransport();
   await server.connect(transport);
 
-  console.error("[sentinel-mcp] Server started — 13 tools, 2 resources");
+  console.error("[sentinel-mcp] Server started — 16 tools, 2 resources");
 
   // Graceful shutdown
   const cleanup = async () => {
