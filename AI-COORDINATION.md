@@ -264,36 +264,50 @@ API routes are split between Claude Code (logic) and Cursor (UI-specific endpoin
 
 > **Update this section every morning and evening. This is how each platform knows what's in flight.**
 
-### Current Phase: Phase 0–1 (Stage machine + MCP foundation)
+### Current Phase: Phase 1–3 (Control plane + Intelligence foundation)
 
 ### Active Work
 | Task | Platform | Branch | Status | Files Touched |
 |------|----------|--------|--------|---------------|
-| PR-1: Stage machine + next-action enforcement | Claude Code | feat/pr-1-stage-machine | In Progress | src/db/schema.ts, src/lib/lead-guardrails.ts, src/lib/types.ts, src/app/api/leads/[id]/stage/route.ts, src/app/api/cron/stale-leads/route.ts, supabase/migrations/20260319_lead_next_action.sql |
-| Stage transition UI | Cursor | — | Waiting on PR-1 | src/components/sentinel/* (see contract below) |
+| PR-5: Intelligence foundation | Claude Code | main | Next Up | src/intel/, src/lib/intelligence.ts |
+| Stage transition UI | Cursor | — | Ready (PR-1 merged) | src/components/sentinel/* (see contract below) |
+| Review console UI | Cursor | — | Ready (PR-4 merged) | GET/PATCH /api/control-plane/review-queue |
+| Feature flag admin UI | Cursor | — | Ready (PR-4 merged) | GET/PATCH /api/control-plane/feature-flags |
 
-### Interface Contract — Ready for Cursor
+### Interface Contracts — Ready for Cursor
+
+**Stage Transition (PR-1):**
 `PATCH /api/leads/[id]/stage` — stage transition endpoint. Payload type: `StageTransitionRequest` (in src/lib/types.ts).
 `GET /api/leads/[id]/stage` — returns current status, lock_version, next_action, and allowed_transitions array.
 Types exported: `StageTransitionRequest`, `StageTransitionResult`, `StageTransitionError` in `src/lib/types.ts`.
 
-**Cursor can build against this now.** Stage change UI should:
+Stage change UI should:
 1. Call GET /api/leads/[id]/stage to get allowed transitions + current lock_version
 2. Show allowed transitions (filter by allowed_transitions array)
 3. Require next_action text input when `requires_next_action: true`
 4. PATCH with { to, next_action, lock_version }
 5. Handle 409 lock conflict by re-fetching and retrying
 
-### Recently Merged
-| Branch | Platform | Merged To | Date |
-|--------|----------|-----------|------|
-| feat/ads-command-center-upgrade | Claude Code | main | 2026-03-19 |
+**Review Queue (PR-4):**
+`GET /api/control-plane/review-queue` — list pending proposals from agents
+`PATCH /api/control-plane/review-queue` — approve/reject: `{ id, status: 'approved'|'rejected', review_notes? }`
+`GET /api/control-plane/feature-flags` — list all flags
+`PATCH /api/control-plane/feature-flags` — update: `{ flag_key, enabled?, mode?, metadata? }`
+`GET /api/control-plane/agent-runs` — list recent agent runs
+
+**Context Snapshot (PR-2):**
+`ContextSnapshot` interface exported from `src/lib/types.ts` — full lead context for dialer workspace.
+
+### Recently Completed
+| PR | Platform | Commit | Date | Summary |
+|----|----------|--------|------|---------|
+| PR-1 | Claude Code | main | 2026-03-19 | Stage machine, guardrails, stale-leads cron |
+| PR-2 | Claude Code | main | 2026-03-19 | Sentinel MCP server (13 tools, 2 resources), ContextSnapshot |
+| PR-3 | Claude Code | main | 2026-03-19 | CRM bridge fixes, owner_name fallback, next_action wiring |
+| PR-4 | Claude Code | main | 2026-03-19 | Control plane (agent_runs, review_queue, feature_flags), Exception Agent, morning brief, MCP now 16 tools |
 
 ### Blocked
-| Task | Platform | Blocked By | Notes |
-|------|----------|------------|-------|
-| Stage transition UI | Cursor | PR-1 not merged | Needs stage route + types from PR-1 |
-| PR-2 MCP server | Claude Code | PR-1 merged | Stage types needed for context snapshot |
+*Nothing currently blocked.*
 
 ---
 
