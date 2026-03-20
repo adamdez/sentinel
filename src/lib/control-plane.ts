@@ -265,6 +265,17 @@ export async function resolveReviewItem(
     return { executed: false, action: item.action, reason: "rejected" };
   }
 
+  // n8n outbound webhook for approved reviews (fire-and-forget)
+  import("@/lib/n8n-dispatch").then(({ n8nReviewApproved }) => {
+    n8nReviewApproved({
+      reviewItemId: itemId,
+      agentName: item.agent_name ?? "",
+      leadId: item.entity_id ?? null,
+      proposalType: item.action,
+      approvedBy: reviewedBy,
+    }).catch(() => {});
+  }).catch(() => {});
+
   // Dispatch the approved action
   return executeApprovedAction(item);
 }

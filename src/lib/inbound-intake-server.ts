@@ -132,6 +132,18 @@ export async function processInboundCandidate(args: {
         leadId,
         receivedAt: candidate.receivedAt,
       }).catch(() => {});
+
+      // n8n outbound webhook (fire-and-forget)
+      import("@/lib/n8n-dispatch").then(({ n8nInboundLeadReceived }) => {
+        n8nInboundLeadReceived({
+          leadId: leadId ?? "",
+          source: candidate.sourceVendor ?? candidate.sourceChannel,
+          channel: candidate.sourceChannel,
+          ownerName: candidate.ownerName,
+          phone: candidate.phone,
+          address: candidate.propertyAddress,
+        }).catch(() => {});
+      }).catch(() => {});
     }
   }
 
