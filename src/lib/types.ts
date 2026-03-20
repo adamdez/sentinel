@@ -177,6 +177,86 @@ export interface FeatureFlags {
   campaigns: boolean;
 }
 
+// ── Context Snapshot (PR-2) ─────────────────────────────────────────
+// Read-only bridge from CRM to the dialer workspace.
+// Assembled by the lead-context MCP tool and the /api/dialer/context endpoint.
+// One-directional: CRM → Dialer. Nothing writes back through this type.
+
+export interface ContextSnapshot {
+  lead_id: string;
+  // Workflow state
+  status: LeadStatus;
+  next_action: string | null;
+  next_action_due_at: string | null;
+  lock_version: number;
+  // Seller identity
+  owner_name: string;
+  owner_phone: string | null;
+  owner_email: string | null;
+  // Property
+  address: string;
+  city: string;
+  state: string;
+  zip: string;
+  county: string;
+  estimated_value: number | null;
+  equity_percent: number | null;
+  property_type: string | null;
+  bedrooms: number | null;
+  year_built: number | null;
+  // Compliance
+  dnc_status: boolean;
+  opt_out: boolean;
+  call_consent: boolean;
+  litigant_flag: boolean;
+  // Qualification context
+  motivation_level: number | null;
+  seller_timeline: string | null;
+  qualification_route: string | null;
+  price_expectation: number | null;
+  decision_maker_confirmed: boolean;
+  // Communication history
+  total_calls: number;
+  live_answers: number;
+  voicemails_left: number;
+  last_contact_at: string | null;
+  // Latest AI score
+  composite_score: number | null;
+  score_factors: Array<{ name: string; contribution: number }> | null;
+  // Open tasks (max 5, ordered by due_at)
+  open_tasks: Array<{
+    id: string;
+    title: string;
+    due_at: string | null;
+    priority: number;
+  }>;
+  // Recent calls (max 3, most recent first)
+  recent_calls: Array<{
+    id: string;
+    outcome: string | null;
+    duration_seconds: number | null;
+    called_at: string;
+    notes: string | null;
+  }>;
+  // Active dossier summary (if reviewed)
+  dossier: {
+    id: string;
+    situation_summary: string | null;
+    recommended_call_angle: string | null;
+    top_facts: unknown[] | null;
+  } | null;
+  // Allowed stage transitions from current status
+  allowed_transitions: Array<{
+    status: LeadStatus;
+    requires_next_action: boolean;
+  }>;
+  // Meta
+  source: string | null;
+  assigned_to: string | null;
+  tags: string[];
+  notes: string | null;
+}
+
 // ── Stage Machine (PR-1) ────────────────────────────────────────────
 // Contract consumed by Cursor for the stage transition UI.
 // Cursor should call PATCH /api/leads/[id]/stage with this payload.

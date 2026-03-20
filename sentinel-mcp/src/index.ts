@@ -1,11 +1,13 @@
 #!/usr/bin/env node
 
 /**
- * Sentinel MCP Server — Database Intelligence + Google Ads Management
+ * Sentinel MCP Server — Database Intelligence, Ads Management, Context Snapshot
  *
- * Gives Claude Code two superpowers:
+ * Claude Code superpowers:
  * 1. Query Sentinel's live Supabase DB (leads, pipeline, calls, revenue, distress)
  * 2. Read ad performance + manage Google Ads with confirmation before executing
+ * 3. Get full ContextSnapshot for a lead (dialer workspace + agent fleet foundation)
+ * 4. Create tasks and update next_action (guarded write tools)
  *
  * Transport: stdio (Claude Code ←→ sentinel-mcp)
  */
@@ -30,6 +32,11 @@ import { registerQueryDistress } from "./tools/query-distress.js";
 // Ads Tools
 import { registerAdsPerformance } from "./tools/ads-performance.js";
 import { registerAdsManage } from "./tools/ads-manage.js";
+
+// Context Snapshot + Write Tools (PR-2)
+import { registerLeadContext } from "./tools/lead-context.js";
+import { registerCreateTask } from "./tools/create-task.js";
+import { registerUpdateNextAction } from "./tools/update-next-action.js";
 
 // DB shutdown
 import { shutdown } from "./db.js";
@@ -71,12 +78,18 @@ async function main() {
   registerAdsPerformance(server);   // Read ad performance data
   registerAdsManage(server);        // Manage ads with confirmation flow
 
+  // ─── Context Snapshot + Write Tools (3 tools) — PR-2 ─────────────
+
+  registerLeadContext(server);      // Full ContextSnapshot for a lead (read-only)
+  registerCreateTask(server);       // Create a task linked to lead/deal (write)
+  registerUpdateNextAction(server); // Update next_action + due date (write, lock-safe)
+
   // ─── Start ────────────────────────────────────────────────────────
 
   const transport = new StdioServerTransport();
   await server.connect(transport);
 
-  console.error("[sentinel-mcp] Server started — 10 tools, 2 resources");
+  console.error("[sentinel-mcp] Server started — 13 tools, 2 resources");
 
   // Graceful shutdown
   const cleanup = async () => {

@@ -59,6 +59,31 @@ export async function query<T extends pg.QueryResultRow = Record<string, unknown
   }
 }
 
+/**
+ * Execute a write query (INSERT / UPDATE / DELETE).
+ * Uses a regular (non-read-only) transaction with 10s timeout.
+ * Only used by write tools (create-task, update-next-action).
+ * Write tools must validate operator identity upstream.
+ */
+export async function writeQuery<T extends pg.QueryResultRow = Record<string, unknown>>(
+  sql: string,
+  params?: unknown[],
+): Promise<T[]> {
+  const client = await getPool().connect();
+  try {
+    await client.query("SET statement_timeout = '10s'");
+    await client.query("BEGIN");
+    const result = await client.query<T>(sql, params);
+    await client.query("COMMIT");
+    return result.rows;
+  } catch (err) {
+    await client.query("ROLLBACK").catch(() => {});
+    throw err;
+  } finally {
+    client.release();
+  }
+}
+
 export async function shutdown(): Promise<void> {
   if (pool) {
     await pool.end();
