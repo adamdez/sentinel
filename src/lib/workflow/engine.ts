@@ -131,7 +131,7 @@ export async function executeStep(runId: string, workflowName?: string): Promise
     .single();
 
   if (!run) throw new Error(`Workflow run ${runId} not found`);
-  if (run.status !== "running") return; // Already completed/failed/paused
+  if (run.status !== "running" && run.status !== "retry_scheduled") return; // Already completed/failed/paused
 
   const name = workflowName ?? run.workflow_name;
   const def = REGISTRY.get(name);
@@ -217,29 +217,55 @@ export async function executeStep(runId: string, workflowName?: string): Promise
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
 
-    // Retry logic
-    const maxRetries = stepDef.retries ?? 1;
+    // Retry logic — cap at 3 retries regardless of step config to prevent runaway loops
+    const MAX_RETRIES = 3;
+    const stepMaxRetries = Math.min(stepDef.retries ?? 1, MAX_RETRIES);
     const attempts = (run.step_outputs?.[`${run.current_step}_attempts`] as number) ?? 0;
 
-    if (attempts < maxRetries) {
+    if (attempts < stepMaxRetries) {
+      const nextAttempt = attempts + 1;
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       await (sb.from("workflow_runs") as any)
         .update({
+          status: "retry_scheduled",
           step_outputs: {
             ...run.step_outputs,
-            [`${run.current_step}_attempts`]: attempts + 1,
+            [`${run.current_step}_attempts`]: nextAttempt,
             [`${run.current_step}_last_error`]: msg,
           },
           updated_at: new Date().toISOString(),
         })
         .eq("id", runId);
 
-      // Retry after brief delay
-      setTimeout(() => executeStep(runId, name).catch(() => {}), 2000);
+      console.warn(
+        `[workflow] Step "${run.current_step}" failed (attempt ${nextAttempt}/${stepMaxRetries}), retrying in 2s: ${msg}`,
+      );
+
+      // Retry after brief delay — on failure, write terminal state instead of swallowing
+      setTimeout(() => {
+        // Re-set status to running before executing so executeStep doesn't bail on status check
+        const sbRetry = createServerClient();
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (sbRetry.from("workflow_runs") as any)
+          .update({ status: "running", updated_at: new Date().toISOString() })
+          .eq("id", runId)
+          .then(() => executeStep(runId, name))
+          .catch(async (retryErr: unknown) => {
+            const retryMsg = retryErr instanceof Error ? retryErr.message : String(retryErr);
+            console.error(
+              `[workflow] Retry of step "${run.current_step}" failed fatally: ${retryMsg}`,
+            );
+            await failRun(runId, `Retry failed: ${retryMsg} (after ${nextAttempt} attempts)`);
+            if (def.onFail) {
+              await def.onFail(context, retryMsg).catch(() => {});
+            }
+          });
+      }, 2000);
     } else {
-      await failRun(runId, msg);
+      const finalMsg = `${msg} (exhausted ${stepMaxRetries} retries)`;
+      await failRun(runId, finalMsg);
       if (def.onFail) {
-        await def.onFail(context, msg);
+        await def.onFail(context, finalMsg);
       }
     }
   }

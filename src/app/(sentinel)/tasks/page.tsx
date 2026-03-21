@@ -423,8 +423,8 @@ function TaskCounts() {
         today: (todayJson.tasks ?? []).length,
         upcoming: (upcomingJson.tasks ?? []).length,
       });
-    } catch {
-      // Silently fail — badges are informational
+    } catch (err) {
+      console.error("[TaskCounts] fetch failed:", err);
     }
   }, []);
 
@@ -496,12 +496,29 @@ export default function TasksPage() {
   const {
     tasks,
     loading,
+    error,
+    refetch,
     createTask: handleCreate,
     updateTask: handleUpdate,
     completeTask: handleComplete,
     reopenTask: handleReopen,
     deleteTask: handleDelete,
   } = useTasks(activeTab);
+
+  // Timeout: if still loading after 10 seconds, show error
+  const [timedOut, setTimedOut] = useState(false);
+  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => {
+    if (loading) {
+      setTimedOut(false);
+      timeoutRef.current = setTimeout(() => setTimedOut(true), 10000);
+    } else {
+      if (timeoutRef.current) clearTimeout(timeoutRef.current);
+    }
+    return () => { if (timeoutRef.current) clearTimeout(timeoutRef.current); };
+  }, [loading]);
+
+  const showError = error || (timedOut && loading);
 
   const onComplete = useCallback(async (id: string) => {
     try {
@@ -573,7 +590,19 @@ export default function TasksPage() {
 
         {/* Task list */}
         <GlassCard className="p-2">
-          {loading ? (
+          {showError ? (
+            <div className="flex flex-col items-center justify-center gap-3 py-12 text-center">
+              <AlertCircle className="h-5 w-5 text-foreground/70" />
+              <p className="text-sm text-muted-foreground/60">{error || "Tasks took too long to load."}</p>
+              <button
+                onClick={() => { setTimedOut(false); refetch(); }}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-[8px] text-xs font-medium bg-primary/15 text-primary border border-primary/20 hover:bg-primary/25 transition-all"
+              >
+                <RotateCcw className="h-3 w-3" />
+                Retry
+              </button>
+            </div>
+          ) : loading ? (
             <div className="space-y-2 p-2">
               {Array.from({ length: 5 }).map((_, i) => (
                 <Skeleton key={i} className="h-12 w-full rounded-[8px]" />

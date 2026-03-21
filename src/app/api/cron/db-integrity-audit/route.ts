@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@/lib/supabase";
 import { notifyIntegrityAudit } from "@/lib/notify";
+import { withCronTracking } from "@/lib/cron-run-tracker";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -26,13 +27,13 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const sb = createServerClient();
-  const now = new Date();
-  const findings: Finding[] = [];
+  return withCronTracking("db-integrity-audit", async (run) => {
+    const sb = createServerClient();
+    const now = new Date();
+    const findings: Finding[] = [];
 
-  try {
     // ── 1. Active leads missing next_action ─────────────────────────
-    const ACTIVE_STATUSES = ["prospect", "lead", "qualified", "negotiation", "disposition"];
+    const ACTIVE_STATUSES = ["prospect", "lead", "negotiation", "disposition"];
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { data: missingAction, count: missingActionCount } = await (sb.from("leads") as any)
@@ -49,6 +50,7 @@ export async function GET(req: NextRequest) {
         sample_ids: (missingAction ?? []).slice(0, 5).map((r: { id: string }) => r.id),
       });
     }
+    run.increment();
 
     // ── 2. Orphaned deals (deal.lead_id points to non-existent or dead lead) ──
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -66,6 +68,7 @@ export async function GET(req: NextRequest) {
         sample_ids: orphanedDeals.slice(0, 5).map((r: { id: string }) => r.id),
       });
     }
+    run.increment();
 
     // ── 3. Voice sessions without lead link (>1 hour old) ───────────
     const oneHourAgo = new Date(now.getTime() - 60 * 60 * 1000).toISOString();
@@ -85,6 +88,7 @@ export async function GET(req: NextRequest) {
         description: `${unlinkedVoiceCount} completed voice sessions have no lead link`,
       });
     }
+    run.increment();
 
     // ── 4. Stale agent runs (stuck in "running" for >1 hour) ────────
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -106,6 +110,7 @@ export async function GET(req: NextRequest) {
         })),
       });
     }
+    run.increment();
 
     // ── 5. Expired review queue items still pending ─────────────────
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -123,6 +128,7 @@ export async function GET(req: NextRequest) {
         description: `${expiredReviewCount} expired review queue items still pending`,
       });
     }
+    run.increment();
 
     // ── 6. Fact assertions without valid artifact link ──────────────
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -138,6 +144,7 @@ export async function GET(req: NextRequest) {
         description: `${orphanedFactCount} fact assertions have no artifact link (provenance broken)`,
       });
     }
+    run.increment();
 
     // ── 7. Leads with next_action_due_at in the past but no exception flag ──
     const threeDaysAgo = new Date(now.getTime() - 3 * 24 * 60 * 60 * 1000).toISOString();
@@ -157,6 +164,7 @@ export async function GET(req: NextRequest) {
         description: `${deepOverdueCount} leads have next_action_due_at >3 days overdue`,
       });
     }
+    run.increment();
 
     // ── Assemble report ─────────────────────────────────────────────
     const criticalCount = findings.filter(f => f.severity === "critical").length;
@@ -219,11 +227,7 @@ export async function GET(req: NextRequest) {
     }
 
     return NextResponse.json(report);
-  } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
-    console.error("[cron/db-integrity-audit] Error:", msg);
-    return NextResponse.json({ ok: false, error: msg }, { status: 500 });
-  }
+  });
 }
 
 interface Finding {

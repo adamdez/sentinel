@@ -156,7 +156,7 @@ beforeEach(() => {
                   id: "test-lead-dispo-001",
                   first_name: "Test",
                   last_name: "Seller",
-                  status: "qualified",
+                  status: "lead",
                   motivation_level: 4,
                   properties: {
                     address: goldCase.input.propertyAddress.split(",")[0],

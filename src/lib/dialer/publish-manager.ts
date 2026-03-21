@@ -38,6 +38,7 @@ import {
 } from "./types";
 import { getSession } from "./session-manager";
 import { notifyPostCallSummary } from "@/lib/notify";
+import { trackedDelivery } from "@/lib/delivery-tracker";
 
 // Dispositions that warrant a follow-up task when callback_at is supplied.
 const TASK_DISPOSITIONS = new Set(["follow_up", "appointment"]);
@@ -433,33 +434,37 @@ export async function publishSession(
     });
   }
 
-  // ── Dispatch post-call summary to Slack (fire-and-forget) ──
-  notifyPostCallSummary({
-    sessionId,
-    leadId: leadId ?? "",
-    ownerName: null,
-    address: null,
-    disposition: input.disposition,
-    summaryLine: input.summary ?? null,
-    dealTemperature: input.motivation_level ? String(input.motivation_level) : null,
-    nextTaskSuggestion: input.callback_at ? `Follow-up scheduled ${input.callback_at}` : null,
-    operatorId: userId,
-    completedAt: new Date().toISOString(),
-  }).catch(() => {});
+  // ── Dispatch post-call summary to Slack (tracked delivery) ──
+  trackedDelivery(
+    { channel: "slack", eventType: "post_call_summary", entityType: "call", entityId: callsLogId ?? undefined },
+    async () => { await notifyPostCallSummary({
+      sessionId,
+      leadId: leadId ?? "",
+      ownerName: null,
+      address: null,
+      disposition: input.disposition,
+      summaryLine: input.summary ?? null,
+      dealTemperature: input.motivation_level ? String(input.motivation_level) : null,
+      nextTaskSuggestion: input.callback_at ? `Follow-up scheduled ${input.callback_at}` : null,
+      operatorId: userId,
+      completedAt: new Date().toISOString(),
+    }); },
+  );
 
-  // ── Step 5: Auto-trigger QA Agent (fire-and-forget) ─────
+  // ── Step 5: Auto-trigger QA Agent (tracked delivery) ─────
   //
   // Blueprint 6.3: "Every completed call runs through the QA Agent."
   // Only fires when we have both a calls_log row and a lead. Failure is
   // non-fatal — a QA failure never blocks the publish response.
 
   if (callsLogId && leadId) {
-    triggerQA(callsLogId, leadId).catch((err) => {
-      console.warn("[publish-manager] QA agent trigger failed (non-fatal):", err);
-    });
+    trackedDelivery(
+      { channel: "internal", eventType: "qa_trigger", entityType: "call", entityId: callsLogId },
+      () => triggerQA(callsLogId, leadId),
+    );
   }
 
-  // ── Step 6: n8n outbound webhook (fire-and-forget) ─────
+  // ── Step 6: n8n outbound webhook (tracked via n8n-dispatch) ─────
   if (callsLogId) {
     import("@/lib/n8n-dispatch").then(({ n8nCallCompleted }) => {
       n8nCallCompleted({
@@ -471,7 +476,7 @@ export async function publishSession(
         nextAction: input.callback_at ? `Follow-up ${input.callback_at}` : null,
         operatorId: userId,
         durationSeconds: input.duration_sec ?? null,
-      }).catch(() => {});
+      });
     }).catch(() => {});
   }
 

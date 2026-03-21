@@ -3,6 +3,7 @@ import { runExceptionScan } from "@/agents/exception";
 import { runFollowUpAgent } from "@/agents/follow-up";
 import { notifyStaleFollowUp } from "@/lib/notify";
 import { getFeatureFlag } from "@/lib/control-plane";
+import { withCronTracking } from "@/lib/cron-run-tracker";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -27,14 +28,14 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  try {
-    // Gate exception agent behind feature flag
-    const exceptionFlag = await getFeatureFlag("agent.exception.enabled");
-    if (!exceptionFlag?.enabled) {
-      console.debug("[cron/exception-scan] Skipped — feature flag agent.exception.enabled not enabled");
-      return NextResponse.json({ ok: true, skipped: true, reason: "Feature flag agent.exception.enabled not enabled" });
-    }
+  // Gate exception agent behind feature flag
+  const exceptionFlag = await getFeatureFlag("agent.exception.enabled");
+  if (!exceptionFlag?.enabled) {
+    console.debug("[cron/exception-scan] Skipped — feature flag agent.exception.enabled not enabled");
+    return NextResponse.json({ ok: true, skipped: true, reason: "Feature flag agent.exception.enabled not enabled" });
+  }
 
+  return withCronTracking("exception-scan", async (run) => {
     const report = await runExceptionScan({
       triggerType: "cron",
       triggerRef: "exception-scan-nightly",
@@ -82,6 +83,7 @@ export async function GET(req: NextRequest) {
       console.debug("[cron/exception-scan] Follow-up agent triggers skipped — feature flag agent.follow_up.enabled not enabled");
     }
 
+    run.increment(report.critical.length + report.high.length + report.medium.length);
     return NextResponse.json({
       ok: true,
       runId: report.runId,
@@ -91,9 +93,5 @@ export async function GET(req: NextRequest) {
       high: report.high,
       medium: report.medium,
     });
-  } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
-    console.error("[cron/exception-scan] Error:", msg);
-    return NextResponse.json({ ok: false, error: msg }, { status: 500 });
-  }
+  });
 }

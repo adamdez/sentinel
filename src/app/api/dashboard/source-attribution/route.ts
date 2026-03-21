@@ -129,7 +129,7 @@ export async function GET(req: NextRequest) {
       s.totalCalls += l.total_calls ?? 0;
       s.liveAnswers += l.live_answers ?? 0;
 
-      if (["qualified", "negotiation", "disposition"].includes(l.status)) {
+      if (["negotiation", "disposition"].includes(l.status)) {
         s.qualifiedLeads++;
       }
       if (l.status === "negotiation" || (l as Record<string, unknown>).offer_amount) {

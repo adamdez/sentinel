@@ -75,7 +75,15 @@ export interface FeatureFlag {
 export async function createAgentRun(input: CreateRunInput): Promise<string | null> {
   const sb = createServerClient();
 
-  // Dedup guard: prevent concurrent runs of the same agent on the same lead
+  // Dedup guard: prevent concurrent runs of the same agent on the same lead.
+  //
+  // NOTE (stale-run cleanup): This guard only looks at runs started within the
+  // last 5 minutes. Runs stuck in "running" beyond that window will NOT block
+  // new runs, but they will leak as orphaned records. The nightly reconciliation
+  // cron (2am DB integrity audit) should scan for agent_runs with status="running"
+  // and started_at older than 30 minutes, then mark them as "failed" with
+  // error="stale_run_timeout". Until that cron is wired, these orphans are
+  // harmless but will show as false positives in run history.
   if (input.leadId) {
     const fiveMinAgo = new Date(Date.now() - 5 * 60 * 1000).toISOString();
     // eslint-disable-next-line @typescript-eslint/no-explicit-any

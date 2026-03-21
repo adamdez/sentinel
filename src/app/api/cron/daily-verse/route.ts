@@ -5,6 +5,7 @@ import {
   getCommentatorForDay,
 } from "@/lib/commentary-scraper";
 import versePool from "@/data/verse-pool.json";
+import { withCronTracking } from "@/lib/cron-run-tracker";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -59,63 +60,91 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const sb = createServerClient();
-  const today = new Date().toISOString().split("T")[0];
+  return withCronTracking("daily-verse", async (run) => {
+    const sb = createServerClient();
+    const today = new Date().toISOString().split("T")[0];
 
-  // Check if today's devotional already exists
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { data: existing } = await (sb.from("daily_devotional") as any)
-    .select("id")
-    .eq("display_date", today)
-    .maybeSingle();
+    // Check if today's devotional already exists
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: existing } = await (sb.from("daily_devotional") as any)
+      .select("id")
+      .eq("display_date", today)
+      .maybeSingle();
 
-  if (existing) {
-    return NextResponse.json({
-      ok: true,
-      message: "Today's devotional already exists",
-      date: today,
-    });
-  }
+    if (existing) {
+      return NextResponse.json({
+        ok: true,
+        message: "Today's devotional already exists",
+        date: today,
+      });
+    }
 
-  // Pick today's verse from the pool
-  const dayOfYear = getDayOfYear(new Date());
-  const verseIdx = dayOfYear % versePool.length;
-  const verseRef = versePool[verseIdx];
+    // Pick today's verse from the pool
+    const dayOfYear = getDayOfYear(new Date());
+    const verseIdx = dayOfYear % versePool.length;
+    const verseRef = versePool[verseIdx];
 
-  console.log(`[DailyVerse] Day ${dayOfYear} → verse #${verseIdx}: ${verseRef}`);
+    console.log(`[DailyVerse] Day ${dayOfYear} → verse #${verseIdx}: ${verseRef}`);
 
-  // 1. Fetch ESV text
-  const verseText = await fetchEsvText(verseRef);
-  if (!verseText) {
-    return NextResponse.json(
-      { error: "Failed to fetch ESV text", verseRef },
-      { status: 502 },
-    );
-  }
-
-  // 2. Fetch exact commentary from Bible Hub
-  const commentatorIdx = getCommentatorForDay(dayOfYear);
-  const commentary = await fetchCommentary(verseRef, commentatorIdx);
-
-  if (!commentary) {
-    // Fallback: use Grok to find a sourced quote
-    const grokResult = await fetchGrokCommentary(verseRef, verseText);
-    if (!grokResult) {
+    // 1. Fetch ESV text
+    const verseText = await fetchEsvText(verseRef);
+    if (!verseText) {
       return NextResponse.json(
-        { error: "No commentary found", verseRef },
+        { error: "Failed to fetch ESV text", verseRef },
         { status: 502 },
       );
     }
 
+    // 2. Fetch exact commentary from Bible Hub
+    const commentatorIdx = getCommentatorForDay(dayOfYear);
+    const commentary = await fetchCommentary(verseRef, commentatorIdx);
+
+    if (!commentary) {
+      // Fallback: use Grok to find a sourced quote
+      const grokResult = await fetchGrokCommentary(verseRef, verseText);
+      if (!grokResult) {
+        return NextResponse.json(
+          { error: "No commentary found", verseRef },
+          { status: 502 },
+        );
+      }
+
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { error } = await (sb.from("daily_devotional") as any).insert({
+        display_date: today,
+        verse_ref: verseRef,
+        verse_text: verseText,
+        author: grokResult.author,
+        commentary: grokResult.commentary,
+        source_url: grokResult.sourceUrl,
+        source_title: grokResult.sourceTitle,
+      });
+
+      if (error) {
+        console.error("[DailyVerse] Insert error:", error);
+        return NextResponse.json({ error: error.message }, { status: 500 });
+      }
+
+      run.increment();
+      return NextResponse.json({
+        ok: true,
+        date: today,
+        verseRef,
+        author: grokResult.author,
+        source: "grok-fallback",
+      });
+    }
+
+    // Insert into Supabase
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { error } = await (sb.from("daily_devotional") as any).insert({
       display_date: today,
       verse_ref: verseRef,
       verse_text: verseText,
-      author: grokResult.author,
-      commentary: grokResult.commentary,
-      source_url: grokResult.sourceUrl,
-      source_title: grokResult.sourceTitle,
+      author: commentary.author,
+      commentary: commentary.commentary,
+      source_url: commentary.sourceUrl,
+      source_title: commentary.sourceTitle,
     });
 
     if (error) {
@@ -123,38 +152,14 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
+    run.increment();
     return NextResponse.json({
       ok: true,
       date: today,
       verseRef,
-      author: grokResult.author,
-      source: "grok-fallback",
+      author: commentary.author,
+      source: "biblehub",
     });
-  }
-
-  // Insert into Supabase
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { error } = await (sb.from("daily_devotional") as any).insert({
-    display_date: today,
-    verse_ref: verseRef,
-    verse_text: verseText,
-    author: commentary.author,
-    commentary: commentary.commentary,
-    source_url: commentary.sourceUrl,
-    source_title: commentary.sourceTitle,
-  });
-
-  if (error) {
-    console.error("[DailyVerse] Insert error:", error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
-  }
-
-  return NextResponse.json({
-    ok: true,
-    date: today,
-    verseRef,
-    author: commentary.author,
-    source: "biblehub",
   });
 }
 

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@/lib/supabase";
 import { firecrawlAdapter } from "@/providers/firecrawl/adapter";
 import { createArtifact, createFact } from "@/lib/intelligence";
+import { withCronTracking } from "@/lib/cron-run-tracker";
 
 export const runtime = "nodejs";
 export const maxDuration = 120;
@@ -32,12 +33,11 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ ok: true, message: "Firecrawl not configured", extracted: 0 });
   }
 
-  const sb = createServerClient();
-  const fourteenDaysAgo = new Date(Date.now() - 14 * 24 * 60 * 60 * 1000).toISOString();
-
-  try {
+  return withCronTracking("county-refresh", async (run) => {
+    const sb = createServerClient();
+    const fourteenDaysAgo = new Date(Date.now() - 14 * 24 * 60 * 60 * 1000).toISOString();
     // Find active leads in our primary markets that need county data refresh
-    const ACTIVE_STATUSES = ["prospect", "lead", "qualified", "negotiation"];
+    const ACTIVE_STATUSES = ["prospect", "lead", "negotiation"];
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { data: candidates } = await (sb.from("leads") as any)
@@ -131,6 +131,7 @@ export async function GET(req: NextRequest) {
         }
 
         extracted++;
+        run.increment();
       } catch (err) {
         console.error(`[county-refresh] Failed for lead ${lead.id}:`, err instanceof Error ? err.message : err);
         errors++;
@@ -148,9 +149,5 @@ export async function GET(req: NextRequest) {
       extracted,
       errors,
     });
-  } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
-    console.error("[cron/county-refresh] Error:", msg);
-    return NextResponse.json({ ok: false, error: msg }, { status: 500 });
-  }
+  });
 }

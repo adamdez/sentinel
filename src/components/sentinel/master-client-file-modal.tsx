@@ -504,7 +504,7 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
 
   const [scoreBreakdown, setScoreBreakdown] = useState<ScoreType | null>(null);
   const [offerPrepExpanded, setOfferPrepExpanded] = useState(false);
-  const isDealStage = ["negotiation", "disposition", "qualified"].includes(cf.status);
+  const isDealStage = ["negotiation", "disposition"].includes(cf.status);
   const [dealProgressOpen, setDealProgressOpen] = useState(isDealStage || cf.offerStatus !== "none");
   const canEdit = ["prospect", "lead"].includes(cf.status);
 

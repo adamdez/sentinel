@@ -75,7 +75,7 @@ describe("Compliance / DNC rules", () => {
 
     it("does not flag active statuses", () => {
       expect(isDncStatus("new")).toBe(false);
-      expect(isDncStatus("qualified")).toBe(false);
+      expect(isDncStatus("lead")).toBe(false);
       expect(isDncStatus("contacted")).toBe(false);
     });
 
@@ -104,7 +104,7 @@ describe("Compliance / DNC rules", () => {
   describe("canCallLead", () => {
     it("allows calling active leads", () => {
       expect(canCallLead({ status: "new" })).toBe(true);
-      expect(canCallLead({ status: "qualified" })).toBe(true);
+      expect(canCallLead({ status: "lead" })).toBe(true);
       expect(canCallLead({ status: "contacted" })).toBe(true);
     });
 

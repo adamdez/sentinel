@@ -15,6 +15,8 @@
  *   N8N_WEBHOOK_SECRET   — Shared secret for authenticating Sentinel → n8n calls
  */
 
+import { trackedDelivery } from "@/lib/delivery-tracker";
+
 const TIMEOUT_MS = 8_000;
 
 interface N8NDispatchResult {
@@ -76,6 +78,27 @@ async function fireN8NWebhook(
 // ── Typed Event Dispatchers ─────────────────────────────────────────────────
 
 /**
+ * Tracked dispatch helper — fires webhook inside trackedDelivery for
+ * delivery_runs audit trail, then returns the N8NDispatchResult for callers.
+ */
+async function tracked(
+  eventType: string,
+  data: Record<string, unknown>,
+  entityType?: string,
+  entityId?: string,
+): Promise<N8NDispatchResult> {
+  let result: N8NDispatchResult = { ok: false, event: eventType, error: "not executed" };
+  await trackedDelivery(
+    { channel: "n8n", eventType, payload: data, entityType, entityId },
+    async () => {
+      result = await fireN8NWebhook(eventType, data);
+      if (!result.ok) throw new Error(result.error ?? "dispatch failed");
+    },
+  );
+  return result;
+}
+
+/**
  * Lead changed stage (e.g., prospect → qualified → negotiation → disposition)
  */
 export function n8nLeadStageChanged(data: {
@@ -87,7 +110,7 @@ export function n8nLeadStageChanged(data: {
   address: string | null;
   operatorId: string;
 }): Promise<N8NDispatchResult> {
-  return fireN8NWebhook("lead.stage_changed", data);
+  return tracked("lead.stage_changed", data, "lead", data.leadId);
 }
 
 /**
@@ -101,7 +124,7 @@ export function n8nDealCreated(data: {
   ownerName: string | null;
   dealType: string | null;
 }): Promise<N8NDispatchResult> {
-  return fireN8NWebhook("deal.created", data);
+  return tracked("deal.created", data, "deal", data.dealId);
 }
 
 /**
@@ -117,7 +140,7 @@ export function n8nCallCompleted(data: {
   operatorId: string;
   durationSeconds: number | null;
 }): Promise<N8NDispatchResult> {
-  return fireN8NWebhook("call.completed", data);
+  return tracked("call.completed", data, "call", data.callLogId);
 }
 
 /**
@@ -130,7 +153,7 @@ export function n8nReviewApproved(data: {
   proposalType: string;
   approvedBy: string;
 }): Promise<N8NDispatchResult> {
-  return fireN8NWebhook("review.approved", data);
+  return tracked("review.approved", data, "lead", data.leadId ?? undefined);
 }
 
 /**
@@ -143,7 +166,7 @@ export function n8nCampaignTouchCompleted(data: {
   channel: string;
   status: string;
 }): Promise<N8NDispatchResult> {
-  return fireN8NWebhook("campaign.touch_completed", data);
+  return tracked("campaign.touch_completed", data, "lead", data.leadId);
 }
 
 /**
@@ -157,7 +180,7 @@ export function n8nInboundLeadReceived(data: {
   phone: string | null;
   address: string | null;
 }): Promise<N8NDispatchResult> {
-  return fireN8NWebhook("inbound.lead_received", data);
+  return tracked("inbound.lead_received", data, "lead", data.leadId);
 }
 
 /**
@@ -171,7 +194,7 @@ export function n8nLeadEnriched(data: {
   phonesFound: number;
   emailsFound: number;
 }): Promise<N8NDispatchResult> {
-  return fireN8NWebhook("lead.enriched", data);
+  return tracked("lead.enriched", data, "lead", data.leadId);
 }
 
 /**
@@ -186,7 +209,7 @@ export function n8nStaleDispo(data: {
   detectedAt: string;
   triggered: number;
 }): Promise<N8NDispatchResult> {
-  return fireN8NWebhook("deal.stale_dispo", data);
+  return tracked("deal.stale_dispo", data, "deal");
 }
 
 /**
@@ -201,5 +224,5 @@ export function n8nAgentRunCompleted(data: {
   costCents: number;
   error?: string;
 }): Promise<N8NDispatchResult> {
-  return fireN8NWebhook("agent.run_completed", data);
+  return tracked("agent.run_completed", data, "lead", data.leadId ?? undefined);
 }

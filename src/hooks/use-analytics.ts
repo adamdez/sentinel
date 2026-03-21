@@ -17,6 +17,7 @@ export interface AnalyticsState {
   data: DominionAnalyticsData | null;
   conversionSnapshot: ConversionSnapshotSummary | null;
   loading: boolean;
+  error: string | null;
   refetch: () => void;
 }
 
@@ -60,10 +61,12 @@ export function useAnalytics(): AnalyticsState {
   const [data, setData] = useState<DominionAnalyticsData | null>(null);
   const [conversionSnapshot, setConversionSnapshot] = useState<ConversionSnapshotSummary | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const { currentUser } = useSentinelStore();
 
   const load = useCallback(async () => {
     setLoading(true);
+    setError(null);
     const periodStart = getPeriodStart(period);
     const isAdmin = currentUser.role === "admin";
     const scopedUserId = isAdmin ? undefined : currentUser.id || undefined;
@@ -76,8 +79,9 @@ export function useAnalytics(): AnalyticsState {
 
       setData(analytics);
       setConversionSnapshot(conversion);
-    } catch (error) {
-      console.error("[Analytics] load failed:", error);
+    } catch (err) {
+      console.error("[Analytics] load failed:", err);
+      setError(err instanceof Error ? err.message : "Failed to load analytics");
     } finally {
       setLoading(false);
     }
@@ -107,6 +111,7 @@ export function useAnalytics(): AnalyticsState {
     data,
     conversionSnapshot,
     loading,
+    error,
     refetch: load,
   };
 }

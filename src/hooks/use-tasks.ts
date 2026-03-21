@@ -86,9 +86,12 @@ export async function deleteTask(id: string): Promise<void> {
 export function useTasks(view: TaskView = "all") {
   const [tasks, setTasks] = useState<TaskItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
 
   const fetchTasks = useCallback(async () => {
+    setLoading(true);
+    setError(null);
     try {
       const headers = await getAuthHeaders();
       const params = new URLSearchParams();
@@ -108,6 +111,7 @@ export function useTasks(view: TaskView = "all") {
       setTasks(json.tasks ?? []);
     } catch (err) {
       console.error("[useTasks] Fetch failed:", err);
+      setError(err instanceof Error ? err.message : "Failed to load tasks");
     } finally {
       setLoading(false);
     }
@@ -159,6 +163,7 @@ export function useTasks(view: TaskView = "all") {
   return {
     tasks,
     loading,
+    error,
     refetch: fetchTasks,
     createTask: handleCreate,
     updateTask: handleUpdate,

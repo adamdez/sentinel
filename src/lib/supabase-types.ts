@@ -227,6 +227,32 @@ interface DailyDevotionalRow {
   created_at: string;
 }
 
+interface CronRunRow {
+  id: string;
+  cron_name: string;
+  started_at: string;
+  completed_at: string | null;
+  status: string;
+  items_processed: number;
+  items_failed: number;
+  error_message: string | null;
+  metadata: Json;
+  created_at: string;
+}
+
+interface DeliveryRunRow {
+  id: string;
+  channel: string;
+  event_type: string;
+  payload: Json;
+  status: string;
+  error_message: string | null;
+  created_at: string;
+  completed_at: string | null;
+  entity_type: string | null;
+  entity_id: string | null;
+}
+
 export interface Database {
   public: {
     Tables: {
@@ -304,10 +330,20 @@ export interface Database {
         Insert: Omit<DailyDevotionalRow, "id" | "created_at"> & { id?: string; created_at?: string };
         Update: Partial<Omit<DailyDevotionalRow, "id" | "created_at">>;
       };
+      cron_runs: {
+        Row: CronRunRow;
+        Insert: Omit<CronRunRow, "id" | "created_at"> & { id?: string; created_at?: string };
+        Update: Partial<Omit<CronRunRow, "id" | "created_at">>;
+      };
+      delivery_runs: {
+        Row: DeliveryRunRow;
+        Insert: Omit<DeliveryRunRow, "id" | "created_at"> & { id?: string; created_at?: string };
+        Update: Partial<Omit<DeliveryRunRow, "id" | "created_at">>;
+      };
     };
     Functions: Record<string, never>;
     Enums: {
-      lead_status: "prospect" | "lead" | "negotiation" | "disposition" | "nurture" | "dead" | "closed";
+      lead_status: "staging" | "prospect" | "lead" | "negotiation" | "disposition" | "nurture" | "dead" | "closed";
       deal_status: "draft" | "negotiating" | "under_contract" | "assigned" | "closed" | "dead";
       user_role: "admin" | "agent" | "viewer";
       distress_type: "probate" | "pre_foreclosure" | "tax_lien" | "code_violation" | "vacant" | "divorce" | "bankruptcy" | "fsbo" | "absentee" | "inherited";

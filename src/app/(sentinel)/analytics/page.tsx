@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
-import { BarChart3, Clock3, DollarSign, Loader2, MapPinned, Radio, Shield, TrendingUp, Users } from "lucide-react";
+import { useState, useEffect, useCallback, useRef } from "react";
+import { AlertCircle, BarChart3, Clock3, DollarSign, Loader2, MapPinned, Radio, RotateCcw, Shield, TrendingUp, Users } from "lucide-react";
 import { PageShell } from "@/components/sentinel/page-shell";
 import { GlassCard } from "@/components/sentinel/glass-card";
 import { Badge } from "@/components/ui/badge";
@@ -21,7 +21,22 @@ const PERIODS: { key: TimePeriod; label: string }[] = [
 
 export default function AnalyticsPage() {
   const { currentUser } = useSentinelStore();
-  const { period, setPeriod, data, conversionSnapshot, loading } = useAnalytics();
+  const { period, setPeriod, data, conversionSnapshot, loading, error, refetch } = useAnalytics();
+
+  // Timeout: if still loading after 10 seconds, show error
+  const [timedOut, setTimedOut] = useState(false);
+  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => {
+    if (loading) {
+      setTimedOut(false);
+      timeoutRef.current = setTimeout(() => setTimedOut(true), 10000);
+    } else {
+      if (timeoutRef.current) clearTimeout(timeoutRef.current);
+    }
+    return () => { if (timeoutRef.current) clearTimeout(timeoutRef.current); };
+  }, [loading]);
+
+  const showError = error || (timedOut && loading);
 
   const marketScoreboard = data?.marketScoreboard ?? [];
   const sourceOutcomes = data?.sourceOutcomes ?? [];
@@ -101,7 +116,21 @@ export default function AnalyticsPage() {
 
         <KpiSummaryRow period={period} />
 
-        {loading ? (
+        {showError ? (
+          <GlassCard hover={false} className="!p-8">
+            <div className="flex flex-col items-center justify-center gap-3 text-sm text-muted-foreground">
+              <AlertCircle className="h-5 w-5 text-foreground/70" />
+              <p>{error || "Analytics took too long to load."}</p>
+              <button
+                onClick={() => { setTimedOut(false); refetch(); }}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-[8px] text-xs font-medium bg-primary/15 text-primary border border-primary/20 hover:bg-primary/25 transition-all"
+              >
+                <RotateCcw className="h-3 w-3" />
+                Retry
+              </button>
+            </div>
+          </GlassCard>
+        ) : loading ? (
           <GlassCard hover={false} className="!p-8">
             <div className="flex items-center justify-center gap-2 text-sm text-muted-foreground">
               <Loader2 className="h-4 w-4 animate-spin" />
@@ -423,8 +452,8 @@ function DispoFunnelCard() {
         stalledCount,
         avgDaysInDispo,
       });
-    } catch {
-      // Silently fail — this is an informational panel
+    } catch (err) {
+      console.error("[DispoFunnel] fetch failed:", err);
     } finally {
       setLoading(false);
     }

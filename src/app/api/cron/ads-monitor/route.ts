@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { runAdsMonitor } from "@/agents/ads-monitor";
 import { notifyAdsAnomaly } from "@/lib/notify";
+import { withCronTracking } from "@/lib/cron-run-tracker";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -24,7 +25,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  try {
+  return withCronTracking("ads-monitor", async (run) => {
     const report = await runAdsMonitor({
       triggerType: "daily_cron",
       triggerRef: `ads-monitor-${new Date().toISOString().slice(0, 10)}`,
@@ -47,6 +48,7 @@ export async function GET(req: NextRequest) {
       }).catch(() => {});
     }
 
+    run.increment(report.alerts.length);
     return NextResponse.json({
       ok: true,
       runId: report.runId,
@@ -55,9 +57,5 @@ export async function GET(req: NextRequest) {
       alerts: report.alerts,
       metrics: report.metrics,
     });
-  } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
-    console.error("[cron/ads-monitor] Error:", msg);
-    return NextResponse.json({ ok: false, error: msg }, { status: 500 });
-  }
+  });
 }

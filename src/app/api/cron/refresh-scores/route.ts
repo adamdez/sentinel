@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@/lib/supabase";
+import { withCronTracking } from "@/lib/cron-run-tracker";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -25,60 +26,66 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const sb = createServerClient();
+  return withCronTracking("refresh-scores", async (run) => {
+    const sb = createServerClient();
 
-  // Get all active leads that need scoring
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { data: leads, error } = await (sb.from("leads") as any)
-    .select("id")
-    .in("status", ["prospect", "lead", "negotiation", "disposition", "nurture"])
-    .order("updated_at", { ascending: true })
-    .limit(500);
+    // Get all active leads that need scoring
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: leads, error } = await (sb.from("leads") as any)
+      .select("id")
+      .in("status", ["prospect", "lead", "negotiation", "disposition", "nurture"])
+      .order("updated_at", { ascending: true })
+      .limit(500);
 
-  if (error) {
-    return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
-  }
-
-  if (!leads || leads.length === 0) {
-    return NextResponse.json({ ok: true, processed: 0, summary: "No active leads to score." });
-  }
-
-  let processed = 0;
-  let errors = 0;
-
-  // Process in batches
-  const BATCH_SIZE = 50;
-  for (let i = 0; i < leads.length; i += BATCH_SIZE) {
-    const batch = leads.slice(i, i + BATCH_SIZE);
-
-    const results = await Promise.allSettled(
-      batch.map(async (lead: { id: string }) => {
-        const scores = await computeScoresForLead(sb, lead.id);
-        if (scores) {
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          await (sb.from("leads") as any)
-            .update({
-              opportunity_score: scores.opportunity,
-              contactability_score: scores.contactability,
-              confidence_score: scores.confidence,
-            })
-            .eq("id", lead.id);
-        }
-      }),
-    );
-
-    for (const r of results) {
-      if (r.status === "fulfilled") processed++;
-      else errors++;
+    if (error) {
+      return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
     }
-  }
 
-  return NextResponse.json({
-    ok: true,
-    processed,
-    errors,
-    total: leads.length,
-    summary: `Refreshed scores for ${processed}/${leads.length} active leads.`,
+    if (!leads || leads.length === 0) {
+      return NextResponse.json({ ok: true, processed: 0, summary: "No active leads to score." });
+    }
+
+    let processed = 0;
+    let errors = 0;
+
+    // Process in batches
+    const BATCH_SIZE = 50;
+    for (let i = 0; i < leads.length; i += BATCH_SIZE) {
+      const batch = leads.slice(i, i + BATCH_SIZE);
+
+      const results = await Promise.allSettled(
+        batch.map(async (lead: { id: string }) => {
+          const scores = await computeScoresForLead(sb, lead.id);
+          if (scores) {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            await (sb.from("leads") as any)
+              .update({
+                opportunity_score: scores.opportunity,
+                contactability_score: scores.contactability,
+                confidence_score: scores.confidence,
+              })
+              .eq("id", lead.id);
+          }
+        }),
+      );
+
+      for (const r of results) {
+        if (r.status === "fulfilled") {
+          processed++;
+          run.increment();
+        } else {
+          errors++;
+        }
+      }
+    }
+
+    return NextResponse.json({
+      ok: true,
+      processed,
+      errors,
+      total: leads.length,
+      summary: `Refreshed scores for ${processed}/${leads.length} active leads.`,
+    });
   });
 }
 

@@ -8,7 +8,7 @@
     "leads": [
       {
         "id": "lead-001",
-        "status": "qualified",
+        "status": "lead",
         "next_action": null,
         "next_action_due_at": null,
         "last_contact_at": "2026-03-18T10:00:00Z",

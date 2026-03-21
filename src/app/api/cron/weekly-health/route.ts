@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@/lib/supabase";
 import { notifyWeeklyHealth } from "@/lib/notify";
+import { withCronTracking } from "@/lib/cron-run-tracker";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -26,11 +27,11 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const sb = createServerClient();
-  const now = new Date();
-  const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000).toISOString();
+  return withCronTracking("weekly-health", async (run) => {
+    const sb = createServerClient();
+    const now = new Date();
+    const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000).toISOString();
 
-  try {
     // ── 1. Agent fleet health (7-day window) ────────────────────────
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { data: agentRuns } = await (sb.from("agent_runs") as any)
@@ -154,7 +155,7 @@ export async function GET(req: NextRequest) {
     const { count: hotNotAdvanced } = await (sb.from("leads") as any)
       .select("id", { count: "exact", head: true })
       .gte("motivation_level", 4)
-      .in("status", ["prospect", "lead", "qualified"]);
+      .in("status", ["prospect", "lead"]);
 
     if ((hotNotAdvanced ?? 0) > 0) {
       quickWins.push(`${hotNotAdvanced} high-motivation leads (4-5) still pre-negotiation`);
@@ -208,12 +209,9 @@ export async function GET(req: NextRequest) {
       quickWins: report.quickWins,
     }).catch(() => {});
 
+    run.increment();
     return NextResponse.json(report);
-  } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
-    console.error("[cron/weekly-health] Error:", msg);
-    return NextResponse.json({ ok: false, error: msg }, { status: 500 });
-  }
+  });
 }
 
 interface AgentStats {

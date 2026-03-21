@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@/lib/supabase";
 import { getFeatureFlag } from "@/lib/control-plane";
 import { n8nStaleDispo } from "@/lib/n8n-dispatch";
+import { withCronTracking } from "@/lib/cron-run-tracker";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -24,11 +25,11 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const sb = createServerClient();
-  const now = new Date();
-  const fortyEightHoursAgo = new Date(now.getTime() - 48 * 60 * 60 * 1000).toISOString();
+  return withCronTracking("stale-dispo", async (run) => {
+    const sb = createServerClient();
+    const now = new Date();
+    const fortyEightHoursAgo = new Date(now.getTime() - 48 * 60 * 60 * 1000).toISOString();
 
-  try {
     // Find leads in disposition status
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { data: dispoLeads } = await (sb.from("leads") as any)
@@ -86,6 +87,7 @@ export async function GET(req: NextRequest) {
           triggerRef: `cron-stale-dispo-${now.toISOString().slice(0, 10)}`,
         });
         triggered++;
+        run.increment();
       } catch (err) {
         console.error(`[stale-dispo] Failed for deal ${deal.id}:`, err);
       }
@@ -110,9 +112,5 @@ export async function GET(req: NextRequest) {
       triggered,
       skipped: staleDeals.length - triggered,
     });
-  } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
-    console.error("[cron/stale-dispo] Error:", msg);
-    return NextResponse.json({ ok: false, error: msg }, { status: 500 });
-  }
+  });
 }

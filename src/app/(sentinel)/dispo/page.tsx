@@ -1,10 +1,10 @@
 "use client";
 
-import { useState, useCallback, useMemo } from "react";
+import { useState, useCallback, useMemo, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   ChevronDown, Plus, MapPin, DollarSign, Users,
-  CalendarClock, ChevronRight, FileText, AlertTriangle,
+  CalendarClock, ChevronRight, FileText, AlertTriangle, RotateCcw, AlertCircle,
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -552,9 +552,24 @@ function DealCard({ deal, expanded, onToggleExpand, onStatusChange, onLinkBuyer,
 
 export default function DispoPage() {
   const hydrated = useHydrated();
-  const { deals: rawDeals, loading, refetch } = useDispoDeals();
+  const { deals: rawDeals, loading, error, refetch } = useDispoDeals();
   const [searchModal, setSearchModal] = useState<string | null>(null);
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
+
+  // Timeout: if still loading after 10 seconds, show error
+  const [timedOut, setTimedOut] = useState(false);
+  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => {
+    if (loading) {
+      setTimedOut(false);
+      timeoutRef.current = setTimeout(() => setTimedOut(true), 10000);
+    } else {
+      if (timeoutRef.current) clearTimeout(timeoutRef.current);
+    }
+    return () => { if (timeoutRef.current) clearTimeout(timeoutRef.current); };
+  }, [loading]);
+
+  const showError = error || (timedOut && loading);
 
   // Sort deals by urgency: critical stalls first, closed deals last
   const deals = useMemo(() => {
@@ -637,7 +652,21 @@ export default function DispoPage() {
       description="Match buyers to deals in disposition"
       actions={<CoachToggle />}
     >
-      {loading ? (
+      {showError ? (
+        <GlassCard hover={false} delay={0.02} className="py-16">
+          <div className="flex flex-col items-center justify-center text-center gap-3">
+            <AlertCircle className="h-5 w-5 text-foreground/70" />
+            <p className="text-sm text-muted-foreground/60">{error || "Dispo board took too long to load."}</p>
+            <button
+              onClick={() => { setTimedOut(false); refetch(); }}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-[8px] text-xs font-medium bg-primary/15 text-primary border border-primary/20 hover:bg-primary/25 transition-all"
+            >
+              <RotateCcw className="h-3 w-3" />
+              Retry
+            </button>
+          </div>
+        </GlassCard>
+      ) : loading ? (
         <div className="flex items-center justify-center py-20">
           <div className="h-5 w-5 border-2 border-primary/30 border-t-cyan rounded-full animate-spin" />
         </div>

@@ -4,6 +4,7 @@ import { runExceptionScan } from "@/agents/exception";
 import { notifyMorningDigest, notifyStaleFollowUp } from "@/lib/notify";
 import { getFeatureFlag } from "@/lib/control-plane";
 import { inngest } from "../../../../inngest/client";
+import { withCronTracking } from "@/lib/cron-run-tracker";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -26,7 +27,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  try {
+  return withCronTracking("morning-brief", async (run) => {
     const sb = createServerClient();
     const now = new Date();
     const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString();
@@ -52,7 +53,7 @@ export async function GET(req: NextRequest) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { data: pipeline } = await (sb.from("leads") as any)
       .select("status")
-      .in("status", ["prospect", "lead", "qualified", "negotiation", "disposition", "nurture"]);
+      .in("status", ["prospect", "lead", "negotiation", "disposition", "nurture"]);
 
     const pipelineCounts: Record<string, number> = {};
     for (const row of pipeline ?? []) {
@@ -155,11 +156,8 @@ export async function GET(req: NextRequest) {
       console.debug("[morning-brief] Follow-up agent triggers skipped — feature flag agent.follow_up.enabled not enabled");
     }
 
+    run.increment();
     return NextResponse.json({ ok: true, brief });
-  } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
-    console.error("[cron/morning-brief] Error:", msg);
-    return NextResponse.json({ ok: false, error: msg }, { status: 500 });
-  }
+  });
 }
 

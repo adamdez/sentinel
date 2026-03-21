@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@/lib/supabase";
 import { isDnc } from "@/lib/dnc-check";
 import { getFeatureFlag } from "@/lib/control-plane";
+import { withCronTracking } from "@/lib/cron-run-tracker";
 
 export const runtime = "nodejs";
 export const maxDuration = 120;
@@ -41,22 +42,23 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ skipped: true, reason: "Outside business hours (9am-6pm PT Mon-Sat)" });
   }
 
-  const sb = createServerClient();
-  const now = new Date().toISOString();
-  const results: CampaignResult[] = [];
+  return withCronTracking("campaign-dialer", async (run) => {
+    const sb = createServerClient();
+    const now = new Date().toISOString();
+    const results: CampaignResult[] = [];
 
-  // Get active campaigns
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { data: campaigns } = await (sb.from("campaigns") as any)
-    .select("id, name, campaign_type, audience_filter")
-    .eq("status", "active");
+    // Get active campaigns
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: campaigns } = await (sb.from("campaigns") as any)
+      .select("id, name, campaign_type, audience_filter")
+      .eq("status", "active");
 
-  if (!campaigns || campaigns.length === 0) {
-    return NextResponse.json({ message: "No active campaigns", results: [] });
-  }
+    if (!campaigns || campaigns.length === 0) {
+      return NextResponse.json({ message: "No active campaigns", results: [] });
+    }
 
-  let totalProcessed = 0;
-  const MAX_PER_RUN = 20;
+    let totalProcessed = 0;
+    const MAX_PER_RUN = 20;
 
   for (const campaign of campaigns) {
     if (totalProcessed >= MAX_PER_RUN) break;
@@ -179,6 +181,7 @@ export async function GET(req: NextRequest) {
 
       processed++;
       totalProcessed++;
+      run.increment();
     }
 
     // Update campaign stats
@@ -196,10 +199,11 @@ export async function GET(req: NextRequest) {
     results.push({ campaignId: campaign.id, name: campaign.name, processed, skipped, completed });
   }
 
-  return NextResponse.json({
-    totalProcessed,
-    campaigns: results,
-    timestamp: now,
+    return NextResponse.json({
+      totalProcessed,
+      campaigns: results,
+      timestamp: now,
+    });
   });
 }
 

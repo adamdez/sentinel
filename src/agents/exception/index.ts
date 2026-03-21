@@ -27,7 +27,7 @@ import type {
   ExceptionAgentInput,
 } from "./types";
 
-const ACTIVE_STATUSES = ["prospect", "lead", "qualified", "negotiation", "disposition"];
+const ACTIVE_STATUSES = ["prospect", "lead", "negotiation", "disposition"];
 
 export async function runExceptionScan(
   input: ExceptionAgentInput

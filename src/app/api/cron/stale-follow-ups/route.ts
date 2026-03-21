@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@/lib/supabase";
 import { isAgentEnabled } from "@/lib/control-plane";
+import { withCronTracking } from "@/lib/cron-run-tracker";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -31,14 +32,13 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ ok: true, message: "Follow-Up Agent disabled", triggered: 0 });
   }
 
-  const sb = createServerClient();
-  const now = new Date();
-  const fiveDaysAgo = new Date(now.getTime() - 5 * 24 * 60 * 60 * 1000).toISOString();
-  const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000).toISOString();
-
-  try {
+  return withCronTracking("stale-follow-ups", async (run) => {
+    const sb = createServerClient();
+    const now = new Date();
+    const fiveDaysAgo = new Date(now.getTime() - 5 * 24 * 60 * 60 * 1000).toISOString();
+    const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000).toISOString();
     // Find active leads with stale contact
-    const ACTIVE_STATUSES = ["prospect", "lead", "qualified", "negotiation"];
+    const ACTIVE_STATUSES = ["prospect", "lead", "negotiation"];
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { data: staleLeads } = await (sb.from("leads") as any)
@@ -84,6 +84,7 @@ export async function GET(req: NextRequest) {
           channel: isWA ? "call" : undefined,
         });
         triggered++;
+        run.increment();
       } catch (err) {
         console.error(`[stale-follow-ups] Failed for lead ${lead.id}:`, err);
       }
@@ -95,9 +96,5 @@ export async function GET(req: NextRequest) {
       triggered,
       skipped: qualified.length - triggered,
     });
-  } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
-    console.error("[cron/stale-follow-ups] Error:", msg);
-    return NextResponse.json({ ok: false, error: msg }, { status: 500 });
-  }
+  });
 }

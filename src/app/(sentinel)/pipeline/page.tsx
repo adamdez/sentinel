@@ -64,7 +64,7 @@ const LANE_HINTS: Record<LaneId, string> = {
 /** Map database statuses to display lanes. Returns null for statuses excluded from the board. */
 function getDisplayLane(status: string): LaneId | null {
   switch (status) {
-    case "prospect": case "lead": case "qualified": return "working";
+    case "prospect": case "lead": return "working";
     case "negotiation": return "negotiation";
     case "disposition": return "disposition";
     case "nurture": return "nurture";

@@ -56,7 +56,7 @@ export async function GET(req: NextRequest) {
         opportunity_score, confidence_score,
         properties(address, city, state, zip, owner_name, county)
       `)
-      .in("status", ["prospect", "lead", "qualified", "negotiation"])
+      .in("status", ["prospect", "lead", "negotiation"])
       .not("next_action", "is", null)
       .order("priority", { ascending: false })
       .order("motivation_level", { ascending: false })
@@ -66,7 +66,7 @@ export async function GET(req: NextRequest) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { data: pipeline } = await (sb.from("leads") as any)
       .select("status")
-      .in("status", ["prospect", "lead", "qualified", "negotiation", "disposition", "nurture"]);
+      .in("status", ["prospect", "lead", "negotiation", "disposition", "nurture"]);
 
     const pipelineCounts: Record<string, number> = {};
     for (const row of pipeline ?? []) {

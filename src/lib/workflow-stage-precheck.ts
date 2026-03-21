@@ -15,7 +15,6 @@ const STAGE_LABELS: Record<LeadStatus, string> = {
   staging: "Staging",
   prospect: "Prospect",
   lead: "Lead",
-  qualified: "Qualified",
   negotiation: "Negotiation",
   disposition: "Disposition",
   nurture: "Nurture",

@@ -174,8 +174,8 @@ export async function PATCH(
       operatorId: user.id,
     }).catch(() => {});
 
-    // ── Auto-trigger Research Agent on qualified stage entry (fire-and-forget) ──
-    if (target === "qualified") {
+    // ── Auto-trigger Research Agent on negotiation stage entry (fire-and-forget) ──
+    if (target === "negotiation") {
       getFeatureFlag("agent.research.enabled").then((flag) => {
         if (!flag?.enabled) {
           console.debug(`[stage-transition] Research agent trigger skipped — feature flag agent.research.enabled not enabled`);
