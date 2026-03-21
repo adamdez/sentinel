@@ -99,6 +99,7 @@ function SortableTile({
   };
 
   const Component = WIDGET_COMPONENTS[widgetId];
+  if (!Component) return null;
 
   return (
     <div ref={setNodeRef} style={style} className="tile-perspective self-start">
@@ -193,7 +194,7 @@ export function DashboardGridInner() {
         >
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-start" style={{ gridAutoRows: "min-content" }}>
             <AnimatePresence mode="popLayout">
-              {layout.tiles.map((tile) => (
+              {layout.tiles.filter((t) => WIDGET_COMPONENTS[t.widgetId]).map((tile) => (
                 <SortableTile
                   key={tile.widgetId}
                   widgetId={tile.widgetId}

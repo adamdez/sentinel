@@ -31,6 +31,7 @@ export function WidgetWrapper({
   isDragging,
 }: WidgetWrapperProps) {
   const def = WIDGET_REGISTRY[widgetId];
+  if (!def) return null;
   const colSpan = getColSpan(size);
   const rowSpan = getRowSpan(size);
   const isWide = colSpan === 2;
