@@ -58,13 +58,14 @@ export async function GET(req: NextRequest) {
           const scores = await computeScoresForLead(sb, lead.id);
           if (scores) {
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            await (sb.from("leads") as any)
+            const { error: updateError } = await (sb.from("leads") as any)
               .update({
                 opportunity_score: scores.opportunity,
                 contactability_score: scores.contactability,
                 confidence_score: scores.confidence,
               })
               .eq("id", lead.id);
+            if (updateError) throw new Error(`Score update failed for ${lead.id}: ${updateError.message}`);
           }
         }),
       );

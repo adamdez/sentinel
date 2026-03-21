@@ -91,6 +91,16 @@ export async function GET(req: NextRequest) {
     console.error("[stale-leads] Error fetching speed violations:", e4.message);
   }
 
+  // If ALL queries failed, don't return a fake clean report
+  const queryErrors = [e1, e2, e3, e4].filter(Boolean);
+  if (queryErrors.length === 4) {
+    return NextResponse.json({
+      ok: false,
+      error: "All stale-lead queries failed",
+      errors: queryErrors.map((e: { message?: string }) => e.message),
+    }, { status: 500 });
+  }
+
   const report = {
     generated_at: now.toISOString(),
     summary: {

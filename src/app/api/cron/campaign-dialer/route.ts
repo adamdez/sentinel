@@ -159,8 +159,8 @@ export async function GET(req: NextRequest) {
               body: new URLSearchParams({ To: lead.phone, From: twilioFrom, Body: smsBody }),
             });
           }
-        } catch {
-          // SMS send failed — task is still created as fallback
+        } catch (smsErr) {
+          console.error(`[campaign-dialer] SMS send failed for lead=${lead.id}:`, smsErr instanceof Error ? smsErr.message : smsErr);
         }
       }
 

@@ -185,18 +185,15 @@ export async function POST(req: NextRequest) {
 
   if (result.error) {
     console.error(
-      `[Deepgram Webhook] Failed to create note for session=${payload.session_id}:`,
-      result.error,
-      result.code,
+      `[Deepgram Webhook] DROPPED TRANSCRIPT session=${payload.session_id} seq=${seqNum}: ${result.error} (code=${result.code})`,
     );
-    // Return 200 anyway to prevent webhook retries from the relay.
-    // The relay server is not at fault; the error is internal.
+    // Return 500 so the relay knows delivery failed and can retry
     return NextResponse.json({
       ok: false,
       error: result.error,
       code: result.code,
       persisted: false,
-    });
+    }, { status: 500 });
   }
 
   return NextResponse.json({
