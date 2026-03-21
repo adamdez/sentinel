@@ -33,6 +33,7 @@ export interface CompleteRunInput {
   inputTokens?: number;
   outputTokens?: number;
   costCents?: number;
+  agentName?: string;
 }
 
 export interface SubmitProposalInput {
@@ -156,6 +157,7 @@ export async function completeAgentRun(input: CompleteRunInput): Promise<void> {
 
   if (error) {
     console.error(`[control-plane] Failed to complete run ${input.runId}:`, error.message);
+    throw new Error(`Failed to complete agent run ${input.runId}: ${error.message}`);
   }
 
   // End Langfuse trace + flush (no-op if not configured)
@@ -172,7 +174,7 @@ export async function completeAgentRun(input: CompleteRunInput): Promise<void> {
   import("@/lib/n8n-dispatch").then(({ n8nAgentRunCompleted }) => {
     n8nAgentRunCompleted({
       runId: input.runId,
-      agentName: "", // filled by caller if needed
+      agentName: input.agentName ?? "",
       status: input.status as "completed" | "failed",
       leadId: null,
       durationMs: durationMs,

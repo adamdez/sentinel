@@ -241,12 +241,18 @@ export async function runBrowserResearch(input: BrowserResearchInput): Promise<R
           }
 
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          await (sb.from("fact_assertions") as any)
+          const { error: insertErr } = await (sb.from("fact_assertions") as any)
             .insert(insertPayload)
-            .select()
-            .then(() => {})
-            .catch(() => {}); // Skip duplicates
-          factsExtracted++;
+            .select();
+          if (insertErr) {
+            if (insertErr.code === '23505') {
+              // Genuine duplicate — skip silently
+            } else {
+              errors.push(`Fact insert failed: ${insertErr.message}`);
+            }
+          } else {
+            factsExtracted++;
+          }
         }
       } catch (err) {
         errors.push(`Extraction: ${err instanceof Error ? err.message : String(err)}`);

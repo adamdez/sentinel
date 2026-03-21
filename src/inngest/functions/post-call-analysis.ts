@@ -68,7 +68,7 @@ export const postCallAnalysisJob = inngest.createFunction(
       );
 
       // post_call_structures table does not exist in schema — store in voice_sessions.extracted_facts
-      await sb.from("voice_sessions").update({
+      const { error: updateErr } = await sb.from("voice_sessions").update({
         extracted_facts: [
           ...(analysis.promises_made ?? []).map((p: string) => ({ type: "promise", value: p })),
           ...(analysis.objections_raised ?? []).map((o: string) => ({ type: "objection", value: o })),
@@ -76,6 +76,7 @@ export const postCallAnalysisJob = inngest.createFunction(
           { type: "next_action_suggestion", value: analysis.next_action_suggestion },
         ],
       }).eq("id", voiceSessionId);
+      if (updateErr) throw new Error(`voice_sessions update failed: ${updateErr.message}`);
     });
 
     // Step 3: Submit review_queue proposal for CRM write (control plane gated)
@@ -85,69 +86,82 @@ export const postCallAnalysisJob = inngest.createFunction(
       }
 
       // Create agent run for traceability
-      const runId = await createAgentRun({
-        agentName: "post-call-analysis",
-        triggerType: "event",
-        triggerRef: voiceSessionId,
-        leadId,
-        model: "claude-haiku-4-5-20251001",
-        promptVersion: "post-call-v1",
-      });
+      let runId: string | null = null;
+      try {
+        runId = await createAgentRun({
+          agentName: "post-call-analysis",
+          triggerType: "event",
+          triggerRef: voiceSessionId,
+          leadId,
+          model: "claude-haiku-4-5-20251001",
+          promptVersion: "post-call-v1",
+        });
 
-      if (!runId) {
-        return { skipped: true, reason: "dedup_guard" };
+        if (!runId) {
+          return { skipped: true, reason: "dedup_guard" };
+        }
+
+        // Derive priority from deal_temperature
+        const priorityMap: Record<string, number> = {
+          hot: 1,
+          warm: 2,
+          cold: 3,
+          dead: 5,
+        };
+        const priority = priorityMap[analysis.deal_temperature] ?? 3;
+
+        // Compute next_action_due_at: next business morning (9am Pacific) if not specified
+        const nextActionDueAt = computeNextBusinessMorning();
+
+        const proposal = {
+          next_action: analysis.next_action_suggestion || "Follow up after Vapi call",
+          next_action_due_at: nextActionDueAt,
+          deal_temperature: analysis.deal_temperature,
+          promises_made: analysis.promises_made ?? [],
+          objections_raised: analysis.objections_raised ?? [],
+          decision_maker_confidence: analysis.decision_maker_confidence ?? "weak",
+          voice_session_id: voiceSessionId,
+        };
+
+        const reviewItemId = await submitProposal({
+          runId,
+          agentName: "post-call-analysis",
+          entityType: "lead",
+          entityId: leadId,
+          action: "vapi_post_call_promote",
+          proposal,
+          rationale: `Post-call analysis: ${analysis.deal_temperature} lead, next action: ${proposal.next_action}`,
+          priority,
+        });
+
+        // Auto-approve policy: if agent mode is "auto" AND high confidence extraction
+        const mode = await getAgentMode("post-call-analysis");
+        const isHighConfidence =
+          analysis.decision_maker_confidence === "strong" &&
+          analysis.deal_temperature !== "dead" &&
+          !!analysis.next_action_suggestion;
+
+        if (mode === "auto" && isHighConfidence) {
+          // Import resolveReviewItem to auto-approve
+          const { resolveReviewItem } = await import("@/lib/control-plane");
+          await resolveReviewItem(reviewItemId, "approved", "system:auto-approve");
+          await completeAgentRun({ runId, status: "completed", agentName: "post-call-analysis", outputs: { reviewItemId, autoApproved: true } });
+          return { reviewItemId, autoApproved: true };
+        }
+
+        await completeAgentRun({ runId, status: "completed", agentName: "post-call-analysis", outputs: { reviewItemId, autoApproved: false } });
+        return { reviewItemId, autoApproved: false };
+      } catch (err) {
+        if (runId) {
+          await completeAgentRun({
+            runId,
+            status: "failed",
+            agentName: "post-call-analysis",
+            error: err instanceof Error ? err.message : String(err),
+          }).catch(() => {});
+        }
+        throw err; // Let Inngest retry
       }
-
-      // Derive priority from deal_temperature
-      const priorityMap: Record<string, number> = {
-        hot: 1,
-        warm: 2,
-        cold: 3,
-        dead: 5,
-      };
-      const priority = priorityMap[analysis.deal_temperature] ?? 3;
-
-      // Compute next_action_due_at: next business morning (9am Pacific) if not specified
-      const nextActionDueAt = computeNextBusinessMorning();
-
-      const proposal = {
-        next_action: analysis.next_action_suggestion || "Follow up after Vapi call",
-        next_action_due_at: nextActionDueAt,
-        deal_temperature: analysis.deal_temperature,
-        promises_made: analysis.promises_made ?? [],
-        objections_raised: analysis.objections_raised ?? [],
-        decision_maker_confidence: analysis.decision_maker_confidence ?? "weak",
-        voice_session_id: voiceSessionId,
-      };
-
-      const reviewItemId = await submitProposal({
-        runId,
-        agentName: "post-call-analysis",
-        entityType: "lead",
-        entityId: leadId,
-        action: "vapi_post_call_promote",
-        proposal,
-        rationale: `Post-call analysis: ${analysis.deal_temperature} lead, next action: ${proposal.next_action}`,
-        priority,
-      });
-
-      // Auto-approve policy: if agent mode is "auto" AND high confidence extraction
-      const mode = await getAgentMode("post-call-analysis");
-      const isHighConfidence =
-        analysis.decision_maker_confidence === "strong" &&
-        analysis.deal_temperature !== "dead" &&
-        !!analysis.next_action_suggestion;
-
-      if (mode === "auto" && isHighConfidence) {
-        // Import resolveReviewItem to auto-approve
-        const { resolveReviewItem } = await import("@/lib/control-plane");
-        await resolveReviewItem(reviewItemId, "approved", "system:auto-approve");
-        await completeAgentRun({ runId, status: "completed", outputs: { reviewItemId, autoApproved: true } });
-        return { reviewItemId, autoApproved: true };
-      }
-
-      await completeAgentRun({ runId, status: "completed", outputs: { reviewItemId, autoApproved: false } });
-      return { reviewItemId, autoApproved: false };
     });
 
     return { voiceSessionId, leadId, analysis, reviewResult };
