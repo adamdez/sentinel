@@ -5,7 +5,8 @@ import { useRouter } from "next/navigation";
 import {
   PanelLeftClose,
   PanelLeft,
-
+  Sun,
+  Moon,
   Wifi,
   WifiOff,
 } from "lucide-react";
@@ -28,6 +29,7 @@ import { useSentinelStore } from "@/lib/store";
 import { useRealtime } from "@/providers/realtime-provider";
 import { useHydrated } from "@/providers/hydration-provider";
 import { supabase } from "@/lib/supabase";
+import { useSentinelTheme } from "@/providers/theme-provider";
 import { GlobalSearch } from "./global-search";
 
 export function TopBar() {
@@ -39,6 +41,7 @@ export function TopBar() {
   } = useSentinelStore();
   const { connected } = useRealtime();
   const hydrated = useHydrated();
+  const { theme, setTheme } = useSentinelTheme();
 
   const handleLogout = () => {
     supabase.auth.signOut().catch(() => {});
@@ -116,6 +119,10 @@ export function TopBar() {
             <DropdownMenuSeparator />
             <DropdownMenuItem onClick={() => router.push("/settings")}>Settings</DropdownMenuItem>
             <DropdownMenuItem onClick={() => router.push("/analytics")}>Analytics</DropdownMenuItem>
+            <DropdownMenuItem onClick={() => setTheme(theme === "dark" ? "light" : "dark")}>
+              {theme === "dark" ? <Sun className="h-3.5 w-3.5 mr-2" /> : <Moon className="h-3.5 w-3.5 mr-2" />}
+              {theme === "dark" ? "Light Mode" : "Dark Mode"}
+            </DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuItem className="text-destructive" onSelect={handleLogout}>
               Log out
