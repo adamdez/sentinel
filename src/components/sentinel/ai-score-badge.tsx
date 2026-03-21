@@ -34,17 +34,17 @@ interface AIScoreBadgeProps {
 }
 
 const labelConfig = {
-  platinum: { variant: "platinum" as const, text: "PLATINUM", color: "text-cyan-300", glow: "drop-shadow(0 0 1px rgba(0,212,255,1)) drop-shadow(0 0 3.5px rgba(0,212,255,0.48)) drop-shadow(0 0 7px rgba(0,212,255,0.24)) drop-shadow(0 0 11px rgba(0,212,255,0.11))" },
-  gold: { variant: "gold" as const, text: "GOLD", color: "text-amber-400", glow: "drop-shadow(0 0 1px rgba(245,158,11,1)) drop-shadow(0 0 3.5px rgba(245,158,11,0.48)) drop-shadow(0 0 7px rgba(245,158,11,0.24))" },
-  silver: { variant: "silver" as const, text: "SILVER", color: "text-slate-300", glow: "drop-shadow(0 0 1px rgba(148,163,184,0.8)) drop-shadow(0 0 3.5px rgba(148,163,184,0.35))" },
-  bronze: { variant: "bronze" as const, text: "BRONZE", color: "text-orange-500", glow: "" },
+  platinum: { variant: "platinum" as const, text: "TOP", color: "text-cyan-300", glow: "drop-shadow(0 0 1px rgba(0,212,255,1)) drop-shadow(0 0 3.5px rgba(0,212,255,0.48)) drop-shadow(0 0 7px rgba(0,212,255,0.24)) drop-shadow(0 0 11px rgba(0,212,255,0.11))" },
+  gold: { variant: "gold" as const, text: "HIGH", color: "text-amber-400", glow: "drop-shadow(0 0 1px rgba(245,158,11,1)) drop-shadow(0 0 3.5px rgba(245,158,11,0.48)) drop-shadow(0 0 7px rgba(245,158,11,0.24))" },
+  silver: { variant: "silver" as const, text: "MED", color: "text-slate-300", glow: "drop-shadow(0 0 1px rgba(148,163,184,0.8)) drop-shadow(0 0 3.5px rgba(148,163,184,0.35))" },
+  bronze: { variant: "bronze" as const, text: "LOW", color: "text-orange-500", glow: "" },
 };
 
 const LABEL_EXPLAINER: Record<AIScore["label"], string> = {
-  platinum: "Extreme distress stacking + high equity + absentee. Close immediately.",
-  gold: "Strong signal convergence. High-priority outreach target.",
-  silver: "Moderate distress or limited data. Worth nurturing.",
-  bronze: "Weak or stale signal. Low priority — watch list.",
+  platinum: "Top priority — strong signals, act now.",
+  gold: "High priority — worth focused outreach.",
+  silver: "Medium priority — nurture and monitor.",
+  bronze: "Low priority — watch list.",
 };
 
 const SIGNAL_LABELS: Record<string, string> = {

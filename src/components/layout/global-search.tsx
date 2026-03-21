@@ -128,50 +128,115 @@ async function fetchSuggestions(q: string): Promise<NationwideSuggestion[]> {
 async function searchSupabase(q: string): Promise<SearchRecord[]> {
   if (q.length < 2) return [];
   const pattern = `%${q}%`;
+  // Strip non-digits for phone matching
+  const digits = q.replace(/\D/g, "");
+  const isPhoneLike = digits.length >= 4;
+  const phonePattern = isPhoneLike ? `%${digits}%` : null;
 
-  // Search properties by address, owner_name, apn
+  // Search properties by address, owner_name, apn, AND phone
+  const orFilters = [`address.ilike.${pattern}`, `owner_name.ilike.${pattern}`, `apn.ilike.${pattern}`];
+  if (phonePattern) orFilters.push(`owner_phone.ilike.${phonePattern}`);
+
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data: props } = await (supabase.from("properties") as any)
-    .select("id, apn, address, city, state, zip, owner_name")
-    .or(`address.ilike.${pattern},owner_name.ilike.${pattern},apn.ilike.${pattern}`)
+    .select("id, apn, address, city, state, zip, owner_name, owner_phone")
+    .or(orFilters.join(","))
     .limit(20);
 
-  if (!props || props.length === 0) return [];
+  // Also search contacts by phone, name, email
+  const contactOrFilters = [`name.ilike.${pattern}`, `email.ilike.${pattern}`];
+  if (phonePattern) contactOrFilters.push(`phone.ilike.${phonePattern}`);
 
-  // Get property IDs, then fetch their leads
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const propIds = (props as any[]).map((p) => p.id);
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { data: leads } = await (supabase.from("leads") as any)
-    .select("id, property_id, status, priority, source")
-    .in("property_id", propIds);
+  const { data: contacts } = await (supabase.from("contacts") as any)
+    .select("id, lead_id, name, phone, email")
+    .or(contactOrFilters.join(","))
+    .limit(10);
 
-  // Build a map: property_id → lead
+  // Collect property IDs from property search
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const leadMap: Record<string, any> = {};
-  if (leads) {
+  const propIds = (props as any[] ?? []).map((p) => p.id);
+
+  // Collect lead IDs from contacts search
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const contactLeadIds = (contacts as any[] ?? []).filter((c) => c.lead_id).map((c) => c.lead_id);
+
+  // Fetch leads for both property IDs and contact lead IDs
+  const allPropIds = [...new Set(propIds)];
+  const allLeadIds = [...new Set(contactLeadIds)];
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let allLeads: any[] = [];
+  if (allPropIds.length > 0) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    for (const l of leads as any[]) {
-      if (!leadMap[l.property_id] || (l.priority ?? 0) > (leadMap[l.property_id].priority ?? 0)) {
-        leadMap[l.property_id] = l;
-      }
+    const { data: propLeads } = await (supabase.from("leads") as any)
+      .select("id, property_id, status, priority, source")
+      .in("property_id", allPropIds);
+    if (propLeads) allLeads = [...allLeads, ...propLeads];
+  }
+  if (allLeadIds.length > 0) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: directLeads } = await (supabase.from("leads") as any)
+      .select("id, property_id, status, priority, source")
+      .in("id", allLeadIds);
+    if (directLeads) allLeads = [...allLeads, ...directLeads];
+  }
+
+  // Build maps
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const leadByProp: Record<string, any> = {};
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const leadById: Record<string, any> = {};
+  for (const l of allLeads) {
+    if (l.property_id && (!leadByProp[l.property_id] || (l.priority ?? 0) > (leadByProp[l.property_id].priority ?? 0))) {
+      leadByProp[l.property_id] = l;
     }
+    leadById[l.id] = l;
   }
 
   const records: SearchRecord[] = [];
+  const seenIds = new Set<string>();
 
+  // Property-based results
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  for (const p of props as any[]) {
-    const lead = leadMap[p.id];
+  for (const p of (props as any[] ?? [])) {
+    const lead = leadByProp[p.id];
+    const resultId = lead?.id ?? p.id;
+    if (seenIds.has(resultId)) continue;
+    seenIds.add(resultId);
+
     const isProspect = !lead || lead.status === "prospect";
     const score = lead?.priority ?? 0;
+    const secondaryParts = [p.address, p.city, p.state, p.zip].filter(Boolean);
+    if (p.owner_phone) secondaryParts.push(p.owner_phone);
 
     records.push({
-      id: lead?.id ?? p.id,
+      id: resultId,
       kind: isProspect ? "prospect" : "lead",
       primary: p.owner_name ?? "Unknown",
-      secondary: [p.address, p.city, p.state, p.zip].filter(Boolean).join(", "),
+      secondary: secondaryParts.join(", "),
       href: lead?.id ? `/leads?open=${lead.id}` : "/leads",
+      score: score > 0 ? score : undefined,
+      scoreLabel: score > 0 ? labelFromScore(score) : undefined,
+      status: lead?.status ?? "prospect",
+    });
+  }
+
+  // Contact-based results (leads found via phone/email on contacts table)
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  for (const c of (contacts as any[] ?? [])) {
+    if (!c.lead_id) continue;
+    const lead = leadById[c.lead_id];
+    if (!lead || seenIds.has(lead.id)) continue;
+    seenIds.add(lead.id);
+
+    const score = lead?.priority ?? 0;
+    records.push({
+      id: lead.id,
+      kind: lead.status === "prospect" ? "prospect" : "lead",
+      primary: c.name ?? "Unknown",
+      secondary: [c.phone, c.email].filter(Boolean).join(" · "),
+      href: `/leads?open=${lead.id}`,
       score: score > 0 ? score : undefined,
       scoreLabel: score > 0 ? labelFromScore(score) : undefined,
       status: lead?.status ?? "prospect",
