@@ -18,9 +18,12 @@ import {
   CheckCircle2,
   Briefcase,
   ListPlus,
+  Trash2,
+  Loader2,
 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/lib/supabase";
+import { deleteLeadCustomerFile } from "@/lib/lead-write-helpers";
 import {
   Tooltip,
   TooltipContent,
@@ -99,7 +102,7 @@ const DISTRESS_LABELS: Record<string, string> = {
 };
 
 // Grid definition
-const GRID = "grid-cols-[1.5fr_90px_minmax(120px,1fr)_100px_200px_70px]";
+const GRID = "grid-cols-[28px_1.5fr_90px_minmax(120px,1fr)_100px_200px_90px]";
 
 // Helpers
 
@@ -350,6 +353,72 @@ export function LeadTable({
 }: LeadTableProps) {
   const [logCallLead, setLogCallLead] = useState<LeadRow | null>(null);
   const [queuingId, setQueuingId] = useState<string | null>(null);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [bulkDeleting, setBulkDeleting] = useState(false);
+
+  const allSelected = leads.length > 0 && selectedIds.size === leads.length;
+  const someSelected = selectedIds.size > 0;
+
+  const toggleSelect = useCallback((id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }, []);
+
+  const toggleSelectAll = useCallback(() => {
+    if (allSelected) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(leads.map((l) => l.id)));
+    }
+  }, [allSelected, leads]);
+
+  const handleDelete = useCallback(async (lead: LeadRow) => {
+    if (!window.confirm(`Delete "${lead.ownerName}" at ${lead.address}?\n\nThis will remove the lead and its customer file.`)) return;
+    setDeletingId(lead.id);
+    try {
+      const result = await deleteLeadCustomerFile(lead.id);
+      if (!result.ok) {
+        toast.error(`Delete failed: ${result.error}`);
+        return;
+      }
+      toast.success(`Deleted: ${lead.ownerName}`);
+      setSelectedIds((prev) => { const next = new Set(prev); next.delete(lead.id); return next; });
+      onRefresh?.();
+    } finally {
+      setDeletingId(null);
+    }
+  }, [onRefresh]);
+
+  const handleBulkDelete = useCallback(async () => {
+    const count = selectedIds.size;
+    if (count === 0) return;
+    if (!window.confirm(`Delete ${count} selected lead${count > 1 ? "s" : ""}?\n\nThis cannot be undone.`)) return;
+    setBulkDeleting(true);
+    let succeeded = 0;
+    let failed = 0;
+    for (const id of selectedIds) {
+      try {
+        const result = await deleteLeadCustomerFile(id);
+        if (result.ok) succeeded++;
+        else failed++;
+      } catch {
+        failed++;
+      }
+    }
+    setBulkDeleting(false);
+    setSelectedIds(new Set());
+    if (failed > 0) {
+      toast.error(`Deleted ${succeeded}, failed ${failed}`);
+    } else {
+      toast.success(`Deleted ${succeeded} lead${succeeded > 1 ? "s" : ""}`);
+    }
+    onRefresh?.();
+  }, [selectedIds, onRefresh]);
 
   const addToQueue = useCallback(async (leadId: string) => {
     setQueuingId(leadId);
@@ -388,8 +457,37 @@ export function LeadTable({
 
   return (
     <div className="rounded-[14px] border border-glass-border bg-glass/30 overflow-hidden">
+      {/* Bulk delete bar */}
+      {someSelected && (
+        <div className="flex items-center gap-3 px-4 py-2 border-b border-glass-border bg-red-500/[0.06]">
+          <span className="text-xs text-foreground font-medium">{selectedIds.size} selected</span>
+          <button
+            onClick={handleBulkDelete}
+            disabled={bulkDeleting}
+            className="flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-md bg-red-500/15 text-red-400 border border-red-500/25 hover:bg-red-500/25 transition-colors disabled:opacity-50"
+          >
+            {bulkDeleting ? <Loader2 className="h-3 w-3 animate-spin" /> : <Trash2 className="h-3 w-3" />}
+            Delete Selected ({selectedIds.size})
+          </button>
+          <button
+            onClick={() => setSelectedIds(new Set())}
+            className="text-[11px] text-muted-foreground hover:text-foreground transition-colors"
+          >
+            Clear selection
+          </button>
+        </div>
+      )}
+
       {/* Header */}
       <div className={cn("grid gap-3 px-4 py-2.5 border-b border-glass-border bg-glass/50", GRID)}>
+        <div className="flex items-center" onClick={(e) => e.stopPropagation()}>
+          <input
+            type="checkbox"
+            checked={allSelected}
+            onChange={toggleSelectAll}
+            className="h-3.5 w-3.5 rounded border-white/20 bg-white/5 accent-cyan cursor-pointer"
+          />
+        </div>
         <SortHeader label="Property" field="address" currentField={sortField} currentDir={sortDir} onSort={onSort} />
         <SortHeader label="Score" field="score" currentField={sortField} currentDir={sortDir} onSort={onSort} />
         <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Signals</span>
@@ -453,6 +551,16 @@ export function LeadTable({
               !lead.complianceClean && "opacity-60"
             )}
           >
+            {/* Checkbox */}
+            <div className="flex items-center" onClick={(e) => e.stopPropagation()}>
+              <input
+                type="checkbox"
+                checked={selectedIds.has(lead.id)}
+                onChange={() => toggleSelect(lead.id)}
+                className="h-3.5 w-3.5 rounded border-white/20 bg-white/5 accent-cyan cursor-pointer"
+              />
+            </div>
+
             {/* Property */}
             <div className="flex flex-col justify-center min-w-0 gap-0.5">
               <span
@@ -734,6 +842,18 @@ export function LeadTable({
                   <TooltipContent className="text-[11px]">DNC / compliance block</TooltipContent>
                 </Tooltip>
               )}
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <button
+                    onClick={() => handleDelete(lead)}
+                    disabled={deletingId === lead.id}
+                    className="h-6 w-6 flex items-center justify-center rounded-md text-red-400/60 hover:text-red-400 hover:bg-red-500/10 transition-colors disabled:opacity-40"
+                  >
+                    {deletingId === lead.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent className="text-[11px]">Delete lead</TooltipContent>
+              </Tooltip>
             </div>
           </motion.div>
         );

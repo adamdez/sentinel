@@ -21,8 +21,11 @@ import {
   Plus,
   ListPlus,
   Phone,
+  Trash2,
+  Loader2,
 } from "lucide-react";
 import { toast } from "sonner";
+import { deleteLeadCustomerFile } from "@/lib/lead-write-helpers";
 import { supabase, getCurrentUser } from "@/lib/supabase";
 import { cn } from "@/lib/utils";
 import { getAuthenticatedProspectPatchHeaders } from "@/lib/prospect-api-client";
@@ -213,6 +216,7 @@ export default function PipelinePage() {
   const rawDataRef = useRef<Record<string, { lead: any; prop: any }>>({});
   const [selectedClientFile, setSelectedClientFile] = useState<ClientFile | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
+  const [deleting, setDeleting] = useState<string | null>(null);
 
   useCoachSurface("pipeline", {});
 
@@ -546,6 +550,24 @@ export default function PipelinePage() {
     await fetchLeads();
   }, [claimLead, patchLead, fetchLeads]);
 
+  // ── Delete lead ────────────────────────────────────────────────────────
+
+  const handleDelete = useCallback(async (lead: Lead) => {
+    if (!window.confirm(`Delete "${lead.owner_name}" at ${lead.address}?\n\nThis will permanently remove this lead.`)) return;
+    setDeleting(lead.id);
+    try {
+      const result = await deleteLeadCustomerFile(lead.id);
+      if (!result.ok) {
+        toast.error(`Delete failed: ${result.error}`);
+        return;
+      }
+      toast.success(`Deleted: ${lead.owner_name}`);
+      await fetchLeads();
+    } finally {
+      setDeleting(null);
+    }
+  }, [fetchLeads]);
+
   // ── Quick Add Test Prospect ──────────────────────────────────────────
 
   const addTestProspect = useCallback(async () => {
@@ -730,6 +752,8 @@ export default function PipelinePage() {
                               laneId={stage.id}
                               currentUserId={currentUserId}
                               onClaim={claimLead}
+                              onDelete={handleDelete}
+                              isDeleting={deleting === lead.id}
                               onOpenDetail={(id) => {
                                 const raw = rawDataRef.current[id];
                                 if (raw) {
@@ -782,6 +806,8 @@ function LeadCard({
   laneId,
   currentUserId,
   onClaim,
+  onDelete,
+  isDeleting,
   onOpenDetail,
 }: {
   lead: Lead;
@@ -789,6 +815,8 @@ function LeadCard({
   laneId: LaneId;
   currentUserId: string | null;
   onClaim: (id: string) => Promise<void>;
+  onDelete: (lead: Lead) => Promise<void>;
+  isDeleting: boolean;
   onOpenDetail: (id: string) => void;
 }) {
   const [queuing, startQueuing] = useTransition();
@@ -973,6 +1001,18 @@ function LeadCard({
                   CLAIM
                 </button>
               )}
+
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onDelete(lead);
+                }}
+                disabled={isDeleting}
+                title="Delete lead"
+                className="h-6 w-6 flex items-center justify-center rounded-md text-red-400/60 hover:text-red-400 hover:bg-red-500/10 transition-colors disabled:opacity-40"
+              >
+                {isDeleting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
+              </button>
             </div>
           </div>
         </motion.div>
