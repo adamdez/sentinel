@@ -101,11 +101,11 @@ export function BuyerRadarPanel({ leadId, isAdminView = false }: BuyerRadarPanel
       >
         <div className="flex items-center gap-2">
           <Radar className="h-3.5 w-3.5 text-primary" />
-          <span className="text-[11px] text-muted-foreground uppercase tracking-wider font-semibold">
+          <span className="text-sm text-muted-foreground uppercase tracking-wider font-semibold">
             Buyer Radar
           </span>
           {data && !loading && (
-            <span className="text-[10px] text-muted-foreground/60">
+            <span className="text-sm text-muted-foreground/60">
               {data.activeBuyerCount} active
             </span>
           )}
@@ -121,7 +121,7 @@ export function BuyerRadarPanel({ leadId, isAdminView = false }: BuyerRadarPanel
         <div className="border-t border-white/[0.06] px-3 pb-3 pt-2 space-y-2">
 
           {error && (
-            <div className="flex items-center gap-2 text-[11px] text-foreground/80 bg-muted/5 rounded-[8px] px-2.5 py-2">
+            <div className="flex items-center gap-2 text-sm text-foreground/80 bg-muted/5 rounded-[8px] px-2.5 py-2">
               <AlertTriangle className="h-3.5 w-3.5 flex-shrink-0" />
               {error}
             </div>
@@ -136,7 +136,7 @@ export function BuyerRadarPanel({ leadId, isAdminView = false }: BuyerRadarPanel
           )}
 
           {!loading && data && data.results.length === 0 && (
-            <div className="flex items-center gap-2 text-[11px] text-muted-foreground/60 py-2">
+            <div className="flex items-center gap-2 text-sm text-muted-foreground/60 py-2">
               <Users className="h-3.5 w-3.5" />
               No buyers in database yet. Add buyers in the Buyers section.
             </div>
@@ -145,15 +145,15 @@ export function BuyerRadarPanel({ leadId, isAdminView = false }: BuyerRadarPanel
           {/* Adam-only: monetizability score */}
           {isAdminView && data?.monetizabilityVisible && data.monetizabilityScore !== null && (
             <div className="flex items-center justify-between rounded-[8px] bg-primary/5 border border-primary/10 px-2.5 py-2">
-              <span className="text-[10px] text-primary/70 uppercase tracking-wider font-semibold">Computed Monetizability</span>
+              <span className="text-sm text-primary/70 uppercase tracking-wider font-semibold">Computed Monetizability</span>
               <div className="flex items-center gap-1.5">
-                <span className="text-[13px] font-mono font-semibold text-primary">{data.monetizabilityScore.toFixed(1)}</span>
-                <span className="text-[10px] text-muted-foreground/50">/10</span>
+                <span className="text-sm font-mono font-semibold text-primary">{data.monetizabilityScore.toFixed(1)}</span>
+                <span className="text-sm text-muted-foreground/50">/10</span>
               </div>
             </div>
           )}
           {isAdminView && data && !data.monetizabilityVisible && (
-            <div className="text-[10px] text-muted-foreground/40 italic px-0.5">
+            <div className="text-sm text-muted-foreground/40 italic px-0.5">
               Score available after {10 - data.activeBuyerCount} more active buyer{(10 - data.activeBuyerCount) !== 1 ? "s" : ""}
             </div>
           )}
@@ -173,7 +173,7 @@ export function BuyerRadarPanel({ leadId, isAdminView = false }: BuyerRadarPanel
           {data && (
             <button
               onClick={refetch}
-              className="flex items-center gap-1 text-[10px] text-muted-foreground/40 hover:text-muted-foreground/70 transition-colors mt-1"
+              className="flex items-center gap-1 text-sm text-muted-foreground/40 hover:text-muted-foreground/70 transition-colors mt-1"
             >
               <RefreshCw className="h-2.5 w-2.5" />
               Refresh
@@ -225,13 +225,13 @@ function BuyerRow({
         <div className="flex-1 min-w-0 space-y-1">
           <div className="flex items-center gap-1.5 flex-wrap">
             <span className={cn(
-              "text-[12px] font-medium leading-tight",
+              "text-xs font-medium leading-tight",
               isEliminated ? "text-muted-foreground/40" : "text-foreground"
             )}>
               {buyer.contact_name}
             </span>
             {buyer.company_name && (
-              <span className="text-[10px] text-muted-foreground/50">· {buyer.company_name}</span>
+              <span className="text-sm text-muted-foreground/50">· {buyer.company_name}</span>
             )}
             {existingStatus && (
               <StatusBadge status={existingStatus} />
@@ -245,22 +245,22 @@ function BuyerRow({
 
           <div className="flex items-center gap-2 flex-wrap">
             {buyer.markets.length > 0 && (
-              <span className="text-[10px] text-muted-foreground/60">{buyer.markets.map(marketLabel).join(", ")}</span>
+              <span className="text-sm text-muted-foreground/60">{buyer.markets.map(marketLabel).join(", ")}</span>
             )}
             {buyer.buyer_strategy && (
-              <span className="text-[10px] text-muted-foreground/50">{strategyLabel(buyer.buyer_strategy)}</span>
+              <span className="text-sm text-muted-foreground/50">{strategyLabel(buyer.buyer_strategy)}</span>
             )}
             {buyer.funding_type && (
-              <span className="text-[10px] text-muted-foreground/40">{fundingLabel(buyer.funding_type)}</span>
+              <span className="text-sm text-muted-foreground/40">{fundingLabel(buyer.funding_type)}</span>
             )}
             {buyer.close_speed_days !== null && (
-              <span className="text-[10px] text-muted-foreground/40">{buyer.close_speed_days}d close</span>
+              <span className="text-sm text-muted-foreground/40">{buyer.close_speed_days}d close</span>
             )}
             {buyer.rehab_tolerance && (
-              <span className="text-[10px] text-muted-foreground/40">{rehabLabel(buyer.rehab_tolerance)} ok</span>
+              <span className="text-sm text-muted-foreground/40">{rehabLabel(buyer.rehab_tolerance)} ok</span>
             )}
             {buyer.deals_closed > 0 && (
-              <span className="text-[10px] text-muted-foreground/40">{buyer.deals_closed} closed</span>
+              <span className="text-sm text-muted-foreground/40">{buyer.deals_closed} closed</span>
             )}
           </div>
 
@@ -301,7 +301,7 @@ function BuyerRow({
                   disabled={!dealId}
                   title={!dealId ? "Create a deal for this lead first" : "Queue buyer for outreach"}
                   className={cn(
-                    "flex items-center gap-1 text-[10px] px-2 py-1 rounded-[6px] font-medium transition-colors",
+                    "flex items-center gap-1 text-sm px-2 py-1 rounded-[6px] font-medium transition-colors",
                     dealId
                       ? "bg-primary/10 text-primary/80 hover:bg-primary/20 border border-primary/15"
                       : "bg-white/[0.04] text-muted-foreground/30 border border-white/[0.04] cursor-not-allowed"
@@ -315,7 +315,7 @@ function BuyerRow({
                   disabled={!dealId}
                   title={!dealId ? "Create a deal for this lead first" : "Not right for this deal"}
                   className={cn(
-                    "flex items-center gap-1 text-[10px] px-2 py-1 rounded-[6px] font-medium transition-colors",
+                    "flex items-center gap-1 text-sm px-2 py-1 rounded-[6px] font-medium transition-colors",
                     dealId
                       ? "text-muted-foreground/50 hover:text-muted-foreground/80 hover:bg-white/[0.04] border border-transparent hover:border-white/[0.06]"
                       : "text-muted-foreground/20 cursor-not-allowed"
@@ -346,7 +346,7 @@ function StatusBadge({ status }: { status: string }) {
   const c = cfg[status];
   if (!c) return null;
   return (
-    <span className={cn("text-[9px] px-1.5 py-0.5 rounded border font-medium", c.className)}>
+    <span className={cn("text-xs px-1.5 py-0.5 rounded border font-medium", c.className)}>
       {c.label}
     </span>
   );

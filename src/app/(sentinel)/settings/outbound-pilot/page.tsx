@@ -77,7 +77,7 @@ function ReadinessSummaryCard({ summary }: { summary: PilotReadinessSummary }) {
       <div className="flex items-center gap-2">
         <BarChart2 className="w-4 h-4 text-muted-foreground/50" />
         <h3 className="text-sm font-semibold text-foreground/80">Pilot Readiness Summary</h3>
-        <Badge variant="outline" className="text-[9px] border-border/30 text-foreground bg-muted/5">
+        <Badge variant="outline" className="text-xs border-border/30 text-foreground bg-muted/5">
           Hypothetical
         </Badge>
       </div>
@@ -91,7 +91,7 @@ function ReadinessSummaryCard({ summary }: { summary: PilotReadinessSummary }) {
         ].map(({ label, value, color }) => (
           <div key={label} className="bg-white/[0.02] rounded-lg p-2.5 space-y-0.5">
             <p className={`text-lg font-bold ${color || "text-foreground/80"}`}>{value}</p>
-            <p className="text-[10px] text-muted-foreground/50">{label}</p>
+            <p className="text-sm text-muted-foreground/50">{label}</p>
           </div>
         ))}
       </div>
@@ -104,17 +104,17 @@ function ReadinessSummaryCard({ summary }: { summary: PilotReadinessSummary }) {
         ].map(({ label, value, color }) => (
           <div key={label} className="bg-white/[0.02] rounded-lg p-2 space-y-0.5">
             <p className={`text-base font-semibold ${color}`}>{value}</p>
-            <p className="text-[10px] text-muted-foreground/50">{label}</p>
+            <p className="text-sm text-muted-foreground/50">{label}</p>
           </div>
         ))}
       </div>
 
       {summary.topFallbackReasons.length > 0 && (
         <div className="space-y-1.5">
-          <p className="text-[10px] uppercase text-muted-foreground/40 tracking-wide">Top not-ready reasons</p>
+          <p className="text-sm uppercase text-muted-foreground/40 tracking-wide">Top not-ready reasons</p>
           <div className="space-y-1">
             {summary.topFallbackReasons.map(({ reason, count }) => (
-              <div key={reason} className="flex items-start gap-2 text-[10px]">
+              <div key={reason} className="flex items-start gap-2 text-sm">
                 <XCircle className="w-2.5 h-2.5 text-foreground/60 mt-0.5 flex-shrink-0" />
                 <span className="text-muted-foreground/70 flex-1 leading-snug">{reason}</span>
                 <span className="text-muted-foreground/40">{count}×</span>
@@ -145,12 +145,12 @@ function PilotConfigNotes() {
         <ol className="list-decimal list-inside space-y-1.5 pl-1">
           <li>
             <span className="font-medium text-muted-foreground/80">Database migration</span> — alter{" "}
-            <code className="text-[10px] bg-white/[0.05] px-1 rounded">outbound_prep_frames.automation_tier</code>{" "}
-            check constraint to allow <code className="text-[10px] bg-white/[0.05] px-1 rounded">live_pilot</code>.
+            <code className="text-sm bg-white/[0.05] px-1 rounded">outbound_prep_frames.automation_tier</code>{" "}
+            check constraint to allow <code className="text-sm bg-white/[0.05] px-1 rounded">live_pilot</code>.
           </li>
           <li>
             <span className="font-medium text-muted-foreground/80">Voice registry</span> — register an{" "}
-            active <code className="text-[10px] bg-white/[0.05] px-1 rounded">outbound_opener</code>{" "}
+            active <code className="text-sm bg-white/[0.05] px-1 rounded">outbound_opener</code>{" "}
             script version in{" "}
             <Link href="/settings/voice-registry" className="text-foreground hover:underline">
               voice registry
@@ -159,7 +159,7 @@ function PilotConfigNotes() {
           </li>
           <li>
             <span className="font-medium text-muted-foreground/80">Voice consent review</span> — all outbound
-            leads must have <code className="text-[10px] bg-white/[0.05] px-1 rounded">consent_basis</code>{" "}
+            leads must have <code className="text-sm bg-white/[0.05] px-1 rounded">consent_basis</code>{" "}
             reviewed in the{" "}
             <Link href="/dialer/review" className="text-foreground hover:underline">
               voice ledger
@@ -169,7 +169,7 @@ function PilotConfigNotes() {
           <li>
             <span className="font-medium text-muted-foreground/80">Trust language version</span> — current
             approved version is{" "}
-            <code className="text-[10px] bg-white/[0.05] px-1 rounded">{TRUST_LANGUAGE_VERSION}</code>.
+            <code className="text-sm bg-white/[0.05] px-1 rounded">{TRUST_LANGUAGE_VERSION}</code>.
             Review snippets at{" "}
             <Link href="/settings/trust-language" className="text-foreground hover:underline">
               trust language settings
@@ -288,7 +288,7 @@ export default function OutboundPilotPage() {
             <div className="flex items-center gap-2">
               <Filter className="w-3.5 h-3.5 text-muted-foreground/40" />
               <h3 className="text-sm font-semibold text-foreground/80">Prep Frames</h3>
-              <Badge variant="outline" className="text-[9px]">{frames.length}</Badge>
+              <Badge variant="outline" className="text-xs">{frames.length}</Badge>
             </div>
             <div className="flex gap-1.5 flex-wrap">
               {/* Ready filter */}
@@ -296,7 +296,7 @@ export default function OutboundPilotPage() {
                 <button
                   key={f}
                   onClick={() => setReadyFilter(f)}
-                  className={`text-[10px] px-2 py-0.5 rounded border transition-colors ${
+                  className={`text-sm px-2 py-0.5 rounded border transition-colors ${
                     readyFilter === f
                       ? "border-border/40 bg-muted/10 text-foreground"
                       : "border-white/[0.06] text-muted-foreground/50 hover:text-muted-foreground"
@@ -310,7 +310,7 @@ export default function OutboundPilotPage() {
                 <button
                   key={f}
                   onClick={() => setReviewFilter(f)}
-                  className={`text-[10px] px-2 py-0.5 rounded border transition-colors ${
+                  className={`text-sm px-2 py-0.5 rounded border transition-colors ${
                     reviewFilter === f
                       ? "border-border/40 bg-muted/10 text-foreground"
                       : "border-white/[0.06] text-muted-foreground/50 hover:text-muted-foreground"
@@ -339,7 +339,7 @@ export default function OutboundPilotPage() {
               <p className="text-xs text-muted-foreground/40">
                 No prep frames yet.
               </p>
-              <p className="text-[10px] text-muted-foreground/30">
+              <p className="text-sm text-muted-foreground/30">
                 Frames are assembled manually from lead detail or via{" "}
                 <code className="bg-white/[0.04] px-1 rounded">POST /api/dialer/v1/outbound-prep</code>.
               </p>

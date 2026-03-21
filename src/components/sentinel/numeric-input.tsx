@@ -77,7 +77,7 @@ export function NumericInput({
   return (
     <div className="space-y-1">
       {label && (
-        <label className="text-[10px] text-muted-foreground uppercase tracking-wider font-medium">
+        <label className="text-sm text-muted-foreground uppercase tracking-wider font-medium">
           {label}
         </label>
       )}

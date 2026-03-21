@@ -59,7 +59,7 @@ export interface PrepFrameCardRow {
 
 function PrepOnlyBadge() {
   return (
-    <span className="inline-flex items-center gap-1 text-[9px] font-bold uppercase tracking-widest rounded border border-border/30 bg-muted/10 text-foreground px-1.5 py-0.5">
+    <span className="inline-flex items-center gap-1 text-xs font-bold uppercase tracking-widest rounded border border-border/30 bg-muted/10 text-foreground px-1.5 py-0.5">
       <ShieldAlert className="w-2.5 h-2.5" />
       Prep only — no call placed
     </span>
@@ -68,12 +68,12 @@ function PrepOnlyBadge() {
 
 function ReadinessChip({ ready, reason }: { ready: boolean; reason: string | null }) {
   return ready ? (
-    <span className="inline-flex items-center gap-1 text-[10px] rounded border border-border/20 bg-muted/10 text-foreground px-2 py-0.5">
+    <span className="inline-flex items-center gap-1 text-sm rounded border border-border/20 bg-muted/10 text-foreground px-2 py-0.5">
       <CheckCircle2 className="w-2.5 h-2.5" />
       Handoff ready
     </span>
   ) : (
-    <span className="inline-flex items-center gap-1 text-[10px] rounded border border-border/20 bg-muted/10 text-foreground px-2 py-0.5">
+    <span className="inline-flex items-center gap-1 text-sm rounded border border-border/20 bg-muted/10 text-foreground px-2 py-0.5">
       <XCircle className="w-2.5 h-2.5" />
       Not ready{reason ? ` — ${reason}` : ""}
     </span>
@@ -85,8 +85,8 @@ function SnapRow({ icon: Icon, label, value }: { icon: React.ElementType; label:
   return (
     <div className="flex items-start gap-1.5">
       <Icon className="w-3 h-3 mt-0.5 text-muted-foreground/40 flex-shrink-0" />
-      <span className="text-[10px] text-muted-foreground/50 w-20 flex-shrink-0">{label}</span>
-      <span className="text-[10px] text-muted-foreground leading-snug">{value}</span>
+      <span className="text-sm text-muted-foreground/50 w-20 flex-shrink-0">{label}</span>
+      <span className="text-sm text-muted-foreground leading-snug">{value}</span>
     </div>
   );
 }
@@ -144,18 +144,18 @@ export function OutboundPrepCard({ frame, onReviewed }: OutboundPrepCardProps) {
             <PrepOnlyBadge />
             <Badge
               variant="outline"
-              className={`text-[9px] px-1.5 py-0 ${PREP_FRAME_REVIEW_STATUS_COLORS[localStatus]}`}
+              className={`text-xs px-1.5 py-0 ${PREP_FRAME_REVIEW_STATUS_COLORS[localStatus]}`}
             >
               {PREP_FRAME_REVIEW_STATUS_LABELS[localStatus]}
             </Badge>
           </div>
           <div className="flex items-center gap-2 mt-1">
             <ReadinessChip ready={frame.handoff_ready} reason={frame.fallback_reason} />
-            <span className="text-[9px] text-muted-foreground/40">
+            <span className="text-xs text-muted-foreground/40">
               {ageDays === 0 ? "Today" : `${ageDays}d ago`}
             </span>
             {frame.opener_script_key && (
-              <span className="text-[9px] text-muted-foreground/40">
+              <span className="text-xs text-muted-foreground/40">
                 Script: {frame.opener_script_key}
                 {frame.opener_script_version ? ` v${frame.opener_script_version}` : ""}
               </span>
@@ -192,13 +192,13 @@ export function OutboundPrepCard({ frame, onReviewed }: OutboundPrepCardProps) {
           {/* Objections */}
           {frame.objection_tags.length > 0 && (
             <div className="space-y-1">
-              <span className="text-[9px] uppercase text-muted-foreground/40 tracking-wide flex items-center gap-1">
+              <span className="text-xs uppercase text-muted-foreground/40 tracking-wide flex items-center gap-1">
                 <AlertTriangle className="w-2.5 h-2.5" />
                 Objections at assembly
               </span>
               <div className="flex flex-wrap gap-1">
                 {frame.objection_tags.map(tag => (
-                  <Badge key={tag} variant="outline" className="text-[9px] px-1.5 py-0 border-border/20 text-foreground bg-muted/5">
+                  <Badge key={tag} variant="outline" className="text-xs px-1.5 py-0 border-border/20 text-foreground bg-muted/5">
                     {OBJECTION_TAG_LABELS[tag as ObjectionTag] ?? tag}
                   </Badge>
                 ))}
@@ -209,7 +209,7 @@ export function OutboundPrepCard({ frame, onReviewed }: OutboundPrepCardProps) {
           {/* Trust snippets */}
           {frame.trust_snippets_used.length > 0 && (
             <div className="space-y-1">
-              <span className="text-[9px] uppercase text-muted-foreground/40 tracking-wide flex items-center gap-1">
+              <span className="text-xs uppercase text-muted-foreground/40 tracking-wide flex items-center gap-1">
                 <Sparkles className="w-2.5 h-2.5" aria-hidden="true" />
                 Trust snippets selected
               </span>
@@ -218,13 +218,13 @@ export function OutboundPrepCard({ frame, onReviewed }: OutboundPrepCardProps) {
                   try {
                     const s = getTrustSnippet(key as TrustSnippetKey);
                     return (
-                      <div key={key} className="text-[10px] text-muted-foreground/70 bg-white/[0.02] rounded px-2 py-1">
+                      <div key={key} className="text-sm text-muted-foreground/70 bg-white/[0.02] rounded px-2 py-1">
                         <span className="font-medium text-muted-foreground">{s.label}: </span>
                         {s.summary}
                       </div>
                     );
                   } catch {
-                    return <div key={key} className="text-[10px] text-muted-foreground/40">{key}</div>;
+                    return <div key={key} className="text-sm text-muted-foreground/40">{key}</div>;
                   }
                 })}
               </div>
@@ -234,7 +234,7 @@ export function OutboundPrepCard({ frame, onReviewed }: OutboundPrepCardProps) {
           {/* Seller pages */}
           {frame.seller_pages_included.length > 0 && (
             <div className="space-y-1">
-              <span className="text-[9px] uppercase text-muted-foreground/40 tracking-wide flex items-center gap-1">
+              <span className="text-xs uppercase text-muted-foreground/40 tracking-wide flex items-center gap-1">
                 <Link2 className="w-2.5 h-2.5" />
                 Seller pages included
               </span>
@@ -248,13 +248,13 @@ export function OutboundPrepCard({ frame, onReviewed }: OutboundPrepCardProps) {
                         href={p.url}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="text-[10px] text-foreground hover:underline"
+                        className="text-sm text-foreground hover:underline"
                       >
                         {p.label}
                       </a>
                     );
                   } catch {
-                    return <span key={key} className="text-[10px] text-muted-foreground/40">{key}</span>;
+                    return <span key={key} className="text-sm text-muted-foreground/40">{key}</span>;
                   }
                 })}
               </div>
@@ -264,11 +264,11 @@ export function OutboundPrepCard({ frame, onReviewed }: OutboundPrepCardProps) {
           {/* Last call notes */}
           {typeof snap.lastCallNotes === "string" && snap.lastCallNotes && (
             <div className="space-y-1">
-              <span className="text-[9px] uppercase text-muted-foreground/40 tracking-wide flex items-center gap-1">
+              <span className="text-xs uppercase text-muted-foreground/40 tracking-wide flex items-center gap-1">
                 <Pen className="w-2.5 h-2.5" aria-hidden="true" />
                 Last call notes
               </span>
-              <p className="text-[10px] text-muted-foreground/70 leading-relaxed bg-white/[0.02] rounded px-2 py-1">
+              <p className="text-sm text-muted-foreground/70 leading-relaxed bg-white/[0.02] rounded px-2 py-1">
                 {snap.lastCallNotes}
               </p>
             </div>
@@ -276,7 +276,7 @@ export function OutboundPrepCard({ frame, onReviewed }: OutboundPrepCardProps) {
 
           {/* Review controls */}
           <div className="space-y-2 pt-1 border-t border-white/[0.04]">
-            <span className="text-[9px] uppercase text-muted-foreground/40 tracking-wide flex items-center gap-1">
+            <span className="text-xs uppercase text-muted-foreground/40 tracking-wide flex items-center gap-1">
               <MessageSquare className="w-2.5 h-2.5" />
               Review this frame
             </span>
@@ -288,7 +288,7 @@ export function OutboundPrepCard({ frame, onReviewed }: OutboundPrepCardProps) {
               rows={2}
             />
             {localReviewed && (
-              <p className="text-[9px] text-muted-foreground/40">
+              <p className="text-xs text-muted-foreground/40">
                 Last reviewed: {new Date(localReviewed).toLocaleDateString()}
               </p>
             )}
@@ -300,7 +300,7 @@ export function OutboundPrepCard({ frame, onReviewed }: OutboundPrepCardProps) {
                   size="sm"
                   disabled={saving || localStatus === status}
                   onClick={() => handleReview(status)}
-                  className={`text-[10px] h-6 px-2 ${
+                  className={`text-sm h-6 px-2 ${
                     status === "approved" ? "border-border/30 text-foreground hover:bg-muted/10" :
                     status === "flagged"  ? "border-border/30 text-foreground hover:bg-muted/10" :
                                            "border-border/30 text-foreground hover:bg-muted/10"

@@ -102,10 +102,10 @@ export function LeadVelocity() {
           transition={{ delay: i * 0.05 }}
           className="space-y-0.5"
         >
-          <div className="flex items-center justify-between text-[11px]">
+          <div className="flex items-center justify-between text-sm">
             <span className="font-medium">{s.label}</span>
             <span className="text-muted-foreground">
-              {s.avgDays}d <span className="text-[10px]">avg</span>
+              {s.avgDays}d <span className="text-sm">avg</span>
             </span>
           </div>
           <div className="h-1.5 rounded-full bg-white/[0.03] overflow-hidden">
@@ -120,7 +120,7 @@ export function LeadVelocity() {
         </motion.div>
       ))}
 
-      <div className="flex items-center justify-between pt-1.5 border-t border-white/[0.06] text-[11px]">
+      <div className="flex items-center justify-between pt-1.5 border-t border-white/[0.06] text-sm">
         <span className="text-muted-foreground">Avg Full Cycle</span>
         <motion.span
           className="font-bold text-primary"

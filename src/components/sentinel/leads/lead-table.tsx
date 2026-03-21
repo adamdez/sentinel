@@ -116,7 +116,7 @@ function SortHeader({
     <button
       onClick={() => onSort(field)}
       className={cn(
-        "flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wider hover:text-foreground transition-colors",
+        "flex items-center gap-1 text-sm font-semibold uppercase tracking-wider hover:text-foreground transition-colors",
         active ? "text-primary" : "text-muted-foreground",
         className
       )}
@@ -429,7 +429,7 @@ export function LeadTable({
         <p className="text-sm text-muted-foreground">
           No inbox leads match your current filters.
         </p>
-        <p className="text-[11px] text-muted-foreground/65 mt-1">
+        <p className="text-sm text-muted-foreground/65 mt-1">
           Clear a focus chip or filter to expand the queue.
         </p>
       </div>
@@ -452,7 +452,7 @@ export function LeadTable({
           </button>
           <button
             onClick={() => setSelectedIds(new Set())}
-            className="text-[11px] text-muted-foreground hover:text-foreground transition-colors"
+            className="text-sm text-muted-foreground hover:text-foreground transition-colors"
           >
             Clear selection
           </button>
@@ -472,7 +472,7 @@ export function LeadTable({
         <SortHeader label="Property / Owner" field="address" currentField={sortField} currentDir={sortDir} onSort={onSort} />
         <SortHeader label="Score" field="score" currentField={sortField} currentDir={sortDir} onSort={onSort} />
         <SortHeader label="Next Action" field="followUp" currentField={sortField} currentDir={sortDir} onSort={onSort} />
-        <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Last Contact</span>
+        <span className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">Last Contact</span>
         <span />
       </div>
 
@@ -560,11 +560,11 @@ export function LeadTable({
                   {lead.ownerName}
                 </span>
                 {lead.ownerPhone ? (
-                  <span className="text-[10px] text-foreground/80 tabular-nums shrink-0">
+                  <span className="text-sm text-foreground/80 tabular-nums shrink-0">
                     {formatPhone(lead.ownerPhone)}
                   </span>
                 ) : (
-                  <span className="text-[9px] text-muted-foreground/30 shrink-0">No phone</span>
+                  <span className="text-xs text-muted-foreground/30 shrink-0">No phone</span>
                 )}
               </div>
             </div>
@@ -576,13 +576,13 @@ export function LeadTable({
 
             {/* Next Action */}
             <div className="flex flex-col justify-center min-w-0">
-              <span className={cn("text-[11px] truncate", nextActionClass)}>
+              <span className={cn("text-sm truncate", nextActionClass)}>
                 {nextActionText}
               </span>
               {actionSummary.action && (
                 <span
                   className={cn(
-                    "text-[10px] truncate",
+                    "text-sm truncate",
                     urgencyTextClass(actionSummary.urgency)
                   )}
                   title={actionSummary.reason}
@@ -594,7 +594,7 @@ export function LeadTable({
 
             {/* Last Contact */}
             <div className="flex items-center">
-              <span className={cn("text-[11px] tabular-nums", lastContactClass)}>
+              <span className={cn("text-sm tabular-nums", lastContactClass)}>
                 {lastContactText}
               </span>
             </div>
@@ -612,7 +612,7 @@ export function LeadTable({
                       <Phone className="h-3.5 w-3.5" />
                     </a>
                   </TooltipTrigger>
-                  <TooltipContent className="text-[11px]">{formatPhone(lead.ownerPhone)}</TooltipContent>
+                  <TooltipContent className="text-sm">{formatPhone(lead.ownerPhone)}</TooltipContent>
                 </Tooltip>
               )}
               <Tooltip>
@@ -625,7 +625,7 @@ export function LeadTable({
                     {deletingId === lead.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
                   </button>
                 </TooltipTrigger>
-                <TooltipContent className="text-[11px]">Delete lead</TooltipContent>
+                <TooltipContent className="text-sm">Delete lead</TooltipContent>
               </Tooltip>
             </div>
           </motion.div>

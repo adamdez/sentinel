@@ -73,7 +73,7 @@ export function WidgetLibrary({
         <div className="space-y-4 min-h-0 max-h-[60vh] overflow-y-auto pr-1">
           {grouped.map((group) => (
             <div key={group.category}>
-              <p className="text-[10px] uppercase tracking-widest text-muted-foreground mb-2 font-medium">
+              <p className="text-sm uppercase tracking-widest text-muted-foreground mb-2 font-medium">
                 {group.label}
               </p>
               <div className="space-y-1.5">
@@ -103,10 +103,10 @@ export function WidgetLibrary({
                       </div>
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-medium">{widget.label}</p>
-                        <p className="text-[10px] text-muted-foreground truncate">{widget.description}</p>
+                        <p className="text-sm text-muted-foreground truncate">{widget.description}</p>
                       </div>
                       {isActive ? (
-                        <Badge variant="cyan" className="text-[9px] gap-1">
+                        <Badge variant="cyan" className="text-xs gap-1">
                           <Check className="h-2.5 w-2.5" /> Active
                         </Badge>
                       ) : isDisabled ? (
@@ -115,7 +115,7 @@ export function WidgetLibrary({
                         <Button
                           size="sm"
                           variant="outline"
-                          className="h-7 text-[10px] gap-1"
+                          className="h-7 text-sm gap-1"
                           onClick={() => {
                             onAdd(widget.id, widget.defaultSize);
                           }}

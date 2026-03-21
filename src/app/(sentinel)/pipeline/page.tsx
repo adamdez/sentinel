@@ -662,12 +662,12 @@ export default function PipelinePage() {
                       <span className={cn("text-sm font-semibold", stage.text)}>
                         {stage.title}
                       </span>
-                      <p className="text-[9px] text-muted-foreground/70 mt-0.5">
+                      <p className="text-xs text-muted-foreground/70 mt-0.5">
                         {LANE_HINTS[stage.id]}
                       </p>
                     </div>
                     <span
-                      className="text-[11px] font-mono px-2 py-0.5 rounded-full"
+                      className="text-sm font-mono px-2 py-0.5 rounded-full"
                       style={{
                         background: stage.bg,
                         color: stage.accent,
@@ -801,7 +801,7 @@ function LeadCard({
             {/* Score badge (top-right) */}
             <div
               className={cn(
-                "shrink-0 flex items-center gap-1 px-1.5 py-0.5 rounded-[8px] text-[10px] font-bold border",
+                "shrink-0 flex items-center gap-1 px-1.5 py-0.5 rounded-[8px] text-sm font-bold border",
                 sc.class
               )}
             >
@@ -812,7 +812,7 @@ function LeadCard({
 
           {/* Bottom row: days since last contact + actions */}
           <div className="mt-2.5 flex items-center justify-between">
-            <span className="text-[11px] text-muted-foreground/70">
+            <span className="text-sm text-muted-foreground/70">
               {daysAgoLabel(lead.last_contact_at)}
             </span>
 

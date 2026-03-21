@@ -65,7 +65,7 @@ const CALLER_TYPE_LABELS: Record<InboundCallerType, string> = {
 
 function CallerTypeBadge({ type }: { type: InboundCallerType }) {
   return (
-    <span className={`inline-flex items-center gap-1 rounded-[5px] border px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${CALLER_TYPE_STYLES[type]}`}>
+    <span className={`inline-flex items-center gap-1 rounded-[5px] border px-1.5 py-0.5 text-sm font-semibold uppercase tracking-wide ${CALLER_TYPE_STYLES[type]}`}>
       <User className="h-2.5 w-2.5" aria-hidden="true" />
       {CALLER_TYPE_LABELS[type]}
     </span>
@@ -76,13 +76,13 @@ function CallerTypeBadge({ type }: { type: InboundCallerType }) {
 
 function NoteSourceBadge({ source }: { source: "operator" | "ai_draft" }) {
   if (source === "ai_draft") return (
-    <span className="inline-flex items-center gap-0.5 text-[9px] text-foreground/50">
+    <span className="inline-flex items-center gap-0.5 text-xs text-foreground/50">
       <span aria-hidden="true"><Sparkles className="h-2.5 w-2.5" /></span>
       AI draft — review before committing
     </span>
   );
   return (
-    <span className="inline-flex items-center gap-0.5 text-[9px] text-muted-foreground/30">
+    <span className="inline-flex items-center gap-0.5 text-xs text-muted-foreground/30">
       <span aria-hidden="true"><Pen className="h-2.5 w-2.5" /></span>
       Operator-written
     </span>
@@ -214,11 +214,11 @@ export function InboundWritebackPanel({
         className="w-full flex items-center gap-2 px-3 py-2.5 hover:bg-primary/[0.02] transition-colors rounded-[12px]"
       >
         <Phone className="h-3.5 w-3.5 text-primary/50 shrink-0" aria-hidden="true" />
-        <span className="text-[10px] font-semibold uppercase tracking-wider text-primary/50 flex-1 text-left">
+        <span className="text-sm font-semibold uppercase tracking-wider text-primary/50 flex-1 text-left">
           Inbound Call — CRM Writeback
         </span>
         {committed && (
-          <span className="flex items-center gap-0.5 text-[9px] text-foreground/60 font-medium">
+          <span className="flex items-center gap-0.5 text-xs text-foreground/60 font-medium">
             <CheckCircle2 className="h-2.5 w-2.5" aria-hidden="true" /> Committed
           </span>
         )}
@@ -237,11 +237,11 @@ export function InboundWritebackPanel({
           {/* ── Committed view ───────────────────────────────────── */}
           {committed && commitResult && (
             <div className="rounded-[8px] border border-border/15 bg-muted/[0.04] px-3 py-2.5 space-y-1">
-              <p className="text-[11px] text-foreground/70 font-medium flex items-center gap-1.5">
+              <p className="text-sm text-foreground/70 font-medium flex items-center gap-1.5">
                 <CheckCircle2 className="h-3.5 w-3.5" aria-hidden="true" />
                 Call committed to CRM
               </p>
-              <p className="text-[10px] text-muted-foreground/40">
+              <p className="text-sm text-muted-foreground/40">
                 Call log created. {commitResult.lead_notes_updated ? "Lead notes updated." : "Lead notes not updated."}
               </p>
             </div>
@@ -254,13 +254,13 @@ export function InboundWritebackPanel({
               <div className="flex flex-wrap gap-2 items-center">
                 <CallerTypeBadge type={draft.caller_type} />
                 {draft.from_number && (
-                  <span className="text-[10px] text-muted-foreground/40 font-mono">{draft.from_number}</span>
+                  <span className="text-sm text-muted-foreground/40 font-mono">{draft.from_number}</span>
                 )}
                 {draft.lead_id && (
-                  <span className="text-[9px] text-primary/30">Lead matched</span>
+                  <span className="text-xs text-primary/30">Lead matched</span>
                 )}
                 {!draft.lead_id && (
-                  <span className="inline-flex items-center gap-0.5 text-[9px] text-foreground/50">
+                  <span className="inline-flex items-center gap-0.5 text-xs text-foreground/50">
                     <AlertTriangle className="h-2.5 w-2.5" aria-hidden="true" />
                     No lead matched
                   </span>
@@ -269,7 +269,7 @@ export function InboundWritebackPanel({
 
               {/* Subject address */}
               <div className="space-y-1">
-                <label className="flex items-center gap-1 text-[9px] uppercase tracking-wider text-muted-foreground/40">
+                <label className="flex items-center gap-1 text-xs uppercase tracking-wider text-muted-foreground/40">
                   <MapPin className="h-2.5 w-2.5" aria-hidden="true" /> Subject address
                 </label>
                 <input
@@ -278,14 +278,14 @@ export function InboundWritebackPanel({
                   onChange={(e) => setEditAddress(e.target.value)}
                   placeholder="Property address caller mentioned…"
                   maxLength={300}
-                  className="w-full rounded-[7px] border border-white/[0.07] bg-white/[0.02] px-2.5 py-1.5 text-[11px] text-foreground placeholder:text-muted-foreground/25 focus:outline-none focus:border-primary/20"
+                  className="w-full rounded-[7px] border border-white/[0.07] bg-white/[0.02] px-2.5 py-1.5 text-sm text-foreground placeholder:text-muted-foreground/25 focus:outline-none focus:border-primary/20"
                 />
               </div>
 
               {/* Note draft */}
               <div className="space-y-1">
                 <div className="flex items-center justify-between">
-                  <label className="flex items-center gap-1 text-[9px] uppercase tracking-wider text-muted-foreground/40">
+                  <label className="flex items-center gap-1 text-xs uppercase tracking-wider text-muted-foreground/40">
                     <FileText className="h-2.5 w-2.5" aria-hidden="true" /> Note for call log
                   </label>
                   <NoteSourceBadge source={draft.note_source} />
@@ -296,22 +296,22 @@ export function InboundWritebackPanel({
                   placeholder="Situation summary or call notes…"
                   maxLength={1200}
                   rows={4}
-                  className="w-full resize-none rounded-[7px] border border-white/[0.07] bg-white/[0.02] px-2.5 py-1.5 text-[11px] text-foreground placeholder:text-muted-foreground/25 focus:outline-none focus:border-primary/20"
+                  className="w-full resize-none rounded-[7px] border border-white/[0.07] bg-white/[0.02] px-2.5 py-1.5 text-sm text-foreground placeholder:text-muted-foreground/25 focus:outline-none focus:border-primary/20"
                 />
-                <p className="text-[9px] text-muted-foreground/20 text-right">
+                <p className="text-xs text-muted-foreground/20 text-right">
                   {editNote.length}/1200
                 </p>
               </div>
 
               {/* Disposition */}
               <div className="space-y-1">
-                <label className="text-[9px] uppercase tracking-wider text-muted-foreground/40">
+                <label className="text-xs uppercase tracking-wider text-muted-foreground/40">
                   Disposition
                 </label>
                 <select
                   value={editDisposition}
                   onChange={(e) => setEditDisposition(e.target.value as InboundDisposition)}
-                  className="h-7 w-full text-[11px] rounded-[7px] border border-white/[0.07] bg-background px-2 focus:outline-none focus:ring-1 focus:ring-ring/20"
+                  className="h-7 w-full text-sm rounded-[7px] border border-white/[0.07] bg-background px-2 focus:outline-none focus:ring-1 focus:ring-ring/20"
                 >
                   {INBOUND_DISPOSITIONS.map((d) => (
                     <option key={d} value={d}>{d.replace(/_/g, " ")}</option>
@@ -329,11 +329,11 @@ export function InboundWritebackPanel({
                     className="mt-0.5 h-3 w-3 rounded border-white/20 bg-white/[0.03] accent-cyan"
                   />
                   <div>
-                    <p className="text-[10px] font-medium text-foreground/65">
+                    <p className="text-sm font-medium text-foreground/65">
                       Also write note to lead record
                     </p>
-                    <p className="text-[9px] text-muted-foreground/30 leading-relaxed">
-                      Updates <code className="text-[8px]">leads.notes</code> with the note above.
+                    <p className="text-xs text-muted-foreground/30 leading-relaxed">
+                      Updates <code className="text-xs">leads.notes</code> with the note above.
                       Overwrites existing lead notes — only check if this is the best available summary.
                     </p>
                   </div>
@@ -342,7 +342,7 @@ export function InboundWritebackPanel({
 
               {/* Error */}
               {error && (
-                <p className="text-[10px] text-foreground/70 flex items-center gap-1">
+                <p className="text-sm text-foreground/70 flex items-center gap-1">
                   <AlertTriangle className="h-3 w-3 shrink-0" aria-hidden="true" />
                   {error}
                 </p>
@@ -354,7 +354,7 @@ export function InboundWritebackPanel({
                   type="button"
                   onClick={handleSaveDraft}
                   disabled={saving || committing}
-                  className="flex items-center gap-1.5 rounded-[7px] border border-white/[0.07] bg-white/[0.02] px-2.5 py-1 text-[10px] text-muted-foreground/50 hover:text-foreground/70 transition-colors disabled:opacity-40"
+                  className="flex items-center gap-1.5 rounded-[7px] border border-white/[0.07] bg-white/[0.02] px-2.5 py-1 text-sm text-muted-foreground/50 hover:text-foreground/70 transition-colors disabled:opacity-40"
                 >
                   {saving ? <Loader2 className="h-2.5 w-2.5 animate-spin" /> : null}
                   Save draft
@@ -363,7 +363,7 @@ export function InboundWritebackPanel({
                   type="button"
                   onClick={handleCommit}
                   disabled={committing || saving || !editNote.trim()}
-                  className="flex-1 flex items-center justify-center gap-1.5 rounded-[7px] border border-primary/20 bg-primary/[0.08] px-3 py-1 text-[10px] font-semibold text-primary/70 hover:bg-primary/[0.12] transition-colors disabled:opacity-40"
+                  className="flex-1 flex items-center justify-center gap-1.5 rounded-[7px] border border-primary/20 bg-primary/[0.08] px-3 py-1 text-sm font-semibold text-primary/70 hover:bg-primary/[0.12] transition-colors disabled:opacity-40"
                 >
                   {committing
                     ? <Loader2 className="h-2.5 w-2.5 animate-spin" aria-hidden="true" />
@@ -373,7 +373,7 @@ export function InboundWritebackPanel({
               </div>
 
               {/* Contract clarity */}
-              <p className="text-[9px] text-muted-foreground/20 leading-relaxed pt-0.5">
+              <p className="text-xs text-muted-foreground/20 leading-relaxed pt-0.5">
                 Commit creates a call log entry. Qualification fields (motivation, timeline) are not
                 written — those require a full dialer session with the confirmed decision-maker.
               </p>

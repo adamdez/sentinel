@@ -87,7 +87,7 @@ function FactRow({
   }
 
   return (
-    <div className={`rounded-[8px] border text-[11px] ${statusMeta.bg} ${
+    <div className={`rounded-[8px] border text-sm ${statusMeta.bg} ${
       fact.review_status === "rejected" ? "opacity-60" : ""
     }`}>
       {/* ── Main row ── */}
@@ -99,14 +99,14 @@ function FactRow({
         <div className="flex-1 min-w-0">
           <p className="text-foreground/85 leading-snug">{fact.fact_value}</p>
           <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
-            <Badge variant="outline" className="text-[9px] h-3.5 px-1 text-muted-foreground/50 border-white/10">
+            <Badge variant="outline" className="text-xs h-3.5 px-1 text-muted-foreground/50 border-white/10">
               {FACT_TYPE_LABELS[fact.fact_type]}
             </Badge>
-            <span className={`text-[9px] ${confMeta.color}`}>
+            <span className={`text-xs ${confMeta.color}`}>
               {confMeta.label}
             </span>
             {fact.promoted_field && (
-              <span className="text-[9px] text-primary/60 flex items-center gap-0.5">
+              <span className="text-xs text-primary/60 flex items-center gap-0.5">
                 <ArrowRight className="h-2.5 w-2.5" />
                 {PROMOTED_FIELD_OPTIONS.find(o => o.value === fact.promoted_field)?.label ?? fact.promoted_field}
               </span>
@@ -172,14 +172,14 @@ function FactRow({
               <div className="grid grid-cols-2 gap-2">
                 {/* Confidence */}
                 <div>
-                  <label className="text-[9px] uppercase text-muted-foreground/40 block mb-0.5">
+                  <label className="text-xs uppercase text-muted-foreground/40 block mb-0.5">
                     Confidence
                   </label>
                   <select
                     value={fact.confidence}
                     onChange={e => handleConfidenceChange(e.target.value as FactConfidence)}
                     disabled={patching}
-                    className="h-6 w-full text-[10px] rounded-md border border-input bg-background px-2 focus:outline-none focus:ring-1 focus:ring-ring"
+                    className="h-6 w-full text-sm rounded-md border border-input bg-background px-2 focus:outline-none focus:ring-1 focus:ring-ring"
                   >
                     {(Object.keys(CONFIDENCE_LABELS) as FactConfidence[]).map(c => (
                       <option key={c} value={c}>{CONFIDENCE_LABELS[c]}</option>
@@ -189,7 +189,7 @@ function FactRow({
 
                 {/* Promoted field hint */}
                 <div>
-                  <label className="text-[9px] uppercase text-muted-foreground/40 block mb-0.5">
+                  <label className="text-xs uppercase text-muted-foreground/40 block mb-0.5">
                     <Shield className="inline h-2.5 w-2.5 mr-0.5" />
                     Propose for
                   </label>
@@ -197,7 +197,7 @@ function FactRow({
                     value={fact.promoted_field ?? "__none__"}
                     onChange={e => handlePromotedFieldChange(e.target.value)}
                     disabled={patching}
-                    className="h-6 w-full text-[10px] rounded-md border border-input bg-background px-2 focus:outline-none focus:ring-1 focus:ring-ring"
+                    className="h-6 w-full text-sm rounded-md border border-input bg-background px-2 focus:outline-none focus:ring-1 focus:ring-ring"
                   >
                     <option value="__none__">None</option>
                     {PROMOTED_FIELD_OPTIONS.map(o => (
@@ -208,7 +208,7 @@ function FactRow({
               </div>
 
               <div className="flex items-center justify-between pt-0.5">
-                <span className="text-[9px] text-muted-foreground/30">
+                <span className="text-xs text-muted-foreground/30">
                   {fact.reviewed_at
                     ? `Reviewed ${new Date(fact.reviewed_at).toLocaleDateString()}`
                     : `Added ${new Date(fact.created_at).toLocaleDateString()}`
@@ -221,7 +221,7 @@ function FactRow({
                     setDeleting(false);
                   }}
                   disabled={deleting || patching}
-                  className="flex items-center gap-1 text-[9px] text-foreground/40 hover:text-foreground transition-colors"
+                  className="flex items-center gap-1 text-xs text-foreground/40 hover:text-foreground transition-colors"
                 >
                   {deleting
                     ? <Loader2 className="h-2.5 w-2.5 animate-spin" />
@@ -238,7 +238,7 @@ function FactRow({
       {patching && (
         <div className="flex items-center gap-1 px-2.5 py-0.5 border-t border-white/[0.03]">
           <Loader2 className="h-2.5 w-2.5 animate-spin text-muted-foreground/30" />
-          <span className="text-[9px] text-muted-foreground/30">Saving…</span>
+          <span className="text-xs text-muted-foreground/30">Saving…</span>
         </div>
       )}
     </div>
@@ -296,7 +296,7 @@ function AddFactForm({
       {!open ? (
         <button
           onClick={() => setOpen(true)}
-          className="flex items-center gap-1 text-[10px] text-muted-foreground/40 hover:text-muted-foreground/70 transition-colors"
+          className="flex items-center gap-1 text-sm text-muted-foreground/40 hover:text-muted-foreground/70 transition-colors"
         >
           <Plus className="h-3 w-3" />
           Add fact from this source
@@ -311,7 +311,7 @@ function AddFactForm({
             value={factValue}
             onChange={e => setFactValue(e.target.value)}
             placeholder="Fact claim, e.g. 'Filed for probate Nov 2024'"
-            className="h-7 text-[11px]"
+            className="h-7 text-sm"
             autoFocus
             onKeyDown={e => e.key === "Enter" && !e.shiftKey && handleSubmit()}
           />
@@ -319,7 +319,7 @@ function AddFactForm({
             <select
               value={factType}
               onChange={e => setFactType(e.target.value as FactType)}
-              className="h-6 text-[10px] rounded-md border border-input bg-background px-2 focus:outline-none focus:ring-1 focus:ring-ring"
+              className="h-6 text-sm rounded-md border border-input bg-background px-2 focus:outline-none focus:ring-1 focus:ring-ring"
             >
               {FACT_TYPES.map(t => (
                 <option key={t} value={t}>{FACT_TYPE_LABELS[t]}</option>
@@ -328,7 +328,7 @@ function AddFactForm({
             <select
               value={confidence}
               onChange={e => setConfidence(e.target.value as FactConfidence)}
-              className="h-6 text-[10px] rounded-md border border-input bg-background px-2 focus:outline-none focus:ring-1 focus:ring-ring"
+              className="h-6 text-sm rounded-md border border-input bg-background px-2 focus:outline-none focus:ring-1 focus:ring-ring"
             >
               {(Object.keys(CONFIDENCE_LABELS) as FactConfidence[]).map(c => (
                 <option key={c} value={c}>{CONFIDENCE_LABELS[c]}</option>
@@ -338,20 +338,20 @@ function AddFactForm({
           <select
             value={promotedField || "__none__"}
             onChange={e => setPromotedField(e.target.value === "__none__" ? "" : e.target.value)}
-            className="h-6 w-full text-[10px] rounded-md border border-input bg-background px-2 focus:outline-none focus:ring-1 focus:ring-ring"
+            className="h-6 w-full text-sm rounded-md border border-input bg-background px-2 focus:outline-none focus:ring-1 focus:ring-ring"
           >
             <option value="__none__">No field mapping</option>
             {PROMOTED_FIELD_OPTIONS.map(o => (
               <option key={o.value} value={o.value}>{o.label}</option>
             ))}
           </select>
-          {err && <p className="text-[10px] text-destructive">{err}</p>}
+          {err && <p className="text-sm text-destructive">{err}</p>}
           <div className="flex gap-1.5 pt-0.5">
             <Button
               size="sm"
               onClick={handleSubmit}
               disabled={submitting || !factValue.trim()}
-              className="h-6 text-[10px] flex-1"
+              className="h-6 text-sm flex-1"
             >
               {submitting ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : null}
               Add fact
@@ -360,7 +360,7 @@ function AddFactForm({
               size="sm"
               variant="outline"
               onClick={() => { setOpen(false); setErr(null); }}
-              className="h-6 text-[10px]"
+              className="h-6 text-sm"
             >
               Cancel
             </Button>
@@ -402,7 +402,7 @@ function ArtifactFactGroup({
       >
         <Tag className="h-3 w-3 text-muted-foreground/40 shrink-0" />
         <div className="flex-1 min-w-0">
-          <span className="text-[10px] font-medium text-muted-foreground/70 truncate block">
+          <span className="text-sm font-medium text-muted-foreground/70 truncate block">
             {artifact.source_label ?? SOURCE_TYPE_LABELS[artifact.source_type] ?? artifact.source_type}
           </span>
           {artifact.source_url && (
@@ -411,7 +411,7 @@ function ArtifactFactGroup({
               target="_blank"
               rel="noopener noreferrer"
               onClick={e => e.stopPropagation()}
-              className="text-[9px] text-foreground/50 hover:text-foreground flex items-center gap-0.5"
+              className="text-xs text-foreground/50 hover:text-foreground flex items-center gap-0.5"
             >
               <ExternalLink className="h-2.5 w-2.5" />
               Source
@@ -420,12 +420,12 @@ function ArtifactFactGroup({
         </div>
         <div className="flex items-center gap-1.5 shrink-0">
           {pending > 0 && (
-            <Badge variant="outline" className="text-[9px] h-3.5 px-1 text-foreground/70 border-border/30">
+            <Badge variant="outline" className="text-xs h-3.5 px-1 text-foreground/70 border-border/30">
               {pending} pending
             </Badge>
           )}
           {accepted > 0 && (
-            <Badge variant="outline" className="text-[9px] h-3.5 px-1 text-foreground/70 border-border/30">
+            <Badge variant="outline" className="text-xs h-3.5 px-1 text-foreground/70 border-border/30">
               {accepted} ✓
             </Badge>
           )}
@@ -446,7 +446,7 @@ function ArtifactFactGroup({
             className="overflow-hidden pl-5 space-y-1"
           >
             {facts.length === 0 ? (
-              <p className="text-[10px] text-muted-foreground/30 italic">No facts extracted yet.</p>
+              <p className="text-sm text-muted-foreground/30 italic">No facts extracted yet.</p>
             ) : (
               facts.map(f => (
                 <FactRow
@@ -480,7 +480,7 @@ function SummaryBar({ facts }: { facts: FactAssertionRow[] }) {
   if (facts.length === 0) return null;
 
   return (
-    <div className="flex items-center gap-3 text-[9px] text-muted-foreground/40 px-0.5">
+    <div className="flex items-center gap-3 text-xs text-muted-foreground/40 px-0.5">
       <span>{facts.length} facts</span>
       {pending  > 0 && <span className="text-foreground/60">{pending} pending</span>}
       {accepted > 0 && <span className="text-foreground/60">{accepted} accepted</span>}
@@ -537,10 +537,10 @@ export function FactAssertionsPanel({ leadId, artifacts }: FactAssertionsPanelPr
         className="w-full flex items-center gap-2 text-left"
       >
         <Shield className="h-3.5 w-3.5 text-foreground/60 shrink-0" />
-        <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/60">
+        <span className="text-sm font-semibold uppercase tracking-wider text-muted-foreground/60">
           Fact Assertions
         </span>
-        <span className="ml-auto text-[9px] text-muted-foreground/30">
+        <span className="ml-auto text-xs text-muted-foreground/30">
           {expanded ? "hide" : "show"}
         </span>
       </button>
@@ -553,7 +553,7 @@ export function FactAssertionsPanel({ leadId, artifacts }: FactAssertionsPanelPr
             exit={{ height: 0, opacity: 0 }}
             className="overflow-hidden space-y-1"
           >
-            <p className="text-[9px] text-muted-foreground/30 leading-snug">
+            <p className="text-xs text-muted-foreground/30 leading-snug">
               Discrete facts extracted from sources. Accept or reject per fact.
               &ldquo;Propose for&rdquo; hints which dossier field a fact should inform —
               no write occurs until the dossier is promoted through the review path.
@@ -562,12 +562,12 @@ export function FactAssertionsPanel({ leadId, artifacts }: FactAssertionsPanelPr
             {loading && (
               <div className="flex items-center gap-1.5 py-2">
                 <Loader2 className="h-3 w-3 animate-spin text-muted-foreground/30" />
-                <span className="text-[10px] text-muted-foreground/30">Loading facts…</span>
+                <span className="text-sm text-muted-foreground/30">Loading facts…</span>
               </div>
             )}
 
             {error && (
-              <p className="text-[10px] text-destructive">{error}</p>
+              <p className="text-sm text-destructive">{error}</p>
             )}
 
             {!loading && !error && (
@@ -575,7 +575,7 @@ export function FactAssertionsPanel({ leadId, artifacts }: FactAssertionsPanelPr
                 <SummaryBar facts={facts} />
 
                 {artifactsWithData.length === 0 ? (
-                  <p className="text-[10px] text-muted-foreground/30 italic py-1">
+                  <p className="text-sm text-muted-foreground/30 italic py-1">
                     Capture at least one source artifact above to start extracting facts.
                   </p>
                 ) : (

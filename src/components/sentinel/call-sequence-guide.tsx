@@ -79,7 +79,7 @@ export function CallSequenceGuide() {
               <div className="shrink-0 flex items-center justify-between px-5 py-4 border-b border-white/[0.06]">
                 <div>
                   <h3 className="text-sm font-bold text-foreground">7-Day Power Sequence</h3>
-                  <p className="text-[10px] text-muted-foreground/60 mt-0.5">Proven for Predictive Leads — Backed by Data</p>
+                  <p className="text-sm text-muted-foreground/60 mt-0.5">Proven for Predictive Leads — Backed by Data</p>
                 </div>
                 <button
                   onClick={() => setOpen(false)}
@@ -94,9 +94,9 @@ export function CallSequenceGuide() {
                 <table className="w-full text-left">
                   <thead>
                     <tr className="border-b border-white/[0.08]">
-                      <th className="text-[10px] uppercase tracking-wider text-foreground/80 font-semibold pb-3 pr-4 w-[28%]">Part of Our Plan</th>
-                      <th className="text-[10px] uppercase tracking-wider text-primary/60 font-semibold pb-3 pr-4 w-[30%]">Source (2025–2026 Data)</th>
-                      <th className="text-[10px] uppercase tracking-wider text-muted-foreground/60 font-semibold pb-3 w-[42%]">Exact Finding</th>
+                      <th className="text-sm uppercase tracking-wider text-foreground/80 font-semibold pb-3 pr-4 w-[28%]">Part of Our Plan</th>
+                      <th className="text-sm uppercase tracking-wider text-primary/60 font-semibold pb-3 pr-4 w-[30%]">Source (2025–2026 Data)</th>
+                      <th className="text-sm uppercase tracking-wider text-muted-foreground/60 font-semibold pb-3 w-[42%]">Exact Finding</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -106,13 +106,13 @@ export function CallSequenceGuide() {
                         className="border-b border-white/[0.04] last:border-0 hover:bg-white/[0.02] transition-colors"
                       >
                         <td className="py-3 pr-4 align-top">
-                          <p className="text-[11px] font-semibold text-foreground/90 leading-relaxed">{row.plan}</p>
+                          <p className="text-sm font-semibold text-foreground/90 leading-relaxed">{row.plan}</p>
                         </td>
                         <td className="py-3 pr-4 align-top">
-                          <p className="text-[11px] text-primary/70 leading-relaxed">{row.source}</p>
+                          <p className="text-sm text-primary/70 leading-relaxed">{row.source}</p>
                         </td>
                         <td className="py-3 align-top">
-                          <p className="text-[11px] text-muted-foreground/70 leading-relaxed">{row.finding}</p>
+                          <p className="text-sm text-muted-foreground/70 leading-relaxed">{row.finding}</p>
                         </td>
                       </tr>
                     ))}
@@ -122,10 +122,10 @@ export function CallSequenceGuide() {
 
               {/* Footer */}
               <div className="shrink-0 px-5 py-3 border-t border-white/[0.06] flex items-center justify-between">
-                <p className="text-[9px] text-muted-foreground/30 font-mono">Dominion Sentinel — Charter v3.1</p>
+                <p className="text-xs text-muted-foreground/30 font-mono">Dominion Sentinel — Charter v3.1</p>
                 <button
                   onClick={() => setOpen(false)}
-                  className="text-[10px] text-muted-foreground/50 hover:text-foreground transition-colors px-3 py-1 rounded-[8px] hover:bg-white/[0.04]"
+                  className="text-sm text-muted-foreground/50 hover:text-foreground transition-colors px-3 py-1 rounded-[8px] hover:bg-white/[0.04]"
                 >
                   Close
                 </button>

@@ -187,7 +187,7 @@ export function AIScoreBadge({ score, prediction, size = "md", tags, equityPerce
             variant={config.variant}
             className={cn(
               "gap-1",
-              size === "sm" && "text-[10px] px-1.5 py-0",
+              size === "sm" && "text-sm px-1.5 py-0",
               size === "lg" && "text-sm px-3 py-1"
             )}
             style={config.glow ? { filter: config.glow } : {}}
@@ -199,10 +199,10 @@ export function AIScoreBadge({ score, prediction, size = "md", tags, equityPerce
               )}
             />
             <span className="font-bold">{score.composite}</span>
-            <span className="opacity-90 text-[11px]">{config.text}</span>
+            <span className="opacity-90 text-sm">{config.text}</span>
           </Badge>
           {score.aiBoost > 0 && (
-            <span className="text-[10px] font-medium text-primary bg-primary/8 px-1.5 py-0.5 rounded border border-primary/15">
+            <span className="text-sm font-medium text-primary bg-primary/8 px-1.5 py-0.5 rounded border border-primary/15">
               AI +{score.aiBoost}
             </span>
           )}
@@ -217,7 +217,7 @@ export function AIScoreBadge({ score, prediction, size = "md", tags, equityPerce
               {score.composite} — {config.text}
             </span>
           </div>
-          <p className="text-[10px] text-muted-foreground/80 leading-snug">
+          <p className="text-sm text-muted-foreground/80 leading-snug">
             {LABEL_EXPLAINER[score.label]}
           </p>
 
@@ -226,14 +226,14 @@ export function AIScoreBadge({ score, prediction, size = "md", tags, equityPerce
             {factors.map((f, i) => (
               <div key={i} className="py-1.5 border-t border-white/[0.04] first:border-t-0">
                 <div className="flex items-center justify-between">
-                  <span className={cn("text-[11px] font-semibold", f.color ?? "text-foreground")}>
+                  <span className={cn("text-sm font-semibold", f.color ?? "text-foreground")}>
                     {f.label}
                   </span>
-                  <span className={cn("text-[11px] font-bold tabular-nums", f.color ?? "text-foreground")}>
+                  <span className={cn("text-sm font-bold tabular-nums", f.color ?? "text-foreground")}>
                     {f.maxPoints}
                   </span>
                 </div>
-                <p className="text-[9px] text-muted-foreground/60 leading-snug mt-0.5">
+                <p className="text-xs text-muted-foreground/60 leading-snug mt-0.5">
                   {f.explain}
                 </p>
               </div>
@@ -244,7 +244,7 @@ export function AIScoreBadge({ score, prediction, size = "md", tags, equityPerce
           {gap > 5 && (
             <div className="flex items-start gap-1.5 pt-1.5 border-t border-glass-border">
               <Info className="h-3 w-3 text-muted-foreground/50 shrink-0 mt-0.5" />
-              <p className="text-[9px] text-muted-foreground/60 leading-snug">
+              <p className="text-xs text-muted-foreground/60 leading-snug">
                 Base weights total ~{Math.round(theoreticalMax)} but the composite is {score.composite}.
                 The {gap}-point reduction comes from <span className="text-foreground/70 font-medium">recency decay</span> (older
                 events lose ~50% every 46 days) and <span className="text-foreground/70 font-medium">severity</span> adjustments.
@@ -257,15 +257,15 @@ export function AIScoreBadge({ score, prediction, size = "md", tags, equityPerce
             <div className="pt-1 border-t border-glass-border space-y-1">
               <div className="flex items-center gap-1">
                 <Brain className="h-3 w-3 text-foreground" />
-                <span className="text-[11px] text-foreground font-medium">
+                <span className="text-sm text-foreground font-medium">
                   Predictive: {prediction.predictiveScore}/100
                 </span>
               </div>
-              <div className="flex items-center justify-between text-[11px]">
+              <div className="flex items-center justify-between text-sm">
                 <span className="text-muted-foreground">Distress in</span>
                 <span className="text-foreground font-semibold">~{prediction.daysUntilDistress}d</span>
               </div>
-              <div className="flex items-center justify-between text-[11px]">
+              <div className="flex items-center justify-between text-sm">
                 <span className="text-muted-foreground">Confidence</span>
                 <span className="text-foreground font-medium">{prediction.confidence}%</span>
               </div>

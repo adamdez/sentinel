@@ -91,16 +91,16 @@ function CoachCard({
         {catStyle.icon}
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
-            <span className="text-[13px] font-medium text-foreground leading-tight">
+            <span className="text-sm font-medium text-foreground leading-tight">
               {item.title}
             </span>
             <span
-              className={`text-[10px] font-medium px-1.5 py-0.5 rounded-full leading-none ${typeConf.className}`}
+              className={`text-sm font-medium px-1.5 py-0.5 rounded-full leading-none ${typeConf.className}`}
             >
               {typeConf.label}
             </span>
           </div>
-          <p className="text-[12px] text-muted-foreground leading-relaxed mt-1">
+          <p className="text-xs text-muted-foreground leading-relaxed mt-1">
             {bodyText}
           </p>
         </div>
@@ -131,10 +131,10 @@ function CoachSection({
         onClick={() => setOpen(!open)}
         className="flex items-center gap-1.5 w-full text-left group"
       >
-        <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground group-hover:text-foreground transition-colors">
+        <span className="text-sm font-semibold uppercase tracking-wider text-muted-foreground group-hover:text-foreground transition-colors">
           {title}
         </span>
-        <span className="text-[10px] text-muted-foreground/70 font-medium">
+        <span className="text-sm text-muted-foreground/70 font-medium">
           ({items.length})
         </span>
         {open ? (
@@ -229,14 +229,14 @@ export function CoachPanel({
               <div className="flex items-center gap-2 min-w-0">
                 <HelpCircle className="h-4 w-4 text-primary-400/60 shrink-0" />
                 <div className="min-w-0">
-                  <div className="text-[12px] font-semibold text-foreground truncate">
+                  <div className="text-xs font-semibold text-foreground truncate">
                     Coach
                     <span className="text-muted-foreground font-normal ml-1.5">
                       {surfaceLabel}
                     </span>
                   </div>
                   {leadAddress && (
-                    <div className="text-[10px] text-muted-foreground truncate">
+                    <div className="text-sm text-muted-foreground truncate">
                       {leadAddress}
                     </div>
                   )}
@@ -255,7 +255,7 @@ export function CoachPanel({
               {totalItems === 0 ? (
                 <div className="text-center py-8">
                   <HelpCircle className="h-8 w-8 text-muted-foreground/30 mx-auto mb-2" />
-                  <p className="text-[12px] text-muted-foreground">
+                  <p className="text-xs text-muted-foreground">
                     No guidance for this view right now.
                   </p>
                 </div>

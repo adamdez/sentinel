@@ -125,8 +125,8 @@ function ContextRow({
     <div className="flex items-start gap-2 min-w-0">
       <Icon className={`h-3 w-3 shrink-0 mt-0.5 ${iconColor}`} />
       <div className="min-w-0">
-        <span className="text-[9px] uppercase text-muted-foreground/30 block">{label}</span>
-        <span className={`text-[11px] leading-snug ${color}`}>{value}</span>
+        <span className="text-xs uppercase text-muted-foreground/30 block">{label}</span>
+        <span className={`text-sm leading-snug ${color}`}>{value}</span>
       </div>
     </div>
   );
@@ -140,7 +140,7 @@ function SellerPageLinks() {
   const pages = getAllSellerPages();
   return (
     <div className="px-3 pb-3 border-t border-white/[0.04] pt-2 space-y-1.5">
-      <span className="text-[9px] uppercase text-muted-foreground/40 tracking-wide">Send seller to</span>
+      <span className="text-xs uppercase text-muted-foreground/40 tracking-wide">Send seller to</span>
       <div className="flex flex-wrap gap-1.5">
         {pages.map((page: SellerPage) => (
           <a
@@ -149,7 +149,7 @@ function SellerPageLinks() {
             target="_blank"
             rel="noopener noreferrer"
             title={page.description}
-            className="inline-flex items-center gap-1 text-[10px] font-medium rounded-md border border-white/[0.08] bg-white/[0.04] hover:bg-white/[0.08] text-muted-foreground hover:text-foreground px-2 py-1 transition-colors"
+            className="inline-flex items-center gap-1 text-sm font-medium rounded-md border border-white/[0.08] bg-white/[0.04] hover:bg-white/[0.08] text-muted-foreground hover:text-foreground px-2 py-1 transition-colors"
           >
             <ArrowRight className="w-2.5 h-2.5 opacity-50" />
             {page.label}
@@ -218,10 +218,10 @@ export function WarmTransferCard({
       {/* ── Header strip ── */}
       <div className="flex items-center gap-2 px-3 py-2 bg-muted/[0.06] border-b border-border/15">
         <Zap className="h-3.5 w-3.5 text-foreground animate-pulse shrink-0" />
-        <span className="text-[11px] font-semibold text-foreground/90 uppercase tracking-wider">
+        <span className="text-sm font-semibold text-foreground/90 uppercase tracking-wider">
           Warm Transfer Ready
         </span>
-        <Badge className="ml-auto bg-muted/20 text-foreground border-border/30 text-[9px] h-4 px-1.5">
+        <Badge className="ml-auto bg-muted/20 text-foreground border-border/30 text-xs h-4 px-1.5">
           {fromNumber}
         </Badge>
       </div>
@@ -296,7 +296,7 @@ export function WarmTransferCard({
           <div className="flex items-center gap-3 pt-0.5">
             {ctx.motivationLevel != null && (
               <div className="flex items-center gap-0.5">
-                <span className="text-[9px] text-muted-foreground/30 uppercase mr-1">Motivation</span>
+                <span className="text-xs text-muted-foreground/30 uppercase mr-1">Motivation</span>
                 {[1,2,3,4,5].map(n => (
                   <span key={n} className={`h-1.5 w-1.5 rounded-full ${
                     n <= (ctx.motivationLevel ?? 0)
@@ -307,7 +307,7 @@ export function WarmTransferCard({
               </div>
             )}
             {ctx.sellerTimeline && (
-              <span className="text-[9px] text-muted-foreground/50">
+              <span className="text-xs text-muted-foreground/50">
                 {ctx.sellerTimeline.replace("_", " ")} timeline
               </span>
             )}
@@ -340,7 +340,7 @@ export function WarmTransferCard({
             <CheckCircle2 className={`h-3.5 w-3.5 shrink-0 ${
               loggedOutcome === "connected" ? "text-foreground" : "text-foreground"
             }`} />
-            <span className={`text-[11px] font-medium ${
+            <span className={`text-sm font-medium ${
               loggedOutcome === "connected" ? "text-foreground/90" : "text-foreground/80"
             }`}>
               {OUTCOME_OPTIONS.find(o => o.key === loggedOutcome)?.label ?? loggedOutcome}
@@ -348,15 +348,15 @@ export function WarmTransferCard({
           </div>
         ) : (
           <>
-            <p className="text-[9px] text-muted-foreground/40 uppercase">Transfer outcome</p>
+            <p className="text-xs text-muted-foreground/40 uppercase">Transfer outcome</p>
 
             {/* Recipient name (quick edit) */}
             <div className="flex items-center gap-2">
-              <span className="text-[10px] text-muted-foreground/50 shrink-0">Transfer to</span>
+              <span className="text-sm text-muted-foreground/50 shrink-0">Transfer to</span>
               <Input
                 value={recipientName}
                 onChange={e => setRecipientName(e.target.value)}
-                className="h-6 text-[11px] px-2 flex-1"
+                className="h-6 text-sm px-2 flex-1"
                 placeholder="Adam"
               />
             </div>
@@ -376,7 +376,7 @@ export function WarmTransferCard({
                     }`}
                   >
                     <Icon className={`h-3 w-3 shrink-0 ${o.color}`} />
-                    <span className={`text-[10px] font-medium ${o.color}`}>{o.label}</span>
+                    <span className={`text-sm font-medium ${o.color}`}>{o.label}</span>
                   </motion.button>
                 );
               })}
@@ -389,14 +389,14 @@ export function WarmTransferCard({
                 animate={{ opacity: 1, height: "auto" }}
                 className="space-y-1"
               >
-                <label className="text-[9px] text-muted-foreground/40 uppercase block">
+                <label className="text-xs text-muted-foreground/40 uppercase block">
                   Callback date/time (optional)
                 </label>
                 <Input
                   type="datetime-local"
                   value={callbackDate}
                   onChange={e => setCallbackDate(e.target.value)}
-                  className="h-6 text-[11px]"
+                  className="h-6 text-sm"
                 />
               </motion.div>
             )}
@@ -405,7 +405,7 @@ export function WarmTransferCard({
               <Button
                 onClick={handleLog}
                 disabled={submitting}
-                className={`w-full h-7 text-[11px] ${
+                className={`w-full h-7 text-sm ${
                   selected === "connected"
                     ? "bg-muted/80 hover:bg-muted border-border/40"
                     : ""
@@ -423,7 +423,7 @@ export function WarmTransferCard({
           </>
         )}
 
-        {error && <p className="text-[10px] text-destructive">{error}</p>}
+        {error && <p className="text-sm text-destructive">{error}</p>}
       </div>
     </GlassCard>
   );

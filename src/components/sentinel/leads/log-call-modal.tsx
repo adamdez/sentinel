@@ -84,7 +84,7 @@ export function LogCallModal({
           </button>
         </div>
 
-        <div className="text-[11px] text-muted-foreground mb-4">
+        <div className="text-sm text-muted-foreground mb-4">
           <span className="text-foreground font-medium">{ownerName}</span>
           <span className="mx-1.5 text-muted-foreground/40">|</span>
           <span>{leadAddress}</span>
@@ -92,7 +92,7 @@ export function LogCallModal({
 
         <div className="space-y-3">
           <div>
-            <label className="text-[10px] uppercase tracking-wider text-muted-foreground/70 mb-1.5 block">
+            <label className="text-sm uppercase tracking-wider text-muted-foreground/70 mb-1.5 block">
               Call Outcome
             </label>
             <div className="grid grid-cols-3 gap-1.5">
@@ -100,7 +100,7 @@ export function LogCallModal({
                 <button
                   key={d.value}
                   onClick={() => { setDisposition(d.value); setError(null); }}
-                  className={`text-[10px] px-2 py-1.5 rounded border transition-colors ${
+                  className={`text-sm px-2 py-1.5 rounded border transition-colors ${
                     disposition === d.value
                       ? "bg-primary/15 text-primary border-primary/30 font-medium"
                       : "bg-white/[0.03] text-muted-foreground border-white/[0.08] hover:bg-white/[0.06]"
@@ -113,7 +113,7 @@ export function LogCallModal({
           </div>
 
           <div>
-            <label className="text-[10px] uppercase tracking-wider text-muted-foreground/70 mb-1.5 block">
+            <label className="text-sm uppercase tracking-wider text-muted-foreground/70 mb-1.5 block">
               Notes (optional)
             </label>
             <textarea
@@ -125,7 +125,7 @@ export function LogCallModal({
           </div>
 
           {error && (
-            <p className="text-[11px] text-foreground">{error}</p>
+            <p className="text-sm text-foreground">{error}</p>
           )}
 
           <button

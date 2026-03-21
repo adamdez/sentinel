@@ -1,5 +1,15 @@
 [
   {
+    "hash": "7b4d1242",
+    "date": "2026-03-21",
+    "message": "Move theme toggle from Settings page to user profile dropdown"
+  },
+  {
+    "hash": "3f7956c5",
+    "date": "2026-03-21",
+    "message": "feat(ui): Light/Dark monochrome theme, token sweep, remove ghost-mode pack"
+  },
+  {
     "hash": "c6760d8c",
     "date": "2026-03-21",
     "message": "fix: master client file modal — operator-first restructure + data quality"
@@ -113,15 +123,5 @@
     "hash": "a092aa6b",
     "date": "2026-03-19",
     "message": "[cc] feat(pr-2): context snapshot MCP tools + ContextSnapshot interface"
-  },
-  {
-    "hash": "52b6119d",
-    "date": "2026-03-19",
-    "message": "[cc] feat(pr-1): stage machine + next-action hard enforcement"
-  },
-  {
-    "hash": "1e2adcfe",
-    "date": "2026-03-19",
-    "message": "ui: align Live Assist panel with monochrome shell"
   }
 ]

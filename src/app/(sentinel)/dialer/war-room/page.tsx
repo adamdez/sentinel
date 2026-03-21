@@ -76,7 +76,7 @@ function dirBad(curr: number | null, prev: number | null): Direction {
 }
 
 function DirBadge({ dir }: { dir: Direction }) {
-  if (dir === "new")  return <span className="text-[9px] text-muted-foreground/40">new</span>;
+  if (dir === "new")  return <span className="text-xs text-muted-foreground/40">new</span>;
   if (dir === "flat") return <Minus className="h-2.5 w-2.5 text-muted-foreground/30" />;
   if (dir === "up")   return <TrendingUp className="h-2.5 w-2.5 text-foreground" />;
   return <TrendingDown className="h-2.5 w-2.5 text-foreground" />;
@@ -159,16 +159,16 @@ function WeeklyTable() {
   return (
     <div className="space-y-3">
       <div className="overflow-x-auto">
-        <table className="w-full text-[11px] border-collapse">
+        <table className="w-full text-sm border-collapse">
           <thead>
             <tr className="border-b border-white/[0.04]">
-              <th className="sticky left-0 bg-[#0d0d12] z-10 px-3 py-2 text-left text-[10px] font-medium text-muted-foreground/50 uppercase tracking-wider whitespace-nowrap min-w-[100px]">
+              <th className="sticky left-0 bg-[#0d0d12] z-10 px-3 py-2 text-left text-sm font-medium text-muted-foreground/50 uppercase tracking-wider whitespace-nowrap min-w-[100px]">
                 Week
               </th>
               {WEEK_COLS.map((col) => (
                 <th
                   key={col.key}
-                  className="px-2 py-2 text-right text-[10px] font-medium text-muted-foreground/50 uppercase tracking-wider whitespace-nowrap"
+                  className="px-2 py-2 text-right text-sm font-medium text-muted-foreground/50 uppercase tracking-wider whitespace-nowrap"
                 >
                   <div className="flex items-center justify-end gap-1">
                     <col.icon className={`h-2.5 w-2.5 ${col.iconColor}`} />
@@ -219,7 +219,7 @@ function WeeklyTable() {
           </tbody>
         </table>
       </div>
-      <div className="flex flex-wrap gap-x-4 gap-y-1 text-[9px] text-muted-foreground/40 pt-1 border-t border-white/[0.04]">
+      <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground/40 pt-1 border-t border-white/[0.04]">
         <span className="flex items-center gap-1"><TrendingUp className="h-2 w-2 text-foreground" /> better vs prior week</span>
         <span className="flex items-center gap-1"><TrendingDown className="h-2 w-2 text-foreground" /> worse vs prior week</span>
         <span className="flex items-center gap-1"><span className="h-1.5 w-1.5 rounded-full bg-primary inline-block" /> current week (partial)</span>
@@ -267,14 +267,14 @@ export default function WarRoomPage() {
         <div className="flex items-center gap-2">
           <Link
             href="/dialer/review"
-            className="flex items-center gap-1.5 rounded-[10px] border border-white/[0.07] bg-white/[0.03] px-3 py-1.5 text-[11px] text-muted-foreground hover:text-foreground hover:border-white/[0.12] transition-colors"
+            className="flex items-center gap-1.5 rounded-[10px] border border-white/[0.07] bg-white/[0.03] px-3 py-1.5 text-sm text-muted-foreground hover:text-foreground hover:border-white/[0.12] transition-colors"
           >
             <TrendingUp className="h-3 w-3" />
             Weekly Review
           </Link>
           <Link
             href="/dialer"
-            className="flex items-center gap-1.5 rounded-[10px] border border-white/[0.07] bg-white/[0.03] px-3 py-1.5 text-[11px] text-muted-foreground hover:text-foreground hover:border-white/[0.12] transition-colors"
+            className="flex items-center gap-1.5 rounded-[10px] border border-white/[0.07] bg-white/[0.03] px-3 py-1.5 text-sm text-muted-foreground hover:text-foreground hover:border-white/[0.12] transition-colors"
           >
             <Phone className="h-3 w-3" />
             Dialer
@@ -292,7 +292,7 @@ export default function WarRoomPage() {
               <span>
                 <strong>{overdueCount}</strong> overdue follow-up task{overdueCount !== 1 ? "s" : ""} — callbacks were missed
               </span>
-              <span className="ml-auto flex items-center gap-1 text-foreground/70 text-[10px] shrink-0">
+              <span className="ml-auto flex items-center gap-1 text-foreground/70 text-sm shrink-0">
                 View Tasks <ExternalLink className="h-2.5 w-2.5" />
               </span>
             </div>
@@ -349,7 +349,7 @@ export default function WarRoomPage() {
             <Link
               key={href}
               href={href}
-              className="flex items-center gap-1.5 rounded-[10px] border border-white/[0.07] bg-white/[0.03] px-3 py-2 text-[11px] text-muted-foreground hover:text-foreground hover:border-white/[0.12] transition-colors"
+              className="flex items-center gap-1.5 rounded-[10px] border border-white/[0.07] bg-white/[0.03] px-3 py-2 text-sm text-muted-foreground hover:text-foreground hover:border-white/[0.12] transition-colors"
             >
               <Icon className="h-3 w-3" />
               {label}

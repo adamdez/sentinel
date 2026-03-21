@@ -23,7 +23,7 @@ export function InfoRow({ icon: Icon, label, value, mono, highlight }: {
     <div className="flex items-start gap-3 py-1.5">
       <Icon className={cn("h-3.5 w-3.5 mt-0.5 shrink-0", highlight ? "text-primary" : "text-muted-foreground")} />
       <div className="flex-1 min-w-0">
-        <p className="text-[10px] text-muted-foreground uppercase tracking-wider">{label}</p>
+        <p className="text-sm text-muted-foreground uppercase tracking-wider">{label}</p>
         <p className={cn("text-sm truncate", mono && "font-mono", highlight ? "text-primary font-semibold" : "text-foreground")}>{value}</p>
       </div>
     </div>
@@ -39,7 +39,7 @@ export function Section({ title, icon: Icon, children }: { title: string; icon: 
     <div className="rounded-[12px] border border-glass-border bg-secondary/10 p-4">
       <div className="flex items-center gap-2 mb-3">
         <Icon className="h-3.5 w-3.5 text-muted-foreground" />
-        <p className="text-[11px] text-muted-foreground uppercase tracking-wider font-semibold">{title}</p>
+        <p className="text-sm text-muted-foreground uppercase tracking-wider font-semibold">{title}</p>
       </div>
       {children}
     </div>
@@ -105,13 +105,13 @@ export function ScoreCard({ label, value, onClick }: { label: string; value: num
       style={{ "--glow": tc.glow } as React.CSSProperties}
     >
       <div className="absolute inset-0 bg-gradient-to-b from-white/[0.03] to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
-      <p className={cn("text-[10px] uppercase tracking-wider mb-1 transition-colors relative z-10", tc.text)}>{label}</p>
+      <p className={cn("text-sm uppercase tracking-wider mb-1 transition-colors relative z-10", tc.text)}>{label}</p>
       <p className="text-xl font-bold relative z-10 transition-all" style={{ textShadow: `0 0 10px ${tc.glow}` }}>{value}</p>
-      <p className="text-[9px] text-muted-foreground/70 relative z-10 mt-0.5">{TIER_CONTEXT[tier]}</p>
+      <p className="text-xs text-muted-foreground/70 relative z-10 mt-0.5">{TIER_CONTEXT[tier]}</p>
       <div className="h-1.5 rounded-full bg-secondary mt-2 overflow-hidden relative z-10">
         <div className={cn("h-full rounded-full transition-all", tc.bar)} style={{ width: `${pct}%` }} />
       </div>
-      <p className={cn("text-[8px] mt-1.5 transition-colors relative z-10 uppercase tracking-widest font-semibold", tc.text, "opacity-60 group-hover:opacity-100")}>
+      <p className={cn("text-xs mt-1.5 transition-colors relative z-10 uppercase tracking-widest font-semibold", tc.text, "opacity-60 group-hover:opacity-100")}>
         {tier.toUpperCase()} — tap to drill
       </p>
     </button>
@@ -125,7 +125,7 @@ export function ScoreCard({ label, value, onClick }: { label: string; value: num
 export function OwnerFlag({ active, label, icon: Icon }: { active: boolean; label: string; icon: typeof Home }) {
   if (!active) return null;
   return (
-    <div className="flex items-center gap-1.5 px-2 py-1 rounded-md bg-muted/10 border border-border/20 text-foreground text-[10px] font-medium">
+    <div className="flex items-center gap-1.5 px-2 py-1 rounded-md bg-muted/10 border border-border/20 text-foreground text-sm font-medium">
       <Icon className="h-3 w-3" />{label}
     </div>
   );

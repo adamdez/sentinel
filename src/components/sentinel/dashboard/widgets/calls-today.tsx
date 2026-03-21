@@ -97,7 +97,7 @@ export function CallsToday() {
           style={{ textShadow: "0 0 12px rgba(0,0,0,0.4)" }}>
           {connectRate}%
         </p>
-        <p className="text-[10px] text-muted-foreground">Connect Rate</p>
+        <p className="text-sm text-muted-foreground">Connect Rate</p>
       </motion.div>
 
       {metrics.map((m, i) => {
@@ -110,7 +110,7 @@ export function CallsToday() {
             transition={{ delay: i * 0.05 }}
             className="flex items-center justify-between"
           >
-            <span className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
+            <span className="flex items-center gap-1.5 text-sm text-muted-foreground">
               <Icon className={cn("h-3 w-3", m.color)} />
               {m.label}
             </span>

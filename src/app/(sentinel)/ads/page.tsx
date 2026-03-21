@@ -844,12 +844,12 @@ function IntelligenceTab({ onSendToChat }: { onSendToChat: (message: string) => 
           <div className="flex items-center gap-3">
             <h3 className="text-sm font-semibold">Intelligence Briefing</h3>
             {intelligence?.account_status && (
-              <span className={`text-[10px] px-2 py-0.5 rounded-full font-mono uppercase ${statusColor[intelligence.account_status] ?? ""}`}>
+              <span className={`text-sm px-2 py-0.5 rounded-full font-mono uppercase ${statusColor[intelligence.account_status] ?? ""}`}>
                 {intelligence.account_status}
               </span>
             )}
             {briefingAge && (
-              <span className={`text-[10px] font-mono ${briefingAge.stale ? "text-foreground" : "text-muted-foreground/40"}`} title={savedAt ?? undefined}>
+              <span className={`text-sm font-mono ${briefingAge.stale ? "text-foreground" : "text-muted-foreground/40"}`} title={savedAt ?? undefined}>
                 {briefingAge.text}{briefingAge.stale ? " — consider refreshing" : ""}
               </span>
             )}
@@ -867,19 +867,19 @@ function IntelligenceTab({ onSendToChat }: { onSendToChat: (message: string) => 
 
         <div className="grid grid-cols-3 gap-3 mt-4">
           <div className="p-3 rounded-lg bg-muted/5 border border-border/10">
-            <div className="text-[10px] text-foreground/60 uppercase tracking-wide mb-1">Est. Monthly Waste</div>
+            <div className="text-sm text-foreground/60 uppercase tracking-wide mb-1">Est. Monthly Waste</div>
             <div className="text-lg font-semibold text-foreground">
               ${(intelligence?.total_estimated_monthly_waste ?? 0).toLocaleString()}
             </div>
           </div>
           <div className="p-3 rounded-lg bg-muted/5 border border-border/10">
-            <div className="text-[10px] text-foreground/60 uppercase tracking-wide mb-1">Est. Monthly Opportunity</div>
+            <div className="text-sm text-foreground/60 uppercase tracking-wide mb-1">Est. Monthly Opportunity</div>
             <div className="text-lg font-semibold text-foreground">
               ${(intelligence?.total_estimated_monthly_opportunity ?? 0).toLocaleString()}
             </div>
           </div>
           <div className="p-3 rounded-lg bg-primary/5 border border-primary/10">
-            <div className="text-[10px] text-primary/60 uppercase tracking-wide mb-1">Data Points</div>
+            <div className="text-sm text-primary/60 uppercase tracking-wide mb-1">Data Points</div>
             <div className="text-lg font-semibold text-primary">
               {intelligence?.data_points?.length ?? 0}
             </div>
@@ -893,7 +893,7 @@ function IntelligenceTab({ onSendToChat }: { onSendToChat: (message: string) => 
           <div className="flex items-center gap-2 mb-2">
             <AlertTriangle className="h-4 w-4 text-foreground" />
             <h3 className="text-sm font-semibold text-foreground">Adversarial Review — GPT-5.4 Pro</h3>
-            <span className={`text-[10px] px-2 py-0.5 rounded-full font-mono border ${
+            <span className={`text-sm px-2 py-0.5 rounded-full font-mono border ${
               adversarial.verdict === "approve" ? "text-foreground border-border/20 bg-muted/5" :
               adversarial.verdict === "approve_with_changes" ? "text-foreground border-border/20 bg-muted/5" :
               "text-foreground border-border/20 bg-muted/5"
@@ -905,10 +905,10 @@ function IntelligenceTab({ onSendToChat }: { onSendToChat: (message: string) => 
 
           {adversarial.challenges.length > 0 && (
             <div className="space-y-2 mb-3">
-              <div className="text-[10px] text-foreground/60 uppercase tracking-wide">Challenges</div>
+              <div className="text-sm text-foreground/60 uppercase tracking-wide">Challenges</div>
               {adversarial.challenges.slice(0, 5).map((c, i) => (
                 <div key={i} className="flex gap-2 text-xs p-2 rounded bg-muted/5 border border-border/8">
-                  <span className={`shrink-0 text-[10px] px-1.5 py-0.5 rounded border ${
+                  <span className={`shrink-0 text-sm px-1.5 py-0.5 rounded border ${
                     c.severity === "critical" ? "text-foreground border-border/20" :
                     c.severity === "moderate" ? "text-foreground border-border/20" :
                     "text-muted-foreground border-white/10"
@@ -926,7 +926,7 @@ function IntelligenceTab({ onSendToChat }: { onSendToChat: (message: string) => 
 
           {adversarial.missedOpportunities.length > 0 && (
             <div className="mb-3">
-              <div className="text-[10px] text-foreground/60 uppercase tracking-wide mb-1">Blind Spots Flagged</div>
+              <div className="text-sm text-foreground/60 uppercase tracking-wide mb-1">Blind Spots Flagged</div>
               <ul className="space-y-1">
                 {adversarial.missedOpportunities.map((m, i) => (
                   <li key={i} className="text-xs text-foreground/70 flex gap-1.5">
@@ -939,7 +939,7 @@ function IntelligenceTab({ onSendToChat }: { onSendToChat: (message: string) => 
 
           {adversarial.overconfidentClaims.length > 0 && (
             <div>
-              <div className="text-[10px] text-foreground/60 uppercase tracking-wide mb-1">Overconfident Claims</div>
+              <div className="text-sm text-foreground/60 uppercase tracking-wide mb-1">Overconfident Claims</div>
               <ul className="space-y-1">
                 {adversarial.overconfidentClaims.map((c, i) => (
                   <li key={i} className="text-xs text-foreground/70 flex gap-1.5">
@@ -978,7 +978,7 @@ function IntelligenceTab({ onSendToChat }: { onSendToChat: (message: string) => 
           <option value="monitor">Monitor</option>
           <option value="fyi">FYI</option>
         </select>
-        <span className="text-[10px] text-muted-foreground/40 ml-auto">
+        <span className="text-sm text-muted-foreground/40 ml-auto">
           Showing {filteredPoints.length} of {intelligence?.data_points?.length ?? 0}
         </span>
       </div>
@@ -996,25 +996,25 @@ function IntelligenceTab({ onSendToChat }: { onSendToChat: (message: string) => 
               <div className="flex-1 min-w-0">
                 {/* Header row */}
                 <div className="flex items-center gap-2 mb-1 flex-wrap">
-                  <span className={`text-[10px] px-1.5 py-0.5 rounded border border-white/10 uppercase tracking-wide ${categoryIcon[dp.category] ?? "text-muted-foreground"}`}>
+                  <span className={`text-sm px-1.5 py-0.5 rounded border border-white/10 uppercase tracking-wide ${categoryIcon[dp.category] ?? "text-muted-foreground"}`}>
                     {dp.category}
                   </span>
-                  <span className={`text-[10px] px-1.5 py-0.5 rounded border ${urgencyColor[dp.urgency] ?? ""}`}>
+                  <span className={`text-sm px-1.5 py-0.5 rounded border ${urgencyColor[dp.urgency] ?? ""}`}>
                     {dp.urgency?.replace(/_/g, " ")}
                   </span>
-                  <span className={`text-[10px] px-1.5 py-0.5 rounded border border-white/10 ${
+                  <span className={`text-sm px-1.5 py-0.5 rounded border border-white/10 ${
                     dp.confidence === "confirmed" ? "text-foreground" :
                     dp.confidence === "inferred" ? "text-foreground" : "text-foreground"
                   }`}>
                     {dp.confidence}
                   </span>
                   {dp.market && dp.market !== "both" && (
-                    <span className="text-[10px] px-1.5 py-0.5 rounded border border-white/10 text-muted-foreground">
+                    <span className="text-sm px-1.5 py-0.5 rounded border border-white/10 text-muted-foreground">
                       {dp.market}
                     </span>
                   )}
                   {dp.dollar_impact && dp.dollar_impact !== "unquantifiable" && (
-                    <span className="text-[10px] font-mono text-primary/70 ml-auto">
+                    <span className="text-sm font-mono text-primary/70 ml-auto">
                       {dp.dollar_impact}
                     </span>
                   )}
@@ -1029,10 +1029,10 @@ function IntelligenceTab({ onSendToChat }: { onSendToChat: (message: string) => 
                 {/* Entity + Action */}
                 <div className="flex items-center gap-3 mt-2">
                   {dp.entity && (
-                    <span className="text-[10px] text-muted-foreground/50 font-mono">{dp.entity}</span>
+                    <span className="text-sm text-muted-foreground/50 font-mono">{dp.entity}</span>
                   )}
                   {dp.recommended_action && (
-                    <span className="text-[10px] text-primary/60">→ {dp.recommended_action}</span>
+                    <span className="text-sm text-primary/60">→ {dp.recommended_action}</span>
                   )}
                 </div>
 
@@ -1048,7 +1048,7 @@ function IntelligenceTab({ onSendToChat }: { onSendToChat: (message: string) => 
                         <button
                           onClick={(e) => { e.stopPropagation(); executeAction(dp, i); }}
                           disabled={isExecuting}
-                          className="flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-medium rounded-lg bg-primary/10 text-primary border border-primary/20 hover:bg-primary/20 transition disabled:opacity-50"
+                          className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-lg bg-primary/10 text-primary border border-primary/20 hover:bg-primary/20 transition disabled:opacity-50"
                         >
                           {isExecuting ? (
                             <Loader2 className="h-3 w-3 animate-spin" />
@@ -1059,7 +1059,7 @@ function IntelligenceTab({ onSendToChat }: { onSendToChat: (message: string) => 
                         </button>
                       )}
                       {result && (
-                        <span className={`flex items-center gap-1 text-[11px] ${result.ok ? "text-foreground" : "text-foreground"}`}>
+                        <span className={`flex items-center gap-1 text-sm ${result.ok ? "text-foreground" : "text-foreground"}`}>
                           {result.ok ? <CheckCircle2 className="h-3 w-3" /> : <XCircle className="h-3 w-3" />}
                           {result.message}
                         </span>
@@ -1070,7 +1070,7 @@ function IntelligenceTab({ onSendToChat }: { onSendToChat: (message: string) => 
                           const msg = `Intel finding #${dp.rank}: "${dp.signal}"\n\nRecommended action: ${dp.recommended_action}\n\nEntity: ${dp.entity ?? "N/A"}\nCategory: ${dp.category} | Urgency: ${dp.urgency}\nImpact: ${dp.dollar_impact}\n\nHelp me understand this finding and decide what to do about it.`;
                           onSendToChat(msg);
                         }}
-                        className="flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-medium rounded-lg bg-white/[0.04] text-muted-foreground border border-white/[0.06] hover:text-foreground hover:bg-white/[0.08] transition"
+                        className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-lg bg-white/[0.04] text-muted-foreground border border-white/[0.06] hover:text-foreground hover:bg-white/[0.08] transition"
                       >
                         <Sparkles className="h-3 w-3" />
                         Discuss in Chat
@@ -1291,12 +1291,12 @@ function CopyLabTab() {
                     <p className="text-xs text-muted-foreground/60 mb-2">{cluster.economic_potential}</p>
                     <div className="flex flex-wrap gap-1">
                       {cluster.search_terms.slice(0, 5).map((term, j) => (
-                        <span key={j} className="text-[10px] px-1.5 py-0.5 rounded bg-white/[0.04] text-muted-foreground/50">
+                        <span key={j} className="text-sm px-1.5 py-0.5 rounded bg-white/[0.04] text-muted-foreground/50">
                           {term}
                         </span>
                       ))}
                       {cluster.search_terms.length > 5 && (
-                        <span className="text-[10px] px-1.5 py-0.5 text-muted-foreground/40">
+                        <span className="text-sm px-1.5 py-0.5 text-muted-foreground/40">
                           +{cluster.search_terms.length - 5} more
                         </span>
                       )}
@@ -1375,9 +1375,9 @@ function CopyLabTab() {
                               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-1.5">
                                 {family.rsa.headlines.map((h, j) => (
                                   <div key={j} className="flex items-center gap-2 bg-white/[0.02] rounded px-2.5 py-1.5">
-                                    <span className="text-[10px] text-muted-foreground/30 font-mono w-4 shrink-0">{j + 1}</span>
+                                    <span className="text-sm text-muted-foreground/30 font-mono w-4 shrink-0">{j + 1}</span>
                                     <span className="text-xs flex-1 truncate">{h}</span>
-                                    <span className={`text-[10px] font-mono shrink-0 ${h.length > 30 ? "text-foreground" : "text-muted-foreground/30"}`}>
+                                    <span className={`text-sm font-mono shrink-0 ${h.length > 30 ? "text-foreground" : "text-muted-foreground/30"}`}>
                                       {h.length}
                                     </span>
                                   </div>
@@ -1393,9 +1393,9 @@ function CopyLabTab() {
                               <div className="space-y-1.5">
                                 {family.rsa.descriptions.map((d, j) => (
                                   <div key={j} className="flex items-start gap-2 bg-white/[0.02] rounded px-2.5 py-1.5">
-                                    <span className="text-[10px] text-muted-foreground/30 font-mono w-4 shrink-0 mt-0.5">{j + 1}</span>
+                                    <span className="text-sm text-muted-foreground/30 font-mono w-4 shrink-0 mt-0.5">{j + 1}</span>
                                     <span className="text-xs flex-1">{d}</span>
-                                    <span className={`text-[10px] font-mono shrink-0 mt-0.5 ${d.length > 90 ? "text-foreground" : "text-muted-foreground/30"}`}>
+                                    <span className={`text-sm font-mono shrink-0 mt-0.5 ${d.length > 90 ? "text-foreground" : "text-muted-foreground/30"}`}>
                                       {d.length}
                                     </span>
                                   </div>
@@ -1435,9 +1435,9 @@ function CopyLabTab() {
                                                 <div className="space-y-1">
                                                   {variant.headlines.map((h, hi) => (
                                                     <div key={hi} className="flex items-center gap-2 bg-white/[0.02] rounded px-2 py-1">
-                                                      <span className="text-[10px] text-muted-foreground/30 font-mono w-3 shrink-0">{hi + 1}</span>
+                                                      <span className="text-sm text-muted-foreground/30 font-mono w-3 shrink-0">{hi + 1}</span>
                                                       <span className="text-xs flex-1 truncate">{h}</span>
-                                                      <span className={`text-[10px] font-mono shrink-0 ${h.length > 30 ? "text-foreground" : "text-muted-foreground/30"}`}>
+                                                      <span className={`text-sm font-mono shrink-0 ${h.length > 30 ? "text-foreground" : "text-muted-foreground/30"}`}>
                                                         {h.length}
                                                       </span>
                                                     </div>
@@ -1446,9 +1446,9 @@ function CopyLabTab() {
                                                 <div className="space-y-1">
                                                   {variant.descriptions.map((d, di) => (
                                                     <div key={di} className="flex items-start gap-2 bg-white/[0.02] rounded px-2 py-1">
-                                                      <span className="text-[10px] text-muted-foreground/30 font-mono w-3 shrink-0 mt-0.5">{di + 1}</span>
+                                                      <span className="text-sm text-muted-foreground/30 font-mono w-3 shrink-0 mt-0.5">{di + 1}</span>
                                                       <span className="text-xs flex-1">{d}</span>
-                                                      <span className={`text-[10px] font-mono shrink-0 mt-0.5 ${d.length > 90 ? "text-foreground" : "text-muted-foreground/30"}`}>
+                                                      <span className={`text-sm font-mono shrink-0 mt-0.5 ${d.length > 90 ? "text-foreground" : "text-muted-foreground/30"}`}>
                                                         {d.length}
                                                       </span>
                                                     </div>
@@ -1518,7 +1518,7 @@ function CopyLabTab() {
                       {result.adversarial.challenges.map((c, i) => (
                         <div key={i} className="bg-muted/[0.04] rounded-lg p-3 border border-border/10">
                           <div className="flex items-center gap-2 mb-1">
-                            <span className={`text-[10px] px-1.5 py-0.5 rounded uppercase font-semibold ${
+                            <span className={`text-sm px-1.5 py-0.5 rounded uppercase font-semibold ${
                               c.severity === "critical" ? "bg-muted/15 text-foreground"
                               : c.severity === "moderate" ? "bg-muted/15 text-foreground"
                               : "bg-white/[0.06] text-muted-foreground/50"
@@ -1731,18 +1731,18 @@ function AdGroupsTab() {
                   <div>
                     <p className="text-sm font-semibold">{ag.name}</p>
                     {ag.campaignName && (
-                      <p className="text-[10px] text-muted-foreground/40">{ag.campaignName}</p>
+                      <p className="text-sm text-muted-foreground/40">{ag.campaignName}</p>
                     )}
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
                   {matchedPage ? (
-                    <span className="text-[10px] bg-primary/10 text-primary px-2 py-0.5 rounded-full font-medium flex items-center gap-1">
+                    <span className="text-sm bg-primary/10 text-primary px-2 py-0.5 rounded-full font-medium flex items-center gap-1">
                       <Globe className="h-2.5 w-2.5" />
                       {matchedPage.path}
                     </span>
                   ) : (
-                    <span className="text-[10px] bg-muted/10 text-foreground px-2 py-0.5 rounded-full font-medium">
+                    <span className="text-sm bg-muted/10 text-foreground px-2 py-0.5 rounded-full font-medium">
                       No Landing Page
                     </span>
                   )}
@@ -1770,27 +1770,27 @@ function AdGroupsTab() {
               {/* Metrics */}
               <div className="grid grid-cols-6 gap-3 mt-3 pt-3 border-t border-white/[0.04]">
                 <div>
-                  <p className="text-[10px] text-muted-foreground/40 uppercase tracking-wider">Impressions</p>
+                  <p className="text-sm text-muted-foreground/40 uppercase tracking-wider">Impressions</p>
                   <p className="text-sm font-semibold">{ag.impressions.toLocaleString()}</p>
                 </div>
                 <div>
-                  <p className="text-[10px] text-muted-foreground/40 uppercase tracking-wider">Clicks</p>
+                  <p className="text-sm text-muted-foreground/40 uppercase tracking-wider">Clicks</p>
                   <p className="text-sm font-semibold">{ag.clicks.toLocaleString()}</p>
                 </div>
                 <div>
-                  <p className="text-[10px] text-muted-foreground/40 uppercase tracking-wider">CTR</p>
+                  <p className="text-sm text-muted-foreground/40 uppercase tracking-wider">CTR</p>
                   <p className="text-sm font-semibold">{fmtPct(ag.ctr)}</p>
                 </div>
                 <div>
-                  <p className="text-[10px] text-muted-foreground/40 uppercase tracking-wider">Avg CPC</p>
+                  <p className="text-sm text-muted-foreground/40 uppercase tracking-wider">Avg CPC</p>
                   <p className="text-sm font-semibold">{fmt$(ag.avgCpc)}</p>
                 </div>
                 <div>
-                  <p className="text-[10px] text-muted-foreground/40 uppercase tracking-wider">Cost</p>
+                  <p className="text-sm text-muted-foreground/40 uppercase tracking-wider">Cost</p>
                   <p className="text-sm font-semibold">{fmt$(ag.cost)}</p>
                 </div>
                 <div>
-                  <p className="text-[10px] text-muted-foreground/40 uppercase tracking-wider">Keywords</p>
+                  <p className="text-sm text-muted-foreground/40 uppercase tracking-wider">Keywords</p>
                   <p className="text-sm font-semibold">
                     {ag.keywords.enabled}<span className="text-muted-foreground/40 text-xs">/{ag.keywords.total}</span>
                   </p>
@@ -2016,7 +2016,7 @@ function LandingTab() {
                   <p className="text-sm font-semibold">{page.label}</p>
                   <p className="text-xs text-muted-foreground/50 mt-0.5">{page.path}</p>
                 </div>
-                <span className="text-[10px] bg-primary/10 text-primary px-2 py-0.5 rounded-full font-medium">
+                <span className="text-sm bg-primary/10 text-primary px-2 py-0.5 rounded-full font-medium">
                   LIVE
                 </span>
               </div>
@@ -2034,25 +2034,25 @@ function LandingTab() {
               {metrics && (metrics.clicks > 0 || metrics.impressions > 0) ? (
                 <div className="grid grid-cols-4 gap-2 pt-2 border-t border-white/[0.04]">
                   <div>
-                    <p className="text-[10px] text-muted-foreground/40 uppercase tracking-wider">Clicks</p>
+                    <p className="text-sm text-muted-foreground/40 uppercase tracking-wider">Clicks</p>
                     <p className="text-sm font-semibold">{metrics.clicks.toLocaleString()}</p>
                   </div>
                   <div>
-                    <p className="text-[10px] text-muted-foreground/40 uppercase tracking-wider">CTR</p>
+                    <p className="text-sm text-muted-foreground/40 uppercase tracking-wider">CTR</p>
                     <p className="text-sm font-semibold">{fmtPct(ctr)}</p>
                   </div>
                   <div>
-                    <p className="text-[10px] text-muted-foreground/40 uppercase tracking-wider">CPC</p>
+                    <p className="text-sm text-muted-foreground/40 uppercase tracking-wider">CPC</p>
                     <p className="text-sm font-semibold">{fmt$(cpc)}</p>
                   </div>
                   <div>
-                    <p className="text-[10px] text-muted-foreground/40 uppercase tracking-wider">Conv.</p>
+                    <p className="text-sm text-muted-foreground/40 uppercase tracking-wider">Conv.</p>
                     <p className="text-sm font-semibold">{metrics.conversions}</p>
                   </div>
                 </div>
               ) : (
                 <div className="pt-2 border-t border-white/[0.04]">
-                  <p className="text-[10px] text-muted-foreground/30 italic">No metrics yet — page is new</p>
+                  <p className="text-sm text-muted-foreground/30 italic">No metrics yet — page is new</p>
                 </div>
               )}
             </button>
@@ -2084,7 +2084,7 @@ function LandingTab() {
             </div>
           </div>
           <div className="pt-2 border-t border-white/[0.04]">
-            <p className="text-[10px] text-muted-foreground/40">
+            <p className="text-sm text-muted-foreground/40">
               Google Ads tracking: Update your ad group final URLs to point each ad group to its matching landing page.
               Each page has gtag conversion tracking via the shared /sell layout.
             </p>
@@ -2163,7 +2163,7 @@ function LandingTab() {
             </div>
           ))}
         </div>
-        <p className="text-[10px] text-muted-foreground/40 leading-relaxed">
+        <p className="text-sm text-muted-foreground/40 leading-relaxed">
           Add <code className="text-primary/60">?utm_source=google&amp;utm_medium=cpc&amp;utm_campaign=spokane_seller&amp;utm_content=</code> + ad group name
           for attribution tracking in analytics.
         </p>
@@ -2482,7 +2482,7 @@ function PromptEditor({ promptKey, title, subtitle, modelLabel, accentColor }: {
         <div>
           <div className="flex items-center gap-2">
             <h3 className="text-sm font-semibold">{title}</h3>
-            <span className={`text-[10px] px-2 py-0.5 rounded-full border font-mono ${accentColor}`}>
+            <span className={`text-sm px-2 py-0.5 rounded-full border font-mono ${accentColor}`}>
               {modelLabel}
             </span>
           </div>
@@ -2535,7 +2535,7 @@ function PromptEditor({ promptKey, title, subtitle, modelLabel, accentColor }: {
           placeholder={`Enter the ${promptKey} prompt...`}
           spellCheck={false}
         />
-        <div className="absolute bottom-3 right-3 flex items-center gap-3 text-[10px] text-muted-foreground/40 font-mono">
+        <div className="absolute bottom-3 right-3 flex items-center gap-3 text-sm text-muted-foreground/40 font-mono">
           {hasChanges && <span className="text-foreground/60">{Math.abs(charCount - originalText.length)} chars {charCount > originalText.length ? "added" : "removed"}</span>}
           <span>{lineCount} lines</span>
           <span>{charCount.toLocaleString()} chars</span>

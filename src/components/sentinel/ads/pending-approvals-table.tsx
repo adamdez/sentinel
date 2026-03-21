@@ -344,7 +344,7 @@ export function PendingApprovalsTable({ onDecision }: PendingApprovalsTableProps
                 <button
                   onClick={() => handleBatchApprove("green")}
                   disabled={batchProcessing}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border/20 bg-muted/10 text-foreground text-[11px] font-bold uppercase tracking-wider hover:bg-muted/20 transition-all disabled:opacity-50"
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border/20 bg-muted/10 text-foreground text-sm font-bold uppercase tracking-wider hover:bg-muted/20 transition-all disabled:opacity-50"
                 >
                   {batchProcessing ? <Loader2 className="h-3 w-3 animate-spin" /> : <CheckCircle2 className="h-3 w-3" />}
                   Approve All Green ({greenCount})
@@ -354,7 +354,7 @@ export function PendingApprovalsTable({ onDecision }: PendingApprovalsTableProps
                 <button
                   onClick={() => handleBatchApprove("yellow")}
                   disabled={batchProcessing}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border/20 bg-muted/10 text-foreground text-[11px] font-bold uppercase tracking-wider hover:bg-muted/20 transition-all disabled:opacity-50"
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border/20 bg-muted/10 text-foreground text-sm font-bold uppercase tracking-wider hover:bg-muted/20 transition-all disabled:opacity-50"
                 >
                   {batchProcessing ? <Loader2 className="h-3 w-3 animate-spin" /> : <CheckCircle2 className="h-3 w-3" />}
                   Approve All Yellow ({yellowCount})
@@ -364,7 +364,7 @@ export function PendingApprovalsTable({ onDecision }: PendingApprovalsTableProps
                 <button
                   onClick={() => handleBatchApprove()}
                   disabled={batchProcessing}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-primary/20 bg-primary/10 text-primary text-[11px] font-bold uppercase tracking-wider hover:bg-primary/20 transition-all disabled:opacity-50"
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-primary/20 bg-primary/10 text-primary text-sm font-bold uppercase tracking-wider hover:bg-primary/20 transition-all disabled:opacity-50"
                 >
                   {batchProcessing ? <Loader2 className="h-3 w-3 animate-spin" /> : <CheckCircle2 className="h-3 w-3" />}
                   Approve All ({recommendations.length})
@@ -377,20 +377,20 @@ export function PendingApprovalsTable({ onDecision }: PendingApprovalsTableProps
                 <button
                   onClick={handleBatchExecute}
                   disabled={batchProcessing}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-primary/20 bg-primary/10 text-primary text-[11px] font-bold uppercase tracking-wider hover:bg-primary/20 transition-all disabled:opacity-50"
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-primary/20 bg-primary/10 text-primary text-sm font-bold uppercase tracking-wider hover:bg-primary/20 transition-all disabled:opacity-50"
                 >
                   {batchProcessing ? <Loader2 className="h-3 w-3 animate-spin" /> : <Zap className="h-3 w-3" />}
                   Execute All ({executableCount})
                 </button>
               )}
-              <span className="text-[10px] text-muted-foreground/40">
+              <span className="text-sm text-muted-foreground/40">
                 Red-risk items require individual confirmation
               </span>
             </>
           )}
 
           {batchResult && (
-            <span className={`text-[11px] font-medium px-2 py-1 rounded ${
+            <span className={`text-sm font-medium px-2 py-1 rounded ${
               batchResult.startsWith("Error") || batchResult.includes("failed")
                 ? "text-foreground bg-muted/10"
                 : "text-foreground bg-muted/10"
@@ -439,7 +439,7 @@ export function PendingApprovalsTable({ onDecision }: PendingApprovalsTableProps
               <Clock className="h-4 w-4 text-primary" />
               {activeView === "needs_review" ? "Actionable Recommendations" : "Approved Recommendations"}
             </h3>
-            <span className="text-[10px] px-1.5 py-0.5 rounded bg-white/[0.04] text-muted-foreground/60 uppercase tracking-widest font-bold">
+            <span className="text-sm px-1.5 py-0.5 rounded bg-white/[0.04] text-muted-foreground/60 uppercase tracking-widest font-bold">
               {recommendations.length} {activeView === "needs_review" ? "pending" : "approved"}
             </span>
           </div>
@@ -469,7 +469,7 @@ export function PendingApprovalsTable({ onDecision }: PendingApprovalsTableProps
                     >
                       <td className="px-4 py-4 align-top">
                         <div className="flex flex-col gap-1">
-                          <span className="text-[10px] font-bold uppercase tracking-wider text-primary/70">
+                          <span className="text-sm font-bold uppercase tracking-wider text-primary/70">
                             {rec.market}
                           </span>
                           <span className="font-semibold text-foreground/90">
@@ -479,23 +479,23 @@ export function PendingApprovalsTable({ onDecision }: PendingApprovalsTableProps
                              rec.related_keyword_id ? "Keyword" :
                              rec.related_ad_group_id ? "Ad Group" : "Campaign"}
                           </span>
-                          <span className="text-[11px] text-foreground/60 truncate max-w-[180px]" title={rec.entity_name}>
+                          <span className="text-sm text-foreground/60 truncate max-w-[180px]" title={rec.entity_name}>
                             {rec.entity_name && rec.entity_name !== "Unknown" && rec.entity_name !== "Unknown keyword"
                               ? rec.entity_name
                               : (rec.metadata?.keyword_text as string) ?? (rec.metadata?.ad_group_name as string) ?? null}
                           </span>
                           {rec.metadata?.match_type ? (
-                            <span className="text-[9px] text-muted-foreground/40 font-mono uppercase">
+                            <span className="text-xs text-muted-foreground/40 font-mono uppercase">
                               {String(rec.metadata.match_type)}
                             </span>
                           ) : null}
                           {rec.campaign_name && rec.related_keyword_id && (
-                            <span className="text-[10px] text-muted-foreground/40 truncate max-w-[180px]">
+                            <span className="text-sm text-muted-foreground/40 truncate max-w-[180px]">
                               in {rec.campaign_name}
                             </span>
                           )}
                           {rec.executable === false && (
-                            <span className="text-[10px] text-foreground flex items-center gap-1 mt-0.5">
+                            <span className="text-sm text-foreground flex items-center gap-1 mt-0.5">
                               <AlertTriangle className="h-3 w-3" />
                               No Google Ads ID — needs sync
                             </span>
@@ -507,18 +507,18 @@ export function PendingApprovalsTable({ onDecision }: PendingApprovalsTableProps
                           <span className="text-xs font-bold text-primary capitalize flex items-center gap-1.5">
                             {rec.recommendation_type.replace(/_/g, " ")}
                           </span>
-                          <p className="text-[11px] text-foreground/70 leading-relaxed italic">
+                          <p className="text-sm text-foreground/70 leading-relaxed italic">
                             &quot;{rec.expected_impact}&quot;
                           </p>
                         </div>
                       </td>
                       <td className="px-4 py-4 align-top">
-                        <p className="text-[11px] text-muted-foreground/70 leading-relaxed line-clamp-3 hover:line-clamp-none transition-all cursor-default">
+                        <p className="text-sm text-muted-foreground/70 leading-relaxed line-clamp-3 hover:line-clamp-none transition-all cursor-default">
                           {rec.reason}
                         </p>
                       </td>
                       <td className="px-4 py-4 align-top text-center">
-                        <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold uppercase border ${riskColors[rec.risk_level]}`}>
+                        <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-sm font-bold uppercase border ${riskColors[rec.risk_level]}`}>
                           {rec.risk_level}
                         </span>
                       </td>
@@ -545,7 +545,7 @@ export function PendingApprovalsTable({ onDecision }: PendingApprovalsTableProps
                                 </button>
                               </div>
                               {rec.executable === false && (
-                                <span className="text-[9px] text-foreground/70">
+                                <span className="text-xs text-foreground/70">
                                   ⚠ Not executable yet — needs sync
                                 </span>
                               )}
@@ -553,41 +553,41 @@ export function PendingApprovalsTable({ onDecision }: PendingApprovalsTableProps
                           ) : (
                             <div className="flex flex-col items-end gap-1.5">
                               {executedIds.has(rec.id) ? (
-                                <span className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border/20 bg-muted/10 text-[11px] font-bold uppercase tracking-wider text-foreground">
+                                <span className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border/20 bg-muted/10 text-sm font-bold uppercase tracking-wider text-foreground">
                                   <CheckCircle2 className="h-3.5 w-3.5" />
                                   Executed
                                 </span>
                               ) : isNonMutating(rec.recommendation_type) ? (
                                 <div className="flex flex-col items-end gap-1.5">
-                                  <span className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-white/[0.08] bg-white/[0.03] text-[10px] text-muted-foreground/60">
+                                  <span className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-white/[0.08] bg-white/[0.03] text-sm text-muted-foreground/60">
                                     <Info className="h-3.5 w-3.5" />
                                     Informational — no action needed
                                   </span>
                                   <button
                                     onClick={() => handleDismiss(rec.id)}
                                     disabled={!!processingId}
-                                    className="text-[10px] text-muted-foreground/40 hover:text-foreground transition-colors"
+                                    className="text-sm text-muted-foreground/40 hover:text-foreground transition-colors"
                                   >
                                     Dismiss
                                   </button>
                                 </div>
                               ) : rec.executable === false ? (
                                 <div className="flex flex-col items-end gap-1">
-                                  <span className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border/20 bg-muted/5 text-[10px] text-foreground">
+                                  <span className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border/20 bg-muted/5 text-sm text-foreground">
                                     <AlertTriangle className="h-3.5 w-3.5" />
                                     Can&apos;t execute — missing Google Ads entity
                                   </span>
                                   <button
                                     onClick={() => handleDismiss(rec.id)}
                                     disabled={!!processingId}
-                                    className="text-[10px] text-muted-foreground/40 hover:text-foreground transition-colors"
+                                    className="text-sm text-muted-foreground/40 hover:text-foreground transition-colors"
                                   >
                                     Dismiss
                                   </button>
                                 </div>
                               ) : confirmingId === rec.id ? (
                                 <div className="flex flex-col items-end gap-1.5">
-                                  <p className="text-[10px] text-foreground font-medium">Type CONFIRM to execute red-risk change</p>
+                                  <p className="text-sm text-foreground font-medium">Type CONFIRM to execute red-risk change</p>
                                   <div className="flex items-center gap-1.5">
                                     <input
                                       type="text"
@@ -600,7 +600,7 @@ export function PendingApprovalsTable({ onDecision }: PendingApprovalsTableProps
                                     <button
                                       onClick={() => handleExecute(rec.id, confirmText)}
                                       disabled={confirmText !== "CONFIRM" || !!processingId}
-                                      className={`px-3 py-1 rounded-lg border text-[11px] font-bold uppercase tracking-wider transition-all ${
+                                      className={`px-3 py-1 rounded-lg border text-sm font-bold uppercase tracking-wider transition-all ${
                                         confirmText === "CONFIRM"
                                           ? "border-border/30 bg-muted/10 text-foreground hover:bg-muted/20"
                                           : "border-white/[0.06] bg-white/[0.02] text-muted-foreground/40 cursor-not-allowed"
@@ -610,7 +610,7 @@ export function PendingApprovalsTable({ onDecision }: PendingApprovalsTableProps
                                     </button>
                                     <button
                                       onClick={() => { setConfirmingId(null); setConfirmText(""); }}
-                                      className="px-2 py-1 rounded-lg border border-white/[0.06] bg-white/[0.02] text-[11px] text-muted-foreground/60 hover:text-foreground transition-all"
+                                      className="px-2 py-1 rounded-lg border border-white/[0.06] bg-white/[0.02] text-sm text-muted-foreground/60 hover:text-foreground transition-all"
                                     >
                                       Cancel
                                     </button>
@@ -620,7 +620,7 @@ export function PendingApprovalsTable({ onDecision }: PendingApprovalsTableProps
                                 <button
                                   onClick={() => handleExecute(rec.id)}
                                   disabled={!!processingId}
-                                  className={`flex items-center gap-2 px-3 py-1.5 rounded-lg border text-[11px] font-bold uppercase tracking-wider transition-all ${
+                                  className={`flex items-center gap-2 px-3 py-1.5 rounded-lg border text-sm font-bold uppercase tracking-wider transition-all ${
                                     processingId === rec.id ? "opacity-50" : ""
                                   } ${
                                     rec.risk_level === "red"
@@ -641,7 +641,7 @@ export function PendingApprovalsTable({ onDecision }: PendingApprovalsTableProps
                                 <motion.div
                                   initial={{ opacity: 0, y: 5 }}
                                   animate={{ opacity: 1, y: 0 }}
-                                  className={`text-[10px] font-medium px-2 py-0.5 rounded ${
+                                  className={`text-sm font-medium px-2 py-0.5 rounded ${
                                     executionResult.success
                                       ? "text-foreground bg-muted/10"
                                       : "text-foreground bg-muted/10"

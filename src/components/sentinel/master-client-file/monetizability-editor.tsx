@@ -95,16 +95,16 @@ export function MonetizabilityEditor({
     <div className="rounded-[12px] border border-white/[0.06] bg-white/[0.02] p-3 space-y-2.5">
       <div className="flex items-center gap-2">
         <BarChart2 className="h-3.5 w-3.5 text-primary/60" />
-        <span className="text-[11px] text-muted-foreground uppercase tracking-wider font-semibold">
+        <span className="text-sm text-muted-foreground uppercase tracking-wider font-semibold">
           Monetizability
         </span>
-        <span className="text-[9px] text-muted-foreground/40 ml-auto">Admin only</span>
+        <span className="text-xs text-muted-foreground/40 ml-auto">Admin only</span>
       </div>
 
       <div className="flex items-end gap-2">
         {/* Score 1-10 */}
         <div className="space-y-1 flex-1">
-          <label className="text-[10px] text-muted-foreground/60 uppercase tracking-wider">Score (1–10)</label>
+          <label className="text-sm text-muted-foreground/60 uppercase tracking-wider">Score (1–10)</label>
           <input
             type="number"
             min={1}
@@ -123,7 +123,7 @@ export function MonetizabilityEditor({
 
         {/* Friction level */}
         <div className="space-y-1 flex-1">
-          <label className="text-[10px] text-muted-foreground/60 uppercase tracking-wider">Dispo Friction</label>
+          <label className="text-sm text-muted-foreground/60 uppercase tracking-wider">Dispo Friction</label>
           <select
             value={friction}
             onChange={(e) => handleFrictionChange(e.target.value)}
@@ -145,7 +145,7 @@ export function MonetizabilityEditor({
           onClick={handleSave}
           disabled={!dirty || saving}
           className={cn(
-            "flex items-center gap-1 text-[10px] px-2.5 py-1.5 rounded-[8px] font-medium transition-colors mb-0.5",
+            "flex items-center gap-1 text-sm px-2.5 py-1.5 rounded-[8px] font-medium transition-colors mb-0.5",
             dirty && !saving
               ? "bg-primary/10 text-primary/80 hover:bg-primary/20 border border-primary/15"
               : "bg-white/[0.03] text-muted-foreground/30 border border-white/[0.04] cursor-not-allowed"

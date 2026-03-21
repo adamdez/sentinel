@@ -75,7 +75,7 @@ export function LeadSegmentControl({
               {tab.label}
               <span
                 className={cn(
-                  "text-[10px] px-1.5 py-0 rounded-full",
+                  "text-sm px-1.5 py-0 rounded-full",
                   active
                     ? "bg-primary/12 text-primary"
                     : "bg-secondary text-muted-foreground"

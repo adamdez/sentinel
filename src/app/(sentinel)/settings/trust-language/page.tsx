@@ -46,7 +46,7 @@ const CONTEXT_COLORS: Record<TrustSnippetContext, string> = {
 
 function ContextBadge({ ctx }: { ctx: TrustSnippetContext }) {
   return (
-    <Badge variant="outline" className={`text-[8px] px-1.5 py-0 ${CONTEXT_COLORS[ctx]}`}>
+    <Badge variant="outline" className={`text-xs px-1.5 py-0 ${CONTEXT_COLORS[ctx]}`}>
       {CONTEXT_LABELS[ctx]}
     </Badge>
   );
@@ -67,7 +67,7 @@ function CopyButton({ text }: { text: string }) {
     <button
       type="button"
       onClick={handleCopy}
-      className="flex items-center gap-1 rounded-[5px] border border-white/[0.07] bg-white/[0.03] px-2 py-0.5 text-[8px] text-muted-foreground/40 hover:text-muted-foreground/70 hover:border-white/[0.12] transition-colors shrink-0"
+      className="flex items-center gap-1 rounded-[5px] border border-white/[0.07] bg-white/[0.03] px-2 py-0.5 text-xs text-muted-foreground/40 hover:text-muted-foreground/70 hover:border-white/[0.12] transition-colors shrink-0"
     >
       {copied
         ? <><Check className="h-2.5 w-2.5 text-foreground" /> Copied</>
@@ -86,14 +86,14 @@ function SnippetCard({ snippet }: { snippet: TrustSnippet }) {
       <div className="flex items-start gap-2 px-4 py-3 bg-white/[0.015]">
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
-            <h3 className="text-[11px] font-semibold text-foreground/80">{snippet.label}</h3>
+            <h3 className="text-sm font-semibold text-foreground/80">{snippet.label}</h3>
             {snippet.firstCallPriority && (
-              <Badge variant="outline" className="text-[8px] px-1.5 py-0 bg-muted/10 text-foreground border-border/20">
+              <Badge variant="outline" className="text-xs px-1.5 py-0 bg-muted/10 text-foreground border-border/20">
                 First-call priority
               </Badge>
             )}
           </div>
-          <code className="text-[8px] text-muted-foreground/30 font-mono">{snippet.key}</code>
+          <code className="text-xs text-muted-foreground/30 font-mono">{snippet.key}</code>
         </div>
         <div className="flex gap-1 flex-wrap justify-end">
           {snippet.contexts.map(ctx => (
@@ -105,11 +105,11 @@ function SnippetCard({ snippet }: { snippet: TrustSnippet }) {
       {/* Copy */}
       <div className="px-4 py-3 space-y-2">
         <div>
-          <p className="text-[9px] font-semibold uppercase tracking-wider text-muted-foreground/35 mb-1">
+          <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground/35 mb-1">
             Approved copy
           </p>
           <div className="flex items-start gap-2">
-            <p className="flex-1 text-[11px] text-foreground/75 leading-relaxed whitespace-pre-line">
+            <p className="flex-1 text-sm text-foreground/75 leading-relaxed whitespace-pre-line">
               {snippet.copy}
             </p>
             <CopyButton text={snippet.copy} />
@@ -117,19 +117,19 @@ function SnippetCard({ snippet }: { snippet: TrustSnippet }) {
         </div>
 
         <div>
-          <p className="text-[9px] font-semibold uppercase tracking-wider text-muted-foreground/35 mb-0.5">
+          <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground/35 mb-0.5">
             Tone note
           </p>
-          <p className="text-[10px] text-muted-foreground/50 italic leading-snug">
+          <p className="text-sm text-muted-foreground/50 italic leading-snug">
             {snippet.toneNote}
           </p>
         </div>
 
         <div>
-          <p className="text-[9px] font-semibold uppercase tracking-wider text-muted-foreground/35 mb-0.5">
+          <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground/35 mb-0.5">
             Summary (collapsed display)
           </p>
-          <p className="text-[10px] text-muted-foreground/50 leading-snug">
+          <p className="text-sm text-muted-foreground/50 leading-snug">
             {snippet.summary}
           </p>
         </div>
@@ -154,7 +154,7 @@ export default function TrustLanguagePage() {
         {/* Back */}
         <Link
           href="/settings"
-          className="flex items-center gap-1.5 text-[11px] text-muted-foreground/50 hover:text-muted-foreground transition-colors"
+          className="flex items-center gap-1.5 text-sm text-muted-foreground/50 hover:text-muted-foreground transition-colors"
         >
           <ArrowLeft className="h-3 w-3" />
           Settings
@@ -165,16 +165,16 @@ export default function TrustLanguagePage() {
           <div className="flex items-center gap-3">
             <MessageSquare className="h-4 w-4 text-primary/50 shrink-0" />
             <div className="flex-1">
-              <p className="text-[11px] font-semibold text-foreground/80">
+              <p className="text-sm font-semibold text-foreground/80">
                 Seller Language
-                <code className="ml-2 text-[9px] font-mono text-muted-foreground/40">v{TRUST_LANGUAGE_VERSION}</code>
+                <code className="ml-2 text-xs font-mono text-muted-foreground/40">v{TRUST_LANGUAGE_VERSION}</code>
               </p>
-              <p className="text-[10px] text-muted-foreground/45 mt-0.5">
+              <p className="text-sm text-muted-foreground/45 mt-0.5">
                 {allSnippets.length} approved snippets · {firstCallSnippets.length} first-call priority
               </p>
             </div>
             <div className="text-right">
-              <p className="text-[8px] text-muted-foreground/25 leading-snug">
+              <p className="text-xs text-muted-foreground/25 leading-snug">
                 To update copy, edit<br />
                 <code className="font-mono">src/lib/trust-language.ts</code><br />
                 and bump the version.
@@ -185,10 +185,10 @@ export default function TrustLanguagePage() {
 
         {/* Tone rules */}
         <GlassCard hover={false} className="!p-4">
-          <p className="text-[9px] font-semibold uppercase tracking-wider text-muted-foreground/40 mb-2">
+          <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground/40 mb-2">
             Tone rules
           </p>
-          <div className="grid grid-cols-2 gap-x-4 gap-y-0.5 text-[10px]">
+          <div className="grid grid-cols-2 gap-x-4 gap-y-0.5 text-sm">
             {[
               ["Use", "Local · Respectful · Direct · Calm · Trustworthy · Practical"],
               ["Avoid", "Investor-bro language · Fake urgency · Generic guru advice · Enterprise jargon"],
@@ -203,7 +203,7 @@ export default function TrustLanguagePage() {
 
         {/* Snippet cards */}
         <div className="space-y-3">
-          <p className="text-[9px] font-semibold uppercase tracking-wider text-muted-foreground/40">
+          <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground/40">
             All snippets ({allSnippets.length})
           </p>
           {allSnippets.map(snippet => (
@@ -213,12 +213,12 @@ export default function TrustLanguagePage() {
 
         {/* Usage note */}
         <GlassCard hover={false} className="!p-3">
-          <p className="text-[9px] text-muted-foreground/30 leading-relaxed">
+          <p className="text-xs text-muted-foreground/30 leading-relaxed">
             <strong className="text-muted-foreground/50">Where these appear:</strong>{" "}
             First-call priority snippets surface in the seller memory panel when totalCalls === 0.
             Warm-transfer snippets appear in the warm-transfer card context block.
-            All snippets are available via <code className="text-[8px]">TrustLanguageChip</code> or{" "}
-            <code className="text-[8px]">TrustLanguagePack</code> components.
+            All snippets are available via <code className="text-xs">TrustLanguageChip</code> or{" "}
+            <code className="text-xs">TrustLanguagePack</code> components.
             Copy is static — changes require a code deploy (auditable).
           </p>
         </GlassCard>

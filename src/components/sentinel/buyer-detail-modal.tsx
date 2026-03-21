@@ -62,7 +62,7 @@ function SectionHeader({ icon: Icon, label, collapsed, onToggle }: {
 }
 
 function FieldLabel({ children }: { children: React.ReactNode }) {
-  return <label className="text-[11px] text-muted-foreground/70 font-medium uppercase tracking-wider">{children}</label>;
+  return <label className="text-sm text-muted-foreground/70 font-medium uppercase tracking-wider">{children}</label>;
 }
 
 function GlassInput({ value, onChange, placeholder, type = "text", className }: {
@@ -113,7 +113,7 @@ function PillToggle({ value, selected, onToggle, label }: {
     <button
       onClick={() => onToggle(value)}
       className={cn(
-        "px-2.5 py-1 rounded-full text-[11px] font-medium border transition-all",
+        "px-2.5 py-1 rounded-full text-sm font-medium border transition-all",
         selected
           ? "bg-primary/15 border-primary/30 text-primary"
           : "bg-white/[0.02] border-white/[0.06] text-muted-foreground/60 hover:border-white/[0.12] hover:text-muted-foreground"
@@ -497,7 +497,7 @@ export function BuyerDetailModal({ buyer, open, onClose, onSaved, isCreate }: Bu
                               ].map((s) => (
                                 <div key={s.label} className="px-2.5 py-2 rounded-[6px] bg-white/[0.02] border border-white/[0.04] text-center">
                                   <div className="text-sm font-semibold text-foreground">{s.value}</div>
-                                  <div className="text-[9px] text-muted-foreground/50 uppercase tracking-wider mt-0.5">{s.label}</div>
+                                  <div className="text-xs text-muted-foreground/50 uppercase tracking-wider mt-0.5">{s.label}</div>
                                 </div>
                               ))}
                             </div>
@@ -511,13 +511,13 @@ export function BuyerDetailModal({ buyer, open, onClose, onSaved, isCreate }: Bu
                             </div>
                             {stats.recent_deals.length > 0 && (
                               <div className="space-y-1.5">
-                                <div className="text-[10px] text-muted-foreground/50 uppercase tracking-wider font-semibold">Recent Deals</div>
+                                <div className="text-sm text-muted-foreground/50 uppercase tracking-wider font-semibold">Recent Deals</div>
                                 {stats.recent_deals.map((rd, i) => (
                                   <div key={i} className="flex items-center gap-2 px-2.5 py-1.5 rounded-[6px] bg-white/[0.015] border border-white/[0.04] text-xs">
                                     <span className="flex-1 truncate text-foreground/70">{rd.property_address ?? "Unknown"}</span>
                                     <Badge
                                       variant={rd.deal_buyer_status === "selected" ? "neon" : rd.deal_buyer_status === "interested" ? "cyan" : rd.deal_buyer_status === "passed" ? "secondary" : "outline"}
-                                      className="text-[9px] shrink-0"
+                                      className="text-xs shrink-0"
                                     >
                                       {dealBuyerStatusLabel(rd.deal_buyer_status)}
                                     </Badge>

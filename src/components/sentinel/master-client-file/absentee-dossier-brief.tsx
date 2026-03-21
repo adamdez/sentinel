@@ -49,7 +49,7 @@ import {
 function ConfBadge({ confidence }: { confidence: AbsenteeDossierSignal["confidence"] }) {
   const d = ABSENTEE_CONFIDENCE_DISPLAY[confidence];
   return (
-    <span className={`inline-flex items-center rounded-[4px] border px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide ${d.className}`}>
+    <span className={`inline-flex items-center rounded-[4px] border px-1.5 py-0.5 text-xs font-semibold uppercase tracking-wide ${d.className}`}>
       {d.label}
     </span>
   );
@@ -66,18 +66,18 @@ function SignalRow({ signal, icon: Icon }: {
       {Icon && <Icon className="h-3.5 w-3.5 mt-0.5 text-muted-foreground/50 shrink-0" />}
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-1.5 flex-wrap">
-          <span className="text-[11px] font-medium text-foreground/75">{signal.label}</span>
+          <span className="text-sm font-medium text-foreground/75">{signal.label}</span>
           <ConfBadge confidence={signal.confidence} />
         </div>
-        <p className="text-[11px] text-muted-foreground/60 leading-relaxed mt-0.5">{signal.detail}</p>
+        <p className="text-sm text-muted-foreground/60 leading-relaxed mt-0.5">{signal.detail}</p>
         <div className="flex items-center gap-1 mt-0.5">
-          <span className="text-[9px] text-muted-foreground/30 italic">{signal.sourceLabel}</span>
+          <span className="text-xs text-muted-foreground/30 italic">{signal.sourceLabel}</span>
           {signal.sourceUrl && (
             <a
               href={signal.sourceUrl}
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-flex items-center gap-0.5 text-[9px] text-primary/40 hover:text-primary/70"
+              className="inline-flex items-center gap-0.5 text-xs text-primary/40 hover:text-primary/70"
             >
               <ExternalLink className="h-2.5 w-2.5" />
               Source
@@ -100,7 +100,7 @@ function Section({ title, icon: Icon, children }: {
     <div>
       <div className="flex items-center gap-1.5 mb-1.5">
         <Icon className="h-3.5 w-3.5 text-muted-foreground/40 shrink-0" />
-        <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/50">
+        <span className="text-sm font-semibold uppercase tracking-wider text-muted-foreground/50">
           {title}
         </span>
       </div>
@@ -167,7 +167,7 @@ export function AbsenteeDossierBrief({
           </Badge>
           <Badge
             variant="outline"
-            className="text-[9px] border-white/10 text-muted-foreground/40"
+            className="text-xs border-white/10 text-muted-foreground/40"
           >
             {brief.sourceArtifactCount} artifact{brief.sourceArtifactCount !== 1 ? "s" : ""}
           </Badge>
@@ -216,7 +216,7 @@ export function AbsenteeDossierBrief({
       {/* Call angle */}
       {brief.callAngle && (
         <Section title="Suggested call approach" icon={Lightbulb}>
-          <p className="text-[11px] text-foreground/65 leading-relaxed">{brief.callAngle}</p>
+          <p className="text-sm text-foreground/65 leading-relaxed">{brief.callAngle}</p>
         </Section>
       )}
 
@@ -271,7 +271,7 @@ export function AbsenteeDossierBrief({
         <div className="flex items-center gap-1 text-xs text-muted-foreground">
           <CheckCircle2 className="h-3 w-3 text-foreground" />
           {reviewedDate ? `Reviewed ${reviewedDate}` : "Reviewed"}
-          <span className="ml-1 text-[9px] text-muted-foreground/30 italic">
+          <span className="ml-1 text-xs text-muted-foreground/30 italic">
             — confidence labels based on source type, not AI scoring
           </span>
         </div>

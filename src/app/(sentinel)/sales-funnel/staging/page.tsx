@@ -50,7 +50,7 @@ function SignalPill({ signal }: { signal: string }) {
   if (!label) return null;
   const colors = DISTRESS_COLORS[signal] ?? { text: "text-muted-foreground", bg: "bg-white/[0.04]", border: "border-white/[0.08]" };
   return (
-    <span className={cn("text-[9px] px-1.5 py-0.5 rounded border font-medium whitespace-nowrap", colors.text, colors.bg, colors.border)}>
+    <span className={cn("text-xs px-1.5 py-0.5 rounded border font-medium whitespace-nowrap", colors.text, colors.bg, colors.border)}>
       {label}
     </span>
   );
@@ -244,7 +244,7 @@ export default function StagingPage() {
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="border-b border-white/[0.06] text-[11px] text-muted-foreground uppercase tracking-wider">
+                  <tr className="border-b border-white/[0.06] text-sm text-muted-foreground uppercase tracking-wider">
                     <th className="text-left px-4 py-3 cursor-pointer hover:text-foreground transition-colors" onClick={() => toggleSort("address")}>
                       Property {sortField === "address" && (sortDir === "desc" ? "↓" : "↑")}
                     </th>
@@ -283,7 +283,7 @@ export default function StagingPage() {
                             <div className="text-xs text-muted-foreground truncate">{row.owner_name}</div>
                           </td>
                           <td className="px-3 py-3 text-center">
-                            <span className={cn("text-[10px] px-2 py-0.5 rounded border font-semibold", badge.color, badge.bgColor, badge.borderColor)}>
+                            <span className={cn("text-sm px-2 py-0.5 rounded border font-semibold", badge.color, badge.bgColor, badge.borderColor)}>
                               {badge.label}
                             </span>
                           </td>
@@ -291,10 +291,10 @@ export default function StagingPage() {
                             {validSignals.length > 0 ? (
                               <div className="flex flex-wrap justify-center gap-1 max-w-[120px] mx-auto">
                                 {validSignals.slice(0, 2).map((s) => <SignalPill key={s} signal={s} />)}
-                                {validSignals.length > 2 && <span className="text-[9px] text-muted-foreground/50 self-center">+{validSignals.length - 2}</span>}
+                                {validSignals.length > 2 && <span className="text-xs text-muted-foreground/50 self-center">+{validSignals.length - 2}</span>}
                               </div>
                             ) : (
-                              <span className="text-[9px] text-muted-foreground/40">0</span>
+                              <span className="text-xs text-muted-foreground/40">0</span>
                             )}
                           </td>
                           <td className="px-3 py-3 text-center">
@@ -318,7 +318,7 @@ export default function StagingPage() {
                               <Button
                                 size="sm"
                                 variant="outline"
-                                className="h-7 px-2 gap-1 text-[10px] text-foreground border-border/20 hover:border-border/40 hover:bg-muted/[0.06]"
+                                className="h-7 px-2 gap-1 text-sm text-foreground border-border/20 hover:border-border/40 hover:bg-muted/[0.06]"
                                 onClick={(e) => handleStatusChange(row, "prospect", e)}
                                 disabled={isLoading}
                               >
@@ -328,7 +328,7 @@ export default function StagingPage() {
                               <Button
                                 size="sm"
                                 variant="outline"
-                                className="h-7 px-2 gap-1 text-[10px] text-foreground border-border/20 hover:border-border/40 hover:bg-muted/[0.06]"
+                                className="h-7 px-2 gap-1 text-sm text-foreground border-border/20 hover:border-border/40 hover:bg-muted/[0.06]"
                                 onClick={(e) => handleStatusChange(row, "dead", e)}
                                 disabled={isLoading}
                               >

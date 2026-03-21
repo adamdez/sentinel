@@ -79,11 +79,11 @@ export function TrustLanguageChip({
         title={open ? "Collapse" : "Expand script"}
       >
         <Info className={`shrink-0 text-primary/50 ${compact ? "h-2.5 w-2.5" : "h-3 w-3"}`} />
-        <span className={`flex-1 font-medium text-primary/80 truncate ${compact ? "text-[9px]" : "text-[10px]"}`}>
+        <span className={`flex-1 font-medium text-primary/80 truncate ${compact ? "text-xs" : "text-sm"}`}>
           {snippet.label}
         </span>
         {!open && (
-          <span className={`text-muted-foreground/40 line-clamp-1 flex-[2] ${compact ? "text-[8px]" : "text-[9px]"}`}>
+          <span className={`text-muted-foreground/40 line-clamp-1 flex-[2] ${compact ? "text-xs" : "text-xs"}`}>
             {snippet.summary}
           </span>
         )}
@@ -97,16 +97,16 @@ export function TrustLanguageChip({
       {open && (
         <div className={`border-t border-primary/[0.08] space-y-2 ${compact ? "px-2.5 py-2" : "px-3 py-2.5"}`}>
           {/* Approved copy */}
-          <p className={`text-foreground/75 leading-relaxed whitespace-pre-line ${compact ? "text-[10px]" : "text-[11px]"}`}>
+          <p className={`text-foreground/75 leading-relaxed whitespace-pre-line ${compact ? "text-sm" : "text-sm"}`}>
             {snippet.copy}
           </p>
 
           {/* Tone note */}
           <div className="flex items-start gap-1.5">
-            <span className="text-[8px] font-semibold uppercase tracking-wider text-muted-foreground/35 shrink-0 mt-0.5">
+            <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground/35 shrink-0 mt-0.5">
               Tone
             </span>
-            <p className={`text-muted-foreground/45 italic leading-snug ${compact ? "text-[9px]" : "text-[10px]"}`}>
+            <p className={`text-muted-foreground/45 italic leading-snug ${compact ? "text-xs" : "text-sm"}`}>
               {snippet.toneNote}
             </p>
           </div>
@@ -115,7 +115,7 @@ export function TrustLanguageChip({
           <button
             type="button"
             onClick={() => copy(snippet.copy)}
-            className="flex items-center gap-1 rounded-[5px] border border-white/[0.07] bg-white/[0.03] px-2 py-0.5 text-[8px] text-muted-foreground/40 hover:text-muted-foreground/70 hover:border-white/[0.12] transition-colors"
+            className="flex items-center gap-1 rounded-[5px] border border-white/[0.07] bg-white/[0.03] px-2 py-0.5 text-xs text-muted-foreground/40 hover:text-muted-foreground/70 hover:border-white/[0.12] transition-colors"
           >
             {copied
               ? <><Check className="h-2.5 w-2.5 text-foreground" /> Copied</>
@@ -157,7 +157,7 @@ export function TrustLanguagePack({
   return (
     <div className={`space-y-1 ${className}`}>
       {label !== null && (
-        <p className="text-[8px] font-semibold uppercase tracking-wider text-muted-foreground/35 mb-1">
+        <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground/35 mb-1">
           {label}
         </p>
       )}
@@ -178,7 +178,7 @@ interface TrustSummaryLineProps {
 export function TrustSummaryLine({ snippetKey, className = "" }: TrustSummaryLineProps) {
   const snippet = getTrustSnippet(snippetKey);
   return (
-    <p className={`text-[9px] text-muted-foreground/45 italic leading-snug ${className}`}>
+    <p className={`text-xs text-muted-foreground/45 italic leading-snug ${className}`}>
       <span className="not-italic text-muted-foreground/30 font-medium">{snippet.label}: </span>
       {snippet.summary}
     </p>

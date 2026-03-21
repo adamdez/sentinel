@@ -317,7 +317,7 @@ export function LeadDossierPanel({ leadId }: { leadId: string }) {
       )}
 
       <div>
-        <h4 className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold mb-1">Situation Summary</h4>
+        <h4 className="text-sm uppercase tracking-wider text-muted-foreground font-semibold mb-1">Situation Summary</h4>
         <p className="text-sm text-foreground/90 leading-relaxed whitespace-pre-wrap">
           {display.situation_summary ?? "—"}
         </p>
@@ -325,14 +325,14 @@ export function LeadDossierPanel({ leadId }: { leadId: string }) {
 
       {display.recommended_call_angle ? (
         <div className="rounded-[10px] border border-primary/25 bg-primary/[0.06] px-3 py-2">
-          <h4 className="text-[10px] uppercase tracking-wider text-primary/80 font-semibold mb-1">Recommended Call Angle</h4>
+          <h4 className="text-sm uppercase tracking-wider text-primary/80 font-semibold mb-1">Recommended Call Angle</h4>
           <p className="text-sm text-foreground/90">{display.recommended_call_angle}</p>
         </div>
       ) : null}
 
       {display.likely_decision_maker ? (
         <div>
-          <h4 className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold mb-1">
+          <h4 className="text-sm uppercase tracking-wider text-muted-foreground font-semibold mb-1">
             Likely Decision Maker
           </h4>
           <p className="text-sm">{display.likely_decision_maker}</p>
@@ -341,19 +341,19 @@ export function LeadDossierPanel({ leadId }: { leadId: string }) {
 
       {topFacts.length > 0 && (
         <div>
-          <h4 className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold mb-2">Top Facts</h4>
+          <h4 className="text-sm uppercase tracking-wider text-muted-foreground font-semibold mb-2">Top Facts</h4>
           <div className="flex flex-wrap gap-2">
             {topFacts.slice(0, 8).map((f, i) => (
               <span
                 key={i}
                 className={cn(
-                  "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] max-w-full",
+                  "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-sm max-w-full",
                   confidenceChipClass(f.confidence),
                 )}
               >
                 <span className="truncate">{f.text}</span>
                 {f.confidence ? (
-                  <span className="text-[9px] uppercase opacity-70 shrink-0">{f.confidence}</span>
+                  <span className="text-xs uppercase opacity-70 shrink-0">{f.confidence}</span>
                 ) : null}
               </span>
             ))}
@@ -363,7 +363,7 @@ export function LeadDossierPanel({ leadId }: { leadId: string }) {
 
       {checklist.length > 0 && (
         <div>
-          <h4 className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold mb-2">
+          <h4 className="text-sm uppercase tracking-wider text-muted-foreground font-semibold mb-2">
             Verification Checklist
           </h4>
           <ul className="space-y-1.5">
@@ -379,7 +379,7 @@ export function LeadDossierPanel({ leadId }: { leadId: string }) {
 
       {links.length > 0 && (
         <div>
-          <h4 className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold mb-2">Source Links</h4>
+          <h4 className="text-sm uppercase tracking-wider text-muted-foreground font-semibold mb-2">Source Links</h4>
           <div className="flex flex-col gap-1">
             {links.map((l, i) => (
               <a
@@ -400,7 +400,7 @@ export function LeadDossierPanel({ leadId }: { leadId: string }) {
       <button
         type="button"
         onClick={() => setArtifactsOpen((o) => !o)}
-        className="flex items-center gap-1 text-[11px] font-medium text-muted-foreground hover:text-foreground"
+        className="flex items-center gap-1 text-sm font-medium text-muted-foreground hover:text-foreground"
       >
         {artifactsOpen ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
         Raw Artifacts ({artifactsQuery.data?.length ?? 0})
@@ -411,7 +411,7 @@ export function LeadDossierPanel({ leadId }: { leadId: string }) {
             <p className="p-3 text-xs text-muted-foreground/50">No artifacts captured.</p>
           ) : (
             (artifactsQuery.data ?? []).map((a) => (
-              <div key={a.id} className="p-3 text-[11px] space-y-1">
+              <div key={a.id} className="p-3 text-sm space-y-1">
                 <p className="font-medium text-foreground/80">{a.source_label ?? a.source_type ?? "Evidence"}</p>
                 {a.source_url ? (
                   <a href={a.source_url} target="_blank" rel="noreferrer" className="text-primary/70 hover:text-primary break-all">
@@ -430,14 +430,14 @@ export function LeadDossierPanel({ leadId }: { leadId: string }) {
       <button
         type="button"
         onClick={() => setFactsOpen((o) => !o)}
-        className="flex items-center gap-1 text-[11px] font-medium text-muted-foreground hover:text-foreground"
+        className="flex items-center gap-1 text-sm font-medium text-muted-foreground hover:text-foreground"
       >
         {factsOpen ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
         Fact Assertions ({factsQuery.data?.length ?? 0})
       </button>
       {factsOpen && (
         <div className="overflow-x-auto rounded-lg border border-white/[0.06]">
-          <table className="w-full text-[10px]">
+          <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-white/[0.06] bg-white/[0.02] text-left text-muted-foreground">
                 <th className="px-2 py-1.5">Type</th>

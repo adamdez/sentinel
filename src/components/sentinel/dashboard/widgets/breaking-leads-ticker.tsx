@@ -150,13 +150,13 @@ export function BreakingLeadsTicker() {
           <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75" />
           <span className="relative inline-flex rounded-full h-2 w-2 bg-primary" />
         </span>
-        <span className="text-[11px] text-primary font-medium">LIVE</span>
+        <span className="text-sm text-primary font-medium">LIVE</span>
       </div>
 
       {visible.length === 0 ? (
         <div className="text-center py-4">
           <Zap className="h-5 w-5 text-muted-foreground mx-auto mb-1" />
-          <p className="text-[11px] text-muted-foreground">No new priority leads yet</p>
+          <p className="text-sm text-muted-foreground">No new priority leads yet</p>
         </div>
       ) : (
         <div className="space-y-1.5">
@@ -206,19 +206,19 @@ export function BreakingLeadsTicker() {
                   </span>
                   <RelationshipBadgeCompact data={{ tags: item.tags }} />
                   {item.daysUntilDistress != null && (
-                    <span className="text-[9px] px-1.5 py-0 rounded border font-semibold shrink-0 text-primary-300 bg-primary-500/10 border-primary-500/20">
+                    <span className="text-xs px-1.5 py-0 rounded border font-semibold shrink-0 text-primary-300 bg-primary-500/10 border-primary-500/20">
                       {item.daysUntilDistress}d
                     </span>
                   )}
                   {src && (
-                    <span className={cn("text-[9px] px-1.5 py-0 rounded border font-semibold shrink-0", src.color)}>
+                    <span className={cn("text-xs px-1.5 py-0 rounded border font-semibold shrink-0", src.color)}>
                       {src.label}
                     </span>
                   )}
-                  <Badge variant={isPlatinum ? "platinum" : "gold"} className="text-[9px] gap-0.5">
+                  <Badge variant={isPlatinum ? "platinum" : "gold"} className="text-xs gap-0.5">
                     <ArrowUp className="h-2 w-2" />{item.score}
                   </Badge>
-                  <span className="text-[10px] text-muted-foreground shrink-0">{item.time}</span>
+                  <span className="text-sm text-muted-foreground shrink-0">{item.time}</span>
                 </motion.div>
               );
             })}
@@ -226,7 +226,7 @@ export function BreakingLeadsTicker() {
         </div>
       )}
 
-      <p className="text-[11px] text-muted-foreground text-center pt-1">
+      <p className="text-sm text-muted-foreground text-center pt-1">
         {items.length > 0
           ? `${items.length} new priority leads — real-time feed`
           : "Waiting for high-score prospects"}

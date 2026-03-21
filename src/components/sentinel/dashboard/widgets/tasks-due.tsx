@@ -60,7 +60,7 @@ function QueueRow({
       animate={{ opacity: 1, x: 0 }}
       transition={{ delay: 0.05 + idx * 0.03 }}
       onClick={() => openLead(item.leadId)}
-      className="w-full flex items-center justify-between text-[11px] py-0.5 px-1 rounded hover:bg-white/5 transition-colors text-left gap-1"
+      className="w-full flex items-center justify-between text-sm py-0.5 px-1 rounded hover:bg-white/5 transition-colors text-left gap-1"
     >
       <span className="truncate flex-1 mr-1">{item.address || item.ownerName}</span>
       {hasAction ? (
@@ -97,7 +97,7 @@ function BucketChip({ bucket, idx }: { bucket: QueueBucket; idx: number }) {
     >
       <Icon className="h-3 w-3 mb-0.5 text-muted-foreground" />
       <p className="text-lg font-black leading-none">{bucket.count}</p>
-      <Badge variant={dimmed ? "outline" : bucket.variant} className="text-[7px] mt-0.5 px-1">
+      <Badge variant={dimmed ? "outline" : bucket.variant} className="text-xs mt-0.5 px-1">
         {bucket.label}
       </Badge>
     </motion.div>
@@ -123,7 +123,7 @@ export function TasksDue() {
 
   return (
     <div className="space-y-2.5">
-      <p className="text-[10px] text-muted-foreground/65">
+      <p className="text-sm text-muted-foreground/65">
         Daily order: Overdue, Due Today, Needs Qualification, then New Inbound.
       </p>
 
@@ -135,7 +135,7 @@ export function TasksDue() {
 
       {topBucket && topBucket.items.length > 0 && (
         <div className="space-y-0.5">
-          <p className="text-[10px] uppercase tracking-widest text-muted-foreground">
+          <p className="text-sm uppercase tracking-widest text-muted-foreground">
             {topBucket.label} - Top {Math.min(topBucket.items.length, 4)}
           </p>
           {topBucket.items.slice(0, 4).map((item, i) => (

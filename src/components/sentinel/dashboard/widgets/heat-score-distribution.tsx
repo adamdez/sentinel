@@ -90,10 +90,10 @@ export function HeatScoreDistribution() {
             transition={{ delay: i * 0.07 }}
             className="space-y-1"
           >
-            <div className="flex items-center justify-between text-[11px]">
+            <div className="flex items-center justify-between text-sm">
               <span className="font-bold tracking-wide">{b.label}</span>
               <span className="text-muted-foreground">
-                {b.count} <span className="text-[10px]">({pct}%)</span>
+                {b.count} <span className="text-sm">({pct}%)</span>
               </span>
             </div>
             <div className="h-2 rounded-full bg-white/[0.03] overflow-hidden">
@@ -108,7 +108,7 @@ export function HeatScoreDistribution() {
           </motion.div>
         );
       })}
-      <p className="text-[10px] text-muted-foreground text-center pt-1">
+      <p className="text-sm text-muted-foreground text-center pt-1">
         {total} scored lead{total !== 1 ? "s" : ""} total
       </p>
     </div>

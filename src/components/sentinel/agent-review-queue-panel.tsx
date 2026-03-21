@@ -160,7 +160,7 @@ export function AgentReviewQueuePanel() {
                 setRejectNotes("");
               }}
               className={cn(
-                "rounded-[10px] px-3 py-1.5 text-[11px] font-medium border transition-colors",
+                "rounded-[10px] px-3 py-1.5 text-sm font-medium border transition-colors",
                 tab === t.id
                   ? "border-primary/30 bg-primary/10 text-primary"
                   : "border-white/[0.06] text-muted-foreground hover:border-white/10",
@@ -203,17 +203,17 @@ export function AgentReviewQueuePanel() {
           <GlassCard key={item.id} hover={false} className="!p-4">
             <div className="flex flex-wrap items-start gap-2 justify-between">
               <div className="flex flex-wrap items-center gap-2">
-                <Badge variant="outline" className={cn("text-[10px] font-medium", agentBadgeClass(item.agent_name))}>
+                <Badge variant="outline" className={cn("text-sm font-medium", agentBadgeClass(item.agent_name))}>
                   {item.agent_name}
                 </Badge>
-                <span className="text-[10px] uppercase tracking-wide text-muted-foreground/50">
+                <span className="text-sm uppercase tracking-wide text-muted-foreground/50">
                   {item.action}
                 </span>
                 {item.priority != null && (
-                  <span className="text-[10px] text-foreground/80">P{item.priority}</span>
+                  <span className="text-sm text-foreground/80">P{item.priority}</span>
                 )}
               </div>
-              <span className="text-[10px] text-muted-foreground/40">
+              <span className="text-sm text-muted-foreground/40">
                 {new Date(item.created_at).toLocaleString()}
               </span>
             </div>
@@ -222,7 +222,7 @@ export function AgentReviewQueuePanel() {
               <p className="mt-2 text-xs text-muted-foreground/90 leading-relaxed">{item.rationale}</p>
             ) : null}
 
-            <pre className="mt-2 rounded-md border border-white/[0.06] bg-black/20 p-2 text-[10px] font-mono text-muted-foreground/80 overflow-x-auto max-h-28 overflow-y-auto">
+            <pre className="mt-2 rounded-md border border-white/[0.06] bg-black/20 p-2 text-sm font-mono text-muted-foreground/80 overflow-x-auto max-h-28 overflow-y-auto">
               {proposalPreview(item.proposal)}
             </pre>
 
@@ -290,15 +290,15 @@ export function AgentReviewQueuePanel() {
       <GlassCard hover={false} className="!p-4">
         <div className="flex items-center gap-2 mb-3">
           <Activity className="h-3.5 w-3.5 text-muted-foreground/50" />
-          <h3 className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/60">
+          <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground/60">
             Recent agent runs
           </h3>
-          <Link href="/dialer/review/eval" className="ml-auto text-[9px] text-primary/50 hover:text-primary/80">
+          <Link href="/dialer/review/eval" className="ml-auto text-xs text-primary/50 hover:text-primary/80">
             Eval →
           </Link>
         </div>
         {runsQuery.isLoading ? (
-          <p className="text-[11px] text-muted-foreground/40 flex items-center gap-1">
+          <p className="text-sm text-muted-foreground/40 flex items-center gap-1">
             <Loader2 className="h-3 w-3 animate-spin" /> Loading…
           </p>
         ) : runsQuery.data && runsQuery.data.length > 0 ? (
@@ -306,7 +306,7 @@ export function AgentReviewQueuePanel() {
             {runsQuery.data.map((r) => (
               <div
                 key={r.id}
-                className="flex items-center justify-between gap-2 rounded-md border border-white/[0.04] px-2 py-1 text-[10px]"
+                className="flex items-center justify-between gap-2 rounded-md border border-white/[0.04] px-2 py-1 text-sm"
               >
                 <span className={cn("font-medium truncate", agentBadgeClass(r.agent_name))}>{r.agent_name}</span>
                 <span className="text-muted-foreground/50 shrink-0">{r.status}</span>
@@ -317,7 +317,7 @@ export function AgentReviewQueuePanel() {
             ))}
           </div>
         ) : (
-          <p className="text-[11px] text-muted-foreground/35">No recent runs.</p>
+          <p className="text-sm text-muted-foreground/35">No recent runs.</p>
         )}
       </GlassCard>
     </div>

@@ -111,10 +111,10 @@ export default function CampaignsPage() {
                     <tr key={c.id} className="border-b border-white/[0.06] hover:bg-white/[0.04] transition-colors">
                       <td className="p-3 text-sm font-medium">{c.name}</td>
                       <td className="p-3">
-                        <Badge variant="outline" className="text-[10px]">{c.campaign_type}</Badge>
+                        <Badge variant="outline" className="text-sm">{c.campaign_type}</Badge>
                       </td>
                       <td className="p-3">
-                        <Badge variant={c.status === "active" ? "neon" : "secondary"} className="text-[10px]">
+                        <Badge variant={c.status === "active" ? "neon" : "secondary"} className="text-sm">
                           {c.status}
                         </Badge>
                       </td>

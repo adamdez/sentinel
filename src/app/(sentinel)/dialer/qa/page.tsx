@@ -53,17 +53,17 @@ function fmtDuration(sec: number | null): string {
 
 function SeverityBadge({ severity }: { severity: string }) {
   if (severity === "flag") return (
-    <span className="inline-flex items-center gap-0.5 rounded-[4px] border border-border/30 bg-muted/10 px-1.5 py-0.5 text-[9px] font-semibold text-foreground uppercase tracking-wide">
+    <span className="inline-flex items-center gap-0.5 rounded-[4px] border border-border/30 bg-muted/10 px-1.5 py-0.5 text-xs font-semibold text-foreground uppercase tracking-wide">
       <Flag className="h-2 w-2" aria-hidden="true" /> flag
     </span>
   );
   if (severity === "warn") return (
-    <span className="inline-flex items-center gap-0.5 rounded-[4px] border border-border/30 bg-muted/10 px-1.5 py-0.5 text-[9px] font-semibold text-foreground uppercase tracking-wide">
+    <span className="inline-flex items-center gap-0.5 rounded-[4px] border border-border/30 bg-muted/10 px-1.5 py-0.5 text-xs font-semibold text-foreground uppercase tracking-wide">
       <AlertTriangle className="h-2 w-2" aria-hidden="true" /> warn
     </span>
   );
   return (
-    <span className="inline-flex items-center gap-0.5 rounded-[4px] border border-white/[0.07] bg-white/[0.03] px-1.5 py-0.5 text-[9px] font-semibold text-muted-foreground/50 uppercase tracking-wide">
+    <span className="inline-flex items-center gap-0.5 rounded-[4px] border border-white/[0.07] bg-white/[0.03] px-1.5 py-0.5 text-xs font-semibold text-muted-foreground/50 uppercase tracking-wide">
       <Info className="h-2 w-2" aria-hidden="true" /> info
     </span>
   );
@@ -109,7 +109,7 @@ function FindingRow({
     return (
       <div className="flex items-center gap-1.5 px-2 py-1.5 rounded-[6px] bg-muted/[0.04] border border-border/10">
         <Check className="h-3 w-3 text-foreground/50 shrink-0" aria-hidden="true" />
-        <span className="text-[10px] text-foreground/50">Reviewed</span>
+        <span className="text-sm text-foreground/50">Reviewed</span>
       </div>
     );
   }
@@ -122,19 +122,19 @@ function FindingRow({
         </div>
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-1.5 mb-0.5">
-            <span className="text-[10px] font-semibold text-foreground/70">
+            <span className="text-sm font-semibold text-foreground/70">
               {CHECK_LABELS[finding.check_type] ?? finding.check_type}
             </span>
             {finding.ai_derived && (
-              <span className="inline-flex items-center gap-0.5 text-[9px] text-foreground/50 italic">
+              <span className="inline-flex items-center gap-0.5 text-xs text-foreground/50 italic">
                 <Sparkles className="h-2 w-2" aria-hidden="true" />
                 AI-derived
               </span>
             )}
           </div>
-          <p className="text-[11px] text-foreground/60 leading-snug">{finding.finding}</p>
+          <p className="text-sm text-foreground/60 leading-snug">{finding.finding}</p>
           {finding.ai_derived && (
-            <p className="text-[9px] text-muted-foreground/30 italic mt-0.5">
+            <p className="text-xs text-muted-foreground/30 italic mt-0.5">
               Based on operator notes only — not a full transcript
             </p>
           )}
@@ -149,7 +149,7 @@ function FindingRow({
           placeholder="Brief note on why this finding is invalid or what was corrected…"
           maxLength={300}
           rows={2}
-          className="w-full resize-none rounded-[6px] border border-white/[0.06] bg-white/[0.03] px-2.5 py-1.5 text-[11px] text-foreground placeholder:text-muted-foreground/30 focus:outline-none focus:border-primary/20"
+          className="w-full resize-none rounded-[6px] border border-white/[0.06] bg-white/[0.03] px-2.5 py-1.5 text-sm text-foreground placeholder:text-muted-foreground/30 focus:outline-none focus:border-primary/20"
         />
       )}
 
@@ -159,7 +159,7 @@ function FindingRow({
           type="button"
           onClick={() => handle("valid")}
           disabled={reviewing}
-          className="flex-1 flex items-center justify-center gap-1 rounded-[6px] border border-border/20 bg-muted/[0.06] px-2 py-1 text-[10px] text-foreground/70 hover:bg-muted/[0.10] transition-colors disabled:opacity-40"
+          className="flex-1 flex items-center justify-center gap-1 rounded-[6px] border border-border/20 bg-muted/[0.06] px-2 py-1 text-sm text-foreground/70 hover:bg-muted/[0.10] transition-colors disabled:opacity-40"
         >
           {reviewing ? <Loader2 className="h-2.5 w-2.5 animate-spin" /> : <Check className="h-2.5 w-2.5" aria-hidden="true" />}
           Valid
@@ -168,7 +168,7 @@ function FindingRow({
           type="button"
           onClick={() => handle("invalid")}
           disabled={reviewing}
-          className="flex-1 flex items-center justify-center gap-1 rounded-[6px] border border-white/[0.06] bg-white/[0.02] px-2 py-1 text-[10px] text-muted-foreground/50 hover:text-foreground/70 hover:border-white/[0.12] transition-colors disabled:opacity-40"
+          className="flex-1 flex items-center justify-center gap-1 rounded-[6px] border border-white/[0.06] bg-white/[0.02] px-2 py-1 text-sm text-muted-foreground/50 hover:text-foreground/70 hover:border-white/[0.12] transition-colors disabled:opacity-40"
         >
           <X className="h-2.5 w-2.5" aria-hidden="true" />
           Invalid
@@ -177,7 +177,7 @@ function FindingRow({
           type="button"
           onClick={() => handle("corrected")}
           disabled={reviewing}
-          className="flex-1 flex items-center justify-center gap-1 rounded-[6px] border border-primary/15 bg-primary/[0.04] px-2 py-1 text-[10px] text-primary/60 hover:bg-primary/[0.08] transition-colors disabled:opacity-40"
+          className="flex-1 flex items-center justify-center gap-1 rounded-[6px] border border-primary/15 bg-primary/[0.04] px-2 py-1 text-sm text-primary/60 hover:bg-primary/[0.08] transition-colors disabled:opacity-40"
         >
           <Pen className="h-2.5 w-2.5" aria-hidden="true" />
           Corrected
@@ -226,21 +226,21 @@ function CallQaCard({
 
         {/* Lead info */}
         <div className="min-w-0 flex-1">
-          <p className="text-[12px] font-medium text-foreground/80 truncate">
+          <p className="text-xs font-medium text-foreground/80 truncate">
             {call.address ?? call.ownerName ?? "Unknown lead"}
           </p>
           <div className="flex items-center gap-2 mt-0.5">
-            <span className="text-[10px] text-muted-foreground/40 capitalize">
+            <span className="text-sm text-muted-foreground/40 capitalize">
               {call.disposition?.replace(/_/g, " ") ?? "—"}
             </span>
-            <span className="text-muted-foreground/25 text-[10px]">·</span>
-            <span className="text-[10px] text-muted-foreground/40">
+            <span className="text-muted-foreground/25 text-sm">·</span>
+            <span className="text-sm text-muted-foreground/40">
               {fmtDate(call.callDate)}
             </span>
             {call.durationSec && (
               <>
-                <span className="text-muted-foreground/25 text-[10px]">·</span>
-                <span className="text-[10px] text-muted-foreground/35">{fmtDuration(call.durationSec)}</span>
+                <span className="text-muted-foreground/25 text-sm">·</span>
+                <span className="text-sm text-muted-foreground/35">{fmtDuration(call.durationSec)}</span>
               </>
             )}
           </div>
@@ -249,17 +249,17 @@ function CallQaCard({
         {/* Finding counts */}
         <div className="flex items-center gap-1.5 shrink-0">
           {call.flagCount > 0 && (
-            <span className="rounded-[4px] bg-muted/10 border border-border/20 px-1.5 py-0.5 text-[9px] font-semibold text-foreground">
+            <span className="rounded-[4px] bg-muted/10 border border-border/20 px-1.5 py-0.5 text-xs font-semibold text-foreground">
               {call.flagCount} flag{call.flagCount > 1 ? "s" : ""}
             </span>
           )}
           {call.warnCount > 0 && (
-            <span className="rounded-[4px] bg-muted/10 border border-border/20 px-1.5 py-0.5 text-[9px] font-semibold text-foreground">
+            <span className="rounded-[4px] bg-muted/10 border border-border/20 px-1.5 py-0.5 text-xs font-semibold text-foreground">
               {call.warnCount} warn{call.warnCount > 1 ? "s" : ""}
             </span>
           )}
           {!hasFindings && (
-            <span className="text-[9px] text-muted-foreground/30">No findings</span>
+            <span className="text-xs text-muted-foreground/30">No findings</span>
           )}
           {expanded
             ? <ChevronUp   className="h-3.5 w-3.5 text-muted-foreground/25 ml-1" aria-hidden="true" />
@@ -279,7 +279,7 @@ function CallQaCard({
               />
             ))
           ) : (
-            <p className="text-[11px] text-muted-foreground/30 italic px-1">No pending findings for this call.</p>
+            <p className="text-sm text-muted-foreground/30 italic px-1">No pending findings for this call.</p>
           )}
 
           {/* Re-run QA */}
@@ -287,7 +287,7 @@ function CallQaCard({
             type="button"
             onClick={handleRerun}
             disabled={rerunning}
-            className="flex items-center gap-1.5 text-[10px] text-muted-foreground/30 hover:text-muted-foreground/60 transition-colors disabled:opacity-40 mt-1"
+            className="flex items-center gap-1.5 text-sm text-muted-foreground/30 hover:text-muted-foreground/60 transition-colors disabled:opacity-40 mt-1"
           >
             {rerunning
               ? <Loader2 className="h-2.5 w-2.5 animate-spin" aria-hidden="true" />
@@ -321,13 +321,13 @@ function RunQaForm({ onRun }: { onRun: (callLogId: string) => Promise<void> }) {
         value={callLogId}
         onChange={(e) => setCallLogId(e.target.value)}
         placeholder="calls_log UUID to QA…"
-        className="flex-1 rounded-[8px] border border-white/[0.06] bg-white/[0.02] px-3 py-1.5 text-[11px] text-foreground placeholder:text-muted-foreground/30 focus:outline-none focus:border-primary/20"
+        className="flex-1 rounded-[8px] border border-white/[0.06] bg-white/[0.02] px-3 py-1.5 text-sm text-foreground placeholder:text-muted-foreground/30 focus:outline-none focus:border-primary/20"
       />
       <Button
         onClick={handleRun}
         disabled={running || !callLogId.trim()}
         size="sm"
-        className="gap-1.5 bg-primary/10 hover:bg-primary/20 text-primary border border-primary/20 text-[11px]"
+        className="gap-1.5 bg-primary/10 hover:bg-primary/20 text-primary border border-primary/20 text-sm"
       >
         {running ? <Loader2 className="h-3 w-3 animate-spin" /> : <Shield className="h-3 w-3" />}
         Run QA
@@ -404,17 +404,17 @@ export default function DialerQaPage() {
             <GlassCard hover={false} className="!p-3 text-center">
               <Shield className="h-3.5 w-3.5 text-muted-foreground/40 mx-auto mb-1" aria-hidden="true" />
               <p className="text-lg font-bold text-foreground">{summary.pending}</p>
-              <p className="text-[9px] text-muted-foreground/40 uppercase">Pending review</p>
+              <p className="text-xs text-muted-foreground/40 uppercase">Pending review</p>
             </GlassCard>
             <GlassCard hover={false} className={`!p-3 text-center ${summary.flagged > 0 ? "border-border/20" : ""}`}>
               <Flag className={`h-3.5 w-3.5 mx-auto mb-1 ${summary.flagged > 0 ? "text-foreground/70" : "text-muted-foreground/30"}`} aria-hidden="true" />
               <p className={`text-lg font-bold ${summary.flagged > 0 ? "text-foreground" : "text-foreground"}`}>{summary.flagged}</p>
-              <p className="text-[9px] text-muted-foreground/40 uppercase">Flagged</p>
+              <p className="text-xs text-muted-foreground/40 uppercase">Flagged</p>
             </GlassCard>
             <GlassCard hover={false} className="!p-3 text-center">
               <Phone className="h-3.5 w-3.5 text-muted-foreground/40 mx-auto mb-1" aria-hidden="true" />
               <p className="text-lg font-bold text-foreground">{queue.length}</p>
-              <p className="text-[9px] text-muted-foreground/40 uppercase">Calls</p>
+              <p className="text-xs text-muted-foreground/40 uppercase">Calls</p>
             </GlassCard>
           </div>
         )}
@@ -423,12 +423,12 @@ export default function DialerQaPage() {
         <GlassCard hover={false} className="!p-4">
           <div className="flex items-center gap-2 mb-3">
             <Shield className="h-3.5 w-3.5 text-muted-foreground/40" aria-hidden="true" />
-            <h3 className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/60">
+            <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground/60">
               Run QA on a Call
             </h3>
           </div>
           <RunQaForm onRun={handleRunQa} />
-          <p className="text-[9px] text-muted-foreground/25 mt-2 px-0.5">
+          <p className="text-xs text-muted-foreground/25 mt-2 px-0.5">
             Paste a calls_log UUID to run deterministic + AI notes checks. Results appear in the queue below.
           </p>
         </GlassCard>
@@ -440,7 +440,7 @@ export default function DialerQaPage() {
               key={s}
               type="button"
               onClick={() => setSeverity(s)}
-              className={`rounded-[8px] border px-3 py-1 text-[11px] font-medium transition-colors ${
+              className={`rounded-[8px] border px-3 py-1 text-sm font-medium transition-colors ${
                 severity === s
                   ? "bg-primary/10 border-primary/20 text-primary"
                   : "bg-white/[0.02] border-white/[0.06] text-muted-foreground/50 hover:border-white/[0.12]"
@@ -453,7 +453,7 @@ export default function DialerQaPage() {
             type="button"
             onClick={() => void loadQueue()}
             disabled={loading}
-            className="ml-auto flex items-center gap-1 rounded-[8px] border border-white/[0.06] bg-white/[0.02] px-3 py-1 text-[11px] text-muted-foreground/40 hover:text-muted-foreground/70 transition-colors disabled:opacity-40"
+            className="ml-auto flex items-center gap-1 rounded-[8px] border border-white/[0.06] bg-white/[0.02] px-3 py-1 text-sm text-muted-foreground/40 hover:text-muted-foreground/70 transition-colors disabled:opacity-40"
           >
             {loading ? <Loader2 className="h-2.5 w-2.5 animate-spin" aria-hidden="true" /> : <RefreshCw className="h-2.5 w-2.5" aria-hidden="true" />}
             Refresh
@@ -473,7 +473,7 @@ export default function DialerQaPage() {
           <GlassCard hover={false} className="!p-8 text-center">
             <Check className="h-6 w-6 text-foreground/40 mx-auto mb-2" aria-hidden="true" />
             <p className="text-sm text-muted-foreground/50">No pending QA findings in the last 14 days.</p>
-            <p className="text-[11px] text-muted-foreground/30 mt-1">
+            <p className="text-sm text-muted-foreground/30 mt-1">
               Use the form above to run QA on a specific call.
             </p>
           </GlassCard>
@@ -495,7 +495,7 @@ export default function DialerQaPage() {
         {/* ── Context note ──────────────────────────────────── */}
         <div className="flex items-start gap-2 rounded-[10px] border border-white/[0.04] bg-white/[0.01] px-3 py-2.5">
           <Clock className="h-3 w-3 text-muted-foreground/25 shrink-0 mt-0.5" aria-hidden="true" />
-          <p className="text-[10px] text-muted-foreground/30 leading-relaxed">
+          <p className="text-sm text-muted-foreground/30 leading-relaxed">
             QA findings are informational only. Marking a finding valid or invalid has no effect on CRM records, lead stages, or operator metrics. This surface is for Adam&apos;s operational awareness and coaching reference only.
           </p>
         </div>

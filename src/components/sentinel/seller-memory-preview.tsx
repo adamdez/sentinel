@@ -86,18 +86,18 @@ export function SellerMemoryPreview({ leadId, className = "" }: Props) {
 
   return (
     <div className={`rounded-xl border border-border/20 bg-muted/[0.04] p-3 space-y-2 ${className}`}>
-      <div className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider text-foreground/70">
+      <div className="flex items-center gap-1.5 text-sm font-semibold uppercase tracking-wider text-foreground/70">
         <User className="h-3 w-3" />
         Seller Memory
         {staleDays !== null && (
-          <span className={`ml-auto text-[9px] font-normal ${staleWarn ? "text-foreground" : "text-muted-foreground/40"}`}>
+          <span className={`ml-auto text-xs font-normal ${staleWarn ? "text-foreground" : "text-muted-foreground/40"}`}>
             Last contact {staleDays}d ago
           </span>
         )}
       </div>
 
       {/* Quick stats */}
-      <div className="flex gap-3 text-[10px] text-muted-foreground/60">
+      <div className="flex gap-3 text-sm text-muted-foreground/60">
         <span className="flex items-center gap-1">
           <Phone className="h-2.5 w-2.5" />
           {memory.recentCalls.length} recent call{memory.recentCalls.length !== 1 ? "s" : ""}
@@ -113,25 +113,25 @@ export function SellerMemoryPreview({ leadId, className = "" }: Props) {
       {/* Structured fields from last call */}
       <div className="space-y-1">
         {memory.lastCallPromises && (
-          <div className="flex items-start gap-1.5 text-[11px]">
+          <div className="flex items-start gap-1.5 text-sm">
             <Handshake className="h-3 w-3 text-foreground/60 shrink-0 mt-0.5" />
             <span className="text-foreground/70">{memory.lastCallPromises}</span>
           </div>
         )}
         {memory.lastCallObjection && (
-          <div className="flex items-start gap-1.5 text-[11px]">
+          <div className="flex items-start gap-1.5 text-sm">
             <AlertTriangle className="h-3 w-3 text-foreground/60 shrink-0 mt-0.5" />
             <span className="text-foreground/70">{memory.lastCallObjection}</span>
           </div>
         )}
         {memory.lastCallNextAction && (
-          <div className="flex items-start gap-1.5 text-[11px]">
+          <div className="flex items-start gap-1.5 text-sm">
             <MessageSquare className="h-3 w-3 text-primary/60 shrink-0 mt-0.5" />
             <span className="text-foreground/70">{memory.lastCallNextAction}</span>
           </div>
         )}
         {memory.lastCallCallbackTiming && (
-          <div className="flex items-start gap-1.5 text-[11px]">
+          <div className="flex items-start gap-1.5 text-sm">
             <CalendarClock className="h-3 w-3 text-primary/50 shrink-0 mt-0.5" />
             <span className="text-foreground/70">{memory.lastCallCallbackTiming}</span>
           </div>
@@ -144,7 +144,7 @@ export function SellerMemoryPreview({ leadId, className = "" }: Props) {
           {objections.map((obj, i) => (
             <span
               key={i}
-              className="inline-flex items-center rounded-full bg-muted/10 border border-border/20 px-1.5 py-0.5 text-[9px] text-foreground"
+              className="inline-flex items-center rounded-full bg-muted/10 border border-border/20 px-1.5 py-0.5 text-xs text-foreground"
             >
               {OBJECTION_TAG_LABELS[obj.tag as ObjectionTag] ?? obj.tag}
             </span>
@@ -154,7 +154,7 @@ export function SellerMemoryPreview({ leadId, className = "" }: Props) {
 
       {/* Last call note preview */}
       {memory.recentCalls[0] && (
-        <div className="text-[10px] text-muted-foreground/50 leading-snug line-clamp-2 border-t border-border/10 pt-1.5 mt-1">
+        <div className="text-sm text-muted-foreground/50 leading-snug line-clamp-2 border-t border-border/10 pt-1.5 mt-1">
           {memory.recentCalls[0].notes || memory.recentCalls[0].aiSummary || "No notes from last call"}
         </div>
       )}

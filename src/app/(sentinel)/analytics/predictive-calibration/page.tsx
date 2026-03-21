@@ -170,11 +170,11 @@ export default function PredictiveCalibrationPage() {
       description="Adjust feature weights for the Sentinel Predictive Scoring Engine v2.1"
       actions={
         <div className="flex items-center gap-2">
-          <Badge variant="outline" className="text-[10px]">
+          <Badge variant="outline" className="text-sm">
             Model: pred-v2.1
           </Badge>
           {lastCalibration && (
-            <Badge variant="outline" className="text-[10px] text-muted-foreground">
+            <Badge variant="outline" className="text-sm text-muted-foreground">
               Last prediction: {new Date(lastCalibration).toLocaleDateString()}
             </Badge>
           )}
@@ -200,7 +200,7 @@ export default function PredictiveCalibrationPage() {
                   isBalanced ? "text-foreground" : "text-foreground"
                 )}>{totalWeight.toFixed(2)}</span>
               </p>
-              <p className="text-[10px] text-muted-foreground">
+              <p className="text-sm text-muted-foreground">
                 {isBalanced ? "Balanced — weights sum to 1.00" : "Unbalanced — adjust weights to sum to 1.00"}
               </p>
             </div>
@@ -209,7 +209,7 @@ export default function PredictiveCalibrationPage() {
             <Button
               size="sm"
               variant="outline"
-              className="h-7 text-[10px]"
+              className="h-7 text-sm"
               onClick={resetDefaults}
             >
               Reset Defaults
@@ -217,7 +217,7 @@ export default function PredictiveCalibrationPage() {
             <Button
               size="sm"
               variant="outline"
-              className="h-7 text-[10px] gap-1"
+              className="h-7 text-sm gap-1"
               onClick={handleSave}
               disabled={saving || !isBalanced}
             >
@@ -226,7 +226,7 @@ export default function PredictiveCalibrationPage() {
             </Button>
             <Button
               size="sm"
-              className="h-7 text-[10px] gap-1"
+              className="h-7 text-sm gap-1"
               onClick={handleRetrain}
               disabled={retraining || !isBalanced}
             >
@@ -279,15 +279,15 @@ export default function PredictiveCalibrationPage() {
                       <p className="text-xs font-medium flex items-center gap-2">
                         {config.label}
                         {!isDefault && (
-                          <span className="text-[9px] text-foreground font-normal">modified</span>
+                          <span className="text-xs text-foreground font-normal">modified</span>
                         )}
                       </p>
-                      <p className="text-[10px] text-muted-foreground/60">{config.description}</p>
+                      <p className="text-sm text-muted-foreground/60">{config.description}</p>
                     </div>
                   </div>
                   <div className="text-right">
                     <p className="text-sm font-mono font-semibold text-primary">{pct}%</p>
-                    <p className="text-[9px] text-muted-foreground/40">
+                    <p className="text-xs text-muted-foreground/40">
                       default: {Math.round((DEFAULT_WEIGHTS[config.key] ?? 0) * 100)}%
                     </p>
                   </div>
@@ -323,7 +323,7 @@ export default function PredictiveCalibrationPage() {
           <Sliders className="h-4 w-4 text-foreground" />
           <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Model Architecture</p>
         </div>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-[11px]">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
           <div>
             <p className="text-muted-foreground/60">Version</p>
             <p className="font-mono text-primary">pred-v2.1</p>

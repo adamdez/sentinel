@@ -37,7 +37,7 @@ function StatChip({
       className="flex flex-col items-center py-1 px-0.5 rounded-[8px] bg-secondary/20 min-w-0"
     >
       <p className={`text-base font-black leading-none ${color}`}>{value}</p>
-      <p className="text-[8px] text-muted-foreground/50 mt-0.5 text-center leading-tight">{label}</p>
+      <p className="text-xs text-muted-foreground/50 mt-0.5 text-center leading-tight">{label}</p>
     </motion.div>
   );
 }
@@ -70,13 +70,13 @@ function QueueRow({ item, idx, flagged }: { item: QueueItem; idx: number; flagge
         ) : (
           <Clock className="h-2.5 w-2.5 text-muted-foreground/40 shrink-0" />
         )}
-        <span className="flex-1 truncate text-[11px] font-medium">
+        <span className="flex-1 truncate text-sm font-medium">
           {item.leadLabel ?? "Unknown lead"}
         </span>
-        <Badge variant="outline" className="text-[8px] px-1 py-0 h-3 shrink-0">
+        <Badge variant="outline" className="text-xs px-1 py-0 h-3 shrink-0">
           {item.workflow}
         </Badge>
-        <span className="text-[9px] text-muted-foreground/40 shrink-0">{ago}</span>
+        <span className="text-xs text-muted-foreground/40 shrink-0">{ago}</span>
         {item.leadHref && (
           <a
             href={item.leadHref}
@@ -88,11 +88,11 @@ function QueueRow({ item, idx, flagged }: { item: QueueItem; idx: number; flagge
         )}
       </div>
       {item.outputPreview && (
-        <p className="text-[9px] text-muted-foreground/50 leading-snug line-clamp-2 pl-4">
+        <p className="text-xs text-muted-foreground/50 leading-snug line-clamp-2 pl-4">
           {item.outputPreview}
         </p>
       )}
-      <p className="text-[8px] text-muted-foreground/30 pl-4">
+      <p className="text-xs text-muted-foreground/30 pl-4">
         {item.promptVersion} · {item.model}
       </p>
     </motion.div>
@@ -112,7 +112,7 @@ function RateBar({
 }) {
   return (
     <div className="flex items-center gap-2">
-      <span className="text-[9px] text-muted-foreground/60 w-16 shrink-0">{label}</span>
+      <span className="text-xs text-muted-foreground/60 w-16 shrink-0">{label}</span>
       <div className="flex-1 h-1 bg-secondary/30 rounded-full overflow-hidden">
         {pct !== null && (
           <div
@@ -121,7 +121,7 @@ function RateBar({
           />
         )}
       </div>
-      <span className={`text-[10px] font-bold shrink-0 ${color.replace("bg-", "text-")}`}>
+      <span className={`text-sm font-bold shrink-0 ${color.replace("bg-", "text-")}`}>
         {pct !== null ? `${pct}%` : "–"}
       </span>
     </div>
@@ -203,7 +203,7 @@ export function CallQualitySnapshot() {
     <div className="space-y-3">
       {/* Header */}
       <div className="flex items-center justify-between">
-        <p className="text-[10px] text-muted-foreground/60">
+        <p className="text-sm text-muted-foreground/60">
           {tracesTotal} traces · {windowDays}d window · {eventsReviewed} reviewed
         </p>
         <button
@@ -258,10 +258,10 @@ export function CallQualitySnapshot() {
               className="flex-1 flex flex-col items-center py-1 rounded-[6px] bg-secondary/15 border border-glass-border"
             >
               <BrainCircuit className="h-2.5 w-2.5 text-muted-foreground/40 mb-0.5" />
-              <p className="text-[9px] font-bold text-foreground">{wf.total}</p>
-              <p className="text-[7px] text-muted-foreground/50">{wf.workflow}</p>
+              <p className="text-xs font-bold text-foreground">{wf.total}</p>
+              <p className="text-xs text-muted-foreground/50">{wf.workflow}</p>
               {wf.flagRate !== null && wf.flagRate > 0 && (
-                <p className="text-[7px] text-foreground">{wf.flagRate}% flagged</p>
+                <p className="text-xs text-foreground">{wf.flagRate}% flagged</p>
               )}
             </div>
           ))}
@@ -273,7 +273,7 @@ export function CallQualitySnapshot() {
         <div>
           <div className="flex items-center gap-1.5 mb-1">
             <Flag className="h-2.5 w-2.5 text-foreground" />
-            <p className="text-[9px] uppercase tracking-widest text-muted-foreground font-medium">
+            <p className="text-xs uppercase tracking-widest text-muted-foreground font-medium">
               Flagged — needs review
             </p>
           </div>
@@ -290,7 +290,7 @@ export function CallQualitySnapshot() {
         <div>
           <div className="flex items-center gap-1.5 mb-1">
             <CheckCircle2 className="h-2.5 w-2.5 text-muted-foreground/40" />
-            <p className="text-[9px] uppercase tracking-widest text-muted-foreground font-medium">
+            <p className="text-xs uppercase tracking-widest text-muted-foreground font-medium">
               Recent — unreviewed ({tracesUnreviewed})
             </p>
           </div>
@@ -299,7 +299,7 @@ export function CallQualitySnapshot() {
               <QueueRow key={item.runId} item={item} idx={i} />
             ))}
             {tracesUnreviewed > 5 && (
-              <p className="text-[9px] text-muted-foreground/40 pl-1">
+              <p className="text-xs text-muted-foreground/40 pl-1">
                 +{tracesUnreviewed - 5} more unreviewed this window
               </p>
             )}
@@ -311,7 +311,7 @@ export function CallQualitySnapshot() {
       {(eventsMotivationCorrected > 0 || eventsTimelineCorrected > 0) && (
         <div className="flex items-center gap-1.5 px-2 py-1 rounded-[6px] bg-muted/5 border border-border/15">
           <PenLine className="h-2.5 w-2.5 text-foreground shrink-0" />
-          <p className="text-[9px] text-muted-foreground/70">
+          <p className="text-xs text-muted-foreground/70">
             {eventsMotivationCorrected > 0 && (
               <span className="text-foreground">{eventsMotivationCorrected} motivation </span>
             )}

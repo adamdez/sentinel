@@ -44,7 +44,7 @@ function StatusBadge({ status }: { status: VoiceRegistryStatus }) {
   const opt = STATUS_OPTIONS.find(o => o.value === status) ?? STATUS_OPTIONS[2];
   const Icon = opt.icon;
   return (
-    <Badge variant="outline" className={`text-[9px] px-1.5 py-0 font-medium ${opt.classes}`}>
+    <Badge variant="outline" className={`text-xs px-1.5 py-0 font-medium ${opt.classes}`}>
       <Icon className="h-2.5 w-2.5 mr-1" />
       {opt.label}
     </Badge>
@@ -54,14 +54,14 @@ function StatusBadge({ status }: { status: VoiceRegistryStatus }) {
 function TypeBadge({ type }: { type: VoiceRegistryType }) {
   if (type === "handoff_rule") {
     return (
-      <Badge variant="outline" className="text-[9px] px-1.5 py-0 bg-muted/10 text-foreground border-border/20">
+      <Badge variant="outline" className="text-xs px-1.5 py-0 bg-muted/10 text-foreground border-border/20">
         <Settings2 className="h-2.5 w-2.5 mr-1" />
         Rule
       </Badge>
     );
   }
   return (
-    <Badge variant="outline" className="text-[9px] px-1.5 py-0 bg-primary/10 text-primary border-primary/20">
+    <Badge variant="outline" className="text-xs px-1.5 py-0 bg-primary/10 text-primary border-primary/20">
       <FileCode2 className="h-2.5 w-2.5 mr-1" />
       Script
     </Badge>
@@ -121,7 +121,7 @@ function VersionRow({
     <div className="rounded-[10px] border border-white/[0.06] bg-white/[0.01] overflow-hidden">
       {/* Header */}
       <div className="flex items-center gap-2 px-3 py-2">
-        <code className="text-[10px] font-mono text-foreground/70 shrink-0">v{row.version}</code>
+        <code className="text-sm font-mono text-foreground/70 shrink-0">v{row.version}</code>
         <StatusBadge status={row.status} />
         <TypeBadge   type={row.registry_type} />
         <div className="flex gap-1 ml-auto">
@@ -129,7 +129,7 @@ function VersionRow({
             <button
               type="button"
               onClick={() => setEditing(true)}
-              className="text-[9px] text-muted-foreground/40 hover:text-muted-foreground transition-colors rounded px-1.5 py-0.5 border border-transparent hover:border-white/[0.06]"
+              className="text-xs text-muted-foreground/40 hover:text-muted-foreground transition-colors rounded px-1.5 py-0.5 border border-transparent hover:border-white/[0.06]"
             >
               Edit
             </button>
@@ -146,7 +146,7 @@ function VersionRow({
               type="button"
               disabled={row.status === opt.value}
               onClick={() => onUpdate(row.workflow, row.version, row.registry_type, { status: opt.value as VoiceRegistryStatus })}
-              className={`text-[8px] px-2 py-0.5 rounded-full border transition-colors
+              className={`text-xs px-2 py-0.5 rounded-full border transition-colors
                 ${row.status === opt.value
                   ? `${opt.classes} cursor-default`
                   : "border-white/[0.06] text-muted-foreground/30 hover:text-muted-foreground/60 hover:border-white/[0.10]"
@@ -161,7 +161,7 @@ function VersionRow({
       {/* Description (read mode) */}
       {!editing && row.description && (
         <div className="px-3 pb-2">
-          <p className="text-[10px] text-foreground/55 leading-relaxed whitespace-pre-line line-clamp-3">
+          <p className="text-sm text-foreground/55 leading-relaxed whitespace-pre-line line-clamp-3">
             {row.description}
           </p>
         </div>
@@ -170,12 +170,12 @@ function VersionRow({
       {/* Rule config (read mode) */}
       {!editing && row.registry_type === "handoff_rule" && row.rule_config && (
         <div className="px-3 pb-2">
-          <p className="text-[9px] font-semibold uppercase tracking-wider text-muted-foreground/40 mb-1">
+          <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground/40 mb-1">
             Active thresholds
           </p>
           <div className="space-y-0.5">
             {Object.entries(row.rule_config as Record<string, unknown>).map(([k, v]) => (
-              <div key={k} className="flex items-center gap-2 text-[9px]">
+              <div key={k} className="flex items-center gap-2 text-xs">
                 <span className="text-muted-foreground/40 font-mono">{k}</span>
                 <span className="text-foreground/50 font-mono">{String(v)}</span>
               </div>
@@ -187,7 +187,7 @@ function VersionRow({
       {/* Changelog (read mode) */}
       {!editing && row.changelog && (
         <div className="px-3 pb-2">
-          <p className="text-[9px] text-muted-foreground/30 italic">{row.changelog}</p>
+          <p className="text-xs text-muted-foreground/30 italic">{row.changelog}</p>
         </div>
       )}
 
@@ -195,40 +195,40 @@ function VersionRow({
       {editing && (
         <div className="px-3 pb-3 space-y-2 border-t border-white/[0.04] pt-2">
           <div>
-            <label className="text-[9px] uppercase tracking-wider text-muted-foreground/40">
+            <label className="text-xs uppercase tracking-wider text-muted-foreground/40">
               {row.registry_type === "handoff_rule" ? "Description / summary" : "Script copy / talking points"}
             </label>
             <Textarea
               value={desc}
               onChange={e => setDesc(e.target.value)}
               rows={4}
-              className="mt-1 text-[11px] min-h-[80px]"
+              className="mt-1 text-sm min-h-[80px]"
               placeholder={row.registry_type === "handoff_rule" ? "Summary of thresholds…" : "Script talking points…"}
             />
           </div>
           {row.registry_type === "handoff_rule" && (
             <div>
-              <label className="text-[9px] uppercase tracking-wider text-muted-foreground/40">
+              <label className="text-xs uppercase tracking-wider text-muted-foreground/40">
                 Rule config (JSON)
               </label>
               <Textarea
                 value={ruleJson}
                 onChange={e => { setRuleJson(e.target.value); setJsonError(null); }}
                 rows={8}
-                className="mt-1 text-[10px] font-mono min-h-[120px]"
+                className="mt-1 text-sm font-mono min-h-[120px]"
                 placeholder='{ "transfer_requires_warm_ready": true, … }'
               />
               {jsonError && (
-                <p className="text-[9px] text-foreground mt-0.5">{jsonError}</p>
+                <p className="text-xs text-foreground mt-0.5">{jsonError}</p>
               )}
             </div>
           )}
           <div>
-            <label className="text-[9px] uppercase tracking-wider text-muted-foreground/40">Changelog</label>
+            <label className="text-xs uppercase tracking-wider text-muted-foreground/40">Changelog</label>
             <Input
               value={log}
               onChange={e => setLog(e.target.value)}
-              className="mt-1 text-[11px]"
+              className="mt-1 text-sm"
               placeholder="What changed…"
             />
           </div>
@@ -237,7 +237,7 @@ function VersionRow({
               size="sm"
               onClick={handleSave}
               disabled={saving}
-              className="text-[10px] h-7"
+              className="text-sm h-7"
             >
               {saving ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : null}
               Save
@@ -246,7 +246,7 @@ function VersionRow({
               size="sm"
               variant="ghost"
               onClick={() => { setEditing(false); setDesc(row.description ?? ""); setLog(row.changelog ?? ""); }}
-              className="text-[10px] h-7"
+              className="text-sm h-7"
             >
               Cancel
             </Button>
@@ -282,14 +282,14 @@ function WorkflowGroup({
         className="w-full flex items-center gap-2 px-4 py-3 text-left hover:bg-white/[0.02] transition-colors"
         onClick={() => setOpen(o => !o)}
       >
-        <span className="text-[11px] font-semibold text-foreground/80">{label}</span>
-        <span className="text-[9px] text-muted-foreground/30 font-mono">{workflow}</span>
+        <span className="text-sm font-semibold text-foreground/80">{label}</span>
+        <span className="text-xs text-muted-foreground/30 font-mono">{workflow}</span>
         {activeCount > 0 && (
-          <Badge variant="outline" className="ml-1 text-[8px] px-1 py-0 bg-muted/10 text-foreground border-border/20">
+          <Badge variant="outline" className="ml-1 text-xs px-1 py-0 bg-muted/10 text-foreground border-border/20">
             {activeCount} active
           </Badge>
         )}
-        <span className="text-[9px] text-muted-foreground/25 ml-auto">{rows.length} version{rows.length !== 1 ? "s" : ""}</span>
+        <span className="text-xs text-muted-foreground/25 ml-auto">{rows.length} version{rows.length !== 1 ? "s" : ""}</span>
         {open
           ? <ChevronUp className="h-3 w-3 text-muted-foreground/30 shrink-0" />
           : <ChevronDown className="h-3 w-3 text-muted-foreground/30 shrink-0" />
@@ -357,7 +357,7 @@ function RegisterForm({
 
   if (!open) {
     return (
-      <Button size="sm" variant="outline" onClick={() => setOpen(true)} className="text-[10px] h-8 gap-1.5">
+      <Button size="sm" variant="outline" onClick={() => setOpen(true)} className="text-sm h-8 gap-1.5">
         <Plus className="h-3 w-3" />
         Register version
       </Button>
@@ -366,46 +366,46 @@ function RegisterForm({
 
   return (
     <div className="rounded-[12px] border border-white/[0.08] bg-white/[0.02] p-4 space-y-3">
-      <p className="text-[10px] font-semibold text-foreground/70">Register new voice entry</p>
+      <p className="text-sm font-semibold text-foreground/70">Register new voice entry</p>
       <div className="grid grid-cols-2 gap-2">
         <div>
-          <label className="text-[9px] uppercase tracking-wider text-muted-foreground/40">Workflow</label>
-          <Input value={workflow} onChange={e => setWorkflow(e.target.value)} className="mt-1 text-[11px]" placeholder="e.g. warm_transfer" />
+          <label className="text-xs uppercase tracking-wider text-muted-foreground/40">Workflow</label>
+          <Input value={workflow} onChange={e => setWorkflow(e.target.value)} className="mt-1 text-sm" placeholder="e.g. warm_transfer" />
         </div>
         <div>
-          <label className="text-[9px] uppercase tracking-wider text-muted-foreground/40">Version</label>
-          <Input value={version} onChange={e => setVersion(e.target.value)} className="mt-1 text-[11px]" placeholder="e.g. 1.1.0" />
+          <label className="text-xs uppercase tracking-wider text-muted-foreground/40">Version</label>
+          <Input value={version} onChange={e => setVersion(e.target.value)} className="mt-1 text-sm" placeholder="e.g. 1.1.0" />
         </div>
       </div>
       <div>
-        <label className="text-[9px] uppercase tracking-wider text-muted-foreground/40">Type</label>
+        <label className="text-xs uppercase tracking-wider text-muted-foreground/40">Type</label>
         <select
           value={regType}
           onChange={e => setRegType(e.target.value as VoiceRegistryType)}
-          className="mt-1 w-full rounded-md border border-input bg-background px-3 py-1.5 text-[11px] text-foreground"
+          className="mt-1 w-full rounded-md border border-input bg-background px-3 py-1.5 text-sm text-foreground"
         >
           <option value="script">script</option>
           <option value="handoff_rule">handoff_rule</option>
         </select>
       </div>
       <div>
-        <label className="text-[9px] uppercase tracking-wider text-muted-foreground/40">Description</label>
-        <Textarea value={desc} onChange={e => setDesc(e.target.value)} rows={3} className="mt-1 text-[11px]" placeholder="Script copy or rule summary…" />
+        <label className="text-xs uppercase tracking-wider text-muted-foreground/40">Description</label>
+        <Textarea value={desc} onChange={e => setDesc(e.target.value)} rows={3} className="mt-1 text-sm" placeholder="Script copy or rule summary…" />
       </div>
       <div>
-        <label className="text-[9px] uppercase tracking-wider text-muted-foreground/40">Changelog</label>
-        <Input value={log} onChange={e => setLog(e.target.value)} className="mt-1 text-[11px]" placeholder="What changed from prior version…" />
+        <label className="text-xs uppercase tracking-wider text-muted-foreground/40">Changelog</label>
+        <Input value={log} onChange={e => setLog(e.target.value)} className="mt-1 text-sm" placeholder="What changed from prior version…" />
       </div>
-      {error && <p className="text-[10px] text-foreground">{error}</p>}
-      <p className="text-[9px] text-muted-foreground/30">
+      {error && <p className="text-sm text-foreground">{error}</p>}
+      <p className="text-xs text-muted-foreground/30">
         New entries start as <strong>testing</strong>. Promote to <strong>active</strong> after review.
       </p>
       <div className="flex gap-2">
-        <Button size="sm" onClick={handleSubmit} disabled={saving} className="text-[10px] h-7">
+        <Button size="sm" onClick={handleSubmit} disabled={saving} className="text-sm h-7">
           {saving ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : null}
           Register
         </Button>
-        <Button size="sm" variant="ghost" onClick={() => setOpen(false)} className="text-[10px] h-7">Cancel</Button>
+        <Button size="sm" variant="ghost" onClick={() => setOpen(false)} className="text-sm h-7">Cancel</Button>
       </div>
     </div>
   );
@@ -451,7 +451,7 @@ export default function VoiceRegistryPage() {
         <div className="flex items-center justify-between">
           <Link
             href="/settings"
-            className="flex items-center gap-1.5 text-[11px] text-muted-foreground/50 hover:text-muted-foreground transition-colors"
+            className="flex items-center gap-1.5 text-sm text-muted-foreground/50 hover:text-muted-foreground transition-colors"
           >
             <ArrowLeft className="h-3 w-3" />
             Settings
@@ -476,13 +476,13 @@ export default function VoiceRegistryPage() {
         {/* Error state */}
         {error && (
           <GlassCard hover={false} className="!p-4">
-            <p className="text-[11px] text-foreground">{error}</p>
+            <p className="text-sm text-foreground">{error}</p>
           </GlassCard>
         )}
 
         {/* Loading state */}
         {loading && versions.length === 0 && (
-          <div className="flex items-center gap-2 text-[11px] text-muted-foreground/40">
+          <div className="flex items-center gap-2 text-sm text-muted-foreground/40">
             <Loader2 className="h-3.5 w-3.5 animate-spin" />
             Loading voice registry…
           </div>
@@ -492,8 +492,8 @@ export default function VoiceRegistryPage() {
         {!loading && versions.length === 0 && !error && (
           <GlassCard hover={false} className="!p-6 text-center">
             <Radio className="h-6 w-6 text-muted-foreground/20 mx-auto mb-2" />
-            <p className="text-[11px] text-muted-foreground/40">No voice registry entries found.</p>
-            <p className="text-[10px] text-muted-foreground/25 mt-1">Run the migration to seed initial script and handoff-rule versions.</p>
+            <p className="text-sm text-muted-foreground/40">No voice registry entries found.</p>
+            <p className="text-sm text-muted-foreground/25 mt-1">Run the migration to seed initial script and handoff-rule versions.</p>
           </GlassCard>
         )}
 
@@ -509,11 +509,11 @@ export default function VoiceRegistryPage() {
 
         {/* Boundary note */}
         <GlassCard hover={false} className="!p-3">
-          <p className="text-[9px] text-muted-foreground/30 leading-relaxed">
+          <p className="text-xs text-muted-foreground/30 leading-relaxed">
             <strong className="text-muted-foreground/50">What this does:</strong>{" "}
             Records which script copy and handoff rule config is active for each voice workflow.
-            Active versions are threaded into <code className="text-[8px]">inbound.classified</code> and{" "}
-            <code className="text-[8px]">transfer.*</code> events so review can trace which behavior produced each outcome.
+            Active versions are threaded into <code className="text-xs">inbound.classified</code> and{" "}
+            <code className="text-xs">transfer.*</code> events so review can trace which behavior produced each outcome.
             Changing status here does not automatically change live routing or Twilio behavior.
           </p>
         </GlassCard>

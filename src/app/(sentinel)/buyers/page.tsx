@@ -54,7 +54,7 @@ function FilterSelect({ value, onChange, options, placeholder, className }: {
 
 function PofBadge({ status }: { status: string }) {
   const variant = status === "verified" ? "neon" : status === "submitted" ? "gold" : "secondary";
-  return <Badge variant={variant} className="text-[10px]">{pofLabel(status)}</Badge>;
+  return <Badge variant={variant} className="text-sm">{pofLabel(status)}</Badge>;
 }
 
 // ── Main page ──
@@ -189,13 +189,13 @@ export default function BuyersPage() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-white/[0.04]">
-                  <th className="text-left px-4 py-2.5 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/60">Contact</th>
-                  <th className="text-left px-4 py-2.5 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/60">Markets</th>
-                  <th className="text-left px-4 py-2.5 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/60">Strategy</th>
-                  <th className="text-left px-4 py-2.5 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/60">Price Range</th>
-                  <th className="text-left px-4 py-2.5 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/60">POF</th>
-                  <th className="text-left px-4 py-2.5 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/60">Tags</th>
-                  <th className="text-left px-4 py-2.5 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/60">Status</th>
+                  <th className="text-left px-4 py-2.5 text-sm font-semibold uppercase tracking-wider text-muted-foreground/60">Contact</th>
+                  <th className="text-left px-4 py-2.5 text-sm font-semibold uppercase tracking-wider text-muted-foreground/60">Markets</th>
+                  <th className="text-left px-4 py-2.5 text-sm font-semibold uppercase tracking-wider text-muted-foreground/60">Strategy</th>
+                  <th className="text-left px-4 py-2.5 text-sm font-semibold uppercase tracking-wider text-muted-foreground/60">Price Range</th>
+                  <th className="text-left px-4 py-2.5 text-sm font-semibold uppercase tracking-wider text-muted-foreground/60">POF</th>
+                  <th className="text-left px-4 py-2.5 text-sm font-semibold uppercase tracking-wider text-muted-foreground/60">Tags</th>
+                  <th className="text-left px-4 py-2.5 text-sm font-semibold uppercase tracking-wider text-muted-foreground/60">Status</th>
                 </tr>
               </thead>
               <tbody>
@@ -211,15 +211,15 @@ export default function BuyersPage() {
                     <td className="px-4 py-2.5">
                       <div className="font-medium text-foreground">{buyer.contact_name}</div>
                       {buyer.company_name && (
-                        <div className="text-[11px] text-muted-foreground/50">{buyer.company_name}</div>
+                        <div className="text-sm text-muted-foreground/50">{buyer.company_name}</div>
                       )}
                     </td>
                     <td className="px-4 py-2.5">
                       <div className="flex flex-wrap gap-1">
                         {buyer.markets?.map((m) => (
-                          <span key={m} className="text-[10px] text-muted-foreground/60">{marketLabel(m)}</span>
+                          <span key={m} className="text-sm text-muted-foreground/60">{marketLabel(m)}</span>
                         ))}
-                        {(!buyer.markets || buyer.markets.length === 0) && <span className="text-[10px] text-muted-foreground/30">—</span>}
+                        {(!buyer.markets || buyer.markets.length === 0) && <span className="text-sm text-muted-foreground/30">—</span>}
                       </div>
                     </td>
                     <td className="px-4 py-2.5 text-xs text-muted-foreground/70">
@@ -234,17 +234,17 @@ export default function BuyersPage() {
                     <td className="px-4 py-2.5">
                       <div className="flex flex-wrap gap-1">
                         {buyer.tags?.slice(0, 3).map((t) => (
-                          <Badge key={t} variant="outline" className="text-[10px] px-1.5 py-0">
+                          <Badge key={t} variant="outline" className="text-sm px-1.5 py-0">
                             {tagLabel(t)}
                           </Badge>
                         ))}
                         {(buyer.tags?.length ?? 0) > 3 && (
-                          <span className="text-[10px] text-muted-foreground/40">+{buyer.tags.length - 3}</span>
+                          <span className="text-sm text-muted-foreground/40">+{buyer.tags.length - 3}</span>
                         )}
                       </div>
                     </td>
                     <td className="px-4 py-2.5">
-                      <Badge variant={buyer.status === "active" ? "neon" : "secondary"} className="text-[10px]">
+                      <Badge variant={buyer.status === "active" ? "neon" : "secondary"} className="text-sm">
                         {buyer.status === "active" ? "Active" : "Inactive"}
                       </Badge>
                     </td>

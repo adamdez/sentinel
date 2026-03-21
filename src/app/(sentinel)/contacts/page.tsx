@@ -204,7 +204,7 @@ export default function ContactsPage() {
             </div>
             <div>
               <p className="text-lg font-semibold leading-none">{s.value}</p>
-              <p className="text-[11px] text-muted-foreground mt-0.5">{s.label}</p>
+              <p className="text-sm text-muted-foreground mt-0.5">{s.label}</p>
             </div>
           </GlassCard>
         ))}
@@ -276,7 +276,7 @@ export default function ContactsPage() {
 
                     {/* Type */}
                     <td className="p-3">
-                      <Badge variant="outline" className="text-[10px]">{contact.contact_type}</Badge>
+                      <Badge variant="outline" className="text-sm">{contact.contact_type}</Badge>
                     </td>
 
                     {/* Updated — relative time */}

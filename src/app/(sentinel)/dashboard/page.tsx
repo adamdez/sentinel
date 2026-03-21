@@ -23,7 +23,7 @@ export default function DashboardPage() {
             Add Lead
           </Button>
           {ghostMode && (
-            <Badge variant="outline" className="text-[11px] gap-1 border-border/30 text-foreground">
+            <Badge variant="outline" className="text-sm gap-1 border-border/30 text-foreground">
               Research Only
             </Badge>
           )}

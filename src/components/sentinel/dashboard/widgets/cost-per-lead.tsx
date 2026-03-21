@@ -104,11 +104,11 @@ export function CostPerLead() {
             style={onTarget ? { textShadow: "0 0 10px rgba(52,211,153,0.4)" } : {}}>
             ${blendedCPL}
           </p>
-          <p className="text-[10px] text-muted-foreground">Blended CPL</p>
+          <p className="text-sm text-muted-foreground">Blended CPL</p>
         </div>
         <div className="text-right">
           <p className="text-sm font-bold">${CPL_TARGET}</p>
-          <p className="text-[10px] text-muted-foreground">Target</p>
+          <p className="text-sm text-muted-foreground">Target</p>
         </div>
       </motion.div>
 
@@ -118,7 +118,7 @@ export function CostPerLead() {
           initial={{ opacity: 0, x: -6 }}
           animate={{ opacity: 1, x: 0 }}
           transition={{ delay: i * 0.04 }}
-          className="flex items-center justify-between text-[11px]"
+          className="flex items-center justify-between text-sm"
         >
           <span className="font-medium truncate flex-1 mr-2">{labelFor(s.source)}</span>
           <div className="flex items-center gap-3">
@@ -132,7 +132,7 @@ export function CostPerLead() {
         </motion.div>
       ))}
 
-      <p className="text-[10px] text-muted-foreground text-center pt-1">
+      <p className="text-sm text-muted-foreground text-center pt-1">
         {totalLeads} leads tracked — target ≤ ${CPL_TARGET}/lead
       </p>
     </div>

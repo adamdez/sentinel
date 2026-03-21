@@ -58,13 +58,13 @@ export function OfferStatusTruthCard(props: {
     <div className="rounded-[12px] border border-white/[0.06] bg-white/[0.02] p-3 space-y-2">
       <div className="flex items-center gap-2">
         <Target className="h-3.5 w-3.5 text-primary" />
-        <p className="text-[11px] text-muted-foreground uppercase tracking-wider font-semibold">Offer Status</p>
-        <Badge variant="outline" className="text-[9px] border-white/[0.14] text-muted-foreground">Operator entered</Badge>
+        <p className="text-sm text-muted-foreground uppercase tracking-wider font-semibold">Offer Status</p>
+        <Badge variant="outline" className="text-xs border-white/[0.14] text-muted-foreground">Operator entered</Badge>
         {canEdit && !isEmpty && (
           <button
             type="button"
             onClick={() => onEditToggle(!editing)}
-            className="ml-auto text-[10px] text-primary/75 hover:text-primary transition-colors"
+            className="ml-auto text-sm text-primary/75 hover:text-primary transition-colors"
             disabled={saving}
           >
             {editing ? "Cancel" : "Edit"}
@@ -75,7 +75,7 @@ export function OfferStatusTruthCard(props: {
         <div className="space-y-2.5">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
             <label className="space-y-1">
-              <span className="text-[9px] uppercase tracking-wider text-muted-foreground">Status</span>
+              <span className="text-xs uppercase tracking-wider text-muted-foreground">Status</span>
               <select
                 value={draft.status}
                 onChange={(e) => onDraftChange({ status: (e.target.value as OfferStatusTruth | "") })}
@@ -88,7 +88,7 @@ export function OfferStatusTruthCard(props: {
               </select>
             </label>
             <label className="space-y-1">
-              <span className="text-[9px] uppercase tracking-wider text-muted-foreground">Offer Amount (optional)</span>
+              <span className="text-xs uppercase tracking-wider text-muted-foreground">Offer Amount (optional)</span>
               <input
                 type="number"
                 min={0}
@@ -99,7 +99,7 @@ export function OfferStatusTruthCard(props: {
               />
             </label>
             <label className="space-y-1">
-              <span className="text-[9px] uppercase tracking-wider text-muted-foreground">Offer Range Low (optional)</span>
+              <span className="text-xs uppercase tracking-wider text-muted-foreground">Offer Range Low (optional)</span>
               <input
                 type="number"
                 min={0}
@@ -110,7 +110,7 @@ export function OfferStatusTruthCard(props: {
               />
             </label>
             <label className="space-y-1">
-              <span className="text-[9px] uppercase tracking-wider text-muted-foreground">Offer Range High (optional)</span>
+              <span className="text-xs uppercase tracking-wider text-muted-foreground">Offer Range High (optional)</span>
               <input
                 type="number"
                 min={0}
@@ -122,7 +122,7 @@ export function OfferStatusTruthCard(props: {
             </label>
           </div>
           <label className="space-y-1 block">
-            <span className="text-[9px] uppercase tracking-wider text-muted-foreground">Seller Response Note (optional)</span>
+            <span className="text-xs uppercase tracking-wider text-muted-foreground">Seller Response Note (optional)</span>
             <textarea
               value={draft.sellerResponseNote}
               onChange={(e) => onDraftChange({ sellerResponseNote: e.target.value })}
@@ -132,10 +132,10 @@ export function OfferStatusTruthCard(props: {
             />
           </label>
           <div className="flex items-center justify-between gap-2">
-            <p className="text-[10px] text-muted-foreground/65">
+            <p className="text-sm text-muted-foreground/65">
               Last updated: <span className="text-foreground/85">{updatedLabel}</span>
             </p>
-            <Button size="sm" className="h-7 text-[11px]" disabled={saving} onClick={onSave}>
+            <Button size="sm" className="h-7 text-sm" disabled={saving} onClick={onSave}>
               {saving ? <Loader2 className="h-3 w-3 animate-spin" /> : <Save className="h-3 w-3" />}
               Save Offer Status
             </Button>
@@ -143,13 +143,13 @@ export function OfferStatusTruthCard(props: {
         </div>
       ) : isEmpty ? (
         <div className="space-y-2">
-          <p className="text-[11px] text-muted-foreground/80">No offer submitted yet</p>
-          <p className="text-[10px] text-muted-foreground/50">Set up offer details when ready to present</p>
+          <p className="text-sm text-muted-foreground/80">No offer submitted yet</p>
+          <p className="text-sm text-muted-foreground/50">Set up offer details when ready to present</p>
           {canEdit && (
             <button
               type="button"
               onClick={() => onEditToggle(true)}
-              className="text-[10px] text-primary/75 hover:text-primary transition-colors font-medium"
+              className="text-sm text-primary/75 hover:text-primary transition-colors font-medium"
             >
               Set up offer
             </button>
@@ -158,17 +158,17 @@ export function OfferStatusTruthCard(props: {
       ) : (
         <div className="space-y-2">
           <div className="flex items-center gap-2 flex-wrap">
-            <span className={cn("text-[10px] px-2 py-0.5 rounded border font-medium", statusToneClass)}>
+            <span className={cn("text-sm px-2 py-0.5 rounded border font-medium", statusToneClass)}>
               {statusLabel}
             </span>
-            <span className="text-[10px] text-muted-foreground/75">Amount/Range: <span className="text-foreground font-medium">{amountLabel}</span></span>
+            <span className="text-sm text-muted-foreground/75">Amount/Range: <span className="text-foreground font-medium">{amountLabel}</span></span>
           </div>
           {sellerResponseNote && (
-            <p className="text-[10px] text-muted-foreground/80">
+            <p className="text-sm text-muted-foreground/80">
               Seller response: <span className="text-foreground/90">{sellerResponseNote}</span>
             </p>
           )}
-          <p className="text-[10px] text-muted-foreground/70">
+          <p className="text-sm text-muted-foreground/70">
             Last updated: <span className="text-foreground/85">{updatedLabel}</span>
           </p>
         </div>
@@ -208,20 +208,20 @@ export function BuyerDispoVisibilityCard(props: {
     <div className="rounded-[12px] border border-white/[0.06] bg-white/[0.02] p-3 space-y-2">
       <div className="flex items-center gap-2">
         <Users className="h-3.5 w-3.5 text-primary" />
-        <p className="text-[11px] text-muted-foreground uppercase tracking-wider font-semibold">Buyer / Dispo Visibility</p>
-        <Badge variant="outline" className="text-[9px] border-white/[0.14] text-muted-foreground">Derived</Badge>
+        <p className="text-sm text-muted-foreground uppercase tracking-wider font-semibold">Buyer / Dispo Visibility</p>
+        <Badge variant="outline" className="text-xs border-white/[0.14] text-muted-foreground">Derived</Badge>
         {(actionMissing || actionStale) && (
-          <Badge variant="outline" className="text-[9px] border-border/30 text-foreground">
+          <Badge variant="outline" className="text-xs border-border/30 text-foreground">
             Action Needed
           </Badge>
         )}
       </div>
       {isPreOffer ? (
         <div className="space-y-2">
-          <p className="text-[11px] text-muted-foreground/80">Buyer matching available after offer accepted</p>
+          <p className="text-sm text-muted-foreground/80">Buyer matching available after offer accepted</p>
           <div className="rounded-[8px] border border-white/[0.08] bg-white/[0.02] px-2.5 py-2 space-y-1">
-            <p className="text-[10px] text-muted-foreground/60">Before buyer/dispo becomes active:</p>
-            <ul className="text-[10px] text-muted-foreground/50 space-y-0.5 list-disc list-inside">
+            <p className="text-sm text-muted-foreground/60">Before buyer/dispo becomes active:</p>
+            <ul className="text-sm text-muted-foreground/50 space-y-0.5 list-disc list-inside">
               <li>Seller offer must be submitted and accepted</li>
               <li>Contract terms confirmed</li>
               <li>Property details verified for buyer matching</li>
@@ -231,25 +231,25 @@ export function BuyerDispoVisibilityCard(props: {
       ) : (
         <>
           <div className="flex items-center gap-2 flex-wrap">
-            <span className={cn("text-[10px] px-2 py-0.5 rounded border font-medium", buyerFitToneClass)}>
+            <span className={cn("text-sm px-2 py-0.5 rounded border font-medium", buyerFitToneClass)}>
               Buyer Fit: {buyerFitLabel}
             </span>
-            <span className={cn("text-[10px] px-2 py-0.5 rounded border font-medium", dispoReadinessToneClass)}>
+            <span className={cn("text-sm px-2 py-0.5 rounded border font-medium", dispoReadinessToneClass)}>
               Dispo Readiness: {dispoReadinessLabel}
             </span>
           </div>
-          <p className="text-[10px] text-muted-foreground/70">{hint}</p>
+          <p className="text-sm text-muted-foreground/70">{hint}</p>
           <div className="rounded-[8px] border border-white/[0.08] bg-white/[0.02] px-2.5 py-2 space-y-1.5">
-            <p className="text-[10px] text-foreground/90">
+            <p className="text-sm text-foreground/90">
               Next step: <span className="font-medium">{nextStep}</span>
             </p>
             {readinessHigh && (
-              <p className="text-[10px] text-muted-foreground/80">
+              <p className="text-sm text-muted-foreground/80">
                 Buyer/dispo follow-up: <span className="text-foreground font-medium">{nextActionLabel}</span>
               </p>
             )}
             {(actionMissing || actionStale) && (
-              <p className="text-[10px] text-foreground">
+              <p className="text-sm text-foreground">
                 {actionMissing
                   ? "Buyer/dispo readiness is high, but no next action is set."
                   : "Buyer/dispo readiness is high, and next action is overdue."}
@@ -302,13 +302,13 @@ export function BuyerDispoTruthCard(props: {
     <div className="rounded-[12px] border border-white/[0.06] bg-white/[0.02] p-3 space-y-2">
       <div className="flex items-center gap-2">
         <Users className="h-3.5 w-3.5 text-primary" />
-        <p className="text-[11px] text-muted-foreground uppercase tracking-wider font-semibold">Buyer / Dispo Truth</p>
-        <Badge variant="outline" className="text-[9px] border-white/[0.14] text-muted-foreground">Operator entered</Badge>
+        <p className="text-sm text-muted-foreground uppercase tracking-wider font-semibold">Buyer / Dispo Truth</p>
+        <Badge variant="outline" className="text-xs border-white/[0.14] text-muted-foreground">Operator entered</Badge>
         {canEdit && (
           <button
             type="button"
             onClick={() => onEditToggle(!editing)}
-            className="ml-auto text-[10px] text-primary/75 hover:text-primary transition-colors"
+            className="ml-auto text-sm text-primary/75 hover:text-primary transition-colors"
             disabled={saving}
           >
             {editing ? "Cancel" : "Edit"}
@@ -319,7 +319,7 @@ export function BuyerDispoTruthCard(props: {
         <div className="space-y-2.5">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
             <label className="space-y-1">
-              <span className="text-[9px] uppercase tracking-wider text-muted-foreground">Buyer Fit</span>
+              <span className="text-xs uppercase tracking-wider text-muted-foreground">Buyer Fit</span>
               <select
                 value={draft.buyerFit}
                 onChange={(e) => onDraftChange({ buyerFit: (e.target.value as BuyerFitVisibility | "") })}
@@ -332,7 +332,7 @@ export function BuyerDispoTruthCard(props: {
               </select>
             </label>
             <label className="space-y-1">
-              <span className="text-[9px] uppercase tracking-wider text-muted-foreground">Dispo Status</span>
+              <span className="text-xs uppercase tracking-wider text-muted-foreground">Dispo Status</span>
               <select
                 value={draft.dispoStatus}
                 onChange={(e) => onDraftChange({ dispoStatus: (e.target.value as DispoReadinessVisibility | "") })}
@@ -346,7 +346,7 @@ export function BuyerDispoTruthCard(props: {
             </label>
           </div>
           <label className="space-y-1 block">
-            <span className="text-[9px] uppercase tracking-wider text-muted-foreground">Next Dispo Step (optional)</span>
+            <span className="text-xs uppercase tracking-wider text-muted-foreground">Next Dispo Step (optional)</span>
             <input
               type="text"
               value={draft.nextStep}
@@ -356,7 +356,7 @@ export function BuyerDispoTruthCard(props: {
             />
           </label>
           <label className="space-y-1 block">
-            <span className="text-[9px] uppercase tracking-wider text-muted-foreground">Dispo Note (optional)</span>
+            <span className="text-xs uppercase tracking-wider text-muted-foreground">Dispo Note (optional)</span>
             <textarea
               value={draft.dispoNote}
               onChange={(e) => onDraftChange({ dispoNote: e.target.value })}
@@ -366,10 +366,10 @@ export function BuyerDispoTruthCard(props: {
             />
           </label>
           <div className="flex items-center justify-between gap-2">
-            <p className="text-[10px] text-muted-foreground/65">
+            <p className="text-sm text-muted-foreground/65">
               Last updated: <span className="text-foreground/85">{updatedLabel}</span>
             </p>
-            <Button size="sm" className="h-7 text-[11px]" disabled={saving} onClick={onSave}>
+            <Button size="sm" className="h-7 text-sm" disabled={saving} onClick={onSave}>
               {saving ? <Loader2 className="h-3 w-3 animate-spin" /> : <Save className="h-3 w-3" />}
               Save Buyer/Dispo Truth
             </Button>
@@ -377,13 +377,13 @@ export function BuyerDispoTruthCard(props: {
         </div>
       ) : (buyerFitLabel === "Not set" && dispoStatusLabel === "Not set" && !nextStep && !dispoNote) ? (
         <div className="space-y-2">
-          <p className="text-[11px] text-muted-foreground/80">Complete qualification and negotiation before buyer-side prep</p>
-          <p className="text-[10px] text-muted-foreground/50">Buyer fit and dispo status will be set once the deal progresses past offer stage</p>
+          <p className="text-sm text-muted-foreground/80">Complete qualification and negotiation before buyer-side prep</p>
+          <p className="text-sm text-muted-foreground/50">Buyer fit and dispo status will be set once the deal progresses past offer stage</p>
           {canEdit && (
             <button
               type="button"
               onClick={() => onEditToggle(true)}
-              className="text-[10px] text-primary/75 hover:text-primary transition-colors font-medium"
+              className="text-sm text-primary/75 hover:text-primary transition-colors font-medium"
             >
               Set buyer/dispo details
             </button>
@@ -392,23 +392,23 @@ export function BuyerDispoTruthCard(props: {
       ) : (
         <div className="space-y-2">
           <div className="flex items-center gap-2 flex-wrap">
-            <span className={cn("text-[10px] px-2 py-0.5 rounded border font-medium", buyerFitToneClass)}>
+            <span className={cn("text-sm px-2 py-0.5 rounded border font-medium", buyerFitToneClass)}>
               Buyer Fit: {buyerFitLabel}
             </span>
-            <span className={cn("text-[10px] px-2 py-0.5 rounded border font-medium", dispoStatusToneClass)}>
+            <span className={cn("text-sm px-2 py-0.5 rounded border font-medium", dispoStatusToneClass)}>
               Dispo Status: {dispoStatusLabel}
             </span>
-            <span className="text-[10px] text-muted-foreground/75">{readyLabel}</span>
+            <span className="text-sm text-muted-foreground/75">{readyLabel}</span>
           </div>
-          <p className="text-[10px] text-muted-foreground/80">
+          <p className="text-sm text-muted-foreground/80">
             Next step: <span className="text-foreground/90">{nextStep ?? "Not set"}</span>
           </p>
           {dispoNote && (
-            <p className="text-[10px] text-muted-foreground/80">
+            <p className="text-sm text-muted-foreground/80">
               Dispo note: <span className="text-foreground/90">{dispoNote}</span>
             </p>
           )}
-          <p className="text-[10px] text-muted-foreground/70">
+          <p className="text-sm text-muted-foreground/70">
             Last updated: <span className="text-foreground/85">{updatedLabel}</span>
           </p>
         </div>
@@ -454,18 +454,18 @@ export function AcquisitionsMilestoneCard(props: {
     <div className="rounded-[12px] border border-white/[0.06] bg-white/[0.02] p-3 space-y-2">
       <div className="flex items-center gap-2">
         <Target className="h-3.5 w-3.5 text-primary" />
-        <p className="text-[11px] text-muted-foreground uppercase tracking-wider font-semibold">Acquisitions Milestones</p>
-        <Badge variant="outline" className="text-[9px] border-white/[0.14] text-muted-foreground">Operator entered</Badge>
+        <p className="text-sm text-muted-foreground uppercase tracking-wider font-semibold">Acquisitions Milestones</p>
+        <Badge variant="outline" className="text-xs border-white/[0.14] text-muted-foreground">Operator entered</Badge>
         <button
           type="button"
           onClick={() => onEditToggle(!editing)}
-          className="ml-auto text-[10px] text-primary/75 hover:text-primary transition-colors"
+          className="ml-auto text-sm text-primary/75 hover:text-primary transition-colors"
           disabled={saving}
         >
           {editing ? "Cancel" : "Edit"}
         </button>
       </div>
-      <p className="text-[10px] text-muted-foreground/70">
+      <p className="text-sm text-muted-foreground/70">
         Manually capture key acquisitions milestones to tie marketing spend to outcomes.
       </p>
 
@@ -473,7 +473,7 @@ export function AcquisitionsMilestoneCard(props: {
         <div className="space-y-2.5">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
             <label className="space-y-1">
-              <span className="text-[9px] uppercase tracking-wider text-muted-foreground">Appointment Date</span>
+              <span className="text-xs uppercase tracking-wider text-muted-foreground">Appointment Date</span>
               <input
                 type="datetime-local"
                 value={draft.appointmentAt}
@@ -482,7 +482,7 @@ export function AcquisitionsMilestoneCard(props: {
               />
             </label>
             <label className="space-y-1">
-              <span className="text-[9px] uppercase tracking-wider text-muted-foreground">Offer Amount</span>
+              <span className="text-xs uppercase tracking-wider text-muted-foreground">Offer Amount</span>
               <input
                 type="number"
                 min={0}
@@ -493,7 +493,7 @@ export function AcquisitionsMilestoneCard(props: {
               />
             </label>
             <label className="space-y-1">
-              <span className="text-[9px] uppercase tracking-wider text-muted-foreground">Contract Date</span>
+              <span className="text-xs uppercase tracking-wider text-muted-foreground">Contract Date</span>
               <input
                 type="datetime-local"
                 value={draft.contractAt}
@@ -502,7 +502,7 @@ export function AcquisitionsMilestoneCard(props: {
               />
             </label>
             <label className="space-y-1">
-              <span className="text-[9px] uppercase tracking-wider text-muted-foreground">Projected Fee</span>
+              <span className="text-xs uppercase tracking-wider text-muted-foreground">Projected Fee</span>
               <input
                 type="number"
                 min={0}
@@ -514,7 +514,7 @@ export function AcquisitionsMilestoneCard(props: {
             </label>
           </div>
           <div className="flex justify-end">
-            <Button size="sm" className="h-7 text-[11px]" disabled={saving} onClick={onSave}>
+            <Button size="sm" className="h-7 text-sm" disabled={saving} onClick={onSave}>
               {saving ? <Loader2 className="h-3 w-3 animate-spin" /> : <Save className="h-3 w-3" />}
               Save Milestones
             </Button>
@@ -532,41 +532,41 @@ export function AcquisitionsMilestoneCard(props: {
               ].map((step) => (
                 <div key={step.key} className="flex items-center gap-2">
                   <Circle className="h-3.5 w-3.5 text-muted-foreground/25 shrink-0" />
-                  <span className="text-[10px] text-muted-foreground/35">{step.label}</span>
+                  <span className="text-sm text-muted-foreground/35">{step.label}</span>
                 </div>
               ))}
-              <p className="text-[10px] text-muted-foreground/40 pt-1">Milestones will fill in as the deal progresses</p>
+              <p className="text-sm text-muted-foreground/40 pt-1">Milestones will fill in as the deal progresses</p>
             </div>
           ) : (
             <div className="grid grid-cols-2 gap-y-2 gap-x-4">
               {appointmentAt && (
                 <div className="space-y-0.5">
-                  <p className="text-[9px] uppercase tracking-wider text-muted-foreground">Appointment</p>
-                  <p className="text-[10px] text-foreground font-medium">
+                  <p className="text-xs uppercase tracking-wider text-muted-foreground">Appointment</p>
+                  <p className="text-sm text-foreground font-medium">
                     {new Date(appointmentAt).toLocaleDateString()}
                   </p>
                 </div>
               )}
               {offerAmount != null && (
                 <div className="space-y-0.5">
-                  <p className="text-[9px] uppercase tracking-wider text-muted-foreground">Offer</p>
-                  <p className="text-[10px] text-foreground font-medium">
+                  <p className="text-xs uppercase tracking-wider text-muted-foreground">Offer</p>
+                  <p className="text-sm text-foreground font-medium">
                     ${offerAmount.toLocaleString()}
                   </p>
                 </div>
               )}
               {contractAt && (
                 <div className="space-y-0.5">
-                  <p className="text-[9px] uppercase tracking-wider text-muted-foreground">Contract</p>
-                  <p className="text-[10px] text-foreground font-medium">
+                  <p className="text-xs uppercase tracking-wider text-muted-foreground">Contract</p>
+                  <p className="text-sm text-foreground font-medium">
                     {new Date(contractAt).toLocaleDateString()}
                   </p>
                 </div>
               )}
               {assignmentFeeProjected != null && (
                 <div className="space-y-0.5">
-                  <p className="text-[9px] uppercase tracking-wider text-muted-foreground">Projected Fee</p>
-                  <p className="text-[10px] text-primary font-medium">
+                  <p className="text-xs uppercase tracking-wider text-muted-foreground">Projected Fee</p>
+                  <p className="text-sm text-primary font-medium">
                     ${assignmentFeeProjected.toLocaleString()}
                   </p>
                 </div>

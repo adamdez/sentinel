@@ -70,11 +70,11 @@ function RunRow({
     <div className={`rounded-[8px] border px-2.5 py-2 space-y-1.5 ${meta.bg} ${isActive ? "ring-1 ring-ring/20" : ""}`}>
       <div className="flex items-center gap-2">
         <Icon className={`h-3 w-3 shrink-0 ${meta.color} ${run.status === "open" ? "animate-pulse" : ""}`} />
-        <span className={`text-[11px] font-medium ${meta.color}`}>{meta.label}</span>
-        <span className="text-[10px] text-muted-foreground/40 ml-auto">{startedDate}</span>
+        <span className={`text-sm font-medium ${meta.color}`}>{meta.label}</span>
+        <span className="text-sm text-muted-foreground/40 ml-auto">{startedDate}</span>
       </div>
 
-      <div className="flex items-center gap-2 flex-wrap text-[10px] text-muted-foreground/50">
+      <div className="flex items-center gap-2 flex-wrap text-sm text-muted-foreground/50">
         {run.artifact_count > 0 && (
           <span>{run.artifact_count} source{run.artifact_count !== 1 ? "s" : ""}</span>
         )}
@@ -95,7 +95,7 @@ function RunRow({
       </div>
 
       {run.notes && (
-        <p className="text-[10px] text-muted-foreground/40 italic leading-snug">
+        <p className="text-sm text-muted-foreground/40 italic leading-snug">
           {run.notes.length > 80 ? run.notes.slice(0, 77) + "…" : run.notes}
         </p>
       )}
@@ -104,7 +104,7 @@ function RunRow({
         <div className="flex gap-1.5 pt-0.5">
           <button
             onClick={() => onClose(run.id)}
-            className="text-[9px] text-muted-foreground/30 hover:text-muted-foreground/60 transition-colors"
+            className="text-xs text-muted-foreground/30 hover:text-muted-foreground/60 transition-colors"
           >
             Close run without compiling
           </button>
@@ -149,31 +149,31 @@ export function RunHistoryStrip({
         <Activity className="h-3 w-3 text-muted-foreground/40 shrink-0" />
 
         {loading ? (
-          <span className="text-[10px] text-muted-foreground/30 flex items-center gap-1">
+          <span className="text-sm text-muted-foreground/30 flex items-center gap-1">
             <Loader2 className="h-2.5 w-2.5 animate-spin" /> Loading…
           </span>
         ) : activeRun ? (
           <div className="flex items-center gap-1.5 flex-1 min-w-0">
             <CircleDot className="h-2.5 w-2.5 text-primary animate-pulse shrink-0" />
-            <span className="text-[10px] text-primary/80 font-medium">Active run</span>
-            <span className="text-[10px] text-muted-foreground/40">
+            <span className="text-sm text-primary/80 font-medium">Active run</span>
+            <span className="text-sm text-muted-foreground/40">
               {activeRun.artifact_count} source{activeRun.artifact_count !== 1 ? "s" : ""}
               {activeRun.fact_count > 0 ? `, ${activeRun.fact_count} fact${activeRun.fact_count !== 1 ? "s" : ""}` : ""}
             </span>
-            <Badge className="ml-auto bg-primary/10 text-primary/70 border-primary/20 text-[9px] h-3.5 px-1 shrink-0">
+            <Badge className="ml-auto bg-primary/10 text-primary/70 border-primary/20 text-xs h-3.5 px-1 shrink-0">
               Run active
             </Badge>
           </div>
         ) : runs.length > 0 ? (
           <div className="flex items-center gap-1.5 flex-1 min-w-0">
             <Clock className="h-2.5 w-2.5 text-muted-foreground/30 shrink-0" />
-            <span className="text-[10px] text-muted-foreground/40">
+            <span className="text-sm text-muted-foreground/40">
               Last run: {STATUS_META[runs[0].status].label.toLowerCase()}
               {runs[0].artifact_count > 0 ? ` · ${runs[0].artifact_count} source${runs[0].artifact_count !== 1 ? "s" : ""}` : ""}
             </span>
           </div>
         ) : (
-          <span className="text-[10px] text-muted-foreground/30 flex-1">No research runs yet</span>
+          <span className="text-sm text-muted-foreground/30 flex-1">No research runs yet</span>
         )}
 
         {/* Start run / history toggle */}
@@ -182,7 +182,7 @@ export function RunHistoryStrip({
             <Button
               size="sm"
               variant="outline"
-              className="h-5 text-[9px] px-1.5 gap-0.5"
+              className="h-5 text-xs px-1.5 gap-0.5"
               onClick={handleStartRun}
               disabled={starting}
             >
@@ -196,7 +196,7 @@ export function RunHistoryStrip({
           {runs.length > 0 && (
             <button
               onClick={() => setExpanded(e => !e)}
-              className="text-[9px] text-muted-foreground/30 hover:text-muted-foreground/60 flex items-center gap-0.5 transition-colors"
+              className="text-xs text-muted-foreground/30 hover:text-muted-foreground/60 flex items-center gap-0.5 transition-colors"
             >
               {expanded
                 ? <><ChevronUp className="h-2.5 w-2.5" /> Hide</>

@@ -103,7 +103,7 @@ function Field({
 }) {
   return (
     <div className={cn("space-y-1.5", className)}>
-      <label className="text-[11px] font-medium text-muted-foreground flex items-center gap-1">
+      <label className="text-sm font-medium text-muted-foreground flex items-center gap-1">
         {Icon && <Icon className="h-3 w-3" />}
         {label}
         {required && <span className="text-foreground">*</span>}
@@ -355,7 +355,7 @@ export function NewProspectModal() {
             >
               {/* ── Section: Property Address ─────────────── */}
               <div>
-                <p className="text-[10px] font-semibold uppercase tracking-widest text-primary/70 mb-3">
+                <p className="text-sm font-semibold uppercase tracking-widest text-primary/70 mb-3">
                   Property Address
                 </p>
                 <div className="space-y-3">
@@ -413,7 +413,7 @@ export function NewProspectModal() {
 
               {/* ── Section: Owner Info ───────────────────── */}
               <div>
-                <p className="text-[10px] font-semibold uppercase tracking-widest text-primary/70 mb-3">
+                <p className="text-sm font-semibold uppercase tracking-widest text-primary/70 mb-3">
                   Owner Information
                 </p>
                 <div className="space-y-3">
@@ -446,7 +446,7 @@ export function NewProspectModal() {
 
               {/* ── Section: Property Details ─────────────── */}
               <div>
-                <p className="text-[10px] font-semibold uppercase tracking-widest text-primary/70 mb-3">
+                <p className="text-sm font-semibold uppercase tracking-widest text-primary/70 mb-3">
                   Property Details
                 </p>
                 <div className="space-y-3">
@@ -530,7 +530,7 @@ export function NewProspectModal() {
 
               {/* ── Section: Distress Signals ─────────────── */}
               <div>
-                <p className="text-[10px] font-semibold uppercase tracking-widest text-primary/70 mb-3">
+                <p className="text-sm font-semibold uppercase tracking-widest text-primary/70 mb-3">
                   Prospecting Tags
                 </p>
                 <div className="flex flex-wrap gap-1.5">
@@ -567,7 +567,7 @@ export function NewProspectModal() {
                 <button
                   type="button"
                   onClick={() => setShowAdvanced((prev) => !prev)}
-                  className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/60 hover:text-primary/70 transition-colors mb-1"
+                  className="flex items-center gap-1.5 text-sm font-semibold uppercase tracking-widest text-muted-foreground/60 hover:text-primary/70 transition-colors mb-1"
                 >
                   {showAdvanced ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
                   Show Advanced Import Fields
@@ -671,7 +671,7 @@ export function NewProspectModal() {
               </div>
 
               <div>
-                <p className="text-[10px] font-semibold uppercase tracking-widest text-primary/70 mb-3">
+                <p className="text-sm font-semibold uppercase tracking-widest text-primary/70 mb-3">
                   Assignment
                 </p>
                 <div className="flex flex-wrap gap-2">
@@ -747,13 +747,13 @@ export function NewProspectModal() {
                   {form.distress_tags.length > 0 && (
                     <div className="flex flex-wrap justify-center gap-1 mt-2">
                       {form.distress_tags.map((t) => (
-                        <Badge key={t} variant="outline" className="text-[9px]">
+                        <Badge key={t} variant="outline" className="text-xs">
                           {tagLabel(t)}
                         </Badge>
                       ))}
                     </div>
                   )}
-                  <p className="text-[10px] text-muted-foreground/70 mt-2">
+                  <p className="text-sm text-muted-foreground/70 mt-2">
                     {sourceChannelLabel(form.source_channel)}
                     {form.niche_tag ? ` • ${tagLabel(form.niche_tag)}` : ""}
                     {form.import_batch_id ? ` • Batch ${form.import_batch_id}` : ""}

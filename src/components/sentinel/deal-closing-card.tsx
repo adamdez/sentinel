@@ -226,7 +226,7 @@ export function DealClosingCard({ dealId, onUpdate }: DealClosingCardProps) {
   // ── Shared input classes ──
 
   const inputClass = "w-full bg-white/[0.03] border border-white/[0.06] rounded-[6px] px-2.5 py-1.5 text-xs text-foreground placeholder:text-muted-foreground/30 focus:outline-none focus:border-primary/20 transition-all";
-  const labelClass = "text-[10px] text-muted-foreground/50 font-medium mb-1";
+  const labelClass = "text-sm text-muted-foreground/50 font-medium mb-1";
 
   // ── Checklist progress ──
 
@@ -238,16 +238,16 @@ export function DealClosingCard({ dealId, onUpdate }: DealClosingCardProps) {
     <div className="mt-3">
       <button
         onClick={() => setOpen(!open)}
-        className="flex items-center gap-2 text-[11px] text-muted-foreground/60 hover:text-muted-foreground/80 transition-colors w-full"
+        className="flex items-center gap-2 text-sm text-muted-foreground/60 hover:text-muted-foreground/80 transition-colors w-full"
       >
         <ClipboardCheck className="h-3 w-3" />
         <span className="font-semibold tracking-wide">Closing Coordination</span>
         <motion.div animate={{ rotate: open ? 90 : 0 }} transition={{ duration: 0.1 }}>
           <ChevronRight className="h-3 w-3" />
         </motion.div>
-        <Badge variant={statusVariant} className="text-[9px] ml-1">{statusLabel}</Badge>
+        <Badge variant={statusVariant} className="text-xs ml-1">{statusLabel}</Badge>
         {checklistTotal > 0 && (
-          <span className="text-[9px] text-muted-foreground/40 ml-auto">
+          <span className="text-xs text-muted-foreground/40 ml-auto">
             {checklistDone}/{checklistTotal}
           </span>
         )}
@@ -344,7 +344,7 @@ export function DealClosingCard({ dealId, onUpdate }: DealClosingCardProps) {
                             {item.item}
                           </span>
                           {item.date && (
-                            <span className="text-[9px] text-muted-foreground/40">{item.date}</span>
+                            <span className="text-xs text-muted-foreground/40">{item.date}</span>
                           )}
                         </button>
                       ))}
@@ -367,7 +367,7 @@ export function DealClosingCard({ dealId, onUpdate }: DealClosingCardProps) {
                   <div>
                     <div className="flex items-center justify-between mb-1.5">
                       <div className={labelClass}>Related Tasks</div>
-                      <span className="text-[9px] text-muted-foreground/40">
+                      <span className="text-xs text-muted-foreground/40">
                         {tasks.filter((t) => t.status === "pending").length} pending
                       </span>
                     </div>
@@ -395,7 +395,7 @@ export function DealClosingCard({ dealId, onUpdate }: DealClosingCardProps) {
                             </span>
                             {task.due_at && (
                               <span className={cn(
-                                "text-[9px] shrink-0",
+                                "text-xs shrink-0",
                                 new Date(task.due_at) < new Date() && task.status !== "completed"
                                   ? "text-foreground/70"
                                   : "text-muted-foreground/40"
@@ -426,7 +426,7 @@ export function DealClosingCard({ dealId, onUpdate }: DealClosingCardProps) {
                       <button
                         onClick={addTask}
                         disabled={!newTaskTitle.trim() || addingTask}
-                        className="flex items-center gap-1 px-2 py-1 text-[10px] font-medium text-primary bg-primary/8 hover:bg-primary/12 rounded-[6px] border border-primary/20 hover:border-primary/30 transition-all disabled:opacity-30 disabled:cursor-not-allowed"
+                        className="flex items-center gap-1 px-2 py-1 text-sm font-medium text-primary bg-primary/8 hover:bg-primary/12 rounded-[6px] border border-primary/20 hover:border-primary/30 transition-all disabled:opacity-30 disabled:cursor-not-allowed"
                       >
                         <Plus className="h-2.5 w-2.5" />
                         Add

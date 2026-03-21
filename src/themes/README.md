@@ -24,6 +24,10 @@
 
 Prefer semantic classes (`bg-background`, `text-foreground`, `border-border`, `bg-card`, …). Avoid chroma in components when a token exists.
 
+## Typography
+
+Operator-focused type scale (root `rem`, minimum sizes, no microscopic px): see **`docs/TYPOGRAPHY.md`**.
+
 ## Maintenance scripts (repo root)
 
 - `node scripts/tokenize-colors.mjs` — maps `text-cyan` / Tailwind palette utilities (`text-emerald-*`, `text-blue-*`, …) to semantic tokens (`text-primary`, `text-foreground`, `bg-muted`, `border-border`, …).

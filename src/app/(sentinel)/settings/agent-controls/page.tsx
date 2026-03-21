@@ -94,7 +94,7 @@ export default function AgentControlsPage() {
       <div className="mb-4">
         <Link
           href="/settings"
-          className="text-[11px] text-muted-foreground hover:text-primary transition-colors"
+          className="text-sm text-muted-foreground hover:text-primary transition-colors"
         >
           ← Back to settings
         </Link>
@@ -168,7 +168,7 @@ function FlagSection({
         <SlidersHorizontal className="h-4 w-4 text-primary shrink-0 mt-0.5" />
         <div>
           <h2 className="text-sm font-semibold">{title}</h2>
-          <p className="text-[11px] text-muted-foreground/70">{subtitle}</p>
+          <p className="text-sm text-muted-foreground/70">{subtitle}</p>
         </div>
       </div>
 
@@ -176,7 +176,7 @@ function FlagSection({
         <p className="text-xs text-muted-foreground/50">No flags in this group yet.</p>
       ) : (
         <div className="overflow-x-auto rounded-lg border border-white/[0.06]">
-          <table className="w-full text-left text-[11px]">
+          <table className="w-full text-left text-sm">
             <thead>
               <tr className="border-b border-white/[0.06] bg-white/[0.02]">
                 <th className="px-3 py-2 font-medium text-muted-foreground">Flag key</th>
@@ -189,7 +189,7 @@ function FlagSection({
             <tbody>
               {rows.map((row) => (
                 <tr key={row.id} className="border-b border-white/[0.04] last:border-0">
-                  <td className="px-3 py-2 font-mono text-[10px] text-primary/90">{row.flag_key}</td>
+                  <td className="px-3 py-2 font-mono text-sm text-primary/90">{row.flag_key}</td>
                   <td className="px-3 py-2">
                     <div className="flex items-center gap-2">
                       <Switch
@@ -208,7 +208,7 @@ function FlagSection({
                       disabled={busyKey === row.flag_key}
                       onChange={(e) => onMode(row.flag_key, e.target.value)}
                       className={cn(
-                        "w-full rounded-md border border-white/[0.1] bg-white/[0.04] px-2 py-1 text-[10px]",
+                        "w-full rounded-md border border-white/[0.1] bg-white/[0.04] px-2 py-1 text-sm",
                         "text-foreground focus:outline-none focus:ring-1 focus:ring-ring/30",
                       )}
                     >

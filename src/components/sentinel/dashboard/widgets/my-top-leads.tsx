@@ -92,7 +92,7 @@ export function MyTopLeads() {
                 {lead.ownerName}
               </p>
               {lead.isOverdue && (
-                <Badge variant="destructive" className="text-[9px] px-1.5 py-0 gap-0.5">
+                <Badge variant="destructive" className="text-xs px-1.5 py-0 gap-0.5">
                   <AlertTriangle className="h-2 w-2" /> OVERDUE
                 </Badge>
               )}
@@ -105,7 +105,7 @@ export function MyTopLeads() {
               {lead.city ? `, ${lead.city}` : ""} — {lead.status}
             </p>
             <div
-              className="flex items-center gap-2 mt-1 text-[11px] font-medium"
+              className="flex items-center gap-2 mt-1 text-sm font-medium"
               style={{ WebkitFontSmoothing: "antialiased" }}
             >
               <Clock className="h-2.5 w-2.5" />
@@ -127,7 +127,7 @@ export function MyTopLeads() {
           <Button
             size="sm"
             className={cn(
-              "h-7 text-[11px] gap-1 shrink-0",
+              "h-7 text-sm gap-1 shrink-0",
               lead.isOverdue && "bg-destructive hover:bg-destructive/90 shadow-[0_0_15px_rgba(255,68,68,0.2)]"
             )}
             onClick={() => { window.location.href = `/leads?open=${lead.id}`; }}
@@ -137,7 +137,7 @@ export function MyTopLeads() {
           </Button>
         </motion.div>
       ))}
-      <p className="text-[11px] text-muted-foreground text-center pt-1">
+      <p className="text-sm text-muted-foreground text-center pt-1">
         Priority = score × urgency × contact recency — overdue leads surface first
       </p>
     </div>

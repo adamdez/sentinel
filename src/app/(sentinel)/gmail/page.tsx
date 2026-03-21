@@ -249,7 +249,7 @@ function ComposeModal({
         <div className="space-y-3">
           {/* Template selector */}
           <div>
-            <label className="text-[11px] uppercase tracking-wider text-muted-foreground mb-1 block">
+            <label className="text-sm uppercase tracking-wider text-muted-foreground mb-1 block">
               Template
             </label>
             <div className="flex flex-wrap gap-1.5">
@@ -257,7 +257,7 @@ function ComposeModal({
                 <button
                   key={key}
                   onClick={() => applyTemplate(key)}
-                  className="text-[10px] px-2.5 py-1 rounded-md border border-glass-border bg-glass hover:bg-primary/8 hover:border-primary/20 hover:text-primary transition-all"
+                  className="text-sm px-2.5 py-1 rounded-md border border-glass-border bg-glass hover:bg-primary/8 hover:border-primary/20 hover:text-primary transition-all"
                 >
                   {tpl.name}
                 </button>
@@ -267,7 +267,7 @@ function ComposeModal({
 
           {/* To */}
           <div>
-            <label className="text-[11px] uppercase tracking-wider text-muted-foreground mb-1 block">To</label>
+            <label className="text-sm uppercase tracking-wider text-muted-foreground mb-1 block">To</label>
             <input
               type="email"
               value={to}
@@ -279,7 +279,7 @@ function ComposeModal({
 
           {/* Subject */}
           <div>
-            <label className="text-[11px] uppercase tracking-wider text-muted-foreground mb-1 block">Subject</label>
+            <label className="text-sm uppercase tracking-wider text-muted-foreground mb-1 block">Subject</label>
             <input
               type="text"
               value={subject}
@@ -291,7 +291,7 @@ function ComposeModal({
 
           {/* Body */}
           <div>
-            <label className="text-[11px] uppercase tracking-wider text-muted-foreground mb-1 block">Body</label>
+            <label className="text-sm uppercase tracking-wider text-muted-foreground mb-1 block">Body</label>
             <textarea
               value={body}
               onChange={(e) => setBody(e.target.value)}
@@ -538,7 +538,7 @@ function GmailPageInner() {
               </div>
             )}
 
-            <div className="mt-6 text-[11px] text-muted-foreground/60 space-y-1">
+            <div className="mt-6 text-sm text-muted-foreground/60 space-y-1">
               <p>Scopes: gmail.send, gmail.readonly, openid, email</p>
               <p>Your data never leaves Sentinel&apos;s secure infrastructure.</p>
             </div>
@@ -563,7 +563,7 @@ function GmailPageInner() {
       description={`Connected as ${status.email}`}
       actions={
         <div className="flex items-center gap-2">
-          <Badge variant="neon" className="gap-1.5 text-[10px]">
+          <Badge variant="neon" className="gap-1.5 text-sm">
             <span className="h-1.5 w-1.5 rounded-full bg-primary animate-pulse" />
             Connected
           </Badge>
@@ -609,7 +609,7 @@ function GmailPageInner() {
                   <f.icon className="h-4 w-4" />
                   {f.label}
                   {f.count > 0 && (
-                    <Badge variant="neon" className="ml-auto text-[10px]">
+                    <Badge variant="neon" className="ml-auto text-sm">
                       {f.count}
                     </Badge>
                   )}
@@ -621,7 +621,7 @@ function GmailPageInner() {
           {/* Team Status (admin only) */}
           {status.team && (
             <GlassCard hover={false} className="p-3">
-              <h3 className="text-[11px] uppercase tracking-wider text-muted-foreground mb-3 flex items-center gap-1.5">
+              <h3 className="text-sm uppercase tracking-wider text-muted-foreground mb-3 flex items-center gap-1.5">
                 <Users className="h-3 w-3" />
                 Team Connections
               </h3>
@@ -639,7 +639,7 @@ function GmailPageInner() {
                     {member.gmail_connected ? (
                       <CheckCircle2 className="h-3 w-3 text-primary shrink-0" />
                     ) : (
-                      <span className="text-muted-foreground/40 text-[10px]">—</span>
+                      <span className="text-muted-foreground/40 text-sm">—</span>
                     )}
                   </div>
                 ))}
@@ -649,7 +649,7 @@ function GmailPageInner() {
 
           {/* Quick Templates */}
           <GlassCard hover={false} className="p-3">
-            <h3 className="text-[11px] uppercase tracking-wider text-muted-foreground mb-3 flex items-center gap-1.5">
+            <h3 className="text-sm uppercase tracking-wider text-muted-foreground mb-3 flex items-center gap-1.5">
               <FileText className="h-3 w-3" />
               Quick Send
             </h3>
@@ -695,7 +695,7 @@ function GmailPageInner() {
                     </div>
                     <div>
                       <p className="text-foreground font-medium">{extractName(selectedMessage.from)}</p>
-                      <p className="text-[11px]">{selectedMessage.date}</p>
+                      <p className="text-sm">{selectedMessage.date}</p>
                     </div>
                   </div>
                   <div className="border-t border-white/[0.06] pt-4 text-sm text-muted-foreground leading-relaxed">
@@ -736,7 +736,7 @@ function GmailPageInner() {
                     {activeFolder.charAt(0).toUpperCase() + activeFolder.slice(1)}
                   </h2>
                   <div className="flex items-center gap-2">
-                    <span className="text-[10px] text-muted-foreground">
+                    <span className="text-sm text-muted-foreground">
                       {messages.length} message{messages.length !== 1 ? "s" : ""}
                     </span>
                     {syncing && <Loader2 className="h-3 w-3 animate-spin text-primary" />}
@@ -780,7 +780,7 @@ function GmailPageInner() {
                         }`}
                       >
                         <div
-                          className={`h-8 w-8 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0 ${
+                          className={`h-8 w-8 rounded-full flex items-center justify-center text-sm font-bold shrink-0 ${
                             msg.unread
                               ? "bg-primary/12 border border-primary/20 text-primary"
                               : "bg-secondary/40 text-muted-foreground"
@@ -804,11 +804,11 @@ function GmailPageInner() {
                           <p className={`text-xs truncate ${msg.unread ? "text-foreground/80" : "text-muted-foreground/70"}`}>
                             {msg.subject || "(No Subject)"}
                           </p>
-                          <p className="text-[10px] text-muted-foreground/50 truncate">
+                          <p className="text-sm text-muted-foreground/50 truncate">
                             {msg.snippet}
                           </p>
                         </div>
-                        <span className="text-[10px] text-muted-foreground/50 shrink-0 whitespace-nowrap">
+                        <span className="text-sm text-muted-foreground/50 shrink-0 whitespace-nowrap">
                           {formatDate(msg.date)}
                         </span>
                       </motion.button>

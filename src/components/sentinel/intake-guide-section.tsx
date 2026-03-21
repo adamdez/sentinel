@@ -116,12 +116,12 @@ export function IntakeGuideSection({ cf }: { cf: ClientFile }) {
             <p className="text-xs font-semibold text-foreground/90">
               First-Call Intake Guide
             </p>
-            <span className="text-[10px] text-muted-foreground/70">
+            <span className="text-sm text-muted-foreground/70">
               {filledCount}/{totalCount} fields captured
             </span>
           </div>
           {!expanded && (
-            <p className="text-[10px] text-muted-foreground/60 mt-0.5">
+            <p className="text-sm text-muted-foreground/60 mt-0.5">
               Structured intake for first seller conversation
             </p>
           )}
@@ -142,7 +142,7 @@ export function IntakeGuideSection({ cf }: { cf: ClientFile }) {
                 key={step.id}
                 onClick={() => setActiveStep(i)}
                 className={cn(
-                  "flex-1 h-7 rounded-[6px] text-[10px] font-medium transition-colors",
+                  "flex-1 h-7 rounded-[6px] text-sm font-medium transition-colors",
                   activeStep === i
                     ? "bg-muted/[0.12] border border-border/25 text-foreground"
                     : "bg-white/[0.03] border border-white/[0.06] text-muted-foreground hover:border-white/[0.12]"
@@ -158,7 +158,7 @@ export function IntakeGuideSection({ cf }: { cf: ClientFile }) {
             const step = steps[activeStep];
             return (
               <div className="space-y-2">
-                <p className="text-[10px] text-muted-foreground/70 italic">
+                <p className="text-sm text-muted-foreground/70 italic">
                   {step.subtitle}
                 </p>
 
@@ -167,7 +167,7 @@ export function IntakeGuideSection({ cf }: { cf: ClientFile }) {
                   {step.talkingPoints.map((point, i) => (
                     <div
                       key={i}
-                      className="flex gap-2 text-[11px] text-foreground/85 leading-relaxed"
+                      className="flex gap-2 text-sm text-foreground/85 leading-relaxed"
                     >
                       <span className="text-foreground/50 shrink-0 mt-0.5">•</span>
                       <span>{point}</span>
@@ -178,7 +178,7 @@ export function IntakeGuideSection({ cf }: { cf: ClientFile }) {
                 {/* Field status indicators */}
                 {step.fields.length > 0 && (
                   <div className="pt-1 border-t border-white/[0.06]">
-                    <p className="text-[9px] uppercase tracking-wider text-muted-foreground/50 font-semibold mb-1.5">
+                    <p className="text-xs uppercase tracking-wider text-muted-foreground/50 font-semibold mb-1.5">
                       Fields to capture
                     </p>
                     <div className="flex flex-wrap gap-x-3 gap-y-1">
@@ -186,7 +186,7 @@ export function IntakeGuideSection({ cf }: { cf: ClientFile }) {
                         <span
                           key={field.label}
                           className={cn(
-                            "inline-flex items-center gap-1 text-[10px]",
+                            "inline-flex items-center gap-1 text-sm",
                             field.filled
                               ? "text-foreground/80"
                               : "text-foreground/70"

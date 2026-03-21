@@ -131,7 +131,7 @@ export function ScoreBreakdownModal({ cf, scoreType, onClose }: { cf: ClientFile
                 <h3 className="text-sm font-bold text-foreground">
                   {scoreType === "composite" ? "Match Score" : scoreType === "motivation" ? "Motivation Score" : "Deal Score"} Breakdown
                 </h3>
-                <p className="text-[10px] text-muted-foreground">
+                <p className="text-sm text-muted-foreground">
                   {cf.ownerName} — {cf.fullAddress}
                 </p>
               </div>
@@ -148,10 +148,10 @@ export function ScoreBreakdownModal({ cf, scoreType, onClose }: { cf: ClientFile
                 {/* Big score hero */}
                 <div className="text-center py-3">
                   <p className="text-5xl font-black tabular-nums" style={{ textShadow: "0 0 24px rgba(0,0,0,0.3), 0 0 60px rgba(0,0,0,0.1)" }}>{cf.compositeScore}</p>
-                  <p className="text-[10px] text-muted-foreground uppercase tracking-widest mt-1">
+                  <p className="text-sm text-muted-foreground uppercase tracking-widest mt-1">
                     {cf.scoreLabel.toUpperCase()} — Model {cf.modelVersion ?? "v2.0"}
                   </p>
-                  <p className="text-[11px] text-muted-foreground/80 mt-2 italic">
+                  <p className="text-sm text-muted-foreground/80 mt-2 italic">
                     {cf.compositeScore >= 85
                       ? "This lead has multiple strong indicators. Prioritize contact."
                       : cf.compositeScore >= 65
@@ -165,7 +165,7 @@ export function ScoreBreakdownModal({ cf, scoreType, onClose }: { cf: ClientFile
                 {/* Blend weights */}
                 {pred && (
                   <div className="rounded-[10px] border border-border/15 bg-muted/[0.04] p-3">
-                    <p className="text-[10px] font-semibold text-foreground uppercase tracking-wider mb-2">Predictive Blend (v2.1)</p>
+                    <p className="text-sm font-semibold text-foreground uppercase tracking-wider mb-2">Predictive Blend (v2.1)</p>
                     <div className="grid grid-cols-2 gap-3 text-xs">
                       <div className="flex justify-between">
                         <span className="text-muted-foreground">Deterministic Weight</span>
@@ -190,7 +190,7 @@ export function ScoreBreakdownModal({ cf, scoreType, onClose }: { cf: ClientFile
                 {/* Signal contributions */}
                 {signalFactors.length > 0 && (
                   <div className="space-y-1.5">
-                    <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
+                    <p className="text-sm font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
                       <AlertTriangle className="h-3 w-3" />Distress Signals — {Math.round(totalSignalPts)} pts
                     </p>
                     {signalFactors.map((f, i) => {
@@ -205,7 +205,7 @@ export function ScoreBreakdownModal({ cf, scoreType, onClose }: { cf: ClientFile
                             </span>
                             <span className="font-mono font-bold text-foreground">+{f.contribution}</span>
                           </div>
-                          <div className="flex items-center gap-2 text-[10px] text-muted-foreground">
+                          <div className="flex items-center gap-2 text-sm text-muted-foreground">
                             <span>Base: {f.value}</span>
                             <span className="text-muted-foreground/40">|</span>
                             <span>w/ severity + recency</span>
@@ -222,7 +222,7 @@ export function ScoreBreakdownModal({ cf, scoreType, onClose }: { cf: ClientFile
                 {/* Bonus factors */}
                 {bonusFactors.length > 0 && (
                   <div className="space-y-1.5">
-                    <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
+                    <p className="text-sm font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
                       <TrendingUp className="h-3 w-3" />Adjustments — {Math.round(totalBonusPts)} pts
                     </p>
                     {bonusFactors.map((f, i) => (
@@ -240,7 +240,7 @@ export function ScoreBreakdownModal({ cf, scoreType, onClose }: { cf: ClientFile
                   <div className="text-center py-4 space-y-1">
                     <p className="text-xs text-muted-foreground/70">Property appears clean — no distress indicators detected</p>
                     {cf.lastContactAt && (
-                      <p className="text-[10px] text-muted-foreground/40">Last data check: {new Date(cf.lastContactAt).toLocaleDateString()}</p>
+                      <p className="text-sm text-muted-foreground/40">Last data check: {new Date(cf.lastContactAt).toLocaleDateString()}</p>
                     )}
                   </div>
                 )}
@@ -257,11 +257,11 @@ export function ScoreBreakdownModal({ cf, scoreType, onClose }: { cf: ClientFile
               <>
                 <div className="text-center py-3">
                   <p className="text-5xl font-black tabular-nums text-foreground" style={{ textShadow: "0 0 24px rgba(249,115,22,0.3)" }}>{cf.motivationScore}</p>
-                  <p className="text-[10px] text-muted-foreground uppercase tracking-widest mt-1">Motivation Score — Owner Distress Intensity</p>
+                  <p className="text-sm text-muted-foreground uppercase tracking-widest mt-1">Motivation Score — Owner Distress Intensity</p>
                 </div>
 
                 <div className="rounded-[10px] border border-border/15 bg-muted/[0.03] p-3">
-                  <p className="text-[10px] font-semibold text-foreground uppercase tracking-wider mb-2">Formula</p>
+                  <p className="text-sm font-semibold text-foreground uppercase tracking-wider mb-2">Formula</p>
                   <p className="text-xs text-muted-foreground font-mono leading-relaxed">
                     BaseSignalScore × RecencyDecay × 1.2 (capped at 100)
                   </p>
@@ -270,7 +270,7 @@ export function ScoreBreakdownModal({ cf, scoreType, onClose }: { cf: ClientFile
                 {/* Per-signal detailed breakdown */}
                 {cf.tags.length > 0 ? (
                   <div className="space-y-1.5">
-                    <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Active Distress Signals</p>
+                    <p className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Active Distress Signals</p>
                     {cf.tags.map((tag) => {
                       const cfg = DISTRESS_CFG[tag];
                       const TagIcon = cfg?.icon ?? Tag;
@@ -283,7 +283,7 @@ export function ScoreBreakdownModal({ cf, scoreType, onClose }: { cf: ClientFile
                             <span className={cn("text-xs font-semibold", cfg?.color?.split(" ")[0] ?? "text-foreground")}>{cfg?.label ?? tag}</span>
                             {factor && <span className="ml-auto font-mono text-xs font-bold text-foreground">+{factor.contribution}</span>}
                           </div>
-                          <div className="grid grid-cols-3 gap-2 text-[10px]">
+                          <div className="grid grid-cols-3 gap-2 text-sm">
                             <div>
                               <span className="text-muted-foreground/60">Base Weight</span>
                               <p className="font-mono font-semibold">{baseWeight}</p>
@@ -305,10 +305,10 @@ export function ScoreBreakdownModal({ cf, scoreType, onClose }: { cf: ClientFile
                   <div className="text-center py-6 space-y-1">
                     <p className="text-xs text-muted-foreground/70">Property appears clean — no distress indicators detected</p>
                     {cf.lastContactAt && (
-                      <p className="text-[10px] text-muted-foreground/40">Last data check: {new Date(cf.lastContactAt).toLocaleDateString()}</p>
+                      <p className="text-sm text-muted-foreground/40">Last data check: {new Date(cf.lastContactAt).toLocaleDateString()}</p>
                     )}
                     {cf.promotedAt && !cf.lastContactAt && (
-                      <p className="text-[10px] text-muted-foreground/40">Data as of: {new Date(cf.promotedAt).toLocaleDateString()}</p>
+                      <p className="text-sm text-muted-foreground/40">Data as of: {new Date(cf.promotedAt).toLocaleDateString()}</p>
                     )}
                   </div>
                 )}
@@ -316,7 +316,7 @@ export function ScoreBreakdownModal({ cf, scoreType, onClose }: { cf: ClientFile
                 {/* Predictive life-event overlay */}
                 {pred && pred.lifeEventProbability != null && pred.lifeEventProbability > 0.05 && (
                   <div className="rounded-[10px] border border-border/15 bg-muted/[0.03] p-3">
-                    <p className="text-[10px] font-semibold text-foreground uppercase tracking-wider mb-2">Predictive Life-Event Intelligence</p>
+                    <p className="text-sm font-semibold text-foreground uppercase tracking-wider mb-2">Predictive Life-Event Intelligence</p>
                     <div className="grid grid-cols-2 gap-2 text-xs">
                       <div className="flex justify-between">
                         <span className="text-muted-foreground">Life-Event Probability</span>
@@ -345,7 +345,7 @@ export function ScoreBreakdownModal({ cf, scoreType, onClose }: { cf: ClientFile
                 {/* Owner flags impact */}
                 {(cf.isAbsentee || cf.isVacant || cf.isFreeClear || cf.isHighEquity) && (
                   <div className="space-y-1">
-                    <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Owner Profile Impact</p>
+                    <p className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Owner Profile Impact</p>
                     {cf.isAbsentee && <BreakdownRow label="Absentee Owner" value="+5 pts" color="text-foreground" />}
                     {cf.isVacant && <BreakdownRow label="Vacant Property" value="+4 pts" color="text-foreground" />}
                     {cf.isFreeClear && <BreakdownRow label="Free & Clear (no mortgage pressure)" value="+0 pts" color="text-foreground" />}
@@ -359,11 +359,11 @@ export function ScoreBreakdownModal({ cf, scoreType, onClose }: { cf: ClientFile
               <>
                 <div className="text-center py-3">
                   <p className="text-5xl font-black tabular-nums text-foreground" style={{ textShadow: "0 0 20px rgba(0,0,0,0.12)" }}>{cf.dealScore}</p>
-                  <p className="text-[10px] text-muted-foreground uppercase tracking-widest mt-1">Deal Score — Investment Viability Index</p>
+                  <p className="text-sm text-muted-foreground uppercase tracking-widest mt-1">Deal Score — Investment Viability Index</p>
                 </div>
 
                 <div className="rounded-[10px] border border-border/15 bg-muted/[0.03] p-3">
-                  <p className="text-[10px] font-semibold text-foreground uppercase tracking-wider mb-2">Formula</p>
+                  <p className="text-sm font-semibold text-foreground uppercase tracking-wider mb-2">Formula</p>
                   <p className="text-xs text-muted-foreground font-mono leading-relaxed">
                     EquityFactor × 2 + AIBoost + StackingBonus × 0.5 (capped at 100)
                   </p>
@@ -371,7 +371,7 @@ export function ScoreBreakdownModal({ cf, scoreType, onClose }: { cf: ClientFile
 
                 {/* Deal assumptions */}
                 <div className="space-y-1.5">
-                  <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Property Financials</p>
+                  <p className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Property Financials</p>
                   <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs">
                     <div className="flex justify-between px-3 py-1.5 rounded-[8px] bg-white/[0.02] border border-white/[0.04]">
                       <span className="text-muted-foreground">ARV / AVM</span>
@@ -379,13 +379,13 @@ export function ScoreBreakdownModal({ cf, scoreType, onClose }: { cf: ClientFile
                     </div>
                     <div className="flex justify-between px-3 py-1.5 rounded-[8px] bg-white/[0.02] border border-white/[0.04]">
                       <span className="text-muted-foreground">Equity %</span>
-                      <span className={cn("font-mono font-bold", equityDataCorrupt && "text-foreground text-[10px] font-normal")}>
+                      <span className={cn("font-mono font-bold", equityDataCorrupt && "text-foreground text-sm font-normal")}>
                         {equityDataCorrupt ? "Data unavailable" : eqPct > 0 ? `${eqPct}%` : "—"}
                       </span>
                     </div>
                     <div className="flex justify-between px-3 py-1.5 rounded-[8px] bg-white/[0.02] border border-white/[0.04]">
                       <span className="text-muted-foreground">Available Equity</span>
-                      <span className={cn("font-mono font-semibold", equityDataCorrupt && "text-foreground text-[10px] font-normal")}>
+                      <span className={cn("font-mono font-semibold", equityDataCorrupt && "text-foreground text-sm font-normal")}>
                         {equityDataCorrupt ? "Run property analysis" : availableEquity > 0 ? formatCurrency(availableEquity) : "—"}
                       </span>
                     </div>
@@ -399,7 +399,7 @@ export function ScoreBreakdownModal({ cf, scoreType, onClose }: { cf: ClientFile
                 {/* Profit projection */}
                 {arv > 0 && (
                   <div className="space-y-1.5">
-                    <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Quick Profit Projection</p>
+                    <p className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Quick Profit Projection</p>
                     <div className="rounded-[10px] border border-white/[0.06] bg-white/[0.02] p-3 space-y-1.5 text-xs">
                       <div className="flex justify-between">
                         <span className="text-muted-foreground">ARV</span>
@@ -419,12 +419,12 @@ export function ScoreBreakdownModal({ cf, scoreType, onClose }: { cf: ClientFile
                           {formatCurrency(profit)}
                         </span>
                       </div>
-                      <div className="flex justify-between text-[10px]">
+                      <div className="flex justify-between text-sm">
                         <span className="text-muted-foreground">ROI</span>
                         <span className={cn("font-mono font-semibold", roi >= 0 ? "text-foreground" : "text-foreground")}>{roi}%</span>
                       </div>
                     </div>
-                    <p className="text-[9px] text-muted-foreground/40 italic">
+                    <p className="text-xs text-muted-foreground/40 italic">
                       Assumptions: 65% MAO, ${(VALUATION_DEFAULTS.rehabEstimate / 1000).toFixed(0)}k rehab. Adjust in Offer Calculator tab.
                     </p>
                   </div>
@@ -432,7 +432,7 @@ export function ScoreBreakdownModal({ cf, scoreType, onClose }: { cf: ClientFile
 
                 {/* Deal score components */}
                 <div className="space-y-1">
-                  <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Score Components</p>
+                  <p className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Score Components</p>
                   {bonusFactors.filter((f) => f.name === "equity" || f.name === "comp_ratio" || f.name === "ai_boost" || f.name === "stacking_bonus").map((f, i) => (
                     <div key={i} className="flex items-center justify-between text-xs px-3 py-1.5 rounded-[8px] bg-white/[0.02] border border-white/[0.04]">
                       <span className="text-muted-foreground">{SIGNAL_WEIGHT_LABELS[f.name] ?? f.name}</span>
@@ -458,10 +458,10 @@ export function ScoreBreakdownModal({ cf, scoreType, onClose }: { cf: ClientFile
 
           {/* Footer */}
           <div className="shrink-0 px-5 py-3 border-t border-white/[0.06] flex items-center justify-between">
-            <p className="text-[9px] text-muted-foreground/40 font-mono">
+            <p className="text-xs text-muted-foreground/40 font-mono">
               Scoring Engine {cf.modelVersion ?? "v2.0"} • {cf.tags.length} signal(s) • {cf.source}
             </p>
-            <Button size="sm" variant="outline" onClick={onClose} className="text-[10px] h-7 px-3">
+            <Button size="sm" variant="outline" onClick={onClose} className="text-sm h-7 px-3">
               Close
             </Button>
           </div>

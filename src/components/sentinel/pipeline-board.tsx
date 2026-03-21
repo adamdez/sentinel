@@ -108,7 +108,7 @@ function SortableCard({ item, onCall }: { item: PipelineItem; onCall?: (phone: s
               <div className="flex items-center gap-2 mt-0.5">
                 {item.equityPercent != null && (
                   <span className={cn(
-                    "text-[10px] font-medium",
+                    "text-sm font-medium",
                     item.equityPercent >= 50 ? "text-foreground" : item.equityPercent >= 25 ? "text-foreground" : "text-foreground"
                   )}>
                     {Math.round(item.equityPercent)}% equity
@@ -122,11 +122,11 @@ function SortableCard({ item, onCall }: { item: PipelineItem; onCall?: (phone: s
             <AIScoreBadge score={item.score} size="sm" />
           </div>
           <div className="flex items-center gap-2">
-            <Badge variant="outline" className="text-[10px]">
+            <Badge variant="outline" className="text-sm">
               {item.distressType}
             </Badge>
             <span className={cn(
-              "flex items-center gap-0.5 text-[10px]",
+              "flex items-center gap-0.5 text-sm",
               !item.lastContactAt ? "text-muted-foreground/50" : "text-muted-foreground"
             )}>
               <Clock className="h-2.5 w-2.5" />
@@ -136,7 +136,7 @@ function SortableCard({ item, onCall }: { item: PipelineItem; onCall?: (phone: s
               <Button
                 variant="ghost"
                 size="sm"
-                className="h-6 px-2 text-[10px] gap-1 ml-auto"
+                className="h-6 px-2 text-sm gap-1 ml-auto"
                 onClick={() => { window.location.href = `/leads?open=${item.id}`; }}
               >
                 <Phone className="h-3 w-3" />

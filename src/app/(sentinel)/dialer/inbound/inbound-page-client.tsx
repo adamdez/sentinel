@@ -114,20 +114,20 @@ function ClassifyForm({ eventId, fromNumber, onDone }: ClassifyFormProps) {
 
   return (
     <div className="space-y-2.5 p-3 border-t border-white/[0.06]">
-      <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground/50 mb-1">
+      <div className="flex items-center gap-1.5 text-sm text-muted-foreground/50 mb-1">
         <Phone className="h-3 w-3" />
         Classifying {fromNumber}
       </div>
 
       {/* Caller type chips */}
       <div className="space-y-1">
-        <label className="text-[9px] uppercase tracking-wider text-muted-foreground/40">Caller type</label>
+        <label className="text-xs uppercase tracking-wider text-muted-foreground/40">Caller type</label>
         <div className="flex flex-wrap gap-1.5">
           {CALLER_TYPES.map((ct) => (
             <button
               key={ct}
               onClick={() => setCallerType(ct)}
-              className={`rounded-[6px] border px-2 py-1 text-[10px] font-medium transition-all ${
+              className={`rounded-[6px] border px-2 py-1 text-sm font-medium transition-all ${
                 callerType === ct
                   ? CALLER_TYPE_STYLES[ct] + " ring-1 ring-white/10"
                   : "border-white/[0.06] text-muted-foreground/40 hover:text-muted-foreground/60"
@@ -141,21 +141,21 @@ function ClassifyForm({ eventId, fromNumber, onDone }: ClassifyFormProps) {
 
       {/* Subject address */}
       <div className="space-y-1">
-        <label className="flex items-center gap-1 text-[9px] uppercase tracking-wider text-muted-foreground/40">
+        <label className="flex items-center gap-1 text-xs uppercase tracking-wider text-muted-foreground/40">
           <MapPin className="h-2.5 w-2.5" /> Subject address
         </label>
         <Input
           value={address}
           onChange={(e) => setAddress(e.target.value)}
           placeholder="Property address mentioned…"
-          className="h-7 text-[11px]"
+          className="h-7 text-sm"
           maxLength={300}
         />
       </div>
 
       {/* Situation summary */}
       <div className="space-y-1">
-        <label className="flex items-center gap-1 text-[9px] uppercase tracking-wider text-muted-foreground/40">
+        <label className="flex items-center gap-1 text-xs uppercase tracking-wider text-muted-foreground/40">
           <FileText className="h-2.5 w-2.5" /> Situation / notes
         </label>
         <textarea
@@ -167,12 +167,12 @@ function ClassifyForm({ eventId, fromNumber, onDone }: ClassifyFormProps) {
           placeholder="Brief summary of what the caller said…"
           maxLength={500}
           rows={2}
-          className="w-full resize-none rounded-[7px] border border-white/[0.07] bg-white/[0.02] px-2.5 py-1.5 text-[11px] text-foreground placeholder:text-muted-foreground/25 focus:outline-none focus:border-primary/20"
+          className="w-full resize-none rounded-[7px] border border-white/[0.07] bg-white/[0.02] px-2.5 py-1.5 text-sm text-foreground placeholder:text-muted-foreground/25 focus:outline-none focus:border-primary/20"
         />
       </div>
 
       {err && (
-        <p className="text-[10px] text-foreground/70 flex items-center gap-1">
+        <p className="text-sm text-foreground/70 flex items-center gap-1">
           <AlertTriangle className="h-3 w-3 shrink-0" /> {err}
         </p>
       )}
@@ -182,7 +182,7 @@ function ClassifyForm({ eventId, fromNumber, onDone }: ClassifyFormProps) {
           size="sm"
           onClick={handleClassify}
           disabled={busy}
-          className="h-7 text-[10px] px-3 bg-primary/10 hover:bg-primary/20 text-primary border border-primary/30"
+          className="h-7 text-sm px-3 bg-primary/10 hover:bg-primary/20 text-primary border border-primary/30"
         >
           {busy ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <CheckCircle2 className="h-3 w-3 mr-1" />}
           Classify & route
@@ -191,7 +191,7 @@ function ClassifyForm({ eventId, fromNumber, onDone }: ClassifyFormProps) {
           size="sm"
           variant="ghost"
           onClick={onDone}
-          className="h-7 text-[10px] px-2 text-muted-foreground/40"
+          className="h-7 text-sm px-2 text-muted-foreground/40"
         >
           Cancel
         </Button>
@@ -291,7 +291,7 @@ function InboundCallCard({ item, type, idx, onResolved }: InboundCallCardProps) 
               <span className="text-sm font-medium">
                 {fromNumber !== "unknown" ? fromNumber : "Unknown number"}
               </span>
-              <span className={`text-[10px] font-medium ${
+              <span className={`text-sm font-medium ${
                 severity === "critical" ? "text-foreground" :
                 severity === "warning" ? "text-foreground" :
                 "text-muted-foreground/50"
@@ -302,25 +302,25 @@ function InboundCallCard({ item, type, idx, onResolved }: InboundCallCardProps) 
 
             <div className="flex items-center gap-1.5 flex-wrap">
               {isMissed ? (
-                <Badge variant="outline" className="text-[9px] h-4 px-1.5 border-border/30 text-foreground/70">
+                <Badge variant="outline" className="text-xs h-4 px-1.5 border-border/30 text-foreground/70">
                   Missed
                 </Badge>
               ) : (
-                <Badge variant="outline" className="text-[9px] h-4 px-1.5 border-border/30 text-foreground/70">
+                <Badge variant="outline" className="text-xs h-4 px-1.5 border-border/30 text-foreground/70">
                   Answered — not classified
                 </Badge>
               )}
               {item.lead_id ? (
-                <Badge variant="outline" className="text-[9px] h-4 px-1.5 text-primary/60 border-primary/20">
+                <Badge variant="outline" className="text-xs h-4 px-1.5 text-primary/60 border-primary/20">
                   Lead matched
                 </Badge>
               ) : (
-                <Badge variant="outline" className="text-[9px] h-4 px-1.5 text-muted-foreground/40">
+                <Badge variant="outline" className="text-xs h-4 px-1.5 text-muted-foreground/40">
                   No lead match
                 </Badge>
               )}
               {missed?.is_classified && missed.caller_type && (
-                <span className={`inline-flex items-center gap-0.5 rounded-[5px] border px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide ${
+                <span className={`inline-flex items-center gap-0.5 rounded-[5px] border px-1.5 py-0.5 text-xs font-semibold uppercase tracking-wide ${
                   CALLER_TYPE_STYLES[missed.caller_type as InboundCallerType] ?? CALLER_TYPE_STYLES.unknown
                 }`}>
                   <User className="h-2.5 w-2.5" />
@@ -328,7 +328,7 @@ function InboundCallCard({ item, type, idx, onResolved }: InboundCallCardProps) 
                 </span>
               )}
               {missed?.task_overdue && (
-                <Badge variant="outline" className="text-[9px] h-4 px-1.5 border-border/40 text-foreground">
+                <Badge variant="outline" className="text-xs h-4 px-1.5 border-border/40 text-foreground">
                   task overdue
                 </Badge>
               )}
@@ -340,7 +340,7 @@ function InboundCallCard({ item, type, idx, onResolved }: InboundCallCardProps) 
         {mode === "idle" && (
           <div className="flex items-center gap-1.5 flex-wrap px-3 pb-3">
             <Link href={`/dialer?phone=${encodeURIComponent(fromNumber)}${item.lead_id ? `&lead_id=${item.lead_id}` : ""}`}>
-              <Button size="sm" className="h-7 text-[10px] px-2.5 bg-primary/10 hover:bg-primary/20 text-primary border border-primary/30">
+              <Button size="sm" className="h-7 text-sm px-2.5 bg-primary/10 hover:bg-primary/20 text-primary border border-primary/30">
                 <Phone className="h-3 w-3 mr-1" />
                 Call back
               </Button>
@@ -350,7 +350,7 @@ function InboundCallCard({ item, type, idx, onResolved }: InboundCallCardProps) 
               <Button
                 size="sm"
                 variant="outline"
-                className="h-7 text-[10px] px-2.5 border-border/30 text-foreground hover:bg-muted/30"
+                className="h-7 text-sm px-2.5 border-border/30 text-foreground hover:bg-muted/30"
                 onClick={() => setMode("classify")}
               >
                 <Users className="h-3 w-3 mr-1" />
@@ -362,7 +362,7 @@ function InboundCallCard({ item, type, idx, onResolved }: InboundCallCardProps) 
               <Button
                 size="sm"
                 variant="outline"
-                className="h-7 text-[10px] px-2.5 border-border/30 text-foreground hover:bg-muted/30"
+                className="h-7 text-sm px-2.5 border-border/30 text-foreground hover:bg-muted/30"
                 onClick={handleRecover}
                 disabled={busy}
               >
@@ -374,7 +374,7 @@ function InboundCallCard({ item, type, idx, onResolved }: InboundCallCardProps) 
             <Button
               size="sm"
               variant="outline"
-              className="h-7 text-[10px] px-2.5 border-white/[0.06] text-muted-foreground/50 hover:bg-white/[0.03]"
+              className="h-7 text-sm px-2.5 border-white/[0.06] text-muted-foreground/50 hover:bg-white/[0.03]"
               onClick={() => setMode("writeback")}
             >
               <ArrowRight className="h-3 w-3 mr-1" />
@@ -384,7 +384,7 @@ function InboundCallCard({ item, type, idx, onResolved }: InboundCallCardProps) 
             <Button
               size="sm"
               variant="ghost"
-              className="h-7 text-[10px] px-2 text-muted-foreground/40 hover:text-muted-foreground"
+              className="h-7 text-sm px-2 text-muted-foreground/40 hover:text-muted-foreground"
               onClick={() => setMode("dismiss")}
             >
               <XCircle className="h-3 w-3 mr-1" />
@@ -409,7 +409,7 @@ function InboundCallCard({ item, type, idx, onResolved }: InboundCallCardProps) 
               value={dismissReason}
               onChange={(e) => setDismissReason(e.target.value)}
               placeholder="Reason for dismissing (e.g. wrong number, spam)…"
-              className="h-7 text-[10px]"
+              className="h-7 text-sm"
               onKeyDown={(e) => e.key === "Enter" && handleDismiss()}
               autoFocus
             />
@@ -417,7 +417,7 @@ function InboundCallCard({ item, type, idx, onResolved }: InboundCallCardProps) 
               <Button
                 size="sm"
                 variant="outline"
-                className="h-7 text-[10px] px-2.5 border-border/40 text-foreground hover:bg-muted/30"
+                className="h-7 text-sm px-2.5 border-border/40 text-foreground hover:bg-muted/30"
                 onClick={handleDismiss}
                 disabled={busy}
               >
@@ -427,7 +427,7 @@ function InboundCallCard({ item, type, idx, onResolved }: InboundCallCardProps) 
               <Button
                 size="sm"
                 variant="ghost"
-                className="h-7 text-[10px] px-2 text-muted-foreground/40"
+                className="h-7 text-sm px-2 text-muted-foreground/40"
                 onClick={() => { setMode("idle"); setErr(null); }}
               >
                 Cancel
@@ -444,7 +444,7 @@ function InboundCallCard({ item, type, idx, onResolved }: InboundCallCardProps) 
               <Button
                 size="sm"
                 variant="ghost"
-                className="h-6 text-[10px] px-2 text-muted-foreground/40"
+                className="h-6 text-sm px-2 text-muted-foreground/40"
                 onClick={() => setMode("idle")}
               >
                 ← Back to actions
@@ -453,7 +453,7 @@ function InboundCallCard({ item, type, idx, onResolved }: InboundCallCardProps) 
           </div>
         )}
 
-        {err && <p className="text-[10px] text-foreground px-3 pb-2">{err}</p>}
+        {err && <p className="text-sm text-foreground px-3 pb-2">{err}</p>}
       </GlassCard>
     </motion.div>
   );
@@ -505,7 +505,7 @@ export default function InboundDialerPageClient() {
       {eventIdParam && (
         <GlassCard hover={false} className="!p-0 mb-4 overflow-hidden">
           <div className="p-3 border-b border-white/[0.06]">
-            <div className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider text-primary/60">
+            <div className="flex items-center gap-1.5 text-sm font-semibold uppercase tracking-wider text-primary/60">
               <PhoneIncoming className="h-3.5 w-3.5" />
               Review inbound event
             </div>
@@ -531,10 +531,10 @@ export default function InboundDialerPageClient() {
         </button>
         <div className="ml-auto flex gap-2">
           <Link href="/dialer/war-room">
-            <Button variant="outline" size="sm" className="h-7 text-[10px]">Call Review</Button>
+            <Button variant="outline" size="sm" className="h-7 text-sm">Call Review</Button>
           </Link>
           <Link href="/dialer">
-            <Button variant="outline" size="sm" className="h-7 text-[10px]">Dialer</Button>
+            <Button variant="outline" size="sm" className="h-7 text-sm">Dialer</Button>
           </Link>
         </div>
       </div>
@@ -551,10 +551,10 @@ export default function InboundDialerPageClient() {
         <div className="mb-6">
           <div className="flex items-center gap-1.5 mb-3">
             <PhoneIncoming className="h-3.5 w-3.5 text-foreground" />
-            <span className="text-[11px] font-semibold uppercase tracking-wider text-foreground/60">
+            <span className="text-sm font-semibold uppercase tracking-wider text-foreground/60">
               Missed Calls
             </span>
-            <Badge className="bg-muted/20 text-foreground border-border/30 text-[9px] h-4 px-1.5">
+            <Badge className="bg-muted/20 text-foreground border-border/30 text-xs h-4 px-1.5">
               {missed.length}
             </Badge>
           </div>
@@ -577,10 +577,10 @@ export default function InboundDialerPageClient() {
         <div className="mb-6">
           <div className="flex items-center gap-1.5 mb-3">
             <HelpCircle className="h-3.5 w-3.5 text-foreground/60" />
-            <span className="text-[11px] font-semibold uppercase tracking-wider text-foreground/60">
+            <span className="text-sm font-semibold uppercase tracking-wider text-foreground/60">
               Answered — Not Classified
             </span>
-            <Badge className="bg-muted/15 text-foreground border-border/25 text-[9px] h-4 px-1.5">
+            <Badge className="bg-muted/15 text-foreground border-border/25 text-xs h-4 px-1.5">
               {unclassified.length}
             </Badge>
           </div>
@@ -603,7 +603,7 @@ export default function InboundDialerPageClient() {
         <GlassCard hover={false} className="text-center py-12">
           <CheckCircle2 className="h-8 w-8 mx-auto text-foreground/30 mb-3" />
           <p className="text-sm text-muted-foreground/60 mb-1">No inbound calls needing attention</p>
-          <p className="text-[11px] text-muted-foreground/30">
+          <p className="text-sm text-muted-foreground/30">
             Missed and unclassified inbound calls will appear here.
           </p>
         </GlassCard>
@@ -611,7 +611,7 @@ export default function InboundDialerPageClient() {
 
       {/* SLA legend */}
       {totalCount > 0 && (
-        <div className="flex items-center gap-3 mt-4 text-[9px] text-muted-foreground/30">
+        <div className="flex items-center gap-3 mt-4 text-xs text-muted-foreground/30">
           <div className="flex items-center gap-1">
             <div className="h-1.5 w-1.5 rounded-full bg-muted" />
             &lt;30m — critical

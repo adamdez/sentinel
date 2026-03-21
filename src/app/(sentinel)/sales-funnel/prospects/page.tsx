@@ -89,7 +89,7 @@ const SIGNAL_FILTERS: { value: string; label: string; color: string }[] = [
 function SourceBadge({ source }: { source: string }) {
   if (source === "ranger_push") {
     return (
-      <span className="inline-flex items-center gap-1 text-[9px] px-1.5 py-0.5 rounded border font-semibold text-foreground bg-muted/10 border-border/20">
+      <span className="inline-flex items-center gap-1 text-xs px-1.5 py-0.5 rounded border font-semibold text-foreground bg-muted/10 border-border/20">
         <Radar className="h-2.5 w-2.5" />
         RANGER
       </span>
@@ -97,34 +97,34 @@ function SourceBadge({ source }: { source: string }) {
   }
   if (source === "propertyradar") {
     return (
-      <span className="text-[9px] px-1.5 py-0.5 rounded border font-semibold text-foreground bg-muted/10 border-border/20">
+      <span className="text-xs px-1.5 py-0.5 rounded border font-semibold text-foreground bg-muted/10 border-border/20">
         PROPRADAR
       </span>
     );
   }
   if (source.startsWith("csv:")) {
     return (
-      <span className="text-[9px] px-1.5 py-0.5 rounded border font-semibold text-foreground bg-muted/10 border-border/20">
+      <span className="text-xs px-1.5 py-0.5 rounded border font-semibold text-foreground bg-muted/10 border-border/20">
         CSV
       </span>
     );
   }
   if (source.includes("scraper") || source.includes("api") || source.includes("crawler")) {
     return (
-      <span className="text-[9px] px-1.5 py-0.5 rounded border text-primary-400 bg-primary-500/10 border-primary-500/20">
+      <span className="text-xs px-1.5 py-0.5 rounded border text-primary-400 bg-primary-500/10 border-primary-500/20">
         CRAWLER
       </span>
     );
   }
   if (source.includes("attom")) {
     return (
-      <span className="text-[9px] px-1.5 py-0.5 rounded border text-foreground bg-muted/10 border-border/20">
+      <span className="text-xs px-1.5 py-0.5 rounded border text-foreground bg-muted/10 border-border/20">
         ATTOM
       </span>
     );
   }
   return (
-    <span className="text-[9px] px-1.5 py-0.5 rounded border text-muted-foreground border-white/[0.06]">
+    <span className="text-xs px-1.5 py-0.5 rounded border text-muted-foreground border-white/[0.06]">
       MANUAL
     </span>
   );
@@ -193,7 +193,7 @@ function SignalPill({ signal, stageLabel }: { signal: string; stageLabel?: strin
   const colors = DISTRESS_COLORS[signal] ?? { text: "text-muted-foreground", bg: "bg-white/[0.04]", border: "border-white/[0.08]" };
   const displayLabel = stageLabel ? `${label}: ${stageLabel}` : label;
   return (
-    <span className={cn("text-[9px] px-1.5 py-0.5 rounded border font-medium whitespace-nowrap", colors.text, colors.bg, colors.border)}>
+    <span className={cn("text-xs px-1.5 py-0.5 rounded border font-medium whitespace-nowrap", colors.text, colors.bg, colors.border)}>
       {displayLabel}
     </span>
   );
@@ -506,13 +506,13 @@ export default function ProspectsPage() {
       actions={
         <div className="flex items-center gap-2">
           {rangerCount > 0 && (
-            <Badge variant="neon" className="text-[10px] gap-1">
+            <Badge variant="neon" className="text-sm gap-1">
               <Radar className="h-2.5 w-2.5" />
               {rangerCount} Ranger
             </Badge>
           )}
           {prCount > 0 && (
-            <Badge variant="outline" className="text-[10px] gap-1 text-foreground border-border/30">
+            <Badge variant="outline" className="text-sm gap-1 text-foreground border-border/30">
               {prCount} PropRadar
             </Badge>
           )}
@@ -555,10 +555,10 @@ export default function ProspectsPage() {
             <span className="text-xs font-semibold text-primary-300">
               {stagingCount} in staging
             </span>
-            <span className="text-[10px] text-muted-foreground">
+            <span className="text-sm text-muted-foreground">
               Properties enriching and awaiting auto-promotion
             </span>
-            <span className="ml-auto text-[10px] text-primary-400 font-medium">View Staging &rarr;</span>
+            <span className="ml-auto text-sm text-primary-400 font-medium">View Staging &rarr;</span>
           </a>
         </motion.div>
       )}
@@ -584,7 +584,7 @@ export default function ProspectsPage() {
                 key={sf.value}
                 onClick={() => setSourceFilter(sf.value)}
                 className={cn(
-                  "text-[10px] px-2 py-1 rounded border transition-all",
+                  "text-sm px-2 py-1 rounded border transition-all",
                   sourceFilter === sf.value
                     ? "text-primary border-primary/20 bg-primary/8"
                     : "text-muted-foreground border-glass-border hover:text-foreground hover:border-white/10"
@@ -597,7 +597,7 @@ export default function ProspectsPage() {
 
           {/* Score label filter */}
           <div className="flex items-center gap-1">
-            <span className="text-[10px] text-muted-foreground font-medium">Score:</span>
+            <span className="text-sm text-muted-foreground font-medium">Score:</span>
             {SCORE_FILTERS.map((sf) => {
               const count = sf.value === "platinum" ? platinumCnt : sf.value === "gold" ? goldCnt : sf.value === "silver" ? silverCnt : sf.value === "bronze" ? bronzeCnt : prospects.length;
               return (
@@ -605,7 +605,7 @@ export default function ProspectsPage() {
                   key={sf.value}
                   onClick={() => setScoreFilter(sf.value)}
                   className={cn(
-                    "text-[10px] px-2 py-1 rounded border transition-all inline-flex items-center gap-1",
+                    "text-sm px-2 py-1 rounded border transition-all inline-flex items-center gap-1",
                     scoreFilter === sf.value
                       ? `${sf.color} border-current/20 bg-current/8`
                       : "text-muted-foreground border-glass-border hover:text-foreground hover:border-white/10"
@@ -620,7 +620,7 @@ export default function ProspectsPage() {
 
           {/* Distress signal filter */}
           <div className="flex items-center gap-1">
-            <span className="text-[10px] text-muted-foreground font-medium">Signal:</span>
+            <span className="text-sm text-muted-foreground font-medium">Signal:</span>
             {SIGNAL_FILTERS.map((sf) => {
               const count = sf.value
                 ? prospects.filter((p) => p.tags.includes(sf.value)).length
@@ -630,7 +630,7 @@ export default function ProspectsPage() {
                   key={sf.value}
                   onClick={() => setSignalFilter(sf.value)}
                   className={cn(
-                    "text-[10px] px-2 py-1 rounded border transition-all inline-flex items-center gap-1",
+                    "text-sm px-2 py-1 rounded border transition-all inline-flex items-center gap-1",
                     signalFilter === sf.value
                       ? `${sf.color} border-current/20 bg-current/8`
                       : "text-muted-foreground border-glass-border hover:text-foreground hover:border-white/10"
@@ -651,7 +651,7 @@ export default function ProspectsPage() {
                 key={field}
                 onClick={() => toggleSort(field)}
                 className={cn(
-                  "text-[10px] px-2 py-1 rounded border transition-all inline-flex items-center gap-1",
+                  "text-sm px-2 py-1 rounded border transition-all inline-flex items-center gap-1",
                   sortField === field
                     ? "text-primary border-primary/20 bg-primary/8"
                     : "text-muted-foreground border-glass-border hover:text-foreground"
@@ -663,7 +663,7 @@ export default function ProspectsPage() {
             ))}
           </div>
 
-          <Badge variant="outline" className="text-[10px] shrink-0">
+          <Badge variant="outline" className="text-sm shrink-0">
             {scoreFilter ? filteredProspects.length : totalCount} prospects
           </Badge>
         </div>
@@ -678,7 +678,7 @@ export default function ProspectsPage() {
                 Retry
               </Button>
             </div>
-            <p className="text-[10px] text-foreground/60 font-mono">
+            <p className="text-sm text-foreground/60 font-mono">
               Query: leads.select(&apos;*, properties(*)&apos;).eq(&apos;status&apos;, &apos;prospect&apos;) — Check browser console for full error
             </p>
           </div>
@@ -769,11 +769,11 @@ export default function ProspectsPage() {
                                 <span className="text-muted-foreground/30">·</span>
                               )}
                               {p.county && (
-                                <span className="text-[10px] text-muted-foreground/60">{p.county} Co.</span>
+                                <span className="text-sm text-muted-foreground/60">{p.county} Co.</span>
                               )}
                               <SourceBadge source={p.source} />
                               {p.owner_phone && (
-                                <span className="inline-flex items-center gap-0.5 text-[9px] text-foreground font-medium">
+                                <span className="inline-flex items-center gap-0.5 text-xs text-foreground font-medium">
                                   <Phone className="h-2.5 w-2.5" />
                                   Phone
                                 </span>
@@ -789,11 +789,11 @@ export default function ProspectsPage() {
                               <>
                                 <p className="text-xs font-mono text-foreground/90">{p.owner_phone}</p>
                                 {p.owner_email && (
-                                  <p className="text-[10px] text-muted-foreground/50 truncate max-w-[140px]">{p.owner_email}</p>
+                                  <p className="text-sm text-muted-foreground/50 truncate max-w-[140px]">{p.owner_email}</p>
                                 )}
                               </>
                             ) : (
-                              <span className="text-[10px] text-foreground/60 font-medium">No phone</span>
+                              <span className="text-sm text-foreground/60 font-medium">No phone</span>
                             )}
                           </div>
                         </td>
@@ -807,11 +807,11 @@ export default function ProspectsPage() {
                                   <SignalPill key={s} signal={s} stageLabel={getStageLabel(s, p)} />
                                 ))}
                                 {validSignals.length > 4 && (
-                                  <span className="text-[9px] text-muted-foreground/50 self-center">+{validSignals.length - 4}</span>
+                                  <span className="text-xs text-muted-foreground/50 self-center">+{validSignals.length - 4}</span>
                                 )}
                               </>
                             ) : (
-                              <span className="text-[10px] text-muted-foreground/40">No signals</span>
+                              <span className="text-sm text-muted-foreground/40">No signals</span>
                             )}
                           </div>
                         </td>
@@ -838,20 +838,20 @@ export default function ProspectsPage() {
                             {(() => {
                               const taxVal = Number(p.owner_flags?.tax_assessed_value) || 0;
                               return taxVal > 0 ? (
-                                <p className="text-[10px] text-muted-foreground/60 tabular-nums">
+                                <p className="text-sm text-muted-foreground/60 tabular-nums">
                                   Tax: ${taxVal >= 1000 ? `${Math.round(taxVal / 1000)}K` : taxVal.toLocaleString()}
                                 </p>
                               ) : null;
                             })()}
                             {p.equity_percent != null ? (
                               <p className={cn(
-                                "text-[10px] font-semibold tabular-nums",
+                                "text-sm font-semibold tabular-nums",
                                 p.equity_percent >= 60 ? "text-primary" : p.equity_percent >= 30 ? "text-foreground" : "text-muted-foreground/70"
                               )}>
                                 {Math.round(p.equity_percent)}% eq
                               </p>
                             ) : p.is_free_clear ? (
-                              <p className="text-[10px] font-semibold text-primary">Free &amp; Clear</p>
+                              <p className="text-sm font-semibold text-primary">Free &amp; Clear</p>
                             ) : null}
                           </div>
                         </td>
@@ -869,7 +869,7 @@ export default function ProspectsPage() {
 
                         {/* ── Last Activity ── */}
                         <td className="p-3">
-                          <div className="space-y-0.5 text-[10px]">
+                          <div className="space-y-0.5 text-sm">
                             {freshness && (
                               <p className="text-muted-foreground/60 flex items-center gap-1">
                                 <span className="inline-block h-1.5 w-1.5 rounded-full bg-primary/60 shrink-0" />
@@ -972,7 +972,7 @@ export default function ProspectsPage() {
         {loading && filteredProspects.length > 0 && (
           <div className="flex items-center justify-center py-3 text-muted-foreground gap-2">
             <Loader2 className="h-3 w-3 animate-spin" />
-            <span className="text-[10px]">Refreshing...</span>
+            <span className="text-sm">Refreshing...</span>
           </div>
         )}
       </GlassCard>

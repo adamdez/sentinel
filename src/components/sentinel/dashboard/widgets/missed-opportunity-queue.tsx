@@ -55,19 +55,19 @@ function QueueRow({ item, idx }: { item: OpportunityItem; idx: number }) {
       animate={{ opacity: 1, x: 0 }}
       transition={{ delay: 0.04 + idx * 0.03 }}
       onClick={() => openLead(item.leadId)}
-      className="w-full flex items-center gap-1.5 text-[11px] py-0.5 px-1 rounded hover:bg-white/5 transition-colors text-left"
+      className="w-full flex items-center gap-1.5 text-sm py-0.5 px-1 rounded hover:bg-white/5 transition-colors text-left"
     >
       <Icon className={`h-2.5 w-2.5 shrink-0 ${color}`} />
       <span className="truncate flex-1">{item.label}</span>
       {item.taskTitle && (
-        <span className="truncate max-w-[35%] text-muted-foreground/60 text-[10px] shrink-0">
+        <span className="truncate max-w-[35%] text-muted-foreground/60 text-sm shrink-0">
           {item.taskTitle}
         </span>
       )}
       <span className={`shrink-0 font-medium ${item.daysOverdue && item.daysOverdue > 0 ? "text-foreground" : "text-muted-foreground/50"}`}>
         {badge}
       </span>
-      <Badge variant="outline" className={`text-[8px] px-1 py-0 h-3.5 shrink-0 ${color}`}>
+      <Badge variant="outline" className={`text-xs px-1 py-0 h-3.5 shrink-0 ${color}`}>
         {label}
       </Badge>
     </motion.button>
@@ -129,7 +129,7 @@ export function MissedOpportunityQueue() {
   return (
     <div className="space-y-2.5">
       <div className="flex items-center justify-between">
-        <p className="text-[10px] text-muted-foreground/65">
+        <p className="text-sm text-muted-foreground/65">
           Leads and tasks where follow-up slipped through.
         </p>
         <button
@@ -160,7 +160,7 @@ export function MissedOpportunityQueue() {
                 <p className={`text-lg font-black leading-none ${count > 0 ? chipColor : "text-muted-foreground/30"}`}>
                   {count}
                 </p>
-                <p className="text-[8px] text-muted-foreground/50 mt-0.5">{chipLabel}</p>
+                <p className="text-xs text-muted-foreground/50 mt-0.5">{chipLabel}</p>
               </div>
             );
           })}
@@ -169,14 +169,14 @@ export function MissedOpportunityQueue() {
 
       {items.length > 0 ? (
         <div className="space-y-0.5">
-          <p className="text-[10px] uppercase tracking-widest text-muted-foreground">
+          <p className="text-sm uppercase tracking-widest text-muted-foreground">
             Top {Math.min(items.length, 6)} items
           </p>
           {items.slice(0, 6).map((item, i) => (
             <QueueRow key={`${item.signal}-${item.leadId}`} item={item} idx={i} />
           ))}
           {total > 6 && (
-            <p className="text-[10px] text-muted-foreground/40 pl-1">
+            <p className="text-sm text-muted-foreground/40 pl-1">
               +{total - 6} more — open Leads to review
             </p>
           )}

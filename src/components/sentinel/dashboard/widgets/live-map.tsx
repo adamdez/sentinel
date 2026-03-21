@@ -46,7 +46,7 @@ function PinWithRing({ top, left, size, color, ringColor, delay = 0, label }: {
       </div>
       {label && (
         <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1 opacity-0 group-hover/pin:opacity-100 transition-opacity pointer-events-none z-10">
-          <div className="bg-[rgba(12,12,22,0.4)] border border-white/[0.06] rounded px-1.5 py-0.5 text-[9px] whitespace-nowrap backdrop-blur-sm">
+          <div className="bg-[rgba(12,12,22,0.4)] border border-white/[0.06] rounded px-1.5 py-0.5 text-xs whitespace-nowrap backdrop-blur-sm">
             {label}
           </div>
         </div>
@@ -116,12 +116,12 @@ export function LiveMap() {
 
         <div className="absolute bottom-2 left-2 flex gap-1.5">
           {fireCount > 0 && (
-            <Badge variant="neon" className="text-[9px]">{fireCount} FIRE</Badge>
+            <Badge variant="neon" className="text-xs">{fireCount} FIRE</Badge>
           )}
           {hotCount > 0 && (
-            <Badge variant="outline" className="text-[9px] border-border/30 text-foreground">{hotCount} HOT</Badge>
+            <Badge variant="outline" className="text-xs border-border/30 text-foreground">{hotCount} HOT</Badge>
           )}
-          <Badge variant="outline" className="text-[9px]">{prospects.length} Total</Badge>
+          <Badge variant="outline" className="text-xs">{prospects.length} Total</Badge>
         </div>
       </div>
     </div>

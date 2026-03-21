@@ -73,7 +73,7 @@ function dirBad(curr: number | null, prev: number | null): Direction {
 }
 
 function DirectionBadge({ dir }: { dir: Direction }) {
-  if (dir === "new")  return <span className="text-[9px] text-muted-foreground/40">new</span>;
+  if (dir === "new")  return <span className="text-xs text-muted-foreground/40">new</span>;
   if (dir === "flat") return <Minus className="h-2.5 w-2.5 text-muted-foreground/30" />;
   if (dir === "up")   return <TrendingUp   className="h-2.5 w-2.5 text-foreground" />;
   return                     <TrendingDown className="h-2.5 w-2.5 text-foreground" />;
@@ -273,7 +273,7 @@ function DialerReviewPageInner() {
         <Link
           href="/dialer/review"
           className={cn(
-            "rounded-[10px] px-3 py-1.5 text-[11px] font-medium border transition-colors",
+            "rounded-[10px] px-3 py-1.5 text-sm font-medium border transition-colors",
             panel === "kpi"
               ? "border-primary/30 bg-primary/10 text-primary"
               : "border-white/[0.06] text-muted-foreground hover:border-white/10",
@@ -284,7 +284,7 @@ function DialerReviewPageInner() {
         <Link
           href="/dialer/review?panel=queue"
           className={cn(
-            "rounded-[10px] px-3 py-1.5 text-[11px] font-medium border transition-colors",
+            "rounded-[10px] px-3 py-1.5 text-sm font-medium border transition-colors",
             panel === "queue"
               ? "border-primary/30 bg-primary/10 text-primary"
               : "border-white/[0.06] text-muted-foreground hover:border-white/10",
@@ -294,7 +294,7 @@ function DialerReviewPageInner() {
         </Link>
         <Link
           href="/dialer/review/dossier-queue"
-          className="rounded-[10px] px-3 py-1.5 text-[11px] font-medium border border-white/[0.06] text-muted-foreground hover:border-white/10 transition-colors"
+          className="rounded-[10px] px-3 py-1.5 text-sm font-medium border border-white/[0.06] text-muted-foreground hover:border-white/10 transition-colors"
         >
           Dossier queue
         </Link>
@@ -314,7 +314,7 @@ function DialerReviewPageInner() {
                 {data.overdue_tasks_now} overdue dialer follow-up task{data.overdue_tasks_now !== 1 ? "s" : ""} —
                 callback was missed
               </span>
-              <span className="ml-auto text-foreground/70 text-[10px]">View Tasks →</span>
+              <span className="ml-auto text-foreground/70 text-sm">View Tasks →</span>
             </div>
           </Link>
         )}
@@ -347,23 +347,23 @@ function DialerReviewPageInner() {
                   Weekly Discipline
                 </h2>
               </div>
-              <span className="text-[10px] text-muted-foreground/40">
+              <span className="text-sm text-muted-foreground/40">
                 Updated {new Date(data.generated_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
               </span>
             </div>
 
             {/* Scrollable table */}
             <div className="overflow-x-auto">
-              <table className="w-full text-[11px] border-collapse">
+              <table className="w-full text-sm border-collapse">
                 <thead>
                   <tr className="border-b border-white/[0.04]">
-                    <th className="sticky left-0 bg-[#0d0d12] z-10 px-4 py-2.5 text-left text-[10px] font-medium text-muted-foreground/50 uppercase tracking-wider whitespace-nowrap min-w-[110px]">
+                    <th className="sticky left-0 bg-[#0d0d12] z-10 px-4 py-2.5 text-left text-sm font-medium text-muted-foreground/50 uppercase tracking-wider whitespace-nowrap min-w-[110px]">
                       Week
                     </th>
                     {COLS.map((col) => (
                       <th
                         key={col.key}
-                        className="px-3 py-2.5 text-right text-[10px] font-medium text-muted-foreground/50 uppercase tracking-wider whitespace-nowrap"
+                        className="px-3 py-2.5 text-right text-sm font-medium text-muted-foreground/50 uppercase tracking-wider whitespace-nowrap"
                       >
                         <div className="flex items-center justify-end gap-1">
                           <col.icon className={`h-2.5 w-2.5 ${col.iconColor}`} />
@@ -433,16 +433,16 @@ function DialerReviewPageInner() {
 
             {/* Legend */}
             <div className="flex flex-wrap items-center gap-x-4 gap-y-1 px-4 py-3 border-t border-white/[0.04]">
-              <span className="text-[10px] text-muted-foreground/40 flex items-center gap-1">
+              <span className="text-sm text-muted-foreground/40 flex items-center gap-1">
                 <TrendingUp className="h-2.5 w-2.5 text-foreground" /> better vs prior week
               </span>
-              <span className="text-[10px] text-muted-foreground/40 flex items-center gap-1">
+              <span className="text-sm text-muted-foreground/40 flex items-center gap-1">
                 <TrendingDown className="h-2.5 w-2.5 text-foreground" /> worse vs prior week
               </span>
-              <span className="text-[10px] text-muted-foreground/40">
+              <span className="text-sm text-muted-foreground/40">
                 — = no data / zero denominator
               </span>
-              <span className="text-[10px] text-muted-foreground/40 flex items-center gap-1">
+              <span className="text-sm text-muted-foreground/40 flex items-center gap-1">
                 <span className="inline-block h-1.5 w-1.5 rounded-full bg-primary" /> current week (partial)
               </span>
             </div>
@@ -452,10 +452,10 @@ function DialerReviewPageInner() {
         {/* ── Metric glossary ───────────────────────────────── */}
         {data && !loading && (
           <GlassCard hover={false} className="!p-4">
-            <h3 className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/60 mb-3">
+            <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground/60 mb-3">
               Metric notes
             </h3>
-            <dl className="space-y-1.5 text-[11px]">
+            <dl className="space-y-1.5 text-sm">
               <div className="flex gap-2">
                 <dt className="text-muted-foreground/50 whitespace-nowrap shrink-0 w-28">Task rate</dt>
                 <dd className="text-muted-foreground/70">Follow-up tasks created ÷ follow-up calls published. &lt;80% = task creation is leaking.</dd>
@@ -478,7 +478,7 @@ function DialerReviewPageInner() {
                 </dd>
               </div>
             </dl>
-            <p className="text-[10px] text-muted-foreground/30 mt-3">
+            <p className="text-sm text-muted-foreground/30 mt-3">
               Direction arrows (▲▼) compare current week to prior week. Current week is always partial.
               Rates show — when the denominator is zero — this is correct, not missing data.
             </p>
@@ -489,18 +489,18 @@ function DialerReviewPageInner() {
         <GlassCard hover={false} className="!p-4">
           <div className="flex items-center gap-2 mb-3">
             <HelpCircle className="h-3.5 w-3.5 text-muted-foreground/50" />
-            <h3 className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/60">
+            <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground/60">
               Qualification Gaps — Last 30 Days
             </h3>
             {qualGapsData && (
-              <span className="ml-auto text-[10px] text-muted-foreground/35">
+              <span className="ml-auto text-sm text-muted-foreground/35">
                 {qualGapsData.summary.leads_with_gaps} of {qualGapsData.summary.total_live_calls} live calls incomplete
               </span>
             )}
           </div>
 
           {qualGapsLoading && (
-            <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground/30">
+            <div className="flex items-center gap-1.5 text-sm text-muted-foreground/30">
               <Loader2 className="h-2.5 w-2.5 animate-spin" /> Loading…
             </div>
           )}
@@ -510,7 +510,7 @@ function DialerReviewPageInner() {
               {/* By-field counts */}
               {Object.keys(qualGapsData.summary.by_field).length > 0 && (
                 <div>
-                  <p className="text-[9px] uppercase tracking-wider text-muted-foreground/30 mb-1.5">
+                  <p className="text-xs uppercase tracking-wider text-muted-foreground/30 mb-1.5">
                     Most common missing fields
                   </p>
                   <div className="flex flex-wrap gap-1.5">
@@ -523,11 +523,11 @@ function DialerReviewPageInner() {
                       .map((item) => (
                         <span
                           key={item.key}
-                          className="inline-flex items-center gap-1 rounded-[6px] border border-white/[0.06] bg-white/[0.02] px-2 py-0.5 text-[10px] text-muted-foreground/60"
+                          className="inline-flex items-center gap-1 rounded-[6px] border border-white/[0.06] bg-white/[0.02] px-2 py-0.5 text-sm text-muted-foreground/60"
                         >
                           <HelpCircle className="h-2 w-2 opacity-40" aria-hidden="true" />
                           {item.label}
-                          <span className="text-[9px] text-muted-foreground/35 ml-0.5">
+                          <span className="text-xs text-muted-foreground/35 ml-0.5">
                             {qualGapsData.summary.by_field[item.key]}
                           </span>
                         </span>
@@ -539,7 +539,7 @@ function DialerReviewPageInner() {
               {/* Leads list */}
               {qualGapsData.leads.length > 0 ? (
                 <div>
-                  <p className="text-[9px] uppercase tracking-wider text-muted-foreground/30 mb-1.5">
+                  <p className="text-xs uppercase tracking-wider text-muted-foreground/30 mb-1.5">
                     Leads with incomplete qualification
                   </p>
                   <div className="space-y-1">
@@ -550,10 +550,10 @@ function DialerReviewPageInner() {
                       >
                         <div className="min-w-0 flex-1">
                           <div className="flex items-center gap-1.5">
-                            <span className="text-[11px] font-medium text-foreground/70 truncate">
+                            <span className="text-sm font-medium text-foreground/70 truncate">
                               {row.address ?? row.ownerName ?? "Unknown lead"}
                             </span>
-                            <span className="shrink-0 text-[9px] text-muted-foreground/30 capitalize">
+                            <span className="shrink-0 text-xs text-muted-foreground/30 capitalize">
                               {row.disposition.replace(/_/g, " ")}
                             </span>
                           </div>
@@ -561,25 +561,25 @@ function DialerReviewPageInner() {
                             {row.gapLabels.map((label) => (
                               <span
                                 key={label}
-                                className="inline-flex items-center rounded-[4px] border border-white/[0.05] bg-white/[0.02] px-1.5 py-px text-[9px] text-muted-foreground/40"
+                                className="inline-flex items-center rounded-[4px] border border-white/[0.05] bg-white/[0.02] px-1.5 py-px text-xs text-muted-foreground/40"
                               >
                                 {label}
                               </span>
                             ))}
                           </div>
                           {row.nextQuestion && (
-                            <p className="mt-0.5 text-[10px] text-muted-foreground/30 italic truncate">
+                            <p className="mt-0.5 text-sm text-muted-foreground/30 italic truncate">
                               Ask: {row.nextQuestion}
                             </p>
                           )}
                         </div>
                         <div className="shrink-0 text-right">
-                          <p className="text-[9px] text-muted-foreground/30">
+                          <p className="text-xs text-muted-foreground/30">
                             {new Date(row.lastCallDate).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
                           </p>
                           <Link
                             href={`/leads/${row.leadId}`}
-                            className="text-[9px] text-primary/40 hover:text-primary/70 transition-colors"
+                            className="text-xs text-primary/40 hover:text-primary/70 transition-colors"
                           >
                             View →
                           </Link>
@@ -589,7 +589,7 @@ function DialerReviewPageInner() {
                   </div>
                 </div>
               ) : (
-                <p className="text-[11px] text-muted-foreground/30">
+                <p className="text-sm text-muted-foreground/30">
                   No qualification gaps found in the last 30 days.
                 </p>
               )}
@@ -601,24 +601,24 @@ function DialerReviewPageInner() {
         <GlassCard hover={false} className="!p-4">
           <div className="flex items-center gap-2 mb-3">
             <AlertTriangle className="h-3.5 w-3.5 text-foreground/60" />
-            <h3 className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/60">
+            <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground/60">
               Objection Patterns — Last 30 Days
             </h3>
             {objSummary && (
-              <span className="ml-auto text-[10px] text-muted-foreground/30">
+              <span className="ml-auto text-sm text-muted-foreground/30">
                 {objSummary.total_tagged} lead{objSummary.total_tagged !== 1 ? "s" : ""} tagged
               </span>
             )}
           </div>
 
           {objLoading && (
-            <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground/30">
+            <div className="flex items-center gap-1.5 text-sm text-muted-foreground/30">
               <Loader2 className="h-2.5 w-2.5 animate-spin" /> Loading…
             </div>
           )}
 
           {!objLoading && (!objSummary || objSummary.by_tag.length === 0) && (
-            <p className="text-[11px] text-muted-foreground/30 italic">
+            <p className="text-sm text-muted-foreground/30 italic">
               No objection tags recorded yet. Tags are captured when Logan selects an objection in the post-call panel.
             </p>
           )}
@@ -630,14 +630,14 @@ function DialerReviewPageInner() {
                   {/* Bar */}
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center justify-between mb-0.5">
-                      <span className="text-[11px] font-medium text-foreground/80 truncate">{item.label}</span>
+                      <span className="text-sm font-medium text-foreground/80 truncate">{item.label}</span>
                       <div className="flex items-center gap-2 ml-2 shrink-0">
-                        <span className="text-[10px] text-muted-foreground/50">{item.total} total</span>
+                        <span className="text-sm text-muted-foreground/50">{item.total} total</span>
                         {item.open > 0 && (
-                          <span className="text-[10px] text-foreground/70">{item.open} open</span>
+                          <span className="text-sm text-foreground/70">{item.open} open</span>
                         )}
                         {item.resolved > 0 && (
-                          <span className="text-[10px] text-foreground/50">{item.resolved} resolved</span>
+                          <span className="text-sm text-foreground/50">{item.resolved} resolved</span>
                         )}
                       </div>
                     </div>
@@ -656,7 +656,7 @@ function DialerReviewPageInner() {
               {/* Recent unresolved — compact list with one-click resolve */}
               {objSummary.recent.filter((r) => r.status === "open").length > 0 && (
                 <div className="mt-3 pt-3 border-t border-white/[0.04]">
-                  <p className="text-[9px] font-semibold uppercase tracking-wider text-muted-foreground/40 mb-1.5">
+                  <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground/40 mb-1.5">
                     Recent unresolved
                   </p>
                   <div className="space-y-1">
@@ -664,20 +664,20 @@ function DialerReviewPageInner() {
                       .filter((r) => r.status === "open")
                       .slice(0, 5)
                       .map((r) => (
-                        <div key={r.id} className="flex items-center gap-2 text-[11px]">
+                        <div key={r.id} className="flex items-center gap-2 text-sm">
                           <span className="flex-1 text-foreground/70 truncate">
                             {(OBJECTION_TAG_LABELS as Record<string, string>)[r.tag] ?? r.tag}
                             {r.note && (
                               <span className="text-muted-foreground/40 ml-1">— {r.note}</span>
                             )}
                           </span>
-                          <span className="text-[10px] text-muted-foreground/30 shrink-0">
+                          <span className="text-sm text-muted-foreground/30 shrink-0">
                             {new Date(r.created_at).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
                           </span>
                           <button
                             type="button"
                             onClick={() => resolveTag(r.id)}
-                            className="shrink-0 flex items-center gap-0.5 rounded-[5px] border border-white/[0.06] bg-white/[0.02] px-1.5 py-0.5 text-[9px] text-muted-foreground/40 hover:text-foreground hover:border-border/30 transition-colors"
+                            className="shrink-0 flex items-center gap-0.5 rounded-[5px] border border-white/[0.06] bg-white/[0.02] px-1.5 py-0.5 text-xs text-muted-foreground/40 hover:text-foreground hover:border-border/30 transition-colors"
                             title="Mark resolved"
                           >
                             <X className="h-2.5 w-2.5" />
@@ -696,24 +696,24 @@ function DialerReviewPageInner() {
         <GlassCard hover={false} className="!p-4">
           <div className="flex items-center gap-2 mb-3">
             <GitCompare className="h-3.5 w-3.5 text-foreground/60" />
-            <h3 className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/60">
+            <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground/60">
               Contradiction Flags — Last 14 Days
             </h3>
             {!contradictionLoading && (
-              <span className="ml-auto text-[10px] text-muted-foreground/35">
+              <span className="ml-auto text-sm text-muted-foreground/35">
                 {contradictionRows.length} unreviewed
               </span>
             )}
           </div>
 
           {contradictionLoading && (
-            <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground/30">
+            <div className="flex items-center gap-1.5 text-sm text-muted-foreground/30">
               <Loader2 className="h-2.5 w-2.5 animate-spin" /> Loading…
             </div>
           )}
 
           {!contradictionLoading && contradictionRows.length === 0 && (
-            <p className="text-[11px] text-muted-foreground/30">No unreviewed contradiction flags in the last 14 days.</p>
+            <p className="text-sm text-muted-foreground/30">No unreviewed contradiction flags in the last 14 days.</p>
           )}
 
           {!contradictionLoading && contradictionRows.length > 0 && (
@@ -728,7 +728,7 @@ function DialerReviewPageInner() {
                     return (
                       <span
                         key={k}
-                        className={`inline-flex items-center gap-1 rounded-[6px] border px-2 py-0.5 text-[10px] ${
+                        className={`inline-flex items-center gap-1 rounded-[6px] border px-2 py-0.5 text-sm ${
                           hasFlagSeverity
                             ? "border-border/25 bg-muted/[0.06] text-foreground/80"
                             : "border-border/20 bg-muted/[0.05] text-foreground/70"
@@ -752,14 +752,14 @@ function DialerReviewPageInner() {
                     className="flex items-start gap-2 rounded-[8px] border border-white/[0.04] bg-white/[0.015] px-2.5 py-1.5"
                   >
                     <div className="min-w-0 flex-1">
-                      <p className="text-[10px] text-foreground/65 leading-snug line-clamp-2">{row.description}</p>
-                      <p className="text-[9px] text-muted-foreground/30 mt-0.5">
+                      <p className="text-sm text-foreground/65 leading-snug line-clamp-2">{row.description}</p>
+                      <p className="text-xs text-muted-foreground/30 mt-0.5">
                         {new Date(row.created_at).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
                       </p>
                     </div>
                     <Link
                       href={`/leads/${row.lead_id}`}
-                      className="shrink-0 text-[9px] text-primary/40 hover:text-primary/70 transition-colors"
+                      className="shrink-0 text-xs text-primary/40 hover:text-primary/70 transition-colors"
                     >
                       View →
                     </Link>
@@ -775,23 +775,23 @@ function DialerReviewPageInner() {
           <div className="flex items-center justify-between mb-3">
             <div className="flex items-center gap-2">
               <BookMarked className="h-3.5 w-3.5 text-muted-foreground/40" />
-              <h3 className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/60">
+              <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground/60">
                 Active Prompt Versions
               </h3>
             </div>
             <Link
               href="/settings/prompt-registry"
-              className="text-[9px] text-muted-foreground/30 hover:text-muted-foreground/70 transition-colors"
+              className="text-xs text-muted-foreground/30 hover:text-muted-foreground/70 transition-colors"
             >
               Manage →
             </Link>
           </div>
           {promptsLoading ? (
-            <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground/30">
+            <div className="flex items-center gap-1.5 text-sm text-muted-foreground/30">
               <Loader2 className="h-2.5 w-2.5 animate-spin" /> Loading…
             </div>
           ) : promptVersions.length === 0 ? (
-            <p className="text-[11px] text-muted-foreground/30">No prompt versions registered.</p>
+            <p className="text-sm text-muted-foreground/30">No prompt versions registered.</p>
           ) : (
             <div className="space-y-2">
               {promptVersions.map(v => (
@@ -812,23 +812,23 @@ function DialerReviewPageInner() {
           <div className="flex items-center justify-between mb-3">
             <div className="flex items-center gap-2">
               <Radio className="h-3.5 w-3.5 text-muted-foreground/40" />
-              <h3 className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/60">
+              <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground/60">
                 Active Voice Config
               </h3>
             </div>
             <Link
               href="/settings/voice-registry"
-              className="text-[9px] text-muted-foreground/30 hover:text-muted-foreground/70 transition-colors"
+              className="text-xs text-muted-foreground/30 hover:text-muted-foreground/70 transition-colors"
             >
               Manage →
             </Link>
           </div>
           {voiceLoading ? (
-            <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground/30">
+            <div className="flex items-center gap-1.5 text-sm text-muted-foreground/30">
               <Loader2 className="h-2.5 w-2.5 animate-spin" /> Loading…
             </div>
           ) : voiceVersions.length === 0 ? (
-            <p className="text-[11px] text-muted-foreground/30">No voice registry entries found.</p>
+            <p className="text-sm text-muted-foreground/30">No voice registry entries found.</p>
           ) : (
             <div className="space-y-1.5">
               {voiceVersions
@@ -836,10 +836,10 @@ function DialerReviewPageInner() {
                 .map(v => {
                   const label = (VOICE_WORKFLOW_LABELS as Record<string, string>)[v.workflow] ?? v.workflow;
                   return (
-                    <div key={`${v.workflow}@${v.version}`} className="flex items-start gap-2 text-[10px]">
+                    <div key={`${v.workflow}@${v.version}`} className="flex items-start gap-2 text-sm">
                       <span className="text-muted-foreground/50 w-[120px] shrink-0">{label}</span>
-                      <code className="text-foreground/50 font-mono text-[9px]">v{v.version}</code>
-                      <span className={`text-[8px] px-1 py-0.5 rounded border ${
+                      <code className="text-foreground/50 font-mono text-xs">v{v.version}</code>
+                      <span className={`text-xs px-1 py-0.5 rounded border ${
                         v.registry_type === "handoff_rule"
                           ? "bg-muted/10 text-foreground border-border/20"
                           : "bg-primary/10 text-primary border-primary/20"
@@ -850,7 +850,7 @@ function DialerReviewPageInner() {
                   );
                 })}
               {voiceVersions.filter(v => v.status === "active").length === 0 && (
-                <p className="text-[10px] text-foreground/60">No active entries. Check voice-registry settings.</p>
+                <p className="text-sm text-foreground/60">No active entries. Check voice-registry settings.</p>
               )}
             </div>
           )}
@@ -861,27 +861,27 @@ function DialerReviewPageInner() {
           <div className="flex items-center justify-between mb-2">
             <div className="flex items-center gap-2">
               <MessageSquare className="h-3.5 w-3.5 text-muted-foreground/40" />
-              <h3 className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/60">
+              <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground/60">
                 Seller Language
               </h3>
-              <code className="text-[8px] font-mono text-muted-foreground/25">v{TRUST_LANGUAGE_VERSION}</code>
+              <code className="text-xs font-mono text-muted-foreground/25">v{TRUST_LANGUAGE_VERSION}</code>
             </div>
             <Link
               href="/settings/trust-language"
-              className="text-[9px] text-muted-foreground/30 hover:text-muted-foreground/70 transition-colors"
+              className="text-xs text-muted-foreground/30 hover:text-muted-foreground/70 transition-colors"
             >
               View all →
             </Link>
           </div>
           <div className="space-y-1">
             {getFirstCallSnippets().map(s => (
-              <div key={s.key} className="flex items-start gap-2 text-[9px]">
+              <div key={s.key} className="flex items-start gap-2 text-xs">
                 <span className="text-muted-foreground/40 w-[130px] shrink-0 truncate">{s.label}</span>
                 <span className="text-muted-foreground/30 italic line-clamp-1">{s.summary}</span>
               </div>
             ))}
           </div>
-          <p className="text-[8px] text-muted-foreground/20 mt-2">
+          <p className="text-xs text-muted-foreground/20 mt-2">
             {getAllSnippets().length} snippets active · First-call priority: {getFirstCallSnippets().length}
           </p>
         </GlassCard>
@@ -894,75 +894,75 @@ function DialerReviewPageInner() {
           <div className="flex flex-wrap gap-2">
             <Link
               href="/tasks"
-              className="flex items-center gap-1.5 rounded-[10px] border border-white/[0.07] bg-white/[0.03] px-3 py-2 text-[11px] text-muted-foreground hover:text-foreground hover:border-white/[0.12] transition-colors"
+              className="flex items-center gap-1.5 rounded-[10px] border border-white/[0.07] bg-white/[0.03] px-3 py-2 text-sm text-muted-foreground hover:text-foreground hover:border-white/[0.12] transition-colors"
             >
               <CheckSquare className="h-3 w-3" />
               Open Tasks
             </Link>
             <Link
               href="/leads"
-              className="flex items-center gap-1.5 rounded-[10px] border border-white/[0.07] bg-white/[0.03] px-3 py-2 text-[11px] text-muted-foreground hover:text-foreground hover:border-white/[0.12] transition-colors"
+              className="flex items-center gap-1.5 rounded-[10px] border border-white/[0.07] bg-white/[0.03] px-3 py-2 text-sm text-muted-foreground hover:text-foreground hover:border-white/[0.12] transition-colors"
             >
               <Phone className="h-3 w-3" />
               Leads
             </Link>
             <Link
               href="/dialer"
-              className="flex items-center gap-1.5 rounded-[10px] border border-white/[0.07] bg-white/[0.03] px-3 py-2 text-[11px] text-muted-foreground hover:text-foreground hover:border-white/[0.12] transition-colors"
+              className="flex items-center gap-1.5 rounded-[10px] border border-white/[0.07] bg-white/[0.03] px-3 py-2 text-sm text-muted-foreground hover:text-foreground hover:border-white/[0.12] transition-colors"
             >
               <RefreshCw className="h-3 w-3" />
               Back to Dialer
             </Link>
             <Link
               href="/dialer/review/dossier-queue"
-              className="flex items-center gap-1.5 rounded-[10px] border border-border/20 bg-muted/[0.04] px-3 py-2 text-[11px] text-foreground/70 dark:text-foreground/70 hover:text-foreground dark:hover:text-foreground hover:border-border/30 transition-colors"
+              className="flex items-center gap-1.5 rounded-[10px] border border-border/20 bg-muted/[0.04] px-3 py-2 text-sm text-foreground/70 dark:text-foreground/70 hover:text-foreground dark:hover:text-foreground hover:border-border/30 transition-colors"
             >
               <FileText className="h-3 w-3" />
               Dossier Review →
             </Link>
             <Link
               href="/buyers"
-              className="flex items-center gap-1.5 rounded-[10px] border border-white/[0.07] bg-white/[0.03] px-3 py-2 text-[11px] text-muted-foreground hover:text-foreground hover:border-white/[0.12] transition-colors"
+              className="flex items-center gap-1.5 rounded-[10px] border border-white/[0.07] bg-white/[0.03] px-3 py-2 text-sm text-muted-foreground hover:text-foreground hover:border-white/[0.12] transition-colors"
             >
               <AlertTriangle className="h-3 w-3" />
               Buyers
               {staleBuyerCount > 0 && (
-                <span className="ml-1 px-1.5 py-0.5 rounded-full bg-muted/20 text-foreground dark:text-foreground text-[9px] font-medium">
+                <span className="ml-1 px-1.5 py-0.5 rounded-full bg-muted/20 text-foreground dark:text-foreground text-xs font-medium">
                   {staleBuyerCount} stale
                 </span>
               )}
             </Link>
             <Link
               href="/dialer/war-room"
-              className="flex items-center gap-1.5 rounded-[10px] border border-primary/20 bg-primary/[0.04] px-3 py-2 text-[11px] text-primary/70 hover:text-primary hover:border-primary/30 transition-colors"
+              className="flex items-center gap-1.5 rounded-[10px] border border-primary/20 bg-primary/[0.04] px-3 py-2 text-sm text-primary/70 hover:text-primary hover:border-primary/30 transition-colors"
             >
               <TrendingUp className="h-3 w-3" />
               Call Review →
             </Link>
             <Link
               href="/settings/voice-registry"
-              className="flex items-center gap-1.5 rounded-[10px] border border-white/[0.07] bg-white/[0.03] px-3 py-2 text-[11px] text-muted-foreground hover:text-foreground hover:border-white/[0.12] transition-colors"
+              className="flex items-center gap-1.5 rounded-[10px] border border-white/[0.07] bg-white/[0.03] px-3 py-2 text-sm text-muted-foreground hover:text-foreground hover:border-white/[0.12] transition-colors"
             >
               <Radio className="h-3 w-3" />
               Voice Registry
             </Link>
             <Link
               href="/settings/trust-language"
-              className="flex items-center gap-1.5 rounded-[10px] border border-white/[0.07] bg-white/[0.03] px-3 py-2 text-[11px] text-muted-foreground hover:text-foreground hover:border-white/[0.12] transition-colors"
+              className="flex items-center gap-1.5 rounded-[10px] border border-white/[0.07] bg-white/[0.03] px-3 py-2 text-sm text-muted-foreground hover:text-foreground hover:border-white/[0.12] transition-colors"
             >
               <MessageSquare className="h-3 w-3" />
               Trust Language
             </Link>
             <Link
               href="/settings/outbound-pilot"
-              className="flex items-center gap-1.5 rounded-[10px] border border-border/20 bg-muted/[0.04] px-3 py-2 text-[11px] text-foreground/70 dark:text-foreground/70 hover:text-foreground dark:hover:text-foreground hover:border-border/30 transition-colors"
+              className="flex items-center gap-1.5 rounded-[10px] border border-border/20 bg-muted/[0.04] px-3 py-2 text-sm text-foreground/70 dark:text-foreground/70 hover:text-foreground dark:hover:text-foreground hover:border-border/30 transition-colors"
             >
               <ShieldAlert className="h-3 w-3" />
               Outbound Prep
             </Link>
             <Link
               href="/dialer/review/eval"
-              className="flex items-center gap-1.5 rounded-[10px] border border-border/20 bg-muted/[0.04] px-3 py-2 text-[11px] text-foreground/70 dark:text-foreground/70 hover:text-foreground dark:hover:text-foreground hover:border-border/30 transition-colors"
+              className="flex items-center gap-1.5 rounded-[10px] border border-border/20 bg-muted/[0.04] px-3 py-2 text-sm text-foreground/70 dark:text-foreground/70 hover:text-foreground dark:hover:text-foreground hover:border-border/30 transition-colors"
             >
               <Brain className="h-3 w-3" />
               AI Eval →

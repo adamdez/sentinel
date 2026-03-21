@@ -70,7 +70,7 @@ export function DealCalculatorTab({
               placeholder="Enter ARV"
               className="w-full bg-white/5 border border-white/10 rounded px-3 py-2 font-mono text-lg text-foreground font-bold focus:outline-none focus:border-primary-500/50"
             />
-            <p className="text-[10px] text-muted-foreground mt-1">
+            <p className="text-sm text-muted-foreground mt-1">
               {arvSource === "comps" ? "Auto-filled from comps" : arvSource === "avm" ? "Auto-filled from estimated value" : "Enter manually or run comps"}
             </p>
           </div>
@@ -106,8 +106,8 @@ export function DealCalculatorTab({
         <div className="absolute top-0 right-0 w-32 h-32 bg-muted/10 blur-3xl rounded-full" />
 
         <h3 className="text-xs font-bold text-foreground uppercase tracking-widest mb-1">Max Allowable Offer (MAO)</h3>
-        <p className="text-[10px] text-muted-foreground mb-1 font-mono">(ARV × {maoPercentage}%) − Repairs</p>
-        <p className="text-[10px] text-foreground/70 mb-6">What-if scenario — not your final offer</p>
+        <p className="text-sm text-muted-foreground mb-1 font-mono">(ARV × {maoPercentage}%) − Repairs</p>
+        <p className="text-sm text-foreground/70 mb-6">What-if scenario — not your final offer</p>
 
         <div className="text-6xl font-black tracking-tighter text-primary drop-shadow-[0_0_12px_rgba(0,0,0,0.12)]">
           {mao > 0 ? formatCurrency(mao) : "$0"}

@@ -67,11 +67,11 @@ export function PromptVersionBadge({
   if (compact) {
     return (
       <div ref={ref} className="relative inline-flex items-center gap-1">
-        <span className="font-mono text-[10px] text-muted-foreground/50">
+        <span className="font-mono text-sm text-muted-foreground/50">
           {workflow}@{version}
         </span>
         {statusStyle && (
-          <span className={`text-[9px] px-1 py-0.5 rounded border font-medium ${statusStyle.classes}`}>
+          <span className={`text-xs px-1 py-0.5 rounded border font-medium ${statusStyle.classes}`}>
             {statusStyle.label}
           </span>
         )}
@@ -94,13 +94,13 @@ export function PromptVersionBadge({
   return (
     <div ref={ref} className="relative inline-flex items-start gap-1.5 flex-wrap">
       <div className="flex items-center gap-1.5">
-        <span className="font-mono text-[11px] text-muted-foreground/60">
+        <span className="font-mono text-sm text-muted-foreground/60">
           {workflow}
         </span>
-        <span className="text-[10px] text-muted-foreground/30">v{version}</span>
+        <span className="text-sm text-muted-foreground/30">v{version}</span>
       </div>
       {statusStyle && (
-        <span className={`text-[10px] px-1.5 py-0.5 rounded-full border font-medium ${statusStyle.classes}`}>
+        <span className={`text-sm px-1.5 py-0.5 rounded-full border font-medium ${statusStyle.classes}`}>
           {statusStyle.label}
         </span>
       )}
@@ -144,17 +144,17 @@ function TooltipCard({
       </div>
 
       {meta.description && (
-        <p className="text-[11px] text-muted-foreground leading-snug">
+        <p className="text-sm text-muted-foreground leading-snug">
           {meta.description}
         </p>
       )}
 
       {meta.changelog && (
         <div className="border-t border-border/40 pt-2">
-          <p className="text-[9px] font-semibold uppercase tracking-wider text-muted-foreground/40 mb-1">
+          <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground/40 mb-1">
             What changed
           </p>
-          <p className="text-[11px] text-muted-foreground/70 leading-snug italic">
+          <p className="text-sm text-muted-foreground/70 leading-snug italic">
             {meta.changelog}
           </p>
         </div>

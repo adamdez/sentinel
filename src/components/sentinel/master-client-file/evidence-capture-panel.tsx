@@ -241,7 +241,7 @@ export function EvidenceCapturePanel({
             Research Evidence
           </span>
           {artifactCount > 0 && (
-            <Badge variant="secondary" className="text-[10px] h-4 px-1.5">
+            <Badge variant="secondary" className="text-sm h-4 px-1.5">
               {artifactCount}
             </Badge>
           )}
@@ -313,11 +313,11 @@ export function EvidenceCapturePanel({
               }
               <div className="min-w-0">
                 <p className="font-medium">{captureWarning.label} source added</p>
-                <p className="text-[10px] opacity-80 mt-0.5">{captureWarning.description}</p>
+                <p className="text-sm opacity-80 mt-0.5">{captureWarning.description}</p>
               </div>
               <button
                 onClick={() => setCaptureWarning(null)}
-                className="ml-auto text-[10px] opacity-50 hover:opacity-90 shrink-0"
+                className="ml-auto text-sm opacity-50 hover:opacity-90 shrink-0"
               >
                 ✕
               </button>
@@ -449,24 +449,24 @@ export function EvidenceCapturePanel({
                   )}
                   {compilePolicyFlags.length > 0 && (
                     <div className="rounded-[8px] border border-border/20 bg-muted/[0.04] px-2.5 py-2 space-y-1">
-                      <div className="flex items-center gap-1.5 text-[10px] text-foreground/80 font-medium">
+                      <div className="flex items-center gap-1.5 text-sm text-foreground/80 font-medium">
                         <AlertTriangle className="h-3 w-3 shrink-0" />
                         {compilePolicyFlags.length} source{compilePolicyFlags.length !== 1 ? "s" : ""} need review attention
                       </div>
                       {compilePolicyFlags.map((f, i) => (
-                        <div key={i} className="flex items-center gap-1.5 text-[10px] text-muted-foreground/60">
+                        <div key={i} className="flex items-center gap-1.5 text-sm text-muted-foreground/60">
                           <span className={`font-medium ${f.policy === "blocked" ? "text-foreground/70" : "text-foreground/60"}`}>
                             {f.policy === "blocked" ? "Blocked" : "Review required"}:
                           </span>
                           {SOURCE_TYPE_LABELS[f.source_type as ArtifactSourceType] ?? f.source_type}
                         </div>
                       ))}
-                      <p className="text-[9px] text-muted-foreground/40 pt-0.5">
+                      <p className="text-xs text-muted-foreground/40 pt-0.5">
                         These sources are flagged in the dossier record. Review carefully before promoting.
                       </p>
                     </div>
                   )}
-                  <p className="text-[10px] text-muted-foreground/60">
+                  <p className="text-sm text-muted-foreground/60">
                     Compiling creates a <strong>proposed</strong> dossier — it must be reviewed and approved before it updates the lead record.
                   </p>
                 </div>
@@ -503,16 +503,16 @@ function ArtifactRowItem({
     <div className="flex items-start justify-between gap-2 px-3 py-2 border-b border-border/50 last:border-0 group">
       <div className="flex-1 min-w-0 space-y-0.5">
         <div className="flex items-center gap-1.5 flex-wrap">
-          <Badge variant="outline" className="text-[10px] h-4 px-1 shrink-0">
+          <Badge variant="outline" className="text-sm h-4 px-1 shrink-0">
             {SOURCE_TYPE_LABELS[artifact.source_type] ?? artifact.source_type}
           </Badge>
           {clientPolicy !== "approved" && (
-            <Badge variant="outline" className={`text-[9px] h-3.5 px-1 shrink-0 ${policyBadge.className}`}>
+            <Badge variant="outline" className={`text-xs h-3.5 px-1 shrink-0 ${policyBadge.className}`}>
               {policyBadge.label}
             </Badge>
           )}
           <span className="text-xs font-medium truncate">{label}</span>
-          <span className="text-[10px] text-muted-foreground shrink-0">{capturedDate}</span>
+          <span className="text-sm text-muted-foreground shrink-0">{capturedDate}</span>
         </div>
         {artifact.extracted_notes && (
           <p className="text-xs text-muted-foreground leading-snug line-clamp-2">
@@ -525,14 +525,14 @@ function ArtifactRowItem({
             target="_blank"
             rel="noopener noreferrer"
             onClick={e => e.stopPropagation()}
-            className="inline-flex items-center gap-1 text-[10px] text-foreground dark:text-foreground hover:underline"
+            className="inline-flex items-center gap-1 text-sm text-foreground dark:text-foreground hover:underline"
           >
             <ExternalLink className="h-2.5 w-2.5" />
             View source
           </a>
         )}
         {artifact.dossier_id && (
-          <span className="text-[10px] text-foreground dark:text-foreground">
+          <span className="text-sm text-foreground dark:text-foreground">
             ✓ Compiled into dossier
           </span>
         )}

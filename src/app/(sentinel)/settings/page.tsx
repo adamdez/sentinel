@@ -82,10 +82,10 @@ export default function SettingsPage() {
               <Palette className="h-4 w-4 text-foreground" />
               Appearance
             </h3>
-            <p className="text-[12px] text-muted-foreground mb-3">
+            <p className="text-xs text-muted-foreground mb-3">
               Light or Dark monochrome shell — glass panels, grayscale chrome, and high-contrast text. Preference is saved on this device.
             </p>
-            <label htmlFor="sentinel-theme" className="text-[11px] uppercase tracking-wide text-muted-foreground block mb-1.5">
+            <label htmlFor="sentinel-theme" className="text-sm uppercase tracking-wide text-muted-foreground block mb-1.5">
               Theme
             </label>
             <select
@@ -101,7 +101,7 @@ export default function SettingsPage() {
                 </option>
               ))}
             </select>
-            <p className="text-[11px] text-muted-foreground mt-2">
+            <p className="text-sm text-muted-foreground mt-2">
               {SENTINEL_THEMES.find((t) => t.id === theme)?.description}
             </p>
           </GlassCard>
@@ -111,9 +111,9 @@ export default function SettingsPage() {
             <h3 className="text-sm font-semibold mb-1 flex items-center gap-2">
               <Phone className="h-4 w-4 text-foreground" />
               My Personal Cell
-              <Badge variant="outline" className="text-[9px]">Warm Transfer</Badge>
+              <Badge variant="outline" className="text-xs">Warm Transfer</Badge>
             </h3>
-            <p className="text-[11px] text-muted-foreground/60 mb-3">
+            <p className="text-sm text-muted-foreground/60 mb-3">
               Twilio will ring this number when you dial from the Dialer. Caller ID shows &quot;Dominion Homes&quot;.
             </p>
             <div className="flex items-center gap-2">
@@ -140,7 +140,7 @@ export default function SettingsPage() {
               </Button>
             </div>
             {currentUser.personal_cell && (
-              <p className="text-[10px] text-muted-foreground mt-2 flex items-center gap-1">
+              <p className="text-sm text-muted-foreground mt-2 flex items-center gap-1">
                 <span className="h-1.5 w-1.5 rounded-full bg-foreground/50 animate-pulse" />
                 Active — calls transfer to {currentUser.personal_cell}
               </p>
@@ -155,8 +155,8 @@ export default function SettingsPage() {
               <SlidersHorizontal className="h-4 w-4 text-primary" />
               Control plane
             </h3>
-            <p className="text-[11px] text-muted-foreground/60">
-              Agent + voice feature flags backed by <code className="text-[10px]">feature_flags</code>.
+            <p className="text-sm text-muted-foreground/60">
+              Agent + voice feature flags backed by <code className="text-sm">feature_flags</code>.
             </p>
             <Link
               href="/settings/agent-controls"
@@ -171,7 +171,7 @@ export default function SettingsPage() {
               <MapPin className="h-4 w-4 text-foreground" />
               Property lookup
             </h3>
-            <p className="text-[11px] text-muted-foreground/60">
+            <p className="text-sm text-muted-foreground/60">
               Multi-provider property search and promote-to-lead.
             </p>
             <Link href="/properties/lookup" className="inline-flex text-xs text-foreground hover:underline font-medium">

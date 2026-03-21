@@ -118,7 +118,7 @@ function PolicyRowItem({
         <p className="text-sm font-medium text-foreground/85">
           {SOURCE_TYPE_LABELS[row.source_type] ?? row.source_type}
         </p>
-        <p className="text-[10px] text-muted-foreground/40 mt-0.5 font-mono">{row.source_type}</p>
+        <p className="text-sm text-muted-foreground/40 mt-0.5 font-mono">{row.source_type}</p>
       </div>
 
       {/* Policy toggle buttons */}
@@ -131,7 +131,7 @@ function PolicyRowItem({
               key={opt.value}
               onClick={() => handleChange(opt.value)}
               disabled={saving}
-              className={`flex items-center gap-1 rounded-[8px] border px-2.5 py-1 text-[11px] font-medium transition-all ${opt.style} ${
+              className={`flex items-center gap-1 rounded-[8px] border px-2.5 py-1 text-sm font-medium transition-all ${opt.style} ${
                 isActive ? "ring-1 ring-current opacity-100" : "opacity-40 hover:opacity-70"
               }`}
             >
@@ -145,14 +145,14 @@ function PolicyRowItem({
 
       {/* Description */}
       <div className="flex-1 min-w-0 hidden lg:block">
-        <p className="text-[11px] text-muted-foreground/50 leading-snug">
+        <p className="text-sm text-muted-foreground/50 leading-snug">
           {meta.policy_descriptions[row.policy] ?? ""}
         </p>
         {row.rationale && (
-          <p className="text-[10px] text-muted-foreground/30 mt-0.5 italic">{row.rationale}</p>
+          <p className="text-sm text-muted-foreground/30 mt-0.5 italic">{row.rationale}</p>
         )}
         {row.updated_at && (
-          <p className="text-[9px] text-muted-foreground/25 mt-0.5">
+          <p className="text-xs text-muted-foreground/25 mt-0.5">
             Updated {new Date(row.updated_at).toLocaleDateString()}
           </p>
         )}
@@ -160,13 +160,13 @@ function PolicyRowItem({
 
       {/* Active badge */}
       <div className="shrink-0 hidden sm:block">
-        <Badge variant="outline" className={`text-[9px] h-4 px-1.5 ${activeOpt.style}`}>
+        <Badge variant="outline" className={`text-xs h-4 px-1.5 ${activeOpt.style}`}>
           <ActiveIcon className="h-2.5 w-2.5 mr-0.5" />
           {activeOpt.label}
         </Badge>
       </div>
 
-      {error && <p className="text-[10px] text-destructive">{error}</p>}
+      {error && <p className="text-sm text-destructive">{error}</p>}
     </div>
   );
 }
@@ -228,7 +228,7 @@ export default function SourcePoliciesPage() {
       actions={
         <Link
           href="/settings"
-          className="flex items-center gap-1.5 rounded-[10px] border border-white/[0.07] bg-white/[0.03] px-3 py-1.5 text-[11px] text-muted-foreground hover:text-foreground transition-colors"
+          className="flex items-center gap-1.5 rounded-[10px] border border-white/[0.07] bg-white/[0.03] px-3 py-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors"
         >
           <ChevronLeft className="h-3 w-3" />
           Settings
@@ -243,7 +243,7 @@ export default function SourcePoliciesPage() {
             <Info className="h-3.5 w-3.5 text-primary/50 shrink-0 mt-0.5" />
             <div className="space-y-1">
               <p className="text-xs font-medium text-foreground/80">How source policies work</p>
-              <ul className="text-[11px] text-muted-foreground/60 space-y-0.5">
+              <ul className="text-sm text-muted-foreground/60 space-y-0.5">
                 <li>
                   <span className="text-foreground/70 font-medium">Approved</span> — compiles without warning. Clean evidence.
                 </li>
@@ -254,7 +254,7 @@ export default function SourcePoliciesPage() {
                   <span className="text-foreground/70 font-medium">Blocked</span> — excluded from compile by default. Warning shown at capture time. Adam can override per-compile.
                 </li>
               </ul>
-              <p className="text-[10px] text-muted-foreground/35 pt-1">
+              <p className="text-sm text-muted-foreground/35 pt-1">
                 Changes take effect on the next artifact capture or compile run. Existing artifacts are not retroactively altered.
               </p>
             </div>
@@ -292,7 +292,7 @@ export default function SourcePoliciesPage() {
                 <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground/50">
                   Evidence source types
                 </h2>
-                <span className="text-[10px] text-muted-foreground/30">{rows.length} sources configured</span>
+                <span className="text-sm text-muted-foreground/30">{rows.length} sources configured</span>
               </div>
               {rows.map(row => (
                 <PolicyRowItem

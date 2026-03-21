@@ -351,7 +351,7 @@ export function PropertyPreviewModal() {
                         >
                           <ChevronRight className="h-4 w-4" />
                         </button>
-                        <div className="absolute top-3 left-3 bg-black/60 backdrop-blur-sm text-white text-[10px] font-medium px-2 py-0.5 rounded-full flex items-center gap-1">
+                        <div className="absolute top-3 left-3 bg-black/60 backdrop-blur-sm text-white text-sm font-medium px-2 py-0.5 rounded-full flex items-center gap-1">
                           <ImageIcon className="h-3 w-3" />
                           {photoIdx + 1} / {photos.length}
                         </div>
@@ -368,7 +368,7 @@ export function PropertyPreviewModal() {
                     />
                     <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent" />
                     {photosLoading && (
-                      <div className="absolute top-3 left-3 bg-black/60 backdrop-blur-sm text-white text-[10px] font-medium px-2 py-0.5 rounded-full flex items-center gap-1">
+                      <div className="absolute top-3 left-3 bg-black/60 backdrop-blur-sm text-white text-sm font-medium px-2 py-0.5 rounded-full flex items-center gap-1">
                         <Loader2 className="h-3 w-3 animate-spin" />
                         Loading photos...
                       </div>
@@ -410,7 +410,7 @@ export function PropertyPreviewModal() {
                       </span>
                     )}
                     {enriching && (
-                      <span className="ml-auto shrink-0 inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-black/60 text-primary/70 border border-primary/20">
+                      <span className="ml-auto shrink-0 inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-sm font-medium bg-black/60 text-primary/70 border border-primary/20">
                         <Zap className="h-3 w-3 animate-pulse" />
                         Enriching...
                       </span>

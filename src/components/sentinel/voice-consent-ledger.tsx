@@ -87,7 +87,7 @@ async function patchEntry(
 function RiskBadge({ tier }: { tier: RiskTier }) {
   const c = RISK_TIER_COLORS[tier];
   return (
-    <span className={`inline-flex items-center text-[8px] px-1.5 py-0.5 rounded border font-medium ${c.bg} ${c.text} ${c.border}`}>
+    <span className={`inline-flex items-center text-xs px-1.5 py-0.5 rounded border font-medium ${c.bg} ${c.text} ${c.border}`}>
       {RISK_TIER_LABELS[tier]}
     </span>
   );
@@ -144,16 +144,16 @@ function EntryRow({
         onClick={() => setOpen(o => !o)}
       >
         <RiskBadge tier={entry.risk_tier} />
-        <span className="flex-1 text-[10px] text-foreground/65 truncate">
+        <span className="flex-1 text-sm text-foreground/65 truncate">
           {(VOICE_INTERACTION_LABELS as Record<string, string>)[entry.interaction_type] ?? entry.interaction_type}
         </span>
         {entry.dnc_flag && (
-          <span className="text-[8px] px-1 rounded border border-border/40 bg-muted/10 text-foreground shrink-0">DNC</span>
+          <span className="text-xs px-1 rounded border border-border/40 bg-muted/10 text-foreground shrink-0">DNC</span>
         )}
         {entry.ai_assisted && (
-          <span className="text-[8px] px-1 rounded border border-border/30 bg-muted/10 text-foreground shrink-0">AI</span>
+          <span className="text-xs px-1 rounded border border-border/30 bg-muted/10 text-foreground shrink-0">AI</span>
         )}
-        <span className="text-[9px] text-muted-foreground/30 shrink-0">
+        <span className="text-xs text-muted-foreground/30 shrink-0">
           {new Date(entry.created_at).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
         </span>
         {isDone
@@ -167,7 +167,7 @@ function EntryRow({
       {open && (
         <div className="px-2.5 pb-2.5 space-y-2 border-t border-white/[0.04] pt-2">
           {/* Detail fields */}
-          <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-[9px]">
+          <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs">
             <div>
               <span className="text-muted-foreground/40">Consent basis</span>
               <p className="text-foreground/60">
@@ -183,13 +183,13 @@ function EntryRow({
             {entry.script_class && (
               <div>
                 <span className="text-muted-foreground/40">Script class</span>
-                <p className="text-foreground/60 font-mono text-[8px]">{entry.script_class}</p>
+                <p className="text-foreground/60 font-mono text-xs">{entry.script_class}</p>
               </div>
             )}
             {entry.handoff_rule_version && (
               <div>
                 <span className="text-muted-foreground/40">Handoff rule</span>
-                <p className="text-foreground/60 font-mono text-[8px]">v{entry.handoff_rule_version}</p>
+                <p className="text-foreground/60 font-mono text-xs">v{entry.handoff_rule_version}</p>
               </div>
             )}
             {entry.context_notes && (
@@ -218,11 +218,11 @@ function EntryRow({
               {/* Optional corrections */}
               <div className="grid grid-cols-2 gap-2">
                 <div>
-                  <label className="text-[8px] uppercase tracking-wider text-muted-foreground/35">Correct consent basis</label>
+                  <label className="text-xs uppercase tracking-wider text-muted-foreground/35">Correct consent basis</label>
                   <select
                     value={consentCorr}
                     onChange={e => setConsentCorr(e.target.value as ConsentBasis | "")}
-                    className="mt-0.5 w-full rounded border border-input bg-background px-1.5 py-1 text-[9px] text-foreground"
+                    className="mt-0.5 w-full rounded border border-input bg-background px-1.5 py-1 text-xs text-foreground"
                   >
                     <option value="">— no change —</option>
                     <option value="inbound_response">Inbound (caller initiated)</option>
@@ -233,11 +233,11 @@ function EntryRow({
                   </select>
                 </div>
                 <div>
-                  <label className="text-[8px] uppercase tracking-wider text-muted-foreground/35">Correct automation tier</label>
+                  <label className="text-xs uppercase tracking-wider text-muted-foreground/35">Correct automation tier</label>
                   <select
                     value={autoCorr}
                     onChange={e => setAutoCorr(e.target.value as AutomationTier | "")}
-                    className="mt-0.5 w-full rounded border border-input bg-background px-1.5 py-1 text-[9px] text-foreground"
+                    className="mt-0.5 w-full rounded border border-input bg-background px-1.5 py-1 text-xs text-foreground"
                   >
                     <option value="">— no change —</option>
                     <option value="operator_led">Operator-led</option>
@@ -256,7 +256,7 @@ function EntryRow({
                   onChange={e => setDncCorr(e.target.checked)}
                   className="h-3 w-3"
                 />
-                <label htmlFor={`dnc-${entry.id}`} className="text-[9px] text-foreground/60">
+                <label htmlFor={`dnc-${entry.id}`} className="text-xs text-foreground/60">
                   Mark as DNC-adjacent (flag for no-contact)
                 </label>
               </div>
@@ -267,7 +267,7 @@ function EntryRow({
                 value={note}
                 onChange={e => setNote(e.target.value)}
                 placeholder="Optional review note…"
-                className="w-full rounded border border-input bg-background px-2 py-1 text-[10px] text-foreground placeholder:text-muted-foreground/30"
+                className="w-full rounded border border-input bg-background px-2 py-1 text-sm text-foreground placeholder:text-muted-foreground/30"
               />
 
               {/* Action buttons */}
@@ -276,7 +276,7 @@ function EntryRow({
                   type="button"
                   disabled={saving}
                   onClick={() => handleAction("reviewed")}
-                  className="flex items-center gap-1 rounded-[6px] border border-border/30 bg-muted/[0.06] px-2 py-1 text-[9px] text-foreground hover:bg-muted/[0.12] transition-colors"
+                  className="flex items-center gap-1 rounded-[6px] border border-border/30 bg-muted/[0.06] px-2 py-1 text-xs text-foreground hover:bg-muted/[0.12] transition-colors"
                 >
                   {saving ? <Loader2 className="h-2.5 w-2.5 animate-spin" /> : <CheckCircle2 className="h-2.5 w-2.5" />}
                   Reviewed
@@ -285,7 +285,7 @@ function EntryRow({
                   type="button"
                   disabled={saving}
                   onClick={() => handleAction("corrected")}
-                  className="flex items-center gap-1 rounded-[6px] border border-border/30 bg-muted/[0.06] px-2 py-1 text-[9px] text-foreground hover:bg-muted/[0.12] transition-colors"
+                  className="flex items-center gap-1 rounded-[6px] border border-border/30 bg-muted/[0.06] px-2 py-1 text-xs text-foreground hover:bg-muted/[0.12] transition-colors"
                 >
                   Corrected
                 </button>
@@ -293,7 +293,7 @@ function EntryRow({
                   type="button"
                   disabled={saving}
                   onClick={() => handleAction("dismissed")}
-                  className="flex items-center gap-1 rounded-[6px] border border-white/[0.08] bg-white/[0.02] px-2 py-1 text-[9px] text-muted-foreground/50 hover:text-muted-foreground transition-colors"
+                  className="flex items-center gap-1 rounded-[6px] border border-white/[0.08] bg-white/[0.02] px-2 py-1 text-xs text-muted-foreground/50 hover:text-muted-foreground transition-colors"
                 >
                   <X className="h-2.5 w-2.5" />
                   Dismiss
@@ -367,21 +367,21 @@ export function VoiceConsentLedger({ days = 14, className = "" }: VoiceConsentLe
         onClick={() => setOpen(o => !o)}
       >
         <ShieldAlert className={`h-3.5 w-3.5 shrink-0 ${highCount > 0 ? "text-foreground/70" : "text-muted-foreground/40"}`} />
-        <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/60">
+        <span className="text-sm font-semibold uppercase tracking-wider text-muted-foreground/60">
           Voice Policy Ledger
         </span>
-        <span className="text-[9px] text-muted-foreground/30">
+        <span className="text-xs text-muted-foreground/30">
           last {days}d
         </span>
         {!loading && data && (
-          <span className="ml-auto flex items-center gap-1.5 text-[9px] text-muted-foreground/35">
+          <span className="ml-auto flex items-center gap-1.5 text-xs text-muted-foreground/35">
             {highCount > 0 && (
-              <span className="px-1.5 py-0.5 rounded border border-border/30 bg-muted/10 text-foreground text-[8px]">
+              <span className="px-1.5 py-0.5 rounded border border-border/30 bg-muted/10 text-foreground text-xs">
                 {highCount} high
               </span>
             )}
             {pendingCount > 0 && (
-              <span className="px-1.5 py-0.5 rounded border border-border/30 bg-muted/10 text-foreground text-[8px]">
+              <span className="px-1.5 py-0.5 rounded border border-border/30 bg-muted/10 text-foreground text-xs">
                 {pendingCount} pending
               </span>
             )}
@@ -405,17 +405,17 @@ export function VoiceConsentLedger({ days = 14, className = "" }: VoiceConsentLe
       {open && (
         <div className="px-3 pb-3 border-t border-white/[0.04] pt-2 space-y-2">
           {loading && (
-            <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground/30">
+            <div className="flex items-center gap-1.5 text-sm text-muted-foreground/30">
               <Loader2 className="h-3 w-3 animate-spin" /> Loading…
             </div>
           )}
 
           {error && (
-            <p className="text-[10px] text-foreground">{error}</p>
+            <p className="text-sm text-foreground">{error}</p>
           )}
 
           {!loading && !error && data && data.rows.length === 0 && (
-            <p className="text-[10px] text-muted-foreground/30">
+            <p className="text-sm text-muted-foreground/30">
               No medium/high/review-tier interactions in the last {days} days.
             </p>
           )}
@@ -433,7 +433,7 @@ export function VoiceConsentLedger({ days = 14, className = "" }: VoiceConsentLe
           )}
 
           {/* Boundary note */}
-          <p className="text-[8px] text-muted-foreground/25 pt-1">
+          <p className="text-xs text-muted-foreground/25 pt-1">
             Low-risk inbound-response interactions are not shown.{" "}
             Risk tier is derived from consent basis, automation tier, and DNC flag.
             This ledger does not block calls — it provides visibility only.

@@ -144,7 +144,7 @@ export function LeadFilters({
           <SlidersHorizontal className="h-3 w-3" />
           Filters
           {hasFilters && (
-            <span className="bg-primary/15 text-primary text-[10px] px-1.5 rounded-full">
+            <span className="bg-primary/15 text-primary text-sm px-1.5 rounded-full">
               {activeFilterCount} active
             </span>
           )}
@@ -157,7 +157,7 @@ export function LeadFilters({
           </Button>
         )}
 
-        <Badge variant="outline" className="text-[10px] ml-auto">
+        <Badge variant="outline" className="text-sm ml-auto">
           {totalFiltered === totalAll
             ? `${totalAll} leads`
             : `${totalFiltered} of ${totalAll}`}
@@ -175,7 +175,7 @@ export function LeadFilters({
           >
             <div className="rounded-[12px] border border-glass-border bg-glass/50 p-4 space-y-4">
               <div>
-                <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-2">
+                <p className="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-2">
                   Stage
                 </p>
                 <div className="flex flex-wrap gap-1.5">
@@ -184,7 +184,7 @@ export function LeadFilters({
                       key={opt.value}
                       onClick={() => toggleStatus(opt.value)}
                       className={cn(
-                        "text-[11px] px-2.5 py-1 rounded-md border transition-all",
+                        "text-sm px-2.5 py-1 rounded-md border transition-all",
                         filters.statuses.includes(opt.value)
                           ? opt.color
                           : cn(filterChip.idle)
@@ -198,7 +198,7 @@ export function LeadFilters({
 
               <div className="grid md:grid-cols-2 gap-4">
                 <div>
-                  <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-2">
+                  <p className="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-2">
                     Source Channel
                   </p>
                   <div className="flex flex-wrap gap-1.5">
@@ -207,7 +207,7 @@ export function LeadFilters({
                         key={opt.value}
                         onClick={() => toggleSource(opt.value)}
                         className={cn(
-                          "text-[11px] px-2.5 py-1 rounded-md border transition-all",
+                          "text-sm px-2.5 py-1 rounded-md border transition-all",
                           filters.sources.includes(opt.value)
                             ? cn(filterChip.active)
                             : cn(filterChip.idle)
@@ -217,7 +217,7 @@ export function LeadFilters({
                       </button>
                     ))}
                     {sourceOptions.length === 0 && (
-                      <span className="text-[11px] text-muted-foreground/50">No source data</span>
+                      <span className="text-sm text-muted-foreground/50">No source data</span>
                     )}
                   </div>
                 </div>
@@ -225,7 +225,7 @@ export function LeadFilters({
 
               <div className="grid md:grid-cols-2 gap-4">
                 <div>
-                  <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-2">
+                  <p className="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-2">
                     Niche
                   </p>
                   <div className="flex flex-wrap gap-1.5">
@@ -234,7 +234,7 @@ export function LeadFilters({
                         key={opt.value}
                         onClick={() => toggleNiche(opt.value)}
                         className={cn(
-                          "text-[11px] px-2.5 py-1 rounded-md border transition-all",
+                          "text-sm px-2.5 py-1 rounded-md border transition-all",
                           filters.nicheTags.includes(opt.value)
                             ? cn(filterChip.active)
                             : cn(filterChip.idle)
@@ -244,13 +244,13 @@ export function LeadFilters({
                       </button>
                     ))}
                     {nicheOptions.length === 0 && (
-                      <span className="text-[11px] text-muted-foreground/50">No niche data</span>
+                      <span className="text-sm text-muted-foreground/50">No niche data</span>
                     )}
                   </div>
                 </div>
 
                 <div>
-                  <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-2">
+                  <p className="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-2">
                     Import Batch
                   </p>
                   <div className="flex flex-wrap gap-1.5">
@@ -259,7 +259,7 @@ export function LeadFilters({
                         key={opt.value}
                         onClick={() => toggleImportBatch(opt.value)}
                         className={cn(
-                          "text-[11px] px-2.5 py-1 rounded-md border transition-all",
+                          "text-sm px-2.5 py-1 rounded-md border transition-all",
                           filters.importBatches.includes(opt.value)
                             ? cn(filterChip.active)
                             : cn(filterChip.idle)
@@ -269,14 +269,14 @@ export function LeadFilters({
                       </button>
                     ))}
                     {importBatchOptions.length === 0 && (
-                      <span className="text-[11px] text-muted-foreground/50">No batch data</span>
+                      <span className="text-sm text-muted-foreground/50">No batch data</span>
                     )}
                   </div>
                 </div>
               </div>
 
               <div>
-                <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-2">
+                <p className="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-2">
                   Next Action
                 </p>
                 <div className="flex flex-wrap gap-1.5">
@@ -285,7 +285,7 @@ export function LeadFilters({
                       key={opt.value}
                       onClick={() => onUpdate("followUp", opt.value)}
                       className={cn(
-                        "text-[11px] px-2.5 py-1 rounded-md border transition-all",
+                        "text-sm px-2.5 py-1 rounded-md border transition-all",
                         filters.followUp === opt.value
                           ? cn(filterChip.active)
                           : cn(filterChip.idle)
@@ -298,7 +298,7 @@ export function LeadFilters({
               </div>
 
               <div>
-                <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-2">
+                <p className="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-2">
                   Call Status
                 </p>
                 <div className="flex flex-wrap gap-1.5">
@@ -307,7 +307,7 @@ export function LeadFilters({
                       key={opt.value}
                       onClick={() => toggleCallStatus(opt.value)}
                       className={cn(
-                        "text-[11px] px-2.5 py-1 rounded-md border transition-all",
+                        "text-sm px-2.5 py-1 rounded-md border transition-all",
                         filters.callStatuses.includes(opt.value)
                           ? cn(filterChip.active)
                           : cn(filterChip.idle)
@@ -317,20 +317,20 @@ export function LeadFilters({
                     </button>
                   ))}
                   {callStatusOptions.length === 0 && (
-                    <span className="text-[11px] text-muted-foreground/50">No call-state data</span>
+                    <span className="text-sm text-muted-foreground/50">No call-state data</span>
                   )}
                 </div>
               </div>
 
               <div>
-                <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-2">
+                <p className="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-2">
                   Assignment
                 </p>
                 <div className="flex items-center gap-2 flex-wrap">
                   <button
                     onClick={() => onUpdate("unassignedOnly", !filters.unassignedOnly)}
                     className={cn(
-                      "flex items-center gap-1.5 text-[11px] px-3 py-1 rounded-md border transition-all",
+                      "flex items-center gap-1.5 text-sm px-3 py-1 rounded-md border transition-all",
                       filters.unassignedOnly
                         ? "bg-muted/15 text-foreground border-border/30"
                         : cn(filterChip.idle)
@@ -341,7 +341,7 @@ export function LeadFilters({
                   <button
                     onClick={() => onUpdate("includeClosed", !filters.includeClosed)}
                     className={cn(
-                      "flex items-center gap-1.5 text-[11px] px-3 py-1 rounded-md border transition-all",
+                      "flex items-center gap-1.5 text-sm px-3 py-1 rounded-md border transition-all",
                       filters.includeClosed
                         ? "bg-muted/15 text-foreground border-border/30"
                         : cn(filterChip.idle)
@@ -352,7 +352,7 @@ export function LeadFilters({
                   <button
                     onClick={() => onUpdate("excludeSuppressed", !filters.excludeSuppressed)}
                     className={cn(
-                      "flex items-center gap-1.5 text-[11px] px-3 py-1 rounded-md border transition-all",
+                      "flex items-center gap-1.5 text-sm px-3 py-1 rounded-md border transition-all",
                       filters.excludeSuppressed
                         ? "bg-muted/15 text-foreground border-border/30"
                         : cn(filterChip.idle)

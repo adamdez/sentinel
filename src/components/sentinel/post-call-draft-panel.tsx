@@ -98,7 +98,7 @@ function DraftField({
 }) {
   return (
     <div className="mb-1.5">
-      <label className="block text-[10px] uppercase tracking-wider text-muted-foreground/40 mb-0.5 px-0.5">
+      <label className="block text-sm uppercase tracking-wider text-muted-foreground/40 mb-0.5 px-0.5">
         {label}
       </label>
       <textarea
@@ -108,7 +108,7 @@ function DraftField({
         maxLength={maxLength}
         rows={2}
         disabled={disabled}
-        className="w-full resize-none rounded-[8px] border border-white/[0.06] bg-white/[0.03] px-2.5 py-1.5 text-[12px] text-foreground placeholder:text-muted-foreground/30 focus:outline-none focus:border-primary/20 disabled:opacity-50"
+        className="w-full resize-none rounded-[8px] border border-white/[0.06] bg-white/[0.03] px-2.5 py-1.5 text-xs text-foreground placeholder:text-muted-foreground/30 focus:outline-none focus:border-primary/20 disabled:opacity-50"
       />
     </div>
   );
@@ -204,7 +204,7 @@ export function PostCallDraftPanel({
     return (
       <div className="flex items-center gap-2 py-3 px-1">
         <Loader2 className="h-3 w-3 animate-spin text-foreground/50" />
-        <span className="text-[11px] text-muted-foreground/40">Drafting call notes…</span>
+        <span className="text-sm text-muted-foreground/40">Drafting call notes…</span>
       </div>
     );
   }
@@ -216,11 +216,11 @@ export function PostCallDraftPanel({
       {/* ── Header ─────────────────────────────────────────────── */}
       <div className="flex items-center gap-1.5 mb-2">
         <Sparkles className="h-3 w-3 text-foreground/60" />
-        <span className="text-[10px] uppercase tracking-wider text-foreground/60 font-semibold">
+        <span className="text-sm uppercase tracking-wider text-foreground/60 font-semibold">
           Draft notes — review &amp; confirm
         </span>
         {tempMeta && (
-          <span className={`ml-auto text-[10px] px-1.5 py-0.5 rounded-full border font-medium ${tempMeta.color} ${tempMeta.bg}`}>
+          <span className={`ml-auto text-sm px-1.5 py-0.5 rounded-full border font-medium ${tempMeta.color} ${tempMeta.bg}`}>
             {tempMeta.label}
           </span>
         )}
@@ -236,7 +236,7 @@ export function PostCallDraftPanel({
               type="button"
               onClick={() => setDealTemperature(dealTemperature === t ? null : t)}
               disabled={disabled}
-              className={`flex-1 rounded-[8px] py-1 text-[10px] font-medium border transition-all disabled:opacity-50 ${
+              className={`flex-1 rounded-[8px] py-1 text-sm font-medium border transition-all disabled:opacity-50 ${
                 dealTemperature === t
                   ? `${m.bg} ${m.color}`
                   : "bg-white/[0.02] border-white/[0.05] text-muted-foreground/40 hover:border-white/[0.10]"
@@ -293,11 +293,11 @@ export function PostCallDraftPanel({
       {/* ── Objection tag chips ───────────────────────────────── */}
       <div className="mb-2">
         <div className="flex items-center gap-1 mb-1">
-          <label className="text-[10px] uppercase tracking-wider text-muted-foreground/40 px-0.5">
+          <label className="text-sm uppercase tracking-wider text-muted-foreground/40 px-0.5">
             Objection <span className="text-muted-foreground/25 normal-case">(optional)</span>
           </label>
           {selectedTags.size > 0 && (
-            <span className="ml-auto text-[9px] text-foreground/60">{selectedTags.size} tagged</span>
+            <span className="ml-auto text-xs text-foreground/60">{selectedTags.size} tagged</span>
           )}
         </div>
         <div className="flex flex-wrap gap-1">
@@ -307,7 +307,7 @@ export function PostCallDraftPanel({
               type="button"
               onClick={() => toggleTag(tag)}
               disabled={disabled}
-              className={`rounded-[6px] px-2 py-0.5 text-[10px] font-medium border transition-all disabled:opacity-50 ${
+              className={`rounded-[6px] px-2 py-0.5 text-sm font-medium border transition-all disabled:opacity-50 ${
                 selectedTags.has(tag)
                   ? "bg-muted/15 border-border/35 text-foreground"
                   : "bg-white/[0.02] border-white/[0.05] text-muted-foreground/40 hover:border-white/[0.12] hover:text-muted-foreground/60"
@@ -326,7 +326,7 @@ export function PostCallDraftPanel({
             maxLength={120}
             rows={1}
             disabled={disabled}
-            className="mt-1 w-full resize-none rounded-[8px] border border-white/[0.06] bg-white/[0.03] px-2.5 py-1.5 text-[12px] text-foreground placeholder:text-muted-foreground/30 focus:outline-none focus:border-border/20 disabled:opacity-50"
+            className="mt-1 w-full resize-none rounded-[8px] border border-white/[0.06] bg-white/[0.03] px-2.5 py-1.5 text-xs text-foreground placeholder:text-muted-foreground/30 focus:outline-none focus:border-border/20 disabled:opacity-50"
           />
         )}
         {selectedTags.size > 0 && !showObjNote && (
@@ -334,7 +334,7 @@ export function PostCallDraftPanel({
             type="button"
             onClick={() => setShowObjNote(true)}
             disabled={disabled}
-            className="mt-0.5 text-[10px] text-muted-foreground/30 hover:text-muted-foreground/50 disabled:opacity-40"
+            className="mt-0.5 text-sm text-muted-foreground/30 hover:text-muted-foreground/50 disabled:opacity-40"
           >
             + add note
           </button>
@@ -360,7 +360,7 @@ export function PostCallDraftPanel({
           type="button"
           onClick={handleFlag}
           disabled={disabled || flagged}
-          className={`flex-1 flex items-center justify-center gap-1 rounded-[8px] px-2 py-1.5 text-[11px] border transition-all disabled:opacity-40 ${
+          className={`flex-1 flex items-center justify-center gap-1 rounded-[8px] px-2 py-1.5 text-sm border transition-all disabled:opacity-40 ${
             flagged
               ? "bg-muted/10 border-border/25 text-foreground"
               : "bg-white/[0.02] border-white/[0.04] text-muted-foreground/40 hover:text-muted-foreground/60 hover:border-white/[0.08]"
@@ -373,7 +373,7 @@ export function PostCallDraftPanel({
           type="button"
           onClick={handleSkip}
           disabled={disabled}
-          className="flex-1 flex items-center justify-center gap-1 rounded-[8px] px-2 py-1.5 text-[11px] border bg-white/[0.02] border-white/[0.04] text-muted-foreground/40 hover:text-muted-foreground/60 hover:border-white/[0.08] transition-all disabled:opacity-40"
+          className="flex-1 flex items-center justify-center gap-1 rounded-[8px] px-2 py-1.5 text-sm border bg-white/[0.02] border-white/[0.04] text-muted-foreground/40 hover:text-muted-foreground/60 hover:border-white/[0.08] transition-all disabled:opacity-40"
         >
           <SkipForward className="h-3 w-3" />
           Use my notes

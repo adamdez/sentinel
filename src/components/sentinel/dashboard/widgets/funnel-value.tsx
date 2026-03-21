@@ -160,7 +160,7 @@ export function FunnelValue() {
           transition={{ delay: i * 0.06 }}
           className="space-y-1"
         >
-          <div className="flex items-center justify-between text-[11px]">
+          <div className="flex items-center justify-between text-sm">
             <span className="font-medium">{stage.name}</span>
             <div className="flex items-center gap-2">
               <span className="text-muted-foreground">{stage.count}</span>

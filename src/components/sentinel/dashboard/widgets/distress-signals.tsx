@@ -110,10 +110,10 @@ export function DistressSignals() {
           transition={{ delay: i * 0.04 }}
           className="flex items-center justify-between py-1"
         >
-          <span className={cn("text-[11px] font-medium", SIGNAL_COLORS[s.type] ?? "text-foreground")}>
+          <span className={cn("text-sm font-medium", SIGNAL_COLORS[s.type] ?? "text-foreground")}>
             {labelFor(s.type)}
           </span>
-          <div className="flex items-center gap-2 text-[11px]">
+          <div className="flex items-center gap-2 text-sm">
             <span className="text-muted-foreground">{s.count} total</span>
             {s.recent > 0 && (
               <span className="text-primary font-semibold"
@@ -124,7 +124,7 @@ export function DistressSignals() {
           </div>
         </motion.div>
       ))}
-      <div className="flex items-center justify-between pt-1.5 border-t border-white/[0.06] text-[11px]">
+      <div className="flex items-center justify-between pt-1.5 border-t border-white/[0.06] text-sm">
         <span className="text-muted-foreground">Last 30 days</span>
         <span className="font-bold text-primary"
           style={{ textShadow: "0 0 8px rgba(0,0,0,0.4)" }}>

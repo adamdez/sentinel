@@ -88,7 +88,7 @@ async function authHeaders() {
 function Stat({ label, value }: { label: string; value: number | string }) {
   return (
     <div className="rounded-xl border border-white/[0.08] bg-white/[0.03] px-3 py-2">
-      <p className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground/55">{label}</p>
+      <p className="text-sm uppercase tracking-[0.18em] text-muted-foreground/55">{label}</p>
       <p className="mt-1 text-sm font-semibold text-foreground">{value}</p>
     </div>
   );
@@ -267,12 +267,12 @@ export default function ImportPage() {
               </div>
               {groupedSuggestions.map(([group, items]) => (
                 <div key={group} className="space-y-2">
-                  <p className="text-[10px] uppercase tracking-[0.18em] text-primary/65">{group}</p>
+                  <p className="text-sm uppercase tracking-[0.18em] text-primary/65">{group}</p>
                   {items.map((suggestion) => (
                     <div key={suggestion.field} className="grid gap-2 rounded-xl border border-white/[0.06] bg-white/[0.02] p-3 lg:grid-cols-[160px_1fr_90px]">
                       <div>
                         <p className="text-xs font-medium text-foreground">{suggestion.label}</p>
-                        <p className="text-[11px] text-muted-foreground/55">{suggestion.reason}</p>
+                        <p className="text-sm text-muted-foreground/55">{suggestion.reason}</p>
                       </div>
                       <select
                         value={mapping[suggestion.field] ?? ""}
@@ -327,12 +327,12 @@ export default function ImportPage() {
                       <div className="flex items-start justify-between gap-2">
                         <div>
                           <p className="text-xs font-medium">{row.ownerName ?? "Unknown owner"}</p>
-                          <p className="text-[11px] text-muted-foreground/60">{row.propertyAddress ?? "Missing address"}</p>
+                          <p className="text-sm text-muted-foreground/60">{row.propertyAddress ?? "Missing address"}</p>
                         </div>
                         <Badge variant="outline">{tagLabel(row.reviewStatus)}</Badge>
                       </div>
                       <div className="mt-2 flex flex-wrap gap-1">
-                        {row.distressTags.slice(0, 3).map((tag) => <Badge key={tag} variant="outline" className="text-[10px]">{tagLabel(tag)}</Badge>)}
+                        {row.distressTags.slice(0, 3).map((tag) => <Badge key={tag} variant="outline" className="text-sm">{tagLabel(tag)}</Badge>)}
                       </div>
                     </div>
                   ))}
@@ -367,7 +367,7 @@ export default function ImportPage() {
                 <Button type="button" variant={duplicateStrategy === "skip" ? "default" : "outline"} size="sm" onClick={() => setDuplicateStrategy("skip")}>Skip duplicates</Button>
                 <Button type="button" variant={duplicateStrategy === "update_missing" ? "default" : "outline"} size="sm" onClick={() => setDuplicateStrategy("update_missing")}>Update missing fields</Button>
               </div>
-              <p className="mt-2 text-[11px] text-muted-foreground/60">Possible duplicates still stay in review instead of being auto-merged.</p>
+              <p className="mt-2 text-sm text-muted-foreground/60">Possible duplicates still stay in review instead of being auto-merged.</p>
             </div>
             <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={saveTemplate} onChange={(event) => setSaveTemplate(event.target.checked)} className="h-4 w-4" />Save or update a reusable template</label>
             {saveTemplate ? <Input value={defaults.templateName} onChange={(event) => setDefaults((prev) => ({ ...prev, templateName: event.target.value }))} placeholder="Spokane county absentee export" /> : null}
@@ -400,7 +400,7 @@ export default function ImportPage() {
                   <div>
                     <p className="text-sm font-semibold text-foreground">Unmapped columns</p>
                     <div className="mt-2 flex flex-wrap gap-1.5">
-                      {preview.unmappedHeaders.map((header) => <Badge key={header} variant="outline" className="text-[10px]">{header}</Badge>)}
+                      {preview.unmappedHeaders.map((header) => <Badge key={header} variant="outline" className="text-sm">{header}</Badge>)}
                     </div>
                   </div>
                 </div>

@@ -104,7 +104,7 @@ export function GrokInsights() {
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-1.5">
           <Brain className="h-3.5 w-3.5 text-foreground" />
-          <span className="text-[11px] font-semibold tracking-wider uppercase text-foreground">
+          <span className="text-sm font-semibold tracking-wider uppercase text-foreground">
             Grok Insights
           </span>
         </div>
@@ -159,11 +159,11 @@ export function GrokInsights() {
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-1.5">
                   <Activity className={cn("h-3 w-3", hc.text)} />
-                  <span className={cn("text-[11px] font-semibold tracking-wider uppercase", hc.text)}>
+                  <span className={cn("text-sm font-semibold tracking-wider uppercase", hc.text)}>
                     System Health
                   </span>
                 </div>
-                <p className="text-[11px] text-muted-foreground mt-0.5 leading-snug">
+                <p className="text-sm text-muted-foreground mt-0.5 leading-snug">
                   {health.status === "nominal"
                     ? "All systems nominal"
                     : `${totalIssues} recent issue${totalIssues === 1 ? "" : "s"} detected \u2014 click to diagnose`}
@@ -208,14 +208,14 @@ export function GrokInsights() {
                   <p className="text-xs font-medium text-foreground/90 leading-tight">
                     {insight.title}
                   </p>
-                  <p className="text-[11px] text-muted-foreground mt-0.5 leading-snug">
+                  <p className="text-sm text-muted-foreground mt-0.5 leading-snug">
                     {insight.body}
                   </p>
                   {insight.action && (
                     <a
                       href={insight.action}
                       className={cn(
-                        "inline-flex items-center gap-1 text-[10px] font-medium mt-1.5",
+                        "inline-flex items-center gap-1 text-sm font-medium mt-1.5",
                         sev.text, "hover:underline",
                       )}
                     >

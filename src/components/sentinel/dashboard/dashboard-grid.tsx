@@ -151,7 +151,7 @@ function StatCard({
         </div>
         <div>
           <p className="text-xl font-bold leading-none">{value}</p>
-          <p className="text-[11px] text-muted-foreground mt-0.5">{label}</p>
+          <p className="text-sm text-muted-foreground mt-0.5">{label}</p>
         </div>
       </CardContent>
     </Card>
@@ -396,11 +396,11 @@ export function TodayView() {
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-semibold truncate">{displayAddress}</p>
                       {lead.address && (
-                        <p className="text-[11px] text-muted-foreground truncate">{ownerName}</p>
+                        <p className="text-sm text-muted-foreground truncate">{ownerName}</p>
                       )}
                       <p
                         className={cn(
-                          "text-[11px] mt-0.5",
+                          "text-sm mt-0.5",
                           diff !== null && diff <= -3
                             ? "text-foreground font-medium"
                             : diff !== null && diff < 0
@@ -420,7 +420,7 @@ export function TodayView() {
                         <Badge
                           variant="outline"
                           className={cn(
-                            "text-[10px] font-mono tabular-nums",
+                            "text-sm font-mono tabular-nums",
                             lead.ai_score >= 80
                               ? "border-border/40 text-foreground"
                               : lead.ai_score >= 60
@@ -433,7 +433,7 @@ export function TodayView() {
                       )}
                       <Button
                         size="sm"
-                        className="h-7 text-[11px] gap-1 opacity-70 group-hover:opacity-100 transition-opacity"
+                        className="h-7 text-sm gap-1 opacity-70 group-hover:opacity-100 transition-opacity"
                         onClick={() => {
                           window.location.href = `/leads?open=${lead.id}`;
                         }}
@@ -448,7 +448,7 @@ export function TodayView() {
 
               <a
                 href="/leads"
-                className="flex items-center justify-center gap-1 text-[11px] text-primary hover:text-primary/80 pt-2 transition-colors"
+                className="flex items-center justify-center gap-1 text-sm text-primary hover:text-primary/80 pt-2 transition-colors"
               >
                 View all in Lead Queue
                 <ArrowRight className="h-3 w-3" />
@@ -483,10 +483,10 @@ export function TodayView() {
                       <Icon className="h-3 w-3" />
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="text-[11px] leading-tight truncate">
+                      <p className="text-sm leading-tight truncate">
                         {evt.description || evt.event_type}
                       </p>
-                      <p className="text-[10px] text-muted-foreground">{timeAgo(evt.created_at)}</p>
+                      <p className="text-sm text-muted-foreground">{timeAgo(evt.created_at)}</p>
                     </div>
                   </div>
                 );
@@ -522,7 +522,7 @@ export function TodayView() {
                     <div className="min-w-0">
                       <p className="text-xs font-medium truncate">{deal.address || ownerName || "Unknown"}</p>
                     </div>
-                    <Badge variant="outline" className="text-[10px] border-border/30 text-foreground shrink-0 ml-2">
+                    <Badge variant="outline" className="text-sm border-border/30 text-foreground shrink-0 ml-2">
                       {daysStalled}d stalled
                     </Badge>
                   </button>

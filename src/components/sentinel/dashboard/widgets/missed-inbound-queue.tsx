@@ -120,17 +120,17 @@ function MissedInboundRow({ item, idx, token, onResolved }: RowProps) {
               {item.from_number !== "unknown" ? item.from_number : "Unknown number"}
             </span>
             {!item.lead_matched && (
-              <Badge variant="outline" className="text-[9px] h-3.5 px-1 text-muted-foreground/60">
+              <Badge variant="outline" className="text-xs h-3.5 px-1 text-muted-foreground/60">
                 No lead match
               </Badge>
             )}
             {item.is_classified && item.caller_type && (
-              <Badge variant="outline" className="text-[9px] h-3.5 px-1 text-foreground/80 border-border/30">
+              <Badge variant="outline" className="text-xs h-3.5 px-1 text-foreground/80 border-border/30">
                 {item.caller_type}
               </Badge>
             )}
             {!item.is_classified && (
-              <Badge variant="outline" className="text-[9px] h-3.5 px-1 text-foreground/70 border-border/30">
+              <Badge variant="outline" className="text-xs h-3.5 px-1 text-foreground/70 border-border/30">
                 unclassified
               </Badge>
             )}
@@ -146,7 +146,7 @@ function MissedInboundRow({ item, idx, token, onResolved }: RowProps) {
               }`}
             />
             <span
-              className={`text-[11px] font-medium ${
+              className={`text-sm font-medium ${
                 severity === "critical" ? "text-foreground" :
                 severity === "warning"  ? "text-foreground" :
                 "text-muted-foreground/60"
@@ -155,7 +155,7 @@ function MissedInboundRow({ item, idx, token, onResolved }: RowProps) {
               {ageLabel}
             </span>
             {item.task_overdue && (
-              <Badge variant="outline" className="text-[9px] h-3.5 px-1 border-border/40 text-foreground">
+              <Badge variant="outline" className="text-xs h-3.5 px-1 border-border/40 text-foreground">
                 task overdue
               </Badge>
             )}
@@ -172,7 +172,7 @@ function MissedInboundRow({ item, idx, token, onResolved }: RowProps) {
           >
             <Button
               size="sm"
-              className="h-6 text-[10px] px-2 bg-primary/10 hover:bg-primary/20 text-primary border border-primary/30"
+              className="h-6 text-sm px-2 bg-primary/10 hover:bg-primary/20 text-primary border border-primary/30"
             >
               <Phone className="h-3 w-3 mr-1" />
               Call back now
@@ -182,7 +182,7 @@ function MissedInboundRow({ item, idx, token, onResolved }: RowProps) {
           <Button
             size="sm"
             variant="outline"
-            className="h-6 text-[10px] px-2 border-border/40 text-foreground hover:bg-muted/30"
+            className="h-6 text-sm px-2 border-border/40 text-foreground hover:bg-muted/30"
             onClick={handleRecover}
             disabled={busy}
           >
@@ -193,7 +193,7 @@ function MissedInboundRow({ item, idx, token, onResolved }: RowProps) {
           <Button
             size="sm"
             variant="ghost"
-            className="h-6 text-[10px] px-2 text-muted-foreground/50 hover:text-muted-foreground"
+            className="h-6 text-sm px-2 text-muted-foreground/50 hover:text-muted-foreground"
             onClick={() => setMode("dismiss")}
           >
             <XCircle className="h-3 w-3 mr-1" />
@@ -208,7 +208,7 @@ function MissedInboundRow({ item, idx, token, onResolved }: RowProps) {
             value={dismissReason}
             onChange={e => setDismissReason(e.target.value)}
             placeholder="Reason for dismissing (e.g. wrong number, spam)…"
-            className="h-6 text-[10px] px-2"
+            className="h-6 text-sm px-2"
             onKeyDown={e => e.key === "Enter" && handleDismiss()}
             autoFocus
           />
@@ -216,7 +216,7 @@ function MissedInboundRow({ item, idx, token, onResolved }: RowProps) {
             <Button
               size="sm"
               variant="outline"
-              className="h-6 text-[10px] px-2 border-border/40 text-foreground hover:bg-muted/30"
+              className="h-6 text-sm px-2 border-border/40 text-foreground hover:bg-muted/30"
               onClick={handleDismiss}
               disabled={busy}
             >
@@ -226,7 +226,7 @@ function MissedInboundRow({ item, idx, token, onResolved }: RowProps) {
             <Button
               size="sm"
               variant="ghost"
-              className="h-6 text-[10px] px-2 text-muted-foreground/40"
+              className="h-6 text-sm px-2 text-muted-foreground/40"
               onClick={() => { setMode("idle"); setErr(null); }}
             >
               Cancel
@@ -235,7 +235,7 @@ function MissedInboundRow({ item, idx, token, onResolved }: RowProps) {
         </div>
       )}
 
-      {err && <p className="text-[10px] text-destructive">{err}</p>}
+      {err && <p className="text-sm text-destructive">{err}</p>}
     </motion.div>
   );
 }
@@ -253,14 +253,14 @@ function UnclassifiedAnsweredRow({ item, idx }: { item: UnclassifiedAnswered; id
     >
       <HelpCircle className="h-3 w-3 shrink-0 text-foreground/60" />
       <div className="flex-1 min-w-0">
-        <span className="text-[11px] font-medium">
+        <span className="text-sm font-medium">
           {item.from_number !== "unknown" ? item.from_number : "Unknown"}
         </span>
-        <span className="ml-1.5 text-[10px] text-muted-foreground/40">{ageLabel}</span>
+        <span className="ml-1.5 text-sm text-muted-foreground/40">{ageLabel}</span>
       </div>
       <Link
         href={`/dialer/inbound?event_id=${item.event_id}`}
-        className="text-[10px] text-foreground/70 hover:text-foreground shrink-0"
+        className="text-sm text-foreground/70 hover:text-foreground shrink-0"
       >
         Classify →
       </Link>
@@ -299,11 +299,11 @@ export function MissedInboundQueue({ items, unclassified = [], loading, onRefres
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-1.5">
           <PhoneIncoming className="h-3.5 w-3.5 text-foreground" />
-          <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/60">
+          <span className="text-sm font-semibold uppercase tracking-wider text-muted-foreground/60">
             Missed Inbound
           </span>
           {count > 0 && (
-            <Badge className="bg-muted/20 text-foreground border-border/30 text-[9px] h-4 px-1.5">
+            <Badge className="bg-muted/20 text-foreground border-border/30 text-xs h-4 px-1.5">
               {count}
             </Badge>
           )}
@@ -322,7 +322,7 @@ export function MissedInboundQueue({ items, unclassified = [], loading, onRefres
 
       {/* Empty state */}
       {!loading && count === 0 && (
-        <p className="text-[11px] text-muted-foreground/40 py-1">No missed inbound calls.</p>
+        <p className="text-sm text-muted-foreground/40 py-1">No missed inbound calls.</p>
       )}
 
       {/* Item list */}
@@ -338,9 +338,9 @@ export function MissedInboundQueue({ items, unclassified = [], loading, onRefres
 
       {/* Setup hint if no items have ever come in */}
       {!loading && count === 0 && (
-        <p className="text-[10px] text-muted-foreground/30 leading-snug">
-          Configure <code className="text-[9px]">TWILIO_FORWARD_TO_CELL</code> and set{" "}
-          <code className="text-[9px]">/api/twilio/inbound</code> as the webhook on your Twilio number.
+        <p className="text-sm text-muted-foreground/30 leading-snug">
+          Configure <code className="text-xs">TWILIO_FORWARD_TO_CELL</code> and set{" "}
+          <code className="text-xs">/api/twilio/inbound</code> as the webhook on your Twilio number.
         </p>
       )}
 
@@ -349,10 +349,10 @@ export function MissedInboundQueue({ items, unclassified = [], loading, onRefres
         <div className="space-y-1 pt-1">
           <div className="flex items-center gap-1 pb-0.5">
             <HelpCircle className="h-3 w-3 text-foreground/60" />
-            <span className="text-[10px] font-semibold uppercase tracking-wider text-foreground/50">
+            <span className="text-sm font-semibold uppercase tracking-wider text-foreground/50">
               Answered — not classified
             </span>
-            <Badge className="bg-muted/15 text-foreground border-border/25 text-[9px] h-3.5 px-1 ml-1">
+            <Badge className="bg-muted/15 text-foreground border-border/25 text-xs h-3.5 px-1 ml-1">
               {unclassified.length}
             </Badge>
           </div>
@@ -367,17 +367,17 @@ export function MissedInboundQueue({ items, unclassified = [], loading, onRefres
         <div className="flex items-center gap-2 pt-0.5">
           <div className="flex items-center gap-1">
             <div className="h-1.5 w-1.5 rounded-full bg-muted" />
-            <span className="text-[9px] text-muted-foreground/40">&lt;30m</span>
+            <span className="text-xs text-muted-foreground/40">&lt;30m</span>
           </div>
           <div className="flex items-center gap-1">
             <div className="h-1.5 w-1.5 rounded-full bg-muted" />
-            <span className="text-[9px] text-muted-foreground/40">&lt;4h</span>
+            <span className="text-xs text-muted-foreground/40">&lt;4h</span>
           </div>
           <div className="flex items-center gap-1">
             <div className="h-1.5 w-1.5 rounded-full bg-muted-foreground/20" />
-            <span className="text-[9px] text-muted-foreground/40">older</span>
+            <span className="text-xs text-muted-foreground/40">older</span>
           </div>
-          <span className="text-[9px] text-muted-foreground/30 ml-auto">Speed-to-lead SLA</span>
+          <span className="text-xs text-muted-foreground/30 ml-auto">Speed-to-lead SLA</span>
         </div>
       )}
     </div>

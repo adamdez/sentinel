@@ -61,7 +61,7 @@ function SignalPill({ signal }: { signal: string }) {
   if (!label) return null;
   const colors = DISTRESS_COLORS[signal] ?? { text: "text-muted-foreground", bg: "bg-white/[0.04]", border: "border-white/[0.08]" };
   return (
-    <span className={cn("text-[9px] px-1.5 py-0.5 rounded border font-medium whitespace-nowrap", colors.text, colors.bg, colors.border)}>
+    <span className={cn("text-xs px-1.5 py-0.5 rounded border font-medium whitespace-nowrap", colors.text, colors.bg, colors.border)}>
       {label}
     </span>
   );
@@ -70,7 +70,7 @@ function SignalPill({ signal }: { signal: string }) {
 function SourceBadge({ source }: { source: string }) {
   const badge = SOURCE_BADGES[source] ?? { label: source, text: "text-muted-foreground", bg: "bg-white/[0.04]", border: "border-white/[0.08]" };
   return (
-    <span className={cn("text-[9px] px-1.5 py-0.5 rounded border font-bold uppercase whitespace-nowrap", badge.text, badge.bg, badge.border)}>
+    <span className={cn("text-xs px-1.5 py-0.5 rounded border font-bold uppercase whitespace-nowrap", badge.text, badge.bg, badge.border)}>
       {badge.label}
     </span>
   );
@@ -273,7 +273,7 @@ export default function FsboPage() {
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="border-b border-white/[0.06] text-[11px] text-muted-foreground uppercase tracking-wider">
+                  <tr className="border-b border-white/[0.06] text-sm text-muted-foreground uppercase tracking-wider">
                     <th className="text-left px-4 py-3 cursor-pointer hover:text-foreground transition-colors" onClick={() => toggleSort("address")}>
                       Property {sortField === "address" && (sortDir === "desc" ? "↓" : "↑")}
                     </th>
@@ -331,10 +331,10 @@ export default function FsboPage() {
                               {validSignals.length > 0 ? (
                                 <>
                                   {validSignals.slice(0, 3).map((s) => <SignalPill key={s} signal={s} />)}
-                                  {validSignals.length > 3 && <span className="text-[9px] text-muted-foreground/50 self-center">+{validSignals.length - 3}</span>}
+                                  {validSignals.length > 3 && <span className="text-xs text-muted-foreground/50 self-center">+{validSignals.length - 3}</span>}
                                 </>
                               ) : (
-                                <span className="text-[9px] text-muted-foreground/40">No signals</span>
+                                <span className="text-xs text-muted-foreground/40">No signals</span>
                               )}
                             </div>
                           </td>
@@ -346,7 +346,7 @@ export default function FsboPage() {
                               <Button
                                 size="sm"
                                 variant="outline"
-                                className="h-7 px-2 gap-1 text-[10px] text-foreground border-border/20 hover:border-border/40 hover:bg-muted/[0.06]"
+                                className="h-7 px-2 gap-1 text-sm text-foreground border-border/20 hover:border-border/40 hover:bg-muted/[0.06]"
                                 onClick={(e) => handlePromote(row, e)}
                                 disabled={promoting === row.id}
                                 title="Promote to Prospect"
@@ -358,7 +358,7 @@ export default function FsboPage() {
                                 <Button
                                   size="sm"
                                   variant="outline"
-                                  className="h-7 px-2 gap-1 text-[10px] text-primary border-primary/20 hover:border-primary/40 hover:bg-primary/[0.06]"
+                                  className="h-7 px-2 gap-1 text-sm text-primary border-primary/20 hover:border-primary/40 hover:bg-primary/[0.06]"
                                   onClick={(e) => { e.stopPropagation(); window.open(listingUrl, "_blank"); }}
                                 >
                                   <Globe className="h-3 w-3" />

@@ -155,7 +155,7 @@ export function DashboardGridInner() {
         <div className="flex items-center gap-2">
           <LayoutGrid className="h-4 w-4 text-primary" />
           <span className="text-sm font-semibold">Your Dashboard</span>
-          <Badge variant="outline" className="text-[10px]">
+          <Badge variant="outline" className="text-sm">
             {layout.tiles.length}/{MAX_DASHBOARD_TILES} widgets
           </Badge>
         </div>

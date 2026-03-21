@@ -233,7 +233,7 @@ export default function LoginPage() {
           </AnimatePresence>
         </div>
 
-        <p className="text-center text-[10px] text-muted-foreground/30 mt-6 tracking-wide">
+        <p className="text-center text-sm text-muted-foreground/30 mt-6 tracking-wide">
           DOMINION HOME DEALS — INTERNAL USE ONLY
         </p>
       </motion.div>

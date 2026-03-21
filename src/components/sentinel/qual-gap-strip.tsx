@@ -62,13 +62,13 @@ export function QualGapStripCompact({
     <div className={`space-y-1.5 ${className}`}>
       {/* Header */}
       <div className="flex items-center gap-1.5">
-        <span className="text-[9px] font-semibold uppercase tracking-wider text-muted-foreground/40">
+        <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground/40">
           Qual checklist
         </span>
         {gaps.length === 0 ? (
-          <span className="text-[9px] text-foreground/60 font-medium ml-auto">All known</span>
+          <span className="text-xs text-foreground/60 font-medium ml-auto">All known</span>
         ) : (
-          <span className="text-[9px] text-muted-foreground/40 ml-auto">
+          <span className="text-xs text-muted-foreground/40 ml-auto">
             {gaps.length} still unknown
           </span>
         )}
@@ -80,7 +80,7 @@ export function QualGapStripCompact({
           <span
             key={item.key}
             title={item.known ? "Known" : item.question}
-            className={`inline-flex items-center gap-0.5 rounded-[5px] border px-1.5 py-0.5 text-[10px] font-medium transition-colors ${chipClass(item)}`}
+            className={`inline-flex items-center gap-0.5 rounded-[5px] border px-1.5 py-0.5 text-sm font-medium transition-colors ${chipClass(item)}`}
           >
             {item.known ? (
               <Check className="h-2.5 w-2.5 shrink-0" aria-hidden="true" />
@@ -94,7 +94,7 @@ export function QualGapStripCompact({
 
       {/* Next question suggestion */}
       {showNextQuestion && next && (
-        <p className="text-[10px] text-muted-foreground/40 leading-snug px-0.5">
+        <p className="text-sm text-muted-foreground/40 leading-snug px-0.5">
           <span className="text-muted-foreground/30">Ask: </span>
           <span className="italic">{next}</span>
         </p>
@@ -131,7 +131,7 @@ export function QualGapList({
     return (
       <div className={`flex items-center gap-1.5 px-1 ${className}`}>
         <Check className="h-3 w-3 text-foreground/60 shrink-0" aria-hidden="true" />
-        <span className="text-[11px] text-foreground/60">All qualification items known</span>
+        <span className="text-sm text-foreground/60">All qualification items known</span>
       </div>
     );
   }
@@ -139,10 +139,10 @@ export function QualGapList({
   const header = (
     <div className="flex items-center gap-1.5">
       <HelpCircle className="h-2.5 w-2.5 text-muted-foreground/40 shrink-0" aria-hidden="true" />
-      <span className="text-[9px] font-semibold uppercase tracking-wider text-muted-foreground/40 flex-1">
+      <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground/40 flex-1">
         Qual gaps
       </span>
-      <span className="text-[9px] text-muted-foreground/35">
+      <span className="text-xs text-muted-foreground/35">
         {gaps.length} of {items.length} unknown
       </span>
       {collapsible && (
@@ -194,12 +194,12 @@ function QualGapRow({ item }: { item: QualGapItem | QualChecklistItem & { known:
       </div>
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-1.5">
-          <span className={`text-[11px] font-medium ${
+          <span className={`text-sm font-medium ${
             (item as QualGapItem).known ? "text-foreground/60" : "text-foreground/70"
           }`}>
             {item.label}
           </span>
-          <span className={`text-[9px] uppercase tracking-wide shrink-0 ${
+          <span className={`text-xs uppercase tracking-wide shrink-0 ${
             item.priority === "high"
               ? "text-muted-foreground/35"
               : "text-muted-foreground/20"
@@ -208,7 +208,7 @@ function QualGapRow({ item }: { item: QualGapItem | QualChecklistItem & { known:
           </span>
         </div>
         {!(item as QualGapItem).known && (
-          <p className="text-[10px] text-muted-foreground/40 italic leading-snug mt-0.5">
+          <p className="text-sm text-muted-foreground/40 italic leading-snug mt-0.5">
             {item.question}
           </p>
         )}

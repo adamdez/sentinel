@@ -70,11 +70,11 @@ export default function AnalyticsPage() {
       description="Business outcomes for Spokane and Kootenai. Hard-truth, estimated, and informational metrics are explicitly labeled."
       actions={
         <div className="flex items-center gap-2">
-          <Badge variant="outline" className="text-[10px] gap-1">
+          <Badge variant="outline" className="text-sm gap-1">
             <Radio className="h-2.5 w-2.5 text-foreground animate-pulse" />
             Live
           </Badge>
-          <Badge variant="outline" className="text-[10px] gap-1">
+          <Badge variant="outline" className="text-sm gap-1">
             <Shield className="h-2.5 w-2.5" />
             {currentUser.role === "admin" ? "Team-wide view" : "Portfolio-scoped view"}
           </Badge>
@@ -143,7 +143,7 @@ export default function AnalyticsPage() {
                 </div>
               </div>
 
-              <p className="text-[11px] text-muted-foreground mb-3">
+              <p className="text-sm text-muted-foreground mb-3">
                 Spokane and Kootenai are primary markets. Unknown/Other appears only when county mapping is missing or outside both markets.
               </p>
 
@@ -152,7 +152,7 @@ export default function AnalyticsPage() {
                   <div key={row.market} className="rounded-[12px] border border-glass-border bg-glass/40 p-3">
                     <div className="flex items-center justify-between mb-2">
                       <p className="text-sm font-semibold">{row.label}</p>
-                      <Badge variant="outline" className="text-[10px]">{row.totalLeads} total leads</Badge>
+                      <Badge variant="outline" className="text-sm">{row.totalLeads} total leads</Badge>
                     </div>
                     <div className="grid grid-cols-2 gap-2 text-xs">
                       <Metric label="New Leads" value={row.newLeads} />
@@ -251,7 +251,7 @@ export default function AnalyticsPage() {
                   ))}
                 </div>
 
-                <p className="text-[11px] text-muted-foreground mt-3">
+                <p className="text-sm text-muted-foreground mt-3">
                   Derived from first logged call attempt. When missing, last_contact_at is used as an estimate.
                 </p>
               </GlassCard>
@@ -303,7 +303,7 @@ export default function AnalyticsPage() {
                   </table>
                 </div>
 
-                <p className="text-[11px] text-muted-foreground mt-3">
+                <p className="text-sm text-muted-foreground mt-3">
                   Pipeline counts are from current lead statuses (operational truth). Snapshot count ({snapshotCount}) is informational coverage, not complete funnel truth.
                 </p>
               </GlassCard>
@@ -332,15 +332,15 @@ export default function AnalyticsPage() {
                   ))}
                 </div>
 
-                <p className="text-[11px] text-muted-foreground mt-3">
+                <p className="text-sm text-muted-foreground mt-3">
                   Revenue is sourced from deals.assignment_fee on closed deals only.
                 </p>
-                <p className="text-[11px] text-muted-foreground mt-1">
+                <p className="text-sm text-muted-foreground mt-1">
                   {undatedClosedDealsExcluded > 0
                     ? `${undatedClosedDealsExcluded} closed deal(s) were excluded in this period because closed_at is missing.`
                     : "No closed_at exclusions in this period."}
                 </p>
-                <p className="text-[11px] text-muted-foreground mt-1">
+                <p className="text-sm text-muted-foreground mt-1">
                   For ad spend and campaign operations, use <a href="/ads" className="text-primary underline underline-offset-2">Ads</a>.
                 </p>
               </GlassCard>
@@ -456,7 +456,7 @@ function DispoFunnelCard() {
         {steps.map((s) => (
           <div key={s.label} className="rounded-[10px] border border-glass-border bg-glass/30 px-2.5 py-2 text-center">
             <p className="text-sm font-semibold tabular-nums">{s.value}</p>
-            <p className="text-[10px] uppercase tracking-wider text-muted-foreground">{s.label}</p>
+            <p className="text-sm uppercase tracking-wider text-muted-foreground">{s.label}</p>
           </div>
         ))}
       </div>
@@ -470,7 +470,7 @@ function DispoFunnelCard() {
           </span>
         )}
       </div>
-      <p className="text-[11px] text-muted-foreground mt-2">
+      <p className="text-sm text-muted-foreground mt-2">
         Live buyer outreach funnel for deals currently in disposition. See <a href="/dispo" className="text-primary underline underline-offset-2">Dispo Board</a> for details.
       </p>
     </GlassCard>
@@ -479,12 +479,12 @@ function DispoFunnelCard() {
 
 function TrustBadge({ type }: { type: "hard" | "estimated" | "informational" }) {
   if (type === "hard") {
-    return <Badge variant="outline" className="text-[10px]">Hard truth</Badge>;
+    return <Badge variant="outline" className="text-sm">Hard truth</Badge>;
   }
   if (type === "estimated") {
-    return <Badge variant="outline" className="text-[10px]">Estimated</Badge>;
+    return <Badge variant="outline" className="text-sm">Estimated</Badge>;
   }
-  return <Badge variant="outline" className="text-[10px]">Informational</Badge>;
+  return <Badge variant="outline" className="text-sm">Informational</Badge>;
 }
 
 function Metric({
@@ -505,7 +505,7 @@ function Metric({
         tone === "positive" && "border-border/25 bg-muted/[0.05]"
       )}
     >
-      <p className="text-[10px] uppercase tracking-wider text-muted-foreground">{label}</p>
+      <p className="text-sm uppercase tracking-wider text-muted-foreground">{label}</p>
       <p className="text-sm font-semibold tabular-nums">{value}</p>
     </div>
   );

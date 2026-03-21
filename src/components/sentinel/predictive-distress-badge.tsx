@@ -61,7 +61,7 @@ function FeatureBar({ label, value, max = 100 }: { label: string; value: number;
   const pct = Math.min((value / max) * 100, 100);
   return (
     <div className="space-y-0.5">
-      <div className="flex justify-between text-[10px]">
+      <div className="flex justify-between text-sm">
         <span className="text-muted-foreground">{label}</span>
         <span className="text-foreground font-medium">{Math.round(value)}</span>
       </div>
@@ -102,18 +102,18 @@ export function PredictiveDistressBadge({
               config.bg,
               config.color,
               config.glow,
-              size === "sm" && "text-[10px] px-1.5 py-0",
+              size === "sm" && "text-sm px-1.5 py-0",
               size === "lg" && "text-sm px-3 py-1"
             )}
           >
             <Brain className={cn("shrink-0", size === "sm" ? "h-2.5 w-2.5" : "h-3 w-3")} />
             <span className="font-bold">{data.predictiveScore}</span>
             {showDays && (
-              <span className="opacity-75 text-[10px]">{data.daysUntilDistress}d</span>
+              <span className="opacity-75 text-sm">{data.daysUntilDistress}d</span>
             )}
           </Badge>
           {data.confidence >= 70 && (
-            <span className="text-[9px] font-medium text-primary bg-primary/8 px-1 py-0.5 rounded border border-primary/15">
+            <span className="text-xs font-medium text-primary bg-primary/8 px-1 py-0.5 rounded border border-primary/15">
               {data.confidence}%
             </span>
           )}
@@ -137,7 +137,7 @@ export function PredictiveDistressBadge({
               <p className={cn("text-xs font-bold", config.color)}>
                 Predicted distress in ~{data.daysUntilDistress} days
               </p>
-              <p className="text-[10px] text-muted-foreground">
+              <p className="text-sm text-muted-foreground">
                 {data.confidence}% confidence
               </p>
             </div>
@@ -155,7 +155,7 @@ export function PredictiveDistressBadge({
 
           {data.ownerAgeInference != null && (
             <div className="flex items-center gap-1 pt-1 border-t border-glass-border">
-              <span className="text-[10px] text-muted-foreground">
+              <span className="text-sm text-muted-foreground">
                 Est. owner age: <span className="text-foreground font-medium">{data.ownerAgeInference}</span>
               </span>
             </div>
@@ -177,7 +177,7 @@ export function PredictiveDistressInline({ data }: { data: PredictiveDistressDat
       <TooltipTrigger asChild>
         <span
           className={cn(
-            "inline-flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded border cursor-default",
+            "inline-flex items-center gap-1 text-sm font-semibold px-1.5 py-0.5 rounded border cursor-default",
             config.bg,
             config.color
           )}
@@ -186,7 +186,7 @@ export function PredictiveDistressInline({ data }: { data: PredictiveDistressDat
           {data.daysUntilDistress}d
         </span>
       </TooltipTrigger>
-      <TooltipContent className="text-[11px]">
+      <TooltipContent className="text-sm">
         <Brain className="inline h-3 w-3 mr-1 text-primary" />
         Predicted distress in ~{data.daysUntilDistress} days ({data.confidence}% conf)
       </TooltipContent>

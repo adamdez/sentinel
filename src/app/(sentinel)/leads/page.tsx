@@ -36,9 +36,9 @@ function InboxStat({
         tone === "neutral" && "border-glass-border bg-glass/30",
       )}
     >
-      <p className="text-[10px] uppercase tracking-wider text-muted-foreground">{label}</p>
+      <p className="text-sm uppercase tracking-wider text-muted-foreground">{label}</p>
       <p className="text-sm font-semibold tabular-nums">{value}</p>
-      {hint ? <p className="text-[10px] text-muted-foreground/70">{hint}</p> : null}
+      {hint ? <p className="text-sm text-muted-foreground/70">{hint}</p> : null}
     </div>
   );
 }
@@ -139,7 +139,7 @@ export default function LeadsPage() {
         {/* Quick market filter */}
         <div className="flex items-center gap-2">
           <MapPin className="h-3.5 w-3.5 text-muted-foreground" />
-          <span className="text-[11px] font-medium text-muted-foreground">Market:</span>
+          <span className="text-sm font-medium text-muted-foreground">Market:</span>
           <select
             value={filters.markets.length === 1 ? filters.markets[0] : "all"}
             onChange={(e) => {
@@ -156,7 +156,7 @@ export default function LeadsPage() {
           {filters.markets.length > 0 && (
             <button
               onClick={() => updateFilter("markets", [])}
-              className="text-[10px] text-muted-foreground hover:text-foreground"
+              className="text-sm text-muted-foreground hover:text-foreground"
             >
               Clear
             </button>
@@ -177,7 +177,7 @@ export default function LeadsPage() {
                   key={item.id}
                   onClick={() => setAttentionFocus(active ? "none" : item.id)}
                   className={cn(
-                    "text-[11px] px-2.5 py-1 rounded-md border transition-all",
+                    "text-sm px-2.5 py-1 rounded-md border transition-all",
                     active
                       ? "border-primary/25 bg-primary/10 text-primary"
                       : item.count > 0
@@ -193,7 +193,7 @@ export default function LeadsPage() {
             {attentionFocus !== "none" && (
               <button
                 onClick={() => setAttentionFocus("none")}
-                className="text-[11px] px-2.5 py-1 rounded-md border border-white/10 text-muted-foreground hover:text-foreground hover:border-white/20"
+                className="text-sm px-2.5 py-1 rounded-md border border-white/10 text-muted-foreground hover:text-foreground hover:border-white/20"
               >
                 Clear Focus
               </button>
@@ -210,10 +210,10 @@ export default function LeadsPage() {
           currentUserRole={currentUser.role}
           teamMembers={teamMembers}
         />
-        <p className="text-[11px] text-muted-foreground/70">
+        <p className="text-sm text-muted-foreground/70">
           My Leads is your ownership queue. Stage remains workflow position.
         </p>
-        <p className="text-[11px] text-muted-foreground/60">
+        <p className="text-sm text-muted-foreground/60">
           Closed records stay hidden by default, but can be surfaced with the `Include closed` filter for recovery and lookup.
         </p>
 
@@ -245,17 +245,17 @@ export default function LeadsPage() {
                 <div className="flex items-center justify-between gap-2">
                   <div>
                     <p className="text-xs font-semibold text-foreground">Source Snapshot</p>
-                    <p className="text-[10px] text-muted-foreground/70">
+                    <p className="text-sm text-muted-foreground/70">
                       Contact, offer-path, and closed rates are directionally useful. Closed rate reflects `closed` only; contract is not yet modeled separately.
                     </p>
                   </div>
                 </div>
                 <div className="mt-3 space-y-2">
                   {outboundSourceMetrics.length > 0 ? outboundSourceMetrics.map((item) => (
-                    <div key={item.label} className="grid grid-cols-[1.4fr_repeat(4,80px)] gap-2 rounded-[10px] border border-white/[0.06] bg-white/[0.02] px-3 py-2 text-[11px]">
+                    <div key={item.label} className="grid grid-cols-[1.4fr_repeat(4,80px)] gap-2 rounded-[10px] border border-white/[0.06] bg-white/[0.02] px-3 py-2 text-sm">
                       <div>
                         <p className="font-semibold text-foreground">{item.label}</p>
-                        <p className="text-[10px] text-muted-foreground/65">{item.leads} leads</p>
+                        <p className="text-sm text-muted-foreground/65">{item.leads} leads</p>
                       </div>
                       <div className="text-right">
                         <p className="text-muted-foreground/70">Contact</p>
@@ -275,24 +275,24 @@ export default function LeadsPage() {
                       </div>
                     </div>
                   )) : (
-                    <p className="text-[11px] text-muted-foreground/60">Source metrics will appear once prospecting intake metadata is used.</p>
+                    <p className="text-sm text-muted-foreground/60">Source metrics will appear once prospecting intake metadata is used.</p>
                   )}
                 </div>
               </div>
 
               <div className="rounded-[12px] border border-glass-border bg-glass/40 p-3">
                 <p className="text-xs font-semibold text-foreground">Top Niches</p>
-                <p className="text-[10px] text-muted-foreground/70 mt-0.5">
+                <p className="text-sm text-muted-foreground/70 mt-0.5">
                   Quick read on what kinds of outbound lists are turning into live CRM work.
                 </p>
                 <div className="mt-3 space-y-2">
                   {nicheMetrics.length > 0 ? nicheMetrics.map((item) => (
-                    <div key={item.tag} className="flex items-center justify-between rounded-[10px] border border-white/[0.06] bg-white/[0.02] px-3 py-2 text-[11px]">
+                    <div key={item.tag} className="flex items-center justify-between rounded-[10px] border border-white/[0.06] bg-white/[0.02] px-3 py-2 text-sm">
                       <span className="font-medium text-foreground">{item.label}</span>
                       <span className="text-muted-foreground/75">{item.count}</span>
                     </div>
                   )) : (
-                    <p className="text-[11px] text-muted-foreground/60">No niche tags tracked yet.</p>
+                    <p className="text-sm text-muted-foreground/60">No niche tags tracked yet.</p>
                   )}
                 </div>
               </div>

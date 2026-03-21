@@ -53,7 +53,7 @@ function TooltipContent({ data, heir, pct, placement }: {
   const isBottom = placement === "bottom";
   return (
     <div
-      className={`absolute z-[60] left-1/2 -translate-x-1/2 w-64 p-3 rounded-[12px] bg-[rgba(8,8,16,0.96)] border border-white/[0.08] backdrop-blur-2xl text-[10px] ${
+      className={`absolute z-[60] left-1/2 -translate-x-1/2 w-64 p-3 rounded-[12px] bg-[rgba(8,8,16,0.96)] border border-white/[0.08] backdrop-blur-2xl text-sm ${
         isBottom ? "top-full mt-2" : "bottom-full mb-2"
       }`}
       style={{
@@ -64,7 +64,7 @@ function TooltipContent({ data, heir, pct, placement }: {
       {/* Holographic top edge */}
       <div className="absolute inset-x-0 top-0 h-[1px] rounded-t-[12px] bg-gradient-to-r from-transparent via-primary/30 to-transparent" />
 
-      <p className="font-semibold text-[11px] mb-1.5 text-foreground">
+      <p className="font-semibold text-sm mb-1.5 text-foreground">
         {heir ? "Likely Heir / Estate Contact" : "Direct Contact"}
       </p>
       <div className="space-y-1 text-muted-foreground">
@@ -130,7 +130,7 @@ export function RelationshipBadge({ data }: { data: RelationshipData }) {
       onMouseLeave={() => setShowTip(false)}
     >
       <span
-        className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-[8px] text-[11px] font-bold uppercase tracking-wider border backdrop-blur-sm cursor-default ${
+        className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-[8px] text-sm font-bold uppercase tracking-wider border backdrop-blur-sm cursor-default ${
           heir
             ? "text-foreground bg-muted/12 border-border/25"
             : "text-foreground bg-muted/12 border-border/25"
@@ -171,7 +171,7 @@ export function RelationshipBadgeCompact({ data }: { data: RelationshipData }) {
       onMouseLeave={() => setShowTip(false)}
     >
       <span
-        className={`inline-flex items-center gap-1 px-1.5 py-0 rounded-[6px] text-[9px] font-bold uppercase tracking-wider border shrink-0 ${
+        className={`inline-flex items-center gap-1 px-1.5 py-0 rounded-[6px] text-xs font-bold uppercase tracking-wider border shrink-0 ${
           heir
             ? "text-foreground bg-muted/10 border-border/20"
             : "text-foreground bg-muted/10 border-border/20"

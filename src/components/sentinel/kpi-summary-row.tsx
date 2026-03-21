@@ -174,7 +174,7 @@ export function KpiSummaryRow({ period }: { period: TimePeriod }) {
             <span>
               {kpis.overdue_tasks} overdue follow-up task{kpis.overdue_tasks !== 1 ? "s" : ""} need attention
             </span>
-            <span className="ml-auto text-foreground/70 text-[10px]">View Tasks &rarr;</span>
+            <span className="ml-auto text-foreground/70 text-sm">View Tasks &rarr;</span>
           </div>
         </Link>
       )}
@@ -204,11 +204,11 @@ function KpiCard({ icon: Icon, label, value, subtitle, tone = "default" }: KpiCa
     >
       <div className="flex items-center gap-1.5 mb-1">
         <Icon className="h-3.5 w-3.5 text-primary shrink-0" />
-        <span className="text-[10px] uppercase tracking-wider text-muted-foreground truncate">{label}</span>
+        <span className="text-sm uppercase tracking-wider text-muted-foreground truncate">{label}</span>
       </div>
       <p className="text-sm font-semibold tabular-nums leading-tight">{value}</p>
       {subtitle && (
-        <p className="text-[10px] text-muted-foreground mt-0.5 truncate">{subtitle}</p>
+        <p className="text-sm text-muted-foreground mt-0.5 truncate">{subtitle}</p>
       )}
     </div>
   );

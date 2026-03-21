@@ -554,13 +554,13 @@ export function CompsMap({ subject, selectedComps, onAddComp, onRemoveComp, focu
           <Button
             variant="outline"
             size="sm"
-            className="text-[11px] gap-1.5"
+            className="text-sm gap-1.5"
             onClick={() => setFiltersOpen(!filtersOpen)}
           >
             <Filter className="h-3 w-3" />
             Filters {filtersOpen ? "▾" : "▸"}
           </Button>
-          <div className="flex items-center gap-2 text-[11px]">
+          <div className="flex items-center gap-2 text-sm">
             <span className="text-muted-foreground">Radius:</span>
             <input
               type="range"
@@ -576,10 +576,10 @@ export function CompsMap({ subject, selectedComps, onAddComp, onRemoveComp, focu
         </div>
         <div className="flex items-center gap-2">
           {loading && <Loader2 className="h-3 w-3 animate-spin text-primary" />}
-          <Badge variant="outline" className="text-[10px]">
+          <Badge variant="outline" className="text-sm">
             {filteredComps.length}{filteredComps.length !== comps.length ? `/${comps.length}` : ""} properties{hiddenCount > 0 && ` (${MAX_MARKERS} shown)`}
           </Badge>
-          <Badge variant="neon" className="text-[10px]">
+          <Badge variant="neon" className="text-sm">
             {selectedComps.length} comps selected
           </Badge>
         </div>
@@ -594,7 +594,7 @@ export function CompsMap({ subject, selectedComps, onAddComp, onRemoveComp, focu
             exit={{ height: 0, opacity: 0 }}
             className="overflow-hidden"
           >
-            <div className="flex flex-wrap items-center gap-2 p-2.5 rounded-[12px] border border-glass-border bg-glass/50 text-[11px]">
+            <div className="flex flex-wrap items-center gap-2 p-2.5 rounded-[12px] border border-glass-border bg-glass/50 text-sm">
               <span className="text-muted-foreground font-medium">Match subject on:</span>
               {([
                 ["beds", "Beds ±1"],
@@ -621,7 +621,7 @@ export function CompsMap({ subject, selectedComps, onAddComp, onRemoveComp, focu
                   )}
                 </button>
               ))}
-              <Button size="sm" variant="ghost" className="text-[10px] h-6 ml-auto gap-1" onClick={fetchComps}>
+              <Button size="sm" variant="ghost" className="text-sm h-6 ml-auto gap-1" onClick={fetchComps}>
                 <RotateCcw className="h-2.5 w-2.5" />
                 Re-search
               </Button>
@@ -697,7 +697,7 @@ export function CompsMap({ subject, selectedComps, onAddComp, onRemoveComp, focu
                   offset={[0, -12]}
                   className="!bg-transparent !border-0 !shadow-none !p-0"
                 >
-                  <div className="bg-glass border border-primary/20 rounded px-2 py-0.5 text-[10px] text-primary font-bold backdrop-blur-sm whitespace-nowrap cursor-pointer">
+                  <div className="bg-glass border border-primary/20 rounded px-2 py-0.5 text-sm text-primary font-bold backdrop-blur-sm whitespace-nowrap cursor-pointer">
                     ★ SUBJECT
                   </div>
                 </Tooltip>
@@ -730,7 +730,7 @@ color: isSelected ? "#a1a1aa" : colors.stroke,
                       offset={[0, -8]}
                       className="!bg-transparent !border-0 !shadow-none !p-0"
                     >
-                      <div className="bg-[rgba(12,12,22,0.4)] border border-white/[0.06] rounded px-1.5 py-0.5 text-[9px] backdrop-blur-sm whitespace-nowrap max-w-[200px] truncate">
+                      <div className="bg-[rgba(12,12,22,0.4)] border border-white/[0.06] rounded px-1.5 py-0.5 text-xs backdrop-blur-sm whitespace-nowrap max-w-[200px] truncate">
                         {comp.streetAddress} — {comp.avm ? formatCurrency(comp.avm) : "N/A"}
                       </div>
                     </Tooltip>
@@ -763,7 +763,7 @@ color: isSelected ? "#a1a1aa" : colors.stroke,
           {/* Map legend overlay */}
           <div className="absolute bottom-2 left-2 z-[1000] flex gap-1.5 pointer-events-none">
             {Object.entries(QUALITY_COLORS).map(([key, val]) => (
-              <div key={key} className="flex items-center gap-1 bg-[rgba(12,12,22,0.8)] backdrop-blur-sm border border-white/[0.06] rounded px-1.5 py-0.5 text-[8px]">
+              <div key={key} className="flex items-center gap-1 bg-[rgba(12,12,22,0.8)] backdrop-blur-sm border border-white/[0.06] rounded px-1.5 py-0.5 text-xs">
                 <div className="h-2 w-2 rounded-full" style={{ backgroundColor: val.fill }} />
                 {val.label}
               </div>
@@ -773,7 +773,7 @@ color: isSelected ? "#a1a1aa" : colors.stroke,
           {/* Cached indicator */}
           {!loading && comps.length > 0 && (
             <div className="absolute top-2 right-2 z-[1000] pointer-events-none">
-              <div className="bg-[rgba(12,12,22,0.7)] backdrop-blur-sm border border-white/[0.06] rounded px-1.5 py-0.5 text-[8px] text-muted-foreground">
+              <div className="bg-[rgba(12,12,22,0.7)] backdrop-blur-sm border border-white/[0.06] rounded px-1.5 py-0.5 text-xs text-muted-foreground">
                 {comps.length} results • 5m cache
               </div>
             </div>
@@ -822,7 +822,7 @@ color: isSelected ? "#a1a1aa" : colors.stroke,
                 <p className="text-xs text-muted-foreground">
                   Click any marker on the map to view property details
                 </p>
-                <p className="text-[10px] text-muted-foreground/50 mt-1">
+                <p className="text-sm text-muted-foreground/50 mt-1">
                   All properties in {radiusMiles}mi radius are clickable
                 </p>
               </div>
@@ -896,7 +896,7 @@ function CompDetailPanel({
           />
           <div className="absolute inset-0 bg-gradient-to-t from-[rgba(12,12,22,0.8)] to-transparent" />
           {comp.lastSalePrice && (
-            <div className="absolute bottom-1.5 left-2 text-[11px] font-bold text-white" style={{ textShadow: "0 1px 4px rgba(0,0,0,0.7)" }}>
+            <div className="absolute bottom-1.5 left-2 text-sm font-bold text-white" style={{ textShadow: "0 1px 4px rgba(0,0,0,0.7)" }}>
               Sold {formatCurrency(comp.lastSalePrice)}
               {comp.lastSaleDate && (
                 <span className="font-normal text-white/70 ml-1">
@@ -910,7 +910,7 @@ function CompDetailPanel({
               href={streetViewLink}
               target="_blank"
               rel="noopener noreferrer"
-              className="absolute top-1.5 right-1.5 bg-black/50 backdrop-blur-sm border border-white/10 rounded px-1.5 py-0.5 text-[8px] text-white/80 hover:text-white hover:bg-black/70 transition-colors flex items-center gap-1"
+              className="absolute top-1.5 right-1.5 bg-black/50 backdrop-blur-sm border border-white/10 rounded px-1.5 py-0.5 text-xs text-white/80 hover:text-white hover:bg-black/70 transition-colors flex items-center gap-1"
             >
               <Eye className="h-2.5 w-2.5" />
               Street View
@@ -926,7 +926,7 @@ function CompDetailPanel({
           <p className="font-semibold text-sm truncate" style={{ textShadow: "0 0 8px rgba(0,0,0,0.12)" }}>
             {comp.streetAddress || comp.address}
           </p>
-          <p className="text-[10px] text-muted-foreground truncate">
+          <p className="text-sm text-muted-foreground truncate">
             {comp.city}, {comp.state} {comp.zip}
           </p>
         </div>
@@ -938,7 +938,7 @@ function CompDetailPanel({
       {/* Quality score + distance + badges row */}
       <div className="flex flex-wrap items-center gap-1.5">
         <Badge
-          className="text-[9px] gap-1"
+          className="text-xs gap-1"
           style={{
             backgroundColor: `${colors.fill}15`,
             borderColor: `${colors.fill}40`,
@@ -949,18 +949,18 @@ function CompDetailPanel({
           {getCompQualityLabel(compScore.total, comp.isForeclosure || comp.isTaxDelinquent)} &middot; {compScore.total}/100
         </Badge>
         {distance != null && (
-          <Badge variant="outline" className="text-[9px] gap-0.5">
+          <Badge variant="outline" className="text-xs gap-0.5">
             <MapPin className="h-2.5 w-2.5" />
             {distance.toFixed(1)}mi
           </Badge>
         )}
         {comp.isRecentSale && (
-          <Badge variant="outline" className="text-[9px] gap-0.5 text-foreground border-border/30">
+          <Badge variant="outline" className="text-xs gap-0.5 text-foreground border-border/30">
             Recent Sale
           </Badge>
         )}
         {comp.isListedForSale && (
-          <Badge variant="outline" className="text-[9px] gap-0.5 text-foreground border-border/30">
+          <Badge variant="outline" className="text-xs gap-0.5 text-foreground border-border/30">
             Listed
           </Badge>
         )}
@@ -970,7 +970,7 @@ function CompDetailPanel({
       {distressSignals.length > 0 && (
         <div className="flex flex-wrap gap-1">
           {distressSignals.map((s) => (
-            <span key={s.label} className={cn("text-[8px] px-1.5 py-0.5 rounded border font-medium", s.color)}>
+            <span key={s.label} className={cn("text-xs px-1.5 py-0.5 rounded border font-medium", s.color)}>
               {s.label}
             </span>
           ))}
@@ -988,12 +988,12 @@ function CompDetailPanel({
       {/* $/sqft comparison */}
       {pricePerSqft != null && (
         <div className="flex items-center justify-between p-1.5 rounded-md border border-white/[0.06] bg-white/[0.04]">
-          <span className="text-[10px] text-muted-foreground">$/sqft</span>
+          <span className="text-sm text-muted-foreground">$/sqft</span>
           <div className="flex items-center gap-2">
             <span className="font-semibold text-primary">${pricePerSqft}</span>
             {subjectPpsf != null && (
               <span className={cn(
-                "text-[9px]",
+                "text-xs",
                 pricePerSqft > subjectPpsf ? "text-foreground" : "text-foreground"
               )}>
                 vs ${subjectPpsf} subj
@@ -1044,7 +1044,7 @@ function CompDetailPanel({
       </div>
 
       {/* Property details */}
-      <div className="space-y-1 text-[10px]">
+      <div className="space-y-1 text-sm">
         <div className="flex justify-between">
           <span className="text-muted-foreground">Type</span>
           <span>{comp.propertyType ?? "—"}</span>
@@ -1071,7 +1071,7 @@ function CompDetailPanel({
 
       {/* Score breakdown */}
       <div className="space-y-1 p-2 rounded-md border border-white/[0.06] bg-white/[0.04]">
-        <p className="text-[9px] font-semibold text-muted-foreground uppercase tracking-wider mb-1">Comp Quality Score</p>
+        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1">Comp Quality Score</p>
         {[
           { label: "Distance", pts: compScore.distance, max: 30 },
           { label: "Recency", pts: compScore.recency, max: 25 },
@@ -1080,11 +1080,11 @@ function CompDetailPanel({
           { label: "Year Built", pts: compScore.year, max: 10 },
         ].map((row) => (
           <div key={row.label} className="flex items-center gap-2">
-            <span className="text-[9px] text-muted-foreground w-14 shrink-0">{row.label}</span>
+            <span className="text-xs text-muted-foreground w-14 shrink-0">{row.label}</span>
             <div className="flex-1 h-1.5 rounded-full bg-white/[0.06] overflow-hidden">
               <div className="h-full rounded-full transition-all" style={{ width: `${(row.pts / row.max) * 100}%`, backgroundColor: colors.fill }} />
             </div>
-            <span className="text-[9px] font-mono w-8 text-right">{row.pts}/{row.max}</span>
+            <span className="text-xs font-mono w-8 text-right">{row.pts}/{row.max}</span>
           </div>
         ))}
       </div>
@@ -1093,19 +1093,19 @@ function CompDetailPanel({
       <div className="flex gap-1.5">
         {zillowUrl && (
           <a href={zillowUrl} target="_blank" rel="noopener noreferrer"
-            className="flex-1 text-center text-[9px] font-medium py-1.5 rounded-md border border-white/[0.06] bg-white/[0.04] hover:bg-white/[0.08] transition-colors text-foreground">
+            className="flex-1 text-center text-xs font-medium py-1.5 rounded-md border border-white/[0.06] bg-white/[0.04] hover:bg-white/[0.08] transition-colors text-foreground">
             Zillow
           </a>
         )}
         {redfinUrl && (
           <a href={redfinUrl} target="_blank" rel="noopener noreferrer"
-            className="flex-1 text-center text-[9px] font-medium py-1.5 rounded-md border border-white/[0.06] bg-white/[0.04] hover:bg-white/[0.08] transition-colors text-foreground">
+            className="flex-1 text-center text-xs font-medium py-1.5 rounded-md border border-white/[0.06] bg-white/[0.04] hover:bg-white/[0.08] transition-colors text-foreground">
             Redfin
           </a>
         )}
         {comp.lat && comp.lng && (
           <a href={`https://www.google.com/maps/@${comp.lat},${comp.lng},18z`} target="_blank" rel="noopener noreferrer"
-            className="flex-1 text-center text-[9px] font-medium py-1.5 rounded-md border border-white/[0.06] bg-white/[0.04] hover:bg-white/[0.08] transition-colors text-foreground">
+            className="flex-1 text-center text-xs font-medium py-1.5 rounded-md border border-white/[0.06] bg-white/[0.04] hover:bg-white/[0.08] transition-colors text-foreground">
             Google Maps
           </a>
         )}
@@ -1113,12 +1113,12 @@ function CompDetailPanel({
 
       {/* Action button */}
       {isSelected ? (
-        <Button variant="outline" size="sm" className="w-full text-[11px] gap-1.5 text-foreground border-border/30 hover:bg-muted/10" onClick={onRemove}>
+        <Button variant="outline" size="sm" className="w-full text-sm gap-1.5 text-foreground border-border/30 hover:bg-muted/10" onClick={onRemove}>
           <X className="h-3 w-3" />
           Remove Comp
         </Button>
       ) : (
-        <Button variant="neon" size="sm" className="w-full text-[11px] gap-1.5" onClick={onAdd}>
+        <Button variant="neon" size="sm" className="w-full text-sm gap-1.5" onClick={onAdd}>
           <Plus className="h-3 w-3" />
           Add as Comp
         </Button>
@@ -1138,7 +1138,7 @@ function SubjectDetailPanel({ subject, onClose }: { subject: SubjectProperty; on
         <div className="relative w-full h-[120px] overflow-hidden rounded-t-[10px] bg-black/40">
           <img src={photoSrc} alt="Subject" className="w-full h-full object-cover" />
           <div className="absolute inset-0 bg-gradient-to-t from-[rgba(12,12,22,0.8)] to-transparent" />
-          <div className="absolute bottom-1.5 left-2 text-[11px] font-bold text-primary" style={{ textShadow: "0 1px 4px rgba(0,0,0,0.7)" }}>
+          <div className="absolute bottom-1.5 left-2 text-sm font-bold text-primary" style={{ textShadow: "0 1px 4px rgba(0,0,0,0.7)" }}>
             ★ Subject Property
           </div>
         </div>
@@ -1178,7 +1178,7 @@ function SubjectDetailPanel({ subject, onClose }: { subject: SubjectProperty; on
             </div>
           )}
         </div>
-        <p className="text-[10px] text-muted-foreground/60 text-center">This is the subject property — click comp markers to compare</p>
+        <p className="text-sm text-muted-foreground/60 text-center">This is the subject property — click comp markers to compare</p>
       </div>
     </div>
   );
@@ -1192,7 +1192,7 @@ function StatBox({ icon: Icon, label, value, match }: {
       "p-1.5 rounded-md border text-center",
       match ? "border-primary/20 bg-primary/4" : "border-glass-border bg-secondary/10"
     )}>
-      <p className="text-[9px] text-muted-foreground">{label}</p>
+      <p className="text-xs text-muted-foreground">{label}</p>
       <p className={cn("text-sm font-semibold", match && "text-primary")}>{value}</p>
     </div>
   );

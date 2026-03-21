@@ -121,7 +121,7 @@ function TriageBar({ triage }: { triage: TriageResult }) {
         return (
           <span
             key={reason.code}
-            className={`inline-flex items-center text-[10px] font-medium px-1.5 py-0.5 rounded-full border ${style.badge}`}
+            className={`inline-flex items-center text-sm font-medium px-1.5 py-0.5 rounded-full border ${style.badge}`}
             title={reason.detail ?? reason.label}
           >
             {reason.label}
@@ -130,7 +130,7 @@ function TriageBar({ triage }: { triage: TriageResult }) {
       })}
 
       {overflow > 0 && (
-        <span className="text-[9px] text-muted-foreground/40">
+        <span className="text-xs text-muted-foreground/40">
           +{overflow} more
         </span>
       )}
@@ -302,7 +302,7 @@ export function DossierReviewCard({ item, onDone }: DossierReviewCardProps) {
           {/* Triage detail strip (shows all reasons with full detail text) */}
           {item.triage && item.triage.reasons.length > 0 && (
             <div className="px-4 py-2.5 border-b border-border/60 bg-muted/5 space-y-1">
-              <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/50 mb-1.5">
+              <p className="text-sm font-semibold uppercase tracking-wider text-muted-foreground/50 mb-1.5">
                 Review signals
               </p>
               {item.triage.reasons.map((reason: TriageReason) => {
@@ -312,11 +312,11 @@ export function DossierReviewCard({ item, onDone }: DossierReviewCardProps) {
                   <div key={reason.code} className="flex items-start gap-2">
                     <Icon className={`h-3 w-3 shrink-0 mt-0.5 ${style.text}`} />
                     <div>
-                      <span className={`text-[11px] font-medium ${style.text}`}>
+                      <span className={`text-sm font-medium ${style.text}`}>
                         {reason.label}
                       </span>
                       {reason.detail && (
-                        <span className="text-[10px] text-muted-foreground/60 ml-1.5">
+                        <span className="text-sm text-muted-foreground/60 ml-1.5">
                           — {reason.detail}
                         </span>
                       )}

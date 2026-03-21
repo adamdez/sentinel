@@ -86,7 +86,7 @@ export function ComplianceStatus() {
           style={{ textShadow: healthPct >= 95 ? "0 0 12px rgba(52,211,153,0.4)" : undefined }}>
           {healthPct}%
         </p>
-        <p className="text-[10px] text-muted-foreground">Clean Pipeline</p>
+        <p className="text-sm text-muted-foreground">Clean Pipeline</p>
       </motion.div>
 
       {rows.map((r, i) => {
@@ -99,7 +99,7 @@ export function ComplianceStatus() {
             transition={{ delay: i * 0.05 }}
             className="flex items-center justify-between"
           >
-            <span className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
+            <span className="flex items-center gap-1.5 text-sm text-muted-foreground">
               <Icon className={cn("h-3 w-3", r.color)} />
               {r.label}
             </span>
@@ -108,7 +108,7 @@ export function ComplianceStatus() {
         );
       })}
 
-      <p className="text-[10px] text-muted-foreground text-center pt-1">
+      <p className="text-sm text-muted-foreground text-center pt-1">
         {totalScreened.toLocaleString()} records screened — {d.blockedLeads} leads flagged
       </p>
     </div>

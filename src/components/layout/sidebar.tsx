@@ -210,7 +210,7 @@ function SidebarSection({ section, badges, defaultCollapsed = false }: { section
       >
         <span
           className={cn(
-            "text-[10px] font-semibold uppercase tracking-[0.14em] transition-colors duration-100",
+            "text-xs font-semibold uppercase tracking-wide transition-colors duration-100",
             hasActiveItem
               ? "text-primary/80"
               : "text-muted-foreground/60 group-hover:text-muted-foreground"
@@ -305,10 +305,10 @@ export function Sidebar() {
               <Zap className="h-4 w-4 text-primary drop-shadow-[0_0_8px_rgba(255,255,255,0.6)]" />
             </div>
             <div>
-              <h1 className="text-sm font-bold tracking-tight text-foreground title-glow">
+              <h1 className="text-base font-bold tracking-tight text-foreground title-glow">
                 SENTINEL
               </h1>
-              <p className="text-[10px] text-muted-foreground/60 tracking-[0.2em] uppercase">
+              <p className="text-xs text-muted-foreground tracking-wide uppercase">
                 Lead Context
               </p>
             </div>

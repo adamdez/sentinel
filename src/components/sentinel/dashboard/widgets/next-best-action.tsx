@@ -174,7 +174,7 @@ export function NextBestAction() {
             AI Recommendation
           </span>
           {hasPredictive && (
-            <span className="flex items-center gap-0.5 text-[11px] text-foreground font-medium">
+            <span className="flex items-center gap-0.5 text-sm text-foreground font-medium">
               <Brain className="h-3 w-3" />
               Predictive
             </span>
@@ -188,11 +188,11 @@ export function NextBestAction() {
           {primary.reason}
         </p>
         <div className="flex items-center gap-2">
-          <Button size="sm" className="h-7 text-[11px] gap-1 flex-1" onClick={() => { if (primary.id) window.location.href = `/leads?open=${primary.id}`; }}>
+          <Button size="sm" className="h-7 text-sm gap-1 flex-1" onClick={() => { if (primary.id) window.location.href = `/leads?open=${primary.id}`; }}>
             <Phone className="h-3 w-3" />
             {primary.action}
           </Button>
-          <Button size="sm" variant="outline" className="h-7 text-[11px] gap-1" onClick={() => setSnoozed(true)}>
+          <Button size="sm" variant="outline" className="h-7 text-sm gap-1" onClick={() => setSnoozed(true)}>
             <Clock className="h-3 w-3" />
             Snooze
           </Button>
@@ -202,14 +202,14 @@ export function NextBestAction() {
       {staleCount > 0 && (
         <div className="flex items-center gap-2 px-3 py-2 rounded-[10px] bg-muted/8 border border-border/20">
           <AlertTriangle className="h-3.5 w-3.5 text-foreground shrink-0" />
-          <span className="text-[11px] text-foreground/90 font-medium">
+          <span className="text-sm text-foreground/90 font-medium">
             {staleCount} lead{staleCount === 1 ? "" : "s"} {staleCount === 1 ? "hasn\u2019t" : "haven\u2019t"} been called in 7+ days
           </span>
         </div>
       )}
 
       {secondary && (
-        <div className="text-[11px] text-muted-foreground flex items-center gap-1">
+        <div className="text-sm text-muted-foreground flex items-center gap-1">
           <ArrowRight className="h-2.5 w-2.5" />
           {secondary}
         </div>

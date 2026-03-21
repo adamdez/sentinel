@@ -66,10 +66,10 @@ export function DailyVerse() {
         className="w-full flex items-center justify-center gap-2 group cursor-pointer px-4 py-1"
       >
         <BookOpen className="h-3 w-3 text-muted-foreground/50 shrink-0 group-hover:text-muted-foreground transition-colors" />
-        <p className="text-[11px] text-muted-foreground/70 group-hover:text-foreground transition-colors truncate italic">
+        <p className="text-sm text-muted-foreground/70 group-hover:text-foreground transition-colors truncate italic">
           &ldquo;{displayText}&rdquo;
         </p>
-        <span className="text-[11px] text-muted-foreground/50 group-hover:text-muted-foreground transition-colors shrink-0 font-medium">
+        <span className="text-sm text-muted-foreground/50 group-hover:text-muted-foreground transition-colors shrink-0 font-medium">
           — {devotional.verseRef}
         </span>
         <ChevronDown
@@ -97,7 +97,7 @@ export function DailyVerse() {
                   <h3 className="text-sm font-semibold text-primary">
                     {devotional.verseRef}
                   </h3>
-                  <span className="text-[9px] text-muted-foreground/40 ml-auto">ESV</span>
+                  <span className="text-xs text-muted-foreground/40 ml-auto">ESV</span>
                 </div>
                 <p className="text-sm text-foreground/90 leading-relaxed pl-6">
                   &ldquo;{devotional.verseText}&rdquo;
@@ -109,21 +109,21 @@ export function DailyVerse() {
 
               {/* Commentary */}
               <div className="space-y-2">
-                <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
+                <p className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">
                   Commentary
                 </p>
                 <blockquote className="text-xs text-foreground/80 leading-relaxed italic border-l-2 border-primary/20 pl-3">
                   {devotional.commentary}
                 </blockquote>
                 <div className="flex items-center justify-between pt-1">
-                  <p className="text-[11px] font-semibold text-foreground/70">
+                  <p className="text-sm font-semibold text-foreground/70">
                     — {devotional.author}
                   </p>
                   <a
                     href={devotional.sourceUrl}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="flex items-center gap-1 text-[10px] text-primary/60 hover:text-primary transition-colors"
+                    className="flex items-center gap-1 text-sm text-primary/60 hover:text-primary transition-colors"
                   >
                     <span className="underline underline-offset-2">
                       {devotional.sourceTitle}
@@ -134,7 +134,7 @@ export function DailyVerse() {
               </div>
 
               {/* ESV Copyright */}
-              <p className="text-[8px] text-muted-foreground/30 text-center pt-1">
+              <p className="text-xs text-muted-foreground/30 text-center pt-1">
                 Scripture quotations are from the ESV® Bible, copyright © 2001 by Crossway.
               </p>
             </div>

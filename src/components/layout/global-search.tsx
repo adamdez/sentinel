@@ -482,7 +482,7 @@ export function GlobalSearch() {
             <X className="h-3.5 w-3.5" />
           </button>
         ) : (
-          <kbd className="text-[11px] bg-white/[0.03] px-1.5 py-0.5 rounded-[6px] border border-white/[0.06] font-mono text-muted-foreground/70">
+          <kbd className="text-sm bg-white/[0.03] px-1.5 py-0.5 rounded-[6px] border border-white/[0.06] font-mono text-muted-foreground/70">
             Ctrl+K
           </kbd>
         )}
@@ -512,7 +512,7 @@ export function GlobalSearch() {
                 {results.length > 0 && results[0].id !== "__no_result__" && results[0].id !== "__error__" && (
                   <>
                     <div className="px-3 pt-2 pb-1">
-                      <span className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/50">
+                      <span className="text-sm font-semibold uppercase tracking-widest text-muted-foreground/50">
                         In Your Pipeline
                       </span>
                     </div>
@@ -552,7 +552,7 @@ export function GlobalSearch() {
                             >
                               <HighlightMatch text={rec.primary} query={query} />
                             </p>
-                            <p className="text-[11px] text-muted-foreground truncate">
+                            <p className="text-sm text-muted-foreground truncate">
                               <HighlightMatch text={rec.secondary} query={query} />
                             </p>
                           </div>
@@ -560,7 +560,7 @@ export function GlobalSearch() {
                           {rec.score != null && rec.scoreLabel && (
                             <span
                               className={cn(
-                                "text-[9px] px-1.5 py-0.5 rounded border font-bold shrink-0",
+                                "text-xs px-1.5 py-0.5 rounded border font-bold shrink-0",
                                 SCORE_COLORS[rec.scoreLabel]
                               )}
                             >
@@ -572,7 +572,7 @@ export function GlobalSearch() {
                           )}
 
                           {rec.status && (
-                            <span className="text-[9px] px-1.5 py-0.5 rounded bg-white/[0.04] text-muted-foreground border border-white/[0.06] shrink-0">
+                            <span className="text-xs px-1.5 py-0.5 rounded bg-white/[0.04] text-muted-foreground border border-white/[0.06] shrink-0">
                               {statusLabel(rec.status)}
                             </span>
                           )}
@@ -601,7 +601,7 @@ export function GlobalSearch() {
                 {showNationwide && (
                   <>
                     <div className="border-t border-white/[0.04] px-3 pt-2 pb-1">
-                      <span className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/50">
+                      <span className="text-sm font-semibold uppercase tracking-widest text-muted-foreground/50">
                         {suggestions.length > 0 ? "Nationwide Matches" : "Nationwide Search"}
                       </span>
                       {loadingSuggestions && (
@@ -637,7 +637,7 @@ export function GlobalSearch() {
                           <p className="text-sm font-semibold text-foreground truncate">
                             <HighlightMatch text={s.address} query={query} />
                           </p>
-                          <p className="text-[11px] text-muted-foreground truncate">
+                          <p className="text-sm text-muted-foreground truncate">
                             {[s.city, s.state, s.zip].filter(Boolean).join(", ")}
                           </p>
                         </div>
@@ -673,7 +673,7 @@ export function GlobalSearch() {
                           <p className="text-sm font-semibold text-foreground">
                             {lookingUp ? "Looking up property..." : `Look up "${query}"`}
                           </p>
-                          <p className="text-[11px] text-muted-foreground">
+                          <p className="text-sm text-muted-foreground">
                             Search any US property via PropertyRadar
                           </p>
                         </div>
@@ -686,7 +686,7 @@ export function GlobalSearch() {
               </div>
             )}
 
-            <div className="border-t border-white/[0.04] px-3 py-1.5 flex items-center gap-4 text-[11px] text-muted-foreground/60">
+            <div className="border-t border-white/[0.04] px-3 py-1.5 flex items-center gap-4 text-sm text-muted-foreground/60">
               <span>
                 <kbd className="font-mono bg-white/[0.03] px-1 py-0.5 rounded-[4px] border border-white/[0.06]">↑↓</kbd> Navigate
               </span>

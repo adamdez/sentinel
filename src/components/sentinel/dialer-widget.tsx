@@ -55,7 +55,7 @@ export default function DialerWidget() {
         {connecting ? 'Connecting...' : 'CALL NOW'}
       </Button>
       
-      <div className="text-[10px] text-white/40 mt-4 text-center">
+      <div className="text-sm text-white/40 mt-4 text-center">
         All calls use your personal Twilio number • Auto-recorded
       </div>
     </Card>

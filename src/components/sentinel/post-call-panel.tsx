@@ -604,7 +604,7 @@ export function PostCallPanel({
           {leadId ? (
             <>
               <div className="rounded-[10px] border border-white/[0.08] bg-white/[0.02] p-3 space-y-2">
-                <p className="text-[10px] uppercase tracking-wide text-muted-foreground font-semibold">
+                <p className="text-sm uppercase tracking-wide text-muted-foreground font-semibold">
                   Intelligence
                 </p>
                 <Button
@@ -622,13 +622,13 @@ export function PostCallPanel({
                   Promote Call Facts
                 </Button>
                 {promoteFactsInfo != null && (
-                  <p className="text-[11px] text-muted-foreground">
+                  <p className="text-sm text-muted-foreground">
                     Promoted {promoteFactsInfo.promoted} fact{promoteFactsInfo.promoted === 1 ? "" : "s"} to the
                     intelligence pipeline.
                   </p>
                 )}
                 {promoteFactsInfo != null && promoteFactsInfo.contradictions > 0 && (
-                  <div className="flex items-start gap-2 rounded-md border border-border/25 bg-muted/[0.06] px-2 py-1.5 text-[11px] text-foreground/90">
+                  <div className="flex items-start gap-2 rounded-md border border-border/25 bg-muted/[0.06] px-2 py-1.5 text-sm text-foreground/90">
                     <AlertTriangle className="h-3.5 w-3.5 shrink-0 mt-0.5" />
                     <span>
                       {promoteFactsInfo.contradictions} fact
@@ -644,7 +644,7 @@ export function PostCallPanel({
               </Button>
             </>
           ) : (
-            <p className="text-[10px] text-muted-foreground/50 text-center">Moving to next lead…</p>
+            <p className="text-sm text-muted-foreground/50 text-center">Moving to next lead…</p>
           )}
         </div>
       ) : (
@@ -659,18 +659,18 @@ export function PostCallPanel({
           <button
             onClick={qualStep ? handleQualBack : () => { setPendingDispo(null); setCallbackAt(""); }}
             disabled={publishing}
-            className="ml-auto flex items-center gap-0.5 text-[10px] text-muted-foreground/50 hover:text-foreground disabled:opacity-40"
+            className="ml-auto flex items-center gap-0.5 text-sm text-muted-foreground/50 hover:text-foreground disabled:opacity-40"
           >
             <ChevronLeft className="h-3 w-3" />
             Change
           </button>
         ) : (
-          <span className="text-[10px] opacity-40 ml-auto">Tap to save &amp; continue</span>
+          <span className="text-sm opacity-40 ml-auto">Tap to save &amp; continue</span>
         )}
       </div>
 
       {error && (
-        <p className="text-[11px] text-foreground mb-2 px-1">{error}</p>
+        <p className="text-sm text-foreground mb-2 px-1">{error}</p>
       )}
 
       {qualStep && pendingDispo && pendingMeta ? (
@@ -681,7 +681,7 @@ export function PostCallPanel({
             <pendingMeta.icon className={`h-4 w-4 ${pendingMeta.color}`} />
             <span className="text-sm font-medium">{pendingMeta.label}</span>
             {pendingNextCallAt && (
-              <span className="ml-auto text-[10px] text-muted-foreground/50">
+              <span className="ml-auto text-sm text-muted-foreground/50">
                 {new Date(pendingNextCallAt).toLocaleDateString([], { month: "short", day: "numeric" })}
               </span>
             )}
@@ -725,7 +725,7 @@ export function PostCallPanel({
 
           {/* ── Minimal structured corrections (no extra console) ─────── */}
           <div className="mb-3 rounded-[10px] border border-white/[0.05] bg-white/[0.02] p-2.5 space-y-1.5">
-            <p className="text-[10px] uppercase tracking-wider text-muted-foreground/45">Post-call structure</p>
+            <p className="text-sm uppercase tracking-wider text-muted-foreground/45">Post-call structure</p>
             <textarea
               value={structuredDraft?.promises_made ?? ""}
               onChange={(e) => updateStructuredField("promises_made", e.target.value)}
@@ -733,7 +733,7 @@ export function PostCallPanel({
               maxLength={200}
               rows={1}
               disabled={publishing}
-              className="w-full resize-none rounded-[8px] border border-white/[0.06] bg-white/[0.03] px-2.5 py-1.5 text-[11px] text-foreground placeholder:text-muted-foreground/30 focus:outline-none focus:border-primary/20 disabled:opacity-50"
+              className="w-full resize-none rounded-[8px] border border-white/[0.06] bg-white/[0.03] px-2.5 py-1.5 text-sm text-foreground placeholder:text-muted-foreground/30 focus:outline-none focus:border-primary/20 disabled:opacity-50"
             />
             <textarea
               value={structuredDraft?.objection ?? ""}
@@ -742,7 +742,7 @@ export function PostCallPanel({
               maxLength={200}
               rows={1}
               disabled={publishing}
-              className="w-full resize-none rounded-[8px] border border-white/[0.06] bg-white/[0.03] px-2.5 py-1.5 text-[11px] text-foreground placeholder:text-muted-foreground/30 focus:outline-none focus:border-primary/20 disabled:opacity-50"
+              className="w-full resize-none rounded-[8px] border border-white/[0.06] bg-white/[0.03] px-2.5 py-1.5 text-sm text-foreground placeholder:text-muted-foreground/30 focus:outline-none focus:border-primary/20 disabled:opacity-50"
             />
             <textarea
               value={structuredDraft?.next_task_suggestion ?? ""}
@@ -751,7 +751,7 @@ export function PostCallPanel({
               maxLength={200}
               rows={1}
               disabled={publishing}
-              className="w-full resize-none rounded-[8px] border border-white/[0.06] bg-white/[0.03] px-2.5 py-1.5 text-[11px] text-foreground placeholder:text-muted-foreground/30 focus:outline-none focus:border-primary/20 disabled:opacity-50"
+              className="w-full resize-none rounded-[8px] border border-white/[0.06] bg-white/[0.03] px-2.5 py-1.5 text-sm text-foreground placeholder:text-muted-foreground/30 focus:outline-none focus:border-primary/20 disabled:opacity-50"
             />
             <textarea
               value={structuredDraft?.callback_timing_hint ?? ""}
@@ -760,13 +760,13 @@ export function PostCallPanel({
               maxLength={120}
               rows={1}
               disabled={publishing}
-              className="w-full resize-none rounded-[8px] border border-white/[0.06] bg-white/[0.03] px-2.5 py-1.5 text-[11px] text-foreground placeholder:text-muted-foreground/30 focus:outline-none focus:border-primary/20 disabled:opacity-50"
+              className="w-full resize-none rounded-[8px] border border-white/[0.06] bg-white/[0.03] px-2.5 py-1.5 text-sm text-foreground placeholder:text-muted-foreground/30 focus:outline-none focus:border-primary/20 disabled:opacity-50"
             />
           </div>
 
           {NEXT_STEP_DISPOS.has(pendingDispo) && (
             <div className="mb-3">
-              <label className="block text-[11px] text-muted-foreground/60 mb-1.5 px-0.5">
+              <label className="block text-sm text-muted-foreground/60 mb-1.5 px-0.5">
                 Callback date &amp; time <span className="opacity-50">(quick correction)</span>
               </label>
               <input
@@ -779,7 +779,7 @@ export function PostCallPanel({
                 min={minDatetime}
                 disabled={publishing}
                 style={{ colorScheme: "dark" }}
-                className="w-full rounded-[10px] border border-white/[0.06] bg-white/[0.03] px-3 py-2 text-[12px] text-foreground focus:outline-none focus:border-primary/20 disabled:opacity-50"
+                className="w-full rounded-[10px] border border-white/[0.06] bg-white/[0.03] px-3 py-2 text-xs text-foreground focus:outline-none focus:border-primary/20 disabled:opacity-50"
               />
             </div>
           )}
@@ -804,10 +804,10 @@ export function PostCallPanel({
 
           {/* Motivation level */}
           <div className="flex items-center gap-1.5 mb-1.5 px-0.5">
-            <label className="text-[11px] text-muted-foreground/60">Motivation level</label>
+            <label className="text-sm text-muted-foreground/60">Motivation level</label>
             {extracting && <Loader2 className="h-2.5 w-2.5 animate-spin text-foreground/50" />}
             {!extracting && aiSuggested.has("motivation") && (
-              <span className="text-[9px] text-foreground/60 uppercase tracking-wide">AI</span>
+              <span className="text-xs text-foreground/60 uppercase tracking-wide">AI</span>
             )}
           </div>
           <div className="flex gap-1.5 mb-3">
@@ -832,10 +832,10 @@ export function PostCallPanel({
 
           {/* Seller timeline */}
           <div className="flex items-center gap-1.5 mb-1.5 px-0.5">
-            <label className="text-[11px] text-muted-foreground/60">Seller timeline</label>
+            <label className="text-sm text-muted-foreground/60">Seller timeline</label>
             {extracting && <Loader2 className="h-2.5 w-2.5 animate-spin text-foreground/50" />}
             {!extracting && aiSuggested.has("timeline") && (
-              <span className="text-[9px] text-foreground/60 uppercase tracking-wide">AI</span>
+              <span className="text-xs text-foreground/60 uppercase tracking-wide">AI</span>
             )}
           </div>
           <div className="grid grid-cols-2 gap-1.5 mb-3">
@@ -847,7 +847,7 @@ export function PostCallPanel({
                   setAiSuggested((prev) => { const s = new Set(prev); s.delete("timeline"); return s; });
                 }}
                 disabled={publishing}
-                className={`rounded-[10px] py-2 text-[12px] font-medium border transition-all ${
+                className={`rounded-[10px] py-2 text-xs font-medium border transition-all ${
                   qualTimeline === value
                     ? "bg-primary/20 border-primary/40 text-primary"
                     : "bg-white/[0.03] border-white/[0.06] text-muted-foreground/60 hover:border-white/[0.14]"
@@ -860,7 +860,7 @@ export function PostCallPanel({
 
           {/* ── Next action (hard enforcement) ─────────────────── */}
           <div className="mb-3 rounded-[10px] border border-primary/10 bg-primary/[0.03] p-2.5 space-y-1.5">
-            <p className="text-[10px] uppercase tracking-wider text-primary/60 font-semibold">Next Action</p>
+            <p className="text-sm uppercase tracking-wider text-primary/60 font-semibold">Next Action</p>
             <input
               type="text"
               value={nextAction}
@@ -868,9 +868,9 @@ export function PostCallPanel({
               placeholder="e.g. Call back Tuesday 2pm, Send offer, Research property"
               maxLength={200}
               disabled={publishing}
-              className="w-full rounded-[8px] border border-white/[0.06] bg-white/[0.03] px-2.5 py-1.5 text-[12px] text-foreground placeholder:text-muted-foreground/30 focus:outline-none focus:border-primary/20 disabled:opacity-50"
+              className="w-full rounded-[8px] border border-white/[0.06] bg-white/[0.03] px-2.5 py-1.5 text-xs text-foreground placeholder:text-muted-foreground/30 focus:outline-none focus:border-primary/20 disabled:opacity-50"
             />
-            <label className="block text-[10px] text-muted-foreground/40 mt-1">
+            <label className="block text-sm text-muted-foreground/40 mt-1">
               Due date &amp; time <span className="opacity-60">(optional)</span>
             </label>
             <input
@@ -880,7 +880,7 @@ export function PostCallPanel({
               min={minDatetime}
               disabled={publishing}
               style={{ colorScheme: "dark" }}
-              className="w-full rounded-[8px] border border-white/[0.06] bg-white/[0.03] px-2.5 py-1.5 text-[12px] text-foreground focus:outline-none focus:border-primary/20 disabled:opacity-50"
+              className="w-full rounded-[8px] border border-white/[0.06] bg-white/[0.03] px-2.5 py-1.5 text-xs text-foreground focus:outline-none focus:border-primary/20 disabled:opacity-50"
             />
           </div>
 
@@ -903,7 +903,7 @@ export function PostCallPanel({
               type="button"
               onClick={() => setSummaryFlagged((v) => !v)}
               disabled={publishing}
-              className={`w-full mt-1.5 flex items-center justify-center gap-1.5 rounded-[10px] px-3 py-1.5 text-[11px] transition-all border disabled:opacity-40 ${
+              className={`w-full mt-1.5 flex items-center justify-center gap-1.5 rounded-[10px] px-3 py-1.5 text-sm transition-all border disabled:opacity-40 ${
                 summaryFlagged
                   ? "bg-muted/10 border-border/25 text-foreground"
                   : "bg-white/[0.02] border-white/[0.04] text-muted-foreground/40 hover:text-muted-foreground/70 hover:border-white/[0.08]"
@@ -919,7 +919,7 @@ export function PostCallPanel({
             size="sm"
             onClick={() => handlePublish(pendingDispo, pendingNextCallAt)}
             disabled={publishing}
-            className="w-full mt-1 gap-1.5 text-[11px] text-muted-foreground/50 hover:text-foreground"
+            className="w-full mt-1 gap-1.5 text-sm text-muted-foreground/50 hover:text-foreground"
           >
             Skip — save without qual update
           </Button>
@@ -935,7 +935,7 @@ export function PostCallPanel({
           </div>
 
           {/* Callback date input */}
-          <label className="block text-[11px] text-muted-foreground/60 mb-1.5 px-0.5">
+          <label className="block text-sm text-muted-foreground/60 mb-1.5 px-0.5">
             Callback date &amp; time <span className="opacity-50">(optional)</span>
           </label>
           <input
@@ -945,7 +945,7 @@ export function PostCallPanel({
             min={minDatetime}
             disabled={publishing}
             style={{ colorScheme: "dark" }}
-            className="w-full rounded-[10px] border border-white/[0.06] bg-white/[0.03] px-3 py-2 text-[12px] text-foreground focus:outline-none focus:border-primary/20 disabled:opacity-50 mb-3"
+            className="w-full rounded-[10px] border border-white/[0.06] bg-white/[0.03] px-3 py-2 text-xs text-foreground focus:outline-none focus:border-primary/20 disabled:opacity-50 mb-3"
           />
 
           {/* Callback confirmation SMS opt-in */}
@@ -958,10 +958,10 @@ export function PostCallPanel({
                 className="mt-0.5 h-3 w-3 rounded border-white/20 bg-white/[0.03] accent-cyan"
               />
               <div>
-                <p className="text-[10px] font-medium text-foreground/65">
+                <p className="text-sm font-medium text-foreground/65">
                   Send confirmation SMS to seller
                 </p>
-                <p className="text-[9px] text-muted-foreground/30 leading-relaxed">
+                <p className="text-xs text-muted-foreground/30 leading-relaxed">
                   Brief message confirming the callback date. Uses Dominion Homes caller ID.
                 </p>
               </div>
@@ -970,7 +970,7 @@ export function PostCallPanel({
 
           {/* Next action — prominent in follow-up/appointment path */}
           <div className="mb-3 rounded-[10px] border border-primary/10 bg-primary/[0.03] p-2.5 space-y-1.5">
-            <p className="text-[10px] uppercase tracking-wider text-primary/60 font-semibold">Next Action</p>
+            <p className="text-sm uppercase tracking-wider text-primary/60 font-semibold">Next Action</p>
             <input
               type="text"
               value={nextAction}
@@ -978,9 +978,9 @@ export function PostCallPanel({
               placeholder="e.g. Call back Tuesday 2pm, Send offer, Research property"
               maxLength={200}
               disabled={publishing}
-              className="w-full rounded-[8px] border border-white/[0.06] bg-white/[0.03] px-2.5 py-1.5 text-[12px] text-foreground placeholder:text-muted-foreground/30 focus:outline-none focus:border-primary/20 disabled:opacity-50"
+              className="w-full rounded-[8px] border border-white/[0.06] bg-white/[0.03] px-2.5 py-1.5 text-xs text-foreground placeholder:text-muted-foreground/30 focus:outline-none focus:border-primary/20 disabled:opacity-50"
             />
-            <label className="block text-[10px] text-muted-foreground/40 mt-1">
+            <label className="block text-sm text-muted-foreground/40 mt-1">
               Due date &amp; time <span className="opacity-60">(optional — defaults to callback date above)</span>
             </label>
             <input
@@ -990,7 +990,7 @@ export function PostCallPanel({
               min={minDatetime}
               disabled={publishing}
               style={{ colorScheme: "dark" }}
-              className="w-full rounded-[8px] border border-white/[0.06] bg-white/[0.03] px-2.5 py-1.5 text-[12px] text-foreground focus:outline-none focus:border-primary/20 disabled:opacity-50"
+              className="w-full rounded-[8px] border border-white/[0.06] bg-white/[0.03] px-2.5 py-1.5 text-xs text-foreground focus:outline-none focus:border-primary/20 disabled:opacity-50"
             />
           </div>
 
@@ -1002,7 +1002,7 @@ export function PostCallPanel({
             maxLength={300}
             rows={2}
             disabled={publishing}
-            className="w-full resize-none rounded-[10px] border border-white/[0.06] bg-white/[0.03] px-3 py-2 text-[12px] text-foreground placeholder:text-muted-foreground/40 focus:outline-none focus:border-primary/20 disabled:opacity-50 mb-2"
+            className="w-full resize-none rounded-[10px] border border-white/[0.06] bg-white/[0.03] px-3 py-2 text-xs text-foreground placeholder:text-muted-foreground/40 focus:outline-none focus:border-primary/20 disabled:opacity-50 mb-2"
           />
 
           <Button
@@ -1023,7 +1023,7 @@ export function PostCallPanel({
             size="sm"
             onClick={() => handlePublish(pendingDispo)}
             disabled={publishing}
-            className="w-full mt-1 gap-1.5 text-[11px] text-muted-foreground/50 hover:text-foreground"
+            className="w-full mt-1 gap-1.5 text-sm text-muted-foreground/50 hover:text-foreground"
           >
             Skip date &amp; qual — save now
           </Button>
@@ -1050,10 +1050,10 @@ export function PostCallPanel({
                   )}
                   <span className="text-sm font-medium flex-1">{d.label}</span>
                   {NEXT_STEP_DISPOS.has(d.key) && (
-                    <span className="text-[9px] text-muted-foreground/30 uppercase tracking-wider">+ date</span>
+                    <span className="text-xs text-muted-foreground/30 uppercase tracking-wider">+ date</span>
                   )}
                   {!NEXT_STEP_DISPOS.has(d.key) && QUAL_CONFIRM_DISPOS.has(d.key) && (
-                    <span className="text-[9px] text-muted-foreground/30 uppercase tracking-wider">+ qual</span>
+                    <span className="text-xs text-muted-foreground/30 uppercase tracking-wider">+ qual</span>
                   )}
                 </button>
               );
@@ -1067,7 +1067,7 @@ export function PostCallPanel({
             maxLength={300}
             rows={2}
             disabled={publishing}
-            className="w-full resize-none rounded-[10px] border border-white/[0.06] bg-white/[0.03] px-3 py-2 text-[12px] text-foreground placeholder:text-muted-foreground/40 focus:outline-none focus:border-primary/20 disabled:opacity-50"
+            className="w-full resize-none rounded-[10px] border border-white/[0.06] bg-white/[0.03] px-3 py-2 text-xs text-foreground placeholder:text-muted-foreground/40 focus:outline-none focus:border-primary/20 disabled:opacity-50"
           />
 
           <Button
@@ -1075,7 +1075,7 @@ export function PostCallPanel({
             size="sm"
             onClick={handleSkip}
             disabled={publishing}
-            className="w-full mt-1.5 gap-1.5 text-[11px] text-muted-foreground/60 hover:text-foreground"
+            className="w-full mt-1.5 gap-1.5 text-sm text-muted-foreground/60 hover:text-foreground"
           >
             <SkipForward className="h-3 w-3" />
             Skip — next lead

@@ -57,7 +57,7 @@ function ConfidenceBadge({ confidence }: { confidence: SignalConfidence }) {
 
   return (
     <span
-      className={`inline-flex items-center rounded-[4px] border px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide ${styles[confidence]}`}
+      className={`inline-flex items-center rounded-[4px] border px-1.5 py-0.5 text-xs font-semibold uppercase tracking-wide ${styles[confidence]}`}
       title={CONFIDENCE_DISPLAY[confidence].description}
     >
       {CONFIDENCE_DISPLAY[confidence].label}
@@ -76,7 +76,7 @@ function LinkHintLabel({ hint }: { hint: NegativeSignal["linkHint"] }) {
     tasks:         "See Tasks ↓",
   };
   return (
-    <span className="text-[9px] text-primary/30 ml-1">
+    <span className="text-xs text-primary/30 ml-1">
       {labels[hint]}
     </span>
   );
@@ -95,7 +95,7 @@ function SignalRow({ signal }: { signal: NegativeSignal }) {
         className="w-full flex items-center gap-2 px-2.5 py-1.5 text-left hover:bg-white/[0.02] transition-colors"
       >
         <ConfidenceBadge confidence={signal.confidence} />
-        <span className="text-[11px] font-medium text-foreground/70 flex-1 truncate">
+        <span className="text-sm font-medium text-foreground/70 flex-1 truncate">
           {signal.label}
         </span>
         {expanded
@@ -105,11 +105,11 @@ function SignalRow({ signal }: { signal: NegativeSignal }) {
 
       {expanded && (
         <div className="px-2.5 pb-2.5 pt-1.5 border-t border-white/[0.04] space-y-1">
-          <p className="text-[11px] text-foreground/60 leading-relaxed">
+          <p className="text-sm text-foreground/60 leading-relaxed">
             {signal.explanation}
           </p>
           <div className="flex items-center gap-1.5">
-            <span className="text-[9px] text-muted-foreground/30 italic">
+            <span className="text-xs text-muted-foreground/30 italic">
               Source: {signal.sourceLabel}
             </span>
             <LinkHintLabel hint={signal.linkHint} />
@@ -196,7 +196,7 @@ export function NegativeIntelligenceBlock({ cf }: NegativeIntelligenceBlockProps
         className="w-full flex items-center gap-2 px-3 py-2.5 hover:bg-muted/[0.02] transition-colors rounded-[12px]"
       >
         <ShieldAlert className="h-3.5 w-3.5 text-foreground/50 shrink-0" aria-hidden="true" />
-        <span className="text-[10px] font-semibold uppercase tracking-wider text-foreground/60 flex-1 text-left">
+        <span className="text-sm font-semibold uppercase tracking-wider text-foreground/60 flex-1 text-left">
           Signals worth checking
         </span>
 
@@ -207,12 +207,12 @@ export function NegativeIntelligenceBlock({ cf }: NegativeIntelligenceBlockProps
         {!loadingExtra && (
           <>
             {highCount > 0 && (
-              <span className="rounded-[4px] bg-muted/[0.10] border border-border/20 px-1.5 py-0.5 text-[9px] font-bold text-foreground/80">
+              <span className="rounded-[4px] bg-muted/[0.10] border border-border/20 px-1.5 py-0.5 text-xs font-bold text-foreground/80">
                 {highCount} strong
               </span>
             )}
             {signals.length > 0 && (
-              <span className="text-[9px] text-muted-foreground/30">
+              <span className="text-xs text-muted-foreground/30">
                 {signals.length} signal{signals.length > 1 ? "s" : ""}
               </span>
             )}
@@ -229,7 +229,7 @@ export function NegativeIntelligenceBlock({ cf }: NegativeIntelligenceBlockProps
         <div className="px-3 pb-3 border-t border-border/[0.08] pt-2.5 space-y-1.5">
 
           {loadingExtra && (
-            <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground/30 py-1">
+            <div className="flex items-center gap-1.5 text-sm text-muted-foreground/30 py-1">
               <Loader2 className="h-2.5 w-2.5 animate-spin" />
               Loading signals…
             </div>
@@ -242,7 +242,7 @@ export function NegativeIntelligenceBlock({ cf }: NegativeIntelligenceBlockProps
           {/* Explicit framing — not a veto, not a score */}
           <div className="flex items-start gap-1.5 pt-1 border-t border-border/[0.06] mt-1">
             <Info className="h-3 w-3 text-muted-foreground/20 shrink-0 mt-0.5" aria-hidden="true" />
-            <p className="text-[9px] text-muted-foreground/25 leading-relaxed">
+            <p className="text-xs text-muted-foreground/25 leading-relaxed">
               These signals are informational. They do not change lead stage, assignment, or any CRM state.
               Use them as a checklist before committing additional time.
             </p>

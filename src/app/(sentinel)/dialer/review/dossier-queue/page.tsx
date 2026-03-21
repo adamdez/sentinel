@@ -215,7 +215,7 @@ export default function DossierQueuePage() {
           {showTriage && (
             <button
               onClick={() => setSort(s => s === "triage" ? "created_at" : "triage")}
-              className="flex items-center gap-1 text-[10px] text-muted-foreground/50 hover:text-muted-foreground/80 transition-colors"
+              className="flex items-center gap-1 text-sm text-muted-foreground/50 hover:text-muted-foreground/80 transition-colors"
             >
               <ArrowUpDown className="h-3 w-3" />
               {sort === "triage" ? "Sorted by risk" : "Sorted by date"}
@@ -226,7 +226,7 @@ export default function DossierQueuePage() {
         {/* ── Triage reason filter pills (proposed/all only) ── */}
         {showTriage && items.length > 0 && (
           <div className="flex items-center gap-1.5 flex-wrap">
-            <span className="flex items-center gap-1 text-[9px] uppercase tracking-wider text-muted-foreground/40 shrink-0">
+            <span className="flex items-center gap-1 text-xs uppercase tracking-wider text-muted-foreground/40 shrink-0">
               <Filter className="h-2.5 w-2.5" /> Filter by signal
             </span>
             {REASON_FILTER_OPTIONS
@@ -239,14 +239,14 @@ export default function DossierQueuePage() {
                   <button
                     key={opt.code}
                     onClick={() => setReasonFilter(active ? null : opt.code)}
-                    className={`inline-flex items-center gap-1 text-[10px] font-medium px-2 py-0.5 rounded-full border transition-colors ${
+                    className={`inline-flex items-center gap-1 text-sm font-medium px-2 py-0.5 rounded-full border transition-colors ${
                       active
                         ? style.badge + " ring-1 ring-offset-1 ring-offset-background"
                         : "border-white/[0.06] text-muted-foreground/40 hover:border-white/[0.12] hover:text-muted-foreground/70"
                     }`}
                   >
                     {TRIAGE_REASON_LABELS[opt.code]}
-                    <span className={`text-[9px] ${active ? "" : "opacity-60"}`}>
+                    <span className={`text-xs ${active ? "" : "opacity-60"}`}>
                       {count}
                     </span>
                     {active && <X className="h-2.5 w-2.5 ml-0.5" />}
@@ -257,7 +257,7 @@ export default function DossierQueuePage() {
             {reasonFilter && (
               <button
                 onClick={() => setReasonFilter(null)}
-                className="text-[9px] text-muted-foreground/30 hover:text-muted-foreground/60 transition-colors"
+                className="text-xs text-muted-foreground/30 hover:text-muted-foreground/60 transition-colors"
               >
                 Clear filter
               </button>
@@ -324,7 +324,7 @@ export default function DossierQueuePage() {
           <div className="space-y-3">
             {/* Filter context line */}
             {reasonFilter && (
-              <p className="text-[10px] text-muted-foreground/40">
+              <p className="text-sm text-muted-foreground/40">
                 Showing {filteredItems.length} of {items.length} items with &ldquo;{TRIAGE_REASON_LABELS[reasonFilter]}&rdquo; signal
               </p>
             )}

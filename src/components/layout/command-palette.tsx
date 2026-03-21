@@ -231,7 +231,7 @@ export function CommandPalette() {
                 {query && (
                   <button
                     onClick={() => setQuery("")}
-                    className="text-[10px] text-muted-foreground hover:text-foreground px-2 py-1 rounded border border-white/[0.06]"
+                    className="text-sm text-muted-foreground hover:text-foreground px-2 py-1 rounded border border-white/[0.06]"
                   >
                     Clear
                   </button>
@@ -247,7 +247,7 @@ export function CommandPalette() {
                 {prospects.length > 0 && (
                   <Command.Group
                     heading="Prospects"
-                    className="[&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:py-1.5 [&_[cmdk-group-heading]]:text-[10px] [&_[cmdk-group-heading]]:font-semibold [&_[cmdk-group-heading]]:text-primary/70 [&_[cmdk-group-heading]]:uppercase [&_[cmdk-group-heading]]:tracking-wider"
+                    className="[&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:py-1.5 [&_[cmdk-group-heading]]:text-sm [&_[cmdk-group-heading]]:font-semibold [&_[cmdk-group-heading]]:text-primary/70 [&_[cmdk-group-heading]]:uppercase [&_[cmdk-group-heading]]:tracking-wider"
                   >
                     {prospects.map((r) => (
                       <DataResultItem key={r.id} result={r} onSelect={handleSelect} />
@@ -258,7 +258,7 @@ export function CommandPalette() {
                 {leads.length > 0 && (
                   <Command.Group
                     heading="Leads"
-                    className="[&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:py-1.5 [&_[cmdk-group-heading]]:text-[10px] [&_[cmdk-group-heading]]:font-semibold [&_[cmdk-group-heading]]:text-primary/70 [&_[cmdk-group-heading]]:uppercase [&_[cmdk-group-heading]]:tracking-wider"
+                    className="[&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:py-1.5 [&_[cmdk-group-heading]]:text-sm [&_[cmdk-group-heading]]:font-semibold [&_[cmdk-group-heading]]:text-primary/70 [&_[cmdk-group-heading]]:uppercase [&_[cmdk-group-heading]]:tracking-wider"
                   >
                     {leads.map((r) => (
                       <DataResultItem key={r.id} result={r} onSelect={handleSelect} />
@@ -269,7 +269,7 @@ export function CommandPalette() {
                 {contacts.length > 0 && (
                   <Command.Group
                     heading="Contacts"
-                    className="[&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:py-1.5 [&_[cmdk-group-heading]]:text-[10px] [&_[cmdk-group-heading]]:font-semibold [&_[cmdk-group-heading]]:text-primary/70 [&_[cmdk-group-heading]]:uppercase [&_[cmdk-group-heading]]:tracking-wider"
+                    className="[&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:py-1.5 [&_[cmdk-group-heading]]:text-sm [&_[cmdk-group-heading]]:font-semibold [&_[cmdk-group-heading]]:text-primary/70 [&_[cmdk-group-heading]]:uppercase [&_[cmdk-group-heading]]:tracking-wider"
                   >
                     {contacts.map((r) => (
                       <DataResultItem key={r.id} result={r} onSelect={handleSelect} />
@@ -280,7 +280,7 @@ export function CommandPalette() {
                 {navResults.length > 0 && (
                   <Command.Group
                     heading="Pages"
-                    className="[&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:py-1.5 [&_[cmdk-group-heading]]:text-[10px] [&_[cmdk-group-heading]]:font-semibold [&_[cmdk-group-heading]]:text-muted-foreground [&_[cmdk-group-heading]]:uppercase [&_[cmdk-group-heading]]:tracking-wider"
+                    className="[&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:py-1.5 [&_[cmdk-group-heading]]:text-sm [&_[cmdk-group-heading]]:font-semibold [&_[cmdk-group-heading]]:text-muted-foreground [&_[cmdk-group-heading]]:uppercase [&_[cmdk-group-heading]]:tracking-wider"
                   >
                     {navResults.map((cmd) => {
                       const Icon = cmd.icon;
@@ -300,7 +300,7 @@ export function CommandPalette() {
                   </Command.Group>
                 )}
               </Command.List>
-              <div className="border-t border-white/[0.06] px-3 py-2 flex items-center gap-4 text-[11px] text-muted-foreground">
+              <div className="border-t border-white/[0.06] px-3 py-2 flex items-center gap-4 text-sm text-muted-foreground">
                 <span>
                   <kbd className="font-mono bg-background/50 px-1 py-0.5 rounded border border-white/[0.06]">↑↓</kbd>{" "}
                   Navigate
@@ -358,11 +358,11 @@ function DataResultItem({ result, onSelect }: { result: DataResult; onSelect: (h
         >
           {result.primary}
         </p>
-        <p className="text-[11px] text-muted-foreground truncate">{result.secondary}</p>
+        <p className="text-sm text-muted-foreground truncate">{result.secondary}</p>
       </div>
       {result.score != null && result.scoreLabel && (
         <span className={cn(
-          "text-[9px] px-1.5 py-0.5 rounded border font-bold shrink-0",
+          "text-xs px-1.5 py-0.5 rounded border font-bold shrink-0",
           SCORE_COLORS[result.scoreLabel]
         )}>
           {result.scoreLabel === "platinum" && <Flame className="h-2 w-2 inline mr-0.5" />}
@@ -370,7 +370,7 @@ function DataResultItem({ result, onSelect }: { result: DataResult; onSelect: (h
         </span>
       )}
       {result.status && (
-        <span className="text-[9px] px-1.5 py-0.5 rounded bg-white/[0.08] text-muted-foreground border border-white/[0.06] shrink-0">
+        <span className="text-xs px-1.5 py-0.5 rounded bg-white/[0.08] text-muted-foreground border border-white/[0.06] shrink-0">
           {STATUS_LABELS[result.status] ?? result.status}
         </span>
       )}

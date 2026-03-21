@@ -94,7 +94,7 @@ export default function PropertyLookupPage() {
       description="Query configured providers without writing to CRM. Promote to a lead when you are ready."
     >
       <div className="mb-4">
-        <Link href="/leads" className="text-[11px] text-muted-foreground hover:text-primary transition-colors">
+        <Link href="/leads" className="text-sm text-muted-foreground hover:text-primary transition-colors">
           ← Back to leads
         </Link>
       </div>
@@ -106,7 +106,7 @@ export default function PropertyLookupPage() {
         </h3>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
           <div className="md:col-span-2">
-            <label className="text-[10px] uppercase text-muted-foreground">Address</label>
+            <label className="text-sm uppercase text-muted-foreground">Address</label>
             <Input
               value={address}
               onChange={(e) => setAddress(e.target.value)}
@@ -115,19 +115,19 @@ export default function PropertyLookupPage() {
             />
           </div>
           <div>
-            <label className="text-[10px] uppercase text-muted-foreground">APN</label>
+            <label className="text-sm uppercase text-muted-foreground">APN</label>
             <Input value={apn} onChange={(e) => setApn(e.target.value)} className="mt-1 bg-white/[0.03] border-white/[0.08]" />
           </div>
           <div>
-            <label className="text-[10px] uppercase text-muted-foreground">County</label>
+            <label className="text-sm uppercase text-muted-foreground">County</label>
             <Input value={county} onChange={(e) => setCounty(e.target.value)} className="mt-1 bg-white/[0.03] border-white/[0.08]" />
           </div>
           <div>
-            <label className="text-[10px] uppercase text-muted-foreground">State</label>
+            <label className="text-sm uppercase text-muted-foreground">State</label>
             <Input value={state} onChange={(e) => setState(e.target.value)} placeholder="WA" className="mt-1 bg-white/[0.03] border-white/[0.08]" />
           </div>
           <div>
-            <label className="text-[10px] uppercase text-muted-foreground">ZIP</label>
+            <label className="text-sm uppercase text-muted-foreground">ZIP</label>
             <Input value={zip} onChange={(e) => setZip(e.target.value)} className="mt-1 bg-white/[0.03] border-white/[0.08]" />
           </div>
         </div>
@@ -145,9 +145,9 @@ export default function PropertyLookupPage() {
         <div className="space-y-4">
           {lookupResult.configuredProviders && lookupResult.configuredProviders.length > 0 && (
             <div className="flex flex-wrap gap-1.5 items-center">
-              <span className="text-[10px] uppercase text-muted-foreground mr-1">Sources</span>
+              <span className="text-sm uppercase text-muted-foreground mr-1">Sources</span>
               {lookupResult.configuredProviders.map((p) => (
-                <Badge key={p} variant="outline" className="text-[9px]">
+                <Badge key={p} variant="outline" className="text-xs">
                   {p}
                 </Badge>
               ))}
@@ -158,7 +158,7 @@ export default function PropertyLookupPage() {
             <GlassCard hover={false} className="border-primary/20">
               <p className="text-xs font-semibold text-primary mb-1">Already in Sentinel</p>
               <p className="text-sm">{formatAddress(lookupResult.existingProperty)}</p>
-              <p className="text-[10px] text-muted-foreground mt-1 font-mono">Property ID: {lookupResult.existingProperty.id}</p>
+              <p className="text-sm text-muted-foreground mt-1 font-mono">Property ID: {lookupResult.existingProperty.id}</p>
             </GlassCard>
           )}
 
@@ -177,22 +177,22 @@ export default function PropertyLookupPage() {
               <div className="flex items-center justify-between mb-2">
                 <h4 className="text-xs font-semibold capitalize">{row.provider}</h4>
                 {row.cached ? (
-                  <Badge variant="outline" className="text-[9px]">
+                  <Badge variant="outline" className="text-xs">
                     cached
                   </Badge>
                 ) : null}
               </div>
               {row.facts && row.facts.length > 0 ? (
-                <ul className="text-[11px] space-y-1 mb-2">
+                <ul className="text-sm space-y-1 mb-2">
                   {row.facts.slice(0, 12).map((f, i) => (
                     <li key={i} className="text-muted-foreground">
                       <span className="text-foreground/80">{f.fieldName}:</span> {String(f.value)}
-                      <span className="text-[9px] opacity-50 ml-1">({f.confidence})</span>
+                      <span className="text-xs opacity-50 ml-1">({f.confidence})</span>
                     </li>
                   ))}
                 </ul>
               ) : null}
-              <pre className="text-[10px] font-mono text-muted-foreground/90 overflow-x-auto max-h-40 overflow-y-auto bg-black/20 rounded-md p-2 border border-white/[0.04]">
+              <pre className="text-sm font-mono text-muted-foreground/90 overflow-x-auto max-h-40 overflow-y-auto bg-black/20 rounded-md p-2 border border-white/[0.04]">
                 {JSON.stringify(row.rawPayload, null, 2)}
               </pre>
             </GlassCard>
@@ -201,7 +201,7 @@ export default function PropertyLookupPage() {
           {lookupResult.providerErrors && lookupResult.providerErrors.length > 0 && (
             <GlassCard hover={false} className="border-border/25">
               <p className="text-xs font-semibold text-foreground mb-2">Provider errors</p>
-              <ul className="text-[11px] text-muted-foreground space-y-1">
+              <ul className="text-sm text-muted-foreground space-y-1">
                 {lookupResult.providerErrors.map((e, i) => (
                   <li key={i}>
                     <span className="text-foreground/80">{e.provider}</span> ({e.code}): {e.message}
@@ -222,16 +222,16 @@ export default function PropertyLookupPage() {
                   <p className="text-xs text-muted-foreground mb-3">
                     New leads require a next action (stage machine).
                   </p>
-                  <label className="text-[10px] uppercase text-muted-foreground">Next action *</label>
+                  <label className="text-sm uppercase text-muted-foreground">Next action *</label>
                   <Input
                     value={nextAction}
                     onChange={(e) => setNextAction(e.target.value)}
                     placeholder="e.g. Call seller — verify motivation"
                     className="mt-1 mb-2 bg-white/[0.03] border-white/[0.08]"
                   />
-                  <label className="text-[10px] uppercase text-muted-foreground">Owner name (optional)</label>
+                  <label className="text-sm uppercase text-muted-foreground">Owner name (optional)</label>
                   <Input value={ownerName} onChange={(e) => setOwnerName(e.target.value)} className="mt-1 mb-2 bg-white/[0.03] border-white/[0.08]" />
-                  <label className="text-[10px] uppercase text-muted-foreground">Notes (optional)</label>
+                  <label className="text-sm uppercase text-muted-foreground">Notes (optional)</label>
                   <Input value={notes} onChange={(e) => setNotes(e.target.value)} className="mt-1 mb-3 bg-white/[0.03] border-white/[0.08]" />
                   <div className="flex gap-2">
                     <Button

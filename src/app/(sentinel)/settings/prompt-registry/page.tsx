@@ -78,7 +78,7 @@ function VersionRow({
           version={row.version}
           meta={{ workflow: row.workflow, version: row.version, status: row.status, description: row.description, changelog: row.changelog }}
         />
-        <span className="text-[9px] text-muted-foreground/30 mt-0.5 ml-auto">{dateStr}</span>
+        <span className="text-xs text-muted-foreground/30 mt-0.5 ml-auto">{dateStr}</span>
       </div>
 
       {/* Status toggle */}
@@ -88,7 +88,7 @@ function VersionRow({
             key={opt.value}
             onClick={() => !saving && row.status !== opt.value && handleStatusChange(opt.value as "active" | "testing" | "deprecated")}
             disabled={saving || row.status === opt.value}
-            className={`text-[9px] px-2 py-0.5 rounded border font-medium transition-colors ${
+            className={`text-xs px-2 py-0.5 rounded border font-medium transition-colors ${
               row.status === opt.value
                 ? opt.classes
                 : "border-white/[0.06] text-muted-foreground/30 hover:border-white/[0.12] hover:text-muted-foreground/60"
@@ -101,7 +101,7 @@ function VersionRow({
 
         <button
           onClick={() => setEditing(e => !e)}
-          className="text-[9px] text-muted-foreground/30 hover:text-muted-foreground/60 ml-2 transition-colors flex items-center gap-0.5"
+          className="text-xs text-muted-foreground/30 hover:text-muted-foreground/60 ml-2 transition-colors flex items-center gap-0.5"
         >
           {editing
             ? <><ChevronUp className="h-2.5 w-2.5" /> Collapse</>
@@ -112,10 +112,10 @@ function VersionRow({
 
       {/* Description (read-only unless editing) */}
       {!editing && row.description && (
-        <p className="text-[11px] text-muted-foreground/60 leading-snug">{row.description}</p>
+        <p className="text-sm text-muted-foreground/60 leading-snug">{row.description}</p>
       )}
       {!editing && row.changelog && (
-        <p className="text-[10px] text-muted-foreground/40 italic leading-snug">
+        <p className="text-sm text-muted-foreground/40 italic leading-snug">
           Changed: {row.changelog}
         </p>
       )}
@@ -124,28 +124,28 @@ function VersionRow({
       {editing && (
         <div className="space-y-2 pl-1 pt-1">
           <div>
-            <label className="text-[9px] uppercase tracking-wider text-muted-foreground/40 block mb-1">Description</label>
+            <label className="text-xs uppercase tracking-wider text-muted-foreground/40 block mb-1">Description</label>
             <Textarea
               value={desc}
               onChange={e => setDesc(e.target.value)}
-              className="h-16 text-[11px] resize-none"
+              className="h-16 text-sm resize-none"
               placeholder="What this prompt does…"
             />
           </div>
           <div>
-            <label className="text-[9px] uppercase tracking-wider text-muted-foreground/40 block mb-1">What changed from prior version</label>
+            <label className="text-xs uppercase tracking-wider text-muted-foreground/40 block mb-1">What changed from prior version</label>
             <Textarea
               value={log}
               onChange={e => setLog(e.target.value)}
-              className="h-12 text-[11px] resize-none"
+              className="h-12 text-sm resize-none"
               placeholder="Brief changelog…"
             />
           </div>
           <div className="flex gap-2">
-            <Button size="sm" className="h-6 text-[10px] px-2.5" onClick={handleSaveEdit} disabled={saving}>
+            <Button size="sm" className="h-6 text-sm px-2.5" onClick={handleSaveEdit} disabled={saving}>
               {saving ? <Loader2 className="h-2.5 w-2.5 animate-spin" /> : "Save"}
             </Button>
-            <Button size="sm" variant="ghost" className="h-6 text-[10px] px-2" onClick={() => setEditing(false)}>
+            <Button size="sm" variant="ghost" className="h-6 text-sm px-2" onClick={() => setEditing(false)}>
               Cancel
             </Button>
           </div>
@@ -194,7 +194,7 @@ function RegisterForm({ onRegister }: { onRegister: (input: { workflow: string; 
       <Button
         size="sm"
         variant="outline"
-        className="h-7 text-[10px] gap-1"
+        className="h-7 text-sm gap-1"
         onClick={() => setOpen(true)}
       >
         <Plus className="h-3 w-3" /> Register new version
@@ -204,25 +204,25 @@ function RegisterForm({ onRegister }: { onRegister: (input: { workflow: string; 
 
   return (
     <div className="rounded-lg border border-white/[0.08] bg-white/[0.02] p-3 space-y-2">
-      <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/50">Register new version</p>
+      <p className="text-sm font-semibold uppercase tracking-wider text-muted-foreground/50">Register new version</p>
       <div className="flex gap-2">
         <div className="flex-1">
-          <label className="text-[9px] text-muted-foreground/40 uppercase tracking-wider block mb-1">Workflow</label>
-          <Input value={workflow} onChange={e => setWorkflow(e.target.value)} placeholder="e.g. summarize" className="h-7 text-[11px]" />
+          <label className="text-xs text-muted-foreground/40 uppercase tracking-wider block mb-1">Workflow</label>
+          <Input value={workflow} onChange={e => setWorkflow(e.target.value)} placeholder="e.g. summarize" className="h-7 text-sm" />
         </div>
         <div className="w-28">
-          <label className="text-[9px] text-muted-foreground/40 uppercase tracking-wider block mb-1">Version</label>
-          <Input value={version} onChange={e => setVersion(e.target.value)} placeholder="e.g. 2.2.0" className="h-7 text-[11px]" />
+          <label className="text-xs text-muted-foreground/40 uppercase tracking-wider block mb-1">Version</label>
+          <Input value={version} onChange={e => setVersion(e.target.value)} placeholder="e.g. 2.2.0" className="h-7 text-sm" />
         </div>
       </div>
-      <Textarea value={desc} onChange={e => setDesc(e.target.value)} className="h-14 text-[11px] resize-none" placeholder="What this prompt does…" />
-      <Textarea value={log} onChange={e => setLog(e.target.value)} className="h-10 text-[11px] resize-none" placeholder="What changed from prior version…" />
-      {err && <p className="text-[10px] text-destructive">{err}</p>}
+      <Textarea value={desc} onChange={e => setDesc(e.target.value)} className="h-14 text-sm resize-none" placeholder="What this prompt does…" />
+      <Textarea value={log} onChange={e => setLog(e.target.value)} className="h-10 text-sm resize-none" placeholder="What changed from prior version…" />
+      {err && <p className="text-sm text-destructive">{err}</p>}
       <div className="flex gap-2">
-        <Button size="sm" className="h-6 text-[10px] px-2.5" onClick={handleSubmit} disabled={saving}>
+        <Button size="sm" className="h-6 text-sm px-2.5" onClick={handleSubmit} disabled={saving}>
           {saving ? <Loader2 className="h-2.5 w-2.5 animate-spin" /> : "Register (testing)"}
         </Button>
-        <Button size="sm" variant="ghost" className="h-6 text-[10px] px-2" onClick={() => setOpen(false)}>Cancel</Button>
+        <Button size="sm" variant="ghost" className="h-6 text-sm px-2" onClick={() => setOpen(false)}>Cancel</Button>
       </div>
     </div>
   );
@@ -278,9 +278,9 @@ export default function PromptRegistryPage() {
           <div className="flex items-start gap-2 text-xs text-muted-foreground">
             <BookMarked className="h-3.5 w-3.5 shrink-0 mt-0.5 text-primary/50" />
             <span>
-              Each AI workflow invocation stores its <code className="font-mono text-[10px] text-foreground/60">workflow</code> and{" "}
-              <code className="font-mono text-[10px] text-foreground/60">prompt_version</code> in{" "}
-              <code className="font-mono text-[10px] text-foreground/60">dialer_ai_traces</code>.
+              Each AI workflow invocation stores its <code className="font-mono text-sm text-foreground/60">workflow</code> and{" "}
+              <code className="font-mono text-sm text-foreground/60">prompt_version</code> in{" "}
+              <code className="font-mono text-sm text-foreground/60">dialer_ai_traces</code>.
               This registry maps those version strings to human-readable descriptions so you can tell what logic produced
               a flagged output. <strong className="text-foreground/80">Register here when you bump a version constant in code.</strong>{" "}
               Status updates here do not affect which version runs in production — that is controlled by the route constant.
@@ -310,7 +310,7 @@ export default function PromptRegistryPage() {
             {/* Workflow header */}
             <div className="flex items-center gap-2 px-4 py-2.5 border-b border-white/[0.05] bg-white/[0.01]">
               <span className="font-mono text-xs font-semibold text-foreground/80">{wf}</span>
-              <Badge variant="secondary" className="text-[9px] h-4 px-1.5">
+              <Badge variant="secondary" className="text-xs h-4 px-1.5">
                 {grouped[wf].length} version{grouped[wf].length !== 1 ? "s" : ""}
               </Badge>
             </div>

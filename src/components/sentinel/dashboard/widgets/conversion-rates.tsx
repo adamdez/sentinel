@@ -117,7 +117,7 @@ export function ConversionRates() {
           transition={{ delay: i * 0.06 }}
           className="space-y-1"
         >
-          <div className="flex items-center justify-between text-[11px]">
+          <div className="flex items-center justify-between text-sm">
             <div className="flex items-center gap-1">
               <span className="text-muted-foreground">{STAGE_LABELS[c.from]}</span>
               <ArrowRight className="h-2.5 w-2.5 text-muted-foreground" />

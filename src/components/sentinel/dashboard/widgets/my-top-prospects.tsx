@@ -75,7 +75,7 @@ export function MyTopProspects() {
               boxShadow: "0 0 15px rgba(0,0,0,0.12), inset 0 0 20px rgba(0,0,0,0.03)",
             } : {}}
           >
-            <span className="text-[11px] text-muted-foreground font-mono w-3 shrink-0">
+            <span className="text-sm text-muted-foreground font-mono w-3 shrink-0">
               {i + 1}
             </span>
             <div className="flex-1 min-w-0">
@@ -96,7 +96,7 @@ export function MyTopProspects() {
                 {prospect.state ? ` ${prospect.state}` : ""}
               </p>
             </div>
-            <Badge variant="outline" className="text-[10px] shrink-0 hidden sm:flex">
+            <Badge variant="outline" className="text-sm shrink-0 hidden sm:flex">
               {distressLabel}
             </Badge>
             <AIScoreBadge score={aiScore} size="sm" />
@@ -111,7 +111,7 @@ export function MyTopProspects() {
           </motion.div>
         );
       })}
-      <p className="text-[11px] text-muted-foreground text-center pt-1">
+      <p className="text-sm text-muted-foreground text-center pt-1">
         Scored by Dominion Heat Score {SCORING_MODEL_VERSION} — top {top5.length} of {prospects.length} prospects
       </p>
     </div>

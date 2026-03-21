@@ -383,7 +383,7 @@ export default function GrokPage() {
               >
                 GROK COMMAND CENTER
               </h2>
-              <p className="text-[10px] text-muted-foreground/60 tracking-wider">
+              <p className="text-sm text-muted-foreground/60 tracking-wider">
                 xAI grok-4.1-fast-reasoning &middot; Sentinel AI Brain
               </p>
             </div>
@@ -392,7 +392,7 @@ export default function GrokPage() {
             <button
               onClick={() => sendMessage("I need to create an upgrade request. Help me describe the issue I'm experiencing with Sentinel. Ask me what's wrong, then structure my answer as a clear upgrade request with: Category (Bug / Feature Request / Performance), Summary, Steps to Reproduce, Expected Behavior, and Priority Suggestion. Keep it concise so it's ready to send to Adam.")}
               disabled={streaming}
-              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[10px] font-medium transition-all disabled:opacity-40"
+              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-sm font-medium transition-all disabled:opacity-40"
               style={{
                 background: "rgba(168, 85, 247, 0.08)",
                 border: "1px solid rgba(168, 85, 247, 0.22)",
@@ -406,7 +406,7 @@ export default function GrokPage() {
             </button>
             <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-primary/5 border border-primary/10">
               <div className="h-1.5 w-1.5 rounded-full bg-primary animate-pulse" />
-              <span className="text-[10px] text-primary/80 font-medium">Online</span>
+              <span className="text-sm text-primary/80 font-medium">Online</span>
             </div>
             {messages.length > 0 && (
               <button
@@ -494,7 +494,7 @@ export default function GrokPage() {
                   {msg.role === "assistant" && (
                     <div className="flex items-center gap-1.5 mb-1.5">
                       <Brain className="h-3 w-3 text-primary/60" />
-                      <span className="text-[10px] text-primary/50 font-medium tracking-wide">GROK</span>
+                      <span className="text-sm text-primary/50 font-medium tracking-wide">GROK</span>
                     </div>
                   )}
                   <div className="whitespace-pre-wrap break-words">
@@ -503,7 +503,7 @@ export default function GrokPage() {
                         <Loader2 className="h-3 w-3 animate-spin text-primary/40" />
                         <span>
                           Reasoning<span className="animate-pulse">...</span>
-                          <span className="block text-[10px] text-muted-foreground/30 mt-0.5">
+                          <span className="block text-sm text-muted-foreground/30 mt-0.5">
                             Complex queries can take up to 2 minutes
                           </span>
                         </span>
@@ -530,10 +530,10 @@ export default function GrokPage() {
                                 <Shield className="h-3.5 w-3.5 text-foreground shrink-0" />
                               )}
                               <div className="flex-1 min-w-0">
-                                <p className="text-[11px] font-medium text-primary/90">
+                                <p className="text-sm font-medium text-primary/90">
                                   {a.description ?? a.action}
                                 </p>
-                                <p className="text-[10px] text-muted-foreground/50">
+                                <p className="text-sm text-muted-foreground/50">
                                   {actionDef?.description ?? a.action}
                                 </p>
                               </div>
@@ -549,7 +549,7 @@ export default function GrokPage() {
                                 <button
                                   onClick={() => executeGrokAction(a.action, a.params, a.description)}
                                   disabled={isExecuting || !!executingAction}
-                                  className="shrink-0 flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-medium bg-primary/10 border border-primary/20 text-primary hover:bg-primary/20 transition-all disabled:opacity-40"
+                                  className="shrink-0 flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-sm font-medium bg-primary/10 border border-primary/20 text-primary hover:bg-primary/20 transition-all disabled:opacity-40"
                                 >
                                   {isExecuting ? (
                                     <Loader2 className="h-3 w-3 animate-spin" />
@@ -568,7 +568,7 @@ export default function GrokPage() {
                   {msg.role === "assistant" && msg.content && !streaming && isUpgradeRequest(msg.id) && (
                     <div className="mt-3 pt-2 border-t border-white/[0.06]">
                       {sentRequests.has(msg.id) ? (
-                        <div className="flex items-center gap-2 text-[11px] text-foreground">
+                        <div className="flex items-center gap-2 text-sm text-foreground">
                           <CheckCircle2 className="h-3.5 w-3.5" />
                           Sent to Adam — get back to work!
                         </div>
@@ -576,7 +576,7 @@ export default function GrokPage() {
                         <button
                           onClick={() => sendUpgradeToAdam(msg.id, msg.content)}
                           disabled={sendingRequest === msg.id}
-                          className="flex items-center gap-2 w-full px-3 py-2.5 rounded-lg text-[11px] font-semibold transition-all disabled:opacity-50"
+                          className="flex items-center gap-2 w-full px-3 py-2.5 rounded-lg text-sm font-semibold transition-all disabled:opacity-50"
                           style={{
                             background: "rgba(255,255,255, 0.08)",
                             border: "1px solid rgba(255,255,255, 0.25)",
@@ -603,7 +603,7 @@ export default function GrokPage() {
             <div className="flex justify-center py-2">
               <button
                 onClick={() => abortRef.current?.abort()}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] text-muted-foreground/60 hover:text-foreground border border-glass-border hover:border-primary/20 transition-all"
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm text-muted-foreground/60 hover:text-foreground border border-glass-border hover:border-primary/20 transition-all"
               >
                 <ChevronDown className="h-3 w-3" />
                 Stop generating
@@ -677,7 +677,7 @@ export default function GrokPage() {
               )}
             </button>
           </div>
-          <p className="text-[10px] text-muted-foreground/30 text-center mt-2">
+          <p className="text-sm text-muted-foreground/30 text-center mt-2">
             Grok has full Charter context, live metrics, and can execute structured commands.
           </p>
         </div>

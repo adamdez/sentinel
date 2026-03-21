@@ -208,7 +208,7 @@ function TaskRow({
             onClick={() => {
               if (task.lead_id) window.location.href = `/leads?open=${task.lead_id}`;
             }}
-            className="text-[11px] text-primary/70 hover:text-primary truncate flex items-center gap-1 mt-0.5"
+            className="text-sm text-primary/70 hover:text-primary truncate flex items-center gap-1 mt-0.5"
           >
             <ChevronRight className="h-3 w-3" />
             {task.lead_address}
@@ -217,7 +217,7 @@ function TaskRow({
       </div>
 
       {/* Due date */}
-      <span className={cn("text-[11px] shrink-0", due.color)}>
+      <span className={cn("text-sm shrink-0", due.color)}>
         {isCompleted ? (
           <span className="text-muted-foreground/50">
             Done {task.completed_at
@@ -252,13 +252,13 @@ function TaskRow({
           <div className="flex items-center gap-1">
             <button
               onClick={() => { onDelete(task.id); setConfirmDelete(false); }}
-              className="px-1.5 py-0.5 rounded text-[10px] bg-muted/20 text-foreground hover:bg-muted/30 transition-colors"
+              className="px-1.5 py-0.5 rounded text-sm bg-muted/20 text-foreground hover:bg-muted/30 transition-colors"
             >
               Yes
             </button>
             <button
               onClick={() => setConfirmDelete(false)}
-              className="px-1.5 py-0.5 rounded text-[10px] bg-white/5 text-muted-foreground hover:bg-white/10 transition-colors"
+              className="px-1.5 py-0.5 rounded text-sm bg-white/5 text-muted-foreground hover:bg-white/10 transition-colors"
             >
               No
             </button>
@@ -348,7 +348,7 @@ function EditOverlay({
           />
           <div className="flex gap-3">
             <div className="flex-1">
-              <label className="text-[10px] uppercase tracking-widest text-muted-foreground mb-1 block">
+              <label className="text-sm uppercase tracking-widest text-muted-foreground mb-1 block">
                 Due Date
               </label>
               <input
@@ -359,7 +359,7 @@ function EditOverlay({
               />
             </div>
             <div className="flex-1">
-              <label className="text-[10px] uppercase tracking-widest text-muted-foreground mb-1 block">
+              <label className="text-sm uppercase tracking-widest text-muted-foreground mb-1 block">
                 Priority
               </label>
               <select
@@ -445,16 +445,16 @@ function TaskCounts() {
   return (
     <div className="flex items-center gap-2">
       {counts.overdue > 0 && (
-        <Badge variant="destructive" className="text-[11px]">
+        <Badge variant="destructive" className="text-sm">
           <AlertCircle className="h-3 w-3 mr-1" />
           {counts.overdue} Overdue
         </Badge>
       )}
-      <Badge variant="gold" className="text-[11px]">
+      <Badge variant="gold" className="text-sm">
         <Clock className="h-3 w-3 mr-1" />
         {counts.today} Today
       </Badge>
-      <Badge variant="cyan" className="text-[11px]">
+      <Badge variant="cyan" className="text-sm">
         <Calendar className="h-3 w-3 mr-1" />
         {counts.upcoming} Upcoming
       </Badge>

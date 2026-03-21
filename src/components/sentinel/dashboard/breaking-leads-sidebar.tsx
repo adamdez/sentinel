@@ -87,20 +87,20 @@ function TickerRow({ item, index }: { item: TickerItem; index: number }) {
           {item.name}
         </span>
         <RelationshipBadgeCompact data={{ tags: item.tags }} />
-        <Badge variant={isPlatinum ? "platinum" : "gold"} className="text-[9px] gap-0.5 shrink-0">
+        <Badge variant={isPlatinum ? "platinum" : "gold"} className="text-xs gap-0.5 shrink-0">
           <ArrowUp className="h-2 w-2" />{item.score}
         </Badge>
       </div>
 
       <div className="flex items-center gap-1.5 pl-5 relative">
-        <span className="text-[11px] text-muted-foreground/80 truncate">{item.type}</span>
+        <span className="text-sm text-muted-foreground/80 truncate">{item.type}</span>
         <span className="flex-1" />
         {src && (
-          <span className={cn("text-[9px] px-1.5 py-0 rounded-[4px] border font-semibold shrink-0", src.color)}>
+          <span className={cn("text-xs px-1.5 py-0 rounded-[4px] border font-semibold shrink-0", src.color)}>
             {src.label}
           </span>
         )}
-        <span className="text-[10px] text-muted-foreground/70 shrink-0">{item.time}</span>
+        <span className="text-sm text-muted-foreground/70 shrink-0">{item.time}</span>
       </div>
     </motion.div>
   );
@@ -208,11 +208,11 @@ export function BreakingLeadsSidebar() {
               )} />
               <span className="relative inline-flex rounded-full h-2 w-2 bg-primary shadow-[0_0_6px_rgba(0,0,0,0.5)]" />
             </span>
-            <span className="text-[11px] text-primary font-semibold tracking-wider">BREAKING LEADS</span>
+            <span className="text-sm text-primary font-semibold tracking-wider">BREAKING LEADS</span>
           </div>
           <div className="flex items-center gap-1.5">
             <Radio className="h-3 w-3 text-primary/60" />
-            <span className="text-[10px] text-muted-foreground">LIVE</span>
+            <span className="text-sm text-muted-foreground">LIVE</span>
           </div>
         </div>
 
@@ -233,7 +233,7 @@ export function BreakingLeadsSidebar() {
         <div className="px-4 py-2 border-t border-white/[0.04]">
           <Link
             href="/leads"
-            className="flex items-center justify-center gap-1.5 text-[11px] text-primary/80 hover:text-primary transition-colors font-medium"
+            className="flex items-center justify-center gap-1.5 text-sm text-primary/80 hover:text-primary transition-colors font-medium"
           >
             View All Leads
             <ExternalLink className="h-2.5 w-2.5" />

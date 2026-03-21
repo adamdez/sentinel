@@ -43,7 +43,7 @@ export function EditField({ label, value, onChange, placeholder, mono }: {
 }) {
   return (
     <div className="space-y-1">
-      <label className="text-[10px] text-muted-foreground uppercase tracking-wider font-medium">{label}</label>
+      <label className="text-sm text-muted-foreground uppercase tracking-wider font-medium">{label}</label>
       <input
         type="text"
         value={value}
@@ -163,7 +163,7 @@ export function EditDetailsModal({ cf, onClose, onSaved }: { cf: ClientFile; onC
               </div>
               <div>
                 <h3 className="text-sm font-bold text-foreground">Edit Property Details</h3>
-                <p className="text-[10px] text-muted-foreground">{cf.fullAddress}</p>
+                <p className="text-sm text-muted-foreground">{cf.fullAddress}</p>
               </div>
             </div>
             <button onClick={onClose} className="p-1.5 rounded-[10px] hover:bg-white/[0.06] transition-colors text-muted-foreground hover:text-foreground">
@@ -192,7 +192,7 @@ export function EditDetailsModal({ cf, onClose, onSaved }: { cf: ClientFile; onC
             </div>
             <EditField label="Lot Size (sqft)" value={fields.lot_size} onChange={set("lot_size")} placeholder="7500" mono />
             <div className="space-y-1">
-              <label className="text-[10px] text-muted-foreground uppercase tracking-wider font-medium">Notes</label>
+              <label className="text-sm text-muted-foreground uppercase tracking-wider font-medium">Notes</label>
               <textarea
                 value={fields.notes}
                 onChange={(e) => set("notes")(e.target.value)}
@@ -213,18 +213,18 @@ export function EditDetailsModal({ cf, onClose, onSaved }: { cf: ClientFile; onC
 
           {/* Footer */}
           <div className="shrink-0 flex items-center justify-between px-5 py-3 border-t border-white/[0.06]">
-            <p className="text-[9px] text-muted-foreground/40 font-mono">
+            <p className="text-xs text-muted-foreground/40 font-mono">
               Property: {cf.propertyId.slice(0, 8)}
             </p>
             <div className="flex items-center gap-2">
-              <Button size="sm" variant="outline" onClick={onClose} className="text-[11px] h-8 px-4">
+              <Button size="sm" variant="outline" onClick={onClose} className="text-sm h-8 px-4">
                 Cancel
               </Button>
               <Button
                 size="sm"
                 onClick={handleSave}
                 disabled={saving}
-                className="text-[11px] h-8 px-4 gap-1.5 bg-primary/15 hover:bg-primary/25 text-primary border border-primary/20
+                className="text-sm h-8 px-4 gap-1.5 bg-primary/15 hover:bg-primary/25 text-primary border border-primary/20
                   shadow-[0_0_14px_rgba(0,0,0,0.15)] hover:shadow-[0_0_22px_rgba(0,0,0,0.25)] transition-all"
               >
                 {saving ? <Loader2 className="h-3 w-3 animate-spin" /> : <Save className="h-3 w-3" />}
@@ -313,7 +313,7 @@ export function DeleteConfirmationModal({
               </div>
               <div>
                 <h3 className="text-sm font-bold text-foreground">Delete Customer File</h3>
-                <p className="text-[10px] text-muted-foreground">Permanent action</p>
+                <p className="text-sm text-muted-foreground">Permanent action</p>
               </div>
             </div>
             <button onClick={onClose} className="p-1.5 rounded-[10px] hover:bg-white/[0.06] transition-colors text-muted-foreground hover:text-foreground">
@@ -334,7 +334,7 @@ export function DeleteConfirmationModal({
                 <span className="truncate">{cf.ownerName || "Unknown Owner"}</span>
               </div>
               <div className="flex items-center gap-2">
-                <Badge variant="outline" className="text-[10px] border-white/[0.08]">
+                <Badge variant="outline" className="text-sm border-white/[0.08]">
                   {cf.status}
                 </Badge>
               </div>
@@ -374,7 +374,7 @@ export function DeleteConfirmationModal({
 
           {/* Footer */}
           <div className="shrink-0 flex items-center justify-end gap-2 px-5 py-3.5 border-t border-white/[0.06]">
-            <Button size="sm" variant="outline" onClick={onClose} className="text-[11px] h-8 px-4">
+            <Button size="sm" variant="outline" onClick={onClose} className="text-sm h-8 px-4">
               Cancel
             </Button>
             <Button
@@ -382,7 +382,7 @@ export function DeleteConfirmationModal({
               variant="destructive"
               onClick={handleDelete}
               disabled={!canDelete || deleting}
-              className="text-[11px] h-8 px-4 gap-1.5"
+              className="text-sm h-8 px-4 gap-1.5"
             >
               {deleting ? <Loader2 className="h-3 w-3 animate-spin" /> : <Trash2 className="h-3 w-3" />}
               {deleting ? "Deleting..." : "Delete Permanently"}
@@ -429,38 +429,38 @@ export function DeepCrawlPanel({ result, onRecrawl, isRecrawling }: { result: an
       <div>
         <div className="flex items-center gap-2 mb-2">
           <Brain className="h-3.5 w-3.5 text-primary" />
-          <p className="text-[11px] text-primary/80 uppercase tracking-wider font-semibold">Executive Summary</p>
+          <p className="text-sm text-primary/80 uppercase tracking-wider font-semibold">Executive Summary</p>
           {ai.urgencyLevel && (
-            <span className={cn("px-2 py-0.5 rounded-full text-[10px] font-bold border", urgencyColor)}>
+            <span className={cn("px-2 py-0.5 rounded-full text-sm font-bold border", urgencyColor)}>
               {ai.urgencyLevel}
             </span>
           )}
         </div>
-        <p className="text-[13px] text-foreground/90 leading-relaxed">{ai.summary ?? "No summary available"}</p>
+        <p className="text-sm text-foreground/90 leading-relaxed">{ai.summary ?? "No summary available"}</p>
         {ai.urgencyReason && (
-          <p className="text-[11px] text-muted-foreground mt-1">{ai.urgencyReason}</p>
+          <p className="text-sm text-muted-foreground mt-1">{ai.urgencyReason}</p>
         )}
       </div>
 
       {/* Signal Analysis */}
       {ai.signalAnalysis && ai.signalAnalysis.length > 0 && (
         <div>
-          <p className="text-[11px] text-foreground/80 uppercase tracking-wider font-semibold mb-2 flex items-center gap-1.5">
+          <p className="text-sm text-foreground/80 uppercase tracking-wider font-semibold mb-2 flex items-center gap-1.5">
             <AlertTriangle className="h-3.5 w-3.5" />Signal Analysis
           </p>
           <div className="space-y-2">
             {ai.signalAnalysis.map((s: { headline: string; detail: string; daysUntilCritical: number | null; actionableInsight: string }, i: number) => (
               <div key={i} className="rounded-[10px] border border-white/[0.06] bg-white/[0.02] p-3 space-y-1.5">
-                <p className="text-[13px] font-semibold text-foreground flex items-center gap-1.5">
+                <p className="text-sm font-semibold text-foreground flex items-center gap-1.5">
                   <AlertTriangle className="h-3 w-3 text-foreground shrink-0" />
                   {s.headline}
                   {s.daysUntilCritical != null && s.daysUntilCritical <= 60 && (
-                    <span className="text-[11px] text-foreground font-mono ml-auto">{s.daysUntilCritical}d</span>
+                    <span className="text-sm text-foreground font-mono ml-auto">{s.daysUntilCritical}d</span>
                   )}
                 </p>
-                <p className="text-[12px] text-muted-foreground leading-relaxed pl-5">{s.detail}</p>
+                <p className="text-xs text-muted-foreground leading-relaxed pl-5">{s.detail}</p>
                 {s.actionableInsight && (
-                  <p className="text-[12px] text-primary/80 pl-5 flex items-center gap-1">
+                  <p className="text-xs text-primary/80 pl-5 flex items-center gap-1">
                     <ArrowRight className="h-3 w-3 shrink-0" />{s.actionableInsight}
                   </p>
                 )}
@@ -473,27 +473,27 @@ export function DeepCrawlPanel({ result, onRecrawl, isRecrawling }: { result: an
       {/* Owner Profile */}
       {ai.ownerProfile && (
         <div>
-          <p className="text-[11px] text-muted-foreground uppercase tracking-wider font-semibold mb-1.5 flex items-center gap-1.5">
+          <p className="text-sm text-muted-foreground uppercase tracking-wider font-semibold mb-1.5 flex items-center gap-1.5">
             <User className="h-3.5 w-3.5" />Owner Profile
           </p>
-          <p className="text-[12px] text-foreground/80 leading-relaxed">{ai.ownerProfile}</p>
+          <p className="text-xs text-foreground/80 leading-relaxed">{ai.ownerProfile}</p>
         </div>
       )}
 
       {/* Financial Snapshot */}
       {ai.financialAnalysis && (
         <div>
-          <p className="text-[11px] text-muted-foreground uppercase tracking-wider font-semibold mb-1.5 flex items-center gap-1.5">
+          <p className="text-sm text-muted-foreground uppercase tracking-wider font-semibold mb-1.5 flex items-center gap-1.5">
             <DollarSign className="h-3.5 w-3.5" />Financial Snapshot
           </p>
-          <p className="text-[12px] text-foreground/80 leading-relaxed">{ai.financialAnalysis}</p>
+          <p className="text-xs text-foreground/80 leading-relaxed">{ai.financialAnalysis}</p>
           {ai.estimatedMAO && (
             <div className="mt-1.5 flex items-center gap-2">
-              <span className="text-[11px] text-muted-foreground uppercase">Est. MAO:</span>
-              <span className="text-[13px] font-semibold text-foreground">
+              <span className="text-sm text-muted-foreground uppercase">Est. MAO:</span>
+              <span className="text-sm font-semibold text-foreground">
                 ${ai.estimatedMAO.low?.toLocaleString()} &ndash; ${ai.estimatedMAO.high?.toLocaleString()}
               </span>
-              <span className="text-[11px] text-muted-foreground/60">{ai.estimatedMAO.basis}</span>
+              <span className="text-sm text-muted-foreground/60">{ai.estimatedMAO.basis}</span>
             </div>
           )}
         </div>
@@ -502,14 +502,14 @@ export function DeepCrawlPanel({ result, onRecrawl, isRecrawling }: { result: an
       {/* Approach & Talking Points */}
       {ai.suggestedApproach && (
         <div>
-          <p className="text-[11px] text-muted-foreground uppercase tracking-wider font-semibold mb-1.5 flex items-center gap-1.5">
+          <p className="text-sm text-muted-foreground uppercase tracking-wider font-semibold mb-1.5 flex items-center gap-1.5">
             <Target className="h-3.5 w-3.5" />Suggested Approach
           </p>
-          <p className="text-[12px] text-foreground/80 leading-relaxed">{ai.suggestedApproach}</p>
+          <p className="text-xs text-foreground/80 leading-relaxed">{ai.suggestedApproach}</p>
           {ai.talkingPoints && ai.talkingPoints.length > 0 && (
             <ul className="mt-2 space-y-1">
               {ai.talkingPoints.map((tp: string, i: number) => (
-                <li key={i} className="text-[12px] text-primary/80 flex items-start gap-1.5">
+                <li key={i} className="text-xs text-primary/80 flex items-start gap-1.5">
                   <span className="text-primary/40 mt-0.5 shrink-0">&#8226;</span>{tp}
                 </li>
               ))}
@@ -521,12 +521,12 @@ export function DeepCrawlPanel({ result, onRecrawl, isRecrawling }: { result: an
       {/* Web Findings */}
       {ai.webFindings && ai.webFindings.length > 0 && (
         <div>
-          <p className="text-[11px] text-muted-foreground uppercase tracking-wider font-semibold mb-1.5 flex items-center gap-1.5">
+          <p className="text-sm text-muted-foreground uppercase tracking-wider font-semibold mb-1.5 flex items-center gap-1.5">
             <Globe className="h-3.5 w-3.5" />Web Findings
           </p>
           <div className="space-y-1.5">
             {ai.webFindings.map((w: { source: string; finding: string }, i: number) => (
-              <div key={i} className="flex items-start gap-2 text-[12px]">
+              <div key={i} className="flex items-start gap-2 text-xs">
                 <Search className="h-3 w-3 text-primary/50 mt-0.5 shrink-0" />
                 <span>
                   <span className="font-semibold text-foreground/70">{w.source}:</span>{" "}
@@ -541,12 +541,12 @@ export function DeepCrawlPanel({ result, onRecrawl, isRecrawling }: { result: an
       {/* Red Flags */}
       {ai.redFlags && ai.redFlags.length > 0 && (
         <div>
-          <p className="text-[11px] text-foreground/80 uppercase tracking-wider font-semibold mb-1 flex items-center gap-1.5">
+          <p className="text-sm text-foreground/80 uppercase tracking-wider font-semibold mb-1 flex items-center gap-1.5">
             <ShieldAlert className="h-3.5 w-3.5" />Red Flags
           </p>
           <ul className="space-y-1">
             {ai.redFlags.map((flag: string, i: number) => (
-              <li key={i} className="text-[12px] text-foreground/70 flex items-start gap-1.5">
+              <li key={i} className="text-xs text-foreground/70 flex items-start gap-1.5">
                 <span className="text-foreground mt-0.5 shrink-0">&#9679;</span>{flag}
               </li>
             ))}
@@ -555,7 +555,7 @@ export function DeepCrawlPanel({ result, onRecrawl, isRecrawling }: { result: an
       )}
 
       {/* Footer */}
-      <div className="pt-2 border-t border-white/[0.06] flex items-center justify-between text-[11px] text-muted-foreground/50">
+      <div className="pt-2 border-t border-white/[0.06] flex items-center justify-between text-sm text-muted-foreground/50">
         <div className="flex items-center gap-2">
           {crawledAgo && <span>Crawled {crawledAgo}</span>}
           {sources.length > 0 && <span>&#183; Sources: {sources.join(", ")}</span>}
@@ -564,7 +564,7 @@ export function DeepCrawlPanel({ result, onRecrawl, isRecrawling }: { result: an
           <button
             onClick={onRecrawl}
             disabled={isRecrawling}
-            className="text-[11px] text-foreground/70 hover:text-foreground transition-colors disabled:opacity-50"
+            className="text-sm text-foreground/70 hover:text-foreground transition-colors disabled:opacity-50"
           >
             {isRecrawling ? "Re-crawling…" : "↻ Re-crawl"}
           </button>
@@ -597,9 +597,9 @@ export function DeepSkipPanel({ result }: { result: any }) {
       {/* Header */}
       <div className="flex items-center gap-2">
         <Users className="h-3.5 w-3.5 text-foreground" />
-        <p className="text-[11px] text-foreground/80 uppercase tracking-wider font-semibold">Deep Skip Report – People Intelligence</p>
+        <p className="text-sm text-foreground/80 uppercase tracking-wider font-semibold">Deep Skip Report – People Intelligence</p>
         {result.agentMeta && (
-          <span className="text-[10px] text-muted-foreground/50 ml-auto">
+          <span className="text-sm text-muted-foreground/50 ml-auto">
             {result.agentMeta.agentsSucceeded?.length ?? 0} agents · {result.people?.length ?? 0} people found
           </span>
         )}
@@ -608,23 +608,23 @@ export function DeepSkipPanel({ result }: { result: any }) {
       {/* People Cards */}
       {result.people && result.people.length > 0 && (
         <div className="space-y-2">
-          <p className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold">People Found</p>
+          <p className="text-sm text-muted-foreground uppercase tracking-wider font-semibold">People Found</p>
           <div className="grid gap-2">
             {result.people.map((person: { name: string; role: string; phones: string[]; emails: string[]; notes: string; source: string; confidence: number; address?: string }, i: number) => (
               <div key={i} className="rounded-[10px] border border-white/[0.06] bg-white/[0.02] p-3">
                 <div className="flex items-center gap-2 mb-1.5">
                   <User className="h-3 w-3 text-foreground/60" />
-                  <span className="text-[13px] font-semibold text-foreground">{person.name}</span>
+                  <span className="text-sm font-semibold text-foreground">{person.name}</span>
                   <span className={cn(
-                    "px-1.5 py-0.5 rounded-full text-[9px] font-bold border uppercase",
+                    "px-1.5 py-0.5 rounded-full text-xs font-bold border uppercase",
                     ROLE_COLORS[person.role] ?? "text-muted-foreground bg-white/5 border-white/10",
                   )}>
                     {person.role.replace(/_/g, " ")}
                   </span>
                   {person.confidence >= 0.8 && <CheckCircle className="h-3 w-3 text-foreground" />}
                 </div>
-                <p className="text-[11px] text-muted-foreground leading-relaxed mb-1.5 pl-5">{person.notes}</p>
-                <div className="flex flex-wrap gap-3 pl-5 text-[11px]">
+                <p className="text-sm text-muted-foreground leading-relaxed mb-1.5 pl-5">{person.notes}</p>
+                <div className="flex flex-wrap gap-3 pl-5 text-sm">
                   {person.phones.map((p: string, j: number) => (
                     <span key={j} className="flex items-center gap-1 text-foreground/80">
                       <Phone className="h-2.5 w-2.5" />{p}
@@ -642,7 +642,7 @@ export function DeepSkipPanel({ result }: { result: any }) {
                   )}
                 </div>
                 <div className="flex items-center gap-2 mt-1.5 pl-5">
-                  <span className="text-[9px] text-muted-foreground/40">via {person.source.replace(/_/g, " ")}</span>
+                  <span className="text-xs text-muted-foreground/40">via {person.source.replace(/_/g, " ")}</span>
                 </div>
               </div>
             ))}
@@ -653,24 +653,24 @@ export function DeepSkipPanel({ result }: { result: any }) {
       {/* New Contacts Found */}
       {((result.newPhones?.length > 0) || (result.newEmails?.length > 0)) && (
         <div>
-          <p className="text-[10px] text-foreground/80 uppercase tracking-wider font-semibold mb-1.5 flex items-center gap-1.5">
+          <p className="text-sm text-foreground/80 uppercase tracking-wider font-semibold mb-1.5 flex items-center gap-1.5">
             <Plus className="h-3 w-3" />New Contacts Discovered
           </p>
           <div className="flex flex-wrap gap-2">
             {(result.newPhones ?? []).map((p: { number: string; source: string; personName?: string }, i: number) => (
-              <span key={`p${i}`} className="inline-flex items-center gap-1.5 px-2 py-1 rounded-full text-[10px] font-medium border border-border/20 bg-muted/[0.06] text-foreground">
+              <span key={`p${i}`} className="inline-flex items-center gap-1.5 px-2 py-1 rounded-full text-sm font-medium border border-border/20 bg-muted/[0.06] text-foreground">
                 <Phone className="h-2.5 w-2.5" />
                 {p.number}
                 {p.personName && <span className="text-foreground/50">({p.personName})</span>}
-                <span className="text-[8px] px-1 py-0.5 rounded bg-muted/20 text-foreground font-bold">OC</span>
+                <span className="text-xs px-1 py-0.5 rounded bg-muted/20 text-foreground font-bold">OC</span>
               </span>
             ))}
             {(result.newEmails ?? []).map((e: { email: string; source: string; personName?: string }, i: number) => (
-              <span key={`e${i}`} className="inline-flex items-center gap-1.5 px-2 py-1 rounded-full text-[10px] font-medium border border-primary/20 bg-primary/[0.06] text-primary">
+              <span key={`e${i}`} className="inline-flex items-center gap-1.5 px-2 py-1 rounded-full text-sm font-medium border border-primary/20 bg-primary/[0.06] text-primary">
                 <Mail className="h-2.5 w-2.5" />
                 {e.email}
                 {e.personName && <span className="text-primary/50">({e.personName})</span>}
-                <span className="text-[8px] px-1 py-0.5 rounded bg-primary/20 text-primary font-bold">OC</span>
+                <span className="text-xs px-1 py-0.5 rounded bg-primary/20 text-primary font-bold">OC</span>
               </span>
             ))}
           </div>
@@ -680,15 +680,15 @@ export function DeepSkipPanel({ result }: { result: any }) {
       {/* Employment & Relocation Signals */}
       {result.employmentSignals && result.employmentSignals.length > 0 && (
         <div>
-          <p className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold mb-1.5 flex items-center gap-1.5">
+          <p className="text-sm text-muted-foreground uppercase tracking-wider font-semibold mb-1.5 flex items-center gap-1.5">
             <Briefcase className="h-3 w-3" />Employment & Relocation Signals
           </p>
           <div className="space-y-1.5">
             {result.employmentSignals.map((s: { signal: string; source: string; date?: string; url?: string }, i: number) => (
-              <div key={i} className="flex items-start gap-2 text-[12px]">
+              <div key={i} className="flex items-start gap-2 text-xs">
                 <ArrowRight className="h-3 w-3 text-foreground/60 mt-0.5 shrink-0" />
                 <span className="text-foreground/70">{s.signal}</span>
-                {s.date && <span className="text-muted-foreground/40 text-[10px] ml-auto shrink-0">{s.date}</span>}
+                {s.date && <span className="text-muted-foreground/40 text-sm ml-auto shrink-0">{s.date}</span>}
               </div>
             ))}
           </div>
@@ -696,7 +696,7 @@ export function DeepSkipPanel({ result }: { result: any }) {
       )}
 
       {/* Footer */}
-      <div className="pt-2 border-t border-white/[0.06] text-[10px] text-muted-foreground/40">
+      <div className="pt-2 border-t border-white/[0.06] text-sm text-muted-foreground/40">
         {result.crawledAt && <span>Generated {new Date(result.crawledAt).toLocaleString()}</span>}
       </div>
     </div>
@@ -731,7 +731,7 @@ export function CrawlProgressIndicator({ steps }: { steps: CrawlStep[] }) {
     <div className="rounded-[12px] border border-white/[0.06] bg-white/[0.02] p-3 space-y-1.5">
       <div className="flex items-center gap-2 mb-2">
         <Loader2 className="h-3.5 w-3.5 text-primary animate-spin" />
-        <p className="text-[11px] text-primary/80 uppercase tracking-wider font-semibold">Deep Crawl in Progress</p>
+        <p className="text-sm text-primary/80 uppercase tracking-wider font-semibold">Deep Crawl in Progress</p>
       </div>
       {steps.map((step, i) => {
         const isLast = i === steps.length - 1;
@@ -742,12 +742,12 @@ export function CrawlProgressIndicator({ steps }: { steps: CrawlStep[] }) {
             : <Loader2 className="h-3 w-3 text-primary animate-spin shrink-0" />;
 
         return (
-          <div key={i} className={cn("flex items-center gap-2 text-[11px]", isLast && step.status === "started" ? "text-foreground" : "text-muted-foreground")}>
+          <div key={i} className={cn("flex items-center gap-2 text-sm", isLast && step.status === "started" ? "text-foreground" : "text-muted-foreground")}>
             {icon}
             <span className="font-medium">{phaseLabels[step.phase] ?? step.phase}</span>
             <span className="text-muted-foreground/50">{step.detail}</span>
             {step.elapsed != null && (
-              <span className="text-[9px] text-muted-foreground/30 ml-auto font-mono">{(step.elapsed / 1000).toFixed(1)}s</span>
+              <span className="text-xs text-muted-foreground/30 ml-auto font-mono">{(step.elapsed / 1000).toFixed(1)}s</span>
             )}
           </div>
         );
@@ -804,14 +804,14 @@ export function LinkedBuyersSummary({ leadId }: { leadId: string }) {
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <Users className="h-3.5 w-3.5 text-primary/70" />
-          <span className="text-[11px] text-muted-foreground uppercase tracking-wider font-semibold">
+          <span className="text-sm text-muted-foreground uppercase tracking-wider font-semibold">
             Linked Buyers
           </span>
-          <Badge variant="outline" className="text-[9px]">{dealBuyers.length}</Badge>
+          <Badge variant="outline" className="text-xs">{dealBuyers.length}</Badge>
         </div>
         <Link
           href="/dispo"
-          className="text-[10px] text-primary/70 hover:text-primary transition-colors flex items-center gap-1"
+          className="text-sm text-primary/70 hover:text-primary transition-colors flex items-center gap-1"
         >
           Dispo Board <ArrowRight className="h-2.5 w-2.5" />
         </Link>

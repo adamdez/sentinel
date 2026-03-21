@@ -62,9 +62,9 @@ async function authHeaders(): Promise<Record<string, string>> {
 // ── Pass-rate display ─────────────────────────────────────────────────────────
 
 function PassRatePill({ n, rate }: { n: number; rate: number | null }) {
-  if (n === 0) return <span className="text-[10px] text-muted-foreground/30 italic">No data yet</span>;
+  if (n === 0) return <span className="text-sm text-muted-foreground/30 italic">No data yet</span>;
   if (rate == null) return (
-    <span className="text-[10px] text-muted-foreground/40 italic">
+    <span className="text-sm text-muted-foreground/40 italic">
       {n}/{EVAL_MIN_SAMPLE} min (rate pending)
     </span>
   );
@@ -78,7 +78,7 @@ function PassRatePill({ n, rate }: { n: number; rate: number | null }) {
 
 function VerdictBadge({ verdict }: { verdict: EvalVerdict }) {
   return (
-    <Badge variant="outline" className={`text-[9px] px-1.5 py-0 ${EVAL_VERDICT_COLORS[verdict]}`}>
+    <Badge variant="outline" className={`text-xs px-1.5 py-0 ${EVAL_VERDICT_COLORS[verdict]}`}>
       {EVAL_VERDICT_LABELS[verdict]}
     </Badge>
   );
@@ -93,16 +93,16 @@ function ExampleRow({ rating }: { rating: EvalRatingRow }) {
       <div className="flex items-center gap-2 flex-wrap">
         <VerdictBadge verdict={rating.verdict} />
         {rating.rubric_dimension && (
-          <Badge variant="outline" className={`text-[9px] px-1.5 py-0 ${EVAL_RUBRIC_COLORS[rating.rubric_dimension]}`}>
+          <Badge variant="outline" className={`text-xs px-1.5 py-0 ${EVAL_RUBRIC_COLORS[rating.rubric_dimension]}`}>
             {EVAL_RUBRIC_LABELS[rating.rubric_dimension]}
           </Badge>
         )}
-        <span className="text-[9px] text-muted-foreground/30 ml-auto">
+        <span className="text-xs text-muted-foreground/30 ml-auto">
           {new Date(rating.reviewed_at).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
         </span>
       </div>
       {rating.reviewer_note && (
-        <p className="text-[10px] text-muted-foreground/70 leading-relaxed">
+        <p className="text-sm text-muted-foreground/70 leading-relaxed">
           {rating.reviewer_note}
         </p>
       )}
@@ -110,13 +110,13 @@ function ExampleRow({ rating }: { rating: EvalRatingRow }) {
         <>
           <button
             onClick={() => setExpanded(e => !e)}
-            className="flex items-center gap-1 text-[9px] text-muted-foreground/40 hover:text-muted-foreground/70 transition-colors"
+            className="flex items-center gap-1 text-xs text-muted-foreground/40 hover:text-muted-foreground/70 transition-colors"
           >
             {expanded ? <ChevronUp className="w-2.5 h-2.5" /> : <ChevronDown className="w-2.5 h-2.5" />}
             Output snapshot
           </button>
           {expanded && (
-            <pre className="text-[9px] text-muted-foreground/50 bg-white/[0.02] rounded p-2 whitespace-pre-wrap leading-relaxed max-h-32 overflow-auto">
+            <pre className="text-xs text-muted-foreground/50 bg-white/[0.02] rounded p-2 whitespace-pre-wrap leading-relaxed max-h-32 overflow-auto">
               {rating.output_snapshot}
             </pre>
           )}
@@ -177,7 +177,7 @@ export function RateOutputForm({
 
   return (
     <div className="space-y-2.5 p-3 rounded-xl border border-white/[0.06] bg-white/[0.02]">
-      <p className="text-[10px] font-medium text-muted-foreground/70">
+      <p className="text-sm font-medium text-muted-foreground/70">
         Rate this output — <span className="font-mono text-muted-foreground/40">{workflow}@{promptVersion}</span>
       </p>
 
@@ -187,7 +187,7 @@ export function RateOutputForm({
           <button
             key={v}
             onClick={() => { setVerdict(v); setRubric(null); }}
-            className={`text-[10px] px-2.5 py-1 rounded-md border transition-colors ${
+            className={`text-sm px-2.5 py-1 rounded-md border transition-colors ${
               verdict === v
                 ? EVAL_VERDICT_COLORS[v]
                 : "border-white/[0.06] text-muted-foreground/50 hover:text-muted-foreground"
@@ -205,7 +205,7 @@ export function RateOutputForm({
             <button
               key={d}
               onClick={() => setRubric(d)}
-              className={`text-[9px] px-2 py-0.5 rounded border transition-colors ${
+              className={`text-xs px-2 py-0.5 rounded border transition-colors ${
                 rubric === d
                   ? EVAL_RUBRIC_COLORS[d]
                   : "border-white/[0.05] text-muted-foreground/40 hover:text-muted-foreground/60"
@@ -226,14 +226,14 @@ export function RateOutputForm({
         rows={2}
       />
 
-      {error && <p className="text-[10px] text-foreground">{error}</p>}
+      {error && <p className="text-sm text-foreground">{error}</p>}
 
       <Button
         size="sm"
         variant="outline"
         disabled={!verdict || saving}
         onClick={submit}
-        className="text-[10px] h-6 px-3 border-white/[0.08]"
+        className="text-sm h-6 px-3 border-white/[0.08]"
       >
         {saving ? <Loader2 className="w-2.5 h-2.5 animate-spin" /> : "Save rating"}
       </Button>
@@ -268,23 +268,23 @@ function VersionSummaryRow({
       >
         <div className="flex-1 min-w-0 space-y-0.5">
           <div className="flex items-center gap-2 flex-wrap">
-            <span className="text-[11px] font-medium text-foreground/80">
+            <span className="text-sm font-medium text-foreground/80">
               {EVAL_WORKFLOW_LABELS[summary.workflow]}
             </span>
-            <code className="text-[9px] text-muted-foreground/40 font-mono">v{summary.prompt_version}</code>
+            <code className="text-xs text-muted-foreground/40 font-mono">v{summary.prompt_version}</code>
             {summary.n > 0 && (
-              <span className="text-[9px] text-muted-foreground/30">{summary.n} reviewed</span>
+              <span className="text-xs text-muted-foreground/30">{summary.n} reviewed</span>
             )}
           </div>
           <div className="flex items-center gap-3 flex-wrap">
             <PassRatePill n={summary.n} rate={summary.pass_rate} />
             {summary.n > 0 && (
-              <span className="text-[9px] text-muted-foreground/40">
+              <span className="text-xs text-muted-foreground/40">
                 {summary.good}✓ {summary.needs_work}~ {summary.incorrect}✗
               </span>
             )}
             {summary.top_failure && (
-              <span className={`text-[9px] rounded px-1.5 py-0.5 border ${EVAL_RUBRIC_COLORS[summary.top_failure]}`}>
+              <span className={`text-xs rounded px-1.5 py-0.5 border ${EVAL_RUBRIC_COLORS[summary.top_failure]}`}>
                 top: {EVAL_RUBRIC_LABELS[summary.top_failure]}
               </span>
             )}
@@ -298,20 +298,20 @@ function VersionSummaryRow({
       {/* Examples drawer */}
       {open && (
         <div className="border-t border-white/[0.04] px-3 py-2.5 space-y-2">
-          <p className="text-[9px] text-muted-foreground/30 italic">
+          <p className="text-xs text-muted-foreground/30 italic">
             {evalSampleCaveat(summary.n)}
           </p>
           {examples === null ? (
-            <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground/30">
+            <div className="flex items-center gap-1.5 text-sm text-muted-foreground/30">
               <Loader2 className="w-3 h-3 animate-spin" /> Loading examples…
             </div>
           ) : examples.length === 0 ? (
-            <p className="text-[10px] text-muted-foreground/30">No reviewed examples for this version yet.</p>
+            <p className="text-sm text-muted-foreground/30">No reviewed examples for this version yet.</p>
           ) : (
             <div className="space-y-2">
               {examples.slice(0, 10).map(r => <ExampleRow key={r.id} rating={r} />)}
               {examples.length > 10 && (
-                <p className="text-[9px] text-muted-foreground/30">
+                <p className="text-xs text-muted-foreground/30">
                   Showing 10 of {examples.length}. Use the full eval page for more.
                 </p>
               )}
@@ -388,7 +388,7 @@ export function EvalRatingsPanel({
           <h3 className="text-sm font-semibold text-foreground/80">
             {workflowFilter ? EVAL_WORKFLOW_LABELS[workflowFilter] : "AI Review"}
           </h3>
-          <Badge variant="outline" className="text-[9px] border-border/20 text-foreground bg-muted/5">
+          <Badge variant="outline" className="text-xs border-border/20 text-foreground bg-muted/5">
             {days}d
           </Badge>
         </div>
@@ -405,7 +405,7 @@ export function EvalRatingsPanel({
       </div>
 
       {!compact && !workflowFilter && (
-        <p className="text-[10px] text-muted-foreground/40 leading-relaxed">
+        <p className="text-sm text-muted-foreground/40 leading-relaxed">
           Reviewed AI output ratings grouped by workflow and prompt version.
           Pass rate shown only when n ≥ {EVAL_MIN_SAMPLE}. Raw examples always accessible.
         </p>
@@ -426,7 +426,7 @@ export function EvalRatingsPanel({
         <div className="text-center py-6 space-y-2">
           <BookOpen className="w-6 h-6 text-muted-foreground/20 mx-auto" />
           <p className="text-xs text-muted-foreground/40">No eval ratings yet.</p>
-          <p className="text-[10px] text-muted-foreground/25 leading-relaxed max-w-xs mx-auto">
+          <p className="text-sm text-muted-foreground/25 leading-relaxed max-w-xs mx-auto">
             Ratings are written when Adam reviews dossier outputs, call QA findings,
             or post-call draft notes. The first row appears automatically.
           </p>
@@ -442,7 +442,7 @@ export function EvalRatingsPanel({
             />
           ))}
           {compact && summaries.length > 3 && (
-            <p className="text-[9px] text-muted-foreground/30 text-center">
+            <p className="text-xs text-muted-foreground/30 text-center">
               +{summaries.length - 3} more workflow versions — see full eval page
             </p>
           )}

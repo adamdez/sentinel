@@ -161,7 +161,7 @@ export function BuyerSearchModal({ dealId, open, onClose, onLinked, existingBuye
             <div className="flex items-center gap-3 p-4 border-b border-white/[0.04]">
               <div className="flex-1 min-w-0">
                 <h3 className="text-sm font-semibold text-foreground">Link Buyer to Deal</h3>
-                <p className="text-[11px] text-muted-foreground/50 mt-0.5">Search and select an active buyer to link</p>
+                <p className="text-sm text-muted-foreground/50 mt-0.5">Search and select an active buyer to link</p>
               </div>
               <button
                 onClick={onClose}
@@ -210,7 +210,7 @@ export function BuyerSearchModal({ dealId, open, onClose, onLinked, existingBuye
                         {showSeparator && (
                           <div className="flex items-center gap-2 py-1.5">
                             <div className="flex-1 h-px bg-white/[0.06]" />
-                            <span className="text-[9px] text-muted-foreground/40 uppercase tracking-wider">Other buyers</span>
+                            <span className="text-xs text-muted-foreground/40 uppercase tracking-wider">Other buyers</span>
                             <div className="flex-1 h-px bg-white/[0.06]" />
                           </div>
                         )}
@@ -232,7 +232,7 @@ export function BuyerSearchModal({ dealId, open, onClose, onLinked, existingBuye
                             <div className="text-sm font-medium text-foreground truncate">
                               {buyer.contact_name}
                             </div>
-                            <div className="flex items-center gap-2 mt-0.5 text-[10px] text-muted-foreground/50">
+                            <div className="flex items-center gap-2 mt-0.5 text-sm text-muted-foreground/50">
                               {buyer.company_name && <span>{buyer.company_name}</span>}
                               {buyer.markets?.length > 0 && (
                                 <span>{buyer.markets.map(marketLabel).join(", ")}</span>
@@ -245,7 +245,7 @@ export function BuyerSearchModal({ dealId, open, onClose, onLinked, existingBuye
                           {/* POF badge */}
                           <Badge
                             variant={buyer.proof_of_funds === "verified" ? "neon" : buyer.proof_of_funds === "submitted" ? "gold" : "secondary"}
-                            className="text-[9px] shrink-0"
+                            className="text-xs shrink-0"
                           >
                             {pofLabel(buyer.proof_of_funds)}
                           </Badge>
@@ -256,7 +256,7 @@ export function BuyerSearchModal({ dealId, open, onClose, onLinked, existingBuye
                             return (
                               <div className="flex gap-1 shrink-0">
                                 {match.reasons.map((r) => (
-                                  <Badge key={r} variant="cyan" className="text-[8px] px-1.5 py-0">
+                                  <Badge key={r} variant="cyan" className="text-xs px-1.5 py-0">
                                     {r}
                                   </Badge>
                                 ))}

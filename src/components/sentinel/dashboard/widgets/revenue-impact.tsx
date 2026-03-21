@@ -97,12 +97,12 @@ export function RevenueImpact() {
           transition={{ delay: i * 0.06 }}
           className="flex items-center justify-between"
         >
-          <span className="text-[11px] text-muted-foreground">{m.label}</span>
+          <span className="text-sm text-muted-foreground">{m.label}</span>
           <div className="flex items-center gap-1.5">
             <span className="text-sm font-bold">{m.value}</span>
             {m.change && (
               <motion.span
-                className="text-[10px] text-primary flex items-center gap-0.5"
+                className="text-sm text-primary flex items-center gap-0.5"
                 style={{ textShadow: "0 0 6px rgba(0,0,0,0.4)" }}
               >
                 <ArrowUpRight className="h-2.5 w-2.5" />
@@ -141,7 +141,7 @@ export function RevenueImpact() {
         })}
       </div>
 
-      <p className="text-[10px] text-muted-foreground text-center">
+      <p className="text-sm text-muted-foreground text-center">
         {d.closedCount > 0
           ? `${d.closedCount} closed deal${d.closedCount > 1 ? "s" : ""} YTD — assignment fees`
           : "No closed deals yet — revenue will appear as deals close"}

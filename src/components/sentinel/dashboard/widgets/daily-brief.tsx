@@ -65,7 +65,7 @@ function SectionHeader({ label, icon: Icon, color }: { label: string; icon: Reac
   return (
     <div className="flex items-center gap-1.5 mb-1">
       <Icon className={`h-2.5 w-2.5 ${color}`} />
-      <p className="text-[9px] uppercase tracking-widest text-muted-foreground font-medium">{label}</p>
+      <p className="text-xs uppercase tracking-widest text-muted-foreground font-medium">{label}</p>
     </div>
   );
 }
@@ -83,12 +83,12 @@ function LeadRow({ lead, idx }: { lead: BriefLead; idx: number }) {
       className={`w-full flex items-center gap-1.5 px-2 py-1 rounded-[6px] border ${meta.bg} ${meta.border} hover:brightness-110 transition-all text-left`}
     >
       <meta.Icon className={`h-2.5 w-2.5 shrink-0 ${meta.color}`} />
-      <span className="flex-1 truncate text-[11px]">{lead.label}</span>
+      <span className="flex-1 truncate text-sm">{lead.label}</span>
       {lead.detail && (
-        <span className="text-[10px] text-muted-foreground/50 truncate max-w-[30%] shrink-0">{lead.detail}</span>
+        <span className="text-sm text-muted-foreground/50 truncate max-w-[30%] shrink-0">{lead.detail}</span>
       )}
       {days && (
-        <span className={`text-[10px] font-semibold shrink-0 ${lead.daysOverdue && lead.daysOverdue > 0 ? meta.color : "text-muted-foreground/40"}`}>
+        <span className={`text-sm font-semibold shrink-0 ${lead.daysOverdue && lead.daysOverdue > 0 ? meta.color : "text-muted-foreground/40"}`}>
           {days}
         </span>
       )}
@@ -97,14 +97,14 @@ function LeadRow({ lead, idx }: { lead: BriefLead; idx: number }) {
 }
 
 function SlippageBar({ pct }: { pct: number | null }) {
-  if (pct === null) return <span className="text-muted-foreground/40 text-[10px]">no data</span>;
+  if (pct === null) return <span className="text-muted-foreground/40 text-sm">no data</span>;
   const color = pct >= 75 ? "bg-muted" : pct >= 40 ? "bg-muted" : "bg-muted";
   return (
     <div className="flex items-center gap-2">
       <div className="flex-1 h-1 bg-secondary/30 rounded-full overflow-hidden">
         <div className={`h-full rounded-full ${color} transition-all`} style={{ width: `${Math.min(pct, 100)}%` }} />
       </div>
-      <span className={`text-[11px] font-bold shrink-0 ${pct >= 75 ? "text-foreground" : pct >= 40 ? "text-foreground" : "text-foreground"}`}>
+      <span className={`text-sm font-bold shrink-0 ${pct >= 75 ? "text-foreground" : pct >= 40 ? "text-foreground" : "text-foreground"}`}>
         {pct}%
       </span>
     </div>
@@ -161,7 +161,7 @@ export function DailyBrief() {
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between">
-        <p className="text-[10px] text-muted-foreground/60">
+        <p className="text-sm text-muted-foreground/60">
           {dialerWindow.callsPublished} calls · {dialerWindow.tasksCreated} tasks · 30d window
         </p>
         <button
@@ -178,7 +178,7 @@ export function DailyBrief() {
         <SectionHeader label="Callback Slippage" icon={TrendingDown} color="text-foreground" />
         <div className="space-y-1">
           <SlippageBar pct={topCallbackSlippage.pct} />
-          <p className="text-[10px] text-muted-foreground/60 leading-snug">{topCallbackSlippage.message}</p>
+          <p className="text-sm text-muted-foreground/60 leading-snug">{topCallbackSlippage.message}</p>
         </div>
       </div>
 
@@ -188,7 +188,7 @@ export function DailyBrief() {
         {topOverdueLead ? (
           <LeadRow lead={topOverdueLead} idx={0} />
         ) : (
-          <p className="text-[10px] text-muted-foreground/40 pl-1">No overdue follow-up leads.</p>
+          <p className="text-sm text-muted-foreground/40 pl-1">No overdue follow-up leads.</p>
         )}
       </div>
 
@@ -198,7 +198,7 @@ export function DailyBrief() {
         {topOverdueTask ? (
           <LeadRow lead={topOverdueTask} idx={0} />
         ) : (
-          <p className="text-[10px] text-muted-foreground/40 pl-1">No overdue tasks.</p>
+          <p className="text-sm text-muted-foreground/40 pl-1">No overdue tasks.</p>
         )}
       </div>
 
@@ -208,7 +208,7 @@ export function DailyBrief() {
         {topFlaggedAiOutput ? (
           <LeadRow lead={topFlaggedAiOutput} idx={0} />
         ) : (
-          <p className="text-[10px] text-muted-foreground/40 pl-1">No flagged AI outputs pending review.</p>
+          <p className="text-sm text-muted-foreground/40 pl-1">No flagged AI outputs pending review.</p>
         )}
       </div>
 

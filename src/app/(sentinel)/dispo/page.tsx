@@ -149,7 +149,7 @@ function StalledDealsPanel({ deals }: { deals: DispoDeal[] }) {
         <span className="text-xs font-semibold uppercase tracking-wider text-foreground/80">
           Needs Attention
         </span>
-        <Badge variant="gold" className="text-[9px]">{stalledDeals.length}</Badge>
+        <Badge variant="gold" className="text-xs">{stalledDeals.length}</Badge>
         <div className="flex-1" />
         <motion.div animate={{ rotate: open ? 180 : 0 }} transition={{ duration: 0.15 }}>
           <ChevronDown className="h-3 w-3 text-muted-foreground/30" />
@@ -172,7 +172,7 @@ function StalledDealsPanel({ deals }: { deals: DispoDeal[] }) {
                   <span className="text-xs text-foreground/70 truncate flex-1">
                     {s.deal.property_address || "No address"}
                   </span>
-                  <span className={cn("text-[9px] px-1.5 py-0.5 rounded shrink-0", dispoUrgencyClass(s.summary.urgency))} title={s.summary.reason}>
+                  <span className={cn("text-xs px-1.5 py-0.5 rounded shrink-0", dispoUrgencyClass(s.summary.urgency))} title={s.summary.reason}>
                     {s.summary.action}
                   </span>
                 </div>
@@ -205,7 +205,7 @@ function DispoPrepForm({ deal, onSaved }: { deal: DispoDeal; onSaved: () => void
   }, [deal.id, onSaved]);
 
   const inputClass = "w-full bg-white/[0.03] border border-white/[0.06] rounded-[6px] px-2.5 py-1.5 text-xs text-foreground placeholder:text-muted-foreground/30 focus:outline-none focus:border-primary/20 transition-all";
-  const labelClass = "text-[10px] text-muted-foreground/50 font-medium mb-1";
+  const labelClass = "text-sm text-muted-foreground/50 font-medium mb-1";
 
   return (
     <div className="space-y-3">
@@ -300,7 +300,7 @@ function DispoPrepForm({ deal, onSaved }: { deal: DispoDeal; onSaved: () => void
       </div>
 
       {saving && (
-        <div className="text-[10px] text-primary/60">Saving...</div>
+        <div className="text-sm text-primary/60">Saving...</div>
       )}
     </div>
   );
@@ -327,7 +327,7 @@ function SelectionReasonInput({ dbId, currentReason, onSaved }: {
       <input
         defaultValue={currentReason ?? ""}
         placeholder="Why this buyer? (saves on blur)"
-        className="w-full bg-white/[0.02] border border-primary/10 rounded-[4px] px-2 py-1 text-[10px] text-foreground/70 placeholder:text-muted-foreground/30 focus:outline-none focus:border-primary/30 transition-all"
+        className="w-full bg-white/[0.02] border border-primary/10 rounded-[4px] px-2 py-1 text-sm text-foreground/70 placeholder:text-muted-foreground/30 focus:outline-none focus:border-primary/30 transition-all"
         onBlur={(e) => handleBlur(e.target.value)}
         onClick={(e) => e.stopPropagation()}
       />
@@ -375,7 +375,7 @@ function DealCard({ deal, expanded, onToggleExpand, onStatusChange, onLinkBuyer,
           </div>
           {/* Dispo action summary — compact reason line */}
           {actionSummary.urgency !== "none" && (
-            <div className={cn("text-[10px] mt-1.5 truncate", dispoUrgencyClass(actionSummary.urgency))} title={actionSummary.reason}>
+            <div className={cn("text-sm mt-1.5 truncate", dispoUrgencyClass(actionSummary.urgency))} title={actionSummary.reason}>
               {actionSummary.action}
             </div>
           )}
@@ -388,7 +388,7 @@ function DealCard({ deal, expanded, onToggleExpand, onStatusChange, onLinkBuyer,
           </div>
           {actionSummary.daysInDispo != null && (
             <span className={cn(
-              "text-[10px]",
+              "text-sm",
               actionSummary.daysInDispo > 14 ? "text-foreground/60" : "text-muted-foreground/40"
             )}>
               {actionSummary.daysInDispo}d in dispo
@@ -414,7 +414,7 @@ function DealCard({ deal, expanded, onToggleExpand, onStatusChange, onLinkBuyer,
               {/* Dispo Prep toggle */}
               <button
                 onClick={(e) => { e.stopPropagation(); setPrepOpen(!prepOpen); }}
-                className="flex items-center gap-2 mb-3 text-[11px] text-muted-foreground/60 hover:text-muted-foreground/80 transition-colors"
+                className="flex items-center gap-2 mb-3 text-sm text-muted-foreground/60 hover:text-muted-foreground/80 transition-colors"
               >
                 <FileText className="h-3 w-3" />
                 <span className="font-semibold tracking-wide">Dispo Prep</span>
@@ -422,7 +422,7 @@ function DealCard({ deal, expanded, onToggleExpand, onStatusChange, onLinkBuyer,
                   <ChevronRight className="h-3 w-3" />
                 </motion.div>
                 {deal.dispo_prep?.dispo_summary && (
-                  <span className="text-[9px] text-primary/40 normal-case tracking-normal font-normal ml-1">has summary</span>
+                  <span className="text-xs text-primary/40 normal-case tracking-normal font-normal ml-1">has summary</span>
                 )}
               </button>
 
@@ -449,10 +449,10 @@ function DealCard({ deal, expanded, onToggleExpand, onStatusChange, onLinkBuyer,
 
               {/* Link buyer button */}
               <div className="flex items-center justify-between mb-3">
-                <span className="text-[11px] text-muted-foreground/60 font-semibold tracking-wide">Linked Buyers</span>
+                <span className="text-sm text-muted-foreground/60 font-semibold tracking-wide">Linked Buyers</span>
                 <button
                   onClick={(e) => { e.stopPropagation(); onLinkBuyer(deal.id); }}
-                  className="flex items-center gap-1 px-2.5 py-1 text-[11px] font-medium text-primary bg-primary/8 hover:bg-primary/12 rounded-[6px] border border-primary/20 hover:border-primary/30 transition-all"
+                  className="flex items-center gap-1 px-2.5 py-1 text-sm font-medium text-primary bg-primary/8 hover:bg-primary/12 rounded-[6px] border border-primary/20 hover:border-primary/30 transition-all"
                 >
                   <Plus className="h-3 w-3" />
                   Link Buyer
@@ -481,7 +481,7 @@ function DealCard({ deal, expanded, onToggleExpand, onStatusChange, onLinkBuyer,
                               {db.buyer?.contact_name ?? "Unknown"}
                             </div>
                             {db.buyer?.company_name && (
-                              <div className="text-[11px] text-muted-foreground/40">{db.buyer.company_name}</div>
+                              <div className="text-sm text-muted-foreground/40">{db.buyer.company_name}</div>
                             )}
                           </div>
 
@@ -493,7 +493,7 @@ function DealCard({ deal, expanded, onToggleExpand, onStatusChange, onLinkBuyer,
                               e.stopPropagation();
                               onStatusChange(db.id, e.target.value, db.status);
                             }}
-                            className="bg-white/[0.03] border border-white/[0.08] rounded-[6px] px-2 py-1 text-[11px] text-foreground focus:outline-none focus:border-primary/30 transition-all appearance-none cursor-pointer min-w-[100px]"
+                            className="bg-white/[0.03] border border-white/[0.08] rounded-[6px] px-2 py-1 text-sm text-foreground focus:outline-none focus:border-primary/30 transition-all appearance-none cursor-pointer min-w-[100px]"
                           >
                             {DEAL_BUYER_STATUS_OPTIONS.map((o) => (
                               <option key={o.value} value={o.value}>{o.label}</option>
@@ -521,7 +521,7 @@ function DealCard({ deal, expanded, onToggleExpand, onStatusChange, onLinkBuyer,
 
                           {/* Contact date */}
                           {db.date_contacted && (
-                            <span className="text-[10px] text-muted-foreground/40 shrink-0">
+                            <span className="text-sm text-muted-foreground/40 shrink-0">
                               {new Date(db.date_contacted).toLocaleDateString()}
                             </span>
                           )}
