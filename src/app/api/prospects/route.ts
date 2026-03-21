@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@/lib/supabase";
 import { computeScore, SCORING_MODEL_VERSION, type ScoringInput } from "@/lib/scoring";
 import type { DistressType, LeadStatus, SellerTimeline, QualificationRoute } from "@/lib/types";
-import { validateStatusTransition, getAllowedTransitions, incrementLockVersion } from "@/lib/lead-guardrails";
+import { validateStatusTransition, getAllowedTransitions, incrementLockVersion, requiresNextAction } from "@/lib/lead-guardrails";
 import { scrubLead } from "@/lib/compliance";
 import { distressFingerprint, normalizeCounty as globalNormalizeCounty, isDuplicateError } from "@/lib/dedup";
 import { detectDistressSignals, type DetectedSignal } from "@/lib/distress-signals";
@@ -197,6 +197,8 @@ export async function PATCH(req: NextRequest) {
       qualification_route,
       occupancy_score,
       equity_flexibility_score,
+      next_action,
+      next_action_due_at,
     } = body;
 
     const clientLockVersion = req.headers.get("x-lock-version");
@@ -219,7 +221,9 @@ export async function PATCH(req: NextRequest) {
       || price_expectation !== undefined
       || qualification_route !== undefined
       || occupancy_score !== undefined
-      || equity_flexibility_score !== undefined;
+      || equity_flexibility_score !== undefined
+      || next_action !== undefined
+      || next_action_due_at !== undefined;
 
     const hasQualificationMutation =
       motivation_level !== undefined
@@ -344,7 +348,7 @@ export async function PATCH(req: NextRequest) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { data: currentLead, error: fetchErr } = await (sb.from("leads") as any)
       .select(
-        "status, lock_version, notes, qualification_route, qualification_score_total, assigned_to, property_id, last_contact_at, total_calls, disposition_code, next_call_scheduled_at, next_follow_up_at, motivation_level, seller_timeline, condition_level, decision_maker_confirmed, price_expectation, occupancy_score, equity_flexibility_score",
+        "status, lock_version, notes, qualification_route, qualification_score_total, assigned_to, property_id, last_contact_at, total_calls, disposition_code, next_call_scheduled_at, next_follow_up_at, motivation_level, seller_timeline, condition_level, decision_maker_confirmed, price_expectation, occupancy_score, equity_flexibility_score, next_action, next_action_due_at",
       )
       .eq("id", lead_id)
       .single();
@@ -543,6 +547,36 @@ export async function PATCH(req: NextRequest) {
       );
     }
 
+    // ── next_action hard enforcement ──
+    // Matches the enforcement in /api/leads/[id]/stage (PR-1 Stage machine).
+    // Two rules:
+    //   1. Forward-moving stage transitions require next_action to be set.
+    //   2. Clearing next_action on a lead already in a stage that requires it is rejected.
+    const resolvedStatus = targetStatus ?? currentStatus;
+    if (requiresNextAction(resolvedStatus)) {
+      const effectiveNextAction =
+        (typeof next_action === "string" && next_action.trim())
+          ? next_action.trim()
+          : next_action === undefined
+            ? (typeof currentLead.next_action === "string" && currentLead.next_action.trim()
+              ? currentLead.next_action.trim()
+              : null)
+            : null; // next_action explicitly set to null/empty
+
+      if (!effectiveNextAction) {
+        const verb = targetStatus && targetStatus !== currentStatus
+          ? `advancing to "${targetStatus}"`
+          : `staying in "${currentStatus}"`;
+        return NextResponse.json(
+          {
+            error: "Missing next_action",
+            detail: `A next_action is required when ${verb}. Describe what happens next for this lead.`,
+          },
+          { status: 400 },
+        );
+      }
+    }
+
     if (targetStatus && targetStatus !== currentStatus) {
       const prereqError = evaluateStageEntryPrerequisites({
         currentStatus,
@@ -681,6 +715,18 @@ export async function PATCH(req: NextRequest) {
 
     if (parsedEquityFlex.provided) {
       updateData.equity_flexibility_score = parsedEquityFlex.value;
+    }
+
+    if (next_action !== undefined) {
+      updateData.next_action = typeof next_action === "string" ? next_action.trim() || null : null;
+    }
+
+    if (next_action_due_at !== undefined) {
+      const parsedNextActionDue = parseOptionalIso(next_action_due_at);
+      if (!parsedNextActionDue.valid) {
+        return NextResponse.json({ error: "Invalid datetime for next_action_due_at" }, { status: 400 });
+      }
+      updateData.next_action_due_at = parsedNextActionDue.iso;
     }
 
     const currentScoreState: QualificationScoreState = {

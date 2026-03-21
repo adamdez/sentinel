@@ -4,6 +4,9 @@ import { computeScore, SCORING_MODEL_VERSION, type ScoringInput } from "@/lib/sc
 import type { DistressType } from "@/lib/types";
 import { distressFingerprint, normalizeCounty as globalNormalizeCounty, isDuplicateError } from "@/lib/dedup";
 import { detectDistressSignals, type DetectedSignal } from "@/lib/distress-signals";
+import { upsertContact } from "@/lib/upsert-contact";
+import { deduplicateByProperty } from "@/lib/dedup-property";
+import { resolveMarket } from "@/lib/market-resolver";
 
 type SbResult<T> = { data: T | null; error: { code?: string; message: string } | null };
 
@@ -454,6 +457,16 @@ export async function POST(request: NextRequest) {
     const sb = createServerClient();
     log("Step 8a — Supabase service-role client created");
 
+    // ── 8a-pre. Property-level dedup: check if this property already exists ──
+    const dedupResult = await deduplicateByProperty(sb, {
+      address, apn, city, state, zip,
+    });
+    log("Step 8a-pre — Property dedup", {
+      isNew: dedupResult.isNew,
+      existingPropertyId: dedupResult.existingPropertyId,
+      existingLeadIds: dedupResult.existingLeadIds,
+    });
+
     const ownerFlags: Record<string, unknown> = { source: "propertyradar", last_enriched: new Date().toISOString() };
     if (isTruthy(prProperty.isNotSameMailingOrExempt)) ownerFlags.absentee = true;
     if (isTruthy(prProperty.isSiteVacant)) ownerFlags.vacant = true;
@@ -629,28 +642,65 @@ export async function POST(request: NextRequest) {
       log("Step 10 — Scoring record inserted OK");
     }
 
-    // ── 11. Promote to prospect (leads table, unassigned) ────────────
+    // ── 10b. Upsert contact (dedup by phone) ────────────────────────
+    const ownerPhone = String(prProperty.Phone1 ?? prProperty.Phone2 ?? "").trim() || null;
+    let contactId: string | null = null;
+    if (ownerPhone) {
+      try {
+        // Split ownerName into first/last (best-effort — PropertyRadar often has "LAST, FIRST" format)
+        const nameParts = ownerName.includes(",")
+          ? ownerName.split(",").map((p: string) => p.trim())
+          : ownerName.split(/\s+/);
+        const lastName = ownerName.includes(",") ? nameParts[0] : nameParts[nameParts.length - 1];
+        const firstName = ownerName.includes(",") ? (nameParts[1] ?? "") : nameParts.slice(0, -1).join(" ");
 
-    log("Step 11 — Checking for existing lead...");
+        const contactResult = await upsertContact(sb, {
+          phone: ownerPhone,
+          first_name: firstName || null,
+          last_name: lastName || null,
+          email: typeof prProperty.Email === "string" ? prProperty.Email : null,
+          source: "propertyradar",
+          contact_type: "owner",
+        });
+        contactId = contactResult.id;
+        log("Step 10b — Contact upserted", { contactId, created: contactResult.created });
+      } catch (err) {
+        logError("Step 10b — Contact upsert failed (non-fatal)", err);
+      }
+    }
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data: existingLead } = await (sb.from("leads") as any)
-      .select("id")
-      .eq("property_id", property.id)
-      .in("status", ["staging", "prospect", "lead"])
-      .maybeSingle() as SbResult<{ id: string } | null>;
+    // ── 11. Promote to prospect (leads table, property-based dedup) ───
 
-    let leadId = existingLead?.id;
-    log("Step 11 — Existing lead check", { found: !!existingLead, leadId: leadId ?? "none" });
+    log("Step 11 — Checking for existing lead (property dedup)...");
+
+    // Use property dedup result first, then fallback to property_id check
+    const existingLeadIds = dedupResult.existingLeadIds.length > 0
+      ? [...dedupResult.existingLeadIds]
+      : [];
+
+    if (existingLeadIds.length === 0) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data: existingLead } = await (sb.from("leads") as any)
+        .select("id")
+        .eq("property_id", property.id)
+        .in("status", ["staging", "prospect", "lead", "negotiation", "nurture"])
+        .maybeSingle() as SbResult<{ id: string } | null>;
+      if (existingLead) existingLeadIds.push(existingLead.id);
+    }
+
+    let leadId = existingLeadIds.length > 0 ? existingLeadIds[0] : undefined;
+    log("Step 11 — Existing lead check", { found: !!leadId, leadId: leadId ?? "none", dedupLeads: dedupResult.existingLeadIds.length });
 
     if (!leadId) {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { data: newLead, error: leadError } = await (sb.from("leads") as any)
         .insert({
           property_id: property.id,
+          contact_id: contactId,
           status: "staging",
           priority: scoreResult.composite,
           source: "propertyradar",
+          market: resolveMarket(county),
           tags: signals.map((s) => s.type),
           notes: `PropertyRadar ingestion. ${signals.length} distress signal(s). RadarID: ${prProperty.RadarID ?? "N/A"}`,
         })
@@ -667,16 +717,20 @@ export async function POST(request: NextRequest) {
       leadId = newLead.id;
       log("Step 11 — NEW lead created", { leadId });
     } else {
+      // Existing lead found for this property — merge/update
+      const leadUpdate: Record<string, unknown> = {
+        priority: scoreResult.composite,
+        tags: signals.map((s) => s.type),
+        notes: `PropertyRadar re-ingested (property dedup). Score: ${scoreResult.composite}. RadarID: ${prProperty.RadarID ?? "N/A"}`,
+        updated_at: new Date().toISOString(),
+      };
+      if (contactId) leadUpdate.contact_id = contactId;
+
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       await (sb.from("leads") as any)
-        .update({
-          priority: scoreResult.composite,
-          tags: signals.map((s) => s.type),
-          notes: `PropertyRadar re-ingested. Score: ${scoreResult.composite}. RadarID: ${prProperty.RadarID ?? "N/A"}`,
-          updated_at: new Date().toISOString(),
-        })
+        .update(leadUpdate)
         .eq("id", leadId);
-      log("Step 11 — Existing lead UPDATED", { leadId });
+      log("Step 11 — Existing lead UPDATED (property dedup merge)", { leadId });
     }
 
     // ── 12. Compliance scrub placeholder ──────────────────────────────

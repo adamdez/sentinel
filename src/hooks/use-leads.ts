@@ -318,7 +318,17 @@ function mapToLeadRow(raw: any, prop: any, firstAttemptAt: string | null = null,
       keywordText: attribution.ads_keywords?.text ?? null,
       market: attribution.market ?? null,
       gclid: attribution.gclid ?? null
-    } : null
+    } : null,
+    // Intelligence CRM projection fields
+    sellerSituationSummaryShort: raw.seller_situation_summary_short ?? null,
+    recommendedCallAngle: raw.recommended_call_angle ?? null,
+    topFact1: raw.top_fact_1 ?? null,
+    topFact2: raw.top_fact_2 ?? null,
+    topFact3: raw.top_fact_3 ?? null,
+    opportunityScore: raw.opportunity_score != null ? Number(raw.opportunity_score) : null,
+    contactabilityScore: raw.contactability_score != null ? Number(raw.contactability_score) : null,
+    confidenceScore: raw.confidence_score != null ? Number(raw.confidence_score) : null,
+    dossierUrl: raw.dossier_url ?? null,
   };
 }
 

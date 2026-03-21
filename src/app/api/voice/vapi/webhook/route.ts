@@ -6,13 +6,20 @@ import {
   handleTransferToOperator,
   handleEndCall,
 } from "@/providers/voice/vapi-functions";
+import type { TransferResult } from "@/providers/voice/vapi-functions";
 import { buildAssistantConfig } from "@/providers/voice/vapi-adapter";
 import { notifyMissedCall } from "@/lib/notify";
+import { sendTransferFailedSMS } from "@/providers/voice/vapi-sms";
 import type { VapiWebhookPayload } from "@/providers/voice/types";
+import { createAgentRun, completeAgentRun } from "@/lib/control-plane";
+import { inngest } from "@/inngest/client";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const maxDuration = 30;
+
+/** System user for automated writes (Vapi has no authenticated operator). */
+const SYSTEM_USER_ID = "00000000-0000-0000-0000-000000000000";
 
 /**
  * POST /api/voice/vapi/webhook
@@ -45,6 +52,44 @@ export async function POST(req: NextRequest) {
       case "end-of-call-report":
         return handleEndOfCallReport(message);
 
+      case "transfer-destination-request":
+        return handleTransferDestinationRequest(message);
+
+      case "hang":
+        return handleHang(message);
+
+      case "speech-update": {
+        const sb = createServerClient();
+        const vapiCallId = message.call?.id;
+        if (vapiCallId) {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const { data: sess } = await (sb.from("voice_sessions") as any)
+            .select("id")
+            .eq("vapi_call_id", vapiCallId)
+            .single();
+          if (sess?.id) {
+            await handleSpeechUpdate(message, sb, sess.id);
+          }
+        }
+        return NextResponse.json({ ok: true });
+      }
+
+      case "transcript": {
+        const sb = createServerClient();
+        const vapiCallId = message.call?.id;
+        if (vapiCallId) {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const { data: sess } = await (sb.from("voice_sessions") as any)
+            .select("id")
+            .eq("vapi_call_id", vapiCallId)
+            .single();
+          if (sess?.id) {
+            await handleTranscriptChunk(message, sb, sess.id);
+          }
+        }
+        return NextResponse.json({ ok: true });
+      }
+
       default:
         // Acknowledge unknown events
         return NextResponse.json({ ok: true });
@@ -68,10 +113,24 @@ async function handleAssistantRequest(message: VapiWebhookPayload["message"]) {
 
   const config = buildAssistantConfig(serverUrl);
 
+  // Create agent run for traceability before session
+  const runId = await createAgentRun({
+    agentName: "vapi-inbound",
+    triggerType: "webhook",
+    triggerRef: message.call?.id ?? "unknown",
+    leadId: undefined,
+    model: "claude-sonnet-4-6",
+    promptVersion: "inbound-v1",
+    inputs: {
+      callId: message.call?.id,
+      fromNumber: message.call?.customer?.number ?? null,
+    },
+  });
+
   // Create voice session early — don't wait for first function call
   const vapiCallId = message.call?.id;
   if (vapiCallId) {
-    resolveVoiceSession(vapiCallId, message.call).catch(() => {});
+    resolveVoiceSession(vapiCallId, message.call, runId).catch(() => {});
   }
 
   return NextResponse.json({ assistant: config });
@@ -115,11 +174,22 @@ async function handleFunctionCall(
     }
 
     case "transfer_to_operator": {
-      const result = await handleTransferToOperator(
+      const transferResult: TransferResult = await handleTransferToOperator(
         fn.parameters as { reason: string; caller_type: "seller" | "buyer" | "vendor" | "spam" | "unknown"; transfer_to?: "logan" | "adam" },
         sessionId,
       );
-      return NextResponse.json(result);
+
+      // Vapi expects `forwardingPhoneNumber` at the response top level
+      // to actually initiate the PSTN call transfer
+      if (transferResult.forwardingPhoneNumber) {
+        return NextResponse.json({
+          result: transferResult.result,
+          forwardingPhoneNumber: transferResult.forwardingPhoneNumber,
+        });
+      }
+
+      // Transfer not possible (no number configured) — fallback already handled
+      return NextResponse.json({ result: transferResult.result });
     }
 
     case "end_call": {
@@ -200,11 +270,57 @@ async function handleEndOfCallReport(
   // Write a dialer_event for the completed AI call
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data: session } = await (sb.from("voice_sessions") as any)
-    .select("id, lead_id, caller_type, callback_requested, duration_seconds")
+    .select("id, lead_id, caller_type, callback_requested, duration_seconds, direction, from_number, to_number, status, run_id")
     .eq("vapi_call_id", vapiCallId)
     .single();
 
   if (session) {
+    // ── Write canonical calls_log row ───────────────────────────
+    // calls_log is the single source of truth for all completed calls.
+    // Vapi sessions must write here so CRM queries, KPI dashboards,
+    // and follow-up workflows see every call — not just dialer calls.
+    const endedReason = message.endedReason ?? null;
+    const disposition = mapVapiEndedReasonToDisposition(endedReason, session.status, session.caller_type);
+    const summaryText = (message.summary ?? "").trim() || null;
+    const now = new Date().toISOString();
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: callsLogRow, error: callsLogErr } = await (sb.from("calls_log") as any)
+      .insert({
+        lead_id:           session.lead_id ?? null,
+        user_id:           SYSTEM_USER_ID,
+        phone_dialed:      session.direction === "outbound" ? session.to_number : session.from_number ?? null,
+        direction:         session.direction ?? "inbound",
+        disposition,
+        duration_sec:      session.duration_seconds ?? 0,
+        notes:             summaryText,
+        recording_url:     message.recordingUrl ?? null,
+        transcription:     message.transcript ?? null,
+        ai_summary:        summaryText,
+        called_at:         now,
+        started_at:        now,
+        source:            "vapi",
+        voice_session_id:  session.id,
+        metadata: {
+          vapi_call_id:        vapiCallId,
+          caller_type:         session.caller_type,
+          ended_reason:        endedReason,
+          callback_requested:  session.callback_requested,
+          cost_cents:          message.cost ? Math.round(message.cost * 100) : null,
+          from_number:         session.from_number,
+          to_number:           session.to_number,
+        },
+      })
+      .select("id")
+      .single();
+
+    if (callsLogErr) {
+      console.error("[vapi/webhook] calls_log INSERT failed (non-fatal):", callsLogErr.message);
+    }
+
+    const callsLogId = callsLogRow?.id ?? null;
+
+    // ── Write dialer_event ──────────────────────────────────────
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     await (sb.from("dialer_events") as any).insert({
       event_type: "inbound.ai_handled",
@@ -213,16 +329,17 @@ async function handleEndOfCallReport(
       task_id: null,
       metadata: {
         voice_session_id: session.id,
+        calls_log_id: callsLogId,
         caller_type: session.caller_type,
         duration_seconds: session.duration_seconds,
         callback_requested: session.callback_requested,
-        ended_reason: message.endedReason,
+        ended_reason: endedReason,
         vapi_call_id: vapiCallId,
       },
     });
 
     // Dispatch missed-call alert if caller wasn't transferred to Logan
-    const wasTransferred = message.endedReason === "assistant-forwarded-call";
+    const wasTransferred = endedReason === "assistant-forwarded-call";
     const isSellerOrUnknown = !session.caller_type || session.caller_type === "seller" || session.caller_type === "unknown";
     if (!wasTransferred && isSellerOrUnknown) {
       const fromNumber = message.call?.customer?.number ?? null;
@@ -235,9 +352,216 @@ async function handleEndOfCallReport(
         callTimestamp: new Date().toISOString(),
       }).catch(() => {});
     }
+
+    // Complete the agent run for this session (control plane traceability)
+    if (session.run_id) {
+      completeAgentRun({
+        runId: session.run_id,
+        status: "completed",
+        outputs: {
+          callId: vapiCallId,
+          duration: message.durationSeconds,
+          summary: message.summary,
+        },
+      }).catch(() => {});
+    }
+
+    // Trigger post-call AI analysis (durable, retried if fails)
+    const sessionId = session.id;
+    const leadId = session.lead_id ?? null;
+    if (message.transcript && message.transcript.length > 50) {
+      await inngest.send({
+        name: "voice/post-call-analysis.requested",
+        data: {
+          voiceSessionId: sessionId,
+          leadId: leadId,
+          transcript: message.transcript,
+          summary: message.summary ?? null,
+          callId: vapiCallId,
+        },
+      });
+    }
   }
 
   return NextResponse.json({ ok: true });
+}
+
+// ── transfer-destination-request ─────────────────────────────────────────────
+// Vapi sends this when the assistant's transferPlan triggers. We return
+// the destination phone number based on the voice session's transfer_to field.
+
+async function handleTransferDestinationRequest(
+  message: VapiWebhookPayload["message"],
+) {
+  const vapiCallId = message.call?.id;
+  if (!vapiCallId) {
+    return NextResponse.json({ error: "No call ID" }, { status: 400 });
+  }
+
+  const sb = createServerClient();
+
+  // Look up the voice session to see who the transfer target is
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: session } = await (sb.from("voice_sessions") as any)
+    .select("transferred_to, transfer_reason, caller_type, from_number")
+    .eq("vapi_call_id", vapiCallId)
+    .single();
+
+  // Determine destination — prefer session record, fall back to default (Logan)
+  let destinationNumber = session?.transferred_to ?? process.env.TWILIO_FORWARD_TO_CELL;
+
+  if (!destinationNumber) {
+    // No transfer target available — tell Vapi not to transfer
+    // and book a callback instead
+    const callerPhone = session?.from_number ?? message.call?.customer?.number;
+    if (callerPhone) {
+      const sessionId = await resolveVoiceSession(vapiCallId, message.call);
+      await handleBookCallback(
+        {
+          phone_number: callerPhone,
+          reason: `Transfer failed — no operator number configured. ${session?.transfer_reason ?? ""}`,
+        },
+        sessionId,
+      );
+
+      // Send transfer-failed SMS to caller
+      sendTransferFailedSMS(callerPhone, "our team").catch(() => {});
+    }
+
+    // Return a Vapi-compatible response that ends the transfer attempt gracefully.
+    // Returning an error/400 here causes Vapi to throw a 400 on its side.
+    // Instead, we return a valid destination object with a "hangup" type message
+    // that tells the AI to inform the caller a callback has been booked.
+    return NextResponse.json({
+      destination: {
+        type: "number",
+        number: "", // empty string signals no transfer
+        message: "I wasn't able to connect you right now, but I've booked a callback so someone from our team will reach out to you shortly.",
+        description: "Transfer unavailable — callback booked",
+      },
+    });
+  }
+
+  // Return Vapi's expected transfer destination format
+  return NextResponse.json({
+    destination: {
+      type: "number",
+      number: destinationNumber,
+      message: session?.transfer_reason
+        ? `Incoming transfer: ${session.caller_type ?? "unknown"} caller. ${session.transfer_reason}`
+        : "Incoming transfer from Dominion AI receptionist.",
+      description: "Warm transfer to operator",
+    },
+  });
+}
+
+// ── hang ────────────────────────────────────────────────────────────────────
+// Vapi sends "hang" when the call disconnects unexpectedly (caller hung up
+// during AI handling, network issues, etc.). We use this to catch cases
+// where end-of-call-report might not arrive.
+
+async function handleHang(
+  message: VapiWebhookPayload["message"],
+) {
+  const vapiCallId = message.call?.id;
+  if (!vapiCallId) return NextResponse.json({ ok: true });
+
+  const sb = createServerClient();
+
+  // Mark session as completed if still in ai_handling
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: session } = await (sb.from("voice_sessions") as any)
+    .select("id, status, lead_id, from_number, caller_type")
+    .eq("vapi_call_id", vapiCallId)
+    .single();
+
+  if (session && session.status === "ai_handling") {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    await (sb.from("voice_sessions") as any)
+      .update({
+        status: "completed",
+        ended_at: new Date().toISOString(),
+      })
+      .eq("id", session.id);
+
+    // Write dialer event for the hang-up
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    await (sb.from("dialer_events") as any).insert({
+      event_type: "inbound.ai_hangup",
+      lead_id: session.lead_id,
+      session_id: null,
+      task_id: null,
+      metadata: {
+        voice_session_id: session.id,
+        caller_type: session.caller_type,
+        from_number: session.from_number,
+        vapi_call_id: vapiCallId,
+        reason: "caller_hung_up_during_ai",
+      },
+    });
+
+    // If it was a seller, send missed-call alert
+    const isSellerOrUnknown =
+      !session.caller_type ||
+      session.caller_type === "seller" ||
+      session.caller_type === "unknown";
+
+    if (isSellerOrUnknown && session.from_number) {
+      notifyMissedCall({
+        callerPhone: session.from_number,
+        callerName: null,
+        callSummary: "Caller hung up during AI conversation",
+        propertyAddress: null,
+        leadId: session.lead_id,
+        callTimestamp: new Date().toISOString(),
+      }).catch(() => {});
+    }
+  }
+
+  return NextResponse.json({ ok: true });
+}
+
+// ── speech-update ────────────────────────────────────────────────────────────
+
+async function handleSpeechUpdate(message: any, sb: any, sessionId: string): Promise<void> {
+  if (!sessionId) return;
+  // Append speech event to extracted_facts for observability (dialer-domain volatile data)
+  const speechEvent = {
+    type: "speech_update",
+    role: message.role ?? "unknown",
+    status: message.status ?? "unknown",
+    timestamp: new Date().toISOString(),
+  };
+  // Use Postgres array append — fetch current facts, append, update
+  const { data: session } = await (sb.from("voice_sessions") as any)
+    .select("extracted_facts")
+    .eq("id", sessionId)
+    .single();
+  const currentFacts = Array.isArray(session?.extracted_facts) ? session.extracted_facts : [];
+  await (sb.from("voice_sessions") as any)
+    .update({ extracted_facts: [...currentFacts, speechEvent] })
+    .eq("id", sessionId);
+}
+
+// ── transcript ────────────────────────────────────────────────────────────────
+
+async function handleTranscriptChunk(message: any, sb: any, sessionId: string): Promise<void> {
+  if (!sessionId || !message.transcript) return;
+  // Append incremental transcript role+text to extracted_facts for live notes polling
+  const chunk = {
+    type: "transcript_chunk",
+    role: message.role ?? "unknown",
+    text: message.transcript,
+    timestamp: new Date().toISOString(),
+  };
+  const { data: session } = await (sb.from("voice_sessions") as any)
+    .select("extracted_facts")
+    .eq("id", sessionId)
+    .single();
+  const currentFacts = Array.isArray(session?.extracted_facts) ? session.extracted_facts : [];
+  await (sb.from("voice_sessions") as any)
+    .update({ extracted_facts: [...currentFacts, chunk] })
+    .eq("id", sessionId);
 }
 
 // ── Helper: Resolve or create voice session ─────────────────────────────────
@@ -245,6 +569,7 @@ async function handleEndOfCallReport(
 async function resolveVoiceSession(
   vapiCallId: string,
   call?: VapiWebhookPayload["message"]["call"],
+  runId?: string | null,
 ): Promise<string> {
   const sb = createServerClient();
 
@@ -284,11 +609,46 @@ async function resolveVoiceSession(
       to_number: toNumber,
       lead_id: leadId,
       status: "ai_handling",
+      run_id: runId ?? null,
     })
     .select("id")
     .single();
 
   return newSession?.id ?? vapiCallId;
+}
+
+// ── Map Vapi endedReason to a calls_log disposition ──────────────────────
+// Vapi sends endedReason strings like "assistant-forwarded-call", "customer-ended-call", etc.
+// Map these to meaningful disposition values that align with the dialer's disposition vocabulary.
+
+function mapVapiEndedReasonToDisposition(
+  endedReason: string | null,
+  sessionStatus: string | null,
+  callerType: string | null,
+): string {
+  if (sessionStatus === "transferred") return "transferred";
+
+  switch (endedReason) {
+    case "assistant-forwarded-call":
+      return "transferred";
+    case "customer-ended-call":
+    case "customer-did-not-give-microphone-permission":
+      return callerType === "spam" ? "spam" : "completed";
+    case "assistant-ended-call":
+      return "ai_ended";
+    case "voicemail":
+      return "voicemail";
+    case "silence-timed-out":
+    case "max-duration-reached":
+      return "no_answer";
+    case "assistant-error":
+    case "twilio-failed-to-connect-call":
+    case "pipeline-error-openai-llm-failed":
+    case "pipeline-error-custom-llm-llm-failed":
+      return "error";
+    default:
+      return "completed";
+  }
 }
 
 // ── Extract structured facts from call summary/transcript ────────────────

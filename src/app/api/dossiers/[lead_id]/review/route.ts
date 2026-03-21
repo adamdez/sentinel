@@ -90,6 +90,17 @@ export async function PATCH(
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
     if (!data) return NextResponse.json({ error: "Dossier not found" }, { status: 404 });
 
+    // ── Set dossier_url on lead when dossier is reviewed ─────────────────────
+    if (status === "reviewed") {
+      const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
+      const dossierUrl = `${siteUrl}/dialer/review/dossier-queue?lead=${lead_id}`;
+
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      await (sb.from("leads") as any)
+        .update({ dossier_url: dossierUrl, updated_at: new Date().toISOString() })
+        .eq("id", lead_id);
+    }
+
     // ── Best-effort eval rating side-effect ────────────────────────────────────
     // Write a rating to eval_ratings when Adam reviews a dossier.
     // Verdict mapping: reviewed → good, flagged → needs_work

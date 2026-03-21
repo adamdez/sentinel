@@ -298,5 +298,9 @@ export interface IngestPayload {
     owner_name: string;
     distress_type: DistressType;
     raw_data: Record<string, unknown>;
+    /** Optional owner phone for contact dedup/creation */
+    owner_phone?: string;
+    /** Optional owner email for contact creation */
+    owner_email?: string;
   }>;
 }

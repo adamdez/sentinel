@@ -181,6 +181,25 @@ export const leads = pgTable("leads", {
   // Stage machine enforcement (PR-1) — enforced at API layer for stage-advancing transitions
   nextAction: text("next_action"),
   nextActionDueAt: timestamp("next_action_due_at", { withTimezone: true }),
+  // CRM projection fields — populated by syncDossierToLead (20260320_crm_projection_fields)
+  sellerSituationSummaryShort: text("seller_situation_summary_short"),
+  recommendedCallAngle: text("recommended_call_angle"),
+  likelyDecisionMaker: text("likely_decision_maker"),
+  decisionMakerConfidence: text("decision_maker_confidence"),
+  topFact1: text("top_fact_1"),
+  topFact2: text("top_fact_2"),
+  topFact3: text("top_fact_3"),
+  recommendedNextAction: text("recommended_next_action"),
+  propertySnapshotStatus: text("property_snapshot_status").default("pending"),
+  compsStatus: text("comps_status").default("pending"),
+  opportunityScore: smallint("opportunity_score"),
+  contactabilityScore: smallint("contactability_score"),
+  confidenceScore: smallint("confidence_score"),
+  // Market identifier — spokane or kootenai (20260320_leads_market_field)
+  market: text("market"),
+  // Additional CRM projection fields (20260320_missing_crm_fields)
+  buyerFitScore: smallint("buyer_fit_score"),
+  dossierUrl: text("dossier_url"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 }, (table) => [
@@ -192,6 +211,7 @@ export const leads = pgTable("leads", {
   index("idx_leads_next_call").on(table.nextCallScheduledAt),
   index("idx_leads_qualification_route").on(table.qualificationRoute),
   index("idx_leads_next_action_due").on(table.nextActionDueAt),
+  index("idx_leads_market").on(table.market),
 ]);
 
 // ── Deals ───────────────────────────────────────────────────────────
@@ -751,6 +771,103 @@ export const reviewQueue = pgTable("review_queue", {
 
 // ── Control Plane: Feature Flags ────────────────────────────────────
 // Controls AI workflows: shadow mode, review-required, full-auto.
+
+// ── Calls Log ───────────────────────────────────────────────────────
+// Dialer + Analytics Domain: every outbound/inbound call attempt.
+// AI summary, recording, transcript, and trace metadata added progressively.
+
+export const callsLog = pgTable("calls_log", {
+  id:               uuid("id").defaultRandom().primaryKey(),
+  leadId:           uuid("lead_id").references(() => leads.id, { onDelete: "set null" }),
+  propertyId:       uuid("property_id").references(() => properties.id, { onDelete: "set null" }),
+  userId:           uuid("user_id").notNull(),
+  phoneDialed:      varchar("phone_dialed", { length: 20 }).notNull(),
+  transferredToCell: varchar("transferred_to_cell", { length: 20 }),
+  twilioSid:        varchar("twilio_sid", { length: 100 }),
+  disposition:      varchar("disposition", { length: 50 }).notNull().default("initiating"),
+  durationSec:      integer("duration_sec").notNull().default(0),
+  notes:            text("notes"),
+  startedAt:        timestamp("started_at", { withTimezone: true }).notNull().defaultNow(),
+  endedAt:          timestamp("ended_at", { withTimezone: true }),
+  // AI Call Notes (20260301_add_call_ai_summary_columns)
+  recordingUrl:     text("recording_url"),
+  transcription:    text("transcription"),
+  aiSummary:        text("ai_summary"),
+  summaryTimestamp: timestamp("summary_timestamp", { withTimezone: true }),
+  // Live notes (20260305_add_live_notes_column)
+  liveNotes:        jsonb("live_notes"),
+  // Session linkage (20260316_dialer_pr2)
+  dialerSessionId:  uuid("dialer_session_id"),
+  // AI summary trace (20260316_dialer_phase2_trace)
+  summaryTrace:     jsonb("summary_trace"),
+  createdAt:        timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (table) => [
+  index("idx_calls_log_user").on(table.userId),
+  index("idx_calls_log_lead").on(table.leadId),
+  index("idx_calls_log_disposition").on(table.disposition),
+  index("idx_calls_log_started").on(table.startedAt),
+  index("idx_calls_log_twilio").on(table.twilioSid),
+]);
+
+// ── DNC List ────────────────────────────────────────────────────────
+// Centralized suppression list checked before any outbound call or SMS.
+
+export const dncList = pgTable("dnc_list", {
+  id:        uuid("id").defaultRandom().primaryKey(),
+  phone:     varchar("phone", { length: 20 }).notNull().unique(),
+  reason:    varchar("reason", { length: 100 }),
+  source:    varchar("source", { length: 100 }),
+  addedBy:   uuid("added_by"),
+  addedAt:   timestamp("added_at", { withTimezone: true }).notNull().defaultNow(),
+  expiresAt: timestamp("expires_at", { withTimezone: true }),
+}, (table) => [
+  index("idx_dnc_phone").on(table.phone),
+]);
+
+// ── Workflow Runs ───────────────────────────────────────────────────
+// Durable workflow engine state. Tracks multi-step workflow execution
+// across serverless boundaries.
+
+export const workflowRuns = pgTable("workflow_runs", {
+  id:           uuid("id").defaultRandom().primaryKey(),
+  workflowName: varchar("workflow_name", { length: 100 }).notNull(),
+  status:       varchar("status", { length: 20 }).notNull().default("running"),
+  currentStep:  varchar("current_step", { length: 100 }).notNull(),
+  inputs:       jsonb("inputs").notNull().default({}),
+  stepOutputs:  jsonb("step_outputs").notNull().default({}),
+  error:        text("error"),
+  startedAt:    timestamp("started_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt:    timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  completedAt:  timestamp("completed_at", { withTimezone: true }),
+}, (table) => [
+  index("idx_workflow_runs_status").on(table.status),
+  index("idx_workflow_runs_name").on(table.workflowName),
+  index("idx_workflow_runs_started").on(table.startedAt),
+]);
+
+// ── Campaign Leads ──────────────────────────────────────────────────
+// Junction table linking leads to outbound call campaigns.
+// Tracks touch progress and DNC skips.
+
+export const campaignLeads = pgTable("campaign_leads", {
+  id:           uuid("id").defaultRandom().primaryKey(),
+  campaignId:   uuid("campaign_id").notNull().references(() => campaigns.id, { onDelete: "cascade" }),
+  leadId:       uuid("lead_id").notNull().references(() => leads.id, { onDelete: "cascade" }),
+  status:       varchar("status", { length: 20 }).notNull().default("pending"),
+  currentTouch: integer("current_touch").notNull().default(0),
+  lastTouchAt:  timestamp("last_touch_at", { withTimezone: true }),
+  nextTouchAt:  timestamp("next_touch_at", { withTimezone: true }),
+  skipReason:   varchar("skip_reason", { length: 50 }),
+  notes:        text("notes"),
+  createdAt:    timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt:    timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (table) => [
+  index("idx_campaign_leads_campaign").on(table.campaignId),
+  index("idx_campaign_leads_lead").on(table.leadId),
+  index("idx_campaign_leads_status").on(table.status),
+  index("idx_campaign_leads_next_touch").on(table.nextTouchAt),
+  uniqueIndex("uq_campaign_leads").on(table.campaignId, table.leadId),
+]);
 
 export const featureFlags = pgTable("feature_flags", {
   id:             uuid("id").defaultRandom().primaryKey(),

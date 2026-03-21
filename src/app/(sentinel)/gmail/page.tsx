@@ -137,15 +137,27 @@ function ComposeModal({
   onOpenChange,
   userId,
   onSent,
+  initialTo = "",
+  initialSubject = "",
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   userId: string;
   onSent: () => void;
+  initialTo?: string;
+  initialSubject?: string;
 }) {
-  const [to, setTo] = useState("");
-  const [subject, setSubject] = useState("");
+  const [to, setTo] = useState(initialTo);
+  const [subject, setSubject] = useState(initialSubject);
   const [body, setBody] = useState("");
+
+  // Sync initial values when they change (e.g. replying to a different message)
+  useEffect(() => {
+    if (open) {
+      setTo(initialTo);
+      setSubject(initialSubject);
+    }
+  }, [open, initialTo, initialSubject]);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [attachmentName, setAttachmentName] = useState<string | null>(null);
@@ -358,6 +370,7 @@ function GmailPageInner() {
   const [activeFolder, setActiveFolder] = useState<Folder>("inbox");
   const [syncing, setSyncing] = useState(false);
   const [selectedMessage, setSelectedMessage] = useState<GmailMessage | null>(null);
+  const [replyTo, setReplyTo] = useState<GmailMessage | null>(null);
   const [connectError, setConnectError] = useState<string | null>(null);
   const searchParams = useSearchParams();
 
@@ -693,6 +706,7 @@ function GmailPageInner() {
                       variant="neon"
                       className="gap-1.5 text-xs"
                       onClick={() => {
+                        setReplyTo(selectedMessage);
                         setComposeOpen(true);
                       }}
                     >
@@ -809,11 +823,17 @@ function GmailPageInner() {
       {/* Compose Modal */}
       <ComposeModal
         open={composeOpen}
-        onOpenChange={setComposeOpen}
+        onOpenChange={(open) => {
+          setComposeOpen(open);
+          if (!open) setReplyTo(null);
+        }}
         userId={userId || ""}
         onSent={() => {
+          setReplyTo(null);
           fetchInbox();
         }}
+        initialTo={replyTo?.from ?? ""}
+        initialSubject={replyTo ? (replyTo.subject.startsWith("Re:") ? replyTo.subject : `Re: ${replyTo.subject}`) : ""}
       />
     </PageShell>
   );

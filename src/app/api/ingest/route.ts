@@ -2,6 +2,9 @@ import { NextRequest, NextResponse } from "next/server";
 import type { IngestPayload } from "@/lib/types";
 import { createServerClient } from "@/lib/supabase";
 import { distressFingerprint, isDuplicateError } from "@/lib/dedup";
+import { upsertContact } from "@/lib/upsert-contact";
+import { deduplicateByProperty } from "@/lib/dedup-property";
+import { resolveMarket } from "@/lib/market-resolver";
 
 type SbResult<T> = { data: T | null; error: { code?: string; message: string } | null };
 
@@ -39,6 +42,7 @@ export async function POST(request: NextRequest) {
     const results: { apn: string; county: string; status: string; fingerprint: string }[] = [];
     let upserted = 0;
     let deduped = 0;
+    let propertyDeduped = 0;
     let errors = 0;
 
     for (const record of payload.records) {
@@ -47,6 +51,15 @@ export async function POST(request: NextRequest) {
         errors++;
         continue;
       }
+
+      // ── Property-level dedup: check if this property already exists ──
+      const dedupResult = await deduplicateByProperty(sb, {
+        address: record.address,
+        apn: record.apn,
+        city: typeof record.raw_data?.city === "string" ? record.raw_data.city : null,
+        state: typeof record.raw_data?.state === "string" ? record.raw_data.state : null,
+        zip: typeof record.raw_data?.zip === "string" ? record.raw_data.zip : null,
+      });
 
       // Idempotent property upsert (APN + county = canonical identity)
       // TODO: Replace `as any` when types are auto-generated via `supabase gen types`
@@ -98,24 +111,74 @@ export async function POST(request: NextRequest) {
         continue;
       }
 
-      // Create lead at "staging" status — enrichment cron will enrich + promote
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { data: existingLead } = await (sb.from("leads") as any)
-        .select("id")
-        .eq("property_id", property.id)
-        .in("status", ["staging", "prospect", "lead", "negotiation", "nurture"])
-        .maybeSingle();
+      // Upsert contact if phone data is available (dedup by phone)
+      let contactId: string | null = null;
+      if (record.owner_phone) {
+        try {
+          const nameParts = record.owner_name.includes(",")
+            ? record.owner_name.split(",").map((p: string) => p.trim())
+            : record.owner_name.split(/\s+/);
+          const lastName = record.owner_name.includes(",") ? nameParts[0] : nameParts[nameParts.length - 1];
+          const firstName = record.owner_name.includes(",") ? (nameParts[1] ?? "") : nameParts.slice(0, -1).join(" ");
 
-      if (!existingLead) {
+          const contactResult = await upsertContact(sb, {
+            phone: record.owner_phone,
+            first_name: firstName || null,
+            last_name: lastName || null,
+            email: record.owner_email ?? null,
+            source: payload.source,
+            contact_type: "owner",
+          });
+          contactId = contactResult.id;
+        } catch {
+          // Non-fatal — proceed without contact linkage
+        }
+      }
+
+      // ── Property-based dedup for lead creation ──────────────────
+      // Use dedup result to find existing leads for this property
+      // (covers both APN match and address match scenarios)
+      const existingLeadIds = dedupResult.existingLeadIds.length > 0
+        ? dedupResult.existingLeadIds
+        : [];
+
+      // Also check leads by the just-upserted property_id (handles APN+county upsert case)
+      if (existingLeadIds.length === 0) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const { data: existingLead } = await (sb.from("leads") as any)
+          .select("id")
+          .eq("property_id", property.id)
+          .in("status", ["staging", "prospect", "lead", "negotiation", "nurture"])
+          .maybeSingle();
+        if (existingLead) existingLeadIds.push(existingLead.id);
+      }
+
+      if (existingLeadIds.length === 0) {
+        // No existing lead for this property — create new
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         await (sb.from("leads") as any).insert({
           property_id: property.id,
+          contact_id: contactId,
           status: "staging",
           source: payload.source,
+          market: resolveMarket(record.county),
           priority: 0,
           tags: [record.distress_type],
           notes: `Webhook ingest from ${payload.source}. Queued for enrichment.`,
         });
+      } else {
+        // Existing lead(s) found — merge new source attribution into the first active lead
+        propertyDeduped++;
+        const targetLeadId = existingLeadIds[0];
+        const leadUpdate: Record<string, unknown> = {
+          updated_at: new Date().toISOString(),
+          notes: `Re-ingested from ${payload.source} (property dedup merge).`,
+        };
+        if (contactId) leadUpdate.contact_id = contactId;
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        await (sb.from("leads") as any)
+          .update(leadUpdate)
+          .eq("id", targetLeadId);
       }
 
       results.push({ apn: record.apn, county: record.county, status: "ingested", fingerprint });
@@ -132,6 +195,7 @@ export async function POST(request: NextRequest) {
         total: payload.records.length,
         upserted,
         deduped,
+        property_deduped: propertyDeduped,
         errors,
       },
     });
@@ -142,6 +206,7 @@ export async function POST(request: NextRequest) {
       received: payload.records.length,
       upserted,
       deduped,
+      property_deduped: propertyDeduped,
       errors,
       records: results,
       timestamp: new Date().toISOString(),

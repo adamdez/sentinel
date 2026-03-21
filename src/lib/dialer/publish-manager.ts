@@ -214,6 +214,8 @@ export async function publishSession(
     if (input.motivation_level    !== undefined) qualPatch.motivation_level    = input.motivation_level;
     if (input.seller_timeline     !== undefined) qualPatch.seller_timeline     = input.seller_timeline;
     if (input.qualification_route !== undefined) qualPatch.qualification_route = input.qualification_route;
+    if (input.next_action         !== undefined) qualPatch.next_action         = input.next_action;
+    if (input.next_action_due_at  !== undefined) qualPatch.next_action_due_at  = input.next_action_due_at;
 
     if (Object.keys(qualPatch).length > 0) {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any

@@ -161,6 +161,110 @@ export { clientFileFromProspect, clientFileFromLead, clientFileFromRaw };
 // Constants
 // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
+// ── Intelligence Summary Block (CRM projection fields) ───────────────
+function IntelligenceSummaryBlock({ cf }: { cf: ClientFile }) {
+  const hasAnyIntel =
+    cf.sellerSituationSummaryShort ||
+    cf.recommendedCallAngle ||
+    cf.topFact1 ||
+    cf.opportunityScore != null ||
+    cf.contactabilityScore != null ||
+    cf.confidenceScore != null;
+
+  if (!hasAnyIntel) return null;
+
+  const facts = [cf.topFact1, cf.topFact2, cf.topFact3].filter(Boolean) as string[];
+
+  function scoreBar(label: string, value: number | null, color: string) {
+    if (value == null) return null;
+    return (
+      <div className="space-y-1">
+        <div className="flex items-center justify-between text-[10px]">
+          <span className="text-muted-foreground uppercase tracking-wider font-medium">{label}</span>
+          <span className="font-semibold text-foreground">{value}</span>
+        </div>
+        <div className="h-1.5 rounded-full bg-white/[0.06] overflow-hidden">
+          <div
+            className={cn("h-full rounded-full transition-all", color)}
+            style={{ width: `${Math.min(value, 100)}%` }}
+          />
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="rounded-[12px] border border-white/[0.08] bg-white/[0.02] p-4 space-y-4">
+      <div className="flex items-center gap-2">
+        <Brain className="h-4 w-4 text-cyan/70" />
+        <h3 className="text-xs font-semibold text-foreground">Intelligence Summary</h3>
+        <Badge className="border-cyan/30 bg-cyan/10 text-cyan text-[9px] ml-auto">CRM Projection</Badge>
+      </div>
+
+      {/* Scores row */}
+      {(cf.opportunityScore != null || cf.contactabilityScore != null || cf.confidenceScore != null) && (
+        <div className="grid grid-cols-3 gap-3">
+          {scoreBar("Opportunity", cf.opportunityScore, "bg-emerald-500")}
+          {scoreBar("Contactability", cf.contactabilityScore, "bg-cyan")}
+          {scoreBar("Confidence", cf.confidenceScore, "bg-amber-400")}
+        </div>
+      )}
+
+      {/* Seller situation */}
+      {cf.sellerSituationSummaryShort && (
+        <div>
+          <h4 className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold mb-1">
+            Seller Situation
+          </h4>
+          <p className="text-sm text-foreground/90 leading-relaxed whitespace-pre-wrap">
+            {cf.sellerSituationSummaryShort}
+          </p>
+        </div>
+      )}
+
+      {/* Recommended call angle */}
+      {cf.recommendedCallAngle && (
+        <div className="rounded-[10px] border border-cyan/25 bg-cyan/[0.06] px-3 py-2">
+          <h4 className="text-[10px] uppercase tracking-wider text-cyan/80 font-semibold mb-1">
+            Recommended Call Angle
+          </h4>
+          <p className="text-sm text-foreground/90">{cf.recommendedCallAngle}</p>
+        </div>
+      )}
+
+      {/* Top facts */}
+      {facts.length > 0 && (
+        <div>
+          <h4 className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold mb-2">
+            Top Facts
+          </h4>
+          <ul className="space-y-1.5">
+            {facts.map((fact, i) => (
+              <li key={i} className="flex items-start gap-2 text-xs text-foreground/85">
+                <span className="mt-0.5 h-1.5 w-1.5 rounded-full bg-cyan/50 shrink-0" />
+                {fact}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {/* Dossier link */}
+      {cf.dossierUrl && (
+        <a
+          href={cf.dossierUrl}
+          target="_blank"
+          rel="noreferrer"
+          className="inline-flex items-center gap-1.5 text-xs text-cyan/80 hover:text-cyan"
+        >
+          <ExternalLink className="h-3 w-3" />
+          View Full Dossier
+        </a>
+      )}
+    </div>
+  );
+}
+
 const TABS = [
   { id: "overview", label: "Overview", icon: LayoutDashboard },
   { id: "contact", label: "Contact", icon: Contact2 },
@@ -6678,7 +6782,12 @@ export function MasterClientFileModal({ clientFile: incomingClientFile, open, on
                     {activeTab === "contact" && (
                       <ContactTab cf={clientFile} overlay={overlay} onSkipTrace={handleSkipTrace} skipTracing={skipTracing} onDial={handleDial} onSms={handleSendSms} calling={calling} onRefresh={onRefresh} />
                     )}
-                    {activeTab === "dossier" && <LeadDossierPanel leadId={clientFile.id} />}
+                    {activeTab === "dossier" && (
+                      <div className="space-y-6">
+                        <IntelligenceSummaryBlock cf={clientFile} />
+                        <LeadDossierPanel leadId={clientFile.id} />
+                      </div>
+                    )}
                     {activeTab === "comps" && <CompsTab cf={clientFile} selectedComps={selectedComps} onAddComp={handleAddComp} onRemoveComp={handleRemoveComp} onSkipTrace={handleSkipTrace} computedArv={computedArv} onArvChange={handleArvChange} conditionAdj={conditionAdj} onConditionAdjChange={setConditionAdj} />}
                     {activeTab === "calculator" && <OfferCalcTab cf={clientFile} computedArv={computedArv} />}
                     {activeTab === "documents" && <DocumentsTab cf={clientFile} computedArv={computedArv} />}

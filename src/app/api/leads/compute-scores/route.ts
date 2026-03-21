@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@/lib/supabase";
 import { requireAuth } from "@/lib/api-auth";
+import { scoreBuyers, rankedRadarEntries } from "@/lib/buyer-fit";
+import type { LeadContext, BuyerWithPhase1 } from "@/lib/buyer-fit";
 
 export const runtime = "nodejs";
 
@@ -45,12 +47,17 @@ export async function POST(req: NextRequest) {
       const scores = await computeLeadScores(sb, leadId);
       if (scores) {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const scoreUpdate: Record<string, any> = {
+          opportunity_score: scores.opportunity,
+          contactability_score: scores.contactability,
+          confidence_score: scores.confidence,
+        };
+        if (scores.buyer_fit !== null) {
+          scoreUpdate.buyer_fit_score = scores.buyer_fit;
+        }
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         await (sb.from("leads") as any)
-          .update({
-            opportunity_score: scores.opportunity,
-            contactability_score: scores.contactability,
-            confidence_score: scores.confidence,
-          })
+          .update(scoreUpdate)
           .eq("id", leadId);
       }
       results.push({ leadId, scores });
@@ -72,6 +79,7 @@ interface Scores {
   opportunity: number;
   contactability: number;
   confidence: number | null;
+  buyer_fit: number | null;
 }
 
 async function computeLeadScores(
@@ -82,10 +90,10 @@ async function computeLeadScores(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data: lead } = await (sb.from("leads") as any)
     .select(`
-      id, status, motivation_level, total_calls, live_answers,
+      id, property_id, status, motivation_level, total_calls, live_answers,
       call_consent, priority, source,
       last_contact_at, next_follow_up_at,
-      properties(estimated_value, equity_percent, owner_phone, owner_email)
+      properties(estimated_value, equity_percent, owner_phone, owner_email, zip, property_type)
     `)
     .eq("id", leadId)
     .single();
@@ -106,7 +114,7 @@ async function computeLeadScores(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data: distressEvents } = await (sb.from("distress_events") as any)
     .select("severity")
-    .eq("property_id", lead.id)
+    .eq("property_id", lead.property_id)
     .order("created_at", { ascending: false })
     .limit(5);
 
@@ -170,7 +178,10 @@ async function computeLeadScores(
   // Delegates to fact assertion analysis
   const confidence = await computeFactConfidence(sb, leadId);
 
-  return { opportunity, contactability, confidence };
+  // ── Buyer Fit Score (top buyer match for this lead) ────────────
+  const buyerFit = await computeBuyerFitScore(sb, leadId, lead, property);
+
+  return { opportunity, contactability, confidence, buyer_fit: buyerFit };
 }
 
 /**
@@ -204,4 +215,65 @@ async function computeFactConfidence(
   score -= rejected.length * 5;
 
   return Math.max(0, Math.min(100, score));
+}
+
+/**
+ * Compute buyer fit score: runs scoreBuyers() against all active buyers
+ * and returns the top match score (0–100). Returns null if no active buyers.
+ */
+async function computeBuyerFitScore(
+  sb: ReturnType<typeof import("@/lib/supabase").createServerClient>,
+  leadId: string,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  lead: Record<string, any>,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  property: Record<string, any> | null,
+): Promise<number | null> {
+  // Fetch all active buyers with Phase 1 fields
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: buyers } = await (sb.from("buyers") as any)
+    .select("*")
+    .eq("status", "active");
+
+  if (!buyers || buyers.length === 0) return null;
+
+  // Build lead context for the scorer
+  const leadContext: LeadContext = {
+    market: (lead.source as string)?.includes("kootenai") ? "kootenai_county" : "spokane_county",
+    zip: property?.zip ?? null,
+    propertyType: property?.property_type ?? null,
+    estimatedValue: (property?.estimated_value as number) ?? null,
+    isVacant: false, // default — no vacancy field on lead query
+    conditionLevel: (lead.motivation_level as number) ?? null, // closest proxy available
+    priceExpectation: null,
+  };
+
+  // Check if there's a deal for this lead to get already-actioned buyer IDs
+  const alreadyActioned = new Set<string>();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: deals } = await (sb.from("deals") as any)
+    .select("id")
+    .eq("lead_id", leadId)
+    .limit(1);
+
+  if (deals && deals.length > 0) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: dealBuyers } = await (sb.from("deal_buyers") as any)
+      .select("buyer_id")
+      .eq("deal_id", deals[0].id);
+
+    if (dealBuyers) {
+      for (const db of dealBuyers) {
+        alreadyActioned.add(db.buyer_id);
+      }
+    }
+  }
+
+  const results = scoreBuyers(buyers as BuyerWithPhase1[], leadContext, alreadyActioned);
+  const ranked = rankedRadarEntries(results);
+
+  if (ranked.length === 0) return null;
+
+  // Return the top buyer's score
+  return ranked[0].score;
 }

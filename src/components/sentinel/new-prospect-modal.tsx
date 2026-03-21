@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   UserPlus, MapPin, Phone, Mail, FileText, DollarSign,
-  Percent, Home, Loader2, Check, Users, X,
+  Percent, Home, Loader2, Check, Users, X, ChevronDown, ChevronUp,
 } from "lucide-react";
 import {
   Dialog,
@@ -123,6 +123,7 @@ export function NewProspectModal() {
   const [saving, setSaving] = useState(false);
   const [assignTo, setAssignTo] = useState("unassigned");
   const [createdLeadId, setCreatedLeadId] = useState<string | null>(null);
+  const [showAdvanced, setShowAdvanced] = useState(false);
   const [assignmentOptions, setAssignmentOptions] = useState<Array<{ id: string; label: string }>>([
     { id: "unassigned", label: "Unassigned (Prospect)" },
   ]);
@@ -192,6 +193,7 @@ export function NewProspectModal() {
     setSaving(false);
     setAssignTo("unassigned");
     setCreatedLeadId(null);
+    setShowAdvanced(false);
     closeModal();
   }, [closeModal]);
 
@@ -382,7 +384,7 @@ export function NewProspectModal() {
                     </Field>
                     <Field label="ZIP">
                       <Input
-                        placeholder="85001"
+                        placeholder="99201"
                         maxLength={10}
                         value={form.zip}
                         onChange={(e) => update("zip", e.target.value)}
@@ -559,12 +561,18 @@ export function NewProspectModal() {
                 </div>
               </div>
 
-              {/* ── Section: Assignment ───────────────────── */}
+              {/* ── Section: Advanced Import Fields (collapsible) ── */}
               <div>
-                <p className="text-[10px] font-semibold uppercase tracking-widest text-cyan/70 mb-3">
-                  Prospecting Intake
-                </p>
-                <div className="space-y-3">
+                <button
+                  type="button"
+                  onClick={() => setShowAdvanced((prev) => !prev)}
+                  className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/60 hover:text-cyan/70 transition-colors mb-1"
+                >
+                  {showAdvanced ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
+                  Show Advanced Import Fields
+                </button>
+                {showAdvanced && (
+                <div className="space-y-3 mt-3">
                   <div className="grid grid-cols-2 gap-3">
                     <Field label="Source Channel">
                       <select
@@ -658,6 +666,7 @@ export function NewProspectModal() {
                     </Field>
                   </div>
                 </div>
+                )}
               </div>
 
               <div>

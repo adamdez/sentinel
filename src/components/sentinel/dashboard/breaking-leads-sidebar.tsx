@@ -50,6 +50,7 @@ function TickerRow({ item, index }: { item: TickerItem; index: number }) {
       animate={{ opacity: 1, x: 0 }}
       exit={{ opacity: 0, x: -12 }}
       transition={{ delay: index * 0.03, duration: 0.1 }}
+      onClick={() => { window.location.href = `/leads?open=${item.id}`; }}
       className={cn(
         "flex flex-col gap-1.5 p-2.5 rounded-[10px] text-xs transition-all relative cursor-pointer",
         isPlatinum

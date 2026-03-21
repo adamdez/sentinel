@@ -38,22 +38,26 @@ export async function POST(
       return NextResponse.json({ error: "dossier_id is required" }, { status: 400 });
     }
 
-    // ── 1. Fetch the dossier — must be 'reviewed' status ──────────────
+    // ── 1. Atomically claim the dossier for promotion ─────────────────
+    // Uses an atomic update with a status guard to prevent double-promote.
+    // Only a dossier currently in 'reviewed' status will be claimed.
+
+    const now = new Date();
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data: dossier, error: dossierErr } = await (sb.from("dossiers") as any)
-      .select("id, lead_id, status, situation_summary, likely_decision_maker, recommended_call_angle")
+    const { data: dossier, error: claimErr } = await (sb.from("dossiers") as any)
+      .update({ status: "promoting", updated_at: now.toISOString() })
       .eq("id", dossier_id)
       .eq("lead_id", lead_id)
+      .eq("status", "reviewed")
+      .select("id, lead_id, situation_summary, likely_decision_maker, recommended_call_angle")
       .single();
 
-    if (dossierErr || !dossier) {
-      return NextResponse.json({ error: "Dossier not found" }, { status: 404 });
-    }
-    if (dossier.status !== "reviewed") {
+    if (claimErr || !dossier) {
+      // Either not found or already promoted/promoting — both mean we can't proceed
       return NextResponse.json(
-        { error: "Only reviewed dossiers can be promoted. Review the dossier first." },
-        { status: 422 }
+        { error: "Dossier not found, already promoted, or not yet reviewed." },
+        { status: 409 }
       );
     }
 
@@ -70,7 +74,6 @@ export async function POST(
     }
 
     // Build the appended note entry — timestamped, clearly labeled
-    const now = new Date();
     const dateLabel = now.toLocaleDateString("en-US", {
       month: "short", day: "numeric", year: "numeric",
     });
@@ -87,28 +90,48 @@ export async function POST(
 
     // ── 3. Update leads ───────────────────────────────────────────────
 
+    const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
+    const dossierUrl = `${siteUrl}/dialer/review/dossier-queue?lead=${lead_id}`;
+
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { error: leadUpdateErr } = await (sb.from("leads") as any)
       .update({
         decision_maker_note: dossier.likely_decision_maker ?? null,
         notes: updatedNotes,
+        dossier_url: dossierUrl,
         updated_at: now.toISOString(),
       })
       .eq("id", lead_id);
 
     if (leadUpdateErr) {
+      // Rollback: revert dossier status back to reviewed so it can be retried
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      await (sb.from("dossiers") as any)
+        .update({ status: "reviewed", updated_at: new Date().toISOString() })
+        .eq("id", dossier_id)
+        .eq("status", "promoting");
       return NextResponse.json({ error: leadUpdateErr.message }, { status: 500 });
     }
 
-    // ── 4. Mark dossier as promoted ───────────────────────────────────
+    // ── 4. Finalize dossier as promoted ─────────────────────────────
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    await (sb.from("dossiers") as any)
+    const { error: dossierUpdateErr } = await (sb.from("dossiers") as any)
       .update({
         status: "promoted",
         updated_at: now.toISOString(),
       })
-      .eq("id", dossier_id);
+      .eq("id", dossier_id)
+      .eq("status", "promoting")
+      .select("id")
+      .single();
+
+    if (dossierUpdateErr) {
+      return NextResponse.json(
+        { error: `Lead updated but dossier status failed: ${dossierUpdateErr.message}` },
+        { status: 500 }
+      );
+    }
 
     return NextResponse.json({
       ok: true,

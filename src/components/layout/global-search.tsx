@@ -171,7 +171,7 @@ async function searchSupabase(q: string): Promise<SearchRecord[]> {
       kind: isProspect ? "prospect" : "lead",
       primary: p.owner_name ?? "Unknown",
       secondary: [p.address, p.city, p.state, p.zip].filter(Boolean).join(", "),
-      href: isProspect ? "/sales-funnel/prospects" : "/leads",
+      href: lead?.id ? `/leads?open=${lead.id}` : "/leads",
       score: score > 0 ? score : undefined,
       scoreLabel: score > 0 ? labelFromScore(score) : undefined,
       status: lead?.status ?? "prospect",

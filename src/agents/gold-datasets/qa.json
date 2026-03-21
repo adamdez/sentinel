@@ -1,0 +1,217 @@
+{
+  "agent": "qa",
+  "version": 1,
+  "description": "Gold dataset for the QA Agent. Tests call quality scoring, flag detection, talk ratio analysis, and coaching suggestion generation.",
+  "cases": [
+    {
+      "name": "good_empathetic_call_appointment_set",
+      "description": "High-quality call where Logan builds rapport, asks situation questions, and sets an appointment without pressure. Should score 70+ with no critical flags.",
+      "input": {
+        "callLogId": "gold-call-001",
+        "leadId": "gold-lead-001",
+        "triggerType": "post_call"
+      },
+      "expectedOutput": {
+        "overallRating": "good",
+        "score": 80,
+        "metrics": {
+          "durationSeconds": 240,
+          "operatorTalkPercent": 38,
+          "sellerTalkPercent": 52,
+          "silencePercent": 10,
+          "wordCount": 620
+        },
+        "flags": [
+          {
+            "category": "positive_rapport",
+            "severity": "info",
+            "description": "Good rapport building with empathetic responses to seller situation."
+          }
+        ],
+        "summary": "QA: good (80/100). Duration: 240s. Operator listened well (38% talk), used situation questions, and set appointment without pressure."
+      },
+      "checks": [
+        {
+          "name": "score_in_good_range",
+          "type": "field_in_range",
+          "field": "score",
+          "min": 65,
+          "max": 100,
+          "severity": "fail"
+        },
+        {
+          "name": "rating_is_good_or_excellent",
+          "type": "field_contains",
+          "field": "overallRating",
+          "anyOf": ["good", "excellent"],
+          "severity": "fail"
+        },
+        {
+          "name": "has_metrics",
+          "type": "field_exists",
+          "field": "metrics",
+          "severity": "fail"
+        },
+        {
+          "name": "duration_recorded",
+          "type": "field_in_range",
+          "field": "metrics.durationSeconds",
+          "min": 1,
+          "max": 7200,
+          "severity": "fail"
+        },
+        {
+          "name": "talk_ratio_reasonable",
+          "type": "field_in_range",
+          "field": "metrics.operatorTalkPercent",
+          "min": 0,
+          "max": 60,
+          "severity": "warn"
+        },
+        {
+          "name": "has_summary",
+          "type": "field_min_length",
+          "field": "summary",
+          "min": 20,
+          "severity": "fail"
+        },
+        {
+          "name": "no_critical_flags",
+          "type": "custom",
+          "description": "Good call should not have critical severity flags",
+          "severity": "fail"
+        }
+      ]
+    },
+    {
+      "name": "bad_pushy_call_hung_up",
+      "description": "Pushy call with price anchoring, market scare tactics, and no rapport building. Seller hangs up. Should score below 40 with critical flags.",
+      "input": {
+        "callLogId": "gold-call-002",
+        "leadId": "gold-lead-002",
+        "triggerType": "post_call"
+      },
+      "expectedOutput": {
+        "overallRating": "poor",
+        "score": 20,
+        "metrics": {
+          "durationSeconds": 65,
+          "operatorTalkPercent": 78,
+          "sellerTalkPercent": 18,
+          "silencePercent": 4,
+          "wordCount": 210
+        },
+        "flags": [
+          {
+            "category": "talk_ratio",
+            "severity": "critical",
+            "description": "Operator talked 78% of the call. Sellers should do most of the talking.",
+            "suggestion": "Use more open-ended questions and mirrors to let the seller share their situation."
+          },
+          {
+            "category": "short_call",
+            "severity": "warning",
+            "description": "Call was only 65s with a live answer. Possible premature hang-up or missed opportunity."
+          },
+          {
+            "category": "no_next_action",
+            "severity": "critical",
+            "description": "Call completed but no next_action was set on the lead."
+          }
+        ],
+        "summary": "QA: poor (20/100). Duration: 65s. Operator dominated conversation (78%), used pressure tactics, seller hung up. No next action set."
+      },
+      "checks": [
+        {
+          "name": "score_in_poor_range",
+          "type": "field_in_range",
+          "field": "score",
+          "min": 0,
+          "max": 40,
+          "severity": "fail"
+        },
+        {
+          "name": "rating_is_poor_or_needs_improvement",
+          "type": "field_contains",
+          "field": "overallRating",
+          "anyOf": ["poor", "needs_improvement"],
+          "severity": "fail"
+        },
+        {
+          "name": "has_flags",
+          "type": "field_min_count",
+          "field": "flags",
+          "min": 1,
+          "severity": "fail"
+        },
+        {
+          "name": "high_talk_ratio_flagged",
+          "type": "field_in_range",
+          "field": "metrics.operatorTalkPercent",
+          "min": 61,
+          "max": 100,
+          "severity": "fail"
+        },
+        {
+          "name": "summary_mentions_issues",
+          "type": "field_contains",
+          "field": "summary",
+          "anyOf": ["poor", "pressure", "no next action", "talk"],
+          "severity": "warn"
+        }
+      ]
+    },
+    {
+      "name": "voicemail_insufficient_data",
+      "description": "Voicemail disposition with zero duration. QA Agent should return insufficient_data rating and not penalize the operator.",
+      "input": {
+        "callLogId": "gold-call-003",
+        "leadId": "gold-lead-003",
+        "triggerType": "post_call"
+      },
+      "expectedOutput": {
+        "overallRating": "insufficient_data",
+        "score": 0,
+        "metrics": {
+          "durationSeconds": 0,
+          "operatorTalkPercent": null,
+          "sellerTalkPercent": null,
+          "silencePercent": null,
+          "wordCount": null
+        },
+        "flags": [],
+        "summary": "QA: insufficient_data (0/100). Duration: 0s. Voicemail — no quality analysis applicable."
+      },
+      "checks": [
+        {
+          "name": "rating_is_insufficient",
+          "type": "field_equals",
+          "field": "overallRating",
+          "value": "insufficient_data",
+          "severity": "fail"
+        },
+        {
+          "name": "score_is_zero",
+          "type": "field_equals",
+          "field": "score",
+          "value": 0,
+          "severity": "fail"
+        },
+        {
+          "name": "no_flags_on_voicemail",
+          "type": "field_type",
+          "field": "flags",
+          "expected": "array",
+          "severity": "fail"
+        },
+        {
+          "name": "duration_is_zero",
+          "type": "field_equals",
+          "field": "metrics.durationSeconds",
+          "value": 0,
+          "severity": "fail"
+        }
+      ]
+    }
+  ]
+}

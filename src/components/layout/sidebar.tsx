@@ -18,6 +18,8 @@ import {
   KanbanSquare,
   ClipboardList,
   MapPin,
+  ShieldCheck,
+  Contact,
   type LucideIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -27,57 +29,28 @@ import { useHydrated } from "@/providers/hydration-provider";
 import { supabase } from "@/lib/supabase";
 
 interface SidebarBadges {
-  prospects: number;
-  fbCraigslist: number;
-  ppl: number;
-  gmailConnected: boolean;
   adsAlerts: number;
+  reviewQueue: number;
 }
 
 function useSidebarBadges(): SidebarBadges {
-  const { currentUser } = useSentinelStore();
-  const [badges, setBadges] = useState<SidebarBadges>({ prospects: 0, fbCraigslist: 0, ppl: 0, gmailConnected: false, adsAlerts: 0 });
+  const [badges, setBadges] = useState<SidebarBadges>({ adsAlerts: 0, reviewQueue: 0 });
 
   useEffect(() => {
     const fetchCounts = async () => {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { count: prospects } = await (supabase.from("leads") as any)
-        .select("id", { count: "exact", head: true })
-        .eq("status", "prospect");
-
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { count: fbCl } = await (supabase.from("leads") as any)
-        .select("id", { count: "exact", head: true })
-        .in("source", ["facebook", "craigslist", "fb", "fb_craigslist", "fsbo", "zillow_fsbo", "fsbo_com"]);
-
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { count: ppl } = await (supabase.from("leads") as any)
-        .select("id", { count: "exact", head: true })
-        .eq("source", "ppl");
-
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { count: adsAlerts } = await (supabase.from("ads_alerts") as any)
         .select("id", { count: "exact", head: true })
         .eq("read", false);
 
-      let gmailConnected = false;
-      if (currentUser?.id) {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const { data: profile } = await (supabase.from("user_profiles") as any)
-          .select("preferences")
-          .eq("id", currentUser.id)
-          .single();
-        const prefs = profile?.preferences as Record<string, unknown> | undefined;
-        const gmail = prefs?.gmail as { connected?: boolean } | undefined;
-        gmailConnected = gmail?.connected === true;
-      }
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { count: reviewPending } = await (supabase.from("review_queue") as any)
+        .select("id", { count: "exact", head: true })
+        .eq("status", "pending");
 
       setBadges({
-        prospects: prospects ?? 0,
-        fbCraigslist: fbCl ?? 0,
-        ppl: ppl ?? 0,
-        gmailConnected,
         adsAlerts: adsAlerts ?? 0,
+        reviewQueue: reviewPending ?? 0,
       });
     };
 
@@ -85,13 +58,12 @@ function useSidebarBadges(): SidebarBadges {
 
     const channel = supabase
       .channel("sidebar_badges")
-      .on("postgres_changes", { event: "*", schema: "public", table: "leads" }, () => fetchCounts())
-      .on("postgres_changes", { event: "*", schema: "public", table: "user_profiles" }, () => fetchCounts())
       .on("postgres_changes", { event: "*", schema: "public", table: "ads_alerts" }, () => fetchCounts())
+      .on("postgres_changes", { event: "*", schema: "public", table: "review_queue" }, () => fetchCounts())
       .subscribe();
 
     return () => { supabase.removeChannel(channel); };
-  }, [currentUser?.id]);
+  }, []);
 
   return badges;
 }
@@ -118,6 +90,7 @@ const sections: NavSection[] = [
       { label: "Pipeline", href: "/pipeline", icon: Zap },
       { label: "Tasks", href: "/tasks", icon: ClipboardList },
       { label: "Dialer", href: "/dialer", icon: Phone },
+      { label: "Review Queue", href: "/dialer/review/dossier-queue", icon: ShieldCheck, badge: "review-queue" },
     ],
   },
   {
@@ -138,6 +111,7 @@ const sections: NavSection[] = [
     title: "Admin",
     items: [
       { label: "Settings", href: "/settings", icon: Settings },
+      { label: "Contacts", href: "/contacts", icon: Contact },
       { label: "Property lookup", href: "/properties/lookup", icon: MapPin },
       { label: "Import", href: "/admin/import", icon: Upload },
     ],
@@ -218,10 +192,7 @@ function NavLink({ item, depth = 0, badges }: { item: NavItem; depth?: number; b
         if (!item.badge || !badges) return null;
         const dot =
           item.badge === "ads-alerts" && badges.adsAlerts > 0 ? "bg-red-500" :
-          item.badge === "gmail-connected" && badges.gmailConnected ? "bg-cyan" :
-          item.badge === "prospect-dot" && badges.prospects > 0 ? "bg-red-500" :
-          item.badge === "fsbo-dot" && badges.fbCraigslist > 0 ? "bg-red-500" :
-          item.badge === "ppl-dot" && badges.ppl > 0 ? "bg-red-500" :
+          item.badge === "review-queue" && badges.reviewQueue > 0 ? "bg-amber-500" :
           null;
         if (!dot) return null;
         return (
@@ -356,7 +327,7 @@ export function Sidebar() {
                 SENTINEL
               </h1>
               <p className="text-[10px] text-muted-foreground/60 tracking-[0.2em] uppercase">
-                Unified ERP
+                Deal Intelligence
               </p>
             </div>
           </div>
@@ -371,14 +342,6 @@ export function Sidebar() {
 
           <Separator className="mt-auto bg-white/[0.04] shrink-0" />
 
-          <div className="p-3 shrink-0">
-            <div className="flex items-center gap-2 rounded-[12px] px-3 py-2 bg-cyan/4 border border-cyan/10" style={{ boxShadow: "inset 0 0 16px rgba(0,229,255,0.03), 0 0 1px rgba(0,229,255,0.3)" }}>
-              <div className="h-2 w-2 rounded-full bg-cyan animate-pulse" style={{ boxShadow: "0 0 1px rgba(0,229,255,1), 0 0 4px rgba(0,229,255,0.5), 0 0 8px rgba(0,229,255,0.25)" }} />
-              <span className="text-[11px] text-muted-foreground">
-                System Online
-              </span>
-            </div>
-          </div>
         </motion.aside>
       )}
     </AnimatePresence>

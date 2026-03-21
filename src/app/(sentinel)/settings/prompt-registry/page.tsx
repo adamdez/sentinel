@@ -256,7 +256,7 @@ export default function PromptRegistryPage() {
         <div className="flex items-start justify-between gap-4">
           <div>
             <Link
-              href="/settings/source-policies"
+              href="/settings"
               className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground mb-2"
             >
               <ArrowLeft className="h-3 w-3" />

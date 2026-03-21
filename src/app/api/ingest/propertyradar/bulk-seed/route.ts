@@ -13,7 +13,10 @@ import {
   isTruthy, toNumber, toInt, daysSince,
 } from "@/lib/dedup";
 import { detectDistressSignals, type DetectedSignal } from "@/lib/distress-signals";
+import { upsertContact } from "@/lib/upsert-contact";
+import { deduplicateByProperty } from "@/lib/dedup-property";
 import { COUNTY_FIPS } from "@/lib/attom";
+import { resolveMarket } from "@/lib/market-resolver";
 // runDualSkipTrace import removed — auto skip-trace disabled, agents trigger manually
 
 const SYSTEM_USER_ID = "00000000-0000-0000-0000-000000000000";
@@ -460,6 +463,11 @@ export async function POST(req: NextRequest) {
     const countyPhone = pr.Phone1 ?? pr.Phone2 ?? null;
     const countyEmail = pr.Email ?? null;
 
+    // ── Property-level dedup: check if this property already exists ──
+    const dedupResult = await deduplicateByProperty(sb, {
+      address, apn, city, state, zip,
+    });
+
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { data: property, error: propErr } = await (sb.from("properties") as any)
       .upsert({
@@ -562,33 +570,75 @@ export async function POST(req: NextRequest) {
     await (sb.from("scoring_predictions") as any)
       .insert(buildPredictionRecord(property.id, predOutput));
 
+    // ── Upsert contact (dedup by phone) ──────────────────────
+    let contactId: string | null = null;
+    if (countyPhone) {
+      try {
+        const nameParts = ownerName.includes(",")
+          ? ownerName.split(",").map((p: string) => p.trim())
+          : ownerName.split(/\s+/);
+        const lastName = ownerName.includes(",") ? nameParts[0] : nameParts[nameParts.length - 1];
+        const firstName = ownerName.includes(",") ? (nameParts[1] ?? "") : nameParts.slice(0, -1).join(" ");
+
+        const contactResult = await upsertContact(sb, {
+          phone: countyPhone,
+          first_name: firstName || null,
+          last_name: lastName || null,
+          email: countyEmail,
+          source: SOURCE_TAG,
+          contact_type: "owner",
+        });
+        contactId = contactResult.id;
+      } catch {
+        // Non-fatal
+      }
+    }
+
     const scoreLabelTag = `score-${label}`;
     const signalTags = signals.map((s) => s.type);
     const allTags = [scoreLabelTag, ...signalTags];
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data: existingLead } = await (sb.from("leads") as any)
-      .select("id")
-      .eq("property_id", property.id)
-      .in("status", ["staging", "prospect", "lead", "negotiation", "nurture"])
-      .maybeSingle();
+    // ── Property-based dedup for lead creation ──────────────
+    const existingLeadIds = dedupResult.existingLeadIds.length > 0
+      ? [...dedupResult.existingLeadIds]
+      : [];
 
-    if (!existingLead) {
+    if (existingLeadIds.length === 0) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data: existingLead } = await (sb.from("leads") as any)
+        .select("id")
+        .eq("property_id", property.id)
+        .in("status", ["staging", "prospect", "lead", "negotiation", "nurture"])
+        .maybeSingle();
+      if (existingLead) existingLeadIds.push(existingLead.id);
+    }
+
+    if (existingLeadIds.length === 0) {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       await (sb.from("leads") as any).insert({
         property_id: property.id,
+        contact_id: contactId,
         status: "staging",
         priority: blendedScore,
         source: SOURCE_TAG,
+        market: resolveMarket(county),
         tags: allTags,
         notes: `Bulk Seed [${label}] — Heat ${blendedScore} (det:${score.composite} + pred:${predOutput.predictiveScore}). ${signals.length} signal(s).`,
       });
       newInserts++;
     } else {
+      // Merge into existing lead for this property
+      const targetLeadId = existingLeadIds[0];
+      const leadUpdate: Record<string, unknown> = {
+        priority: blendedScore,
+        tags: allTags,
+        updated_at: new Date().toISOString(),
+      };
+      if (contactId) leadUpdate.contact_id = contactId;
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       await (sb.from("leads") as any)
-        .update({ priority: blendedScore, tags: allTags })
-        .eq("id", existingLead.id);
+        .update(leadUpdate)
+        .eq("id", targetLeadId);
       updated++;
     }
 

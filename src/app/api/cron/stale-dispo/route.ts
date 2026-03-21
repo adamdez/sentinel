@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@/lib/supabase";
+import { getFeatureFlag } from "@/lib/control-plane";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -68,6 +69,11 @@ export async function GET(req: NextRequest) {
     ) as Array<{ id: string; lead_id: string }>;
 
     // Trigger Dispo Agent for each stale deal (fire-and-forget)
+    const dispoFlag = await getFeatureFlag("agent.dispo.enabled");
+    if (!dispoFlag?.enabled) {
+      return NextResponse.json({ ok: true, staleDeals: staleDeals.length, triggered: 0, skipped: staleDeals.length, reason: "Feature flag agent.dispo.enabled not enabled" });
+    }
+
     let triggered = 0;
     for (const deal of staleDeals.slice(0, 10)) {
       try {

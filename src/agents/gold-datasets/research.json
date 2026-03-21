@@ -1,0 +1,346 @@
+{
+  "agent": "research",
+  "version": 1,
+  "description": "Gold dataset for the Research Agent. Tests dossier generation, artifact creation, fact extraction, and call angle quality for Spokane/Kootenai leads.",
+  "cases": [
+    {
+      "name": "spokane_probate_lead",
+      "description": "Probate filing in Spokane County. Agent should produce artifacts from court records and assessor, extract heir/probate facts, and recommend an empathetic probate-focused call angle.",
+      "input": {
+        "leadId": "gold-research-001",
+        "propertyId": "gold-prop-001",
+        "triggeredBy": "gold-test",
+        "focusAreas": ["probate", "ownership"],
+        "operatorNotes": "Probate filing found on county docket. Need to confirm PR/executor and property condition."
+      },
+      "expectedOutput": {
+        "artifacts": [
+          {
+            "sourceUrl": "https://www.spokanecounty.org/courts/probate/26-4-00123-32",
+            "sourceType": "probate_filing",
+            "sourceLabel": "Spokane County Superior Court — Probate Docket",
+            "extractedNotes": "Case #26-4-00123-32. Filed 2025-11-12. Decedent: John Doe. Personal Representative: Jane Doe (daughter). Hearing date: 2026-02-15."
+          },
+          {
+            "sourceUrl": "https://www.spokanecounty.org/assessor/parcel/35061.0101",
+            "sourceType": "assessor",
+            "sourceLabel": "Spokane County Assessor",
+            "extractedNotes": "Property assessed at $275,000. Last sale 2001 for $142,000. Single family, 3bd/2ba, 1,650 sqft. Built 1972."
+          }
+        ],
+        "facts": [
+          {
+            "factType": "probate_status",
+            "factValue": "Probate filed November 2025, case #26-4-00123-32",
+            "confidence": "high",
+            "artifactIndex": 0,
+            "promotedField": "situation_summary"
+          },
+          {
+            "factType": "heir",
+            "factValue": "Jane Doe (daughter) is Personal Representative",
+            "confidence": "high",
+            "artifactIndex": 0,
+            "promotedField": "likely_decision_maker"
+          },
+          {
+            "factType": "property_condition",
+            "factValue": "Built 1972, 3bd/2ba, 1,650 sqft. No recent permits.",
+            "confidence": "medium",
+            "artifactIndex": 1
+          }
+        ],
+        "dossier": {
+          "situationSummary": "Probate property — John Doe passed away, daughter Jane Doe is the executor. Property has been in the family since 2001, likely needs updates.",
+          "likelyDecisionMaker": "Jane Doe (daughter, Personal Representative)",
+          "recommendedCallAngle": "Call as a local cash buyer who works with probate families. Mention awareness of the probate timeline. Ask about Jane's plans for the property.",
+          "topFacts": [
+            { "type": "probate_status", "value": "Active probate, case #26-4-00123-32", "confidence": "high" },
+            { "type": "heir", "value": "Jane Doe is executor/PR", "confidence": "high" },
+            { "type": "property_condition", "value": "1972 build, no recent permits", "confidence": "medium" }
+          ],
+          "verificationChecklist": [
+            { "item": "Verify probate case number and status", "verified": false },
+            { "item": "Confirm Jane Doe is still PR", "verified": false },
+            { "item": "Check for liens or encumbrances", "verified": false }
+          ],
+          "sourceLinks": [
+            { "url": "https://www.spokanecounty.org/courts/probate/26-4-00123-32", "label": "Probate Docket" },
+            { "url": "https://www.spokanecounty.org/assessor/parcel/35061.0101", "label": "Assessor Record" }
+          ],
+          "contradictions": []
+        }
+      },
+      "checks": [
+        {
+          "name": "has_artifacts",
+          "type": "field_min_count",
+          "field": "artifacts",
+          "min": 1,
+          "severity": "fail"
+        },
+        {
+          "name": "has_facts",
+          "type": "field_min_count",
+          "field": "facts",
+          "min": 2,
+          "severity": "fail"
+        },
+        {
+          "name": "dossier_exists",
+          "type": "field_exists",
+          "field": "dossier",
+          "severity": "fail"
+        },
+        {
+          "name": "situation_summary_present",
+          "type": "field_exists",
+          "field": "dossier.situationSummary",
+          "severity": "fail"
+        },
+        {
+          "name": "situation_summary_meaningful",
+          "type": "field_min_length",
+          "field": "dossier.situationSummary",
+          "min": 20,
+          "severity": "fail"
+        },
+        {
+          "name": "call_angle_present",
+          "type": "field_exists",
+          "field": "dossier.recommendedCallAngle",
+          "severity": "fail"
+        },
+        {
+          "name": "call_angle_no_investor_jargon",
+          "type": "field_not_contains",
+          "field": "dossier.recommendedCallAngle",
+          "noneOf": ["wholesale", "assignment", "flip", "ARV", "70%"],
+          "severity": "fail"
+        },
+        {
+          "name": "top_facts_present",
+          "type": "field_min_count",
+          "field": "dossier.topFacts",
+          "min": 2,
+          "severity": "fail"
+        },
+        {
+          "name": "verification_checklist_present",
+          "type": "field_min_count",
+          "field": "dossier.verificationChecklist",
+          "min": 1,
+          "severity": "warn"
+        },
+        {
+          "name": "source_links_present",
+          "type": "field_min_count",
+          "field": "dossier.sourceLinks",
+          "min": 1,
+          "severity": "warn"
+        },
+        {
+          "name": "decision_maker_identified",
+          "type": "field_exists",
+          "field": "dossier.likelyDecisionMaker",
+          "severity": "warn"
+        }
+      ]
+    },
+    {
+      "name": "kootenai_tired_landlord",
+      "description": "Tired landlord in Kootenai County ID with multiple evictions. Agent should research ownership, eviction history, and recommend a landlord-fatigue angle. No probate involved.",
+      "input": {
+        "leadId": "gold-research-002",
+        "propertyId": "gold-prop-002",
+        "triggeredBy": "gold-test",
+        "focusAreas": ["ownership", "financial"],
+        "operatorNotes": "PropertyRadar flagged high equity + eviction filing. Confirm ownership and recent court activity."
+      },
+      "expectedOutput": {
+        "artifacts": [
+          {
+            "sourceUrl": "https://www.kcgov.us/assessor/parcel/12345",
+            "sourceType": "assessor",
+            "sourceLabel": "Kootenai County Assessor",
+            "extractedNotes": "Owner: Robert Chen. Property at 1892 E Best Ave, CDA. Assessed $345,000. Purchased 2018 for $220,000. 4-plex."
+          },
+          {
+            "sourceUrl": null,
+            "sourceType": "court_record",
+            "sourceLabel": "Kootenai County Court Records",
+            "extractedNotes": "Two eviction filings in 2025 (cases CV-2025-1234, CV-2025-2567). One in 2024."
+          }
+        ],
+        "facts": [
+          {
+            "factType": "ownership",
+            "factValue": "Robert Chen, owner since 2018. Purchased for $220K, now assessed $345K.",
+            "confidence": "high",
+            "artifactIndex": 0,
+            "promotedField": "situation_summary"
+          },
+          {
+            "factType": "financial",
+            "factValue": "Significant equity (~$125K+). High equity owner since 2018.",
+            "confidence": "medium",
+            "artifactIndex": 0
+          },
+          {
+            "factType": "timeline",
+            "factValue": "Three eviction filings in 2 years — pattern of tenant problems.",
+            "confidence": "high",
+            "artifactIndex": 1
+          }
+        ],
+        "dossier": {
+          "situationSummary": "Tired landlord with 4-plex in CDA. Three evictions in two years. High equity owner since 2018. Likely experiencing significant landlord fatigue.",
+          "likelyDecisionMaker": "Robert Chen (owner)",
+          "recommendedCallAngle": "Acknowledge the difficulty of managing tenants. Ask how the evictions have been going and whether he's thought about getting out of the landlord business. Position as a simple exit strategy.",
+          "topFacts": [
+            { "type": "ownership", "value": "Owner since 2018, high equity", "confidence": "high" },
+            { "type": "timeline", "value": "3 evictions in 2 years", "confidence": "high" }
+          ],
+          "verificationChecklist": [
+            { "item": "Verify current eviction case status", "verified": false },
+            { "item": "Confirm property is still a 4-plex (no conversion)", "verified": false }
+          ],
+          "sourceLinks": [
+            { "url": "https://www.kcgov.us/assessor/parcel/12345", "label": "Kootenai County Assessor" }
+          ],
+          "contradictions": []
+        }
+      },
+      "checks": [
+        {
+          "name": "has_artifacts",
+          "type": "field_min_count",
+          "field": "artifacts",
+          "min": 1,
+          "severity": "fail"
+        },
+        {
+          "name": "has_facts",
+          "type": "field_min_count",
+          "field": "facts",
+          "min": 2,
+          "severity": "fail"
+        },
+        {
+          "name": "dossier_exists",
+          "type": "field_exists",
+          "field": "dossier",
+          "severity": "fail"
+        },
+        {
+          "name": "situation_summary_meaningful",
+          "type": "field_min_length",
+          "field": "dossier.situationSummary",
+          "min": 20,
+          "severity": "fail"
+        },
+        {
+          "name": "call_angle_no_investor_jargon",
+          "type": "field_not_contains",
+          "field": "dossier.recommendedCallAngle",
+          "noneOf": ["wholesale", "assignment", "flip", "ARV"],
+          "severity": "fail"
+        },
+        {
+          "name": "call_angle_references_landlord_pain",
+          "type": "field_contains",
+          "field": "dossier.recommendedCallAngle",
+          "anyOf": ["tenant", "landlord", "eviction", "managing", "rental"],
+          "severity": "warn"
+        },
+        {
+          "name": "no_probate_references",
+          "type": "field_not_contains",
+          "field": "dossier.situationSummary",
+          "noneOf": ["probate", "deceased", "heir", "executor"],
+          "severity": "fail"
+        }
+      ]
+    },
+    {
+      "name": "spokane_vacant_lot_minimal_data",
+      "description": "Edge case: vacant lot with minimal public records. Agent should still produce a dossier but flag low confidence and short verification checklist.",
+      "input": {
+        "leadId": "gold-research-003",
+        "propertyId": "gold-prop-003",
+        "triggeredBy": "gold-test",
+        "focusAreas": ["ownership"],
+        "operatorNotes": "Vacant lot on E Sprague. Owner name from tax records only."
+      },
+      "expectedOutput": {
+        "artifacts": [
+          {
+            "sourceUrl": "https://www.spokanecounty.org/assessor/parcel/99999",
+            "sourceType": "assessor",
+            "sourceLabel": "Spokane County Assessor",
+            "extractedNotes": "Vacant lot, 0.18 acres. Owner: James Wilson Trust. Assessed $45,000. No structures."
+          }
+        ],
+        "facts": [
+          {
+            "factType": "ownership",
+            "factValue": "Owned by James Wilson Trust. Vacant lot, assessed $45K.",
+            "confidence": "medium",
+            "artifactIndex": 0
+          }
+        ],
+        "dossier": {
+          "situationSummary": "Vacant lot on E Sprague owned by James Wilson Trust. Limited public information available.",
+          "likelyDecisionMaker": null,
+          "recommendedCallAngle": "Ask about plans for the lot and whether the trust is looking to liquidate. Keep it simple — we buy land too.",
+          "topFacts": [
+            { "type": "ownership", "value": "James Wilson Trust, vacant lot", "confidence": "medium" }
+          ],
+          "verificationChecklist": [
+            { "item": "Identify trustee of James Wilson Trust", "verified": false },
+            { "item": "Check for environmental liens or zoning restrictions", "verified": false }
+          ],
+          "sourceLinks": [
+            { "url": "https://www.spokanecounty.org/assessor/parcel/99999", "label": "Assessor Record" }
+          ],
+          "contradictions": []
+        }
+      },
+      "checks": [
+        {
+          "name": "has_at_least_one_artifact",
+          "type": "field_min_count",
+          "field": "artifacts",
+          "min": 1,
+          "severity": "fail"
+        },
+        {
+          "name": "has_at_least_one_fact",
+          "type": "field_min_count",
+          "field": "facts",
+          "min": 1,
+          "severity": "fail"
+        },
+        {
+          "name": "dossier_exists",
+          "type": "field_exists",
+          "field": "dossier",
+          "severity": "fail"
+        },
+        {
+          "name": "situation_summary_present",
+          "type": "field_min_length",
+          "field": "dossier.situationSummary",
+          "min": 10,
+          "severity": "fail"
+        },
+        {
+          "name": "call_angle_present",
+          "type": "field_exists",
+          "field": "dossier.recommendedCallAngle",
+          "severity": "fail"
+        }
+      ]
+    }
+  ]
+}

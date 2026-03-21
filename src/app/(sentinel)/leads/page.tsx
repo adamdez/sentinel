@@ -1,15 +1,17 @@
 "use client";
 
-import { Shield, Radio, Plus } from "lucide-react";
+import { Plus } from "lucide-react";
 import { useCoachSurface } from "@/providers/coach-provider";
 import { CoachPanel, CoachToggle } from "@/components/sentinel/coach-panel";
 import { PageShell } from "@/components/sentinel/page-shell";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { useModal } from "@/providers/modal-provider";
+import { MapPin } from "lucide-react";
 import { LeadSegmentControl } from "@/components/sentinel/leads/lead-segment-control";
 import { LeadFilters } from "@/components/sentinel/leads/lead-filters";
 import { LeadTable } from "@/components/sentinel/leads/lead-table";
+import type { MarketFilter } from "@/hooks/use-leads";
 import { MasterClientFileModal, clientFileFromLead } from "@/components/sentinel/master-client-file-modal";
 import { useLeads } from "@/hooks/use-leads";
 import { cn } from "@/lib/utils";
@@ -117,14 +119,6 @@ export default function LeadsPage() {
             <Plus className="h-3 w-3" />
             Add Lead
           </Button>
-          <Badge variant="outline" className="text-[10px] gap-1">
-            <Radio className="h-2.5 w-2.5 text-green-400 animate-pulse" />
-            Live
-          </Badge>
-          <Badge variant="outline" className="text-[10px] gap-1">
-            <Shield className="h-2.5 w-2.5" />
-            Role: {currentUser.role}
-          </Badge>
           <CoachToggle />
         </div>
       }
@@ -158,6 +152,33 @@ export default function LeadsPage() {
                 : "No contact attempts logged yet"
             }
           />
+        </div>
+
+        {/* Quick market filter */}
+        <div className="flex items-center gap-2">
+          <MapPin className="h-3.5 w-3.5 text-muted-foreground" />
+          <span className="text-[11px] font-medium text-muted-foreground">Market:</span>
+          <select
+            value={filters.markets.length === 1 ? filters.markets[0] : "all"}
+            onChange={(e) => {
+              const val = e.target.value as MarketFilter | "all";
+              updateFilter("markets", val === "all" ? [] : [val]);
+            }}
+            className="h-7 rounded-md border border-glass-border bg-glass/40 px-2 text-xs text-foreground focus:border-cyan/30 focus:outline-none focus:ring-1 focus:ring-cyan/20"
+          >
+            <option value="all">All Markets</option>
+            <option value="spokane">Spokane</option>
+            <option value="kootenai">Kootenai</option>
+            <option value="other">Other</option>
+          </select>
+          {filters.markets.length > 0 && (
+            <button
+              onClick={() => updateFilter("markets", [])}
+              className="text-[10px] text-muted-foreground hover:text-foreground"
+            >
+              Clear
+            </button>
+          )}
         </div>
 
         {/* Needs attention quick focus */}

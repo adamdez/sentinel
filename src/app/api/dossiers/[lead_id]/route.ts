@@ -93,6 +93,15 @@ export async function POST(
 
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
+    // Set dossier_url on the lead so it's always navigable
+    const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
+    const dossierUrl = `${siteUrl}/dialer/review/dossier-queue?lead=${lead_id}`;
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    await (sb.from("leads") as any)
+      .update({ dossier_url: dossierUrl, updated_at: new Date().toISOString() })
+      .eq("id", lead_id);
+
     return NextResponse.json({ dossier: data }, { status: 201 });
   } catch (err) {
     console.error("[API/dossiers] POST error:", err);

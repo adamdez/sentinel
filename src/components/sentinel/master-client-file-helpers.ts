@@ -116,6 +116,16 @@ export interface ClientFile {
   dispoFrictionLevel: string | null;
   // Dossier promotion field — written only through the explicit promote path
   decisionMakerNote: string | null;
+  // Intelligence CRM projection fields (from dossier promote / refresh-scores)
+  sellerSituationSummaryShort: string | null;
+  recommendedCallAngle: string | null;
+  topFact1: string | null;
+  topFact2: string | null;
+  topFact3: string | null;
+  opportunityScore: number | null;
+  contactabilityScore: number | null;
+  confidenceScore: number | null;
+  dossierUrl: string | null;
 }
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -174,6 +184,15 @@ export function clientFileFromProspect(p: ProspectRow): ClientFile {
     monetizabilityScore: null,
     dispoFrictionLevel: null,
     decisionMakerNote: null,
+    sellerSituationSummaryShort: null,
+    recommendedCallAngle: null,
+    topFact1: null,
+    topFact2: null,
+    topFact3: null,
+    opportunityScore: null,
+    contactabilityScore: null,
+    confidenceScore: null,
+    dossierUrl: null,
   };
 }
 
@@ -215,6 +234,15 @@ export function clientFileFromLead(l: LeadRow): ClientFile {
     monetizabilityScore: (l as any).monetizability_score ?? null,
     dispoFrictionLevel: (l as any).dispo_friction_level ?? null,
     decisionMakerNote: (l as any).decision_maker_note ?? null,
+    sellerSituationSummaryShort: l.sellerSituationSummaryShort ?? null,
+    recommendedCallAngle: l.recommendedCallAngle ?? null,
+    topFact1: l.topFact1 ?? null,
+    topFact2: l.topFact2 ?? null,
+    topFact3: l.topFact3 ?? null,
+    opportunityScore: l.opportunityScore ?? null,
+    contactabilityScore: l.contactabilityScore ?? null,
+    confidenceScore: l.confidenceScore ?? null,
+    dossierUrl: l.dossierUrl ?? null,
   };
 }
 
@@ -290,6 +318,15 @@ export function clientFileFromRaw(lead: Record<string, any>, prop: Record<string
     monetizabilityScore: lead.monetizability_score != null ? Number(lead.monetizability_score) : null,
     dispoFrictionLevel: lead.dispo_friction_level ?? null,
     decisionMakerNote: lead.decision_maker_note ?? null,
+    sellerSituationSummaryShort: lead.seller_situation_summary_short ?? null,
+    recommendedCallAngle: lead.recommended_call_angle ?? null,
+    topFact1: lead.top_fact_1 ?? null,
+    topFact2: lead.top_fact_2 ?? null,
+    topFact3: lead.top_fact_3 ?? null,
+    opportunityScore: lead.opportunity_score != null ? Number(lead.opportunity_score) : null,
+    contactabilityScore: lead.contactability_score != null ? Number(lead.contactability_score) : null,
+    confidenceScore: lead.confidence_score != null ? Number(lead.confidence_score) : null,
+    dossierUrl: lead.dossier_url ?? null,
   };
 }
 

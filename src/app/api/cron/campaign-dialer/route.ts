@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@/lib/supabase";
 import { isDnc } from "@/lib/dnc-check";
+import { getFeatureFlag } from "@/lib/control-plane";
 
 export const runtime = "nodejs";
 export const maxDuration = 120;
@@ -24,6 +25,12 @@ export async function GET(req: NextRequest) {
   const authHeader = req.headers.get("authorization");
   if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  // Feature flag gate
+  const campaignDialerFlag = await getFeatureFlag("agent.campaign_dialer.enabled");
+  if (!campaignDialerFlag?.enabled) {
+    return NextResponse.json({ skipped: true, reason: "Feature flag disabled" });
   }
 
   // Business hours guard: only run 9am-6pm Pacific Mon-Sat

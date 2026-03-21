@@ -4,7 +4,7 @@ import { useState, useMemo, useEffect, Fragment } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Home, Search, Loader2, Phone, ExternalLink, ArrowUpDown,
-  AlertTriangle, Globe, TrendingUp, Trash2,
+  AlertTriangle, Globe, TrendingUp, Trash2, UserPlus,
 } from "lucide-react";
 import { PageShell } from "@/components/sentinel/page-shell";
 import { GlassCard } from "@/components/sentinel/glass-card";
@@ -15,6 +15,8 @@ import { useFsboLeads } from "@/hooks/use-fsbo-leads";
 import { MasterClientFileModal, clientFileFromRaw } from "@/components/sentinel/master-client-file-modal";
 import type { ProspectRow } from "@/hooks/use-prospects";
 import { deleteLeadCustomerFile } from "@/lib/lead-write-helpers";
+import { supabase } from "@/lib/supabase";
+import { getAuthenticatedProspectPatchHeaders } from "@/lib/prospect-api-client";
 import { toast } from "sonner";
 
 // ── Constants ─────────────────────────────────────────────────────────
@@ -106,6 +108,46 @@ export default function FsboPage() {
   const { rows, loading, error, totalCount, refetch } = useFsboLeads({ search, sortField, sortDir });
   const [selectedRow, setSelectedRow] = useState<ProspectRow | null>(null);
   const [deleting, setDeleting] = useState<string | null>(null);
+  const [promoting, setPromoting] = useState<string | null>(null);
+
+  const handlePromote = async (row: ProspectRow, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setPromoting(row.id);
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data: current, error: fetchErr } = await (supabase.from("leads") as any)
+        .select("lock_version")
+        .eq("id", row.id)
+        .single();
+
+      if (fetchErr || !current) {
+        toast.error("Could not fetch lead. Refresh and try again.");
+        return;
+      }
+
+      const headers = await getAuthenticatedProspectPatchHeaders(current.lock_version ?? 0);
+      const res = await fetch("/api/prospects", {
+        method: "PATCH",
+        headers,
+        body: JSON.stringify({
+          lead_id: row.id,
+          status: "prospect",
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        toast.error(`Promote failed: ${data.detail ?? data.error ?? "Unknown error"}`);
+      } else {
+        toast.success(`${row.owner_name} promoted to Prospect`, { description: row.address || "No address" });
+        refetch();
+      }
+    } catch {
+      toast.error("Network error — could not promote");
+    } finally {
+      setPromoting(null);
+    }
+  };
 
   // Sync selectedRow with latest data after refetch (e.g. after Contact tab saves)
   useEffect(() => {
@@ -301,6 +343,17 @@ export default function FsboPage() {
                           </td>
                           <td className="px-4 py-3 text-right">
                             <div className="flex items-center justify-end gap-1">
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="h-7 px-2 gap-1 text-[10px] text-blue-400 border-blue-500/20 hover:border-blue-500/40 hover:bg-blue-500/[0.06]"
+                                onClick={(e) => handlePromote(row, e)}
+                                disabled={promoting === row.id}
+                                title="Promote to Prospect"
+                              >
+                                {promoting === row.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <UserPlus className="h-3 w-3" />}
+                                Promote
+                              </Button>
                               {listingUrl && (
                                 <Button
                                   size="sm"
@@ -313,7 +366,7 @@ export default function FsboPage() {
                                 </Button>
                               )}
                               {row.owner_phone && (
-                                <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={(e) => { e.stopPropagation(); window.location.href = `/leads?open=${row.id}`; }}>
+                                <Button size="sm" variant="ghost" className="h-7 w-7 p-0" title="Copy phone number" onClick={(e) => { e.stopPropagation(); navigator.clipboard.writeText(row.owner_phone!); toast.success("Phone number copied to clipboard"); }}>
                                   <Phone className="h-3.5 w-3.5 text-emerald-400" />
                                 </Button>
                               )}

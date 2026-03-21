@@ -594,6 +594,16 @@ export interface LeadRow {
   conversionGclid: string | null;
   // Attribution data
   attribution: LeadAttribution | null;
+  // Intelligence CRM projection fields (from dossier promote)
+  sellerSituationSummaryShort: string | null;
+  recommendedCallAngle: string | null;
+  topFact1: string | null;
+  topFact2: string | null;
+  topFact3: string | null;
+  opportunityScore: number | null;
+  contactabilityScore: number | null;
+  confidenceScore: number | null;
+  dossierUrl: string | null;
 }
 
 /**

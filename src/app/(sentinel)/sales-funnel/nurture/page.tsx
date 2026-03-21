@@ -9,11 +9,11 @@ import {
 import { PageShell } from "@/components/sentinel/page-shell";
 import { GlassCard } from "@/components/sentinel/glass-card";
 import { AIScoreBadge } from "@/components/sentinel/ai-score-badge";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { cn, formatCurrency } from "@/lib/utils";
 import { useLeadsByStatus } from "@/hooks/use-leads-by-status";
 import { MasterClientFileModal, clientFileFromRaw } from "@/components/sentinel/master-client-file-modal";
+import { toast } from "sonner";
 import type { ProspectRow } from "@/hooks/use-prospects";
 
 // ── Constants ─────────────────────────────────────────────────────────
@@ -141,7 +141,7 @@ export default function NurturePage() {
         actions={
           <Button size="sm" variant="outline" onClick={() => refetch()} className="gap-2">
             <RefreshCw className={cn("h-3.5 w-3.5", loading && "animate-spin")} />
-            Re-score All
+            Refresh
           </Button>
         }
       >
@@ -188,7 +188,6 @@ export default function NurturePage() {
               className="w-full pl-9 pr-3 py-2 rounded-[10px] text-sm bg-white/[0.04] border border-white/[0.08] text-foreground placeholder:text-muted-foreground/40 focus:outline-none focus:border-cyan/30 focus:ring-1 focus:ring-cyan/20 transition-all"
             />
           </div>
-          <Badge variant="outline" className="text-xs">Auto-drip active</Badge>
           <div className="flex items-center gap-1 text-xs text-muted-foreground">
             {totalCount} lead{totalCount !== 1 ? "s" : ""}
           </div>
@@ -284,7 +283,7 @@ export default function NurturePage() {
                           <td className="px-4 py-3 text-right">
                             <div className="flex items-center justify-end gap-1">
                               {row.owner_phone && (
-                                <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={(e) => { e.stopPropagation(); window.location.href = `/leads?open=${row.id}`; }}>
+                                <Button size="sm" variant="ghost" className="h-7 w-7 p-0" title="Copy phone number" onClick={(e) => { e.stopPropagation(); navigator.clipboard.writeText(row.owner_phone!); toast.success("Phone number copied to clipboard"); }}>
                                   <Phone className="h-3.5 w-3.5 text-emerald-400" />
                                 </Button>
                               )}

@@ -10,7 +10,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import type { LeadFilters as FilterState, FollowUpFilter, MarketFilter, OutboundCallStatusFilter } from "@/hooks/use-leads";
+import type { LeadFilters as FilterState, FollowUpFilter, OutboundCallStatusFilter } from "@/hooks/use-leads";
 import type { LeadStatus } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { filterChip } from "@/lib/sentinel-ui";
@@ -34,12 +34,6 @@ const STATUS_OPTIONS: { value: LeadStatus; label: string; color: string }[] = [
   { value: "nurture", label: "Nurture", color: "bg-purple-500/20 text-purple-400 border-purple-500/30" },
   { value: "dead", label: "Dead", color: "bg-zinc-500/20 text-zinc-400 border-zinc-500/30" },
   { value: "closed", label: "Closed", color: "bg-sky-500/20 text-sky-300 border-sky-500/30" },
-];
-
-const MARKET_OPTIONS: { value: MarketFilter; label: string }[] = [
-  { value: "spokane", label: "Spokane" },
-  { value: "kootenai", label: "Kootenai" },
-  { value: "other", label: "Other" },
 ];
 
 const FOLLOW_UP_OPTIONS: { value: FollowUpFilter; label: string }[] = [
@@ -90,13 +84,6 @@ export function LeadFilters({
       ? filters.statuses.filter((v) => v !== s)
       : [...filters.statuses, s];
     onUpdate("statuses", next);
-  };
-
-  const toggleMarket = (m: MarketFilter) => {
-    const next = filters.markets.includes(m)
-      ? filters.markets.filter((v) => v !== m)
-      : [...filters.markets, m];
-    onUpdate("markets", next);
   };
 
   const toggleSource = (s: string) => {
@@ -210,28 +197,6 @@ export function LeadFilters({
               </div>
 
               <div className="grid md:grid-cols-2 gap-4">
-                <div>
-                  <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-2">
-                    Market
-                  </p>
-                  <div className="flex flex-wrap gap-1.5">
-                    {MARKET_OPTIONS.map((opt) => (
-                      <button
-                        key={opt.value}
-                        onClick={() => toggleMarket(opt.value)}
-                        className={cn(
-                          "text-[11px] px-2.5 py-1 rounded-md border transition-all",
-                          filters.markets.includes(opt.value)
-                            ? "bg-cyan/12 text-cyan border-cyan/20"
-                            : "border-glass-border text-muted-foreground hover:text-foreground hover:border-white/15"
-                        )}
-                      >
-                        {opt.label}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
                 <div>
                   <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-2">
                     Source Channel

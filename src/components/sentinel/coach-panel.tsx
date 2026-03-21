@@ -9,7 +9,6 @@ import {
   Lightbulb,
   ClipboardList,
   BookOpen,
-  MessageSquare,
   ChevronDown,
   ChevronUp,
 } from "lucide-react";
@@ -290,15 +289,6 @@ export function CoachPanel({
               )}
             </div>
 
-            {/* ── Ask Sentinel placeholder ── */}
-            <div className="px-3 py-2.5 border-t border-white/[0.06]">
-              <div className="flex items-center gap-2 px-2.5 py-2 rounded-md bg-white/[0.03] border border-white/[0.04]">
-                <MessageSquare className="h-3.5 w-3.5 text-white/15 shrink-0" />
-                <span className="text-[11px] text-white/20 italic">
-                  Ask Sentinel... (coming soon)
-                </span>
-              </div>
-            </div>
           </div>
         </motion.div>
       )}

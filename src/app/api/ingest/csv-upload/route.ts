@@ -40,6 +40,7 @@ import {
   toInt,
 } from "@/lib/dedup";
 import type { DistressType } from "@/lib/types";
+import { upsertContact } from "@/lib/upsert-contact";
 import type { SentinelField } from "@/lib/csv-column-map";
 
 const SYSTEM_USER_ID = "00000000-0000-0000-0000-000000000000";
@@ -728,6 +729,31 @@ async function processRow(
     };
   }
 
+  // ── Upsert contact (dedup by phone) ──────────────────────────────
+  let contactId: string | null = null;
+  if (phone) {
+    try {
+      // Best-effort name split from owner_name
+      const nameParts = ownerName.includes(",")
+        ? ownerName.split(",").map((p: string) => p.trim())
+        : ownerName.split(/\s+/);
+      const lastName = ownerName.includes(",") ? nameParts[0] : nameParts[nameParts.length - 1];
+      const firstName = ownerName.includes(",") ? (nameParts[1] ?? "") : nameParts.slice(0, -1).join(" ");
+
+      const contactResult = await upsertContact(sb, {
+        phone,
+        first_name: firstName || null,
+        last_name: lastName || null,
+        email: email ?? null,
+        source: `csv:${meta.source}`,
+        contact_type: "owner",
+      });
+      contactId = contactResult.id;
+    } catch {
+      // Non-fatal — proceed without contact linkage
+    }
+  }
+
   // ── Promote to lead if above threshold ─────────────────────────────
   let promoted = false;
 
@@ -744,6 +770,7 @@ async function processRow(
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { data: newLead } = await (sb.from("leads") as any).insert({
       property_id: prop.id,
+      contact_id: contactId,
       status: "staging",
       source: `csv:${meta.source}`,
       priority: blended,
@@ -754,6 +781,14 @@ async function processRow(
     promoted = true; // "promoted" here means "lead created" for the import stats
   } else {
     leadId = existingLead.id;
+    // Link contact to existing lead if it didn't have one
+    if (contactId) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      await (sb.from("leads") as any)
+        .update({ contact_id: contactId, updated_at: new Date().toISOString() })
+        .eq("id", leadId)
+        .is("contact_id", null);
+    }
   }
 
   return {

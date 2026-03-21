@@ -1,5 +1,60 @@
 [
   {
+    "hash": "c27222e3",
+    "date": "2026-03-20",
+    "message": "feat: inbound call chain — Logan (20s) → Adam (20s) → Jeff (Vapi AI)"
+  },
+  {
+    "hash": "00443ed7",
+    "date": "2026-03-20",
+    "message": "perf: parallelize browser research — searches concurrent, AI extraction capped at 4"
+  },
+  {
+    "hash": "47df494f",
+    "date": "2026-03-20",
+    "message": "fix: visual-distress address resolution — use city/state/zip, no lat/lng on properties"
+  },
+  {
+    "hash": "9259d833",
+    "date": "2026-03-20",
+    "message": "fix: browser-research route — names are on contacts table, not leads"
+  },
+  {
+    "hash": "d5faf746",
+    "date": "2026-03-20",
+    "message": "fix: remaining .insert().catch() without .select() in visual-distress"
+  },
+  {
+    "hash": "9338a822",
+    "date": "2026-03-20",
+    "message": "fix: visual-distress Supabase insert needs .select() to be thenable"
+  },
+  {
+    "hash": "4f553904",
+    "date": "2026-03-20",
+    "message": "feat: service-role auth via admin API for internal agent/cron calls"
+  },
+  {
+    "hash": "25896b8a",
+    "date": "2026-03-20",
+    "message": "feat: n8n dispatch on inbound leads + review approvals, complete event wiring"
+  },
+  {
+    "hash": "27c348e6",
+    "date": "2026-03-20",
+    "message": "feat: wire E2E — seller memory in pre-call, priority queue, agent auto-triggers, n8n dispatch"
+  },
+  {
+    "hash": "1130c10f",
+    "date": "2026-03-20",
+    "message": "fix: campaign-dialer cron — use valid Vercel cron expression with business hours guard"
+  },
+  {
+    "hash": "a9c6191d",
+    "date": "2026-03-20",
+    "message": "feat: blueprint v4 full build — 10 gap items, agents, intelligence pipeline, workflow engine"
+  },
+  {
     "hash": "cefbf795",
     "date": "2026-03-19",
     "message": "fix(dialer/inbound): server Suspense wrapper for useSearchParams (Vercel build)"
@@ -68,60 +123,5 @@
     "hash": "c7311437",
     "date": "2026-03-16",
     "message": "feat(ads): add Ad Groups tab with direct pause/enable control"
-  },
-  {
-    "hash": "01562527",
-    "date": "2026-03-16",
-    "message": "fix(ads): sync all ad groups regardless of traffic — was missing zero-impression groups"
-  },
-  {
-    "hash": "44b611b1",
-    "date": "2026-03-16",
-    "message": "feat(ads): autonomous execution, batch approvals, landing pages tab, intent-matched pages"
-  },
-  {
-    "hash": "161fdb24",
-    "date": "2026-03-16",
-    "message": "feat(ads): campaign builder mode — AI generates keywords, negatives, ad groups for thin accounts"
-  },
-  {
-    "hash": "790fadda",
-    "date": "2026-03-16",
-    "message": "fix(ads): reject unexecutable recommendations, show entity names in approvals"
-  },
-  {
-    "hash": "ee881d6d",
-    "date": "2026-03-16",
-    "message": "refactor(ads): merge AI Review into Key Intel tab, fix max_tokens truncation"
-  },
-  {
-    "hash": "9d05f16a",
-    "date": "2026-03-16",
-    "message": "fix(ads): prevent Key Intel timeout errors — bump maxDuration to 300s, trim context, handle non-JSON responses"
-  },
-  {
-    "hash": "57b95b82",
-    "date": "2026-03-16",
-    "message": "fix(ads): defensive hardening from code review — JSON parsing, sanity guards, safe logging"
-  },
-  {
-    "hash": "9a88b941",
-    "date": "2026-03-16",
-    "message": "feat(ads): add real Google Ads execution from Approvals, alert badge on sidebar"
-  },
-  {
-    "hash": "2e03a08a",
-    "date": "2026-03-16",
-    "message": "feat(ads): expand chat context with full account data, add recommendation creation from chat"
-  },
-  {
-    "hash": "93c40e48",
-    "date": "2026-03-16",
-    "message": "feat(ads): rewrite cron cycle route to use dual-model intelligence pipeline"
-  },
-  {
-    "hash": "6063a669",
-    "date": "2026-03-16",
-    "message": "feat(ads): intel-to-recommendations converter, briefing persistence, and server-side IntelligenceTab"
   }
 ]

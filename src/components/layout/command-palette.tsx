@@ -59,19 +59,17 @@ const NAV_COMMANDS: NavCommand[] = [
   { kind: "nav", label: "Leads", href: "/leads", icon: Users, group: "Pages" },
   { kind: "nav", label: "Pipeline", href: "/pipeline", icon: Zap, group: "Pages" },
   { kind: "nav", label: "Dialer", href: "/dialer", icon: Phone, group: "Pages" },
+  { kind: "nav", label: "Buyers", href: "/buyers", icon: Contact, group: "Pages" },
+  { kind: "nav", label: "Dispo Board", href: "/dispo", icon: FileSignature, group: "Pages" },
+  { kind: "nav", label: "Tasks", href: "/tasks", icon: Calendar, group: "Pages" },
+  { kind: "nav", label: "Review Queue", href: "/dialer/review/dossier-queue", icon: Search, group: "Pages" },
+  { kind: "nav", label: "Property Lookup", href: "/properties/lookup", icon: MapPin, group: "Pages" },
   { kind: "nav", label: "Ads", href: "/ads", icon: Home, group: "Pages" },
   { kind: "nav", label: "Analytics", href: "/analytics", icon: BarChart3, group: "Pages" },
   { kind: "nav", label: "Settings", href: "/settings", icon: Settings, group: "Pages" },
   { kind: "nav", label: "Import", href: "/admin/import", icon: Upload, group: "Pages" },
 ];
 
-const CONTACT_DATA = [
-  { id: "c1", name: "Sarah Kim", company: "AZ Realty Group", phone: "(602) 555-0100", role: "Title Agent" },
-  { id: "c2", name: "Mike Reynolds", company: "Desert Title Co", phone: "(480) 555-0200", role: "Closer" },
-  { id: "c3", name: "Jennifer Torres", company: "Pinal County Records", phone: "(520) 555-0300", role: "County Clerk" },
-  { id: "c4", name: "Brian Patterson", company: "Phoenix Appraisals", phone: "(602) 555-0400", role: "Appraiser" },
-  { id: "c5", name: "Amanda Walsh", company: "Southwest Escrow", phone: "(480) 555-0500", role: "Escrow Officer" },
-];
 
 function matchesQuery(text: string, query: string): boolean {
   const lower = query.toLowerCase();
@@ -181,19 +179,6 @@ export function CommandPalette() {
             secondary: [c.phone, c.email, c.contact_type].filter(Boolean).join(" — "),
             href: "/contacts",
           });
-        }
-      } else {
-        for (const contact of CONTACT_DATA) {
-          const haystack = [contact.name, contact.company, contact.phone, contact.role].join(" ");
-          if (matchesQuery(haystack, query)) {
-            results.push({
-              kind: "contact",
-              id: contact.id,
-              primary: contact.name,
-              secondary: `${contact.role} — ${contact.company}`,
-              href: "/contacts",
-            });
-          }
         }
       }
 

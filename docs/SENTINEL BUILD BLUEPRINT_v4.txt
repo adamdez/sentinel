@@ -1,0 +1,588 @@
+SENTINEL BUILD BLUEPRINT
+Fourth Revision — Forward-Looking Engineering Plan
+
+Dominion Home Deals
+Operator-first CRM · Intelligence Layer · Conversation Workspace · Agent Fleet · MCP Mesh
+
+March 19, 2026 | Fourth Revision
+Internal working blueprint for the Sentinel engineer
+Prepared with 2026–2027 AI tooling landscape in view
+
+This revision integrates the stacked prospecting audit, prospect engine bake-off strategy, expanded provider landscape, competitive intelligence layer, agent tooling gap analysis, and 8 forward-looking corrections from the March 2026 tool ecosystem review.
+ 
+1. Executive Directive
+
+The one-sentence product thesis: Sentinel should become a deterministic, auditable, operator-first acquisitions and dispo operating system powered by a fleet of domain-specific AI agents coordinated through an MCP mesh, a traced intelligence layer, and a first-class conversation workspace — removing research and admin labor without eroding trust or workflow clarity.
+
+1.1 Main Goal
+The main goal is not to build a clever AI CRM. The main goal is to build a two-person operating machine that lets Dominion Home Deals generate roughly $2 million per year without adding support labor at the same rate. The software matters only because it compresses execution, context, and confidence into a tighter operating loop.
+Every engineering decision, every AI feature, every tooling choice should be tested against one question: does this increase contracts per founder-hour enough to justify the complexity and risk?
+1.2 The 2026 Leverage Thesis
+The AI tooling landscape has shifted fundamentally since the original blueprint was written. The correct mental model is no longer “add AI features to a CRM.” The correct mental model is “build the CRM as the deterministic action core, then surround it with a fleet of AI agents that handle research, follow-up, alerting, QA, and dispo — all coordinated through MCP and a workflow engine, with humans reviewing and deciding at high-stakes moments.”
+Evidence that this works in production right now:
+•	Jason Lemkin (SaaStr) replaced his entire sales team with 20 AI agents managed by 1.2 humans. AI emails were better than human-written. 10x volume. 15% of event revenue.
+•	Alex Shartsis built a Claude + MCP personal CRM in 20 minutes for $20/mo that delivers 90%+ of traditional CRM value for follow-up management.
+•	Jacob Bank (Relay.app) runs his entire marketing org as himself + 40 AI agents doing the work of a 5-person team.
+•	MCP has 97 million monthly SDK downloads. Over 100 specialized Claude Code subagent templates are open-sourced on GitHub.
+Sentinel should be built to leverage this reality, not to ignore it.
+1.3 The Stacked Prospecting Thesis (New in v4)
+The RE investor tool landscape has converged around full-stack operating platforms. PropStream now bundles search → skip trace → dial → campaign execution. BatchLeads pushes BatchRank-AI with built-in dialer and mobile field workflows. DealMachine bundles Alma AI with satellite-image-based lead lists. RealFlow pitches an engine that detects likely sellers, runs outreach, and books qualified meetings.
+This means the market is no longer “list provider over here, dialer over there, CRM over there.” It is shifting toward full investor operating lanes. Sentinel’s correct response is not to compete with these platforms at list generation. It is to become the operating membrane that ingests from multiple live cohort engines, measures each against actual contract output, and owns the durable working truth, promotion logic, seller memory, and exception handling that no off-the-shelf platform can replicate.
+The rule: stop thinking in terms of one feed. Sentinel should ingest from multiple prospect engines and measure them against contracts, not lead volume.
+1.4 What Success Looks Like
+•	Logan can open any serious lead and know what to do in under a minute.
+•	Every important lead has a next action, a reason, and a fallback if the next action fails.
+•	Property context is available inside Sentinel without bouncing between XLeads, Zillow, county sites, and spreadsheets.
+•	Offers move faster because comps, valuation state, confidence, and decision support are already staged.
+•	Dispo moves faster because buyer-fit and buyer memory are visible early.
+•	Missed calls, callback failures, stale follow-up, and offer stalls become visible exceptions instead of silent losses.
+•	AI reduces research, note-taking, QA, and routing labor without replacing Logan in trust-heavy human moments.
+•	The dialer is a first-class conversation workspace where Logan’s calls are better prepared, better captured, and better followed up.
+•	A fleet of domain-specific AI agents handles research, follow-up drafting, exception monitoring, QA, and dispo preparation — with operator review gates at every trust-sensitive moment.
+•	An AI receptionist answers every inbound call within seconds, 24/7.
+•	Multiple prospect engines feed Sentinel, each measured against cost-per-contract, not just lead volume.
+1.5 What Success Is Not
+•	Not a broad investor ERP with dozens of half-used modules.
+•	Not a giant universal MCP shell that talks to everything but owns nothing clearly.
+•	Not a no-code automation nest where business rules are scattered across external workflow tools.
+•	Not a research toy that is smarter in analysis than in execution.
+•	Not an autonomous seller-negotiation system.
+•	Not a system that builds everything custom when a $49/mo product already solves the problem.
+•	Not a platform that competes with PropStream or BatchLeads at list generation instead of using them as inputs.
+ 
+2. Non-Negotiable Principles and Anti-Goals
+2.1 Build Principles
+•	Sentinel remains the system of action. Leads, stages, tasks, calls, offers, dispo states, and operator-facing summaries stay in Sentinel.
+•	The intelligence layer is the system of understanding. Raw imports, research artifacts, extracted facts, dossiers, confidence logic, contradiction logic, provider mapping, review, and traces stay outside the action core.
+•	The dialer is the system of conversation. Live call state, context injection, seller memory, AI notes, transcript handling, disposition capture, post-call review, and coaching belong to the dialer workspace, not the master client file.
+•	Same repo, same database first. The product should ship as a bounded monolith before any physical service split.
+•	Revenue-impacting features first. Sequence the build by what makes Logan’s next call better, not by what makes the architecture prettier.
+•	Buy, integrate, or build — in that order. For every capability, ask: does a product already exist that solves this for <$200/mo? If yes, buy it. Does an API or platform exist that can be wired in? If yes, integrate it. Only build custom when the capability is your competitive moat or no product exists.
+•	Direct provider adapters first; MCP where it helps. For PropertyRadar and ATTOM, direct REST adapters are the stable path.
+•	No durable CRM writeback from untraced runs. Every AI-assisted workflow that can change CRM state must have run IDs, prompt/version identity, inputs, outputs, and review policy.
+•	Evidence before inference. Facts tie back to artifacts, dossiers summarize the best facts, and projections summarize the dossier.
+•	Build slices, not platforms. Each phase ships a vertical slice from intake to review to CRM projection.
+•	Think forward, not backward. Every tool, platform, and capability decision should be evaluated against what exists in 2026 and what is coming in 2027 — not against what was available when the original plan was written.
+•	Measure prospect engines against contracts, not leads. Multiple list/discovery sources feed Sentinel. Each is measured by cost-per-contract and qualified conversation rate, not by records surfaced.
+2.2 Anti-Goals
+•	Do not rebuild Sentinel from scratch unless the current codebase is beyond salvage after audit.
+•	Do not let provider-specific field names leak into Sentinel tables or UI text.
+•	Do not place core lead-routing or offer logic inside n8n, Zapier, or ad hoc scripts.
+•	Do not auto-skip-trace every property lookup. Trace only on promotion to a real working lead.
+•	Do not build full autonomous cold AI calling as a core production lane before compliance controls and session ownership are strong.
+•	Do not grow the dialer feature inside the master client file modal.
+•	Do not build custom what you can buy for <$200/mo — unless it is your competitive moat.
+•	Do not evaluate tools based on whether you have used them before. Evaluate based on whether they serve the main goal.
+•	Do not confuse a safeguard with a goal, a feature with a business outcome, or activity with leverage.
+•	Do not compete with PropStream, BatchLeads, or DealMachine at list generation. Use them as inputs. Compete at operating intelligence, conversation quality, and deal throughput.
+ 
+3. End-State Product Definition
+3.1 What Sentinel Should Feel Like
+•	Universal address search from the main shell.
+•	Any serious property can become a working lead without leaving Sentinel.
+•	Property card shows operator-grade facts: address, owner clues, mortgage/equity, transaction history, listing status, comp state, condition signals, warnings.
+•	Lead record is lean. Deep evidence is one click away in the dossier.
+•	Dialer is a first-class conversation workspace with pre-call context, seller memory, live AI notes, transcript, objection tagging, disposition, and publish-to-client-file flow.
+•	Dispo is not an afterthought. Buyer-fit, buyer memory, outreach state, and stale-dispo detection are visible.
+•	Every morning, Logan opens Sentinel and sees: top 10 priority leads, overdue follow-ups, yesterday’s missed opportunities, today’s callbacks. The exception agent has already surfaced what matters.
+•	AI agents handle research enrichment, follow-up drafting, exception monitoring, and QA in the background. Operators review and approve at trust-sensitive moments.
+•	Multiple prospect engines feed qualified records into Sentinel. Source/market attribution tracks which engine produces contracts, not just which one produces leads.
+3.2 The Three-Workspace Boundary
+The master client file is for durable truth. The dialer is for active conversation. The only thing that moves from dialer to file is curated outcome data.
+
+Master Client File (Durable Truth)
+Canonical property + owner record, timeline, distress signals, comps, relationship history, outcomes. Receives only finalized, operator-reviewed outputs from the dialer.
+Dialer Workspace (Active Conversation)
+Live transcript, notes, AI assist, objection prompts, script guidance, disposition capture. This surface grows as the dialer gets smarter. Consumes a compact context snapshot from the CRM.
+Shared Context Snapshot (Read-Only Bridge)
+Lightweight CRM context for the dialer: owner name, address, summary, distress flags, tasks, prior calls, objections, offer posture, timeline, DNC flags.
+3.3 The Agentic Operating Layer
+Behind the three workspaces, a fleet of domain-specific AI agents operates continuously. Each agent is narrow, specialized, review-gated, and traceable. Agents share context through the Sentinel MCP server and are coordinated by the workflow engine.
+
+•	Research Agent: Intelligence domain. Triggered by lead promotion or operator request. Produces enriched property facts, dossier draft, contradiction flags. Review console before CRM sync.
+•	Follow-Up Agent: Action core. Triggered by stale lead or operator-scheduled. Produces personalized follow-up draft using seller memory. Operator approval before send.
+•	Exception Agent: Action core. Nightly scan + real-time SLA monitors. Produces morning priority brief, exception alerts via n8n. Informational — no write.
+•	QA Agent: Dialer. Post-call summary published. Produces quality rating, missed-mirror flags, talk-ratio analysis. Informational — flags only.
+•	Dispo Agent: Action core. Deal goes under contract. Produces ranked buyer-fit list, outreach drafts. Operator selects buyer and approves outreach.
+•	Ads Monitor Agent: Ads. Daily cron + anomaly threshold. Produces performance alerts, waste detection, budget warnings. Informational — recommendations require approval.
+ 
+4. Architecture Blueprint
+4.1 Domain Map
+•	Action core (Sentinel): Owns leads, stages, tasks, notes, calls, offers, dispo, source/market attribution, projections. Does not own raw provider payloads, AI traces, research artifacts, model logic. Rule: Fast operator truth only.
+•	Dialer workspace: Owns call sessions, live notes, transcripts, AI suggestions, disposition, seller memory, extracted facts before confirmation. Does not own permanent lead/property state, CRM workflow rules. Rule: Volatile conversation state. Publish curated outputs only.
+•	Intelligence layer: Owns artifacts, fact assertions, dossiers, provider normalization, review queue, buyer-fit, contradiction flags. Does not own direct operator workflow state. Rule: Understand first; publish lean outputs.
+•	Control plane / runtime: Owns run IDs, prompt versions, tool logs, eval datasets, approvals, rollout flags, event flows, feature flags. Does not own permanent business truth by itself. Rule: Nothing durable writes without traceability.
+•	Agent fleet: Owns domain-specific agents (research, follow-up, exception, QA, dispo, ads), MCP tool access, workflow coordination. Does not own direct CRM writes without review gates. Rule: Agents propose; operators approve.
+•	Provider adapters: Owns API auth, mapping, retries, provenance, rate-limit handling. Does not own business decisions and CRM rules. Rule: Convert provider shapes into canonical fields.
+•	Operational glue (n8n): Owns notifications, alerts, delivery, webhook fan-out, calendar glue, non-core automation. Does not own core CRM logic, scoring, offer decisions, lead routing. Rule: Deliver, don’t decide.
+4.2 Hard Write-Path Rule
+Provider payload → raw record / artifact → normalized fact assertions → dossier / assessment → review policy → CRM sync snapshot → Sentinel projection. No provider payload writes directly into lead tables. No model output writes directly without a review or policy gate.
+4.3 Dialer Write-Path Rule
+Live call data stays in dialer-session storage. Final summary generated at call end. Only selected structured facts promoted to client file. Call session data is volatile. Client file data is curated.
+4.4 Agent Write-Path Rule
+Agents read from the Sentinel MCP server and external MCP servers (Twilio, Playwright, etc.). Agents write proposals to review queues or draft tables. Operator-approved proposals are promoted to durable CRM state through the standard write path. No agent writes directly to lead, deal, or calls_log tables without passing through a review or policy gate.
+4.5 MCP Mesh Architecture
+All AI systems (agents, voice AI, Claude Code, n8n AI nodes) interact with Sentinel through a standardized MCP interface. This means you build the MCP server once and every new AI tool you adopt can immediately talk to your CRM.
+
+•	Sentinel MCP (custom, Build Phase 1–2): Exposes lead lookup, property context, call outcomes, task creation, follow-up scheduling, pipeline queries. Used by all agents, voice AI, Claude Code, n8n.
+•	Supabase MCP (production, connected): Database queries, migrations, Edge Functions, branching. Used by Claude Code (dev time).
+•	Google Ads MCP (production, official): Campaign queries, performance data, natural language ad analysis. Used by Ads Monitor Agent, Claude Code.
+•	Twilio MCP (alpha, 1,700+ endpoints): Call management, SMS, phone numbers, recordings, status. Used by Follow-Up Agent, voice platform.
+•	Slack MCP (GA, Feb 2026): Pipeline alerts, daily summaries, team notifications. Used by Exception Agent via n8n.
+•	Playwright MCP (production, Microsoft): Browser automation, web scraping, form filling, data extraction. Used by Research Agent.
+•	Google Calendar MCP (community): Callback scheduling, appointment management. Used by Voice AI, Follow-Up Agent.
+•	Composio MCP (evaluate Phase 3): 250+ pre-built tool integrations for AI agents. Could reduce custom integration work for agent fleet connections to Gmail, Calendar, Slack, and other services. Evaluate as complement to Claude Agent SDK.
+4.6 Internal Module Map
+•	sentinel-core: leads, stages, tasks, notes, calls, offers, dispo states, UI projections.
+•	dialer-core: call sessions, live notes, transcripts, AI suggestions, seller memory, context snapshot, publish-to-CRM.
+•	intel-core: artifacts, facts, dossiers, buyer-fit, contradiction flags, research jobs.
+•	runtime-core: run registry, prompt registry, approvals, evaluations, event logging, feature flags.
+•	agent-core: agent definitions, MCP tool registry, workflow coordination, review queue integration.
+•	mcp-server: Sentinel MCP server exposing lead/property/call/task tools to all AI systems.
+•	providers/*: propertyradar, attom, mls, skiptrace, voice, browser, bricked, regrid.
+ 
+5. Provider, Platform, and API Decision Log
+5.1 Buy / Integrate / Build Decision Matrix
+For every capability, ask: does a product already exist that solves this for <$200/mo? If yes, buy it. Does an API or platform exist that can be wired in? If yes, integrate it. Only build custom when the capability is your competitive moat or no product exists.
+
+•	AI receptionist (inbound) — BUY NOW: Synthflow Starter or Upfirst, $25–29/mo. Live in days. Upgrade to Vapi integration later.
+•	Comping / underwriting — INTEGRATE: Bricked AI, $49/mo. 15-second underwriting. Don’t build custom until you outgrow it.
+•	Buyer matching / dispo — EVALUATE WITH URGENCY (moved up): InvestorLift AI, ~$667/mo. 5.5M buyers, AI matching, verified buyers with purchase history (Feb 2026). May beat custom for years. Evaluate Phase 5–6, not Phase 8.
+•	County record extraction — WATCH + BRIDGE: Dono (when available) + Playwright MCP + Firecrawl structured extraction. Browser agents as bridge.
+•	Propensity scoring — SUPPLEMENT: PropStream Predictive / Leadflow, $199/mo. Feed into your scoring engine. Don’t duplicate.
+•	Distress signal monitoring — SUPPLEMENT: PropStream + PropertyRadar webhooks. Complement ATTOM daily poll with real-time triggers.
+•	Workflow glue / alerting — BUY (self-host): n8n Community Edition, free + $5–10/mo hosting. Deploy Phase 1. MCP bidirectional + AI agent nodes.
+•	Durable job orchestration — BUILD / INTEGRATE: Trigger.dev v4 or Mastra. Free (OSS). Code-first. Self-hostable.
+•	Async parallel dev — BUY: Devin, $20/mo. 67% PR merge rate. Tests, adapters, refactors while you sleep.
+•	UI generation — USE: v0 by Vercel, free tier. Every new surface starts here. PR directly into repo.
+•	Agent runtime — BUILD: Claude Agent SDK + MCP. API costs only. Your competitive moat. Domain-specific AI operators.
+•	Agent tool integrations — EVALUATE: Composio, pricing TBD. 250+ pre-built integrations via MCP. Evaluate Phase 3 as complement to custom adapters.
+•	Dialer / call workspace — BUILD: Sentinel (custom). Core differentiator. No off-the-shelf matches your workflow.
+•	CRM / lead management — BUILD: Sentinel (custom). Core differentiator. Own your data and process.
+•	Intelligence / dossier layer — BUILD: Sentinel (custom). Unique to your business. No product does this.
+•	Seller memory + call context — BUILD: Sentinel (custom). Compounding local moat. Nobody else has your call history.
+•	Parcel master / APN normalization — EVALUATE: Regrid API, pricing TBD. Parcel/address/owner/APN search, tiles, daily ownership updates. Different role from ATTOM or PropertyRadar: mapping and parcel fabric. Evaluate Phase 4–5.
+•	Agent observability / tracing — EVALUATE: Langfuse (open-source, self-hostable) as alternative to LangSmith. Fits own-your-data principle. Evaluate Phase 3.
+5.2 Provider Role Split
+•	Canonical property facts — ATTOM: Property card truth, owner/mortgage detail, valuation backstop. Do not use as a full wholesaler workflow app.
+•	Search / monitoring — PropertyRadar: Lead search, list building, monitoring, import-match-append, owner graph. Do not use as canonical source of durable property truth.
+•	Parcel master / APN fabric — Regrid (evaluate): Parcel/address/owner/APN search, tiles, daily ownership updates via Enhanced Ownership add-on. Underneath ATTOM and PropertyRadar. Reduces normalization pain for probate/inherited and absentee intelligence slices.
+•	Live listing / MLS comps — Spokane MLS Grid / RESO Web API: Active, pending, sold MLS comps, listing status. Do not use as general CRM or research engine.
+•	Phone / call control — Twilio Voice (telephony substrate): Numbers, inbound routing, recording, SIP trunking, PSTN stability. Do not use as your AI agent orchestration layer.
+•	Voice AI platform — Synthflow (now) → Vapi (later): AI receptionist, warm transfer, missed-call recovery, seller memory injection. Do not use as replacement for Twilio telephony.
+•	Transcription — Deepgram (via voice platform or direct): Low-latency transcript events, keyterm boosting for RE terms. Do not use as source of call business logic.
+•	Durable jobs — Trigger.dev v4 (primary) or Mastra: Retries, waits, event-driven flows, AI agent coordination. Do not use as user-facing no-code workflow builder.
+•	Tracing / evals — LangSmith or Langfuse plus internal run tables: Prompt iteration, trace debugging, evals, approval patterns. Do not use as permanent source of production truth. Langfuse is open-source and self-hostable — evaluate as primary if data ownership matters more than LangSmith’s UI polish.
+•	Operational glue — n8n (self-hosted): Notifications, alerts, delivery, webhook fan-out, calendar glue. Do not use for core CRM logic, scoring, or offer decisions.
+5.3 Voice AI Platform Strategy
+Deploy in two phases, not one.
+Phase 0: buy a basic AI receptionist ($25–30/mo) that answers inbound calls, captures seller info, and texts Logan. Live in days. Phase 6: build a CRM-connected voice agent using Vapi that queries Sentinel’s MCP server mid-call, pulls seller memory, creates CRM records, and orchestrates warm transfer with pre-call briefing whisper.
+
+Phase 0 AI Receptionist (Immediate)
+•	Synthflow Starter ($29/mo, 50 minutes): No-code, pre-built templates, visual flow builder, sub-100ms latency. Or Upfirst ($25/mo, 30 calls): pure answering service, zero setup.
+•	Answer inbound calls when Logan is unavailable or after hours.
+•	Classify caller: seller vs buyer vs vendor vs spam.
+•	For sellers: collect property address, situation, motivation clues, best callback time.
+•	Send immediate SMS to Logan with caller summary.
+•	No CRM integration required at this stage. The value is not letting calls go to voicemail.
+
+Phase 6 CRM-Connected Voice Agent
+•	Vapi ($0.05/min + LLM costs): Full API control, function calling mid-call, supports Claude and GPT.
+•	Query Sentinel MCP server during call: pull seller memory, check lead status, retrieve property context.
+•	For qualified sellers: attempt warm transfer with pre-call briefing whisper to Logan.
+•	If Logan unavailable: book callback via Google Calendar MCP, send confirmation SMS via Twilio MCP, create CRM record via Sentinel MCP.
+•	Write structured call summary back to Sentinel via webhook.
+•	All voice interactions logged by run/session ID and tied to a call record.
+
+Smart business phone category note: 
+OpenPhone, Aloware, and Kixie are building CRM-connected calling features that overlap with some basic phone functions. Sentinel’s dialer moat is conversation intelligence (seller memory, live AI notes, prompt caching, context injection), not basic phone features. Do not accidentally rebuild commodity phone features. If a $25/mo phone tool solves a basic calling need, use it. Build custom only where conversation intelligence is the value.
+
+Evaluation Criteria
+•	Vapi: Maximum API control, 500K+ developers, $0.05/min orchestration + provider costs. Best for full pipeline customization and CRM integration.
+•	Retell: Lower barrier, visual flow builder, ~600ms latency, $0.07/min, built-in n8n integration, SOC2/HIPAA compliant. Best for faster time-to-production.
+Decision point: evaluate both when building Phase 6. Choose the one that ships a working CRM-connected agent faster with acceptable quality.
+5.4 Source Policy and Compliance Matrix
+•	ATTOM: Canonical property/owner/mortgage truth. High automation, low–med review. Direct REST adapter. Write only to intel raw + normalized fact layers.
+•	PropertyRadar: Discovery, list motion, distress, owner graph. High automation, med review. Direct REST adapter. Promotion triggers allowed; raw payload never writes into Sentinel directly.
+•	MLS / RESO: Comps, listing truth, subject media. Medium automation, med–high review. Use where licensed. Media and remarks feed valuation packet, not general lead truth.
+•	County / recorder: Verification and contradiction resolution. Medium automation, high review. Use Playwright MCP + Firecrawl structured extraction for automated extraction. All output treated as artifact evidence, not automatic truth.
+•	Skip trace: Phone/email enrichment. Low–med automation, high review. Run only on promotion, stale-contact exception, or operator request.
+•	Bricked AI: Comping/underwriting. High automation, med review. API integration. Output feeds valuation packet. Operator reviews before offer.
+•	InvestorLift: Buyer matching/dispo. Med–high automation, med review. If adopted: API integration for buyer-fit. Operator selects final buyer.
+•	PropStream / Leadflow: Propensity scoring supplement. High automation, low review. Feed scores into Sentinel scoring engine as supplemental signal. Do not replace.
+•	Regrid: Parcel/APN normalization, mapping fabric. High automation, low review. If adopted: direct API adapter. Feed parcel-level data into property normalization layer. Complement ATTOM, not replace.
+•	Voice platform: Inbound/receptionist/live call assist. High automation, med review. All seller-facing automations logged by run/session ID and tied to a call record.
+•	n8n: Notifications, alerts, delivery glue. High automation, low review. Never for core routing, scoring, offer logic, or durable CRM business rules.
+•	Browser runner / Playwright MCP: Gap-filling research. Med automation, high review. Artifact-producing only. No direct durable writeback without review.
+•	Firecrawl: Structured web extraction with schemas. Med–high automation, med–high review. Complement to Playwright MCP for common sites. Reduces need for custom workers. Evaluate Phase 4.
+5.5 Freshness, Caching, and Cost-Control Policy
+•	Static property characteristics: cache 30 days unless a contradiction or operator override forces refresh.
+•	Ownership, mortgage, and equity package on active leads: refresh every 7 days, or immediately when promotion / offer / contract stage changes.
+•	Listing status, subject media, and comp packet on active dispo or offer-stage leads: refresh every 12–24 hours.
+•	Skip trace contacts: refresh every 30 days or when contactability drops.
+•	All API usage should be stage-aware: lookup is light, promotion is moderate, offer/dispo is deep. Do not burn exports on curiosity.
+•	Bricked AI comps: Cache 7 days for active leads. Refresh on offer preparation. Do not re-run on every page load.
+5.6 Workflow Engine Decision
+Primary: Trigger.dev v4.
+Open-source (Apache 2.0), self-hostable, TypeScript-native, warm starts in 100–300ms, waitpoint tokens for human-in-the-loop approval, AI agent toolkit on roadmap.
+Alternative to evaluate: Mastra.
+TypeScript-first AI agent framework (YC-backed, from the Gatsby team). Agents + workflows + memory + tools in one framework. Integrates with Inngest for durable execution. If Trigger.dev proves insufficient for AI-heavy orchestration, evaluate Mastra as a replacement or complement.
+Fallback: Inngest.
+Raised $20M Series A. Checkpointing with 50% latency reduction. MCP integration with dev server. Strong Vercel integration. Use if Trigger.dev has gaps.
+
+What belongs in the workflow engine:
+•	Property promotion enrichment pipelines
+•	Dossier generation and review-gated CRM sync
+•	Post-call summary + task generation
+•	Agent coordination: research, follow-up, exception, QA, dispo agents
+•	Missed-opportunity hunter and stale-lead detection
+•	Buyer-fit refresh and stale-dispo escalation
+•	Nightly batch scoring and re-evaluation
+5.7 n8n: Operational Glue Layer
+Deploy a self-hosted n8n instance in Phase 1.
+n8n now has native MCP support (bidirectional — it can consume MCP servers AND expose its own workflows as MCP tools), AI agent nodes with human-in-the-loop gates, and 500+ integrations. Self-hosted Community Edition is free. Hosting costs $5–10/mo on a basic VPS.
+
+Phase 1 n8n workflows (deploy immediately):
+•	Missed-call SMS alert to Logan (speed-to-lead)
+•	Stale follow-up nudge to Logan via SMS/Slack (follow-up discipline)
+•	Daily morning priority digest delivered to Logan’s phone
+•	Post-call summary auto-delivered to Adam for management visibility
+•	Google Ads anomaly alert when cost exceeds threshold
+
+Later n8n workflows:
+•	PropertyRadar webhook → enrichment pipeline → lead creation
+•	Weekly KPI digest auto-generated and delivered
+•	Stale-dispo watchdog when contract has no buyer movement
+•	Vendor lead email parsing → inbound webhook → lead creation
+
+What n8n must never own:
+•	Core CRM business rules, lead routing, scoring, or offer logic.
+•	Durable CRM writeback without passing through the standard write path.
+•	Any workflow where n8n is the only place the logic is stored and the engineer cannot test it in code.
+
+n8n governance:
+•	Every n8n flow must have a named owner, documented inputs/outputs, secrets managed centrally, and a pointer back to the primary product workflow it supports.
+•	Maintain one shared team n8n instance. Keep it small, documented, and reserved for delivery and glue.
+ 
+5.8 Prospect Engine Bake-Off (New in v4)
+Phase 0 parallel track. 30-day test. Zero Sentinel code changes required. Pure business intelligence.
+
+Run the same Spokane/Kootenai buy-box across multiple prospect engines simultaneously. The goal is to empirically determine which engine produces the best fresh, contactable, motivated records in your markets — measured down to cost-per-contract, not lead volume.
+
+Engines to test:
+•	PropertyRadar: dynamic/monitored lists, owner graph, 250+ search criteria, daily-refresh data, Radar AI natural-language list assistant.
+•	PropStream: search → skip trace → dial → campaign. January 2026 enhanced skip tracing, March 2026 Dialer Campaigns, AI-supported calling prompts.
+•	BatchLeads: BatchRank-AI, Reia AI property analysis, built-in outbound, mobile-first field workflow, APN parcel insights.
+•	One challenger lane: DealMachine (strongest for drive-for-dollars, Alma AI, satellite image lead lists, $99/mo) OR Goliath (intent/signal-driven prospecting, AI + signal nurture) OR iSpeedToLead (AI Deal Predictor trained on 100K+ closed transactions).
+
+Metrics to track per engine:
+•	Records surfaced matching buy-box
+•	Fresh contactability rate (valid phone on first attempt)
+•	Conversations reached
+•	Qualified leads generated
+•	Offers made from those leads
+•	Contracts closed
+•	Total cost (subscription + per-record + skip trace)
+•	Cost per qualified conversation
+•	Cost per contract
+
+Rules:
+•	Same buy-box criteria across all engines. Same time period. Same operator effort allocation.
+•	Track source attribution in Sentinel from day one. Every lead gets a source tag.
+•	Do not judge on lead volume. Judge on cost-per-contract and qualified conversation rate.
+•	Run for minimum 30 days. Repeat quarterly as part of the tooling review.
+•	Results determine which engine becomes primary, which stays supplemental, and which gets dropped.
+This is the most capital-efficient way to solve the “which list source is best” question. The market is moving too fast to pick one by instinct alone.
+ 
+6. 2026–2027 AI Tooling Landscape
+This section documents capabilities Sentinel should leverage now and monitor for adoption. Revisit quarterly.
+6.1 Frontier Model Capabilities
+•	Structured Outputs: Guaranteed JSON schema output. Dossier generation, fact extraction, and property data normalization produce schema-validated output mapping directly to CRM projection fields.
+•	Tool Use / Function Calling: Models call tools during generation: look up property in ATTOM, query leads, check compliance, trigger workflow steps. Enables multi-step pipelines in a single model invocation chain.
+•	Prompt Caching / Context Caching: For the dialer workspace, prompt caching dramatically reduces latency and cost. Design a three-layer cached context stack (see Section 15.1 for architecture).
+•	Long Context Windows: 200K+ token windows mean entire call transcripts, full property histories, and multi-call threads can be processed without chunking.
+6.2 Claude Agent SDK
+The most important new capability for Sentinel.
+Formerly the Claude Code SDK, now a general-purpose agent runtime. Built-in tools: file operations, shell commands, web search, MCP integration. Supports 30+ hours of sustained operation with automatic context summarization. Any MCP server plugs in without custom code.
+Use the Claude Agent SDK to build every domain-specific agent in Sentinel’s fleet. Each agent gets: a system prompt defining its role and boundaries, access to relevant MCP servers (Sentinel, Supabase, Twilio, Playwright, etc.), a review gate policy defining what requires human approval, and a run ID for traceability.
+6.3 Agentic Coding Tools
+•	Claude Code (current): 1M context, MCP to Supabase + Vercel, voice mode, scheduled tasks, subagents. Already the primary build tool.
+•	Devin ($20/mo): Autonomous AI software engineer. 67% PR merge rate. Takes tickets and produces complete PRs with tests. Use for: test generation, adapter scaffolding, refactoring, type fixes.
+•	v0 by Vercel (free tier): 4M users. Generates complete React + Tailwind + shadcn/ui components from descriptions. PRs directly into repo. Use for every new UI surface.
+•	Cursor/Windsurf ($15–20/mo): Complement Claude Code for visual file editing and quick iterations.
+•	Codex CLI (free, open source): OpenAI’s competitor to Claude Code. Multi-agent worktrees. Worth monitoring.
+6.4 Claude Code Scheduled Tasks
+Claude Code supports /loop and scheduled tasks. Use them now.
+•	Nightly database integrity audit: check for leads with no next action, orphaned records, constraint violations.
+•	Morning briefing generation: pull priority leads, overdue follow-ups, yesterday’s missed opportunities, compile into a summary.
+•	Schema drift check: verify Drizzle schema matches live database state.
+•	Dependency audit: check for outdated packages, security vulnerabilities.
+6.5 MCP Ecosystem
+MCP has become the USB-C of AI tooling. Anthropic donated it to the Linux Foundation (Dec 2025). OpenAI, Microsoft, Google, Amazon all support it. 97 million monthly SDK downloads. See Section 4.5 for the specific MCP mesh architecture.
+6.6 Browser-Use and Research Agents
+Playwright MCP (Microsoft) is the recommended browser automation path.
+Production-ready. Supports all major browsers. Uses accessibility snapshots instead of screenshots. Handles navigation, clicking, form filling, JavaScript execution, data extraction.
+Start with browser-use agents for probate dossier research in Phase 4. If unreliable for specific county sites, build targeted workers for those sites only. Also evaluate Dono ($6.5M seed Feb 2026) for AI extraction of county records across 700+ jurisdictions when it reaches Spokane coverage.
+
+Firecrawl for structured web extraction (New in v4):
+Firecrawl has expanded into schema-based structured web extraction and is now an official Claude plugin. For the intelligence layer (probate dossier research, county record extraction), Firecrawl + schema-based extraction could reduce the need for custom Playwright workers for many common sites. Evaluate Phase 4 as a complement to Playwright MCP, not a replacement.
+6.7 Agent Observability and Tracing (New in v4)
+The blueprint calls for a control plane with run IDs, prompt versions, and review states. The build-vs-buy question applies here too.
+•	LangSmith: Fast iteration, good UI, trace debugging, evals. Managed service. Not self-hostable.
+•	Langfuse (evaluate): Open-source, self-hostable, increasingly competitive with LangSmith. Fits the “own your data” principle. Session replay, cost tracking, prompt management.
+•	AgentOps (watch): Specializes in agent session replay. Worth monitoring for agent fleet observability.
+Recommendation: Evaluate Langfuse in Phase 3. If self-hosting is feasible and UI quality is acceptable, prefer it over LangSmith for data ownership. Use LangSmith as fallback if Langfuse gaps emerge.
+6.8 Tools to Watch (2026–2027)
+•	OpenAI Realtime API and multimodal voice APIs.
+•	Claude computer-use improvements (72.5% on OSWorld, approaching human-level).
+•	MCP ecosystem growth reducing custom adapter code.
+•	Mastra (TypeScript AI agent framework) maturity.
+•	Dono for county record extraction when Spokane coverage is available.
+•	Local/edge LLMs for latency-sensitive voice routing decisions.
+•	Composio for pre-built agent tool integrations.
+•	Nearmap APIs for property search, imagery-linked property detail, and Roof Age — relevant for future appearance-distress radar and change detection moat lanes.
+•	RealFlow as competitive intelligence: detect → outreach → book meetings is the direction the market is moving.
+•	Quarterly review question: Can we replace 2+ weeks of custom code with a configuration or platform?
+ 
+7. Sales Philosophy and AI Coaching Framework
+Every AI-assisted script, coaching prompt, objection handler, and call QA evaluation inside Sentinel should be grounded in coherent sales philosophy. These principles draw from NEPQ (Jeremy Miner / 7th Level), Chris Voss’s tactical empathy (Never Split the Difference), and common-sense adaptations for distressed real estate sellers.
+7.1 Core Sales Principles
+From NEPQ: Question-Led Discovery
+•	The seller discovers their own problem. Do not push solutions. Use systematic questioning. AI coaching should prompt toward problem-awareness questions, not pitch scripts.
+•	Connection before situation. NEPQ phases: connection (build trust), situation (understand state), problem-awareness (surface pain), solution-awareness (what solving looks like), consequence (cost of inaction), commitment (next steps). AI scripts follow this arc.
+•	The seller persuades themselves. AI coaching flags when Logan is talking too much and not asking enough.
+
+From Chris Voss: Tactical Empathy
+•	The adversary is the situation, not the seller. Frame calls as collaborative problem-solving.
+•	Mirroring: Repeat the last 1–3 key words with curious intonation. Then stay silent. AI coaching detects missed mirroring opportunities.
+•	Labeling: Name the seller’s emotion. ‘It sounds like this has been weighing on you.’ The AI objection library includes label-based responses, not just rebuttals.
+•	Accusation audit: Name the seller’s biggest fear before they voice it. Disarms resistance before it forms.
+•	Calibrated questions: ‘How’ and ‘what’ questions put problem-solving on the seller.
+•	Get to ‘That’s right.’ AI should detect whether Logan is getting ‘That’s right’ (deeply understood) vs ‘You’re right’ (they want you to stop talking).
+
+Common-Sense for Distressed Real Estate
+•	Never sound like a call center. Tone must be local, patient, genuine.
+•	Be ready for ‘How did you get my number?’ Standardized, clean, honest answer.
+•	Do not use inferred family details in outreach. Internal knowledge is for preparation, not conversation openers.
+•	Price is not the first conversation. AI coaching flags premature price discussion.
+•	Follow-up is where deals close. Most sellers need 3–10 touches. System makes follow-up effortless.
+7.2 Feature Mapping
+•	Pre-call brief: Gives Logan facts to ask better questions, not pitch.
+•	Seller memory: Enables continuity: reference prior objections, follow-up, timeline.
+•	Live AI notes: Captures seller words so Logan mirrors and labels more effectively.
+•	Objection library: Labels and calibrated questions, not scripted rebuttals.
+•	Call QA Agent: Talk-listen ratio, question quality, missed mirrors, premature price.
+•	Post-call summary: Extracts seller-spoken motivation, timeline, objections.
+•	Follow-Up Agent: References specific seller statements, not generic templates.
+•	AI receptionist: Connection questions, labels caller emotion, books callback with context.
+•	Synthetic seller lab: Practice NEPQ and Voss techniques against simulated sellers.
+7.3 Anti-Patterns
+•	Do not optimize for talk time or aggressive closing. Optimize for question quality and follow-up discipline.
+•	Do not generate manipulative language. Help Logan be prepared, empathetic, structured.
+•	Do not let AI scripts become robotic. Every script is a starting point Logan adapts.
+ 
+8. Orchestration, MCP, and Automation Policy
+8.1 Core Orchestration
+Use Trigger.dev v4 (or Mastra if AI-heavy orchestration proves a better fit) as the application-owned durable workflow engine. Use n8n as the operational delivery and glue layer. Use the Claude Agent SDK for domain-specific AI agents.
+
+•	Durable workflows — Trigger.dev v4 / Mastra: Owns retries, waits, events, agent coordination, review-gated CRM sync. Does not own UI, notifications, external delivery.
+•	AI agents — Claude Agent SDK + MCP: Owns research, follow-up drafting, QA, exception scanning, dispo prep. Does not own direct CRM writes without review gates.
+•	Operational glue — n8n (self-hosted): Owns notifications, alerts, delivery, webhook fan-out, calendar, morning briefs. Does not own core business logic, scoring, routing, offers.
+•	Scheduled dev tasks — Claude Code: Owns nightly audits, schema checks, dependency scans, morning briefing generation. Does not own production business logic.
+8.2 n8n Policy (Revised)
+n8n is deployed in Phase 1 as the operational nervous system.
+It delivers, connects, and alerts. It does not decide. All core business logic stays in application code. See Section 5.7 for specific workflows and governance rules.
+ 
+9. Product Surfaces and Data Contracts
+
+•	Lead Detail (Logan): Primary working surface: situation, next action, call controls, qualification, comms, property snapshot, dossier link. Must not become a mini-ERP profile page.
+•	Dialer Workspace (Logan): First-class conversation surface: call controls, context, seller memory, live notes, transcript, AI assist, disposition, post-call review. Must not become a tab inside the client file modal.
+•	Universal Property Lookup (Both): Any-address evaluation and promotion. Must not become a giant data dump.
+•	Property Card / Dossier (Logan): Call-ready property context: owner/mortgage, transactions, comps, distress, warnings. Must not become raw provider payload viewer.
+•	Review Console (Adam): Approve, edit, reject AI outputs from all agents. Must not become a hidden junk drawer.
+•	Buyer-Fit / Dispo (Logan): Best-fit buyers, confidence, dispo next action, stale warnings. Must not become a static buyer list.
+•	Morning Brief / Exception Queue (Both): Today’s priorities, overdue follow-ups, missed opportunities, exception alerts. Must not become a generic dashboard.
+9.1 CRM Projection Fields
+current_dossier_id, seller_situation_summary_short, recommended_call_angle, likely_decision_maker, decision_maker_confidence, opportunity_score, contactability_score, buyer_fit_score, confidence_score, top_fact_1/2/3, recommended_next_action, property_snapshot_status, comps_status, dossier_url
+9.2 Confidence Ladder and Contradiction Framework
+•	Weak = one low-trust or stale source; may inform research, should not drive seller-facing or offer-facing decisions.
+•	Probable = one strong source or two modest sources that agree; safe for internal preparation, not for high-stakes assumptions.
+•	Strong = multiple high-trust sources or one direct evidence source plus corroboration; can influence workflow and operator prompts.
+•	Verified = reviewed evidence or a trusted first-party confirmation; safe to display prominently.
+•	Rejected = disproven or superseded; kept for traceability but excluded from operator summaries.
+•	Contradictions create an explicit record with competing values, source metadata, freshness, and a review owner.
+9.3–9.7 (Unchanged from v3)
+Source-of-Truth and Freshness Rules, Valuation Packet and Media Trust Contract (Bricked AI $49/mo), Exception Engine and Manager Queue, Buyer and Dispo Operating Contract (InvestorLift evaluation moved to Phase 5–6), and Existing Systems Acknowledgment (Ads Command Center, Scoring Engine, Gmail) remain as specified in v3. The only change is InvestorLift evaluation timing: moved from Phase 8 to Phase 5–6 because dispo velocity is a direct revenue multiplier.
+ 
+10. Successive Implementation Plan
+Resequenced to prioritize revenue impact and leverage 2026 tooling. AI receptionist, n8n, and prospect engine bake-off deploy immediately. Dialer improvements in first 30–45 days. Agent fleet architecture designed into control plane from the start.
+
+•	Phase 0 (1–2 weeks): Audit + workflow lock + AI receptionist + n8n + prospect engine bake-off launch. Stop ambiguity. Deploy instant wins.
+•	Phase 1 (2–3 weeks): Action-core + dialer boundary + Sentinel MCP server. Fix leakage. Build AI integration foundation.
+•	Phase 2 (2–3 weeks): Dialer workspace + live AI notes + prompt caching. This is where Logan earns money. Better calls = more contracts.
+•	Phase 3 (1–2 weeks): Control plane + agent fleet foundation. No magical writebacks. Design for multi-agent from start.
+•	Phase 4 (2–3 weeks): Probate / inherited slice + browser research agents. First intelligence use case matches business edge.
+•	Phase 5 (2–3 weeks): Property intelligence + Bricked AI integration + InvestorLift evaluation. Biggest gap vs XLeads / side-tool switching. Dispo acceleration.
+•	Phase 6 (2–3 weeks): Voice front office (Vapi CRM-connected agent). Full CRM integration: seller memory, warm transfer, MCP.
+•	Phase 7 (2 weeks): Post-call automation + war room + exception agent. Compress admin labor and attention allocation.
+•	Phase 8 (2–3 weeks): Buyer liquidity + dispo. Revenue depends on monetization speed.
+•	Phase 9 (ongoing): Trust + research + moat lanes + synthetic seller lab. Only after operating core is solid.
+10.1 Phase 0 — Audit + Workflow Lock + Instant Wins
+Week 1:
+•	Deploy AI receptionist (Synthflow $29/mo or Upfirst $25/mo). Forward Twilio number after-hours. Live inbound answering within days.
+•	Deploy n8n self-hosted ($5–10/mo VPS). Wire first 3 workflows: missed-call SMS alert, daily priority digest, post-call summary delivery to Adam.
+•	Set up Claude Code scheduled tasks: nightly database integrity audit, morning briefing generation.
+•	Launch Prospect Engine Bake-Off: activate PropertyRadar, PropStream, and one challenger with the same Spokane/Kootenai buy-box. Begin tracking source attribution from day one.
+
+Week 1–2:
+•	Formal codebase and schema audit against the live Sentinel system.
+•	Lock canonical lead stages, ownership, ready-to-call criteria, post-call fields, offer-candidate criteria.
+•	Lock the approved ‘how did you get my info?’ answer.
+•	Define dialer workspace boundary: what belongs to session vs client file.
+•	Audit existing systems: Ads Command Center, scoring engine, Gmail integration, compliance layer. Document what exists and what needs alignment.
+•	Evaluate scoring engine alignment with intelligence layer confidence ladder.
+
+Exit criteria: Engineer can describe stage machine in one page. Team agrees on Lead Detail. Anti-goals list exists. Existing systems inventory complete. AI receptionist answering calls. n8n delivering alerts. Bake-off running with source tracking.
+10.2–10.6 (Phase details unchanged from v3)
+Phases 1–9 remain as specified in v3 with two modifications:
+•	Phase 5 now includes InvestorLift AI evaluation (moved from Phase 8) because dispo velocity is a direct revenue multiplier.
+•	Phase 4–5 includes Regrid API evaluation for parcel/APN normalization.
+•	Phase 3 includes Composio evaluation for agent tool integrations and Langfuse evaluation for agent observability.
+•	Phase 4 includes Firecrawl evaluation for structured web extraction as complement to Playwright MCP.
+All phase acceptance criteria remain as specified in v3.
+ 
+11. PR Sequence
+This PR sequence accounts for the actual codebase state as of March 18, 2026.
+The “Current State” column prevents duplicated work. Use Devin ($20/mo) for parallelizable grunt work. Use v0 for new UI surfaces.
+
+•	PR-0: Instant wins: AI receptionist + n8n + Claude Code scheduled tasks + bake-off launch. Not started. Deploy first.
+•	PR-1: Workflow + stage cleanup. Stage invariants, next-action requirements, stale exceptions, hard UI warnings. Partially exists.
+•	PR-2: Sentinel MCP server + dialer boundary. MCP server with lead/property/call/task tools, context snapshot contract, publish idempotency. Dialer boundary substantially built. MCP server not started.
+•	PR-3: Live AI notes + seller memory + prompt caching. Note generation, memory retrieval, post-call review flow, 3-layer prompt cache. In progress. Needs E2E wiring.
+•	PR-4: Control plane + Exception Agent + Composio/Langfuse eval. Run IDs, agent registry, review queue, feature flags, Exception Agent deployed. prompt_registry table exists. Everything else not started.
+•	PR-5: Intelligence foundation. Artifact-fact-dossier linkage, sync snapshot integrity. Tables exist. Pipeline logic not wired.
+•	PR-6: Research Agent + probate dossier + Firecrawl eval. Claude Agent SDK + Playwright MCP + ATTOM + Firecrawl structured extraction. Gold-set output review. Not started. Schema ready.
+•	PR-7: Provider adapters + Bricked AI + Regrid eval. ATTOM/PropertyRadar/Regrid mapping tests, Bricked AI API, rate-limit behavior. Early stage.
+•	PR-8: Property lookup + promotion. Universal lookup UI (use v0), promote-to-lead, property card. Not started.
+•	PR-9: Voice front office (Vapi + Sentinel MCP). CRM-connected agent, warm transfer, seller memory injection, fallback logic. Not started.
+•	PR-10: QA + Follow-Up Agents + war room. Agent deployments, summary evals, task generation, exception truthfulness. War room page exists. Agents not started.
+•	PR-11: Dispo Agent + buyer memory + InvestorLift eval. Buyer-fit, stale-dispo escalation, InvestorLift API eval. Buyers table exists.
+11.1 Work Order Rules
+•	Every work order must declare source of truth, owner, write path, review path, rollback path, and measurable success criteria.
+•	Every provider adapter must be testable without the full app running.
+•	Every new workflow must identify what is synchronous, what is async, and what must be review-gated.
+•	Every AI-assisted output needs at least one small gold dataset before it becomes production-relevant.
+•	Every new agent must have: a system prompt, MCP tool access list, review gate policy, run ID logging, and rollback capability.
+•	Use Devin for: test generation, adapter scaffolding, migration scripts, type fixes, refactoring.
+•	Use v0 for: every new UI surface. Generate production shadcn/ui components from descriptions.
+ 
+12. Metrics, Rollout, and Operating Cadence
+12.1 North-Star Metrics
+•	Contracts per founder-hour
+•	Average time from lead creation to first real contact
+•	Qualified lead follow-up reliability
+•	Offer rate and offer-to-contract conversion
+•	Time from contract to selected buyer / dispo movement
+•	Assignment fee quality by source and market
+•	Cost-per-contract by prospect engine (new in v4)
+12.2–12.5 (Unchanged from v3)
+Rollout Policy, Feature Flag Strategy, Source and Market Truth Layer, and Operating Cadence remain as specified in v3.
+13. Risk Register
+All risks from v3 remain. Additional risk added:
+
+•	Prospect engine sprawl: Too many list sources, none measured rigorously. Prevention: Bake-off with cost-per-contract tracking. Quarterly review drops underperformers.
+•	Platform competition: PropStream, BatchLeads, RealFlow converge on full-stack investor OS. Prevention: Sentinel competes on conversation intelligence, local memory, and custom workflow — not on list generation. Use platforms as inputs, not rivals.
+
+Biggest trap: Building a system more impressive in architecture than in contracts.
+ 
+14. Quick Wins Track
+1–2 week cadence of small improvements Logan feels immediately. Do not require full intelligence schema or control plane.
+
+•	AI receptionist (Synthflow/Upfirst) — 1–2 days: Every missed call now gets captured. Speed-to-lead.
+•	n8n: missed-call SMS alert to Logan — 1 day: Immediate callback awareness.
+•	n8n: daily priority digest to Logan’s phone — 1–2 days: Clear starting point every morning.
+•	Prospect engine bake-off launch — 1–2 days: Source attribution tracking from day one. Empirical list-source decisions.
+•	No-next-action hard warning in UI — 2–3 days: Prevents leads falling into black hole.
+•	Overdue follow-up list on dashboard — 2–3 days: Stale leads impossible to ignore.
+•	Structured call logging with required fields — 3–5 days: Stops notes living in email/paper.
+•	Post-call disposition with required next action — 2–3 days: Enforces discipline without architecture change.
+•	Pre-call context card (basic) — 3–5 days: Better first impression on every call.
+•	Weekly KPI email via n8n — 2–3 days: Gives Adam management visibility.
+•	Claude Code nightly integrity audit — 1 day: Catches data issues before they compound.
+14.1 Data Seeding and Migration Strategy
+Unchanged from v3. PropertyRadar bulk import, ATTOM daily-poll, existing leads from CSV, call history backfill. Test data rules: never mix test and production data. Gold datasets built from real operator-reviewed production data.
+ 
+15. Dialer Capabilities Roadmap
+Unchanged from v3. See v3 for: prompt caching architecture (three-layer stack), near-term capabilities (Phases 1–3), medium-term capabilities (Phases 4–7), and longer-term capabilities (Phases 8–9).
+16. Competitive Positioning
+16.1 REsimpli (Unchanged from v3)
+REsimpli 5.0 with 8 AI agents remains the closest direct competitor. Sentinel’s moat: data ownership, custom workflow, local market memory, evidence-backed intelligence, and domain-specific agent fleet.
+16.2 Full-Stack Investor Platforms (New in v4)
+The RE investor tool market is converging toward full-stack operating platforms. PropStream, BatchLeads, DealMachine, and RealFlow are all trying to collapse search → skip trace → dial → campaign → CRM into one product. Goliath and iSpeedToLead push intent/signal-driven prospecting with AI ranking.
+
+Sentinel’s positioning against this trend:
+•	Do not compete at list generation. Use these platforms as prospect engines feeding into Sentinel.
+•	Compete at conversation intelligence: seller memory, live AI notes, prompt caching, context injection, NEPQ/Voss-grounded coaching.
+•	Compete at operating discipline: deterministic next actions, exception detection, follow-up SLA enforcement.
+•	Compete at local market memory: property stories, seller history, buyer behavior, and neighborhood context that compound over time.
+•	Compete at intelligence: evidence-backed dossiers, confidence ladder, contradiction detection, source provenance.
+•	Compete at dispo velocity: buyer memory, buyer-fit scoring, stale-dispo detection, and (potentially) InvestorLift AI integration.
+
+The blunt version:
+PropStream and BatchLeads are getting better at finding leads. Sentinel should be better at converting them. The market is commoditizing lead discovery. The moat is in what happens after the lead enters your system.
+16.3 Patterns Worth Borrowing (New in v4)
+These products are not direct competitors but demonstrate patterns relevant to Sentinel’s roadmap:
+•	Clay’s waterfall enrichment model: Sequentially search many providers instead of betting on one database. Apply this pattern to owner/property/contact enrichment in the intelligence layer.
+•	Common Room’s Person360 + signals: Unify signals, resolve identity, act on intent. The “Person360 + signals + automation” idea maps to a future Owner360 / Property360 layer in Sentinel.
+•	HouseWhisper’s CRM-via-conversation: Voice/text-based CRM upkeep gets adopted in real estate. Validates the seller-memory / follow-up / call-summary direction.
+•	Go High Level’s wholesaler adoption: Large wholesaler user base. Understand where it falls short (generic workflow, no evidence layer, no local memory) to sharpen Sentinel’s positioning.
+ 
+17. Adaptability and Future-Proofing
+Unchanged from v3. Quarterly tooling review. Adapter architecture. What not to chase. Long-term moat lanes (local memory graph, property story builder, timing radar, trust corpus, synthetic seller lab).
+18. Closing Directive
+If the engineer follows this document, Sentinel should get materially better without becoming bigger in the wrong ways. The right next moves:
+
+•	1. Deploy an AI receptionist, n8n, and launch the prospect engine bake-off this week. Instant value.
+•	2. Lock the workflow and dialer boundary.
+•	3. Build the Sentinel MCP server as the AI integration foundation.
+•	4. Ship live AI notes and seller memory so Logan’s next call is better than today’s.
+•	5. Establish the control plane with multi-agent orchestration in mind. Evaluate Composio and Langfuse.
+•	6. Deploy the Exception Agent so the system starts acting like a manager.
+•	7. Ship the first intelligence slice with browser research agents. Evaluate Firecrawl for structured extraction.
+•	8. Integrate Bricked AI for comping. Evaluate Regrid for parcel normalization. Don’t build what you can buy.
+•	9. Evaluate InvestorLift for dispo acceleration. Dispo velocity is a revenue multiplier.
+•	10. Upgrade from basic receptionist to CRM-connected voice agent via Vapi.
+•	11. Review bake-off results. Double down on winning prospect engines. Drop underperformers.
+•	12. Maintain a quick wins track that makes every week’s calls better.
+
+Sentinel’s ceiling: a deterministic, auditable, operator-first wholesaling OS with a first-class conversation workspace, a fleet of domain-specific AI agents coordinated through an MCP mesh, and an intelligence layer that turns lead flow, follow-up, underwriting, and disposition into one trusted system of action — powered by 2026-grade AI tools that compress labor and multiply the output of a tiny team.
+
+Review this document quarterly. Update the tooling section as the landscape changes. But do not change the main goal: more contracts, better operations, higher revenue, less waste, and a realistic path to about $2 million per year with only 2 people.
+ 
+Appendix A: Revision History
+
+Fourth Revision (March 19, 2026)
+This fourth revision incorporates the stacked prospecting audit, expanded provider landscape evaluation, and 8 forward-looking corrections from the March 2026 tool ecosystem review.
+
+Major additions:
+•	Section 1.3: Stacked Prospecting Thesis — Sentinel as operating membrane across multiple prospect engines.
+•	Section 5.8: Prospect Engine Bake-Off — 30-day empirical test of PropertyRadar vs PropStream vs BatchLeads vs challenger.
+•	Section 5.2: Regrid added as parcel master / APN normalization provider (evaluate Phase 4–5).
+•	Section 5.1: InvestorLift evaluation moved from Phase 8 to Phase 5–6 (dispo velocity is a revenue multiplier).
+•	Section 4.5: Composio MCP added to mesh architecture (evaluate Phase 3 for agent tool integrations).
+•	Section 5.4: Firecrawl added to source policy matrix for structured web extraction (evaluate Phase 4).
+•	Section 6.7: Agent observability expanded — Langfuse as open-source alternative to LangSmith (evaluate Phase 3).
+•	Section 5.3: Smart business phone category note — OpenPhone/Aloware/Kixie acknowledged. Sentinel’s dialer moat is conversation intelligence, not basic phone features.
+•	Section 16.2: Full-stack investor platform competitive positioning — PropStream, BatchLeads, DealMachine, RealFlow, Goliath, iSpeedToLead landscape analysis.
+•	Section 16.3: Patterns worth borrowing — Clay waterfall enrichment, Common Room Person360, HouseWhisper CRM-via-conversation, Go High Level wholesaler adoption.
+•	Section 12.1: Cost-per-contract by prospect engine added as north-star metric.
+•	Section 13: Two new risks added — prospect engine sprawl and platform competition.
+•	Section 6.8: Nearmap, RealFlow, and Composio added to tools-to-watch list.
+Third Revision (March 18, 2026)
+Incorporated 25 forward-looking gaps: agentic operating layer, buy/integrate/build matrix, MCP mesh, agent fleet design, n8n operational layer, voice AI platform strategy, competitive positioning against REsimpli, and expanded tooling landscape.
+Second Revision (March 18, 2026)
+Incorporated 8 backward-looking gaps from codebase audit: PR sequence delta, Ads Command Center, scoring engine, Gmail, workflow engine decision, n8n clarification, data seeding, feature flags.
+First Revision (March 2026)
+Incorporated addenda: dialer elevated to first-class domain, three-workspace boundary, voice AI platform strategy, 2026 AI tooling landscape, sales philosophy (NEPQ/Voss), quick wins track, phase acceptance criteria, confidence ladder, source policy matrix, freshness/caching policy, valuation packet contract, exception engine spec, buyer/dispo contract, operating cadence, dialer capabilities roadmap.
+Original Blueprint (March 18, 2026)
+Initial engineering plan covering architecture, providers, orchestration, product surfaces, implementation phases 0–8, PR sequence, metrics, and risk register.

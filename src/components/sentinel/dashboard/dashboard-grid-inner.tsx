@@ -21,14 +21,14 @@ import { WidgetWrapper } from "./widget-wrapper";
 import { WidgetLibrary } from "./widget-library";
 import { MyTopProspects } from "./widgets/my-top-prospects";
 import { MyTopLeads } from "./widgets/my-top-leads";
-import { LiveMap } from "./widgets/live-map";
+
 import { BreakingLeadsTicker } from "./widgets/breaking-leads-ticker";
 import { ActivityFeed } from "./widgets/activity-feed";
 import { NextBestAction } from "./widgets/next-best-action";
 import { FunnelValue } from "./widgets/funnel-value";
-import { ActiveDrips } from "./widgets/active-drips";
+
 import { RevenueImpact } from "./widgets/revenue-impact";
-import { TeamChatPreview } from "./widgets/team-chat-preview";
+
 import { QuickDial } from "./widgets/quick-dial";
 import { GrokInsights } from "./widgets/grok-insights";
 import { HeatScoreDistribution } from "./widgets/heat-score-distribution";
@@ -36,7 +36,7 @@ import { DistressSignals } from "./widgets/distress-signals";
 import { CallsToday } from "./widgets/calls-today";
 import { TasksDue } from "./widgets/tasks-due";
 import { ComplianceStatus } from "./widgets/compliance-status";
-import { CostPerLead } from "./widgets/cost-per-lead";
+
 import { ConversionRates } from "./widgets/conversion-rates";
 import { LeadVelocity } from "./widgets/lead-velocity";
 import { MissedOpportunityQueue } from "./widgets/missed-opportunity-queue";
@@ -51,14 +51,14 @@ import { MAX_DASHBOARD_TILES, type WidgetId, type WidgetSize } from "@/lib/dashb
 const WIDGET_COMPONENTS: Record<WidgetId, React.ComponentType> = {
   "my-top-prospects": MyTopProspects,
   "my-top-leads": MyTopLeads,
-  "live-map": LiveMap,
+
   "breaking-leads-ticker": BreakingLeadsTicker,
   "activity-feed": ActivityFeed,
   "next-best-action": NextBestAction,
   "funnel-value": FunnelValue,
-  "active-drips": ActiveDrips,
+
   "revenue-impact": RevenueImpact,
-  "team-chat-preview": TeamChatPreview,
+
   "quick-dial": QuickDial,
   "grok-insights": GrokInsights,
   "heat-score-distribution": HeatScoreDistribution,
@@ -66,7 +66,7 @@ const WIDGET_COMPONENTS: Record<WidgetId, React.ComponentType> = {
   "calls-today": CallsToday,
   "tasks-due": TasksDue,
   "compliance-status": ComplianceStatus,
-  "cost-per-lead": CostPerLead,
+
   "conversion-rates": ConversionRates,
   "lead-velocity": LeadVelocity,
   "missed-opportunity-queue": MissedOpportunityQueue,

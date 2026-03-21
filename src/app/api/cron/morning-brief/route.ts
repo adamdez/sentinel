@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@/lib/supabase";
 import { runExceptionScan } from "@/agents/exception";
 import { notifyMorningDigest, notifyStaleFollowUp } from "@/lib/notify";
+import { getFeatureFlag } from "@/lib/control-plane";
+import { inngest } from "../../../../inngest/client";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -129,13 +131,28 @@ export async function GET(req: NextRequest) {
     }
 
     // ── Auto-trigger Follow-Up Agent for top 3 overdue leads (fire-and-forget) ──
-    const overdueForAgent = overdueItems.slice(0, 3);
-    for (const item of overdueForAgent) {
-      if (item.leadId) {
-        triggerFollowUpFromBrief(item.leadId).catch((err) => {
-          console.warn(`[morning-brief] Follow-up agent trigger failed for ${item.leadId}:`, err);
-        });
+    const followUpFlag = await getFeatureFlag("agent.follow_up.enabled");
+    if (followUpFlag?.enabled) {
+      const overdueForAgent = overdueItems.slice(0, 3);
+      for (const item of overdueForAgent) {
+        if (item.leadId) {
+          // Durable follow-up agent trigger — retried automatically by Inngest
+          void inngest.send({
+            name: "agent/follow-up.requested",
+            data: {
+              leadId: item.leadId,
+              triggerType: "cron",
+              triggerRef: "morning-brief",
+              channel: "sms",
+              operatorNotes: "Triggered by morning brief — stale lead needs follow-up",
+            },
+          }).catch((err) => {
+            console.error(`[morning-brief] Inngest follow-up trigger failed for lead ${item.leadId}:`, err);
+          });
+        }
       }
+    } else {
+      console.debug("[morning-brief] Follow-up agent triggers skipped — feature flag agent.follow_up.enabled not enabled");
     }
 
     return NextResponse.json({ ok: true, brief });
@@ -146,16 +163,3 @@ export async function GET(req: NextRequest) {
   }
 }
 
-// ── Follow-Up Agent Auto-Trigger from Morning Brief ─────────────────
-// Drafts follow-up actions for overdue leads. Results go to review_queue.
-// Fire-and-forget — failure is logged, not blocking.
-
-async function triggerFollowUpFromBrief(leadId: string): Promise<void> {
-  const { runFollowUpAgent } = await import("@/agents/follow-up");
-  await runFollowUpAgent({
-    leadId,
-    triggerType: "stale_lead",
-    triggerRef: `morning-brief:${new Date().toISOString().split("T")[0]}`,
-    channel: "call", // Washington outbound is call-only by default
-  });
-}

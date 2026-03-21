@@ -1,14 +1,14 @@
 import {
   Sparkles,
   Phone,
-  MapPin,
+
   Newspaper,
   Activity,
   Zap,
   TrendingUp,
-  Mail,
+
   DollarSign,
-  MessageCircle,
+
   PhoneCall,
   Brain,
   Flame,
@@ -16,7 +16,7 @@ import {
   PhoneOutgoing,
   CalendarClock,
   ShieldCheck,
-  Target,
+
   GitBranch,
   Gauge,
   SearchX,
@@ -28,14 +28,14 @@ import {
 export type WidgetId =
   | "my-top-prospects"
   | "my-top-leads"
-  | "live-map"
+
   | "breaking-leads-ticker"
   | "activity-feed"
   | "next-best-action"
   | "funnel-value"
-  | "active-drips"
+
   | "revenue-impact"
-  | "team-chat-preview"
+
   | "quick-dial"
   | "grok-insights"
   | "heat-score-distribution"
@@ -43,7 +43,7 @@ export type WidgetId =
   | "calls-today"
   | "tasks-due"
   | "compliance-status"
-  | "cost-per-lead"
+
   | "conversion-rates"
   | "lead-velocity"
   | "missed-opportunity-queue"
@@ -95,16 +95,6 @@ export const WIDGET_REGISTRY: Record<WidgetId, WidgetDefinition> = {
     minSize: "1x1",
     category: "workflow",
   },
-  "live-map": {
-    id: "live-map",
-    label: "Live Map",
-    description: "Geographic view of active prospects and leads",
-    icon: MapPin,
-    defaultSize: "2x2",
-    minSize: "1x1",
-    category: "intelligence",
-    hidden: true,
-  },
   "breaking-leads-ticker": {
     id: "breaking-leads-ticker",
     label: "Breaking Leads Ticker",
@@ -141,16 +131,6 @@ export const WIDGET_REGISTRY: Record<WidgetId, WidgetDefinition> = {
     minSize: "1x1",
     category: "analytics",
   },
-  "active-drips": {
-    id: "active-drips",
-    label: "Active Drips",
-    description: "Running drip campaigns and engagement metrics",
-    icon: Mail,
-    defaultSize: "1x1",
-    minSize: "1x1",
-    category: "communication",
-    hidden: true,
-  },
   "revenue-impact": {
     id: "revenue-impact",
     label: "Revenue Impact",
@@ -159,16 +139,6 @@ export const WIDGET_REGISTRY: Record<WidgetId, WidgetDefinition> = {
     defaultSize: "1x1",
     minSize: "1x1",
     category: "analytics",
-  },
-  "team-chat-preview": {
-    id: "team-chat-preview",
-    label: "Team Chat Preview",
-    description: "Latest team messages at a glance",
-    icon: MessageCircle,
-    defaultSize: "1x1",
-    minSize: "1x1",
-    category: "communication",
-    hidden: true,
   },
   "quick-dial": {
     id: "quick-dial",
@@ -235,15 +205,6 @@ export const WIDGET_REGISTRY: Record<WidgetId, WidgetDefinition> = {
     defaultSize: "1x1",
     minSize: "1x1",
     category: "workflow",
-  },
-  "cost-per-lead": {
-    id: "cost-per-lead",
-    label: "Cost per Lead",
-    description: "Blended and per-source CPL vs $40 target",
-    icon: Target,
-    defaultSize: "2x1",
-    minSize: "1x1",
-    category: "analytics",
   },
   "conversion-rates": {
     id: "conversion-rates",

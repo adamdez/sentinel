@@ -8,6 +8,12 @@
  * Write path: These functions are READ-ONLY against leads/properties.
  * The only WRITE is creating callback tasks (which is the dialer write path:
  * voice session → task creation → operator reviews).
+ *
+ * PR-9 additions:
+ * - Seller memory injection on lookup_lead (call history, decision maker, promises)
+ * - SMS confirmation on callback booking
+ * - Transfer returns Vapi forwardingPhoneNumber format for actual call transfer
+ * - Fallback: if transfer target unavailable, auto-book callback + SMS
  */
 
 import { createServerClient } from "@/lib/supabase";
@@ -17,6 +23,7 @@ import type {
   TransferCallParams,
   VapiFunctionResult,
 } from "./types";
+import { sendCallbackConfirmationSMS } from "./vapi-sms";
 
 // ── lookup_lead ─────────────────────────────────────────────────────────────
 
@@ -35,7 +42,7 @@ export async function handleLookupLead(
   // Look up lead by phone
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data: leads } = await (sb.from("leads") as any)
-    .select("id, first_name, last_name, phone, status, next_action, source, notes, property_id")
+    .select("id, first_name, last_name, phone, status, next_action, source, notes, property_id, decision_maker_note, decision_maker_confirmed")
     .or(`phone.eq.${phone},phone.eq.+${normalized},phone.eq.${normalized}`)
     .order("created_at", { ascending: false })
     .limit(1);
@@ -62,15 +69,59 @@ export async function handleLookupLead(
     propertyInfo = prop;
   }
 
-  // Get recent calls
+  // Get recent calls (seller memory — last 3 calls with notes/summaries)
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data: recentCalls } = await (sb.from("calls_log") as any)
-    .select("disposition, duration, created_at, notes")
+    .select("disposition, duration_sec, created_at, notes, ai_summary")
     .eq("lead_id", lead.id)
     .order("created_at", { ascending: false })
     .limit(3);
 
+  // Decision-maker context from lead record
+  const dmNote = lead.decision_maker_note ?? null;
+  const dmConfirmed = lead.decision_maker_confirmed ?? false;
+
+  // Most recent post-call structure (promises, objections, deal temp)
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: pcs } = await (sb.from("post_call_structures") as any)
+    .select("promises_made, objection, next_task_suggestion, callback_timing_hint, deal_temperature")
+    .eq("lead_id", lead.id)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  // Previous voice sessions (AI calls with this person)
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: priorVoiceSessions } = await (sb.from("voice_sessions") as any)
+    .select("summary, caller_type, created_at, duration_seconds")
+    .eq("lead_id", lead.id)
+    .eq("status", "completed")
+    .order("created_at", { ascending: false })
+    .limit(2);
+
   const name = [lead.first_name, lead.last_name].filter(Boolean).join(" ") || "Unknown";
+
+  // Build seller memory block for the AI to use in conversation
+  const sellerMemory: Record<string, unknown> = {};
+  if (dmNote) {
+    sellerMemory.decisionMaker = { note: dmNote, confirmed: dmConfirmed };
+  }
+  if (pcs) {
+    sellerMemory.lastCallInsights = {
+      promisesMade: pcs.promises_made ?? null,
+      objection: pcs.objection ?? null,
+      nextAction: pcs.next_task_suggestion ?? null,
+      callbackTiming: pcs.callback_timing_hint ?? null,
+      dealTemperature: pcs.deal_temperature ?? null,
+    };
+  }
+  if (priorVoiceSessions && priorVoiceSessions.length > 0) {
+    sellerMemory.priorAICalls = priorVoiceSessions.map((s: Record<string, unknown>) => ({
+      date: s.created_at,
+      summary: typeof s.summary === "string" ? s.summary.slice(0, 200) : null,
+      callerType: s.caller_type,
+    }));
+  }
 
   return {
     result: JSON.stringify({
@@ -94,8 +145,10 @@ export async function handleLookupLead(
         disposition: c.disposition,
         date: c.created_at,
         notes: typeof c.notes === "string" ? c.notes.slice(0, 100) : null,
+        aiSummary: typeof c.ai_summary === "string" ? c.ai_summary.slice(0, 150) : null,
       })),
-      context: `This is ${name}, a ${lead.status} lead${propertyInfo ? ` with property at ${propertyInfo.address}` : ""}. ${lead.next_action ? `Next action: ${lead.next_action}.` : ""}`,
+      sellerMemory: Object.keys(sellerMemory).length > 0 ? sellerMemory : null,
+      context: `This is ${name}, a ${lead.status} lead${propertyInfo ? ` with property at ${propertyInfo.address}` : ""}. ${lead.next_action ? `Next action: ${lead.next_action}.` : ""}${pcs?.deal_temperature ? ` Deal temperature: ${pcs.deal_temperature}.` : ""}${pcs?.objection ? ` Last objection: ${pcs.objection}.` : ""}${dmNote ? ` Decision maker: ${dmNote}.` : ""}`,
     }),
   };
 }
@@ -158,10 +211,32 @@ export async function handleBookCallback(
     };
   }
 
+  // Update voice session to note callback was requested
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  await (sb.from("voice_sessions") as any)
+    .update({
+      callback_requested: true,
+      callback_time: params.preferred_time ?? null,
+      caller_type: "seller", // default assumption for callback requests
+    })
+    .eq("id", voiceSessionId);
+
+  // Send SMS confirmation to the caller (fire-and-forget)
+  if (params.phone_number) {
+    sendCallbackConfirmationSMS({
+      to: params.phone_number,
+      callerName: params.caller_name ?? null,
+      preferredTime: params.preferred_time ?? null,
+      reason: params.reason ?? null,
+    }).catch((err) =>
+      console.error("[vapi-functions] SMS confirmation failed:", err),
+    );
+  }
+
   return {
     result: JSON.stringify({
       success: true,
-      message: `I've scheduled a callback for ${callerName}. ${params.preferred_time ? `We'll aim for ${params.preferred_time}.` : "Someone will call you back within a couple hours."} Is there anything else I can help with?`,
+      message: `I've scheduled a callback for ${callerName}. ${params.preferred_time ? `We'll aim for ${params.preferred_time}.` : "Someone will call you back within a couple hours."} We'll also send you a text to confirm. Is there anything else I can help with?`,
       taskId: task.id,
     }),
   };
@@ -169,10 +244,19 @@ export async function handleBookCallback(
 
 // ── transfer_to_operator ────────────────────────────────────────────────────
 
+/**
+ * Transfer result that includes Vapi's expected `forwardingPhoneNumber`
+ * at the top level so Vapi actually initiates the phone transfer.
+ * Also includes the function result message for the AI to read.
+ */
+export interface TransferResult extends VapiFunctionResult {
+  forwardingPhoneNumber?: string;
+}
+
 export async function handleTransferToOperator(
   params: TransferCallParams,
   voiceSessionId: string,
-): Promise<VapiFunctionResult> {
+): Promise<TransferResult> {
   // Route to the right person — default to Logan
   const target = params.transfer_to ?? "logan";
   const forwardTo = target === "adam"
@@ -180,17 +264,40 @@ export async function handleTransferToOperator(
     : process.env.TWILIO_FORWARD_TO_CELL;
   const targetName = target === "adam" ? "Adam" : "Logan";
 
+  const sb = createServerClient();
+
   if (!forwardTo) {
+    // Fallback: no number configured — book a callback instead + SMS
+    console.warn(`[vapi-functions] No phone configured for ${target}, falling back to callback`);
+
+    // Get the caller's phone from the voice session
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: session } = await (sb.from("voice_sessions") as any)
+      .select("from_number")
+      .eq("id", voiceSessionId)
+      .single();
+
+    const callerPhone = session?.from_number ?? null;
+
+    if (callerPhone) {
+      // Auto-book callback as fallback
+      await handleBookCallback(
+        {
+          phone_number: callerPhone,
+          reason: `Transfer to ${targetName} failed (no number). Original reason: ${params.reason}`,
+        },
+        voiceSessionId,
+      );
+    }
+
     return {
       result: JSON.stringify({
         success: false,
         action: "book_callback",
-        message: `${targetName} isn't available right now. Let me schedule a callback instead.`,
+        message: `${targetName} isn't available right now. I've scheduled a callback — someone will reach out to you soon.`,
       }),
     };
   }
-
-  const sb = createServerClient();
 
   // Update voice session with transfer info
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -203,17 +310,16 @@ export async function handleTransferToOperator(
     })
     .eq("id", voiceSessionId);
 
-  // Vapi handles the actual SIP transfer — we return the destination
+  // Return Vapi's expected transfer format:
+  // - `forwardingPhoneNumber` at top level tells Vapi to initiate the PSTN transfer
+  // - `result` is the message the AI says before transferring
   return {
+    forwardingPhoneNumber: forwardTo,
     result: JSON.stringify({
       success: true,
-      transferTo: forwardTo,
+      transferTo: targetName,
       message: `Connecting you with ${targetName} now. One moment please.`,
-      destination: {
-        type: "number",
-        number: forwardTo,
-        message: `Incoming transfer from AI receptionist. ${params.caller_type} caller. ${params.reason}`,
-      },
+      whisper: `Incoming transfer from AI receptionist. ${params.caller_type} caller. ${params.reason}`,
     }),
   };
 }

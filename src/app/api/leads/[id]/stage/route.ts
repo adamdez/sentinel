@@ -3,6 +3,8 @@ import { createServerClient } from "@/lib/supabase";
 import { requireAuth } from "@/lib/api-auth";
 import { validateStageTransition, incrementLockVersion } from "@/lib/lead-guardrails";
 import { n8nLeadStageChanged } from "@/lib/n8n-dispatch";
+import { getFeatureFlag } from "@/lib/control-plane";
+import { inngest } from "@/inngest/client";
 import type { LeadStatus, StageTransitionRequest, StageTransitionResult, StageTransitionError } from "@/lib/types";
 
 /**
@@ -141,8 +143,23 @@ export async function PATCH(
 
     // ── Auto-trigger Dispo Agent on disposition stage entry (fire-and-forget) ──
     if (target === "disposition") {
-      triggerDispoAgent(sb, id).catch((err) => {
-        console.error(`[stage-transition] Dispo agent trigger failed for lead ${id}:`, err);
+      getFeatureFlag("agent.dispo.enabled").then((flag) => {
+        if (!flag?.enabled) {
+          console.debug(`[stage-transition] Dispo agent trigger skipped — feature flag agent.dispo.enabled not enabled`);
+          return;
+        }
+        // Durable dispo agent trigger — retried automatically by Inngest if it fails
+        void inngest.send({
+          name: "agent/dispo.requested",
+          data: {
+            dealId: "",    // deal lookup handled inside the Inngest function
+            leadId: id,
+            triggerType: "stage_transition",
+            triggerRef: `stage:${target}`,
+          },
+        }).catch((err) => {
+          console.error(`[stage] Inngest dispo trigger failed for lead ${id}:`, err);
+        });
       });
     }
 
@@ -159,8 +176,22 @@ export async function PATCH(
 
     // ── Auto-trigger Research Agent on qualified stage entry (fire-and-forget) ──
     if (target === "qualified") {
-      triggerResearchOnQualified(sb, id).catch((err) => {
-        console.error(`[stage-transition] Research agent trigger failed for lead ${id}:`, err);
+      getFeatureFlag("agent.research.enabled").then((flag) => {
+        if (!flag?.enabled) {
+          console.debug(`[stage-transition] Research agent trigger skipped — feature flag agent.research.enabled not enabled`);
+          return;
+        }
+        // Durable research agent trigger — retried automatically by Inngest if it fails
+        void inngest.send({
+          name: "agent/research.requested",
+          data: {
+            leadId: id,
+            triggeredBy: "stage_transition",
+            operatorNotes: `Triggered by stage transition to ${target}`,
+          },
+        }).catch((err) => {
+          console.error(`[stage] Inngest research trigger failed for lead ${id}:`, err);
+        });
       });
     }
 
@@ -230,56 +261,3 @@ export async function GET(
   }
 }
 
-// ── Dispo Agent Auto-Trigger ─────────────────────────────────────────
-// When a lead enters disposition, find its deal and trigger the Dispo Agent.
-// Fire-and-forget — failure is logged, not blocking.
-
-async function triggerDispoAgent(
-  sb: ReturnType<typeof createServerClient>,
-  leadId: string,
-) {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { data: deal } = await (sb.from("deals") as any)
-    .select("id")
-    .eq("lead_id", leadId)
-    .in("status", ["under_contract", "active", "pending"])
-    .order("created_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
-
-  if (!deal) {
-    console.log(`[stage-transition] No active deal for lead ${leadId}, skipping dispo agent`);
-    return;
-  }
-
-  const { runDispoAgent } = await import("@/agents/dispo");
-  await runDispoAgent({
-    dealId: deal.id,
-    leadId,
-    triggerType: "deal_under_contract",
-    triggerRef: `stage-transition-to-disposition`,
-  });
-}
-
-// ── Research Agent Auto-Trigger ──────────────────────────────────────
-// When a lead reaches "qualified", kick off the Research Agent to build
-// the dossier. Fire-and-forget — failure is logged, not blocking.
-
-async function triggerResearchOnQualified(
-  sb: ReturnType<typeof createServerClient>,
-  leadId: string,
-) {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { data: lead } = await (sb.from("leads") as any)
-    .select("property_id")
-    .eq("id", leadId)
-    .single();
-  if (!lead?.property_id) return;
-
-  const { runResearchAgent } = await import("@/agents/research");
-  await runResearchAgent({
-    leadId,
-    propertyId: lead.property_id,
-    triggeredBy: "stage-transition-to-qualified",
-  });
-}

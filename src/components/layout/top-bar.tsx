@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import {
   PanelLeftClose,
   PanelLeft,
-  Bell,
+
   Wifi,
   WifiOff,
 } from "lucide-react";
@@ -95,23 +95,6 @@ export function TopBar() {
 
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="icon" className="h-8 w-8 relative">
-              <Bell className="h-4 w-4" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-56">
-            <DropdownMenuLabel className="text-xs text-muted-foreground">
-              Notifications
-            </DropdownMenuLabel>
-            <DropdownMenuSeparator />
-            <div className="py-4 text-center text-xs text-muted-foreground">
-              No new notifications
-            </div>
-          </DropdownMenuContent>
-        </DropdownMenu>
-
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
             <Button variant="ghost" className="h-8 gap-2 px-2 group">
               <Avatar className="h-6 w-6 avatar-holo">
                 <AvatarFallback className="text-[11px] bg-cyan/[0.08] text-cyan border-0">
@@ -131,9 +114,8 @@ export function TopBar() {
               {currentUser.email}
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
-            <DropdownMenuItem onClick={() => router.push("/settings")}>Profile</DropdownMenuItem>
             <DropdownMenuItem onClick={() => router.push("/settings")}>Settings</DropdownMenuItem>
-            <DropdownMenuItem onClick={() => router.push("/analytics")}>Audit Log</DropdownMenuItem>
+            <DropdownMenuItem onClick={() => router.push("/analytics")}>Analytics</DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuItem className="text-destructive" onSelect={handleLogout}>
               Log out

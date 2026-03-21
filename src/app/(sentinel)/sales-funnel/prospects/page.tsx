@@ -5,8 +5,8 @@ import { motion, AnimatePresence } from "framer-motion";
 import {
   UserPlus, Search, Filter, ArrowUpDown, ArrowUp, ArrowDown,
   Phone, MoreHorizontal, Radar, Loader2, AlertCircle,
-  RefreshCw, Shield, UserCheck, Home, Trash2, Eye,
-  Clock,
+  RefreshCw, UserCheck, Home, Trash2, Eye,
+  Clock, ListPlus,
   HeartOff,
 } from "lucide-react";
 import { PageShell } from "@/components/sentinel/page-shell";
@@ -240,6 +240,7 @@ export default function ProspectsPage() {
   const [claiming, setClaiming] = useState<string | null>(null);
   const [deleting, setDeleting] = useState<string | null>(null);
   const [nurturing, setNurturing] = useState<string | null>(null);
+  const [queueing, setQueueing] = useState<string | null>(null);
   const [testingPR, setTestingPR] = useState(false);
 
   const handleQuickTestPR = async () => {
@@ -472,6 +473,29 @@ export default function ProspectsPage() {
       toast.error("Network error — could not move to nurture");
     } finally {
       setNurturing(null);
+    }
+  };
+
+  const handleQueueForCall = async (prospect: ProspectRow) => {
+    setQueueing(prospect.id);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const res = await fetch(`/api/leads/${prospect.id}/queue`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}),
+        },
+      });
+      if (res.ok) {
+        toast.success("Added to call queue", { description: prospect.address || prospect.owner_name });
+      } else {
+        toast.error("Could not add to queue");
+      }
+    } catch {
+      toast.error("Network error — could not queue for call");
+    } finally {
+      setQueueing(null);
     }
   };
 
@@ -869,8 +893,23 @@ export default function ProspectsPage() {
                         {/* ── Actions ── */}
                         <td className="p-3">
                           <div className="flex items-center justify-end gap-1" onClick={(e) => e.stopPropagation()}>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-7 w-7 text-cyan hover:text-cyan hover:bg-cyan/10"
+                              title="Queue for Call"
+                              disabled={queueing === p.id}
+                              onClick={() => handleQueueForCall(p)}
+                            >
+                              {queueing === p.id ? (
+                                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                              ) : (
+                                <ListPlus className="h-3.5 w-3.5" />
+                              )}
+                            </Button>
                             {p.owner_phone && (
-                              <Button variant="ghost" size="icon" className="h-7 w-7 text-emerald-400 hover:text-emerald-300 hover:bg-emerald-500/10" title="Call">
+                              <Button variant="ghost" size="icon" className="h-7 w-7 text-emerald-400 hover:text-emerald-300 hover:bg-emerald-500/10" title="Copy phone number"
+                                onClick={() => { navigator.clipboard.writeText(p.owner_phone!); toast.success("Phone number copied to clipboard"); }}>
                                 <Phone className="h-3.5 w-3.5" />
                               </Button>
                             )}
@@ -898,10 +937,6 @@ export default function ProspectsPage() {
                                 <DropdownMenuItem onClick={() => openDetail(p)} className="gap-2 text-xs">
                                   <Eye className="h-3 w-3" />
                                   View Details
-                                </DropdownMenuItem>
-                                <DropdownMenuItem className="gap-2 text-xs">
-                                  <Shield className="h-3 w-3" />
-                                  Skip Trace
                                 </DropdownMenuItem>
                                 <DropdownMenuItem
                                   onClick={() => handleNurture(p)}

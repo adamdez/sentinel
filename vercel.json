@@ -30,7 +30,7 @@
     },
     {
       "path": "/api/cron/db-integrity-audit",
-      "schedule": "0 10 * * *"
+      "schedule": "0 9 * * *"
     },
     {
       "path": "/api/cron/exception-scan",
@@ -38,7 +38,7 @@
     },
     {
       "path": "/api/cron/morning-brief",
-      "schedule": "0 15 * * 1-6"
+      "schedule": "0 14 * * 1-6"
     },
     {
       "path": "/api/cron/stale-leads",
@@ -50,7 +50,7 @@
     },
     {
       "path": "/api/cron/weekly-health",
-      "schedule": "0 17 * * 1"
+      "schedule": "0 16 * * 1"
     },
     {
       "path": "/api/cron/refresh-scores",

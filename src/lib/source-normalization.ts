@@ -16,6 +16,19 @@ export const SOURCE_MAP: Record<string, string> = {
   property_radar: "propertyradar",
   property_lookup: "propertyradar",
 
+  // PropStream variants (bake-off engine)
+  propstream: "propstream",
+  prop_stream: "propstream",
+
+  // BatchLeads variants (bake-off engine)
+  batchleads: "batchleads",
+  batch_leads: "batchleads",
+  batchrank: "batchleads",
+
+  // DealMachine variants (bake-off challenger)
+  dealmachine: "dealmachine",
+  deal_machine: "dealmachine",
+
   // Google Ads variants
   google_ads: "google_ads",
   google: "google_ads",
@@ -26,6 +39,22 @@ export const SOURCE_MAP: Record<string, string> = {
   facebook: "facebook_ads",
   fb: "facebook_ads",
   fb_ads: "facebook_ads",
+
+  // Direct mail
+  direct_mail: "direct_mail",
+  directmail: "direct_mail",
+  mailer: "direct_mail",
+  mail: "direct_mail",
+
+  // Cold call lists
+  cold_call: "cold_call",
+  cold_call_list: "cold_call",
+  coldcall: "cold_call",
+
+  // Driving for dollars
+  driving_for_dollars: "driving_for_dollars",
+  d4d: "driving_for_dollars",
+  drive_for_dollars: "driving_for_dollars",
 
   // CSV / bulk import
   csv_import: "csv_import",
@@ -78,8 +107,14 @@ export function normalizeSource(raw: string | null | undefined): string {
 
 export const SOURCE_LABELS: Record<string, string> = {
   propertyradar: "PropertyRadar",
+  propstream: "PropStream",
+  batchleads: "BatchLeads",
+  dealmachine: "DealMachine",
   google_ads: "Google Ads",
   facebook_ads: "Facebook Ads",
+  direct_mail: "Direct Mail",
+  cold_call: "Cold Call List",
+  driving_for_dollars: "Driving for Dollars",
   csv_import: "CSV Import",
   craigslist: "Craigslist",
   zillow: "Zillow",

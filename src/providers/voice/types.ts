@@ -53,6 +53,7 @@ export type VapiWebhookEvent =
   | "function-call"
   | "status-update"
   | "end-of-call-report"
+  | "transfer-destination-request"
   | "hang"
   | "speech-update"
   | "transcript";
@@ -77,6 +78,12 @@ export interface VapiWebhookPayload {
     durationSeconds?: number;
     // assistant-request specific
     phoneNumber?: { number: string };
+    // transfer-destination-request specific
+    destination?: {
+      type: string;
+      number?: string;
+      message?: string;
+    };
   };
 }
 
@@ -152,6 +159,15 @@ export interface VapiAssistantConfig {
   maxDurationSeconds: number;
   silenceTimeoutSeconds: number;
   responseDelaySeconds: number;
+  /** Vapi transfer plan — tells Vapi how to handle call transfers */
+  transferPlan?: {
+    mode: "server" | "blind-transfer" | "blind-transfer-add-summary-to-sip-header";
+    message?: string;
+    summaryPlan?: {
+      enabled: boolean;
+      messages?: Array<{ role: string; content: string }>;
+    };
+  };
 }
 
 export interface VapiFunctionDef {

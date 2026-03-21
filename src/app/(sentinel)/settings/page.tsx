@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { Shield, Bell, Palette, Database, Key, Users, Sliders, Phone, Loader2, Check, SlidersHorizontal, MapPin } from "lucide-react";
+import { Palette, Phone, Loader2, Check, SlidersHorizontal, MapPin } from "lucide-react";
 import Link from "next/link";
 import { toast } from "sonner";
 import { PageShell } from "@/components/sentinel/page-shell";
@@ -15,50 +15,6 @@ import { useSentinelTheme } from "@/providers/theme-provider";
 import { SENTINEL_THEMES } from "@/themes/registry";
 import type { SentinelThemeId } from "@/themes/types";
 
-const settingSections = [
-  {
-    icon: Users,
-    title: "Team Management",
-    description: "Manage team members, roles, and permissions",
-    badge: "RBAC",
-  },
-  {
-    icon: Shield,
-    title: "Compliance",
-    description: "DNC lists, litigant suppression, opt-out management",
-    badge: "Sacred",
-  },
-  {
-    icon: Key,
-    title: "API Keys",
-    description: "Twilio, DocuSign, Google OAuth, webhook secrets",
-    badge: null,
-  },
-  {
-    icon: Database,
-    title: "Data Management",
-    description: "Import/export, backup, identity model settings",
-    badge: null,
-  },
-  {
-    icon: Sliders,
-    title: "Scoring Configuration",
-    description: "Model weights, thresholds, promotion rules",
-    badge: "Config-driven",
-  },
-  {
-    icon: Bell,
-    title: "Notifications",
-    description: "Alert preferences, digest frequency, channels",
-    badge: null,
-  },
-  {
-    icon: Palette,
-    title: "Appearance",
-    description: "Theme, density, sidebar preferences",
-    badge: null,
-  },
-];
 
 export default function SettingsPage() {
   const { theme, setTheme } = useSentinelTheme();
@@ -191,25 +147,6 @@ export default function SettingsPage() {
             )}
           </GlassCard>
 
-          {settingSections.map((section) => {
-            const Icon = section.icon;
-            return (
-              <GlassCard key={section.title} className="flex items-center gap-4 cursor-pointer hover:border-primary/25 transition-colors">
-                <div className="p-2 rounded-[12px] bg-secondary/50">
-                  <Icon className="h-5 w-5 text-cyan" />
-                </div>
-                <div className="flex-1">
-                  <div className="flex items-center gap-2">
-                    <p className="text-sm font-medium">{section.title}</p>
-                    {section.badge && (
-                      <Badge variant="outline" className="text-[9px]">{section.badge}</Badge>
-                    )}
-                  </div>
-                  <p className="text-xs text-muted-foreground">{section.description}</p>
-                </div>
-              </GlassCard>
-            );
-          })}
         </div>
 
         <div className="space-y-4">
@@ -247,11 +184,8 @@ export default function SettingsPage() {
             <Input
               value="/api/ingest"
               readOnly
-              className="text-xs font-mono mb-2"
+              className="text-xs font-mono"
             />
-            <Button variant="outline" size="sm" className="w-full text-xs">
-              Regenerate Secret
-            </Button>
           </GlassCard>
         </div>
       </div>

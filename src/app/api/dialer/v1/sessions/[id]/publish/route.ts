@@ -21,6 +21,7 @@ import {
 } from "@/lib/dialer/publish-manager";
 import { updateAiTraceReview } from "@/lib/dialer/ai-trace-writer";
 import { assemblePostCallStructure, type PostCallStructureInput } from "@/lib/dialer/post-call-structure";
+import { runPostCallAnalysis } from "@/lib/dialer/post-call-analysis";
 import type { WriteEvalRatingInput } from "@/lib/eval-ratings";
 import type { PublishDisposition, SellerTimeline, QualificationRoute, ObjectionTag } from "@/lib/dialer/types";
 import type { SessionErrorCode } from "@/lib/dialer/types";
@@ -99,6 +100,22 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
     return NextResponse.json({ error: "summary must be a string" }, { status: 400 });
   }
 
+  // ── Validate next_action + next_action_due_at ───────────
+  const nextAction = body.next_action;
+  if (nextAction !== undefined && typeof nextAction !== "string") {
+    return NextResponse.json({ error: "next_action must be a string" }, { status: 400 });
+  }
+
+  const nextActionDueAt = body.next_action_due_at;
+  if (nextActionDueAt !== undefined) {
+    if (typeof nextActionDueAt !== "string" || isNaN(new Date(nextActionDueAt).getTime())) {
+      return NextResponse.json(
+        { error: "next_action_due_at must be a valid ISO8601 datetime string" },
+        { status: 400 },
+      );
+    }
+  }
+
   // ── Validate callback_at ──────────────────────────────────
   const callbackAt = body.callback_at;
   if (callbackAt !== undefined) {
@@ -164,6 +181,8 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
     seller_timeline:      sellerTimeline as SellerTimeline | undefined,
     qualification_route:  qualificationRoute as QualificationRoute | undefined,
     summary:              typeof summary === "string" ? summary : undefined,
+    next_action:          typeof nextAction === "string" ? nextAction : undefined,
+    next_action_due_at:   typeof nextActionDueAt === "string" ? nextActionDueAt : undefined,
     callback_at:          typeof callbackAt === "string" ? callbackAt : undefined,
     task_assigned_to:     typeof taskAssignedTo === "string" ? taskAssignedTo : undefined,
     objection_tags:       objectionTags,
@@ -222,6 +241,7 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
   // operator-entered fields). Never blocks publish. One row per session (upsert).
   const pcsInput = body.post_call_structure as PostCallStructureInput | undefined;
   if (pcsInput && typeof pcsInput === "object") {
+    // Operator provided explicit post-call structure — write it directly
     void (async () => {
       try {
         const row = assemblePostCallStructure({
@@ -241,6 +261,18 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
         // non-fatal — structured data is a bonus, never blocks publish
       }
     })();
+  } else {
+    // No operator-provided structure — run AI analysis on session notes
+    // Fire-and-forget: extracts promises, objections, deal temperature,
+    // callback timing from transcript and writes to post_call_structures.
+    void runPostCallAnalysis(sb, {
+      sessionId,
+      callsLogId:  result.calls_log_id,
+      leadId:      result.lead_id,
+      publishedBy: user.id,
+    }).catch((err) => {
+      console.error("[publish] post-call AI analysis failed (non-fatal):", err);
+    });
   }
 
   // ── Eval ratings side-effects ─────────────────────────────

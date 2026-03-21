@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@/lib/supabase";
 import { requireAuth } from "@/lib/api-auth";
+import { resolveMarket } from "@/lib/market-resolver";
+import { getFeatureFlag } from "@/lib/control-plane";
 
 export const runtime = "nodejs";
 
@@ -102,6 +104,20 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    // ── Resolve market from county ──────────────────────────────────────
+    // If county was provided in the body, use it directly.
+    // Otherwise, look it up from the property record.
+    let resolvedCounty = county as string | null | undefined;
+    if (!resolvedCounty && resolvedPropertyId) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data: propRow } = await (sb.from("properties") as any)
+        .select("county")
+        .eq("id", resolvedPropertyId)
+        .maybeSingle();
+      resolvedCounty = propRow?.county ?? null;
+    }
+    const market = resolveMarket(resolvedCounty);
+
     // ── Check for existing lead ─────────────────────────────────────────
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { data: existingLead } = await (sb.from("leads") as any)
@@ -130,6 +146,7 @@ export async function POST(req: NextRequest) {
         property_id: resolvedPropertyId,
         status: "prospect",
         source: source ?? "manual_lookup",
+        market,
         notes: notes ?? null,
         next_action: nextAction,
         next_action_due_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(), // 24h from now
@@ -147,8 +164,14 @@ export async function POST(req: NextRequest) {
     // Blueprint: "Triggered by lead promotion or operator request."
     // Research runs async — operator reviews dossier before CRM sync.
     if (nextAction === "research" || nextAction === "call") {
-      triggerResearch(newLead.id, resolvedPropertyId, user.id).catch((err) => {
-        console.error("[promote-to-lead] Research agent trigger failed:", err);
+      getFeatureFlag("agent.research.enabled").then((flag) => {
+        if (!flag?.enabled) {
+          console.debug("[promote-to-lead] Research agent trigger skipped — feature flag agent.research.enabled not enabled");
+          return;
+        }
+        triggerResearch(newLead.id, resolvedPropertyId, user.id).catch((err) => {
+          console.error("[promote-to-lead] Research agent trigger failed:", err);
+        });
       });
     }
 

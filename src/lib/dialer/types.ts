@@ -463,6 +463,16 @@ export interface PublishInput {
     timeline_corrected: boolean;
   };
   /**
+   * Free-text next action for the lead (e.g. "Call back Tuesday 2pm", "Send offer").
+   * Written to leads.next_action when provided.
+   */
+  next_action?: string;
+  /**
+   * ISO8601 datetime for when the next action is due.
+   * Written to leads.next_action_due_at when provided.
+   */
+  next_action_due_at?: string;
+  /**
    * Structured objection tags captured at post-call time.
    * Each entry is one objection instance.
    * publish-manager writes these to lead_objection_tags (non-fatal on failure).

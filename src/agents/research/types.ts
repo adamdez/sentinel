@@ -5,6 +5,46 @@
  * pipeline types in src/lib/intelligence.ts.
  */
 
+/**
+ * Typed lead context passed to the research prompt.
+ * Constructed from the raw Supabase lead + joined relations.
+ */
+export interface LeadContext {
+  leadId: string;
+  status: string | null;
+  priority: string | null;
+  source: string | null;
+  notes: string | null;
+  tags: string[] | null;
+  nextAction: string | null;
+  nextActionDueAt: string | null;
+  decisionMakerNote: string | null;
+  property: {
+    id: string;
+    address: string | null;
+    city: string | null;
+    state: string | null;
+    zip: string | null;
+    county: string | null;
+    ownerName: string | null;
+    ownerPhone: string | null;
+    estimatedValue: number | null;
+    equityPercent: number | null;
+    propertyType: string | null;
+    yearBuilt: number | null;
+    bedrooms: number | null;
+    bathrooms: number | null;
+    sqft: number | null;
+    lotSize: number | null;
+  } | null;
+  contacts: Array<{
+    firstName: string | null;
+    lastName: string | null;
+    phone: string | null;
+    email: string | null;
+  }>;
+}
+
 export interface ResearchAgentInput {
   /** Lead UUID to research */
   leadId: string;

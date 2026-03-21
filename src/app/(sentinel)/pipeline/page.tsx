@@ -20,6 +20,7 @@ import {
   Sparkles,
   Plus,
   ListPlus,
+  Phone,
 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase, getCurrentUser } from "@/lib/supabase";
@@ -928,6 +929,15 @@ function LeadCard({
             )}
 
             <div className="flex items-center gap-1.5">
+              <a
+                href={`/dialer?lead=${lead.id}`}
+                onClick={(e) => e.stopPropagation()}
+                title="Open in Dialer"
+                className="h-6 w-6 flex items-center justify-center rounded-md text-emerald-400 hover:bg-emerald-500/10 transition-colors"
+              >
+                <Phone className="h-3.5 w-3.5" />
+              </a>
+
               <button
                 onClick={(e) => {
                   e.stopPropagation();

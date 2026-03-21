@@ -5,6 +5,9 @@ import {
   isTruthy, toNumber, toInt,
 } from "@/lib/dedup";
 import { detectDistressSignals, type DetectedSignal } from "@/lib/distress-signals";
+import { upsertContact } from "@/lib/upsert-contact";
+import { deduplicateByProperty } from "@/lib/dedup-property";
+import { resolveMarket } from "@/lib/market-resolver";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -139,6 +142,11 @@ export async function POST(req: NextRequest) {
       const countyPhone = pickStr(pr, "Phone1", "Phone2", "phone", "phone1") || null;
       const countyEmail = pickStr(pr, "Email", "email") || null;
 
+      // ── Property-level dedup: check if this property already exists ──
+      const dedupResult = await deduplicateByProperty(sb, {
+        address, apn, city, state, zip,
+      });
+
       // ── Upsert property ─────────────────────────────────────
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { data: property, error: propErr } = await (sb.from("properties") as any)
@@ -193,34 +201,76 @@ export async function POST(req: NextRequest) {
         else eventsInserted++;
       }
 
-      // ── Create/update lead in staging ───────────────────────
+      // ── Upsert contact (dedup by phone) ────────────────────
+      let contactId: string | null = null;
+      if (countyPhone) {
+        try {
+          const nameParts = (ownerName || "").includes(",")
+            ? (ownerName || "").split(",").map((p: string) => p.trim())
+            : (ownerName || "").split(/\s+/);
+          const lastName = (ownerName || "").includes(",") ? nameParts[0] : nameParts[nameParts.length - 1];
+          const firstName = (ownerName || "").includes(",") ? (nameParts[1] ?? "") : nameParts.slice(0, -1).join(" ");
+
+          const contactResult = await upsertContact(sb, {
+            phone: countyPhone,
+            first_name: firstName || null,
+            last_name: lastName || null,
+            email: countyEmail,
+            source: SOURCE_TAG,
+            contact_type: "owner",
+          });
+          contactId = contactResult.id;
+        } catch {
+          // Non-fatal
+        }
+      }
+
+      // ── Create/update lead in staging (property-based dedup) ──
       // Build tags from signals
       const signalTags = signals.map((s) => s.type);
       const allTags = [SOURCE_TAG, ...signalTags];
 
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { data: existingLead } = await (sb.from("leads") as any)
-        .select("id")
-        .eq("property_id", property.id)
-        .in("status", ["staging", "prospect", "lead", "negotiation", "nurture"])
-        .maybeSingle();
+      // Use property dedup result + fallback to property_id check
+      const existingLeadIds = dedupResult.existingLeadIds.length > 0
+        ? [...dedupResult.existingLeadIds]
+        : [];
 
-      if (!existingLead) {
+      if (existingLeadIds.length === 0) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const { data: existingLead } = await (sb.from("leads") as any)
+          .select("id")
+          .eq("property_id", property.id)
+          .in("status", ["staging", "prospect", "lead", "negotiation", "nurture"])
+          .maybeSingle();
+        if (existingLead) existingLeadIds.push(existingLead.id);
+      }
+
+      if (existingLeadIds.length === 0) {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         await (sb.from("leads") as any).insert({
           property_id: property.id,
+          contact_id: contactId,
           status: "staging",
           priority: 0, // will be scored by enrichment batch
           source: SOURCE_TAG,
+          market: resolveMarket(county),
           tags: allTags,
           notes: `Webhook import — ${signals.length} signal(s) detected. Awaiting enrichment scoring.`,
         });
         inserted++;
       } else {
+        // Merge into existing lead for this property
+        const targetLeadId = existingLeadIds[0];
+        const leadUpdate: Record<string, unknown> = {
+          tags: allTags,
+          source: SOURCE_TAG,
+          updated_at: new Date().toISOString(),
+        };
+        if (contactId) leadUpdate.contact_id = contactId;
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         await (sb.from("leads") as any)
-          .update({ tags: allTags, source: SOURCE_TAG })
-          .eq("id", existingLead.id);
+          .update(leadUpdate)
+          .eq("id", targetLeadId);
         updated++;
       }
 
@@ -236,7 +286,7 @@ export async function POST(req: NextRequest) {
           signals_count: signals.length,
           signal_types: signalTags,
           source: SOURCE_TAG,
-          is_new: !existingLead,
+          is_new: existingLeadIds.length === 0,
         },
       });
 

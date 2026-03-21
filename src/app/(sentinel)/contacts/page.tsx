@@ -1,67 +1,38 @@
 "use client";
 
-import { Contact, Search, Plus, Download, Upload, Phone, Mail, Clock, FileText, Users, PhoneCall, AtSign } from "lucide-react";
+import { useEffect, useState, useCallback } from "react";
+import { Contact, Search, Phone, Mail, Clock, Users, PhoneCall, AtSign, ChevronLeft, ChevronRight } from "lucide-react";
+import { useRouter } from "next/navigation";
 import { PageShell } from "@/components/sentinel/page-shell";
 import { GlassCard } from "@/components/sentinel/glass-card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
+import { supabase } from "@/lib/supabase";
 
-/* ── mock contact data ─────────────────────────────────────────────── */
+/* ── types ────────────────────────────────────────────────────────── */
 
-const contacts = [
-  {
-    name: "Margaret Henderson",
-    phone: "(602) 555-0142",
-    email: "m.henderson@email.com",
-    type: "Owner",
-    leads: 2,
-    lastContact: new Date(Date.now() - 2 * 86_400_000),           // 2 days ago
-    notes: "Motivated seller, prefers text over calls. Vacant lot on 7th Ave.",
-  },
-  {
-    name: "Robert Chen",
-    phone: "(480) 555-0198",
-    email: "r.chen@email.com",
-    type: "Owner",
-    leads: 1,
-    lastContact: new Date(Date.now() - 14 * 86_400_000),          // 14 days ago
-    notes: "Inherited property, waiting on probate.",
-  },
-  {
-    name: "Lisa Morales",
-    phone: "(602) 555-0267",
-    email: null,
-    type: "Owner",
-    leads: 1,
-    lastContact: null,
-    notes: null,
-  },
-  {
-    name: "James Walker",
-    phone: "(480) 555-0334",
-    email: "j.walker@email.com",
-    type: "Owner",
-    leads: 3,
-    lastContact: new Date(Date.now() - 0.5 * 86_400_000),         // ~12 hours ago
-    notes: "Wants $180k, ARV est ~$260k. Follow up Friday.",
-  },
-  {
-    name: "Jennifer Torres",
-    phone: "(623) 555-0401",
-    email: "j.torres@email.com",
-    type: "Agent",
-    leads: 0,
-    lastContact: new Date(Date.now() - 45 * 86_400_000),          // 45 days ago
-    notes: "Buyer's agent, sent comps last month.",
-  },
-];
+interface ContactRow {
+  id: string;
+  first_name: string;
+  last_name: string;
+  phone: string | null;
+  email: string | null;
+  contact_type: string;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+  lead_count: number;
+}
+
+const PAGE_SIZE = 25;
 
 /* ── helpers ────────────────────────────────────────────────────────── */
 
-function relativeTime(date: Date | null): string {
-  if (!date) return "never";
+function relativeTime(dateStr: string | null): string {
+  if (!dateStr) return "never";
+  const date = new Date(dateStr);
   const diffMs = Date.now() - date.getTime();
   const diffMin = Math.floor(diffMs / 60_000);
   if (diffMin < 1) return "just now";
@@ -79,51 +50,150 @@ function truncate(text: string | null, max = 30): string {
   return text.length > max ? text.slice(0, max) + "\u2026" : text;
 }
 
-/* ── quick stats ────────────────────────────────────────────────────── */
-
-const totalContacts = contacts.length;
-const withPhone = contacts.filter((c) => c.phone).length;
-const withEmail = contacts.filter((c) => c.email).length;
-
-const stats = [
-  { label: "Total Contacts", value: totalContacts, icon: Users, color: "text-cyan-400" },
-  { label: "With Phone",     value: withPhone,      icon: PhoneCall, color: "text-emerald-400" },
-  { label: "With Email",     value: withEmail,       icon: AtSign,    color: "text-violet-400" },
-];
-
 /* ── page ───────────────────────────────────────────────────────────── */
 
 export default function ContactsPage() {
-  const handleNameClick = (contact: (typeof contacts)[number]) => {
-    if (contact.leads > 0) {
-      toast(`${contact.name} has ${contact.leads} lead${contact.leads > 1 ? "s" : ""} in the pipeline`, {
-        description: "Navigate to Prospects to view associated leads.",
-      });
+  const [contacts, setContacts] = useState<ContactRow[]>([]);
+  const [totalCount, setTotalCount] = useState(0);
+  const [withPhoneCount, setWithPhoneCount] = useState(0);
+  const [withEmailCount, setWithEmailCount] = useState(0);
+  const [page, setPage] = useState(0);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+  const [loading, setLoading] = useState(true);
+
+  // Debounce search input
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(searchQuery);
+      setPage(0); // reset to first page on new search
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
+
+  // Fetch aggregate stats (not filtered by search)
+  useEffect(() => {
+    async function fetchStats() {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { count: total } = await (supabase.from("contacts") as any)
+        .select("id", { count: "exact", head: true });
+
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { count: withPhone } = await (supabase.from("contacts") as any)
+        .select("id", { count: "exact", head: true })
+        .not("phone", "is", null)
+        .neq("phone", "");
+
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { count: withEmail } = await (supabase.from("contacts") as any)
+        .select("id", { count: "exact", head: true })
+        .not("email", "is", null)
+        .neq("email", "");
+
+      setTotalCount(total ?? 0);
+      setWithPhoneCount(withPhone ?? 0);
+      setWithEmailCount(withEmail ?? 0);
+    }
+    fetchStats();
+  }, []);
+
+  // Fetch contacts with lead count, search, and pagination
+  const fetchContacts = useCallback(async () => {
+    setLoading(true);
+
+    const from = page * PAGE_SIZE;
+    const to = from + PAGE_SIZE - 1;
+
+    // Build query - fetch contacts with pagination
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    let query = (supabase.from("contacts") as any)
+      .select("id, first_name, last_name, phone, email, contact_type, notes, created_at, updated_at", { count: "exact" })
+      .order("updated_at", { ascending: false })
+      .range(from, to);
+
+    // Apply search filter
+    if (debouncedSearch.trim()) {
+      const term = `%${debouncedSearch.trim()}%`;
+      query = query.or(`first_name.ilike.${term},last_name.ilike.${term},phone.ilike.${term}`);
+    }
+
+    const { data, count, error } = await query;
+
+    if (error) {
+      console.error("Failed to fetch contacts:", error);
+      setLoading(false);
+      return;
+    }
+
+    // Now fetch lead counts for the returned contacts
+    const contactIds = (data || []).map((c: { id: string }) => c.id);
+    let leadCounts: Record<string, number> = {};
+
+    if (contactIds.length > 0) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data: leads } = await (supabase.from("leads") as any)
+        .select("contact_id")
+        .in("contact_id", contactIds);
+
+      if (leads) {
+        leadCounts = leads.reduce((acc: Record<string, number>, l: { contact_id: string }) => {
+          acc[l.contact_id] = (acc[l.contact_id] || 0) + 1;
+          return acc;
+        }, {});
+      }
+    }
+
+    const rows: ContactRow[] = (data || []).map((c: {
+      id: string;
+      first_name: string;
+      last_name: string;
+      phone: string | null;
+      email: string | null;
+      contact_type: string;
+      notes: string | null;
+      created_at: string;
+      updated_at: string;
+    }) => ({
+      ...c,
+      lead_count: leadCounts[c.id] || 0,
+    }));
+
+    setContacts(rows);
+    if (count !== null && count !== undefined) {
+      setTotalCount((prev) => debouncedSearch.trim() ? count : prev);
+    }
+    setLoading(false);
+  }, [page, debouncedSearch]);
+
+  useEffect(() => {
+    fetchContacts();
+  }, [fetchContacts]);
+
+  const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
+
+  const router = useRouter();
+
+  const handleNameClick = (contact: ContactRow) => {
+    const name = `${contact.first_name} ${contact.last_name}`;
+    if (contact.lead_count > 0) {
+      // Navigate to leads page filtered to this contact's leads
+      router.push(`/leads?search=${encodeURIComponent(name)}`);
     } else {
-      toast(`${contact.name} has no associated leads yet.`);
+      toast(`${name} has no associated leads yet.`);
     }
   };
+
+  const stats = [
+    { label: "Total Contacts", value: totalCount, icon: Users, color: "text-cyan-400" },
+    { label: "With Phone", value: withPhoneCount, icon: PhoneCall, color: "text-emerald-400" },
+    { label: "With Email", value: withEmailCount, icon: AtSign, color: "text-violet-400" },
+  ];
 
   return (
     <PageShell
       title="Contacts"
       description="Sentinel Contacts — Unified contact database with lead association"
-      actions={
-        <>
-          <Button variant="outline" size="sm" className="gap-2 text-xs">
-            <Upload className="h-3 w-3" />
-            Import
-          </Button>
-          <Button variant="outline" size="sm" className="gap-2 text-xs">
-            <Download className="h-3 w-3" />
-            Export
-          </Button>
-          <Button size="sm" className="gap-2 text-xs">
-            <Plus className="h-3 w-3" />
-            Add Contact
-          </Button>
-        </>
-      }
+      actions={<></>}
     >
       {/* ── Quick Stats Row ───────────────────────────────────────── */}
       <div className="grid grid-cols-3 gap-3 mb-4">
@@ -145,9 +215,14 @@ export default function ContactsPage() {
         <div className="flex items-center gap-3 mb-4">
           <div className="relative flex-1 max-w-sm">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input placeholder="Search contacts..." className="pl-9" />
+            <Input
+              placeholder="Search by name or phone..."
+              className="pl-9"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+            />
           </div>
-          <Badge variant="outline" className="text-xs">{contacts.length} contacts</Badge>
+          <Badge variant="outline" className="text-xs">{totalCount} contacts</Badge>
         </div>
 
         <div className="overflow-hidden rounded-[12px] border border-glass-border">
@@ -158,74 +233,124 @@ export default function ContactsPage() {
                 <th className="text-left p-3 text-xs font-medium text-muted-foreground">Phone</th>
                 <th className="text-left p-3 text-xs font-medium text-muted-foreground">Email</th>
                 <th className="text-left p-3 text-xs font-medium text-muted-foreground">Type</th>
-                <th className="text-left p-3 text-xs font-medium text-muted-foreground">Last Contact</th>
+                <th className="text-left p-3 text-xs font-medium text-muted-foreground">Updated</th>
                 <th className="text-left p-3 text-xs font-medium text-muted-foreground">Leads</th>
                 <th className="text-left p-3 text-xs font-medium text-muted-foreground">Notes</th>
                 <th className="text-right p-3 text-xs font-medium text-muted-foreground">Actions</th>
               </tr>
             </thead>
             <tbody>
-              {contacts.map((contact) => (
-                <tr key={contact.name} className="border-b border-white/[0.06] hover:bg-white/[0.04] transition-colors">
-                  {/* Name — clickable */}
-                  <td className="p-3">
-                    <button
-                      onClick={() => handleNameClick(contact)}
-                      className="flex items-center gap-2 group text-left"
-                    >
-                      <Contact className="h-4 w-4 text-muted-foreground group-hover:text-cyan-400 transition-colors" />
-                      <span className="text-sm font-medium group-hover:text-cyan-400 transition-colors cursor-pointer underline-offset-2 group-hover:underline">
-                        {contact.name}
-                      </span>
-                    </button>
-                  </td>
-
-                  {/* Phone */}
-                  <td className="p-3 text-sm text-muted-foreground">{contact.phone}</td>
-
-                  {/* Email */}
-                  <td className="p-3 text-sm text-muted-foreground">{contact.email ?? "\u2014"}</td>
-
-                  {/* Type */}
-                  <td className="p-3">
-                    <Badge variant="outline" className="text-[10px]">{contact.type}</Badge>
-                  </td>
-
-                  {/* Last Contact — relative time */}
-                  <td className="p-3">
-                    <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
-                      <Clock className="h-3 w-3" />
-                      {relativeTime(contact.lastContact)}
-                    </span>
-                  </td>
-
-                  {/* Leads */}
-                  <td className="p-3 text-sm">{contact.leads}</td>
-
-                  {/* Notes — truncated preview */}
-                  <td className="p-3" title={contact.notes ?? undefined}>
-                    <span className="text-xs text-muted-foreground italic">
-                      {truncate(contact.notes)}
-                    </span>
-                  </td>
-
-                  {/* Actions */}
-                  <td className="p-3">
-                    <div className="flex items-center justify-end gap-1">
-                      <Button variant="ghost" size="icon" className="h-7 w-7">
-                        <Phone className="h-3 w-3" />
-                      </Button>
-                      <Button variant="ghost" size="icon" className="h-7 w-7">
-                        <Mail className="h-3 w-3" />
-                      </Button>
-                    </div>
+              {loading ? (
+                <tr>
+                  <td colSpan={8} className="p-8 text-center text-sm text-muted-foreground">
+                    Loading contacts...
                   </td>
                 </tr>
-              ))}
+              ) : contacts.length === 0 ? (
+                <tr>
+                  <td colSpan={8} className="p-8 text-center text-sm text-muted-foreground">
+                    {debouncedSearch ? "No contacts match your search." : "No contacts yet."}
+                  </td>
+                </tr>
+              ) : (
+                contacts.map((contact) => (
+                  <tr key={contact.id} className="border-b border-white/[0.06] hover:bg-white/[0.04] transition-colors">
+                    {/* Name */}
+                    <td className="p-3">
+                      <button
+                        onClick={() => handleNameClick(contact)}
+                        className="flex items-center gap-2 group text-left"
+                      >
+                        <Contact className="h-4 w-4 text-muted-foreground group-hover:text-cyan-400 transition-colors" />
+                        <span className="text-sm font-medium group-hover:text-cyan-400 transition-colors cursor-pointer underline-offset-2 group-hover:underline">
+                          {contact.first_name} {contact.last_name}
+                        </span>
+                      </button>
+                    </td>
+
+                    {/* Phone */}
+                    <td className="p-3 text-sm text-muted-foreground">{contact.phone ?? "\u2014"}</td>
+
+                    {/* Email */}
+                    <td className="p-3 text-sm text-muted-foreground">{contact.email ?? "\u2014"}</td>
+
+                    {/* Type */}
+                    <td className="p-3">
+                      <Badge variant="outline" className="text-[10px]">{contact.contact_type}</Badge>
+                    </td>
+
+                    {/* Updated — relative time */}
+                    <td className="p-3">
+                      <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
+                        <Clock className="h-3 w-3" />
+                        {relativeTime(contact.updated_at)}
+                      </span>
+                    </td>
+
+                    {/* Leads */}
+                    <td className="p-3 text-sm">{contact.lead_count}</td>
+
+                    {/* Notes */}
+                    <td className="p-3" title={contact.notes ?? undefined}>
+                      <span className="text-xs text-muted-foreground italic">
+                        {truncate(contact.notes)}
+                      </span>
+                    </td>
+
+                    {/* Actions */}
+                    <td className="p-3">
+                      <div className="flex items-center justify-end gap-1">
+                        {contact.phone && (
+                          <Button variant="ghost" size="icon" className="h-7 w-7" title="Copy phone number"
+                            onClick={() => { navigator.clipboard.writeText(contact.phone!); toast.success("Phone number copied to clipboard"); }}>
+                            <Phone className="h-3 w-3" />
+                          </Button>
+                        )}
+                        {contact.email && (
+                          <Button variant="ghost" size="icon" className="h-7 w-7" title="Send email" asChild>
+                            <a href={`mailto:${contact.email}`}><Mail className="h-3 w-3" /></a>
+                          </Button>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                ))
+              )}
             </tbody>
           </table>
         </div>
-        {/* TODO: Paginated contact list with APN + county identity model */}
+
+        {/* ── Pagination ─────────────────────────────────────────── */}
+        {totalPages > 1 && (
+          <div className="flex items-center justify-between mt-4 px-1">
+            <p className="text-xs text-muted-foreground">
+              Page {page + 1} of {totalPages}
+            </p>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-7 text-xs gap-1"
+                disabled={page === 0}
+                onClick={() => setPage((p) => Math.max(0, p - 1))}
+              >
+                <ChevronLeft className="h-3 w-3" />
+                Previous
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-7 text-xs gap-1"
+                disabled={page >= totalPages - 1}
+                onClick={() => setPage((p) => Math.min(totalPages - 1, p + 1))}
+              >
+                Next
+                <ChevronRight className="h-3 w-3" />
+              </Button>
+            </div>
+          </div>
+        )}
+
         {/* TODO: Contact merge/dedup */}
         {/* TODO: Skip tracing integration */}
       </GlassCard>

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { runExceptionScan } from "@/agents/exception";
 import { runFollowUpAgent } from "@/agents/follow-up";
 import { notifyStaleFollowUp } from "@/lib/notify";
+import { getFeatureFlag } from "@/lib/control-plane";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -27,6 +28,13 @@ export async function GET(req: NextRequest) {
   }
 
   try {
+    // Gate exception agent behind feature flag
+    const exceptionFlag = await getFeatureFlag("agent.exception.enabled");
+    if (!exceptionFlag?.enabled) {
+      console.debug("[cron/exception-scan] Skipped — feature flag agent.exception.enabled not enabled");
+      return NextResponse.json({ ok: true, skipped: true, reason: "Feature flag agent.exception.enabled not enabled" });
+    }
+
     const report = await runExceptionScan({
       triggerType: "cron",
       triggerRef: "exception-scan-nightly",
@@ -53,20 +61,25 @@ export async function GET(req: NextRequest) {
 
     // Auto-trigger Follow-Up Agent for top stale leads (fire-and-forget)
     // Limits to 5 leads per scan to control costs. Drafts go to review_queue.
-    const staleLeads = [
-      ...report.critical.filter(e => e.category === "stale_contact" || e.category === "overdue_follow_up"),
-      ...report.high.filter(e => e.category === "overdue_follow_up"),
-    ].slice(0, 5);
+    const followUpFlag = await getFeatureFlag("agent.follow_up.enabled");
+    if (followUpFlag?.enabled) {
+      const staleLeads = [
+        ...report.critical.filter(e => e.category === "stale_contact" || e.category === "overdue_follow_up"),
+        ...report.high.filter(e => e.category === "overdue_follow_up"),
+      ].slice(0, 5);
 
-    for (const item of staleLeads) {
-      runFollowUpAgent({
-        leadId: item.leadId,
-        triggerType: "stale_lead",
-        triggerRef: `exception-scan-${report.runId}`,
-        channel: "call", // Washington outbound is call-only by default
-      }).catch((err) => {
-        console.error(`[cron/exception-scan] Follow-up agent failed for ${item.leadId}:`, err);
-      });
+      for (const item of staleLeads) {
+        runFollowUpAgent({
+          leadId: item.leadId,
+          triggerType: "stale_lead",
+          triggerRef: `exception-scan-${report.runId}`,
+          channel: "call", // Washington outbound is call-only by default
+        }).catch((err) => {
+          console.error(`[cron/exception-scan] Follow-up agent failed for ${item.leadId}:`, err);
+        });
+      }
+    } else {
+      console.debug("[cron/exception-scan] Follow-up agent triggers skipped — feature flag agent.follow_up.enabled not enabled");
     }
 
     return NextResponse.json({

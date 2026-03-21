@@ -3,7 +3,7 @@
 import { useState, useMemo, Fragment } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
-  Skull, RotateCcw, Search, Loader2, Trash2,
+  Skull, RotateCcw, Search, Loader2,
   ExternalLink, ArrowUpDown, AlertTriangle,
 } from "lucide-react";
 import { PageShell } from "@/components/sentinel/page-shell";
@@ -138,9 +138,9 @@ export default function DeadPage() {
         title="Dead"
         description="Leads removed from active pipeline"
         actions={
-          <Button size="sm" variant="outline" onClick={() => refetch()} className="gap-2 text-red-400 border-red-500/20 hover:border-red-500/40 hover:bg-red-500/[0.06]">
-            <Trash2 className="h-3.5 w-3.5" />
-            Purge Old
+          <Button size="sm" variant="outline" onClick={() => refetch()} className="gap-2">
+            <RotateCcw className="h-3.5 w-3.5" />
+            Refresh
           </Button>
         }
       >

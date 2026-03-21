@@ -4,7 +4,8 @@ import { useState, useMemo, Fragment } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Handshake, DollarSign, Clock, Search, Loader2, Phone,
-  ExternalLink, ArrowUpDown, TrendingUp, AlertTriangle,
+  ExternalLink, ArrowUpDown, AlertTriangle,
+  PhoneOutgoing, ArrowRightCircle,
 } from "lucide-react";
 import { PageShell } from "@/components/sentinel/page-shell";
 import { GlassCard } from "@/components/sentinel/glass-card";
@@ -13,6 +14,10 @@ import { Button } from "@/components/ui/button";
 import { cn, formatCurrency } from "@/lib/utils";
 import { useLeadsByStatus } from "@/hooks/use-leads-by-status";
 import { MasterClientFileModal, clientFileFromRaw } from "@/components/sentinel/master-client-file-modal";
+import { LogCallModal } from "@/components/sentinel/leads/log-call-modal";
+import { supabase } from "@/lib/supabase";
+import { getAuthenticatedProspectPatchHeaders } from "@/lib/prospect-api-client";
+import { toast } from "sonner";
 import type { ProspectRow } from "@/hooks/use-prospects";
 
 // ── Constants ─────────────────────────────────────────────────────────
@@ -66,6 +71,47 @@ export default function NegotiationPage() {
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
   const { rows, loading, error, totalCount, refetch } = useLeadsByStatus("negotiation", { search, sortField, sortDir });
   const [selectedRow, setSelectedRow] = useState<ProspectRow | null>(null);
+  const [logCallRow, setLogCallRow] = useState<ProspectRow | null>(null);
+  const [movingToDispo, setMovingToDispo] = useState<string | null>(null);
+
+  const handleMoveToDispo = async (row: ProspectRow, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setMovingToDispo(row.id);
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data: current, error: fetchErr } = await (supabase.from("leads") as any)
+        .select("lock_version")
+        .eq("id", row.id)
+        .single();
+
+      if (fetchErr || !current) {
+        toast.error("Could not fetch lead. Refresh and try again.");
+        return;
+      }
+
+      const headers = await getAuthenticatedProspectPatchHeaders(current.lock_version ?? 0);
+      const res = await fetch("/api/prospects", {
+        method: "PATCH",
+        headers,
+        body: JSON.stringify({
+          lead_id: row.id,
+          status: "disposition",
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        toast.error(`Move to disposition failed: ${data.detail ?? data.error ?? "Unknown error"}`);
+      } else {
+        toast.success(`${row.owner_name} moved to Disposition`, { description: row.address || "No address" });
+        refetch();
+      }
+    } catch {
+      toast.error("Network error — could not move to disposition");
+    } finally {
+      setMovingToDispo(null);
+    }
+  };
 
   const stats = useMemo(() => {
     const active = rows.length;
@@ -223,8 +269,29 @@ export default function NegotiationPage() {
                           </td>
                           <td className="px-4 py-3 text-right">
                             <div className="flex items-center justify-end gap-1">
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="h-7 px-2 gap-1 text-[10px] text-emerald-400 border-emerald-500/20 hover:border-emerald-500/40 hover:bg-emerald-500/[0.06]"
+                                onClick={(e) => { e.stopPropagation(); setLogCallRow(row); }}
+                                title="Log Call"
+                              >
+                                <PhoneOutgoing className="h-3 w-3" />
+                                Log Call
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="h-7 px-2 gap-1 text-[10px] text-rose-400 border-rose-500/20 hover:border-rose-500/40 hover:bg-rose-500/[0.06]"
+                                onClick={(e) => handleMoveToDispo(row, e)}
+                                disabled={movingToDispo === row.id}
+                                title="Move to Disposition"
+                              >
+                                {movingToDispo === row.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <ArrowRightCircle className="h-3 w-3" />}
+                                Dispo
+                              </Button>
                               {row.owner_phone && (
-                                <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={(e) => { e.stopPropagation(); window.location.href = `/leads?open=${row.id}`; }}>
+                                <Button size="sm" variant="ghost" className="h-7 w-7 p-0" title="Copy phone number" onClick={(e) => { e.stopPropagation(); navigator.clipboard.writeText(row.owner_phone!); toast.success("Phone number copied to clipboard"); }}>
                                   <Phone className="h-3.5 w-3.5 text-emerald-400" />
                                 </Button>
                               )}
@@ -243,6 +310,16 @@ export default function NegotiationPage() {
           )}
         </GlassCard>
       </PageShell>
+
+      {logCallRow && (
+        <LogCallModal
+          leadId={logCallRow.id}
+          leadAddress={logCallRow.address || "No address"}
+          ownerName={logCallRow.owner_name}
+          onClose={() => setLogCallRow(null)}
+          onSuccess={() => { setLogCallRow(null); refetch(); }}
+        />
+      )}
 
       {selectedRow && (
         <MasterClientFileModal

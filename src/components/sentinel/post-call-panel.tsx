@@ -192,6 +192,10 @@ export function PostCallPanel({
   const [summaryRunId, setSummaryRunId] = useState<string | null>(null);
   const summaryRunPromise = useRef<Promise<string | null> | null>(null);
 
+  // ── Next action state (hard enforcement — no lead advances without next_action) ──
+  const [nextAction, setNextAction] = useState("");
+  const [nextActionDueAt, setNextActionDueAt] = useState("");
+
   // Objection tags collected from PostCallDraftPanel (confirm or skip path)
   const [objectionTags, setObjectionTags] = useState<ObjectionCapture[]>([]);
   // Structured post-call payload captured in draft review and sent on publish.
@@ -388,6 +392,8 @@ export function PostCallPanel({
         // Objection tags — collected from PostCallDraftPanel (confirm or skip path).
         // Forwarded to publish-manager which writes to lead_objection_tags (non-fatal).
         ...(objectionTags.length > 0 ? { objection_tags: objectionTags } : {}),
+        ...(nextAction.trim() ? { next_action: nextAction.trim() } : {}),
+        ...(nextActionDueAt ? { next_action_due_at: new Date(nextActionDueAt).toISOString() } : {}),
         ...(shouldSendStructure ? { post_call_structure: publishStructure } : {}),
       }),
     }).catch(() => null);
@@ -486,6 +492,8 @@ export function PostCallPanel({
     setStructuredDraft(null);
     setDraft(null);
     setDraftDone(false);
+    setNextAction("");
+    setNextActionDueAt("");
     draftFired.current = false;
     setSummaryRunId(null);
     summaryRunPromise.current = null;
@@ -850,6 +858,32 @@ export function PostCallPanel({
             ))}
           </div>
 
+          {/* ── Next action (hard enforcement) ─────────────────── */}
+          <div className="mb-3 rounded-[10px] border border-cyan/10 bg-cyan/[0.03] p-2.5 space-y-1.5">
+            <p className="text-[10px] uppercase tracking-wider text-cyan/60 font-semibold">Next Action</p>
+            <input
+              type="text"
+              value={nextAction}
+              onChange={(e) => setNextAction(e.target.value)}
+              placeholder="e.g. Call back Tuesday 2pm, Send offer, Research property"
+              maxLength={200}
+              disabled={publishing}
+              className="w-full rounded-[8px] border border-white/[0.06] bg-white/[0.03] px-2.5 py-1.5 text-[12px] text-foreground placeholder:text-muted-foreground/30 focus:outline-none focus:border-cyan/20 disabled:opacity-50"
+            />
+            <label className="block text-[10px] text-muted-foreground/40 mt-1">
+              Due date &amp; time <span className="opacity-60">(optional)</span>
+            </label>
+            <input
+              type="datetime-local"
+              value={nextActionDueAt}
+              onChange={(e) => setNextActionDueAt(e.target.value)}
+              min={minDatetime}
+              disabled={publishing}
+              style={{ colorScheme: "dark" }}
+              className="w-full rounded-[8px] border border-white/[0.06] bg-white/[0.03] px-2.5 py-1.5 text-[12px] text-foreground focus:outline-none focus:border-cyan/20 disabled:opacity-50"
+            />
+          </div>
+
           <Button
             onClick={handleQualConfirm}
             disabled={publishing}
@@ -933,6 +967,32 @@ export function PostCallPanel({
               </div>
             </label>
           )}
+
+          {/* Next action — prominent in follow-up/appointment path */}
+          <div className="mb-3 rounded-[10px] border border-cyan/10 bg-cyan/[0.03] p-2.5 space-y-1.5">
+            <p className="text-[10px] uppercase tracking-wider text-cyan/60 font-semibold">Next Action</p>
+            <input
+              type="text"
+              value={nextAction}
+              onChange={(e) => setNextAction(e.target.value)}
+              placeholder="e.g. Call back Tuesday 2pm, Send offer, Research property"
+              maxLength={200}
+              disabled={publishing}
+              className="w-full rounded-[8px] border border-white/[0.06] bg-white/[0.03] px-2.5 py-1.5 text-[12px] text-foreground placeholder:text-muted-foreground/30 focus:outline-none focus:border-cyan/20 disabled:opacity-50"
+            />
+            <label className="block text-[10px] text-muted-foreground/40 mt-1">
+              Due date &amp; time <span className="opacity-60">(optional — defaults to callback date above)</span>
+            </label>
+            <input
+              type="datetime-local"
+              value={nextActionDueAt}
+              onChange={(e) => setNextActionDueAt(e.target.value)}
+              min={minDatetime}
+              disabled={publishing}
+              style={{ colorScheme: "dark" }}
+              className="w-full rounded-[8px] border border-white/[0.06] bg-white/[0.03] px-2.5 py-1.5 text-[12px] text-foreground focus:outline-none focus:border-cyan/20 disabled:opacity-50"
+            />
+          </div>
 
           {/* Note textarea — contextual prompt for follow-up/appointment path */}
           <textarea
