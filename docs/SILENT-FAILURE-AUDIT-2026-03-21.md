@@ -465,9 +465,41 @@ test("reconcile cron alerts on >3 failures in 15 minutes")
 - Wired publish-manager: Slack, QA trigger, and n8n now tracked instead of `.catch(() => {})`
 - Every delivery now creates a queued → sent/failed record in `delivery_runs`
 
-### Day 5-7: Remaining items
-- [ ] Fix workflow engine retry + agent run timeout (P0/P1)
-- [ ] Fix publish-manager UI truthfulness (P0)
-- [ ] Add reconciliation cron (P1)
+### Day 5: Fix workflow engine + agent run safety (P0/P1) ✅ COMPLETE
+- Workflow retry: max 3 retries with terminal `failed` state (was setTimeout + catch(() => {}))
+- Workflow state updates: all 5 `.update()` calls now check error returns
+- Workflow onComplete/onFail: wrapped in try/catch to prevent state corruption
+- Workflow resume: state update checked, throws on failure
+- Workflow first step: failRun on failure instead of zombie "running"
+- completeAgentRun: throws on DB error instead of swallowing
+- Post-call analysis: voice_sessions update checked, retry deadlock prevented with try/finally
 
-**Build status**: ✅ Clean compile (`npx next build` passes with only pre-existing lint warnings)
+### Day 6: Fix publish-manager + deal mutations (P0) ✅ COMPLETE
+- Task creation: retry once on failure, surface `warnings: ["task_creation_failed"]` to UI
+- Added `warnings?: string[]` to PublishResult type
+- Offers: deal status "negotiating" update returns 500 on failure
+- Offers: deal "under_contract" transition returns 500 on failure
+- Offers: lead "disposition" stage transition returns 500 on failure
+- Deal calculator: ARV/repair writeback returns 500 on failure
+- DNC: contact flag sync returns 500 on failure (compliance)
+
+### Day 7: Track missed-call + inbound alerts (P0) ✅ COMPLETE
+- Vapi webhook: 3 missed-call/transfer-failed SMS alerts tracked via delivery_runs
+- Inbound intake: new-lead SMS alert tracked via delivery_runs
+- Voice session creation + agent run completion: failures now logged
+- Lead merge: audit log failure now logged
+- Reconciliation cron created: detects stuck deliveries, crons, agent runs
+
+### Write-Path Invariant Audit ✅ COMPLETE
+- All 6 agents confirmed clean: write through review_queue only
+- Stage machine + next_action enforcement verified on main PATCH paths
+- Spokane/Kootenai split preserved in analytics
+- **Deferred (write-path gaps, not silent failures):**
+  - ranger-push inserts at `prospect` bypassing review gate (HIGH)
+  - enrichment-engine promotes staging→prospect directly (MEDIUM)
+  - ATTOM adapter bypasses canonical path (MEDIUM)
+  - These require work orders and architectural decisions, not bug fixes
+
+**Build status**: ✅ Clean compile (`npx next build` passes)
+**Migrations**: ✅ Applied to Supabase (cron_runs + delivery_runs tables live)
+**Commits**: 6 commits, ~100 files changed, ~1,800 lines of hardening
