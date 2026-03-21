@@ -152,7 +152,7 @@ export type { ClientFile };
 export { clientFileFromProspect, clientFileFromLead, clientFileFromRaw };
 
 // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
-// ClientFile â€” single unified shape for every funnel stage
+// ClientFile — single unified shape for every funnel stage
 // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 // [EXTRACTED] ClientFile + adapters -- see extracted module files
@@ -503,6 +503,7 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
   const skipProviders = overlay?.providers ?? (cf.ownerFlags?.skip_trace_providers as string[]) ?? [];
 
   const [scoreBreakdown, setScoreBreakdown] = useState<ScoreType | null>(null);
+  const [offerPrepExpanded, setOfferPrepExpanded] = useState(false);
   const canEdit = ["prospect", "lead"].includes(cf.status);
 
   const { brief, loading: briefLoading, regenerate: regenerateBrief } = usePreCallBrief(cf.id);
@@ -580,7 +581,7 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
       case "NOTE_ADDED":
         return "Note added";
       case "CALL_CLOSEOUT":
-        return dispositionAfter ? `Call closeout: ${dispositionAfter}` : "Call closeout";
+        return dispositionAfter ? `Log outcome: ${dispositionAfter}` : "Log outcome";
       case "FOLLOW_UP_UPDATED":
         return "Next action updated";
       case "CALL_OUTCOME_UPDATED":
@@ -747,22 +748,22 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
     switch (evtType) {
       case "pre_foreclosure": case "foreclosure": {
         const d = rd?.ForeclosureRecDate ?? rd?.event_date;
-        return d ? `Foreclosure filed ${new Date(String(d)).toLocaleDateString()} â€” auction pressure` : "Foreclosure filing â€” auction pressure mounting";
+        return d ? `Foreclosure filed ${new Date(String(d)).toLocaleDateString()} — auction pressure` : "Foreclosure filing — auction pressure mounting";
       }
       case "tax_lien": case "tax_delinquency": {
         const amt = rd?.DelinquentAmount ?? rd?.delinquent_amount;
         const inst = rd?.NumberDelinquentInstallments;
-        return amt ? `Tax delinquent $${Number(amt).toLocaleString()}${inst ? ` â€” ${inst} installments behind` : ""}` : "Tax delinquent â€” penalties accumulating";
+        return amt ? `Tax delinquent $${Number(amt).toLocaleString()}${inst ? ` — ${inst} installments behind` : ""}` : "Tax delinquent — penalties accumulating";
       }
-      case "divorce": return "Divorce filing â€” forced partition possible";
-      case "probate": case "deceased": return "Estate in probate â€” heirs likely want quick liquidation";
-      case "bankruptcy": return "Bankruptcy filing â€” motivated to resolve debts";
-      case "code_violation": return "Code violations â€” mounting fines, pressure to sell";
-      case "vacant": return "Vacant property â€” carrying costs with no income";
-      case "inherited": return "Inherited property â€” heirs may want fast liquidation";
-      case "tired_landlord": return "Long-term landlord showing signs of fatigue â€” may want to exit their rental portfolio";
-      case "underwater": return "Negative equity means the owner owes more than the home is worth â€” potential short sale candidate";
-      default: return "Distress signal â€” may be motivated to sell";
+      case "divorce": return "Divorce filing — forced partition possible";
+      case "probate": case "deceased": return "Estate in probate — heirs likely want quick liquidation";
+      case "bankruptcy": return "Bankruptcy filing — motivated to resolve debts";
+      case "code_violation": return "Code violations — mounting fines, pressure to sell";
+      case "vacant": return "Vacant property — carrying costs with no income";
+      case "inherited": return "Inherited property — heirs may want fast liquidation";
+      case "tired_landlord": return "Long-term landlord showing signs of fatigue — may want to exit their rental portfolio";
+      case "underwater": return "Negative equity means the owner owes more than the home is worth — potential short sale candidate";
+      default: return "Distress signal — may be motivated to sell";
     }
   };
 
@@ -943,7 +944,7 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
 
   return (
     <div className="space-y-5">
-      {/* â•â•â• 1. CALL CARD â€” WHO + NUMBER (hero section) â•â•â• */}
+      {/* â•â•â• 1. CALL CARD — WHO + NUMBER (hero section) â•â•â• */}
       <div ref={sectionOwner} className="rounded-[12px] border-2 border-cyan/30 bg-cyan/[0.03] p-4 relative overflow-hidden shadow-[0_0_20px_rgba(0,212,255,0.08)]">
         <div className="absolute inset-0 bg-gradient-to-br from-cyan/[0.05] via-transparent to-transparent pointer-events-none" />
         <div className="absolute top-0 inset-x-0 h-[1px] bg-gradient-to-r from-transparent via-cyan/50 to-transparent" />
@@ -953,7 +954,7 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
           <div className="flex items-center gap-3 mb-3">
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2 flex-wrap">
-                <p className="text-lg font-bold text-foreground truncate">{cf.ownerName || "â€”"}</p>
+                <p className="text-lg font-bold text-foreground truncate">{cf.ownerName || "—"}</p>
                 <RelationshipBadge data={{
                   ownerAgeInference: cf.prediction?.ownerAgeInference,
                   lifeEventProbability: cf.prediction?.lifeEventProbability,
@@ -1073,20 +1074,20 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
                 className="w-full gap-2 bg-amber-600 hover:bg-amber-500 text-white border-0 shadow-[0_0_14px_rgba(245,158,11,0.25)] hover:shadow-[0_0_22px_rgba(245,158,11,0.4)] transition-all"
               >
                 {skipTracing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Zap className="h-3.5 w-3.5" />}
-                Manual Skip Trace â€” Force Partial Lookup
+                Manual Skip Trace — Force Partial Lookup
               </Button>
             </div>
           )}
         </div>
       </div>
 
-      {/* â•â•â• 2. COMPLIANCE GATE â€” DNC / Litigator â•â•â• */}
+      {/* â•â•â• 2. COMPLIANCE GATE — DNC / Litigator â•â•â• */}
       {(isLitigator || hasDncNumbers) && (
         <div className="rounded-[10px] border border-red-500/40 bg-red-500/[0.12] p-3 flex items-center gap-3">
           <ShieldAlert className="h-5 w-5 text-red-400 shrink-0" />
           <div>
             <p className="text-xs font-bold text-red-400 uppercase tracking-wide">
-              {isLitigator ? "TCPA Litigator â€” DO NOT CONTACT" : "DNC Numbers Detected"}
+              {isLitigator ? "TCPA Litigator — DO NOT CONTACT" : "DNC Numbers Detected"}
             </p>
             <p className="text-[10px] text-red-300/70 mt-0.5">
               {isLitigator ? "High litigation risk. No calls, texts, or mailers to this owner." : "One or more phone numbers are on the DNC list. Check before dialing."}
@@ -1095,9 +1096,9 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
         </div>
       )}
 
-      {/* â•â•â• 3. DISTRESS SIGNALS + EXTERNAL LINKS â€” side by side â•â•â• */}
+      {/* â•â•â• 3. DISTRESS SIGNALS + EXTERNAL LINKS — side by side â•â•â• */}
       <div className="flex gap-3">
-        {/* Distress Signals â€” left half */}
+        {/* Distress Signals — left half */}
         <div ref={sectionSignals} className="flex-1 min-w-0 rounded-[12px] border border-white/[0.06] bg-white/[0.02] p-3">
           <div className="flex items-center justify-between mb-2">
             <div className="flex items-center gap-2">
@@ -1138,11 +1139,11 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
               )}
             </div>
           ) : (
-            <p className="text-[10px] text-muted-foreground/50">No distress indicators found &mdash; property appears clean. Signals checked: tax liens, foreclosure, code violations, vacancy, probate.</p>
+            <p className="text-[10px] text-muted-foreground/50">No distress signals found (checked: tax liens, foreclosure, probate, code violations)</p>
           )}
         </div>
 
-        {/* External Links + County Records â€” right half */}
+        {/* External Links + County Records — right half */}
         <div className="flex-1 min-w-0 rounded-[12px] border border-white/[0.06] bg-white/[0.02] p-3">
           <div className="flex items-center gap-2 mb-2">
             <Globe className="h-3 w-3 text-muted-foreground" />
@@ -1251,8 +1252,8 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
               )}
             </div>
             <div className="rounded-[8px] border border-white/[0.06] bg-white/[0.02] px-2.5 py-2">
-              <p className="text-[10px] text-muted-foreground/65">Outbound Triage</p>
-              <p className="font-medium text-foreground">{prospectingSnapshot.outboundStatus ? tagLabel(prospectingSnapshot.outboundStatus) : "Not set"}</p>
+              <p className="text-[10px] text-muted-foreground/65">Contact Status</p>
+              <p className="font-medium text-foreground">{prospectingSnapshot.outboundStatus ? (prospectingSnapshot.outboundStatus === "new_import" ? "Ready to Contact" : tagLabel(prospectingSnapshot.outboundStatus)) : "Not set"}</p>
               {prospectingSnapshot.outreachType && (
                 <p className="text-[10px] text-muted-foreground/65 mt-0.5">Outreach: {tagLabel(prospectingSnapshot.outreachType)}</p>
               )}
@@ -1261,8 +1262,8 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
               )}
             </div>
             <div className="rounded-[8px] border border-white/[0.06] bg-white/[0.02] px-2.5 py-2">
-              <p className="text-[10px] text-muted-foreground/65">Call Truth</p>
-              <p className="font-medium text-foreground">Attempts: {prospectingSnapshot.attemptCount ?? cf.totalCalls ?? 0}</p>
+              <p className="text-[10px] text-muted-foreground/65">Contact Attempts</p>
+              <p className="font-medium text-foreground">{prospectingSnapshot.attemptCount ?? cf.totalCalls ?? 0}</p>
               <p className="text-[10px] text-muted-foreground/65 mt-0.5">
                 Last outcome: {prospectingSnapshot.callOutcome ? tagLabel(prospectingSnapshot.callOutcome) : (cf.dispositionCode ? tagLabel(cf.dispositionCode) : "None")}
               </p>
@@ -1626,29 +1627,40 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
               </Button>
             </div>
           </div>
-        ) : (
-          <div className="space-y-2">
-            <div className="grid grid-cols-2 md:grid-cols-3 gap-2 text-[11px]">
-              <p className="text-muted-foreground">ARV Used: <span className="text-foreground font-medium">{offerPrepSnapshot.arvUsed != null ? formatCurrency(offerPrepSnapshot.arvUsed) : "Not set"}</span></p>
-              <p className="text-muted-foreground">Rehab: <span className="text-foreground font-medium">{offerPrepSnapshot.rehabEstimate != null ? formatCurrency(offerPrepSnapshot.rehabEstimate) : "Not set"}</span></p>
-              <p className="text-muted-foreground">MAO Low: <span className="text-foreground font-medium">{offerPrepSnapshot.maoLow != null ? formatCurrency(offerPrepSnapshot.maoLow) : "Not set"}</span></p>
-              <p className="text-muted-foreground">MAO High: <span className="text-foreground font-medium">{offerPrepSnapshot.maoHigh != null ? formatCurrency(offerPrepSnapshot.maoHigh) : "Not set"}</span></p>
-              <p className="text-muted-foreground">Confidence: <span className="text-foreground font-medium">{offerPrepSnapshot.confidence ? offerPrepSnapshot.confidence[0].toUpperCase() + offerPrepSnapshot.confidence.slice(1) : "Not set"}</span></p>
-              <p className="text-muted-foreground">Last updated: <span className="text-foreground font-medium">{offerPrepUpdatedLabel}</span></p>
+        ) : (() => {
+          const allEmpty = offerPrepSnapshot.arvUsed == null && offerPrepSnapshot.rehabEstimate == null && offerPrepSnapshot.maoLow == null && offerPrepSnapshot.maoHigh == null && !offerPrepSnapshot.confidence && !offerPrepSnapshot.updatedAt;
+          if (allEmpty && !offerPrepExpanded) {
+            return (
+              <div className="flex items-center gap-2 text-[11px]">
+                <p className="text-muted-foreground">Offer details: Not started yet</p>
+                <button type="button" onClick={() => setOfferPrepExpanded(true)} className="text-[10px] text-cyan/70 hover:text-cyan transition-colors">[Show details]</button>
+              </div>
+            );
+          }
+          return (
+            <div className="space-y-2">
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-2 text-[11px]">
+                <p className="text-muted-foreground">ARV Used: <span className="text-foreground font-medium">{offerPrepSnapshot.arvUsed != null ? formatCurrency(offerPrepSnapshot.arvUsed) : "Not set"}</span></p>
+                <p className="text-muted-foreground">Rehab: <span className="text-foreground font-medium">{offerPrepSnapshot.rehabEstimate != null ? formatCurrency(offerPrepSnapshot.rehabEstimate) : "Not set"}</span></p>
+                <p className="text-muted-foreground">MAO Low: <span className="text-foreground font-medium">{offerPrepSnapshot.maoLow != null ? formatCurrency(offerPrepSnapshot.maoLow) : "Not set"}</span></p>
+                <p className="text-muted-foreground">MAO High: <span className="text-foreground font-medium">{offerPrepSnapshot.maoHigh != null ? formatCurrency(offerPrepSnapshot.maoHigh) : "Not set"}</span></p>
+                <p className="text-muted-foreground">Confidence: <span className="text-foreground font-medium">{offerPrepSnapshot.confidence ? offerPrepSnapshot.confidence[0].toUpperCase() + offerPrepSnapshot.confidence.slice(1) : "Not set"}</span></p>
+                <p className="text-muted-foreground">Last updated: <span className="text-foreground font-medium">{offerPrepUpdatedLabel}</span></p>
+              </div>
+              {offerPrepSnapshot.sheetUrl && (
+                <a
+                  href={offerPrepSnapshot.sheetUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1 text-[10px] text-cyan/80 hover:text-cyan"
+                >
+                  <ExternalLink className="h-2.5 w-2.5" />
+                  Open comp/calculator sheet
+                </a>
+              )}
             </div>
-            {offerPrepSnapshot.sheetUrl && (
-              <a
-                href={offerPrepSnapshot.sheetUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-1 text-[10px] text-cyan/80 hover:text-cyan"
-              >
-                <ExternalLink className="h-2.5 w-2.5" />
-                Open comp/calculator sheet
-              </a>
-            )}
-          </div>
-        )}
+          );
+        })()}
       </div>
 
       <BuyerDispoVisibilityCard
@@ -2125,7 +2137,7 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
         </AnimatePresence>
       </div>
 
-      {/* â•â•â• 4. PROPERTY SNAPSHOT â€” Photo Carousel + Address + Badges â•â•â• */}
+      {/* â•â•â• 4. PROPERTY SNAPSHOT — Photo Carousel + Address + Badges â•â•â• */}
       <div ref={sectionProperty} className="rounded-[12px] border border-white/[0.06] bg-white/[0.02] overflow-hidden">
         {(allPhotos.length > 0 || imageUrl) && (
           <div className="relative block h-32 group">
@@ -2207,14 +2219,14 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
           </div>
         )}
         <div className="p-4 space-y-3">
-          {/* Address + County + APN â€” with satellite thumbnail on the right */}
+          {/* Address + County + APN — with satellite thumbnail on the right */}
           <div className="flex gap-3">
             <div className="flex-1 min-w-0 space-y-2">
               <div className="flex items-start gap-2">
                 <MapPin className="h-3.5 w-3.5 text-cyan/60 mt-0.5 shrink-0" />
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-1.5">
-                    <p className="text-sm font-semibold text-foreground truncate">{cf.fullAddress || "â€”"}</p>
+                    <p className="text-sm font-semibold text-foreground truncate">{cf.fullAddress || "—"}</p>
                     {cf.fullAddress && <CopyBtn text={cf.fullAddress} />}
                   </div>
                   <div className="flex items-center gap-3 mt-0.5">
@@ -2309,7 +2321,7 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
         </div>
       </div>
 
-      {/* â•â•â• 5. MAO BREAKDOWN â€” Full formula so agents trust the math â•â•â• */}
+      {/* â•â•â• 5. MAO BREAKDOWN — Full formula so agents trust the math â•â•â• */}
       {mao != null && mao > 0 && (
         <div className="rounded-[12px] border border-cyan/20 bg-cyan/[0.03] p-4 space-y-2">
           <div className="flex items-center justify-between">
@@ -2347,7 +2359,7 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
         </div>
       )}
 
-      {/* â•â•â• 6. LEAD INTELLIGENCE â€” 4 Tiles â•â•â• */}
+      {/* â•â•â• 6. LEAD INTELLIGENCE — 4 Tiles â•â•â• */}
       <div className="rounded-[12px] border border-cyan/15 bg-cyan/[0.02] p-4 space-y-3">
         <div className="flex items-center gap-2">
           <TrendingUp className="h-3.5 w-3.5 text-cyan" />
@@ -2363,19 +2375,20 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
           >
             <div className="absolute inset-0 bg-gradient-to-b from-white/[0.02] to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
             <div className="flex items-center justify-between mb-1 relative z-10">
-              <p className="text-[9px] text-muted-foreground/60 uppercase tracking-widest">Composite Score</p>
+              <p className="text-[9px] text-muted-foreground/60 uppercase tracking-widest">Match Score</p>
               <span className="text-[8px] text-cyan/40 group-hover:text-cyan/70 transition-colors">drill &rarr;</span>
             </div>
             <div className="flex items-center gap-3 relative z-10">
               <p className="text-3xl font-black tabular-nums" style={{ textShadow: `0 0 12px ${tc.glow}` }}>{cf.compositeScore}</p>
               <div>
-                <span className={cn("text-[9px] font-bold px-1.5 py-0.5 rounded uppercase tracking-wider", tc.text, `${tc.bar}/20`)}>{tier.toUpperCase()}</span>
+                <span className={cn("text-[9px] font-bold px-1.5 py-0.5 rounded uppercase tracking-wider", tc.text, `${tc.bar}/20`)}>{{ platinum: "Top priority", gold: "High priority", silver: "Medium", bronze: "Low priority" }[tier]}</span>
                 <p className="text-[9px] text-muted-foreground/50 mt-0.5">{cf.tags.length} signal{cf.tags.length !== 1 ? "s" : ""} stacked</p>
               </div>
             </div>
             <div className="h-1.5 rounded-full bg-secondary mt-2 overflow-hidden relative z-10">
               <div className={cn("h-full rounded-full transition-all", tc.bar)} style={{ width: `${Math.min(cf.compositeScore, 100)}%` }} />
             </div>
+            <p className="text-[8px] text-muted-foreground/40 mt-1 relative z-10">Score ranges: 0-30 Low, 31-50 Medium, 51-75 High, 76-100 Top</p>
           </button>
 
           {/* Equity & Spread */}
@@ -2394,7 +2407,7 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
             <div className="flex items-center gap-3 relative z-10">
               <p className={cn("text-3xl font-black tabular-nums", equityIsGreen ? "text-emerald-400" : "text-foreground")}
                 style={{ textShadow: equityIsGreen ? "0 0 16px rgba(52,211,153,0.35)" : undefined }}>
-                {cf.equityPercent != null ? `${cf.equityPercent}%` : "â€”"}
+                {cf.equityPercent != null ? `${cf.equityPercent}%` : "N/A"}
               </p>
               <div className="text-[10px] text-muted-foreground space-y-0.5">
                 {cf.estimatedValue != null && <p>AVM {formatCurrency(cf.estimatedValue)}</p>}
@@ -2404,7 +2417,7 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
             </div>
             {roomLabel && (
               <p className={cn("text-[9px] mt-1.5 relative z-10 font-semibold", roomColor.split(" ")[0])}>
-                {roomLabel === "HIGH SPREAD" ? "Room to negotiate â€” strong equity" : roomLabel === "MODERATE" ? "Some room â€” watch margins" : "Tight spread â€” proceed with caution"}
+                {roomLabel === "HIGH SPREAD" ? "Room to negotiate — strong equity" : roomLabel === "MODERATE" ? "Some room — watch margins" : "Tight spread — proceed with caution"}
               </p>
             )}
           </button>
@@ -2428,9 +2441,9 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
                   <p className="text-[9px] text-muted-foreground/50">since newest</p>
                 </div>
                 <p className="text-[9px] text-orange-300/70 mt-1 font-semibold">
-                  {freshestDays != null && freshestDays <= 7 ? "Very fresh â€” call ASAP before competitors" :
-                   freshestDays != null && freshestDays <= 30 ? "Recent signal â€” still a warm window" :
-                   "Aging signal â€” may need re-verification"}
+                  {freshestDays != null && freshestDays <= 7 ? "Very fresh — call ASAP before competitors" :
+                   freshestDays != null && freshestDays <= 30 ? "Recent signal — still a warm window" :
+                   "Aging signal — may need re-verification"}
                 </p>
               </>
             ) : cf.tags.length > 0 ? (
@@ -2439,7 +2452,7 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
                 <p className="text-xs text-muted-foreground/60">{cf.tags.length} signal{cf.tags.length !== 1 ? "s" : ""} detected</p>
               </div>
             ) : (
-              <p className="text-xs text-muted-foreground/40 italic">No signals</p>
+              <p className="text-xs text-muted-foreground/40 italic">No active signals</p>
             )}
           </button>
 
@@ -2464,11 +2477,11 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
                 {cf.isVacant && <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-purple-500/10 text-purple-400 border border-purple-500/20">Vacant Property</span>}
               </div>
               <p className="text-[9px] text-muted-foreground/70 font-semibold">
-                {cf.isAbsentee && ownerAge && ownerAge >= 65 ? "Elderly absentee â€” likely estate/caretaker situation" :
-                 cf.isAbsentee ? "Absentee owner â€” may be motivated to offload" :
-                 cf.isFreeClear ? "Free & clear â€” no mortgage pressure, but no urgency either" :
-                 yearsOwned != null && yearsOwned >= 20 ? `${yearsOwned}yr owner â€” long tenure, may be ready to move` :
-                 ownerAge ? `Owner ~${ownerAge} â€” ${ownerAge >= 65 ? "senior, life transition likely" : "younger owner"}` :
+                {cf.isAbsentee && ownerAge && ownerAge >= 65 ? "Elderly absentee — likely estate/caretaker situation" :
+                 cf.isAbsentee ? "Absentee owner — may be motivated to offload" :
+                 cf.isFreeClear ? "Free & clear — no mortgage pressure, but no urgency either" :
+                 yearsOwned != null && yearsOwned >= 20 ? `${yearsOwned}yr owner — long tenure, may be ready to move` :
+                 ownerAge ? `Owner ~${ownerAge} — ${ownerAge >= 65 ? "senior, life transition likely" : "younger owner"}` :
                  "Standard owner situation"}
               </p>
             </div>
@@ -2530,7 +2543,7 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
         </div>
       )}
 
-      {/* â”€â”€ Call Playbook â€” Grok AI (upgraded pre-call brief) â”€â”€ */}
+      {/* â”€â”€ Call Playbook — Grok AI (upgraded pre-call brief) â”€â”€ */}
       {brief || briefLoading ? (
         <div className="rounded-[12px] border border-purple-500/20 bg-purple-500/[0.04] p-4 relative overflow-hidden">
           <div className="absolute inset-0 bg-gradient-to-br from-purple-500/[0.06] via-transparent to-cyan/[0.03] pointer-events-none" />
@@ -2781,7 +2794,7 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
         </div>
       )}
 
-      {/* â•â•â• 9. PROPERTY DETAILS â€” Tax/Transfer + Predictive (no address â€” moved to Snapshot) â•â•â• */}
+      {/* â•â•â• 9. PROPERTY DETAILS — Tax/Transfer + Predictive (no address — moved to Snapshot) â•â•â• */}
       <div ref={sectionEquity} className="rounded-[12px] border border-white/[0.06] bg-white/[0.02] p-4 space-y-3">
         <div className="flex items-center gap-2 mb-1">
           <Home className="h-3.5 w-3.5 text-muted-foreground" />
@@ -2816,7 +2829,7 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
                       <p className="text-muted-foreground">Last Sale: <span className="text-foreground font-medium">{formatCurrency(cf.lastSalePrice)}</span>{cf.lastSaleDate ? ` (${new Date(cf.lastSaleDate).toLocaleDateString()})` : ""}</p>
                     )}
                     {lastTransferType && (
-                      <p className="text-muted-foreground">Transfer: <span className="text-foreground font-medium">{lastTransferType}</span>{lastTransferValue ? ` â€” ${formatCurrency(lastTransferValue)}` : ""}</p>
+                      <p className="text-muted-foreground">Transfer: <span className="text-foreground font-medium">{lastTransferType}</span>{lastTransferValue ? ` — ${formatCurrency(lastTransferValue)}` : ""}</p>
                     )}
                     {prRaw.DelinquentYear && (
                       <p className="text-amber-400">Delinquent: <span className="font-medium">Year {prRaw.DelinquentYear}</span>{prRaw.NumberDelinquentInstallments ? ` (${prRaw.NumberDelinquentInstallments} installments)` : ""}</p>
@@ -3003,7 +3016,7 @@ function PropertyRadarTab({ cf }: { cf: ClientFile }) {
       {cf.enriched && (
         <div className="flex items-center gap-2 text-xs text-cyan/70">
           <CheckCircle2 className="h-3.5 w-3.5" />
-          <span>Enriched from PropertyRadar{cf.radarId ? ` â€” RadarID: ${cf.radarId}` : ""}</span>
+          <span>Enriched from PropertyRadar{cf.radarId ? ` — RadarID: ${cf.radarId}` : ""}</span>
         </div>
       )}
     </div>
@@ -3034,20 +3047,20 @@ function CountyRecordsTab({ cf }: { cf: ClientFile }) {
           <div className="space-y-2">
             <a href={countyInfo.gis(cf.apn ?? "")} target="_blank" rel="noopener noreferrer">
               <Button size="sm" variant="outline" className="gap-2 text-xs w-full justify-start">
-                <Map className="h-3.5 w-3.5 text-cyan" />GIS / Parcel Map â€” {countyInfo.name}
+                <Map className="h-3.5 w-3.5 text-cyan" />GIS / Parcel Map — {countyInfo.name}
                 <ExternalLink className="h-3 w-3 ml-auto text-muted-foreground" />
               </Button>
             </a>
             <a href={countyInfo.assessor(cf.apn ?? "")} target="_blank" rel="noopener noreferrer">
               <Button size="sm" variant="outline" className="gap-2 text-xs w-full justify-start">
-                <Building className="h-3.5 w-3.5 text-cyan" />Assessor&apos;s Office â€” {countyInfo.name}
+                <Building className="h-3.5 w-3.5 text-cyan" />Assessor&apos;s Office — {countyInfo.name}
                 <ExternalLink className="h-3 w-3 ml-auto text-muted-foreground" />
               </Button>
             </a>
             {countyInfo.treasurer && (
               <a href={countyInfo.treasurer(cf.apn ?? "")} target="_blank" rel="noopener noreferrer">
                 <Button size="sm" variant="outline" className="gap-2 text-xs w-full justify-start">
-                  <DollarSign className="h-3.5 w-3.5 text-cyan" />Treasurer / Tax Records â€” {countyInfo.name}
+                  <DollarSign className="h-3.5 w-3.5 text-cyan" />Treasurer / Tax Records — {countyInfo.name}
                   <ExternalLink className="h-3 w-3 ml-auto text-muted-foreground" />
                 </Button>
               </a>
@@ -3074,7 +3087,7 @@ function CountyRecordsTab({ cf }: { cf: ClientFile }) {
 }
 
 // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
-// Tab: Comps & ARV â€” Interactive Leaflet Map + PropertyRadar Search
+// Tab: Comps & ARV — Interactive Leaflet Map + PropertyRadar Search
 // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 function SubjectPhotoCarousel({ photos, onSkipTrace }: { photos: string[]; onSkipTrace?: () => void }) {
@@ -3163,7 +3176,7 @@ function CompDetailPanel({ comp, onClose }: { comp: CompProperty; onClose: () =>
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           setPhotos(data.photos.map((p: any) => (typeof p === "string" ? p : p?.url)).filter(Boolean));
         }
-      } catch { /* ignore â€” fallback to street view / satellite */ }
+      } catch { /* ignore — fallback to street view / satellite */ }
       if (!cancelled) setLoading(false);
     })();
     return () => { cancelled = true; };
@@ -3239,12 +3252,12 @@ function CompDetailPanel({ comp, onClose }: { comp: CompProperty; onClose: () =>
         {/* Property details */}
         <div className="flex-1 p-3 min-w-0">
           <div className="grid grid-cols-2 gap-x-6 gap-y-1.5 text-[11px]">
-            <div><span className="text-muted-foreground">Beds:</span> <span className="font-medium">{comp.beds ?? "â€”"}</span></div>
-            <div><span className="text-muted-foreground">Baths:</span> <span className="font-medium">{comp.baths ?? "â€”"}</span></div>
-            <div><span className="text-muted-foreground">Sqft:</span> <span className="font-medium">{comp.sqft?.toLocaleString() ?? "â€”"}</span></div>
-            <div><span className="text-muted-foreground">Year:</span> <span className="font-medium">{comp.yearBuilt ?? "â€”"}</span></div>
-            <div><span className="text-muted-foreground">AVM:</span> <span className="font-medium text-neon">{comp.avm ? formatCurrency(comp.avm) : "â€”"}</span></div>
-            <div><span className="text-muted-foreground">Last Sale:</span> <span className="font-medium">{comp.lastSalePrice ? formatCurrency(comp.lastSalePrice) : "â€”"}</span></div>
+            <div><span className="text-muted-foreground">Beds:</span> <span className="font-medium">{comp.beds ?? "—"}</span></div>
+            <div><span className="text-muted-foreground">Baths:</span> <span className="font-medium">{comp.baths ?? "—"}</span></div>
+            <div><span className="text-muted-foreground">Sqft:</span> <span className="font-medium">{comp.sqft?.toLocaleString() ?? "—"}</span></div>
+            <div><span className="text-muted-foreground">Year:</span> <span className="font-medium">{comp.yearBuilt ?? "—"}</span></div>
+            <div><span className="text-muted-foreground">AVM:</span> <span className="font-medium text-neon">{comp.avm ? formatCurrency(comp.avm) : "—"}</span></div>
+            <div><span className="text-muted-foreground">Last Sale:</span> <span className="font-medium">{comp.lastSalePrice ? formatCurrency(comp.lastSalePrice) : "—"}</span></div>
             {comp.lastSaleDate && (
               <div><span className="text-muted-foreground">Sale Date:</span> <span className="font-medium">{new Date(comp.lastSaleDate).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}</span></div>
             )}
@@ -3462,7 +3475,7 @@ function CompsTab({ cf, selectedComps, onAddComp, onRemoveComp, onSkipTrace, com
         if (data?.[0]?.lat && data?.[0]?.lon) {
           setGeocodedCoords({ lat: parseFloat(data[0].lat), lng: parseFloat(data[0].lon) });
         } else {
-          setGeocodeError("Could not geocode â€” try enriching from PropertyRadar");
+          setGeocodeError("Could not geocode — try enriching from PropertyRadar");
         }
       } catch {
         setGeocodeError("Geocoding service unavailable");
@@ -3927,12 +3940,12 @@ function CompsTab({ cf, selectedComps, onAddComp, onRemoveComp, onSkipTrace, com
                             </div>
                           )}
                         </td>
-                        <td className="px-3 py-2 text-right">{comp.beds ?? "â€”"}</td>
-                        <td className="px-3 py-2 text-right">{comp.baths ?? "â€”"}</td>
-                        <td className="px-3 py-2 text-right">{comp.sqft?.toLocaleString() ?? "â€”"}</td>
-                        <td className="px-3 py-2 text-right">{comp.yearBuilt ?? "â€”"}</td>
-                        <td className="px-3 py-2 text-right font-medium text-neon">{comp.avm ? formatCurrency(comp.avm) : "â€”"}</td>
-                        <td className="px-3 py-2 text-right">{comp.lastSalePrice ? formatCurrency(comp.lastSalePrice) : "â€”"}</td>
+                        <td className="px-3 py-2 text-right">{comp.beds ?? "—"}</td>
+                        <td className="px-3 py-2 text-right">{comp.baths ?? "—"}</td>
+                        <td className="px-3 py-2 text-right">{comp.sqft?.toLocaleString() ?? "—"}</td>
+                        <td className="px-3 py-2 text-right">{comp.yearBuilt ?? "—"}</td>
+                        <td className="px-3 py-2 text-right font-medium text-neon">{comp.avm ? formatCurrency(comp.avm) : "—"}</td>
+                        <td className="px-3 py-2 text-right">{comp.lastSalePrice ? formatCurrency(comp.lastSalePrice) : "—"}</td>
                         <td className="px-3 py-2 text-center">
                           <button onClick={() => onRemoveComp(comp.apn)} className="text-red-400 hover:text-red-300">
                             <X className="h-3 w-3" />
@@ -4151,26 +4164,26 @@ function OfferCalcTab({ cf, computedArv }: { cf: ClientFile; computedArv: number
           <div className="rounded-lg border border-cyan/20 bg-cyan/4 p-3 text-center">
             <p className="text-[10px] text-muted-foreground uppercase">MAO (75% Rule)</p>
             <p className="text-xl font-bold text-neon" style={{ textShadow: "0 0 10px rgba(0,212,255,0.3)" }}>
-              {mao > 0 ? formatCurrency(mao) : "â€”"}
+              {mao > 0 ? formatCurrency(mao) : "—"}
             </p>
             <p className="text-[10px] text-muted-foreground mt-0.5">ARV Ã— 0.75 âˆ’ Rehab</p>
           </div>
           <div className="rounded-[10px] border border-white/[0.06] bg-white/[0.04] p-3 text-center">
             <p className="text-[10px] text-muted-foreground uppercase">Total Costs</p>
-            <p className="text-xl font-bold">{totalCosts > 0 ? formatCurrency(totalCosts) : "â€”"}</p>
+            <p className="text-xl font-bold">{totalCosts > 0 ? formatCurrency(totalCosts) : "—"}</p>
             <p className="text-[10px] text-muted-foreground mt-0.5">Purchase + Rehab + Hold + Close</p>
           </div>
           <div className={cn("rounded-[10px] border p-3 text-center", grossProfit > 0 ? "border-emerald-500/30 bg-emerald-500/5" : "border-red-500/30 bg-red-500/5")}>
             <p className="text-[10px] text-muted-foreground uppercase">Gross Profit</p>
             <p className={cn("text-xl font-bold", grossProfit > 0 ? "text-emerald-400" : "text-red-400")}>
-              {arvNum > 0 && purchaseNum > 0 ? formatCurrency(grossProfit) : "â€”"}
+              {arvNum > 0 && purchaseNum > 0 ? formatCurrency(grossProfit) : "—"}
             </p>
-            <p className="text-[10px] text-muted-foreground mt-0.5">ROI: {roi != null ? `${roi}%` : "â€”"}</p>
+            <p className="text-[10px] text-muted-foreground mt-0.5">ROI: {roi != null ? `${roi}%` : "—"}</p>
           </div>
           <div className={cn("rounded-lg border p-3 text-center", netProfit > 0 ? "border-cyan/20 bg-cyan/4" : "border-red-500/30 bg-red-500/5")}>
             <p className="text-[10px] text-muted-foreground uppercase">Net After Assignment</p>
             <p className={cn("text-xl font-bold", netProfit > 0 ? "text-neon" : "text-red-400")} style={netProfit > 0 ? { textShadow: "0 0 10px rgba(0,212,255,0.3)" } : undefined}>
-              {arvNum > 0 && purchaseNum > 0 ? formatCurrency(netProfit) : "â€”"}
+              {arvNum > 0 && purchaseNum > 0 ? formatCurrency(netProfit) : "—"}
             </p>
             <p className="text-[10px] text-muted-foreground mt-0.5">Gross âˆ’ Assignment Fee</p>
           </div>
@@ -4180,7 +4193,7 @@ function OfferCalcTab({ cf, computedArv }: { cf: ClientFile; computedArv: number
       {purchaseNum > mao && mao > 0 && (
         <div className="flex items-center gap-2 text-xs text-amber-400 bg-amber-500/5 border border-amber-500/20 rounded-md px-3 py-2">
           <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
-          Purchase price exceeds MAO by {formatCurrency(purchaseNum - mao)} â€” negotiate lower or increase ARV.
+          Purchase price exceeds MAO by {formatCurrency(purchaseNum - mao)} — negotiate lower or increase ARV.
         </div>
       )}
     </div>
@@ -4237,7 +4250,7 @@ function DocumentsTab({ cf, computedArv }: { cf: ClientFile; computedArv: number
   const handlePrint = useCallback(() => {
     const w = window.open("", "_blank", "width=800,height=1100");
     if (!w) return;
-    w.document.write(`<!DOCTYPE html><html><head><title>PSA â€” ${cf.fullAddress}</title>
+    w.document.write(`<!DOCTYPE html><html><head><title>PSA — ${cf.fullAddress}</title>
       <style>body{font-family:Courier,monospace;padding:40px;font-size:12px;line-height:1.6;white-space:pre-wrap;color:#000;}</style>
       </head><body>${psaBody}</body></html>`);
     w.document.close();
@@ -4245,7 +4258,7 @@ function DocumentsTab({ cf, computedArv }: { cf: ClientFile; computedArv: number
   }, [cf.fullAddress, psaBody]);
 
   const gmailUrl = useMemo(() => {
-    const subject = encodeURIComponent(`PSA â€” ${cf.fullAddress} â€” ${cf.ownerName}`);
+    const subject = encodeURIComponent(`PSA — ${cf.fullAddress} — ${cf.ownerName}`);
     const body = encodeURIComponent(`Hi ${cf.ownerName.split(" ")[0]},\n\nPlease find the Purchase and Sale Agreement for the property at:\n${cf.fullAddress}\nAPN: ${cf.apn}\n\nI'll follow up shortly to discuss terms.\n\nBest,\nAdam DesJardin\nDominion Homes LLC`);
     return `https://mail.google.com/mail/?view=cm&su=${subject}&body=${body}`;
   }, [cf]);
@@ -4275,13 +4288,13 @@ function DocumentsTab({ cf, computedArv }: { cf: ClientFile; computedArv: number
 
       <div className="flex items-center gap-2 text-xs text-cyan/70 bg-cyan/4 border border-cyan/15 rounded-md px-3 py-2">
         <Shield className="h-3.5 w-3.5 shrink-0" />
-        RCW 61.40.010 compliant â€” wholesaler disclosure included in all documents.
+        RCW 61.40.010 compliant — wholesaler disclosure included in all documents.
       </div>
 
       {/* Auto-filled data summary */}
       <div className="text-[10px] text-muted-foreground/50 space-y-0.5">
         <p>Auto-filled from client file: {cf.ownerName} â€¢ {cf.fullAddress} â€¢ APN {cf.apn}</p>
-        <p>Heat Score: {cf.compositeScore} ({cf.scoreLabel.toUpperCase()}) â€¢ Equity: {cf.equityPercent ?? "â€”"}% â€¢ ARV: {cf.estimatedValue ? formatCurrency(cf.estimatedValue) : "â€”"}</p>
+        <p>Heat Score: {cf.compositeScore} ({cf.scoreLabel.toUpperCase()}) — Equity: {cf.equityPercent ?? "N/A"}% — ARV: {cf.estimatedValue ? formatCurrency(cf.estimatedValue) : "N/A"}</p>
       </div>
     </div>
   );
@@ -4697,7 +4710,7 @@ export function MasterClientFileModal({ clientFile: incomingClientFile, open, on
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [clientFile?.propertyId, clientFile?.ownerFlags]);
 
-  // Fetch dial history for this lead â€” groups calls_log by phone_dialed
+  // Fetch dial history for this lead — groups calls_log by phone_dialed
   const fetchDialHistory = useCallback(async () => {
     if (!clientFile?.id) return;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -4967,7 +4980,7 @@ export function MasterClientFileModal({ clientFile: incomingClientFile, open, on
     }
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) {
-      toast.error("Not logged in â€” cannot move stage");
+      toast.error("Not logged in — cannot move stage");
       return;
     }
 
@@ -5807,7 +5820,7 @@ export function MasterClientFileModal({ clientFile: incomingClientFile, open, on
         toast.error(data.error ?? "SMS failed");
       }
     } catch {
-      toast.error("Network error â€” SMS failed");
+      toast.error("Network error — SMS failed");
     } finally {
       setSmsSending(false);
     }
@@ -5898,7 +5911,7 @@ export function MasterClientFileModal({ clientFile: incomingClientFile, open, on
         if (data.phones?.length) parts.push(`${data.phones.length} phone(s)`);
         if (data.emails?.length) parts.push(`${data.emails.length} email(s)`);
         if (data.persons?.length) parts.push(`${data.persons.length} person(s)`);
-        setSkipTraceResult(parts.length > 0 ? `Found ${parts.join(", ")}` : "Complete â€” no contact info found");
+        setSkipTraceResult(parts.length > 0 ? `Found ${parts.join(", ")}` : "Complete — no contact info found");
         console.log(`[SkipTrace Perf] Total: ${total}ms | API: ${Math.round(tApi - t0)}ms`);
         onRefresh?.();
       } else {
@@ -5950,7 +5963,7 @@ export function MasterClientFileModal({ clientFile: incomingClientFile, open, on
       // Check if this is an SSE stream or regular JSON (cached responses are still JSON)
       const contentType = res.headers.get("content-type") ?? "";
       if (contentType.includes("text/event-stream") && res.body) {
-        // SSE streaming mode â€” read events as they arrive
+        // SSE streaming mode — read events as they arrive
         const reader = res.body.getReader();
         const decoder = new TextDecoder();
         let buffer = "";
@@ -5972,7 +5985,7 @@ export function MasterClientFileModal({ clientFile: incomingClientFile, open, on
               const event = JSON.parse(dataLine.slice(6));
 
               if (event.phase === "complete" && event.result) {
-                // Final event â€” the full result
+                // Final event — the full result
                 setDeepCrawlResult(event.result);
                 setHasSavedReport(true);
                 // deepSkip is sent as a sibling field (not nested inside result)
@@ -6012,7 +6025,7 @@ export function MasterClientFileModal({ clientFile: incomingClientFile, open, on
                     });
                   }
                 }
-                toast.success(`Deep Crawl complete â€” ${event.result.sources?.join(", ") ?? "done"}`);
+                toast.success(`Deep Crawl complete — ${event.result.sources?.join(", ") ?? "done"}`);
                 // Also re-fetch from parent to get full updated data
                 onRefresh?.();
               } else if (event.phase === "error") {
@@ -6046,7 +6059,7 @@ export function MasterClientFileModal({ clientFile: incomingClientFile, open, on
           setHasSavedReport(true);
           // Backward compat: cached results may still have nested deepSkip
           if (data.deepSkip) setDeepSkipResult(data.deepSkip);
-          toast.success(`Deep Crawl complete â€” ${data.sources?.join(", ") ?? "done"}`);
+          toast.success(`Deep Crawl complete — ${data.sources?.join(", ") ?? "done"}`);
           onRefresh?.();
         }
       }
@@ -6075,10 +6088,10 @@ export function MasterClientFileModal({ clientFile: incomingClientFile, open, on
       } else if (data.success && data.filled?.length === 0) {
         toast.info("All property details already populated");
       } else {
-        // ATTOM failed â€” offer Zillow link
+        // ATTOM failed — offer Zillow link
         const zUrl = data.zillow_url;
         toast.error(
-          `${data.error ?? "Autofill failed"}${zUrl ? " â€” opening Zillow for manual lookup" : ""}`,
+          `${data.error ?? "Autofill failed"}${zUrl ? " — opening Zillow for manual lookup" : ""}`,
           { duration: 6000 },
         );
         if (zUrl) window.open(zUrl, "_blank", "noopener,noreferrer");
@@ -6312,7 +6325,7 @@ export function MasterClientFileModal({ clientFile: incomingClientFile, open, on
                         else toast.error("Could not add to queue");
                       }}
                     >
-                      <ListPlus className="h-3.5 w-3.5" />Add to Queue
+                      <ListPlus className="h-3.5 w-3.5" />Queue for Dialer
                     </Button>
                   )}
                   <Button
@@ -6348,7 +6361,7 @@ export function MasterClientFileModal({ clientFile: incomingClientFile, open, on
                       setNoteEditorOpen(false);
                     }}
                   >
-                    <CheckCircle2 className="h-3.5 w-3.5 text-cyan" />Log Call Result
+                    <CheckCircle2 className="h-3.5 w-3.5 text-cyan" />Log Outcome
                   </Button>
                   {!(isAssignedToCurrentUser && assignmentOptions.length > 0) && (
                   <Button
@@ -6661,14 +6674,11 @@ export function MasterClientFileModal({ clientFile: incomingClientFile, open, on
                           <UrgencyIcon className="h-3.5 w-3.5 shrink-0" />
                           <span className="font-semibold">{nextActionUrgency.label}</span>
                         </div>
-                        <p className="text-[10px] opacity-80 mt-0.5">
-                          Next Action Type: <span className="font-medium">{nextActionView.label}</span>
-                        </p>
                         <p className={cn("text-[10px] mt-1", !clientFile.assignedTo ? "text-amber-300" : "opacity-80")}>
                           {!clientFile.assignedTo
                             ? "Owner unassigned. Claim or assign to keep this lead active."
                             : isAssignedToCurrentUser
-                              ? "Assigned to you"
+                              ? "This callback is assigned to you"
                               : `Next action owned by ${assigneeLabel}.`}
                         </p>
                         {missingNextAction && (

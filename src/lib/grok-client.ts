@@ -302,7 +302,7 @@ export function buildSentinelSystemPrompt(metrics?: SentinelPromptMetrics): stri
     "├── app/",
     "│   ├── (sentinel)/          ← All authenticated pages (route group)",
     "│   │   ├── dashboard/page.tsx       — Main dashboard with drag-drop widget grid",
-    "│   │   ├── dialer/page.tsx          — Power Dialer (Twilio, queue, call notes, pre-call brief)",
+    "│   │   ├── dialer/page.tsx          — Dialer (Twilio, queue, call notes, pre-call brief)",
     "│   │   ├── pipeline/page.tsx        — Kanban board (DnD columns: prospect→lead→negotiation→disposition→closed)",
     "│   │   ├── grok/page.tsx            — Grok Command Center (this chat UI)",
     "│   │   ├── gmail/page.tsx           — Gmail OAuth inbox/compose",

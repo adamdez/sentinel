@@ -108,7 +108,7 @@ export function scheduleFirstCall(): ScheduleResult {
 
 export function getSequenceLabel(step: number): string {
   if (step >= 7) return "Sequence Complete";
-  return `Step ${step} of 7 \u2022 Day ${step} of sequence`;
+  return `Step ${step} of 7 in follow-up sequence`;
 }
 
 export function getSequenceProgress(step: number): number {
@@ -163,7 +163,7 @@ export function getCadencePosition(totalCalls: number): CadencePosition {
     isComplete,
     label: isComplete
       ? "Cadence Complete"
-      : `Step ${totalCalls} of ${CADENCE_DAYS.length} \u2022 Day ${CADENCE_DAYS[idx]} of cadence`,
+      : `Step ${totalCalls} of ${CADENCE_DAYS.length} in follow-up sequence`,
   };
 }
 

@@ -21,7 +21,7 @@ export class DashboardPage {
 
   async expectBreakingLeadsTicker() {
     // The sidebar or ticker should contain "Breaking" or lead-related content
-    const ticker = this.page.locator("text=Breaking Leads").or(
+    const ticker = this.page.locator("text=New Priority Leads").or(
       this.page.locator("[class*='breaking']"),
     );
     // Ticker may not show if no leads — just verify no crash

@@ -10,16 +10,12 @@ import {
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Award,
-  UserCheck,
-  User,
-  Clock,
   Zap,
   Search,
   RefreshCw,
   GripVertical,
   Sparkles,
   Plus,
-  ListPlus,
   Phone,
   Trash2,
   Loader2,
@@ -45,97 +41,44 @@ import { MasterClientFileModal, clientFileFromRaw, type ClientFile } from "@/com
 import { useCoachSurface } from "@/providers/coach-provider";
 import { CoachPanel, CoachToggle } from "@/components/sentinel/coach-panel";
 
-// ── Pipeline lane definitions (workflow stages + assignment segment) ──────────────────────────────────────────────────
+// ── Pipeline lane definitions (5 display lanes) ──────────────────────────────────────────────────
 
 const PIPELINE_LANES = [
-  {
-    id: "prospect",
-    title: "Prospects",
-    accent: "#3b82f6",
-    bg: "rgba(59,130,246,0.08)",
-    border: "rgba(59,130,246,0.3)",
-    text: "text-blue-400",
-  },
-  {
-    id: "lead",
-    title: "Leads",
-    accent: "#10b981",
-    bg: "rgba(16,185,129,0.08)",
-    border: "rgba(16,185,129,0.3)",
-    text: "text-emerald-400",
-  },
-  {
-    id: "mine",
-    title: "My Leads",
-    accent: "#8b5cf6",
-    bg: "rgba(139,92,246,0.08)",
-    border: "rgba(139,92,246,0.3)",
-    text: "text-violet-400",
-  },
-  {
-    id: "negotiation",
-    title: "Negotiation",
-    accent: "#f59e0b",
-    bg: "rgba(245,158,11,0.08)",
-    border: "rgba(245,158,11,0.3)",
-    text: "text-amber-400",
-  },
-  {
-    id: "disposition",
-    title: "Disposition",
-    accent: "#f43f5e",
-    bg: "rgba(244,63,94,0.08)",
-    border: "rgba(244,63,94,0.3)",
-    text: "text-rose-400",
-  },
-  {
-    id: "nurture",
-    title: "Nurture",
-    accent: "#0ea5e9",
-    bg: "rgba(14,165,233,0.08)",
-    border: "rgba(14,165,233,0.3)",
-    text: "text-sky-400",
-  },
-  {
-    id: "dead",
-    title: "Dead",
-    accent: "#71717a",
-    bg: "rgba(113,113,122,0.08)",
-    border: "rgba(113,113,122,0.3)",
-    text: "text-zinc-400",
-  },
-  {
-    id: "closed",
-    title: "Closed",
-    accent: "#a855f7",
-    bg: "rgba(168,85,247,0.08)",
-    border: "rgba(168,85,247,0.3)",
-    text: "text-purple-400",
-  },
+  { id: "working", title: "Working", accent: "#3b82f6", bg: "rgba(59,130,246,0.08)", border: "rgba(59,130,246,0.3)", text: "text-blue-400" },
+  { id: "negotiation", title: "Negotiation", accent: "#f59e0b", bg: "rgba(245,158,11,0.08)", border: "rgba(245,158,11,0.3)", text: "text-amber-400" },
+  { id: "disposition", title: "Disposition", accent: "#f43f5e", bg: "rgba(244,63,94,0.08)", border: "rgba(244,63,94,0.3)", text: "text-rose-400" },
+  { id: "nurture", title: "Nurture", accent: "#0ea5e9", bg: "rgba(14,165,233,0.08)", border: "rgba(14,165,233,0.3)", text: "text-sky-400" },
+  { id: "closed", title: "Closed", accent: "#a855f7", bg: "rgba(168,85,247,0.08)", border: "rgba(168,85,247,0.3)", text: "text-purple-400" },
 ] as const;
 
 type LaneId = (typeof PIPELINE_LANES)[number]["id"];
-type CanonicalStageId = Exclude<LaneId, "mine">;
+
 const LANE_HINTS: Record<LaneId, string> = {
-  prospect: "Newly promoted records to triage",
-  lead: "Active team workload queue",
-  mine: "Assignment segment: owned by you",
-  negotiation: "Active offer and terms conversations",
-  disposition: "Buyer-side coordination signals",
-  nurture: "Scheduled long-cycle follow-up",
-  dead: "Closed-out or non-viable records",
-  closed: "Completed closed outcomes kept discoverable",
+  working: "Leads you're qualifying or contacting",
+  negotiation: "Offer made or terms under discussion",
+  disposition: "Finding buyers and closing the deal",
+  nurture: "Long-cycle follow-up, not ready yet",
+  closed: "Completed deals",
 };
 
-const CANONICAL_STAGE_IDS = new Set<CanonicalStageId>([
-  "prospect",
-  "lead",
-  "negotiation",
-  "disposition",
-  "nurture",
-  "dead",
-  "closed",
-]);
+/** Map database statuses to display lanes. Returns null for statuses excluded from the board. */
+function getDisplayLane(status: string): LaneId | null {
+  switch (status) {
+    case "prospect": case "lead": case "qualified": return "working";
+    case "negotiation": return "negotiation";
+    case "disposition": return "disposition";
+    case "nurture": return "nurture";
+    case "closed": return "closed";
+    case "dead": case "staging": return null;
+    default: return null;
+  }
+}
+
+/** When dropping on "working", send "lead" to the API. Other lanes map directly. */
+function laneToApiStatus(laneId: LaneId): string {
+  if (laneId === "working") return "lead";
+  return laneId;
+}
 
 interface Lead {
   id: string;
@@ -143,7 +86,7 @@ interface Lead {
   address: string;
   owner_name: string;
   heat_score: number;
-  status: CanonicalStageId;
+  status: string;
   owner_id: string | null;
   claimed_at: string | null;
   claim_expires_at: string | null;
@@ -155,6 +98,7 @@ interface Lead {
   promoted_at: string | null;
   qualification_route: string | null;
   assignee_name: string | null;
+  last_contact_at: string | null;
 }
 
 // ── Helpers ────────────────────────────────────────────────────────────
@@ -166,38 +110,21 @@ function scoreColor(score: number) {
   return { label: "COLD", class: "text-blue-400 bg-blue-500/15 border-blue-500/30" };
 }
 
-function isClaimExpired(expires?: string | null) {
-  return expires ? new Date(expires) < new Date() : false;
+function daysAgoLabel(dateStr: string | null): string {
+  if (!dateStr) return "No contact";
+  const diff = Math.floor((Date.now() - new Date(dateStr).getTime()) / (1000 * 60 * 60 * 24));
+  if (diff <= 0) return "Today";
+  if (diff === 1) return "1d ago";
+  return `${diff}d ago`;
 }
 
-function firstName(name: string | null | undefined): string | null {
-  if (!name) return null;
-  const trimmed = name.trim();
-  if (!trimmed) return null;
-  return trimmed.split(" ")[0] ?? null;
-}
-
-function normalizeStatus(raw: string | null | undefined): CanonicalStageId | null {
+function normalizeStatus(raw: string | null | undefined): string | null {
   if (!raw) return null;
   const lower = raw.toLowerCase().replace(/\s+/g, "_");
-  if (CANONICAL_STAGE_IDS.has(lower as CanonicalStageId)) return lower as CanonicalStageId;
+  // Map legacy values
   if (lower === "prospects") return "prospect";
-  // Legacy compatibility: old rows may still hold "my_lead*" values. Canonicalize to "lead".
   if (lower === "leads" || lower === "my_lead" || lower === "my_leads" || lower === "my leads") return "lead";
-  if (lower === "staging") return null;
-  console.warn(`[Pipeline] Ignoring unsupported lead status "${raw}"`);
-  return null;
-}
-
-function resolveLane(
-  status: CanonicalStageId,
-  assignedTo: string | null,
-  currentUserId: string | null
-): LaneId {
-  if (status === "lead" && assignedTo && currentUserId && assignedTo === currentUserId) {
-    return "mine";
-  }
-  return status;
+  return lower;
 }
 
 // ── Main component ─────────────────────────────────────────────────────
@@ -209,6 +136,7 @@ export default function PipelinePage() {
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
+  const [showMineOnly, setShowMineOnly] = useState(false);
   const [adding, setAdding] = useState(false);
   const showQuickAddTestProspect = process.env.NODE_ENV === "development";
   const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
@@ -304,10 +232,11 @@ export default function PipelinePage() {
       for (const raw of leadsRaw as any[]) {
         const prop = propsMap[raw.property_id] ?? {};
         const canonicalStatus = normalizeStatus(raw.status);
-        if (!canonicalStatus) {
-          continue;
-        }
-        const lane = resolveLane(canonicalStatus, raw.assigned_to ?? null, currentUserId);
+        if (!canonicalStatus) continue;
+
+        const lane = getDisplayLane(canonicalStatus);
+        if (!lane) continue; // dead, staging, or unknown — excluded from board
+
         const pred = predsMap[raw.property_id];
         if (pred) {
           raw._prediction = {
@@ -340,6 +269,7 @@ export default function PipelinePage() {
           promoted_at: raw.promoted_at ?? raw.created_at ?? null,
           qualification_route: raw.qualification_route ?? null,
           assignee_name: raw.assigned_to ? (assigneeNames[raw.assigned_to] ?? null) : null,
+          last_contact_at: raw.last_contact_at ?? null,
         });
       }
       rawDataRef.current = rawMap;
@@ -348,7 +278,7 @@ export default function PipelinePage() {
       for (const laneId of Object.keys(grouped) as LaneId[]) {
         grouped[laneId].sort((a, b) => {
           const aUrgency = deriveLeadActionSummary({
-            status: a.status,
+            status: a.status as LeadStatus,
             qualificationRoute: a.qualification_route,
             assignedTo: a.owner_id,
             nextFollowUpAt: a.follow_up_at,
@@ -358,7 +288,7 @@ export default function PipelinePage() {
             promotedAt: a.promoted_at,
           }).urgency;
           const bUrgency = deriveLeadActionSummary({
-            status: b.status,
+            status: b.status as LeadStatus,
             qualificationRoute: b.qualification_route,
             assignedTo: b.owner_id,
             nextFollowUpAt: b.follow_up_at,
@@ -406,7 +336,7 @@ export default function PipelinePage() {
     };
   }, [fetchLeads]);
 
-  // ── Claim lead ───────────────────────────────────────────────────────
+  // ── Patch lead (stage change / assignment) ──────────────────────────
 
   const patchLead = useCallback(async (
     leadId: string,
@@ -415,7 +345,7 @@ export default function PipelinePage() {
       assignedTo,
       promoteProspectOnClaim,
     }: {
-      desiredStatus?: CanonicalStageId;
+      desiredStatus?: string;
       assignedTo?: string;
       promoteProspectOnClaim?: boolean;
     }
@@ -514,7 +444,7 @@ export default function PipelinePage() {
       return;
     }
 
-    toast.success("Lead assigned to you - visible in the My Leads segment");
+    toast.success("Lead assigned to you");
     await fetchLeads();
   }, [currentUserId, patchLead, fetchLeads]);
 
@@ -524,23 +454,13 @@ export default function PipelinePage() {
     const { destination, source, draggableId } = result;
     if (!destination || destination.droppableId === source.droppableId) return;
 
-    const sourceLane = source.droppableId as LaneId;
     const destinationLane = destination.droppableId as LaneId;
     const leadId = draggableId;
 
-    // "My Leads" is an assignment segment (assigned_to === current user), not a persisted status.
-    if (destinationLane === "mine") {
-      await claimLead(leadId);
-      return;
-    }
+    // Map lane to API status
+    const apiStatus = laneToApiStatus(destinationLane);
 
-    // Dragging from My Leads back to Leads is a no-op because assignment still applies.
-    if (sourceLane === "mine" && destinationLane === "lead") {
-      toast("My Leads is assignment-based. Use a stage move to change status.");
-      return;
-    }
-
-    const ok = await patchLead(leadId, { desiredStatus: destinationLane });
+    const ok = await patchLead(leadId, { desiredStatus: apiStatus });
     if (!ok) {
       await fetchLeads();
       return;
@@ -548,7 +468,7 @@ export default function PipelinePage() {
 
     toast.success(`Moved to ${PIPELINE_LANES.find((s) => s.id === destinationLane)?.title ?? destinationLane}`);
     await fetchLeads();
-  }, [claimLead, patchLead, fetchLeads]);
+  }, [patchLead, fetchLeads]);
 
   // ── Delete lead ────────────────────────────────────────────────────────
 
@@ -609,7 +529,7 @@ export default function PipelinePage() {
       }
 
       const scoreNote = typeof data?.score === "number" ? ` (score ${data.score})` : "";
-      toast.success(`Test prospect created${scoreNote} — check Prospects column`);
+      toast.success(`Test prospect created${scoreNote} — check Working column`);
       await fetchLeads();
     } catch (err) {
       console.error("[Pipeline] addTestProspect error:", err);
@@ -619,11 +539,14 @@ export default function PipelinePage() {
     }
   }, [currentUserId, fetchLeads, showQuickAddTestProspect]);
 
-  // ── Filter by search ─────────────────────────────────────────────────
+  // ── Filter by search + "Mine" toggle ────────────────────────────────
 
   const filteredByLane = Object.fromEntries(
     PIPELINE_LANES.map((s) => {
-      const leads = leadsByLane[s.id] ?? [];
+      let leads = leadsByLane[s.id] ?? [];
+      if (showMineOnly && currentUserId) {
+        leads = leads.filter((l) => l.owner_id === currentUserId);
+      }
       if (!search) return [s.id, leads];
       const q = search.toLowerCase();
       return [
@@ -653,14 +576,37 @@ export default function PipelinePage() {
             Pipeline
           </h1>
           <p className="text-sm text-muted-foreground mt-0.5">
-            Drag leads between workflow stages - {totalLeads} total across {PIPELINE_LANES.length} lanes
-          </p>
-          <p className="text-[11px] text-muted-foreground/70 mt-1">
-            My Leads is assignment-based. Move stages for lifecycle changes.
+            Drag leads between stages - {totalLeads} total across {PIPELINE_LANES.length} lanes
           </p>
         </div>
 
         <div className="flex items-center gap-3">
+          {/* All / Mine toggle */}
+          <div className="flex rounded-[12px] border border-glass-border bg-glass/50 backdrop-blur-xl overflow-hidden">
+            <button
+              onClick={() => setShowMineOnly(false)}
+              className={cn(
+                "px-3 py-1.5 text-sm font-medium transition-all",
+                !showMineOnly
+                  ? "bg-cyan/20 text-cyan"
+                  : "text-muted-foreground hover:text-foreground"
+              )}
+            >
+              All
+            </button>
+            <button
+              onClick={() => setShowMineOnly(true)}
+              className={cn(
+                "px-3 py-1.5 text-sm font-medium transition-all border-l border-glass-border",
+                showMineOnly
+                  ? "bg-cyan/20 text-cyan"
+                  : "text-muted-foreground hover:text-foreground"
+              )}
+            >
+              Mine
+            </button>
+          </div>
+
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <input
@@ -749,9 +695,6 @@ export default function PipelinePage() {
                               key={lead.id}
                               lead={lead}
                               index={index}
-                              laneId={stage.id}
-                              currentUserId={currentUserId}
-                              onClaim={claimLead}
                               onDelete={handleDelete}
                               isDeleting={deleting === lead.id}
                               onOpenDetail={(id) => {
@@ -769,7 +712,7 @@ export default function PipelinePage() {
                           <div className="flex flex-col items-center justify-center py-12 text-muted-foreground/40">
                             <Award className="h-8 w-8 mb-2" />
                             <span className="text-xs">
-                              {stage.id === "mine" ? "No leads assigned to you" : "No leads in this lane"}
+                              {"\u2713"} Nothing here right now
                             </span>
                           </div>
                         )}
@@ -798,43 +741,22 @@ export default function PipelinePage() {
   );
 }
 
-// ── Lead Card ──────────────────────────────────────────────────────────
+// ── Simplified Lead Card ──────────────────────────────────────────────
 
 function LeadCard({
   lead,
   index,
-  laneId,
-  currentUserId,
-  onClaim,
   onDelete,
   isDeleting,
   onOpenDetail,
 }: {
   lead: Lead;
   index: number;
-  laneId: LaneId;
-  currentUserId: string | null;
-  onClaim: (id: string) => Promise<void>;
   onDelete: (lead: Lead) => Promise<void>;
   isDeleting: boolean;
   onOpenDetail: (id: string) => void;
 }) {
-  const [queuing, startQueuing] = useTransition();
   const sc = scoreColor(lead.heat_score);
-  const expired = isClaimExpired(lead.claim_expires_at);
-  const isMine = lead.owner_id === currentUserId;
-  const canClaim = laneId !== "mine" && !lead.owner_id;
-  const actionSummary = deriveLeadActionSummary({
-    status: lead.status,
-    qualificationRoute: lead.qualification_route,
-    assignedTo: lead.owner_id,
-    nextFollowUpAt: lead.follow_up_at,
-    lastContactAt: null, // pipeline Lead type doesn't expose this
-    totalCalls: null,
-    createdAt: lead.promoted_at,
-    promotedAt: lead.promoted_at,
-  });
-  const assigneeFirstName = firstName(lead.assignee_name);
 
   return (
     <Draggable draggableId={lead.id} index={index}>
@@ -853,6 +775,7 @@ function LeadCard({
             snapshot.isDragging && "scale-[1.03] shadow-[0_0_24px_rgba(0,212,255,0.15)] border-cyan/20 z-50"
           )}
         >
+          {/* Line 1: Address (bold) + Score badge */}
           <div className="flex items-start justify-between gap-2">
             <div className="flex items-start gap-2 flex-1 min-w-0">
               <div
@@ -862,99 +785,36 @@ function LeadCard({
                 <GripVertical className="h-4 w-4" />
               </div>
               <div className="min-w-0 flex-1">
-                <div className="font-mono text-[10px] text-muted-foreground/60 tracking-wide">
-                  {lead.apn}
-                </div>
                 <div
-                  className="font-semibold text-sm text-foreground leading-tight mt-0.5 truncate"
+                  className="font-semibold text-sm text-foreground leading-tight truncate"
                   style={{ textShadow: "0 0 8px rgba(0,212,255,0.15)" }}
                 >
                   {lead.address}
                 </div>
+                {/* Line 2: Owner name */}
                 <div className="text-xs text-muted-foreground mt-0.5 truncate">
                   {lead.owner_name}
                 </div>
               </div>
             </div>
 
+            {/* Score badge (top-right) */}
             <div
               className={cn(
-                "shrink-0 flex items-center gap-1 px-2 py-1 rounded-[12px] text-[11px] font-bold border",
+                "shrink-0 flex items-center gap-1 px-1.5 py-0.5 rounded-[8px] text-[10px] font-bold border",
                 sc.class
               )}
             >
-              <Sparkles className="h-3 w-3" />
+              <Sparkles className="h-2.5 w-2.5" />
               {lead.heat_score}
-              <span className="text-[9px] opacity-70 font-medium">{sc.label}</span>
             </div>
           </div>
 
-          {lead.tags.length > 0 && (
-            <div className="flex flex-wrap gap-1 mt-2">
-              {lead.tags.slice(0, 3).map((tag, i) => (
-                <span
-                  key={i}
-                  className="text-[9px] px-1.5 py-0.5 rounded-full bg-white/5 text-muted-foreground border border-white/[0.06]"
-                >
-                  {tag}
-                </span>
-              ))}
-              {lead.tags.length > 3 && (
-                <span className="text-[9px] px-1.5 py-0.5 text-muted-foreground/50">
-                  +{lead.tags.length - 3}
-                </span>
-              )}
-            </div>
-          )}
-
-          <div className="flex items-center gap-1.5 mt-2 flex-wrap">
-            {lead.daysUntilDistress != null && (
-              <span className={cn(
-                "text-[9px] font-bold px-1.5 py-0.5 rounded border inline-flex items-center gap-0.5",
-                lead.predictiveLabel === "imminent" ? "text-red-400 bg-red-500/10 border-red-500/25" :
-                lead.predictiveLabel === "likely" ? "text-orange-400 bg-orange-500/10 border-orange-500/25" :
-                lead.predictiveLabel === "possible" ? "text-yellow-400 bg-yellow-500/10 border-yellow-500/25" :
-                "text-blue-400 bg-blue-500/10 border-blue-500/25"
-              )}>
-                ⚡ {lead.daysUntilDistress}d
-              </span>
-            )}
-            {lead.source && (
-              <span className="text-[9px] font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded bg-cyan/8 text-cyan/70 border border-cyan/15">
-                {lead.source}
-              </span>
-            )}
-            {actionSummary.isActionable && actionSummary.urgency === "critical" && (
-              <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded border bg-red-500/12 text-red-300 border-red-500/30" title={actionSummary.reason}>
-                {actionSummary.action}
-              </span>
-            )}
-            {actionSummary.isActionable && actionSummary.urgency === "high" && (
-              <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded border bg-amber-500/12 text-amber-300 border-amber-500/30" title={actionSummary.reason}>
-                {actionSummary.action}
-              </span>
-            )}
-            {lead.qualification_route === "escalate" && (
-              <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded border bg-amber-500/12 text-amber-300 border-amber-500/30">
-                Escalated Review
-              </span>
-            )}
-          </div>
-
-          <div className="mt-3 flex items-center justify-between">
-            {lead.owner_id && !expired ? (
-              <div className="flex items-center gap-1.5 text-[11px] text-emerald-400">
-                <UserCheck className="h-3.5 w-3.5" />
-                {isMine ? "Assigned: You" : assigneeFirstName ? `Assigned: ${assigneeFirstName}` : "Assigned"}
-              </div>
-            ) : expired ? (
-              <div className="flex items-center gap-1.5 text-[11px] text-rose-400">
-                <Clock className="h-3.5 w-3.5" />
-                Lock Expired
-              </div>
-            ) : (
-              <div />
-            )}
+          {/* Bottom row: days since last contact + actions */}
+          <div className="mt-2.5 flex items-center justify-between">
+            <span className="text-[11px] text-muted-foreground/70">
+              {daysAgoLabel(lead.last_contact_at)}
+            </span>
 
             <div className="flex items-center gap-1.5">
               <a
@@ -965,42 +825,6 @@ function LeadCard({
               >
                 <Phone className="h-3.5 w-3.5" />
               </a>
-
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  startQueuing(async () => {
-                    const { data: { session } } = await supabase.auth.getSession();
-                    const res = await fetch(`/api/leads/${lead.id}/queue`, {
-                      method: "POST",
-                      headers: {
-                        "Content-Type": "application/json",
-                        ...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}),
-                      },
-                    });
-                    if (res.ok) toast.success("Added to call queue");
-                    else toast.error("Could not add to queue");
-                  });
-                }}
-                disabled={queuing}
-                title="Add to my call queue"
-                className="h-6 w-6 flex items-center justify-center rounded-md text-cyan hover:bg-cyan/10 transition-colors disabled:opacity-40"
-              >
-                <ListPlus className="h-3.5 w-3.5" />
-              </button>
-
-              {canClaim && (
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onClaim(lead.id);
-                  }}
-                  className="text-[11px] px-3 py-1 bg-cyan/90 hover:bg-cyan text-black font-semibold rounded-[12px] flex items-center gap-1.5 transition-all active:scale-95 shadow-[0_0_8px_rgba(0,212,255,0.3)]"
-                >
-                  <User className="h-3 w-3" />
-                  CLAIM
-                </button>
-              )}
 
               <button
                 onClick={(e) => {
@@ -1020,6 +844,3 @@ function LeadCard({
     </Draggable>
   );
 }
-
-
-

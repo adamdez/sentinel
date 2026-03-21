@@ -148,7 +148,7 @@ export function QuickDial() {
         ) : ghostMode ? (
           <>
             <Ghost className="h-3 w-3 text-yellow-400" />
-            <span className="text-yellow-400">Ghost Mode — scrub bypassed (research only)</span>
+            <span className="text-yellow-400">Research Only — scrub bypassed (research only)</span>
           </>
         ) : (
           <>

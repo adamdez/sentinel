@@ -463,10 +463,10 @@ const WORKFLOW_STAGE_SET = new Set<WorkflowStageId>(WORKFLOW_STAGE_OPTIONS.map((
 const LEGACY_MY_LEADS_ALIASES = new Set(["my_lead", "my_leads", "my_lead_status"]);
 
 export const SCORE_LABEL_CFG: Record<AIScore["label"], { text: string; color: string; bg: string }> = {
-  platinum: { text: "PLATINUM", color: "text-cyan-300",    bg: "bg-cyan-400/10 border-cyan-400/30" },
-  gold:     { text: "GOLD",    color: "text-amber-400",   bg: "bg-amber-500/10 border-amber-500/30" },
-  silver:   { text: "SILVER",  color: "text-slate-300",   bg: "bg-slate-400/10 border-slate-400/30" },
-  bronze:   { text: "BRONZE",  color: "text-orange-500",  bg: "bg-orange-600/10 border-orange-600/30" },
+  platinum: { text: "Top priority", color: "text-cyan-300",    bg: "bg-cyan-400/10 border-cyan-400/30" },
+  gold:     { text: "High priority",    color: "text-amber-400",   bg: "bg-amber-500/10 border-amber-500/30" },
+  silver:   { text: "Medium",  color: "text-slate-300",   bg: "bg-slate-400/10 border-slate-400/30" },
+  bronze:   { text: "Low priority",  color: "text-orange-500",  bg: "bg-orange-600/10 border-orange-600/30" },
 };
 
 export const COUNTY_LINKS: Record<string, { name: string; gis: (apn: string) => string; assessor: (apn: string) => string; treasurer?: (apn: string) => string }> = {
@@ -558,7 +558,7 @@ export function formatDateTimeShort(iso: string | null | undefined): string {
   if (!iso) return "n/a";
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return "n/a";
-  return d.toLocaleString("en-US", {
+  const raw = d.toLocaleString("en-US", {
     month: "short",
     day: "numeric",
     year: "numeric",
@@ -566,6 +566,9 @@ export function formatDateTimeShort(iso: string | null | undefined): string {
     minute: "2-digit",
     hour12: true,
   });
+  // Guard against environments that drop the colon between hour and minute
+  // e.g. "Mar 21, 2026 723 PM" → "Mar 21, 2026 7:23 PM"
+  return raw.replace(/(\d{1,2})(\d{2})\s*(AM|PM)/i, "$1:$2 $3");
 }
 
 export function toLocalDateTimeInput(iso: string | null | undefined): string {

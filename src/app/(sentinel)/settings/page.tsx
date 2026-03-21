@@ -83,7 +83,7 @@ export default function SettingsPage() {
               Appearance
             </h3>
             <p className="text-[11px] text-muted-foreground/60 mb-3">
-              UI theme pack for the app shell. In Ghost Mode, Lead Detail and all <code className="text-[10px]">/dialer/*</code> routes keep the default workflow token stack (layout + modal boundaries).
+              UI theme pack for the app shell. In Research Only mode, Lead Detail and all <code className="text-[10px]">/dialer/*</code> routes keep the default workflow token stack (layout + modal boundaries).
             </p>
             <label htmlFor="sentinel-theme" className="text-[10px] uppercase tracking-wide text-muted-foreground block mb-1.5">
               Theme
@@ -114,7 +114,7 @@ export default function SettingsPage() {
               <Badge variant="cyan" className="text-[9px]">Warm Transfer</Badge>
             </h3>
             <p className="text-[11px] text-muted-foreground/60 mb-3">
-              Twilio will ring this number when you dial from Power Dialer. Caller ID shows &quot;Dominion Homes&quot;.
+              Twilio will ring this number when you dial from the Dialer. Caller ID shows &quot;Dominion Homes&quot;.
             </p>
             <div className="flex items-center gap-2">
               <Input

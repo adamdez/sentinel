@@ -5,7 +5,7 @@ import { usePathname } from "next/navigation";
 import { useState, useCallback, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
-  LayoutDashboard,
+  CalendarCheck,
   Phone,
   Users,
   BarChart3,
@@ -16,10 +16,8 @@ import {
   Upload,
   Handshake,
   KanbanSquare,
-  ClipboardList,
   MapPin,
   ShieldCheck,
-  Contact,
   type LucideIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -81,42 +79,26 @@ interface NavSection {
   items: NavItem[];
 }
 
-const sections: NavSection[] = [
-  {
-    title: "Main",
-    items: [
-      { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
-      { label: "Leads", href: "/leads", icon: Users },
-      { label: "Pipeline", href: "/pipeline", icon: Zap },
-      { label: "Tasks", href: "/tasks", icon: ClipboardList },
-      { label: "Dialer", href: "/dialer", icon: Phone },
-      { label: "Review Queue", href: "/dialer/review/dossier-queue", icon: ShieldCheck, badge: "review-queue" },
-    ],
-  },
-  {
-    title: "Dispositions",
-    items: [
-      { label: "Buyers", href: "/buyers", icon: Handshake },
-      { label: "Dispo Board", href: "/dispo", icon: KanbanSquare },
-    ],
-  },
-  {
-    title: "Growth",
-    items: [
-      { label: "Ads", href: "/ads", icon: Target, badge: "ads-alerts" },
-      { label: "Analytics", href: "/analytics", icon: BarChart3 },
-    ],
-  },
-  {
-    title: "Admin",
-    items: [
-      { label: "Settings", href: "/settings", icon: Settings },
-      { label: "Contacts", href: "/contacts", icon: Contact },
-      { label: "Property lookup", href: "/properties/lookup", icon: MapPin },
-      { label: "Import", href: "/admin/import", icon: Upload },
-    ],
-  },
+const primaryItems: NavItem[] = [
+  { label: "Today", href: "/dashboard", icon: CalendarCheck },
+  { label: "Lead Queue", href: "/leads", icon: Users },
+  { label: "Dialer", href: "/dialer", icon: Phone },
+  { label: "Dispo", href: "/dispo", icon: Handshake },
+  { label: "Pipeline", href: "/pipeline", icon: KanbanSquare },
 ];
+
+const adminSection: NavSection = {
+  title: "Admin",
+  items: [
+    { label: "Ads", href: "/ads", icon: Target, badge: "ads-alerts" },
+    { label: "Analytics", href: "/analytics", icon: BarChart3 },
+    { label: "Import", href: "/admin/import", icon: Upload },
+    { label: "Buyers", href: "/buyers", icon: Handshake },
+    { label: "Settings", href: "/settings", icon: Settings },
+    { label: "Property Lookup", href: "/properties/lookup", icon: MapPin },
+    { label: "Research Review", href: "/dialer/review/dossier-queue", icon: ShieldCheck, badge: "review-queue" },
+  ],
+};
 
 function NavLink({ item, depth = 0, badges }: { item: NavItem; depth?: number; badges?: SidebarBadges }) {
   const pathname = usePathname();
@@ -206,7 +188,7 @@ function NavLink({ item, depth = 0, badges }: { item: NavItem; depth?: number; b
   );
 }
 
-function SidebarSection({ section, badges }: { section: NavSection; badges?: SidebarBadges }) {
+function SidebarSection({ section, badges, defaultCollapsed = false }: { section: NavSection; badges?: SidebarBadges; defaultCollapsed?: boolean }) {
   const pathname = usePathname();
   const hasActiveItem = section.items.some(
     (item) =>
@@ -216,7 +198,7 @@ function SidebarSection({ section, badges }: { section: NavSection; badges?: Sid
         (c) => pathname === c.href || pathname.startsWith(c.href + "/")
       )
   );
-  const [collapsed, setCollapsed] = useState(false);
+  const [collapsed, setCollapsed] = useState(defaultCollapsed && !hasActiveItem);
 
   const toggle = useCallback(() => setCollapsed((prev) => !prev), []);
 
@@ -327,7 +309,7 @@ export function Sidebar() {
                 SENTINEL
               </h1>
               <p className="text-[10px] text-muted-foreground/60 tracking-[0.2em] uppercase">
-                Deal Intelligence
+                Lead Context
               </p>
             </div>
           </div>
@@ -335,9 +317,12 @@ export function Sidebar() {
           <Separator className="bg-white/[0.04]" />
 
           <nav className="flex-1 min-h-0 overflow-y-auto px-3 py-1 scrollbar-thin scrollbar-thumb-white/10 scrollbar-track-transparent">
-            {sections.map((section) => (
-              <SidebarSection key={section.title} section={section} badges={badges} />
-            ))}
+            <div className="space-y-0.5 pt-2">
+              {primaryItems.map((item) => (
+                <NavLink key={item.href} item={item} badges={badges} />
+              ))}
+            </div>
+            <SidebarSection section={adminSection} badges={badges} defaultCollapsed />
           </nav>
 
           <Separator className="mt-auto bg-white/[0.04] shrink-0" />

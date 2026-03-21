@@ -7,17 +7,7 @@ import {
   ArrowUp,
   ArrowDown,
   Phone,
-  PhoneOutgoing,
-  ShieldAlert,
-  ShieldCheck,
   AlertTriangle,
-  AlertCircle,
-  Clock,
-  PhoneOff,
-  Voicemail,
-  CheckCircle2,
-  Briefcase,
-  ListPlus,
   Trash2,
   Loader2,
 } from "lucide-react";
@@ -30,13 +20,11 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { AIScoreBadge } from "@/components/sentinel/ai-score-badge";
-import { deriveNextActionVisibility, offerVisibilityLabel, type LeadRow } from "@/lib/leads-data";
-import { deriveLeadActionSummary, type ActionSummary, type UrgencyLevel } from "@/lib/action-derivation";
+import { type LeadRow } from "@/lib/leads-data";
+import { deriveLeadActionSummary, type UrgencyLevel, type ActionSummary } from "@/lib/action-derivation";
 import type { SortField, SortDir } from "@/hooks/use-leads";
 import { cn } from "@/lib/utils";
 import { formatDueDateLabel } from "@/lib/due-date-label";
-import { sourceChannelLabel, tagLabel } from "@/lib/prospecting";
-import { normalizeSource, sourceLabel as normalizedSourceLabel } from "@/lib/source-normalization";
 import { LogCallModal } from "./log-call-modal";
 
 interface LeadTableProps {
@@ -102,7 +90,7 @@ const DISTRESS_LABELS: Record<string, string> = {
 };
 
 // Grid definition
-const GRID = "grid-cols-[28px_1.5fr_90px_minmax(120px,1fr)_100px_200px_90px]";
+const GRID = "grid-cols-[28px_1.8fr_70px_minmax(140px,1fr)_90px_80px]";
 
 // Helpers
 
@@ -239,14 +227,7 @@ function marketMeta(county: string | null | undefined): { label: string; classNa
   return { label: county || "Other", className: "bg-zinc-500/10 text-zinc-300 border-zinc-500/20" };
 }
 
-function sourceMeta(source: string | null | undefined): { label: string; className: string } {
-  const normalized = normalizeSource(source);
-  if (normalized === "propertyradar") return { label: "PropertyRadar", className: "bg-cyan/10 text-cyan border-cyan/20" };
-  return {
-    label: normalizedSourceLabel(normalized),
-    className: "bg-zinc-500/10 text-zinc-300 border-zinc-500/20",
-  };
-}
+// sourceMeta removed — source column hidden in lean table view
 
 function formatElapsed(ms: number): string {
   const mins = Math.max(0, Math.round(ms / 60000));
@@ -488,11 +469,10 @@ export function LeadTable({
             className="h-3.5 w-3.5 rounded border-white/20 bg-white/5 accent-cyan cursor-pointer"
           />
         </div>
-        <SortHeader label="Property" field="address" currentField={sortField} currentDir={sortDir} onSort={onSort} />
+        <SortHeader label="Property / Owner" field="address" currentField={sortField} currentDir={sortDir} onSort={onSort} />
         <SortHeader label="Score" field="score" currentField={sortField} currentDir={sortDir} onSort={onSort} />
-        <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Signals</span>
-        <SortHeader label="Equity" field="equity" currentField={sortField} currentDir={sortDir} onSort={onSort} />
         <SortHeader label="Next Action" field="followUp" currentField={sortField} currentDir={sortDir} onSort={onSort} />
+        <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Last Contact</span>
         <span />
       </div>
 
@@ -500,40 +480,44 @@ export function LeadTable({
       {leads.map((lead, i) => {
         const isMine = lead.assignedTo === currentUserId;
         const followUpDueIso = lead.nextCallScheduledAt ?? lead.followUpDate;
-        const followUp = formatFollowUp(followUpDueIso);
-        const lastAction = timeAgo(lead.lastContactAt);
-        const dispLabel = dispositionLabel(lead.dispositionCode);
-        const isPositive = POSITIVE_DISPOSITIONS.has(lead.dispositionCode ?? "");
-        const isNegative = NEGATIVE_DISPOSITIONS.has(lead.dispositionCode ?? "");
-        const market = marketMeta(lead.county);
-        const source = sourceMeta(lead.sourceChannel ?? lead.source);
-        const speed = speedToLeadMeta(lead);
-        const needsFollowUpFlag = needsFollowUp(lead);
-        const needsQualificationFlag = needsQualification(lead);
-        const offerLabel = offerVisibilityLabel(lead.offerStatus);
-        const offerPrepPathActive = lead.qualificationRoute === "offer_ready" || lead.offerStatus === "preparing_offer";
-        const offerPrepMissing = offerPrepPathActive && lead.offerPrepHealth === "missing";
-        const offerPrepStale = offerPrepPathActive && lead.offerPrepHealth === "stale";
-        const offerPrepNeedsAttention = offerPrepMissing || offerPrepStale;
-        const nextActionView = deriveNextActionVisibility({
-          status: lead.status,
-          qualificationRoute: lead.qualificationRoute,
-          nextCallScheduledAt: lead.nextCallScheduledAt,
-          nextFollowUpAt: lead.followUpDate,
-        });
         const actionSummary = deriveActionForLead(lead);
-        const actionableNow = actionSummary.isActionable || offerPrepNeedsAttention;
-        const ownerActionLabel = actionableNow
-          ? !lead.assignedTo
-            ? "Assign owner now"
-            : isMine
-              ? "Your action now"
-              : lead.assignedName
-                ? `${lead.assignedName.split(" ")[0]} owns next action`
-                : "Owned action"
-          : null;
-        const visibleDistress = lead.distressSignals.slice(0, 2);
-        const hiddenDistressCount = Math.max(0, lead.distressSignals.length - visibleDistress.length);
+
+        // Overdue tinting
+        let overdueDays = 0;
+        let isOverdue = false;
+        if (followUpDueIso) {
+          const dueMs = new Date(followUpDueIso).getTime();
+          if (!Number.isNaN(dueMs) && dueMs < Date.now()) {
+            isOverdue = true;
+            overdueDays = Math.floor((Date.now() - dueMs) / 86400000);
+          }
+        }
+
+        // Next action label
+        let nextActionText = "No action set";
+        let nextActionClass = "text-muted-foreground/50";
+        if (followUpDueIso) {
+          const dueMs = new Date(followUpDueIso).getTime();
+          if (!Number.isNaN(dueMs)) {
+            const diffMs = dueMs - Date.now();
+            const diffDays = Math.floor(Math.abs(diffMs) / 86400000);
+            const actionType = actionSummary.actionType === "call" ? "Callback" : actionSummary.actionType === "review" ? "Review" : "Follow up";
+            if (diffMs < 0) {
+              nextActionText = diffDays === 0 ? `${actionType} due today` : `${actionType} ${diffDays}d overdue`;
+              nextActionClass = diffDays >= 3 ? "text-red-400 font-semibold" : diffDays >= 1 ? "text-red-400" : "text-amber-400";
+            } else {
+              nextActionText = diffDays === 0 ? `${actionType} today` : diffDays === 1 ? `${actionType} tomorrow` : `${actionType} in ${diffDays}d`;
+              nextActionClass = diffDays <= 1 ? "text-amber-400" : "text-muted-foreground/70";
+            }
+          }
+        } else if (lead.totalCalls === 0) {
+          nextActionText = "First contact needed";
+          nextActionClass = ageEscalationClass(lead.promotedAt);
+        }
+
+        // Last contact
+        const lastContactText = lead.lastContactAt ? timeAgo(lead.lastContactAt) : "Never";
+        const lastContactClass = lead.lastContactAt ? "text-muted-foreground" : "text-muted-foreground/40";
 
         return (
           <motion.div
@@ -545,10 +529,9 @@ export function LeadTable({
             className={cn(
               "grid gap-3 px-4 py-3 border-b border-white/[0.03] cursor-pointer transition-all hover:bg-white/[0.03]",
               GRID,
-              lead.score.label === "platinum" && "bg-cyan-500/[0.03] hover:bg-cyan-500/[0.06]",
-              actionableNow && isMine && "bg-cyan-500/[0.04] hover:bg-cyan-500/[0.08]",
-              actionableNow && !lead.assignedTo && "bg-amber-500/[0.05] hover:bg-amber-500/[0.09]",
-              !lead.complianceClean && "opacity-60"
+              isOverdue && overdueDays >= 3 && "bg-red-500/5 border-l-2 border-l-red-500/40",
+              isOverdue && overdueDays < 3 && "bg-amber-500/5 border-l-2 border-l-amber-500/40",
+              !isOverdue && lead.score.label === "platinum" && "bg-cyan-500/[0.03] hover:bg-cyan-500/[0.06]",
             )}
           >
             {/* Checkbox */}
@@ -561,20 +544,14 @@ export function LeadTable({
               />
             </div>
 
-            {/* Property */}
+            {/* Property + Owner (consolidated) */}
             <div className="flex flex-col justify-center min-w-0 gap-0.5">
               <span
                 className="text-sm font-semibold truncate text-foreground"
                 style={{ WebkitFontSmoothing: "antialiased" }}
               >
-                {lead.address}{lead.city ? `, ${lead.city}` : ""}{lead.state ? `, ${lead.state}` : ""} {lead.zip}
+                {lead.address}{lead.city ? `, ${lead.city}` : ""}
               </span>
-              {/* Compact property line */}
-              {compactPropertyLine(lead) && (
-                <span className="text-[10px] text-muted-foreground/60 truncate tabular-nums">
-                  {compactPropertyLine(lead)}
-                </span>
-              )}
               <div className="flex items-center gap-1.5 min-w-0 overflow-hidden">
                 <span
                   className="text-xs font-medium text-muted-foreground/90 truncate shrink"
@@ -582,264 +559,60 @@ export function LeadTable({
                 >
                   {lead.ownerName}
                 </span>
-                {lead.ownerPhone && (
+                {lead.ownerPhone ? (
                   <span className="text-[10px] text-emerald-400/80 tabular-nums shrink-0">
                     {formatPhone(lead.ownerPhone)}
                   </span>
-                )}
-                {!lead.ownerPhone && (
+                ) : (
                   <span className="text-[9px] text-muted-foreground/30 shrink-0">No phone</span>
-                )}
-                <span className={cn("text-[9px] px-1.5 py-0 rounded border shrink-0", market.className)}>
-                  {market.label}
-                </span>
-                <span className={cn("text-[9px] px-1.5 py-0 rounded border shrink-0", source.className)}>
-                  {source.label}
-                </span>
-                {lead.nicheTag && (
-                  <span className="text-[9px] px-1.5 py-0 rounded border shrink-0 bg-cyan/10 text-cyan border-cyan/20">
-                    Niche: {tagLabel(lead.nicheTag)}
-                  </span>
-                )}
-                {lead.importBatchId && (
-                  <span className="text-[9px] px-1.5 py-0 rounded border shrink-0 bg-white/[0.05] text-muted-foreground border-white/[0.12]">
-                    Batch: {lead.importBatchId}
-                  </span>
-                )}
-                {lead.doNotCall && (
-                  <span className="text-[9px] px-1.5 py-0 rounded border shrink-0 bg-red-500/12 text-red-300 border-red-500/30">
-                    DNC
-                  </span>
-                )}
-                {lead.badRecord && (
-                  <span className="text-[9px] px-1.5 py-0 rounded border shrink-0 bg-zinc-500/15 text-zinc-300 border-zinc-500/30">
-                    Bad Record
-                  </span>
-                )}
-                {ownerActionLabel && (
-                  <span
-                    className={cn(
-                      "text-[9px] px-1.5 py-0 rounded border shrink-0 font-medium",
-                      !lead.assignedTo
-                        ? "bg-amber-500/12 text-amber-300 border-amber-500/30"
-                        : isMine
-                          ? "bg-cyan/12 text-cyan border-cyan/25"
-                          : "bg-white/[0.05] text-muted-foreground border-white/[0.14]"
-                    )}
-                  >
-                    {ownerActionLabel}
-                  </span>
-                )}
-                {isMine && (
-                  <span className="text-[9px] px-1.5 py-0 rounded bg-cyan/8 text-cyan border border-cyan/15 shrink-0">
-                    Assigned: You
-                  </span>
-                )}
-                {lead.assignedName && !isMine && (
-                  <span className="text-[9px] px-1.5 py-0 rounded bg-white/[0.04] border border-white/[0.1] text-muted-foreground shrink-0">
-                    Assigned: {lead.assignedName.split(" ")[0]}
-                  </span>
-                )}
-                {!lead.assignedTo && (
-                  <span className="text-[9px] px-1.5 py-0 rounded bg-yellow-500/10 text-yellow-400 border border-yellow-500/20 shrink-0">
-                    Unassigned
-                  </span>
-                )}
-                {actionSummary.isActionable && actionSummary.urgency === "critical" && (
-                  <span className="text-[9px] px-1.5 py-0 rounded bg-red-500/12 text-red-300 border border-red-500/30 shrink-0">
-                    Urgent
-                  </span>
-                )}
-                {actionSummary.isActionable && actionSummary.urgency === "high" && (
-                  <span className="text-[9px] px-1.5 py-0 rounded bg-amber-500/12 text-amber-300 border border-amber-500/30 shrink-0">
-                    Attention
-                  </span>
-                )}
-                {lead.qualificationRoute === "escalate" && (
-                  <span className="text-[9px] px-1.5 py-0 rounded bg-amber-500/12 text-amber-300 border border-amber-500/30 shrink-0">
-                    Escalated Review
-                  </span>
-                )}
-                {lead.offerStatus !== "none" && (
-                  <span
-                    className={cn("text-[9px] px-1.5 py-0 rounded border shrink-0", offerStatusClass(lead.offerStatus))}
-                    title="Derived from lead stage and qualification route"
-                  >
-                    Offer Progress: {offerLabel}
-                  </span>
-                )}
-                {offerPrepMissing && (
-                  <span
-                    className="text-[9px] px-1.5 py-0 rounded border shrink-0 bg-amber-500/12 text-amber-300 border-amber-500/30"
-                    title="Offer-ready path is active, but offer prep snapshot is missing core fields"
-                  >
-                    Offer Prep Missing
-                  </span>
-                )}
-                {offerPrepStale && (
-                  <span
-                    className="text-[9px] px-1.5 py-0 rounded border shrink-0 bg-amber-500/12 text-amber-300 border-amber-500/30"
-                    title="Offer-ready path is active, but prep snapshot is stale"
-                  >
-                    Offer Prep Stale
-                  </span>
                 )}
               </div>
             </div>
 
-            {/* Score */}
+            {/* Score (badge only) */}
             <div className="flex items-center">
               <AIScoreBadge score={lead.score} size="sm" />
             </div>
 
-            {/* Context badges */}
-            <div className="flex items-center gap-1 flex-wrap">
-              {visibleDistress.map((d) => (
-                <span
-                  key={d}
-                  className={cn(
-                    "text-[10px] px-1.5 py-0.5 rounded border",
-                    DISTRESS_COLORS[d] ?? "border-white/[0.06] text-muted-foreground"
-                  )}
-                >
-                  {DISTRESS_LABELS[d] ?? tagLabel(d)}
-                </span>
-              ))}
-              {hiddenDistressCount > 0 && (
-                <span
-                  className="text-[10px] px-1.5 py-0.5 rounded border border-white/[0.08] text-muted-foreground/80"
-                >
-                  +{hiddenDistressCount} more
-                </span>
-              )}
-            </div>
-
-            {/* Equity */}
-            <div className="flex flex-col justify-center">
-              <span className="text-xs font-semibold tabular-nums">
-                {formatCompactValue(lead.estimatedValue)}
-              </span>
-              {lead.equityPercent != null ? (
-                <span
-                  className={cn(
-                    "text-[10px] font-medium tabular-nums",
-                    lead.equityPercent >= 70
-                      ? "text-emerald-400"
-                      : lead.equityPercent >= 40
-                        ? "text-yellow-400"
-                        : "text-red-400/70"
-                  )}
-                >
-                  {Math.round(lead.equityPercent)}% equity
-                </span>
-              ) : (
-                <span className="text-[10px] text-muted-foreground/40">n/a</span>
-              )}
-            </div>
-
-            {/* Next action */}
+            {/* Next Action */}
             <div className="flex flex-col justify-center min-w-0">
-              {/* Line 1: Last action */}
-              {lead.totalCalls === 0 ? (
-                <span className={cn("text-[11px] flex items-center gap-1", ageEscalationClass(lead.promotedAt))}>
-                  <AlertCircle className="h-3 w-3 shrink-0" />
-                  Not contacted
-                </span>
-              ) : (
+              <span className={cn("text-[11px] truncate", nextActionClass)}>
+                {nextActionText}
+              </span>
+              {actionSummary.action && (
                 <span
                   className={cn(
-                    "text-[11px] flex items-center gap-1 truncate",
-                    isPositive && "text-emerald-400",
-                    isNegative && "text-red-400/80",
-                    !isPositive && !isNegative && "text-muted-foreground"
-                  )}
-                >
-                  {lead.dispositionCode === "voicemail" && <Voicemail className="h-3 w-3 shrink-0" />}
-                  {lead.dispositionCode === "no_answer" && <PhoneOff className="h-3 w-3 shrink-0" />}
-                  {isPositive && <CheckCircle2 className="h-3 w-3 shrink-0" />}
-                  {dispLabel}{lastAction ? ` ${lastAction}` : ""}
-                  {lead.totalCalls > 1 && (
-                    <span className="text-[9px] text-muted-foreground/50 ml-0.5">({lead.totalCalls}x)</span>
-                  )}
-                </span>
-              )}
-
-              {/* Line 2: Action summary (deterministic next action) */}
-              {offerPrepNeedsAttention ? (
-                <span className="text-[10px] text-amber-300 flex items-center gap-1">
-                  <Briefcase className="h-2.5 w-2.5 shrink-0" />
-                  {offerPrepMissing ? "Offer-prep: missing data" : "Offer-prep: stale data"}
-                </span>
-              ) : (
-                <span
-                  className={cn(
-                    "text-[10px] flex items-center gap-1 truncate",
+                    "text-[10px] truncate",
                     urgencyTextClass(actionSummary.urgency)
                   )}
                   title={actionSummary.reason}
                 >
-                  {actionSummary.urgency === "critical" && <AlertTriangle className="h-2.5 w-2.5 shrink-0" />}
-                  {actionSummary.urgency === "high" && <AlertCircle className="h-2.5 w-2.5 shrink-0" />}
-                  {actionSummary.urgency === "normal" && actionSummary.actionType === "call" && <Clock className="h-2.5 w-2.5 shrink-0" />}
                   {actionSummary.action}
                 </span>
               )}
-              <span className={cn("text-[10px] truncate", speed.className)}>
-                {speed.text}
+            </div>
+
+            {/* Last Contact */}
+            <div className="flex items-center">
+              <span className={cn("text-[11px] tabular-nums", lastContactClass)}>
+                {lastContactText}
               </span>
             </div>
 
-            {/* Actions (queue + log call + compliance) */}
+            {/* Actions (call + delete only) */}
             <div className="flex items-center justify-end gap-1" onClick={(e) => e.stopPropagation()}>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <button
-                    onClick={() => addToQueue(lead.id)}
-                    disabled={queuingId === lead.id}
-                    className="h-6 w-6 flex items-center justify-center rounded-md text-cyan hover:bg-cyan/10 transition-colors disabled:opacity-40"
-                  >
-                    <ListPlus className="h-3.5 w-3.5" />
-                  </button>
-                </TooltipTrigger>
-                <TooltipContent className="text-[11px]">Add to my call queue</TooltipContent>
-              </Tooltip>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <button
-                    onClick={() => setLogCallLead(lead)}
-                    className="h-6 w-6 flex items-center justify-center rounded-md text-amber-400 hover:bg-amber-500/10 transition-colors"
-                  >
-                    <PhoneOutgoing className="h-3.5 w-3.5" />
-                  </button>
-                </TooltipTrigger>
-                <TooltipContent className="text-[11px]">Log external call</TooltipContent>
-              </Tooltip>
               {lead.ownerPhone && (
                 <Tooltip>
                   <TooltipTrigger asChild>
-                    <span
-                      className="h-6 w-6 flex items-center justify-center rounded-md text-emerald-400"
-                      title={lead.ownerPhone}
+                    <a
+                      href={`tel:${lead.ownerPhone}`}
+                      className="h-6 w-6 flex items-center justify-center rounded-md text-emerald-400 hover:bg-emerald-500/10 transition-colors"
+                      onClick={(e) => e.stopPropagation()}
                     >
                       <Phone className="h-3.5 w-3.5" />
-                    </span>
+                    </a>
                   </TooltipTrigger>
-                  <TooltipContent className="text-[11px]">{lead.ownerPhone}</TooltipContent>
-                </Tooltip>
-              )}
-              {lead.complianceClean ? (
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <ShieldCheck className="h-3 w-3 text-green-500/70 shrink-0" />
-                  </TooltipTrigger>
-                  <TooltipContent className="text-[11px]">Compliance clear</TooltipContent>
-                </Tooltip>
-              ) : (
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <ShieldAlert className="h-3 w-3 text-red-400 shrink-0" />
-                  </TooltipTrigger>
-                  <TooltipContent className="text-[11px]">DNC / compliance block</TooltipContent>
+                  <TooltipContent className="text-[11px]">{formatPhone(lead.ownerPhone)}</TooltipContent>
                 </Tooltip>
               )}
               <Tooltip>

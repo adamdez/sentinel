@@ -40,7 +40,7 @@ test.describe("Dashboard", () => {
     }
   });
 
-  test("Breaking Leads sidebar renders without crash", async ({ page }) => {
+  test("New Priority Leads sidebar renders without crash", async ({ page }) => {
     const dashboard = new DashboardPage(page);
     await dashboard.goto();
     await dashboard.expectLoaded();

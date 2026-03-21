@@ -146,7 +146,7 @@ export default function TrustLanguagePage() {
 
   return (
     <PageShell
-      title="Trust Language Pack"
+      title="Seller Language"
       description="Approved seller-facing copy for inbound, warm transfer, and call strategy surfaces."
     >
       <div className="max-w-2xl mx-auto space-y-4">
@@ -166,7 +166,7 @@ export default function TrustLanguagePage() {
             <MessageSquare className="h-4 w-4 text-cyan/50 shrink-0" />
             <div className="flex-1">
               <p className="text-[11px] font-semibold text-foreground/80">
-                Trust Language Pack
+                Seller Language
                 <code className="ml-2 text-[9px] font-mono text-muted-foreground/40">v{TRUST_LANGUAGE_VERSION}</code>
               </p>
               <p className="text-[10px] text-muted-foreground/45 mt-0.5">

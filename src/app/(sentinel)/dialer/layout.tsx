@@ -1,7 +1,7 @@
 import { OperatorSafeBoundary } from "@/components/theme/operator-safe-boundary";
 
 /**
- * All /dialer/* surfaces inherit operator-safe token resets under Ghost Mode
+ * All /dialer/* surfaces inherit operator-safe token resets under Research Only mode
  * (and future packs) without per-page `PageShell operatorSafe`.
  */
 export default function DialerLayout({ children }: { children: React.ReactNode }) {

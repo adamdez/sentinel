@@ -82,9 +82,9 @@ export function getTier(score: number): keyof typeof TIER_COLORS {
 }
 
 const TIER_CONTEXT: Record<keyof typeof TIER_COLORS, string> = {
-  platinum: "High priority — strong close potential",
-  gold: "Good prospect — worth pursuing",
-  silver: "Moderate — needs qualification",
+  platinum: "Top priority — strong close potential",
+  gold: "High priority — worth pursuing",
+  silver: "Medium — needs qualification",
   bronze: "Low priority — limited signals",
 };
 

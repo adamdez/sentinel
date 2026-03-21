@@ -862,7 +862,7 @@ function DialerReviewPageInner() {
             <div className="flex items-center gap-2">
               <MessageSquare className="h-3.5 w-3.5 text-muted-foreground/40" />
               <h3 className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/60">
-                Trust Language Pack
+                Seller Language
               </h3>
               <code className="text-[8px] font-mono text-muted-foreground/25">v{TRUST_LANGUAGE_VERSION}</code>
             </div>
@@ -937,7 +937,7 @@ function DialerReviewPageInner() {
               className="flex items-center gap-1.5 rounded-[10px] border border-cyan/20 bg-cyan/[0.04] px-3 py-2 text-[11px] text-cyan/70 hover:text-cyan hover:border-cyan/30 transition-colors"
             >
               <TrendingUp className="h-3 w-3" />
-              War Room →
+              Call Review →
             </Link>
             <Link
               href="/settings/voice-registry"

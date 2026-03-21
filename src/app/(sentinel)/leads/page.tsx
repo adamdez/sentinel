@@ -1,10 +1,10 @@
 "use client";
 
-import { Plus } from "lucide-react";
+import { useState } from "react";
+import { Plus, ChevronRight } from "lucide-react";
 import { useCoachSurface } from "@/providers/coach-provider";
 import { CoachPanel, CoachToggle } from "@/components/sentinel/coach-panel";
 import { PageShell } from "@/components/sentinel/page-shell";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { useModal } from "@/providers/modal-provider";
 import { MapPin } from "lucide-react";
@@ -91,14 +91,14 @@ export default function LeadsPage() {
     label: string;
     count: number;
   }> = [
-    { id: "overdue", label: "Needs Follow-Up", count: needsAttention.overdue },
-    { id: "new_inbound", label: "New Today (No Contact)", count: needsAttention.newInbound },
-    { id: "needs_qualification", label: "Needs Qualification", count: needsAttention.needsQualification },
-    { id: "escalated_review", label: "Escalated Review", count: needsAttention.escalatedReview },
-    { id: "unassigned_hot", label: "Unassigned Priority", count: needsAttention.unassignedHot },
-    { id: "slow_or_missing", label: "Slow/Missing Response", count: needsAttention.slowOrMissing },
+    { id: "overdue", label: "Overdue", count: needsAttention.overdue },
+    { id: "new_inbound", label: "New", count: needsAttention.newInbound },
+    { id: "needs_qualification", label: "Qualify", count: needsAttention.needsQualification },
+    { id: "escalated_review", label: "Escalated", count: needsAttention.escalatedReview },
+    { id: "unassigned_hot", label: "Unassigned", count: needsAttention.unassignedHot },
+    { id: "slow_or_missing", label: "Slow Response", count: needsAttention.slowOrMissing },
   ];
-  const speedLabel = inboxMetrics.estimatedSpeedSampleCount > 0 ? "First Response (est)" : "First Response";
+  const [showSourceInsights, setShowSourceInsights] = useState(false);
 
   useCoachSurface("leads_inbox", {
     inbox: {
@@ -126,32 +126,14 @@ export default function LeadsPage() {
       <div className="space-y-4">
         {/* Inbox health strip */}
         <div className="flex flex-wrap items-center gap-2">
-          <InboxStat label="New Today" value={inboxMetrics.newToday} />
-          <InboxStat label="Awaiting First Contact" value={inboxMetrics.uncontacted} tone={inboxMetrics.uncontacted > 0 ? "warn" : "neutral"} />
-          <InboxStat label="Due Today" value={inboxMetrics.dueToday} tone={inboxMetrics.dueToday > 0 ? "warn" : "neutral"} />
           <InboxStat label="Overdue" value={inboxMetrics.overdue} tone={inboxMetrics.overdue > 0 ? "danger" : "neutral"} />
-          <InboxStat
-            label={speedLabel}
-            value={
-              inboxMetrics.medianSpeedToLeadMinutes != null
-                ? `${inboxMetrics.medianSpeedToLeadMinutes}m`
-                : "n/a"
-            }
-            tone={
-              inboxMetrics.medianSpeedToLeadMinutes == null
-                ? "neutral"
-                : inboxMetrics.medianSpeedToLeadMinutes <= 5
-                  ? "neutral"
-                  : inboxMetrics.medianSpeedToLeadMinutes <= 15
-                    ? "warn"
-                    : "danger"
-            }
-            hint={
-              inboxMetrics.speedSampleCount > 0
-                ? `${inboxMetrics.within15mCount}/${inboxMetrics.speedSampleCount} within 15m${inboxMetrics.estimatedSpeedSampleCount > 0 ? ` (${inboxMetrics.estimatedSpeedSampleCount} estimated)` : ""}`
-                : "No contact attempts logged yet"
-            }
-          />
+          <InboxStat label="Due Today" value={inboxMetrics.dueToday} tone={inboxMetrics.dueToday > 0 ? "warn" : "neutral"} />
+          <div className={cn(inboxMetrics.uncontacted === 0 && "opacity-40")}>
+            <InboxStat label="Awaiting Contact" value={inboxMetrics.uncontacted} tone={inboxMetrics.uncontacted > 0 ? "warn" : "neutral"} />
+          </div>
+          {inboxMetrics.newToday > 0 && (
+            <InboxStat label="New Today" value={inboxMetrics.newToday} />
+          )}
         </div>
 
         {/* Quick market filter */}
@@ -188,7 +170,7 @@ export default function LeadsPage() {
               Needs Attention
             </div>
 
-            {attentionItems.map((item) => {
+            {attentionItems.filter((item) => item.count > 0).map((item) => {
               const active = attentionFocus === item.id;
               return (
                 <button
@@ -217,9 +199,6 @@ export default function LeadsPage() {
               </button>
             )}
           </div>
-          <p className="mt-2 text-[10px] text-muted-foreground/70">
-            Work order: Needs Follow-Up, New Today, Needs Qualification, Escalated Review, then Unassigned Priority.
-          </p>
         </div>
 
         {/* Segmented control */}
@@ -251,62 +230,74 @@ export default function LeadsPage() {
           callStatusOptions={callStatusOptions}
         />
 
-        <div className="grid gap-4 lg:grid-cols-[1.7fr_1fr]">
-          <div className="rounded-[12px] border border-glass-border bg-glass/40 p-3">
-            <div className="flex items-center justify-between gap-2">
-              <div>
-                <p className="text-xs font-semibold text-foreground">Source Snapshot</p>
-                <p className="text-[10px] text-muted-foreground/70">
-                  Contact, offer-path, and closed rates are directionally useful. Closed rate reflects `closed` only; contract is not yet modeled separately.
+        {/* Collapsible Source Performance */}
+        <div>
+          <button
+            onClick={() => setShowSourceInsights(!showSourceInsights)}
+            className="flex items-center gap-1.5 text-xs font-semibold text-muted-foreground hover:text-foreground transition-colors"
+          >
+            <ChevronRight className={cn("h-3.5 w-3.5 transition-transform", showSourceInsights && "rotate-90")} />
+            Source Performance
+          </button>
+          {showSourceInsights && (
+            <div className="mt-2 grid gap-4 lg:grid-cols-[1.7fr_1fr]">
+              <div className="rounded-[12px] border border-glass-border bg-glass/40 p-3">
+                <div className="flex items-center justify-between gap-2">
+                  <div>
+                    <p className="text-xs font-semibold text-foreground">Source Snapshot</p>
+                    <p className="text-[10px] text-muted-foreground/70">
+                      Contact, offer-path, and closed rates are directionally useful. Closed rate reflects `closed` only; contract is not yet modeled separately.
+                    </p>
+                  </div>
+                </div>
+                <div className="mt-3 space-y-2">
+                  {outboundSourceMetrics.length > 0 ? outboundSourceMetrics.map((item) => (
+                    <div key={item.label} className="grid grid-cols-[1.4fr_repeat(4,80px)] gap-2 rounded-[10px] border border-white/[0.06] bg-white/[0.02] px-3 py-2 text-[11px]">
+                      <div>
+                        <p className="font-semibold text-foreground">{item.label}</p>
+                        <p className="text-[10px] text-muted-foreground/65">{item.leads} leads</p>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-muted-foreground/70">Contact</p>
+                        <p className="font-medium text-foreground">{item.contactRate}%</p>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-muted-foreground/70">Offer Path</p>
+                        <p className="font-medium text-foreground">{item.offerPathRate}%</p>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-muted-foreground/70">Closed</p>
+                        <p className="font-medium text-foreground">{item.closedRate}%</p>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-muted-foreground/70">Count</p>
+                        <p className="font-medium text-foreground">{item.leads}</p>
+                      </div>
+                    </div>
+                  )) : (
+                    <p className="text-[11px] text-muted-foreground/60">Source metrics will appear once prospecting intake metadata is used.</p>
+                  )}
+                </div>
+              </div>
+
+              <div className="rounded-[12px] border border-glass-border bg-glass/40 p-3">
+                <p className="text-xs font-semibold text-foreground">Top Niches</p>
+                <p className="text-[10px] text-muted-foreground/70 mt-0.5">
+                  Quick read on what kinds of outbound lists are turning into live CRM work.
                 </p>
+                <div className="mt-3 space-y-2">
+                  {nicheMetrics.length > 0 ? nicheMetrics.map((item) => (
+                    <div key={item.tag} className="flex items-center justify-between rounded-[10px] border border-white/[0.06] bg-white/[0.02] px-3 py-2 text-[11px]">
+                      <span className="font-medium text-foreground">{item.label}</span>
+                      <span className="text-muted-foreground/75">{item.count}</span>
+                    </div>
+                  )) : (
+                    <p className="text-[11px] text-muted-foreground/60">No niche tags tracked yet.</p>
+                  )}
+                </div>
               </div>
             </div>
-            <div className="mt-3 space-y-2">
-              {outboundSourceMetrics.length > 0 ? outboundSourceMetrics.map((item) => (
-                <div key={item.label} className="grid grid-cols-[1.4fr_repeat(4,80px)] gap-2 rounded-[10px] border border-white/[0.06] bg-white/[0.02] px-3 py-2 text-[11px]">
-                  <div>
-                    <p className="font-semibold text-foreground">{item.label}</p>
-                    <p className="text-[10px] text-muted-foreground/65">{item.leads} leads</p>
-                  </div>
-                  <div className="text-right">
-                    <p className="text-muted-foreground/70">Contact</p>
-                    <p className="font-medium text-foreground">{item.contactRate}%</p>
-                  </div>
-                  <div className="text-right">
-                    <p className="text-muted-foreground/70">Offer Path</p>
-                    <p className="font-medium text-foreground">{item.offerPathRate}%</p>
-                  </div>
-                  <div className="text-right">
-                    <p className="text-muted-foreground/70">Closed</p>
-                    <p className="font-medium text-foreground">{item.closedRate}%</p>
-                  </div>
-                  <div className="text-right">
-                    <p className="text-muted-foreground/70">Count</p>
-                    <p className="font-medium text-foreground">{item.leads}</p>
-                  </div>
-                </div>
-              )) : (
-                <p className="text-[11px] text-muted-foreground/60">Source metrics will appear once prospecting intake metadata is used.</p>
-              )}
-            </div>
-          </div>
-
-          <div className="rounded-[12px] border border-glass-border bg-glass/40 p-3">
-            <p className="text-xs font-semibold text-foreground">Top Niches</p>
-            <p className="text-[10px] text-muted-foreground/70 mt-0.5">
-              Quick read on what kinds of outbound lists are turning into live CRM work.
-            </p>
-            <div className="mt-3 space-y-2">
-              {nicheMetrics.length > 0 ? nicheMetrics.map((item) => (
-                <div key={item.tag} className="flex items-center justify-between rounded-[10px] border border-white/[0.06] bg-white/[0.02] px-3 py-2 text-[11px]">
-                  <span className="font-medium text-foreground">{item.label}</span>
-                  <span className="text-muted-foreground/75">{item.count}</span>
-                </div>
-              )) : (
-                <p className="text-[11px] text-muted-foreground/60">No niche tags tracked yet.</p>
-              )}
-            </div>
-          </div>
+          )}
         </div>
 
         {/* Lead table */}

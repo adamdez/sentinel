@@ -531,7 +531,7 @@ export default function InboundDialerPageClient() {
         </button>
         <div className="ml-auto flex gap-2">
           <Link href="/dialer/war-room">
-            <Button variant="outline" size="sm" className="h-7 text-[10px]">War Room</Button>
+            <Button variant="outline" size="sm" className="h-7 text-[10px]">Call Review</Button>
           </Link>
           <Link href="/dialer">
             <Button variant="outline" size="sm" className="h-7 text-[10px]">Dialer</Button>

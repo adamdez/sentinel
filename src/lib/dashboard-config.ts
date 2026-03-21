@@ -97,7 +97,7 @@ export const WIDGET_REGISTRY: Record<WidgetId, WidgetDefinition> = {
   },
   "breaking-leads-ticker": {
     id: "breaking-leads-ticker",
-    label: "Breaking Leads Ticker",
+    label: "New Priority Leads Ticker",
     description: "Real-time feed of newly promoted high-score leads",
     icon: Newspaper,
     defaultSize: "2x1",

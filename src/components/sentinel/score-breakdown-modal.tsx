@@ -129,7 +129,7 @@ export function ScoreBreakdownModal({ cf, scoreType, onClose }: { cf: ClientFile
               </div>
               <div>
                 <h3 className="text-sm font-bold text-white">
-                  {scoreType === "composite" ? "Composite Score" : scoreType === "motivation" ? "Motivation Score" : "Deal Score"} Breakdown
+                  {scoreType === "composite" ? "Match Score" : scoreType === "motivation" ? "Motivation Score" : "Deal Score"} Breakdown
                 </h3>
                 <p className="text-[10px] text-muted-foreground">
                   {cf.ownerName} — {cf.fullAddress}

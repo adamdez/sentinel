@@ -37,7 +37,7 @@ test.describe("Claim Lead", () => {
 
   test("claimed lead appears in dialer queue", async ({ page }) => {
     await page.goto("/dialer");
-    await expect(page.getByText("Power Dialer")).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByText("Dialer")).toBeVisible({ timeout: 15_000 });
     await page.waitForTimeout(3000);
 
     // The queue section should load (may be empty if no leads)

@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * /dialer/review/eval — AI Workflow Eval Surface
+ * /dialer/review/eval — AI Review Surface
  *
  * Adam's surface for reviewing AI output quality across workflows.
  * Shows per-workflow-version summaries with raw example drawers,
@@ -309,7 +309,7 @@ export default function EvalPage() {
   const [refreshKey, setRefreshKey] = useState(0);
 
   return (
-    <PageShell title="AI Workflow Eval">
+    <PageShell title="AI Review">
       <div className="max-w-3xl mx-auto px-4 py-6 space-y-6">
 
         {/* ── Breadcrumb ── */}
@@ -325,7 +325,7 @@ export default function EvalPage() {
         <div className="space-y-1">
           <h1 className="text-lg font-semibold text-foreground/90 flex items-center gap-2">
             <Brain className="w-4 h-4 text-muted-foreground/50" />
-            AI Workflow Eval
+            AI Review
           </h1>
           <p className="text-xs text-muted-foreground/50 leading-relaxed max-w-xl">
             Reviewed AI output quality grouped by workflow and prompt version.
@@ -368,7 +368,7 @@ export default function EvalPage() {
             <ChevronRight className="w-3 h-3" /> Call QA
           </Link>
           <Link href="/dialer/review/dossier-queue" className="hover:text-muted-foreground flex items-center gap-1 transition-colors">
-            <ChevronRight className="w-3 h-3" /> Dossier Queue
+            <ChevronRight className="w-3 h-3" /> Research Review
           </Link>
         </div>
 

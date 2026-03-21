@@ -23,7 +23,7 @@ export const SENTINEL_THEMES: SentinelThemeDefinition[] = [
   },
   {
     id: "ghost-mode",
-    label: "Ghost Mode / Night Ops",
+    label: "Research Only / Night Ops",
     description: "Tactical dark shell — colder contrast on chrome; workflow surfaces stay readable.",
     experimental: true,
   },

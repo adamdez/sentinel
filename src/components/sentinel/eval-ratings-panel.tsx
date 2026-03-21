@@ -386,7 +386,7 @@ export function EvalRatingsPanel({
         <div className="flex items-center gap-2">
           <Brain className="w-4 h-4 text-muted-foreground/50" />
           <h3 className="text-sm font-semibold text-foreground/80">
-            {workflowFilter ? EVAL_WORKFLOW_LABELS[workflowFilter] : "AI Workflow Eval"}
+            {workflowFilter ? EVAL_WORKFLOW_LABELS[workflowFilter] : "AI Review"}
           </h3>
           <Badge variant="outline" className="text-[9px] border-blue-500/20 text-blue-400 bg-blue-500/5">
             {days}d

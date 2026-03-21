@@ -65,7 +65,7 @@ function TooltipContent({ data, heir, pct, placement }: {
       <div className="absolute inset-x-0 top-0 h-[1px] rounded-t-[12px] bg-gradient-to-r from-transparent via-cyan/30 to-transparent" />
 
       <p className="font-semibold text-[11px] mb-1.5 text-foreground">
-        {heir ? "Likely Heir / Estate Contact" : "Direct Property Owner"}
+        {heir ? "Likely Heir / Estate Contact" : "Direct Contact"}
       </p>
       <div className="space-y-1 text-muted-foreground">
         {data.ownerAgeInference != null && (
@@ -144,7 +144,7 @@ export function RelationshipBadge({ data }: { data: RelationshipData }) {
         <span
           className={`h-1.5 w-1.5 rounded-full ${heir ? "bg-purple-400 animate-pulse" : "bg-emerald-400"}`}
         />
-        {heir ? `Likely Heir / Estate — ${pct}%` : "Property Owner"}
+        {heir ? `Likely Heir / Estate — ${pct}%` : "Direct Contact"}
       </span>
 
       {showTip && <TooltipContent data={data} heir={heir} pct={pct} placement={placement} />}
@@ -180,7 +180,7 @@ export function RelationshipBadgeCompact({ data }: { data: RelationshipData }) {
         <span
           className={`h-1 w-1 rounded-full ${heir ? "bg-purple-400 animate-pulse" : "bg-emerald-400"}`}
         />
-        {heir ? `HEIR ${pct}%` : "OWNER"}
+        {heir ? `HEIR ${pct}%` : "DIRECT"}
       </span>
 
       {showTip && <TooltipContent data={data} heir={heir} pct={pct} placement={placement} />}

@@ -8,7 +8,7 @@ export class DialerPage {
   }
 
   async expectLoaded() {
-    await expect(this.page.getByText("Power Dialer")).toBeVisible({ timeout: 15_000 });
+    await expect(this.page.getByText("Dialer")).toBeVisible({ timeout: 15_000 });
   }
 
   async expectQueuePresent() {

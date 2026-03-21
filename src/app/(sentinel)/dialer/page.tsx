@@ -244,7 +244,7 @@ const DISPOSITIONS: DispoOption[] = [
   { key: "dead",        label: "Dead",         hotkey: "6", icon: Skull,          color: "text-red-400",    bgColor: "bg-red-500/10 hover:bg-red-500/20 border-red-500/20" },
   { key: "nurture",     label: "Nurture",      hotkey: "7", icon: Heart,          color: "text-pink-400",   bgColor: "bg-pink-500/10 hover:bg-pink-500/20 border-pink-500/20" },
   { key: "skip_trace",  label: "Skip Trace",   hotkey: "8", icon: Search,         color: "text-cyan-400",   bgColor: "bg-cyan-500/10 hover:bg-cyan-500/20 border-cyan-500/20" },
-  { key: "ghost",       label: "Ghost Research", hotkey: "9", icon: Ghost,        color: "text-yellow-400", bgColor: "bg-yellow-500/10 hover:bg-yellow-500/20 border-yellow-500/20" },
+  { key: "ghost",       label: "Property Research", hotkey: "9", icon: Ghost,        color: "text-yellow-400", bgColor: "bg-yellow-500/10 hover:bg-yellow-500/20 border-yellow-500/20" },
 ];
 
 type CallState = "idle" | "dialing" | "connected" | "ended";
@@ -1310,13 +1310,13 @@ function DialerPageInner() {
 
   return (
     <PageShell
-      title="Power Dialer"
+      title="Dialer"
       description="AI-prioritized, compliance-gated, Twilio-powered calling"
       actions={
         <div className="flex items-center gap-2">
           {ghostMode && (
             <Badge variant="outline" className="text-[10px] gap-1 border-yellow-500/20 text-yellow-400">
-              <Ghost className="h-2.5 w-2.5" /> Ghost Mode
+              <Ghost className="h-2.5 w-2.5" /> Research Only
             </Badge>
           )}
           <Button

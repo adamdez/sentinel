@@ -185,7 +185,8 @@ export function NewProspectModal() {
     [assignmentOptions, assignTo],
   );
 
-  const canSubmit = form.address.trim().length > 0 && form.county.trim().length > 0;
+  const canSubmit = form.address.trim().length > 0;
+  const [showAdditional, setShowAdditional] = useState(false);
 
   const handleClose = useCallback(() => {
     setForm({ ...EMPTY_FORM });

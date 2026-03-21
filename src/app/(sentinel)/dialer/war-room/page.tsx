@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * /dialer/war-room — Operator War Room
+ * /dialer/war-room — Call Review
  *
  * Single read-only surface composing all existing read-side signals:
  *   - Live overdue alert banner (tasks past due)
@@ -261,7 +261,7 @@ export default function WarRoomPage() {
 
   return (
     <PageShell
-      title="War Room"
+      title="Call Review"
       description="Operator command surface — overdue first, top signals, direct action links."
       actions={
         <div className="flex items-center gap-2">

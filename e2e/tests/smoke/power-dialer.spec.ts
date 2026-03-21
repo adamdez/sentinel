@@ -1,7 +1,7 @@
 import { test, expect } from "@playwright/test";
 import { DialerPage } from "../../pages/dialer.page";
 
-test.describe("Power Dialer", () => {
+test.describe("Dialer", () => {
   test("page loads with stat cards and queue", async ({ page }) => {
     const dialer = new DialerPage(page);
     await dialer.goto();
@@ -22,7 +22,7 @@ test.describe("Power Dialer", () => {
     }
 
     // Page should still be functional after hotkey presses
-    await expect(page.getByText("Power Dialer")).toBeVisible();
+    await expect(page.getByText("Dialer")).toBeVisible();
   });
 
   test("Twilio badge shows Ready state", async ({ page }) => {
@@ -35,7 +35,7 @@ test.describe("Power Dialer", () => {
 
   test("ghost mode toggle works from dialer", async ({ page }) => {
     await page.goto("/dialer");
-    await expect(page.getByText("Power Dialer")).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByText("Dialer")).toBeVisible({ timeout: 15_000 });
 
     // Ghost mode toggle should be in the top bar
     const ghostToggle = page.getByText("Ghost").first();

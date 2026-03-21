@@ -156,7 +156,7 @@ export function BreakingLeadsTicker() {
       {visible.length === 0 ? (
         <div className="text-center py-4">
           <Zap className="h-5 w-5 text-muted-foreground mx-auto mb-1" />
-          <p className="text-[11px] text-muted-foreground">No breaking leads yet</p>
+          <p className="text-[11px] text-muted-foreground">No new priority leads yet</p>
         </div>
       ) : (
         <div className="space-y-1.5">
@@ -228,7 +228,7 @@ export function BreakingLeadsTicker() {
 
       <p className="text-[11px] text-muted-foreground text-center pt-1">
         {items.length > 0
-          ? `${items.length} breaking leads — real-time feed`
+          ? `${items.length} new priority leads — real-time feed`
           : "Waiting for high-score prospects"}
       </p>
     </div>
