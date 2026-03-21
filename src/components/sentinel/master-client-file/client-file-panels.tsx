@@ -51,7 +51,7 @@ export function EditField({ label, value, onChange, placeholder, mono }: {
         placeholder={placeholder}
         className={cn(
           "w-full px-3 py-2 rounded-[10px] text-sm bg-white/[0.04] border border-white/[0.08] text-foreground",
-          "placeholder:text-muted-foreground/40 focus:outline-none focus:border-cyan/30 focus:ring-1 focus:ring-cyan/20",
+          "placeholder:text-muted-foreground/40 focus:outline-none focus:border-primary/30 focus:ring-1 focus:ring-ring/20",
           "transition-all hover:border-white/[0.12]",
           mono && "font-mono",
         )}
@@ -152,17 +152,17 @@ export function EditDetailsModal({ cf, onClose, onSaved }: { cf: ClientFile; onC
             modal-glass flex flex-col"
         >
           {/* Holographic accent */}
-          <div className="absolute top-0 inset-x-0 h-[1px] bg-gradient-to-r from-transparent via-cyan/40 to-transparent" />
-          <div className="absolute top-0 inset-x-0 h-12 bg-gradient-to-b from-cyan/[0.03] to-transparent pointer-events-none" />
+          <div className="absolute top-0 inset-x-0 h-[1px] bg-gradient-to-r from-transparent via-primary/40 to-transparent" />
+          <div className="absolute top-0 inset-x-0 h-12 bg-gradient-to-b from-primary/[0.03] to-transparent pointer-events-none" />
 
           {/* Header */}
           <div className="shrink-0 flex items-center justify-between px-5 py-3.5 border-b border-white/[0.06]">
             <div className="flex items-center gap-2.5">
-              <div className="h-8 w-8 rounded-[10px] bg-cyan/10 flex items-center justify-center">
-                <Pencil className="h-4 w-4 text-cyan" />
+              <div className="h-8 w-8 rounded-[10px] bg-primary/10 flex items-center justify-center">
+                <Pencil className="h-4 w-4 text-primary" />
               </div>
               <div>
-                <h3 className="text-sm font-bold text-white">Edit Property Details</h3>
+                <h3 className="text-sm font-bold text-foreground">Edit Property Details</h3>
                 <p className="text-[10px] text-muted-foreground">{cf.fullAddress}</p>
               </div>
             </div>
@@ -199,13 +199,13 @@ export function EditDetailsModal({ cf, onClose, onSaved }: { cf: ClientFile; onC
                 rows={3}
                 placeholder="Add notes about this property..."
                 className="w-full px-3 py-2 rounded-[10px] text-sm bg-white/[0.04] border border-white/[0.08] text-foreground
-                  placeholder:text-muted-foreground/40 focus:outline-none focus:border-cyan/30 focus:ring-1 focus:ring-cyan/20
+                  placeholder:text-muted-foreground/40 focus:outline-none focus:border-primary/30 focus:ring-1 focus:ring-ring/20
                   transition-all hover:border-white/[0.12] resize-none"
               />
             </div>
 
             {error && (
-              <div className="flex items-center gap-2 text-xs text-red-400 bg-red-500/5 border border-red-500/20 rounded-[10px] px-3 py-2">
+              <div className="flex items-center gap-2 text-xs text-foreground bg-muted/5 border border-border/20 rounded-[10px] px-3 py-2">
                 <AlertTriangle className="h-3.5 w-3.5 shrink-0" />{error}
               </div>
             )}
@@ -224,8 +224,8 @@ export function EditDetailsModal({ cf, onClose, onSaved }: { cf: ClientFile; onC
                 size="sm"
                 onClick={handleSave}
                 disabled={saving}
-                className="text-[11px] h-8 px-4 gap-1.5 bg-cyan/15 hover:bg-cyan/25 text-cyan border border-cyan/20
-                  shadow-[0_0_14px_rgba(0,212,255,0.15)] hover:shadow-[0_0_22px_rgba(0,212,255,0.25)] transition-all"
+                className="text-[11px] h-8 px-4 gap-1.5 bg-primary/15 hover:bg-primary/25 text-primary border border-primary/20
+                  shadow-[0_0_14px_rgba(0,0,0,0.15)] hover:shadow-[0_0_22px_rgba(0,0,0,0.25)] transition-all"
               >
                 {saving ? <Loader2 className="h-3 w-3 animate-spin" /> : <Save className="h-3 w-3" />}
                 {saving ? "Saving..." : "Save Changes"}
@@ -298,21 +298,21 @@ export function DeleteConfirmationModal({
           exit={{ opacity: 0, scale: 0.92, y: 24 }}
           transition={{ type: "spring", damping: 26, stiffness: 320 }}
           onClick={(e) => e.stopPropagation()}
-          className="relative max-w-md w-full mx-4 overflow-hidden rounded-[16px] border border-red-500/20
+          className="relative max-w-md w-full mx-4 overflow-hidden rounded-[16px] border border-border/20
             modal-glass flex flex-col"
         >
           {/* Red accent */}
-          <div className="absolute top-0 inset-x-0 h-[1px] bg-gradient-to-r from-transparent via-red-500/40 to-transparent" />
-          <div className="absolute top-0 inset-x-0 h-12 bg-gradient-to-b from-red-500/[0.05] to-transparent pointer-events-none" />
+          <div className="absolute top-0 inset-x-0 h-[1px] bg-gradient-to-r from-transparent via-muted/40 to-transparent" />
+          <div className="absolute top-0 inset-x-0 h-12 bg-gradient-to-b from-muted/[0.05] to-transparent pointer-events-none" />
 
           {/* Header */}
           <div className="shrink-0 flex items-center justify-between px-5 py-3.5 border-b border-white/[0.06]">
             <div className="flex items-center gap-2.5">
-              <div className="h-8 w-8 rounded-[10px] bg-red-500/10 flex items-center justify-center">
-                <Trash2 className="h-4 w-4 text-red-400" />
+              <div className="h-8 w-8 rounded-[10px] bg-muted/10 flex items-center justify-center">
+                <Trash2 className="h-4 w-4 text-foreground" />
               </div>
               <div>
-                <h3 className="text-sm font-bold text-white">Delete Customer File</h3>
+                <h3 className="text-sm font-bold text-foreground">Delete Customer File</h3>
                 <p className="text-[10px] text-muted-foreground">Permanent action</p>
               </div>
             </div>
@@ -325,7 +325,7 @@ export function DeleteConfirmationModal({
           <div className="px-5 py-4 space-y-4">
             {/* Lead details */}
             <div className="rounded-[10px] bg-white/[0.03] border border-white/[0.06] p-3 space-y-1.5">
-              <div className="flex items-center gap-2 text-sm text-white">
+              <div className="flex items-center gap-2 text-sm text-foreground">
                 <MapPin className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
                 <span className="truncate">{cf.fullAddress || cf.address}</span>
               </div>
@@ -341,9 +341,9 @@ export function DeleteConfirmationModal({
             </div>
 
             {/* Warning */}
-            <div className="flex items-start gap-2.5 p-3 rounded-[10px] bg-red-500/[0.06] border border-red-500/20">
-              <AlertTriangle className="h-4 w-4 text-red-400 shrink-0 mt-0.5" />
-              <div className="text-xs text-red-300/90 leading-relaxed">
+            <div className="flex items-start gap-2.5 p-3 rounded-[10px] bg-muted/[0.06] border border-border/20">
+              <AlertTriangle className="h-4 w-4 text-foreground shrink-0 mt-0.5" />
+              <div className="text-xs text-foreground/90 leading-relaxed">
                 <strong>This action is permanent and cannot be undone.</strong>
                 <br />
                 The lead, property, distress events, scoring records, predictions, and associated deals will be permanently deleted.
@@ -353,7 +353,7 @@ export function DeleteConfirmationModal({
             {/* Type yes input */}
             <div className="space-y-1.5">
               <label className="text-xs text-muted-foreground">
-                Type <span className="text-red-400 font-semibold">&quot;yes&quot;</span> to confirm deletion
+                Type <span className="text-foreground font-semibold">&quot;yes&quot;</span> to confirm deletion
               </label>
               <input
                 type="text"
@@ -362,13 +362,13 @@ export function DeleteConfirmationModal({
                 placeholder="Type yes to confirm..."
                 autoFocus
                 className="w-full px-3 py-2 rounded-[10px] text-sm bg-white/[0.04] border border-white/[0.08] text-foreground
-                  placeholder:text-muted-foreground/40 focus:outline-none focus:border-red-500/30 focus:ring-1 focus:ring-red-500/20
+                  placeholder:text-muted-foreground/40 focus:outline-none focus:border-border/30 focus:ring-1 focus:ring-ring/20
                   transition-all hover:border-white/[0.12]"
               />
             </div>
 
             {error && (
-              <p className="text-xs text-red-400">{error}</p>
+              <p className="text-xs text-foreground">{error}</p>
             )}
           </div>
 
@@ -397,10 +397,10 @@ export function DeleteConfirmationModal({
 // ── DeepCrawlPanel ────────────────────────────────────────────────────────────
 
 const URGENCY_COLORS: Record<string, string> = {
-  CRITICAL: "text-red-400 bg-red-500/[0.12] border-red-500/30",
-  HIGH: "text-orange-400 bg-orange-500/[0.12] border-orange-500/30",
-  MEDIUM: "text-amber-400 bg-amber-500/[0.12] border-amber-500/30",
-  LOW: "text-emerald-400 bg-emerald-500/[0.12] border-emerald-500/30",
+  CRITICAL: "text-foreground bg-muted/[0.12] border-border/30",
+  HIGH: "text-foreground bg-muted/[0.12] border-border/30",
+  MEDIUM: "text-foreground bg-muted/[0.12] border-border/30",
+  LOW: "text-foreground bg-muted/[0.12] border-border/30",
 };
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -428,8 +428,8 @@ export function DeepCrawlPanel({ result, onRecrawl, isRecrawling }: { result: an
       {/* Executive Summary */}
       <div>
         <div className="flex items-center gap-2 mb-2">
-          <Brain className="h-3.5 w-3.5 text-cyan" />
-          <p className="text-[11px] text-cyan/80 uppercase tracking-wider font-semibold">Executive Summary</p>
+          <Brain className="h-3.5 w-3.5 text-primary" />
+          <p className="text-[11px] text-primary/80 uppercase tracking-wider font-semibold">Executive Summary</p>
           {ai.urgencyLevel && (
             <span className={cn("px-2 py-0.5 rounded-full text-[10px] font-bold border", urgencyColor)}>
               {ai.urgencyLevel}
@@ -445,22 +445,22 @@ export function DeepCrawlPanel({ result, onRecrawl, isRecrawling }: { result: an
       {/* Signal Analysis */}
       {ai.signalAnalysis && ai.signalAnalysis.length > 0 && (
         <div>
-          <p className="text-[11px] text-orange-400/80 uppercase tracking-wider font-semibold mb-2 flex items-center gap-1.5">
+          <p className="text-[11px] text-foreground/80 uppercase tracking-wider font-semibold mb-2 flex items-center gap-1.5">
             <AlertTriangle className="h-3.5 w-3.5" />Signal Analysis
           </p>
           <div className="space-y-2">
             {ai.signalAnalysis.map((s: { headline: string; detail: string; daysUntilCritical: number | null; actionableInsight: string }, i: number) => (
               <div key={i} className="rounded-[10px] border border-white/[0.06] bg-white/[0.02] p-3 space-y-1.5">
                 <p className="text-[13px] font-semibold text-foreground flex items-center gap-1.5">
-                  <AlertTriangle className="h-3 w-3 text-orange-400 shrink-0" />
+                  <AlertTriangle className="h-3 w-3 text-foreground shrink-0" />
                   {s.headline}
                   {s.daysUntilCritical != null && s.daysUntilCritical <= 60 && (
-                    <span className="text-[11px] text-red-400 font-mono ml-auto">{s.daysUntilCritical}d</span>
+                    <span className="text-[11px] text-foreground font-mono ml-auto">{s.daysUntilCritical}d</span>
                   )}
                 </p>
                 <p className="text-[12px] text-muted-foreground leading-relaxed pl-5">{s.detail}</p>
                 {s.actionableInsight && (
-                  <p className="text-[12px] text-cyan/80 pl-5 flex items-center gap-1">
+                  <p className="text-[12px] text-primary/80 pl-5 flex items-center gap-1">
                     <ArrowRight className="h-3 w-3 shrink-0" />{s.actionableInsight}
                   </p>
                 )}
@@ -490,7 +490,7 @@ export function DeepCrawlPanel({ result, onRecrawl, isRecrawling }: { result: an
           {ai.estimatedMAO && (
             <div className="mt-1.5 flex items-center gap-2">
               <span className="text-[11px] text-muted-foreground uppercase">Est. MAO:</span>
-              <span className="text-[13px] font-semibold text-emerald-400">
+              <span className="text-[13px] font-semibold text-foreground">
                 ${ai.estimatedMAO.low?.toLocaleString()} &ndash; ${ai.estimatedMAO.high?.toLocaleString()}
               </span>
               <span className="text-[11px] text-muted-foreground/60">{ai.estimatedMAO.basis}</span>
@@ -509,8 +509,8 @@ export function DeepCrawlPanel({ result, onRecrawl, isRecrawling }: { result: an
           {ai.talkingPoints && ai.talkingPoints.length > 0 && (
             <ul className="mt-2 space-y-1">
               {ai.talkingPoints.map((tp: string, i: number) => (
-                <li key={i} className="text-[12px] text-cyan/80 flex items-start gap-1.5">
-                  <span className="text-cyan/40 mt-0.5 shrink-0">&#8226;</span>{tp}
+                <li key={i} className="text-[12px] text-primary/80 flex items-start gap-1.5">
+                  <span className="text-primary/40 mt-0.5 shrink-0">&#8226;</span>{tp}
                 </li>
               ))}
             </ul>
@@ -527,7 +527,7 @@ export function DeepCrawlPanel({ result, onRecrawl, isRecrawling }: { result: an
           <div className="space-y-1.5">
             {ai.webFindings.map((w: { source: string; finding: string }, i: number) => (
               <div key={i} className="flex items-start gap-2 text-[12px]">
-                <Search className="h-3 w-3 text-cyan/50 mt-0.5 shrink-0" />
+                <Search className="h-3 w-3 text-primary/50 mt-0.5 shrink-0" />
                 <span>
                   <span className="font-semibold text-foreground/70">{w.source}:</span>{" "}
                   <span className="text-foreground/60">{w.finding}</span>
@@ -541,13 +541,13 @@ export function DeepCrawlPanel({ result, onRecrawl, isRecrawling }: { result: an
       {/* Red Flags */}
       {ai.redFlags && ai.redFlags.length > 0 && (
         <div>
-          <p className="text-[11px] text-red-400/80 uppercase tracking-wider font-semibold mb-1 flex items-center gap-1.5">
+          <p className="text-[11px] text-foreground/80 uppercase tracking-wider font-semibold mb-1 flex items-center gap-1.5">
             <ShieldAlert className="h-3.5 w-3.5" />Red Flags
           </p>
           <ul className="space-y-1">
             {ai.redFlags.map((flag: string, i: number) => (
-              <li key={i} className="text-[12px] text-red-300/70 flex items-start gap-1.5">
-                <span className="text-red-400 mt-0.5 shrink-0">&#9679;</span>{flag}
+              <li key={i} className="text-[12px] text-foreground/70 flex items-start gap-1.5">
+                <span className="text-foreground mt-0.5 shrink-0">&#9679;</span>{flag}
               </li>
             ))}
           </ul>
@@ -564,7 +564,7 @@ export function DeepCrawlPanel({ result, onRecrawl, isRecrawling }: { result: an
           <button
             onClick={onRecrawl}
             disabled={isRecrawling}
-            className="text-[11px] text-amber-400/70 hover:text-amber-400 transition-colors disabled:opacity-50"
+            className="text-[11px] text-foreground/70 hover:text-foreground transition-colors disabled:opacity-50"
           >
             {isRecrawling ? "Re-crawling…" : "↻ Re-crawl"}
           </button>
@@ -577,13 +577,13 @@ export function DeepCrawlPanel({ result, onRecrawl, isRecrawling }: { result: an
 // ── DeepSkipPanel ─────────────────────────────────────────────────────────────
 
 const ROLE_COLORS: Record<string, string> = {
-  owner: "text-cyan bg-cyan/10 border-cyan/30",
-  heir: "text-purple-400 bg-purple-500/10 border-purple-500/30",
-  executor: "text-amber-400 bg-amber-500/10 border-amber-500/30",
-  attorney: "text-blue-400 bg-blue-500/10 border-blue-500/30",
-  beneficial_owner: "text-emerald-400 bg-emerald-500/10 border-emerald-500/30",
-  spouse: "text-pink-400 bg-pink-500/10 border-pink-500/30",
-  family: "text-orange-400 bg-orange-500/10 border-orange-500/30",
+  owner: "text-primary bg-primary/10 border-primary/30",
+  heir: "text-foreground bg-muted/10 border-border/30",
+  executor: "text-foreground bg-muted/10 border-border/30",
+  attorney: "text-foreground bg-muted/10 border-border/30",
+  beneficial_owner: "text-foreground bg-muted/10 border-border/30",
+  spouse: "text-foreground bg-muted/10 border-border/30",
+  family: "text-foreground bg-muted/10 border-border/30",
 };
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -596,8 +596,8 @@ export function DeepSkipPanel({ result }: { result: any }) {
     <div className="rounded-[12px] border border-white/[0.06] bg-white/[0.02] p-4 space-y-4">
       {/* Header */}
       <div className="flex items-center gap-2">
-        <Users className="h-3.5 w-3.5 text-purple-400" />
-        <p className="text-[11px] text-purple-400/80 uppercase tracking-wider font-semibold">Deep Skip Report – People Intelligence</p>
+        <Users className="h-3.5 w-3.5 text-foreground" />
+        <p className="text-[11px] text-foreground/80 uppercase tracking-wider font-semibold">Deep Skip Report – People Intelligence</p>
         {result.agentMeta && (
           <span className="text-[10px] text-muted-foreground/50 ml-auto">
             {result.agentMeta.agentsSucceeded?.length ?? 0} agents · {result.people?.length ?? 0} people found
@@ -621,17 +621,17 @@ export function DeepSkipPanel({ result }: { result: any }) {
                   )}>
                     {person.role.replace(/_/g, " ")}
                   </span>
-                  {person.confidence >= 0.8 && <CheckCircle className="h-3 w-3 text-emerald-400" />}
+                  {person.confidence >= 0.8 && <CheckCircle className="h-3 w-3 text-foreground" />}
                 </div>
                 <p className="text-[11px] text-muted-foreground leading-relaxed mb-1.5 pl-5">{person.notes}</p>
                 <div className="flex flex-wrap gap-3 pl-5 text-[11px]">
                   {person.phones.map((p: string, j: number) => (
-                    <span key={j} className="flex items-center gap-1 text-emerald-400/80">
+                    <span key={j} className="flex items-center gap-1 text-foreground/80">
                       <Phone className="h-2.5 w-2.5" />{p}
                     </span>
                   ))}
                   {person.emails.map((e: string, j: number) => (
-                    <span key={j} className="flex items-center gap-1 text-cyan/80">
+                    <span key={j} className="flex items-center gap-1 text-primary/80">
                       <Mail className="h-2.5 w-2.5" />{e}
                     </span>
                   ))}
@@ -653,24 +653,24 @@ export function DeepSkipPanel({ result }: { result: any }) {
       {/* New Contacts Found */}
       {((result.newPhones?.length > 0) || (result.newEmails?.length > 0)) && (
         <div>
-          <p className="text-[10px] text-emerald-400/80 uppercase tracking-wider font-semibold mb-1.5 flex items-center gap-1.5">
+          <p className="text-[10px] text-foreground/80 uppercase tracking-wider font-semibold mb-1.5 flex items-center gap-1.5">
             <Plus className="h-3 w-3" />New Contacts Discovered
           </p>
           <div className="flex flex-wrap gap-2">
             {(result.newPhones ?? []).map((p: { number: string; source: string; personName?: string }, i: number) => (
-              <span key={`p${i}`} className="inline-flex items-center gap-1.5 px-2 py-1 rounded-full text-[10px] font-medium border border-emerald-500/20 bg-emerald-500/[0.06] text-emerald-400">
+              <span key={`p${i}`} className="inline-flex items-center gap-1.5 px-2 py-1 rounded-full text-[10px] font-medium border border-border/20 bg-muted/[0.06] text-foreground">
                 <Phone className="h-2.5 w-2.5" />
                 {p.number}
-                {p.personName && <span className="text-emerald-400/50">({p.personName})</span>}
-                <span className="text-[8px] px-1 py-0.5 rounded bg-emerald-500/20 text-emerald-300 font-bold">OC</span>
+                {p.personName && <span className="text-foreground/50">({p.personName})</span>}
+                <span className="text-[8px] px-1 py-0.5 rounded bg-muted/20 text-foreground font-bold">OC</span>
               </span>
             ))}
             {(result.newEmails ?? []).map((e: { email: string; source: string; personName?: string }, i: number) => (
-              <span key={`e${i}`} className="inline-flex items-center gap-1.5 px-2 py-1 rounded-full text-[10px] font-medium border border-cyan/20 bg-cyan/[0.06] text-cyan">
+              <span key={`e${i}`} className="inline-flex items-center gap-1.5 px-2 py-1 rounded-full text-[10px] font-medium border border-primary/20 bg-primary/[0.06] text-primary">
                 <Mail className="h-2.5 w-2.5" />
                 {e.email}
-                {e.personName && <span className="text-cyan/50">({e.personName})</span>}
-                <span className="text-[8px] px-1 py-0.5 rounded bg-cyan/20 text-cyan font-bold">OC</span>
+                {e.personName && <span className="text-primary/50">({e.personName})</span>}
+                <span className="text-[8px] px-1 py-0.5 rounded bg-primary/20 text-primary font-bold">OC</span>
               </span>
             ))}
           </div>
@@ -686,7 +686,7 @@ export function DeepSkipPanel({ result }: { result: any }) {
           <div className="space-y-1.5">
             {result.employmentSignals.map((s: { signal: string; source: string; date?: string; url?: string }, i: number) => (
               <div key={i} className="flex items-start gap-2 text-[12px]">
-                <ArrowRight className="h-3 w-3 text-amber-400/60 mt-0.5 shrink-0" />
+                <ArrowRight className="h-3 w-3 text-foreground/60 mt-0.5 shrink-0" />
                 <span className="text-foreground/70">{s.signal}</span>
                 {s.date && <span className="text-muted-foreground/40 text-[10px] ml-auto shrink-0">{s.date}</span>}
               </div>
@@ -730,16 +730,16 @@ export function CrawlProgressIndicator({ steps }: { steps: CrawlStep[] }) {
   return (
     <div className="rounded-[12px] border border-white/[0.06] bg-white/[0.02] p-3 space-y-1.5">
       <div className="flex items-center gap-2 mb-2">
-        <Loader2 className="h-3.5 w-3.5 text-cyan animate-spin" />
-        <p className="text-[11px] text-cyan/80 uppercase tracking-wider font-semibold">Deep Crawl in Progress</p>
+        <Loader2 className="h-3.5 w-3.5 text-primary animate-spin" />
+        <p className="text-[11px] text-primary/80 uppercase tracking-wider font-semibold">Deep Crawl in Progress</p>
       </div>
       {steps.map((step, i) => {
         const isLast = i === steps.length - 1;
         const icon = step.status === "complete"
-          ? <CheckCircle className="h-3 w-3 text-emerald-400 shrink-0" />
+          ? <CheckCircle className="h-3 w-3 text-foreground shrink-0" />
           : step.status === "error"
-            ? <XCircle className="h-3 w-3 text-red-400 shrink-0" />
-            : <Loader2 className="h-3 w-3 text-cyan animate-spin shrink-0" />;
+            ? <XCircle className="h-3 w-3 text-foreground shrink-0" />
+            : <Loader2 className="h-3 w-3 text-primary animate-spin shrink-0" />;
 
         return (
           <div key={i} className={cn("flex items-center gap-2 text-[11px]", isLast && step.status === "started" ? "text-foreground" : "text-muted-foreground")}>
@@ -803,7 +803,7 @@ export function LinkedBuyersSummary({ leadId }: { leadId: string }) {
     <div className="rounded-[12px] border border-white/[0.06] bg-white/[0.02] p-3 space-y-2">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <Users className="h-3.5 w-3.5 text-cyan/70" />
+          <Users className="h-3.5 w-3.5 text-primary/70" />
           <span className="text-[11px] text-muted-foreground uppercase tracking-wider font-semibold">
             Linked Buyers
           </span>
@@ -811,7 +811,7 @@ export function LinkedBuyersSummary({ leadId }: { leadId: string }) {
         </div>
         <Link
           href="/dispo"
-          className="text-[10px] text-cyan/70 hover:text-cyan transition-colors flex items-center gap-1"
+          className="text-[10px] text-primary/70 hover:text-primary transition-colors flex items-center gap-1"
         >
           Dispo Board <ArrowRight className="h-2.5 w-2.5" />
         </Link>
@@ -824,7 +824,7 @@ export function LinkedBuyersSummary({ leadId }: { leadId: string }) {
           </span>
         )}
         {spread != null && (
-          <span className={cn("font-medium", spread > 0 ? "text-emerald-400" : spread < 0 ? "text-red-400" : "text-muted-foreground")}>
+          <span className={cn("font-medium", spread > 0 ? "text-foreground" : spread < 0 ? "text-foreground" : "text-muted-foreground")}>
             Spread: {spread >= 0 ? "+" : ""}${(spread / 1000).toFixed(0)}k
           </span>
         )}

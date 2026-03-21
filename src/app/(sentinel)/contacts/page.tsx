@@ -184,9 +184,9 @@ export default function ContactsPage() {
   };
 
   const stats = [
-    { label: "Total Contacts", value: totalCount, icon: Users, color: "text-cyan-400" },
-    { label: "With Phone", value: withPhoneCount, icon: PhoneCall, color: "text-emerald-400" },
-    { label: "With Email", value: withEmailCount, icon: AtSign, color: "text-violet-400" },
+    { label: "Total Contacts", value: totalCount, icon: Users, color: "text-primary-400" },
+    { label: "With Phone", value: withPhoneCount, icon: PhoneCall, color: "text-foreground" },
+    { label: "With Email", value: withEmailCount, icon: AtSign, color: "text-foreground" },
   ];
 
   return (
@@ -261,8 +261,8 @@ export default function ContactsPage() {
                         onClick={() => handleNameClick(contact)}
                         className="flex items-center gap-2 group text-left"
                       >
-                        <Contact className="h-4 w-4 text-muted-foreground group-hover:text-cyan-400 transition-colors" />
-                        <span className="text-sm font-medium group-hover:text-cyan-400 transition-colors cursor-pointer underline-offset-2 group-hover:underline">
+                        <Contact className="h-4 w-4 text-muted-foreground group-hover:text-primary-400 transition-colors" />
+                        <span className="text-sm font-medium group-hover:text-primary-400 transition-colors cursor-pointer underline-offset-2 group-hover:underline">
                           {contact.first_name} {contact.last_name}
                         </span>
                       </button>

@@ -38,7 +38,7 @@ function FilterSelect({ value, onChange, options, placeholder, className }: {
       value={value}
       onChange={(e) => onChange(e.target.value)}
       className={cn(
-        "bg-white/[0.03] border border-white/[0.06] rounded-[8px] px-2.5 py-1.5 text-xs text-foreground focus:outline-none focus:border-cyan/30 transition-all appearance-none cursor-pointer",
+        "bg-white/[0.03] border border-white/[0.06] rounded-[8px] px-2.5 py-1.5 text-xs text-foreground focus:outline-none focus:border-primary/30 transition-all appearance-none cursor-pointer",
         className
       )}
     >
@@ -131,14 +131,14 @@ export default function BuyersPage() {
       actions={
         <div className="flex items-center gap-2">
           {staleCount > 0 && (
-            <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-[8px] border border-amber-400/40 bg-amber-500/10 text-xs text-amber-700 dark:text-amber-400">
+            <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-[8px] border border-border/40 bg-muted/10 text-xs text-foreground dark:text-foreground">
               <AlertTriangle className="h-3 w-3" />
               {staleCount} stale
             </div>
           )}
           <button
             onClick={openCreate}
-            className="flex items-center gap-1.5 px-3.5 py-1.5 text-sm font-medium text-cyan bg-cyan/10 hover:bg-cyan/15 rounded-[10px] border border-cyan/25 hover:border-cyan/40 transition-all"
+            className="flex items-center gap-1.5 px-3.5 py-1.5 text-sm font-medium text-primary bg-primary/10 hover:bg-primary/15 rounded-[10px] border border-primary/25 hover:border-primary/40 transition-all"
           >
             <Plus className="h-3.5 w-3.5" />
             Add Buyer
@@ -156,7 +156,7 @@ export default function BuyersPage() {
               value={search}
               onChange={(e) => handleSearch(e.target.value)}
               placeholder="Search buyers..."
-              className="w-full bg-white/[0.03] border border-white/[0.06] rounded-[8px] pl-8 pr-3 py-1.5 text-xs text-foreground placeholder:text-muted-foreground/40 focus:outline-none focus:border-cyan/30 transition-all"
+              className="w-full bg-white/[0.03] border border-white/[0.06] rounded-[8px] pl-8 pr-3 py-1.5 text-xs text-foreground placeholder:text-muted-foreground/40 focus:outline-none focus:border-primary/30 transition-all"
             />
           </div>
           <FilterSelect value={filters.status ?? ""} onChange={(v) => handleFilterChange("status", v)} options={[{ value: "active", label: "Active" }, { value: "inactive", label: "Inactive" }]} placeholder="All Status" />
@@ -174,7 +174,7 @@ export default function BuyersPage() {
       <GlassCard hover={false} delay={0.04} className="p-0 overflow-hidden">
         {loading ? (
           <div className="flex items-center justify-center py-16">
-            <div className="h-5 w-5 border-2 border-cyan/30 border-t-cyan rounded-full animate-spin" />
+            <div className="h-5 w-5 border-2 border-primary/30 border-t-cyan rounded-full animate-spin" />
           </div>
         ) : buyers.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-16 text-center">

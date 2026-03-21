@@ -29,20 +29,20 @@ const DISTRESS_LABELS: Record<string, string> = {
 };
 
 const DISTRESS_COLORS: Record<string, { text: string; bg: string; border: string }> = {
-  probate: { text: "text-red-400", bg: "bg-red-500/10", border: "border-red-500/25" },
-  pre_foreclosure: { text: "text-orange-400", bg: "bg-orange-500/10", border: "border-orange-500/25" },
-  tax_lien: { text: "text-yellow-400", bg: "bg-yellow-500/10", border: "border-yellow-500/25" },
-  code_violation: { text: "text-pink-400", bg: "bg-pink-500/10", border: "border-pink-500/25" },
-  water_shutoff: { text: "text-blue-400", bg: "bg-blue-500/10", border: "border-blue-500/25" },
-  condemned: { text: "text-rose-500", bg: "bg-rose-500/10", border: "border-rose-500/25" },
-  vacant: { text: "text-emerald-400", bg: "bg-emerald-500/10", border: "border-emerald-500/25" },
-  divorce: { text: "text-purple-400", bg: "bg-purple-500/10", border: "border-purple-500/25" },
-  bankruptcy: { text: "text-red-500", bg: "bg-red-500/10", border: "border-red-500/25" },
-  inherited: { text: "text-amber-400", bg: "bg-amber-500/10", border: "border-amber-500/25" },
-  absentee: { text: "text-cyan-400", bg: "bg-cyan-500/10", border: "border-cyan-500/25" },
-  fsbo: { text: "text-blue-300", bg: "bg-blue-500/10", border: "border-blue-500/25" },
-  tired_landlord: { text: "text-amber-500", bg: "bg-amber-500/10", border: "border-amber-500/25" },
-  underwater: { text: "text-red-400", bg: "bg-red-500/10", border: "border-red-500/25" },
+  probate: { text: "text-foreground", bg: "bg-muted/10", border: "border-border/25" },
+  pre_foreclosure: { text: "text-foreground", bg: "bg-muted/10", border: "border-border/25" },
+  tax_lien: { text: "text-foreground", bg: "bg-muted/10", border: "border-border/25" },
+  code_violation: { text: "text-foreground", bg: "bg-muted/10", border: "border-border/25" },
+  water_shutoff: { text: "text-foreground", bg: "bg-muted/10", border: "border-border/25" },
+  condemned: { text: "text-foreground", bg: "bg-muted/10", border: "border-border/25" },
+  vacant: { text: "text-foreground", bg: "bg-muted/10", border: "border-border/25" },
+  divorce: { text: "text-foreground", bg: "bg-muted/10", border: "border-border/25" },
+  bankruptcy: { text: "text-foreground", bg: "bg-muted/10", border: "border-border/25" },
+  inherited: { text: "text-foreground", bg: "bg-muted/10", border: "border-border/25" },
+  absentee: { text: "text-primary-400", bg: "bg-primary-500/10", border: "border-primary-500/25" },
+  fsbo: { text: "text-foreground", bg: "bg-muted/10", border: "border-border/25" },
+  tired_landlord: { text: "text-foreground", bg: "bg-muted/10", border: "border-border/25" },
+  underwater: { text: "text-foreground", bg: "bg-muted/10", border: "border-border/25" },
 };
 
 function SignalPill({ signal }: { signal: string }) {
@@ -63,10 +63,10 @@ function daysInStaging(dateStr: string | null): number {
 
 function enrichmentBadge(flags: Record<string, unknown>): { label: string; color: string; bgColor: string; borderColor: string } {
   const status = flags.enrichment_status as string | undefined;
-  if (status === "enriched") return { label: "Scored", color: "text-emerald-400", bgColor: "bg-emerald-500/10", borderColor: "border-emerald-500/25" };
-  if (status === "pending") return { label: "Enriching...", color: "text-blue-400", bgColor: "bg-blue-500/10", borderColor: "border-blue-500/25" };
-  if (status === "failed") return { label: "Stuck", color: "text-red-400", bgColor: "bg-red-500/10", borderColor: "border-red-500/25" };
-  return { label: "Queued", color: "text-yellow-400", bgColor: "bg-yellow-500/10", borderColor: "border-yellow-500/25" };
+  if (status === "enriched") return { label: "Scored", color: "text-foreground", bgColor: "bg-muted/10", borderColor: "border-border/25" };
+  if (status === "pending") return { label: "Enriching...", color: "text-foreground", bgColor: "bg-muted/10", borderColor: "border-border/25" };
+  if (status === "failed") return { label: "Stuck", color: "text-foreground", bgColor: "bg-muted/10", borderColor: "border-border/25" };
+  return { label: "Queued", color: "text-foreground", bgColor: "bg-muted/10", borderColor: "border-border/25" };
 }
 
 // ── Page ──────────────────────────────────────────────────────────────
@@ -169,7 +169,7 @@ export default function StagingPage() {
         <div className="grid grid-cols-1 sm:grid-cols-4 gap-4 mb-6">
           <GlassCard glow>
             <div className="flex items-center gap-3 p-4">
-              <Clock className="h-5 w-5 text-cyan" />
+              <Clock className="h-5 w-5 text-primary" />
               <div>
                 <div className="text-2xl font-bold tabular-nums">{stats.total}</div>
                 <div className="text-xs text-muted-foreground">In Staging</div>
@@ -178,25 +178,25 @@ export default function StagingPage() {
           </GlassCard>
           <GlassCard glow>
             <div className="flex items-center gap-3 p-4">
-              <CheckCircle2 className="h-5 w-5 text-emerald-400" />
+              <CheckCircle2 className="h-5 w-5 text-foreground" />
               <div>
-                <div className="text-2xl font-bold tabular-nums text-emerald-400">{stats.enriched}</div>
+                <div className="text-2xl font-bold tabular-nums text-foreground">{stats.enriched}</div>
                 <div className="text-xs text-muted-foreground">Enriched</div>
               </div>
             </div>
           </GlassCard>
           <GlassCard glow>
             <div className="flex items-center gap-3 p-4">
-              <AlertTriangle className="h-5 w-5 text-red-400" />
+              <AlertTriangle className="h-5 w-5 text-foreground" />
               <div>
-                <div className="text-2xl font-bold tabular-nums text-red-400">{stats.stuck}</div>
+                <div className="text-2xl font-bold tabular-nums text-foreground">{stats.stuck}</div>
                 <div className="text-xs text-muted-foreground">Stuck</div>
               </div>
             </div>
           </GlassCard>
           <GlassCard glow>
             <div className="flex items-center gap-3 p-4">
-              <Zap className="h-5 w-5 text-amber-400" />
+              <Zap className="h-5 w-5 text-foreground" />
               <div>
                 <div className="text-2xl font-bold tabular-nums">{stats.avgScore}</div>
                 <div className="text-xs text-muted-foreground">Avg Score</div>
@@ -214,7 +214,7 @@ export default function StagingPage() {
               placeholder="Search address, owner, APN..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="w-full pl-9 pr-3 py-2 rounded-[10px] text-sm bg-white/[0.04] border border-white/[0.08] text-foreground placeholder:text-muted-foreground/40 focus:outline-none focus:border-cyan/30 focus:ring-1 focus:ring-cyan/20 transition-all"
+              className="w-full pl-9 pr-3 py-2 rounded-[10px] text-sm bg-white/[0.04] border border-white/[0.08] text-foreground placeholder:text-muted-foreground/40 focus:outline-none focus:border-primary/30 focus:ring-1 focus:ring-ring/20 transition-all"
             />
           </div>
           <Badge variant="outline" className="text-xs">FIFO Queue</Badge>
@@ -226,7 +226,7 @@ export default function StagingPage() {
         {/* Table */}
         <GlassCard hover={false}>
           {error && (
-            <div className="p-6 text-center text-red-400 text-sm flex items-center justify-center gap-2">
+            <div className="p-6 text-center text-foreground text-sm flex items-center justify-center gap-2">
               <AlertTriangle className="h-4 w-4" />{error}
               <Button size="sm" variant="outline" onClick={() => refetch()} className="ml-2 text-xs">Retry</Button>
             </div>
@@ -303,7 +303,7 @@ export default function StagingPage() {
                           <td className="px-3 py-3 text-center">
                             <span className={cn(
                               "text-xs tabular-nums",
-                              days >= 7 ? "text-red-400" : days >= 3 ? "text-amber-400" : "text-muted-foreground"
+                              days >= 7 ? "text-foreground" : days >= 3 ? "text-foreground" : "text-muted-foreground"
                             )}>
                               {days}d
                             </span>
@@ -318,7 +318,7 @@ export default function StagingPage() {
                               <Button
                                 size="sm"
                                 variant="outline"
-                                className="h-7 px-2 gap-1 text-[10px] text-emerald-400 border-emerald-500/20 hover:border-emerald-500/40 hover:bg-emerald-500/[0.06]"
+                                className="h-7 px-2 gap-1 text-[10px] text-foreground border-border/20 hover:border-border/40 hover:bg-muted/[0.06]"
                                 onClick={(e) => handleStatusChange(row, "prospect", e)}
                                 disabled={isLoading}
                               >
@@ -328,7 +328,7 @@ export default function StagingPage() {
                               <Button
                                 size="sm"
                                 variant="outline"
-                                className="h-7 px-2 gap-1 text-[10px] text-red-400 border-red-500/20 hover:border-red-500/40 hover:bg-red-500/[0.06]"
+                                className="h-7 px-2 gap-1 text-[10px] text-foreground border-border/20 hover:border-border/40 hover:bg-muted/[0.06]"
                                 onClick={(e) => handleStatusChange(row, "dead", e)}
                                 disabled={isLoading}
                               >

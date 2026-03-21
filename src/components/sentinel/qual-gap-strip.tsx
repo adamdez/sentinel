@@ -30,7 +30,7 @@ export type { QualCheckInput };
 
 function chipClass(item: QualGapItem): string {
   if (item.known) {
-    return "bg-emerald-500/[0.06] border-emerald-500/15 text-emerald-400/60";
+    return "bg-muted/[0.06] border-border/15 text-foreground/60";
   }
   if (item.priority === "high") {
     return "bg-white/[0.04] border-white/[0.10] text-foreground/70";
@@ -66,7 +66,7 @@ export function QualGapStripCompact({
           Qual checklist
         </span>
         {gaps.length === 0 ? (
-          <span className="text-[9px] text-emerald-400/60 font-medium ml-auto">All known</span>
+          <span className="text-[9px] text-foreground/60 font-medium ml-auto">All known</span>
         ) : (
           <span className="text-[9px] text-muted-foreground/40 ml-auto">
             {gaps.length} still unknown
@@ -130,8 +130,8 @@ export function QualGapList({
   if (gaps.length === 0 && !showKnown) {
     return (
       <div className={`flex items-center gap-1.5 px-1 ${className}`}>
-        <Check className="h-3 w-3 text-emerald-400/60 shrink-0" aria-hidden="true" />
-        <span className="text-[11px] text-emerald-400/60">All qualification items known</span>
+        <Check className="h-3 w-3 text-foreground/60 shrink-0" aria-hidden="true" />
+        <span className="text-[11px] text-foreground/60">All qualification items known</span>
       </div>
     );
   }
@@ -182,12 +182,12 @@ function QualGapRow({ item }: { item: QualGapItem | QualChecklistItem & { known:
   return (
     <div className={`flex items-start gap-2 rounded-[6px] px-2 py-1 ${
       (item as QualGapItem).known
-        ? "bg-emerald-500/[0.03] border border-emerald-500/[0.08]"
+        ? "bg-muted/[0.03] border border-border/[0.08]"
         : "bg-white/[0.02] border border-white/[0.04]"
     }`}>
       <div className="shrink-0 mt-0.5">
         {(item as QualGapItem).known ? (
-          <Check className="h-3 w-3 text-emerald-400/50" aria-hidden="true" />
+          <Check className="h-3 w-3 text-foreground/50" aria-hidden="true" />
         ) : (
           <HelpCircle className="h-3 w-3 text-muted-foreground/30" aria-hidden="true" />
         )}
@@ -195,7 +195,7 @@ function QualGapRow({ item }: { item: QualGapItem | QualChecklistItem & { known:
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-1.5">
           <span className={`text-[11px] font-medium ${
-            (item as QualGapItem).known ? "text-emerald-400/60" : "text-foreground/70"
+            (item as QualGapItem).known ? "text-foreground/60" : "text-foreground/70"
           }`}>
             {item.label}
           </span>

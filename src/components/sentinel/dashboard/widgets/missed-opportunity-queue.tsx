@@ -15,17 +15,17 @@ const SIGNAL_META: Record<
   flagged_ai_output: {
     label: "AI Review",
     Icon: BrainCircuit,
-    color: "text-purple-400",
+    color: "text-foreground",
   },
   overdue_task: {
     label: "Overdue Task",
     Icon: ClipboardCheck,
-    color: "text-red-400",
+    color: "text-foreground",
   },
   overdue_follow_up_lead: {
     label: "Follow-up Missed",
     Icon: CalendarX,
-    color: "text-amber-400",
+    color: "text-foreground",
   },
   defaulted_callback: {
     label: "No Date Set",
@@ -64,7 +64,7 @@ function QueueRow({ item, idx }: { item: OpportunityItem; idx: number }) {
           {item.taskTitle}
         </span>
       )}
-      <span className={`shrink-0 font-medium ${item.daysOverdue && item.daysOverdue > 0 ? "text-red-400" : "text-muted-foreground/50"}`}>
+      <span className={`shrink-0 font-medium ${item.daysOverdue && item.daysOverdue > 0 ? "text-foreground" : "text-muted-foreground/50"}`}>
         {badge}
       </span>
       <Badge variant="outline" className={`text-[8px] px-1 py-0 h-3.5 shrink-0 ${color}`}>
@@ -145,9 +145,9 @@ export function MissedOpportunityQueue() {
         <div className="grid grid-cols-4 gap-1">
           {(
             [
-              ["flagged_ai_output", "AI Flag", "text-purple-400"],
-              ["overdue_task", "Tasks", "text-red-400"],
-              ["overdue_follow_up_lead", "Leads", "text-amber-400"],
+              ["flagged_ai_output", "AI Flag", "text-foreground"],
+              ["overdue_task", "Tasks", "text-foreground"],
+              ["overdue_follow_up_lead", "Leads", "text-foreground"],
               ["defaulted_callback", "No Date", "text-muted-foreground/50"],
             ] as const
           ).map(([key, chipLabel, chipColor]) => {

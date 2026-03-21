@@ -38,10 +38,10 @@ interface SearchRecord {
 }
 
 const SCORE_COLORS: Record<string, string> = {
-  platinum: "text-cyan-300 bg-cyan-400/15 border-cyan-400/30",
-  gold: "text-amber-400 bg-amber-500/15 border-amber-500/30",
-  silver: "text-slate-300 bg-slate-400/15 border-slate-400/30",
-  bronze: "text-orange-500 bg-orange-600/15 border-orange-600/30",
+  platinum: "text-primary-300 bg-primary-400/15 border-primary-400/30",
+  gold: "text-foreground bg-muted/15 border-border/30",
+  silver: "text-foreground bg-muted/15 border-border/30",
+  bronze: "text-foreground bg-muted/15 border-border/30",
 };
 
 const STATUS_LABELS: Record<string, string> = {
@@ -71,9 +71,9 @@ const KIND_ICONS: Record<string, LucideIcon> = {
 };
 
 const KIND_COLORS: Record<string, string> = {
-  prospect: "bg-cyan/8 border-cyan/15 text-cyan",
-  lead: "bg-blue-500/10 border-blue-500/20 text-blue-400",
-  contact: "bg-purple-500/10 border-purple-500/20 text-purple-400",
+  prospect: "bg-primary/8 border-primary/15 text-primary",
+  lead: "bg-muted/10 border-border/20 text-foreground",
+  contact: "bg-muted/10 border-border/20 text-foreground",
 };
 
 function labelFromScore(n: number): "platinum" | "gold" | "silver" | "bronze" {
@@ -453,11 +453,11 @@ export function GlobalSearch() {
         className={cn(
           "flex items-center gap-2 h-9 px-3 border text-sm transition-all duration-100 w-full search-scan-line",
           isOpen
-            ? "rounded-t-[12px] rounded-b-none bg-[rgb(8,8,16)] border-cyan/22 border-b-white/[0.06] shadow-[0_0_1px_rgba(0,229,255,0.6),0_0_4px_rgba(0,229,255,0.2),0_0_8px_rgba(0,229,255,0.08)]"
+            ? "rounded-t-[12px] rounded-b-none bg-popover border-border border-b-border shadow-[0_4px_24px_rgba(0,0,0,0.12)]"
             : "rounded-[12px] bg-secondary/50 border-glass-border hover:bg-secondary/70"
         )}
       >
-        <Search className={cn("h-3.5 w-3.5 shrink-0 transition-colors", open ? "text-cyan" : "text-muted-foreground")} />
+        <Search className={cn("h-3.5 w-3.5 shrink-0 transition-colors", open ? "text-primary" : "text-muted-foreground")} />
         <input
           ref={inputRef}
           type="text"
@@ -496,7 +496,7 @@ export function GlobalSearch() {
             exit={{ opacity: 0, y: -4 }}
             transition={{ duration: 0.12 }}
             onMouseDown={(e) => e.preventDefault()}
-            className="absolute top-full left-0 right-0 z-50 rounded-b-[12px] rounded-t-none bg-[rgb(8,8,16)] border border-t-0 border-cyan/22 shadow-[0_4px_24px_rgba(0,0,0,0.6),0_0_8px_rgba(0,229,255,0.08)] overflow-hidden max-h-[min(480px,calc(100vh-200px))]"
+            className="absolute top-full left-0 right-0 z-50 rounded-b-[12px] rounded-t-none bg-popover border border-t-0 border-border text-popover-foreground shadow-[0_12px_40px_rgba(0,0,0,0.14)] overflow-hidden max-h-[min(480px,calc(100vh-200px))]"
           >
             {searching && results.length === 0 && suggestions.length === 0 ? (
               <div className="px-4 py-6 text-center text-sm text-muted-foreground">
@@ -546,7 +546,7 @@ export function GlobalSearch() {
                             <p
                               className="text-sm font-semibold truncate text-foreground"
                               style={{
-                                textShadow: isActive ? "0 0 10px rgba(0,212,255,0.15)" : undefined,
+                                textShadow: isActive ? "0 1px 0 rgba(0,0,0,0.06)" : undefined,
                                 WebkitFontSmoothing: "antialiased",
                               }}
                             >
@@ -580,7 +580,7 @@ export function GlobalSearch() {
                           <ArrowRight
                             className={cn(
                               "h-3 w-3 shrink-0 transition-colors",
-                              isActive ? "text-cyan/60" : "text-muted-foreground/20"
+                              isActive ? "text-primary/60" : "text-muted-foreground/20"
                             )}
                           />
                         </button>
@@ -605,7 +605,7 @@ export function GlobalSearch() {
                         {suggestions.length > 0 ? "Nationwide Matches" : "Nationwide Search"}
                       </span>
                       {loadingSuggestions && (
-                        <Loader2 className="h-3 w-3 animate-spin inline ml-2 text-emerald-400/60" />
+                        <Loader2 className="h-3 w-3 animate-spin inline ml-2 text-foreground/60" />
                       )}
                     </div>
 
@@ -626,7 +626,7 @@ export function GlobalSearch() {
                           isActive ? "bg-white/[0.06]" : "hover:bg-white/[0.03]"
                         )}
                       >
-                        <div className="h-7 w-7 rounded-md flex items-center justify-center shrink-0 border bg-emerald-500/10 border-emerald-500/20 text-emerald-400">
+                        <div className="h-7 w-7 rounded-md flex items-center justify-center shrink-0 border bg-muted/10 border-border/20 text-foreground">
                           {lookingUp ? (
                             <Loader2 className="h-3.5 w-3.5 animate-spin" />
                           ) : (
@@ -641,7 +641,7 @@ export function GlobalSearch() {
                             {[s.city, s.state, s.zip].filter(Boolean).join(", ")}
                           </p>
                         </div>
-                        <ArrowRight className={cn("h-3 w-3 shrink-0 transition-colors", isActive ? "text-emerald-400/60" : "text-emerald-400/40")} />
+                        <ArrowRight className={cn("h-3 w-3 shrink-0 transition-colors", isActive ? "text-foreground/60" : "text-foreground/40")} />
                       </button>
                       );
                     })}
@@ -662,7 +662,7 @@ export function GlobalSearch() {
                           isFallbackActive ? "bg-white/[0.06]" : "hover:bg-white/[0.03]"
                         )}
                       >
-                        <div className="h-7 w-7 rounded-md flex items-center justify-center shrink-0 border bg-emerald-500/10 border-emerald-500/20 text-emerald-400">
+                        <div className="h-7 w-7 rounded-md flex items-center justify-center shrink-0 border bg-muted/10 border-border/20 text-foreground">
                           {lookingUp ? (
                             <Loader2 className="h-3.5 w-3.5 animate-spin" />
                           ) : (
@@ -670,14 +670,14 @@ export function GlobalSearch() {
                           )}
                         </div>
                         <div className="flex-1 min-w-0">
-                          <p className="text-sm font-semibold text-emerald-400">
+                          <p className="text-sm font-semibold text-foreground">
                             {lookingUp ? "Looking up property..." : `Look up "${query}"`}
                           </p>
                           <p className="text-[11px] text-muted-foreground">
                             Search any US property via PropertyRadar
                           </p>
                         </div>
-                        <ArrowRight className={cn("h-3 w-3 shrink-0 transition-colors", isFallbackActive ? "text-emerald-400/60" : "text-emerald-400/40")} />
+                        <ArrowRight className={cn("h-3 w-3 shrink-0 transition-colors", isFallbackActive ? "text-foreground/60" : "text-foreground/40")} />
                       </button>
                       );
                     })()}
@@ -697,7 +697,7 @@ export function GlobalSearch() {
                 <kbd className="font-mono bg-white/[0.03] px-1 py-0.5 rounded-[4px] border border-white/[0.06]">Esc</kbd> Close
               </span>
               {results.length > 0 && results[0].id !== "__no_result__" && results[0].id !== "__error__" && (
-                <span className="ml-auto text-cyan/40">
+                <span className="ml-auto text-primary/40">
                   {results.length} result{results.length !== 1 ? "s" : ""}
                 </span>
               )}
@@ -725,7 +725,7 @@ function HighlightMatch({ text, query }: { text: string; query: string }) {
   return (
     <>
       {before}
-      <span className="text-cyan font-bold">{match}</span>
+      <span className="text-primary font-bold">{match}</span>
       {after}
     </>
   );

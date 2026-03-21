@@ -43,12 +43,12 @@ interface AgentRunRow {
 
 function agentBadgeClass(name: string): string {
   const n = name.toLowerCase();
-  if (n.includes("research")) return "border-sky-500/35 bg-sky-500/10 text-sky-300";
-  if (n.includes("follow")) return "border-emerald-500/35 bg-emerald-500/10 text-emerald-300";
-  if (n.includes("dispo")) return "border-violet-500/35 bg-violet-500/10 text-violet-300";
-  if (n.includes("qa")) return "border-orange-500/35 bg-orange-500/10 text-orange-300";
-  if (n.includes("exception")) return "border-red-500/35 bg-red-500/10 text-red-300";
-  if (n.includes("ads")) return "border-amber-500/35 bg-amber-500/10 text-amber-200";
+  if (n.includes("research")) return "border-border/35 bg-muted/10 text-foreground";
+  if (n.includes("follow")) return "border-border/35 bg-muted/10 text-foreground";
+  if (n.includes("dispo")) return "border-border/35 bg-muted/10 text-foreground";
+  if (n.includes("qa")) return "border-border/35 bg-muted/10 text-foreground";
+  if (n.includes("exception")) return "border-border/35 bg-muted/10 text-foreground";
+  if (n.includes("ads")) return "border-border/35 bg-muted/10 text-foreground";
   return "border-white/15 bg-white/[0.04] text-muted-foreground";
 }
 
@@ -162,7 +162,7 @@ export function AgentReviewQueuePanel() {
               className={cn(
                 "rounded-[10px] px-3 py-1.5 text-[11px] font-medium border transition-colors",
                 tab === t.id
-                  ? "border-cyan/30 bg-cyan/10 text-cyan"
+                  ? "border-primary/30 bg-primary/10 text-primary"
                   : "border-white/[0.06] text-muted-foreground hover:border-white/10",
               )}
             >
@@ -180,7 +180,7 @@ export function AgentReviewQueuePanel() {
       )}
 
       {queueQuery.error && (
-        <GlassCard hover={false} className="border-red-500/20 text-sm text-red-400">
+        <GlassCard hover={false} className="border-border/20 text-sm text-foreground">
           {(queueQuery.error as Error).message}
         </GlassCard>
       )}
@@ -210,7 +210,7 @@ export function AgentReviewQueuePanel() {
                   {item.action}
                 </span>
                 {item.priority != null && (
-                  <span className="text-[10px] text-amber-400/80">P{item.priority}</span>
+                  <span className="text-[10px] text-foreground/80">P{item.priority}</span>
                 )}
               </div>
               <span className="text-[10px] text-muted-foreground/40">
@@ -262,7 +262,7 @@ export function AgentReviewQueuePanel() {
                   <div className="flex flex-wrap gap-2">
                     <Button
                       size="sm"
-                      className="gap-1 bg-emerald-600/90 hover:bg-emerald-600 text-white"
+                      className="gap-1 bg-muted/90 hover:bg-muted text-white"
                       disabled={patchMutation.isPending}
                       onClick={() => patchMutation.mutate({ id: item.id, status: "approved" })}
                     >
@@ -293,7 +293,7 @@ export function AgentReviewQueuePanel() {
           <h3 className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/60">
             Recent agent runs
           </h3>
-          <Link href="/dialer/review/eval" className="ml-auto text-[9px] text-cyan/50 hover:text-cyan/80">
+          <Link href="/dialer/review/eval" className="ml-auto text-[9px] text-primary/50 hover:text-primary/80">
             Eval →
           </Link>
         </div>

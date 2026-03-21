@@ -25,11 +25,11 @@ export default function AboutPage() {
 
       {/* ── Hero ── */}
       <section className="space-y-4">
-        <p className="text-sm font-medium text-emerald-700 tracking-wide uppercase">About Us</p>
-        <h1 className="text-3xl sm:text-4xl font-bold text-gray-900 leading-tight">
+        <p className="text-sm font-medium text-foreground tracking-wide uppercase">About Us</p>
+        <h1 className="text-3xl sm:text-4xl font-bold text-foreground leading-tight">
           We&rsquo;re a local buyer.<br className="hidden sm:block" /> Not a fund. Not a franchise.
         </h1>
-        <p className="text-lg text-gray-500 leading-relaxed max-w-xl">
+        <p className="text-lg text-foreground leading-relaxed max-w-xl">
           Dominion Home Deals is a small, local company based in Spokane, Washington.
           We buy houses directly in Spokane County and Kootenai County — no agents,
           no middlemen, no out-of-state investors running the process remotely.
@@ -38,8 +38,8 @@ export default function AboutPage() {
 
       {/* ── Who we are ── */}
       <section className="space-y-4">
-        <h2 className="text-xl font-semibold text-gray-800">Who we are</h2>
-        <div className="space-y-3 text-gray-500 leading-relaxed">
+        <h2 className="text-xl font-semibold text-foreground">Who we are</h2>
+        <div className="space-y-3 text-foreground leading-relaxed">
           <p>
             We&rsquo;re a small acquisitions team. When you call us, you&rsquo;re talking to the people
             who actually work the deals — not a call center, not an automated system, not a
@@ -59,7 +59,7 @@ export default function AboutPage() {
 
       {/* ── What we do and don't do ── */}
       <section className="space-y-4">
-        <h2 className="text-xl font-semibold text-gray-800">What we do — and don&rsquo;t do</h2>
+        <h2 className="text-xl font-semibold text-foreground">What we do — and don&rsquo;t do</h2>
         <div className="grid sm:grid-cols-2 gap-3">
           {[
             { label: "We do",     items: [
@@ -77,14 +77,14 @@ export default function AboutPage() {
               "Make promises we can't keep",
             ]},
           ].map(({ label, items }) => (
-            <div key={label} className="rounded-xl border border-gray-100 bg-gray-50 p-4">
-              <p className={`font-semibold text-sm mb-2 ${label === "We do" ? "text-emerald-700" : "text-gray-500"}`}>
+            <div key={label} className="rounded-xl border border-border bg-muted p-4">
+              <p className={`font-semibold text-sm mb-2 ${label === "We do" ? "text-foreground" : "text-foreground"}`}>
                 {label}
               </p>
               <ul className="space-y-1">
                 {items.map(item => (
-                  <li key={item} className="text-sm text-gray-600 flex items-start gap-1.5">
-                    <span className={`mt-1.5 w-1 h-1 rounded-full flex-shrink-0 ${label === "We do" ? "bg-emerald-500" : "bg-gray-300"}`} />
+                  <li key={item} className="text-sm text-foreground flex items-start gap-1.5">
+                    <span className={`mt-1.5 w-1 h-1 rounded-full flex-shrink-0 ${label === "We do" ? "bg-muted" : "bg-muted"}`} />
                     {item}
                   </li>
                 ))}
@@ -96,49 +96,49 @@ export default function AboutPage() {
 
       {/* ── Where we buy ── */}
       <section className="space-y-3">
-        <h2 className="text-xl font-semibold text-gray-800">Where we buy</h2>
-        <p className="text-gray-500 leading-relaxed">
-          Our primary market is <strong className="text-gray-700">Spokane County, WA</strong> — including Spokane,
+        <h2 className="text-xl font-semibold text-foreground">Where we buy</h2>
+        <p className="text-foreground leading-relaxed">
+          Our primary market is <strong className="text-foreground">Spokane County, WA</strong> — including Spokane,
           Spokane Valley, Liberty Lake, Cheney, and surrounding areas.
-          We also buy in <strong className="text-gray-700">Kootenai County, ID</strong> — including
+          We also buy in <strong className="text-foreground">Kootenai County, ID</strong> — including
           Coeur d&rsquo;Alene, Post Falls, Hayden, and surrounding areas.
           Rural properties in these counties are fine.
         </p>
-        <p className="text-gray-500 text-sm leading-relaxed">
+        <p className="text-foreground text-sm leading-relaxed">
           If you&rsquo;re not sure whether your property falls in our area, just call us.
         </p>
       </section>
 
       {/* ── How we find sellers ── */}
       <section className="space-y-3">
-        <h2 className="text-xl font-semibold text-gray-800">How we find sellers</h2>
-        <p className="text-gray-500 leading-relaxed">
+        <h2 className="text-xl font-semibold text-foreground">How we find sellers</h2>
+        <p className="text-foreground leading-relaxed">
           We find properties through public records — assessor data, tax rolls, and similar sources.
           We reach out to homeowners who might be open to a cash offer based on publicly available information.
           We are not a spam operation and we don&rsquo;t purchase lists of people who have asked to not
           be contacted.
         </p>
-        <p className="text-gray-500 leading-relaxed">
+        <p className="text-foreground leading-relaxed">
           If we reached out to you and you&rsquo;re not interested, just tell us and we&rsquo;ll stop.
           No pushback, no follow-up.
         </p>
       </section>
 
       {/* ── Contact ── */}
-      <section className="rounded-2xl bg-emerald-50 border border-emerald-100 px-6 py-8 space-y-3">
-        <p className="font-semibold text-gray-800 text-lg">Questions? Just call.</p>
-        <p className="text-gray-500 text-sm leading-relaxed">
+      <section className="rounded-2xl bg-muted border border-border px-6 py-8 space-y-3">
+        <p className="font-semibold text-foreground text-lg">Questions? Just call.</p>
+        <p className="text-foreground text-sm leading-relaxed">
           We answer calls during business hours. If we miss you, we call back.
           You&rsquo;re talking to the actual team — not a call center.
         </p>
         <a
           href="tel:+15098001234"
-          className="inline-flex items-center gap-2 bg-emerald-700 hover:bg-emerald-800 text-white text-sm font-medium px-5 py-2.5 rounded-lg transition-colors"
+          className="inline-flex items-center gap-2 bg-muted hover:bg-muted text-white text-sm font-medium px-5 py-2.5 rounded-lg transition-colors"
         >
           (509) 800-1234
         </a>
         <div className="pt-2">
-          <a href="/sell" className="text-sm text-emerald-700 hover:underline">
+          <a href="/sell" className="text-sm text-foreground hover:underline">
             See how the process works →
           </a>
         </div>

@@ -263,10 +263,10 @@ export const PREP_FRAME_REVIEW_STATUS_LABELS: Record<PrepFrameReviewStatus, stri
 };
 
 export const PREP_FRAME_REVIEW_STATUS_COLORS: Record<PrepFrameReviewStatus, string> = {
-  pending:  "bg-gray-500/10 text-gray-400 border-gray-500/20",
-  approved: "bg-emerald-500/10 text-emerald-400 border-emerald-500/20",
-  flagged:  "bg-amber-500/10 text-amber-400 border-amber-500/20",
-  rejected: "bg-red-500/10 text-red-400 border-red-500/20",
+  pending:  "bg-muted/10 text-foreground border-border/20",
+  approved: "bg-muted/10 text-foreground border-border/20",
+  flagged:  "bg-muted/10 text-foreground border-border/20",
+  rejected: "bg-muted/10 text-foreground border-border/20",
 };
 
 // ── Pilot readiness summary ───────────────────────────────────────────────────

@@ -49,9 +49,9 @@ async function authHeaders(): Promise<Record<string, string>> {
 
 function ConfidenceBadge({ confidence }: { confidence: SignalConfidence }) {
   const styles: Record<SignalConfidence, string> = {
-    verified: "border-red-500/30 bg-red-500/[0.08] text-red-400",
-    strong:   "border-orange-500/30 bg-orange-500/[0.08] text-orange-400/80",
-    probable: "border-yellow-500/25 bg-yellow-500/[0.06] text-yellow-400/70",
+    verified: "border-border/30 bg-muted/[0.08] text-foreground",
+    strong:   "border-border/30 bg-muted/[0.08] text-foreground/80",
+    probable: "border-border/25 bg-muted/[0.06] text-foreground/70",
     possible: "border-white/[0.10] bg-white/[0.02] text-muted-foreground/40",
   };
 
@@ -76,7 +76,7 @@ function LinkHintLabel({ hint }: { hint: NegativeSignal["linkHint"] }) {
     tasks:         "See Tasks ↓",
   };
   return (
-    <span className="text-[9px] text-cyan/30 ml-1">
+    <span className="text-[9px] text-primary/30 ml-1">
       {labels[hint]}
     </span>
   );
@@ -188,15 +188,15 @@ export function NegativeIntelligenceBlock({ cf }: NegativeIntelligenceBlockProps
   ).length;
 
   return (
-    <div className="rounded-[12px] border border-orange-500/[0.12] bg-orange-500/[0.02]">
+    <div className="rounded-[12px] border border-border/[0.12] bg-muted/[0.02]">
       {/* Header */}
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
-        className="w-full flex items-center gap-2 px-3 py-2.5 hover:bg-orange-500/[0.02] transition-colors rounded-[12px]"
+        className="w-full flex items-center gap-2 px-3 py-2.5 hover:bg-muted/[0.02] transition-colors rounded-[12px]"
       >
-        <ShieldAlert className="h-3.5 w-3.5 text-orange-400/50 shrink-0" aria-hidden="true" />
-        <span className="text-[10px] font-semibold uppercase tracking-wider text-orange-400/60 flex-1 text-left">
+        <ShieldAlert className="h-3.5 w-3.5 text-foreground/50 shrink-0" aria-hidden="true" />
+        <span className="text-[10px] font-semibold uppercase tracking-wider text-foreground/60 flex-1 text-left">
           Signals worth checking
         </span>
 
@@ -207,7 +207,7 @@ export function NegativeIntelligenceBlock({ cf }: NegativeIntelligenceBlockProps
         {!loadingExtra && (
           <>
             {highCount > 0 && (
-              <span className="rounded-[4px] bg-orange-500/[0.10] border border-orange-500/20 px-1.5 py-0.5 text-[9px] font-bold text-orange-400/80">
+              <span className="rounded-[4px] bg-muted/[0.10] border border-border/20 px-1.5 py-0.5 text-[9px] font-bold text-foreground/80">
                 {highCount} strong
               </span>
             )}
@@ -220,13 +220,13 @@ export function NegativeIntelligenceBlock({ cf }: NegativeIntelligenceBlockProps
         )}
 
         {open
-          ? <ChevronUp   className="h-3 w-3 text-orange-400/20 shrink-0" aria-hidden="true" />
-          : <ChevronDown className="h-3 w-3 text-orange-400/20 shrink-0" aria-hidden="true" />}
+          ? <ChevronUp   className="h-3 w-3 text-foreground/20 shrink-0" aria-hidden="true" />
+          : <ChevronDown className="h-3 w-3 text-foreground/20 shrink-0" aria-hidden="true" />}
       </button>
 
       {/* Body */}
       {open && (
-        <div className="px-3 pb-3 border-t border-orange-500/[0.08] pt-2.5 space-y-1.5">
+        <div className="px-3 pb-3 border-t border-border/[0.08] pt-2.5 space-y-1.5">
 
           {loadingExtra && (
             <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground/30 py-1">
@@ -240,7 +240,7 @@ export function NegativeIntelligenceBlock({ cf }: NegativeIntelligenceBlockProps
           ))}
 
           {/* Explicit framing — not a veto, not a score */}
-          <div className="flex items-start gap-1.5 pt-1 border-t border-orange-500/[0.06] mt-1">
+          <div className="flex items-start gap-1.5 pt-1 border-t border-border/[0.06] mt-1">
             <Info className="h-3 w-3 text-muted-foreground/20 shrink-0 mt-0.5" aria-hidden="true" />
             <p className="text-[9px] text-muted-foreground/25 leading-relaxed">
               These signals are informational. They do not change lead stage, assignment, or any CRM state.

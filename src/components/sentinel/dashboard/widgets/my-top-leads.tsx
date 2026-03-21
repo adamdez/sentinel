@@ -111,7 +111,7 @@ export function MyTopLeads() {
               <Clock className="h-2.5 w-2.5" />
               <span
                 className={cn(
-                  lead.isOverdue ? "text-red-400" : "text-muted-foreground"
+                  lead.isOverdue ? "text-foreground" : "text-muted-foreground"
                 )}
                 style={{}}
               >

@@ -106,14 +106,14 @@ export function IntakeGuideSection({ cf }: { cf: ClientFile }) {
   const totalCount = totalFields.length;
 
   return (
-    <div className="rounded-[12px] border border-amber-500/15 bg-amber-500/[0.03]">
+    <div className="rounded-[12px] border border-border/15 bg-muted/[0.03]">
       <button
         onClick={() => setExpanded(!expanded)}
         className="w-full flex items-center gap-2 p-3 text-left"
       >
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2">
-            <p className="text-xs font-semibold text-amber-300/90">
+            <p className="text-xs font-semibold text-foreground/90">
               First-Call Intake Guide
             </p>
             <span className="text-[10px] text-muted-foreground/70">
@@ -144,7 +144,7 @@ export function IntakeGuideSection({ cf }: { cf: ClientFile }) {
                 className={cn(
                   "flex-1 h-7 rounded-[6px] text-[10px] font-medium transition-colors",
                   activeStep === i
-                    ? "bg-amber-500/[0.12] border border-amber-500/25 text-amber-200"
+                    ? "bg-muted/[0.12] border border-border/25 text-foreground"
                     : "bg-white/[0.03] border border-white/[0.06] text-muted-foreground hover:border-white/[0.12]"
                 )}
               >
@@ -169,7 +169,7 @@ export function IntakeGuideSection({ cf }: { cf: ClientFile }) {
                       key={i}
                       className="flex gap-2 text-[11px] text-foreground/85 leading-relaxed"
                     >
-                      <span className="text-amber-400/50 shrink-0 mt-0.5">•</span>
+                      <span className="text-foreground/50 shrink-0 mt-0.5">•</span>
                       <span>{point}</span>
                     </div>
                   ))}
@@ -188,8 +188,8 @@ export function IntakeGuideSection({ cf }: { cf: ClientFile }) {
                           className={cn(
                             "inline-flex items-center gap-1 text-[10px]",
                             field.filled
-                              ? "text-emerald-400/80"
-                              : "text-amber-300/70"
+                              ? "text-foreground/80"
+                              : "text-foreground/70"
                           )}
                         >
                           {field.filled ? (

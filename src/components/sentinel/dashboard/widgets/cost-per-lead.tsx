@@ -100,7 +100,7 @@ export function CostPerLead() {
         className="flex items-center justify-between py-2 px-3 rounded-[12px] bg-secondary/20"
       >
         <div>
-          <p className={cn("text-xl font-black", onTarget ? "text-emerald-400" : "text-red-400")}
+          <p className={cn("text-xl font-black", onTarget ? "text-foreground" : "text-foreground")}
             style={onTarget ? { textShadow: "0 0 10px rgba(52,211,153,0.4)" } : {}}>
             ${blendedCPL}
           </p>
@@ -124,7 +124,7 @@ export function CostPerLead() {
           <div className="flex items-center gap-3">
             <span className="text-muted-foreground">{s.leads} leads</span>
             <span className={cn("font-bold w-10 text-right",
-              s.cpl > 0 && s.cpl <= CPL_TARGET ? "text-emerald-400" : s.cpl > CPL_TARGET ? "text-red-400" : "text-muted-foreground"
+              s.cpl > 0 && s.cpl <= CPL_TARGET ? "text-foreground" : s.cpl > CPL_TARGET ? "text-foreground" : "text-muted-foreground"
             )}>
               {s.cpl > 0 ? `$${s.cpl}` : "—"}
             </span>

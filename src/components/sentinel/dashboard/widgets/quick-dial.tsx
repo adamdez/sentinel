@@ -135,24 +135,24 @@ export function QuickDial() {
         <div className="min-w-0">
           <p className="text-xs font-medium truncate">{lead.name}</p>
           <p className="text-[11px] text-muted-foreground">{lead.phone}</p>
-          <p className="text-[10px] text-cyan">{lead.reason}</p>
+          <p className="text-[10px] text-primary">{lead.reason}</p>
         </div>
       </div>
 
       <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
         {lead.scrubLoading ? (
           <>
-            <div className="h-3 w-3 rounded-full border-2 border-cyan/40 border-t-cyan animate-spin" />
+            <div className="h-3 w-3 rounded-full border-2 border-primary/40 border-t-cyan animate-spin" />
             <span>Running compliance scrub...</span>
           </>
         ) : ghostMode ? (
           <>
-            <Ghost className="h-3 w-3 text-yellow-400" />
-            <span className="text-yellow-400">Research Only — scrub bypassed (research only)</span>
+            <Ghost className="h-3 w-3 text-foreground" />
+            <span className="text-foreground">Research Only — scrub bypassed (research only)</span>
           </>
         ) : (
           <>
-            <Shield className={cn("h-3 w-3", lead.compliant ? "text-cyan" : "text-destructive")} />
+            <Shield className={cn("h-3 w-3", lead.compliant ? "text-primary" : "text-destructive")} />
             {lead.compliant
               ? "Compliance cleared — DNC clean"
               : `BLOCKED — ${lead.blockedReasons.join(", ")}`}

@@ -119,7 +119,7 @@ function NavLink({ item, depth = 0, badges }: { item: NavItem; depth?: number; b
             isActive && "text-sidebar-accent-foreground"
           )}
         >
-          <Icon className={cn("h-4 w-4 shrink-0", isActive && "text-cyan")} />
+          <Icon className={cn("h-4 w-4 shrink-0", isActive && "text-primary")} />
           <span className="flex-1 text-left">{item.label}</span>
           <motion.div
             animate={{ rotate: expanded ? 90 : 0 }}
@@ -156,25 +156,25 @@ function NavLink({ item, depth = 0, badges }: { item: NavItem; depth?: number; b
       className={cn(
         "flex items-center gap-3 rounded-[12px] px-3 py-2 text-sm transition-all duration-100 group relative",
         isActive
-          ? "sidebar-active-item text-cyan font-medium"
+          ? "sidebar-active-item text-primary font-medium"
           : "text-sidebar-foreground hover:text-foreground hover:bg-white/[0.03]"
       )}
     >
       {isActive && (
         <motion.div
           layoutId="sidebar-active"
-          className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-5 rounded-r-full bg-cyan"
-          style={{ boxShadow: "0 0 1px rgba(0,229,255,1), 0 0 4px rgba(0,229,255,0.5), 0 0 10px rgba(0,229,255,0.25), 0 0 18px rgba(0,229,255,0.1)" }}
+          className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-5 rounded-r-full bg-primary"
+          style={{ boxShadow: "0 0 1px rgba(255,255,255,1), 0 0 4px rgba(255,255,255,0.5), 0 0 10px rgba(255,255,255,0.25), 0 0 18px rgba(255,255,255,0.1)" }}
           transition={{ type: "spring", stiffness: 350, damping: 30 }}
         />
       )}
-      <Icon className={cn("h-4 w-4 shrink-0", isActive && "text-cyan")} />
+      <Icon className={cn("h-4 w-4 shrink-0", isActive && "text-primary")} />
       <span>{item.label}</span>
       {(() => {
         if (!item.badge || !badges) return null;
         const dot =
-          item.badge === "ads-alerts" && badges.adsAlerts > 0 ? "bg-red-500" :
-          item.badge === "review-queue" && badges.reviewQueue > 0 ? "bg-amber-500" :
+          item.badge === "ads-alerts" && badges.adsAlerts > 0 ? "bg-muted" :
+          item.badge === "review-queue" && badges.reviewQueue > 0 ? "bg-muted" :
           null;
         if (!dot) return null;
         return (
@@ -212,7 +212,7 @@ function SidebarSection({ section, badges, defaultCollapsed = false }: { section
           className={cn(
             "text-[10px] font-semibold uppercase tracking-[0.14em] transition-colors duration-100",
             hasActiveItem
-              ? "text-cyan/80"
+              ? "text-primary/80"
               : "text-muted-foreground/60 group-hover:text-muted-foreground"
           )}
         >
@@ -296,13 +296,13 @@ export function Sidebar() {
           >
             <div className={cn(
               "absolute top-0 right-0 w-[2px] h-full transition-opacity duration-150",
-              isResizing ? "opacity-100 bg-cyan/50" : "opacity-0 group-hover:opacity-100 bg-cyan/30"
+              isResizing ? "opacity-100 bg-primary/50" : "opacity-0 group-hover:opacity-100 bg-primary/30"
             )} />
           </div>
 
           <div className="p-4 flex items-center gap-2.5">
-            <div className="h-8 w-8 rounded-[12px] bg-cyan/8 flex items-center justify-center border border-cyan/18" style={{ boxShadow: "0 0 1px rgba(0,229,255,0.8), 0 0 4px rgba(0,229,255,0.35), 0 0 12px rgba(0,229,255,0.15), 0 0 20px rgba(0,229,255,0.06)" }}>
-              <Zap className="h-4 w-4 text-cyan drop-shadow-[0_0_8px_rgba(0,229,255,0.6)]" />
+            <div className="h-8 w-8 rounded-[12px] bg-primary/8 flex items-center justify-center border border-primary/18" style={{ boxShadow: "0 0 1px rgba(255,255,255,0.8), 0 0 4px rgba(255,255,255,0.35), 0 0 12px rgba(255,255,255,0.15), 0 0 20px rgba(255,255,255,0.06)" }}>
+              <Zap className="h-4 w-4 text-primary drop-shadow-[0_0_8px_rgba(255,255,255,0.6)]" />
             </div>
             <div>
               <h1 className="text-sm font-bold tracking-tight text-foreground title-glow">

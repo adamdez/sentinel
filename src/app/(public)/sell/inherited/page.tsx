@@ -20,9 +20,9 @@ export const metadata: Metadata = {
 
 function Faq({ q, a }: { q: string; a: React.ReactNode }) {
   return (
-    <div className="border-b border-gray-100 pb-5">
-      <p className="font-medium text-gray-800">{q}</p>
-      <div className="text-gray-500 text-sm mt-1.5 leading-relaxed space-y-2">{a}</div>
+    <div className="border-b border-border pb-5">
+      <p className="font-medium text-foreground">{q}</p>
+      <div className="text-foreground text-sm mt-1.5 leading-relaxed space-y-2">{a}</div>
     </div>
   );
 }
@@ -33,12 +33,12 @@ export default function InheritedPropertyPage() {
 
       {/* ── Hero ── */}
       <section className="space-y-4">
-        <p className="text-sm font-medium text-emerald-700 tracking-wide uppercase">Inherited &amp; Estate Properties</p>
-        <h1 className="text-3xl sm:text-4xl font-bold text-gray-900 leading-tight">
+        <p className="text-sm font-medium text-foreground tracking-wide uppercase">Inherited &amp; Estate Properties</p>
+        <h1 className="text-3xl sm:text-4xl font-bold text-foreground leading-tight">
           Selling an inherited property?<br className="hidden sm:block" />
           We understand the process takes time.
         </h1>
-        <p className="text-lg text-gray-500 leading-relaxed max-w-xl">
+        <p className="text-lg text-foreground leading-relaxed max-w-xl">
           We work with inherited and estate properties regularly in Spokane and Kootenai County.
           Whether you&rsquo;re still working through paperwork, sorting things out with family,
           or just starting to figure out your options — we can meet you where you are.
@@ -46,7 +46,7 @@ export default function InheritedPropertyPage() {
         </p>
         <a
           href="tel:+15098001234"
-          className="inline-flex items-center gap-2 bg-emerald-700 hover:bg-emerald-800 text-white text-sm font-medium px-5 py-2.5 rounded-lg transition-colors"
+          className="inline-flex items-center gap-2 bg-muted hover:bg-muted text-white text-sm font-medium px-5 py-2.5 rounded-lg transition-colors"
         >
           Call us: (509) 800-1234
         </a>
@@ -54,14 +54,14 @@ export default function InheritedPropertyPage() {
 
       {/* ── What makes inherited situations different ── */}
       <section className="space-y-4">
-        <h2 className="text-xl font-semibold text-gray-800">What makes inherited situations different</h2>
+        <h2 className="text-xl font-semibold text-foreground">What makes inherited situations different</h2>
         <div className="space-y-3">
-          <p className="text-gray-500 leading-relaxed">
+          <p className="text-foreground leading-relaxed">
             When a property passes to a family member, there&rsquo;s often more going on than just selling a house.
             There may be estate paperwork, probate timelines, decisions that involve other family members,
             or simply the emotional weight of dealing with someone&rsquo;s home.
           </p>
-          <p className="text-gray-500 leading-relaxed">
+          <p className="text-foreground leading-relaxed">
             We don&rsquo;t rush this process. If you&rsquo;re just starting to explore your options,
             that&rsquo;s a perfectly fine place to start a conversation. We can explain what a
             cash sale looks like and let you decide if it makes sense — on your timeline.
@@ -71,7 +71,7 @@ export default function InheritedPropertyPage() {
 
       {/* ── FAQ ── */}
       <section className="space-y-5">
-        <h2 className="text-xl font-semibold text-gray-800">Common questions</h2>
+        <h2 className="text-xl font-semibold text-foreground">Common questions</h2>
         <div className="space-y-5">
 
           <Faq
@@ -156,40 +156,40 @@ export default function InheritedPropertyPage() {
 
       {/* ── What we need to know ── */}
       <section className="space-y-3">
-        <h2 className="text-xl font-semibold text-gray-800">What we&rsquo;ll ask on the first call</h2>
-        <p className="text-gray-500 leading-relaxed">
+        <h2 className="text-xl font-semibold text-foreground">What we&rsquo;ll ask on the first call</h2>
+        <p className="text-foreground leading-relaxed">
           We keep the first conversation short. We&rsquo;ll typically ask:
         </p>
-        <ul className="list-disc list-inside space-y-1 text-gray-500 text-sm pl-1">
+        <ul className="list-disc list-inside space-y-1 text-foreground text-sm pl-1">
           <li>What&rsquo;s the address of the property?</li>
           <li>Is it currently occupied?</li>
           <li>Where are things in the estate or probate process?</li>
           <li>What are you hoping to accomplish and on what kind of timeline?</li>
         </ul>
-        <p className="text-gray-500 leading-relaxed text-sm">
+        <p className="text-foreground leading-relaxed text-sm">
           That&rsquo;s it to start. We&rsquo;ll take it from there and let you know if it&rsquo;s something we can work with.
         </p>
       </section>
 
       {/* ── Where we buy ── */}
-      <section className="rounded-xl bg-gray-50 border border-gray-100 px-5 py-5 space-y-2">
-        <p className="font-medium text-gray-700 text-sm">Where we buy</p>
-        <p className="text-gray-500 text-sm leading-relaxed">
+      <section className="rounded-xl bg-muted border border-border px-5 py-5 space-y-2">
+        <p className="font-medium text-foreground text-sm">Where we buy</p>
+        <p className="text-foreground text-sm leading-relaxed">
           Spokane County, WA and Kootenai County, ID — including Spokane, Spokane Valley,
           Coeur d&rsquo;Alene, Post Falls, and surrounding areas. We&rsquo;re local.
         </p>
       </section>
 
       {/* ── CTA ── */}
-      <section className="rounded-2xl bg-emerald-50 border border-emerald-100 px-6 py-8 space-y-3">
-        <p className="font-semibold text-gray-800 text-lg">Ready to talk through your situation?</p>
-        <p className="text-gray-500 text-sm leading-relaxed">
+      <section className="rounded-2xl bg-muted border border-border px-6 py-8 space-y-3">
+        <p className="font-semibold text-foreground text-lg">Ready to talk through your situation?</p>
+        <p className="text-foreground text-sm leading-relaxed">
           Call us. We&rsquo;ll listen, answer your questions honestly, and tell you what we can offer.
           There&rsquo;s no pressure and no rush.
         </p>
         <a
           href="tel:+15098001234"
-          className="inline-flex items-center gap-2 bg-emerald-700 hover:bg-emerald-800 text-white text-sm font-medium px-5 py-2.5 rounded-lg transition-colors"
+          className="inline-flex items-center gap-2 bg-muted hover:bg-muted text-white text-sm font-medium px-5 py-2.5 rounded-lg transition-colors"
         >
           (509) 800-1234
         </a>

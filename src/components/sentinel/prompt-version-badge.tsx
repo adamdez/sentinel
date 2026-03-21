@@ -24,9 +24,9 @@ import type { PromptMeta, PromptStatus } from "@/lib/prompt-registry";
 // ── Status display config ─────────────────────────────────────────────────────
 
 const STATUS_STYLES: Record<PromptStatus, { label: string; classes: string }> = {
-  active:     { label: "active",     classes: "bg-emerald-500/10 text-emerald-400 border-emerald-500/20" },
-  deprecated: { label: "deprecated", classes: "bg-amber-500/10 text-amber-400 border-amber-500/20" },
-  testing:    { label: "testing",    classes: "bg-blue-500/10 text-blue-400 border-blue-500/20" },
+  active:     { label: "active",     classes: "bg-muted/10 text-foreground border-border/20" },
+  deprecated: { label: "deprecated", classes: "bg-muted/10 text-foreground border-border/20" },
+  testing:    { label: "testing",    classes: "bg-muted/10 text-foreground border-border/20" },
 };
 
 // ── Component ─────────────────────────────────────────────────────────────────

@@ -87,11 +87,11 @@ function daysDiff(dateStr: string | null): number | null {
 }
 
 function urgencyDotColor(daysUntil: number | null): string {
-  if (daysUntil === null) return "bg-zinc-500";
-  if (daysUntil <= -3) return "bg-red-500";
-  if (daysUntil < 0) return "bg-amber-500";
-  if (daysUntil === 0) return "bg-emerald-500";
-  return "bg-zinc-500";
+  if (daysUntil === null) return "bg-muted";
+  if (daysUntil <= -3) return "bg-muted";
+  if (daysUntil < 0) return "bg-muted";
+  if (daysUntil === 0) return "bg-muted";
+  return "bg-muted";
 }
 
 function urgencyText(lead: PriorityLead): string {
@@ -112,12 +112,12 @@ function urgencyText(lead: PriorityLead): string {
 }
 
 const EVENT_ICONS: Record<string, { icon: React.ComponentType<{ className?: string }>; color: string }> = {
-  call: { icon: Phone, color: "text-cyan" },
-  stage_change: { icon: Zap, color: "text-purple-400" },
-  promote: { icon: UserPlus, color: "text-blue-400" },
-  offer: { icon: DollarSign, color: "text-emerald-400" },
-  disposition: { icon: FileCheck, color: "text-orange-400" },
-  lead_created: { icon: UserPlus, color: "text-blue-400" },
+  call: { icon: Phone, color: "text-primary" },
+  stage_change: { icon: Zap, color: "text-foreground" },
+  promote: { icon: UserPlus, color: "text-foreground" },
+  offer: { icon: DollarSign, color: "text-foreground" },
+  disposition: { icon: FileCheck, color: "text-foreground" },
+  lead_created: { icon: UserPlus, color: "text-foreground" },
 };
 
 function eventIcon(eventType: string) {
@@ -125,7 +125,7 @@ function eventIcon(eventType: string) {
   for (const [key, val] of Object.entries(EVENT_ICONS)) {
     if (eventType.includes(key)) return val;
   }
-  return { icon: Activity, color: "text-zinc-400" };
+  return { icon: Activity, color: "text-foreground" };
 }
 
 /* ------------------------------------------------------------------ */
@@ -144,9 +144,9 @@ function StatCard({
   accent?: string;
 }) {
   return (
-    <Card className="bg-zinc-900/60 border-zinc-800/60">
+    <Card className="bg-muted/60 border-border/60">
       <CardContent className="p-4 flex items-center gap-3">
-        <div className={cn("p-2 rounded-lg bg-zinc-800/80", accent)}>
+        <div className={cn("p-2 rounded-lg bg-muted/80", accent)}>
           <Icon className="h-4 w-4" />
         </div>
         <div>
@@ -318,13 +318,13 @@ export function TodayView() {
       <div className="space-y-6">
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
           {Array.from({ length: 4 }).map((_, i) => (
-            <Skeleton key={i} className="h-20 rounded-xl bg-zinc-900/40" />
+            <Skeleton key={i} className="h-20 rounded-xl bg-muted/40" />
           ))}
         </div>
-        <Skeleton className="h-64 rounded-xl bg-zinc-900/40" />
+        <Skeleton className="h-64 rounded-xl bg-muted/40" />
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <Skeleton className="h-40 rounded-xl bg-zinc-900/40" />
-          <Skeleton className="h-40 rounded-xl bg-zinc-900/40" />
+          <Skeleton className="h-40 rounded-xl bg-muted/40" />
+          <Skeleton className="h-40 rounded-xl bg-muted/40" />
         </div>
       </div>
     );
@@ -340,33 +340,33 @@ export function TodayView() {
           icon={DollarSign}
           label="Pipeline Value"
           value={s.pipelineValue > 0 ? `$${(s.pipelineValue / 1000).toFixed(0)}k` : "$0"}
-          accent="text-emerald-400"
+          accent="text-foreground"
         />
         <StatCard
           icon={AlertTriangle}
           label="Overdue"
           value={s.overdue}
-          accent={s.overdue > 0 ? "text-red-400" : "text-zinc-400"}
+          accent={s.overdue > 0 ? "text-foreground" : "text-foreground"}
         />
         <StatCard
           icon={CalendarCheck}
           label="Due Today"
           value={s.dueToday}
-          accent={s.dueToday > 0 ? "text-amber-400" : "text-zinc-400"}
+          accent={s.dueToday > 0 ? "text-foreground" : "text-foreground"}
         />
         <StatCard
           icon={PhoneCall}
           label="Calls Today"
           value={s.callsToday}
-          accent="text-cyan"
+          accent="text-primary"
         />
       </div>
 
       {/* ---- Section 2: Priority Queue ---- */}
-      <Card className="bg-zinc-900/60 border-zinc-800/60">
+      <Card className="bg-muted/60 border-border/60">
         <CardHeader className="pb-3">
           <CardTitle className="text-sm font-semibold flex items-center gap-2">
-            <Clock className="h-4 w-4 text-cyan" />
+            <Clock className="h-4 w-4 text-primary" />
             Priority Queue
           </CardTitle>
         </CardHeader>
@@ -402,11 +402,11 @@ export function TodayView() {
                         className={cn(
                           "text-[11px] mt-0.5",
                           diff !== null && diff <= -3
-                            ? "text-red-400 font-medium"
+                            ? "text-foreground font-medium"
                             : diff !== null && diff < 0
-                              ? "text-amber-400"
+                              ? "text-foreground"
                               : diff === 0
-                                ? "text-emerald-400"
+                                ? "text-foreground"
                                 : "text-muted-foreground"
                         )}
                       >
@@ -422,10 +422,10 @@ export function TodayView() {
                           className={cn(
                             "text-[10px] font-mono tabular-nums",
                             lead.ai_score >= 80
-                              ? "border-emerald-500/40 text-emerald-400"
+                              ? "border-border/40 text-foreground"
                               : lead.ai_score >= 60
-                                ? "border-amber-500/40 text-amber-400"
-                                : "border-zinc-600 text-zinc-400"
+                                ? "border-border/40 text-foreground"
+                                : "border-border text-foreground"
                           )}
                         >
                           {lead.ai_score}
@@ -448,7 +448,7 @@ export function TodayView() {
 
               <a
                 href="/leads"
-                className="flex items-center justify-center gap-1 text-[11px] text-cyan hover:text-cyan/80 pt-2 transition-colors"
+                className="flex items-center justify-center gap-1 text-[11px] text-primary hover:text-primary/80 pt-2 transition-colors"
               >
                 View all in Lead Queue
                 <ArrowRight className="h-3 w-3" />
@@ -461,10 +461,10 @@ export function TodayView() {
       {/* ---- Bottom row: Activity + Stalled ---- */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {/* ---- Section 3: Recent Activity ---- */}
-        <Card className="bg-zinc-900/60 border-zinc-800/60">
+        <Card className="bg-muted/60 border-border/60">
           <CardHeader className="pb-3">
             <CardTitle className="text-sm font-semibold flex items-center gap-2">
-              <Activity className="h-4 w-4 text-cyan" />
+              <Activity className="h-4 w-4 text-primary" />
               Recent Activity
             </CardTitle>
           </CardHeader>
@@ -496,16 +496,16 @@ export function TodayView() {
         </Card>
 
         {/* ---- Section 4: Stalled Deals ---- */}
-        <Card className="bg-zinc-900/60 border-zinc-800/60">
+        <Card className="bg-muted/60 border-border/60">
           <CardHeader className="pb-3">
             <CardTitle className="text-sm font-semibold flex items-center gap-2">
-              <AlertTriangle className="h-4 w-4 text-amber-400" />
+              <AlertTriangle className="h-4 w-4 text-foreground" />
               Stalled Deals
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-2">
             {stalledDeals.length === 0 ? (
-              <div className="flex items-center gap-2 text-xs text-emerald-400 py-4 justify-center">
+              <div className="flex items-center gap-2 text-xs text-foreground py-4 justify-center">
                 <CheckCircle2 className="h-4 w-4" />
                 No stalled deals
               </div>
@@ -522,7 +522,7 @@ export function TodayView() {
                     <div className="min-w-0">
                       <p className="text-xs font-medium truncate">{deal.address || ownerName || "Unknown"}</p>
                     </div>
-                    <Badge variant="outline" className="text-[10px] border-amber-500/30 text-amber-400 shrink-0 ml-2">
+                    <Badge variant="outline" className="text-[10px] border-border/30 text-foreground shrink-0 ml-2">
                       {daysStalled}d stalled
                     </Badge>
                   </button>

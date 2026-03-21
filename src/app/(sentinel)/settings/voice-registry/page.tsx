@@ -35,9 +35,9 @@ import { VOICE_WORKFLOW_LABELS } from "@/lib/voice-registry";
 // ── Status config ─────────────────────────────────────────────────────────────
 
 const STATUS_OPTIONS = [
-  { value: "active",     label: "Active",     icon: CheckCircle2,  classes: "bg-emerald-500/10 text-emerald-400 border-emerald-500/20" },
-  { value: "testing",    label: "Testing",    icon: Clock,         classes: "bg-blue-500/10 text-blue-400 border-blue-500/20" },
-  { value: "deprecated", label: "Deprecated", icon: AlertTriangle, classes: "bg-amber-500/10 text-amber-400 border-amber-500/20" },
+  { value: "active",     label: "Active",     icon: CheckCircle2,  classes: "bg-muted/10 text-foreground border-border/20" },
+  { value: "testing",    label: "Testing",    icon: Clock,         classes: "bg-muted/10 text-foreground border-border/20" },
+  { value: "deprecated", label: "Deprecated", icon: AlertTriangle, classes: "bg-muted/10 text-foreground border-border/20" },
 ] as const;
 
 function StatusBadge({ status }: { status: VoiceRegistryStatus }) {
@@ -54,14 +54,14 @@ function StatusBadge({ status }: { status: VoiceRegistryStatus }) {
 function TypeBadge({ type }: { type: VoiceRegistryType }) {
   if (type === "handoff_rule") {
     return (
-      <Badge variant="outline" className="text-[9px] px-1.5 py-0 bg-purple-500/10 text-purple-400 border-purple-500/20">
+      <Badge variant="outline" className="text-[9px] px-1.5 py-0 bg-muted/10 text-foreground border-border/20">
         <Settings2 className="h-2.5 w-2.5 mr-1" />
         Rule
       </Badge>
     );
   }
   return (
-    <Badge variant="outline" className="text-[9px] px-1.5 py-0 bg-cyan/10 text-cyan border-cyan/20">
+    <Badge variant="outline" className="text-[9px] px-1.5 py-0 bg-primary/10 text-primary border-primary/20">
       <FileCode2 className="h-2.5 w-2.5 mr-1" />
       Script
     </Badge>
@@ -219,7 +219,7 @@ function VersionRow({
                 placeholder='{ "transfer_requires_warm_ready": true, … }'
               />
               {jsonError && (
-                <p className="text-[9px] text-red-400 mt-0.5">{jsonError}</p>
+                <p className="text-[9px] text-foreground mt-0.5">{jsonError}</p>
               )}
             </div>
           )}
@@ -285,7 +285,7 @@ function WorkflowGroup({
         <span className="text-[11px] font-semibold text-foreground/80">{label}</span>
         <span className="text-[9px] text-muted-foreground/30 font-mono">{workflow}</span>
         {activeCount > 0 && (
-          <Badge variant="outline" className="ml-1 text-[8px] px-1 py-0 bg-emerald-500/10 text-emerald-400 border-emerald-500/20">
+          <Badge variant="outline" className="ml-1 text-[8px] px-1 py-0 bg-muted/10 text-foreground border-border/20">
             {activeCount} active
           </Badge>
         )}
@@ -396,7 +396,7 @@ function RegisterForm({
         <label className="text-[9px] uppercase tracking-wider text-muted-foreground/40">Changelog</label>
         <Input value={log} onChange={e => setLog(e.target.value)} className="mt-1 text-[11px]" placeholder="What changed from prior version…" />
       </div>
-      {error && <p className="text-[10px] text-red-400">{error}</p>}
+      {error && <p className="text-[10px] text-foreground">{error}</p>}
       <p className="text-[9px] text-muted-foreground/30">
         New entries start as <strong>testing</strong>. Promote to <strong>active</strong> after review.
       </p>
@@ -476,7 +476,7 @@ export default function VoiceRegistryPage() {
         {/* Error state */}
         {error && (
           <GlassCard hover={false} className="!p-4">
-            <p className="text-[11px] text-red-400">{error}</p>
+            <p className="text-[11px] text-foreground">{error}</p>
           </GlassCard>
         )}
 

@@ -84,16 +84,16 @@ interface PropertyData {
 // ── Signal styling ─────────────────────────────────────────────────────
 
 const SIGNAL_COLORS: Record<string, string> = {
-  pre_foreclosure: "bg-red-500/20 text-red-300 border-red-500/30",
-  foreclosure: "bg-red-600/20 text-red-200 border-red-600/30",
-  probate: "bg-purple-500/20 text-purple-300 border-purple-500/30",
-  tax_lien: "bg-orange-500/20 text-orange-300 border-orange-500/30",
-  bankruptcy: "bg-red-500/20 text-red-300 border-red-500/30",
-  divorce: "bg-pink-500/20 text-pink-300 border-pink-500/30",
-  vacant: "bg-yellow-500/20 text-yellow-300 border-yellow-500/30",
-  absentee: "bg-blue-500/20 text-blue-300 border-blue-500/30",
-  underwater: "bg-red-500/20 text-red-300 border-red-500/30",
-  tired_landlord: "bg-amber-500/20 text-amber-300 border-amber-500/30",
+  pre_foreclosure: "bg-muted/20 text-foreground border-border/30",
+  foreclosure: "bg-muted/20 text-foreground border-border/30",
+  probate: "bg-muted/20 text-foreground border-border/30",
+  tax_lien: "bg-muted/20 text-foreground border-border/30",
+  bankruptcy: "bg-muted/20 text-foreground border-border/30",
+  divorce: "bg-muted/20 text-foreground border-border/30",
+  vacant: "bg-muted/20 text-foreground border-border/30",
+  absentee: "bg-muted/20 text-foreground border-border/30",
+  underwater: "bg-muted/20 text-foreground border-border/30",
+  tired_landlord: "bg-muted/20 text-foreground border-border/30",
 };
 
 // ── Currency formatter ─────────────────────────────────────────────────
@@ -375,7 +375,7 @@ export function PropertyPreviewModal() {
                     )}
                   </div>
                 ) : (
-                  <div className="h-32 rounded-t-2xl bg-gradient-to-br from-cyan/10 to-purple-500/10 flex items-center justify-center">
+                  <div className="h-32 rounded-t-2xl bg-gradient-to-br from-primary/10 to-muted/10 flex items-center justify-center">
                     {photosLoading ? (
                       <Loader2 className="h-8 w-8 text-muted-foreground/40 animate-spin" />
                     ) : (
@@ -395,22 +395,22 @@ export function PropertyPreviewModal() {
                 {/* Address overlay + score badge */}
                 <div className="absolute bottom-0 left-0 right-0 p-4">
                   <div className="flex items-center gap-2 text-white">
-                    <MapPin className="h-4 w-4 text-cyan shrink-0" />
+                    <MapPin className="h-4 w-4 text-primary shrink-0" />
                     <h2 className="text-lg font-bold truncate">{property.address}</h2>
                     {enrichedScore != null && (
                       <span className={cn(
                         "ml-auto shrink-0 inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-bold border",
-                        enrichedScoreLabel === "platinum" ? "bg-cyan-400/20 text-cyan-300 border-cyan-400/40" :
-                        enrichedScoreLabel === "gold" ? "bg-amber-500/20 text-amber-400 border-amber-500/40" :
-                        enrichedScoreLabel === "silver" ? "bg-slate-400/20 text-slate-300 border-slate-400/40" :
-                        "bg-orange-600/20 text-orange-400 border-orange-600/40"
+                        enrichedScoreLabel === "platinum" ? "bg-primary-400/20 text-primary-300 border-primary-400/40" :
+                        enrichedScoreLabel === "gold" ? "bg-muted/20 text-foreground border-border/40" :
+                        enrichedScoreLabel === "silver" ? "bg-muted/20 text-foreground border-border/40" :
+                        "bg-muted/20 text-foreground border-border/40"
                       )}>
                         {enrichedScoreLabel === "platinum" && <Flame className="h-3 w-3" />}
                         {enrichedScore}
                       </span>
                     )}
                     {enriching && (
-                      <span className="ml-auto shrink-0 inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-black/60 text-cyan/70 border border-cyan/20">
+                      <span className="ml-auto shrink-0 inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-black/60 text-primary/70 border border-primary/20">
                         <Zap className="h-3 w-3 animate-pulse" />
                         Enriching...
                       </span>
@@ -427,7 +427,7 @@ export function PropertyPreviewModal() {
 
                 {/* MLS Warning */}
                 {property.isListed && (
-                  <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-yellow-500/10 border border-yellow-500/30 text-yellow-300 text-sm">
+                  <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-muted/10 border border-border/30 text-foreground text-sm">
                     <AlertTriangle className="h-4 w-4 shrink-0" />
                     <span>This property has an active MLS listing. Cannot wholesale listed properties.</span>
                   </div>
@@ -441,7 +441,7 @@ export function PropertyPreviewModal() {
                         key={signal.type}
                         className={cn(
                           "inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium border",
-                          SIGNAL_COLORS[signal.type] ?? "bg-cyan/10 text-cyan border-cyan/20"
+                          SIGNAL_COLORS[signal.type] ?? "bg-primary/10 text-primary border-primary/20"
                         )}
                       >
                         <AlertTriangle className="h-3 w-3" />
@@ -461,7 +461,7 @@ export function PropertyPreviewModal() {
                   <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm text-muted-foreground">
                     {property.ownerAge && <span>Age: {property.ownerAge}</span>}
                     {property.isAbsentee && (
-                      <span className="text-blue-400">
+                      <span className="text-foreground">
                         Absentee{property.isOutOfState ? " (Out-of-State)" : ""}
                       </span>
                     )}
@@ -496,18 +496,18 @@ export function PropertyPreviewModal() {
                     <FinStat
                       label="Equity"
                       value={property.equityPercent != null ? `${Math.round(property.equityPercent)}%` : "N/A"}
-                      highlight={property.isUnderwater ? "text-red-400" : property.equityPercent && property.equityPercent > 50 ? "text-green-400" : undefined}
+                      highlight={property.isUnderwater ? "text-foreground" : property.equityPercent && property.equityPercent > 50 ? "text-foreground" : undefined}
                     />
                     <FinStat label="Loan Balance" value={fmt(property.loanBalance)} />
                     <FinStat label="Available Equity" value={fmt(property.availableEquity)} />
                     {property.isFreeAndClear && (
-                      <div className="col-span-2 flex items-center gap-2 text-green-400 text-sm">
+                      <div className="col-span-2 flex items-center gap-2 text-foreground text-sm">
                         <Shield className="h-3.5 w-3.5" />
                         Free & Clear
                       </div>
                     )}
                     {property.isUnderwater && (
-                      <div className="col-span-2 flex items-center gap-2 text-red-400 text-sm">
+                      <div className="col-span-2 flex items-center gap-2 text-foreground text-sm">
                         <TrendingDown className="h-3.5 w-3.5" />
                         Underwater — owes more than property is worth
                       </div>
@@ -532,7 +532,7 @@ export function PropertyPreviewModal() {
 
                 {/* Error */}
                 {error && (
-                  <div className="text-sm text-red-400 text-center">{error}</div>
+                  <div className="text-sm text-foreground text-center">{error}</div>
                 )}
 
                 {/* Action Buttons */}
@@ -548,10 +548,10 @@ export function PropertyPreviewModal() {
                     className={cn(
                       "flex-1 gap-2",
                       claimed
-                        ? "bg-green-600 hover:bg-green-600 text-white"
+                        ? "bg-muted hover:bg-muted text-white"
                         : property.isListed
                           ? "bg-muted text-muted-foreground cursor-not-allowed"
-                          : "bg-cyan hover:bg-cyan/90 text-black font-semibold"
+                          : "bg-primary hover:bg-primary/90 text-black font-semibold"
                     )}
                     onClick={handleClaim}
                     disabled={claiming || claimed || property.isListed}

@@ -21,10 +21,10 @@ export function InfoRow({ icon: Icon, label, value, mono, highlight }: {
   if (value == null || value === "") return null;
   return (
     <div className="flex items-start gap-3 py-1.5">
-      <Icon className={cn("h-3.5 w-3.5 mt-0.5 shrink-0", highlight ? "text-cyan" : "text-muted-foreground")} />
+      <Icon className={cn("h-3.5 w-3.5 mt-0.5 shrink-0", highlight ? "text-primary" : "text-muted-foreground")} />
       <div className="flex-1 min-w-0">
         <p className="text-[10px] text-muted-foreground uppercase tracking-wider">{label}</p>
-        <p className={cn("text-sm truncate", mono && "font-mono", highlight ? "text-neon font-semibold" : "text-foreground")}>{value}</p>
+        <p className={cn("text-sm truncate", mono && "font-mono", highlight ? "text-primary font-semibold" : "text-foreground")}>{value}</p>
       </div>
     </div>
   );
@@ -58,7 +58,7 @@ export function CopyBtn({ text }: { text: string }) {
       className="p-0.5 rounded hover:bg-white/[0.06] transition-colors shrink-0"
       title="Copy"
     >
-      {copied ? <CheckCircle2 className="h-3 w-3 text-cyan" /> : <Copy className="h-3 w-3 text-muted-foreground/50 hover:text-muted-foreground" />}
+      {copied ? <CheckCircle2 className="h-3 w-3 text-primary" /> : <Copy className="h-3 w-3 text-muted-foreground/50 hover:text-muted-foreground" />}
     </button>
   );
 }
@@ -68,10 +68,10 @@ export function CopyBtn({ text }: { text: string }) {
 // ═══════════════════════════════════════════════════════════════════════
 
 export const TIER_COLORS = {
-  platinum: { bar: "bg-cyan-400", border: "border-cyan-400/30", glow: "rgba(0,212,255,0.3)", text: "text-cyan-300", hoverBorder: "hover:border-cyan-400/50" },
-  gold:     { bar: "bg-amber-400", border: "border-amber-500/30", glow: "rgba(245,158,11,0.3)", text: "text-amber-400", hoverBorder: "hover:border-amber-400/50" },
-  silver:   { bar: "bg-slate-300", border: "border-slate-400/30", glow: "rgba(148,163,184,0.3)", text: "text-slate-300", hoverBorder: "hover:border-slate-300/50" },
-  bronze:   { bar: "bg-orange-500", border: "border-orange-600/30", glow: "rgba(249,115,22,0.3)", text: "text-orange-400", hoverBorder: "hover:border-orange-500/50" },
+  platinum: { bar: "bg-primary-400", border: "border-primary-400/30", glow: "rgba(0,0,0,0.3)", text: "text-primary-300", hoverBorder: "hover:border-primary-400/50" },
+  gold:     { bar: "bg-muted", border: "border-border/30", glow: "rgba(0,0,0,0.3)", text: "text-foreground", hoverBorder: "hover:border-border/50" },
+  silver:   { bar: "bg-muted", border: "border-border/30", glow: "rgba(148,163,184,0.3)", text: "text-foreground", hoverBorder: "hover:border-border/50" },
+  bronze:   { bar: "bg-muted", border: "border-border/30", glow: "rgba(249,115,22,0.3)", text: "text-foreground", hoverBorder: "hover:border-border/50" },
 } as const;
 
 export function getTier(score: number): keyof typeof TIER_COLORS {
@@ -125,7 +125,7 @@ export function ScoreCard({ label, value, onClick }: { label: string; value: num
 export function OwnerFlag({ active, label, icon: Icon }: { active: boolean; label: string; icon: typeof Home }) {
   if (!active) return null;
   return (
-    <div className="flex items-center gap-1.5 px-2 py-1 rounded-md bg-amber-500/10 border border-amber-500/20 text-amber-400 text-[10px] font-medium">
+    <div className="flex items-center gap-1.5 px-2 py-1 rounded-md bg-muted/10 border border-border/20 text-foreground text-[10px] font-medium">
       <Icon className="h-3 w-3" />{label}
     </div>
   );

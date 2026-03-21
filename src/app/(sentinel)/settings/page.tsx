@@ -79,20 +79,20 @@ export default function SettingsPage() {
         <div className="lg:col-span-2 space-y-4">
           <GlassCard hover={false}>
             <h3 className="text-sm font-semibold mb-1 flex items-center gap-2">
-              <Palette className="h-4 w-4 text-cyan" />
+              <Palette className="h-4 w-4 text-foreground" />
               Appearance
             </h3>
-            <p className="text-[11px] text-muted-foreground/60 mb-3">
-              UI theme pack for the app shell. In Research Only mode, Lead Detail and all <code className="text-[10px]">/dialer/*</code> routes keep the default workflow token stack (layout + modal boundaries).
+            <p className="text-[12px] text-muted-foreground mb-3">
+              Light or Dark monochrome shell — glass panels, grayscale chrome, and high-contrast text. Preference is saved on this device.
             </p>
-            <label htmlFor="sentinel-theme" className="text-[10px] uppercase tracking-wide text-muted-foreground block mb-1.5">
+            <label htmlFor="sentinel-theme" className="text-[11px] uppercase tracking-wide text-muted-foreground block mb-1.5">
               Theme
             </label>
             <select
               id="sentinel-theme"
               value={theme}
               onChange={(e) => setTheme(e.target.value as SentinelThemeId)}
-              className="w-full max-w-md rounded-md border border-white/[0.1] bg-white/[0.04] px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring/30"
+              className="w-full max-w-md rounded-md border border-border bg-card px-3 py-2.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring/30"
             >
               {SENTINEL_THEMES.map((t) => (
                 <option key={t.id} value={t.id}>
@@ -101,7 +101,7 @@ export default function SettingsPage() {
                 </option>
               ))}
             </select>
-            <p className="text-[10px] text-muted-foreground/50 mt-2">
+            <p className="text-[11px] text-muted-foreground mt-2">
               {SENTINEL_THEMES.find((t) => t.id === theme)?.description}
             </p>
           </GlassCard>
@@ -109,9 +109,9 @@ export default function SettingsPage() {
           {/* Personal Cell for Warm Transfer */}
           <GlassCard hover={false} glow>
             <h3 className="text-sm font-semibold mb-1 flex items-center gap-2">
-              <Phone className="h-4 w-4 text-cyan" />
+              <Phone className="h-4 w-4 text-foreground" />
               My Personal Cell
-              <Badge variant="cyan" className="text-[9px]">Warm Transfer</Badge>
+              <Badge variant="outline" className="text-[9px]">Warm Transfer</Badge>
             </h3>
             <p className="text-[11px] text-muted-foreground/60 mb-3">
               Twilio will ring this number when you dial from the Dialer. Caller ID shows &quot;Dominion Homes&quot;.
@@ -121,12 +121,12 @@ export default function SettingsPage() {
                 value={personalCell}
                 onChange={(e) => setPersonalCell(e.target.value)}
                 placeholder="+1XXXXXXXXXX (E.164 format)"
-                className="flex-1 font-mono text-sm bg-white/[0.03] border-white/[0.06] focus:border-cyan/30 focus:ring-cyan/10"
+                className="flex-1 font-mono text-sm bg-white/[0.03] border-white/[0.06] focus:border-ring focus:ring-ring/20"
               />
               <Button
                 onClick={handleSaveCell}
                 disabled={saving}
-                className="gap-1.5 bg-cyan/15 hover:bg-cyan/25 text-cyan border border-cyan/25"
+                className="gap-1.5 bg-primary text-primary-foreground border border-white/15 hover:opacity-95"
                 size="sm"
               >
                 {saving ? (
@@ -140,8 +140,8 @@ export default function SettingsPage() {
               </Button>
             </div>
             {currentUser.personal_cell && (
-              <p className="text-[10px] text-cyan/60 mt-2 flex items-center gap-1">
-                <span className="h-1.5 w-1.5 rounded-full bg-cyan animate-pulse" />
+              <p className="text-[10px] text-muted-foreground mt-2 flex items-center gap-1">
+                <span className="h-1.5 w-1.5 rounded-full bg-foreground/50 animate-pulse" />
                 Active — calls transfer to {currentUser.personal_cell}
               </p>
             )}
@@ -152,7 +152,7 @@ export default function SettingsPage() {
         <div className="space-y-4">
           <GlassCard hover={false} className="space-y-3">
             <h3 className="text-sm font-semibold flex items-center gap-2">
-              <SlidersHorizontal className="h-4 w-4 text-cyan" />
+              <SlidersHorizontal className="h-4 w-4 text-primary" />
               Control plane
             </h3>
             <p className="text-[11px] text-muted-foreground/60">
@@ -160,7 +160,7 @@ export default function SettingsPage() {
             </p>
             <Link
               href="/settings/agent-controls"
-              className="inline-flex text-xs text-cyan hover:underline font-medium"
+              className="inline-flex text-xs text-foreground hover:underline font-medium"
             >
               Open agent controls →
             </Link>
@@ -168,13 +168,13 @@ export default function SettingsPage() {
 
           <GlassCard hover={false} className="space-y-3">
             <h3 className="text-sm font-semibold flex items-center gap-2">
-              <MapPin className="h-4 w-4 text-cyan" />
+              <MapPin className="h-4 w-4 text-foreground" />
               Property lookup
             </h3>
             <p className="text-[11px] text-muted-foreground/60">
               Multi-provider property search and promote-to-lead.
             </p>
-            <Link href="/properties/lookup" className="inline-flex text-xs text-cyan hover:underline font-medium">
+            <Link href="/properties/lookup" className="inline-flex text-xs text-foreground hover:underline font-medium">
               Open property lookup →
             </Link>
           </GlassCard>

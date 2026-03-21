@@ -40,9 +40,9 @@ export const CLIENT_SOURCE_POLICIES: Record<ArtifactSourceType, ClientSourcePoli
 };
 
 export const POLICY_BADGE: Record<ClientSourcePolicy, { label: string; className: string }> = {
-  approved:        { label: "Approved",       className: "text-emerald-400/70 border-emerald-500/20" },
-  review_required: { label: "Review required", className: "text-amber-400/70 border-amber-500/25" },
-  blocked:         { label: "Blocked",         className: "text-red-400/70 border-red-500/20" },
+  approved:        { label: "Approved",       className: "text-foreground/70 border-border/20" },
+  review_required: { label: "Review required", className: "text-foreground/70 border-border/25" },
+  blocked:         { label: "Blocked",         className: "text-foreground/70 border-border/20" },
 };
 
 export const SOURCE_TYPE_LABELS: Record<ArtifactSourceType, string> = {

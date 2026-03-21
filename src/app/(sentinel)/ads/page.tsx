@@ -128,8 +128,8 @@ export default function AdsPage() {
       {/* Header */}
       <div className="flex items-center justify-between px-6 py-4 border-b border-white/[0.06]">
         <div className="flex items-center gap-3">
-          <div className="h-9 w-9 rounded-xl bg-cyan/8 flex items-center justify-center border border-cyan/15">
-            <Target className="h-5 w-5 text-cyan" />
+          <div className="h-9 w-9 rounded-xl bg-primary/8 flex items-center justify-center border border-primary/15">
+            <Target className="h-5 w-5 text-primary" />
           </div>
           <div>
             <h1 className="text-lg font-bold tracking-tight title-glow">
@@ -153,7 +153,7 @@ export default function AdsPage() {
               onClick={() => setActiveTab(tab.id)}
               className={`relative flex items-center gap-2 px-4 py-2.5 text-sm rounded-t-lg transition-all ${
                 isActive
-                  ? "text-cyan bg-white/[0.03] border border-white/[0.06] border-b-transparent"
+                  ? "text-primary bg-white/[0.03] border border-white/[0.06] border-b-transparent"
                   : "text-muted-foreground hover:text-foreground hover:bg-white/[0.02]"
               }`}
             >
@@ -162,7 +162,7 @@ export default function AdsPage() {
               {isActive && (
                 <motion.div
                   layoutId="ads-tab-indicator"
-                  className="absolute bottom-0 left-2 right-2 h-[2px] bg-cyan rounded-full"
+                  className="absolute bottom-0 left-2 right-2 h-[2px] bg-primary rounded-full"
                   transition={{ type: "spring", stiffness: 400, damping: 30 }}
                 />
               )}
@@ -328,7 +328,7 @@ function DashboardTab() {
   if (loading) {
     return (
       <div className="flex items-center justify-center py-20">
-        <Loader2 className="h-6 w-6 animate-spin text-cyan/50" />
+        <Loader2 className="h-6 w-6 animate-spin text-primary/50" />
       </div>
     );
   }
@@ -348,7 +348,7 @@ function DashboardTab() {
                   onClick={() => setMarketFilter(mkt)}
                   className={`px-3 py-1.5 text-xs capitalize transition ${
                     marketFilter === mkt
-                      ? "bg-cyan/15 text-cyan font-medium"
+                      ? "bg-primary/15 text-primary font-medium"
                       : "text-muted-foreground/60 hover:text-foreground hover:bg-white/[0.03]"
                   }`}
                 >
@@ -366,7 +366,7 @@ function DashboardTab() {
                 onClick={() => setDateRange(opt.days)}
                 className={`px-3 py-1.5 text-xs transition ${
                   dateRange === opt.days
-                    ? "bg-cyan/15 text-cyan font-medium"
+                    ? "bg-primary/15 text-primary font-medium"
                     : "text-muted-foreground/60 hover:text-foreground hover:bg-white/[0.03]"
                 }`}
               >
@@ -378,9 +378,9 @@ function DashboardTab() {
           {/* Last synced badge */}
           <div className={`flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-full border ${
             syncStale
-              ? "border-amber-500/20 text-amber-400 bg-amber-500/5"
+              ? "border-border/20 text-foreground bg-muted/5"
               : lastSyncAt
-                ? "border-emerald-500/20 text-emerald-400 bg-emerald-500/5"
+                ? "border-border/20 text-foreground bg-muted/5"
                 : "border-white/[0.08] text-muted-foreground/50"
           }`}>
             <Clock className="h-3 w-3" />
@@ -391,7 +391,7 @@ function DashboardTab() {
         <button
           onClick={handleSync}
           disabled={syncing}
-          className="flex items-center gap-2 px-4 py-2 text-sm rounded-lg bg-cyan/10 text-cyan hover:bg-cyan/20 border border-cyan/20 transition disabled:opacity-50"
+          className="flex items-center gap-2 px-4 py-2 text-sm rounded-lg bg-primary/10 text-primary hover:bg-primary/20 border border-primary/20 transition disabled:opacity-50"
         >
           <RefreshCw className={`h-4 w-4 ${syncing ? "animate-spin" : ""}`} />
           {syncing ? "Syncing..." : "Sync Google Ads"}
@@ -400,7 +400,7 @@ function DashboardTab() {
 
       {/* Truncation warning — surfaces if row cap is hit */}
       {truncated && (
-        <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-amber-500/5 border border-amber-500/20 text-xs text-amber-400">
+        <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-muted/5 border border-border/20 text-xs text-foreground">
           <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
           <span>Data may be incomplete — too many metric rows for the last {dateRange} days. Totals could be understated.</span>
         </div>
@@ -434,11 +434,11 @@ function DashboardTab() {
           <div className="glass-strong rounded-xl p-4 border border-white/[0.06]">
             <div className="flex items-center justify-between">
               <span className="text-sm text-muted-foreground">Click-Through Rate</span>
-              <span className="text-lg font-bold text-cyan">{fmtPct(avgCtr)}</span>
+              <span className="text-lg font-bold text-primary">{fmtPct(avgCtr)}</span>
             </div>
             <div className="mt-2 h-2 rounded-full bg-white/[0.04] overflow-hidden">
               <motion.div
-                className="h-full rounded-full bg-gradient-to-r from-cyan/60 to-cyan"
+                className="h-full rounded-full bg-gradient-to-r from-primary/60 to-primary"
                 initial={{ width: 0 }}
                 animate={{ width: `${Math.min(avgCtr * 100 * 10, 100)}%` }}
                 transition={{ duration: 0.8, ease: "easeOut" }}
@@ -494,12 +494,12 @@ function MetricCard({ icon: Icon, label, value, trend }: { icon: React.ElementTy
   return (
     <div className="glass-strong rounded-xl p-4 border border-white/[0.06]">
       <div className="flex items-center gap-2 mb-2">
-        <Icon className="h-4 w-4 text-cyan/60" />
+        <Icon className="h-4 w-4 text-primary/60" />
         <span className="text-xs text-muted-foreground/60 uppercase tracking-wide">{label}</span>
       </div>
       <div className="text-xl font-bold">{value}</div>
       {trend !== null && (
-        <div className={`text-xs mt-1 ${trend >= 0 ? "text-emerald-400" : "text-red-400"}`}>
+        <div className={`text-xs mt-1 ${trend >= 0 ? "text-foreground" : "text-foreground"}`}>
           {trend >= 0 ? "+" : ""}{trend.toFixed(1)}%
         </div>
       )}
@@ -740,30 +740,30 @@ function IntelligenceTab({ onSendToChat }: { onSendToChat: (message: string) => 
   };
 
   const urgencyColor: Record<string, string> = {
-    act_now: "text-red-400 bg-red-400/10 border-red-400/20",
-    this_week: "text-amber-400 bg-amber-400/10 border-amber-400/20",
-    monitor: "text-cyan bg-cyan/10 border-cyan/20",
+    act_now: "text-foreground bg-muted/10 border-border/20",
+    this_week: "text-foreground bg-muted/10 border-border/20",
+    monitor: "text-primary bg-primary/10 border-primary/20",
     fyi: "text-muted-foreground bg-white/5 border-white/10",
   };
 
   const categoryIcon: Record<string, string> = {
-    waste: "text-red-400",
-    opportunity: "text-emerald-400",
-    competitive: "text-purple-400",
-    trend: "text-blue-400",
-    quality: "text-cyan",
-    attribution: "text-amber-400",
-    structural: "text-orange-400",
-    market: "text-indigo-400",
-    creative: "text-pink-400",
-    risk: "text-red-500",
+    waste: "text-foreground",
+    opportunity: "text-foreground",
+    competitive: "text-foreground",
+    trend: "text-foreground",
+    quality: "text-primary",
+    attribution: "text-foreground",
+    structural: "text-foreground",
+    market: "text-foreground",
+    creative: "text-foreground",
+    risk: "text-foreground",
   };
 
   const statusColor: Record<string, string> = {
-    healthy: "text-emerald-400 bg-emerald-400/10",
-    caution: "text-amber-400 bg-amber-400/10",
-    warning: "text-orange-400 bg-orange-400/10",
-    critical: "text-red-400 bg-red-400/10",
+    healthy: "text-foreground bg-muted/10",
+    caution: "text-foreground bg-muted/10",
+    warning: "text-foreground bg-muted/10",
+    critical: "text-foreground bg-muted/10",
   };
 
   const filteredPoints = (intelligence?.data_points ?? []).filter((dp) => {
@@ -777,7 +777,7 @@ function IntelligenceTab({ onSendToChat }: { onSendToChat: (message: string) => 
   if (loading || !initialized) {
     return (
       <div className="text-center py-20">
-        <Loader2 className="h-8 w-8 animate-spin text-cyan/50 mx-auto mb-4" />
+        <Loader2 className="h-8 w-8 animate-spin text-primary/50 mx-auto mb-4" />
         <p className="text-sm text-muted-foreground">Loading intelligence briefing...</p>
       </div>
     );
@@ -786,7 +786,7 @@ function IntelligenceTab({ onSendToChat }: { onSendToChat: (message: string) => 
   if (extracting) {
     return (
       <div className="text-center py-20">
-        <Loader2 className="h-8 w-8 animate-spin text-cyan/50 mx-auto mb-4" />
+        <Loader2 className="h-8 w-8 animate-spin text-primary/50 mx-auto mb-4" />
         <p className="text-sm text-muted-foreground">Running dual-model intelligence extraction...</p>
         <p className="text-xs text-muted-foreground/50 mt-1">Opus 4.6 analyzing → GPT-5.4 Pro challenging</p>
       </div>
@@ -796,9 +796,9 @@ function IntelligenceTab({ onSendToChat }: { onSendToChat: (message: string) => 
   if (error) {
     return (
       <div className="text-center py-16">
-        <XCircle className="h-8 w-8 text-red-400/60 mx-auto mb-3" />
-        <p className="text-sm text-red-400">{error}</p>
-        <button onClick={handleExtract} className="mt-4 px-4 py-2 text-xs rounded-lg bg-cyan/10 text-cyan border border-cyan/20">
+        <XCircle className="h-8 w-8 text-foreground/60 mx-auto mb-3" />
+        <p className="text-sm text-foreground">{error}</p>
+        <button onClick={handleExtract} className="mt-4 px-4 py-2 text-xs rounded-lg bg-primary/10 text-primary border border-primary/20">
           Retry
         </button>
       </div>
@@ -808,8 +808,8 @@ function IntelligenceTab({ onSendToChat }: { onSendToChat: (message: string) => 
   if (!intelligence) {
     return (
       <div className="space-y-6">
-        <div className="flex items-start gap-2 p-3 rounded-lg bg-cyan/5 border border-cyan/10 text-xs text-muted-foreground">
-          <Info className="h-4 w-4 text-cyan/50 shrink-0 mt-0.5" />
+        <div className="flex items-start gap-2 p-3 rounded-lg bg-primary/5 border border-primary/10 text-xs text-muted-foreground">
+          <Info className="h-4 w-4 text-primary/50 shrink-0 mt-0.5" />
           <div>
             <span className="text-foreground/80 font-medium">Dual-model intelligence extraction.</span>{" "}
             Opus 4.6 scans all account data and ranks the top 30-50 most important signals.
@@ -826,7 +826,7 @@ function IntelligenceTab({ onSendToChat }: { onSendToChat: (message: string) => 
           </p>
           <button
             onClick={handleExtract}
-            className="flex items-center gap-2 px-6 py-2.5 text-sm rounded-lg bg-cyan/10 text-cyan hover:bg-cyan/20 border border-cyan/20 transition mx-auto"
+            className="flex items-center gap-2 px-6 py-2.5 text-sm rounded-lg bg-primary/10 text-primary hover:bg-primary/20 border border-primary/20 transition mx-auto"
           >
             <Zap className="h-4 w-4" />
             Extract Intelligence Briefing
@@ -849,7 +849,7 @@ function IntelligenceTab({ onSendToChat }: { onSendToChat: (message: string) => 
               </span>
             )}
             {briefingAge && (
-              <span className={`text-[10px] font-mono ${briefingAge.stale ? "text-amber-400" : "text-muted-foreground/40"}`} title={savedAt ?? undefined}>
+              <span className={`text-[10px] font-mono ${briefingAge.stale ? "text-foreground" : "text-muted-foreground/40"}`} title={savedAt ?? undefined}>
                 {briefingAge.text}{briefingAge.stale ? " — consider refreshing" : ""}
               </span>
             )}
@@ -866,21 +866,21 @@ function IntelligenceTab({ onSendToChat }: { onSendToChat: (message: string) => 
         <p className="text-sm text-foreground/80 leading-relaxed">{intelligence?.executive_summary}</p>
 
         <div className="grid grid-cols-3 gap-3 mt-4">
-          <div className="p-3 rounded-lg bg-red-400/5 border border-red-400/10">
-            <div className="text-[10px] text-red-400/60 uppercase tracking-wide mb-1">Est. Monthly Waste</div>
-            <div className="text-lg font-semibold text-red-400">
+          <div className="p-3 rounded-lg bg-muted/5 border border-border/10">
+            <div className="text-[10px] text-foreground/60 uppercase tracking-wide mb-1">Est. Monthly Waste</div>
+            <div className="text-lg font-semibold text-foreground">
               ${(intelligence?.total_estimated_monthly_waste ?? 0).toLocaleString()}
             </div>
           </div>
-          <div className="p-3 rounded-lg bg-emerald-400/5 border border-emerald-400/10">
-            <div className="text-[10px] text-emerald-400/60 uppercase tracking-wide mb-1">Est. Monthly Opportunity</div>
-            <div className="text-lg font-semibold text-emerald-400">
+          <div className="p-3 rounded-lg bg-muted/5 border border-border/10">
+            <div className="text-[10px] text-foreground/60 uppercase tracking-wide mb-1">Est. Monthly Opportunity</div>
+            <div className="text-lg font-semibold text-foreground">
               ${(intelligence?.total_estimated_monthly_opportunity ?? 0).toLocaleString()}
             </div>
           </div>
-          <div className="p-3 rounded-lg bg-cyan/5 border border-cyan/10">
-            <div className="text-[10px] text-cyan/60 uppercase tracking-wide mb-1">Data Points</div>
-            <div className="text-lg font-semibold text-cyan">
+          <div className="p-3 rounded-lg bg-primary/5 border border-primary/10">
+            <div className="text-[10px] text-primary/60 uppercase tracking-wide mb-1">Data Points</div>
+            <div className="text-lg font-semibold text-primary">
               {intelligence?.data_points?.length ?? 0}
             </div>
           </div>
@@ -889,14 +889,14 @@ function IntelligenceTab({ onSendToChat }: { onSendToChat: (message: string) => 
 
       {/* Adversarial Assessment */}
       {adversarial && (
-        <div className="glass-strong rounded-xl border border-amber-500/15 p-4">
+        <div className="glass-strong rounded-xl border border-border/15 p-4">
           <div className="flex items-center gap-2 mb-2">
-            <AlertTriangle className="h-4 w-4 text-amber-400" />
-            <h3 className="text-sm font-semibold text-amber-400">Adversarial Review — GPT-5.4 Pro</h3>
+            <AlertTriangle className="h-4 w-4 text-foreground" />
+            <h3 className="text-sm font-semibold text-foreground">Adversarial Review — GPT-5.4 Pro</h3>
             <span className={`text-[10px] px-2 py-0.5 rounded-full font-mono border ${
-              adversarial.verdict === "approve" ? "text-emerald-400 border-emerald-400/20 bg-emerald-400/5" :
-              adversarial.verdict === "approve_with_changes" ? "text-amber-400 border-amber-400/20 bg-amber-400/5" :
-              "text-red-400 border-red-400/20 bg-red-400/5"
+              adversarial.verdict === "approve" ? "text-foreground border-border/20 bg-muted/5" :
+              adversarial.verdict === "approve_with_changes" ? "text-foreground border-border/20 bg-muted/5" :
+              "text-foreground border-border/20 bg-muted/5"
             }`}>
               {adversarial.verdict?.replace(/_/g, " ")} · Grade: {adversarial.grade}
             </span>
@@ -905,12 +905,12 @@ function IntelligenceTab({ onSendToChat }: { onSendToChat: (message: string) => 
 
           {adversarial.challenges.length > 0 && (
             <div className="space-y-2 mb-3">
-              <div className="text-[10px] text-amber-400/60 uppercase tracking-wide">Challenges</div>
+              <div className="text-[10px] text-foreground/60 uppercase tracking-wide">Challenges</div>
               {adversarial.challenges.slice(0, 5).map((c, i) => (
-                <div key={i} className="flex gap-2 text-xs p-2 rounded bg-amber-500/5 border border-amber-500/8">
+                <div key={i} className="flex gap-2 text-xs p-2 rounded bg-muted/5 border border-border/8">
                   <span className={`shrink-0 text-[10px] px-1.5 py-0.5 rounded border ${
-                    c.severity === "critical" ? "text-red-400 border-red-400/20" :
-                    c.severity === "moderate" ? "text-amber-400 border-amber-400/20" :
+                    c.severity === "critical" ? "text-foreground border-border/20" :
+                    c.severity === "moderate" ? "text-foreground border-border/20" :
                     "text-muted-foreground border-white/10"
                   }`}>{c.severity}</span>
                   <div>
@@ -926,11 +926,11 @@ function IntelligenceTab({ onSendToChat }: { onSendToChat: (message: string) => 
 
           {adversarial.missedOpportunities.length > 0 && (
             <div className="mb-3">
-              <div className="text-[10px] text-amber-400/60 uppercase tracking-wide mb-1">Blind Spots Flagged</div>
+              <div className="text-[10px] text-foreground/60 uppercase tracking-wide mb-1">Blind Spots Flagged</div>
               <ul className="space-y-1">
                 {adversarial.missedOpportunities.map((m, i) => (
                   <li key={i} className="text-xs text-foreground/70 flex gap-1.5">
-                    <span className="text-amber-400/40 shrink-0">●</span> {m}
+                    <span className="text-foreground/40 shrink-0">●</span> {m}
                   </li>
                 ))}
               </ul>
@@ -939,11 +939,11 @@ function IntelligenceTab({ onSendToChat }: { onSendToChat: (message: string) => 
 
           {adversarial.overconfidentClaims.length > 0 && (
             <div>
-              <div className="text-[10px] text-red-400/60 uppercase tracking-wide mb-1">Overconfident Claims</div>
+              <div className="text-[10px] text-foreground/60 uppercase tracking-wide mb-1">Overconfident Claims</div>
               <ul className="space-y-1">
                 {adversarial.overconfidentClaims.map((c, i) => (
                   <li key={i} className="text-xs text-foreground/70 flex gap-1.5">
-                    <span className="text-red-400/40 shrink-0">●</span> {c}
+                    <span className="text-foreground/40 shrink-0">●</span> {c}
                   </li>
                 ))}
               </ul>
@@ -1003,8 +1003,8 @@ function IntelligenceTab({ onSendToChat }: { onSendToChat: (message: string) => 
                     {dp.urgency?.replace(/_/g, " ")}
                   </span>
                   <span className={`text-[10px] px-1.5 py-0.5 rounded border border-white/10 ${
-                    dp.confidence === "confirmed" ? "text-emerald-400" :
-                    dp.confidence === "inferred" ? "text-amber-400" : "text-red-400"
+                    dp.confidence === "confirmed" ? "text-foreground" :
+                    dp.confidence === "inferred" ? "text-foreground" : "text-foreground"
                   }`}>
                     {dp.confidence}
                   </span>
@@ -1014,7 +1014,7 @@ function IntelligenceTab({ onSendToChat }: { onSendToChat: (message: string) => 
                     </span>
                   )}
                   {dp.dollar_impact && dp.dollar_impact !== "unquantifiable" && (
-                    <span className="text-[10px] font-mono text-cyan/70 ml-auto">
+                    <span className="text-[10px] font-mono text-primary/70 ml-auto">
                       {dp.dollar_impact}
                     </span>
                   )}
@@ -1032,7 +1032,7 @@ function IntelligenceTab({ onSendToChat }: { onSendToChat: (message: string) => 
                     <span className="text-[10px] text-muted-foreground/50 font-mono">{dp.entity}</span>
                   )}
                   {dp.recommended_action && (
-                    <span className="text-[10px] text-cyan/60">→ {dp.recommended_action}</span>
+                    <span className="text-[10px] text-primary/60">→ {dp.recommended_action}</span>
                   )}
                 </div>
 
@@ -1048,7 +1048,7 @@ function IntelligenceTab({ onSendToChat }: { onSendToChat: (message: string) => 
                         <button
                           onClick={(e) => { e.stopPropagation(); executeAction(dp, i); }}
                           disabled={isExecuting}
-                          className="flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-medium rounded-lg bg-cyan/10 text-cyan border border-cyan/20 hover:bg-cyan/20 transition disabled:opacity-50"
+                          className="flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-medium rounded-lg bg-primary/10 text-primary border border-primary/20 hover:bg-primary/20 transition disabled:opacity-50"
                         >
                           {isExecuting ? (
                             <Loader2 className="h-3 w-3 animate-spin" />
@@ -1059,7 +1059,7 @@ function IntelligenceTab({ onSendToChat }: { onSendToChat: (message: string) => 
                         </button>
                       )}
                       {result && (
-                        <span className={`flex items-center gap-1 text-[11px] ${result.ok ? "text-emerald-400" : "text-red-400"}`}>
+                        <span className={`flex items-center gap-1 text-[11px] ${result.ok ? "text-foreground" : "text-foreground"}`}>
                           {result.ok ? <CheckCircle2 className="h-3 w-3" /> : <XCircle className="h-3 w-3" />}
                           {result.message}
                         </span>
@@ -1186,18 +1186,18 @@ function CopyLabTab() {
 
   const confidenceBadge = (level: string) => {
     const colors: Record<string, string> = {
-      high: "bg-emerald-500/15 text-emerald-400 border-emerald-500/20",
-      moderate: "bg-cyan/10 text-cyan border-cyan/20",
-      exploratory: "bg-amber-500/10 text-amber-400 border-amber-500/20",
+      high: "bg-muted/15 text-foreground border-border/20",
+      moderate: "bg-primary/10 text-primary border-primary/20",
+      exploratory: "bg-muted/10 text-foreground border-border/20",
     };
     return colors[level] ?? colors.exploratory;
   };
 
   const verdictColor = (verdict: string) => {
     const colors: Record<string, string> = {
-      approve: "text-emerald-400",
-      approve_with_changes: "text-amber-400",
-      reject: "text-red-400",
+      approve: "text-foreground",
+      approve_with_changes: "text-foreground",
+      reject: "text-foreground",
       insufficient_evidence: "text-muted-foreground/60",
     };
     return colors[verdict] ?? "text-muted-foreground/60";
@@ -1216,7 +1216,7 @@ function CopyLabTab() {
         <button
           onClick={handleGenerate}
           disabled={generating}
-          className="flex items-center gap-2 px-4 py-2 text-sm rounded-lg bg-cyan/10 text-cyan hover:bg-cyan/20 border border-cyan/20 transition disabled:opacity-50"
+          className="flex items-center gap-2 px-4 py-2 text-sm rounded-lg bg-primary/10 text-primary hover:bg-primary/20 border border-primary/20 transition disabled:opacity-50"
         >
           <Sparkles className={`h-4 w-4 ${generating ? "animate-pulse" : ""}`} />
           {generating ? "Generating..." : "Generate Ad Concepts"}
@@ -1227,7 +1227,7 @@ function CopyLabTab() {
       {generating && (
         <div className="glass-strong rounded-xl border border-white/[0.06] p-8">
           <div className="flex flex-col items-center gap-4">
-            <Loader2 className="h-8 w-8 animate-spin text-cyan/60" />
+            <Loader2 className="h-8 w-8 animate-spin text-primary/60" />
             <div className="text-center">
               <p className="text-sm font-medium">Running dual-model analysis</p>
               <p className="text-xs text-muted-foreground/50 mt-1">
@@ -1241,10 +1241,10 @@ function CopyLabTab() {
 
       {/* Error */}
       {error && !generating && (
-        <div className="glass-strong rounded-xl border border-red-500/20 p-4">
+        <div className="glass-strong rounded-xl border border-border/20 p-4">
           <div className="flex items-center gap-2">
-            <AlertTriangle className="h-4 w-4 text-red-400 shrink-0" />
-            <p className="text-sm text-red-400">{error}</p>
+            <AlertTriangle className="h-4 w-4 text-foreground shrink-0" />
+            <p className="text-sm text-foreground">{error}</p>
           </div>
         </div>
       )}
@@ -1274,15 +1274,15 @@ function CopyLabTab() {
                 {result.generated.intent_clusters.map((cluster, i) => (
                   <div key={i} className="glass-strong rounded-xl border border-white/[0.06] p-4">
                     <div className="flex items-center gap-2 mb-2">
-                      <Target className="h-4 w-4 text-cyan shrink-0" />
+                      <Target className="h-4 w-4 text-primary shrink-0" />
                       <span className="text-sm font-semibold truncate">{cluster.name}</span>
                     </div>
                     <div className="flex items-center gap-2 mb-2">
                       <span className={`text-xs px-2 py-0.5 rounded-full border ${
                         cluster.volume_signal === "high"
-                          ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20"
+                          ? "bg-muted/10 text-foreground border-border/20"
                           : cluster.volume_signal === "medium"
-                          ? "bg-cyan/10 text-cyan border-cyan/20"
+                          ? "bg-primary/10 text-primary border-primary/20"
                           : "bg-white/[0.04] text-muted-foreground/60 border-white/[0.08]"
                       }`}>
                         {cluster.volume_signal} volume
@@ -1321,7 +1321,7 @@ function CopyLabTab() {
                       onClick={() => toggleFamily(i)}
                       className="w-full px-4 py-3 flex items-center gap-3 text-left hover:bg-white/[0.02] transition"
                     >
-                      <FileText className="h-5 w-5 text-cyan shrink-0" />
+                      <FileText className="h-5 w-5 text-primary shrink-0" />
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 flex-wrap">
                           <span className="text-sm font-semibold">{family.target_cluster}</span>
@@ -1363,7 +1363,7 @@ function CopyLabTab() {
                             {family.landing_page_match && (
                               <div className="flex items-center gap-2 text-xs text-muted-foreground/50">
                                 <Globe className="h-3 w-3" />
-                                Landing page: <span className="text-cyan">{family.landing_page_match}</span>
+                                Landing page: <span className="text-primary">{family.landing_page_match}</span>
                               </div>
                             )}
 
@@ -1377,7 +1377,7 @@ function CopyLabTab() {
                                   <div key={j} className="flex items-center gap-2 bg-white/[0.02] rounded px-2.5 py-1.5">
                                     <span className="text-[10px] text-muted-foreground/30 font-mono w-4 shrink-0">{j + 1}</span>
                                     <span className="text-xs flex-1 truncate">{h}</span>
-                                    <span className={`text-[10px] font-mono shrink-0 ${h.length > 30 ? "text-red-400" : "text-muted-foreground/30"}`}>
+                                    <span className={`text-[10px] font-mono shrink-0 ${h.length > 30 ? "text-foreground" : "text-muted-foreground/30"}`}>
                                       {h.length}
                                     </span>
                                   </div>
@@ -1395,7 +1395,7 @@ function CopyLabTab() {
                                   <div key={j} className="flex items-start gap-2 bg-white/[0.02] rounded px-2.5 py-1.5">
                                     <span className="text-[10px] text-muted-foreground/30 font-mono w-4 shrink-0 mt-0.5">{j + 1}</span>
                                     <span className="text-xs flex-1">{d}</span>
-                                    <span className={`text-[10px] font-mono shrink-0 mt-0.5 ${d.length > 90 ? "text-red-400" : "text-muted-foreground/30"}`}>
+                                    <span className={`text-[10px] font-mono shrink-0 mt-0.5 ${d.length > 90 ? "text-foreground" : "text-muted-foreground/30"}`}>
                                       {d.length}
                                     </span>
                                   </div>
@@ -1418,7 +1418,7 @@ function CopyLabTab() {
                                           onClick={() => toggleVariant(variantKey)}
                                           className="w-full px-3 py-2 flex items-center gap-2 text-left hover:bg-white/[0.02] transition text-xs"
                                         >
-                                          <Zap className="h-3 w-3 text-amber-400 shrink-0" />
+                                          <Zap className="h-3 w-3 text-foreground shrink-0" />
                                           <span className="font-medium flex-1">{variant.angle}</span>
                                           <ChevronDown className={`h-3 w-3 text-muted-foreground/40 transition-transform ${expandedVariants.has(variantKey) ? "rotate-180" : ""}`} />
                                         </button>
@@ -1437,7 +1437,7 @@ function CopyLabTab() {
                                                     <div key={hi} className="flex items-center gap-2 bg-white/[0.02] rounded px-2 py-1">
                                                       <span className="text-[10px] text-muted-foreground/30 font-mono w-3 shrink-0">{hi + 1}</span>
                                                       <span className="text-xs flex-1 truncate">{h}</span>
-                                                      <span className={`text-[10px] font-mono shrink-0 ${h.length > 30 ? "text-red-400" : "text-muted-foreground/30"}`}>
+                                                      <span className={`text-[10px] font-mono shrink-0 ${h.length > 30 ? "text-foreground" : "text-muted-foreground/30"}`}>
                                                         {h.length}
                                                       </span>
                                                     </div>
@@ -1448,7 +1448,7 @@ function CopyLabTab() {
                                                     <div key={di} className="flex items-start gap-2 bg-white/[0.02] rounded px-2 py-1">
                                                       <span className="text-[10px] text-muted-foreground/30 font-mono w-3 shrink-0 mt-0.5">{di + 1}</span>
                                                       <span className="text-xs flex-1">{d}</span>
-                                                      <span className={`text-[10px] font-mono shrink-0 mt-0.5 ${d.length > 90 ? "text-red-400" : "text-muted-foreground/30"}`}>
+                                                      <span className={`text-[10px] font-mono shrink-0 mt-0.5 ${d.length > 90 ? "text-foreground" : "text-muted-foreground/30"}`}>
                                                         {d.length}
                                                       </span>
                                                     </div>
@@ -1480,24 +1480,24 @@ function CopyLabTab() {
               <h4 className="text-xs font-semibold uppercase text-muted-foreground/60 tracking-wide">
                 Adversarial Assessment (GPT-5.4 Pro)
               </h4>
-              <div className="glass-strong rounded-xl border border-amber-500/20 overflow-hidden">
+              <div className="glass-strong rounded-xl border border-border/20 overflow-hidden">
                 {/* Verdict header */}
                 <div className="px-4 py-3 border-b border-white/[0.04] flex items-center gap-3">
-                  <AlertTriangle className="h-5 w-5 text-amber-400 shrink-0" />
+                  <AlertTriangle className="h-5 w-5 text-foreground shrink-0" />
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
                       <span className={`text-sm font-semibold ${verdictColor(result.adversarial.verdict)}`}>
                         {result.adversarial.verdict.replace(/_/g, " ")}
                       </span>
-                      <span className="text-xs px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-400 border border-amber-500/20">
+                      <span className="text-xs px-2 py-0.5 rounded-full bg-muted/10 text-foreground border border-border/20">
                         Grade: {result.adversarial.grade}
                       </span>
                       <span className={`text-xs px-2 py-0.5 rounded-full border ${
                         result.adversarial.finalInstruction === "proceed"
-                          ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20"
+                          ? "bg-muted/10 text-foreground border-border/20"
                           : result.adversarial.finalInstruction === "revise"
-                          ? "bg-amber-500/10 text-amber-400 border-amber-500/20"
-                          : "bg-red-500/10 text-red-400 border-red-500/20"
+                          ? "bg-muted/10 text-foreground border-border/20"
+                          : "bg-muted/10 text-foreground border-border/20"
                       }`}>
                         {result.adversarial.finalInstruction}
                       </span>
@@ -1512,20 +1512,20 @@ function CopyLabTab() {
                   {/* Challenges */}
                   {result.adversarial.challenges.length > 0 && (
                     <div className="space-y-2">
-                      <h5 className="text-xs font-semibold text-amber-400 uppercase tracking-wide">
+                      <h5 className="text-xs font-semibold text-foreground uppercase tracking-wide">
                         Challenges ({result.adversarial.challenges.length})
                       </h5>
                       {result.adversarial.challenges.map((c, i) => (
-                        <div key={i} className="bg-amber-500/[0.04] rounded-lg p-3 border border-amber-500/10">
+                        <div key={i} className="bg-muted/[0.04] rounded-lg p-3 border border-border/10">
                           <div className="flex items-center gap-2 mb-1">
                             <span className={`text-[10px] px-1.5 py-0.5 rounded uppercase font-semibold ${
-                              c.severity === "critical" ? "bg-red-500/15 text-red-400"
-                              : c.severity === "moderate" ? "bg-amber-500/15 text-amber-400"
+                              c.severity === "critical" ? "bg-muted/15 text-foreground"
+                              : c.severity === "moderate" ? "bg-muted/15 text-foreground"
                               : "bg-white/[0.06] text-muted-foreground/50"
                             }`}>
                               {c.severity}
                             </span>
-                            <span className="text-xs font-medium text-amber-300">{c.targetFinding}</span>
+                            <span className="text-xs font-medium text-foreground">{c.targetFinding}</span>
                           </div>
                           <p className="text-xs text-muted-foreground/70">{c.challenge}</p>
                           {c.alternativeInterpretation && (
@@ -1539,11 +1539,11 @@ function CopyLabTab() {
                   {/* Agrees with */}
                   {result.adversarial.agreesWithPrimary.length > 0 && (
                     <div>
-                      <h5 className="text-xs font-semibold text-emerald-400 uppercase tracking-wide mb-1">Agrees With</h5>
+                      <h5 className="text-xs font-semibold text-foreground uppercase tracking-wide mb-1">Agrees With</h5>
                       <ul className="space-y-1">
                         {result.adversarial.agreesWithPrimary.map((item, i) => (
                           <li key={i} className="text-xs text-muted-foreground/60 flex items-start gap-1.5">
-                            <CheckCircle2 className="h-3 w-3 text-emerald-400 shrink-0 mt-0.5" />
+                            <CheckCircle2 className="h-3 w-3 text-foreground shrink-0 mt-0.5" />
                             {item}
                           </li>
                         ))}
@@ -1554,11 +1554,11 @@ function CopyLabTab() {
                   {/* Missed opportunities */}
                   {result.adversarial.missedOpportunities.length > 0 && (
                     <div>
-                      <h5 className="text-xs font-semibold text-amber-400 uppercase tracking-wide mb-1">Missed Opportunities</h5>
+                      <h5 className="text-xs font-semibold text-foreground uppercase tracking-wide mb-1">Missed Opportunities</h5>
                       <ul className="space-y-1">
                         {result.adversarial.missedOpportunities.map((item, i) => (
                           <li key={i} className="text-xs text-muted-foreground/60 flex items-start gap-1.5">
-                            <TrendingUp className="h-3 w-3 text-amber-400 shrink-0 mt-0.5" />
+                            <TrendingUp className="h-3 w-3 text-foreground shrink-0 mt-0.5" />
                             {item}
                           </li>
                         ))}
@@ -1569,11 +1569,11 @@ function CopyLabTab() {
                   {/* Required changes */}
                   {result.adversarial.requiredChanges.length > 0 && (
                     <div>
-                      <h5 className="text-xs font-semibold text-red-400 uppercase tracking-wide mb-1">Required Changes</h5>
+                      <h5 className="text-xs font-semibold text-foreground uppercase tracking-wide mb-1">Required Changes</h5>
                       <ul className="space-y-1">
                         {result.adversarial.requiredChanges.map((item, i) => (
                           <li key={i} className="text-xs text-muted-foreground/60 flex items-start gap-1.5">
-                            <XCircle className="h-3 w-3 text-red-400 shrink-0 mt-0.5" />
+                            <XCircle className="h-3 w-3 text-foreground shrink-0 mt-0.5" />
                             {item}
                           </li>
                         ))}
@@ -1675,7 +1675,7 @@ function AdGroupsTab() {
   };
 
   if (loading) {
-    return <div className="flex items-center justify-center py-20"><Loader2 className="h-6 w-6 animate-spin text-cyan/50" /></div>;
+    return <div className="flex items-center justify-center py-20"><Loader2 className="h-6 w-6 animate-spin text-primary/50" /></div>;
   }
 
   const enabled = adGroups.filter(g => g.status === "ENABLED");
@@ -1703,7 +1703,7 @@ function AdGroupsTab() {
       </div>
 
       {error && (
-        <div className="flex items-center gap-2 p-3 rounded-lg bg-red-500/10 border border-red-500/20 text-sm text-red-400">
+        <div className="flex items-center gap-2 p-3 rounded-lg bg-muted/10 border border-border/20 text-sm text-foreground">
           <AlertTriangle className="h-4 w-4" />
           {error}
         </div>
@@ -1727,7 +1727,7 @@ function AdGroupsTab() {
             >
               <div className="flex items-center justify-between mb-2">
                 <div className="flex items-center gap-3">
-                  <div className={`h-2 w-2 rounded-full ${isEnabled ? "bg-emerald-400" : "bg-zinc-500"}`} />
+                  <div className={`h-2 w-2 rounded-full ${isEnabled ? "bg-muted" : "bg-muted"}`} />
                   <div>
                     <p className="text-sm font-semibold">{ag.name}</p>
                     {ag.campaignName && (
@@ -1737,12 +1737,12 @@ function AdGroupsTab() {
                 </div>
                 <div className="flex items-center gap-2">
                   {matchedPage ? (
-                    <span className="text-[10px] bg-cyan/10 text-cyan px-2 py-0.5 rounded-full font-medium flex items-center gap-1">
+                    <span className="text-[10px] bg-primary/10 text-primary px-2 py-0.5 rounded-full font-medium flex items-center gap-1">
                       <Globe className="h-2.5 w-2.5" />
                       {matchedPage.path}
                     </span>
                   ) : (
-                    <span className="text-[10px] bg-amber-500/10 text-amber-400 px-2 py-0.5 rounded-full font-medium">
+                    <span className="text-[10px] bg-muted/10 text-foreground px-2 py-0.5 rounded-full font-medium">
                       No Landing Page
                     </span>
                   )}
@@ -1751,8 +1751,8 @@ function AdGroupsTab() {
                     disabled={isToggling}
                     className={`flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-lg border transition ${
                       isEnabled
-                        ? "bg-amber-500/10 text-amber-400 border-amber-500/20 hover:bg-amber-500/20"
-                        : "bg-emerald-500/10 text-emerald-400 border-emerald-500/20 hover:bg-emerald-500/20"
+                        ? "bg-muted/10 text-foreground border-border/20 hover:bg-muted/20"
+                        : "bg-muted/10 text-foreground border-border/20 hover:bg-muted/20"
                     } disabled:opacity-50`}
                   >
                     {isToggling ? (
@@ -1960,13 +1960,13 @@ function LandingTab() {
   };
 
   if (loading) {
-    return <div className="flex items-center justify-center py-20"><Loader2 className="h-6 w-6 animate-spin text-cyan/50" /></div>;
+    return <div className="flex items-center justify-center py-20"><Loader2 className="h-6 w-6 animate-spin text-primary/50" /></div>;
   }
 
   const severityIcon: Record<string, React.ReactNode> = {
-    critical: <AlertTriangle className="h-4 w-4 text-red-400" />,
-    warning: <AlertTriangle className="h-4 w-4 text-amber-400" />,
-    info: <Info className="h-4 w-4 text-cyan" />,
+    critical: <AlertTriangle className="h-4 w-4 text-foreground" />,
+    warning: <AlertTriangle className="h-4 w-4 text-foreground" />,
+    info: <Info className="h-4 w-4 text-primary" />,
   };
 
   const getMetricsForAdGroup = (adGroupName: string) => {
@@ -1986,7 +1986,7 @@ function LandingTab() {
         <button
           onClick={handleReview}
           disabled={reviewing}
-          className="flex items-center gap-2 px-4 py-2 text-sm rounded-lg bg-cyan/10 text-cyan hover:bg-cyan/20 border border-cyan/20 transition disabled:opacity-50"
+          className="flex items-center gap-2 px-4 py-2 text-sm rounded-lg bg-primary/10 text-primary hover:bg-primary/20 border border-primary/20 transition disabled:opacity-50"
         >
           <Globe className={`h-4 w-4 ${reviewing ? "animate-spin" : ""}`} />
           {reviewing ? "Analyzing..." : "Review All Pages"}
@@ -2007,7 +2007,7 @@ function LandingTab() {
               onClick={() => setSelectedPage(isSelected ? null : page.path)}
               className={`text-left glass-strong rounded-xl border p-4 transition-all ${
                 isSelected
-                  ? "border-cyan/30 bg-cyan/[0.03]"
+                  ? "border-primary/30 bg-primary/[0.03]"
                   : "border-white/[0.06] hover:border-white/[0.12]"
               }`}
             >
@@ -2016,7 +2016,7 @@ function LandingTab() {
                   <p className="text-sm font-semibold">{page.label}</p>
                   <p className="text-xs text-muted-foreground/50 mt-0.5">{page.path}</p>
                 </div>
-                <span className="text-[10px] bg-cyan/10 text-cyan px-2 py-0.5 rounded-full font-medium">
+                <span className="text-[10px] bg-primary/10 text-primary px-2 py-0.5 rounded-full font-medium">
                   LIVE
                 </span>
               </div>
@@ -2025,9 +2025,9 @@ function LandingTab() {
 
               {/* Ad Group Mapping */}
               <div className="flex items-center gap-1.5 mb-3 text-xs">
-                <Target className="h-3 w-3 text-yellow-400" />
+                <Target className="h-3 w-3 text-foreground" />
                 <span className="text-muted-foreground/70">Ad Group:</span>
-                <span className="text-yellow-400/80 font-medium">{page.adGroup}</span>
+                <span className="text-foreground/80 font-medium">{page.adGroup}</span>
               </div>
 
               {/* Metrics Row */}
@@ -2064,7 +2064,7 @@ function LandingTab() {
       {selectedPage && (
         <div className="glass-strong rounded-xl border border-white/[0.06] p-4 space-y-3">
           <div className="flex items-center gap-2 mb-1">
-            <Globe className="h-4 w-4 text-cyan" />
+            <Globe className="h-4 w-4 text-primary" />
             <h4 className="text-sm font-semibold">
               {LANDING_PAGES.find(p => p.path === selectedPage)?.label} — Page Details
             </h4>
@@ -2072,11 +2072,11 @@ function LandingTab() {
           <div className="grid grid-cols-2 gap-4 text-sm">
             <div>
               <p className="text-xs text-muted-foreground/40 mb-1">URL</p>
-              <p className="text-cyan text-xs font-mono">dominionhomedeals.com{selectedPage}</p>
+              <p className="text-primary text-xs font-mono">dominionhomedeals.com{selectedPage}</p>
             </div>
             <div>
               <p className="text-xs text-muted-foreground/40 mb-1">Matched Ad Group</p>
-              <p className="text-yellow-400/80 text-xs">{LANDING_PAGES.find(p => p.path === selectedPage)?.adGroup}</p>
+              <p className="text-foreground/80 text-xs">{LANDING_PAGES.find(p => p.path === selectedPage)?.adGroup}</p>
             </div>
             <div className="col-span-2">
               <p className="text-xs text-muted-foreground/40 mb-1">Visitor Intent</p>
@@ -2097,7 +2097,7 @@ function LandingTab() {
         <div className="space-y-4">
           <div className="glass-strong rounded-xl border border-white/[0.06] p-4">
             <div className="flex items-center gap-2 mb-3">
-              <Brain className="h-5 w-5 text-cyan" />
+              <Brain className="h-5 w-5 text-primary" />
               <h3 className="text-sm font-semibold">Claude&apos;s Analysis</h3>
               <span className="text-xs text-muted-foreground/40 ml-auto">
                 {new Date(review.created_at).toLocaleDateString()}
@@ -2129,8 +2129,8 @@ function LandingTab() {
                   <span className="font-medium">{s.target}</span>
                   {s.old_value && s.new_value && (
                     <div className="mt-1 text-xs">
-                      <div className="text-red-400/60 line-through">{s.old_value}</div>
-                      <div className="text-cyan mt-0.5">{s.new_value}</div>
+                      <div className="text-foreground/60 line-through">{s.old_value}</div>
+                      <div className="text-primary mt-0.5">{s.new_value}</div>
                     </div>
                   )}
                   <p className="text-xs text-muted-foreground/50 mt-1">{s.reason}</p>
@@ -2159,12 +2159,12 @@ function LandingTab() {
           {LANDING_PAGES.map((page) => (
             <div key={page.path} className="flex items-center justify-between text-xs bg-white/[0.02] rounded-lg px-3 py-2">
               <span className="text-muted-foreground/70">{page.adGroup}</span>
-              <span className="text-cyan font-mono">dominionhomedeals.com{page.path}</span>
+              <span className="text-primary font-mono">dominionhomedeals.com{page.path}</span>
             </div>
           ))}
         </div>
         <p className="text-[10px] text-muted-foreground/40 leading-relaxed">
-          Add <code className="text-cyan/60">?utm_source=google&amp;utm_medium=cpc&amp;utm_campaign=spokane_seller&amp;utm_content=</code> + ad group name
+          Add <code className="text-primary/60">?utm_source=google&amp;utm_medium=cpc&amp;utm_campaign=spokane_seller&amp;utm_content=</code> + ad group name
           for attribution tracking in analytics.
         </p>
       </div>
@@ -2323,7 +2323,7 @@ function ChatTab({ preloadMessage, onPreloadConsumed }: { preloadMessage?: strin
       <div className="flex-1 overflow-y-auto space-y-4 pb-4">
         {messages.length === 0 && (
           <div className="text-center py-12">
-            <Sparkles className="h-10 w-10 mx-auto text-cyan/30 mb-4" />
+            <Sparkles className="h-10 w-10 mx-auto text-primary/30 mb-4" />
             <h3 className="text-sm font-medium text-muted-foreground mb-4">Ask Claude about your Google Ads</h3>
             <div className="flex flex-wrap gap-2 justify-center max-w-lg mx-auto">
               {CHAT_SUGGESTIONS.map((s) => (
@@ -2347,7 +2347,7 @@ function ChatTab({ preloadMessage, onPreloadConsumed }: { preloadMessage?: strin
             <div
               className={`max-w-[80%] rounded-xl px-4 py-2.5 text-sm ${
                 msg.role === "user"
-                  ? "bg-cyan/10 border border-cyan/20 text-foreground"
+                  ? "bg-primary/10 border border-primary/20 text-foreground"
                   : "bg-white/[0.03] border border-white/[0.06] text-muted-foreground"
               }`}
             >
@@ -2363,7 +2363,7 @@ function ChatTab({ preloadMessage, onPreloadConsumed }: { preloadMessage?: strin
         {messages.length > 0 && (
           <button
             onClick={clearHistory}
-            className="p-2.5 rounded-lg hover:bg-white/[0.04] text-muted-foreground/40 hover:text-red-400 transition shrink-0"
+            className="p-2.5 rounded-lg hover:bg-white/[0.04] text-muted-foreground/40 hover:text-foreground transition shrink-0"
             title="Clear chat"
           >
             <Trash2 className="h-4 w-4" />
@@ -2382,13 +2382,13 @@ function ChatTab({ preloadMessage, onPreloadConsumed }: { preloadMessage?: strin
             }}
             placeholder="Ask Claude about your ads..."
             rows={1}
-            className="w-full bg-white/[0.04] border border-white/[0.08] rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:border-cyan/30 resize-none placeholder:text-muted-foreground/30"
+            className="w-full bg-white/[0.04] border border-white/[0.08] rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:border-primary/30 resize-none placeholder:text-muted-foreground/30"
           />
         </div>
         <button
           onClick={() => send()}
           disabled={!input.trim() || streaming}
-          className="p-2.5 rounded-lg bg-cyan/10 text-cyan hover:bg-cyan/20 border border-cyan/20 transition disabled:opacity-30 shrink-0"
+          className="p-2.5 rounded-lg bg-primary/10 text-primary hover:bg-primary/20 border border-primary/20 transition disabled:opacity-30 shrink-0"
         >
           {streaming ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
         </button>
@@ -2509,18 +2509,18 @@ function PromptEditor({ promptKey, title, subtitle, modelLabel, accentColor }: {
           <button
             onClick={handleSave}
             disabled={!hasChanges || saving}
-            className="flex items-center gap-1.5 px-4 py-1.5 text-xs rounded-lg bg-cyan/10 text-cyan border border-cyan/20 hover:bg-cyan/20 transition disabled:opacity-30 disabled:cursor-not-allowed"
+            className="flex items-center gap-1.5 px-4 py-1.5 text-xs rounded-lg bg-primary/10 text-primary border border-primary/20 hover:bg-primary/20 transition disabled:opacity-30 disabled:cursor-not-allowed"
           >
             {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
             {saving ? "Saving..." : "Save"}
           </button>
           {saveStatus === "saved" && (
-            <span className="flex items-center gap-1 text-xs text-emerald-400">
+            <span className="flex items-center gap-1 text-xs text-foreground">
               <CheckCircle2 className="h-3.5 w-3.5" /> Saved
             </span>
           )}
           {saveStatus === "error" && (
-            <span className="flex items-center gap-1 text-xs text-red-400">
+            <span className="flex items-center gap-1 text-xs text-foreground">
               <XCircle className="h-3.5 w-3.5" /> Failed
             </span>
           )}
@@ -2531,12 +2531,12 @@ function PromptEditor({ promptKey, title, subtitle, modelLabel, accentColor }: {
         <textarea
           value={promptText}
           onChange={(e) => setPromptText(e.target.value)}
-          className="w-full h-[calc(100vh-420px)] min-h-[300px] p-4 rounded-lg bg-black/30 border border-white/[0.08] text-sm font-mono text-foreground/90 leading-relaxed resize-none focus:outline-none focus:border-cyan/30 focus:ring-1 focus:ring-cyan/20 transition placeholder:text-muted-foreground/30"
+          className="w-full h-[calc(100vh-420px)] min-h-[300px] p-4 rounded-lg bg-black/30 border border-white/[0.08] text-sm font-mono text-foreground/90 leading-relaxed resize-none focus:outline-none focus:border-primary/30 focus:ring-1 focus:ring-ring/20 transition placeholder:text-muted-foreground/30"
           placeholder={`Enter the ${promptKey} prompt...`}
           spellCheck={false}
         />
         <div className="absolute bottom-3 right-3 flex items-center gap-3 text-[10px] text-muted-foreground/40 font-mono">
-          {hasChanges && <span className="text-amber-400/60">{Math.abs(charCount - originalText.length)} chars {charCount > originalText.length ? "added" : "removed"}</span>}
+          {hasChanges && <span className="text-foreground/60">{Math.abs(charCount - originalText.length)} chars {charCount > originalText.length ? "added" : "removed"}</span>}
           <span>{lineCount} lines</span>
           <span>{charCount.toLocaleString()} chars</span>
         </div>
@@ -2551,8 +2551,8 @@ function SystemPromptTab() {
   return (
     <div className="space-y-4">
       {/* Header */}
-      <div className="flex items-start gap-2 p-3 rounded-lg bg-cyan/5 border border-cyan/10 text-xs text-muted-foreground">
-        <Info className="h-4 w-4 text-cyan/50 shrink-0 mt-0.5" />
+      <div className="flex items-start gap-2 p-3 rounded-lg bg-primary/5 border border-primary/10 text-xs text-muted-foreground">
+        <Info className="h-4 w-4 text-primary/50 shrink-0 mt-0.5" />
         <div>
           <span className="text-foreground/80 font-medium">Dual-model AI engine.</span>{" "}
           The primary analyst (Opus 4.6) runs the full review, then the adversarial reviewer (GPT-5.4 Pro)
@@ -2566,7 +2566,7 @@ function SystemPromptTab() {
           onClick={() => setActivePrompt("default")}
           className={`px-4 py-2 text-xs rounded-md transition font-medium ${
             activePrompt === "default"
-              ? "bg-cyan/10 text-cyan border border-cyan/20"
+              ? "bg-primary/10 text-primary border border-primary/20"
               : "text-muted-foreground hover:text-foreground"
           }`}
         >
@@ -2577,7 +2577,7 @@ function SystemPromptTab() {
           onClick={() => setActivePrompt("adversarial")}
           className={`px-4 py-2 text-xs rounded-md transition font-medium ${
             activePrompt === "adversarial"
-              ? "bg-amber-500/10 text-amber-400 border border-amber-500/20"
+              ? "bg-muted/10 text-foreground border border-border/20"
               : "text-muted-foreground hover:text-foreground"
           }`}
         >
@@ -2593,7 +2593,7 @@ function SystemPromptTab() {
           title="Primary Operating Prompt"
           subtitle="Governs all AI Review, Chat, and recommendation generation."
           modelLabel="Claude Opus 4.6"
-          accentColor="text-cyan border-cyan/20 bg-cyan/5"
+          accentColor="text-primary border-primary/20 bg-primary/5"
         />
       ) : (
         <PromptEditor
@@ -2601,7 +2601,7 @@ function SystemPromptTab() {
           title="Adversarial Review Prompt"
           subtitle="Challenges every primary finding. Issues verdict: approve, revise, reject, or hold."
           modelLabel="GPT-5.4 Pro"
-          accentColor="text-amber-400 border-amber-500/20 bg-amber-500/5"
+          accentColor="text-foreground border-border/20 bg-muted/5"
         />
       )}
     </div>

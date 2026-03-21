@@ -44,11 +44,11 @@ interface PipelineItem {
 }
 
 const COLUMNS: { id: string; title: string; color: string }[] = [
-  { id: "prospect", title: "Prospects", color: "bg-blue-400" },
-  { id: "lead", title: "Leads", color: "bg-cyan" },
-  { id: "negotiation", title: "Negotiation", color: "bg-yellow-400" },
-  { id: "disposition", title: "Disposition", color: "bg-orange-400" },
-  { id: "closed", title: "Closed", color: "bg-purple-400" },
+  { id: "prospect", title: "Prospects", color: "bg-muted" },
+  { id: "lead", title: "Leads", color: "bg-primary" },
+  { id: "negotiation", title: "Negotiation", color: "bg-muted" },
+  { id: "disposition", title: "Disposition", color: "bg-muted" },
+  { id: "closed", title: "Closed", color: "bg-muted" },
 ];
 
 function formatFreshness(dateStr: string | null | undefined): string {
@@ -109,13 +109,13 @@ function SortableCard({ item, onCall }: { item: PipelineItem; onCall?: (phone: s
                 {item.equityPercent != null && (
                   <span className={cn(
                     "text-[10px] font-medium",
-                    item.equityPercent >= 50 ? "text-emerald-400" : item.equityPercent >= 25 ? "text-yellow-400" : "text-red-400"
+                    item.equityPercent >= 50 ? "text-foreground" : item.equityPercent >= 25 ? "text-foreground" : "text-foreground"
                   )}>
                     {Math.round(item.equityPercent)}% equity
                   </span>
                 )}
                 {item.phone && (
-                  <Phone className="h-2.5 w-2.5 text-cyan shrink-0" />
+                  <Phone className="h-2.5 w-2.5 text-primary shrink-0" />
                 )}
               </div>
             </div>
@@ -334,7 +334,7 @@ export function PipelineBoard() {
   if (loading) {
     return (
       <GlassCard hover={false} className="p-4 flex items-center justify-center min-h-[200px]">
-        <Loader2 className="h-6 w-6 animate-spin text-cyan" />
+        <Loader2 className="h-6 w-6 animate-spin text-primary" />
       </GlassCard>
     );
   }

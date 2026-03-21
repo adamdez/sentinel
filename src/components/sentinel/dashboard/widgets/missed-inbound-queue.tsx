@@ -111,8 +111,8 @@ function MissedInboundRow({ item, idx, token, onResolved }: RowProps) {
           <div className="flex items-center gap-1.5 flex-wrap">
             <PhoneIncoming
               className={`h-3 w-3 shrink-0 ${
-                severity === "critical" ? "text-red-400 animate-pulse" :
-                severity === "warning"  ? "text-amber-400" :
+                severity === "critical" ? "text-foreground animate-pulse" :
+                severity === "warning"  ? "text-foreground" :
                 "text-muted-foreground/60"
               }`}
             />
@@ -125,12 +125,12 @@ function MissedInboundRow({ item, idx, token, onResolved }: RowProps) {
               </Badge>
             )}
             {item.is_classified && item.caller_type && (
-              <Badge variant="outline" className="text-[9px] h-3.5 px-1 text-emerald-400/80 border-emerald-500/30">
+              <Badge variant="outline" className="text-[9px] h-3.5 px-1 text-foreground/80 border-border/30">
                 {item.caller_type}
               </Badge>
             )}
             {!item.is_classified && (
-              <Badge variant="outline" className="text-[9px] h-3.5 px-1 text-amber-400/70 border-amber-500/30">
+              <Badge variant="outline" className="text-[9px] h-3.5 px-1 text-foreground/70 border-border/30">
                 unclassified
               </Badge>
             )}
@@ -140,22 +140,22 @@ function MissedInboundRow({ item, idx, token, onResolved }: RowProps) {
           <div className="flex items-center gap-1 mt-0.5">
             <Clock
               className={`h-3 w-3 shrink-0 ${
-                severity === "critical" ? "text-red-400" :
-                severity === "warning"  ? "text-amber-400" :
+                severity === "critical" ? "text-foreground" :
+                severity === "warning"  ? "text-foreground" :
                 "text-muted-foreground/40"
               }`}
             />
             <span
               className={`text-[11px] font-medium ${
-                severity === "critical" ? "text-red-400" :
-                severity === "warning"  ? "text-amber-400" :
+                severity === "critical" ? "text-foreground" :
+                severity === "warning"  ? "text-foreground" :
                 "text-muted-foreground/60"
               }`}
             >
               {ageLabel}
             </span>
             {item.task_overdue && (
-              <Badge variant="outline" className="text-[9px] h-3.5 px-1 border-red-500/40 text-red-400">
+              <Badge variant="outline" className="text-[9px] h-3.5 px-1 border-border/40 text-foreground">
                 task overdue
               </Badge>
             )}
@@ -172,7 +172,7 @@ function MissedInboundRow({ item, idx, token, onResolved }: RowProps) {
           >
             <Button
               size="sm"
-              className="h-6 text-[10px] px-2 bg-cyan/10 hover:bg-cyan/20 text-cyan border border-cyan/30"
+              className="h-6 text-[10px] px-2 bg-primary/10 hover:bg-primary/20 text-primary border border-primary/30"
             >
               <Phone className="h-3 w-3 mr-1" />
               Call back now
@@ -182,7 +182,7 @@ function MissedInboundRow({ item, idx, token, onResolved }: RowProps) {
           <Button
             size="sm"
             variant="outline"
-            className="h-6 text-[10px] px-2 border-emerald-500/40 text-emerald-400 hover:bg-emerald-950/30"
+            className="h-6 text-[10px] px-2 border-border/40 text-foreground hover:bg-muted/30"
             onClick={handleRecover}
             disabled={busy}
           >
@@ -216,7 +216,7 @@ function MissedInboundRow({ item, idx, token, onResolved }: RowProps) {
             <Button
               size="sm"
               variant="outline"
-              className="h-6 text-[10px] px-2 border-red-500/40 text-red-400 hover:bg-red-950/30"
+              className="h-6 text-[10px] px-2 border-border/40 text-foreground hover:bg-muted/30"
               onClick={handleDismiss}
               disabled={busy}
             >
@@ -249,9 +249,9 @@ function UnclassifiedAnsweredRow({ item, idx }: { item: UnclassifiedAnswered; id
       initial={{ opacity: 0, x: -4 }}
       animate={{ opacity: 1, x: 0 }}
       transition={{ delay: 0.04 + idx * 0.04 }}
-      className="rounded-[8px] border border-amber-500/15 bg-amber-500/[0.03] p-2 flex items-center gap-2"
+      className="rounded-[8px] border border-border/15 bg-muted/[0.03] p-2 flex items-center gap-2"
     >
-      <HelpCircle className="h-3 w-3 shrink-0 text-amber-400/60" />
+      <HelpCircle className="h-3 w-3 shrink-0 text-foreground/60" />
       <div className="flex-1 min-w-0">
         <span className="text-[11px] font-medium">
           {item.from_number !== "unknown" ? item.from_number : "Unknown"}
@@ -260,7 +260,7 @@ function UnclassifiedAnsweredRow({ item, idx }: { item: UnclassifiedAnswered; id
       </div>
       <Link
         href={`/dialer/inbound?event_id=${item.event_id}`}
-        className="text-[10px] text-amber-400/70 hover:text-amber-400 shrink-0"
+        className="text-[10px] text-foreground/70 hover:text-foreground shrink-0"
       >
         Classify →
       </Link>
@@ -298,12 +298,12 @@ export function MissedInboundQueue({ items, unclassified = [], loading, onRefres
       {/* Section header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-1.5">
-          <PhoneIncoming className="h-3.5 w-3.5 text-red-400" />
+          <PhoneIncoming className="h-3.5 w-3.5 text-foreground" />
           <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/60">
             Missed Inbound
           </span>
           {count > 0 && (
-            <Badge className="bg-red-500/20 text-red-400 border-red-500/30 text-[9px] h-4 px-1.5">
+            <Badge className="bg-muted/20 text-foreground border-border/30 text-[9px] h-4 px-1.5">
               {count}
             </Badge>
           )}
@@ -348,11 +348,11 @@ export function MissedInboundQueue({ items, unclassified = [], loading, onRefres
       {unclassified.length > 0 && (
         <div className="space-y-1 pt-1">
           <div className="flex items-center gap-1 pb-0.5">
-            <HelpCircle className="h-3 w-3 text-amber-400/60" />
-            <span className="text-[10px] font-semibold uppercase tracking-wider text-amber-400/50">
+            <HelpCircle className="h-3 w-3 text-foreground/60" />
+            <span className="text-[10px] font-semibold uppercase tracking-wider text-foreground/50">
               Answered — not classified
             </span>
-            <Badge className="bg-amber-500/15 text-amber-400 border-amber-500/25 text-[9px] h-3.5 px-1 ml-1">
+            <Badge className="bg-muted/15 text-foreground border-border/25 text-[9px] h-3.5 px-1 ml-1">
               {unclassified.length}
             </Badge>
           </div>
@@ -366,11 +366,11 @@ export function MissedInboundQueue({ items, unclassified = [], loading, onRefres
       {count > 0 && (
         <div className="flex items-center gap-2 pt-0.5">
           <div className="flex items-center gap-1">
-            <div className="h-1.5 w-1.5 rounded-full bg-red-400" />
+            <div className="h-1.5 w-1.5 rounded-full bg-muted" />
             <span className="text-[9px] text-muted-foreground/40">&lt;30m</span>
           </div>
           <div className="flex items-center gap-1">
-            <div className="h-1.5 w-1.5 rounded-full bg-amber-400" />
+            <div className="h-1.5 w-1.5 rounded-full bg-muted" />
             <span className="text-[9px] text-muted-foreground/40">&lt;4h</span>
           </div>
           <div className="flex items-center gap-1">

@@ -36,8 +36,8 @@ function openLead(leadId: string) {
 
 function actionUrgencyClass(urgency?: UrgencyLevel): string {
   switch (urgency) {
-    case "critical": return "text-red-400";
-    case "high": return "text-amber-300";
+    case "critical": return "text-foreground";
+    case "high": return "text-foreground";
     case "normal": return "text-muted-foreground/70";
     default: return "text-muted-foreground/50";
   }
@@ -71,9 +71,9 @@ function QueueRow({
         <span
           className={
             due.overdue
-              ? "text-red-400 font-semibold shrink-0"
+              ? "text-foreground font-semibold shrink-0"
               : due.urgent
-                ? "text-yellow-300 shrink-0"
+                ? "text-foreground shrink-0"
                 : "text-muted-foreground shrink-0"
           }
         >

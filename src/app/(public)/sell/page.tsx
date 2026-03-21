@@ -18,7 +18,7 @@ export const metadata: Metadata = {
 
 function SectionHeading({ children }: { children: React.ReactNode }) {
   return (
-    <h2 className="text-xl font-semibold text-gray-800 mb-3">{children}</h2>
+    <h2 className="text-xl font-semibold text-foreground mb-3">{children}</h2>
   );
 }
 
@@ -33,12 +33,12 @@ function Step({
 }) {
   return (
     <div className="flex gap-4">
-      <div className="flex-shrink-0 w-8 h-8 rounded-full bg-emerald-50 border border-emerald-200 flex items-center justify-center text-sm font-semibold text-emerald-700">
+      <div className="flex-shrink-0 w-8 h-8 rounded-full bg-muted border border-border flex items-center justify-center text-sm font-semibold text-foreground">
         {number}
       </div>
       <div className="pt-0.5">
-        <p className="font-medium text-gray-800">{title}</p>
-        <p className="text-gray-500 text-sm mt-0.5 leading-relaxed">{description}</p>
+        <p className="font-medium text-foreground">{title}</p>
+        <p className="text-foreground text-sm mt-0.5 leading-relaxed">{description}</p>
       </div>
     </div>
   );
@@ -50,18 +50,18 @@ export default function HowItWorksPage() {
 
       {/* ── Hero ── */}
       <section className="space-y-4">
-        <p className="text-sm font-medium text-emerald-700 tracking-wide uppercase">Spokane County &amp; Kootenai County</p>
-        <h1 className="text-3xl sm:text-4xl font-bold text-gray-900 leading-tight">
+        <p className="text-sm font-medium text-foreground tracking-wide uppercase">Spokane County &amp; Kootenai County</p>
+        <h1 className="text-3xl sm:text-4xl font-bold text-foreground leading-tight">
           Sell your house for cash.<br className="hidden sm:block" /> Simple, fast, no surprises.
         </h1>
-        <p className="text-lg text-gray-500 leading-relaxed max-w-xl">
+        <p className="text-lg text-foreground leading-relaxed max-w-xl">
           We&rsquo;re Dominion Home Deals — a local buyer based here in Spokane.
           We buy houses directly with cash, no agents, no commissions, no repairs needed.
           You decide if it works for you. No pressure.
         </p>
         <a
           href="tel:+15098001234"
-          className="inline-flex items-center gap-2 bg-emerald-700 hover:bg-emerald-800 text-white text-sm font-medium px-5 py-2.5 rounded-lg transition-colors"
+          className="inline-flex items-center gap-2 bg-muted hover:bg-muted text-white text-sm font-medium px-5 py-2.5 rounded-lg transition-colors"
         >
           Call us: (509) 800-1234
         </a>
@@ -109,9 +109,9 @@ export default function HowItWorksPage() {
             { label: "No waiting on financing", detail: "Cash means no loan approval delays. No deal falling through at the last minute." },
             { label: "Flexible closing", detail: "We close when it works for you — fast if needed, slower if you're still sorting things out." },
           ].map(({ label, detail }) => (
-            <div key={label} className="rounded-xl border border-gray-100 bg-gray-50 p-4">
-              <p className="font-medium text-gray-800 text-sm">{label}</p>
-              <p className="text-gray-500 text-sm mt-1 leading-relaxed">{detail}</p>
+            <div key={label} className="rounded-xl border border-border bg-muted p-4">
+              <p className="font-medium text-foreground text-sm">{label}</p>
+              <p className="text-foreground text-sm mt-1 leading-relaxed">{detail}</p>
             </div>
           ))}
         </div>
@@ -120,9 +120,9 @@ export default function HowItWorksPage() {
       {/* ── Where we buy ── */}
       <section className="space-y-3">
         <SectionHeading>Where we buy</SectionHeading>
-        <p className="text-gray-500 leading-relaxed">
-          We buy primarily in <strong className="text-gray-700">Spokane County, WA</strong> and{" "}
-          <strong className="text-gray-700">Kootenai County, ID</strong> — including Spokane, Spokane Valley,
+        <p className="text-foreground leading-relaxed">
+          We buy primarily in <strong className="text-foreground">Spokane County, WA</strong> and{" "}
+          <strong className="text-foreground">Kootenai County, ID</strong> — including Spokane, Spokane Valley,
           Coeur d&rsquo;Alene, Post Falls, and surrounding areas. We know the neighborhoods and we know the market.
           We&rsquo;re not an out-of-state fund — we&rsquo;re local.
         </p>
@@ -150,30 +150,30 @@ export default function HowItWorksPage() {
               a: "We can move as fast as a few weeks if needed. We can also slow down if you need time to sort things out. We work around your schedule.",
             },
           ].map(({ q, a }) => (
-            <div key={q} className="border-b border-gray-100 pb-4">
-              <p className="font-medium text-gray-800">{q}</p>
-              <p className="text-gray-500 text-sm mt-1 leading-relaxed">{a}</p>
+            <div key={q} className="border-b border-border pb-4">
+              <p className="font-medium text-foreground">{q}</p>
+              <p className="text-foreground text-sm mt-1 leading-relaxed">{a}</p>
             </div>
           ))}
         </div>
-        <p className="text-sm text-gray-400">
+        <p className="text-sm text-foreground">
           Have a different situation?{" "}
-          <a href="/sell/inherited" className="text-emerald-700 hover:underline">
+          <a href="/sell/inherited" className="text-foreground hover:underline">
             See our inherited property page →
           </a>
         </p>
       </section>
 
       {/* ── CTA ── */}
-      <section className="rounded-2xl bg-emerald-50 border border-emerald-100 px-6 py-8 space-y-3">
-        <p className="font-semibold text-gray-800 text-lg">Ready to talk?</p>
-        <p className="text-gray-500 text-sm leading-relaxed">
+      <section className="rounded-2xl bg-muted border border-border px-6 py-8 space-y-3">
+        <p className="font-semibold text-foreground text-lg">Ready to talk?</p>
+        <p className="text-foreground text-sm leading-relaxed">
           Call us directly — we&rsquo;ll ask a few questions about the property and give you a straight answer.
           No obligation, no sales pitch.
         </p>
         <a
           href="tel:+15098001234"
-          className="inline-flex items-center gap-2 bg-emerald-700 hover:bg-emerald-800 text-white text-sm font-medium px-5 py-2.5 rounded-lg transition-colors"
+          className="inline-flex items-center gap-2 bg-muted hover:bg-muted text-white text-sm font-medium px-5 py-2.5 rounded-lg transition-colors"
         >
           (509) 800-1234
         </a>

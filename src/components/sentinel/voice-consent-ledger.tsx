@@ -133,9 +133,9 @@ function EntryRow({
       isDone
         ? "border-white/[0.03] bg-white/[0.005]"
         : entry.risk_tier === "high"
-          ? "border-red-500/20 bg-red-500/[0.02]"
+          ? "border-border/20 bg-muted/[0.02]"
           : entry.risk_tier === "review"
-            ? "border-orange-500/20 bg-orange-500/[0.02]"
+            ? "border-border/20 bg-muted/[0.02]"
             : "border-white/[0.05] bg-white/[0.01]"
     }`}>
       <button
@@ -148,10 +148,10 @@ function EntryRow({
           {(VOICE_INTERACTION_LABELS as Record<string, string>)[entry.interaction_type] ?? entry.interaction_type}
         </span>
         {entry.dnc_flag && (
-          <span className="text-[8px] px-1 rounded border border-red-500/40 bg-red-500/10 text-red-400 shrink-0">DNC</span>
+          <span className="text-[8px] px-1 rounded border border-border/40 bg-muted/10 text-foreground shrink-0">DNC</span>
         )}
         {entry.ai_assisted && (
-          <span className="text-[8px] px-1 rounded border border-blue-500/30 bg-blue-500/10 text-blue-400 shrink-0">AI</span>
+          <span className="text-[8px] px-1 rounded border border-border/30 bg-muted/10 text-foreground shrink-0">AI</span>
         )}
         <span className="text-[9px] text-muted-foreground/30 shrink-0">
           {new Date(entry.created_at).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
@@ -276,7 +276,7 @@ function EntryRow({
                   type="button"
                   disabled={saving}
                   onClick={() => handleAction("reviewed")}
-                  className="flex items-center gap-1 rounded-[6px] border border-emerald-500/30 bg-emerald-500/[0.06] px-2 py-1 text-[9px] text-emerald-400 hover:bg-emerald-500/[0.12] transition-colors"
+                  className="flex items-center gap-1 rounded-[6px] border border-border/30 bg-muted/[0.06] px-2 py-1 text-[9px] text-foreground hover:bg-muted/[0.12] transition-colors"
                 >
                   {saving ? <Loader2 className="h-2.5 w-2.5 animate-spin" /> : <CheckCircle2 className="h-2.5 w-2.5" />}
                   Reviewed
@@ -285,7 +285,7 @@ function EntryRow({
                   type="button"
                   disabled={saving}
                   onClick={() => handleAction("corrected")}
-                  className="flex items-center gap-1 rounded-[6px] border border-blue-500/30 bg-blue-500/[0.06] px-2 py-1 text-[9px] text-blue-400 hover:bg-blue-500/[0.12] transition-colors"
+                  className="flex items-center gap-1 rounded-[6px] border border-border/30 bg-muted/[0.06] px-2 py-1 text-[9px] text-foreground hover:bg-muted/[0.12] transition-colors"
                 >
                   Corrected
                 </button>
@@ -357,7 +357,7 @@ export function VoiceConsentLedger({ days = 14, className = "" }: VoiceConsentLe
   return (
     <div className={`rounded-[12px] border ${
       highCount > 0
-        ? "border-red-500/20 bg-red-500/[0.01]"
+        ? "border-border/20 bg-muted/[0.01]"
         : "border-white/[0.06] bg-white/[0.01]"
     } ${className}`}>
       {/* Header */}
@@ -366,7 +366,7 @@ export function VoiceConsentLedger({ days = 14, className = "" }: VoiceConsentLe
         className="w-full flex items-center gap-2 px-3 py-2.5 text-left hover:bg-white/[0.02] transition-colors"
         onClick={() => setOpen(o => !o)}
       >
-        <ShieldAlert className={`h-3.5 w-3.5 shrink-0 ${highCount > 0 ? "text-red-400/70" : "text-muted-foreground/40"}`} />
+        <ShieldAlert className={`h-3.5 w-3.5 shrink-0 ${highCount > 0 ? "text-foreground/70" : "text-muted-foreground/40"}`} />
         <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/60">
           Voice Policy Ledger
         </span>
@@ -376,12 +376,12 @@ export function VoiceConsentLedger({ days = 14, className = "" }: VoiceConsentLe
         {!loading && data && (
           <span className="ml-auto flex items-center gap-1.5 text-[9px] text-muted-foreground/35">
             {highCount > 0 && (
-              <span className="px-1.5 py-0.5 rounded border border-red-500/30 bg-red-500/10 text-red-400 text-[8px]">
+              <span className="px-1.5 py-0.5 rounded border border-border/30 bg-muted/10 text-foreground text-[8px]">
                 {highCount} high
               </span>
             )}
             {pendingCount > 0 && (
-              <span className="px-1.5 py-0.5 rounded border border-orange-500/30 bg-orange-500/10 text-orange-400 text-[8px]">
+              <span className="px-1.5 py-0.5 rounded border border-border/30 bg-muted/10 text-foreground text-[8px]">
                 {pendingCount} pending
               </span>
             )}
@@ -411,7 +411,7 @@ export function VoiceConsentLedger({ days = 14, className = "" }: VoiceConsentLe
           )}
 
           {error && (
-            <p className="text-[10px] text-red-400">{error}</p>
+            <p className="text-[10px] text-foreground">{error}</p>
           )}
 
           {!loading && !error && data && data.rows.length === 0 && (

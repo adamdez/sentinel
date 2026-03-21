@@ -66,9 +66,9 @@ export const EVAL_VERDICT_LABELS: Record<EvalVerdict, string> = {
 };
 
 export const EVAL_VERDICT_COLORS: Record<EvalVerdict, string> = {
-  good:       "bg-emerald-500/10 text-emerald-400 border-emerald-500/20",
-  needs_work: "bg-amber-500/10 text-amber-400 border-amber-500/20",
-  incorrect:  "bg-red-500/10 text-red-400 border-red-500/20",
+  good:       "bg-muted/10 text-foreground border-border/20",
+  needs_work: "bg-muted/10 text-foreground border-border/20",
+  incorrect:  "bg-muted/10 text-foreground border-border/20",
 };
 
 // ── Rubric dimensions ─────────────────────────────────────────────────────────
@@ -106,14 +106,14 @@ export const EVAL_RUBRIC_LABELS: Record<EvalRubricDimension, string> = {
 };
 
 export const EVAL_RUBRIC_COLORS: Record<EvalRubricDimension, string> = {
-  useful_and_accurate: "bg-emerald-500/10 text-emerald-400 border-emerald-500/20",
-  missing_key_fact:    "bg-amber-500/10 text-amber-400 border-amber-500/20",
-  hallucinated_fact:   "bg-red-500/10 text-red-400 border-red-500/20",
-  wrong_tone:          "bg-red-500/10 text-red-400 border-red-500/20",
-  wrong_routing:       "bg-red-500/10 text-red-400 border-red-500/20",
-  incomplete_output:   "bg-amber-500/10 text-amber-400 border-amber-500/20",
-  low_relevance:       "bg-gray-500/10 text-gray-400 border-gray-500/20",
-  other:               "bg-gray-500/10 text-gray-400 border-gray-500/20",
+  useful_and_accurate: "bg-muted/10 text-foreground border-border/20",
+  missing_key_fact:    "bg-muted/10 text-foreground border-border/20",
+  hallucinated_fact:   "bg-muted/10 text-foreground border-border/20",
+  wrong_tone:          "bg-muted/10 text-foreground border-border/20",
+  wrong_routing:       "bg-muted/10 text-foreground border-border/20",
+  incomplete_output:   "bg-muted/10 text-foreground border-border/20",
+  low_relevance:       "bg-muted/10 text-foreground border-border/20",
+  other:               "bg-muted/10 text-foreground border-border/20",
 };
 
 /**

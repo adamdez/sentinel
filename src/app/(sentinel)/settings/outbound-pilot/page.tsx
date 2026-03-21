@@ -52,13 +52,13 @@ async function authHeaders(): Promise<Record<string, string>> {
 
 function PilotStatusBanner() {
   return (
-    <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 px-4 py-3 flex items-start gap-3">
-      <ShieldAlert className="w-4 h-4 text-amber-400 mt-0.5 flex-shrink-0" />
+    <div className="rounded-xl border border-border/20 bg-muted/5 px-4 py-3 flex items-start gap-3">
+      <ShieldAlert className="w-4 h-4 text-foreground mt-0.5 flex-shrink-0" />
       <div className="space-y-1 min-w-0">
-        <p className="text-sm font-semibold text-amber-300">
+        <p className="text-sm font-semibold text-foreground">
           PREP ONLY — No live calls
         </p>
-        <p className="text-xs text-amber-400/70 leading-relaxed">
+        <p className="text-xs text-foreground/70 leading-relaxed">
           This surface assembles and reviews hypothetical outbound warm-transfer prep frames.
           No calls are placed, no Twilio connections are initiated, and no autonomous outbound
           automation is active. Activating a live pilot requires an explicit database migration,
@@ -77,7 +77,7 @@ function ReadinessSummaryCard({ summary }: { summary: PilotReadinessSummary }) {
       <div className="flex items-center gap-2">
         <BarChart2 className="w-4 h-4 text-muted-foreground/50" />
         <h3 className="text-sm font-semibold text-foreground/80">Pilot Readiness Summary</h3>
-        <Badge variant="outline" className="text-[9px] border-amber-500/30 text-amber-400 bg-amber-500/5">
+        <Badge variant="outline" className="text-[9px] border-border/30 text-foreground bg-muted/5">
           Hypothetical
         </Badge>
       </div>
@@ -85,9 +85,9 @@ function ReadinessSummaryCard({ summary }: { summary: PilotReadinessSummary }) {
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         {[
           { label: "Total frames",     value: summary.totalFrames,    color: "" },
-          { label: "Ready",            value: summary.readyFrames,    color: "text-emerald-400" },
-          { label: "Not ready",        value: summary.notReadyFrames, color: "text-red-400" },
-          { label: "Ready %",          value: summary.readyPct != null ? `${summary.readyPct}%` : "—", color: summary.readyPct != null && summary.readyPct >= 60 ? "text-emerald-400" : "text-amber-400" },
+          { label: "Ready",            value: summary.readyFrames,    color: "text-foreground" },
+          { label: "Not ready",        value: summary.notReadyFrames, color: "text-foreground" },
+          { label: "Ready %",          value: summary.readyPct != null ? `${summary.readyPct}%` : "—", color: summary.readyPct != null && summary.readyPct >= 60 ? "text-foreground" : "text-foreground" },
         ].map(({ label, value, color }) => (
           <div key={label} className="bg-white/[0.02] rounded-lg p-2.5 space-y-0.5">
             <p className={`text-lg font-bold ${color || "text-foreground/80"}`}>{value}</p>
@@ -99,8 +99,8 @@ function ReadinessSummaryCard({ summary }: { summary: PilotReadinessSummary }) {
       <div className="grid grid-cols-3 gap-3">
         {[
           { label: "Pending review", value: summary.pendingReview,  color: "text-muted-foreground/70" },
-          { label: "Approved",       value: summary.approvedFrames, color: "text-emerald-400" },
-          { label: "Flagged",        value: summary.flaggedFrames,  color: "text-amber-400" },
+          { label: "Approved",       value: summary.approvedFrames, color: "text-foreground" },
+          { label: "Flagged",        value: summary.flaggedFrames,  color: "text-foreground" },
         ].map(({ label, value, color }) => (
           <div key={label} className="bg-white/[0.02] rounded-lg p-2 space-y-0.5">
             <p className={`text-base font-semibold ${color}`}>{value}</p>
@@ -115,7 +115,7 @@ function ReadinessSummaryCard({ summary }: { summary: PilotReadinessSummary }) {
           <div className="space-y-1">
             {summary.topFallbackReasons.map(({ reason, count }) => (
               <div key={reason} className="flex items-start gap-2 text-[10px]">
-                <XCircle className="w-2.5 h-2.5 text-red-400/60 mt-0.5 flex-shrink-0" />
+                <XCircle className="w-2.5 h-2.5 text-foreground/60 mt-0.5 flex-shrink-0" />
                 <span className="text-muted-foreground/70 flex-1 leading-snug">{reason}</span>
                 <span className="text-muted-foreground/40">{count}×</span>
               </div>
@@ -152,7 +152,7 @@ function PilotConfigNotes() {
             <span className="font-medium text-muted-foreground/80">Voice registry</span> — register an{" "}
             active <code className="text-[10px] bg-white/[0.05] px-1 rounded">outbound_opener</code>{" "}
             script version in{" "}
-            <Link href="/settings/voice-registry" className="text-blue-400 hover:underline">
+            <Link href="/settings/voice-registry" className="text-foreground hover:underline">
               voice registry
             </Link>
             .
@@ -161,7 +161,7 @@ function PilotConfigNotes() {
             <span className="font-medium text-muted-foreground/80">Voice consent review</span> — all outbound
             leads must have <code className="text-[10px] bg-white/[0.05] px-1 rounded">consent_basis</code>{" "}
             reviewed in the{" "}
-            <Link href="/dialer/review" className="text-blue-400 hover:underline">
+            <Link href="/dialer/review" className="text-foreground hover:underline">
               voice ledger
             </Link>
             .
@@ -171,7 +171,7 @@ function PilotConfigNotes() {
             approved version is{" "}
             <code className="text-[10px] bg-white/[0.05] px-1 rounded">{TRUST_LANGUAGE_VERSION}</code>.
             Review snippets at{" "}
-            <Link href="/settings/trust-language" className="text-blue-400 hover:underline">
+            <Link href="/settings/trust-language" className="text-foreground hover:underline">
               trust language settings
             </Link>
             .
@@ -181,7 +181,7 @@ function PilotConfigNotes() {
             pages must be deployed before outbound links are sent. Current pages:{" "}
             {pages.map((p, i) => (
               <span key={p.key}>
-                <a href={p.url} target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:underline">
+                <a href={p.url} target="_blank" rel="noopener noreferrer" className="text-foreground hover:underline">
                   {p.label}
                 </a>
                 {i < pages.length - 1 ? ", " : ""}
@@ -298,7 +298,7 @@ export default function OutboundPilotPage() {
                   onClick={() => setReadyFilter(f)}
                   className={`text-[10px] px-2 py-0.5 rounded border transition-colors ${
                     readyFilter === f
-                      ? "border-blue-500/40 bg-blue-500/10 text-blue-400"
+                      ? "border-border/40 bg-muted/10 text-foreground"
                       : "border-white/[0.06] text-muted-foreground/50 hover:text-muted-foreground"
                   }`}
                 >
@@ -312,7 +312,7 @@ export default function OutboundPilotPage() {
                   onClick={() => setReviewFilter(f)}
                   className={`text-[10px] px-2 py-0.5 rounded border transition-colors ${
                     reviewFilter === f
-                      ? "border-blue-500/40 bg-blue-500/10 text-blue-400"
+                      ? "border-border/40 bg-muted/10 text-foreground"
                       : "border-white/[0.06] text-muted-foreground/50 hover:text-muted-foreground"
                   }`}
                 >
@@ -323,7 +323,7 @@ export default function OutboundPilotPage() {
           </div>
 
           {error && (
-            <div className="flex items-center gap-2 text-xs text-red-400 bg-red-500/5 border border-red-500/20 rounded-lg px-3 py-2">
+            <div className="flex items-center gap-2 text-xs text-foreground bg-muted/5 border border-border/20 rounded-lg px-3 py-2">
               <AlertTriangle className="w-3 h-3 flex-shrink-0" />
               {error}
             </div>

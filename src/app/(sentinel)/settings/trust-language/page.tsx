@@ -37,10 +37,10 @@ const CONTEXT_LABELS: Record<TrustSnippetContext, string> = {
 };
 
 const CONTEXT_COLORS: Record<TrustSnippetContext, string> = {
-  inbound_first_contact: "bg-emerald-500/10 text-emerald-400 border-emerald-500/20",
-  warm_transfer:         "bg-red-500/10 text-red-400 border-red-500/20",
-  objection_response:    "bg-amber-500/10 text-amber-400 border-amber-500/20",
-  call_strategy:         "bg-cyan/10 text-cyan border-cyan/20",
+  inbound_first_contact: "bg-muted/10 text-foreground border-border/20",
+  warm_transfer:         "bg-muted/10 text-foreground border-border/20",
+  objection_response:    "bg-muted/10 text-foreground border-border/20",
+  call_strategy:         "bg-primary/10 text-primary border-primary/20",
   always_available:      "bg-white/[0.05] text-muted-foreground/50 border-white/[0.08]",
 };
 
@@ -70,7 +70,7 @@ function CopyButton({ text }: { text: string }) {
       className="flex items-center gap-1 rounded-[5px] border border-white/[0.07] bg-white/[0.03] px-2 py-0.5 text-[8px] text-muted-foreground/40 hover:text-muted-foreground/70 hover:border-white/[0.12] transition-colors shrink-0"
     >
       {copied
-        ? <><Check className="h-2.5 w-2.5 text-emerald-400" /> Copied</>
+        ? <><Check className="h-2.5 w-2.5 text-foreground" /> Copied</>
         : <><Copy  className="h-2.5 w-2.5" /> Copy</>
       }
     </button>
@@ -88,7 +88,7 @@ function SnippetCard({ snippet }: { snippet: TrustSnippet }) {
           <div className="flex items-center gap-2 flex-wrap">
             <h3 className="text-[11px] font-semibold text-foreground/80">{snippet.label}</h3>
             {snippet.firstCallPriority && (
-              <Badge variant="outline" className="text-[8px] px-1.5 py-0 bg-emerald-500/10 text-emerald-400 border-emerald-500/20">
+              <Badge variant="outline" className="text-[8px] px-1.5 py-0 bg-muted/10 text-foreground border-border/20">
                 First-call priority
               </Badge>
             )}
@@ -163,7 +163,7 @@ export default function TrustLanguagePage() {
         {/* Version banner */}
         <GlassCard hover={false} className="!p-4">
           <div className="flex items-center gap-3">
-            <MessageSquare className="h-4 w-4 text-cyan/50 shrink-0" />
+            <MessageSquare className="h-4 w-4 text-primary/50 shrink-0" />
             <div className="flex-1">
               <p className="text-[11px] font-semibold text-foreground/80">
                 Seller Language
@@ -194,7 +194,7 @@ export default function TrustLanguagePage() {
               ["Avoid", "Investor-bro language · Fake urgency · Generic guru advice · Enterprise jargon"],
             ].map(([label, value]) => (
               <div key={label} className="col-span-2 flex gap-2">
-                <span className={`font-medium shrink-0 ${label === "Use" ? "text-emerald-400" : "text-red-400"}`}>{label}:</span>
+                <span className={`font-medium shrink-0 ${label === "Use" ? "text-foreground" : "text-foreground"}`}>{label}:</span>
                 <span className="text-muted-foreground/60">{value}</span>
               </div>
             ))}

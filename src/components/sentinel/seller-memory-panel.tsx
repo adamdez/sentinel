@@ -50,11 +50,11 @@ const TIMELINE_LABELS: Record<string, string> = {
 };
 
 const ROUTE_LABELS: Record<string, { label: string; color: string }> = {
-  offer_ready: { label: "Offer Ready",  color: "text-emerald-400" },
-  follow_up:   { label: "Follow Up",    color: "text-cyan" },
-  nurture:     { label: "Nurture",      color: "text-purple-400" },
-  dead:        { label: "Dead",         color: "text-red-400" },
-  escalate:    { label: "Escalate",     color: "text-orange-400" },
+  offer_ready: { label: "Offer Ready",  color: "text-foreground" },
+  follow_up:   { label: "Follow Up",    color: "text-primary" },
+  nurture:     { label: "Nurture",      color: "text-foreground" },
+  dead:        { label: "Dead",         color: "text-foreground" },
+  escalate:    { label: "Escalate",     color: "text-foreground" },
 };
 
 const DISPO_LABELS: Record<string, string> = {
@@ -117,7 +117,7 @@ function MotivationDots({ level }: { level: number | null }) {
           key={n}
           className={`h-2 w-2 rounded-full transition-colors ${
             n <= level
-              ? level >= 4 ? "bg-emerald-400" : level >= 2 ? "bg-cyan" : "bg-zinc-500"
+              ? level >= 4 ? "bg-muted" : level >= 2 ? "bg-primary" : "bg-muted"
               : "bg-white/[0.08]"
           }`}
         />
@@ -132,14 +132,14 @@ function ProvenanceBadge({ source }: { source: "operator" | "ai" | "system" | nu
   if (!source || source === "system") return null;
   if (source === "operator") {
     return (
-      <span title="Operator-confirmed" className="flex items-center gap-0.5 text-[9px] text-cyan/50 font-medium shrink-0">
+      <span title="Operator-confirmed" className="flex items-center gap-0.5 text-[9px] text-primary/50 font-medium shrink-0">
         <Pen className="h-2 w-2" aria-hidden="true" />
         confirmed
       </span>
     );
   }
   return (
-    <span title="AI-derived — not operator-confirmed" className="flex items-center gap-0.5 text-[9px] text-purple-400/50 italic shrink-0">
+    <span title="AI-derived — not operator-confirmed" className="flex items-center gap-0.5 text-[9px] text-foreground/50 italic shrink-0">
       <Sparkles className="h-2 w-2" aria-hidden="true" />
       AI
     </span>
@@ -164,11 +164,11 @@ function CallHistoryRow({ call, index }: { call: CallMemoryEntry; index: number 
         onClick={() => setExpanded((v) => !v)}
         className="w-full flex items-center gap-2 px-2.5 py-1.5 text-left hover:bg-white/[0.02] transition-colors"
       >
-        <span className={`text-[10px] font-semibold shrink-0 ${warn ? "text-orange-400/70" : "text-muted-foreground/60"}`}>
+        <span className={`text-[10px] font-semibold shrink-0 ${warn ? "text-foreground/70" : "text-muted-foreground/60"}`}>
           {fmtDate(call.date)}
         </span>
         {ageLabel && (
-          <span className={`text-[9px] shrink-0 ${warn ? "text-orange-400/50" : "text-muted-foreground/35"}`}>
+          <span className={`text-[9px] shrink-0 ${warn ? "text-foreground/50" : "text-muted-foreground/35"}`}>
             {ageLabel}
           </span>
         )}
@@ -181,10 +181,10 @@ function CallHistoryRow({ call, index }: { call: CallMemoryEntry; index: number 
           <span className="text-[9px] text-muted-foreground/30 shrink-0">{dur}</span>
         )}
         {isAi && hasContent && (
-          <span title="AI summary"><Sparkles className="h-2.5 w-2.5 text-purple-400/40 shrink-0" /></span>
+          <span title="AI summary"><Sparkles className="h-2.5 w-2.5 text-foreground/40 shrink-0" /></span>
         )}
         {!isAi && hasContent && (
-          <span title="Operator notes"><Pen className="h-2.5 w-2.5 text-cyan/40 shrink-0" /></span>
+          <span title="Operator notes"><Pen className="h-2.5 w-2.5 text-primary/40 shrink-0" /></span>
         )}
         {hasContent && (
           expanded
@@ -206,7 +206,7 @@ function CallHistoryRow({ call, index }: { call: CallMemoryEntry; index: number 
             </p>
           )}
           {isAi && (
-            <span className="text-[9px] text-purple-400/40 italic mt-0.5 block">AI summary — not operator-confirmed</span>
+            <span className="text-[9px] text-foreground/40 italic mt-0.5 block">AI summary — not operator-confirmed</span>
           )}
         </div>
       )}
@@ -317,15 +317,15 @@ export function SellerMemoryPanel({ sessionId, context: contextProp, className =
 
   // ── Render ───────────────────────────────────────────────────────────────
   return (
-    <GlassCard hover={false} className={`!p-3 border-purple-500/15 ${className}`}>
+    <GlassCard hover={false} className={`!p-3 border-border/15 ${className}`}>
       {/* ── Header ───────────────────────────────────────────── */}
       <div className="flex items-center gap-1.5 mb-2.5">
-        <Brain className="h-3 w-3 text-purple-400" />
-        <span className="text-[10px] font-semibold uppercase tracking-wider text-purple-400/80">
+        <Brain className="h-3 w-3 text-foreground" />
+        <span className="text-[10px] font-semibold uppercase tracking-wider text-foreground/80">
           Seller Memory
         </span>
         {(loading || memLoading) && (
-          <Loader2 className="h-2.5 w-2.5 animate-spin text-purple-400/40 ml-auto" />
+          <Loader2 className="h-2.5 w-2.5 animate-spin text-foreground/40 ml-auto" />
         )}
       </div>
 
@@ -345,18 +345,18 @@ export function SellerMemoryPanel({ sessionId, context: contextProp, className =
           {/* ── Quick stats strip ─────────────────────────────── */}
           <div className="grid grid-cols-3 gap-1.5">
             <div className="rounded-[8px] bg-white/[0.03] border border-white/[0.04] p-2 text-center">
-              <Phone className="h-2.5 w-2.5 text-cyan/50 mx-auto mb-0.5" />
+              <Phone className="h-2.5 w-2.5 text-primary/50 mx-auto mb-0.5" />
               <p className="text-sm font-bold text-foreground">{context.totalCalls}</p>
               <p className="text-[9px] text-muted-foreground/50 uppercase">Calls</p>
             </div>
             <div className="rounded-[8px] bg-white/[0.03] border border-white/[0.04] p-2 text-center">
-              <TrendingUp className="h-2.5 w-2.5 text-emerald-400/50 mx-auto mb-0.5" />
+              <TrendingUp className="h-2.5 w-2.5 text-foreground/50 mx-auto mb-0.5" />
               <p className="text-sm font-bold text-foreground">{context.liveAnswers}</p>
               <p className="text-[9px] text-muted-foreground/50 uppercase">Answered</p>
             </div>
-            <div className={`rounded-[8px] bg-white/[0.03] border p-2 text-center ${contactWarn ? "border-orange-500/20" : "border-white/[0.04]"}`}>
-              <Clock className={`h-2.5 w-2.5 mx-auto mb-0.5 ${contactWarn ? "text-orange-400/60" : "text-orange-400/40"}`} />
-              <p className={`text-[10px] font-semibold truncate ${contactWarn ? "text-orange-400/80" : "text-foreground"}`}>
+            <div className={`rounded-[8px] bg-white/[0.03] border p-2 text-center ${contactWarn ? "border-border/20" : "border-white/[0.04]"}`}>
+              <Clock className={`h-2.5 w-2.5 mx-auto mb-0.5 ${contactWarn ? "text-foreground/60" : "text-foreground/40"}`} />
+              <p className={`text-[10px] font-semibold truncate ${contactWarn ? "text-foreground/80" : "text-foreground"}`}>
                 {lastContactDays !== null
                   ? lastContactDays === 0 ? "Today" : `${lastContactDays}d`
                   : context.lastCallDate
@@ -369,17 +369,17 @@ export function SellerMemoryPanel({ sessionId, context: contextProp, className =
 
           {/* ── Open task (promised follow-up) ────────────────── */}
           {context.openTaskTitle && (
-            <div className="flex items-start gap-1.5 rounded-[8px] bg-amber-500/[0.06] border border-amber-500/20 px-2.5 py-1.5">
-              <CheckSquare className="h-3 w-3 text-amber-400/70 shrink-0 mt-0.5" />
+            <div className="flex items-start gap-1.5 rounded-[8px] bg-muted/[0.06] border border-border/20 px-2.5 py-1.5">
+              <CheckSquare className="h-3 w-3 text-foreground/70 shrink-0 mt-0.5" />
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-1">
-                  <p className="text-[11px] text-amber-300/90 font-medium leading-snug truncate flex-1">
+                  <p className="text-[11px] text-foreground/90 font-medium leading-snug truncate flex-1">
                     {context.openTaskTitle}
                   </p>
-                  <span className="text-[9px] text-amber-400/40 shrink-0 uppercase tracking-wide">promised</span>
+                  <span className="text-[9px] text-foreground/40 shrink-0 uppercase tracking-wide">promised</span>
                 </div>
                 {context.openTaskDueAt && (
-                  <p className="text-[10px] text-amber-400/50 mt-0.5">
+                  <p className="text-[10px] text-foreground/50 mt-0.5">
                     Due {fmtDateTime(context.openTaskDueAt)}
                   </p>
                 )}
@@ -389,9 +389,9 @@ export function SellerMemoryPanel({ sessionId, context: contextProp, className =
 
           {/* ── Scheduled callback ────────────────────────────── */}
           {context.nextCallScheduledAt && (
-            <div className="flex items-center gap-1.5 rounded-[8px] bg-cyan/[0.04] border border-cyan/15 px-2.5 py-1.5">
-              <CalendarClock className="h-3 w-3 text-cyan/60 shrink-0" />
-              <span className="text-[11px] text-cyan/80">
+            <div className="flex items-center gap-1.5 rounded-[8px] bg-primary/[0.04] border border-primary/15 px-2.5 py-1.5">
+              <CalendarClock className="h-3 w-3 text-primary/60 shrink-0" />
+              <span className="text-[11px] text-primary/80">
                 Callback: {fmtDateTime(context.nextCallScheduledAt)}
               </span>
             </div>
@@ -402,44 +402,44 @@ export function SellerMemoryPanel({ sessionId, context: contextProp, className =
               recent post_call_structures row (via call-memory API). Only
               shows when at least one structured field exists. */}
           {(memory?.lastCallPromises || memory?.lastCallObjection || memory?.lastCallNextAction || memory?.lastCallCallbackTiming || memory?.lastCallDealTemperature) && (
-            <div className="rounded-[8px] bg-cyan/[0.03] border border-cyan/10 px-2.5 py-1.5 space-y-1">
+            <div className="rounded-[8px] bg-primary/[0.03] border border-primary/10 px-2.5 py-1.5 space-y-1">
               {memory.lastCallPromises && (
                 <div className="flex items-start gap-1.5">
-                  <Handshake className="h-3 w-3 text-cyan/50 shrink-0 mt-0.5" />
+                  <Handshake className="h-3 w-3 text-primary/50 shrink-0 mt-0.5" />
                   <div className="min-w-0 flex-1">
-                    <span className="text-[9px] font-semibold uppercase tracking-wider text-cyan/40">Promised</span>
+                    <span className="text-[9px] font-semibold uppercase tracking-wider text-primary/40">Promised</span>
                     <p className="text-[11px] text-foreground/75 leading-snug">{memory.lastCallPromises}</p>
                   </div>
                 </div>
               )}
               {memory.lastCallNextAction && (
                 <div className="flex items-start gap-1.5">
-                  <ArrowRight className="h-3 w-3 text-emerald-400/50 shrink-0 mt-0.5" />
+                  <ArrowRight className="h-3 w-3 text-foreground/50 shrink-0 mt-0.5" />
                   <div className="min-w-0 flex-1">
-                    <span className="text-[9px] font-semibold uppercase tracking-wider text-emerald-400/40">Next action</span>
+                    <span className="text-[9px] font-semibold uppercase tracking-wider text-foreground/40">Next action</span>
                     <p className="text-[11px] text-foreground/75 leading-snug">{memory.lastCallNextAction}</p>
                   </div>
                 </div>
               )}
               {memory.lastCallCallbackTiming && (
                 <div className="flex items-start gap-1.5">
-                  <CalendarClock className="h-3 w-3 text-cyan/50 shrink-0 mt-0.5" />
+                  <CalendarClock className="h-3 w-3 text-primary/50 shrink-0 mt-0.5" />
                   <div className="min-w-0 flex-1">
-                    <span className="text-[9px] font-semibold uppercase tracking-wider text-cyan/40">Best callback timing</span>
+                    <span className="text-[9px] font-semibold uppercase tracking-wider text-primary/40">Best callback timing</span>
                     <p className="text-[11px] text-foreground/75 leading-snug">{memory.lastCallCallbackTiming}</p>
                   </div>
                 </div>
               )}
               {memory.lastCallDealTemperature && (
                 <div className="flex items-center gap-1.5">
-                  <Thermometer className="h-3 w-3 text-orange-400/50 shrink-0" />
-                  <span className="text-[9px] font-semibold uppercase tracking-wider text-orange-400/40">Temp</span>
+                  <Thermometer className="h-3 w-3 text-foreground/50 shrink-0" />
+                  <span className="text-[9px] font-semibold uppercase tracking-wider text-foreground/40">Temp</span>
                   <span className={`text-[10px] font-semibold ${
-                    memory.lastCallDealTemperature === "hot"  ? "text-red-400" :
-                    memory.lastCallDealTemperature === "warm" ? "text-orange-400" :
-                    memory.lastCallDealTemperature === "cool" ? "text-blue-400" :
-                    memory.lastCallDealTemperature === "cold" ? "text-slate-400" :
-                    "text-zinc-500"
+                    memory.lastCallDealTemperature === "hot"  ? "text-foreground" :
+                    memory.lastCallDealTemperature === "warm" ? "text-foreground" :
+                    memory.lastCallDealTemperature === "cool" ? "text-foreground" :
+                    memory.lastCallDealTemperature === "cold" ? "text-foreground" :
+                    "text-foreground"
                   }`}>
                     {memory.lastCallDealTemperature.charAt(0).toUpperCase() + memory.lastCallDealTemperature.slice(1)}
                   </span>
@@ -450,10 +450,10 @@ export function SellerMemoryPanel({ sessionId, context: contextProp, className =
 
           {/* ── Open objections ───────────────────────────────── */}
           {objections.length > 0 && (
-            <div className="rounded-[8px] bg-orange-500/[0.04] border border-orange-500/15 px-2.5 py-1.5">
+            <div className="rounded-[8px] bg-muted/[0.04] border border-border/15 px-2.5 py-1.5">
               <div className="flex items-center gap-1 mb-1">
-                <AlertTriangle className="h-2.5 w-2.5 text-orange-400/60 shrink-0" />
-                <span className="text-[9px] font-semibold uppercase tracking-wider text-orange-400/60">
+                <AlertTriangle className="h-2.5 w-2.5 text-foreground/60 shrink-0" />
+                <span className="text-[9px] font-semibold uppercase tracking-wider text-foreground/60">
                   Still blocking
                 </span>
               </div>
@@ -467,8 +467,8 @@ export function SellerMemoryPanel({ sessionId, context: contextProp, className =
                       title={obj.note ? `${obj.note} (${age2}d ago)` : `${age2}d ago`}
                       className={`inline-flex items-center rounded-[5px] border px-1.5 py-0.5 text-[10px] font-medium ${
                         objWarn
-                          ? "bg-orange-500/15 border-orange-500/30 text-orange-400/70"
-                          : "bg-orange-500/10 border-orange-500/20 text-orange-300/80"
+                          ? "bg-muted/15 border-border/30 text-foreground/70"
+                          : "bg-muted/10 border-border/20 text-foreground/80"
                       }`}
                     >
                       {OBJECTION_TAG_LABELS[obj.tag as ObjectionTag] ?? obj.tag}
@@ -482,11 +482,11 @@ export function SellerMemoryPanel({ sessionId, context: contextProp, className =
 
           {/* ── Decision-maker note ───────────────────────────── */}
           {memory?.decisionMakerNote && (
-            <div className="flex items-start gap-1.5 rounded-[8px] bg-purple-500/[0.04] border border-purple-500/15 px-2.5 py-1.5">
-              <User className="h-3 w-3 text-purple-400/60 shrink-0 mt-0.5" />
+            <div className="flex items-start gap-1.5 rounded-[8px] bg-muted/[0.04] border border-border/15 px-2.5 py-1.5">
+              <User className="h-3 w-3 text-foreground/60 shrink-0 mt-0.5" />
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-1.5 mb-0.5">
-                  <span className="text-[9px] font-semibold uppercase tracking-wider text-purple-400/50">
+                  <span className="text-[9px] font-semibold uppercase tracking-wider text-foreground/50">
                     Decision-maker
                   </span>
                   <ProvenanceBadge source={memory.decisionMakerSource} />
@@ -510,8 +510,8 @@ export function SellerMemoryPanel({ sessionId, context: contextProp, className =
                 onClick={() => setHistoryOpen((v) => !v)}
                 className="w-full flex items-center gap-1.5 mb-1 hover:opacity-80 transition-opacity"
               >
-                <MessageSquare className="h-2.5 w-2.5 text-cyan/50 shrink-0" />
-                <span className="text-[9px] font-semibold uppercase tracking-wider text-cyan/50 flex-1 text-left">
+                <MessageSquare className="h-2.5 w-2.5 text-primary/50 shrink-0" />
+                <span className="text-[9px] font-semibold uppercase tracking-wider text-primary/50 flex-1 text-left">
                   Call history ({memory!.recentCalls.length})
                 </span>
                 {memLoading && <Loader2 className="h-2.5 w-2.5 animate-spin text-muted-foreground/30" />}
@@ -538,8 +538,8 @@ export function SellerMemoryPanel({ sessionId, context: contextProp, className =
               {context.lastCallNotes ? (
                 <div className="space-y-1">
                   <div className="flex items-center gap-1">
-                    <Pen className="h-2.5 w-2.5 text-cyan/50 shrink-0" />
-                    <span className="text-[9px] font-semibold uppercase tracking-wider text-cyan/50">Last call</span>
+                    <Pen className="h-2.5 w-2.5 text-primary/50 shrink-0" />
+                    <span className="text-[9px] font-semibold uppercase tracking-wider text-primary/50">Last call</span>
                   </div>
                   <p className="text-[11px] text-foreground/75 leading-relaxed line-clamp-4">
                     {context.lastCallNotes}
@@ -548,8 +548,8 @@ export function SellerMemoryPanel({ sessionId, context: contextProp, className =
               ) : (
                 <div className="space-y-1">
                   <div className="flex items-center gap-1">
-                    <Sparkles className="h-2.5 w-2.5 text-purple-400/50 shrink-0" />
-                    <span className="text-[9px] font-semibold uppercase tracking-wider text-purple-400/50">
+                    <Sparkles className="h-2.5 w-2.5 text-foreground/50 shrink-0" />
+                    <span className="text-[9px] font-semibold uppercase tracking-wider text-foreground/50">
                       AI summary (unreviewed)
                     </span>
                   </div>

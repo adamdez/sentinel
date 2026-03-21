@@ -13,26 +13,26 @@ interface ClientFileHeaderProps {
 
 const URGENCY_STYLES = {
   critical: {
-    border: "border-red-500/25",
-    bg: "bg-red-500/[0.06]",
-    accent: "bg-red-500/50",
-    label: "text-red-400/80",
-    text: "text-red-300",
+    border: "border-border/25",
+    bg: "bg-muted/[0.06]",
+    accent: "bg-muted/50",
+    label: "text-foreground/80",
+    text: "text-foreground",
     icon: AlertTriangle,
   },
   high: {
-    border: "border-amber-500/25",
-    bg: "bg-amber-500/[0.06]",
-    accent: "bg-amber-500/50",
-    label: "text-amber-400/80",
-    text: "text-amber-300",
+    border: "border-border/25",
+    bg: "bg-muted/[0.06]",
+    accent: "bg-muted/50",
+    label: "text-foreground/80",
+    text: "text-foreground",
     icon: AlertCircle,
   },
   normal: {
-    border: "border-cyan/20",
-    bg: "bg-cyan/[0.03]",
-    accent: "bg-cyan/40",
-    label: "text-cyan/70",
+    border: "border-primary/20",
+    bg: "bg-primary/[0.03]",
+    accent: "bg-primary/40",
+    label: "text-primary/70",
     text: "text-foreground/70",
     icon: Clock,
   },
@@ -57,7 +57,7 @@ export function ClientFileHeader({ ownerName, address, distressSignals, suggeste
         {/* Distress Badges */}
         <div className="flex flex-col gap-2 items-end">
           {distressSignals.map((signal) => (
-            <Badge key={signal} variant="destructive" className="bg-red-500/10 text-red-400 hover:bg-red-500/20 shadow-none border-red-500/20 py-1 flex items-center gap-1.5">
+            <Badge key={signal} variant="destructive" className="bg-muted/10 text-foreground hover:bg-muted/20 shadow-none border-border/20 py-1 flex items-center gap-1.5">
                <AlertTriangle className="w-3 h-3"/>
                {signal.replace("_", " ").toUpperCase()}
             </Badge>
@@ -86,9 +86,9 @@ export function ClientFileHeader({ ownerName, address, distressSignals, suggeste
 
       {/* Suggested Hook */}
       {suggestedOpener && (
-        <div className="mt-4 p-4 rounded-xl border border-purple-500/20 bg-purple-500/5 relative overflow-hidden group">
-          <div className="absolute inset-y-0 left-0 w-1 bg-purple-500/50" />
-          <p className="text-[10px] text-purple-400/80 font-mono font-bold tracking-widest uppercase mb-1 flex items-center gap-1.5">
+        <div className="mt-4 p-4 rounded-xl border border-border/20 bg-muted/5 relative overflow-hidden group">
+          <div className="absolute inset-y-0 left-0 w-1 bg-muted/50" />
+          <p className="text-[10px] text-foreground/80 font-mono font-bold tracking-widest uppercase mb-1 flex items-center gap-1.5">
             <ShieldAlert className="w-3 h-3" /> Connect Hook
           </p>
           <p className="text-sm font-medium italic text-foreground/90 leading-relaxed max-w-2xl">

@@ -157,10 +157,10 @@ export default function DossierQueuePage() {
               Back to review
             </Link>
             <div className="flex items-center gap-2">
-              <FileText className="h-5 w-5 text-amber-600 dark:text-amber-400" />
+              <FileText className="h-5 w-5 text-foreground dark:text-foreground" />
               <h1 className="text-xl font-semibold tracking-tight">Dossier Review Queue</h1>
               {pendingCount != null && pendingCount > 0 && (
-                <Badge className="bg-amber-500 text-white text-xs">{pendingCount}</Badge>
+                <Badge className="bg-muted text-white text-xs">{pendingCount}</Badge>
               )}
             </div>
             <p className="text-sm text-muted-foreground mt-0.5">
@@ -183,7 +183,7 @@ export default function DossierQueuePage() {
         {/* ── Promotion rule callout ── */}
         <GlassCard className="p-3">
           <div className="flex items-start gap-2 text-xs text-muted-foreground">
-            <ShieldCheck className="h-3.5 w-3.5 shrink-0 mt-0.5 text-amber-500" />
+            <ShieldCheck className="h-3.5 w-3.5 shrink-0 mt-0.5 text-foreground" />
             <span>
               <strong className="text-foreground">Promotion rule:</strong>{" "}
               AI output exists as proposed until you approve it. Approving writes
@@ -291,14 +291,14 @@ export default function DossierQueuePage() {
                   </p>
                   <button
                     onClick={() => setReasonFilter(null)}
-                    className="text-xs text-cyan/60 hover:text-cyan underline-offset-2 hover:underline"
+                    className="text-xs text-primary/60 hover:text-primary underline-offset-2 hover:underline"
                   >
                     Clear filter
                   </button>
                 </>
               ) : status === "proposed" ? (
                 <>
-                  <CheckCircle2 className="h-8 w-8 text-emerald-500/60" />
+                  <CheckCircle2 className="h-8 w-8 text-foreground/60" />
                   <p className="text-sm font-medium">No dossiers waiting for review</p>
                   <p className="text-xs">
                     Proposed dossiers appear here after evidence is compiled on a lead.
@@ -306,7 +306,7 @@ export default function DossierQueuePage() {
                 </>
               ) : status === "flagged" ? (
                 <>
-                  <XCircle className="h-8 w-8 text-red-400/60" />
+                  <XCircle className="h-8 w-8 text-foreground/60" />
                   <p className="text-sm font-medium">No rejected dossiers</p>
                 </>
               ) : (

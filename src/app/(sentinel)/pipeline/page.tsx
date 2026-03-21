@@ -44,11 +44,11 @@ import { CoachPanel, CoachToggle } from "@/components/sentinel/coach-panel";
 // ── Pipeline lane definitions (5 display lanes) ──────────────────────────────────────────────────
 
 const PIPELINE_LANES = [
-  { id: "working", title: "Working", accent: "#3b82f6", bg: "rgba(59,130,246,0.08)", border: "rgba(59,130,246,0.3)", text: "text-blue-400" },
-  { id: "negotiation", title: "Negotiation", accent: "#f59e0b", bg: "rgba(245,158,11,0.08)", border: "rgba(245,158,11,0.3)", text: "text-amber-400" },
-  { id: "disposition", title: "Disposition", accent: "#f43f5e", bg: "rgba(244,63,94,0.08)", border: "rgba(244,63,94,0.3)", text: "text-rose-400" },
-  { id: "nurture", title: "Nurture", accent: "#0ea5e9", bg: "rgba(14,165,233,0.08)", border: "rgba(14,165,233,0.3)", text: "text-sky-400" },
-  { id: "closed", title: "Closed", accent: "#a855f7", bg: "rgba(168,85,247,0.08)", border: "rgba(168,85,247,0.3)", text: "text-purple-400" },
+  { id: "working", title: "Working", accent: "#3b82f6", bg: "rgba(59,130,246,0.08)", border: "rgba(59,130,246,0.3)", text: "text-foreground" },
+  { id: "negotiation", title: "Negotiation", accent: "#f59e0b", bg: "rgba(0,0,0,0.08)", border: "rgba(0,0,0,0.3)", text: "text-foreground" },
+  { id: "disposition", title: "Disposition", accent: "#f43f5e", bg: "rgba(244,63,94,0.08)", border: "rgba(244,63,94,0.3)", text: "text-foreground" },
+  { id: "nurture", title: "Nurture", accent: "#0ea5e9", bg: "rgba(14,165,233,0.08)", border: "rgba(14,165,233,0.3)", text: "text-foreground" },
+  { id: "closed", title: "Closed", accent: "#a855f7", bg: "rgba(168,85,247,0.08)", border: "rgba(168,85,247,0.3)", text: "text-foreground" },
 ] as const;
 
 type LaneId = (typeof PIPELINE_LANES)[number]["id"];
@@ -104,10 +104,10 @@ interface Lead {
 // ── Helpers ────────────────────────────────────────────────────────────
 
 function scoreColor(score: number) {
-  if (score >= 85) return { label: "FIRE", class: "text-orange-400 bg-orange-500/15 border-orange-500/30" };
-  if (score >= 65) return { label: "HOT", class: "text-red-400 bg-red-500/15 border-red-500/30" };
-  if (score >= 40) return { label: "WARM", class: "text-yellow-400 bg-yellow-500/15 border-yellow-500/30" };
-  return { label: "COLD", class: "text-blue-400 bg-blue-500/15 border-blue-500/30" };
+  if (score >= 85) return { label: "FIRE", class: "text-foreground bg-muted/15 border-border/30" };
+  if (score >= 65) return { label: "HOT", class: "text-foreground bg-muted/15 border-border/30" };
+  if (score >= 40) return { label: "WARM", class: "text-foreground bg-muted/15 border-border/30" };
+  return { label: "COLD", class: "text-foreground bg-muted/15 border-border/30" };
 }
 
 function daysAgoLabel(dateStr: string | null): string {
@@ -572,7 +572,7 @@ export default function PipelinePage() {
       <div className="flex items-center justify-between px-6 py-5 border-b border-white/[0.06] flex-wrap gap-3">
         <div>
           <h1 className="text-2xl font-bold text-foreground flex items-center gap-2.5">
-            <Zap className="h-6 w-6 text-cyan" />
+            <Zap className="h-6 w-6 text-primary" />
             Pipeline
           </h1>
           <p className="text-sm text-muted-foreground mt-0.5">
@@ -588,7 +588,7 @@ export default function PipelinePage() {
               className={cn(
                 "px-3 py-1.5 text-sm font-medium transition-all",
                 !showMineOnly
-                  ? "bg-cyan/20 text-cyan"
+                  ? "bg-primary/20 text-primary"
                   : "text-muted-foreground hover:text-foreground"
               )}
             >
@@ -599,7 +599,7 @@ export default function PipelinePage() {
               className={cn(
                 "px-3 py-1.5 text-sm font-medium transition-all border-l border-glass-border",
                 showMineOnly
-                  ? "bg-cyan/20 text-cyan"
+                  ? "bg-primary/20 text-primary"
                   : "text-muted-foreground hover:text-foreground"
               )}
             >
@@ -614,7 +614,7 @@ export default function PipelinePage() {
               placeholder="Filter pipeline..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="pl-9 pr-4 py-2 w-56 rounded-[12px] border border-glass-border bg-glass/50 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-cyan/40 focus:border-cyan/40 backdrop-blur-xl"
+              className="pl-9 pr-4 py-2 w-56 rounded-[12px] border border-glass-border bg-glass/50 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring/40 focus:border-primary/40 backdrop-blur-xl"
             />
           </div>
 
@@ -622,7 +622,7 @@ export default function PipelinePage() {
             <button
               onClick={addTestProspect}
               disabled={adding}
-              className="flex items-center gap-2 px-4 py-2 bg-emerald-500/90 hover:bg-emerald-500 text-black text-sm font-semibold rounded-[12px] transition-all active:scale-95 disabled:opacity-50 shadow-[0_0_12px_rgba(16,185,129,0.3)]"
+              className="flex items-center gap-2 px-4 py-2 bg-muted/90 hover:bg-muted text-foreground text-sm font-semibold rounded-[12px] transition-all active:scale-95 disabled:opacity-50 shadow-[0_0_12px_rgba(0,0,0,0.1)]"
             >
               <Plus className={cn("h-4 w-4", adding && "animate-spin")} />
               {adding ? "Adding..." : "Quick Add Test Prospect"}
@@ -631,7 +631,7 @@ export default function PipelinePage() {
 
           <button
             onClick={fetchLeads}
-            className="flex items-center gap-2 px-3 py-2 rounded-[12px] border border-glass-border bg-glass/50 text-sm text-muted-foreground hover:text-foreground hover:border-cyan/20 transition-all backdrop-blur-xl"
+            className="flex items-center gap-2 px-3 py-2 rounded-[12px] border border-glass-border bg-glass/50 text-sm text-muted-foreground hover:text-foreground hover:border-primary/20 transition-all backdrop-blur-xl"
           >
             <RefreshCw className={cn("h-4 w-4", loading && "animate-spin")} />
             Refresh
@@ -772,7 +772,7 @@ function LeadCard({
           onClick={() => onOpenDetail(lead.id)}
           className={cn(
             "rounded-[14px] border border-glass-border bg-glass/60 backdrop-blur-2xl p-3 transition-all duration-150 group cursor-pointer",
-            snapshot.isDragging && "scale-[1.03] shadow-[0_0_24px_rgba(0,212,255,0.15)] border-cyan/20 z-50"
+            snapshot.isDragging && "scale-[1.03] shadow-[0_0_24px_rgba(0,0,0,0.15)] border-primary/20 z-50"
           )}
         >
           {/* Line 1: Address (bold) + Score badge */}
@@ -787,7 +787,7 @@ function LeadCard({
               <div className="min-w-0 flex-1">
                 <div
                   className="font-semibold text-sm text-foreground leading-tight truncate"
-                  style={{ textShadow: "0 0 8px rgba(0,212,255,0.15)" }}
+                  style={{ textShadow: "0 0 8px rgba(0,0,0,0.15)" }}
                 >
                   {lead.address}
                 </div>
@@ -821,7 +821,7 @@ function LeadCard({
                 href={`/dialer?lead=${lead.id}`}
                 onClick={(e) => e.stopPropagation()}
                 title="Open in Dialer"
-                className="h-6 w-6 flex items-center justify-center rounded-md text-emerald-400 hover:bg-emerald-500/10 transition-colors"
+                className="h-6 w-6 flex items-center justify-center rounded-md text-foreground hover:bg-muted/10 transition-colors"
               >
                 <Phone className="h-3.5 w-3.5" />
               </a>
@@ -833,7 +833,7 @@ function LeadCard({
                 }}
                 disabled={isDeleting}
                 title="Delete lead"
-                className="h-6 w-6 flex items-center justify-center rounded-md text-red-400/60 hover:text-red-400 hover:bg-red-500/10 transition-colors disabled:opacity-40"
+                className="h-6 w-6 flex items-center justify-center rounded-md text-foreground/60 hover:text-foreground hover:bg-muted/10 transition-colors disabled:opacity-40"
               >
                 {isDeleting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
               </button>

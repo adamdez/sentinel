@@ -331,7 +331,7 @@ describe("client file header action banner", () => {
   const URGENCY_STYLES = {
     critical: { border: "border-red-500/25" },
     high: { border: "border-amber-500/25" },
-    normal: { border: "border-cyan/20" },
+    normal: { border: "border-primary/20" },
   } as const;
 
   it("critical/high/normal urgency maps to a style", () => {

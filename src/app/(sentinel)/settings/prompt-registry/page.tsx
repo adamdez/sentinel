@@ -29,9 +29,9 @@ import { PromptVersionBadge } from "@/components/sentinel/prompt-version-badge";
 // ── Status config ─────────────────────────────────────────────────────────────
 
 const STATUS_OPTIONS = [
-  { value: "active",     label: "Active",     icon: CheckCircle2,  classes: "bg-emerald-500/10 text-emerald-400 border-emerald-500/20" },
-  { value: "testing",    label: "Testing",    icon: Clock,         classes: "bg-blue-500/10 text-blue-400 border-blue-500/20" },
-  { value: "deprecated", label: "Deprecated", icon: AlertTriangle, classes: "bg-amber-500/10 text-amber-400 border-amber-500/20" },
+  { value: "active",     label: "Active",     icon: CheckCircle2,  classes: "bg-muted/10 text-foreground border-border/20" },
+  { value: "testing",    label: "Testing",    icon: Clock,         classes: "bg-muted/10 text-foreground border-border/20" },
+  { value: "deprecated", label: "Deprecated", icon: AlertTriangle, classes: "bg-muted/10 text-foreground border-border/20" },
 ] as const;
 
 // ── Single version row ────────────────────────────────────────────────────────
@@ -263,7 +263,7 @@ export default function PromptRegistryPage() {
               Back to settings
             </Link>
             <div className="flex items-center gap-2">
-              <BookMarked className="h-5 w-5 text-cyan/60" />
+              <BookMarked className="h-5 w-5 text-primary/60" />
               <h1 className="text-xl font-semibold tracking-tight">Prompt Registry</h1>
             </div>
           </div>
@@ -276,7 +276,7 @@ export default function PromptRegistryPage() {
         {/* ── Explainer ── */}
         <GlassCard hover={false} className="!p-3">
           <div className="flex items-start gap-2 text-xs text-muted-foreground">
-            <BookMarked className="h-3.5 w-3.5 shrink-0 mt-0.5 text-cyan/50" />
+            <BookMarked className="h-3.5 w-3.5 shrink-0 mt-0.5 text-primary/50" />
             <span>
               Each AI workflow invocation stores its <code className="font-mono text-[10px] text-foreground/60">workflow</code> and{" "}
               <code className="font-mono text-[10px] text-foreground/60">prompt_version</code> in{" "}

@@ -5,31 +5,27 @@ export interface SentinelThemeDefinition {
   label: string;
   /** Short operator-facing description */
   description: string;
-  /** For seasonal / promo themes: keep false until explicitly launched */
   experimental?: boolean;
 }
 
 /**
- * Single registry for all theme packs. To add e.g. "st-patricks":
- * 1. Extend SentinelThemeId in types.ts
- * 2. Append here
- * 3. Add html[data-sentinel-theme="st-patricks"] { ... } in a dedicated CSS file
+ * Registry for selectable themes. Add new ids in types.ts + CSS under
+ * html[data-sentinel-theme="<id>"].
  */
 export const SENTINEL_THEMES: SentinelThemeDefinition[] = [
   {
-    id: "default",
-    label: "Sentinel (default)",
-    description: "Production baseline — charcoal shell, muted teal accents, neutral glass.",
+    id: "dark",
+    label: "Dark",
+    description: "Charcoal shell, white text, monochrome glass — default for low-light ops.",
   },
   {
-    id: "ghost-mode",
-    label: "Research Only / Night Ops",
-    description: "Tactical dark shell — colder contrast on chrome; workflow surfaces stay readable.",
-    experimental: true,
+    id: "light",
+    label: "Light",
+    description: "Near-white surfaces, black text, monochrome glass — high-contrast daytime.",
   },
 ];
 
-export const DEFAULT_SENTINEL_THEME: SentinelThemeId = "default";
+export const DEFAULT_SENTINEL_THEME: SentinelThemeId = "dark";
 
 export function getThemeDefinition(id: SentinelThemeId): SentinelThemeDefinition {
   return SENTINEL_THEMES.find((t) => t.id === id) ?? SENTINEL_THEMES[0];

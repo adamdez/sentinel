@@ -75,8 +75,8 @@ function dirBad(curr: number | null, prev: number | null): Direction {
 function DirectionBadge({ dir }: { dir: Direction }) {
   if (dir === "new")  return <span className="text-[9px] text-muted-foreground/40">new</span>;
   if (dir === "flat") return <Minus className="h-2.5 w-2.5 text-muted-foreground/30" />;
-  if (dir === "up")   return <TrendingUp   className="h-2.5 w-2.5 text-emerald-400" />;
-  return                     <TrendingDown className="h-2.5 w-2.5 text-red-400" />;
+  if (dir === "up")   return <TrendingUp   className="h-2.5 w-2.5 text-foreground" />;
+  return                     <TrendingDown className="h-2.5 w-2.5 text-foreground" />;
 }
 
 // ── Column definitions ────────────────────────────────────────
@@ -98,7 +98,7 @@ const COLS: ColDef[] = [
     key: "calls_published",
     label: "Calls",
     icon: Phone,
-    iconColor: "text-cyan/70",
+    iconColor: "text-primary/70",
     getValue: (w) => String(w.calls_published),
     getDir: (c, p) => dirGood(c.calls_published, p?.calls_published ?? null),
   },
@@ -107,7 +107,7 @@ const COLS: ColDef[] = [
     label: "Follow-ups",
     abbr: "F/U calls",
     icon: ArrowRight,
-    iconColor: "text-purple-400/70",
+    iconColor: "text-foreground/70",
     getValue: (w) => String(w.follow_up_calls),
     getDir: (c, p) => dirGood(c.follow_up_calls, p?.follow_up_calls ?? null),
   },
@@ -116,7 +116,7 @@ const COLS: ColDef[] = [
     label: "Tasks created",
     abbr: "Tasks",
     icon: CheckSquare,
-    iconColor: "text-amber-400/70",
+    iconColor: "text-foreground/70",
     getValue: (w) => String(w.tasks_created),
     getDir: (c, p) => dirGood(c.tasks_created, p?.tasks_created ?? null),
   },
@@ -124,7 +124,7 @@ const COLS: ColDef[] = [
     key: "task_creation_pct",
     label: "Task rate",
     icon: CheckSquare,
-    iconColor: "text-amber-400/70",
+    iconColor: "text-foreground/70",
     getValue: (w) => fmtPct(w.task_creation_pct),
     getDir: (c, p) => dirGood(c.task_creation_pct, p?.task_creation_pct ?? null),
     isDanger: (w) => w.task_creation_pct != null && w.task_creation_pct < 80,
@@ -134,7 +134,7 @@ const COLS: ColDef[] = [
     label: "Defaulted",
     abbr: "No date",
     icon: CalendarClock,
-    iconColor: "text-orange-400/70",
+    iconColor: "text-foreground/70",
     getValue: (w) => String(w.callbacks_defaulted),
     getDir: (c, p) => dirBad(c.callbacks_defaulted, p?.callbacks_defaulted ?? null),
     isDanger: (w) => w.callbacks_defaulted > 0,
@@ -143,7 +143,7 @@ const COLS: ColDef[] = [
     key: "callback_slippage_pct",
     label: "Slippage",
     icon: CalendarClock,
-    iconColor: "text-orange-400/70",
+    iconColor: "text-foreground/70",
     getValue: (w) => fmtPct(w.callback_slippage_pct),
     getDir: (c, p) => dirBad(c.callback_slippage_pct, p?.callback_slippage_pct ?? null),
     isDanger: (w) => w.callback_slippage_pct != null && w.callback_slippage_pct > 40,
@@ -153,7 +153,7 @@ const COLS: ColDef[] = [
     label: "AI reviewed",
     abbr: "AI rev.",
     icon: Brain,
-    iconColor: "text-purple-400/70",
+    iconColor: "text-foreground/70",
     getValue: (w) => String(w.ai_reviewed),
     getDir: (c, p) => dirGood(c.ai_reviewed, p?.ai_reviewed ?? null),
   },
@@ -162,7 +162,7 @@ const COLS: ColDef[] = [
     label: "AI flagged",
     abbr: "Flagged",
     icon: Flag,
-    iconColor: "text-red-400/70",
+    iconColor: "text-foreground/70",
     getValue: (w) => String(w.ai_flagged),
     getDir: (c, p) => dirBad(c.ai_flagged, p?.ai_flagged ?? null),
     isDanger: (w) => w.ai_flagged > 0,
@@ -171,7 +171,7 @@ const COLS: ColDef[] = [
     key: "ai_flag_rate_pct",
     label: "Flag rate",
     icon: Flag,
-    iconColor: "text-red-400/70",
+    iconColor: "text-foreground/70",
     getValue: (w) => fmtPct(w.ai_flag_rate_pct),
     getDir: (c, p) => dirBad(c.ai_flag_rate_pct, p?.ai_flag_rate_pct ?? null),
     isDanger: (w) => w.ai_flag_rate_pct != null && w.ai_flag_rate_pct > 25,
@@ -275,7 +275,7 @@ function DialerReviewPageInner() {
           className={cn(
             "rounded-[10px] px-3 py-1.5 text-[11px] font-medium border transition-colors",
             panel === "kpi"
-              ? "border-cyan/30 bg-cyan/10 text-cyan"
+              ? "border-primary/30 bg-primary/10 text-primary"
               : "border-white/[0.06] text-muted-foreground hover:border-white/10",
           )}
         >
@@ -286,7 +286,7 @@ function DialerReviewPageInner() {
           className={cn(
             "rounded-[10px] px-3 py-1.5 text-[11px] font-medium border transition-colors",
             panel === "queue"
-              ? "border-cyan/30 bg-cyan/10 text-cyan"
+              ? "border-primary/30 bg-primary/10 text-primary"
               : "border-white/[0.06] text-muted-foreground hover:border-white/10",
           )}
         >
@@ -308,13 +308,13 @@ function DialerReviewPageInner() {
         {/* ── Overdue alert ─────────────────────────────────── */}
         {data && data.overdue_tasks_now > 0 && (
           <Link href="/tasks">
-            <div className="flex items-center gap-2 rounded-[10px] border border-orange-500/30 bg-orange-500/[0.06] px-3 py-2 text-xs text-orange-300 hover:bg-orange-500/[0.1] transition-colors cursor-pointer">
+            <div className="flex items-center gap-2 rounded-[10px] border border-border/30 bg-muted/[0.06] px-3 py-2 text-xs text-foreground hover:bg-muted/[0.1] transition-colors cursor-pointer">
               <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
               <span>
                 {data.overdue_tasks_now} overdue dialer follow-up task{data.overdue_tasks_now !== 1 ? "s" : ""} —
                 callback was missed
               </span>
-              <span className="ml-auto text-orange-400/70 text-[10px]">View Tasks →</span>
+              <span className="ml-auto text-foreground/70 text-[10px]">View Tasks →</span>
             </div>
           </Link>
         )}
@@ -331,8 +331,8 @@ function DialerReviewPageInner() {
 
         {/* ── Error ─────────────────────────────────────────── */}
         {error && !loading && (
-          <GlassCard hover={false} className="!p-4 border-red-500/20">
-            <p className="text-sm text-red-400">{error}</p>
+          <GlassCard hover={false} className="!p-4 border-border/20">
+            <p className="text-sm text-foreground">{error}</p>
           </GlassCard>
         )}
 
@@ -342,7 +342,7 @@ function DialerReviewPageInner() {
             {/* Header */}
             <div className="flex items-center justify-between px-4 py-3 border-b border-white/[0.05]">
               <div className="flex items-center gap-2">
-                <TrendingUp className="h-3.5 w-3.5 text-cyan" />
+                <TrendingUp className="h-3.5 w-3.5 text-primary" />
                 <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                   Weekly Discipline
                 </h2>
@@ -390,7 +390,7 @@ function DialerReviewPageInner() {
                         <td className="sticky left-0 bg-[#0d0d12] z-10 px-4 py-2.5 whitespace-nowrap">
                           <div className="flex items-center gap-1.5">
                             {isCurrentWeek && (
-                              <span className="inline-block h-1.5 w-1.5 rounded-full bg-cyan shrink-0" />
+                              <span className="inline-block h-1.5 w-1.5 rounded-full bg-primary shrink-0" />
                             )}
                             <span className={`font-medium ${isCurrentWeek ? "text-foreground" : "text-muted-foreground/70"}`}>
                               {fmtWeekLabel(week.week, week.week_start)}
@@ -409,7 +409,7 @@ function DialerReviewPageInner() {
                               key={col.key}
                               className={`px-3 py-2.5 text-right tabular-nums whitespace-nowrap ${
                                 danger
-                                  ? "text-orange-300"
+                                  ? "text-foreground"
                                   : value === "—"
                                   ? "text-muted-foreground/30"
                                   : "text-foreground/80"
@@ -434,16 +434,16 @@ function DialerReviewPageInner() {
             {/* Legend */}
             <div className="flex flex-wrap items-center gap-x-4 gap-y-1 px-4 py-3 border-t border-white/[0.04]">
               <span className="text-[10px] text-muted-foreground/40 flex items-center gap-1">
-                <TrendingUp className="h-2.5 w-2.5 text-emerald-400" /> better vs prior week
+                <TrendingUp className="h-2.5 w-2.5 text-foreground" /> better vs prior week
               </span>
               <span className="text-[10px] text-muted-foreground/40 flex items-center gap-1">
-                <TrendingDown className="h-2.5 w-2.5 text-red-400" /> worse vs prior week
+                <TrendingDown className="h-2.5 w-2.5 text-foreground" /> worse vs prior week
               </span>
               <span className="text-[10px] text-muted-foreground/40">
                 — = no data / zero denominator
               </span>
               <span className="text-[10px] text-muted-foreground/40 flex items-center gap-1">
-                <span className="inline-block h-1.5 w-1.5 rounded-full bg-cyan" /> current week (partial)
+                <span className="inline-block h-1.5 w-1.5 rounded-full bg-primary" /> current week (partial)
               </span>
             </div>
           </GlassCard>
@@ -472,7 +472,7 @@ function DialerReviewPageInner() {
                 <dt className="text-muted-foreground/50 whitespace-nowrap shrink-0 w-28">Overdue now</dt>
                 <dd className="text-muted-foreground/70">
                   Live count of pending dialer follow-up tasks past due_at. {" "}
-                  <Link href="/tasks" className="text-cyan/70 hover:text-cyan underline-offset-2 hover:underline">
+                  <Link href="/tasks" className="text-primary/70 hover:text-primary underline-offset-2 hover:underline">
                     View in Tasks →
                   </Link>
                 </dd>
@@ -579,7 +579,7 @@ function DialerReviewPageInner() {
                           </p>
                           <Link
                             href={`/leads/${row.leadId}`}
-                            className="text-[9px] text-cyan/40 hover:text-cyan/70 transition-colors"
+                            className="text-[9px] text-primary/40 hover:text-primary/70 transition-colors"
                           >
                             View →
                           </Link>
@@ -600,7 +600,7 @@ function DialerReviewPageInner() {
         {/* ── Objection patterns ────────────────────────────── */}
         <GlassCard hover={false} className="!p-4">
           <div className="flex items-center gap-2 mb-3">
-            <AlertTriangle className="h-3.5 w-3.5 text-orange-400/60" />
+            <AlertTriangle className="h-3.5 w-3.5 text-foreground/60" />
             <h3 className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/60">
               Objection Patterns — Last 30 Days
             </h3>
@@ -634,16 +634,16 @@ function DialerReviewPageInner() {
                       <div className="flex items-center gap-2 ml-2 shrink-0">
                         <span className="text-[10px] text-muted-foreground/50">{item.total} total</span>
                         {item.open > 0 && (
-                          <span className="text-[10px] text-orange-400/70">{item.open} open</span>
+                          <span className="text-[10px] text-foreground/70">{item.open} open</span>
                         )}
                         {item.resolved > 0 && (
-                          <span className="text-[10px] text-emerald-400/50">{item.resolved} resolved</span>
+                          <span className="text-[10px] text-foreground/50">{item.resolved} resolved</span>
                         )}
                       </div>
                     </div>
                     <div className="h-1 rounded-full bg-white/[0.04] overflow-hidden">
                       <div
-                        className="h-full rounded-full bg-orange-500/40"
+                        className="h-full rounded-full bg-muted/40"
                         style={{
                           width: `${Math.round((item.total / objSummary.by_tag[0].total) * 100)}%`,
                         }}
@@ -677,7 +677,7 @@ function DialerReviewPageInner() {
                           <button
                             type="button"
                             onClick={() => resolveTag(r.id)}
-                            className="shrink-0 flex items-center gap-0.5 rounded-[5px] border border-white/[0.06] bg-white/[0.02] px-1.5 py-0.5 text-[9px] text-muted-foreground/40 hover:text-emerald-400 hover:border-emerald-500/30 transition-colors"
+                            className="shrink-0 flex items-center gap-0.5 rounded-[5px] border border-white/[0.06] bg-white/[0.02] px-1.5 py-0.5 text-[9px] text-muted-foreground/40 hover:text-foreground hover:border-border/30 transition-colors"
                             title="Mark resolved"
                           >
                             <X className="h-2.5 w-2.5" />
@@ -695,7 +695,7 @@ function DialerReviewPageInner() {
         {/* ── Contradiction flags ───────────────────────────── */}
         <GlassCard hover={false} className="!p-4">
           <div className="flex items-center gap-2 mb-3">
-            <GitCompare className="h-3.5 w-3.5 text-orange-400/60" />
+            <GitCompare className="h-3.5 w-3.5 text-foreground/60" />
             <h3 className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/60">
               Contradiction Flags — Last 14 Days
             </h3>
@@ -730,8 +730,8 @@ function DialerReviewPageInner() {
                         key={k}
                         className={`inline-flex items-center gap-1 rounded-[6px] border px-2 py-0.5 text-[10px] ${
                           hasFlagSeverity
-                            ? "border-red-500/25 bg-red-500/[0.06] text-red-400/80"
-                            : "border-orange-500/20 bg-orange-500/[0.05] text-orange-400/70"
+                            ? "border-border/25 bg-muted/[0.06] text-foreground/80"
+                            : "border-border/20 bg-muted/[0.05] text-foreground/70"
                         }`}
                       >
                         {hasFlagSeverity
@@ -759,7 +759,7 @@ function DialerReviewPageInner() {
                     </div>
                     <Link
                       href={`/leads/${row.lead_id}`}
-                      className="shrink-0 text-[9px] text-cyan/40 hover:text-cyan/70 transition-colors"
+                      className="shrink-0 text-[9px] text-primary/40 hover:text-primary/70 transition-colors"
                     >
                       View →
                     </Link>
@@ -841,8 +841,8 @@ function DialerReviewPageInner() {
                       <code className="text-foreground/50 font-mono text-[9px]">v{v.version}</code>
                       <span className={`text-[8px] px-1 py-0.5 rounded border ${
                         v.registry_type === "handoff_rule"
-                          ? "bg-purple-500/10 text-purple-400 border-purple-500/20"
-                          : "bg-cyan/10 text-cyan border-cyan/20"
+                          ? "bg-muted/10 text-foreground border-border/20"
+                          : "bg-primary/10 text-primary border-primary/20"
                       }`}>
                         {v.registry_type === "handoff_rule" ? "rule" : "script"}
                       </span>
@@ -850,7 +850,7 @@ function DialerReviewPageInner() {
                   );
                 })}
               {voiceVersions.filter(v => v.status === "active").length === 0 && (
-                <p className="text-[10px] text-amber-400/60">No active entries. Check voice-registry settings.</p>
+                <p className="text-[10px] text-foreground/60">No active entries. Check voice-registry settings.</p>
               )}
             </div>
           )}
@@ -915,7 +915,7 @@ function DialerReviewPageInner() {
             </Link>
             <Link
               href="/dialer/review/dossier-queue"
-              className="flex items-center gap-1.5 rounded-[10px] border border-amber-500/20 bg-amber-500/[0.04] px-3 py-2 text-[11px] text-amber-600/70 dark:text-amber-400/70 hover:text-amber-600 dark:hover:text-amber-400 hover:border-amber-500/30 transition-colors"
+              className="flex items-center gap-1.5 rounded-[10px] border border-border/20 bg-muted/[0.04] px-3 py-2 text-[11px] text-foreground/70 dark:text-foreground/70 hover:text-foreground dark:hover:text-foreground hover:border-border/30 transition-colors"
             >
               <FileText className="h-3 w-3" />
               Dossier Review →
@@ -927,14 +927,14 @@ function DialerReviewPageInner() {
               <AlertTriangle className="h-3 w-3" />
               Buyers
               {staleBuyerCount > 0 && (
-                <span className="ml-1 px-1.5 py-0.5 rounded-full bg-amber-500/20 text-amber-600 dark:text-amber-400 text-[9px] font-medium">
+                <span className="ml-1 px-1.5 py-0.5 rounded-full bg-muted/20 text-foreground dark:text-foreground text-[9px] font-medium">
                   {staleBuyerCount} stale
                 </span>
               )}
             </Link>
             <Link
               href="/dialer/war-room"
-              className="flex items-center gap-1.5 rounded-[10px] border border-cyan/20 bg-cyan/[0.04] px-3 py-2 text-[11px] text-cyan/70 hover:text-cyan hover:border-cyan/30 transition-colors"
+              className="flex items-center gap-1.5 rounded-[10px] border border-primary/20 bg-primary/[0.04] px-3 py-2 text-[11px] text-primary/70 hover:text-primary hover:border-primary/30 transition-colors"
             >
               <TrendingUp className="h-3 w-3" />
               Call Review →
@@ -955,14 +955,14 @@ function DialerReviewPageInner() {
             </Link>
             <Link
               href="/settings/outbound-pilot"
-              className="flex items-center gap-1.5 rounded-[10px] border border-amber-500/20 bg-amber-500/[0.04] px-3 py-2 text-[11px] text-amber-600/70 dark:text-amber-400/70 hover:text-amber-600 dark:hover:text-amber-400 hover:border-amber-500/30 transition-colors"
+              className="flex items-center gap-1.5 rounded-[10px] border border-border/20 bg-muted/[0.04] px-3 py-2 text-[11px] text-foreground/70 dark:text-foreground/70 hover:text-foreground dark:hover:text-foreground hover:border-border/30 transition-colors"
             >
               <ShieldAlert className="h-3 w-3" />
               Outbound Prep
             </Link>
             <Link
               href="/dialer/review/eval"
-              className="flex items-center gap-1.5 rounded-[10px] border border-blue-500/20 bg-blue-500/[0.04] px-3 py-2 text-[11px] text-blue-600/70 dark:text-blue-400/70 hover:text-blue-600 dark:hover:text-blue-400 hover:border-blue-500/30 transition-colors"
+              className="flex items-center gap-1.5 rounded-[10px] border border-border/20 bg-muted/[0.04] px-3 py-2 text-[11px] text-foreground/70 dark:text-foreground/70 hover:text-foreground dark:hover:text-foreground hover:border-border/30 transition-colors"
             >
               <Brain className="h-3 w-3" />
               AI Eval →

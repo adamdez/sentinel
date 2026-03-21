@@ -17,11 +17,11 @@ export type DealTemperature = "hot" | "warm" | "cool" | "cold" | "dead";
 export const DEAL_TEMPERATURES: DealTemperature[] = ["hot", "warm", "cool", "cold", "dead"];
 
 export const DEAL_TEMP_LABELS: Record<DealTemperature, { label: string; color: string }> = {
-  hot:  { label: "Hot",  color: "text-red-400" },
-  warm: { label: "Warm", color: "text-orange-400" },
-  cool: { label: "Cool", color: "text-blue-400" },
-  cold: { label: "Cold", color: "text-slate-400" },
-  dead: { label: "Dead", color: "text-zinc-500" },
+  hot:  { label: "Hot",  color: "text-foreground" },
+  warm: { label: "Warm", color: "text-foreground" },
+  cool: { label: "Cool", color: "text-foreground" },
+  cold: { label: "Cold", color: "text-foreground" },
+  dead: { label: "Dead", color: "text-foreground" },
 };
 
 // ── DB row shape ──────────────────────────────────────────────────────────────

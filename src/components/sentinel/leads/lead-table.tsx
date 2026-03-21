@@ -38,29 +38,29 @@ interface LeadTableProps {
 }
 
 const DISTRESS_COLORS: Partial<Record<string, string>> = {
-  probate: "bg-orange-500/15 text-orange-400 border-orange-500/30",
-  pre_foreclosure: "bg-red-500/15 text-red-400 border-red-500/30",
-  tax_lien: "bg-yellow-500/15 text-yellow-400 border-yellow-500/30",
-  code_violation: "bg-pink-500/15 text-pink-400 border-pink-500/30",
-  vacant: "bg-zinc-500/15 text-zinc-400 border-zinc-500/30",
-  divorce: "bg-purple-500/15 text-purple-400 border-purple-500/30",
-  bankruptcy: "bg-red-600/15 text-red-500 border-red-600/30",
-  fsbo: "bg-blue-500/15 text-blue-400 border-blue-500/30",
-  absentee: "bg-cyan-500/15 text-cyan-400 border-cyan-500/30",
-  inherited: "bg-amber-500/15 text-amber-400 border-amber-500/30",
-  water_shutoff: "bg-teal-500/15 text-teal-400 border-teal-500/30",
-  condemned: "bg-rose-600/15 text-rose-400 border-rose-600/30",
-  tired_landlord: "bg-amber-500/15 text-amber-400 border-amber-500/30",
-  underwater: "bg-red-500/15 text-red-400 border-red-500/30",
-  tax_delinquent: "bg-yellow-500/15 text-yellow-300 border-yellow-500/30",
-  absentee_owner: "bg-cyan-500/15 text-cyan-300 border-cyan-500/30",
-  code_issue: "bg-pink-500/15 text-pink-300 border-pink-500/30",
-  rural: "bg-lime-500/15 text-lime-300 border-lime-500/30",
-  mobile_home: "bg-fuchsia-500/15 text-fuchsia-300 border-fuchsia-500/30",
-  possible_developer: "bg-orange-500/15 text-orange-300 border-orange-500/30",
-  out_of_area: "bg-blue-500/15 text-blue-300 border-blue-500/30",
-  do_not_call: "bg-red-600/15 text-red-300 border-red-600/30",
-  bad_data: "bg-zinc-500/20 text-zinc-300 border-zinc-500/30",
+  probate: "bg-muted/15 text-foreground border-border/30",
+  pre_foreclosure: "bg-muted/15 text-foreground border-border/30",
+  tax_lien: "bg-muted/15 text-foreground border-border/30",
+  code_violation: "bg-muted/15 text-foreground border-border/30",
+  vacant: "bg-muted/15 text-foreground border-border/30",
+  divorce: "bg-muted/15 text-foreground border-border/30",
+  bankruptcy: "bg-muted/15 text-foreground border-border/30",
+  fsbo: "bg-muted/15 text-foreground border-border/30",
+  absentee: "bg-primary-500/15 text-primary-400 border-primary-500/30",
+  inherited: "bg-muted/15 text-foreground border-border/30",
+  water_shutoff: "bg-muted/15 text-foreground border-border/30",
+  condemned: "bg-muted/15 text-foreground border-border/30",
+  tired_landlord: "bg-muted/15 text-foreground border-border/30",
+  underwater: "bg-muted/15 text-foreground border-border/30",
+  tax_delinquent: "bg-muted/15 text-foreground border-border/30",
+  absentee_owner: "bg-primary-500/15 text-primary-300 border-primary-500/30",
+  code_issue: "bg-muted/15 text-foreground border-border/30",
+  rural: "bg-muted/15 text-foreground border-border/30",
+  mobile_home: "bg-muted/15 text-foreground border-border/30",
+  possible_developer: "bg-muted/15 text-foreground border-border/30",
+  out_of_area: "bg-muted/15 text-foreground border-border/30",
+  do_not_call: "bg-muted/15 text-foreground border-border/30",
+  bad_data: "bg-muted/20 text-foreground border-border/30",
 };
 
 const DISTRESS_LABELS: Record<string, string> = {
@@ -117,7 +117,7 @@ function SortHeader({
       onClick={() => onSort(field)}
       className={cn(
         "flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wider hover:text-foreground transition-colors",
-        active ? "text-cyan" : "text-muted-foreground",
+        active ? "text-primary" : "text-muted-foreground",
         className
       )}
     >
@@ -201,9 +201,9 @@ function compactPropertyLine(lead: LeadRow): string {
 function ageEscalationClass(promotedAt: string | null): string {
   if (!promotedAt) return "text-muted-foreground/70";
   const hoursOld = (Date.now() - new Date(promotedAt).getTime()) / (1000 * 60 * 60);
-  if (hoursOld >= 72) return "text-red-400 font-semibold";
-  if (hoursOld >= 48) return "text-orange-400 font-medium";
-  if (hoursOld >= 24) return "text-amber-400";
+  if (hoursOld >= 72) return "text-foreground font-semibold";
+  if (hoursOld >= 48) return "text-foreground font-medium";
+  if (hoursOld >= 24) return "text-foreground";
   return "text-muted-foreground/70";
 }
 
@@ -219,12 +219,12 @@ function formatPhone(phone: string): string {
 function marketMeta(county: string | null | undefined): { label: string; className: string } {
   const c = (county ?? "").toLowerCase();
   if (c.includes("spokane")) {
-    return { label: "Spokane", className: "bg-blue-500/10 text-blue-300 border-blue-500/20" };
+    return { label: "Spokane", className: "bg-muted/10 text-foreground border-border/20" };
   }
   if (c.includes("kootenai")) {
-    return { label: "Kootenai", className: "bg-emerald-500/10 text-emerald-300 border-emerald-500/20" };
+    return { label: "Kootenai", className: "bg-muted/10 text-foreground border-border/20" };
   }
-  return { label: county || "Other", className: "bg-zinc-500/10 text-zinc-300 border-zinc-500/20" };
+  return { label: county || "Other", className: "bg-muted/10 text-foreground border-border/20" };
 }
 
 // sourceMeta removed — source column hidden in lean table view
@@ -253,28 +253,28 @@ function speedToLeadMeta(lead: LeadRow): { text: string; className: string } {
     const responseMs = Math.max(0, attemptMs - promotedMs);
     const label = hasLoggedFirstAttempt ? "First response" : "First response est";
     if (responseMs <= 5 * 60 * 1000) {
-      return { text: `${label} ${formatElapsed(responseMs)} (Fast)`, className: "text-emerald-400" };
+      return { text: `${label} ${formatElapsed(responseMs)} (Fast)`, className: "text-foreground" };
     }
     if (responseMs <= 15 * 60 * 1000) {
-      return { text: `${label} ${formatElapsed(responseMs)} (OK)`, className: "text-yellow-300" };
+      return { text: `${label} ${formatElapsed(responseMs)} (OK)`, className: "text-foreground" };
     }
-    return { text: `${label} ${formatElapsed(responseMs)} (Slow)`, className: "text-red-300" };
+    return { text: `${label} ${formatElapsed(responseMs)} (Slow)`, className: "text-foreground" };
   }
 
   const ageMs = Date.now() - promotedMs;
   if (ageMs > 15 * 60 * 1000) {
-    return { text: `First response pending ${formatElapsed(ageMs)}`, className: "text-red-400 font-medium" };
+    return { text: `First response pending ${formatElapsed(ageMs)}`, className: "text-foreground font-medium" };
   }
   if (ageMs > 5 * 60 * 1000) {
-    return { text: `First response pending ${formatElapsed(ageMs)}`, className: "text-yellow-400" };
+    return { text: `First response pending ${formatElapsed(ageMs)}`, className: "text-foreground" };
   }
-  return { text: `First response pending ${formatElapsed(ageMs)}`, className: "text-emerald-300" };
+  return { text: `First response pending ${formatElapsed(ageMs)}`, className: "text-foreground" };
 }
 
 function urgencyTextClass(urgency: UrgencyLevel): string {
   switch (urgency) {
-    case "critical": return "text-red-400 font-semibold";
-    case "high": return "text-amber-300";
+    case "critical": return "text-foreground font-semibold";
+    case "high": return "text-foreground";
     case "normal": return "text-muted-foreground/70";
     case "low": return "text-muted-foreground/50";
     case "none": return "text-muted-foreground/40";
@@ -305,10 +305,10 @@ function needsFollowUp(lead: LeadRow): boolean {
 }
 
 function offerStatusClass(status: LeadRow["offerStatus"]): string {
-  if (status === "preparing_offer") return "bg-cyan/10 text-cyan border-cyan/20";
-  if (status === "offer_made") return "bg-blue-500/12 text-blue-300 border-blue-500/30";
-  if (status === "seller_reviewing") return "bg-purple-500/12 text-purple-300 border-purple-500/30";
-  if (status === "declined") return "bg-zinc-500/15 text-zinc-300 border-zinc-500/30";
+  if (status === "preparing_offer") return "bg-primary/10 text-primary border-primary/20";
+  if (status === "offer_made") return "bg-muted/12 text-foreground border-border/30";
+  if (status === "seller_reviewing") return "bg-muted/12 text-foreground border-border/30";
+  if (status === "declined") return "bg-muted/15 text-foreground border-border/30";
   return "bg-white/[0.04] text-muted-foreground border-white/[0.1]";
 }
 
@@ -440,12 +440,12 @@ export function LeadTable({
     <div className="rounded-[14px] border border-glass-border bg-glass/30 overflow-hidden">
       {/* Bulk delete bar */}
       {someSelected && (
-        <div className="flex items-center gap-3 px-4 py-2 border-b border-glass-border bg-red-500/[0.06]">
+        <div className="flex items-center gap-3 px-4 py-2 border-b border-glass-border bg-muted/[0.06]">
           <span className="text-xs text-foreground font-medium">{selectedIds.size} selected</span>
           <button
             onClick={handleBulkDelete}
             disabled={bulkDeleting}
-            className="flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-md bg-red-500/15 text-red-400 border border-red-500/25 hover:bg-red-500/25 transition-colors disabled:opacity-50"
+            className="flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-md bg-muted/15 text-foreground border border-border/25 hover:bg-muted/25 transition-colors disabled:opacity-50"
           >
             {bulkDeleting ? <Loader2 className="h-3 w-3 animate-spin" /> : <Trash2 className="h-3 w-3" />}
             Delete Selected ({selectedIds.size})
@@ -504,10 +504,10 @@ export function LeadTable({
             const actionType = actionSummary.actionType === "call" ? "Callback" : actionSummary.actionType === "review" ? "Review" : "Follow up";
             if (diffMs < 0) {
               nextActionText = diffDays === 0 ? `${actionType} due today` : `${actionType} ${diffDays}d overdue`;
-              nextActionClass = diffDays >= 3 ? "text-red-400 font-semibold" : diffDays >= 1 ? "text-red-400" : "text-amber-400";
+              nextActionClass = diffDays >= 3 ? "text-foreground font-semibold" : diffDays >= 1 ? "text-foreground" : "text-foreground";
             } else {
               nextActionText = diffDays === 0 ? `${actionType} today` : diffDays === 1 ? `${actionType} tomorrow` : `${actionType} in ${diffDays}d`;
-              nextActionClass = diffDays <= 1 ? "text-amber-400" : "text-muted-foreground/70";
+              nextActionClass = diffDays <= 1 ? "text-foreground" : "text-muted-foreground/70";
             }
           }
         } else if (lead.totalCalls === 0) {
@@ -529,9 +529,9 @@ export function LeadTable({
             className={cn(
               "grid gap-3 px-4 py-3 border-b border-white/[0.03] cursor-pointer transition-all hover:bg-white/[0.03]",
               GRID,
-              isOverdue && overdueDays >= 3 && "bg-red-500/5 border-l-2 border-l-red-500/40",
-              isOverdue && overdueDays < 3 && "bg-amber-500/5 border-l-2 border-l-amber-500/40",
-              !isOverdue && lead.score.label === "platinum" && "bg-cyan-500/[0.03] hover:bg-cyan-500/[0.06]",
+              isOverdue && overdueDays >= 3 && "bg-muted/5 border-l-2 border-l-red-500/40",
+              isOverdue && overdueDays < 3 && "bg-muted/5 border-l-2 border-l-amber-500/40",
+              !isOverdue && lead.score.label === "platinum" && "bg-primary-500/[0.03] hover:bg-primary-500/[0.06]",
             )}
           >
             {/* Checkbox */}
@@ -560,7 +560,7 @@ export function LeadTable({
                   {lead.ownerName}
                 </span>
                 {lead.ownerPhone ? (
-                  <span className="text-[10px] text-emerald-400/80 tabular-nums shrink-0">
+                  <span className="text-[10px] text-foreground/80 tabular-nums shrink-0">
                     {formatPhone(lead.ownerPhone)}
                   </span>
                 ) : (
@@ -606,7 +606,7 @@ export function LeadTable({
                   <TooltipTrigger asChild>
                     <a
                       href={`tel:${lead.ownerPhone}`}
-                      className="h-6 w-6 flex items-center justify-center rounded-md text-emerald-400 hover:bg-emerald-500/10 transition-colors"
+                      className="h-6 w-6 flex items-center justify-center rounded-md text-foreground hover:bg-muted/10 transition-colors"
                       onClick={(e) => e.stopPropagation()}
                     >
                       <Phone className="h-3.5 w-3.5" />
@@ -620,7 +620,7 @@ export function LeadTable({
                   <button
                     onClick={() => handleDelete(lead)}
                     disabled={deletingId === lead.id}
-                    className="h-6 w-6 flex items-center justify-center rounded-md text-red-400/60 hover:text-red-400 hover:bg-red-500/10 transition-colors disabled:opacity-40"
+                    className="h-6 w-6 flex items-center justify-center rounded-md text-foreground/60 hover:text-foreground hover:bg-muted/10 transition-colors disabled:opacity-40"
                   >
                     {deletingId === lead.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
                   </button>

@@ -36,10 +36,10 @@ function relativeDue(dueAt: string | null): { label: string; color: string } {
     const absDays = Math.abs(diffDays);
     return {
       label: absDays === 1 ? "1 day overdue" : `${absDays} days overdue`,
-      color: "text-red-400",
+      color: "text-foreground",
     };
   }
-  if (diffDays === 0) return { label: "Due today", color: "text-amber-400" };
+  if (diffDays === 0) return { label: "Due today", color: "text-foreground" };
   if (diffDays === 1) return { label: "Tomorrow", color: "text-foreground" };
   if (diffDays <= 7) return { label: `In ${diffDays} days`, color: "text-foreground" };
   return {
@@ -49,9 +49,9 @@ function relativeDue(dueAt: string | null): { label: string; color: string } {
 }
 
 function priorityDot(priority: number) {
-  if (priority >= 3) return "bg-red-500 shadow-[0_0_6px_rgba(239,68,68,0.5)]";
-  if (priority === 2) return "bg-amber-400 shadow-[0_0_6px_rgba(251,191,36,0.4)]";
-  return "bg-cyan/60";
+  if (priority >= 3) return "bg-muted shadow-[0_0_6px_rgba(239,68,68,0.5)]";
+  if (priority === 2) return "bg-muted shadow-[0_0_6px_rgba(251,191,36,0.4)]";
+  return "bg-primary/60";
 }
 
 const TABS: { key: TaskView; label: string; badgeVariant?: "destructive" | "gold" | "cyan" }[] = [
@@ -96,7 +96,7 @@ function QuickCreate({ onCreate }: { onCreate: (data: Partial<TaskItem>) => Prom
   return (
     <GlassCard className="p-3">
       <div className="flex items-center gap-2">
-        <Plus className="h-4 w-4 text-cyan shrink-0" />
+        <Plus className="h-4 w-4 text-primary shrink-0" />
         <input
           ref={inputRef}
           type="text"
@@ -110,12 +110,12 @@ function QuickCreate({ onCreate }: { onCreate: (data: Partial<TaskItem>) => Prom
           type="date"
           value={dueAt}
           onChange={(e) => setDueAt(e.target.value)}
-          className="bg-white/[0.03] border border-white/[0.06] rounded-[6px] px-2 py-1 text-xs text-foreground focus:outline-none focus:border-cyan/30 transition-all"
+          className="bg-white/[0.03] border border-white/[0.06] rounded-[6px] px-2 py-1 text-xs text-foreground focus:outline-none focus:border-primary/30 transition-all"
         />
         <select
           value={priority}
           onChange={(e) => setPriority(Number(e.target.value))}
-          className="bg-white/[0.03] border border-white/[0.06] rounded-[6px] px-2 py-1 text-xs text-foreground focus:outline-none focus:border-cyan/30 transition-all appearance-none cursor-pointer"
+          className="bg-white/[0.03] border border-white/[0.06] rounded-[6px] px-2 py-1 text-xs text-foreground focus:outline-none focus:border-primary/30 transition-all appearance-none cursor-pointer"
         >
           <option value={1}>Low</option>
           <option value={2}>Medium</option>
@@ -127,7 +127,7 @@ function QuickCreate({ onCreate }: { onCreate: (data: Partial<TaskItem>) => Prom
           className={cn(
             "px-3 py-1.5 rounded-[8px] text-xs font-medium transition-all",
             title.trim()
-              ? "bg-cyan/15 text-cyan border border-cyan/20 hover:bg-cyan/25"
+              ? "bg-primary/15 text-primary border border-primary/20 hover:bg-primary/25"
               : "bg-white/[0.03] text-muted-foreground/40 border border-white/[0.04] cursor-not-allowed"
           )}
         >
@@ -169,11 +169,11 @@ function TaskRow({
       className={cn(
         "group flex items-center gap-3 px-3 py-2.5 rounded-[10px] transition-all border-l-2",
         isOverdue
-          ? "border-l-red-500/80 bg-red-500/[0.03]"
+          ? "border-l-red-500/80 bg-muted/[0.03]"
           : isCompleted
             ? "border-l-transparent bg-white/[0.01] opacity-60"
             : due.label === "Due today"
-              ? "border-l-amber-400/60 bg-amber-400/[0.02]"
+              ? "border-l-amber-400/60 bg-muted/[0.02]"
               : "border-l-transparent bg-white/[0.02]",
         "hover:bg-white/[0.04]"
       )}
@@ -187,8 +187,8 @@ function TaskRow({
         className={cn(
           "shrink-0 h-5 w-5 rounded-full border flex items-center justify-center transition-all",
           isCompleted
-            ? "border-neon/40 bg-neon/10 text-neon"
-            : "border-white/10 hover:border-cyan/40 hover:bg-cyan/10 text-transparent hover:text-cyan"
+            ? "border-primary/40 bg-primary/10 text-primary"
+            : "border-white/10 hover:border-primary/40 hover:bg-primary/10 text-transparent hover:text-primary"
         )}
       >
         {isCompleted ? (
@@ -208,7 +208,7 @@ function TaskRow({
             onClick={() => {
               if (task.lead_id) window.location.href = `/leads?open=${task.lead_id}`;
             }}
-            className="text-[11px] text-cyan/70 hover:text-cyan truncate flex items-center gap-1 mt-0.5"
+            className="text-[11px] text-primary/70 hover:text-primary truncate flex items-center gap-1 mt-0.5"
           >
             <ChevronRight className="h-3 w-3" />
             {task.lead_address}
@@ -252,7 +252,7 @@ function TaskRow({
           <div className="flex items-center gap-1">
             <button
               onClick={() => { onDelete(task.id); setConfirmDelete(false); }}
-              className="px-1.5 py-0.5 rounded text-[10px] bg-red-500/20 text-red-400 hover:bg-red-500/30 transition-colors"
+              className="px-1.5 py-0.5 rounded text-[10px] bg-muted/20 text-foreground hover:bg-muted/30 transition-colors"
             >
               Yes
             </button>
@@ -266,7 +266,7 @@ function TaskRow({
         ) : (
           <button
             onClick={() => setConfirmDelete(true)}
-            className="p-1 rounded hover:bg-red-500/10 text-muted-foreground hover:text-red-400 transition-colors"
+            className="p-1 rounded hover:bg-muted/10 text-muted-foreground hover:text-foreground transition-colors"
             title="Delete"
           >
             <Trash2 className="h-3.5 w-3.5" />
@@ -336,14 +336,14 @@ function EditOverlay({
             type="text"
             value={title}
             onChange={(e) => setTitle(e.target.value)}
-            className="w-full bg-white/[0.03] border border-white/[0.06] rounded-[8px] px-3 py-2 text-sm text-foreground focus:outline-none focus:border-cyan/30 transition-all"
+            className="w-full bg-white/[0.03] border border-white/[0.06] rounded-[8px] px-3 py-2 text-sm text-foreground focus:outline-none focus:border-primary/30 transition-all"
             placeholder="Task title"
           />
           <textarea
             value={description}
             onChange={(e) => setDescription(e.target.value)}
             rows={2}
-            className="w-full bg-white/[0.03] border border-white/[0.06] rounded-[8px] px-3 py-2 text-sm text-foreground focus:outline-none focus:border-cyan/30 transition-all resize-none"
+            className="w-full bg-white/[0.03] border border-white/[0.06] rounded-[8px] px-3 py-2 text-sm text-foreground focus:outline-none focus:border-primary/30 transition-all resize-none"
             placeholder="Description (optional)"
           />
           <div className="flex gap-3">
@@ -355,7 +355,7 @@ function EditOverlay({
                 type="date"
                 value={dueAt}
                 onChange={(e) => setDueAt(e.target.value)}
-                className="w-full bg-white/[0.03] border border-white/[0.06] rounded-[6px] px-2.5 py-1.5 text-xs text-foreground focus:outline-none focus:border-cyan/30 transition-all"
+                className="w-full bg-white/[0.03] border border-white/[0.06] rounded-[6px] px-2.5 py-1.5 text-xs text-foreground focus:outline-none focus:border-primary/30 transition-all"
               />
             </div>
             <div className="flex-1">
@@ -365,7 +365,7 @@ function EditOverlay({
               <select
                 value={priority}
                 onChange={(e) => setPriority(Number(e.target.value))}
-                className="w-full bg-white/[0.03] border border-white/[0.06] rounded-[6px] px-2.5 py-1.5 text-xs text-foreground focus:outline-none focus:border-cyan/30 transition-all appearance-none cursor-pointer"
+                className="w-full bg-white/[0.03] border border-white/[0.06] rounded-[6px] px-2.5 py-1.5 text-xs text-foreground focus:outline-none focus:border-primary/30 transition-all appearance-none cursor-pointer"
               >
                 <option value={1}>Low</option>
                 <option value={2}>Medium</option>
@@ -383,7 +383,7 @@ function EditOverlay({
             <button
               onClick={handleSave}
               disabled={!title.trim() || saving}
-              className="px-3 py-1.5 rounded-[8px] text-xs font-medium bg-cyan/15 text-cyan border border-cyan/20 hover:bg-cyan/25 transition-all disabled:opacity-40"
+              className="px-3 py-1.5 rounded-[8px] text-xs font-medium bg-primary/15 text-primary border border-primary/20 hover:bg-primary/25 transition-all disabled:opacity-40"
             >
               {saving ? "Saving..." : "Save"}
             </button>
@@ -554,7 +554,7 @@ export default function TasksPage() {
               className={cn(
                 "relative px-3 py-2 text-xs font-medium transition-all rounded-t-[8px]",
                 activeTab === tab.key
-                  ? "text-cyan"
+                  ? "text-primary"
                   : "text-muted-foreground hover:text-foreground"
               )}
             >
@@ -562,8 +562,8 @@ export default function TasksPage() {
               {activeTab === tab.key && (
                 <motion.div
                   layoutId="task-tab-indicator"
-                  className="absolute bottom-0 left-0 right-0 h-[2px] bg-cyan"
-                  style={{ boxShadow: "0 0 8px rgba(0,229,255,0.4)" }}
+                  className="absolute bottom-0 left-0 right-0 h-[2px] bg-primary"
+                  style={{ boxShadow: "0 0 8px rgba(255,255,255,0.4)" }}
                   transition={{ type: "spring", stiffness: 350, damping: 30 }}
                 />
               )}

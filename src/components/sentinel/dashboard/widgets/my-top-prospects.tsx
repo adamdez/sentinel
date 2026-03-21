@@ -72,7 +72,7 @@ export function MyTopProspects() {
               aiScore.label === "platinum" ? "ring-1 ring-primary/25" : ""
             }`}
             style={aiScore.label === "platinum" ? {
-              boxShadow: "0 0 15px rgba(0,212,255,0.12), inset 0 0 20px rgba(0,212,255,0.03)",
+              boxShadow: "0 0 15px rgba(0,0,0,0.12), inset 0 0 20px rgba(0,0,0,0.03)",
             } : {}}
           >
             <span className="text-[11px] text-muted-foreground font-mono w-3 shrink-0">

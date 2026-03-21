@@ -56,19 +56,19 @@ const POLICY_OPTS: Array<{ value: SourcePolicy; label: string; icon: React.Eleme
     value: "approved",
     label: "Approved",
     icon:  CheckCircle2,
-    style: "text-emerald-400 border-emerald-500/25 bg-emerald-500/[0.06] hover:bg-emerald-500/10",
+    style: "text-foreground border-border/25 bg-muted/[0.06] hover:bg-muted/10",
   },
   {
     value: "review_required",
     label: "Review required",
     icon:  AlertTriangle,
-    style: "text-amber-400 border-amber-500/25 bg-amber-500/[0.06] hover:bg-amber-500/10",
+    style: "text-foreground border-border/25 bg-muted/[0.06] hover:bg-muted/10",
   },
   {
     value: "blocked",
     label: "Blocked",
     icon:  ShieldAlert,
-    style: "text-red-400 border-red-500/20 bg-red-500/[0.04] hover:bg-red-500/[0.08]",
+    style: "text-foreground border-border/20 bg-muted/[0.04] hover:bg-muted/[0.08]",
   },
 ];
 
@@ -240,18 +240,18 @@ export default function SourcePoliciesPage() {
         {/* Explainer */}
         <GlassCard hover={false} className="!p-3">
           <div className="flex items-start gap-2">
-            <Info className="h-3.5 w-3.5 text-cyan/50 shrink-0 mt-0.5" />
+            <Info className="h-3.5 w-3.5 text-primary/50 shrink-0 mt-0.5" />
             <div className="space-y-1">
               <p className="text-xs font-medium text-foreground/80">How source policies work</p>
               <ul className="text-[11px] text-muted-foreground/60 space-y-0.5">
                 <li>
-                  <span className="text-emerald-400/70 font-medium">Approved</span> — compiles without warning. Clean evidence.
+                  <span className="text-foreground/70 font-medium">Approved</span> — compiles without warning. Clean evidence.
                 </li>
                 <li>
-                  <span className="text-amber-400/70 font-medium">Review required</span> — included in compile but flagged for extra attention in dossier review.
+                  <span className="text-foreground/70 font-medium">Review required</span> — included in compile but flagged for extra attention in dossier review.
                 </li>
                 <li>
-                  <span className="text-red-400/70 font-medium">Blocked</span> — excluded from compile by default. Warning shown at capture time. Adam can override per-compile.
+                  <span className="text-foreground/70 font-medium">Blocked</span> — excluded from compile by default. Warning shown at capture time. Adam can override per-compile.
                 </li>
               </ul>
               <p className="text-[10px] text-muted-foreground/35 pt-1">

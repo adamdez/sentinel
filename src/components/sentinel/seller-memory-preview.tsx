@@ -26,10 +26,10 @@ interface Props {
 }
 
 const TEMP_COLORS: Record<string, string> = {
-  hot: "text-red-400",
-  warm: "text-orange-400",
-  cool: "text-cyan",
-  cold: "text-blue-400",
+  hot: "text-foreground",
+  warm: "text-foreground",
+  cool: "text-primary",
+  cold: "text-foreground",
   dead: "text-muted-foreground/40",
 };
 
@@ -85,12 +85,12 @@ export function SellerMemoryPreview({ leadId, className = "" }: Props) {
   const staleWarn = staleDays !== null && staleDays > 21;
 
   return (
-    <div className={`rounded-xl border border-purple-500/20 bg-purple-500/[0.04] p-3 space-y-2 ${className}`}>
-      <div className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider text-purple-300/70">
+    <div className={`rounded-xl border border-border/20 bg-muted/[0.04] p-3 space-y-2 ${className}`}>
+      <div className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider text-foreground/70">
         <User className="h-3 w-3" />
         Seller Memory
         {staleDays !== null && (
-          <span className={`ml-auto text-[9px] font-normal ${staleWarn ? "text-orange-400" : "text-muted-foreground/40"}`}>
+          <span className={`ml-auto text-[9px] font-normal ${staleWarn ? "text-foreground" : "text-muted-foreground/40"}`}>
             Last contact {staleDays}d ago
           </span>
         )}
@@ -114,25 +114,25 @@ export function SellerMemoryPreview({ leadId, className = "" }: Props) {
       <div className="space-y-1">
         {memory.lastCallPromises && (
           <div className="flex items-start gap-1.5 text-[11px]">
-            <Handshake className="h-3 w-3 text-emerald-400/60 shrink-0 mt-0.5" />
+            <Handshake className="h-3 w-3 text-foreground/60 shrink-0 mt-0.5" />
             <span className="text-foreground/70">{memory.lastCallPromises}</span>
           </div>
         )}
         {memory.lastCallObjection && (
           <div className="flex items-start gap-1.5 text-[11px]">
-            <AlertTriangle className="h-3 w-3 text-amber-400/60 shrink-0 mt-0.5" />
+            <AlertTriangle className="h-3 w-3 text-foreground/60 shrink-0 mt-0.5" />
             <span className="text-foreground/70">{memory.lastCallObjection}</span>
           </div>
         )}
         {memory.lastCallNextAction && (
           <div className="flex items-start gap-1.5 text-[11px]">
-            <MessageSquare className="h-3 w-3 text-cyan/60 shrink-0 mt-0.5" />
+            <MessageSquare className="h-3 w-3 text-primary/60 shrink-0 mt-0.5" />
             <span className="text-foreground/70">{memory.lastCallNextAction}</span>
           </div>
         )}
         {memory.lastCallCallbackTiming && (
           <div className="flex items-start gap-1.5 text-[11px]">
-            <CalendarClock className="h-3 w-3 text-cyan/50 shrink-0 mt-0.5" />
+            <CalendarClock className="h-3 w-3 text-primary/50 shrink-0 mt-0.5" />
             <span className="text-foreground/70">{memory.lastCallCallbackTiming}</span>
           </div>
         )}
@@ -144,7 +144,7 @@ export function SellerMemoryPreview({ leadId, className = "" }: Props) {
           {objections.map((obj, i) => (
             <span
               key={i}
-              className="inline-flex items-center rounded-full bg-orange-500/10 border border-orange-500/20 px-1.5 py-0.5 text-[9px] text-orange-300"
+              className="inline-flex items-center rounded-full bg-muted/10 border border-border/20 px-1.5 py-0.5 text-[9px] text-foreground"
             >
               {OBJECTION_TAG_LABELS[obj.tag as ObjectionTag] ?? obj.tag}
             </span>
@@ -154,7 +154,7 @@ export function SellerMemoryPreview({ leadId, className = "" }: Props) {
 
       {/* Last call note preview */}
       {memory.recentCalls[0] && (
-        <div className="text-[10px] text-muted-foreground/50 leading-snug line-clamp-2 border-t border-purple-500/10 pt-1.5 mt-1">
+        <div className="text-[10px] text-muted-foreground/50 leading-snug line-clamp-2 border-t border-border/10 pt-1.5 mt-1">
           {memory.recentCalls[0].notes || memory.recentCalls[0].aiSummary || "No notes from last call"}
         </div>
       )}

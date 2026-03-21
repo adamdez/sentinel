@@ -256,7 +256,7 @@ export function ContactTab({ cf, overlay, onSkipTrace, skipTracing, onDial, onSm
       {/* ── Edit / Save controls ── */}
       <div className="flex items-center justify-between">
         <h3 className="text-sm font-semibold text-foreground flex items-center gap-2">
-          <Contact2 className="h-4 w-4 text-cyan/60" />
+          <Contact2 className="h-4 w-4 text-primary/60" />
           Contact Information
         </h3>
         <div className="flex items-center gap-2">
@@ -269,7 +269,7 @@ export function ContactTab({ cf, overlay, onSkipTrace, skipTracing, onDial, onSm
               <button
                 onClick={handleSave}
                 disabled={saving || !hasChanges}
-                className="h-7 px-3 rounded-md text-[10px] font-semibold bg-cyan/15 text-cyan border border-cyan/20 hover:bg-cyan/25 transition-colors disabled:opacity-40 flex items-center gap-1"
+                className="h-7 px-3 rounded-md text-[10px] font-semibold bg-primary/15 text-primary border border-primary/20 hover:bg-primary/25 transition-colors disabled:opacity-40 flex items-center gap-1"
               >
                 {saving ? <Loader2 className="h-3 w-3 animate-spin" /> : <Save className="h-3 w-3" />}
                 Save
@@ -297,26 +297,26 @@ export function ContactTab({ cf, overlay, onSkipTrace, skipTracing, onDial, onSm
               value={propertyAddr}
               onChange={(e) => setPropertyAddr(e.target.value)}
               placeholder="Street address"
-              className="w-full bg-white/[0.04] border border-white/10 rounded-md px-3 py-1.5 text-sm text-foreground placeholder:text-muted-foreground/40 focus:outline-none focus:border-cyan/30"
+              className="w-full bg-white/[0.04] border border-white/10 rounded-md px-3 py-1.5 text-sm text-foreground placeholder:text-muted-foreground/40 focus:outline-none focus:border-primary/30"
             />
             <div className="grid grid-cols-3 gap-2">
               <input
                 value={propertyCity}
                 onChange={(e) => setPropertyCity(e.target.value)}
                 placeholder="City"
-                className="bg-white/[0.04] border border-white/10 rounded-md px-3 py-1.5 text-sm text-foreground placeholder:text-muted-foreground/40 focus:outline-none focus:border-cyan/30"
+                className="bg-white/[0.04] border border-white/10 rounded-md px-3 py-1.5 text-sm text-foreground placeholder:text-muted-foreground/40 focus:outline-none focus:border-primary/30"
               />
               <input
                 value={propertyState}
                 onChange={(e) => setPropertyState(e.target.value)}
                 placeholder="State"
-                className="bg-white/[0.04] border border-white/10 rounded-md px-3 py-1.5 text-sm text-foreground placeholder:text-muted-foreground/40 focus:outline-none focus:border-cyan/30"
+                className="bg-white/[0.04] border border-white/10 rounded-md px-3 py-1.5 text-sm text-foreground placeholder:text-muted-foreground/40 focus:outline-none focus:border-primary/30"
               />
               <input
                 value={propertyZip}
                 onChange={(e) => setPropertyZip(e.target.value)}
                 placeholder="ZIP"
-                className="bg-white/[0.04] border border-white/10 rounded-md px-3 py-1.5 text-sm text-foreground placeholder:text-muted-foreground/40 focus:outline-none focus:border-cyan/30"
+                className="bg-white/[0.04] border border-white/10 rounded-md px-3 py-1.5 text-sm text-foreground placeholder:text-muted-foreground/40 focus:outline-none focus:border-primary/30"
               />
             </div>
           </div>
@@ -338,7 +338,7 @@ export function ContactTab({ cf, overlay, onSkipTrace, skipTracing, onDial, onSm
             value={mailingAddr}
             onChange={(e) => setMailingAddr(e.target.value)}
             placeholder="Mailing address (if different from property)"
-            className="w-full bg-white/[0.04] border border-white/10 rounded-md px-3 py-1.5 text-sm text-foreground placeholder:text-muted-foreground/40 focus:outline-none focus:border-cyan/30"
+            className="w-full bg-white/[0.04] border border-white/10 rounded-md px-3 py-1.5 text-sm text-foreground placeholder:text-muted-foreground/40 focus:outline-none focus:border-primary/30"
           />
         ) : (
           <p className="text-sm text-foreground">{mailingAddr || <span className="text-muted-foreground/40 italic">No mailing address on file</span>}</p>
@@ -355,7 +355,7 @@ export function ContactTab({ cf, overlay, onSkipTrace, skipTracing, onDial, onSm
             <button
               onClick={onSkipTrace}
               disabled={skipTracing}
-              className="h-6 px-2.5 rounded-md text-[9px] font-semibold border border-amber-500/30 bg-amber-500/[0.06] text-amber-400 hover:bg-amber-500/[0.12] transition-colors flex items-center gap-1"
+              className="h-6 px-2.5 rounded-md text-[9px] font-semibold border border-border/30 bg-muted/[0.06] text-foreground hover:bg-muted/[0.12] transition-colors flex items-center gap-1"
             >
               {skipTracing ? <Loader2 className="h-3 w-3 animate-spin" /> : <Crosshair className="h-3 w-3" />}
               {skipTracing ? "Deep Skipping..." : "~90s Deep Skip"}
@@ -375,7 +375,7 @@ export function ContactTab({ cf, overlay, onSkipTrace, skipTracing, onDial, onSm
                     value={phone}
                     onChange={(e) => updatePhone(i, e.target.value)}
                     placeholder={`Phone ${i + 1}`}
-                    className="flex-1 bg-white/[0.04] border border-white/10 rounded-md px-3 py-1.5 text-sm font-mono text-foreground placeholder:text-muted-foreground/30 focus:outline-none focus:border-cyan/30"
+                    className="flex-1 bg-white/[0.04] border border-white/10 rounded-md px-3 py-1.5 text-sm font-mono text-foreground placeholder:text-muted-foreground/30 focus:outline-none focus:border-primary/30"
                   />
                 </div>
               );
@@ -399,15 +399,15 @@ export function ContactTab({ cf, overlay, onSkipTrace, skipTracing, onDial, onSm
                 <div className="flex items-center gap-2.5">
                   <div className={cn(
                     "h-7 w-7 rounded-lg flex items-center justify-center shrink-0",
-                    detail?.lineType === "mobile" ? "bg-emerald-500/10" : "bg-cyan/10",
+                    detail?.lineType === "mobile" ? "bg-muted/10" : "bg-primary/10",
                   )}>
-                    {detail?.lineType === "mobile" ? <Smartphone className="h-3.5 w-3.5 text-emerald-400" /> : <Phone className="h-3.5 w-3.5 text-cyan/70" />}
+                    {detail?.lineType === "mobile" ? <Smartphone className="h-3.5 w-3.5 text-foreground" /> : <Phone className="h-3.5 w-3.5 text-primary/70" />}
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-1.5">
                       <span className="text-sm font-bold font-mono text-foreground">{phone}</span>
-                      {i === 0 && <Badge variant="outline" className="text-[7px] py-0 px-1 border-cyan/30 text-cyan">BEST</Badge>}
-                      {detail?.dnc && <Badge variant="outline" className="text-[7px] py-0 px-1 border-red-500/30 text-red-400">DNC</Badge>}
+                      {i === 0 && <Badge variant="outline" className="text-[7px] py-0 px-1 border-primary/30 text-primary">BEST</Badge>}
+                      {detail?.dnc && <Badge variant="outline" className="text-[7px] py-0 px-1 border-border/30 text-foreground">DNC</Badge>}
                     </div>
                     <div className="flex items-center gap-1.5 mt-0.5">
                       {detail?.lineType && detail.lineType.toLowerCase() !== "unknown" && (
@@ -419,9 +419,9 @@ export function ContactTab({ cf, overlay, onSkipTrace, skipTracing, onDial, onSm
                       {detail?.source && (
                         <Badge variant="outline" className={cn(
                           "text-[7px] py-0 px-1",
-                          detail.source === "batchdata" ? "border-emerald-500/30 text-emerald-400"
-                            : String(detail.source).startsWith("openclaw") ? "border-purple-500/30 text-purple-400"
-                            : "border-cyan/30 text-cyan/70",
+                          detail.source === "batchdata" ? "border-border/30 text-foreground"
+                            : String(detail.source).startsWith("openclaw") ? "border-border/30 text-foreground"
+                            : "border-primary/30 text-primary/70",
                         )}>
                           {detail.source === "batchdata" ? "BD" : String(detail.source).startsWith("openclaw") ? "OC" : "PR"}
                         </Badge>
@@ -433,7 +433,7 @@ export function ContactTab({ cf, overlay, onSkipTrace, skipTracing, onDial, onSm
                       <button
                         onClick={() => promotePhone(i)}
                         title="Set as primary (Best) number — click Save to persist"
-                        className="h-7 px-2 rounded-md text-[10px] font-semibold bg-amber-500/10 text-amber-400 hover:bg-amber-500/20 border border-amber-500/20 transition-all flex items-center gap-1"
+                        className="h-7 px-2 rounded-md text-[10px] font-semibold bg-muted/10 text-foreground hover:bg-muted/20 border border-border/20 transition-all flex items-center gap-1"
                       >
                         ★ Best
                       </button>
@@ -441,14 +441,14 @@ export function ContactTab({ cf, overlay, onSkipTrace, skipTracing, onDial, onSm
                     <button
                       onClick={() => onDial(phone)}
                       disabled={calling || detail?.dnc}
-                      className="h-7 px-2 rounded-md text-[10px] font-semibold bg-cyan/10 text-cyan hover:bg-cyan/20 border border-cyan/20 transition-all flex items-center gap-1 disabled:opacity-30"
+                      className="h-7 px-2 rounded-md text-[10px] font-semibold bg-primary/10 text-primary hover:bg-primary/20 border border-primary/20 transition-all flex items-center gap-1 disabled:opacity-30"
                     >
                       <Phone className="h-3 w-3" />Dial
                     </button>
                     <button
                       onClick={() => onSms(phone)}
                       disabled={detail?.lineType === "landline"}
-                      className="h-7 px-2 rounded-md text-[10px] font-semibold bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 border border-emerald-500/20 transition-all flex items-center gap-1 disabled:opacity-30"
+                      className="h-7 px-2 rounded-md text-[10px] font-semibold bg-muted/10 text-foreground hover:bg-muted/20 border border-border/20 transition-all flex items-center gap-1 disabled:opacity-30"
                     >
                       <MessageSquare className="h-3 w-3" />
                     </button>
@@ -478,7 +478,7 @@ export function ContactTab({ cf, overlay, onSkipTrace, skipTracing, onDial, onSm
                     value={email}
                     onChange={(e) => updateEmail(i, e.target.value)}
                     placeholder={`Email ${i + 1}`}
-                    className="flex-1 bg-white/[0.04] border border-white/10 rounded-md px-3 py-1.5 text-sm text-foreground placeholder:text-muted-foreground/30 focus:outline-none focus:border-cyan/30"
+                    className="flex-1 bg-white/[0.04] border border-white/10 rounded-md px-3 py-1.5 text-sm text-foreground placeholder:text-muted-foreground/30 focus:outline-none focus:border-primary/30"
                   />
                 </div>
               );
@@ -498,18 +498,18 @@ export function ContactTab({ cf, overlay, onSkipTrace, skipTracing, onDial, onSm
             return (
               <div key={i} className="rounded-[10px] border border-white/[0.08] bg-white/[0.03] p-2.5">
                 <div className="flex items-center gap-2.5">
-                  <Mail className="h-3.5 w-3.5 text-cyan/60" />
-                  <a href={`mailto:${email}`} className="text-sm text-cyan hover:underline">{email}</a>
-                  {i === 0 && <Badge variant="outline" className="text-[8px] py-0 px-1 border-cyan/30 text-cyan">PRIMARY</Badge>}
+                  <Mail className="h-3.5 w-3.5 text-primary/60" />
+                  <a href={`mailto:${email}`} className="text-sm text-primary hover:underline">{email}</a>
+                  {i === 0 && <Badge variant="outline" className="text-[8px] py-0 px-1 border-primary/30 text-primary">PRIMARY</Badge>}
                   {detail?.deliverable && (
-                    <Badge variant="outline" className="text-[7px] py-0 px-1 border-emerald-500/30 text-emerald-400">Verified</Badge>
+                    <Badge variant="outline" className="text-[7px] py-0 px-1 border-border/30 text-foreground">Verified</Badge>
                   )}
                   {detail?.source && (
                     <Badge variant="outline" className={cn(
                       "text-[7px] py-0 px-1",
-                      detail.source === "batchdata" ? "border-emerald-500/30 text-emerald-400"
-                        : String(detail.source).startsWith("openclaw") ? "border-purple-500/30 text-purple-400"
-                        : "border-cyan/30 text-cyan/70",
+                      detail.source === "batchdata" ? "border-border/30 text-foreground"
+                        : String(detail.source).startsWith("openclaw") ? "border-border/30 text-foreground"
+                        : "border-primary/30 text-primary/70",
                     )}>
                       {detail.source === "batchdata" ? "BD" : String(detail.source).startsWith("openclaw") ? "OC" : "PR"}
                     </Badge>
@@ -541,9 +541,9 @@ export function ContactTab({ cf, overlay, onSkipTrace, skipTracing, onDial, onSm
                     {person.source && (
                       <Badge variant="outline" className={cn(
                         "text-[7px] py-0 px-1",
-                        person.source === "batchdata" ? "border-emerald-500/30 text-emerald-400"
-                          : String(person.source).startsWith("openclaw") ? "border-purple-500/30 text-purple-400"
-                          : "border-cyan/30 text-cyan/70",
+                        person.source === "batchdata" ? "border-border/30 text-foreground"
+                          : String(person.source).startsWith("openclaw") ? "border-border/30 text-foreground"
+                          : "border-primary/30 text-primary/70",
                       )}>
                         {person.source === "batchdata" ? "BD" : String(person.source).startsWith("openclaw") ? "OC" : "PR"}
                       </Badge>

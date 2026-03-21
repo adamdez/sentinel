@@ -38,16 +38,16 @@ import { SOURCE_TYPE_LABELS } from "@/hooks/use-dossier-artifacts";
 // ── Status helpers ────────────────────────────────────────────────────────────
 
 const STATUS_META = {
-  pending:  { label: "Pending",  color: "text-amber-400",   bg: "border-amber-500/20 bg-amber-500/[0.05]", dot: "bg-amber-400" },
-  accepted: { label: "Accepted", color: "text-emerald-400", bg: "border-emerald-500/20 bg-emerald-500/[0.05]", dot: "bg-emerald-400" },
-  rejected: { label: "Rejected", color: "text-red-400/70",  bg: "border-red-500/15 bg-red-500/[0.03]", dot: "bg-red-400/60" },
+  pending:  { label: "Pending",  color: "text-foreground",   bg: "border-border/20 bg-muted/[0.05]", dot: "bg-muted" },
+  accepted: { label: "Accepted", color: "text-foreground", bg: "border-border/20 bg-muted/[0.05]", dot: "bg-muted" },
+  rejected: { label: "Rejected", color: "text-foreground/70",  bg: "border-border/15 bg-muted/[0.03]", dot: "bg-muted/60" },
 } as const;
 
 const CONFIDENCE_META: Record<FactConfidence, { label: string; color: string }> = {
-  unverified: { label: "Unverified", color: "text-zinc-500" },
-  low:        { label: "Low",        color: "text-orange-400/70" },
-  medium:     { label: "Medium",     color: "text-amber-400" },
-  high:       { label: "High",       color: "text-emerald-400" },
+  unverified: { label: "Unverified", color: "text-foreground" },
+  low:        { label: "Low",        color: "text-foreground/70" },
+  medium:     { label: "Medium",     color: "text-foreground" },
+  high:       { label: "High",       color: "text-foreground" },
 };
 
 // ── Fact row ──────────────────────────────────────────────────────────────────
@@ -106,7 +106,7 @@ function FactRow({
               {confMeta.label}
             </span>
             {fact.promoted_field && (
-              <span className="text-[9px] text-cyan/60 flex items-center gap-0.5">
+              <span className="text-[9px] text-primary/60 flex items-center gap-0.5">
                 <ArrowRight className="h-2.5 w-2.5" />
                 {PROMOTED_FIELD_OPTIONS.find(o => o.value === fact.promoted_field)?.label ?? fact.promoted_field}
               </span>
@@ -121,9 +121,9 @@ function FactRow({
               onClick={() => handleStatusChange("accepted")}
               disabled={patching}
               title="Accept"
-              className="rounded p-0.5 hover:bg-emerald-500/15 transition-colors"
+              className="rounded p-0.5 hover:bg-muted/15 transition-colors"
             >
-              <CheckCircle2 className="h-3.5 w-3.5 text-emerald-400/70 hover:text-emerald-400" />
+              <CheckCircle2 className="h-3.5 w-3.5 text-foreground/70 hover:text-foreground" />
             </button>
           )}
           {fact.review_status !== "rejected" && (
@@ -131,9 +131,9 @@ function FactRow({
               onClick={() => handleStatusChange("rejected")}
               disabled={patching}
               title="Reject"
-              className="rounded p-0.5 hover:bg-red-500/15 transition-colors"
+              className="rounded p-0.5 hover:bg-muted/15 transition-colors"
             >
-              <XCircle className="h-3.5 w-3.5 text-red-400/50 hover:text-red-400" />
+              <XCircle className="h-3.5 w-3.5 text-foreground/50 hover:text-foreground" />
             </button>
           )}
           {fact.review_status !== "pending" && (
@@ -141,9 +141,9 @@ function FactRow({
               onClick={() => handleStatusChange("pending")}
               disabled={patching}
               title="Reset to pending"
-              className="rounded p-0.5 hover:bg-amber-500/15 transition-colors"
+              className="rounded p-0.5 hover:bg-muted/15 transition-colors"
             >
-              <AlertCircle className="h-3.5 w-3.5 text-amber-400/40 hover:text-amber-400" />
+              <AlertCircle className="h-3.5 w-3.5 text-foreground/40 hover:text-foreground" />
             </button>
           )}
           <button
@@ -221,7 +221,7 @@ function FactRow({
                     setDeleting(false);
                   }}
                   disabled={deleting || patching}
-                  className="flex items-center gap-1 text-[9px] text-red-400/40 hover:text-red-400 transition-colors"
+                  className="flex items-center gap-1 text-[9px] text-foreground/40 hover:text-foreground transition-colors"
                 >
                   {deleting
                     ? <Loader2 className="h-2.5 w-2.5 animate-spin" />
@@ -411,7 +411,7 @@ function ArtifactFactGroup({
               target="_blank"
               rel="noopener noreferrer"
               onClick={e => e.stopPropagation()}
-              className="text-[9px] text-blue-400/50 hover:text-blue-400 flex items-center gap-0.5"
+              className="text-[9px] text-foreground/50 hover:text-foreground flex items-center gap-0.5"
             >
               <ExternalLink className="h-2.5 w-2.5" />
               Source
@@ -420,12 +420,12 @@ function ArtifactFactGroup({
         </div>
         <div className="flex items-center gap-1.5 shrink-0">
           {pending > 0 && (
-            <Badge variant="outline" className="text-[9px] h-3.5 px-1 text-amber-400/70 border-amber-500/30">
+            <Badge variant="outline" className="text-[9px] h-3.5 px-1 text-foreground/70 border-border/30">
               {pending} pending
             </Badge>
           )}
           {accepted > 0 && (
-            <Badge variant="outline" className="text-[9px] h-3.5 px-1 text-emerald-400/70 border-emerald-500/30">
+            <Badge variant="outline" className="text-[9px] h-3.5 px-1 text-foreground/70 border-border/30">
               {accepted} ✓
             </Badge>
           )}
@@ -482,11 +482,11 @@ function SummaryBar({ facts }: { facts: FactAssertionRow[] }) {
   return (
     <div className="flex items-center gap-3 text-[9px] text-muted-foreground/40 px-0.5">
       <span>{facts.length} facts</span>
-      {pending  > 0 && <span className="text-amber-400/60">{pending} pending</span>}
-      {accepted > 0 && <span className="text-emerald-400/60">{accepted} accepted</span>}
-      {rejected > 0 && <span className="text-red-400/40">{rejected} rejected</span>}
+      {pending  > 0 && <span className="text-foreground/60">{pending} pending</span>}
+      {accepted > 0 && <span className="text-foreground/60">{accepted} accepted</span>}
+      {rejected > 0 && <span className="text-foreground/40">{rejected} rejected</span>}
       {withField > 0 && (
-        <span className="text-cyan/50 flex items-center gap-0.5">
+        <span className="text-primary/50 flex items-center gap-0.5">
           <ArrowRight className="h-2.5 w-2.5" />
           {withField} mapped to dossier fields
         </span>
@@ -536,7 +536,7 @@ export function FactAssertionsPanel({ leadId, artifacts }: FactAssertionsPanelPr
         onClick={() => setExpanded(e => !e)}
         className="w-full flex items-center gap-2 text-left"
       >
-        <Shield className="h-3.5 w-3.5 text-purple-400/60 shrink-0" />
+        <Shield className="h-3.5 w-3.5 text-foreground/60 shrink-0" />
         <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/60">
           Fact Assertions
         </span>

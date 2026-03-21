@@ -1,5 +1,10 @@
 [
   {
+    "hash": "c6760d8c",
+    "date": "2026-03-21",
+    "message": "fix: master client file modal — operator-first restructure + data quality"
+  },
+  {
     "hash": "5b0788b3",
     "date": "2026-03-21",
     "message": "feat: universal search (phone, email, contacts) + score badge labels"
@@ -118,10 +123,5 @@
     "hash": "1e2adcfe",
     "date": "2026-03-19",
     "message": "ui: align Live Assist panel with monochrome shell"
-  },
-  {
-    "hash": "71fdf193",
-    "date": "2026-03-19",
-    "message": "ui: monochrome glass theme, strip cosmic classes; dialer panels + sessions"
   }
 ]

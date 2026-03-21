@@ -7,10 +7,10 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useProspects, type ProspectRow } from "@/hooks/use-prospects";
 
 function scoreColor(composite: number): { bg: string; ring: string } {
-  if (composite >= 85) return { bg: "bg-cyan", ring: "rgba(0,212,255,0.4)" };
-  if (composite >= 65) return { bg: "bg-amber-400", ring: "rgba(245,158,11,0.35)" };
-  if (composite >= 40) return { bg: "bg-slate-400", ring: "rgba(148,163,184,0.3)" };
-  return { bg: "bg-orange-500", ring: "rgba(249,115,22,0.3)" };
+  if (composite >= 85) return { bg: "bg-primary", ring: "rgba(0,0,0,0.4)" };
+  if (composite >= 65) return { bg: "bg-muted", ring: "rgba(0,0,0,0.35)" };
+  if (composite >= 40) return { bg: "bg-muted", ring: "rgba(148,163,184,0.3)" };
+  return { bg: "bg-muted", ring: "rgba(249,115,22,0.3)" };
 }
 
 function hashToPosition(str: string, seed: number): { top: string; left: string } {
@@ -119,7 +119,7 @@ export function LiveMap() {
             <Badge variant="neon" className="text-[9px]">{fireCount} FIRE</Badge>
           )}
           {hotCount > 0 && (
-            <Badge variant="outline" className="text-[9px] border-red-400/30 text-red-400">{hotCount} HOT</Badge>
+            <Badge variant="outline" className="text-[9px] border-border/30 text-foreground">{hotCount} HOT</Badge>
           )}
           <Badge variant="outline" className="text-[9px]">{prospects.length} Total</Badge>
         </div>

@@ -58,11 +58,11 @@ function TooltipContent({ data, heir, pct, placement }: {
       }`}
       style={{
         boxShadow:
-          "0 8px 40px rgba(0,0,0,0.7), 0 0 1px rgba(255,255,255,0.06), 0 0 20px rgba(0,212,255,0.06)",
+          "0 8px 40px rgba(0,0,0,0.7), 0 0 1px rgba(255,255,255,0.06), 0 0 20px rgba(0,0,0,0.06)",
       }}
     >
       {/* Holographic top edge */}
-      <div className="absolute inset-x-0 top-0 h-[1px] rounded-t-[12px] bg-gradient-to-r from-transparent via-cyan/30 to-transparent" />
+      <div className="absolute inset-x-0 top-0 h-[1px] rounded-t-[12px] bg-gradient-to-r from-transparent via-primary/30 to-transparent" />
 
       <p className="font-semibold text-[11px] mb-1.5 text-foreground">
         {heir ? "Likely Heir / Estate Contact" : "Direct Contact"}
@@ -76,7 +76,7 @@ function TooltipContent({ data, heir, pct, placement }: {
         )}
         <div className="flex justify-between">
           <span>Heir / Estate Prob.</span>
-          <span className={`font-medium ${heir ? "text-purple-400" : "text-emerald-400"}`}>{pct}%</span>
+          <span className={`font-medium ${heir ? "text-foreground" : "text-foreground"}`}>{pct}%</span>
         </div>
         {data.contactProbability != null && (
           <div className="flex justify-between">
@@ -132,17 +132,17 @@ export function RelationshipBadge({ data }: { data: RelationshipData }) {
       <span
         className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-[8px] text-[11px] font-bold uppercase tracking-wider border backdrop-blur-sm cursor-default ${
           heir
-            ? "text-purple-300 bg-purple-500/12 border-purple-500/25"
-            : "text-emerald-300 bg-emerald-500/12 border-emerald-500/25"
+            ? "text-foreground bg-muted/12 border-border/25"
+            : "text-foreground bg-muted/12 border-border/25"
         }`}
         style={{
           boxShadow: heir
             ? "0 0 12px rgba(168,85,247,0.15), inset 0 1px 0 rgba(168,85,247,0.1)"
-            : "0 0 12px rgba(0,255,136,0.12), inset 0 1px 0 rgba(0,255,136,0.08)",
+            : "0 0 12px rgba(255,255,255,0.12), inset 0 1px 0 rgba(255,255,255,0.08)",
         }}
       >
         <span
-          className={`h-1.5 w-1.5 rounded-full ${heir ? "bg-purple-400 animate-pulse" : "bg-emerald-400"}`}
+          className={`h-1.5 w-1.5 rounded-full ${heir ? "bg-muted animate-pulse" : "bg-muted"}`}
         />
         {heir ? `Likely Heir / Estate — ${pct}%` : "Direct Contact"}
       </span>
@@ -173,12 +173,12 @@ export function RelationshipBadgeCompact({ data }: { data: RelationshipData }) {
       <span
         className={`inline-flex items-center gap-1 px-1.5 py-0 rounded-[6px] text-[9px] font-bold uppercase tracking-wider border shrink-0 ${
           heir
-            ? "text-purple-300 bg-purple-500/10 border-purple-500/20"
-            : "text-emerald-300 bg-emerald-500/10 border-emerald-500/20"
+            ? "text-foreground bg-muted/10 border-border/20"
+            : "text-foreground bg-muted/10 border-border/20"
         }`}
       >
         <span
-          className={`h-1 w-1 rounded-full ${heir ? "bg-purple-400 animate-pulse" : "bg-emerald-400"}`}
+          className={`h-1 w-1 rounded-full ${heir ? "bg-muted animate-pulse" : "bg-muted"}`}
         />
         {heir ? `HEIR ${pct}%` : "DIRECT"}
       </span>

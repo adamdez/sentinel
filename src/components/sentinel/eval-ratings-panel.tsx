@@ -68,7 +68,7 @@ function PassRatePill({ n, rate }: { n: number; rate: number | null }) {
       {n}/{EVAL_MIN_SAMPLE} min (rate pending)
     </span>
   );
-  const color = rate >= 80 ? "text-emerald-400" : rate >= 50 ? "text-amber-400" : "text-red-400";
+  const color = rate >= 80 ? "text-foreground" : rate >= 50 ? "text-foreground" : "text-foreground";
   return (
     <span className={`text-sm font-bold tabular-nums ${color}`}>{rate}%</span>
   );
@@ -226,7 +226,7 @@ export function RateOutputForm({
         rows={2}
       />
 
-      {error && <p className="text-[10px] text-red-400">{error}</p>}
+      {error && <p className="text-[10px] text-foreground">{error}</p>}
 
       <Button
         size="sm"
@@ -388,7 +388,7 @@ export function EvalRatingsPanel({
           <h3 className="text-sm font-semibold text-foreground/80">
             {workflowFilter ? EVAL_WORKFLOW_LABELS[workflowFilter] : "AI Review"}
           </h3>
-          <Badge variant="outline" className="text-[9px] border-blue-500/20 text-blue-400 bg-blue-500/5">
+          <Badge variant="outline" className="text-[9px] border-border/20 text-foreground bg-muted/5">
             {days}d
           </Badge>
         </div>
@@ -412,7 +412,7 @@ export function EvalRatingsPanel({
       )}
 
       {error && (
-        <div className="flex items-center gap-2 text-xs text-red-400 bg-red-500/5 border border-red-500/20 rounded-lg px-3 py-2">
+        <div className="flex items-center gap-2 text-xs text-foreground bg-muted/5 border border-border/20 rounded-lg px-3 py-2">
           <AlertTriangle className="w-3 h-3 flex-shrink-0" />
           {error}
         </div>

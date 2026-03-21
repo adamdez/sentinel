@@ -66,7 +66,7 @@ export function LeadSegmentControl({
             {active && (
               <motion.div
                 layoutId="lead-segment-pill"
-                className="absolute inset-0 rounded-[10px] bg-cyan/[0.08] border border-cyan/15 shadow-[0_0_10px_rgba(0,229,255,0.06)]"
+                className="absolute inset-0 rounded-[10px] bg-primary/[0.08] border border-primary/15 shadow-[0_0_10px_rgba(255,255,255,0.06)]"
                 transition={{ type: "spring", bounce: 0.15, duration: 0.4 }}
               />
             )}
@@ -77,7 +77,7 @@ export function LeadSegmentControl({
                 className={cn(
                   "text-[10px] px-1.5 py-0 rounded-full",
                   active
-                    ? "bg-cyan/12 text-cyan"
+                    ? "bg-primary/12 text-primary"
                     : "bg-secondary text-muted-foreground"
                 )}
               >

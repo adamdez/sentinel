@@ -107,9 +107,9 @@ function TriageBar({ triage }: { triage: TriageResult }) {
   return (
     <div className={`flex items-center gap-1.5 flex-wrap px-4 py-1.5 border-b border-border/50 ${
       triage.highest === "critical"
-        ? "bg-red-500/[0.04]"
+        ? "bg-muted/[0.04]"
         : triage.highest === "high"
-        ? "bg-orange-500/[0.04]"
+        ? "bg-muted/[0.04]"
         : "bg-muted/10"
     }`}>
       {/* Severity indicator */}
@@ -245,11 +245,11 @@ export function DossierReviewCard({ item, onDone }: DossierReviewCardProps) {
 
   // Determine border accent color from triage severity
   const triageBorderClass = item.triage?.highest === "critical"
-    ? "border-red-500/40"
+    ? "border-border/40"
     : item.triage?.highest === "high"
-    ? "border-orange-500/30"
+    ? "border-border/30"
     : item.triage && item.triage.reasons.length > 0
-    ? "border-amber-500/20"
+    ? "border-border/20"
     : "border-border";
 
   return (
@@ -272,7 +272,7 @@ export function DossierReviewCard({ item, onDone }: DossierReviewCardProps) {
             </Badge>
             <Badge
               variant="outline"
-              className="text-xs shrink-0 border-amber-400 text-amber-700 dark:border-amber-700 dark:text-amber-400"
+              className="text-xs shrink-0 border-border text-foreground dark:border-border dark:text-foreground"
             >
               proposed
             </Badge>
@@ -331,7 +331,7 @@ export function DossierReviewCard({ item, onDone }: DossierReviewCardProps) {
           <div className="grid grid-cols-1 md:grid-cols-2 divide-y md:divide-y-0 md:divide-x divide-border">
             {/* Left: Proposed intelligence */}
             <div className="p-4 space-y-3">
-              <h4 className="text-xs font-semibold text-amber-700 dark:text-amber-400 uppercase tracking-wide flex items-center gap-1.5">
+              <h4 className="text-xs font-semibold text-foreground dark:text-foreground uppercase tracking-wide flex items-center gap-1.5">
                 <AlertTriangle className="h-3 w-3" />
                 Proposed (AI — unreviewed)
               </h4>
@@ -415,7 +415,7 @@ export function DossierReviewCard({ item, onDone }: DossierReviewCardProps) {
                           href={l.url}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="inline-flex items-center gap-1 text-xs text-blue-600 dark:text-blue-400 hover:underline"
+                          className="inline-flex items-center gap-1 text-xs text-foreground dark:text-foreground hover:underline"
                           onClick={e => e.stopPropagation()}
                         >
                           <ExternalLink className="h-3 w-3" />
@@ -430,7 +430,7 @@ export function DossierReviewCard({ item, onDone }: DossierReviewCardProps) {
 
             {/* Right: Current CRM values */}
             <div className="p-4 space-y-3">
-              <h4 className="text-xs font-semibold text-emerald-700 dark:text-emerald-400 uppercase tracking-wide flex items-center gap-1.5">
+              <h4 className="text-xs font-semibold text-foreground dark:text-foreground uppercase tracking-wide flex items-center gap-1.5">
                 <ShieldCheck className="h-3 w-3" />
                 Current CRM state
               </h4>
@@ -469,7 +469,7 @@ export function DossierReviewCard({ item, onDone }: DossierReviewCardProps) {
                   <ul className="space-y-1">
                     {(item.verification_checklist as DossierVerificationItem[]).map((v, i) => (
                       <li key={i} className="flex items-start gap-1.5 text-xs">
-                        <span className={`w-3 h-3 mt-0.5 rounded-sm border shrink-0 flex items-center justify-center ${v.verified ? "bg-emerald-500 border-emerald-500" : "border-muted-foreground"}`}>
+                        <span className={`w-3 h-3 mt-0.5 rounded-sm border shrink-0 flex items-center justify-center ${v.verified ? "bg-muted border-border" : "border-muted-foreground"}`}>
                           {v.verified && <CheckCircle2 className="h-2 w-2 text-white" />}
                         </span>
                         <span className={v.verified ? "text-muted-foreground line-through" : ""}>{v.item}</span>
@@ -498,7 +498,7 @@ export function DossierReviewCard({ item, onDone }: DossierReviewCardProps) {
             <div className="flex items-center gap-2 flex-wrap">
               <Button
                 size="sm"
-                className="h-8 text-xs bg-emerald-600 hover:bg-emerald-700 text-white"
+                className="h-8 text-xs bg-muted hover:bg-muted text-white"
                 onClick={handleApprove}
                 disabled={busy}
               >
@@ -523,7 +523,7 @@ export function DossierReviewCard({ item, onDone }: DossierReviewCardProps) {
               <Button
                 size="sm"
                 variant="outline"
-                className="h-8 text-xs border-red-400 text-red-600 hover:bg-red-50 dark:border-red-700 dark:text-red-400 dark:hover:bg-red-950/30"
+                className="h-8 text-xs border-border text-foreground hover:bg-muted dark:border-border dark:text-foreground dark:hover:bg-muted/30"
                 onClick={handleReject}
                 disabled={busy}
               >

@@ -22,10 +22,10 @@ interface TickerItem {
 }
 
 const SOURCE_MAP: Record<string, { label: string; color: string }> = {
-  ranger_push: { label: "RANGER", color: "text-purple-400 bg-purple-500/10 border-purple-500/20" },
-  propertyradar: { label: "PROPRADAR", color: "text-emerald-400 bg-emerald-500/10 border-emerald-500/20" },
-  manual: { label: "MANUAL", color: "text-sky-400 bg-sky-500/10 border-sky-500/20" },
-  "manual-new-prospect": { label: "MANUAL", color: "text-sky-400 bg-sky-500/10 border-sky-500/20" },
+  ranger_push: { label: "RANGER", color: "text-foreground bg-muted/10 border-border/20" },
+  propertyradar: { label: "PROPRADAR", color: "text-foreground bg-muted/10 border-border/20" },
+  manual: { label: "MANUAL", color: "text-foreground bg-muted/10 border-border/20" },
+  "manual-new-prospect": { label: "MANUAL", color: "text-foreground bg-muted/10 border-border/20" },
 };
 
 function timeAgo(dateStr: string): string {
@@ -147,10 +147,10 @@ export function BreakingLeadsTicker() {
     <div className="space-y-2">
       <div className="flex items-center gap-2 mb-1">
         <span className="relative flex h-2 w-2">
-          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-cyan opacity-75" />
-          <span className="relative inline-flex rounded-full h-2 w-2 bg-cyan" />
+          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75" />
+          <span className="relative inline-flex rounded-full h-2 w-2 bg-primary" />
         </span>
-        <span className="text-[11px] text-cyan font-medium">LIVE</span>
+        <span className="text-[11px] text-primary font-medium">LIVE</span>
       </div>
 
       {visible.length === 0 ? (
@@ -174,18 +174,18 @@ export function BreakingLeadsTicker() {
                   className={cn(
                     "flex items-center gap-2.5 p-2 rounded-md text-xs transition-all relative",
                     isPlatinum
-                      ? "bg-cyan-500/5 border border-cyan-500/10"
+                      ? "bg-primary-500/5 border border-primary-500/10"
                       : "bg-white/[0.02]"
                   )}
                   style={isPlatinum ? {
-                    boxShadow: "inset 0 0 20px rgba(0,212,255,0.04), 0 0 8px rgba(0,212,255,0.08)",
+                    boxShadow: "inset 0 0 20px rgba(0,0,0,0.04), 0 0 8px rgba(0,0,0,0.08)",
                   } : {}}
                 >
                   {isPlatinum && (
                     <motion.div
                       className="absolute inset-0 rounded-md pointer-events-none"
                       style={{
-                        background: "linear-gradient(90deg, transparent 0%, rgba(0,212,255,0.03) 50%, transparent 100%)",
+                        background: "linear-gradient(90deg, transparent 0%, rgba(0,0,0,0.03) 50%, transparent 100%)",
                         backgroundSize: "200% 100%",
                       }}
                       animate={{ backgroundPosition: ["0% 0%", "200% 0%"] }}
@@ -193,8 +193,8 @@ export function BreakingLeadsTicker() {
                     />
                   )}
                   <Zap
-                    className={cn("h-3 w-3 shrink-0", isPlatinum ? "text-cyan-300" : "text-amber-400")}
-                    style={isPlatinum ? { filter: "drop-shadow(0 0 3px rgba(0,212,255,0.5))" } : {}}
+                    className={cn("h-3 w-3 shrink-0", isPlatinum ? "text-primary-300" : "text-foreground")}
+                    style={isPlatinum ? { filter: "drop-shadow(0 0 3px rgba(0,0,0,0.5))" } : {}}
                   />
                   <span
                     className="font-semibold truncate flex-1 text-foreground"
@@ -206,7 +206,7 @@ export function BreakingLeadsTicker() {
                   </span>
                   <RelationshipBadgeCompact data={{ tags: item.tags }} />
                   {item.daysUntilDistress != null && (
-                    <span className="text-[9px] px-1.5 py-0 rounded border font-semibold shrink-0 text-cyan-300 bg-cyan-500/10 border-cyan-500/20">
+                    <span className="text-[9px] px-1.5 py-0 rounded border font-semibold shrink-0 text-primary-300 bg-primary-500/10 border-primary-500/20">
                       {item.daysUntilDistress}d
                     </span>
                   )}

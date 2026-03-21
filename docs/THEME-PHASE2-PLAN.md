@@ -1,12 +1,14 @@
 # Theme system — Phase 2 plan & status
 
+> **2026 update:** User-selectable themes are **Light** and **Dark** only (`html[data-sentinel-theme="light|dark"]`, `html.dark` for Tailwind when Dark). Legacy `default` / `ghost-mode` values in `localStorage` migrate to **dark**. The old `ghost-mode.css` pack was removed; tokens live in `globals.css`.
+
 ## Goals (this phase)
 
 | Goal | Status |
 |------|--------|
 | Reduce hardcoded `border-white/*`, `text-cyan`, raw RGBA in high-traffic Sentinel components | **Partial** — `lead-filters`, `numeric-input`, `glass-card`, `badge` refactored; large debt remains (see below). |
 | Move glass / shell chrome to semantic **shell tokens** | **Done** — `--shell-*`, modal/backdrop tokens; enterprise rules use `var()`. |
-| Shrink theme-pack CSS override sprawl | **Done** — `ghost-mode.css` is almost entirely variable blocks + gradient + decoration kills + operator-safe mirror. |
+| Shrink theme-pack CSS override sprawl | **Superseded** — monochrome Light/Dark blocks in `globals.css` replace separate pack files. |
 | Centralize operator-safe protection | **Done** — `OperatorSafeBoundary` + `dialer/layout.tsx` + policy file; `PageShell operatorSafe` for ad-hoc pages. |
 | Prepare for motif / seasonal packs | **Documented** — see “Rich themes” below. |
 
@@ -22,7 +24,7 @@ New variables in `src/app/globals.css` (production `:root`):
 - **Modal / backdrop:** `--shell-modal-bg`, `--shell-backdrop-bg`
 - **Badge glow (token-driven):** `--shadow-badge-glow`, `--shadow-badge-glow-tight`
 
-Enterprise **glass / sidebar / topbar / modal** rules now reference these variables. **Ghost Mode** overrides the same variables in one `html[data-sentinel-theme="ghost-mode"]` block instead of re-declaring `.glass`, `.sidebar-glass`, etc.
+Enterprise **glass / sidebar / topbar / modal** rules now reference these variables. **Dark** and **Light** theme blocks override the same variables on `html[data-sentinel-theme="dark"]` / `html[data-sentinel-theme="light"]`.
 
 ### 2. Tailwind bridge
 

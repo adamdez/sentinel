@@ -119,7 +119,7 @@ export function NextBestAction() {
   if (loading) {
     return (
       <div className="space-y-3">
-        <div className="p-3 rounded-[12px] bg-cyan/4 border border-cyan/12">
+        <div className="p-3 rounded-[12px] bg-primary/4 border border-primary/12">
           <div className="flex items-center gap-2 mb-2">
             <Skeleton className="h-4 w-4 rounded-full" />
             <Skeleton className="h-3 w-28" />
@@ -138,7 +138,7 @@ export function NextBestAction() {
   if (snoozed) {
     return (
       <div className="space-y-3">
-        <div className="p-3 rounded-[12px] bg-cyan/4 border border-cyan/12 text-center">
+        <div className="p-3 rounded-[12px] bg-primary/4 border border-primary/12 text-center">
           <Clock className="h-6 w-6 text-muted-foreground mx-auto mb-2" />
           <p className="text-xs text-muted-foreground">
             Snoozed — check back later
@@ -151,8 +151,8 @@ export function NextBestAction() {
   if (!primary) {
     return (
       <div className="space-y-3">
-        <div className="p-3 rounded-[12px] bg-cyan/4 border border-cyan/12 text-center">
-          <Zap className="h-6 w-6 text-cyan mx-auto mb-2" style={{ filter: "drop-shadow(0 0 4px rgba(0,212,255,0.6))" }} />
+        <div className="p-3 rounded-[12px] bg-primary/4 border border-primary/12 text-center">
+          <Zap className="h-6 w-6 text-primary mx-auto mb-2" style={{ filter: "drop-shadow(0 0 4px rgba(0,0,0,0.6))" }} />
           <p className="text-xs text-muted-foreground">
             No actions queued — waiting for new leads to flow in from Ranger Push.
           </p>
@@ -166,15 +166,15 @@ export function NextBestAction() {
       <motion.div
         initial={{ opacity: 0, y: 6 }}
         animate={{ opacity: 1, y: 0 }}
-        className="p-3 rounded-[12px] bg-cyan/4 border border-cyan/12 relative overflow-hidden"
+        className="p-3 rounded-[12px] bg-primary/4 border border-primary/12 relative overflow-hidden"
       >
         <div className="flex items-center gap-2 mb-2">
           <NextActionIcon />
-          <span className="text-xs font-semibold text-cyan uppercase tracking-wider">
+          <span className="text-xs font-semibold text-primary uppercase tracking-wider">
             AI Recommendation
           </span>
           {hasPredictive && (
-            <span className="flex items-center gap-0.5 text-[11px] text-purple-400 font-medium">
+            <span className="flex items-center gap-0.5 text-[11px] text-foreground font-medium">
               <Brain className="h-3 w-3" />
               Predictive
             </span>
@@ -200,9 +200,9 @@ export function NextBestAction() {
       </motion.div>
 
       {staleCount > 0 && (
-        <div className="flex items-center gap-2 px-3 py-2 rounded-[10px] bg-amber-500/8 border border-amber-500/20">
-          <AlertTriangle className="h-3.5 w-3.5 text-amber-400 shrink-0" />
-          <span className="text-[11px] text-amber-300/90 font-medium">
+        <div className="flex items-center gap-2 px-3 py-2 rounded-[10px] bg-muted/8 border border-border/20">
+          <AlertTriangle className="h-3.5 w-3.5 text-foreground shrink-0" />
+          <span className="text-[11px] text-foreground/90 font-medium">
             {staleCount} lead{staleCount === 1 ? "" : "s"} {staleCount === 1 ? "hasn\u2019t" : "haven\u2019t"} been called in 7+ days
           </span>
         </div>

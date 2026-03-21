@@ -19,7 +19,7 @@ export function CompsTab({ arv }: CompsTabProps) {
         </div>
         <div className="text-right">
           <p className="text-[10px] text-muted-foreground uppercase tracking-widest">Calculated ARV</p>
-          <p className="text-2xl font-mono font-bold text-emerald-400">{formatCurrency(arv)}</p>
+          <p className="text-2xl font-mono font-bold text-foreground">{formatCurrency(arv)}</p>
         </div>
       </div>
 
@@ -34,7 +34,7 @@ export function CompsTab({ arv }: CompsTabProps) {
           <RefreshCw className="w-4 h-4" /> Refresh Comps
         </button>
         
-        <div className="absolute top-4 right-4 bg-amber-500/10 border border-amber-500/20 text-amber-500 text-[10px] px-2 py-1 flex items-center gap-1.5 rounded uppercase tracking-wider font-semibold">
+        <div className="absolute top-4 right-4 bg-muted/10 border border-border/20 text-foreground text-[10px] px-2 py-1 flex items-center gap-1.5 rounded uppercase tracking-wider font-semibold">
           <AlertTriangle className="w-3 h-3" /> Map Placeholder
         </div>
       </div>

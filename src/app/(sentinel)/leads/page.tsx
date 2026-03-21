@@ -31,8 +31,8 @@ function InboxStat({
     <div
       className={cn(
         "rounded-[10px] border px-3 py-2 min-w-[120px]",
-        tone === "danger" && "border-red-500/25 bg-red-500/[0.04]",
-        tone === "warn" && "border-yellow-500/25 bg-yellow-500/[0.04]",
+        tone === "danger" && "border-border/25 bg-muted/[0.04]",
+        tone === "warn" && "border-border/25 bg-muted/[0.04]",
         tone === "neutral" && "border-glass-border bg-glass/30",
       )}
     >
@@ -146,7 +146,7 @@ export default function LeadsPage() {
               const val = e.target.value as MarketFilter | "all";
               updateFilter("markets", val === "all" ? [] : [val]);
             }}
-            className="h-7 rounded-md border border-glass-border bg-glass/40 px-2 text-xs text-foreground focus:border-cyan/30 focus:outline-none focus:ring-1 focus:ring-cyan/20"
+            className="h-7 rounded-md border border-glass-border bg-glass/40 px-2 text-xs text-foreground focus:border-primary/30 focus:outline-none focus:ring-1 focus:ring-ring/20"
           >
             <option value="all">All Markets</option>
             <option value="spokane">Spokane</option>
@@ -179,9 +179,9 @@ export default function LeadsPage() {
                   className={cn(
                     "text-[11px] px-2.5 py-1 rounded-md border transition-all",
                     active
-                      ? "border-cyan/25 bg-cyan/10 text-cyan"
+                      ? "border-primary/25 bg-primary/10 text-primary"
                       : item.count > 0
-                        ? "border-red-500/20 text-red-300 hover:border-red-400/35"
+                        ? "border-border/20 text-foreground hover:border-border/35"
                         : "border-glass-border text-muted-foreground hover:border-white/15 hover:text-foreground"
                   )}
                 >

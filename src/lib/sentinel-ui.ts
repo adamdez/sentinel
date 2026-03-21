@@ -1,6 +1,6 @@
 /**
  * Reusable class strings for Sentinel-specific UI — prefer these over
- * repeated border-white/* + text-cyan patterns so theme tokens flow through.
+ * repeated border-white/* + text-primary patterns so theme tokens flow through.
  */
 export const filterChip = {
   active: "bg-primary/12 text-primary border-primary/20",

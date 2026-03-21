@@ -67,8 +67,8 @@ function daysAgo(dateStr: string | null): number | null {
 /** Urgency → style class for action label in deal cards */
 function dispoUrgencyClass(urgency: string): string {
   switch (urgency) {
-    case "critical": return "text-red-400";
-    case "high": return "text-amber-300";
+    case "critical": return "text-foreground";
+    case "high": return "text-foreground";
     case "normal": return "text-muted-foreground/70";
     default: return "text-muted-foreground/50";
   }
@@ -140,13 +140,13 @@ function StalledDealsPanel({ deals }: { deals: DispoDeal[] }) {
   if (stalledDeals.length === 0) return null;
 
   return (
-    <GlassCard hover={false} delay={0} className="p-0 overflow-hidden border-amber-500/15">
+    <GlassCard hover={false} delay={0} className="p-0 overflow-hidden border-border/15">
       <button
         onClick={() => setOpen(!open)}
         className="w-full flex items-center gap-2 px-4 py-2.5 text-left hover:bg-white/[0.01] transition-colors"
       >
-        <AlertTriangle className="h-3.5 w-3.5 text-amber-400/70" />
-        <span className="text-xs font-semibold uppercase tracking-wider text-amber-400/80">
+        <AlertTriangle className="h-3.5 w-3.5 text-foreground/70" />
+        <span className="text-xs font-semibold uppercase tracking-wider text-foreground/80">
           Needs Attention
         </span>
         <Badge variant="gold" className="text-[9px]">{stalledDeals.length}</Badge>
@@ -167,8 +167,8 @@ function StalledDealsPanel({ deals }: { deals: DispoDeal[] }) {
           >
             <div className="px-4 pb-3 space-y-1.5">
               {stalledDeals.map((s) => (
-                <div key={s.deal.id} className="flex items-center gap-2 px-3 py-2 rounded-[6px] bg-amber-500/[0.03] border border-amber-500/10">
-                  <MapPin className="h-3 w-3 text-amber-400/50 shrink-0" />
+                <div key={s.deal.id} className="flex items-center gap-2 px-3 py-2 rounded-[6px] bg-muted/[0.03] border border-border/10">
+                  <MapPin className="h-3 w-3 text-foreground/50 shrink-0" />
                   <span className="text-xs text-foreground/70 truncate flex-1">
                     {s.deal.property_address || "No address"}
                   </span>
@@ -204,7 +204,7 @@ function DispoPrepForm({ deal, onSaved }: { deal: DispoDeal; onSaved: () => void
     }
   }, [deal.id, onSaved]);
 
-  const inputClass = "w-full bg-white/[0.03] border border-white/[0.06] rounded-[6px] px-2.5 py-1.5 text-xs text-foreground placeholder:text-muted-foreground/30 focus:outline-none focus:border-cyan/20 transition-all";
+  const inputClass = "w-full bg-white/[0.03] border border-white/[0.06] rounded-[6px] px-2.5 py-1.5 text-xs text-foreground placeholder:text-muted-foreground/30 focus:outline-none focus:border-primary/20 transition-all";
   const labelClass = "text-[10px] text-muted-foreground/50 font-medium mb-1";
 
   return (
@@ -300,7 +300,7 @@ function DispoPrepForm({ deal, onSaved }: { deal: DispoDeal; onSaved: () => void
       </div>
 
       {saving && (
-        <div className="text-[10px] text-cyan/60">Saving...</div>
+        <div className="text-[10px] text-primary/60">Saving...</div>
       )}
     </div>
   );
@@ -327,7 +327,7 @@ function SelectionReasonInput({ dbId, currentReason, onSaved }: {
       <input
         defaultValue={currentReason ?? ""}
         placeholder="Why this buyer? (saves on blur)"
-        className="w-full bg-white/[0.02] border border-neon/10 rounded-[4px] px-2 py-1 text-[10px] text-foreground/70 placeholder:text-muted-foreground/30 focus:outline-none focus:border-neon/30 transition-all"
+        className="w-full bg-white/[0.02] border border-primary/10 rounded-[4px] px-2 py-1 text-[10px] text-foreground/70 placeholder:text-muted-foreground/30 focus:outline-none focus:border-primary/30 transition-all"
         onBlur={(e) => handleBlur(e.target.value)}
         onClick={(e) => e.stopPropagation()}
       />
@@ -355,8 +355,8 @@ function DealCard({ deal, expanded, onToggleExpand, onStatusChange, onLinkBuyer,
         onClick={onToggleExpand}
         className="w-full flex items-start gap-3 p-4 text-left hover:bg-white/[0.01] transition-colors"
       >
-        <div className="h-9 w-9 rounded-[10px] bg-cyan/6 border border-cyan/12 flex items-center justify-center shrink-0 mt-0.5">
-          <MapPin className="h-4 w-4 text-cyan/60" />
+        <div className="h-9 w-9 rounded-[10px] bg-primary/6 border border-primary/12 flex items-center justify-center shrink-0 mt-0.5">
+          <MapPin className="h-4 w-4 text-primary/60" />
         </div>
 
         <div className="flex-1 min-w-0">
@@ -389,7 +389,7 @@ function DealCard({ deal, expanded, onToggleExpand, onStatusChange, onLinkBuyer,
           {actionSummary.daysInDispo != null && (
             <span className={cn(
               "text-[10px]",
-              actionSummary.daysInDispo > 14 ? "text-amber-400/60" : "text-muted-foreground/40"
+              actionSummary.daysInDispo > 14 ? "text-foreground/60" : "text-muted-foreground/40"
             )}>
               {actionSummary.daysInDispo}d in dispo
             </span>
@@ -422,7 +422,7 @@ function DealCard({ deal, expanded, onToggleExpand, onStatusChange, onLinkBuyer,
                   <ChevronRight className="h-3 w-3" />
                 </motion.div>
                 {deal.dispo_prep?.dispo_summary && (
-                  <span className="text-[9px] text-neon/40 normal-case tracking-normal font-normal ml-1">has summary</span>
+                  <span className="text-[9px] text-primary/40 normal-case tracking-normal font-normal ml-1">has summary</span>
                 )}
               </button>
 
@@ -452,7 +452,7 @@ function DealCard({ deal, expanded, onToggleExpand, onStatusChange, onLinkBuyer,
                 <span className="text-[11px] text-muted-foreground/60 font-semibold tracking-wide">Linked Buyers</span>
                 <button
                   onClick={(e) => { e.stopPropagation(); onLinkBuyer(deal.id); }}
-                  className="flex items-center gap-1 px-2.5 py-1 text-[11px] font-medium text-cyan bg-cyan/8 hover:bg-cyan/12 rounded-[6px] border border-cyan/20 hover:border-cyan/30 transition-all"
+                  className="flex items-center gap-1 px-2.5 py-1 text-[11px] font-medium text-primary bg-primary/8 hover:bg-primary/12 rounded-[6px] border border-primary/20 hover:border-primary/30 transition-all"
                 >
                   <Plus className="h-3 w-3" />
                   Link Buyer
@@ -473,7 +473,7 @@ function DealCard({ deal, expanded, onToggleExpand, onStatusChange, onLinkBuyer,
                       <div key={db.id}>
                         <div className={cn(
                           "flex items-center gap-3 px-3 py-2.5 rounded-[8px] bg-white/[0.015] border",
-                          db.status === "selected" ? "border-neon/20" : "border-white/[0.04]"
+                          db.status === "selected" ? "border-primary/20" : "border-white/[0.04]"
                         )}>
                           {/* Buyer info */}
                           <div className="flex-1 min-w-0">
@@ -493,7 +493,7 @@ function DealCard({ deal, expanded, onToggleExpand, onStatusChange, onLinkBuyer,
                               e.stopPropagation();
                               onStatusChange(db.id, e.target.value, db.status);
                             }}
-                            className="bg-white/[0.03] border border-white/[0.08] rounded-[6px] px-2 py-1 text-[11px] text-foreground focus:outline-none focus:border-cyan/30 transition-all appearance-none cursor-pointer min-w-[100px]"
+                            className="bg-white/[0.03] border border-white/[0.08] rounded-[6px] px-2 py-1 text-[11px] text-foreground focus:outline-none focus:border-primary/30 transition-all appearance-none cursor-pointer min-w-[100px]"
                           >
                             {DEAL_BUYER_STATUS_OPTIONS.map((o) => (
                               <option key={o.value} value={o.value}>{o.label}</option>
@@ -516,7 +516,7 @@ function DealCard({ deal, expanded, onToggleExpand, onStatusChange, onLinkBuyer,
 
                           {/* Follow-up indicator */}
                           {db.follow_up_needed && (
-                            <CalendarClock className="h-3.5 w-3.5 text-amber-400/70 shrink-0" />
+                            <CalendarClock className="h-3.5 w-3.5 text-foreground/70 shrink-0" />
                           )}
 
                           {/* Contact date */}
@@ -639,7 +639,7 @@ export default function DispoPage() {
     >
       {loading ? (
         <div className="flex items-center justify-center py-20">
-          <div className="h-5 w-5 border-2 border-cyan/30 border-t-cyan rounded-full animate-spin" />
+          <div className="h-5 w-5 border-2 border-primary/30 border-t-cyan rounded-full animate-spin" />
         </div>
       ) : deals.length === 0 ? (
         <GlassCard hover={false} delay={0.02} className="py-16">

@@ -70,7 +70,7 @@ export function ClientFileOverlay() {
                 className={cn(
                   "flex items-center gap-2 pb-3 px-1 border-b-2 text-sm font-medium whitespace-nowrap transition-colors",
                   isActive
-                    ? "border-cyan-500 text-cyan-500"
+                    ? "border-primary-500 text-primary-500"
                     : "border-transparent text-muted-foreground hover:text-foreground"
                 )}
               >

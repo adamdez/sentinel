@@ -53,12 +53,12 @@ function fmtDuration(sec: number | null): string {
 
 function SeverityBadge({ severity }: { severity: string }) {
   if (severity === "flag") return (
-    <span className="inline-flex items-center gap-0.5 rounded-[4px] border border-red-500/30 bg-red-500/10 px-1.5 py-0.5 text-[9px] font-semibold text-red-400 uppercase tracking-wide">
+    <span className="inline-flex items-center gap-0.5 rounded-[4px] border border-border/30 bg-muted/10 px-1.5 py-0.5 text-[9px] font-semibold text-foreground uppercase tracking-wide">
       <Flag className="h-2 w-2" aria-hidden="true" /> flag
     </span>
   );
   if (severity === "warn") return (
-    <span className="inline-flex items-center gap-0.5 rounded-[4px] border border-orange-500/30 bg-orange-500/10 px-1.5 py-0.5 text-[9px] font-semibold text-orange-400 uppercase tracking-wide">
+    <span className="inline-flex items-center gap-0.5 rounded-[4px] border border-border/30 bg-muted/10 px-1.5 py-0.5 text-[9px] font-semibold text-foreground uppercase tracking-wide">
       <AlertTriangle className="h-2 w-2" aria-hidden="true" /> warn
     </span>
   );
@@ -107,9 +107,9 @@ function FindingRow({
 
   if (done) {
     return (
-      <div className="flex items-center gap-1.5 px-2 py-1.5 rounded-[6px] bg-emerald-500/[0.04] border border-emerald-500/10">
-        <Check className="h-3 w-3 text-emerald-400/50 shrink-0" aria-hidden="true" />
-        <span className="text-[10px] text-emerald-400/50">Reviewed</span>
+      <div className="flex items-center gap-1.5 px-2 py-1.5 rounded-[6px] bg-muted/[0.04] border border-border/10">
+        <Check className="h-3 w-3 text-foreground/50 shrink-0" aria-hidden="true" />
+        <span className="text-[10px] text-foreground/50">Reviewed</span>
       </div>
     );
   }
@@ -126,7 +126,7 @@ function FindingRow({
               {CHECK_LABELS[finding.check_type] ?? finding.check_type}
             </span>
             {finding.ai_derived && (
-              <span className="inline-flex items-center gap-0.5 text-[9px] text-purple-400/50 italic">
+              <span className="inline-flex items-center gap-0.5 text-[9px] text-foreground/50 italic">
                 <Sparkles className="h-2 w-2" aria-hidden="true" />
                 AI-derived
               </span>
@@ -149,7 +149,7 @@ function FindingRow({
           placeholder="Brief note on why this finding is invalid or what was corrected…"
           maxLength={300}
           rows={2}
-          className="w-full resize-none rounded-[6px] border border-white/[0.06] bg-white/[0.03] px-2.5 py-1.5 text-[11px] text-foreground placeholder:text-muted-foreground/30 focus:outline-none focus:border-cyan/20"
+          className="w-full resize-none rounded-[6px] border border-white/[0.06] bg-white/[0.03] px-2.5 py-1.5 text-[11px] text-foreground placeholder:text-muted-foreground/30 focus:outline-none focus:border-primary/20"
         />
       )}
 
@@ -159,7 +159,7 @@ function FindingRow({
           type="button"
           onClick={() => handle("valid")}
           disabled={reviewing}
-          className="flex-1 flex items-center justify-center gap-1 rounded-[6px] border border-emerald-500/20 bg-emerald-500/[0.06] px-2 py-1 text-[10px] text-emerald-400/70 hover:bg-emerald-500/[0.10] transition-colors disabled:opacity-40"
+          className="flex-1 flex items-center justify-center gap-1 rounded-[6px] border border-border/20 bg-muted/[0.06] px-2 py-1 text-[10px] text-foreground/70 hover:bg-muted/[0.10] transition-colors disabled:opacity-40"
         >
           {reviewing ? <Loader2 className="h-2.5 w-2.5 animate-spin" /> : <Check className="h-2.5 w-2.5" aria-hidden="true" />}
           Valid
@@ -177,7 +177,7 @@ function FindingRow({
           type="button"
           onClick={() => handle("corrected")}
           disabled={reviewing}
-          className="flex-1 flex items-center justify-center gap-1 rounded-[6px] border border-cyan/15 bg-cyan/[0.04] px-2 py-1 text-[10px] text-cyan/60 hover:bg-cyan/[0.08] transition-colors disabled:opacity-40"
+          className="flex-1 flex items-center justify-center gap-1 rounded-[6px] border border-primary/15 bg-primary/[0.04] px-2 py-1 text-[10px] text-primary/60 hover:bg-primary/[0.08] transition-colors disabled:opacity-40"
         >
           <Pen className="h-2.5 w-2.5" aria-hidden="true" />
           Corrected
@@ -219,8 +219,8 @@ function CallQaCard({
       >
         {/* Severity indicator */}
         <div className={`h-6 w-1 rounded-full shrink-0 ${
-          call.flagCount > 0 ? "bg-red-500/50" :
-          call.warnCount > 0 ? "bg-orange-500/40" :
+          call.flagCount > 0 ? "bg-muted/50" :
+          call.warnCount > 0 ? "bg-muted/40" :
           "bg-white/10"
         }`} />
 
@@ -249,12 +249,12 @@ function CallQaCard({
         {/* Finding counts */}
         <div className="flex items-center gap-1.5 shrink-0">
           {call.flagCount > 0 && (
-            <span className="rounded-[4px] bg-red-500/10 border border-red-500/20 px-1.5 py-0.5 text-[9px] font-semibold text-red-400">
+            <span className="rounded-[4px] bg-muted/10 border border-border/20 px-1.5 py-0.5 text-[9px] font-semibold text-foreground">
               {call.flagCount} flag{call.flagCount > 1 ? "s" : ""}
             </span>
           )}
           {call.warnCount > 0 && (
-            <span className="rounded-[4px] bg-orange-500/10 border border-orange-500/20 px-1.5 py-0.5 text-[9px] font-semibold text-orange-400">
+            <span className="rounded-[4px] bg-muted/10 border border-border/20 px-1.5 py-0.5 text-[9px] font-semibold text-foreground">
               {call.warnCount} warn{call.warnCount > 1 ? "s" : ""}
             </span>
           )}
@@ -321,13 +321,13 @@ function RunQaForm({ onRun }: { onRun: (callLogId: string) => Promise<void> }) {
         value={callLogId}
         onChange={(e) => setCallLogId(e.target.value)}
         placeholder="calls_log UUID to QA…"
-        className="flex-1 rounded-[8px] border border-white/[0.06] bg-white/[0.02] px-3 py-1.5 text-[11px] text-foreground placeholder:text-muted-foreground/30 focus:outline-none focus:border-cyan/20"
+        className="flex-1 rounded-[8px] border border-white/[0.06] bg-white/[0.02] px-3 py-1.5 text-[11px] text-foreground placeholder:text-muted-foreground/30 focus:outline-none focus:border-primary/20"
       />
       <Button
         onClick={handleRun}
         disabled={running || !callLogId.trim()}
         size="sm"
-        className="gap-1.5 bg-cyan/10 hover:bg-cyan/20 text-cyan border border-cyan/20 text-[11px]"
+        className="gap-1.5 bg-primary/10 hover:bg-primary/20 text-primary border border-primary/20 text-[11px]"
       >
         {running ? <Loader2 className="h-3 w-3 animate-spin" /> : <Shield className="h-3 w-3" />}
         Run QA
@@ -406,9 +406,9 @@ export default function DialerQaPage() {
               <p className="text-lg font-bold text-foreground">{summary.pending}</p>
               <p className="text-[9px] text-muted-foreground/40 uppercase">Pending review</p>
             </GlassCard>
-            <GlassCard hover={false} className={`!p-3 text-center ${summary.flagged > 0 ? "border-red-500/20" : ""}`}>
-              <Flag className={`h-3.5 w-3.5 mx-auto mb-1 ${summary.flagged > 0 ? "text-red-400/70" : "text-muted-foreground/30"}`} aria-hidden="true" />
-              <p className={`text-lg font-bold ${summary.flagged > 0 ? "text-red-400" : "text-foreground"}`}>{summary.flagged}</p>
+            <GlassCard hover={false} className={`!p-3 text-center ${summary.flagged > 0 ? "border-border/20" : ""}`}>
+              <Flag className={`h-3.5 w-3.5 mx-auto mb-1 ${summary.flagged > 0 ? "text-foreground/70" : "text-muted-foreground/30"}`} aria-hidden="true" />
+              <p className={`text-lg font-bold ${summary.flagged > 0 ? "text-foreground" : "text-foreground"}`}>{summary.flagged}</p>
               <p className="text-[9px] text-muted-foreground/40 uppercase">Flagged</p>
             </GlassCard>
             <GlassCard hover={false} className="!p-3 text-center">
@@ -442,7 +442,7 @@ export default function DialerQaPage() {
               onClick={() => setSeverity(s)}
               className={`rounded-[8px] border px-3 py-1 text-[11px] font-medium transition-colors ${
                 severity === s
-                  ? "bg-cyan/10 border-cyan/20 text-cyan"
+                  ? "bg-primary/10 border-primary/20 text-primary"
                   : "bg-white/[0.02] border-white/[0.06] text-muted-foreground/50 hover:border-white/[0.12]"
               }`}
             >
@@ -471,7 +471,7 @@ export default function DialerQaPage() {
 
         {!loading && queue.length === 0 && (
           <GlassCard hover={false} className="!p-8 text-center">
-            <Check className="h-6 w-6 text-emerald-400/40 mx-auto mb-2" aria-hidden="true" />
+            <Check className="h-6 w-6 text-foreground/40 mx-auto mb-2" aria-hidden="true" />
             <p className="text-sm text-muted-foreground/50">No pending QA findings in the last 14 days.</p>
             <p className="text-[11px] text-muted-foreground/30 mt-1">
               Use the form above to run QA on a specific call.

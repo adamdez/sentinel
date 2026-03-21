@@ -29,10 +29,10 @@ const STATUS_META: Record<ResearchRunStatus, {
   color: string;
   bg:    string;
 }> = {
-  open:      { label: "Active",    icon: CircleDot,    color: "text-cyan",           bg: "border-cyan/20 bg-cyan/[0.05]" },
-  compiled:  { label: "Compiled",  icon: CheckCircle2, color: "text-emerald-400",    bg: "border-emerald-500/20 bg-emerald-500/[0.04]" },
+  open:      { label: "Active",    icon: CircleDot,    color: "text-primary",           bg: "border-primary/20 bg-primary/[0.05]" },
+  compiled:  { label: "Compiled",  icon: CheckCircle2, color: "text-foreground",    bg: "border-border/20 bg-muted/[0.04]" },
   closed:    { label: "Closed",    icon: XCircle,      color: "text-muted-foreground/50", bg: "border-white/[0.06] bg-white/[0.02]" },
-  abandoned: { label: "Abandoned", icon: AlertCircle,  color: "text-amber-400/60",   bg: "border-amber-500/15 bg-amber-500/[0.03]" },
+  abandoned: { label: "Abandoned", icon: AlertCircle,  color: "text-foreground/60",   bg: "border-border/15 bg-muted/[0.03]" },
 };
 
 // ── Source mix display ────────────────────────────────────────────────────────
@@ -67,7 +67,7 @@ function RunRow({
   const sourceMix: string[] = Array.isArray(run.source_mix) ? run.source_mix : [];
 
   return (
-    <div className={`rounded-[8px] border px-2.5 py-2 space-y-1.5 ${meta.bg} ${isActive ? "ring-1 ring-cyan/20" : ""}`}>
+    <div className={`rounded-[8px] border px-2.5 py-2 space-y-1.5 ${meta.bg} ${isActive ? "ring-1 ring-ring/20" : ""}`}>
       <div className="flex items-center gap-2">
         <Icon className={`h-3 w-3 shrink-0 ${meta.color} ${run.status === "open" ? "animate-pulse" : ""}`} />
         <span className={`text-[11px] font-medium ${meta.color}`}>{meta.label}</span>
@@ -82,7 +82,7 @@ function RunRow({
           <span>{run.fact_count} fact{run.fact_count !== 1 ? "s" : ""}</span>
         )}
         {run.dossier_id && (
-          <span className="text-emerald-400/60 flex items-center gap-0.5">
+          <span className="text-foreground/60 flex items-center gap-0.5">
             <BookOpen className="h-2.5 w-2.5" />
             Dossier compiled
           </span>
@@ -154,13 +154,13 @@ export function RunHistoryStrip({
           </span>
         ) : activeRun ? (
           <div className="flex items-center gap-1.5 flex-1 min-w-0">
-            <CircleDot className="h-2.5 w-2.5 text-cyan animate-pulse shrink-0" />
-            <span className="text-[10px] text-cyan/80 font-medium">Active run</span>
+            <CircleDot className="h-2.5 w-2.5 text-primary animate-pulse shrink-0" />
+            <span className="text-[10px] text-primary/80 font-medium">Active run</span>
             <span className="text-[10px] text-muted-foreground/40">
               {activeRun.artifact_count} source{activeRun.artifact_count !== 1 ? "s" : ""}
               {activeRun.fact_count > 0 ? `, ${activeRun.fact_count} fact${activeRun.fact_count !== 1 ? "s" : ""}` : ""}
             </span>
-            <Badge className="ml-auto bg-cyan/10 text-cyan/70 border-cyan/20 text-[9px] h-3.5 px-1 shrink-0">
+            <Badge className="ml-auto bg-primary/10 text-primary/70 border-primary/20 text-[9px] h-3.5 px-1 shrink-0">
               Run active
             </Badge>
           </div>

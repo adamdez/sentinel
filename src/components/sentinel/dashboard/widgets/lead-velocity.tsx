@@ -15,11 +15,11 @@ interface VelocityStage {
 }
 
 const STAGE_META: Record<string, { label: string; color: string }> = {
-  prospect:    { label: "Prospect",    color: "bg-blue-500" },
-  lead:        { label: "Lead",        color: "bg-cyan" },
-  negotiation: { label: "Negotiation", color: "bg-emerald-500" },
-  disposition: { label: "Disposition", color: "bg-yellow-500" },
-  closed:      { label: "Closed",      color: "bg-purple-500" },
+  prospect:    { label: "Prospect",    color: "bg-muted" },
+  lead:        { label: "Lead",        color: "bg-primary" },
+  negotiation: { label: "Negotiation", color: "bg-muted" },
+  disposition: { label: "Disposition", color: "bg-muted" },
+  closed:      { label: "Closed",      color: "bg-muted" },
 };
 
 export function LeadVelocity() {
@@ -114,7 +114,7 @@ export function LeadVelocity() {
               animate={{ width: `${Math.max((s.avgDays / maxDays) * 100, 2)}%` }}
               transition={{ duration: 0.5, delay: 0.1 + i * 0.06 }}
               className={cn("h-full rounded-full", s.color)}
-              style={{ boxShadow: "0 0 6px rgba(0,212,255,0.2)" }}
+              style={{ boxShadow: "0 0 6px rgba(0,0,0,0.2)" }}
             />
           </div>
         </motion.div>
@@ -123,8 +123,8 @@ export function LeadVelocity() {
       <div className="flex items-center justify-between pt-1.5 border-t border-white/[0.06] text-[11px]">
         <span className="text-muted-foreground">Avg Full Cycle</span>
         <motion.span
-          className="font-bold text-neon"
-          style={{ textShadow: "0 0 8px rgba(0,212,255,0.4)" }}
+          className="font-bold text-primary"
+          style={{ textShadow: "0 0 8px rgba(0,0,0,0.4)" }}
         >
           {avgTotal} days
         </motion.span>

@@ -323,10 +323,11 @@ export function getCompRationale(
   return `Weak — ${weakest.label} lacking`;
 }
 
+/** Grayscale only — distinguish tiers by lightness on dark map tiles */
 const QUALITY_COLORS = {
-  good: { fill: "#00d4ff", stroke: "#00a8cc", label: "Good Comp" },
-  marginal: { fill: "#facc15", stroke: "#ca8a04", label: "Marginal" },
-  outlier: { fill: "#f87171", stroke: "#dc2626", label: "Outlier" },
+  good: { fill: "#d4d4d8", stroke: "#a1a1aa", label: "Good Comp" },
+  marginal: { fill: "#a1a1aa", stroke: "#71717a", label: "Marginal" },
+  outlier: { fill: "#52525b", stroke: "#3f3f46", label: "Outlier" },
 };
 
 export function getSatelliteTileUrl(lat: number, lng: number, zoom = 18): string {
@@ -568,13 +569,13 @@ export function CompsMap({ subject, selectedComps, onAddComp, onRemoveComp, focu
               step={0.5}
               value={radiusMiles}
               onChange={(e) => setRadiusMiles(Number(e.target.value))}
-              className="w-24 h-1 accent-[#00d4ff] bg-secondary rounded-full"
+              className="w-24 h-1 accent-foreground bg-secondary rounded-full"
             />
-            <span className="font-mono text-cyan font-semibold w-10">{radiusMiles}mi</span>
+            <span className="font-mono text-primary font-semibold w-10">{radiusMiles}mi</span>
           </div>
         </div>
         <div className="flex items-center gap-2">
-          {loading && <Loader2 className="h-3 w-3 animate-spin text-cyan" />}
+          {loading && <Loader2 className="h-3 w-3 animate-spin text-primary" />}
           <Badge variant="outline" className="text-[10px]">
             {filteredComps.length}{filteredComps.length !== comps.length ? `/${comps.length}` : ""} properties{hiddenCount > 0 && ` (${MAX_MARKERS} shown)`}
           </Badge>
@@ -608,7 +609,7 @@ export function CompsMap({ subject, selectedComps, onAddComp, onRemoveComp, focu
                   className={cn(
                     "px-2 py-1 rounded-md border transition-all",
                     filters[key]
-                      ? "border-cyan/20 bg-cyan/8 text-cyan"
+                      ? "border-primary/20 bg-primary/8 text-primary"
                       : "border-glass-border bg-secondary/20 text-muted-foreground hover:border-white/20"
                   )}
                 >
@@ -637,7 +638,7 @@ export function CompsMap({ subject, selectedComps, onAddComp, onRemoveComp, focu
             <MapContainer
               center={[subject.lat, subject.lng]}
               zoom={15}
-              style={{ height: "100%", width: "100%", background: "#0a0a14" }}
+              style={{ height: "100%", width: "100%", background: "var(--background)" }}
               ref={(map: LMap | null) => { mapRef.current = map; }}
               zoomControl={true}
               scrollWheelZoom={true}
@@ -667,10 +668,10 @@ export function CompsMap({ subject, selectedComps, onAddComp, onRemoveComp, focu
                 center={[subject.lat, subject.lng]}
                 radius={radiusMeters}
                 pathOptions={{
-                  color: "#00d4ff",
+                  color: "#a1a1aa",
                   weight: 1.5,
                   opacity: 0.5,
-                  fillColor: "#00d4ff",
+                  fillColor: "#a1a1aa",
                   fillOpacity: 0.04,
                   dashArray: "6 4",
                 }}
@@ -681,9 +682,9 @@ export function CompsMap({ subject, selectedComps, onAddComp, onRemoveComp, focu
                 center={[subject.lat, subject.lng]}
                 radius={10}
                 pathOptions={{
-                  color: "#00d4ff",
+                  color: "#a1a1aa",
                   weight: 3,
-                  fillColor: "#00d4ff",
+                  fillColor: "#a1a1aa",
                   fillOpacity: 0.9,
                 }}
                 eventHandlers={{
@@ -696,7 +697,7 @@ export function CompsMap({ subject, selectedComps, onAddComp, onRemoveComp, focu
                   offset={[0, -12]}
                   className="!bg-transparent !border-0 !shadow-none !p-0"
                 >
-                  <div className="bg-glass border border-cyan/20 rounded px-2 py-0.5 text-[10px] text-cyan font-bold backdrop-blur-sm whitespace-nowrap cursor-pointer">
+                  <div className="bg-glass border border-primary/20 rounded px-2 py-0.5 text-[10px] text-primary font-bold backdrop-blur-sm whitespace-nowrap cursor-pointer">
                     ★ SUBJECT
                   </div>
                 </Tooltip>
@@ -715,9 +716,9 @@ export function CompsMap({ subject, selectedComps, onAddComp, onRemoveComp, focu
                     center={[comp.lat, comp.lng]}
                     radius={isSelected ? 8 : 6}
                     pathOptions={{
-color: isSelected ? "#00d4ff" : colors.stroke,
+color: isSelected ? "#a1a1aa" : colors.stroke,
                     weight: isSelected ? 3 : 1.5,
-                    fillColor: isSelected ? "#00d4ff" : colors.fill,
+                    fillColor: isSelected ? "#a1a1aa" : colors.fill,
                       fillOpacity: isSelected ? 1 : 0.7,
                     }}
                     eventHandlers={{
@@ -752,8 +753,8 @@ color: isSelected ? "#00d4ff" : colors.stroke,
                 className="absolute inset-0 z-[1000] bg-black/30 backdrop-blur-[1px] flex items-center justify-center pointer-events-none"
               >
                 <div className="flex items-center gap-2 bg-[rgba(12,12,22,0.9)] border border-white/[0.06] rounded-[10px] px-3 py-2 backdrop-blur-xl">
-                  <Loader2 className="h-4 w-4 animate-spin text-neon" />
-                  <span className="text-xs text-neon font-medium">Searching radius…</span>
+                  <Loader2 className="h-4 w-4 animate-spin text-primary" />
+                  <span className="text-xs text-primary font-medium">Searching radius…</span>
                 </div>
               </motion.div>
             )}
@@ -806,7 +807,7 @@ color: isSelected ? "#00d4ff" : colors.stroke,
               animate={{ opacity: 1, x: 0 }}
               exit={{ opacity: 0, x: 20 }}
               transition={{ duration: 0.15 }}
-              className="w-[290px] shrink-0 rounded-[10px] border border-cyan/20 bg-[rgba(12,12,22,0.5)] backdrop-blur-xl overflow-y-auto scrollbar-none"
+              className="w-[290px] shrink-0 rounded-[10px] border border-primary/20 bg-[rgba(12,12,22,0.5)] backdrop-blur-xl overflow-y-auto scrollbar-none"
             >
               <SubjectDetailPanel subject={subject} onClose={() => setShowSubject(false)} />
             </motion.div>
@@ -862,12 +863,12 @@ function CompDetailPanel({
     : null;
 
   const distressSignals: { label: string; color: string }[] = [];
-  if (comp.isForeclosure) distressSignals.push({ label: "Foreclosure", color: "text-red-400 border-red-400/30 bg-red-500/10" });
-  if (comp.isTaxDelinquent) distressSignals.push({ label: "Tax Delinquent", color: "text-amber-400 border-amber-400/30 bg-amber-500/10" });
-  if (comp.isVacant) distressSignals.push({ label: "Vacant", color: "text-purple-400 border-purple-400/30 bg-purple-500/10" });
-  if (comp.isAbsentee) distressSignals.push({ label: "Absentee", color: "text-blue-400 border-blue-400/30 bg-blue-500/10" });
-  if (comp.isFreeAndClear) distressSignals.push({ label: "Free & Clear", color: "text-green-400 border-green-400/30 bg-green-500/10" });
-  if (comp.isHighEquity) distressSignals.push({ label: "High Equity", color: "text-neon border-cyan/20 bg-cyan/[0.08]" });
+  if (comp.isForeclosure) distressSignals.push({ label: "Foreclosure", color: "text-foreground border-border/30 bg-muted/10" });
+  if (comp.isTaxDelinquent) distressSignals.push({ label: "Tax Delinquent", color: "text-foreground border-border/30 bg-muted/10" });
+  if (comp.isVacant) distressSignals.push({ label: "Vacant", color: "text-foreground border-border/30 bg-muted/10" });
+  if (comp.isAbsentee) distressSignals.push({ label: "Absentee", color: "text-foreground border-border/30 bg-muted/10" });
+  if (comp.isFreeAndClear) distressSignals.push({ label: "Free & Clear", color: "text-foreground border-border/30 bg-muted/10" });
+  if (comp.isHighEquity) distressSignals.push({ label: "High Equity", color: "text-primary border-primary/20 bg-primary/[0.08]" });
 
   const photoSrc = comp.photoUrl
     ?? comp.streetViewUrl
@@ -922,7 +923,7 @@ function CompDetailPanel({
       {/* Header */}
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">
-          <p className="font-semibold text-sm truncate" style={{ textShadow: "0 0 8px rgba(0,212,255,0.12)" }}>
+          <p className="font-semibold text-sm truncate" style={{ textShadow: "0 0 8px rgba(0,0,0,0.12)" }}>
             {comp.streetAddress || comp.address}
           </p>
           <p className="text-[10px] text-muted-foreground truncate">
@@ -954,12 +955,12 @@ function CompDetailPanel({
           </Badge>
         )}
         {comp.isRecentSale && (
-          <Badge variant="outline" className="text-[9px] gap-0.5 text-blue-400 border-blue-400/30">
+          <Badge variant="outline" className="text-[9px] gap-0.5 text-foreground border-border/30">
             Recent Sale
           </Badge>
         )}
         {comp.isListedForSale && (
-          <Badge variant="outline" className="text-[9px] gap-0.5 text-purple-400 border-purple-400/30">
+          <Badge variant="outline" className="text-[9px] gap-0.5 text-foreground border-border/30">
             Listed
           </Badge>
         )}
@@ -989,11 +990,11 @@ function CompDetailPanel({
         <div className="flex items-center justify-between p-1.5 rounded-md border border-white/[0.06] bg-white/[0.04]">
           <span className="text-[10px] text-muted-foreground">$/sqft</span>
           <div className="flex items-center gap-2">
-            <span className="font-semibold text-neon">${pricePerSqft}</span>
+            <span className="font-semibold text-primary">${pricePerSqft}</span>
             {subjectPpsf != null && (
               <span className={cn(
                 "text-[9px]",
-                pricePerSqft > subjectPpsf ? "text-red-400" : "text-green-400"
+                pricePerSqft > subjectPpsf ? "text-foreground" : "text-foreground"
               )}>
                 vs ${subjectPpsf} subj
               </span>
@@ -1006,7 +1007,7 @@ function CompDetailPanel({
       <div className="space-y-1.5 p-2 rounded-md border border-white/[0.06] bg-white/[0.04]">
         <div className="flex justify-between">
           <span className="text-muted-foreground">AVM / ARV</span>
-          <span className="font-semibold text-neon">{comp.avm ? formatCurrency(comp.avm) : "—"}</span>
+          <span className="font-semibold text-primary">{comp.avm ? formatCurrency(comp.avm) : "—"}</span>
         </div>
         <div className="flex justify-between">
           <span className="text-muted-foreground">Last Sale</span>
@@ -1020,7 +1021,7 @@ function CompDetailPanel({
         )}
         <div className="flex justify-between">
           <span className="text-muted-foreground">Equity</span>
-          <span className={cn("font-medium", comp.equityPercent != null && comp.equityPercent >= 50 && "text-neon")}>
+          <span className={cn("font-medium", comp.equityPercent != null && comp.equityPercent >= 50 && "text-primary")}>
             {comp.equityPercent != null ? `${comp.equityPercent}%` : "—"}
           </span>
         </div>
@@ -1092,19 +1093,19 @@ function CompDetailPanel({
       <div className="flex gap-1.5">
         {zillowUrl && (
           <a href={zillowUrl} target="_blank" rel="noopener noreferrer"
-            className="flex-1 text-center text-[9px] font-medium py-1.5 rounded-md border border-white/[0.06] bg-white/[0.04] hover:bg-white/[0.08] transition-colors text-blue-400">
+            className="flex-1 text-center text-[9px] font-medium py-1.5 rounded-md border border-white/[0.06] bg-white/[0.04] hover:bg-white/[0.08] transition-colors text-foreground">
             Zillow
           </a>
         )}
         {redfinUrl && (
           <a href={redfinUrl} target="_blank" rel="noopener noreferrer"
-            className="flex-1 text-center text-[9px] font-medium py-1.5 rounded-md border border-white/[0.06] bg-white/[0.04] hover:bg-white/[0.08] transition-colors text-red-400">
+            className="flex-1 text-center text-[9px] font-medium py-1.5 rounded-md border border-white/[0.06] bg-white/[0.04] hover:bg-white/[0.08] transition-colors text-foreground">
             Redfin
           </a>
         )}
         {comp.lat && comp.lng && (
           <a href={`https://www.google.com/maps/@${comp.lat},${comp.lng},18z`} target="_blank" rel="noopener noreferrer"
-            className="flex-1 text-center text-[9px] font-medium py-1.5 rounded-md border border-white/[0.06] bg-white/[0.04] hover:bg-white/[0.08] transition-colors text-green-400">
+            className="flex-1 text-center text-[9px] font-medium py-1.5 rounded-md border border-white/[0.06] bg-white/[0.04] hover:bg-white/[0.08] transition-colors text-foreground">
             Google Maps
           </a>
         )}
@@ -1112,7 +1113,7 @@ function CompDetailPanel({
 
       {/* Action button */}
       {isSelected ? (
-        <Button variant="outline" size="sm" className="w-full text-[11px] gap-1.5 text-red-400 border-red-400/30 hover:bg-red-500/10" onClick={onRemove}>
+        <Button variant="outline" size="sm" className="w-full text-[11px] gap-1.5 text-foreground border-border/30 hover:bg-muted/10" onClick={onRemove}>
           <X className="h-3 w-3" />
           Remove Comp
         </Button>
@@ -1137,7 +1138,7 @@ function SubjectDetailPanel({ subject, onClose }: { subject: SubjectProperty; on
         <div className="relative w-full h-[120px] overflow-hidden rounded-t-[10px] bg-black/40">
           <img src={photoSrc} alt="Subject" className="w-full h-full object-cover" />
           <div className="absolute inset-0 bg-gradient-to-t from-[rgba(12,12,22,0.8)] to-transparent" />
-          <div className="absolute bottom-1.5 left-2 text-[11px] font-bold text-cyan" style={{ textShadow: "0 1px 4px rgba(0,0,0,0.7)" }}>
+          <div className="absolute bottom-1.5 left-2 text-[11px] font-bold text-primary" style={{ textShadow: "0 1px 4px rgba(0,0,0,0.7)" }}>
             ★ Subject Property
           </div>
         </div>
@@ -1145,7 +1146,7 @@ function SubjectDetailPanel({ subject, onClose }: { subject: SubjectProperty; on
       <div className="px-3 pb-3 space-y-3">
         <div className="flex items-start justify-between gap-2">
           <div className="min-w-0">
-            <p className="font-semibold text-sm truncate text-cyan" style={{ textShadow: "0 0 8px rgba(0,212,255,0.2)" }}>
+            <p className="font-semibold text-sm truncate text-primary" style={{ textShadow: "0 0 8px rgba(0,0,0,0.2)" }}>
               {subject.address}
             </p>
           </div>
@@ -1159,15 +1160,15 @@ function SubjectDetailPanel({ subject, onClose }: { subject: SubjectProperty; on
           <StatBox icon={Ruler} label="Sqft" value={subject.sqft ? subject.sqft.toLocaleString() : "—"} match={false} />
           <StatBox icon={Calendar} label="Year" value={subject.yearBuilt ? String(subject.yearBuilt) : "—"} match={false} />
         </div>
-        <div className="space-y-1.5 p-2 rounded-md border border-cyan/15 bg-cyan/4">
+        <div className="space-y-1.5 p-2 rounded-md border border-primary/15 bg-primary/4">
           <div className="flex justify-between">
             <span className="text-muted-foreground">AVM</span>
-            <span className="font-bold text-neon">{subject.avm ? formatCurrency(subject.avm) : "—"}</span>
+            <span className="font-bold text-primary">{subject.avm ? formatCurrency(subject.avm) : "—"}</span>
           </div>
           {ppsqft && (
             <div className="flex justify-between">
               <span className="text-muted-foreground">$/sqft</span>
-              <span className="font-semibold text-neon">${ppsqft}</span>
+              <span className="font-semibold text-primary">${ppsqft}</span>
             </div>
           )}
           {subject.propertyType && (
@@ -1189,10 +1190,10 @@ function StatBox({ icon: Icon, label, value, match }: {
   return (
     <div className={cn(
       "p-1.5 rounded-md border text-center",
-      match ? "border-cyan/20 bg-cyan/4" : "border-glass-border bg-secondary/10"
+      match ? "border-primary/20 bg-primary/4" : "border-glass-border bg-secondary/10"
     )}>
       <p className="text-[9px] text-muted-foreground">{label}</p>
-      <p className={cn("text-sm font-semibold", match && "text-cyan")}>{value}</p>
+      <p className={cn("text-sm font-semibold", match && "text-primary")}>{value}</p>
     </div>
   );
 }

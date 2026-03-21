@@ -80,10 +80,10 @@ export function CallsToday() {
   const connectRate = s.totalCalls > 0 ? Math.round((s.connected / s.totalCalls) * 100) : 0;
 
   const metrics = [
-    { icon: PhoneOutgoing, label: "Calls Made", value: String(s.totalCalls), color: "text-cyan" },
-    { icon: CheckCircle2, label: "Connected", value: String(s.connected), color: "text-emerald-400" },
-    { icon: PhoneOff, label: "No Answer", value: String(s.noAnswer), color: "text-orange-400" },
-    { icon: Clock, label: "Talk Time", value: `${s.talkMinutes}m`, color: "text-purple-400" },
+    { icon: PhoneOutgoing, label: "Calls Made", value: String(s.totalCalls), color: "text-primary" },
+    { icon: CheckCircle2, label: "Connected", value: String(s.connected), color: "text-foreground" },
+    { icon: PhoneOff, label: "No Answer", value: String(s.noAnswer), color: "text-foreground" },
+    { icon: Clock, label: "Talk Time", value: `${s.talkMinutes}m`, color: "text-foreground" },
   ];
 
   return (
@@ -93,8 +93,8 @@ export function CallsToday() {
         animate={{ opacity: 1, scale: 1 }}
         className="text-center py-1.5 rounded-[12px] bg-secondary/20"
       >
-        <p className="text-2xl font-black text-neon"
-          style={{ textShadow: "0 0 12px rgba(0,212,255,0.4)" }}>
+        <p className="text-2xl font-black text-primary"
+          style={{ textShadow: "0 0 12px rgba(0,0,0,0.4)" }}>
           {connectRate}%
         </p>
         <p className="text-[10px] text-muted-foreground">Connect Rate</p>

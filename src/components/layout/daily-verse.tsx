@@ -65,15 +65,15 @@ export function DailyVerse() {
         onClick={() => setOpen((v) => !v)}
         className="w-full flex items-center justify-center gap-2 group cursor-pointer px-4 py-1"
       >
-        <BookOpen className="h-3 w-3 text-[#ff6b35]/40 shrink-0 group-hover:text-[#ff6b35]/70 transition-colors" />
-        <p className="text-[11px] text-[#ff6b35]/50 group-hover:text-[#ff6b35]/80 transition-colors truncate italic">
+        <BookOpen className="h-3 w-3 text-muted-foreground/50 shrink-0 group-hover:text-muted-foreground transition-colors" />
+        <p className="text-[11px] text-muted-foreground/70 group-hover:text-foreground transition-colors truncate italic">
           &ldquo;{displayText}&rdquo;
         </p>
-        <span className="text-[11px] text-[#ff6b35]/40 group-hover:text-[#ff6b35]/70 transition-colors shrink-0 font-medium">
+        <span className="text-[11px] text-muted-foreground/50 group-hover:text-muted-foreground transition-colors shrink-0 font-medium">
           — {devotional.verseRef}
         </span>
         <ChevronDown
-          className={`h-2.5 w-2.5 text-[#ff6b35]/30 shrink-0 transition-transform ${
+          className={`h-2.5 w-2.5 text-muted-foreground/40 shrink-0 transition-transform ${
             open ? "rotate-180" : ""
           }`}
         />
@@ -89,12 +89,12 @@ export function DailyVerse() {
             transition={{ duration: 0.15, ease: "easeOut" }}
             className="absolute top-full left-1/2 -translate-x-1/2 mt-2 w-[480px] max-w-[calc(100vw-2rem)] z-50"
           >
-            <div className="rounded-[12px] border border-cyan/15 bg-[rgba(12,12,22,0.95)] backdrop-blur-xl shadow-2xl shadow-black/40 p-5 space-y-4">
+            <div className="rounded-[12px] border border-primary/15 bg-[rgba(12,12,22,0.95)] backdrop-blur-xl shadow-2xl shadow-black/40 p-5 space-y-4">
               {/* Verse */}
               <div className="space-y-2">
                 <div className="flex items-center gap-2">
-                  <BookOpen className="h-4 w-4 text-cyan" />
-                  <h3 className="text-sm font-semibold text-cyan">
+                  <BookOpen className="h-4 w-4 text-primary" />
+                  <h3 className="text-sm font-semibold text-primary">
                     {devotional.verseRef}
                   </h3>
                   <span className="text-[9px] text-muted-foreground/40 ml-auto">ESV</span>
@@ -112,7 +112,7 @@ export function DailyVerse() {
                 <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
                   Commentary
                 </p>
-                <blockquote className="text-xs text-foreground/80 leading-relaxed italic border-l-2 border-cyan/20 pl-3">
+                <blockquote className="text-xs text-foreground/80 leading-relaxed italic border-l-2 border-primary/20 pl-3">
                   {devotional.commentary}
                 </blockquote>
                 <div className="flex items-center justify-between pt-1">
@@ -123,7 +123,7 @@ export function DailyVerse() {
                     href={devotional.sourceUrl}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="flex items-center gap-1 text-[10px] text-cyan/60 hover:text-cyan transition-colors"
+                    className="flex items-center gap-1 text-[10px] text-primary/60 hover:text-primary transition-colors"
                   >
                     <span className="underline underline-offset-2">
                       {devotional.sourceTitle}

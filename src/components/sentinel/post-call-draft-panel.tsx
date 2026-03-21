@@ -60,11 +60,11 @@ interface PostCallDraftPanelProps {
 // ── Temperature display ───────────────────────────────────────────────────────
 
 const TEMP_META: Record<string, { label: string; color: string; bg: string }> = {
-  hot:  { label: "Hot",  color: "text-red-400",    bg: "bg-red-500/15 border-red-500/30" },
-  warm: { label: "Warm", color: "text-orange-400", bg: "bg-orange-500/15 border-orange-500/30" },
-  cool: { label: "Cool", color: "text-blue-400",   bg: "bg-blue-500/15 border-blue-500/30" },
-  cold: { label: "Cold", color: "text-slate-400",  bg: "bg-slate-500/15 border-slate-500/30" },
-  dead: { label: "Dead", color: "text-zinc-500",   bg: "bg-zinc-500/10 border-zinc-500/20" },
+  hot:  { label: "Hot",  color: "text-foreground",    bg: "bg-muted/15 border-border/30" },
+  warm: { label: "Warm", color: "text-foreground", bg: "bg-muted/15 border-border/30" },
+  cool: { label: "Cool", color: "text-foreground",   bg: "bg-muted/15 border-border/30" },
+  cold: { label: "Cold", color: "text-foreground",  bg: "bg-muted/15 border-border/30" },
+  dead: { label: "Dead", color: "text-foreground",   bg: "bg-muted/10 border-border/20" },
 };
 
 // ── Assemble structured draft into a summary string ───────────────────────────
@@ -108,7 +108,7 @@ function DraftField({
         maxLength={maxLength}
         rows={2}
         disabled={disabled}
-        className="w-full resize-none rounded-[8px] border border-white/[0.06] bg-white/[0.03] px-2.5 py-1.5 text-[12px] text-foreground placeholder:text-muted-foreground/30 focus:outline-none focus:border-cyan/20 disabled:opacity-50"
+        className="w-full resize-none rounded-[8px] border border-white/[0.06] bg-white/[0.03] px-2.5 py-1.5 text-[12px] text-foreground placeholder:text-muted-foreground/30 focus:outline-none focus:border-primary/20 disabled:opacity-50"
       />
     </div>
   );
@@ -203,7 +203,7 @@ export function PostCallDraftPanel({
   if (loading) {
     return (
       <div className="flex items-center gap-2 py-3 px-1">
-        <Loader2 className="h-3 w-3 animate-spin text-purple-400/50" />
+        <Loader2 className="h-3 w-3 animate-spin text-foreground/50" />
         <span className="text-[11px] text-muted-foreground/40">Drafting call notes…</span>
       </div>
     );
@@ -215,8 +215,8 @@ export function PostCallDraftPanel({
     <div className="mb-3">
       {/* ── Header ─────────────────────────────────────────────── */}
       <div className="flex items-center gap-1.5 mb-2">
-        <Sparkles className="h-3 w-3 text-purple-400/60" />
-        <span className="text-[10px] uppercase tracking-wider text-purple-400/60 font-semibold">
+        <Sparkles className="h-3 w-3 text-foreground/60" />
+        <span className="text-[10px] uppercase tracking-wider text-foreground/60 font-semibold">
           Draft notes — review &amp; confirm
         </span>
         {tempMeta && (
@@ -297,7 +297,7 @@ export function PostCallDraftPanel({
             Objection <span className="text-muted-foreground/25 normal-case">(optional)</span>
           </label>
           {selectedTags.size > 0 && (
-            <span className="ml-auto text-[9px] text-orange-400/60">{selectedTags.size} tagged</span>
+            <span className="ml-auto text-[9px] text-foreground/60">{selectedTags.size} tagged</span>
           )}
         </div>
         <div className="flex flex-wrap gap-1">
@@ -309,7 +309,7 @@ export function PostCallDraftPanel({
               disabled={disabled}
               className={`rounded-[6px] px-2 py-0.5 text-[10px] font-medium border transition-all disabled:opacity-50 ${
                 selectedTags.has(tag)
-                  ? "bg-orange-500/15 border-orange-500/35 text-orange-400"
+                  ? "bg-muted/15 border-border/35 text-foreground"
                   : "bg-white/[0.02] border-white/[0.05] text-muted-foreground/40 hover:border-white/[0.12] hover:text-muted-foreground/60"
               }`}
             >
@@ -326,7 +326,7 @@ export function PostCallDraftPanel({
             maxLength={120}
             rows={1}
             disabled={disabled}
-            className="mt-1 w-full resize-none rounded-[8px] border border-white/[0.06] bg-white/[0.03] px-2.5 py-1.5 text-[12px] text-foreground placeholder:text-muted-foreground/30 focus:outline-none focus:border-orange-500/20 disabled:opacity-50"
+            className="mt-1 w-full resize-none rounded-[8px] border border-white/[0.06] bg-white/[0.03] px-2.5 py-1.5 text-[12px] text-foreground placeholder:text-muted-foreground/30 focus:outline-none focus:border-border/20 disabled:opacity-50"
           />
         )}
         {selectedTags.size > 0 && !showObjNote && (
@@ -345,7 +345,7 @@ export function PostCallDraftPanel({
       <Button
         onClick={handleConfirm}
         disabled={disabled}
-        className="w-full mt-1 gap-2 bg-cyan/15 hover:bg-cyan/25 text-cyan border border-cyan/25 text-sm font-semibold"
+        className="w-full mt-1 gap-2 bg-primary/15 hover:bg-primary/25 text-primary border border-primary/25 text-sm font-semibold"
       >
         {disabled ? (
           <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -362,7 +362,7 @@ export function PostCallDraftPanel({
           disabled={disabled || flagged}
           className={`flex-1 flex items-center justify-center gap-1 rounded-[8px] px-2 py-1.5 text-[11px] border transition-all disabled:opacity-40 ${
             flagged
-              ? "bg-orange-500/10 border-orange-500/25 text-orange-400"
+              ? "bg-muted/10 border-border/25 text-foreground"
               : "bg-white/[0.02] border-white/[0.04] text-muted-foreground/40 hover:text-muted-foreground/60 hover:border-white/[0.08]"
           }`}
         >

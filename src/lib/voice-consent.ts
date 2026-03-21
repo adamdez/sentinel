@@ -89,10 +89,10 @@ export const RISK_TIER_LABELS: Record<RiskTier, string> = {
 };
 
 export const RISK_TIER_COLORS: Record<RiskTier, { bg: string; text: string; border: string }> = {
-  low:    { bg: "bg-emerald-500/10", text: "text-emerald-400", border: "border-emerald-500/20" },
-  medium: { bg: "bg-amber-500/10",   text: "text-amber-400",   border: "border-amber-500/20"   },
-  high:   { bg: "bg-red-500/10",     text: "text-red-400",     border: "border-red-500/20"     },
-  review: { bg: "bg-orange-500/10",  text: "text-orange-400",  border: "border-orange-500/20"  },
+  low:    { bg: "bg-muted/10", text: "text-foreground", border: "border-border/20" },
+  medium: { bg: "bg-muted/10",   text: "text-foreground",   border: "border-border/20"   },
+  high:   { bg: "bg-muted/10",     text: "text-foreground",     border: "border-border/20"     },
+  review: { bg: "bg-muted/10",  text: "text-foreground",  border: "border-border/20"  },
 };
 
 // ── Ledger row shape ──────────────────────────────────────────────────────────

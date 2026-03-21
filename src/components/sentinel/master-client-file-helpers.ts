@@ -463,10 +463,10 @@ const WORKFLOW_STAGE_SET = new Set<WorkflowStageId>(WORKFLOW_STAGE_OPTIONS.map((
 const LEGACY_MY_LEADS_ALIASES = new Set(["my_lead", "my_leads", "my_lead_status"]);
 
 export const SCORE_LABEL_CFG: Record<AIScore["label"], { text: string; color: string; bg: string }> = {
-  platinum: { text: "Top priority", color: "text-cyan-300",    bg: "bg-cyan-400/10 border-cyan-400/30" },
-  gold:     { text: "High priority",    color: "text-amber-400",   bg: "bg-amber-500/10 border-amber-500/30" },
-  silver:   { text: "Medium",  color: "text-slate-300",   bg: "bg-slate-400/10 border-slate-400/30" },
-  bronze:   { text: "Low priority",  color: "text-orange-500",  bg: "bg-orange-600/10 border-orange-600/30" },
+  platinum: { text: "Top priority", color: "text-primary-300",    bg: "bg-primary-400/10 border-primary-400/30" },
+  gold:     { text: "High priority",    color: "text-foreground",   bg: "bg-muted/10 border-border/30" },
+  silver:   { text: "Medium",  color: "text-foreground",   bg: "bg-muted/10 border-border/30" },
+  bronze:   { text: "Low priority",  color: "text-foreground",  bg: "bg-muted/10 border-border/30" },
 };
 
 export const COUNTY_LINKS: Record<string, { name: string; gis: (apn: string) => string; assessor: (apn: string) => string; treasurer?: (apn: string) => string }> = {
@@ -742,8 +742,8 @@ export function extractLatLng(cf: ClientFile): { lat: number | null; lng: number
 
 export function dispositionColor(disp: string): string {
   const d = disp.toLowerCase();
-  if (d === "connected" || d === "interested" || d === "appointment_set" || d === "callback") return "text-emerald-400";
-  if (d === "no_answer" || d === "voicemail" || d === "busy" || d === "left_message") return "text-amber-400";
-  if (d === "wrong_number" || d === "disconnected" || d === "do_not_call") return "text-red-400";
+  if (d === "connected" || d === "interested" || d === "appointment_set" || d === "callback") return "text-foreground";
+  if (d === "no_answer" || d === "voicemail" || d === "busy" || d === "left_message") return "text-foreground";
+  if (d === "wrong_number" || d === "disconnected" || d === "do_not_call") return "text-foreground";
   return "text-muted-foreground";
 }

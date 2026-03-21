@@ -16,48 +16,48 @@ interface Insight {
 const SEVERITY_CONFIG = {
   critical: {
     icon: AlertCircle,
-    border: "border-red-500/30",
-    bg: "bg-red-500/5",
-    dot: "bg-red-500",
-    text: "text-red-400",
+    border: "border-border/30",
+    bg: "bg-muted/5",
+    dot: "bg-muted",
+    text: "text-foreground",
   },
   warning: {
     icon: AlertTriangle,
-    border: "border-amber-500/30",
-    bg: "bg-amber-500/5",
-    dot: "bg-amber-500",
-    text: "text-amber-400",
+    border: "border-border/30",
+    bg: "bg-muted/5",
+    dot: "bg-muted",
+    text: "text-foreground",
   },
   info: {
     icon: Info,
-    border: "border-cyan-500/30",
-    bg: "bg-cyan-500/5",
-    dot: "bg-cyan-400",
-    text: "text-cyan-400",
+    border: "border-primary-500/30",
+    bg: "bg-primary-500/5",
+    dot: "bg-primary-400",
+    text: "text-primary-400",
   },
 };
 
 const HEALTH_CONFIG = {
   nominal: {
     icon: ShieldCheck,
-    border: "border-emerald-500/30",
-    bg: "bg-emerald-500/5",
-    text: "text-emerald-400",
-    dot: "bg-emerald-500",
+    border: "border-border/30",
+    bg: "bg-muted/5",
+    text: "text-foreground",
+    dot: "bg-muted",
   },
   degraded: {
     icon: AlertTriangle,
-    border: "border-amber-500/30",
-    bg: "bg-amber-500/5",
-    text: "text-amber-400",
-    dot: "bg-amber-500",
+    border: "border-border/30",
+    bg: "bg-muted/5",
+    text: "text-foreground",
+    dot: "bg-muted",
   },
   critical: {
     icon: AlertCircle,
-    border: "border-red-500/30",
-    bg: "bg-red-500/5",
-    text: "text-red-400",
-    dot: "bg-red-500",
+    border: "border-border/30",
+    bg: "bg-muted/5",
+    text: "text-foreground",
+    dot: "bg-muted",
   },
 };
 
@@ -103,8 +103,8 @@ export function GrokInsights() {
     <div className="flex flex-col gap-2 h-full">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-1.5">
-          <Brain className="h-3.5 w-3.5 text-purple-400" />
-          <span className="text-[11px] font-semibold tracking-wider uppercase text-purple-400">
+          <Brain className="h-3.5 w-3.5 text-foreground" />
+          <span className="text-[11px] font-semibold tracking-wider uppercase text-foreground">
             Grok Insights
           </span>
         </div>

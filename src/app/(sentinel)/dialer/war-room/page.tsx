@@ -78,8 +78,8 @@ function dirBad(curr: number | null, prev: number | null): Direction {
 function DirBadge({ dir }: { dir: Direction }) {
   if (dir === "new")  return <span className="text-[9px] text-muted-foreground/40">new</span>;
   if (dir === "flat") return <Minus className="h-2.5 w-2.5 text-muted-foreground/30" />;
-  if (dir === "up")   return <TrendingUp className="h-2.5 w-2.5 text-emerald-400" />;
-  return <TrendingDown className="h-2.5 w-2.5 text-red-400" />;
+  if (dir === "up")   return <TrendingUp className="h-2.5 w-2.5 text-foreground" />;
+  return <TrendingDown className="h-2.5 w-2.5 text-foreground" />;
 }
 
 interface ColDef {
@@ -93,15 +93,15 @@ interface ColDef {
 }
 
 const WEEK_COLS: ColDef[] = [
-  { key: "calls_published",      label: "Calls",      icon: Phone,         iconColor: "text-cyan/70",      getValue: (w) => String(w.calls_published),        getDir: (c, p) => dirGood(c.calls_published, p?.calls_published ?? null) },
-  { key: "follow_up_calls",      label: "F/U Calls",  icon: ArrowRight,    iconColor: "text-purple-400/70", getValue: (w) => String(w.follow_up_calls),        getDir: (c, p) => dirGood(c.follow_up_calls, p?.follow_up_calls ?? null) },
-  { key: "tasks_created",        label: "Tasks",      icon: CheckSquare,   iconColor: "text-amber-400/70",  getValue: (w) => String(w.tasks_created),          getDir: (c, p) => dirGood(c.tasks_created, p?.tasks_created ?? null) },
-  { key: "task_creation_pct",    label: "Task rate",  icon: CheckSquare,   iconColor: "text-amber-400/70",  getValue: (w) => fmtPct(w.task_creation_pct),      getDir: (c, p) => dirGood(c.task_creation_pct, p?.task_creation_pct ?? null), isDanger: (w) => w.task_creation_pct != null && w.task_creation_pct < 80 },
-  { key: "callbacks_defaulted",  label: "No date",    icon: CalendarClock, iconColor: "text-orange-400/70", getValue: (w) => String(w.callbacks_defaulted),    getDir: (c, p) => dirBad(c.callbacks_defaulted, p?.callbacks_defaulted ?? null), isDanger: (w) => w.callbacks_defaulted > 0 },
-  { key: "callback_slippage_pct",label: "Slippage",   icon: CalendarClock, iconColor: "text-orange-400/70", getValue: (w) => fmtPct(w.callback_slippage_pct),  getDir: (c, p) => dirBad(c.callback_slippage_pct, p?.callback_slippage_pct ?? null), isDanger: (w) => w.callback_slippage_pct != null && w.callback_slippage_pct > 40 },
-  { key: "ai_reviewed",          label: "AI rev.",    icon: Brain,         iconColor: "text-purple-400/70", getValue: (w) => String(w.ai_reviewed),            getDir: (c, p) => dirGood(c.ai_reviewed, p?.ai_reviewed ?? null) },
-  { key: "ai_flagged",           label: "Flagged",    icon: Flag,          iconColor: "text-red-400/70",    getValue: (w) => String(w.ai_flagged),             getDir: (c, p) => dirBad(c.ai_flagged, p?.ai_flagged ?? null), isDanger: (w) => w.ai_flagged > 0 },
-  { key: "ai_flag_rate_pct",     label: "Flag rate",  icon: Flag,          iconColor: "text-red-400/70",    getValue: (w) => fmtPct(w.ai_flag_rate_pct),       getDir: (c, p) => dirBad(c.ai_flag_rate_pct, p?.ai_flag_rate_pct ?? null), isDanger: (w) => w.ai_flag_rate_pct != null && w.ai_flag_rate_pct > 25 },
+  { key: "calls_published",      label: "Calls",      icon: Phone,         iconColor: "text-primary/70",      getValue: (w) => String(w.calls_published),        getDir: (c, p) => dirGood(c.calls_published, p?.calls_published ?? null) },
+  { key: "follow_up_calls",      label: "F/U Calls",  icon: ArrowRight,    iconColor: "text-foreground/70", getValue: (w) => String(w.follow_up_calls),        getDir: (c, p) => dirGood(c.follow_up_calls, p?.follow_up_calls ?? null) },
+  { key: "tasks_created",        label: "Tasks",      icon: CheckSquare,   iconColor: "text-foreground/70",  getValue: (w) => String(w.tasks_created),          getDir: (c, p) => dirGood(c.tasks_created, p?.tasks_created ?? null) },
+  { key: "task_creation_pct",    label: "Task rate",  icon: CheckSquare,   iconColor: "text-foreground/70",  getValue: (w) => fmtPct(w.task_creation_pct),      getDir: (c, p) => dirGood(c.task_creation_pct, p?.task_creation_pct ?? null), isDanger: (w) => w.task_creation_pct != null && w.task_creation_pct < 80 },
+  { key: "callbacks_defaulted",  label: "No date",    icon: CalendarClock, iconColor: "text-foreground/70", getValue: (w) => String(w.callbacks_defaulted),    getDir: (c, p) => dirBad(c.callbacks_defaulted, p?.callbacks_defaulted ?? null), isDanger: (w) => w.callbacks_defaulted > 0 },
+  { key: "callback_slippage_pct",label: "Slippage",   icon: CalendarClock, iconColor: "text-foreground/70", getValue: (w) => fmtPct(w.callback_slippage_pct),  getDir: (c, p) => dirBad(c.callback_slippage_pct, p?.callback_slippage_pct ?? null), isDanger: (w) => w.callback_slippage_pct != null && w.callback_slippage_pct > 40 },
+  { key: "ai_reviewed",          label: "AI rev.",    icon: Brain,         iconColor: "text-foreground/70", getValue: (w) => String(w.ai_reviewed),            getDir: (c, p) => dirGood(c.ai_reviewed, p?.ai_reviewed ?? null) },
+  { key: "ai_flagged",           label: "Flagged",    icon: Flag,          iconColor: "text-foreground/70",    getValue: (w) => String(w.ai_flagged),             getDir: (c, p) => dirBad(c.ai_flagged, p?.ai_flagged ?? null), isDanger: (w) => w.ai_flagged > 0 },
+  { key: "ai_flag_rate_pct",     label: "Flag rate",  icon: Flag,          iconColor: "text-foreground/70",    getValue: (w) => fmtPct(w.ai_flag_rate_pct),       getDir: (c, p) => dirBad(c.ai_flag_rate_pct, p?.ai_flag_rate_pct ?? null), isDanger: (w) => w.ai_flag_rate_pct != null && w.ai_flag_rate_pct > 25 },
 ];
 
 // ─────────────────────────────────────────────────────────────
@@ -149,7 +149,7 @@ function WeeklyTable() {
   }
 
   if (error) {
-    return <p className="text-xs text-red-400 py-2">{error}</p>;
+    return <p className="text-xs text-foreground py-2">{error}</p>;
   }
 
   if (!data || data.weeks.length === 0) {
@@ -189,7 +189,7 @@ function WeeklyTable() {
                 >
                   <td className="sticky left-0 bg-[#0d0d12] z-10 px-3 py-2 whitespace-nowrap">
                     <div className="flex items-center gap-1.5">
-                      {isCurrent && <span className="h-1.5 w-1.5 rounded-full bg-cyan inline-block shrink-0" />}
+                      {isCurrent && <span className="h-1.5 w-1.5 rounded-full bg-primary inline-block shrink-0" />}
                       <span className={`font-medium ${isCurrent ? "text-foreground" : "text-muted-foreground/70"}`}>
                         {fmtWeekLabel(week.week, week.week_start)}
                       </span>
@@ -203,7 +203,7 @@ function WeeklyTable() {
                       <td
                         key={col.key}
                         className={`px-2 py-2 text-right tabular-nums whitespace-nowrap ${
-                          danger ? "text-orange-300" : value === "—" ? "text-muted-foreground/30" : "text-foreground/80"
+                          danger ? "text-foreground" : value === "—" ? "text-muted-foreground/30" : "text-foreground/80"
                         }`}
                       >
                         <div className="flex items-center justify-end gap-1">
@@ -220,10 +220,10 @@ function WeeklyTable() {
         </table>
       </div>
       <div className="flex flex-wrap gap-x-4 gap-y-1 text-[9px] text-muted-foreground/40 pt-1 border-t border-white/[0.04]">
-        <span className="flex items-center gap-1"><TrendingUp className="h-2 w-2 text-emerald-400" /> better vs prior week</span>
-        <span className="flex items-center gap-1"><TrendingDown className="h-2 w-2 text-red-400" /> worse vs prior week</span>
-        <span className="flex items-center gap-1"><span className="h-1.5 w-1.5 rounded-full bg-cyan inline-block" /> current week (partial)</span>
-        <Link href="/dialer/review" className="text-cyan/60 hover:text-cyan ml-auto">Full review →</Link>
+        <span className="flex items-center gap-1"><TrendingUp className="h-2 w-2 text-foreground" /> better vs prior week</span>
+        <span className="flex items-center gap-1"><TrendingDown className="h-2 w-2 text-foreground" /> worse vs prior week</span>
+        <span className="flex items-center gap-1"><span className="h-1.5 w-1.5 rounded-full bg-primary inline-block" /> current week (partial)</span>
+        <Link href="/dialer/review" className="text-primary/60 hover:text-primary ml-auto">Full review →</Link>
       </div>
     </div>
   );
@@ -287,12 +287,12 @@ export default function WarRoomPage() {
         {/* ── Overdue alert banner ───────────────────────────────── */}
         {overdueCount > 0 && (
           <Link href="/tasks">
-            <div className="flex items-center gap-2 rounded-[10px] border border-orange-500/30 bg-orange-500/[0.06] px-3 py-2.5 text-xs text-orange-300 hover:bg-orange-500/[0.09] transition-colors">
+            <div className="flex items-center gap-2 rounded-[10px] border border-border/30 bg-muted/[0.06] px-3 py-2.5 text-xs text-foreground hover:bg-muted/[0.09] transition-colors">
               <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
               <span>
                 <strong>{overdueCount}</strong> overdue follow-up task{overdueCount !== 1 ? "s" : ""} — callbacks were missed
               </span>
-              <span className="ml-auto flex items-center gap-1 text-orange-400/70 text-[10px] shrink-0">
+              <span className="ml-auto flex items-center gap-1 text-foreground/70 text-[10px] shrink-0">
                 View Tasks <ExternalLink className="h-2.5 w-2.5" />
               </span>
             </div>
@@ -301,7 +301,7 @@ export default function WarRoomPage() {
 
         {/* ── Missed inbound banner (highest urgency — surfaces first) ─ */}
         {(missedLoading || missedInbound.length > 0 || unclassifiedAnswered.length > 0) && (
-          <Section title="Missed Inbound Calls" icon={PhoneIncoming} iconColor="text-red-400/80">
+          <Section title="Missed Inbound Calls" icon={PhoneIncoming} iconColor="text-foreground/80">
             <MissedInboundQueue
               items={missedInbound}
               unclassified={unclassifiedAnswered}
@@ -315,24 +315,24 @@ export default function WarRoomPage() {
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
 
           {/* Daily brief */}
-          <Section title="Daily Brief" icon={Crosshair} iconColor="text-cyan/70">
+          <Section title="Daily Brief" icon={Crosshair} iconColor="text-primary/70">
             <DailyBrief />
           </Section>
 
           {/* Missed opportunity queue */}
-          <Section title="Missed Opportunities" icon={SearchX} iconColor="text-amber-400/70">
+          <Section title="Missed Opportunities" icon={SearchX} iconColor="text-foreground/70">
             <MissedOpportunityQueue />
           </Section>
 
         </div>
 
         {/* ── Call quality snapshot (full width) ────────────────── */}
-        <Section title="Call Quality / AI Review Queue" icon={BrainCircuit} iconColor="text-purple-400/70">
+        <Section title="Call Quality / AI Review Queue" icon={BrainCircuit} iconColor="text-foreground/70">
           <CallQualitySnapshot />
         </Section>
 
         {/* ── Weekly discipline table (full width) ──────────────── */}
-        <Section title="Weekly Discipline" icon={TrendingUp} iconColor="text-cyan/70">
+        <Section title="Weekly Discipline" icon={TrendingUp} iconColor="text-primary/70">
           <WeeklyTable />
         </Section>
 

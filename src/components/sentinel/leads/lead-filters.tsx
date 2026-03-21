@@ -28,12 +28,12 @@ interface LeadFiltersProps {
 }
 
 const STATUS_OPTIONS: { value: LeadStatus; label: string; color: string }[] = [
-  { value: "lead", label: "Lead", color: "bg-green-500/20 text-green-400 border-green-500/30" },
-  { value: "negotiation", label: "Negotiation", color: "bg-yellow-500/20 text-yellow-400 border-yellow-500/30" },
-  { value: "disposition", label: "Disposition", color: "bg-rose-500/20 text-rose-400 border-rose-500/30" },
-  { value: "nurture", label: "Nurture", color: "bg-purple-500/20 text-purple-400 border-purple-500/30" },
-  { value: "dead", label: "Dead", color: "bg-zinc-500/20 text-zinc-400 border-zinc-500/30" },
-  { value: "closed", label: "Closed", color: "bg-sky-500/20 text-sky-300 border-sky-500/30" },
+  { value: "lead", label: "Lead", color: "bg-muted/20 text-foreground border-border/30" },
+  { value: "negotiation", label: "Negotiation", color: "bg-muted/20 text-foreground border-border/30" },
+  { value: "disposition", label: "Disposition", color: "bg-muted/20 text-foreground border-border/30" },
+  { value: "nurture", label: "Nurture", color: "bg-muted/20 text-foreground border-border/30" },
+  { value: "dead", label: "Dead", color: "bg-muted/20 text-foreground border-border/30" },
+  { value: "closed", label: "Closed", color: "bg-muted/20 text-foreground border-border/30" },
 ];
 
 const FOLLOW_UP_OPTIONS: { value: FollowUpFilter; label: string }[] = [
@@ -138,7 +138,7 @@ export function LeadFilters({
         <Button
           variant="outline"
           size="sm"
-          className={cn("gap-1.5 text-xs", expanded && "border-cyan/20 text-cyan")}
+          className={cn("gap-1.5 text-xs", expanded && "border-primary/20 text-primary")}
           onClick={() => setExpanded(!expanded)}
         >
           <SlidersHorizontal className="h-3 w-3" />
@@ -332,7 +332,7 @@ export function LeadFilters({
                     className={cn(
                       "flex items-center gap-1.5 text-[11px] px-3 py-1 rounded-md border transition-all",
                       filters.unassignedOnly
-                        ? "bg-yellow-500/15 text-yellow-400 border-yellow-500/30"
+                        ? "bg-muted/15 text-foreground border-border/30"
                         : cn(filterChip.idle)
                     )}
                   >
@@ -343,7 +343,7 @@ export function LeadFilters({
                     className={cn(
                       "flex items-center gap-1.5 text-[11px] px-3 py-1 rounded-md border transition-all",
                       filters.includeClosed
-                        ? "bg-sky-500/15 text-sky-300 border-sky-500/30"
+                        ? "bg-muted/15 text-foreground border-border/30"
                         : cn(filterChip.idle)
                     )}
                   >
@@ -354,7 +354,7 @@ export function LeadFilters({
                     className={cn(
                       "flex items-center gap-1.5 text-[11px] px-3 py-1 rounded-md border transition-all",
                       filters.excludeSuppressed
-                        ? "bg-red-500/15 text-red-300 border-red-500/30"
+                        ? "bg-muted/15 text-foreground border-border/30"
                         : cn(filterChip.idle)
                     )}
                   >

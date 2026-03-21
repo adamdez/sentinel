@@ -71,7 +71,7 @@ export default function AnalyticsPage() {
       actions={
         <div className="flex items-center gap-2">
           <Badge variant="outline" className="text-[10px] gap-1">
-            <Radio className="h-2.5 w-2.5 text-green-400 animate-pulse" />
+            <Radio className="h-2.5 w-2.5 text-foreground animate-pulse" />
             Live
           </Badge>
           <Badge variant="outline" className="text-[10px] gap-1">
@@ -90,7 +90,7 @@ export default function AnalyticsPage() {
               className={cn(
                 "px-4 py-1.5 rounded-[12px] text-xs font-medium transition-all duration-200",
                 period === p.key
-                  ? "bg-cyan/10 text-cyan border border-cyan/20"
+                  ? "bg-primary/10 text-primary border border-primary/20"
                   : "text-muted-foreground hover:text-foreground hover:bg-secondary/30"
               )}
             >
@@ -134,7 +134,7 @@ export default function AnalyticsPage() {
             <GlassCard hover={false} className="!p-4">
               <div className="flex items-center justify-between mb-3">
                 <h3 className="text-sm font-semibold flex items-center gap-2">
-                  <MapPinned className="h-4 w-4 text-cyan" />
+                  <MapPinned className="h-4 w-4 text-primary" />
                   Market Scoreboard
                 </h3>
                 <div className="flex items-center gap-1.5">
@@ -173,7 +173,7 @@ export default function AnalyticsPage() {
               <GlassCard hover={false} className="xl:col-span-2 !p-4">
                 <div className="flex items-center justify-between mb-3">
                   <h3 className="text-sm font-semibold flex items-center gap-2">
-                    <BarChart3 className="h-4 w-4 text-cyan" />
+                    <BarChart3 className="h-4 w-4 text-primary" />
                     Source Outcomes
                   </h3>
                   <div className="flex items-center gap-1.5">
@@ -227,7 +227,7 @@ export default function AnalyticsPage() {
               <GlassCard hover={false} className="!p-4">
                 <div className="flex items-center justify-between mb-3">
                   <h3 className="text-sm font-semibold flex items-center gap-2">
-                    <Clock3 className="h-4 w-4 text-cyan" />
+                    <Clock3 className="h-4 w-4 text-primary" />
                     Speed-to-Lead
                   </h3>
                   <TrustBadge type="estimated" />
@@ -261,7 +261,7 @@ export default function AnalyticsPage() {
               <GlassCard hover={false} className="xl:col-span-2 !p-4">
                 <div className="flex items-center justify-between mb-3">
                   <h3 className="text-sm font-semibold flex items-center gap-2">
-                    <TrendingUp className="h-4 w-4 text-cyan" />
+                    <TrendingUp className="h-4 w-4 text-primary" />
                     Pipeline Health by Market
                   </h3>
                   <div className="flex items-center gap-1.5">
@@ -311,7 +311,7 @@ export default function AnalyticsPage() {
               <GlassCard hover={false} className="!p-4">
                 <div className="flex items-center justify-between mb-3">
                   <h3 className="text-sm font-semibold flex items-center gap-2">
-                    <DollarSign className="h-4 w-4 text-cyan" />
+                    <DollarSign className="h-4 w-4 text-primary" />
                     Revenue Outcomes
                   </h3>
                   <TrustBadge type="hard" />
@@ -341,7 +341,7 @@ export default function AnalyticsPage() {
                     : "No closed_at exclusions in this period."}
                 </p>
                 <p className="text-[11px] text-muted-foreground mt-1">
-                  For ad spend and campaign operations, use <a href="/ads" className="text-cyan underline underline-offset-2">Ads</a>.
+                  For ad spend and campaign operations, use <a href="/ads" className="text-primary underline underline-offset-2">Ads</a>.
                 </p>
               </GlassCard>
             </div>
@@ -447,7 +447,7 @@ function DispoFunnelCard() {
     <GlassCard hover={false} className="!p-4">
       <div className="flex items-center justify-between mb-3">
         <h3 className="text-sm font-semibold flex items-center gap-2">
-          <Users className="h-4 w-4 text-cyan" />
+          <Users className="h-4 w-4 text-primary" />
           Disposition Outreach
         </h3>
         <TrustBadge type="hard" />
@@ -465,13 +465,13 @@ function DispoFunnelCard() {
           <span>Avg <span className="text-foreground/80 font-medium">{funnel.avgDaysInDispo === 0 ? "< 1" : funnel.avgDaysInDispo} {funnel.avgDaysInDispo === 1 ? "day" : "days"}</span> in dispo</span>
         )}
         {funnel.stalledCount > 0 && (
-          <span className="text-amber-400/80">
+          <span className="text-foreground/80">
             <span className="font-medium">{funnel.stalledCount}</span> {funnel.stalledCount === 1 ? "deal" : "deals"} stalled
           </span>
         )}
       </div>
       <p className="text-[11px] text-muted-foreground mt-2">
-        Live buyer outreach funnel for deals currently in disposition. See <a href="/dispo" className="text-cyan underline underline-offset-2">Dispo Board</a> for details.
+        Live buyer outreach funnel for deals currently in disposition. See <a href="/dispo" className="text-primary underline underline-offset-2">Dispo Board</a> for details.
       </p>
     </GlassCard>
   );
@@ -501,8 +501,8 @@ function Metric({
       className={cn(
         "rounded-[10px] border px-2.5 py-2",
         tone === "default" && "border-glass-border bg-glass/30",
-        tone === "warn" && "border-yellow-500/25 bg-yellow-500/[0.05]",
-        tone === "positive" && "border-emerald-500/25 bg-emerald-500/[0.05]"
+        tone === "warn" && "border-border/25 bg-muted/[0.05]",
+        tone === "positive" && "border-border/25 bg-muted/[0.05]"
       )}
     >
       <p className="text-[10px] uppercase tracking-wider text-muted-foreground">{label}</p>

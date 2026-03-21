@@ -225,7 +225,7 @@ export default function LoginPage() {
                 initial={{ opacity: 0, y: -4 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -4 }}
-                className="mt-4 p-3 rounded-[12px] border border-red-500/20 bg-red-500/5 text-red-400 text-xs"
+                className="mt-4 p-3 rounded-[12px] border border-border/20 bg-muted/5 text-foreground text-xs"
               >
                 {error}
               </motion.div>

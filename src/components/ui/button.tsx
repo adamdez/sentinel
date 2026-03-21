@@ -11,19 +11,19 @@ const buttonVariants = cva(
     variants: {
       variant: {
         default:
-          "bg-cyan/15 text-cyan border border-cyan/20 backdrop-blur-sm shadow-[0_0_20px_rgba(0,212,255,0.1)] hover:bg-cyan/25 hover:border-cyan/35 hover:shadow-[0_0_30px_rgba(0,212,255,0.2)]",
+          "bg-primary text-primary-foreground border border-white/12 backdrop-blur-sm shadow-[var(--shadow-badge-glow-tight)] hover:opacity-95",
         destructive:
           "bg-destructive/15 text-destructive border border-destructive/20 hover:bg-destructive/25",
         outline:
-          "border border-glass-border bg-glass/50 backdrop-blur-xl hover:bg-cyan/5 hover:border-cyan/15 hover:text-cyan",
+          "border border-glass-border bg-glass/50 backdrop-blur-xl hover:bg-white/[0.06] hover:border-white/15 hover:text-foreground",
         secondary:
           "bg-secondary text-secondary-foreground border border-glass-border hover:bg-secondary/80",
         ghost:
-          "hover:bg-cyan/5 hover:text-cyan",
+          "hover:bg-white/[0.06] hover:text-foreground",
         link:
-          "text-cyan underline-offset-4 hover:underline",
+          "text-foreground underline-offset-4 hover:underline",
         neon:
-          "bg-transparent border border-neon/25 text-neon hover:bg-neon/8 hover:border-neon/50 shadow-[0_0_12px_rgba(0,255,136,0.08)] hover:shadow-[0_0_20px_rgba(0,255,136,0.18)]",
+          "bg-transparent border border-white/20 text-foreground hover:bg-white/[0.06] hover:border-white/28 shadow-[var(--shadow-badge-glow-tight)]",
       },
       size: {
         default: "h-9 px-4 py-2",

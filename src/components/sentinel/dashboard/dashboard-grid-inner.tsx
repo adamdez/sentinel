@@ -94,7 +94,7 @@ function SortableTile({
     zIndex: isDragging ? 50 : undefined,
     opacity: isDragging ? 0.92 : 1,
     filter: isDragging
-      ? "brightness(1.15) drop-shadow(0 0 24px rgba(0, 229, 255, 0.3))"
+      ? "brightness(1.15) drop-shadow(0 0 24px rgba(255,255,255, 0.3))"
       : undefined,
   };
 
@@ -153,7 +153,7 @@ export function DashboardGridInner() {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <LayoutGrid className="h-4 w-4 text-cyan" />
+          <LayoutGrid className="h-4 w-4 text-primary" />
           <span className="text-sm font-semibold">Your Dashboard</span>
           <Badge variant="outline" className="text-[10px]">
             {layout.tiles.length}/{MAX_DASHBOARD_TILES} widgets

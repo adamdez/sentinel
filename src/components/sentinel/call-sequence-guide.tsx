@@ -48,8 +48,8 @@ export function CallSequenceGuide() {
         className="group relative p-0.5 rounded-full transition-all"
       >
         <Info
-          className="h-[14px] w-[14px] text-cyan/50 group-hover:text-cyan transition-colors"
-          style={{ filter: "drop-shadow(0 0 3px rgba(0,229,255,0.3))" }}
+          className="h-[14px] w-[14px] text-primary/50 group-hover:text-primary transition-colors"
+          style={{ filter: "drop-shadow(0 0 3px rgba(255,255,255,0.3))" }}
         />
       </button>
 
@@ -72,8 +72,8 @@ export function CallSequenceGuide() {
                 glass-strong flex flex-col"
             >
               {/* Top accent line */}
-              <div className="absolute top-0 inset-x-0 h-[1px] bg-gradient-to-r from-transparent via-purple-400/40 to-transparent" />
-              <div className="absolute top-0 inset-x-0 h-12 bg-gradient-to-b from-purple-500/[0.03] to-transparent pointer-events-none" />
+              <div className="absolute top-0 inset-x-0 h-[1px] bg-gradient-to-r from-transparent via-muted/40 to-transparent" />
+              <div className="absolute top-0 inset-x-0 h-12 bg-gradient-to-b from-muted/[0.03] to-transparent pointer-events-none" />
 
               {/* Header */}
               <div className="shrink-0 flex items-center justify-between px-5 py-4 border-b border-white/[0.06]">
@@ -94,8 +94,8 @@ export function CallSequenceGuide() {
                 <table className="w-full text-left">
                   <thead>
                     <tr className="border-b border-white/[0.08]">
-                      <th className="text-[10px] uppercase tracking-wider text-purple-400/80 font-semibold pb-3 pr-4 w-[28%]">Part of Our Plan</th>
-                      <th className="text-[10px] uppercase tracking-wider text-cyan/60 font-semibold pb-3 pr-4 w-[30%]">Source (2025–2026 Data)</th>
+                      <th className="text-[10px] uppercase tracking-wider text-foreground/80 font-semibold pb-3 pr-4 w-[28%]">Part of Our Plan</th>
+                      <th className="text-[10px] uppercase tracking-wider text-primary/60 font-semibold pb-3 pr-4 w-[30%]">Source (2025–2026 Data)</th>
                       <th className="text-[10px] uppercase tracking-wider text-muted-foreground/60 font-semibold pb-3 w-[42%]">Exact Finding</th>
                     </tr>
                   </thead>
@@ -106,10 +106,10 @@ export function CallSequenceGuide() {
                         className="border-b border-white/[0.04] last:border-0 hover:bg-white/[0.02] transition-colors"
                       >
                         <td className="py-3 pr-4 align-top">
-                          <p className="text-[11px] font-semibold text-purple-300/90 leading-relaxed">{row.plan}</p>
+                          <p className="text-[11px] font-semibold text-foreground/90 leading-relaxed">{row.plan}</p>
                         </td>
                         <td className="py-3 pr-4 align-top">
-                          <p className="text-[11px] text-cyan/70 leading-relaxed">{row.source}</p>
+                          <p className="text-[11px] text-primary/70 leading-relaxed">{row.source}</p>
                         </td>
                         <td className="py-3 align-top">
                           <p className="text-[11px] text-muted-foreground/70 leading-relaxed">{row.finding}</p>

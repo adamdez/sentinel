@@ -25,11 +25,11 @@ const STAGE_LABELS: Record<string, string> = {
   closed: "Closed",
 };
 const STAGE_COLORS: Record<string, string> = {
-  prospect: "text-blue-400",
-  lead: "text-cyan",
-  negotiation: "text-emerald-400",
-  disposition: "text-yellow-400",
-  closed: "text-purple-400",
+  prospect: "text-foreground",
+  lead: "text-primary",
+  negotiation: "text-foreground",
+  disposition: "text-foreground",
+  closed: "text-foreground",
 };
 
 export function ConversionRates() {
@@ -130,8 +130,8 @@ export function ConversionRates() {
               initial={{ width: 0 }}
               animate={{ width: `${Math.max(c.rate, 1)}%` }}
               transition={{ duration: 0.5, delay: 0.15 + i * 0.08 }}
-              className={cn("h-full rounded-full bg-gradient-to-r from-cyan/60 to-cyan")}
-              style={{ boxShadow: "0 0 6px rgba(0,212,255,0.3)" }}
+              className={cn("h-full rounded-full bg-gradient-to-r from-primary/60 to-primary")}
+              style={{ boxShadow: "0 0 6px rgba(0,0,0,0.3)" }}
             />
           </div>
         </motion.div>

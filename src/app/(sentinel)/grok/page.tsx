@@ -369,17 +369,17 @@ export default function GrokPage() {
             <div
               className="h-9 w-9 rounded-[12px] flex items-center justify-center"
               style={{
-                background: "rgba(0, 229, 255, 0.08)",
-                border: "1px solid rgba(0, 229, 255, 0.22)",
-                boxShadow: "0 0 1px rgba(0,229,255,0.8), 0 0 4px rgba(0,229,255,0.35), 0 0 10px rgba(0,229,255,0.15), 0 0 20px rgba(0,229,255,0.06), inset 0 0 14px rgba(0,229,255,0.04)",
+                background: "rgba(255,255,255, 0.08)",
+                border: "1px solid rgba(255,255,255, 0.22)",
+                boxShadow: "0 0 1px rgba(255,255,255,0.8), 0 0 4px rgba(255,255,255,0.35), 0 0 10px rgba(255,255,255,0.15), 0 0 20px rgba(255,255,255,0.06), inset 0 0 14px rgba(255,255,255,0.04)",
               }}
             >
-              <Brain className="h-5 w-5 text-cyan drop-shadow-[0_0_10px_rgba(0,229,255,0.6)]" />
+              <Brain className="h-5 w-5 text-primary drop-shadow-[0_0_10px_rgba(255,255,255,0.6)]" />
             </div>
             <div>
               <h2
                 className="text-sm font-bold tracking-tight"
-                style={{ textShadow: "0 0 0.8px rgba(255,255,255,0.5), 0 0 6px rgba(0,229,255,0.25), 0 0 16px rgba(0,229,255,0.1)" }}
+                style={{ textShadow: "0 0 0.8px rgba(255,255,255,0.5), 0 0 6px rgba(255,255,255,0.25), 0 0 16px rgba(255,255,255,0.1)" }}
               >
                 GROK COMMAND CENTER
               </h2>
@@ -404,9 +404,9 @@ export default function GrokPage() {
               <ArrowUpCircle className="h-3 w-3" />
               Create Upgrade Request
             </button>
-            <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-cyan/5 border border-cyan/10">
-              <div className="h-1.5 w-1.5 rounded-full bg-cyan animate-pulse" />
-              <span className="text-[10px] text-cyan/80 font-medium">Online</span>
+            <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-primary/5 border border-primary/10">
+              <div className="h-1.5 w-1.5 rounded-full bg-primary animate-pulse" />
+              <span className="text-[10px] text-primary/80 font-medium">Online</span>
             </div>
             {messages.length > 0 && (
               <button
@@ -431,16 +431,16 @@ export default function GrokPage() {
               <div
                 className="h-16 w-16 rounded-[16px] flex items-center justify-center mb-6"
                 style={{
-                  background: "rgba(0, 229, 255, 0.06)",
-                  border: "1px solid rgba(0, 229, 255, 0.15)",
-                  boxShadow: "0 0 1px rgba(0,229,255,0.6), 0 0 8px rgba(0,229,255,0.25), 0 0 24px rgba(0,229,255,0.12), 0 0 52px rgba(0,229,255,0.05), 0 0 100px rgba(179,136,255,0.03), inset 0 0 28px rgba(0,229,255,0.04)",
+                  background: "rgba(255,255,255, 0.06)",
+                  border: "1px solid rgba(255,255,255, 0.15)",
+                  boxShadow: "0 0 1px rgba(255,255,255,0.6), 0 0 8px rgba(255,255,255,0.25), 0 0 24px rgba(255,255,255,0.12), 0 0 52px rgba(255,255,255,0.05), 0 0 100px rgba(0,0,0,0.03), inset 0 0 28px rgba(255,255,255,0.04)",
                 }}
               >
-                <Sparkles className="h-8 w-8 text-cyan/70 drop-shadow-[0_0_14px_rgba(0,229,255,0.5)]" />
+                <Sparkles className="h-8 w-8 text-primary/70 drop-shadow-[0_0_14px_rgba(255,255,255,0.5)]" />
               </div>
               <h3
                 className="text-lg font-bold mb-2"
-                style={{ textShadow: "0 0 20px rgba(0,212,255,0.15)" }}
+                style={{ textShadow: "0 0 20px rgba(0,0,0,0.15)" }}
               >
                 Welcome, {currentUser?.name || "Commander"}
               </h3>
@@ -458,10 +458,10 @@ export default function GrokPage() {
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: 0.1 + i * 0.05 }}
                     onClick={() => sendMessage(s)}
-                    className="text-left px-3 py-2.5 rounded-[12px] text-xs text-muted-foreground/80 hover:text-foreground border border-glass-border hover:border-cyan/22 bg-glass/30 hover:bg-cyan/5 transition-all duration-100"
-                    style={{ backdropFilter: "blur(20px) saturate(1.3)", boxShadow: "inset 0 1px 0 rgba(255,255,255,0.025), inset 0 0 12px rgba(0,229,255,0.01)" }}
+                    className="text-left px-3 py-2.5 rounded-[12px] text-xs text-muted-foreground/80 hover:text-foreground border border-glass-border hover:border-primary/22 bg-glass/30 hover:bg-primary/5 transition-all duration-100"
+                    style={{ backdropFilter: "blur(20px) saturate(1.3)", boxShadow: "inset 0 1px 0 rgba(255,255,255,0.025), inset 0 0 12px rgba(255,255,255,0.01)" }}
                   >
-                    <Zap className="h-3 w-3 text-cyan/50 inline mr-1.5" />
+                    <Zap className="h-3 w-3 text-primary/50 inline mr-1.5" />
                     {s}
                   </motion.button>
                 ))}
@@ -481,26 +481,26 @@ export default function GrokPage() {
                 <div
                   className={`max-w-[85%] rounded-[14px] px-4 py-3 text-sm leading-relaxed ${
                     msg.role === "user"
-                      ? "bg-cyan/10 border border-cyan/20 text-foreground"
+                      ? "bg-primary/10 border border-primary/20 text-foreground"
                       : "bg-glass/40 border border-glass-border text-foreground/90"
                   }`}
                   style={{
                     backdropFilter: "blur(52px) saturate(1.5) brightness(0.93)",
                     boxShadow: msg.role === "assistant"
-                      ? "inset 0 0 4px rgba(0,229,255,0.04), inset 0 0 14px rgba(179,136,255,0.02), 0 4px 20px rgba(0,0,0,0.35), inset 0 1px 0 rgba(255,255,255,0.04)"
-                      : "inset 0 0 4px rgba(0,229,255,0.06), 0 4px 20px rgba(0,229,255,0.1), inset 0 1px 0 rgba(0,229,255,0.05)",
+                      ? "inset 0 0 4px rgba(255,255,255,0.04), inset 0 0 14px rgba(0,0,0,0.02), 0 4px 20px rgba(0,0,0,0.35), inset 0 1px 0 rgba(255,255,255,0.04)"
+                      : "inset 0 0 4px rgba(255,255,255,0.06), 0 4px 20px rgba(255,255,255,0.1), inset 0 1px 0 rgba(255,255,255,0.05)",
                   }}
                 >
                   {msg.role === "assistant" && (
                     <div className="flex items-center gap-1.5 mb-1.5">
-                      <Brain className="h-3 w-3 text-cyan/60" />
-                      <span className="text-[10px] text-cyan/50 font-medium tracking-wide">GROK</span>
+                      <Brain className="h-3 w-3 text-primary/60" />
+                      <span className="text-[10px] text-primary/50 font-medium tracking-wide">GROK</span>
                     </div>
                   )}
                   <div className="whitespace-pre-wrap break-words">
                     {msg.content || (
                       <span className="inline-flex items-center gap-1.5 text-muted-foreground/50">
-                        <Loader2 className="h-3 w-3 animate-spin text-cyan/40" />
+                        <Loader2 className="h-3 w-3 animate-spin text-primary/40" />
                         <span>
                           Reasoning<span className="animate-pulse">...</span>
                           <span className="block text-[10px] text-muted-foreground/30 mt-0.5">
@@ -524,13 +524,13 @@ export default function GrokPage() {
                           return (
                             <div
                               key={i}
-                              className="flex items-center gap-2 rounded-lg bg-cyan/[0.04] border border-cyan/15 px-3 py-2"
+                              className="flex items-center gap-2 rounded-lg bg-primary/[0.04] border border-primary/15 px-3 py-2"
                             >
                               {actionDef?.requiresConfirmation && (
-                                <Shield className="h-3.5 w-3.5 text-amber-400 shrink-0" />
+                                <Shield className="h-3.5 w-3.5 text-foreground shrink-0" />
                               )}
                               <div className="flex-1 min-w-0">
-                                <p className="text-[11px] font-medium text-cyan/90">
+                                <p className="text-[11px] font-medium text-primary/90">
                                   {a.description ?? a.action}
                                 </p>
                                 <p className="text-[10px] text-muted-foreground/50">
@@ -540,16 +540,16 @@ export default function GrokPage() {
                               {result ? (
                                 <div className="flex items-center gap-1">
                                   {result.success ? (
-                                    <CheckCircle2 className="h-4 w-4 text-emerald-400" />
+                                    <CheckCircle2 className="h-4 w-4 text-foreground" />
                                   ) : (
-                                    <XCircle className="h-4 w-4 text-red-400" />
+                                    <XCircle className="h-4 w-4 text-foreground" />
                                   )}
                                 </div>
                               ) : (
                                 <button
                                   onClick={() => executeGrokAction(a.action, a.params, a.description)}
                                   disabled={isExecuting || !!executingAction}
-                                  className="shrink-0 flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-medium bg-cyan/10 border border-cyan/20 text-cyan hover:bg-cyan/20 transition-all disabled:opacity-40"
+                                  className="shrink-0 flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-medium bg-primary/10 border border-primary/20 text-primary hover:bg-primary/20 transition-all disabled:opacity-40"
                                 >
                                   {isExecuting ? (
                                     <Loader2 className="h-3 w-3 animate-spin" />
@@ -568,7 +568,7 @@ export default function GrokPage() {
                   {msg.role === "assistant" && msg.content && !streaming && isUpgradeRequest(msg.id) && (
                     <div className="mt-3 pt-2 border-t border-white/[0.06]">
                       {sentRequests.has(msg.id) ? (
-                        <div className="flex items-center gap-2 text-[11px] text-emerald-400">
+                        <div className="flex items-center gap-2 text-[11px] text-foreground">
                           <CheckCircle2 className="h-3.5 w-3.5" />
                           Sent to Adam — get back to work!
                         </div>
@@ -578,10 +578,10 @@ export default function GrokPage() {
                           disabled={sendingRequest === msg.id}
                           className="flex items-center gap-2 w-full px-3 py-2.5 rounded-lg text-[11px] font-semibold transition-all disabled:opacity-50"
                           style={{
-                            background: "rgba(0, 255, 136, 0.08)",
-                            border: "1px solid rgba(0, 255, 136, 0.25)",
-                            color: "rgba(0, 255, 136, 0.95)",
-                            boxShadow: "0 0 12px rgba(0,255,136,0.08), inset 0 0 10px rgba(0,255,136,0.03)",
+                            background: "rgba(255,255,255, 0.08)",
+                            border: "1px solid rgba(255,255,255, 0.25)",
+                            color: "rgba(255,255,255, 0.95)",
+                            boxShadow: "0 0 12px rgba(255,255,255,0.08), inset 0 0 10px rgba(255,255,255,0.03)",
                           }}
                         >
                           {sendingRequest === msg.id ? (
@@ -603,7 +603,7 @@ export default function GrokPage() {
             <div className="flex justify-center py-2">
               <button
                 onClick={() => abortRef.current?.abort()}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] text-muted-foreground/60 hover:text-foreground border border-glass-border hover:border-cyan/20 transition-all"
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] text-muted-foreground/60 hover:text-foreground border border-glass-border hover:border-primary/20 transition-all"
               >
                 <ChevronDown className="h-3 w-3" />
                 Stop generating
@@ -641,7 +641,7 @@ export default function GrokPage() {
             className="flex items-end gap-2 rounded-[14px] px-4 py-3 border border-glass-border bg-glass/40"
             style={{
               backdropFilter: "blur(52px) saturate(1.5) brightness(0.93)",
-              boxShadow: "inset 0 0 4px rgba(0,229,255,0.04), inset 0 0 14px rgba(179,136,255,0.02), 0 -4px 24px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.04)",
+              boxShadow: "inset 0 0 4px rgba(255,255,255,0.04), inset 0 0 14px rgba(0,0,0,0.02), 0 -4px 24px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.04)",
             }}
           >
             <textarea
@@ -665,15 +665,15 @@ export default function GrokPage() {
               disabled={!input.trim() || streaming}
               className="shrink-0 h-8 w-8 rounded-xl flex items-center justify-center transition-all duration-200 disabled:opacity-30"
               style={{
-                background: input.trim() ? "rgba(0, 212, 255, 0.15)" : "transparent",
-                border: `1px solid ${input.trim() ? "rgba(0, 212, 255, 0.3)" : "transparent"}`,
-                boxShadow: input.trim() ? "0 0 12px rgba(0,212,255,0.1)" : "none",
+                background: input.trim() ? "rgba(0,0,0, 0.15)" : "transparent",
+                border: `1px solid ${input.trim() ? "rgba(0,0,0, 0.3)" : "transparent"}`,
+                boxShadow: input.trim() ? "0 0 12px rgba(0,0,0,0.1)" : "none",
               }}
             >
               {streaming ? (
-                <Loader2 className="h-4 w-4 animate-spin text-cyan/60" />
+                <Loader2 className="h-4 w-4 animate-spin text-primary/60" />
               ) : (
-                <Send className="h-4 w-4 text-cyan" />
+                <Send className="h-4 w-4 text-primary" />
               )}
             </button>
           </div>

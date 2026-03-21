@@ -29,29 +29,29 @@ interface PredictiveDistressBadgeProps {
 const LABEL_CONFIG = {
   imminent: {
     text: "IMMINENT",
-    color: "text-red-400",
-    bg: "bg-red-500/10 border-red-500/25",
+    color: "text-foreground",
+    bg: "bg-muted/10 border-border/25",
     glow: "shadow-[0_0_8px_rgba(255,68,68,0.2)]",
     icon: AlertTriangle,
   },
   likely: {
     text: "LIKELY",
-    color: "text-orange-400",
-    bg: "bg-orange-500/10 border-orange-500/25",
+    color: "text-foreground",
+    bg: "bg-muted/10 border-border/25",
     glow: "shadow-[0_0_8px_rgba(255,107,53,0.15)]",
     icon: TrendingUp,
   },
   possible: {
     text: "POSSIBLE",
-    color: "text-yellow-400",
-    bg: "bg-yellow-500/10 border-yellow-500/25",
+    color: "text-foreground",
+    bg: "bg-muted/10 border-border/25",
     glow: "",
     icon: Clock,
   },
   unlikely: {
     text: "UNLIKELY",
-    color: "text-blue-400",
-    bg: "bg-blue-500/10 border-blue-500/25",
+    color: "text-foreground",
+    bg: "bg-muted/10 border-border/25",
     glow: "",
     icon: Shield,
   },
@@ -72,7 +72,7 @@ function FeatureBar({ label, value, max = 100 }: { label: string; value: number;
           transition={{ duration: 0.6, delay: 0.1 }}
           className={cn(
             "h-full rounded-full",
-            pct >= 80 ? "bg-red-400" : pct >= 55 ? "bg-orange-400" : pct >= 30 ? "bg-yellow-400" : "bg-blue-400"
+            pct >= 80 ? "bg-muted" : pct >= 55 ? "bg-muted" : pct >= 30 ? "bg-muted" : "bg-muted"
           )}
         />
       </div>
@@ -113,7 +113,7 @@ export function PredictiveDistressBadge({
             )}
           </Badge>
           {data.confidence >= 70 && (
-            <span className="text-[9px] font-medium text-cyan bg-cyan/8 px-1 py-0.5 rounded border border-cyan/15">
+            <span className="text-[9px] font-medium text-primary bg-primary/8 px-1 py-0.5 rounded border border-primary/15">
               {data.confidence}%
             </span>
           )}
@@ -123,7 +123,7 @@ export function PredictiveDistressBadge({
         <div className="space-y-2">
           <div className="flex items-center justify-between">
             <span className="text-xs font-semibold flex items-center gap-1">
-              <Brain className="h-3 w-3 text-cyan" />
+              <Brain className="h-3 w-3 text-primary" />
               Predictive Distress v2.0
             </span>
             <span className={cn("text-xs font-bold", config.color)}>
@@ -187,7 +187,7 @@ export function PredictiveDistressInline({ data }: { data: PredictiveDistressDat
         </span>
       </TooltipTrigger>
       <TooltipContent className="text-[11px]">
-        <Brain className="inline h-3 w-3 mr-1 text-cyan" />
+        <Brain className="inline h-3 w-3 mr-1 text-primary" />
         Predicted distress in ~{data.daysUntilDistress} days ({data.confidence}% conf)
       </TooltipContent>
     </Tooltip>

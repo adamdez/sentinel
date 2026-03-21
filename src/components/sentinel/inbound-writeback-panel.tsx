@@ -48,11 +48,11 @@ async function authHeaders(): Promise<Record<string, string>> {
 // ── Caller type badge ─────────────────────────────────────────────────────────
 
 const CALLER_TYPE_STYLES: Record<InboundCallerType, string> = {
-  seller:  "border-cyan/25 bg-cyan/[0.08] text-cyan/80",
-  buyer:   "border-emerald-500/25 bg-emerald-500/[0.08] text-emerald-400/80",
+  seller:  "border-primary/25 bg-primary/[0.08] text-primary/80",
+  buyer:   "border-border/25 bg-muted/[0.08] text-foreground/80",
   vendor:  "border-white/10 bg-white/[0.03] text-muted-foreground/50",
-  spam:    "border-red-500/25 bg-red-500/[0.08] text-red-400/60",
-  unknown: "border-yellow-500/20 bg-yellow-500/[0.05] text-yellow-400/60",
+  spam:    "border-border/25 bg-muted/[0.08] text-foreground/60",
+  unknown: "border-border/20 bg-muted/[0.05] text-foreground/60",
 };
 
 const CALLER_TYPE_LABELS: Record<InboundCallerType, string> = {
@@ -76,7 +76,7 @@ function CallerTypeBadge({ type }: { type: InboundCallerType }) {
 
 function NoteSourceBadge({ source }: { source: "operator" | "ai_draft" }) {
   if (source === "ai_draft") return (
-    <span className="inline-flex items-center gap-0.5 text-[9px] text-yellow-400/50">
+    <span className="inline-flex items-center gap-0.5 text-[9px] text-foreground/50">
       <span aria-hidden="true"><Sparkles className="h-2.5 w-2.5" /></span>
       AI draft — review before committing
     </span>
@@ -206,19 +206,19 @@ export function InboundWritebackPanel({
   if (draft.caller_type === "spam" || draft.caller_type === "vendor") return null;
 
   return (
-    <div className="rounded-[12px] border border-cyan/[0.12] bg-cyan/[0.015]">
+    <div className="rounded-[12px] border border-primary/[0.12] bg-primary/[0.015]">
       {/* Header */}
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
-        className="w-full flex items-center gap-2 px-3 py-2.5 hover:bg-cyan/[0.02] transition-colors rounded-[12px]"
+        className="w-full flex items-center gap-2 px-3 py-2.5 hover:bg-primary/[0.02] transition-colors rounded-[12px]"
       >
-        <Phone className="h-3.5 w-3.5 text-cyan/50 shrink-0" aria-hidden="true" />
-        <span className="text-[10px] font-semibold uppercase tracking-wider text-cyan/50 flex-1 text-left">
+        <Phone className="h-3.5 w-3.5 text-primary/50 shrink-0" aria-hidden="true" />
+        <span className="text-[10px] font-semibold uppercase tracking-wider text-primary/50 flex-1 text-left">
           Inbound Call — CRM Writeback
         </span>
         {committed && (
-          <span className="flex items-center gap-0.5 text-[9px] text-emerald-400/60 font-medium">
+          <span className="flex items-center gap-0.5 text-[9px] text-foreground/60 font-medium">
             <CheckCircle2 className="h-2.5 w-2.5" aria-hidden="true" /> Committed
           </span>
         )}
@@ -226,18 +226,18 @@ export function InboundWritebackPanel({
           <CallerTypeBadge type={draft.caller_type} />
         )}
         {open
-          ? <ChevronUp   className="h-3 w-3 text-cyan/20 shrink-0" aria-hidden="true" />
-          : <ChevronDown className="h-3 w-3 text-cyan/20 shrink-0" aria-hidden="true" />}
+          ? <ChevronUp   className="h-3 w-3 text-primary/20 shrink-0" aria-hidden="true" />
+          : <ChevronDown className="h-3 w-3 text-primary/20 shrink-0" aria-hidden="true" />}
       </button>
 
       {/* Body */}
       {open && (
-        <div className="px-3 pb-3 border-t border-cyan/[0.08] pt-2.5 space-y-3">
+        <div className="px-3 pb-3 border-t border-primary/[0.08] pt-2.5 space-y-3">
 
           {/* ── Committed view ───────────────────────────────────── */}
           {committed && commitResult && (
-            <div className="rounded-[8px] border border-emerald-500/15 bg-emerald-500/[0.04] px-3 py-2.5 space-y-1">
-              <p className="text-[11px] text-emerald-400/70 font-medium flex items-center gap-1.5">
+            <div className="rounded-[8px] border border-border/15 bg-muted/[0.04] px-3 py-2.5 space-y-1">
+              <p className="text-[11px] text-foreground/70 font-medium flex items-center gap-1.5">
                 <CheckCircle2 className="h-3.5 w-3.5" aria-hidden="true" />
                 Call committed to CRM
               </p>
@@ -257,10 +257,10 @@ export function InboundWritebackPanel({
                   <span className="text-[10px] text-muted-foreground/40 font-mono">{draft.from_number}</span>
                 )}
                 {draft.lead_id && (
-                  <span className="text-[9px] text-cyan/30">Lead matched</span>
+                  <span className="text-[9px] text-primary/30">Lead matched</span>
                 )}
                 {!draft.lead_id && (
-                  <span className="inline-flex items-center gap-0.5 text-[9px] text-yellow-400/50">
+                  <span className="inline-flex items-center gap-0.5 text-[9px] text-foreground/50">
                     <AlertTriangle className="h-2.5 w-2.5" aria-hidden="true" />
                     No lead matched
                   </span>
@@ -278,7 +278,7 @@ export function InboundWritebackPanel({
                   onChange={(e) => setEditAddress(e.target.value)}
                   placeholder="Property address caller mentioned…"
                   maxLength={300}
-                  className="w-full rounded-[7px] border border-white/[0.07] bg-white/[0.02] px-2.5 py-1.5 text-[11px] text-foreground placeholder:text-muted-foreground/25 focus:outline-none focus:border-cyan/20"
+                  className="w-full rounded-[7px] border border-white/[0.07] bg-white/[0.02] px-2.5 py-1.5 text-[11px] text-foreground placeholder:text-muted-foreground/25 focus:outline-none focus:border-primary/20"
                 />
               </div>
 
@@ -296,7 +296,7 @@ export function InboundWritebackPanel({
                   placeholder="Situation summary or call notes…"
                   maxLength={1200}
                   rows={4}
-                  className="w-full resize-none rounded-[7px] border border-white/[0.07] bg-white/[0.02] px-2.5 py-1.5 text-[11px] text-foreground placeholder:text-muted-foreground/25 focus:outline-none focus:border-cyan/20"
+                  className="w-full resize-none rounded-[7px] border border-white/[0.07] bg-white/[0.02] px-2.5 py-1.5 text-[11px] text-foreground placeholder:text-muted-foreground/25 focus:outline-none focus:border-primary/20"
                 />
                 <p className="text-[9px] text-muted-foreground/20 text-right">
                   {editNote.length}/1200
@@ -311,7 +311,7 @@ export function InboundWritebackPanel({
                 <select
                   value={editDisposition}
                   onChange={(e) => setEditDisposition(e.target.value as InboundDisposition)}
-                  className="h-7 w-full text-[11px] rounded-[7px] border border-white/[0.07] bg-background px-2 focus:outline-none focus:ring-1 focus:ring-cyan/20"
+                  className="h-7 w-full text-[11px] rounded-[7px] border border-white/[0.07] bg-background px-2 focus:outline-none focus:ring-1 focus:ring-ring/20"
                 >
                   {INBOUND_DISPOSITIONS.map((d) => (
                     <option key={d} value={d}>{d.replace(/_/g, " ")}</option>
@@ -342,7 +342,7 @@ export function InboundWritebackPanel({
 
               {/* Error */}
               {error && (
-                <p className="text-[10px] text-red-400/70 flex items-center gap-1">
+                <p className="text-[10px] text-foreground/70 flex items-center gap-1">
                   <AlertTriangle className="h-3 w-3 shrink-0" aria-hidden="true" />
                   {error}
                 </p>
@@ -363,7 +363,7 @@ export function InboundWritebackPanel({
                   type="button"
                   onClick={handleCommit}
                   disabled={committing || saving || !editNote.trim()}
-                  className="flex-1 flex items-center justify-center gap-1.5 rounded-[7px] border border-cyan/20 bg-cyan/[0.08] px-3 py-1 text-[10px] font-semibold text-cyan/70 hover:bg-cyan/[0.12] transition-colors disabled:opacity-40"
+                  className="flex-1 flex items-center justify-center gap-1.5 rounded-[7px] border border-primary/20 bg-primary/[0.08] px-3 py-1 text-[10px] font-semibold text-primary/70 hover:bg-primary/[0.12] transition-colors disabled:opacity-40"
                 >
                   {committing
                     ? <Loader2 className="h-2.5 w-2.5 animate-spin" aria-hidden="true" />

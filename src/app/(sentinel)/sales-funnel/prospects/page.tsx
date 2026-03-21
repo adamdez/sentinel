@@ -42,20 +42,20 @@ const DISTRESS_LABELS: Record<string, string> = {
 };
 
 const DISTRESS_COLORS: Record<string, { text: string; bg: string; border: string }> = {
-  probate: { text: "text-red-400", bg: "bg-red-500/10", border: "border-red-500/25" },
-  pre_foreclosure: { text: "text-orange-400", bg: "bg-orange-500/10", border: "border-orange-500/25" },
-  tax_lien: { text: "text-yellow-400", bg: "bg-yellow-500/10", border: "border-yellow-500/25" },
-  code_violation: { text: "text-pink-400", bg: "bg-pink-500/10", border: "border-pink-500/25" },
-  water_shutoff: { text: "text-blue-400", bg: "bg-blue-500/10", border: "border-blue-500/25" },
-  condemned: { text: "text-rose-500", bg: "bg-rose-500/10", border: "border-rose-500/25" },
-  vacant: { text: "text-emerald-400", bg: "bg-emerald-500/10", border: "border-emerald-500/25" },
-  divorce: { text: "text-purple-400", bg: "bg-purple-500/10", border: "border-purple-500/25" },
-  bankruptcy: { text: "text-red-500", bg: "bg-red-500/10", border: "border-red-500/25" },
-  inherited: { text: "text-amber-400", bg: "bg-amber-500/10", border: "border-amber-500/25" },
-  absentee: { text: "text-cyan-400", bg: "bg-cyan-500/10", border: "border-cyan-500/25" },
-  fsbo: { text: "text-blue-300", bg: "bg-blue-500/10", border: "border-blue-500/25" },
-  tired_landlord: { text: "text-amber-400", bg: "bg-amber-500/10", border: "border-amber-500/25" },
-  underwater: { text: "text-red-400", bg: "bg-red-500/10", border: "border-red-500/25" },
+  probate: { text: "text-foreground", bg: "bg-muted/10", border: "border-border/25" },
+  pre_foreclosure: { text: "text-foreground", bg: "bg-muted/10", border: "border-border/25" },
+  tax_lien: { text: "text-foreground", bg: "bg-muted/10", border: "border-border/25" },
+  code_violation: { text: "text-foreground", bg: "bg-muted/10", border: "border-border/25" },
+  water_shutoff: { text: "text-foreground", bg: "bg-muted/10", border: "border-border/25" },
+  condemned: { text: "text-foreground", bg: "bg-muted/10", border: "border-border/25" },
+  vacant: { text: "text-foreground", bg: "bg-muted/10", border: "border-border/25" },
+  divorce: { text: "text-foreground", bg: "bg-muted/10", border: "border-border/25" },
+  bankruptcy: { text: "text-foreground", bg: "bg-muted/10", border: "border-border/25" },
+  inherited: { text: "text-foreground", bg: "bg-muted/10", border: "border-border/25" },
+  absentee: { text: "text-primary-400", bg: "bg-primary-500/10", border: "border-primary-500/25" },
+  fsbo: { text: "text-foreground", bg: "bg-muted/10", border: "border-border/25" },
+  tired_landlord: { text: "text-foreground", bg: "bg-muted/10", border: "border-border/25" },
+  underwater: { text: "text-foreground", bg: "bg-muted/10", border: "border-border/25" },
 };
 
 const SOURCE_FILTERS = [
@@ -67,21 +67,21 @@ const SOURCE_FILTERS = [
 
 const SCORE_FILTERS: { value: string; label: string; color: string; min: number; max: number }[] = [
   { value: "", label: "All", color: "text-muted-foreground", min: 0, max: 100 },
-  { value: "platinum", label: "Platinum", color: "text-cyan-300", min: 85, max: 100 },
-  { value: "gold", label: "Gold", color: "text-amber-400", min: 65, max: 84 },
-  { value: "silver", label: "Silver", color: "text-slate-300", min: 40, max: 64 },
-  { value: "bronze", label: "Bronze", color: "text-orange-500", min: 0, max: 39 },
+  { value: "platinum", label: "Platinum", color: "text-primary-300", min: 85, max: 100 },
+  { value: "gold", label: "Gold", color: "text-foreground", min: 65, max: 84 },
+  { value: "silver", label: "Silver", color: "text-foreground", min: 40, max: 64 },
+  { value: "bronze", label: "Bronze", color: "text-foreground", min: 0, max: 39 },
 ];
 
 const SIGNAL_FILTERS: { value: string; label: string; color: string }[] = [
   { value: "", label: "All Signals", color: "text-muted-foreground" },
-  { value: "probate", label: "Probate", color: "text-red-400" },
-  { value: "inherited", label: "Inherited", color: "text-amber-400" },
-  { value: "tax_lien", label: "Tax Lien", color: "text-yellow-400" },
-  { value: "pre_foreclosure", label: "Pre-Foreclosure", color: "text-orange-400" },
-  { value: "vacant", label: "Vacant", color: "text-emerald-400" },
-  { value: "divorce", label: "Divorce", color: "text-purple-400" },
-  { value: "bankruptcy", label: "Bankruptcy", color: "text-red-500" },
+  { value: "probate", label: "Probate", color: "text-foreground" },
+  { value: "inherited", label: "Inherited", color: "text-foreground" },
+  { value: "tax_lien", label: "Tax Lien", color: "text-foreground" },
+  { value: "pre_foreclosure", label: "Pre-Foreclosure", color: "text-foreground" },
+  { value: "vacant", label: "Vacant", color: "text-foreground" },
+  { value: "divorce", label: "Divorce", color: "text-foreground" },
+  { value: "bankruptcy", label: "Bankruptcy", color: "text-foreground" },
 ];
 
 // ── Subcomponents ─────────────────────────────────────────────────────
@@ -89,7 +89,7 @@ const SIGNAL_FILTERS: { value: string; label: string; color: string }[] = [
 function SourceBadge({ source }: { source: string }) {
   if (source === "ranger_push") {
     return (
-      <span className="inline-flex items-center gap-1 text-[9px] px-1.5 py-0.5 rounded border font-semibold text-purple-400 bg-purple-500/10 border-purple-500/20">
+      <span className="inline-flex items-center gap-1 text-[9px] px-1.5 py-0.5 rounded border font-semibold text-foreground bg-muted/10 border-border/20">
         <Radar className="h-2.5 w-2.5" />
         RANGER
       </span>
@@ -97,28 +97,28 @@ function SourceBadge({ source }: { source: string }) {
   }
   if (source === "propertyradar") {
     return (
-      <span className="text-[9px] px-1.5 py-0.5 rounded border font-semibold text-emerald-400 bg-emerald-500/10 border-emerald-500/20">
+      <span className="text-[9px] px-1.5 py-0.5 rounded border font-semibold text-foreground bg-muted/10 border-border/20">
         PROPRADAR
       </span>
     );
   }
   if (source.startsWith("csv:")) {
     return (
-      <span className="text-[9px] px-1.5 py-0.5 rounded border font-semibold text-amber-400 bg-amber-500/10 border-amber-500/20">
+      <span className="text-[9px] px-1.5 py-0.5 rounded border font-semibold text-foreground bg-muted/10 border-border/20">
         CSV
       </span>
     );
   }
   if (source.includes("scraper") || source.includes("api") || source.includes("crawler")) {
     return (
-      <span className="text-[9px] px-1.5 py-0.5 rounded border text-cyan-400 bg-cyan-500/10 border-cyan-500/20">
+      <span className="text-[9px] px-1.5 py-0.5 rounded border text-primary-400 bg-primary-500/10 border-primary-500/20">
         CRAWLER
       </span>
     );
   }
   if (source.includes("attom")) {
     return (
-      <span className="text-[9px] px-1.5 py-0.5 rounded border text-blue-400 bg-blue-500/10 border-blue-500/20">
+      <span className="text-[9px] px-1.5 py-0.5 rounded border text-foreground bg-muted/10 border-border/20">
         ATTOM
       </span>
     );
@@ -512,7 +512,7 @@ export default function ProspectsPage() {
             </Badge>
           )}
           {prCount > 0 && (
-            <Badge variant="outline" className="text-[10px] gap-1 text-emerald-400 border-emerald-500/30">
+            <Badge variant="outline" className="text-[10px] gap-1 text-foreground border-border/30">
               {prCount} PropRadar
             </Badge>
           )}
@@ -549,16 +549,16 @@ export default function ProspectsPage() {
         >
           <a
             href="/sales-funnel/staging"
-            className="flex items-center gap-2 px-4 py-2 rounded-lg border border-cyan-500/20 bg-cyan-500/[0.04] hover:bg-cyan-500/[0.08] transition-colors"
+            className="flex items-center gap-2 px-4 py-2 rounded-lg border border-primary-500/20 bg-primary-500/[0.04] hover:bg-primary-500/[0.08] transition-colors"
           >
-            <Clock className="h-3.5 w-3.5 text-cyan-400 shrink-0" />
-            <span className="text-xs font-semibold text-cyan-300">
+            <Clock className="h-3.5 w-3.5 text-primary-400 shrink-0" />
+            <span className="text-xs font-semibold text-primary-300">
               {stagingCount} in staging
             </span>
             <span className="text-[10px] text-muted-foreground">
               Properties enriching and awaiting auto-promotion
             </span>
-            <span className="ml-auto text-[10px] text-cyan-400 font-medium">View Staging &rarr;</span>
+            <span className="ml-auto text-[10px] text-primary-400 font-medium">View Staging &rarr;</span>
           </a>
         </motion.div>
       )}
@@ -586,7 +586,7 @@ export default function ProspectsPage() {
                 className={cn(
                   "text-[10px] px-2 py-1 rounded border transition-all",
                   sourceFilter === sf.value
-                    ? "text-cyan border-cyan/20 bg-cyan/8"
+                    ? "text-primary border-primary/20 bg-primary/8"
                     : "text-muted-foreground border-glass-border hover:text-foreground hover:border-white/10"
                 )}
               >
@@ -653,7 +653,7 @@ export default function ProspectsPage() {
                 className={cn(
                   "text-[10px] px-2 py-1 rounded border transition-all inline-flex items-center gap-1",
                   sortField === field
-                    ? "text-cyan border-cyan/20 bg-cyan/8"
+                    ? "text-primary border-primary/20 bg-primary/8"
                     : "text-muted-foreground border-glass-border hover:text-foreground"
                 )}
               >
@@ -670,15 +670,15 @@ export default function ProspectsPage() {
 
         {/* Error state */}
         {error && (
-          <div className="p-4 mb-4 rounded-[12px] border border-red-500/20 bg-red-500/5 space-y-2">
-            <div className="flex items-center gap-3 text-red-400 text-sm">
+          <div className="p-4 mb-4 rounded-[12px] border border-border/20 bg-muted/5 space-y-2">
+            <div className="flex items-center gap-3 text-foreground text-sm">
               <AlertCircle className="h-4 w-4 shrink-0" />
               <span className="flex-1">{error}</span>
               <Button size="sm" variant="outline" className="text-xs" onClick={refetch}>
                 Retry
               </Button>
             </div>
-            <p className="text-[10px] text-red-400/60 font-mono">
+            <p className="text-[10px] text-foreground/60 font-mono">
               Query: leads.select(&apos;*, properties(*)&apos;).eq(&apos;status&apos;, &apos;prospect&apos;) — Check browser console for full error
             </p>
           </div>
@@ -717,7 +717,7 @@ export default function ProspectsPage() {
                   >
                     <span className="inline-flex items-center gap-1">
                       AI Score
-                      {sortField === "composite_score" && <SortIcon className="h-2.5 w-2.5 text-cyan" />}
+                      {sortField === "composite_score" && <SortIcon className="h-2.5 w-2.5 text-primary" />}
                     </span>
                   </th>
                   <th className="text-left p-3 text-xs font-medium text-muted-foreground">Last Activity</th>
@@ -743,8 +743,8 @@ export default function ProspectsPage() {
                         onClick={() => openDetail(p)}
                         className={cn(
                           "border-b border-white/[0.06] hover:bg-white/[0.04] transition-colors cursor-pointer",
-                          p.source === "ranger_push" && "bg-purple-500/[0.02] hover:bg-purple-500/[0.05]",
-                          p.source === "propertyradar" && "bg-emerald-500/[0.02] hover:bg-emerald-500/[0.05]"
+                          p.source === "ranger_push" && "bg-muted/[0.02] hover:bg-muted/[0.05]",
+                          p.source === "propertyradar" && "bg-muted/[0.02] hover:bg-muted/[0.05]"
                         )}
                       >
                         {/* ── Property / Owner / County / Source ── */}
@@ -773,7 +773,7 @@ export default function ProspectsPage() {
                               )}
                               <SourceBadge source={p.source} />
                               {p.owner_phone && (
-                                <span className="inline-flex items-center gap-0.5 text-[9px] text-emerald-400 font-medium">
+                                <span className="inline-flex items-center gap-0.5 text-[9px] text-foreground font-medium">
                                   <Phone className="h-2.5 w-2.5" />
                                   Phone
                                 </span>
@@ -793,7 +793,7 @@ export default function ProspectsPage() {
                                 )}
                               </>
                             ) : (
-                              <span className="text-[10px] text-red-400/60 font-medium">No phone</span>
+                              <span className="text-[10px] text-foreground/60 font-medium">No phone</span>
                             )}
                           </div>
                         </td>
@@ -822,9 +822,9 @@ export default function ProspectsPage() {
                             {p.estimated_value ? (
                               <p className={cn(
                                 "text-sm font-bold tabular-nums",
-                                p.estimated_value < 200_000 ? "text-emerald-400" :
-                                p.estimated_value < 410_000 ? "text-yellow-400" :
-                                "text-red-400"
+                                p.estimated_value < 200_000 ? "text-foreground" :
+                                p.estimated_value < 410_000 ? "text-foreground" :
+                                "text-foreground"
                               )} style={{ WebkitFontSmoothing: "antialiased" }}>
                                 ${p.estimated_value >= 1000000
                                   ? `${(p.estimated_value / 1000000).toFixed(1)}M`
@@ -846,12 +846,12 @@ export default function ProspectsPage() {
                             {p.equity_percent != null ? (
                               <p className={cn(
                                 "text-[10px] font-semibold tabular-nums",
-                                p.equity_percent >= 60 ? "text-neon" : p.equity_percent >= 30 ? "text-yellow-400" : "text-muted-foreground/70"
+                                p.equity_percent >= 60 ? "text-primary" : p.equity_percent >= 30 ? "text-foreground" : "text-muted-foreground/70"
                               )}>
                                 {Math.round(p.equity_percent)}% eq
                               </p>
                             ) : p.is_free_clear ? (
-                              <p className="text-[10px] font-semibold text-neon">Free &amp; Clear</p>
+                              <p className="text-[10px] font-semibold text-primary">Free &amp; Clear</p>
                             ) : null}
                           </div>
                         </td>
@@ -872,7 +872,7 @@ export default function ProspectsPage() {
                           <div className="space-y-0.5 text-[10px]">
                             {freshness && (
                               <p className="text-muted-foreground/60 flex items-center gap-1">
-                                <span className="inline-block h-1.5 w-1.5 rounded-full bg-cyan/60 shrink-0" />
+                                <span className="inline-block h-1.5 w-1.5 rounded-full bg-primary/60 shrink-0" />
                                 {freshness}
                               </p>
                             )}
@@ -882,10 +882,10 @@ export default function ProspectsPage() {
                               </p>
                             )}
                             {p.foreclosure_stage && (
-                              <p className="text-red-400 font-medium">{p.foreclosure_stage}</p>
+                              <p className="text-foreground font-medium">{p.foreclosure_stage}</p>
                             )}
                             {validSignals.length >= 3 && (
-                              <p className="text-cyan font-semibold">{validSignals.length} signals stacked</p>
+                              <p className="text-primary font-semibold">{validSignals.length} signals stacked</p>
                             )}
                           </div>
                         </td>
@@ -896,7 +896,7 @@ export default function ProspectsPage() {
                             <Button
                               variant="ghost"
                               size="icon"
-                              className="h-7 w-7 text-cyan hover:text-cyan hover:bg-cyan/10"
+                              className="h-7 w-7 text-primary hover:text-primary hover:bg-primary/10"
                               title="Queue for Call"
                               disabled={queueing === p.id}
                               onClick={() => handleQueueForCall(p)}
@@ -908,7 +908,7 @@ export default function ProspectsPage() {
                               )}
                             </Button>
                             {p.owner_phone && (
-                              <Button variant="ghost" size="icon" className="h-7 w-7 text-emerald-400 hover:text-emerald-300 hover:bg-emerald-500/10" title="Copy phone number"
+                              <Button variant="ghost" size="icon" className="h-7 w-7 text-foreground hover:text-foreground hover:bg-muted/10" title="Copy phone number"
                                 onClick={() => { navigator.clipboard.writeText(p.owner_phone!); toast.success("Phone number copied to clipboard"); }}>
                                 <Phone className="h-3.5 w-3.5" />
                               </Button>
@@ -941,7 +941,7 @@ export default function ProspectsPage() {
                                 <DropdownMenuItem
                                   onClick={() => handleNurture(p)}
                                   disabled={nurturing === p.id}
-                                  className="gap-2 text-xs text-amber-400 focus:text-amber-400 focus:bg-amber-500/10"
+                                  className="gap-2 text-xs text-foreground focus:text-foreground focus:bg-muted/10"
                                 >
                                   {nurturing === p.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <HeartOff className="h-3 w-3" />}
                                   Move to Nurture
@@ -950,7 +950,7 @@ export default function ProspectsPage() {
                                 <DropdownMenuItem
                                   onClick={() => handleDelete(p)}
                                   disabled={deleting === p.id}
-                                  className="gap-2 text-xs text-red-400 focus:text-red-400 focus:bg-red-500/10"
+                                  className="gap-2 text-xs text-foreground focus:text-foreground focus:bg-muted/10"
                                 >
                                   {deleting === p.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <Trash2 className="h-3 w-3" />}
                                   Delete Prospect

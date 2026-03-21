@@ -34,10 +34,10 @@ interface AIScoreBadgeProps {
 }
 
 const labelConfig = {
-  platinum: { variant: "platinum" as const, text: "TOP", color: "text-cyan-300", glow: "drop-shadow(0 0 1px rgba(0,212,255,1)) drop-shadow(0 0 3.5px rgba(0,212,255,0.48)) drop-shadow(0 0 7px rgba(0,212,255,0.24)) drop-shadow(0 0 11px rgba(0,212,255,0.11))" },
-  gold: { variant: "gold" as const, text: "HIGH", color: "text-amber-400", glow: "drop-shadow(0 0 1px rgba(245,158,11,1)) drop-shadow(0 0 3.5px rgba(245,158,11,0.48)) drop-shadow(0 0 7px rgba(245,158,11,0.24))" },
-  silver: { variant: "silver" as const, text: "MED", color: "text-slate-300", glow: "drop-shadow(0 0 1px rgba(148,163,184,0.8)) drop-shadow(0 0 3.5px rgba(148,163,184,0.35))" },
-  bronze: { variant: "bronze" as const, text: "LOW", color: "text-orange-500", glow: "" },
+  platinum: { variant: "platinum" as const, text: "TOP", color: "text-primary-300", glow: "drop-shadow(0 0 1px rgba(0,0,0,1)) drop-shadow(0 0 3.5px rgba(0,0,0,0.48)) drop-shadow(0 0 7px rgba(0,0,0,0.24)) drop-shadow(0 0 11px rgba(0,0,0,0.11))" },
+  gold: { variant: "gold" as const, text: "HIGH", color: "text-foreground", glow: "drop-shadow(0 0 1px rgba(0,0,0,1)) drop-shadow(0 0 3.5px rgba(0,0,0,0.48)) drop-shadow(0 0 7px rgba(0,0,0,0.24))" },
+  silver: { variant: "silver" as const, text: "MED", color: "text-foreground", glow: "drop-shadow(0 0 1px rgba(148,163,184,0.8)) drop-shadow(0 0 3.5px rgba(148,163,184,0.35))" },
+  bronze: { variant: "bronze" as const, text: "LOW", color: "text-foreground", glow: "" },
 };
 
 const LABEL_EXPLAINER: Record<AIScore["label"], string> = {
@@ -96,7 +96,7 @@ function buildFactorRows(
       label: SIGNAL_LABELS[sig] ?? sig,
       maxPoints: `wt ${weight}`,
       explain: SIGNAL_EXPLAIN[sig] ?? "Distress signal detected",
-      color: weight >= 25 ? "text-red-400" : weight >= 20 ? "text-orange-400" : "text-yellow-400",
+      color: weight >= 25 ? "text-foreground" : weight >= 20 ? "text-foreground" : "text-foreground",
     });
   }
 
@@ -110,7 +110,7 @@ function buildFactorRows(
       : distressSignals.length === 1
         ? `Only 1 signal. Add 1 more to unlock +${nextThreshold?.bonus ?? 6}`
         : "No signals detected",
-    color: stackBonus > 0 ? "text-neon" : "text-muted-foreground/60",
+    color: stackBonus > 0 ? "text-primary" : "text-muted-foreground/60",
   });
 
   const hasNonAbsentee = distressSignals.some((s) => s !== "absentee");
@@ -121,7 +121,7 @@ function buildFactorRows(
       explain: hasNonAbsentee
         ? "Absentee + other signal → 1.3× boost to base signal"
         : "Needs a non-absentee signal to activate (currently 1.0×)",
-      color: hasNonAbsentee ? "text-neon" : "text-muted-foreground/60",
+      color: hasNonAbsentee ? "text-primary" : "text-muted-foreground/60",
     });
   }
 
@@ -136,7 +136,7 @@ function buildFactorRows(
     explain: ownerFactors.length > 0
       ? ownerFactors.join(", ")
       : "No owner flags detected (absentee, inherited, elderly, out-of-state)",
-    color: ownerTotal > 0 ? "text-purple-400" : "text-muted-foreground/60",
+    color: ownerTotal > 0 ? "text-foreground" : "text-muted-foreground/60",
   });
 
   const eqPct = equityPercent ?? 0;
@@ -147,7 +147,7 @@ function buildFactorRows(
     explain: eqPct > 0
       ? `${Math.round(eqPct)}% equity × ${EQUITY_WEIGHT} weight = +${eqContrib} points`
       : "No equity data available",
-    color: eqContrib >= 10 ? "text-emerald-400" : eqContrib > 0 ? "text-emerald-400/70" : "text-muted-foreground/60",
+    color: eqContrib >= 10 ? "text-foreground" : eqContrib > 0 ? "text-foreground/70" : "text-muted-foreground/60",
   });
 
   if (aiBoost > 0) {
@@ -155,7 +155,7 @@ function buildFactorRows(
       label: "AI Boost",
       maxPoints: `+${aiBoost}`,
       explain: "Predictive model detected conversion patterns in this area",
-      color: "text-cyan",
+      color: "text-primary",
     });
   }
 
@@ -202,7 +202,7 @@ export function AIScoreBadge({ score, prediction, size = "md", tags, equityPerce
             <span className="opacity-90 text-[11px]">{config.text}</span>
           </Badge>
           {score.aiBoost > 0 && (
-            <span className="text-[10px] font-medium text-cyan bg-cyan/8 px-1.5 py-0.5 rounded border border-cyan/15">
+            <span className="text-[10px] font-medium text-primary bg-primary/8 px-1.5 py-0.5 rounded border border-primary/15">
               AI +{score.aiBoost}
             </span>
           )}
@@ -256,14 +256,14 @@ export function AIScoreBadge({ score, prediction, size = "md", tags, equityPerce
           {prediction && (
             <div className="pt-1 border-t border-glass-border space-y-1">
               <div className="flex items-center gap-1">
-                <Brain className="h-3 w-3 text-purple-400" />
-                <span className="text-[11px] text-purple-400 font-medium">
+                <Brain className="h-3 w-3 text-foreground" />
+                <span className="text-[11px] text-foreground font-medium">
                   Predictive: {prediction.predictiveScore}/100
                 </span>
               </div>
               <div className="flex items-center justify-between text-[11px]">
                 <span className="text-muted-foreground">Distress in</span>
-                <span className="text-orange-400 font-semibold">~{prediction.daysUntilDistress}d</span>
+                <span className="text-foreground font-semibold">~{prediction.daysUntilDistress}d</span>
               </div>
               <div className="flex items-center justify-between text-[11px]">
                 <span className="text-muted-foreground">Confidence</span>

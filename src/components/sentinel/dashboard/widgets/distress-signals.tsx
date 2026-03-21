@@ -13,20 +13,20 @@ interface SignalRow {
 }
 
 const SIGNAL_COLORS: Record<string, string> = {
-  probate: "text-red-400",
-  pre_foreclosure: "text-orange-400",
-  tax_lien: "text-yellow-400",
-  code_violation: "text-pink-400",
-  water_shutoff: "text-blue-400",
-  condemned: "text-rose-500",
-  vacant: "text-emerald-400",
-  divorce: "text-purple-400",
-  bankruptcy: "text-red-500",
-  inherited: "text-amber-400",
-  absentee: "text-cyan-400",
-  fsbo: "text-blue-300",
-  tired_landlord: "text-amber-400",
-  underwater: "text-red-400",
+  probate: "text-foreground",
+  pre_foreclosure: "text-foreground",
+  tax_lien: "text-foreground",
+  code_violation: "text-foreground",
+  water_shutoff: "text-foreground",
+  condemned: "text-foreground",
+  vacant: "text-foreground",
+  divorce: "text-foreground",
+  bankruptcy: "text-foreground",
+  inherited: "text-foreground",
+  absentee: "text-primary-400",
+  fsbo: "text-foreground",
+  tired_landlord: "text-foreground",
+  underwater: "text-foreground",
 };
 
 function labelFor(type: string): string {
@@ -116,8 +116,8 @@ export function DistressSignals() {
           <div className="flex items-center gap-2 text-[11px]">
             <span className="text-muted-foreground">{s.count} total</span>
             {s.recent > 0 && (
-              <span className="text-cyan font-semibold"
-                style={{ textShadow: "0 0 6px rgba(0,212,255,0.3)" }}>
+              <span className="text-primary font-semibold"
+                style={{ textShadow: "0 0 6px rgba(0,0,0,0.3)" }}>
                 +{s.recent}
               </span>
             )}
@@ -126,8 +126,8 @@ export function DistressSignals() {
       ))}
       <div className="flex items-center justify-between pt-1.5 border-t border-white/[0.06] text-[11px]">
         <span className="text-muted-foreground">Last 30 days</span>
-        <span className="font-bold text-neon"
-          style={{ textShadow: "0 0 8px rgba(0,212,255,0.4)" }}>
+        <span className="font-bold text-primary"
+          style={{ textShadow: "0 0 8px rgba(0,0,0,0.4)" }}>
           {totalRecent} signals
         </span>
       </div>

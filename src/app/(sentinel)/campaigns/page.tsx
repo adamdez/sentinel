@@ -62,7 +62,7 @@ export default function CampaignsPage() {
 
       {error && (
         <GlassCard className="p-8 text-center">
-          <p className="text-sm text-red-400 mb-2">Failed to load campaigns: {error}</p>
+          <p className="text-sm text-foreground mb-2">Failed to load campaigns: {error}</p>
         </GlassCard>
       )}
 
@@ -77,7 +77,7 @@ export default function CampaignsPage() {
           </p>
           <Link
             href="/settings/outbound-pilot"
-            className="text-xs text-cyan hover:underline"
+            className="text-xs text-primary hover:underline"
           >
             Go to Outbound Pilot Settings &rarr;
           </Link>
@@ -88,7 +88,7 @@ export default function CampaignsPage() {
         <GlassCard hover={false}>
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-sm font-semibold flex items-center gap-2">
-              <Megaphone className="h-4 w-4 text-cyan" />
+              <Megaphone className="h-4 w-4 text-primary" />
               Active Campaigns
             </h2>
           </div>
@@ -120,7 +120,7 @@ export default function CampaignsPage() {
                       </td>
                       <td className="p-3 text-sm text-right tabular-nums">{c.sent_count}</td>
                       <td className="p-3 text-sm text-right tabular-nums">{c.response_count}</td>
-                      <td className="p-3 text-sm text-right font-medium text-neon tabular-nums">{rate}</td>
+                      <td className="p-3 text-sm text-right font-medium text-primary tabular-nums">{rate}</td>
                     </tr>
                   );
                 })}

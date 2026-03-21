@@ -180,16 +180,16 @@ function DossierContent({ dossier, isAdminView, onPromoted }: DossierContentProp
   }
 
   return (
-    <div className="rounded-md border border-amber-200 bg-amber-50/50 dark:border-amber-900/40 dark:bg-amber-950/20 p-3 space-y-3 text-sm">
+    <div className="rounded-md border border-border bg-muted/50 dark:border-border/40 dark:bg-muted/20 p-3 space-y-3 text-sm">
       {/* Header */}
       <div className="flex items-center justify-between gap-2">
-        <div className="flex items-center gap-1.5 font-medium text-amber-800 dark:text-amber-300">
+        <div className="flex items-center gap-1.5 font-medium text-foreground dark:text-foreground">
           <ShieldCheck className="h-4 w-4" />
           Reviewed Intelligence
         </div>
         <Badge
           variant="outline"
-          className="text-xs border-amber-300 text-amber-700 dark:border-amber-700 dark:text-amber-400"
+          className="text-xs border-border text-foreground dark:border-border dark:text-foreground"
         >
           {dossier.status === "promoted" ? "Promoted to lead" : "Reviewed"}
         </Badge>
@@ -282,7 +282,7 @@ function DossierContent({ dossier, isAdminView, onPromoted }: DossierContentProp
                   href={link.url}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1 text-xs text-blue-600 dark:text-blue-400 hover:underline"
+                  className="inline-flex items-center gap-1 text-xs text-foreground dark:text-foreground hover:underline"
                 >
                   <ExternalLink className="h-3 w-3" />
                   {link.label}
@@ -296,7 +296,7 @@ function DossierContent({ dossier, isAdminView, onPromoted }: DossierContentProp
       {/* Footer — makes human review visible */}
       <div className="flex items-center justify-between gap-2 pt-1">
         <div className="flex items-center gap-1 text-xs text-muted-foreground">
-          <CheckCircle2 className="h-3 w-3 text-green-600" />
+          <CheckCircle2 className="h-3 w-3 text-foreground" />
           {reviewedDate ? `Reviewed ${reviewedDate}` : "Reviewed"}
         </div>
 
@@ -306,7 +306,7 @@ function DossierContent({ dossier, isAdminView, onPromoted }: DossierContentProp
             <Button
               size="sm"
               variant="outline"
-              className="h-6 text-xs px-2 border-amber-400 text-amber-800 hover:bg-amber-100 dark:border-amber-700 dark:text-amber-300 dark:hover:bg-amber-950"
+              className="h-6 text-xs px-2 border-border text-foreground hover:bg-muted dark:border-border dark:text-foreground dark:hover:bg-muted"
               onClick={handlePromote}
               disabled={promoting}
             >

@@ -386,8 +386,8 @@ export function deriveAbsenteeDossierBrief(
 // ─────────────────────────────────────────────────────────────
 
 export const ABSENTEE_CONFIDENCE_DISPLAY: Record<AbsenteeDossierConfidence, { label: string; className: string }> = {
-  confirmed: { label: "Confirmed",  className: "border-emerald-500/30 bg-emerald-500/[0.08] text-emerald-400" },
-  strong:    { label: "Strong",     className: "border-cyan/25 bg-cyan/[0.06] text-cyan/80" },
-  probable:  { label: "Probable",   className: "border-yellow-500/25 bg-yellow-500/[0.06] text-yellow-400/70" },
+  confirmed: { label: "Confirmed",  className: "border-border/30 bg-muted/[0.08] text-foreground" },
+  strong:    { label: "Strong",     className: "border-primary/25 bg-primary/[0.06] text-primary/80" },
+  probable:  { label: "Probable",   className: "border-border/25 bg-muted/[0.06] text-foreground/70" },
   possible:  { label: "Possible",   className: "border-white/[0.10] bg-white/[0.02] text-muted-foreground/40" },
 };

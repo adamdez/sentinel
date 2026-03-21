@@ -107,9 +107,9 @@ export const TRIAGE_REASON_LABELS: Record<TriageReasonCode, string> =
   ) as Record<TriageReasonCode, string>;
 
 export const TRIAGE_SEVERITY_CLASSES: Record<TriageSeverity, { badge: string; text: string }> = {
-  critical: { badge: "bg-red-500/15 border-red-500/30 text-red-400",    text: "text-red-400" },
-  high:     { badge: "bg-orange-500/15 border-orange-500/30 text-orange-400", text: "text-orange-400" },
-  medium:   { badge: "bg-amber-500/15 border-amber-500/30 text-amber-400",    text: "text-amber-400" },
+  critical: { badge: "bg-muted/15 border-border/30 text-foreground",    text: "text-foreground" },
+  high:     { badge: "bg-muted/15 border-border/30 text-foreground", text: "text-foreground" },
+  medium:   { badge: "bg-muted/15 border-border/30 text-foreground",    text: "text-foreground" },
   low:      { badge: "bg-muted/40 border-border text-muted-foreground/60",     text: "text-muted-foreground/60" },
 };
 

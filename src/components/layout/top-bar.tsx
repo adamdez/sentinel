@@ -82,7 +82,7 @@ export function TopBar() {
           <TooltipTrigger asChild>
             <div className="flex items-center gap-2">
               {connected ? (
-                <Wifi className="h-3.5 w-3.5 text-cyan" />
+                <Wifi className="h-3.5 w-3.5 text-primary" />
               ) : (
                 <WifiOff className="h-3.5 w-3.5 text-destructive" />
               )}
@@ -97,7 +97,7 @@ export function TopBar() {
           <DropdownMenuTrigger asChild>
             <Button variant="ghost" className="h-8 gap-2 px-2 group">
               <Avatar className="h-6 w-6 avatar-holo">
-                <AvatarFallback className="text-[11px] bg-cyan/[0.08] text-cyan border-0">
+                <AvatarFallback className="text-[11px] bg-primary/[0.08] text-primary border-0">
                   {currentUser.name
                     ? currentUser.name
                         .split(" ")

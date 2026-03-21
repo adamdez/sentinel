@@ -22,8 +22,8 @@ interface TickerItem {
 
 const SOURCE_CONFIG: Record<string, { label: string; color: string }> = {
   ranger_push: { label: "RANGER", color: "text-purple bg-purple/[0.08] border-purple/15" },
-  propertyradar: { label: "PROPRADAR", color: "text-emerald-400 bg-emerald-500/[0.08] border-emerald-500/15" },
-  manual: { label: "MANUAL", color: "text-cyan bg-cyan/[0.08] border-cyan/15" },
+  propertyradar: { label: "PROPRADAR", color: "text-foreground bg-muted/[0.08] border-border/15" },
+  manual: { label: "MANUAL", color: "text-primary bg-primary/[0.08] border-primary/15" },
 };
 
 function timeAgo(dateStr: string): string {
@@ -54,18 +54,18 @@ function TickerRow({ item, index }: { item: TickerItem; index: number }) {
       className={cn(
         "flex flex-col gap-1.5 p-2.5 rounded-[10px] text-xs transition-all relative cursor-pointer",
         isPlatinum
-          ? "bg-cyan-500/[0.04] border border-cyan-500/[0.1]"
+          ? "bg-primary-500/[0.04] border border-primary-500/[0.1]"
           : "bg-white/[0.02] border border-transparent hover:border-white/[0.06]"
       )}
       style={isPlatinum ? {
-        boxShadow: "inset 0 0 20px rgba(0,212,255,0.03), 0 0 10px rgba(0,212,255,0.06)",
+        boxShadow: "inset 0 0 20px rgba(0,0,0,0.03), 0 0 10px rgba(0,0,0,0.06)",
       } : {}}
     >
       {isPlatinum && (
         <motion.div
           className="absolute inset-0 rounded-[10px] pointer-events-none"
           style={{
-            background: "linear-gradient(90deg, transparent 0%, rgba(0,212,255,0.03) 50%, transparent 100%)",
+            background: "linear-gradient(90deg, transparent 0%, rgba(0,0,0,0.03) 50%, transparent 100%)",
             backgroundSize: "200% 100%",
           }}
           animate={{ backgroundPosition: ["0% 0%", "200% 0%"] }}
@@ -75,8 +75,8 @@ function TickerRow({ item, index }: { item: TickerItem; index: number }) {
 
       <div className="flex items-center gap-2 relative">
         <Zap
-          className={cn("h-3 w-3 shrink-0", isPlatinum ? "text-cyan-300" : "text-amber-400")}
-          style={isPlatinum ? { filter: "drop-shadow(0 0 3px rgba(0,212,255,0.5))" } : { filter: "drop-shadow(0 0 3px rgba(245,158,11,0.4))" }}
+          className={cn("h-3 w-3 shrink-0", isPlatinum ? "text-primary-300" : "text-foreground")}
+          style={isPlatinum ? { filter: "drop-shadow(0 0 3px rgba(0,0,0,0.5))" } : { filter: "drop-shadow(0 0 3px rgba(0,0,0,0.4))" }}
         />
         <span
           className="font-semibold truncate flex-1 text-foreground"
@@ -203,15 +203,15 @@ export function BreakingLeadsSidebar() {
           <div className="flex items-center gap-2">
             <span className="relative flex h-2 w-2">
               <span className={cn(
-                "absolute inline-flex h-full w-full rounded-full bg-cyan",
+                "absolute inline-flex h-full w-full rounded-full bg-primary",
                 newPulse ? "animate-ping opacity-75" : "animate-pulse opacity-50"
               )} />
-              <span className="relative inline-flex rounded-full h-2 w-2 bg-cyan shadow-[0_0_6px_rgba(0,212,255,0.5)]" />
+              <span className="relative inline-flex rounded-full h-2 w-2 bg-primary shadow-[0_0_6px_rgba(0,0,0,0.5)]" />
             </span>
-            <span className="text-[11px] text-cyan font-semibold tracking-wider">BREAKING LEADS</span>
+            <span className="text-[11px] text-primary font-semibold tracking-wider">BREAKING LEADS</span>
           </div>
           <div className="flex items-center gap-1.5">
-            <Radio className="h-3 w-3 text-cyan/60" />
+            <Radio className="h-3 w-3 text-primary/60" />
             <span className="text-[10px] text-muted-foreground">LIVE</span>
           </div>
         </div>
@@ -233,7 +233,7 @@ export function BreakingLeadsSidebar() {
         <div className="px-4 py-2 border-t border-white/[0.04]">
           <Link
             href="/leads"
-            className="flex items-center justify-center gap-1.5 text-[11px] text-cyan/80 hover:text-cyan transition-colors font-medium"
+            className="flex items-center justify-center gap-1.5 text-[11px] text-primary/80 hover:text-primary transition-colors font-medium"
           >
             View All Leads
             <ExternalLink className="h-2.5 w-2.5" />

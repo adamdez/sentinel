@@ -188,8 +188,8 @@ export default function PredictiveCalibrationPage() {
             <div className={cn(
               "h-8 w-8 rounded-full flex items-center justify-center",
               isBalanced
-                ? "bg-emerald-500/15 text-emerald-400"
-                : "bg-orange-500/15 text-orange-400"
+                ? "bg-muted/15 text-foreground"
+                : "bg-muted/15 text-foreground"
             )}>
               {isBalanced ? <CheckCircle className="h-4 w-4" /> : <AlertTriangle className="h-4 w-4" />}
             </div>
@@ -197,7 +197,7 @@ export default function PredictiveCalibrationPage() {
               <p className="text-sm font-medium">
                 Weight Sum: <span className={cn(
                   "font-mono",
-                  isBalanced ? "text-emerald-400" : "text-orange-400"
+                  isBalanced ? "text-foreground" : "text-foreground"
                 )}>{totalWeight.toFixed(2)}</span>
               </p>
               <p className="text-[10px] text-muted-foreground">
@@ -242,12 +242,12 @@ export default function PredictiveCalibrationPage() {
         <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }}>
           <GlassCard className={cn(
             "p-3",
-            retrainResult.errors > 0 ? "border-orange-500/30" : "border-emerald-500/30"
+            retrainResult.errors > 0 ? "border-border/30" : "border-border/30"
           )}>
             <p className="text-xs">
               {retrainResult.errors === 0
-                ? <span className="text-emerald-400">Retrain complete — {retrainResult.processed} properties rescored with updated weights.</span>
-                : <span className="text-orange-400">Retrain finished with {retrainResult.errors} errors. {retrainResult.processed} properties rescored.</span>
+                ? <span className="text-foreground">Retrain complete — {retrainResult.processed} properties rescored with updated weights.</span>
+                : <span className="text-foreground">Retrain finished with {retrainResult.errors} errors. {retrainResult.processed} properties rescored.</span>
               }
             </p>
           </GlassCard>
@@ -272,21 +272,21 @@ export default function PredictiveCalibrationPage() {
               <GlassCard className="p-4">
                 <div className="flex items-start justify-between mb-3">
                   <div className="flex items-center gap-2">
-                    <div className="h-7 w-7 rounded-lg bg-cyan/10 flex items-center justify-center">
-                      <Icon className="h-3.5 w-3.5 text-cyan" />
+                    <div className="h-7 w-7 rounded-lg bg-primary/10 flex items-center justify-center">
+                      <Icon className="h-3.5 w-3.5 text-primary" />
                     </div>
                     <div>
                       <p className="text-xs font-medium flex items-center gap-2">
                         {config.label}
                         {!isDefault && (
-                          <span className="text-[9px] text-orange-400 font-normal">modified</span>
+                          <span className="text-[9px] text-foreground font-normal">modified</span>
                         )}
                       </p>
                       <p className="text-[10px] text-muted-foreground/60">{config.description}</p>
                     </div>
                   </div>
                   <div className="text-right">
-                    <p className="text-sm font-mono font-semibold text-cyan">{pct}%</p>
+                    <p className="text-sm font-mono font-semibold text-primary">{pct}%</p>
                     <p className="text-[9px] text-muted-foreground/40">
                       default: {Math.round((DEFAULT_WEIGHTS[config.key] ?? 0) * 100)}%
                     </p>
@@ -303,11 +303,11 @@ export default function PredictiveCalibrationPage() {
                     className="w-full h-1.5 appearance-none bg-white/5 rounded-full cursor-pointer
                       [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3.5
                       [&::-webkit-slider-thumb]:h-3.5 [&::-webkit-slider-thumb]:rounded-full
-                      [&::-webkit-slider-thumb]:bg-cyan [&::-webkit-slider-thumb]:shadow-[0_0_8px_rgba(0,212,255,0.5)]
+                      [&::-webkit-slider-thumb]:bg-primary [&::-webkit-slider-thumb]:shadow-[0_0_8px_rgba(0,0,0,0.5)]
                       [&::-webkit-slider-thumb]:cursor-pointer"
                   />
                   <div
-                    className="absolute top-0 left-0 h-1.5 rounded-full bg-gradient-to-r from-cyan/60 to-cyan pointer-events-none"
+                    className="absolute top-0 left-0 h-1.5 rounded-full bg-gradient-to-r from-primary/60 to-primary pointer-events-none"
                     style={{ width: `${((value - config.min) / (config.max - config.min)) * 100}%` }}
                   />
                 </div>
@@ -320,13 +320,13 @@ export default function PredictiveCalibrationPage() {
       {/* Model Info */}
       <GlassCard className="p-4">
         <div className="flex items-center gap-2 mb-3">
-          <Sliders className="h-4 w-4 text-purple-400" />
+          <Sliders className="h-4 w-4 text-foreground" />
           <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Model Architecture</p>
         </div>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-[11px]">
           <div>
             <p className="text-muted-foreground/60">Version</p>
-            <p className="font-mono text-cyan">pred-v2.1</p>
+            <p className="font-mono text-primary">pred-v2.1</p>
           </div>
           <div>
             <p className="text-muted-foreground/60">Features</p>
@@ -338,7 +338,7 @@ export default function PredictiveCalibrationPage() {
           </div>
           <div>
             <p className="text-muted-foreground/60">Promotion Gate</p>
-            <p className="font-mono text-emerald-400">&ge;60 composite</p>
+            <p className="font-mono text-foreground">&ge;60 composite</p>
           </div>
         </div>
       </GlassCard>

@@ -67,12 +67,12 @@ export function ComplianceStatus() {
     ? Math.round(((d.totalLeads - d.blockedLeads) / d.totalLeads) * 100)
     : 100;
 
-  const healthColor = healthPct >= 95 ? "text-emerald-400" : healthPct >= 80 ? "text-yellow-400" : "text-red-400";
+  const healthColor = healthPct >= 95 ? "text-foreground" : healthPct >= 80 ? "text-foreground" : "text-foreground";
 
   const rows = [
-    { icon: ShieldX, label: "DNC Numbers", value: d.dncCount, color: "text-red-400" },
-    { icon: ShieldAlert, label: "Known Litigants", value: d.litigantCount, color: "text-orange-400" },
-    { icon: ShieldCheck, label: "Opt-Outs", value: d.optOutCount, color: "text-yellow-400" },
+    { icon: ShieldX, label: "DNC Numbers", value: d.dncCount, color: "text-foreground" },
+    { icon: ShieldAlert, label: "Known Litigants", value: d.litigantCount, color: "text-foreground" },
+    { icon: ShieldCheck, label: "Opt-Outs", value: d.optOutCount, color: "text-foreground" },
   ];
 
   return (

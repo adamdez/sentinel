@@ -304,8 +304,8 @@ export function EvidenceCapturePanel({
           {captureWarning && (
             <div className={`mx-3 mb-2 flex items-start gap-2 rounded-[8px] border px-2.5 py-2 text-xs ${
               captureWarning.policy === "blocked"
-                ? "border-red-500/20 bg-red-500/[0.04] text-red-400/80"
-                : "border-amber-500/20 bg-amber-500/[0.04] text-amber-400/80"
+                ? "border-border/20 bg-muted/[0.04] text-foreground/80"
+                : "border-border/20 bg-muted/[0.04] text-foreground/80"
             }`}>
               {captureWarning.policy === "blocked"
                 ? <ShieldAlert className="h-3.5 w-3.5 shrink-0 mt-0.5" />
@@ -428,7 +428,7 @@ export function EvidenceCapturePanel({
                   </div>
                   <Button
                     size="sm"
-                    className="h-7 text-xs bg-amber-600 hover:bg-amber-700 text-white w-full"
+                    className="h-7 text-xs bg-muted hover:bg-muted text-white w-full"
                     onClick={handleCompile}
                     disabled={compileBusy}
                   >
@@ -442,20 +442,20 @@ export function EvidenceCapturePanel({
                     <p className="text-xs text-destructive">{compileError}</p>
                   )}
                   {compileSuccess && (
-                    <div className="flex items-start gap-1.5 text-xs text-emerald-700 dark:text-emerald-400">
+                    <div className="flex items-start gap-1.5 text-xs text-foreground dark:text-foreground">
                       <CheckCircle2 className="h-3 w-3 mt-0.5 shrink-0" />
                       {compileSuccess}
                     </div>
                   )}
                   {compilePolicyFlags.length > 0 && (
-                    <div className="rounded-[8px] border border-amber-500/20 bg-amber-500/[0.04] px-2.5 py-2 space-y-1">
-                      <div className="flex items-center gap-1.5 text-[10px] text-amber-400/80 font-medium">
+                    <div className="rounded-[8px] border border-border/20 bg-muted/[0.04] px-2.5 py-2 space-y-1">
+                      <div className="flex items-center gap-1.5 text-[10px] text-foreground/80 font-medium">
                         <AlertTriangle className="h-3 w-3 shrink-0" />
                         {compilePolicyFlags.length} source{compilePolicyFlags.length !== 1 ? "s" : ""} need review attention
                       </div>
                       {compilePolicyFlags.map((f, i) => (
                         <div key={i} className="flex items-center gap-1.5 text-[10px] text-muted-foreground/60">
-                          <span className={`font-medium ${f.policy === "blocked" ? "text-red-400/70" : "text-amber-400/60"}`}>
+                          <span className={`font-medium ${f.policy === "blocked" ? "text-foreground/70" : "text-foreground/60"}`}>
                             {f.policy === "blocked" ? "Blocked" : "Review required"}:
                           </span>
                           {SOURCE_TYPE_LABELS[f.source_type as ArtifactSourceType] ?? f.source_type}
@@ -525,14 +525,14 @@ function ArtifactRowItem({
             target="_blank"
             rel="noopener noreferrer"
             onClick={e => e.stopPropagation()}
-            className="inline-flex items-center gap-1 text-[10px] text-blue-600 dark:text-blue-400 hover:underline"
+            className="inline-flex items-center gap-1 text-[10px] text-foreground dark:text-foreground hover:underline"
           >
             <ExternalLink className="h-2.5 w-2.5" />
             View source
           </a>
         )}
         {artifact.dossier_id && (
-          <span className="text-[10px] text-emerald-600 dark:text-emerald-400">
+          <span className="text-[10px] text-foreground dark:text-foreground">
             ✓ Compiled into dossier
           </span>
         )}

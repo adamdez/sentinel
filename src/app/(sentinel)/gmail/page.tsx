@@ -32,6 +32,7 @@ import {
 } from "@/components/ui/dialog";
 import { useSentinelStore } from "@/lib/store";
 import { supabase } from "@/lib/supabase";
+import { cn } from "@/lib/utils";
 
 // ── Auth helper ──────────────────────────────────────────────────────────
 
@@ -121,11 +122,11 @@ const EMAIL_TEMPLATES: Record<string, { name: string; subject: string; body: str
 
 function GoogleLogo({ className }: { className?: string }) {
   return (
-    <svg className={className} viewBox="0 0 24 24" fill="none">
-      <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1Z" fill="#4285F4" />
-      <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23Z" fill="#34A853" />
-      <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18A10.96 10.96 0 0 0 1 12c0 1.77.42 3.45 1.18 4.93l3.66-2.84Z" fill="#FBBC05" />
-      <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53Z" fill="#EA4335" />
+    <svg className={cn(className, "text-muted-foreground")} viewBox="0 0 24 24" fill="none" aria-hidden>
+      <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1Z" fill="currentColor" opacity={0.9} />
+      <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23Z" fill="currentColor" opacity={0.75} />
+      <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18A10.96 10.96 0 0 0 1 12c0 1.77.42 3.45 1.18 4.93l3.66-2.84Z" fill="currentColor" opacity={0.55} />
+      <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53Z" fill="currentColor" opacity={0.35} />
     </svg>
   );
 }
@@ -239,7 +240,7 @@ function ComposeModal({
       <DialogContent className="max-w-2xl">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <Send className="h-4 w-4 text-cyan" />
+            <Send className="h-4 w-4 text-primary" />
             Compose Email
           </DialogTitle>
           <DialogDescription>Send emails directly from Sentinel via Gmail.</DialogDescription>
@@ -256,7 +257,7 @@ function ComposeModal({
                 <button
                   key={key}
                   onClick={() => applyTemplate(key)}
-                  className="text-[10px] px-2.5 py-1 rounded-md border border-glass-border bg-glass hover:bg-cyan/8 hover:border-cyan/20 hover:text-cyan transition-all"
+                  className="text-[10px] px-2.5 py-1 rounded-md border border-glass-border bg-glass hover:bg-primary/8 hover:border-primary/20 hover:text-primary transition-all"
                 >
                   {tpl.name}
                 </button>
@@ -272,7 +273,7 @@ function ComposeModal({
               value={to}
               onChange={(e) => setTo(e.target.value)}
               placeholder="recipient@example.com"
-              className="w-full rounded-[12px] border border-glass-border bg-glass/50 px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-cyan/50"
+              className="w-full rounded-[12px] border border-glass-border bg-glass/50 px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-ring/50"
             />
           </div>
 
@@ -284,7 +285,7 @@ function ComposeModal({
               value={subject}
               onChange={(e) => setSubject(e.target.value)}
               placeholder="Subject line"
-              className="w-full rounded-[12px] border border-glass-border bg-glass/50 px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-cyan/50"
+              className="w-full rounded-[12px] border border-glass-border bg-glass/50 px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-ring/50"
             />
           </div>
 
@@ -296,13 +297,13 @@ function ComposeModal({
               onChange={(e) => setBody(e.target.value)}
               rows={8}
               placeholder="Compose your email..."
-              className="w-full rounded-[12px] border border-glass-border bg-glass/50 px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-cyan/50 resize-none font-mono"
+              className="w-full rounded-[12px] border border-glass-border bg-glass/50 px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-ring/50 resize-none font-mono"
             />
           </div>
 
           {/* Attachment */}
           <div className="flex items-center gap-3">
-            <label className="flex items-center gap-2 text-xs text-muted-foreground cursor-pointer hover:text-cyan transition-colors">
+            <label className="flex items-center gap-2 text-xs text-muted-foreground cursor-pointer hover:text-primary transition-colors">
               <Paperclip className="h-3.5 w-3.5" />
               {attachmentName ?? "Attach file (PDF, DOCX)"}
               <input type="file" accept=".pdf,.docx,.doc" onChange={handleFileUpload} className="hidden" />
@@ -347,7 +348,7 @@ export default function GmailPage() {
       fallback={
         <PageShell title="Gmail" description="Loading Gmail integration…">
           <div className="flex items-center justify-center min-h-[400px]">
-            <Loader2 className="h-8 w-8 animate-spin text-cyan/50" />
+            <Loader2 className="h-8 w-8 animate-spin text-primary/50" />
           </div>
         </PageShell>
       }
@@ -486,7 +487,7 @@ function GmailPageInner() {
     return (
       <PageShell title="Gmail" description="Loading Gmail integration…">
         <div className="flex items-center justify-center min-h-[400px]">
-          <Loader2 className="h-8 w-8 animate-spin text-cyan/50" />
+          <Loader2 className="h-8 w-8 animate-spin text-primary/50" />
         </div>
       </PageShell>
     );
@@ -505,8 +506,8 @@ function GmailPageInner() {
               transition={{ type: "spring", stiffness: 200, damping: 20 }}
               className="mx-auto mb-6"
             >
-              <div className="h-20 w-20 mx-auto rounded-2xl bg-cyan/8 border border-cyan/15 flex items-center justify-center shadow-[0_0_40px_rgba(0,212,255,0.15)]">
-                <Mail className="h-10 w-10 text-cyan" />
+              <div className="h-20 w-20 mx-auto rounded-2xl bg-primary/8 border border-primary/15 flex items-center justify-center shadow-[0_0_40px_rgba(0,0,0,0.15)]">
+                <Mail className="h-10 w-10 text-primary" />
               </div>
             </motion.div>
 
@@ -520,7 +521,7 @@ function GmailPageInner() {
               size="lg"
               onClick={handleConnect}
               disabled={connecting}
-              className="gap-3 px-8 py-6 text-base font-semibold shadow-[0_0_30px_rgba(0,212,255,0.25)] hover:shadow-[0_0_50px_rgba(0,212,255,0.4)] transition-all"
+              className="gap-3 px-8 py-6 text-base font-semibold shadow-[0_0_30px_rgba(0,0,0,0.25)] hover:shadow-[0_0_50px_rgba(0,0,0,0.4)] transition-all"
             >
               {connecting ? (
                 <Loader2 className="h-5 w-5 animate-spin" />
@@ -563,7 +564,7 @@ function GmailPageInner() {
       actions={
         <div className="flex items-center gap-2">
           <Badge variant="neon" className="gap-1.5 text-[10px]">
-            <span className="h-1.5 w-1.5 rounded-full bg-cyan animate-pulse" />
+            <span className="h-1.5 w-1.5 rounded-full bg-primary animate-pulse" />
             Connected
           </Badge>
           <Button
@@ -601,7 +602,7 @@ function GmailPageInner() {
                   onClick={() => setActiveFolder(f.id)}
                   className={`flex items-center gap-2 w-full px-3 py-2 rounded-[12px] text-sm transition-colors ${
                     activeFolder === f.id
-                      ? "bg-cyan/8 text-cyan border border-cyan/15"
+                      ? "bg-primary/8 text-primary border border-primary/15"
                       : "text-muted-foreground hover:bg-secondary/50"
                   }`}
                 >
@@ -629,14 +630,14 @@ function GmailPageInner() {
                   <div key={member.id} className="flex items-center gap-2 text-xs">
                     <span
                       className={`h-2 w-2 rounded-full shrink-0 ${
-                        member.gmail_connected ? "bg-cyan" : "bg-muted-foreground/30"
+                        member.gmail_connected ? "bg-primary" : "bg-muted-foreground/30"
                       }`}
                     />
                     <span className="truncate flex-1">
                       {member.name}
                     </span>
                     {member.gmail_connected ? (
-                      <CheckCircle2 className="h-3 w-3 text-cyan shrink-0" />
+                      <CheckCircle2 className="h-3 w-3 text-primary shrink-0" />
                     ) : (
                       <span className="text-muted-foreground/40 text-[10px]">—</span>
                     )}
@@ -663,7 +664,7 @@ function GmailPageInner() {
                       window.dispatchEvent(evt);
                     }, 100);
                   }}
-                  className="flex items-center gap-2 w-full px-3 py-2 rounded-[12px] text-xs text-muted-foreground hover:bg-cyan/4 hover:text-cyan transition-colors"
+                  className="flex items-center gap-2 w-full px-3 py-2 rounded-[12px] text-xs text-muted-foreground hover:bg-primary/4 hover:text-primary transition-colors"
                 >
                   <Send className="h-3 w-3" />
                   {tpl.name}
@@ -681,7 +682,7 @@ function GmailPageInner() {
                 <div className="flex items-center gap-2 mb-4">
                   <button
                     onClick={() => setSelectedMessage(null)}
-                    className="text-xs text-muted-foreground hover:text-cyan transition-colors"
+                    className="text-xs text-muted-foreground hover:text-primary transition-colors"
                   >
                     ← Back
                   </button>
@@ -689,7 +690,7 @@ function GmailPageInner() {
                 <div className="space-y-3">
                   <h2 className="text-lg font-semibold">{selectedMessage.subject || "(No Subject)"}</h2>
                   <div className="flex items-center gap-3 text-sm text-muted-foreground">
-                    <div className="h-8 w-8 rounded-full bg-cyan/8 border border-cyan/15 flex items-center justify-center text-xs font-semibold text-cyan">
+                    <div className="h-8 w-8 rounded-full bg-primary/8 border border-primary/15 flex items-center justify-center text-xs font-semibold text-primary">
                       {extractInitials(selectedMessage.from)}
                     </div>
                     <div>
@@ -731,14 +732,14 @@ function GmailPageInner() {
               <GlassCard hover={false} key="list">
                 <div className="flex items-center justify-between mb-4">
                   <h2 className="text-sm font-semibold flex items-center gap-2">
-                    <Mail className="h-4 w-4 text-cyan" />
+                    <Mail className="h-4 w-4 text-primary" />
                     {activeFolder.charAt(0).toUpperCase() + activeFolder.slice(1)}
                   </h2>
                   <div className="flex items-center gap-2">
                     <span className="text-[10px] text-muted-foreground">
                       {messages.length} message{messages.length !== 1 ? "s" : ""}
                     </span>
-                    {syncing && <Loader2 className="h-3 w-3 animate-spin text-cyan" />}
+                    {syncing && <Loader2 className="h-3 w-3 animate-spin text-primary" />}
                   </div>
                 </div>
 
@@ -774,14 +775,14 @@ function GmailPageInner() {
                         onClick={() => setSelectedMessage(msg)}
                         className={`flex items-center gap-3 w-full text-left p-3 rounded-[12px] transition-colors cursor-pointer ${
                           msg.unread
-                            ? "bg-cyan/4 border border-cyan/8 hover:bg-cyan/8"
+                            ? "bg-primary/4 border border-primary/8 hover:bg-primary/8"
                             : "bg-secondary/20 hover:bg-secondary/30"
                         }`}
                       >
                         <div
                           className={`h-8 w-8 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0 ${
                             msg.unread
-                              ? "bg-cyan/12 border border-cyan/20 text-cyan"
+                              ? "bg-primary/12 border border-primary/20 text-primary"
                               : "bg-secondary/40 text-muted-foreground"
                           }`}
                         >
@@ -797,7 +798,7 @@ function GmailPageInner() {
                               {extractName(msg.from)}
                             </span>
                             {msg.unread && (
-                              <span className="h-1.5 w-1.5 rounded-full bg-cyan shrink-0" />
+                              <span className="h-1.5 w-1.5 rounded-full bg-primary shrink-0" />
                             )}
                           </div>
                           <p className={`text-xs truncate ${msg.unread ? "text-foreground/80" : "text-muted-foreground/70"}`}>

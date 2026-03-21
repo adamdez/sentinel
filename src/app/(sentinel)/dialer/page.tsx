@@ -53,12 +53,12 @@ type KpiKey = "myOutbound" | "myInbound" | "myLiveAnswers" | "myAvgTalkTime" | "
 type Period = "today" | "week" | "month" | "all";
 
 const KPI_META: Record<KpiKey, { label: string; icon: React.ElementType; color: string; glow: string; teamKey: KpiKey; format?: (v: number) => string }> = {
-  myOutbound:    { label: "My Outbound",    icon: PhoneForwarded, color: "text-cyan",        glow: "rgba(0,212,255,0.12)",  teamKey: "teamOutbound" },
-  myInbound:     { label: "My Inbound",     icon: PhoneIncoming,  color: "text-purple-400",  glow: "rgba(168,85,247,0.12)", teamKey: "teamInbound" },
-  myLiveAnswers: { label: "Outbounds Answered", icon: Phone,       color: "text-emerald-400", glow: "rgba(16,185,129,0.12)", teamKey: "myLiveAnswers" },
-  myAvgTalkTime: { label: "Avg Talk Time",  icon: Timer,          color: "text-orange-400",  glow: "rgba(251,146,60,0.12)", teamKey: "myAvgTalkTime", format: (s) => s > 0 ? `${Math.floor(s / 60)}:${(s % 60).toString().padStart(2, "0")}` : "0:00" },
-  teamOutbound:  { label: "Team Outbound",  icon: Users,          color: "text-blue-400",    glow: "rgba(59,130,246,0.12)", teamKey: "teamOutbound" },
-  teamInbound:   { label: "Team Inbound",   icon: Users,          color: "text-pink-400",    glow: "rgba(236,72,153,0.12)", teamKey: "teamInbound" },
+  myOutbound:    { label: "My Outbound",    icon: PhoneForwarded, color: "text-primary",        glow: "rgba(0,0,0,0.12)",  teamKey: "teamOutbound" },
+  myInbound:     { label: "My Inbound",     icon: PhoneIncoming,  color: "text-foreground",  glow: "rgba(0,0,0,0.1)", teamKey: "teamInbound" },
+  myLiveAnswers: { label: "Outbounds Answered", icon: Phone,       color: "text-foreground", glow: "rgba(0,0,0,0.12)", teamKey: "myLiveAnswers" },
+  myAvgTalkTime: { label: "Avg Talk Time",  icon: Timer,          color: "text-foreground",  glow: "rgba(0,0,0,0.1)", teamKey: "myAvgTalkTime", format: (s) => s > 0 ? `${Math.floor(s / 60)}:${(s % 60).toString().padStart(2, "0")}` : "0:00" },
+  teamOutbound:  { label: "Team Outbound",  icon: Users,          color: "text-foreground",    glow: "rgba(0,0,0,0.1)", teamKey: "teamOutbound" },
+  teamInbound:   { label: "Team Inbound",   icon: Users,          color: "text-foreground",    glow: "rgba(0,0,0,0.1)", teamKey: "teamInbound" },
 };
 
 const PERIOD_LABELS: { key: Period; label: string }[] = [
@@ -155,7 +155,7 @@ function StatDetailModal({ kpiKey, userId, onClose }: { kpiKey: KpiKey; userId: 
                 onClick={() => setPeriod(p.key)}
                 className={`px-3 py-1 rounded-[8px] text-[11px] font-medium transition-all ${
                   period === p.key
-                    ? "text-cyan bg-cyan/8 border border-cyan/20"
+                    ? "text-primary bg-primary/8 border border-primary/20"
                     : "text-muted-foreground hover:text-foreground border border-transparent"
                 }`}
               >
@@ -168,21 +168,21 @@ function StatDetailModal({ kpiKey, userId, onClose }: { kpiKey: KpiKey; userId: 
           <div className="p-5 space-y-4">
             {loading ? (
               <div className="flex items-center justify-center py-8">
-                <Loader2 className="h-5 w-5 animate-spin text-cyan/50" />
+                <Loader2 className="h-5 w-5 animate-spin text-primary/50" />
               </div>
             ) : (
               <>
                 {/* Big comparison */}
                 <div className="grid grid-cols-2 gap-3">
-                  <div className="rounded-[12px] border border-cyan/15 bg-cyan/[0.04] p-4 text-center">
+                  <div className="rounded-[12px] border border-primary/15 bg-primary/[0.04] p-4 text-center">
                     <p className="text-[10px] text-muted-foreground/60 uppercase tracking-widest mb-1">You</p>
-                    <p className="text-3xl font-bold text-cyan" style={{ textShadow: "0 0 14px rgba(0,212,255,0.3)" }}>
+                    <p className="text-3xl font-bold text-primary" style={{ textShadow: "0 0 14px rgba(0,0,0,0.3)" }}>
                       {fmt(myVal)}
                     </p>
                   </div>
-                  <div className="rounded-[12px] border border-purple-500/15 bg-purple-500/[0.04] p-4 text-center">
+                  <div className="rounded-[12px] border border-border/15 bg-muted/[0.04] p-4 text-center">
                     <p className="text-[10px] text-muted-foreground/60 uppercase tracking-widest mb-1">Team Total</p>
-                    <p className="text-3xl font-bold text-purple-400" style={{ textShadow: "0 0 14px rgba(168,85,247,0.3)" }}>
+                    <p className="text-3xl font-bold text-foreground" style={{ textShadow: "0 0 14px rgba(0,0,0,0.12)" }}>
                       {fmt(teamVal)}
                     </p>
                   </div>
@@ -197,7 +197,7 @@ function StatDetailModal({ kpiKey, userId, onClose }: { kpiKey: KpiKey; userId: 
                     </div>
                     <div className="h-2 rounded-full bg-white/[0.04] overflow-hidden">
                       <div
-                        className="h-full rounded-full bg-gradient-to-r from-cyan to-purple-400 transition-all duration-500"
+                        className="h-full rounded-full bg-gradient-to-r from-primary to-muted transition-all duration-500"
                         style={{ width: `${teamVal > 0 ? Math.min((myVal / teamVal) * 100, 100) : 0}%` }}
                       />
                     </div>
@@ -207,9 +207,9 @@ function StatDetailModal({ kpiKey, userId, onClose }: { kpiKey: KpiKey; userId: 
                 {/* Extra stats */}
                 <div className="grid grid-cols-3 gap-2">
                   {[
-                    { label: "Outbound", val: data?.my.myOutbound ?? 0, color: "text-cyan" },
-                    { label: "Answered", val: data?.my.myLiveAnswers ?? 0, color: "text-emerald-400" },
-                    { label: "Avg Talk", val: data?.my.myAvgTalkTime ?? 0, color: "text-orange-400", fmt: (v: number) => `${Math.floor(v / 60)}:${(v % 60).toString().padStart(2, "0")}` },
+                    { label: "Outbound", val: data?.my.myOutbound ?? 0, color: "text-primary" },
+                    { label: "Answered", val: data?.my.myLiveAnswers ?? 0, color: "text-foreground" },
+                    { label: "Avg Talk", val: data?.my.myAvgTalkTime ?? 0, color: "text-foreground", fmt: (v: number) => `${Math.floor(v / 60)}:${(v % 60).toString().padStart(2, "0")}` },
                   ].map((s) => (
                     <div key={s.label} className="rounded-[10px] border border-white/[0.06] bg-white/[0.02] p-2.5 text-center">
                       <p className="text-[10px] text-muted-foreground/55 uppercase tracking-widest">{s.label}</p>
@@ -236,15 +236,15 @@ interface DispoOption {
 }
 
 const DISPOSITIONS: DispoOption[] = [
-  { key: "voicemail",   label: "Voicemail",    hotkey: "1", icon: Voicemail,      color: "text-blue-400",   bgColor: "bg-blue-500/10 hover:bg-blue-500/20 border-blue-500/20" },
-  { key: "no_answer",   label: "No Answer",    hotkey: "2", icon: PhoneOff,       color: "text-zinc-400",   bgColor: "bg-zinc-500/10 hover:bg-zinc-500/20 border-zinc-500/20" },
-  { key: "interested",  label: "Interested",   hotkey: "3", icon: Sparkles,       color: "text-cyan",       bgColor: "bg-cyan/8 hover:bg-cyan/15 border-cyan/15" },
-  { key: "appointment", label: "Appointment",  hotkey: "4", icon: CalendarCheck,  color: "text-emerald-400",bgColor: "bg-emerald-500/10 hover:bg-emerald-500/20 border-emerald-500/20" },
-  { key: "contract",    label: "Contract",     hotkey: "5", icon: FileSignature,  color: "text-orange-400", bgColor: "bg-orange-500/10 hover:bg-orange-500/20 border-orange-500/20" },
-  { key: "dead",        label: "Dead",         hotkey: "6", icon: Skull,          color: "text-red-400",    bgColor: "bg-red-500/10 hover:bg-red-500/20 border-red-500/20" },
-  { key: "nurture",     label: "Nurture",      hotkey: "7", icon: Heart,          color: "text-pink-400",   bgColor: "bg-pink-500/10 hover:bg-pink-500/20 border-pink-500/20" },
-  { key: "skip_trace",  label: "Skip Trace",   hotkey: "8", icon: Search,         color: "text-cyan-400",   bgColor: "bg-cyan-500/10 hover:bg-cyan-500/20 border-cyan-500/20" },
-  { key: "ghost",       label: "Property Research", hotkey: "9", icon: Ghost,        color: "text-yellow-400", bgColor: "bg-yellow-500/10 hover:bg-yellow-500/20 border-yellow-500/20" },
+  { key: "voicemail",   label: "Voicemail",    hotkey: "1", icon: Voicemail,      color: "text-foreground",   bgColor: "bg-muted/10 hover:bg-muted/20 border-border/20" },
+  { key: "no_answer",   label: "No Answer",    hotkey: "2", icon: PhoneOff,       color: "text-foreground",   bgColor: "bg-muted/10 hover:bg-muted/20 border-border/20" },
+  { key: "interested",  label: "Interested",   hotkey: "3", icon: Sparkles,       color: "text-primary",       bgColor: "bg-primary/8 hover:bg-primary/15 border-primary/15" },
+  { key: "appointment", label: "Appointment",  hotkey: "4", icon: CalendarCheck,  color: "text-foreground",bgColor: "bg-muted/10 hover:bg-muted/20 border-border/20" },
+  { key: "contract",    label: "Contract",     hotkey: "5", icon: FileSignature,  color: "text-foreground", bgColor: "bg-muted/10 hover:bg-muted/20 border-border/20" },
+  { key: "dead",        label: "Dead",         hotkey: "6", icon: Skull,          color: "text-foreground",    bgColor: "bg-muted/10 hover:bg-muted/20 border-border/20" },
+  { key: "nurture",     label: "Nurture",      hotkey: "7", icon: Heart,          color: "text-foreground",   bgColor: "bg-muted/10 hover:bg-muted/20 border-border/20" },
+  { key: "skip_trace",  label: "Skip Trace",   hotkey: "8", icon: Search,         color: "text-primary-400",   bgColor: "bg-primary-500/10 hover:bg-primary-500/20 border-primary-500/20" },
+  { key: "ghost",       label: "Property Research", hotkey: "9", icon: Ghost,        color: "text-foreground", bgColor: "bg-muted/10 hover:bg-muted/20 border-border/20" },
 ];
 
 type CallState = "idle" | "dialing" | "connected" | "ended";
@@ -1315,7 +1315,7 @@ function DialerPageInner() {
       actions={
         <div className="flex items-center gap-2">
           {ghostMode && (
-            <Badge variant="outline" className="text-[10px] gap-1 border-yellow-500/20 text-yellow-400">
+            <Badge variant="outline" className="text-[10px] gap-1 border-border/20 text-foreground">
               <Ghost className="h-2.5 w-2.5" /> Research Only
             </Badge>
           )}
@@ -1323,12 +1323,12 @@ function DialerPageInner() {
             variant="ghost"
             size="sm"
             onClick={() => { setDiagOpen(!diagOpen); if (!diagResults) runDiagnostics(); }}
-            className="gap-1.5 text-[10px] h-7 px-2 text-muted-foreground hover:text-cyan"
+            className="gap-1.5 text-[10px] h-7 px-2 text-muted-foreground hover:text-primary"
           >
             {diagLoading ? <Loader2 className="h-3 w-3 animate-spin" /> : <Wifi className="h-3 w-3" />}
             Test Twilio
           </Button>
-          <Badge variant={deviceStatus === "ready" ? "cyan" : "outline"} className={`text-[10px] gap-1 ${deviceStatus === "error" ? "border-red-500/30 text-red-400" : ""}`}>
+          <Badge variant={deviceStatus === "ready" ? "cyan" : "outline"} className={`text-[10px] gap-1 ${deviceStatus === "error" ? "border-border/30 text-foreground" : ""}`}>
             {deviceStatus === "ready" ? <Zap className="h-2.5 w-2.5" /> : deviceStatus === "error" ? <WifiOff className="h-2.5 w-2.5" /> : <Loader2 className="h-2.5 w-2.5 animate-spin" />}
             {callState === "connected"
               ? liveCallStatus === "ringing" ? "RINGING PROSPECT…"
@@ -1356,7 +1356,7 @@ function DialerPageInner() {
             <GlassCard hover={false} className="!p-4">
               <div className="flex items-center justify-between mb-3">
                 <div className="flex items-center gap-2">
-                  <Wifi className="h-4 w-4 text-cyan" />
+                  <Wifi className="h-4 w-4 text-primary" />
                   <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                     Twilio Connection Diagnostics
                   </h3>
@@ -1390,14 +1390,14 @@ function DialerPageInner() {
                   {diagResults.map((check, i) => (
                     <div key={i} className={`rounded-[10px] border px-3 py-2 text-xs ${
                       check.status === "pass"
-                        ? "border-emerald-500/20 bg-emerald-500/[0.04]"
+                        ? "border-border/20 bg-muted/[0.04]"
                         : check.status === "warn"
-                        ? "border-yellow-500/20 bg-yellow-500/[0.04]"
-                        : "border-red-500/20 bg-red-500/[0.04]"
+                        ? "border-border/20 bg-muted/[0.04]"
+                        : "border-border/20 bg-muted/[0.04]"
                     }`}>
                       <div className="flex items-center gap-2">
                         <span className={`font-mono text-[10px] font-bold uppercase ${
-                          check.status === "pass" ? "text-emerald-400" : check.status === "warn" ? "text-yellow-400" : "text-red-400"
+                          check.status === "pass" ? "text-foreground" : check.status === "warn" ? "text-foreground" : "text-foreground"
                         }`}>
                           {check.status === "pass" ? "PASS" : check.status === "warn" ? "WARN" : "FAIL"}
                         </span>
@@ -1425,10 +1425,10 @@ function DialerPageInner() {
             exit={{ opacity: 0, y: -8 }}
             className={`mb-3 px-4 py-2 rounded-[10px] border text-xs flex items-center gap-2 ${
               liveCallStatus === "failed" || liveCallStatus === "canceled"
-                ? "border-red-500/30 bg-red-500/8 text-red-300"
+                ? "border-border/30 bg-muted/8 text-foreground"
                 : liveCallStatus === "ringing" || liveCallStatus === "ringing_agent" || liveCallStatus === "initiated"
-                ? "border-cyan/30 bg-cyan/8 text-cyan"
-                : "border-yellow-500/30 bg-yellow-500/8 text-yellow-300"
+                ? "border-primary/30 bg-primary/8 text-primary"
+                : "border-border/30 bg-muted/8 text-foreground"
             }`}
           >
             {(liveCallStatus === "failed" || liveCallStatus === "canceled") ? (
@@ -1454,7 +1454,7 @@ function DialerPageInner() {
                 variant="ghost"
                 size="sm"
                 onClick={() => { setDiagOpen(true); runDiagnostics(); }}
-                className="ml-auto gap-1 text-[10px] h-6 px-2 text-red-300 hover:text-red-200"
+                className="ml-auto gap-1 text-[10px] h-6 px-2 text-foreground hover:text-foreground"
               >
                 <AlertTriangle className="h-3 w-3" />
                 Diagnose
@@ -1467,8 +1467,8 @@ function DialerPageInner() {
       {/* ── Quick Manual Dial ─────────────────────────────────────────── */}
       <GlassCard hover={false} glow className="!p-4 mb-4">
         <div className="flex items-center gap-2 mb-3">
-          <div className="h-7 w-7 rounded-[8px] flex items-center justify-center bg-cyan/12" style={{ boxShadow: "0 0 12px rgba(0,212,255,0.15)" }}>
-            <Phone className="h-3.5 w-3.5 text-cyan" />
+          <div className="h-7 w-7 rounded-[8px] flex items-center justify-center bg-primary/12" style={{ boxShadow: "0 0 12px rgba(0,0,0,0.15)" }}>
+            <Phone className="h-3.5 w-3.5 text-primary" />
           </div>
           <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
             Quick Manual Dial
@@ -1485,7 +1485,7 @@ function DialerPageInner() {
                 setManualPhone(raw.slice(0, 10));
               }}
               placeholder="(509) 555-1234"
-              className="text-lg font-mono tracking-wide bg-white/[0.03] border-white/[0.06] focus:border-cyan/30 focus:ring-cyan/10 h-12 pr-24"
+              className="text-lg font-mono tracking-wide bg-white/[0.03] border-white/[0.06] focus:border-primary/30 focus:ring-ring/10 h-12 pr-24"
               onKeyDown={(e) => {
                 if (e.key === "Enter" && manualStatus === "idle") {
                   e.preventDefault();
@@ -1495,8 +1495,8 @@ function DialerPageInner() {
             />
             {manualStatus !== "idle" && (
               <span className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-1.5 text-[10px]">
-                <span className={`h-2 w-2 rounded-full animate-pulse ${manualStatus === "dialing" ? "bg-yellow-400" : manualStatus === "connected" ? "bg-cyan" : "bg-red-400"}`} />
-                <span className={manualStatus === "dialing" ? "text-yellow-400" : manualStatus === "connected" ? "text-cyan" : "text-red-400"}>
+                <span className={`h-2 w-2 rounded-full animate-pulse ${manualStatus === "dialing" ? "bg-muted" : manualStatus === "connected" ? "bg-primary" : "bg-muted"}`} />
+                <span className={manualStatus === "dialing" ? "text-foreground" : manualStatus === "connected" ? "text-primary" : "text-foreground"}>
                   {manualStatus === "dialing" ? "Calling..." : manualStatus === "connected" ? "Live" : "Ended"}
                 </span>
               </span>
@@ -1508,8 +1508,8 @@ function DialerPageInner() {
               <Button
                 onClick={handleManualDial}
                 disabled={manualDialing || manualPhone.length < 10}
-                className="gap-2 h-12 px-6 bg-cyan/15 hover:bg-cyan/25 text-cyan border border-cyan/25 text-sm font-semibold"
-                style={{ boxShadow: "0 0 20px rgba(0,212,255,0.1)" }}
+                className="gap-2 h-12 px-6 bg-primary/15 hover:bg-primary/25 text-primary border border-primary/25 text-sm font-semibold"
+                style={{ boxShadow: "0 0 20px rgba(0,0,0,0.1)" }}
               >
                 {manualDialing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Phone className="h-4 w-4" />}
                 Dial Now
@@ -1524,8 +1524,8 @@ function DialerPageInner() {
                 }}
                 disabled={manualPhone.length < 10}
                 variant="outline"
-                className="gap-2 h-12 px-6 border-purple/25 text-purple hover:bg-purple/10 text-sm font-semibold"
-                style={{ boxShadow: "0 0 20px rgba(168,85,247,0.08)" }}
+                className="gap-2 h-12 px-6 border-border text-foreground hover:bg-muted text-sm font-semibold"
+                style={{ boxShadow: "0 0 16px rgba(0,0,0,0.08)" }}
               >
                 <MessageSquare className="h-4 w-4" />
                 Send Text
@@ -1553,7 +1553,7 @@ function DialerPageInner() {
               transition={{ duration: 0.2 }}
               className="overflow-hidden"
             >
-              <div className="mt-3 rounded-[12px] bg-white/[0.03] border border-purple/15 p-3 space-y-2">
+              <div className="mt-3 rounded-[12px] bg-white/[0.03] border border-border p-3 space-y-2">
                 <div className="flex items-center justify-between">
                   <p className="text-[11px] text-muted-foreground/60 uppercase tracking-wider">
                     SMS to {formatUsPhone(manualPhone)}
@@ -1575,7 +1575,7 @@ function DialerPageInner() {
                     onClick={handleManualSms}
                     disabled={smsComposeSending || !smsComposeMsg.trim()}
                     size="sm"
-                    className="gap-1.5 bg-purple/15 hover:bg-purple/25 text-purple border border-purple/25"
+                    className="gap-1.5 bg-primary/12 hover:bg-primary/18 text-primary border border-primary/25"
                   >
                     {smsComposeSending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
                     Send
@@ -1619,7 +1619,7 @@ function DialerPageInner() {
           <GlassCard hover={false} className="!p-3">
             <div className="flex items-center justify-between mb-3">
               <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
-                <Users className="h-3.5 w-3.5 text-cyan" />
+                <Users className="h-3.5 w-3.5 text-primary" />
                 Dial Queue
                 <CallSequenceGuide />
               </h2>
@@ -1645,9 +1645,9 @@ function DialerPageInner() {
                 <Phone className="h-6 w-6 mx-auto text-muted-foreground/20" />
                 <p className="text-xs text-muted-foreground/50">No leads ready — go to Prospects and claim some</p>
                 <a href="/sales-funnel/prospects">
-                  <button className="px-5 py-2 rounded-[10px] text-xs font-bold text-cyan bg-cyan/[0.10] border border-cyan/25
-                    hover:bg-cyan/[0.18] hover:border-cyan/35 shadow-[0_0_14px_rgba(0,212,255,0.08)]
-                    hover:shadow-[0_0_22px_rgba(0,212,255,0.16)] transition-all">
+                  <button className="px-5 py-2 rounded-[10px] text-xs font-bold text-primary bg-primary/[0.10] border border-primary/25
+                    hover:bg-primary/[0.18] hover:border-primary/35 shadow-[0_0_14px_rgba(0,0,0,0.08)]
+                    hover:shadow-[0_0_22px_rgba(0,0,0,0.16)] transition-all">
                     Go to Prospects — Claim Leads
                   </button>
                 </a>
@@ -1675,7 +1675,7 @@ function DialerPageInner() {
                       onClick={() => setCurrentLead(lead)}
                       className={`w-full text-left rounded-[12px] p-2.5 transition-all duration-200 border ${
                         isActive
-                          ? "bg-cyan/5 border-cyan/20 shadow-[0_0_12px_rgba(0,212,255,0.1)]"
+                          ? "bg-primary/5 border-primary/20 shadow-[0_0_12px_rgba(0,0,0,0.1)]"
                           : "bg-secondary/10 border-transparent hover:bg-secondary/20"
                       }`}
                     >
@@ -1697,9 +1697,9 @@ function DialerPageInner() {
                         <span
                           className={
                             rowDue.overdue
-                              ? "text-[9px] px-1.5 py-0 rounded border border-red-500/35 bg-red-500/10 text-red-300 shrink-0"
+                              ? "text-[9px] px-1.5 py-0 rounded border border-border/35 bg-muted/10 text-foreground shrink-0"
                               : rowDue.urgent
-                                ? "text-[9px] px-1.5 py-0 rounded border border-yellow-500/35 bg-yellow-500/10 text-yellow-300 shrink-0"
+                                ? "text-[9px] px-1.5 py-0 rounded border border-border/35 bg-muted/10 text-foreground shrink-0"
                                 : "text-[9px] px-1.5 py-0 rounded border border-white/12 bg-white/[0.04] text-muted-foreground shrink-0"
                           }
                           title="Next action due state"
@@ -1710,7 +1710,7 @@ function DialerPageInner() {
                           {score}
                         </Badge>
                         {!lead.compliant && !ghostMode && (
-                          <span className="h-2 w-2 rounded-full bg-red-500 shadow-[0_0_6px_rgba(239,68,68,0.5)] shrink-0" title="Compliance blocked" />
+                          <span className="h-2 w-2 rounded-full bg-foreground/80 shadow-[0_0_6px_rgba(0,0,0,0.25)] shrink-0" title="Compliance blocked" />
                         )}
                       </div>
                     </button>
@@ -1729,12 +1729,12 @@ function DialerPageInner() {
                 initial={{ opacity: 0, y: -8 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -8 }}
-                className="mb-3 rounded-[12px] border border-yellow-500/20 bg-yellow-500/5 p-4"
+                className="mb-3 rounded-[12px] border border-border/20 bg-muted/5 p-4"
               >
                 <div className="flex items-start gap-3">
-                  <Shield className="h-5 w-5 text-yellow-400 shrink-0 mt-0.5" />
+                  <Shield className="h-5 w-5 text-foreground shrink-0 mt-0.5" />
                   <div className="flex-1">
-                    <p className="text-sm font-semibold text-yellow-400">Agent Consent Acknowledgment</p>
+                    <p className="text-sm font-semibold text-foreground">Agent Consent Acknowledgment</p>
                     <p className="text-[11px] text-muted-foreground/70 mt-1 leading-relaxed">
                       This call may be recorded for quality, training, and AI note summarization purposes
                       as permitted under Washington law (RCW 9.73.030). Do you consent to continue?
@@ -1743,7 +1743,7 @@ function DialerPageInner() {
                       <Button
                         size="sm"
                         onClick={grantConsent}
-                        className="text-[11px] h-7 px-4 gap-1.5 bg-cyan/15 hover:bg-cyan/25 text-cyan border border-cyan/20"
+                        className="text-[11px] h-7 px-4 gap-1.5 bg-primary/15 hover:bg-primary/25 text-primary border border-primary/20"
                       >
                         <CheckCircle2 className="h-3 w-3" />
                         Confirm & Dial
@@ -1778,14 +1778,14 @@ function DialerPageInner() {
                 >
                   {callState !== "idle" && (
                     <div className={`flex items-center gap-2 mb-3 text-xs px-3 py-1.5 rounded-lg ${
-                      callState === "dialing" ? "bg-yellow-500/10 text-yellow-400" :
-                      callState === "connected" ? "bg-cyan/8 text-cyan" :
-                      "bg-red-500/10 text-red-400"
+                      callState === "dialing" ? "bg-muted/10 text-foreground" :
+                      callState === "connected" ? "bg-primary/8 text-primary" :
+                      "bg-muted/10 text-foreground"
                     }`}>
                       <span className={`h-2 w-2 rounded-full ${
-                        callState === "dialing" ? "bg-yellow-400 animate-pulse" :
-                        callState === "connected" ? "bg-cyan animate-pulse" :
-                        "bg-red-400"
+                        callState === "dialing" ? "bg-muted animate-pulse" :
+                        callState === "connected" ? "bg-primary animate-pulse" :
+                        "bg-muted"
                       }`} />
                       {callState === "dialing" && (transferStatus ?? "Dialing...")}
                       {callState === "connected" && `Connected — ${timer.formatted} — Caller ID: Dominion Homes`}
@@ -1810,7 +1810,7 @@ function DialerPageInner() {
                         </p>
                         <button
                           onClick={() => setFileModalOpen(true)}
-                          className="mt-1 inline-flex items-center gap-1 text-[10px] text-cyan hover:text-cyan/80 hover:underline transition-colors"
+                          className="mt-1 inline-flex items-center gap-1 text-[10px] text-primary hover:text-primary/80 hover:underline transition-colors"
                         >
                           <Eye className="h-3 w-3" />
                           Open Lead Detail
@@ -1826,7 +1826,7 @@ function DialerPageInner() {
                             </Badge>
                           );
                         })()}
-                        <Badge variant="outline" className="text-[9px] gap-1 border-cyan/20 text-cyan/70">
+                        <Badge variant="outline" className="text-[9px] gap-1 border-primary/20 text-primary/70">
                           <Phone className="h-2.5 w-2.5" />
                           {getCadencePosition(currentLead.total_calls ?? 0).label}
                         </Badge>
@@ -1841,13 +1841,13 @@ function DialerPageInner() {
                     {dialerContext && (
                       <div className="rounded-[10px] bg-white/[0.03] border border-white/[0.06] p-2.5 space-y-2">
                         <div className="flex flex-wrap items-center gap-1.5">
-                          <Badge variant="outline" className="text-[9px] px-1.5 py-0 border-cyan/20 text-cyan/80">
+                          <Badge variant="outline" className="text-[9px] px-1.5 py-0 border-primary/20 text-primary/80">
                             Stage: {dialerContext.stage}
                           </Badge>
                           <Badge variant="outline" className="text-[9px] px-1.5 py-0 border-white/[0.14]">
                             Route: {dialerContext.route}
                           </Badge>
-                          <Badge variant="outline" className="text-[9px] px-1.5 py-0 border-amber-500/20 text-amber-300">
+                          <Badge variant="outline" className="text-[9px] px-1.5 py-0 border-border/20 text-foreground">
                             Next: {dialerContext.nextActionLabel}
                           </Badge>
                           <Badge variant="outline" className="text-[9px] px-1.5 py-0 border-white/[0.14]">
@@ -1883,14 +1883,14 @@ function DialerPageInner() {
                         </p>
                         <div className="space-y-1">
                           {dialerContext.assistPrompts.map((prompt, idx) => (
-                            <p key={idx} className="text-[11px] text-cyan/85">
+                            <p key={idx} className="text-[11px] text-primary/85">
                               • {prompt}
                             </p>
                           ))}
                         </div>
                         <Button
                           variant="outline"
-                          className="w-full mt-1 gap-2 border-cyan/25 text-cyan hover:bg-cyan/10"
+                          className="w-full mt-1 gap-2 border-primary/25 text-primary hover:bg-primary/10"
                           onClick={() => setFileModalOpen(true)}
                         >
                           <Eye className="h-3.5 w-3.5" />
@@ -1928,7 +1928,7 @@ function DialerPageInner() {
                         <p className="text-[11px] text-muted-foreground/60 uppercase">Distress</p>
                         <div className="flex flex-wrap gap-1 mt-0.5">
                           {(currentLead.tags ?? []).slice(0, 3).map((t) => (
-                            <span key={t} className="text-[9px] px-1.5 py-0.5 rounded-[6px] bg-red-500/[0.08] text-red-400 border border-red-500/15">
+                            <span key={t} className="text-[9px] px-1.5 py-0.5 rounded-[6px] bg-muted/[0.08] text-foreground border border-border/15">
                               {t}
                             </span>
                           ))}
@@ -1961,19 +1961,19 @@ function DialerPageInner() {
                           initial={{ opacity: 0, height: 0 }}
                           animate={{ opacity: 1, height: "auto" }}
                           exit={{ opacity: 0, height: 0 }}
-                          className="rounded-[10px] bg-purple-500/[0.06] border border-purple-500/20 p-2.5 overflow-hidden"
+                          className="rounded-[10px] bg-muted/[0.06] border border-border/20 p-2.5 overflow-hidden"
                         >
                           <div className="flex items-center gap-1.5 mb-1.5">
-                            <Sparkles className="h-3 w-3 text-purple-400" />
-                            <span className="text-[11px] font-semibold tracking-wider uppercase text-purple-400">Pre-Call Brief</span>
-                            {briefLoading && <Loader2 className="h-3 w-3 animate-spin text-purple-400/60 ml-auto" />}
+                            <Sparkles className="h-3 w-3 text-foreground" />
+                            <span className="text-[11px] font-semibold tracking-wider uppercase text-foreground">Pre-Call Brief</span>
+                            {briefLoading && <Loader2 className="h-3 w-3 animate-spin text-foreground/60 ml-auto" />}
                           </div>
                           {preCallBrief && (
                             <>
                               <ul className="space-y-1 mb-2">
                                 {preCallBrief.bullets.map((b, i) => (
                                   <li key={i} className="text-xs text-foreground/80 flex items-start gap-1.5">
-                                    <span className="text-purple-400 mt-0.5">•</span>
+                                    <span className="text-foreground mt-0.5">•</span>
                                     {b}
                                   </li>
                                 ))}
@@ -1985,12 +1985,12 @@ function DialerPageInner() {
                                 </div>
                               )}
                               {preCallBrief.riskFlags.length > 0 && (
-                                <div className="rounded-lg bg-amber-500/[0.06] border border-amber-500/20 p-2 mt-1.5">
-                                  <p className="text-[10px] text-amber-300/70 uppercase mb-1">Risk Flags / Things That May Not Line Up</p>
+                                <div className="rounded-lg bg-muted/[0.06] border border-border/20 p-2 mt-1.5">
+                                  <p className="text-[10px] text-foreground/70 uppercase mb-1">Risk Flags / Things That May Not Line Up</p>
                                   <div className="space-y-1">
                                     {preCallBrief.riskFlags.map((flag, i) => (
-                                      <div key={i} className="flex items-start gap-1.5 text-[11px] text-amber-100/80">
-                                        <AlertTriangle className="h-3 w-3 mt-0.5 shrink-0 text-amber-400/70" />
+                                      <div key={i} className="flex items-start gap-1.5 text-[11px] text-foreground/80">
+                                        <AlertTriangle className="h-3 w-3 mt-0.5 shrink-0 text-foreground/70" />
                                         <p>{flag}</p>
                                       </div>
                                     ))}
@@ -2032,7 +2032,7 @@ function DialerPageInner() {
                                 window.scrollTo({ top: 0, behavior: "smooth" });
                                 toast.info(`${formatUsPhone(digits)} loaded — hit Dial Now`);
                               }}
-                              className="h-7 px-2.5 rounded-[8px] text-[11px] font-mono bg-cyan/8 hover:bg-cyan/18 border border-cyan/20 text-cyan transition-all flex items-center gap-1.5"
+                              className="h-7 px-2.5 rounded-[8px] text-[11px] font-mono bg-primary/8 hover:bg-primary/18 border border-primary/20 text-primary transition-all flex items-center gap-1.5"
                             >
                               <Phone className="h-3 w-3" />
                               {formatUsPhone(ph.replace(/\D/g, "").slice(-10))}
@@ -2048,7 +2048,7 @@ function DialerPageInner() {
                           <Button
                             onClick={() => handleDial()}
                             disabled={!currentLead.compliant && !ghostMode}
-                            className="flex-1 gap-2 bg-cyan/15 hover:bg-cyan/25 text-cyan border border-cyan/25"
+                            className="flex-1 gap-2 bg-primary/15 hover:bg-primary/25 text-primary border border-primary/25"
                           >
                             <Phone className="h-4 w-4" />
                             Dial {currentLead.properties?.owner_phone ? "" : "(No Phone)"}
@@ -2067,7 +2067,7 @@ function DialerPageInner() {
                             }}
                             disabled={(!currentLead.compliant && !ghostMode) || !currentLead.properties?.owner_phone}
                             variant="outline"
-                            className={`gap-2 border-purple/25 text-purple hover:bg-purple/10 ${leadSmsOpen ? "bg-purple/10 border-purple/40" : ""}`}
+                            className={`gap-2 border-border text-foreground hover:bg-muted ${leadSmsOpen ? "bg-muted border-border" : ""}`}
                           >
                             <MessageSquare className="h-4 w-4" />
                             Text
@@ -2108,14 +2108,14 @@ function DialerPageInner() {
 
                     {callState === "idle" && (
                       <p className="text-[11px] text-muted-foreground/55 flex items-center gap-1.5 pt-1">
-                        <Wifi className="h-3 w-3 text-cyan/40" />
+                        <Wifi className="h-3 w-3 text-primary/40" />
                         VoIP call via browser — Caller ID: Dominion Homes
                       </p>
                     )}
 
                     {/* Inline SMS compose for lead card */}
                     {leadSmsOpen && callState === "idle" && currentLead.properties?.owner_phone && (
-                      <div className="mt-3 rounded-[12px] bg-white/[0.03] border border-purple/15 p-3 space-y-2">
+                      <div className="mt-3 rounded-[12px] bg-white/[0.03] border border-border p-3 space-y-2">
                         <div className="flex items-center justify-between">
                           <p className="text-[11px] text-muted-foreground/60 uppercase tracking-wider">
                             SMS to {formatUsPhone(currentLead.properties.owner_phone.replace(/\D/g, "").slice(-10))}
@@ -2141,7 +2141,7 @@ function DialerPageInner() {
                             onClick={() => handleLeadSmsSend(currentLead.properties!.owner_phone!)}
                             disabled={leadSmsSending || !leadSmsMsg.trim()}
                             size="sm"
-                            className="gap-1.5 bg-purple/15 hover:bg-purple/25 text-purple border border-purple/25"
+                            className="gap-1.5 bg-primary/12 hover:bg-primary/18 text-primary border border-primary/25"
                           >
                             {leadSmsSending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
                             Send
@@ -2154,13 +2154,13 @@ function DialerPageInner() {
 
                 {/* AI Live Notes — auto-generated from call transcription */}
                 {(callState === "connected" || callState === "ended" || liveNotes.length > 0) && (
-                  <GlassCard hover={false} className="!p-3 mt-3 border-cyan/10">
+                  <GlassCard hover={false} className="!p-3 mt-3 border-primary/10">
                     <div className="flex items-center gap-1.5 mb-2">
-                      <Zap className="h-3 w-3 text-cyan" />
-                      <p className="text-[10px] font-semibold uppercase tracking-wider text-cyan/80">AI Live Notes</p>
+                      <Zap className="h-3 w-3 text-primary" />
+                      <p className="text-[10px] font-semibold uppercase tracking-wider text-primary/80">AI Live Notes</p>
                       {callState === "connected" && (
-                        <span className="ml-auto flex items-center gap-1 text-[9px] text-cyan/50">
-                          <span className="h-1.5 w-1.5 rounded-full bg-cyan animate-pulse" />
+                        <span className="ml-auto flex items-center gap-1 text-[9px] text-primary/50">
+                          <span className="h-1.5 w-1.5 rounded-full bg-primary animate-pulse" />
                           Listening
                         </span>
                       )}
@@ -2169,7 +2169,7 @@ function DialerPageInner() {
                       <ul className="space-y-1">
                         {liveNotes.map((note, i) => (
                           <li key={i} className="text-[11px] text-foreground/80 flex items-start gap-1.5">
-                            <span className="text-cyan/40 mt-0.5 shrink-0">•</span>
+                            <span className="text-primary/40 mt-0.5 shrink-0">•</span>
                             <span>{note}</span>
                           </li>
                         ))}
@@ -2196,7 +2196,7 @@ function DialerPageInner() {
                         <Button
                           size="sm"
                           variant="outline"
-                          className="h-6 text-[10px] px-2.5 border-cyan/20 text-cyan/60 hover:bg-cyan/10"
+                          className="h-6 text-[10px] px-2.5 border-primary/20 text-primary/60 hover:bg-primary/10"
                           onClick={handleSaveNote}
                           disabled={savingNote || !callNotes.trim()}
                         >
@@ -2239,8 +2239,8 @@ function DialerPageInner() {
           {currentLead && latestSummary && (
             <GlassCard hover={false} className="!p-3 mb-3">
               <div className="flex items-center gap-1.5 mb-2">
-                <Sparkles className="h-3 w-3 text-purple-400" />
-                <span className="text-[10px] font-semibold uppercase tracking-wider text-purple-400/80">AI Call Summary</span>
+                <Sparkles className="h-3 w-3 text-foreground" />
+                <span className="text-[10px] font-semibold uppercase tracking-wider text-foreground/80">AI Call Summary</span>
                 {latestSummaryTime && (
                   <span className="text-[9px] text-muted-foreground/40 ml-auto">
                     {new Date(latestSummaryTime).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
@@ -2301,14 +2301,14 @@ function DialerPageInner() {
                   /* ── Legacy disposition: live call or no-session fallback ── */
                   <GlassCard hover={false} className="!p-3">
                     <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3 flex items-center gap-1.5">
-                      <BarChart3 className="h-3.5 w-3.5 text-cyan" />
+                      <BarChart3 className="h-3.5 w-3.5 text-primary" />
                       Disposition
                       <span className="text-[10px] opacity-40 ml-auto">Keyboard shortcuts active</span>
                     </h2>
 
                     <Button
                       variant="outline"
-                      className="w-full mb-2.5 gap-2 border-cyan/25 text-cyan hover:bg-cyan/10"
+                      className="w-full mb-2.5 gap-2 border-primary/25 text-primary hover:bg-primary/10"
                       onClick={() => setFileModalOpen(true)}
                     >
                       <Eye className="h-3.5 w-3.5" />
@@ -2383,7 +2383,7 @@ function DialerPageInner() {
                 <GlassCard hover={false} className="!p-3">
                   <div className="flex items-center justify-between mb-3">
                     <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
-                      <History className="h-3.5 w-3.5 text-cyan" />
+                      <History className="h-3.5 w-3.5 text-primary" />
                       Call History
                       <span className="text-[10px] font-normal text-muted-foreground/50 ml-1">
                         {callHistory.length} recent
@@ -2397,7 +2397,7 @@ function DialerPageInner() {
                           onClick={() => setHistoryFilter(f)}
                           className={`px-2.5 py-1 rounded-[8px] text-[10px] font-medium transition-all ${
                             historyFilter === f
-                              ? "text-cyan bg-cyan/8 border border-cyan/20"
+                              ? "text-primary bg-primary/8 border border-primary/20"
                               : "text-muted-foreground/60 hover:text-foreground border border-transparent"
                           }`}
                         >
@@ -2409,7 +2409,7 @@ function DialerPageInner() {
 
                   {historyLoading ? (
                     <div className="flex items-center justify-center py-8">
-                      <Loader2 className="h-5 w-5 animate-spin text-cyan/50" />
+                      <Loader2 className="h-5 w-5 animate-spin text-primary/50" />
                     </div>
                   ) : callHistory.length === 0 ? (
                     <div className="text-center py-6">
@@ -2508,18 +2508,18 @@ export default function DialerPage() {
 /* ── Call History Row ───────────────────────────────────────────── */
 
 const DISPO_STYLES: Record<string, { color: string; bg: string }> = {
-  voicemail:     { color: "text-blue-400",    bg: "bg-blue-500/10 border-blue-500/15" },
-  no_answer:     { color: "text-zinc-400",    bg: "bg-zinc-500/10 border-zinc-500/15" },
-  interested:    { color: "text-cyan",        bg: "bg-cyan/8 border-cyan/15" },
-  appointment:   { color: "text-emerald-400", bg: "bg-emerald-500/10 border-emerald-500/15" },
-  contract:      { color: "text-orange-400",  bg: "bg-orange-500/10 border-orange-500/15" },
-  dead:          { color: "text-red-400",     bg: "bg-red-500/10 border-red-500/15" },
-  nurture:       { color: "text-pink-400",    bg: "bg-pink-500/10 border-pink-500/15" },
-  skip_trace:    { color: "text-cyan-400",    bg: "bg-cyan-500/10 border-cyan-500/15" },
-  ghost:         { color: "text-yellow-400",  bg: "bg-yellow-500/10 border-yellow-500/15" },
-  sms_outbound:  { color: "text-purple-400",  bg: "bg-purple-500/10 border-purple-500/15" },
-  manual_hangup: { color: "text-zinc-400",    bg: "bg-zinc-500/10 border-zinc-500/15" },
-  initiating:    { color: "text-yellow-400",  bg: "bg-yellow-500/10 border-yellow-500/15" },
+  voicemail:     { color: "text-foreground",    bg: "bg-muted/10 border-border/15" },
+  no_answer:     { color: "text-foreground",    bg: "bg-muted/10 border-border/15" },
+  interested:    { color: "text-primary",        bg: "bg-primary/8 border-primary/15" },
+  appointment:   { color: "text-foreground", bg: "bg-muted/10 border-border/15" },
+  contract:      { color: "text-foreground",  bg: "bg-muted/10 border-border/15" },
+  dead:          { color: "text-foreground",     bg: "bg-muted/10 border-border/15" },
+  nurture:       { color: "text-foreground",    bg: "bg-muted/10 border-border/15" },
+  skip_trace:    { color: "text-primary-400",    bg: "bg-primary-500/10 border-primary-500/15" },
+  ghost:         { color: "text-foreground",  bg: "bg-muted/10 border-border/15" },
+  sms_outbound:  { color: "text-foreground",  bg: "bg-muted/10 border-border/15" },
+  manual_hangup: { color: "text-foreground",    bg: "bg-muted/10 border-border/15" },
+  initiating:    { color: "text-foreground",  bg: "bg-muted/10 border-border/15" },
 };
 
 function timeAgo(isoStr: string): string {
@@ -2553,7 +2553,7 @@ function CallHistoryRow({ entry, onDial }: { entry: CallHistoryEntry; onDial: (p
       {/* Direction dot — indicator only, not a button */}
       <span
         className={`h-2 w-2 rounded-full shrink-0 mt-0.5 ${
-          isSms ? "bg-purple-400" : isInbound ? "bg-purple-400" : "bg-cyan"
+          isSms ? "bg-muted" : isInbound ? "bg-muted" : "bg-primary"
         }`}
         title={isSms ? "SMS" : isInbound ? "Inbound" : "Outbound"}
       />
@@ -2586,8 +2586,8 @@ function CallHistoryRow({ entry, onDial }: { entry: CallHistoryEntry; onDial: (p
         <button
           onClick={() => onDial(entry.phone_dialed)}
           className="h-7 w-7 rounded-[8px] flex items-center justify-center shrink-0
-            bg-cyan/8 hover:bg-cyan/20 border border-cyan/15 hover:border-cyan/30
-            text-cyan/70 hover:text-cyan transition-all"
+            bg-primary/8 hover:bg-primary/20 border border-primary/15 hover:border-primary/30
+            text-primary/70 hover:text-primary transition-all"
           title={`Redial ${formatUsPhone(phoneDigits)}`}
         >
           <Phone className="h-3 w-3" />

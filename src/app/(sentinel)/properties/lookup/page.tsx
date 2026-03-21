@@ -94,14 +94,14 @@ export default function PropertyLookupPage() {
       description="Query configured providers without writing to CRM. Promote to a lead when you are ready."
     >
       <div className="mb-4">
-        <Link href="/leads" className="text-[11px] text-muted-foreground hover:text-cyan transition-colors">
+        <Link href="/leads" className="text-[11px] text-muted-foreground hover:text-primary transition-colors">
           ← Back to leads
         </Link>
       </div>
 
       <GlassCard hover={false} className="mb-4">
         <h3 className="text-sm font-semibold mb-3 flex items-center gap-2">
-          <MapPin className="h-4 w-4 text-cyan" />
+          <MapPin className="h-4 w-4 text-primary" />
           Search
         </h3>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -132,7 +132,7 @@ export default function PropertyLookupPage() {
           </div>
         </div>
         <Button
-          className="mt-4 gap-2 bg-cyan/15 hover:bg-cyan/25 text-cyan border border-cyan/25"
+          className="mt-4 gap-2 bg-primary/15 hover:bg-primary/25 text-primary border border-primary/25"
           disabled={lookupMutation.isPending || (!address.trim() && !apn.trim())}
           onClick={() => lookupMutation.mutate()}
         >
@@ -155,18 +155,18 @@ export default function PropertyLookupPage() {
           )}
 
           {lookupResult.existingProperty && (
-            <GlassCard hover={false} className="border-cyan/20">
-              <p className="text-xs font-semibold text-cyan mb-1">Already in Sentinel</p>
+            <GlassCard hover={false} className="border-primary/20">
+              <p className="text-xs font-semibold text-primary mb-1">Already in Sentinel</p>
               <p className="text-sm">{formatAddress(lookupResult.existingProperty)}</p>
               <p className="text-[10px] text-muted-foreground mt-1 font-mono">Property ID: {lookupResult.existingProperty.id}</p>
             </GlassCard>
           )}
 
           {lookupResult.existingLead && (
-            <GlassCard hover={false} className="border-emerald-500/20">
-              <Badge className="mb-2 border-emerald-500/40 bg-emerald-500/10 text-emerald-200">Existing Lead</Badge>
+            <GlassCard hover={false} className="border-border/20">
+              <Badge className="mb-2 border-border/40 bg-muted/10 text-foreground">Existing Lead</Badge>
               <p className="text-sm font-mono text-xs">Lead ID: {lookupResult.existingLead.id}</p>
-              <Link href="/leads" className="inline-flex items-center gap-1 text-xs text-cyan mt-2 hover:underline">
+              <Link href="/leads" className="inline-flex items-center gap-1 text-xs text-primary mt-2 hover:underline">
                 Open Leads <ArrowRight className="h-3 w-3" />
               </Link>
             </GlassCard>
@@ -199,8 +199,8 @@ export default function PropertyLookupPage() {
           ))}
 
           {lookupResult.providerErrors && lookupResult.providerErrors.length > 0 && (
-            <GlassCard hover={false} className="border-amber-500/25">
-              <p className="text-xs font-semibold text-amber-200 mb-2">Provider errors</p>
+            <GlassCard hover={false} className="border-border/25">
+              <p className="text-xs font-semibold text-foreground mb-2">Provider errors</p>
               <ul className="text-[11px] text-muted-foreground space-y-1">
                 {lookupResult.providerErrors.map((e, i) => (
                   <li key={i}>
@@ -236,7 +236,7 @@ export default function PropertyLookupPage() {
                   <div className="flex gap-2">
                     <Button
                       disabled={!nextAction.trim() || promoteMutation.isPending}
-                      className="gap-2 bg-cyan/15 hover:bg-cyan/25 text-cyan border border-cyan/25"
+                      className="gap-2 bg-primary/15 hover:bg-primary/25 text-primary border border-primary/25"
                       onClick={() => promoteMutation.mutate()}
                     >
                       {promoteMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : null}

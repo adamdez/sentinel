@@ -77,7 +77,7 @@ function SignalRow({ signal, icon: Icon }: {
               href={signal.sourceUrl}
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-flex items-center gap-0.5 text-[9px] text-cyan/40 hover:text-cyan/70"
+              className="inline-flex items-center gap-0.5 text-[9px] text-primary/40 hover:text-primary/70"
             >
               <ExternalLink className="h-2.5 w-2.5" />
               Source
@@ -150,18 +150,18 @@ export function AbsenteeDossierBrief({
   const hasBurden  = brief.burdenContext.length > 0;
 
   return (
-    <div className="rounded-md border border-sky-200 bg-sky-50/30 dark:border-sky-900/30 dark:bg-sky-950/10 p-3 space-y-3 text-sm">
+    <div className="rounded-md border border-border bg-muted/30 dark:border-border/30 dark:bg-muted/10 p-3 space-y-3 text-sm">
 
       {/* Header */}
       <div className="flex items-center justify-between gap-2">
-        <div className="flex items-center gap-1.5 font-medium text-sky-800 dark:text-sky-300">
+        <div className="flex items-center gap-1.5 font-medium text-foreground dark:text-foreground">
           <ShieldCheck className="h-4 w-4" />
           Absentee-Landlord Brief
         </div>
         <div className="flex items-center gap-1.5">
           <Badge
             variant="outline"
-            className="text-xs border-sky-300 text-sky-700 dark:border-sky-700 dark:text-sky-400"
+            className="text-xs border-border text-foreground dark:border-border dark:text-foreground"
           >
             {dossier.status === "promoted" ? "Promoted to lead" : "Reviewed"}
           </Badge>
@@ -255,7 +255,7 @@ export function AbsenteeDossierBrief({
                   href={link.url}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1 text-xs text-blue-600 dark:text-blue-400 hover:underline"
+                  className="inline-flex items-center gap-1 text-xs text-foreground dark:text-foreground hover:underline"
                 >
                   <ExternalLink className="h-3 w-3" />
                   {link.label}
@@ -269,7 +269,7 @@ export function AbsenteeDossierBrief({
       {/* Footer */}
       <div className="flex items-center justify-between gap-2 pt-1">
         <div className="flex items-center gap-1 text-xs text-muted-foreground">
-          <CheckCircle2 className="h-3 w-3 text-green-600" />
+          <CheckCircle2 className="h-3 w-3 text-foreground" />
           {reviewedDate ? `Reviewed ${reviewedDate}` : "Reviewed"}
           <span className="ml-1 text-[9px] text-muted-foreground/30 italic">
             — confidence labels based on source type, not AI scoring
@@ -281,7 +281,7 @@ export function AbsenteeDossierBrief({
             <Button
               size="sm"
               variant="outline"
-              className="h-6 text-xs px-2 border-sky-400 text-sky-800 hover:bg-sky-100 dark:border-sky-700 dark:text-sky-300 dark:hover:bg-sky-950"
+              className="h-6 text-xs px-2 border-border text-foreground hover:bg-muted dark:border-border dark:text-foreground dark:hover:bg-muted"
               onClick={handlePromote}
               disabled={promoting}
             >

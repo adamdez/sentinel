@@ -106,7 +106,7 @@ function Field({
       <label className="text-[11px] font-medium text-muted-foreground flex items-center gap-1">
         {Icon && <Icon className="h-3 w-3" />}
         {label}
-        {required && <span className="text-red-400">*</span>}
+        {required && <span className="text-foreground">*</span>}
       </label>
       {children}
     </div>
@@ -333,7 +333,7 @@ export function NewProspectModal() {
       <DialogContent className="sm:max-w-[640px] max-h-[90vh] flex flex-col overflow-hidden">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <UserPlus className="h-5 w-5 text-cyan" />
+            <UserPlus className="h-5 w-5 text-primary" />
             {step === "form" ? "Add New Lead" : "Lead Created"}
           </DialogTitle>
           <DialogDescription>
@@ -355,7 +355,7 @@ export function NewProspectModal() {
             >
               {/* ── Section: Property Address ─────────────── */}
               <div>
-                <p className="text-[10px] font-semibold uppercase tracking-widest text-cyan/70 mb-3">
+                <p className="text-[10px] font-semibold uppercase tracking-widest text-primary/70 mb-3">
                   Property Address
                 </p>
                 <div className="space-y-3">
@@ -413,7 +413,7 @@ export function NewProspectModal() {
 
               {/* ── Section: Owner Info ───────────────────── */}
               <div>
-                <p className="text-[10px] font-semibold uppercase tracking-widest text-cyan/70 mb-3">
+                <p className="text-[10px] font-semibold uppercase tracking-widest text-primary/70 mb-3">
                   Owner Information
                 </p>
                 <div className="space-y-3">
@@ -446,7 +446,7 @@ export function NewProspectModal() {
 
               {/* ── Section: Property Details ─────────────── */}
               <div>
-                <p className="text-[10px] font-semibold uppercase tracking-widest text-cyan/70 mb-3">
+                <p className="text-[10px] font-semibold uppercase tracking-widest text-primary/70 mb-3">
                   Property Details
                 </p>
                 <div className="space-y-3">
@@ -473,7 +473,7 @@ export function NewProspectModal() {
                       <select
                         value={form.property_type}
                         onChange={(e) => update("property_type", e.target.value)}
-                        className="w-full h-9 rounded-md border border-input bg-transparent px-3 py-1 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-cyan/40"
+                        className="w-full h-9 rounded-md border border-input bg-transparent px-3 py-1 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-ring/40"
                       >
                         {PROPERTY_TYPES.map((t) => (
                           <option key={t} value={t}>{t}</option>
@@ -530,7 +530,7 @@ export function NewProspectModal() {
 
               {/* ── Section: Distress Signals ─────────────── */}
               <div>
-                <p className="text-[10px] font-semibold uppercase tracking-widest text-cyan/70 mb-3">
+                <p className="text-[10px] font-semibold uppercase tracking-widest text-primary/70 mb-3">
                   Prospecting Tags
                 </p>
                 <div className="flex flex-wrap gap-1.5">
@@ -549,8 +549,8 @@ export function NewProspectModal() {
                           className={cn(
                             "cursor-pointer transition-colors",
                             active
-                              ? "bg-cyan/15 text-cyan border-cyan/20"
-                              : "hover:bg-cyan/8 hover:border-cyan/15 hover:text-cyan"
+                              ? "bg-primary/15 text-primary border-primary/20"
+                              : "hover:bg-primary/8 hover:border-primary/15 hover:text-primary"
                           )}
                         >
                           {active && <Check className="h-2.5 w-2.5 mr-1" />}
@@ -567,7 +567,7 @@ export function NewProspectModal() {
                 <button
                   type="button"
                   onClick={() => setShowAdvanced((prev) => !prev)}
-                  className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/60 hover:text-cyan/70 transition-colors mb-1"
+                  className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/60 hover:text-primary/70 transition-colors mb-1"
                 >
                   {showAdvanced ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
                   Show Advanced Import Fields
@@ -579,7 +579,7 @@ export function NewProspectModal() {
                       <select
                         value={form.source_channel}
                         onChange={(e) => update("source_channel", e.target.value)}
-                        className="w-full h-9 rounded-md border border-input bg-transparent px-3 py-1 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-cyan/40"
+                        className="w-full h-9 rounded-md border border-input bg-transparent px-3 py-1 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-ring/40"
                       >
                         {SOURCE_CHANNEL_OPTIONS.map((option) => (
                           <option key={option} value={option}>{sourceChannelLabel(option)}</option>
@@ -615,7 +615,7 @@ export function NewProspectModal() {
                       <select
                         value={form.niche_tag}
                         onChange={(e) => update("niche_tag", e.target.value)}
-                        className="w-full h-9 rounded-md border border-input bg-transparent px-3 py-1 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-cyan/40"
+                        className="w-full h-9 rounded-md border border-input bg-transparent px-3 py-1 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-ring/40"
                       >
                         <option value="">None</option>
                         {NICHE_TAG_OPTIONS.map((option) => (
@@ -636,7 +636,7 @@ export function NewProspectModal() {
                       <select
                         value={form.outreach_type}
                         onChange={(e) => update("outreach_type", e.target.value)}
-                        className="w-full h-9 rounded-md border border-input bg-transparent px-3 py-1 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-cyan/40"
+                        className="w-full h-9 rounded-md border border-input bg-transparent px-3 py-1 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-ring/40"
                       >
                         {OUTREACH_TYPE_OPTIONS.map((option) => (
                           <option key={option} value={option}>{tagLabel(option)}</option>
@@ -647,7 +647,7 @@ export function NewProspectModal() {
                       <select
                         value={form.skip_trace_status}
                         onChange={(e) => update("skip_trace_status", e.target.value)}
-                        className="w-full h-9 rounded-md border border-input bg-transparent px-3 py-1 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-cyan/40"
+                        className="w-full h-9 rounded-md border border-input bg-transparent px-3 py-1 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-ring/40"
                       >
                         {SKIP_TRACE_STATUS_OPTIONS.map((option) => (
                           <option key={option} value={option}>{tagLabel(option)}</option>
@@ -658,7 +658,7 @@ export function NewProspectModal() {
                       <select
                         value={form.outbound_status}
                         onChange={(e) => update("outbound_status", e.target.value)}
-                        className="w-full h-9 rounded-md border border-input bg-transparent px-3 py-1 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-cyan/40"
+                        className="w-full h-9 rounded-md border border-input bg-transparent px-3 py-1 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-ring/40"
                       >
                         {OUTBOUND_STATUS_OPTIONS.map((option) => (
                           <option key={option} value={option}>{tagLabel(option)}</option>
@@ -671,7 +671,7 @@ export function NewProspectModal() {
               </div>
 
               <div>
-                <p className="text-[10px] font-semibold uppercase tracking-widest text-cyan/70 mb-3">
+                <p className="text-[10px] font-semibold uppercase tracking-widest text-primary/70 mb-3">
                   Assignment
                 </p>
                 <div className="flex flex-wrap gap-2">
@@ -683,7 +683,7 @@ export function NewProspectModal() {
                       className={cn(
                         "text-xs px-3 py-1.5 rounded-[12px] border transition-all flex items-center gap-1.5",
                         assignTo === member.id
-                          ? "text-cyan border-cyan/20 bg-cyan/8"
+                          ? "text-primary border-primary/20 bg-primary/8"
                           : "text-muted-foreground border-glass-border hover:border-white/20 hover:text-foreground"
                       )}
                     >
@@ -701,7 +701,7 @@ export function NewProspectModal() {
                   value={form.notes}
                   onChange={(e) => update("notes", e.target.value)}
                   rows={2}
-                  className="w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-cyan/40 resize-none"
+                  className="w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring/40 resize-none"
                 />
               </Field>
 
@@ -734,8 +734,8 @@ export function NewProspectModal() {
               className="py-6 space-y-5"
             >
               <div className="flex flex-col items-center text-center space-y-3">
-                <div className="h-14 w-14 rounded-2xl bg-cyan/8 flex items-center justify-center border border-cyan/15">
-                  <Check className="h-7 w-7 text-cyan" />
+                <div className="h-14 w-14 rounded-2xl bg-primary/8 flex items-center justify-center border border-primary/15">
+                  <Check className="h-7 w-7 text-primary" />
                 </div>
                 <div>
                   <p className="text-sm font-semibold text-foreground">

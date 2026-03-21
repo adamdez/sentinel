@@ -60,13 +60,13 @@ function QueueRow({ item, idx, flagged }: { item: QueueItem; idx: number; flagge
       transition={{ delay: 0.04 + idx * 0.035 }}
       className={`flex flex-col gap-0.5 px-2 py-1.5 rounded-[6px] border ${
         flagged
-          ? "bg-red-500/5 border-red-500/15"
+          ? "bg-muted/5 border-border/15"
           : "bg-secondary/15 border-glass-border"
       }`}
     >
       <div className="flex items-center gap-1.5">
         {flagged ? (
-          <Flag className="h-2.5 w-2.5 text-red-400 shrink-0" />
+          <Flag className="h-2.5 w-2.5 text-foreground shrink-0" />
         ) : (
           <Clock className="h-2.5 w-2.5 text-muted-foreground/40 shrink-0" />
         )}
@@ -80,7 +80,7 @@ function QueueRow({ item, idx, flagged }: { item: QueueItem; idx: number; flagge
         {item.leadHref && (
           <a
             href={item.leadHref}
-            className="text-muted-foreground/30 hover:text-cyan transition-colors shrink-0"
+            className="text-muted-foreground/30 hover:text-primary transition-colors shrink-0"
             title="Open lead"
           >
             <ExternalLink className="h-2.5 w-2.5" />
@@ -220,33 +220,33 @@ export function CallQualitySnapshot() {
         <StatChip
           value={tracesUnreviewed}
           label="Unreviewed"
-          color={tracesUnreviewed > 0 ? "text-amber-400" : "text-muted-foreground/40"}
+          color={tracesUnreviewed > 0 ? "text-foreground" : "text-muted-foreground/40"}
           idx={0}
         />
         <StatChip
           value={tracesFlagged}
           label="Flagged"
-          color={tracesFlagged > 0 ? "text-red-400" : "text-muted-foreground/40"}
+          color={tracesFlagged > 0 ? "text-foreground" : "text-muted-foreground/40"}
           idx={1}
         />
         <StatChip
           value={eventsMotivationCorrected + eventsTimelineCorrected}
           label="Corrected"
-          color="text-purple-400"
+          color="text-foreground"
           idx={2}
         />
         <StatChip
           value={eventsReviewed}
           label="Reviewed"
-          color="text-emerald-400"
+          color="text-foreground"
           idx={3}
         />
       </div>
 
       {/* Rate bars */}
       <div className="space-y-1">
-        <RateBar label="Flag rate" pct={flagRatePct} color="bg-red-500" />
-        <RateBar label="Correction" pct={correctionRatePct} color="bg-purple-500" />
+        <RateBar label="Flag rate" pct={flagRatePct} color="bg-muted" />
+        <RateBar label="Correction" pct={correctionRatePct} color="bg-muted" />
       </div>
 
       {/* Workflow breakdown */}
@@ -261,7 +261,7 @@ export function CallQualitySnapshot() {
               <p className="text-[9px] font-bold text-foreground">{wf.total}</p>
               <p className="text-[7px] text-muted-foreground/50">{wf.workflow}</p>
               {wf.flagRate !== null && wf.flagRate > 0 && (
-                <p className="text-[7px] text-red-400">{wf.flagRate}% flagged</p>
+                <p className="text-[7px] text-foreground">{wf.flagRate}% flagged</p>
               )}
             </div>
           ))}
@@ -272,7 +272,7 @@ export function CallQualitySnapshot() {
       {hasFlagged && (
         <div>
           <div className="flex items-center gap-1.5 mb-1">
-            <Flag className="h-2.5 w-2.5 text-red-400" />
+            <Flag className="h-2.5 w-2.5 text-foreground" />
             <p className="text-[9px] uppercase tracking-widest text-muted-foreground font-medium">
               Flagged — needs review
             </p>
@@ -309,15 +309,15 @@ export function CallQualitySnapshot() {
 
       {/* Correction detail */}
       {(eventsMotivationCorrected > 0 || eventsTimelineCorrected > 0) && (
-        <div className="flex items-center gap-1.5 px-2 py-1 rounded-[6px] bg-purple-500/5 border border-purple-500/15">
-          <PenLine className="h-2.5 w-2.5 text-purple-400 shrink-0" />
+        <div className="flex items-center gap-1.5 px-2 py-1 rounded-[6px] bg-muted/5 border border-border/15">
+          <PenLine className="h-2.5 w-2.5 text-foreground shrink-0" />
           <p className="text-[9px] text-muted-foreground/70">
             {eventsMotivationCorrected > 0 && (
-              <span className="text-purple-300">{eventsMotivationCorrected} motivation </span>
+              <span className="text-foreground">{eventsMotivationCorrected} motivation </span>
             )}
             {eventsMotivationCorrected > 0 && eventsTimelineCorrected > 0 && "+ "}
             {eventsTimelineCorrected > 0 && (
-              <span className="text-purple-300">{eventsTimelineCorrected} timeline </span>
+              <span className="text-foreground">{eventsTimelineCorrected} timeline </span>
             )}
             corrections by operators this window
           </p>

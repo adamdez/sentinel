@@ -14,7 +14,7 @@ export function ContactTab({ ownerName, ownerPhone, ownerEmail, onDial, onSms }:
   return (
     <div className="space-y-6 max-w-2xl mx-auto mt-6">
       <div className="bg-white/5 border border-white/10 rounded-xl p-6 flex flex-col items-center justify-center text-center gap-4">
-        <div className="w-16 h-16 rounded-full bg-cyan-500/20 text-cyan-400 flex items-center justify-center mb-2">
+        <div className="w-16 h-16 rounded-full bg-primary-500/20 text-primary-400 flex items-center justify-center mb-2">
           <User className="w-8 h-8" />
         </div>
         <h2 className="text-2xl font-bold">{ownerName}</h2>
@@ -30,13 +30,13 @@ export function ContactTab({ ownerName, ownerPhone, ownerEmail, onDial, onSms }:
               <div className="grid grid-cols-2 gap-2 mt-4">
                 <button 
                   onClick={() => onDial(ownerPhone)}
-                  className="bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30 border border-emerald-500/30 py-2 rounded font-medium transition-colors"
+                  className="bg-muted/20 text-foreground hover:bg-muted/30 border border-border/30 py-2 rounded font-medium transition-colors"
                 >
                   Call
                 </button>
                 <button 
                   onClick={() => onSms(ownerPhone)}
-                  className="bg-cyan-500/20 text-cyan-400 hover:bg-cyan-500/30 border border-cyan-500/30 py-2 rounded font-medium transition-colors"
+                  className="bg-primary-500/20 text-primary-400 hover:bg-primary-500/30 border border-primary-500/30 py-2 rounded font-medium transition-colors"
                 >
                   Text
                 </button>

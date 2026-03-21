@@ -105,9 +105,9 @@ function parseSourceLinks(raw: unknown): Array<{ label: string; url: string }> {
 
 function confidenceChipClass(c?: string): string {
   const x = (c ?? "").toLowerCase();
-  if (x === "high") return "border-emerald-500/40 bg-emerald-500/10 text-emerald-300";
-  if (x === "medium") return "border-amber-500/40 bg-amber-500/10 text-amber-200";
-  if (x === "low" || x === "unverified") return "border-red-500/35 bg-red-500/10 text-red-300/90";
+  if (x === "high") return "border-border/40 bg-muted/10 text-foreground";
+  if (x === "medium") return "border-border/40 bg-muted/10 text-foreground";
+  if (x === "low" || x === "unverified") return "border-border/35 bg-muted/10 text-foreground/90";
   return "border-white/15 bg-white/[0.04] text-muted-foreground";
 }
 
@@ -245,7 +245,7 @@ export function LeadDossierPanel({ leadId }: { leadId: string }) {
         </p>
         <Button
           size="sm"
-          className="gap-1.5 bg-cyan/15 hover:bg-cyan/25 text-cyan border border-cyan/25"
+          className="gap-1.5 bg-primary/15 hover:bg-primary/25 text-primary border border-primary/25"
           disabled={researchMutation.isPending}
           onClick={() => researchMutation.mutate()}
         >
@@ -269,11 +269,11 @@ export function LeadDossierPanel({ leadId }: { leadId: string }) {
     <div className="space-y-4">
       <div className="flex flex-wrap items-center gap-2">
         {isProposed ? (
-          <Badge className="border-amber-500/40 bg-amber-500/15 text-amber-200">Pending Review</Badge>
+          <Badge className="border-border/40 bg-muted/15 text-foreground">Pending Review</Badge>
         ) : status === "promoted" ? (
-          <Badge className="border-emerald-500/40 bg-emerald-500/15 text-emerald-200">Promoted</Badge>
+          <Badge className="border-border/40 bg-muted/15 text-foreground">Promoted</Badge>
         ) : (
-          <Badge className="border-emerald-500/40 bg-emerald-500/15 text-emerald-200">Reviewed</Badge>
+          <Badge className="border-border/40 bg-muted/15 text-foreground">Reviewed</Badge>
         )}
       </div>
 
@@ -281,7 +281,7 @@ export function LeadDossierPanel({ leadId }: { leadId: string }) {
         <div className="flex flex-wrap gap-2">
           <Button
             size="sm"
-            className="gap-1 bg-emerald-600/90 hover:bg-emerald-600"
+            className="gap-1 bg-muted/90 hover:bg-muted"
             disabled={reviewMutation.isPending}
             onClick={() =>
               reviewMutation.mutate({ dossier_id: display.id, status: "reviewed" })
@@ -307,7 +307,7 @@ export function LeadDossierPanel({ leadId }: { leadId: string }) {
       {!isProposed && status === "reviewed" && active?.id && (
         <Button
           size="sm"
-          className="gap-1.5 bg-cyan/15 hover:bg-cyan/25 text-cyan border border-cyan/25"
+          className="gap-1.5 bg-primary/15 hover:bg-primary/25 text-primary border border-primary/25"
           disabled={promoteMutation.isPending}
           onClick={() => promoteMutation.mutate(active.id)}
         >
@@ -324,8 +324,8 @@ export function LeadDossierPanel({ leadId }: { leadId: string }) {
       </div>
 
       {display.recommended_call_angle ? (
-        <div className="rounded-[10px] border border-cyan/25 bg-cyan/[0.06] px-3 py-2">
-          <h4 className="text-[10px] uppercase tracking-wider text-cyan/80 font-semibold mb-1">Recommended Call Angle</h4>
+        <div className="rounded-[10px] border border-primary/25 bg-primary/[0.06] px-3 py-2">
+          <h4 className="text-[10px] uppercase tracking-wider text-primary/80 font-semibold mb-1">Recommended Call Angle</h4>
           <p className="text-sm text-foreground/90">{display.recommended_call_angle}</p>
         </div>
       ) : null}
@@ -387,7 +387,7 @@ export function LeadDossierPanel({ leadId }: { leadId: string }) {
                 href={l.url}
                 target="_blank"
                 rel="noreferrer"
-                className="inline-flex items-center gap-1 text-xs text-cyan/80 hover:text-cyan"
+                className="inline-flex items-center gap-1 text-xs text-primary/80 hover:text-primary"
               >
                 <ExternalLink className="h-3 w-3 shrink-0" />
                 {l.label}
@@ -414,7 +414,7 @@ export function LeadDossierPanel({ leadId }: { leadId: string }) {
               <div key={a.id} className="p-3 text-[11px] space-y-1">
                 <p className="font-medium text-foreground/80">{a.source_label ?? a.source_type ?? "Evidence"}</p>
                 {a.source_url ? (
-                  <a href={a.source_url} target="_blank" rel="noreferrer" className="text-cyan/70 hover:text-cyan break-all">
+                  <a href={a.source_url} target="_blank" rel="noreferrer" className="text-primary/70 hover:text-primary break-all">
                     {a.source_url}
                   </a>
                 ) : null}

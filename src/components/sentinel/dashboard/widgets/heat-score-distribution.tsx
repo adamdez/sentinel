@@ -16,10 +16,10 @@ interface Bucket {
 }
 
 const BUCKETS_META: { label: string; min: number; max: number; color: string; glow: string }[] = [
-  { label: "FIRE",  min: 85, max: 999, color: "bg-red-500",    glow: "rgba(239,68,68,0.5)" },
-  { label: "HOT",   min: 65, max: 84,  color: "bg-orange-500", glow: "rgba(249,115,22,0.4)" },
-  { label: "WARM",  min: 40, max: 64,  color: "bg-yellow-500", glow: "rgba(234,179,8,0.35)" },
-  { label: "COLD",  min: 0,  max: 39,  color: "bg-blue-500",   glow: "rgba(59,130,246,0.35)" },
+  { label: "FIRE",  min: 85, max: 999, color: "bg-muted",    glow: "rgba(239,68,68,0.5)" },
+  { label: "HOT",   min: 65, max: 84,  color: "bg-muted", glow: "rgba(249,115,22,0.4)" },
+  { label: "WARM",  min: 40, max: 64,  color: "bg-muted", glow: "rgba(234,179,8,0.35)" },
+  { label: "COLD",  min: 0,  max: 39,  color: "bg-muted",   glow: "rgba(59,130,246,0.35)" },
 ];
 
 export function HeatScoreDistribution() {

@@ -225,7 +225,7 @@ export function DealClosingCard({ dealId, onUpdate }: DealClosingCardProps) {
 
   // ── Shared input classes ──
 
-  const inputClass = "w-full bg-white/[0.03] border border-white/[0.06] rounded-[6px] px-2.5 py-1.5 text-xs text-foreground placeholder:text-muted-foreground/30 focus:outline-none focus:border-cyan/20 transition-all";
+  const inputClass = "w-full bg-white/[0.03] border border-white/[0.06] rounded-[6px] px-2.5 py-1.5 text-xs text-foreground placeholder:text-muted-foreground/30 focus:outline-none focus:border-primary/20 transition-all";
   const labelClass = "text-[10px] text-muted-foreground/50 font-medium mb-1";
 
   // ── Checklist progress ──
@@ -251,7 +251,7 @@ export function DealClosingCard({ dealId, onUpdate }: DealClosingCardProps) {
             {checklistDone}/{checklistTotal}
           </span>
         )}
-        {saving && <Loader2 className="h-3 w-3 animate-spin text-cyan/60 ml-1" />}
+        {saving && <Loader2 className="h-3 w-3 animate-spin text-primary/60 ml-1" />}
       </button>
 
       <AnimatePresence initial={false}>
@@ -266,7 +266,7 @@ export function DealClosingCard({ dealId, onUpdate }: DealClosingCardProps) {
             <div className="mt-2 p-3 rounded-[8px] bg-white/[0.01] border border-white/[0.04] space-y-3">
               {loading ? (
                 <div className="flex items-center justify-center py-6">
-                  <Loader2 className="h-4 w-4 animate-spin text-cyan/40" />
+                  <Loader2 className="h-4 w-4 animate-spin text-primary/40" />
                 </div>
               ) : closing ? (
                 <>
@@ -333,7 +333,7 @@ export function DealClosingCard({ dealId, onUpdate }: DealClosingCardProps) {
                           className="flex items-center gap-2 w-full px-2 py-1.5 rounded-[4px] hover:bg-white/[0.02] transition-colors text-left"
                         >
                           {item.done ? (
-                            <CheckSquare className="h-3.5 w-3.5 text-neon/70 shrink-0" />
+                            <CheckSquare className="h-3.5 w-3.5 text-primary/70 shrink-0" />
                           ) : (
                             <Square className="h-3.5 w-3.5 text-muted-foreground/30 shrink-0" />
                           )}
@@ -383,7 +383,7 @@ export function DealClosingCard({ dealId, onUpdate }: DealClosingCardProps) {
                             )}
                           >
                             {task.status === "completed" ? (
-                              <CheckSquare className="h-3 w-3 text-neon/50 shrink-0" />
+                              <CheckSquare className="h-3 w-3 text-primary/50 shrink-0" />
                             ) : (
                               <Square className="h-3 w-3 text-muted-foreground/30 shrink-0" />
                             )}
@@ -397,7 +397,7 @@ export function DealClosingCard({ dealId, onUpdate }: DealClosingCardProps) {
                               <span className={cn(
                                 "text-[9px] shrink-0",
                                 new Date(task.due_at) < new Date() && task.status !== "completed"
-                                  ? "text-red-400/70"
+                                  ? "text-foreground/70"
                                   : "text-muted-foreground/40"
                               )}>
                                 {new Date(task.due_at).toLocaleDateString()}
@@ -426,7 +426,7 @@ export function DealClosingCard({ dealId, onUpdate }: DealClosingCardProps) {
                       <button
                         onClick={addTask}
                         disabled={!newTaskTitle.trim() || addingTask}
-                        className="flex items-center gap-1 px-2 py-1 text-[10px] font-medium text-cyan bg-cyan/8 hover:bg-cyan/12 rounded-[6px] border border-cyan/20 hover:border-cyan/30 transition-all disabled:opacity-30 disabled:cursor-not-allowed"
+                        className="flex items-center gap-1 px-2 py-1 text-[10px] font-medium text-primary bg-primary/8 hover:bg-primary/12 rounded-[6px] border border-primary/20 hover:border-primary/30 transition-all disabled:opacity-30 disabled:cursor-not-allowed"
                       >
                         <Plus className="h-2.5 w-2.5" />
                         Add

@@ -76,7 +76,7 @@ export function LogCallModal({
       >
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-2">
-            <PhoneOutgoing className="h-4 w-4 text-emerald-400" />
+            <PhoneOutgoing className="h-4 w-4 text-foreground" />
             <h3 className="text-sm font-semibold text-foreground">Log External Call</h3>
           </div>
           <button onClick={onClose} className="text-muted-foreground hover:text-foreground">
@@ -102,7 +102,7 @@ export function LogCallModal({
                   onClick={() => { setDisposition(d.value); setError(null); }}
                   className={`text-[10px] px-2 py-1.5 rounded border transition-colors ${
                     disposition === d.value
-                      ? "bg-cyan/15 text-cyan border-cyan/30 font-medium"
+                      ? "bg-primary/15 text-primary border-primary/30 font-medium"
                       : "bg-white/[0.03] text-muted-foreground border-white/[0.08] hover:bg-white/[0.06]"
                   }`}
                 >
@@ -120,18 +120,18 @@ export function LogCallModal({
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
               placeholder="Quick notes from the call..."
-              className="w-full bg-white/[0.03] border border-white/[0.08] rounded-md px-3 py-2 text-xs text-foreground placeholder:text-muted-foreground/40 resize-none h-16 focus:outline-none focus:border-cyan/30"
+              className="w-full bg-white/[0.03] border border-white/[0.08] rounded-md px-3 py-2 text-xs text-foreground placeholder:text-muted-foreground/40 resize-none h-16 focus:outline-none focus:border-primary/30"
             />
           </div>
 
           {error && (
-            <p className="text-[11px] text-red-400">{error}</p>
+            <p className="text-[11px] text-foreground">{error}</p>
           )}
 
           <button
             onClick={handleSave}
             disabled={saving || !disposition}
-            className="w-full py-2 rounded-md text-xs font-medium transition-colors bg-cyan/15 text-cyan border border-cyan/25 hover:bg-cyan/25 disabled:opacity-40 disabled:cursor-not-allowed"
+            className="w-full py-2 rounded-md text-xs font-medium transition-colors bg-primary/15 text-primary border border-primary/25 hover:bg-primary/25 disabled:opacity-40 disabled:cursor-not-allowed"
           >
             {saving ? "Saving..." : "Log Call"}
           </button>

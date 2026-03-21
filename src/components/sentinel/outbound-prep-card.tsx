@@ -59,7 +59,7 @@ export interface PrepFrameCardRow {
 
 function PrepOnlyBadge() {
   return (
-    <span className="inline-flex items-center gap-1 text-[9px] font-bold uppercase tracking-widest rounded border border-amber-500/30 bg-amber-500/10 text-amber-400 px-1.5 py-0.5">
+    <span className="inline-flex items-center gap-1 text-[9px] font-bold uppercase tracking-widest rounded border border-border/30 bg-muted/10 text-foreground px-1.5 py-0.5">
       <ShieldAlert className="w-2.5 h-2.5" />
       Prep only — no call placed
     </span>
@@ -68,12 +68,12 @@ function PrepOnlyBadge() {
 
 function ReadinessChip({ ready, reason }: { ready: boolean; reason: string | null }) {
   return ready ? (
-    <span className="inline-flex items-center gap-1 text-[10px] rounded border border-emerald-500/20 bg-emerald-500/10 text-emerald-400 px-2 py-0.5">
+    <span className="inline-flex items-center gap-1 text-[10px] rounded border border-border/20 bg-muted/10 text-foreground px-2 py-0.5">
       <CheckCircle2 className="w-2.5 h-2.5" />
       Handoff ready
     </span>
   ) : (
-    <span className="inline-flex items-center gap-1 text-[10px] rounded border border-red-500/20 bg-red-500/10 text-red-400 px-2 py-0.5">
+    <span className="inline-flex items-center gap-1 text-[10px] rounded border border-border/20 bg-muted/10 text-foreground px-2 py-0.5">
       <XCircle className="w-2.5 h-2.5" />
       Not ready{reason ? ` — ${reason}` : ""}
     </span>
@@ -198,7 +198,7 @@ export function OutboundPrepCard({ frame, onReviewed }: OutboundPrepCardProps) {
               </span>
               <div className="flex flex-wrap gap-1">
                 {frame.objection_tags.map(tag => (
-                  <Badge key={tag} variant="outline" className="text-[9px] px-1.5 py-0 border-amber-500/20 text-amber-400 bg-amber-500/5">
+                  <Badge key={tag} variant="outline" className="text-[9px] px-1.5 py-0 border-border/20 text-foreground bg-muted/5">
                     {OBJECTION_TAG_LABELS[tag as ObjectionTag] ?? tag}
                   </Badge>
                 ))}
@@ -248,7 +248,7 @@ export function OutboundPrepCard({ frame, onReviewed }: OutboundPrepCardProps) {
                         href={p.url}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="text-[10px] text-emerald-400 hover:underline"
+                        className="text-[10px] text-foreground hover:underline"
                       >
                         {p.label}
                       </a>
@@ -301,9 +301,9 @@ export function OutboundPrepCard({ frame, onReviewed }: OutboundPrepCardProps) {
                   disabled={saving || localStatus === status}
                   onClick={() => handleReview(status)}
                   className={`text-[10px] h-6 px-2 ${
-                    status === "approved" ? "border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/10" :
-                    status === "flagged"  ? "border-amber-500/30 text-amber-400 hover:bg-amber-500/10" :
-                                           "border-red-500/30 text-red-400 hover:bg-red-500/10"
+                    status === "approved" ? "border-border/30 text-foreground hover:bg-muted/10" :
+                    status === "flagged"  ? "border-border/30 text-foreground hover:bg-muted/10" :
+                                           "border-border/30 text-foreground hover:bg-muted/10"
                   } ${localStatus === status ? "opacity-40 cursor-default" : ""}`}
                 >
                   {saving ? <Loader2 className="w-2.5 h-2.5 animate-spin" /> : status.charAt(0).toUpperCase() + status.slice(1)}

@@ -20,9 +20,9 @@ export const metadata: Metadata = {
 
 function Faq({ q, a }: { q: string; a: React.ReactNode }) {
   return (
-    <div className="border-b border-gray-100 pb-5">
-      <p className="font-medium text-gray-800">{q}</p>
-      <div className="text-gray-500 text-sm mt-1.5 leading-relaxed space-y-2">{a}</div>
+    <div className="border-b border-border pb-5">
+      <p className="font-medium text-foreground">{q}</p>
+      <div className="text-foreground text-sm mt-1.5 leading-relaxed space-y-2">{a}</div>
     </div>
   );
 }
@@ -33,19 +33,19 @@ export default function SellAsIsPage() {
 
       {/* ── Hero ── */}
       <section className="space-y-4">
-        <p className="text-sm font-medium text-emerald-700 tracking-wide uppercase">Sell As-Is</p>
-        <h1 className="text-3xl sm:text-4xl font-bold text-gray-900 leading-tight">
+        <p className="text-sm font-medium text-foreground tracking-wide uppercase">Sell As-Is</p>
+        <h1 className="text-3xl sm:text-4xl font-bold text-foreground leading-tight">
           Your house needs work?<br className="hidden sm:block" />
           That&rsquo;s fine. We buy as-is.
         </h1>
-        <p className="text-lg text-gray-500 leading-relaxed max-w-xl">
+        <p className="text-lg text-foreground leading-relaxed max-w-xl">
           No repairs, no cleaning, no staging, no open houses.
           We buy houses in any condition in Spokane and Kootenai County.
           You don&rsquo;t need to fix a thing — we handle all of that after closing.
         </p>
         <a
           href="tel:+15098001234"
-          className="inline-flex items-center gap-2 bg-emerald-700 hover:bg-emerald-800 text-white text-sm font-medium px-5 py-2.5 rounded-lg transition-colors"
+          className="inline-flex items-center gap-2 bg-muted hover:bg-muted text-white text-sm font-medium px-5 py-2.5 rounded-lg transition-colors"
         >
           Call us: (509) 800-1234
         </a>
@@ -53,15 +53,15 @@ export default function SellAsIsPage() {
 
       {/* ── What "as-is" actually means ── */}
       <section className="space-y-4">
-        <h2 className="text-xl font-semibold text-gray-800">What &ldquo;as-is&rdquo; actually means</h2>
+        <h2 className="text-xl font-semibold text-foreground">What &ldquo;as-is&rdquo; actually means</h2>
         <div className="space-y-3">
-          <p className="text-gray-500 leading-relaxed">
+          <p className="text-foreground leading-relaxed">
             When we say we buy as-is, we mean it. You don&rsquo;t need to paint, patch,
             replace the roof, fix the plumbing, or haul anything out. The house can be
             outdated, damaged, cluttered, or just plain rough — it doesn&rsquo;t change whether
             we can buy it.
           </p>
-          <p className="text-gray-500 leading-relaxed">
+          <p className="text-foreground leading-relaxed">
             We factor the condition into our offer. That means the price reflects the work
             that needs to be done, but it also means you skip all the cost, time, and
             hassle of doing that work yourself. For most sellers in this situation,
@@ -72,8 +72,8 @@ export default function SellAsIsPage() {
 
       {/* ── What we commonly see ── */}
       <section className="space-y-3">
-        <h2 className="text-xl font-semibold text-gray-800">Houses we regularly buy</h2>
-        <ul className="list-disc list-inside space-y-1 text-gray-500 text-sm pl-1">
+        <h2 className="text-xl font-semibold text-foreground">Houses we regularly buy</h2>
+        <ul className="list-disc list-inside space-y-1 text-foreground text-sm pl-1">
           <li>Outdated kitchens, bathrooms, flooring</li>
           <li>Roof damage or aging systems (HVAC, plumbing, electrical)</li>
           <li>Foundation issues or structural concerns</li>
@@ -82,7 +82,7 @@ export default function SellAsIsPage() {
           <li>Code violations or unpermitted work</li>
           <li>Homes that have been sitting vacant</li>
         </ul>
-        <p className="text-gray-500 leading-relaxed text-sm">
+        <p className="text-foreground leading-relaxed text-sm">
           If your house has problems, there&rsquo;s a good chance we&rsquo;ve seen something similar.
           Call us and describe the situation — we&rsquo;ll tell you straight whether we can work with it.
         </p>
@@ -90,7 +90,7 @@ export default function SellAsIsPage() {
 
       {/* ── FAQ ── */}
       <section className="space-y-5">
-        <h2 className="text-xl font-semibold text-gray-800">Common questions</h2>
+        <h2 className="text-xl font-semibold text-foreground">Common questions</h2>
         <div className="space-y-5">
 
           <Faq
@@ -175,24 +175,24 @@ export default function SellAsIsPage() {
       </section>
 
       {/* ── Where we buy ── */}
-      <section className="rounded-xl bg-gray-50 border border-gray-100 px-5 py-5 space-y-2">
-        <p className="font-medium text-gray-700 text-sm">Where we buy</p>
-        <p className="text-gray-500 text-sm leading-relaxed">
+      <section className="rounded-xl bg-muted border border-border px-5 py-5 space-y-2">
+        <p className="font-medium text-foreground text-sm">Where we buy</p>
+        <p className="text-foreground text-sm leading-relaxed">
           Spokane County, WA and Kootenai County, ID — including Spokane, Spokane Valley,
           Coeur d&rsquo;Alene, Post Falls, and surrounding areas. We&rsquo;re local.
         </p>
       </section>
 
       {/* ── CTA ── */}
-      <section className="rounded-2xl bg-emerald-50 border border-emerald-100 px-6 py-8 space-y-3">
-        <p className="font-semibold text-gray-800 text-lg">Want to know what we&rsquo;d offer?</p>
-        <p className="text-gray-500 text-sm leading-relaxed">
+      <section className="rounded-2xl bg-muted border border-border px-6 py-8 space-y-3">
+        <p className="font-semibold text-foreground text-lg">Want to know what we&rsquo;d offer?</p>
+        <p className="text-foreground text-sm leading-relaxed">
           Call us, describe the house, and we&rsquo;ll give you a straight answer.
           No repairs needed. No obligation.
         </p>
         <a
           href="tel:+15098001234"
-          className="inline-flex items-center gap-2 bg-emerald-700 hover:bg-emerald-800 text-white text-sm font-medium px-5 py-2.5 rounded-lg transition-colors"
+          className="inline-flex items-center gap-2 bg-muted hover:bg-muted text-white text-sm font-medium px-5 py-2.5 rounded-lg transition-colors"
         >
           (509) 800-1234
         </a>

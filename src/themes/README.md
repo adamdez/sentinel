@@ -2,38 +2,32 @@
 
 ## Architecture
 
-1. **Semantic tokens** — `src/app/globals.css` defines `:root` CSS variables (`--background`, `--primary`, …) and maps them into Tailwind v4 via `@theme inline`.
-2. **Theme packs** — Alternate looks override those variables on `html[data-sentinel-theme="<id>"]`. The first pack is `ghost-mode` in `src/app/themes/ghost-mode.css`.
-3. **Registry** — `registry.ts` lists theme metadata (labels, copy). `types.ts` is the allow-list of ids.
-4. **Persistence** — `ThemeProvider` stores the selected id in `localStorage` under `sentinel-theme`. A small inline script in `layout.tsx` sets `data-sentinel-theme` before paint to avoid a flash.
-5. **Operator-safe surfaces** — Critical workflows opt in with `data-operator-safe`. Under Ghost Mode, `[data-operator-safe]` resets **semantic + `--shell-*` tokens** to production defaults (see `ghost-mode.css`).
+1. **Semantic tokens** — `src/app/globals.css` defines CSS variables (`--background`, `--primary`, …) and maps them into Tailwind via `@theme inline`.
+2. **Theme packs** — **Light** and **Dark** override those variables on `html[data-sentinel-theme="light"]` and `html[data-sentinel-theme="dark"]`. Both are **monochrome** (black / white / gray translucency only).
+3. **Registry** — `registry.ts` lists theme metadata (labels: **Light**, **Dark**). `types.ts` is the allow-list of ids (`"light" | "dark"`).
+4. **Persistence** — `ThemeProvider` stores the selected id in `localStorage` under `sentinel-theme`. Legacy values `default` and `ghost-mode` migrate to **`dark`**. A small inline script in `layout.tsx` sets `data-sentinel-theme` and toggles the `dark` class on `<html>` before paint to reduce flash.
+5. **Tailwind `dark:`** — When the theme is **Dark**, `document.documentElement` has class `dark`. **Light** removes it.
 
-### Phase 2 — shell tokens & layout boundaries
+### Shell tokens & layout boundaries
 
-- **`--shell-*` variables** in `:root` drive `.glass`, `.sidebar-glass`, `.topbar-glass`, `.modal-glass`, etc. Theme packs override variables instead of duplicating dozens of class rules.
-- **Hairline / inset** — `--border-hairline`, `--border-hairline-hover`, `--surface-inset`, `--surface-inset-mid` + Tailwind colors `border-border-hairline`, `bg-surface-inset-mid`, …
-- **`OperatorSafeBoundary`** — `src/components/theme/operator-safe-boundary.tsx`. **`/dialer/*`** is wrapped in `src/app/(sentinel)/dialer/layout.tsx` so individual dialer pages stay clean.
-- **Component helpers** — `src/lib/sentinel-ui.ts` (`filterChip`, `sentinelInput`) for repeated chip/input patterns.
-- **Policy doc** — `src/themes/operator-safe-policy.ts` lists which routes are protected and how to extend.
+- **`--shell-*` variables** drive `.glass`, `.sidebar-glass`, `.topbar-glass`, `.modal-glass`, etc. Theme blocks override variables instead of duplicating dozens of class rules.
+- **Hairline / inset** — `--border-hairline`, `--surface-inset`, … + Tailwind semantic colors.
+- **`OperatorSafeBoundary`** — `src/components/theme/operator-safe-boundary.tsx`. Critical routes can opt in with `data-operator-safe` for stable token scope (see `operator-safe-policy.ts`).
 
-Full plan + remaining debt: `docs/THEME-PHASE2-PLAN.md`.
+## Adding a theme variant
 
-## Adding a seasonal theme
-
-1. Add `SentinelThemeId` in `types.ts` (e.g. `"st-patricks"`).
+1. Extend `SentinelThemeId` in `types.ts` (only if product needs a third pack).
 2. Add an entry to `SENTINEL_THEMES` in `registry.ts`.
-3. Create `src/app/themes/st-patricks.css` (or one combined pack file) with:
-
-   ```css
-   html[data-sentinel-theme="st-patricks"] {
-     --primary: #…;
-     /* … */
-   }
-   ```
-
-4. Import that file from `src/app/layout.tsx` after `globals.css`.
-5. Prefer shell-only changes; use `[data-operator-safe]` overrides if workflow UI must stay neutral.
+3. Add a matching `html[data-sentinel-theme="<id>"] { … }` block in `globals.css` with **grayscale-only** semantic + `--shell-*` values.
 
 ## Tailwind
 
-Prefer existing semantic classes (`bg-background`, `text-foreground`, `border-border`, `bg-card`, `text-primary`, …). Avoid new hardcoded hex in components when a token exists.
+Prefer semantic classes (`bg-background`, `text-foreground`, `border-border`, `bg-card`, …). Avoid chroma in components when a token exists.
+
+## Maintenance scripts (repo root)
+
+- `node scripts/tokenize-colors.mjs` — maps `text-cyan` / Tailwind palette utilities (`text-emerald-*`, `text-blue-*`, …) to semantic tokens (`text-primary`, `text-foreground`, `bg-muted`, `border-border`, …).
+- `node scripts/neutralize-inline-rgba.mjs` — strips chroma from inline `rgba(...)` in `.ts`/`.tsx`.
+- `node scripts/replace-neon-token.mjs` — maps `text-neon` / `border-neon` / `bg-neon` to `primary` token utilities.
+
+**Rule:** Anything visible should resolve through CSS variables on `html[data-sentinel-theme="light"|"dark"]` — no fixed `#hex` or RGBA hues for UI chrome. (Brand SVGs may use `currentColor`; map tiles may use fixed grays for contrast on imagery.)

@@ -37,20 +37,20 @@ const SIGNAL_WEIGHT_LABELS: Record<string, string> = {
 };
 
 const DISTRESS_CFG: Record<string, { label: string; icon: typeof AlertTriangle; color: string }> = {
-  probate:          { label: "Probate",          icon: AlertTriangle, color: "text-red-400 bg-red-500/10 border-red-500/20" },
-  pre_foreclosure:  { label: "Pre-Foreclosure",  icon: AlertTriangle, color: "text-orange-400 bg-orange-500/10 border-orange-500/20" },
-  tax_lien:         { label: "Tax Lien",          icon: Banknote,      color: "text-amber-400 bg-amber-500/10 border-amber-500/20" },
-  code_violation:   { label: "Code Violation",    icon: Shield,        color: "text-yellow-400 bg-yellow-500/10 border-yellow-500/20" },
-  vacant:           { label: "Vacant",            icon: Home,          color: "text-purple-400 bg-purple-500/10 border-purple-500/20" },
-  divorce:          { label: "Divorce",           icon: Scale,         color: "text-pink-400 bg-pink-500/10 border-pink-500/20" },
-  bankruptcy:       { label: "Bankruptcy",        icon: AlertTriangle, color: "text-red-400 bg-red-500/10 border-red-500/20" },
-  fsbo:             { label: "FSBO",              icon: Building,      color: "text-emerald-400 bg-emerald-500/10 border-emerald-500/20" },
-  absentee:         { label: "Absentee",          icon: UserX,         color: "text-blue-400 bg-blue-500/10 border-blue-500/20" },
-  inherited:        { label: "Inherited",         icon: User,          color: "text-violet-400 bg-violet-500/10 border-violet-500/20" },
-  water_shutoff:    { label: "Water Shut-Off",   icon: AlertTriangle, color: "text-red-400 bg-red-500/10 border-red-500/20" },
-  condemned:        { label: "Condemned",        icon: AlertTriangle, color: "text-rose-400 bg-rose-500/10 border-rose-500/20" },
-  tired_landlord:   { label: "Tired Landlord",  icon: AlertTriangle, color: "text-amber-400 bg-amber-500/10 border-amber-500/20" },
-  underwater:       { label: "Underwater",       icon: AlertTriangle, color: "text-red-400 bg-red-500/10 border-red-500/20" },
+  probate:          { label: "Probate",          icon: AlertTriangle, color: "text-foreground bg-muted/10 border-border/20" },
+  pre_foreclosure:  { label: "Pre-Foreclosure",  icon: AlertTriangle, color: "text-foreground bg-muted/10 border-border/20" },
+  tax_lien:         { label: "Tax Lien",          icon: Banknote,      color: "text-foreground bg-muted/10 border-border/20" },
+  code_violation:   { label: "Code Violation",    icon: Shield,        color: "text-foreground bg-muted/10 border-border/20" },
+  vacant:           { label: "Vacant",            icon: Home,          color: "text-foreground bg-muted/10 border-border/20" },
+  divorce:          { label: "Divorce",           icon: Scale,         color: "text-foreground bg-muted/10 border-border/20" },
+  bankruptcy:       { label: "Bankruptcy",        icon: AlertTriangle, color: "text-foreground bg-muted/10 border-border/20" },
+  fsbo:             { label: "FSBO",              icon: Building,      color: "text-foreground bg-muted/10 border-border/20" },
+  absentee:         { label: "Absentee",          icon: UserX,         color: "text-foreground bg-muted/10 border-border/20" },
+  inherited:        { label: "Inherited",         icon: User,          color: "text-foreground bg-muted/10 border-border/20" },
+  water_shutoff:    { label: "Water Shut-Off",   icon: AlertTriangle, color: "text-foreground bg-muted/10 border-border/20" },
+  condemned:        { label: "Condemned",        icon: AlertTriangle, color: "text-foreground bg-muted/10 border-border/20" },
+  tired_landlord:   { label: "Tired Landlord",  icon: AlertTriangle, color: "text-foreground bg-muted/10 border-border/20" },
+  underwater:       { label: "Underwater",       icon: AlertTriangle, color: "text-foreground bg-muted/10 border-border/20" },
 };
 
 // Re-export for consumers that may need them
@@ -111,24 +111,24 @@ export function ScoreBreakdownModal({ cf, scoreType, onClose }: { cf: ClientFile
             modal-glass flex flex-col"
         >
           {/* Holographic top accent */}
-          <div className="absolute top-0 inset-x-0 h-[1px] bg-gradient-to-r from-transparent via-cyan/40 to-transparent" />
-          <div className="absolute top-0 inset-x-0 h-12 bg-gradient-to-b from-cyan/[0.03] to-transparent pointer-events-none" />
+          <div className="absolute top-0 inset-x-0 h-[1px] bg-gradient-to-r from-transparent via-primary/40 to-transparent" />
+          <div className="absolute top-0 inset-x-0 h-12 bg-gradient-to-b from-primary/[0.03] to-transparent pointer-events-none" />
 
           {/* Header */}
           <div className="shrink-0 flex items-center justify-between px-5 py-3.5 border-b border-white/[0.06]">
             <div className="flex items-center gap-2.5">
               <div className={cn(
                 "h-8 w-8 rounded-[10px] flex items-center justify-center",
-                scoreType === "composite" ? "bg-cyan/10 text-cyan" :
-                scoreType === "motivation" ? "bg-orange-500/10 text-orange-400" :
-                "bg-emerald-500/10 text-emerald-400"
+                scoreType === "composite" ? "bg-primary/10 text-primary" :
+                scoreType === "motivation" ? "bg-muted/10 text-foreground" :
+                "bg-muted/10 text-foreground"
               )}>
                 {scoreType === "composite" ? <Zap className="h-4 w-4" /> :
                  scoreType === "motivation" ? <AlertTriangle className="h-4 w-4" /> :
                  <DollarSign className="h-4 w-4" />}
               </div>
               <div>
-                <h3 className="text-sm font-bold text-white">
+                <h3 className="text-sm font-bold text-foreground">
                   {scoreType === "composite" ? "Match Score" : scoreType === "motivation" ? "Motivation Score" : "Deal Score"} Breakdown
                 </h3>
                 <p className="text-[10px] text-muted-foreground">
@@ -147,7 +147,7 @@ export function ScoreBreakdownModal({ cf, scoreType, onClose }: { cf: ClientFile
               <>
                 {/* Big score hero */}
                 <div className="text-center py-3">
-                  <p className="text-5xl font-black tabular-nums" style={{ textShadow: "0 0 24px rgba(0,212,255,0.3), 0 0 60px rgba(0,212,255,0.1)" }}>{cf.compositeScore}</p>
+                  <p className="text-5xl font-black tabular-nums" style={{ textShadow: "0 0 24px rgba(0,0,0,0.3), 0 0 60px rgba(0,0,0,0.1)" }}>{cf.compositeScore}</p>
                   <p className="text-[10px] text-muted-foreground uppercase tracking-widest mt-1">
                     {cf.scoreLabel.toUpperCase()} — Model {cf.modelVersion ?? "v2.0"}
                   </p>
@@ -164,8 +164,8 @@ export function ScoreBreakdownModal({ cf, scoreType, onClose }: { cf: ClientFile
 
                 {/* Blend weights */}
                 {pred && (
-                  <div className="rounded-[10px] border border-purple-500/15 bg-purple-500/[0.04] p-3">
-                    <p className="text-[10px] font-semibold text-purple-400 uppercase tracking-wider mb-2">Predictive Blend (v2.1)</p>
+                  <div className="rounded-[10px] border border-border/15 bg-muted/[0.04] p-3">
+                    <p className="text-[10px] font-semibold text-foreground uppercase tracking-wider mb-2">Predictive Blend (v2.1)</p>
                     <div className="grid grid-cols-2 gap-3 text-xs">
                       <div className="flex justify-between">
                         <span className="text-muted-foreground">Deterministic Weight</span>
@@ -173,7 +173,7 @@ export function ScoreBreakdownModal({ cf, scoreType, onClose }: { cf: ClientFile
                       </div>
                       <div className="flex justify-between">
                         <span className="text-muted-foreground">Predictive Weight</span>
-                        <span className="font-mono font-semibold text-purple-400">30%</span>
+                        <span className="font-mono font-semibold text-foreground">30%</span>
                       </div>
                       <div className="flex justify-between">
                         <span className="text-muted-foreground">Predictive Score</span>
@@ -181,7 +181,7 @@ export function ScoreBreakdownModal({ cf, scoreType, onClose }: { cf: ClientFile
                       </div>
                       <div className="flex justify-between">
                         <span className="text-muted-foreground">Confidence</span>
-                        <span className="font-mono font-semibold text-cyan">{pred.confidence}%</span>
+                        <span className="font-mono font-semibold text-primary">{pred.confidence}%</span>
                       </div>
                     </div>
                   </div>
@@ -211,7 +211,7 @@ export function ScoreBreakdownModal({ cf, scoreType, onClose }: { cf: ClientFile
                             <span>w/ severity + recency</span>
                           </div>
                           <div className="h-1 rounded-full bg-secondary/50 mt-1.5 overflow-hidden">
-                            <div className={cn("h-full rounded-full", cfg?.color?.split(" ")[0]?.replace("text-", "bg-") ?? "bg-cyan")} style={{ width: `${fillPct}%` }} />
+                            <div className={cn("h-full rounded-full", cfg?.color?.split(" ")[0]?.replace("text-", "bg-") ?? "bg-primary")} style={{ width: `${fillPct}%` }} />
                           </div>
                         </div>
                       );
@@ -228,7 +228,7 @@ export function ScoreBreakdownModal({ cf, scoreType, onClose }: { cf: ClientFile
                     {bonusFactors.map((f, i) => (
                       <div key={i} className="flex items-center justify-between text-xs px-3 py-1.5 rounded-[8px] bg-white/[0.02] border border-white/[0.04]">
                         <span className="text-muted-foreground">{SIGNAL_WEIGHT_LABELS[f.name] ?? f.name}</span>
-                        <span className={cn("font-mono font-bold", f.contribution >= 0 ? "text-cyan" : "text-red-400")}>
+                        <span className={cn("font-mono font-bold", f.contribution >= 0 ? "text-primary" : "text-foreground")}>
                           {f.contribution >= 0 ? "+" : ""}{f.contribution}
                         </span>
                       </div>
@@ -256,12 +256,12 @@ export function ScoreBreakdownModal({ cf, scoreType, onClose }: { cf: ClientFile
             {scoreType === "motivation" && (
               <>
                 <div className="text-center py-3">
-                  <p className="text-5xl font-black tabular-nums text-orange-400" style={{ textShadow: "0 0 24px rgba(249,115,22,0.3)" }}>{cf.motivationScore}</p>
+                  <p className="text-5xl font-black tabular-nums text-foreground" style={{ textShadow: "0 0 24px rgba(249,115,22,0.3)" }}>{cf.motivationScore}</p>
                   <p className="text-[10px] text-muted-foreground uppercase tracking-widest mt-1">Motivation Score — Owner Distress Intensity</p>
                 </div>
 
-                <div className="rounded-[10px] border border-orange-500/15 bg-orange-500/[0.03] p-3">
-                  <p className="text-[10px] font-semibold text-orange-400 uppercase tracking-wider mb-2">Formula</p>
+                <div className="rounded-[10px] border border-border/15 bg-muted/[0.03] p-3">
+                  <p className="text-[10px] font-semibold text-foreground uppercase tracking-wider mb-2">Formula</p>
                   <p className="text-xs text-muted-foreground font-mono leading-relaxed">
                     BaseSignalScore × RecencyDecay × 1.2 (capped at 100)
                   </p>
@@ -315,16 +315,16 @@ export function ScoreBreakdownModal({ cf, scoreType, onClose }: { cf: ClientFile
 
                 {/* Predictive life-event overlay */}
                 {pred && pred.lifeEventProbability != null && pred.lifeEventProbability > 0.05 && (
-                  <div className="rounded-[10px] border border-purple-500/15 bg-purple-500/[0.03] p-3">
-                    <p className="text-[10px] font-semibold text-purple-400 uppercase tracking-wider mb-2">Predictive Life-Event Intelligence</p>
+                  <div className="rounded-[10px] border border-border/15 bg-muted/[0.03] p-3">
+                    <p className="text-[10px] font-semibold text-foreground uppercase tracking-wider mb-2">Predictive Life-Event Intelligence</p>
                     <div className="grid grid-cols-2 gap-2 text-xs">
                       <div className="flex justify-between">
                         <span className="text-muted-foreground">Life-Event Probability</span>
-                        <span className="font-mono font-bold text-purple-400">{Math.round(pred.lifeEventProbability * 100)}%</span>
+                        <span className="font-mono font-bold text-foreground">{Math.round(pred.lifeEventProbability * 100)}%</span>
                       </div>
                       <div className="flex justify-between">
                         <span className="text-muted-foreground">Est. Distress In</span>
-                        <span className="font-mono font-bold text-orange-400">~{pred.daysUntilDistress}d</span>
+                        <span className="font-mono font-bold text-foreground">~{pred.daysUntilDistress}d</span>
                       </div>
                       {pred.ownerAgeInference && (
                         <div className="flex justify-between">
@@ -335,7 +335,7 @@ export function ScoreBreakdownModal({ cf, scoreType, onClose }: { cf: ClientFile
                       {pred.equityBurnRate != null && (
                         <div className="flex justify-between">
                           <span className="text-muted-foreground">Equity Burn Rate</span>
-                          <span className="font-mono font-semibold text-red-400">{Math.round(pred.equityBurnRate * 100)}%/yr</span>
+                          <span className="font-mono font-semibold text-foreground">{Math.round(pred.equityBurnRate * 100)}%/yr</span>
                         </div>
                       )}
                     </div>
@@ -346,10 +346,10 @@ export function ScoreBreakdownModal({ cf, scoreType, onClose }: { cf: ClientFile
                 {(cf.isAbsentee || cf.isVacant || cf.isFreeClear || cf.isHighEquity) && (
                   <div className="space-y-1">
                     <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Owner Profile Impact</p>
-                    {cf.isAbsentee && <BreakdownRow label="Absentee Owner" value="+5 pts" color="text-amber-400" />}
-                    {cf.isVacant && <BreakdownRow label="Vacant Property" value="+4 pts" color="text-purple-400" />}
-                    {cf.isFreeClear && <BreakdownRow label="Free & Clear (no mortgage pressure)" value="+0 pts" color="text-emerald-400" />}
-                    {cf.isHighEquity && <BreakdownRow label="High Equity" value="Equity factor boost" color="text-cyan" />}
+                    {cf.isAbsentee && <BreakdownRow label="Absentee Owner" value="+5 pts" color="text-foreground" />}
+                    {cf.isVacant && <BreakdownRow label="Vacant Property" value="+4 pts" color="text-foreground" />}
+                    {cf.isFreeClear && <BreakdownRow label="Free & Clear (no mortgage pressure)" value="+0 pts" color="text-foreground" />}
+                    {cf.isHighEquity && <BreakdownRow label="High Equity" value="Equity factor boost" color="text-primary" />}
                   </div>
                 )}
               </>
@@ -358,12 +358,12 @@ export function ScoreBreakdownModal({ cf, scoreType, onClose }: { cf: ClientFile
             {scoreType === "deal" && (
               <>
                 <div className="text-center py-3">
-                  <p className="text-5xl font-black tabular-nums text-emerald-400" style={{ textShadow: "0 0 24px rgba(16,185,129,0.3)" }}>{cf.dealScore}</p>
+                  <p className="text-5xl font-black tabular-nums text-foreground" style={{ textShadow: "0 0 20px rgba(0,0,0,0.12)" }}>{cf.dealScore}</p>
                   <p className="text-[10px] text-muted-foreground uppercase tracking-widest mt-1">Deal Score — Investment Viability Index</p>
                 </div>
 
-                <div className="rounded-[10px] border border-emerald-500/15 bg-emerald-500/[0.03] p-3">
-                  <p className="text-[10px] font-semibold text-emerald-400 uppercase tracking-wider mb-2">Formula</p>
+                <div className="rounded-[10px] border border-border/15 bg-muted/[0.03] p-3">
+                  <p className="text-[10px] font-semibold text-foreground uppercase tracking-wider mb-2">Formula</p>
                   <p className="text-xs text-muted-foreground font-mono leading-relaxed">
                     EquityFactor × 2 + AIBoost + StackingBonus × 0.5 (capped at 100)
                   </p>
@@ -375,17 +375,17 @@ export function ScoreBreakdownModal({ cf, scoreType, onClose }: { cf: ClientFile
                   <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs">
                     <div className="flex justify-between px-3 py-1.5 rounded-[8px] bg-white/[0.02] border border-white/[0.04]">
                       <span className="text-muted-foreground">ARV / AVM</span>
-                      <span className="font-mono font-bold text-neon">{arv > 0 ? formatCurrency(arv) : "—"}</span>
+                      <span className="font-mono font-bold text-foreground">{arv > 0 ? formatCurrency(arv) : "—"}</span>
                     </div>
                     <div className="flex justify-between px-3 py-1.5 rounded-[8px] bg-white/[0.02] border border-white/[0.04]">
                       <span className="text-muted-foreground">Equity %</span>
-                      <span className={cn("font-mono font-bold", equityDataCorrupt && "text-amber-400 text-[10px] font-normal")}>
+                      <span className={cn("font-mono font-bold", equityDataCorrupt && "text-foreground text-[10px] font-normal")}>
                         {equityDataCorrupt ? "Data unavailable" : eqPct > 0 ? `${eqPct}%` : "—"}
                       </span>
                     </div>
                     <div className="flex justify-between px-3 py-1.5 rounded-[8px] bg-white/[0.02] border border-white/[0.04]">
                       <span className="text-muted-foreground">Available Equity</span>
-                      <span className={cn("font-mono font-semibold", equityDataCorrupt && "text-amber-400 text-[10px] font-normal")}>
+                      <span className={cn("font-mono font-semibold", equityDataCorrupt && "text-foreground text-[10px] font-normal")}>
                         {equityDataCorrupt ? "Run property analysis" : availableEquity > 0 ? formatCurrency(availableEquity) : "—"}
                       </span>
                     </div>
@@ -407,21 +407,21 @@ export function ScoreBreakdownModal({ cf, scoreType, onClose }: { cf: ClientFile
                       </div>
                       <div className="flex justify-between">
                         <span className="text-muted-foreground">Offer @ 65%</span>
-                        <span className="font-mono text-red-400">-{formatCurrency(offer)}</span>
+                        <span className="font-mono text-foreground">-{formatCurrency(offer)}</span>
                       </div>
                       <div className="flex justify-between">
                         <span className="text-muted-foreground">Rehab Est.</span>
-                        <span className="font-mono text-red-400">-{formatCurrency(quickUnderwrite.rehabEstimate)}</span>
+                        <span className="font-mono text-foreground">-{formatCurrency(quickUnderwrite.rehabEstimate)}</span>
                       </div>
                       <div className="border-t border-white/[0.06] pt-1.5 mt-1.5 flex justify-between">
                         <span className="font-semibold">Net Profit</span>
-                        <span className={cn("font-mono font-bold text-lg", profit >= 0 ? "text-neon" : "text-red-400")} style={profit >= 0 ? { textShadow: "0 0 10px rgba(0,212,255,0.25)" } : {}}>
+                        <span className={cn("font-mono font-bold text-lg", profit >= 0 ? "text-foreground" : "text-foreground")} style={profit >= 0 ? { textShadow: "0 0 10px rgba(0,0,0,0.25)" } : {}}>
                           {formatCurrency(profit)}
                         </span>
                       </div>
                       <div className="flex justify-between text-[10px]">
                         <span className="text-muted-foreground">ROI</span>
-                        <span className={cn("font-mono font-semibold", roi >= 0 ? "text-neon" : "text-red-400")}>{roi}%</span>
+                        <span className={cn("font-mono font-semibold", roi >= 0 ? "text-foreground" : "text-foreground")}>{roi}%</span>
                       </div>
                     </div>
                     <p className="text-[9px] text-muted-foreground/40 italic">
@@ -436,13 +436,13 @@ export function ScoreBreakdownModal({ cf, scoreType, onClose }: { cf: ClientFile
                   {bonusFactors.filter((f) => f.name === "equity" || f.name === "comp_ratio" || f.name === "ai_boost" || f.name === "stacking_bonus").map((f, i) => (
                     <div key={i} className="flex items-center justify-between text-xs px-3 py-1.5 rounded-[8px] bg-white/[0.02] border border-white/[0.04]">
                       <span className="text-muted-foreground">{SIGNAL_WEIGHT_LABELS[f.name] ?? f.name}</span>
-                      <span className="font-mono font-bold text-cyan">+{f.contribution}</span>
+                      <span className="font-mono font-bold text-primary">+{f.contribution}</span>
                     </div>
                   ))}
                   {cf.aiBoost > 0 && !bonusFactors.some((f) => f.name === "ai_boost") && (
                     <div className="flex items-center justify-between text-xs px-3 py-1.5 rounded-[8px] bg-white/[0.02] border border-white/[0.04]">
                       <span className="text-muted-foreground">AI Historical Boost</span>
-                      <span className="font-mono font-bold text-cyan">+{cf.aiBoost}</span>
+                      <span className="font-mono font-bold text-primary">+{cf.aiBoost}</span>
                     </div>
                   )}
                 </div>

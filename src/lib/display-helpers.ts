@@ -76,7 +76,7 @@ export function fmtPrice(v: number | null | undefined): string {
  * Positive = green, negative = red, zero = muted.
  */
 export function spreadColor(spread: number): string {
-  if (spread > 0) return "text-emerald-400";
-  if (spread < 0) return "text-red-400";
+  if (spread > 0) return "text-foreground";
+  if (spread < 0) return "text-foreground";
   return "text-muted-foreground";
 }

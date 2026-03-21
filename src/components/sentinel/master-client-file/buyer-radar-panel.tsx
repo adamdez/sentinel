@@ -100,7 +100,7 @@ export function BuyerRadarPanel({ leadId, isAdminView = false }: BuyerRadarPanel
         className="w-full flex items-center justify-between gap-2 px-3 py-2.5 hover:bg-white/[0.03] transition-colors text-left"
       >
         <div className="flex items-center gap-2">
-          <Radar className="h-3.5 w-3.5 text-cyan" />
+          <Radar className="h-3.5 w-3.5 text-primary" />
           <span className="text-[11px] text-muted-foreground uppercase tracking-wider font-semibold">
             Buyer Radar
           </span>
@@ -121,7 +121,7 @@ export function BuyerRadarPanel({ leadId, isAdminView = false }: BuyerRadarPanel
         <div className="border-t border-white/[0.06] px-3 pb-3 pt-2 space-y-2">
 
           {error && (
-            <div className="flex items-center gap-2 text-[11px] text-red-400/80 bg-red-500/5 rounded-[8px] px-2.5 py-2">
+            <div className="flex items-center gap-2 text-[11px] text-foreground/80 bg-muted/5 rounded-[8px] px-2.5 py-2">
               <AlertTriangle className="h-3.5 w-3.5 flex-shrink-0" />
               {error}
             </div>
@@ -144,10 +144,10 @@ export function BuyerRadarPanel({ leadId, isAdminView = false }: BuyerRadarPanel
 
           {/* Adam-only: monetizability score */}
           {isAdminView && data?.monetizabilityVisible && data.monetizabilityScore !== null && (
-            <div className="flex items-center justify-between rounded-[8px] bg-cyan/5 border border-cyan/10 px-2.5 py-2">
-              <span className="text-[10px] text-cyan/70 uppercase tracking-wider font-semibold">Computed Monetizability</span>
+            <div className="flex items-center justify-between rounded-[8px] bg-primary/5 border border-primary/10 px-2.5 py-2">
+              <span className="text-[10px] text-primary/70 uppercase tracking-wider font-semibold">Computed Monetizability</span>
               <div className="flex items-center gap-1.5">
-                <span className="text-[13px] font-mono font-semibold text-cyan">{data.monetizabilityScore.toFixed(1)}</span>
+                <span className="text-[13px] font-mono font-semibold text-primary">{data.monetizabilityScore.toFixed(1)}</span>
                 <span className="text-[10px] text-muted-foreground/50">/10</span>
               </div>
             </div>
@@ -238,7 +238,7 @@ function BuyerRow({
             )}
             {buyer.reliability_score !== null && buyer.reliability_score >= 4 && (
               <span title={`Reliability ${buyer.reliability_score}/5`}>
-                <Star className="h-2.5 w-2.5 text-yellow-400/60 fill-yellow-400/40" />
+                <Star className="h-2.5 w-2.5 text-foreground/60 fill-yellow-400/40" />
               </span>
             )}
           </div>
@@ -268,7 +268,7 @@ function BuyerRow({
           {(staleFlag || flags.length > 0 || eliminateReason) && (
             <div className="flex items-center gap-1.5 flex-wrap mt-0.5">
               {staleFlag && (
-                <span className="flex items-center gap-1 text-[9.5px] text-amber-400/70 bg-amber-400/[0.08] rounded px-1.5 py-0.5">
+                <span className="flex items-center gap-1 text-[9.5px] text-foreground/70 bg-muted/[0.08] rounded px-1.5 py-0.5">
                   <Clock className="h-2.5 w-2.5" />
                   Verify still buying
                 </span>
@@ -279,7 +279,7 @@ function BuyerRow({
                 </span>
               ))}
               {eliminateReason && (
-                <span className="text-[9.5px] text-red-400/50">{eliminateReason}</span>
+                <span className="text-[9.5px] text-foreground/50">{eliminateReason}</span>
               )}
             </div>
           )}
@@ -293,7 +293,7 @@ function BuyerRow({
             ) : existingStatus === "passed" ? (
               <span className="text-[9.5px] text-muted-foreground/40 italic">Dismissed</span>
             ) : existingStatus && ["queued", "sent", "interested", "offered", "selected"].includes(existingStatus) ? (
-              <span className="text-[9.5px] text-cyan/60 italic">In pipeline</span>
+              <span className="text-[9.5px] text-primary/60 italic">In pipeline</span>
             ) : (
               <>
                 <button
@@ -303,7 +303,7 @@ function BuyerRow({
                   className={cn(
                     "flex items-center gap-1 text-[10px] px-2 py-1 rounded-[6px] font-medium transition-colors",
                     dealId
-                      ? "bg-cyan/10 text-cyan/80 hover:bg-cyan/20 border border-cyan/15"
+                      ? "bg-primary/10 text-primary/80 hover:bg-primary/20 border border-primary/15"
                       : "bg-white/[0.04] text-muted-foreground/30 border border-white/[0.04] cursor-not-allowed"
                   )}
                 >
@@ -335,13 +335,13 @@ function BuyerRow({
 
 function StatusBadge({ status }: { status: string }) {
   const cfg: Record<string, { label: string; className: string }> = {
-    queued:     { label: "Queued",     className: "bg-cyan/10 text-cyan/70 border-cyan/15" },
-    sent:       { label: "Sent",       className: "bg-blue-500/10 text-blue-400/70 border-blue-500/15" },
-    interested: { label: "Interested", className: "bg-green-500/10 text-green-400/70 border-green-500/15" },
-    offered:    { label: "Offered",    className: "bg-yellow-500/10 text-yellow-400/70 border-yellow-500/15" },
-    selected:   { label: "Selected",   className: "bg-emerald-500/10 text-emerald-400/80 border-emerald-500/15" },
+    queued:     { label: "Queued",     className: "bg-primary/10 text-primary/70 border-primary/15" },
+    sent:       { label: "Sent",       className: "bg-muted/10 text-foreground/70 border-border/15" },
+    interested: { label: "Interested", className: "bg-muted/10 text-foreground/70 border-border/15" },
+    offered:    { label: "Offered",    className: "bg-muted/10 text-foreground/70 border-border/15" },
+    selected:   { label: "Selected",   className: "bg-muted/10 text-foreground/80 border-border/15" },
     passed:     { label: "Passed",     className: "bg-white/[0.04] text-muted-foreground/40 border-white/[0.06]" },
-    follow_up:  { label: "Follow Up",  className: "bg-amber-500/10 text-amber-400/70 border-amber-500/15" },
+    follow_up:  { label: "Follow Up",  className: "bg-muted/10 text-foreground/70 border-border/15" },
   };
   const c = cfg[status];
   if (!c) return null;

@@ -102,8 +102,8 @@ export function RevenueImpact() {
             <span className="text-sm font-bold">{m.value}</span>
             {m.change && (
               <motion.span
-                className="text-[10px] text-cyan flex items-center gap-0.5"
-                style={{ textShadow: "0 0 6px rgba(0,212,255,0.4)" }}
+                className="text-[10px] text-primary flex items-center gap-0.5"
+                style={{ textShadow: "0 0 6px rgba(0,0,0,0.4)" }}
               >
                 <ArrowUpRight className="h-2.5 w-2.5" />
                 {m.change}
@@ -117,7 +117,7 @@ export function RevenueImpact() {
         <div
           className="absolute inset-0 pointer-events-none"
           style={{
-            background: "linear-gradient(to top, rgba(0,212,255,0.03) 0%, transparent 60%)",
+            background: "linear-gradient(to top, rgba(0,0,0,0.03) 0%, transparent 60%)",
           }}
         />
         {d.monthlyTotals.map((val, i) => {
@@ -131,10 +131,10 @@ export function RevenueImpact() {
               transition={{ delay: 0.3 + i * 0.03, duration: 0.4 }}
               className={cn(
                 "flex-1 rounded-t-sm relative",
-                isCurrentMonth ? "bg-cyan" : val > 0 ? "bg-cyan/30" : "bg-cyan/10"
+                isCurrentMonth ? "bg-primary" : val > 0 ? "bg-primary/30" : "bg-primary/10"
               )}
               style={isCurrentMonth ? {
-                boxShadow: "0 0 10px rgba(0,212,255,0.4), 0 -4px 15px rgba(0,212,255,0.2)",
+                boxShadow: "0 0 10px rgba(0,0,0,0.4), 0 -4px 15px rgba(0,0,0,0.2)",
               } : {}}
             />
           );

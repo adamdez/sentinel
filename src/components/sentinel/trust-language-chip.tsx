@@ -67,7 +67,7 @@ export function TrustLanguageChip({
 
   return (
     <div
-      className={`rounded-[8px] border border-cyan/[0.12] bg-cyan/[0.02] overflow-hidden transition-colors hover:bg-cyan/[0.035] ${className}`}
+      className={`rounded-[8px] border border-primary/[0.12] bg-primary/[0.02] overflow-hidden transition-colors hover:bg-primary/[0.035] ${className}`}
     >
       {/* Collapsed header */}
       <button
@@ -78,8 +78,8 @@ export function TrustLanguageChip({
         onClick={() => setOpen(o => !o)}
         title={open ? "Collapse" : "Expand script"}
       >
-        <Info className={`shrink-0 text-cyan/50 ${compact ? "h-2.5 w-2.5" : "h-3 w-3"}`} />
-        <span className={`flex-1 font-medium text-cyan/80 truncate ${compact ? "text-[9px]" : "text-[10px]"}`}>
+        <Info className={`shrink-0 text-primary/50 ${compact ? "h-2.5 w-2.5" : "h-3 w-3"}`} />
+        <span className={`flex-1 font-medium text-primary/80 truncate ${compact ? "text-[9px]" : "text-[10px]"}`}>
           {snippet.label}
         </span>
         {!open && (
@@ -95,7 +95,7 @@ export function TrustLanguageChip({
 
       {/* Expanded body */}
       {open && (
-        <div className={`border-t border-cyan/[0.08] space-y-2 ${compact ? "px-2.5 py-2" : "px-3 py-2.5"}`}>
+        <div className={`border-t border-primary/[0.08] space-y-2 ${compact ? "px-2.5 py-2" : "px-3 py-2.5"}`}>
           {/* Approved copy */}
           <p className={`text-foreground/75 leading-relaxed whitespace-pre-line ${compact ? "text-[10px]" : "text-[11px]"}`}>
             {snippet.copy}
@@ -118,7 +118,7 @@ export function TrustLanguageChip({
             className="flex items-center gap-1 rounded-[5px] border border-white/[0.07] bg-white/[0.03] px-2 py-0.5 text-[8px] text-muted-foreground/40 hover:text-muted-foreground/70 hover:border-white/[0.12] transition-colors"
           >
             {copied
-              ? <><Check className="h-2.5 w-2.5 text-emerald-400" /> Copied</>
+              ? <><Check className="h-2.5 w-2.5 text-foreground" /> Copied</>
               : <><Copy  className="h-2.5 w-2.5" /> Copy script</>
             }
           </button>

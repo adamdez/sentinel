@@ -213,7 +213,7 @@ export default function ImportPage() {
           <div
             className={cn(
               "cursor-pointer rounded-2xl border-2 border-dashed p-12 text-center transition-all",
-              dragOver ? "border-cyan/50 bg-cyan/[0.04]" : "border-white/[0.08] hover:border-cyan/30 hover:bg-cyan/[0.02]",
+              dragOver ? "border-primary/50 bg-primary/[0.04]" : "border-white/[0.08] hover:border-primary/30 hover:bg-primary/[0.02]",
             )}
             onClick={() => fileInputRef.current?.click()}
             onDragOver={(event) => { event.preventDefault(); setDragOver(true); }}
@@ -225,7 +225,7 @@ export default function ImportPage() {
               if (nextFile) void handleFile(nextFile);
             }}
           >
-            <Upload className="mx-auto mb-4 h-12 w-12 text-cyan/60" />
+            <Upload className="mx-auto mb-4 h-12 w-12 text-primary/60" />
             <h3 className="text-lg font-semibold text-foreground">Drop a CSV or XLSX file here</h3>
             <p className="mt-2 text-sm text-muted-foreground/70">Sentinel will inspect sheet structure, guess mappings, and stop for review if confidence is weak.</p>
           </div>
@@ -236,7 +236,7 @@ export default function ImportPage() {
         <div className="space-y-4">
           <GlassCard>
             <div className="flex flex-wrap items-start gap-3">
-              <FileSpreadsheet className="mt-0.5 h-5 w-5 text-cyan" />
+              <FileSpreadsheet className="mt-0.5 h-5 w-5 text-primary" />
               <div className="flex-1">
                 <p className="text-sm font-medium">{preview.workbook.fileName}</p>
                 <p className="text-xs text-muted-foreground/60">{preview.workbook.kind.toUpperCase()} · {selectedSheetMeta?.rowCount ?? 0} rows · header row {(selectedSheetMeta?.headerRowIndex ?? 0) + 1}</p>
@@ -267,7 +267,7 @@ export default function ImportPage() {
               </div>
               {groupedSuggestions.map(([group, items]) => (
                 <div key={group} className="space-y-2">
-                  <p className="text-[10px] uppercase tracking-[0.18em] text-cyan/65">{group}</p>
+                  <p className="text-[10px] uppercase tracking-[0.18em] text-primary/65">{group}</p>
                   {items.map((suggestion) => (
                     <div key={suggestion.field} className="grid gap-2 rounded-xl border border-white/[0.06] bg-white/[0.02] p-3 lg:grid-cols-[160px_1fr_90px]">
                       <div>
@@ -284,9 +284,9 @@ export default function ImportPage() {
                       </select>
                       <div className="text-right">
                         <Badge variant="outline" className={cn(
-                          suggestion.confidenceLabel === "high" && "border-emerald-500/20 text-emerald-300",
-                          suggestion.confidenceLabel === "medium" && "border-amber-500/20 text-amber-300",
-                          suggestion.confidenceLabel === "low" && "border-rose-500/20 text-rose-300",
+                          suggestion.confidenceLabel === "high" && "border-border/20 text-foreground",
+                          suggestion.confidenceLabel === "medium" && "border-border/20 text-foreground",
+                          suggestion.confidenceLabel === "low" && "border-border/20 text-foreground",
                         )}>{suggestion.confidenceLabel}</Badge>
                       </div>
                     </div>
@@ -309,11 +309,11 @@ export default function ImportPage() {
                 </div>
               </GlassCard>
               {preview.requiresReview ? (
-                <GlassCard className="border-amber-500/20">
+                <GlassCard className="border-border/20">
                   <div className="flex gap-3">
-                    <ShieldAlert className="mt-0.5 h-4 w-4 text-amber-300" />
+                    <ShieldAlert className="mt-0.5 h-4 w-4 text-foreground" />
                     <div>
-                      <p className="text-sm font-semibold text-amber-100">Review required</p>
+                      <p className="text-sm font-semibold text-foreground">Review required</p>
                       <p className="mt-1 text-xs text-muted-foreground/70">Low-confidence mappings or risky rows were found. Sentinel will not pretend those are certain.</p>
                     </div>
                   </div>
@@ -371,7 +371,7 @@ export default function ImportPage() {
             </div>
             <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={saveTemplate} onChange={(event) => setSaveTemplate(event.target.checked)} className="h-4 w-4" />Save or update a reusable template</label>
             {saveTemplate ? <Input value={defaults.templateName} onChange={(event) => setDefaults((prev) => ({ ...prev, templateName: event.target.value }))} placeholder="Spokane county absentee export" /> : null}
-            {(preview.requiresReview || preview.lowConfidenceFields.length > 0) ? <label className="flex items-start gap-2 rounded-2xl border border-amber-500/20 bg-amber-500/[0.05] p-4 text-sm"><input type="checkbox" checked={ackReview} onChange={(event) => setAckReview(event.target.checked)} className="mt-0.5 h-4 w-4" /><span className="text-muted-foreground/75">I reviewed the low-confidence mappings and want to proceed anyway.</span></label> : null}
+            {(preview.requiresReview || preview.lowConfidenceFields.length > 0) ? <label className="flex items-start gap-2 rounded-2xl border border-border/20 bg-muted/[0.05] p-4 text-sm"><input type="checkbox" checked={ackReview} onChange={(event) => setAckReview(event.target.checked)} className="mt-0.5 h-4 w-4" /><span className="text-muted-foreground/75">I reviewed the low-confidence mappings and want to proceed anyway.</span></label> : null}
             <div className="flex justify-between">
               <Button variant="outline" onClick={() => setStep("mapping")}>Back</Button>
               <Button onClick={() => void runImport()} disabled={importing || (preview.requiresReview && !ackReview)}>{importing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}Run Import</Button>
@@ -396,7 +396,7 @@ export default function ImportPage() {
             {preview.unmappedHeaders.length > 0 ? (
               <GlassCard>
                 <div className="flex items-start gap-3">
-                  <AlertTriangle className="mt-0.5 h-4 w-4 text-amber-300" />
+                  <AlertTriangle className="mt-0.5 h-4 w-4 text-foreground" />
                   <div>
                     <p className="text-sm font-semibold text-foreground">Unmapped columns</p>
                     <div className="mt-2 flex flex-wrap gap-1.5">
@@ -412,7 +412,7 @@ export default function ImportPage() {
 
       {step === "importing" ? (
         <GlassCard className="py-12 text-center">
-          <Loader2 className="mx-auto h-10 w-10 animate-spin text-cyan" />
+          <Loader2 className="mx-auto h-10 w-10 animate-spin text-primary" />
           <p className="mt-4 text-lg font-semibold">Importing into Sentinel</p>
           <p className="mt-2 text-sm text-muted-foreground/65">Normalizing rows, checking duplicates, and writing auditable intake records.</p>
         </GlassCard>
@@ -422,7 +422,7 @@ export default function ImportPage() {
         <div className="space-y-4">
           <GlassCard>
             <div className="flex items-center gap-3">
-              <CheckCircle2 className="h-5 w-5 text-emerald-300" />
+              <CheckCircle2 className="h-5 w-5 text-foreground" />
               <div>
                 <p className="text-sm font-semibold text-foreground">Import complete</p>
                 <p className="text-xs text-muted-foreground/60">Batch &ldquo;{results.batchId}&rdquo; from {results.fileName} ({results.sheetName})</p>
@@ -449,7 +449,7 @@ export default function ImportPage() {
               <div className="mt-3 space-y-2">
                 {results.warnings.slice(0, 8).map((warning) => <div key={warning} className="rounded-xl border border-white/[0.06] bg-white/[0.02] px-3 py-2 text-xs text-muted-foreground/70">{warning}</div>)}
                 {results.skippedRows.slice(0, 6).map((row) => <div key={`${row.rowNumber}-${row.status}`} className="rounded-xl border border-white/[0.06] bg-white/[0.02] px-3 py-2 text-xs text-muted-foreground/70">Row {row.rowNumber}: {tagLabel(row.status)} · {row.reason}</div>)}
-                {results.errorRows.slice(0, 6).map((row) => <div key={`${row.rowNumber}-${row.error}`} className="rounded-xl border border-rose-500/15 bg-rose-500/[0.03] px-3 py-2 text-xs text-rose-200/80">Row {row.rowNumber}: {row.error}</div>)}
+                {results.errorRows.slice(0, 6).map((row) => <div key={`${row.rowNumber}-${row.error}`} className="rounded-xl border border-border/15 bg-muted/[0.03] px-3 py-2 text-xs text-foreground/80">Row {row.rowNumber}: {row.error}</div>)}
               </div>
             </GlassCard>
           </div>

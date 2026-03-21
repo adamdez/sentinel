@@ -89,14 +89,14 @@ export function LiveAssistPanel({ brief, className = "" }: Props) {
           {/* Objection rebuttals */}
           {hasObjections && (
             <div className="space-y-1">
-              <div className="flex items-center gap-1 text-[9px] uppercase tracking-wider text-amber-400/40">
+              <div className="flex items-center gap-1 text-[9px] uppercase tracking-wider text-foreground/40">
                 <Shield className="h-2.5 w-2.5" />
                 If they say…
               </div>
               <div className="space-y-1.5">
                 {brief.objections.slice(0, 3).map((obj, i) => (
                   <div key={i} className="rounded-[6px] bg-white/[0.02] border border-white/[0.04] px-2 py-1.5">
-                    <p className="text-[10px] text-amber-400/60 font-medium leading-snug mb-0.5">
+                    <p className="text-[10px] text-foreground/60 font-medium leading-snug mb-0.5">
                       &ldquo;{obj.objection}&rdquo;
                     </p>
                     <p className="text-[10px] text-foreground/50 leading-snug">
@@ -111,14 +111,14 @@ export function LiveAssistPanel({ brief, className = "" }: Props) {
           {/* Watch outs */}
           {hasWatchOuts && (
             <div className="space-y-1">
-              <div className="flex items-center gap-1 text-[9px] uppercase tracking-wider text-orange-400/40">
+              <div className="flex items-center gap-1 text-[9px] uppercase tracking-wider text-foreground/40">
                 <AlertTriangle className="h-2.5 w-2.5" />
                 Watch out
               </div>
               <ul className="space-y-0.5">
                 {brief.watchOuts.slice(0, 3).map((wo, i) => (
-                  <li key={i} className="text-[10px] text-orange-300/50 leading-snug flex items-start gap-1.5">
-                    <span className="text-orange-400/30 mt-0.5 shrink-0">⚠</span>
+                  <li key={i} className="text-[10px] text-foreground/50 leading-snug flex items-start gap-1.5">
+                    <span className="text-foreground/30 mt-0.5 shrink-0">⚠</span>
                     {wo}
                   </li>
                 ))}
@@ -129,14 +129,14 @@ export function LiveAssistPanel({ brief, className = "" }: Props) {
           {/* Risk flags */}
           {hasRiskFlags && (
             <div className="space-y-1">
-              <div className="flex items-center gap-1 text-[9px] uppercase tracking-wider text-red-400/40">
+              <div className="flex items-center gap-1 text-[9px] uppercase tracking-wider text-foreground/40">
                 <AlertTriangle className="h-2.5 w-2.5" />
                 Risk flags
               </div>
               <ul className="space-y-0.5">
                 {brief.riskFlags.slice(0, 3).map((rf, i) => (
-                  <li key={i} className="text-[10px] text-red-300/50 leading-snug flex items-start gap-1.5">
-                    <span className="text-red-400/30 mt-0.5 shrink-0">!</span>
+                  <li key={i} className="text-[10px] text-foreground/50 leading-snug flex items-start gap-1.5">
+                    <span className="text-foreground/30 mt-0.5 shrink-0">!</span>
                     {rf}
                   </li>
                 ))}
@@ -146,8 +146,8 @@ export function LiveAssistPanel({ brief, className = "" }: Props) {
 
           {/* Negotiation anchor */}
           {brief.negotiationAnchor && (
-            <div className="rounded-[6px] bg-emerald-500/[0.04] border border-emerald-500/10 px-2 py-1.5">
-              <p className="text-[10px] text-emerald-400/50 leading-snug">
+            <div className="rounded-[6px] bg-muted/[0.04] border border-border/10 px-2 py-1.5">
+              <p className="text-[10px] text-foreground/50 leading-snug">
                 <span className="font-medium">Anchor:</span> {brief.negotiationAnchor}
               </p>
             </div>

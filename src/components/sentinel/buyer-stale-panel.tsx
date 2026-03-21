@@ -149,44 +149,44 @@ export function BuyerStalePanel({ onBuyerUpdated }: BuyerStalePanelProps) {
   if (!loading && !error && staleCount === 0 && data !== null) return null;
 
   return (
-    <div className="rounded-lg border border-amber-300/50 dark:border-amber-700/40 bg-amber-50/50 dark:bg-amber-950/20 overflow-hidden">
+    <div className="rounded-lg border border-border/50 dark:border-border/40 bg-muted/50 dark:bg-muted/20 overflow-hidden">
       {/* ── Header (always visible) ── */}
       <button
-        className="w-full flex items-center justify-between gap-3 px-4 py-3 text-left hover:bg-amber-100/40 dark:hover:bg-amber-900/20 transition-colors"
+        className="w-full flex items-center justify-between gap-3 px-4 py-3 text-left hover:bg-muted/40 dark:hover:bg-muted/20 transition-colors"
         onClick={() => setExpanded(e => !e)}
       >
         <div className="flex items-center gap-2">
-          <AlertTriangle className="h-4 w-4 text-amber-600 dark:text-amber-400 shrink-0" />
-          <span className="text-sm font-medium text-amber-800 dark:text-amber-300">
+          <AlertTriangle className="h-4 w-4 text-foreground dark:text-foreground shrink-0" />
+          <span className="text-sm font-medium text-foreground dark:text-foreground">
             Stale buyer profiles
           </span>
-          {loading && <Loader2 className="h-3 w-3 animate-spin text-amber-600" />}
+          {loading && <Loader2 className="h-3 w-3 animate-spin text-foreground" />}
           {!loading && staleCount > 0 && (
-            <Badge className="bg-amber-500 text-white text-xs h-4 px-1.5">
+            <Badge className="bg-muted text-white text-xs h-4 px-1.5">
               {staleCount}
             </Badge>
           )}
         </div>
         <div className="flex items-center gap-2">
-          <span className="text-xs text-amber-700/60 dark:text-amber-500/60">
+          <span className="text-xs text-foreground/60 dark:text-foreground/60">
             {data ? `90+ days since contact` : ""}
           </span>
           {expanded
-            ? <ChevronUp className="h-3.5 w-3.5 text-amber-600/60" />
-            : <ChevronDown className="h-3.5 w-3.5 text-amber-600/60" />
+            ? <ChevronUp className="h-3.5 w-3.5 text-foreground/60" />
+            : <ChevronDown className="h-3.5 w-3.5 text-foreground/60" />
           }
         </div>
       </button>
 
       {/* ── Expanded list ── */}
       {expanded && (
-        <div className="border-t border-amber-200/50 dark:border-amber-800/30">
+        <div className="border-t border-border/50 dark:border-border/30">
           {error && (
             <p className="px-4 py-3 text-xs text-destructive">{error}</p>
           )}
 
           {!loading && !error && visibleBuyers.length === 0 && (
-            <p className="px-4 py-3 text-xs text-amber-700/60 dark:text-amber-500/60">
+            <p className="px-4 py-3 text-xs text-foreground/60 dark:text-foreground/60">
               No stale buyers right now.
             </p>
           )}
@@ -194,7 +194,7 @@ export function BuyerStalePanel({ onBuyerUpdated }: BuyerStalePanelProps) {
           {visibleBuyers.map(buyer => (
             <div
               key={buyer.id}
-              className="flex items-center justify-between gap-3 px-4 py-2.5 border-b border-amber-100/60 dark:border-amber-900/30 last:border-0"
+              className="flex items-center justify-between gap-3 px-4 py-2.5 border-b border-border/60 dark:border-border/30 last:border-0"
             >
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 flex-wrap">
@@ -204,8 +204,8 @@ export function BuyerStalePanel({ onBuyerUpdated }: BuyerStalePanelProps) {
                   )}
                 </div>
                 <div className="flex items-center gap-2 mt-0.5">
-                  <Clock className="h-3 w-3 text-amber-600/70 shrink-0" />
-                  <span className="text-xs text-amber-700/70 dark:text-amber-500/70">
+                  <Clock className="h-3 w-3 text-foreground/70 shrink-0" />
+                  <span className="text-xs text-foreground/70 dark:text-foreground/70">
                     {staleSince(buyer.last_contacted_at)}
                   </span>
                   {buyer.markets?.length > 0 && (
@@ -220,7 +220,7 @@ export function BuyerStalePanel({ onBuyerUpdated }: BuyerStalePanelProps) {
                 <Button
                   size="sm"
                   variant="outline"
-                  className="h-6 text-xs px-2 border-emerald-400/60 text-emerald-700 hover:bg-emerald-50 dark:border-emerald-700/60 dark:text-emerald-400 dark:hover:bg-emerald-950/30"
+                  className="h-6 text-xs px-2 border-border/60 text-foreground hover:bg-muted dark:border-border/60 dark:text-foreground dark:hover:bg-muted/30"
                   disabled={busyId === buyer.id}
                   onClick={() => handleStillActive(buyer)}
                   title="Confirm still active — updates last contacted date to today"
@@ -234,7 +234,7 @@ export function BuyerStalePanel({ onBuyerUpdated }: BuyerStalePanelProps) {
                 <Button
                   size="sm"
                   variant="outline"
-                  className="h-6 text-xs px-2 border-red-400/60 text-red-600 hover:bg-red-50 dark:border-red-700/60 dark:text-red-400 dark:hover:bg-red-950/30"
+                  className="h-6 text-xs px-2 border-border/60 text-foreground hover:bg-muted dark:border-border/60 dark:text-foreground dark:hover:bg-muted/30"
                   disabled={busyId === buyer.id}
                   onClick={() => handleMarkInactive(buyer)}
                   title="Mark as inactive — removes from radar"
@@ -254,13 +254,13 @@ export function BuyerStalePanel({ onBuyerUpdated }: BuyerStalePanelProps) {
           )}
 
           {/* Refresh + context footer */}
-          <div className="flex items-center justify-between px-4 py-2 border-t border-amber-100/60 dark:border-amber-900/30 bg-amber-50/30 dark:bg-amber-950/10">
-            <p className="text-xs text-amber-700/50 dark:text-amber-500/50">
+          <div className="flex items-center justify-between px-4 py-2 border-t border-border/60 dark:border-border/30 bg-muted/30 dark:bg-muted/10">
+            <p className="text-xs text-foreground/50 dark:text-foreground/50">
               &ldquo;Still active&rdquo; bumps last contact date to today.
               &ldquo;Inactive&rdquo; removes from radar.
             </p>
             <button
-              className="flex items-center gap-1 text-xs text-amber-700/50 hover:text-amber-700 dark:text-amber-500/50 dark:hover:text-amber-400 transition-colors"
+              className="flex items-center gap-1 text-xs text-foreground/50 hover:text-foreground dark:text-foreground/50 dark:hover:text-foreground transition-colors"
               onClick={() => { setDismissed(new Set()); refetch(); }}
             >
               <RefreshCw className="h-3 w-3" />

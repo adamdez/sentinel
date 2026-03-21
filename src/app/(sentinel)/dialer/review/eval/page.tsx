@@ -131,7 +131,7 @@ function ManualRateSection({ onRated }: { onRated: () => void }) {
   const [done,    setDone]    = useState(false);
 
   if (done) return (
-    <GlassCard className="p-4 flex items-center gap-2 text-xs text-emerald-400">
+    <GlassCard className="p-4 flex items-center gap-2 text-xs text-foreground">
       <CheckCircle2 className="w-4 h-4" />
       Rating saved.
       <button onClick={() => { setDone(false); setOpen(false); setRunId(""); }} className="ml-auto text-muted-foreground/40 hover:text-muted-foreground/70 text-[10px]">
@@ -283,7 +283,7 @@ function FullRatingsList() {
       </div>
 
       {error && (
-        <div className="flex items-center gap-2 text-xs text-red-400">
+        <div className="flex items-center gap-2 text-xs text-foreground">
           <AlertTriangle className="w-3 h-3" />{error}
         </div>
       )}

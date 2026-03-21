@@ -10,7 +10,7 @@ import {
   type ReactNode,
 } from "react";
 import type { SentinelThemeId } from "@/themes/types";
-import { isSentinelThemeId } from "@/themes/types";
+import { isSentinelThemeId, migrateLegacyThemeId } from "@/themes/types";
 import { DEFAULT_SENTINEL_THEME } from "@/themes/registry";
 import { SENTINEL_THEME_STORAGE_KEY } from "@/themes/constants";
 
@@ -24,6 +24,7 @@ const ThemeContext = createContext<ThemeContextValue | null>(null);
 function applyThemeToDocument(id: SentinelThemeId) {
   if (typeof document === "undefined") return;
   document.documentElement.setAttribute("data-sentinel-theme", id);
+  document.documentElement.classList.toggle("dark", id === "dark");
 }
 
 export function ThemeProvider({ children }: { children: ReactNode }) {
@@ -32,9 +33,17 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     try {
       const raw = localStorage.getItem(SENTINEL_THEME_STORAGE_KEY);
-      if (raw && isSentinelThemeId(raw)) {
-        setThemeState(raw);
-        applyThemeToDocument(raw);
+      const migrated = migrateLegacyThemeId(raw);
+      if (raw !== migrated) {
+        try {
+          localStorage.setItem(SENTINEL_THEME_STORAGE_KEY, migrated);
+        } catch {
+          /* ignore */
+        }
+      }
+      if (isSentinelThemeId(migrated)) {
+        setThemeState(migrated);
+        applyThemeToDocument(migrated);
         return;
       }
     } catch {

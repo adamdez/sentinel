@@ -169,12 +169,12 @@ export function KpiSummaryRow({ period }: { period: TimePeriod }) {
 
       {kpis.overdue_tasks > 0 && (
         <Link href="/tasks" className="block">
-          <div className="flex items-center gap-2 rounded-[10px] border border-yellow-500/30 bg-yellow-500/[0.06] px-3 py-2 text-xs text-yellow-300 hover:bg-yellow-500/[0.1] transition-colors">
+          <div className="flex items-center gap-2 rounded-[10px] border border-border/30 bg-muted/[0.06] px-3 py-2 text-xs text-foreground hover:bg-muted/[0.1] transition-colors">
             <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
             <span>
               {kpis.overdue_tasks} overdue follow-up task{kpis.overdue_tasks !== 1 ? "s" : ""} need attention
             </span>
-            <span className="ml-auto text-yellow-400/70 text-[10px]">View Tasks &rarr;</span>
+            <span className="ml-auto text-foreground/70 text-[10px]">View Tasks &rarr;</span>
           </div>
         </Link>
       )}
@@ -198,12 +198,12 @@ function KpiCard({ icon: Icon, label, value, subtitle, tone = "default" }: KpiCa
       className={cn(
         "rounded-[12px] border px-3 py-2.5 bg-glass/40 transition-colors",
         tone === "default" && "border-glass-border",
-        tone === "positive" && "border-emerald-500/25 bg-emerald-500/[0.04]",
-        tone === "danger" && "border-red-500/30 bg-red-500/[0.06] shadow-[0_0_12px_rgba(239,68,68,0.08)]"
+        tone === "positive" && "border-border/25 bg-muted/[0.04]",
+        tone === "danger" && "border-border/30 bg-muted/[0.06] shadow-[0_0_12px_rgba(239,68,68,0.08)]"
       )}
     >
       <div className="flex items-center gap-1.5 mb-1">
-        <Icon className="h-3.5 w-3.5 text-cyan shrink-0" />
+        <Icon className="h-3.5 w-3.5 text-primary shrink-0" />
         <span className="text-[10px] uppercase tracking-wider text-muted-foreground truncate">{label}</span>
       </div>
       <p className="text-sm font-semibold tabular-nums leading-tight">{value}</p>

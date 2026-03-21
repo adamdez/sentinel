@@ -17,14 +17,14 @@ interface FeedEvent {
 }
 
 const ACTION_ICONS: Record<string, { icon: React.ComponentType<{ className?: string }>; color: string }> = {
-  call: { icon: Phone, color: "text-cyan" },
-  score: { icon: Zap, color: "text-purple-400" },
-  promote: { icon: UserPlus, color: "text-blue-400" },
-  disposition: { icon: FileCheck, color: "text-orange-400" },
-  email: { icon: Mail, color: "text-yellow-400" },
-  create: { icon: UserPlus, color: "text-blue-400" },
-  update: { icon: Activity, color: "text-cyan-400" },
-  status_change: { icon: Zap, color: "text-cyan" },
+  call: { icon: Phone, color: "text-primary" },
+  score: { icon: Zap, color: "text-foreground" },
+  promote: { icon: UserPlus, color: "text-foreground" },
+  disposition: { icon: FileCheck, color: "text-foreground" },
+  email: { icon: Mail, color: "text-foreground" },
+  create: { icon: UserPlus, color: "text-foreground" },
+  update: { icon: Activity, color: "text-primary-400" },
+  status_change: { icon: Zap, color: "text-primary" },
 };
 
 function timeAgo(dateStr: string): string {
