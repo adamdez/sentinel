@@ -491,6 +491,8 @@ export interface PublishResult {
   /** UUID of the tasks row created, if callback_at was provided. */
   task_id?: string | null;
   error?: string;
+  /** Non-fatal warnings (e.g. "task_creation_failed") surfaced to the UI. */
+  warnings?: string[];
   /**
    * INVALID_TRANSITION = session not yet in a terminal state.
    * DB_ERROR = Supabase write failed.

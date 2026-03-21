@@ -157,6 +157,7 @@ export async function publishSession(
 
   const leadId = session.lead_id ?? null;
   let callsLogId: string | null = null;
+  const warnings: string[] = [];
 
   // ── Step 1: calls_log update ──────────────────────────────
 
@@ -290,21 +291,36 @@ export async function publishSession(
         ? `${dispoLabel} — set callback date`
         : `${dispoLabel} — dialer callback`;
 
+    const taskPayload = {
+      title,
+      assigned_to: assignedTo,
+      lead_id: leadId,
+      due_at: dueAt.toISOString(),
+      status: "pending",
+      priority: input.disposition === "appointment" ? 2 : 1,
+    };
+
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { data: taskRow, error: taskErr } = await (sb.from("tasks") as any)
-      .insert({
-        title,
-        assigned_to: assignedTo,
-        lead_id: leadId,
-        due_at: dueAt.toISOString(),
-        status: "pending",
-        priority: input.disposition === "appointment" ? 2 : 1,
-      })
+      .insert(taskPayload)
       .select("id")
       .single();
 
     if (taskErr) {
-      console.warn("[publish-manager] task creation failed (non-fatal):", taskErr.message);
+      console.error("[publish-manager] task creation failed, retrying:", taskErr.message);
+      // Retry once — a dropped task means a lead silently exits the pipeline
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data: retryRow, error: retryErr } = await (sb.from("tasks") as any)
+        .insert(taskPayload)
+        .select("id")
+        .single();
+
+      if (retryErr) {
+        console.error("[publish-manager] task creation retry failed:", retryErr.message);
+        warnings.push("task_creation_failed");
+      } else {
+        taskId = (retryRow?.id as string) ?? null;
+      }
     } else {
       taskId = (taskRow?.id as string) ?? null;
     }
@@ -480,7 +496,13 @@ export async function publishSession(
     }).catch(() => {});
   }
 
-  return { ok: true, calls_log_id: callsLogId, lead_id: leadId, task_id: taskId };
+  return {
+    ok: true,
+    calls_log_id: callsLogId,
+    lead_id: leadId,
+    task_id: taskId,
+    ...(warnings.length > 0 ? { warnings } : {}),
+  };
 }
 
 // ── Helpers ───────────────────────────────────────────────────

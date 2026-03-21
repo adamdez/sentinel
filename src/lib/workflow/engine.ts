@@ -110,8 +110,9 @@ export async function startWorkflow(
   if (error) throw new Error(`Failed to start workflow: ${error.message}`);
 
   // Execute first step
-  executeStep(data.id, workflowName).catch((err) => {
+  executeStep(data.id, workflowName).catch(async (err) => {
     console.error(`[workflow] Failed to execute first step of ${workflowName}:`, err);
+    await failRun(data.id, err instanceof Error ? err.message : String(err));
   });
 
   return data.id;
@@ -166,13 +167,17 @@ export async function executeStep(runId: string, workflowName?: string): Promise
     if (result.pause) {
       // Pause for human approval
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      await (sb.from("workflow_runs") as any)
+      const { error: pauseErr } = await (sb.from("workflow_runs") as any)
         .update({
           status: "awaiting_approval",
           step_outputs: updatedOutputs,
           updated_at: new Date().toISOString(),
         })
         .eq("id", runId);
+      if (pauseErr) {
+        console.error(`[workflow] State update failed for ${runId}:`, pauseErr.message);
+        return;
+      }
       return;
     }
 
@@ -189,29 +194,43 @@ export async function executeStep(runId: string, workflowName?: string): Promise
     if (nextStepName) {
       // Move to next step
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      await (sb.from("workflow_runs") as any)
+      const { error: nextErr } = await (sb.from("workflow_runs") as any)
         .update({
           current_step: nextStepName,
           step_outputs: updatedOutputs,
           updated_at: new Date().toISOString(),
         })
         .eq("id", runId);
+      if (nextErr) {
+        console.error(`[workflow] State update failed for ${runId}:`, nextErr.message);
+        return;
+      }
 
       // Execute next step
       await executeStep(runId, name);
     } else {
       // Workflow complete
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      await (sb.from("workflow_runs") as any)
+      const { error: completeErr } = await (sb.from("workflow_runs") as any)
         .update({
           status: "completed",
           step_outputs: updatedOutputs,
           completed_at: new Date().toISOString(),
         })
         .eq("id", runId);
+      if (completeErr) {
+        console.error(`[workflow] State update failed for ${runId}:`, completeErr.message);
+        return;
+      }
 
       if (def.onComplete) {
-        await def.onComplete({ ...context, stepOutputs: updatedOutputs });
+        try {
+          await def.onComplete({ ...context, stepOutputs: updatedOutputs });
+        } catch (err) {
+          console.error(`[workflow] onComplete failed for ${name}/${runId}:`, err);
+          await failRun(runId, `onComplete failed: ${err instanceof Error ? err.message : String(err)}`);
+          return;
+        }
       }
     }
   } catch (err) {
@@ -225,7 +244,7 @@ export async function executeStep(runId: string, workflowName?: string): Promise
     if (attempts < stepMaxRetries) {
       const nextAttempt = attempts + 1;
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      await (sb.from("workflow_runs") as any)
+      const { error: retryErr } = await (sb.from("workflow_runs") as any)
         .update({
           status: "retry_scheduled",
           step_outputs: {
@@ -236,6 +255,10 @@ export async function executeStep(runId: string, workflowName?: string): Promise
           updated_at: new Date().toISOString(),
         })
         .eq("id", runId);
+      if (retryErr) {
+        console.error(`[workflow] State update failed for ${runId}:`, retryErr.message);
+        return;
+      }
 
       console.warn(
         `[workflow] Step "${run.current_step}" failed (attempt ${nextAttempt}/${stepMaxRetries}), retrying in 2s: ${msg}`,
@@ -265,7 +288,11 @@ export async function executeStep(runId: string, workflowName?: string): Promise
       const finalMsg = `${msg} (exhausted ${stepMaxRetries} retries)`;
       await failRun(runId, finalMsg);
       if (def.onFail) {
-        await def.onFail(context, finalMsg);
+        try {
+          await def.onFail(context, finalMsg);
+        } catch (failErr) {
+          console.error(`[workflow] onFail failed for ${name}/${runId}:`, failErr);
+        }
       }
     }
   }
@@ -295,23 +322,29 @@ export async function resumeWorkflow(runId: string): Promise<void> {
 
   if (nextStep) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    await (sb.from("workflow_runs") as any)
+    const { error: resumeErr } = await (sb.from("workflow_runs") as any)
       .update({
         status: "running",
         current_step: nextStep,
         updated_at: new Date().toISOString(),
       })
       .eq("id", runId);
+    if (resumeErr) {
+      throw new Error(`Failed to resume workflow ${runId}: ${resumeErr.message}`);
+    }
 
     await executeStep(runId, run.workflow_name);
   } else {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    await (sb.from("workflow_runs") as any)
+    const { error: completeErr } = await (sb.from("workflow_runs") as any)
       .update({
         status: "completed",
         completed_at: new Date().toISOString(),
       })
       .eq("id", runId);
+    if (completeErr) {
+      throw new Error(`Failed to complete workflow ${runId}: ${completeErr.message}`);
+    }
   }
 }
 
