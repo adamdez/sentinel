@@ -108,7 +108,7 @@ export function scheduleFirstCall(): ScheduleResult {
 
 export function getSequenceLabel(step: number): string {
   if (step >= 7) return "Sequence Complete";
-  return `Touch ${step}/7`;
+  return `Step ${step} of 7 \u2022 Day ${step} of sequence`;
 }
 
 export function getSequenceProgress(step: number): number {
@@ -132,7 +132,7 @@ export interface CadencePosition {
   totalTouches: number;
   /** Whether the cadence is complete */
   isComplete: boolean;
-  /** Label like "Touch 3/7, Day 7" */
+  /** Label like "Step 3 of 7 • Day 7 of cadence" */
   label: string;
 }
 
@@ -163,7 +163,7 @@ export function getCadencePosition(totalCalls: number): CadencePosition {
     isComplete,
     label: isComplete
       ? "Cadence Complete"
-      : `Touch ${totalCalls}/${CADENCE_DAYS.length}, Day ${CADENCE_DAYS[idx]}`,
+      : `Step ${totalCalls} of ${CADENCE_DAYS.length} \u2022 Day ${CADENCE_DAYS[idx]} of cadence`,
   };
 }
 

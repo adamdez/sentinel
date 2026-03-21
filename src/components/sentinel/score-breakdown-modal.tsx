@@ -72,8 +72,13 @@ export function ScoreBreakdownModal({ cf, scoreType, onClose }: { cf: ClientFile
   const totalBonusPts = bonusFactors.reduce((s, f) => s + f.contribution, 0);
 
   const arv = cf.estimatedValue ?? 0;
-  const eqPct = cf.equityPercent ?? 0;
-  const availableEquity = cf.availableEquity ?? (arv > 0 ? Math.round(arv * eqPct / 100) : 0);
+  const rawEqPct = cf.equityPercent;
+  const eqPct = typeof rawEqPct === "number" && isFinite(rawEqPct) ? rawEqPct : 0;
+  const eqPctValid = typeof rawEqPct === "number" && isFinite(rawEqPct);
+  const rawAvailableEquity = cf.availableEquity ?? (arv > 0 && eqPctValid ? Math.round(arv * eqPct / 100) : 0);
+  const availableEquity = typeof rawAvailableEquity === "number" && isFinite(rawAvailableEquity) ? rawAvailableEquity : 0;
+  const equityDataCorrupt = (rawEqPct != null && (typeof rawEqPct !== "number" || !isFinite(rawEqPct))) ||
+    (cf.availableEquity != null && (typeof cf.availableEquity !== "number" || !isFinite(cf.availableEquity)));
   // Quick profit projection via canonical kernel (screening-grade, 65% offer assumption)
   const quickUnderwrite = calculateWholesaleUnderwrite({
     arv,
@@ -145,6 +150,15 @@ export function ScoreBreakdownModal({ cf, scoreType, onClose }: { cf: ClientFile
                   <p className="text-5xl font-black tabular-nums" style={{ textShadow: "0 0 24px rgba(0,212,255,0.3), 0 0 60px rgba(0,212,255,0.1)" }}>{cf.compositeScore}</p>
                   <p className="text-[10px] text-muted-foreground uppercase tracking-widest mt-1">
                     {cf.scoreLabel.toUpperCase()} — Model {cf.modelVersion ?? "v2.0"}
+                  </p>
+                  <p className="text-[11px] text-muted-foreground/80 mt-2 italic">
+                    {cf.compositeScore >= 85
+                      ? "This lead has multiple strong indicators. Prioritize contact."
+                      : cf.compositeScore >= 65
+                      ? "Good potential. Verify motivation before offering."
+                      : cf.compositeScore >= 40
+                      ? "Some signals present. Qualify further before investing time."
+                      : "Limited data or weak signals. Consider deprioritizing."}
                   </p>
                 </div>
 
@@ -222,6 +236,15 @@ export function ScoreBreakdownModal({ cf, scoreType, onClose }: { cf: ClientFile
                   </div>
                 )}
 
+                {signalFactors.length === 0 && factors.length > 0 && (
+                  <div className="text-center py-4 space-y-1">
+                    <p className="text-xs text-muted-foreground/70">Property appears clean — no distress indicators detected</p>
+                    {cf.lastContactAt && (
+                      <p className="text-[10px] text-muted-foreground/40">Last data check: {new Date(cf.lastContactAt).toLocaleDateString()}</p>
+                    )}
+                  </div>
+                )}
+
                 {factors.length === 0 && (
                   <div className="text-center py-6 text-xs text-muted-foreground/60">
                     No detailed factor breakdown available — run enrichment to populate
@@ -279,8 +302,14 @@ export function ScoreBreakdownModal({ cf, scoreType, onClose }: { cf: ClientFile
                     })}
                   </div>
                 ) : (
-                  <div className="text-center py-6 text-xs text-muted-foreground/60">
-                    No active distress signals detected
+                  <div className="text-center py-6 space-y-1">
+                    <p className="text-xs text-muted-foreground/70">Property appears clean — no distress indicators detected</p>
+                    {cf.lastContactAt && (
+                      <p className="text-[10px] text-muted-foreground/40">Last data check: {new Date(cf.lastContactAt).toLocaleDateString()}</p>
+                    )}
+                    {cf.promotedAt && !cf.lastContactAt && (
+                      <p className="text-[10px] text-muted-foreground/40">Data as of: {new Date(cf.promotedAt).toLocaleDateString()}</p>
+                    )}
                   </div>
                 )}
 
@@ -350,11 +379,15 @@ export function ScoreBreakdownModal({ cf, scoreType, onClose }: { cf: ClientFile
                     </div>
                     <div className="flex justify-between px-3 py-1.5 rounded-[8px] bg-white/[0.02] border border-white/[0.04]">
                       <span className="text-muted-foreground">Equity %</span>
-                      <span className="font-mono font-bold">{eqPct > 0 ? `${eqPct}%` : "—"}</span>
+                      <span className={cn("font-mono font-bold", equityDataCorrupt && "text-amber-400 text-[10px] font-normal")}>
+                        {equityDataCorrupt ? "Data unavailable" : eqPct > 0 ? `${eqPct}%` : "—"}
+                      </span>
                     </div>
                     <div className="flex justify-between px-3 py-1.5 rounded-[8px] bg-white/[0.02] border border-white/[0.04]">
                       <span className="text-muted-foreground">Available Equity</span>
-                      <span className="font-mono font-semibold">{availableEquity > 0 ? formatCurrency(availableEquity) : "—"}</span>
+                      <span className={cn("font-mono font-semibold", equityDataCorrupt && "text-amber-400 text-[10px] font-normal")}>
+                        {equityDataCorrupt ? "Run property analysis" : availableEquity > 0 ? formatCurrency(availableEquity) : "—"}
+                      </span>
                     </div>
                     <div className="flex justify-between px-3 py-1.5 rounded-[8px] bg-white/[0.02] border border-white/[0.04]">
                       <span className="text-muted-foreground">Total Loans</span>

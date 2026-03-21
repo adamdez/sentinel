@@ -558,7 +558,14 @@ export function formatDateTimeShort(iso: string | null | undefined): string {
   if (!iso) return "n/a";
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return "n/a";
-  return `${d.toLocaleDateString("en-US", { month: "short", day: "numeric" })} ${d.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}`;
+  return d.toLocaleString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+    hour12: true,
+  });
 }
 
 export function toLocalDateTimeInput(iso: string | null | undefined): string {

@@ -1138,7 +1138,7 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
               )}
             </div>
           ) : (
-            <p className="text-[10px] text-muted-foreground/50">No distress signals detected</p>
+            <p className="text-[10px] text-muted-foreground/50">No distress indicators found &mdash; property appears clean. Signals checked: tax liens, foreclosure, code violations, vacancy, probate.</p>
           )}
         </div>
 
@@ -1242,7 +1242,7 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
             </div>
             <div className="rounded-[8px] border border-white/[0.06] bg-white/[0.02] px-2.5 py-2">
               <p className="text-[10px] text-muted-foreground/65">Import / Niche</p>
-              <p className="font-medium text-foreground">{prospectingSnapshot.nicheTag ? tagLabel(prospectingSnapshot.nicheTag) : "Not tagged"}</p>
+              <p className={cn("font-medium", prospectingSnapshot.nicheTag ? "text-foreground" : "text-amber-400")}>{prospectingSnapshot.nicheTag ? tagLabel(prospectingSnapshot.nicheTag) : "Unclassified \u2014 tag during qualification"}</p>
               {prospectingSnapshot.importBatchId && (
                 <p className="text-[10px] text-muted-foreground/65 mt-0.5">Batch: {prospectingSnapshot.importBatchId}</p>
               )}
@@ -1294,6 +1294,11 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
           <div className="space-y-1.5">
             {activityLog.slice(0, 4).map((entry) => {
               const dispositionLabel = entry.disposition?.replace(/_/g, " ") ?? entry.type;
+              const isSystemEvent = !entry.duration_sec && !entry.phone && (
+                entry.type === "qualification" || entry.type === "stage_change" || entry.type === "assignment" ||
+                entry.type === "status_change" || entry.type === "system" || entry.type === "import" ||
+                (entry.notes?.startsWith("{") ?? false)
+              );
               const noteText = entry.notes?.replace(/\s+/g, " ").trim() ?? "";
               const notePreview = noteText.length > 0
                 ? noteText.startsWith("{")
@@ -1305,7 +1310,10 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
               return (
                 <div key={entry.id} className="flex items-start justify-between gap-2 rounded-[8px] border border-white/[0.06] bg-white/[0.02] px-2.5 py-2 text-xs">
                   <div className="min-w-0">
-                    <p className="font-semibold text-foreground capitalize">{dispositionLabel}</p>
+                    <p className="font-semibold text-foreground capitalize">
+                      {dispositionLabel}
+                      {isSystemEvent && <span className="ml-1.5 text-[9px] font-normal text-muted-foreground/40">System event</span>}
+                    </p>
                     {notePreview && <p className="text-[10px] text-muted-foreground/65 truncate max-w-[430px]">{notePreview}</p>}
                   </div>
                   <p className="shrink-0 text-[9px] text-muted-foreground/50">{formatRelativeFromNow(entry.created_at)}</p>
@@ -2450,10 +2458,10 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
                 {cf.isAbsentee ? (
                   <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-blue-500/10 text-blue-400 border border-blue-500/20">ABSENTEE</span>
                 ) : (
-                  <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">OCCUPIED</span>
+                  <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">Owner-Occupied</span>
                 )}
                 {cf.isFreeClear && <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-400 border border-amber-500/20">FREE &amp; CLEAR</span>}
-                {cf.isVacant && <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-purple-500/10 text-purple-400 border border-purple-500/20">VACANT</span>}
+                {cf.isVacant && <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-purple-500/10 text-purple-400 border border-purple-500/20">Vacant Property</span>}
               </div>
               <p className="text-[9px] text-muted-foreground/70 font-semibold">
                 {cf.isAbsentee && ownerAge && ownerAge >= 65 ? "Elderly absentee â€” likely estate/caretaker situation" :
@@ -2647,13 +2655,16 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
         /* Compact empty-state: single line instead of full card */
         <div className="flex items-center gap-2 rounded-[10px] border border-purple-500/10 bg-purple-500/[0.02] px-3 py-2">
           <Brain className="h-3.5 w-3.5 text-purple-400/40" />
-          <p className="text-[11px] text-muted-foreground/40 italic">No call playbook yet</p>
+          <div className="min-w-0">
+            <p className="text-[11px] text-muted-foreground/40 italic">Call script not generated yet</p>
+            <p className="text-[9px] text-muted-foreground/30 mt-0.5">AI will create a script based on property data and owner situation</p>
+          </div>
           <button
             onClick={regenerateBrief}
             className="ml-auto flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] text-purple-400/60 hover:text-purple-400 hover:bg-purple-500/10 transition-colors"
           >
             <RefreshCw className="h-2.5 w-2.5" />
-            Generate
+            Generate Call Script
           </button>
         </div>
       )}
@@ -6275,11 +6286,11 @@ export function MasterClientFileModal({ clientFile: incomingClientFile, open, on
                   <Button
                     size="sm"
                     variant="outline"
-                    className="gap-2 border-cyan/20 hover:border-cyan/40 hover:bg-cyan/[0.06]"
+                    className="gap-2 border-emerald-500/30 bg-emerald-500/10 hover:border-emerald-500/50 hover:bg-emerald-500/20 text-emerald-300 font-semibold px-4 py-2"
                     disabled={!displayPhone || calling}
                     onClick={() => handleDial()}
                   >
-                    {calling ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Phone className="h-3.5 w-3.5" />}
+                    {calling ? <Loader2 className="h-4 w-4 animate-spin" /> : <Phone className="h-4 w-4" />}
                     {calling ? "Dialing..." : "Call"}
                   </Button>
                   )}
@@ -6301,7 +6312,7 @@ export function MasterClientFileModal({ clientFile: incomingClientFile, open, on
                         else toast.error("Could not add to queue");
                       }}
                     >
-                      <ListPlus className="h-3.5 w-3.5" />Queue
+                      <ListPlus className="h-3.5 w-3.5" />Add to Queue
                     </Button>
                   )}
                   <Button
@@ -6337,8 +6348,9 @@ export function MasterClientFileModal({ clientFile: incomingClientFile, open, on
                       setNoteEditorOpen(false);
                     }}
                   >
-                    <CheckCircle2 className="h-3.5 w-3.5 text-cyan" />Call Closeout
+                    <CheckCircle2 className="h-3.5 w-3.5 text-cyan" />Log Call Result
                   </Button>
+                  {!(isAssignedToCurrentUser && assignmentOptions.length > 0) && (
                   <Button
                     size="sm"
                     className="gap-2"
@@ -6348,6 +6360,7 @@ export function MasterClientFileModal({ clientFile: incomingClientFile, open, on
                     {claiming ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Users className="h-3.5 w-3.5" />}
                     {claiming ? "Saving..." : claimButtonLabel}
                   </Button>
+                  )}
                   {assignmentOptions.length > 0 && (
                     <div className="flex items-center gap-1.5 rounded-[8px] border border-white/[0.12] bg-white/[0.03] px-1.5 py-1">
                       <select
@@ -6430,7 +6443,7 @@ export function MasterClientFileModal({ clientFile: incomingClientFile, open, on
                     {closeoutOpen && (
                       <div className="rounded-[10px] border border-cyan/20 bg-cyan/[0.06] p-2.5 space-y-2">
                         <div className="flex items-center justify-between gap-2">
-                          <p className="text-[10px] uppercase tracking-wider font-semibold text-cyan">Call Closeout</p>
+                          <p className="text-[10px] uppercase tracking-wider font-semibold text-cyan">Log Call Result</p>
                           <span className="text-[9px] text-cyan/80">{closeoutActionLabel(closeoutAction)}</span>
                         </div>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
@@ -6629,23 +6642,39 @@ export function MasterClientFileModal({ clientFile: incomingClientFile, open, on
                 <div className="grid grid-cols-1 md:grid-cols-4 gap-2">
                   <div className={cn("rounded-[10px] border px-3 py-2", urgencyToneClass)}>
                     <p className="text-[9px] uppercase tracking-wider font-semibold">Contact Urgency</p>
-                    <div className="mt-1 flex items-center gap-1.5 text-xs">
-                      <UrgencyIcon className="h-3.5 w-3.5 shrink-0" />
-                      <span className="font-semibold">{nextActionUrgency.label}</span>
-                    </div>
-                    <p className="text-[10px] opacity-80 mt-0.5">{nextActionUrgency.detail}</p>
-                    <p className="text-[10px] opacity-80 mt-0.5">
-                      Next Action Type: <span className="font-medium">{nextActionView.label}</span>
-                    </p>
-                    <p className={cn("text-[10px] mt-1", !clientFile.assignedTo ? "text-amber-300" : "opacity-80")}>
-                      {!clientFile.assignedTo
-                        ? "Owner unassigned. Claim or assign to keep this lead active."
-                        : isAssignedToCurrentUser
-                          ? "You own this next action."
-                          : `Next action owned by ${assigneeLabel}.`}
-                    </p>
-                    {missingNextAction && (
-                      <p className="text-[10px] mt-1 font-semibold">Set a next action to keep momentum.</p>
+                    {(clientFile.status === "prospect" || clientFile.status === "staging") ? (
+                      <div className="mt-1 flex items-center gap-2">
+                        <span className="text-[11px] text-muted-foreground">Ready to promote?</span>
+                        <button
+                          type="button"
+                          className="flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-semibold text-cyan hover:bg-cyan/10 border border-cyan/25 transition-colors"
+                          onClick={() => {
+                            setSelectedStage("lead");
+                          }}
+                        >
+                          Move to Pipeline <ArrowRight className="h-2.5 w-2.5" />
+                        </button>
+                      </div>
+                    ) : (
+                      <>
+                        <div className="mt-1 flex items-center gap-1.5 text-xs">
+                          <UrgencyIcon className="h-3.5 w-3.5 shrink-0" />
+                          <span className="font-semibold">{nextActionUrgency.label}</span>
+                        </div>
+                        <p className="text-[10px] opacity-80 mt-0.5">
+                          Next Action Type: <span className="font-medium">{nextActionView.label}</span>
+                        </p>
+                        <p className={cn("text-[10px] mt-1", !clientFile.assignedTo ? "text-amber-300" : "opacity-80")}>
+                          {!clientFile.assignedTo
+                            ? "Owner unassigned. Claim or assign to keep this lead active."
+                            : isAssignedToCurrentUser
+                              ? "Assigned to you"
+                              : `Next action owned by ${assigneeLabel}.`}
+                        </p>
+                        {missingNextAction && (
+                          <p className="text-[10px] mt-1 font-semibold">Set a next action to keep momentum.</p>
+                        )}
+                      </>
                     )}
                   </div>
                   <div className="rounded-[10px] border border-white/[0.08] bg-white/[0.02] px-3 py-2">

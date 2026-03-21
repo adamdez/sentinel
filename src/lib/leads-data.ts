@@ -351,7 +351,7 @@ export function offerVisibilityLabel(status: OfferVisibilityStatus): string {
     case "declined":
       return "Offer Path Closed";
     default:
-      return "No Signal";
+      return "Not yet qualified for offer";
   }
 }
 

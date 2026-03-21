@@ -4,7 +4,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import type { BuyerFitVisibility, DispoReadinessVisibility, OfferStatusTruth } from "@/lib/leads-data";
-import { Loader2, Save, Target, Users } from "lucide-react";
+import { Circle, Loader2, Save, Target, Users } from "lucide-react";
 
 type OfferStatusSnapshotDraft = {
   status: OfferStatusTruth | "";
@@ -52,13 +52,15 @@ export function OfferStatusTruthCard(props: {
     onSave,
   } = props;
 
+  const isEmpty = statusLabel === "Not set" && amountLabel === "Not set" && updatedLabel === "Not set";
+
   return (
     <div className="rounded-[12px] border border-white/[0.06] bg-white/[0.02] p-3 space-y-2">
       <div className="flex items-center gap-2">
         <Target className="h-3.5 w-3.5 text-cyan" />
         <p className="text-[11px] text-muted-foreground uppercase tracking-wider font-semibold">Offer Status</p>
         <Badge variant="outline" className="text-[9px] border-white/[0.14] text-muted-foreground">Operator entered</Badge>
-        {canEdit && (
+        {canEdit && !isEmpty && (
           <button
             type="button"
             onClick={() => onEditToggle(!editing)}
@@ -69,9 +71,6 @@ export function OfferStatusTruthCard(props: {
           </button>
         )}
       </div>
-      <p className="text-[10px] text-muted-foreground/70">
-        Operator-entered seller response snapshot. This is not a full offer workflow engine.
-      </p>
       {editing ? (
         <div className="space-y-2.5">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
@@ -142,6 +141,20 @@ export function OfferStatusTruthCard(props: {
             </Button>
           </div>
         </div>
+      ) : isEmpty ? (
+        <div className="space-y-2">
+          <p className="text-[11px] text-muted-foreground/80">No offer submitted yet</p>
+          <p className="text-[10px] text-muted-foreground/50">Set up offer details when ready to present</p>
+          {canEdit && (
+            <button
+              type="button"
+              onClick={() => onEditToggle(true)}
+              className="text-[10px] text-cyan/75 hover:text-cyan transition-colors font-medium"
+            >
+              Set up offer
+            </button>
+          )}
+        </div>
       ) : (
         <div className="space-y-2">
           <div className="flex items-center gap-2 flex-wrap">
@@ -189,6 +202,8 @@ export function BuyerDispoVisibilityCard(props: {
     nextActionLabel,
   } = props;
 
+  const isPreOffer = buyerFitLabel === "Unknown" && dispoReadinessLabel === "Not Ready";
+
   return (
     <div className="rounded-[12px] border border-white/[0.06] bg-white/[0.02] p-3 space-y-2">
       <div className="flex items-center gap-2">
@@ -201,33 +216,49 @@ export function BuyerDispoVisibilityCard(props: {
           </Badge>
         )}
       </div>
-      <div className="flex items-center gap-2 flex-wrap">
-        <span className={cn("text-[10px] px-2 py-0.5 rounded border font-medium", buyerFitToneClass)}>
-          Buyer Fit: {buyerFitLabel}
-        </span>
-        <span className={cn("text-[10px] px-2 py-0.5 rounded border font-medium", dispoReadinessToneClass)}>
-          Dispo Readiness: {dispoReadinessLabel}
-        </span>
-      </div>
-      <p className="text-[10px] text-muted-foreground/70">{hint}</p>
-      <div className="rounded-[8px] border border-white/[0.08] bg-white/[0.02] px-2.5 py-2 space-y-1.5">
-        <p className="text-[10px] text-foreground/90">
-          Next step: <span className="font-medium">{nextStep}</span>
-        </p>
-        {readinessHigh && (
-          <p className="text-[10px] text-muted-foreground/80">
-            Buyer/dispo follow-up: <span className="text-foreground font-medium">{nextActionLabel}</span>
-          </p>
-        )}
-        {(actionMissing || actionStale) && (
-          <p className="text-[10px] text-amber-300">
-            {actionMissing
-              ? "Buyer/dispo readiness is high, but no next action is set."
-              : "Buyer/dispo readiness is high, and next action is overdue."}
-            {" "}Use <span className="font-semibold">Set Next Action</span> to keep this path active.
-          </p>
-        )}
-      </div>
+      {isPreOffer ? (
+        <div className="space-y-2">
+          <p className="text-[11px] text-muted-foreground/80">Buyer matching available after offer accepted</p>
+          <div className="rounded-[8px] border border-white/[0.08] bg-white/[0.02] px-2.5 py-2 space-y-1">
+            <p className="text-[10px] text-muted-foreground/60">Before buyer/dispo becomes active:</p>
+            <ul className="text-[10px] text-muted-foreground/50 space-y-0.5 list-disc list-inside">
+              <li>Seller offer must be submitted and accepted</li>
+              <li>Contract terms confirmed</li>
+              <li>Property details verified for buyer matching</li>
+            </ul>
+          </div>
+        </div>
+      ) : (
+        <>
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className={cn("text-[10px] px-2 py-0.5 rounded border font-medium", buyerFitToneClass)}>
+              Buyer Fit: {buyerFitLabel}
+            </span>
+            <span className={cn("text-[10px] px-2 py-0.5 rounded border font-medium", dispoReadinessToneClass)}>
+              Dispo Readiness: {dispoReadinessLabel}
+            </span>
+          </div>
+          <p className="text-[10px] text-muted-foreground/70">{hint}</p>
+          <div className="rounded-[8px] border border-white/[0.08] bg-white/[0.02] px-2.5 py-2 space-y-1.5">
+            <p className="text-[10px] text-foreground/90">
+              Next step: <span className="font-medium">{nextStep}</span>
+            </p>
+            {readinessHigh && (
+              <p className="text-[10px] text-muted-foreground/80">
+                Buyer/dispo follow-up: <span className="text-foreground font-medium">{nextActionLabel}</span>
+              </p>
+            )}
+            {(actionMissing || actionStale) && (
+              <p className="text-[10px] text-amber-300">
+                {actionMissing
+                  ? "Buyer/dispo readiness is high, but no next action is set."
+                  : "Buyer/dispo readiness is high, and next action is overdue."}
+                {" "}Use <span className="font-semibold">Set Next Action</span> to keep this path active.
+              </p>
+            )}
+          </div>
+        </>
+      )}
     </div>
   );
 }
@@ -284,9 +315,6 @@ export function BuyerDispoTruthCard(props: {
           </button>
         )}
       </div>
-      <p className="text-[10px] text-muted-foreground/70">
-        Derived visibility above is a signal. This section is your operator-entered downstream truth.
-      </p>
       {editing ? (
         <div className="space-y-2.5">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
@@ -346,6 +374,20 @@ export function BuyerDispoTruthCard(props: {
               Save Buyer/Dispo Truth
             </Button>
           </div>
+        </div>
+      ) : (buyerFitLabel === "Not set" && dispoStatusLabel === "Not set" && !nextStep && !dispoNote) ? (
+        <div className="space-y-2">
+          <p className="text-[11px] text-muted-foreground/80">Complete qualification and negotiation before buyer-side prep</p>
+          <p className="text-[10px] text-muted-foreground/50">Buyer fit and dispo status will be set once the deal progresses past offer stage</p>
+          {canEdit && (
+            <button
+              type="button"
+              onClick={() => onEditToggle(true)}
+              className="text-[10px] text-cyan/75 hover:text-cyan transition-colors font-medium"
+            >
+              Set buyer/dispo details
+            </button>
+          )}
         </div>
       ) : (
         <div className="space-y-2">
@@ -481,7 +523,20 @@ export function AcquisitionsMilestoneCard(props: {
       ) : (
         <div className="space-y-2">
           {!hasMilestones ? (
-            <p className="text-[10px] text-muted-foreground/50 italic">No milestones captured yet.</p>
+            <div className="space-y-1.5">
+              {[
+                { label: "Appointment scheduled", key: "appointment" },
+                { label: "Offer presented", key: "offer" },
+                { label: "Contract signed", key: "contract" },
+                { label: "Assignment fee projected", key: "fee" },
+              ].map((step) => (
+                <div key={step.key} className="flex items-center gap-2">
+                  <Circle className="h-3.5 w-3.5 text-muted-foreground/25 shrink-0" />
+                  <span className="text-[10px] text-muted-foreground/35">{step.label}</span>
+                </div>
+              ))}
+              <p className="text-[10px] text-muted-foreground/40 pt-1">Milestones will fill in as the deal progresses</p>
+            </div>
           ) : (
             <div className="grid grid-cols-2 gap-y-2 gap-x-4">
               {appointmentAt && (

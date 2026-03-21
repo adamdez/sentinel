@@ -1,5 +1,10 @@
 [
   {
+    "hash": "d630e7b9",
+    "date": "2026-03-20",
+    "message": "feat: blueprint v4 compliance — durable jobs, write path fix, Vapi full capability, observability"
+  },
+  {
     "hash": "c27222e3",
     "date": "2026-03-20",
     "message": "feat: inbound call chain — Logan (20s) → Adam (20s) → Jeff (Vapi AI)"
@@ -118,10 +123,5 @@
     "hash": "063a8529",
     "date": "2026-03-16",
     "message": "fix(ads): use camelCase field names for Google Ads API v23 response"
-  },
-  {
-    "hash": "c7311437",
-    "date": "2026-03-16",
-    "message": "feat(ads): add Ad Groups tab with direct pause/enable control"
   }
 ]

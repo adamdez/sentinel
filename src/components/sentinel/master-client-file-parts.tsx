@@ -81,6 +81,13 @@ export function getTier(score: number): keyof typeof TIER_COLORS {
   return "bronze";
 }
 
+const TIER_CONTEXT: Record<keyof typeof TIER_COLORS, string> = {
+  platinum: "High priority — strong close potential",
+  gold: "Good prospect — worth pursuing",
+  silver: "Moderate — needs qualification",
+  bronze: "Low priority — limited signals",
+};
+
 export function ScoreCard({ label, value, onClick }: { label: string; value: number; onClick?: () => void }) {
   const pct = Math.min(value, 100);
   const tier = getTier(value);
@@ -100,6 +107,7 @@ export function ScoreCard({ label, value, onClick }: { label: string; value: num
       <div className="absolute inset-0 bg-gradient-to-b from-white/[0.03] to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
       <p className={cn("text-[10px] uppercase tracking-wider mb-1 transition-colors relative z-10", tc.text)}>{label}</p>
       <p className="text-xl font-bold relative z-10 transition-all" style={{ textShadow: `0 0 10px ${tc.glow}` }}>{value}</p>
+      <p className="text-[9px] text-muted-foreground/70 relative z-10 mt-0.5">{TIER_CONTEXT[tier]}</p>
       <div className="h-1.5 rounded-full bg-secondary mt-2 overflow-hidden relative z-10">
         <div className={cn("h-full rounded-full transition-all", tc.bar)} style={{ width: `${pct}%` }} />
       </div>

@@ -18,11 +18,11 @@ export function formatDueDateLabel(iso: string | null | undefined, nowInput?: Da
   if (diffMs < 0) {
     const overdueDays = Math.max(1, Math.ceil(Math.abs(diffMs) / DAY_MS));
     if (overdueDays === 1) return { text: "Overdue today", overdue: true, urgent: true };
-    return { text: `${overdueDays}d overdue`, overdue: true, urgent: true };
+    return { text: `${overdueDays} days overdue`, overdue: true, urgent: true };
   }
 
   const dueDays = Math.floor(diffMs / DAY_MS);
   if (dueDays <= 0) return { text: "Due today", overdue: false, urgent: true };
   if (dueDays === 1) return { text: "Due tomorrow", overdue: false, urgent: true };
-  return { text: `Due in ${dueDays}d`, overdue: false, urgent: false };
+  return { text: `Due in ${dueDays} days`, overdue: false, urgent: false };
 }
