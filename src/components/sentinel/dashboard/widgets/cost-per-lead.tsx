@@ -35,37 +35,34 @@ export function CostPerLead() {
   const [loading, setLoading] = useState(true);
 
   const fetchData = useCallback(async () => {
+    // acquisition_cost column doesn't exist yet — query source only and count leads per source
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { data: leads } = await (supabase.from("leads") as any)
-      .select("source, acquisition_cost")
+      .select("source")
       .not("source", "is", null);
 
-    const rows = (leads ?? []) as { source: string; acquisition_cost: number | null }[];
+    const rows = (leads ?? []) as { source: string }[];
     const agg: Record<string, { leads: number; cost: number }> = {};
 
-    let totalCost = 0;
     for (const r of rows) {
       const src = r.source ?? "unknown";
       if (!agg[src]) agg[src] = { leads: 0, cost: 0 };
       agg[src].leads++;
-      const cost = r.acquisition_cost ?? 0;
-      agg[src].cost += cost;
-      totalCost += cost;
     }
 
     const result = Object.entries(agg)
       .map(([source, d]) => ({
         source,
         leads: d.leads,
-        cost: d.cost,
-        cpl: d.leads > 0 ? Math.round(d.cost / d.leads) : 0,
+        cost: 0,
+        cpl: 0,
       }))
       .sort((a, b) => b.leads - a.leads)
       .slice(0, 6);
 
     setSources(result);
     setTotalLeads(rows.length);
-    setBlendedCPL(rows.length > 0 ? Math.round(totalCost / rows.length) : 0);
+    setBlendedCPL(0);
     setLoading(false);
   }, []);
 
@@ -85,7 +82,7 @@ export function CostPerLead() {
   if (totalLeads === 0) {
     return (
       <div className="text-center py-6 text-xs text-muted-foreground">
-        No lead cost data yet — populate acquisition_cost on leads to track CPL.
+        No leads with sources yet — cost tracking coming soon.
       </div>
     );
   }

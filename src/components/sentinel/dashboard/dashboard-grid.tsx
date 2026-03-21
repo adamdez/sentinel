@@ -36,29 +36,26 @@ interface BusinessStats {
 
 interface PriorityLead {
   id: string;
-  address: string | null;
-  city: string | null;
-  owner_first_name: string | null;
-  owner_last_name: string | null;
-  next_action_date: string | null;
+  next_action_due_at: string | null;
   next_action: string | null;
   status: string | null;
-  ai_score: number | null;
+  priority: number | null;
   created_at: string;
+  source: string | null;
+  notes: string | null;
 }
 
 interface RecentEvent {
   id: string;
-  event_type: string;
-  description: string | null;
+  action: string;
+  details: Record<string, unknown> | null;
   created_at: string;
 }
 
 interface StalledDeal {
   id: string;
-  address: string | null;
-  owner_first_name: string | null;
-  owner_last_name: string | null;
+  source: string | null;
+  notes: string | null;
   updated_at: string;
 }
 
@@ -87,15 +84,15 @@ function daysDiff(dateStr: string | null): number | null {
 }
 
 function urgencyDotColor(daysUntil: number | null): string {
-  if (daysUntil === null) return "bg-muted";
-  if (daysUntil <= -3) return "bg-muted";
-  if (daysUntil < 0) return "bg-muted";
-  if (daysUntil === 0) return "bg-muted";
-  return "bg-muted";
+  if (daysUntil === null) return "bg-muted-foreground/40";
+  if (daysUntil <= -3) return "bg-red-500";
+  if (daysUntil < 0) return "bg-amber-500";
+  if (daysUntil === 0) return "bg-amber-400";
+  return "bg-emerald-500";
 }
 
 function urgencyText(lead: PriorityLead): string {
-  const diff = daysDiff(lead.next_action_date);
+  const diff = daysDiff(lead.next_action_due_at);
   if (diff === null) {
     // No next action date — check if new
     const created = new Date(lead.created_at);
@@ -184,7 +181,7 @@ export function TodayView() {
 
     try {
       // --- Stats ---
-      const activeStatuses = ["new", "contacted", "qualifying", "nurturing", "negotiating", "offer_prep", "under_contract"];
+      const activeStatuses = ["staging", "prospect", "lead", "negotiation", "disposition", "nurture"];
 
       // Pipeline value — sum estimated_value from properties joined to active leads
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -207,23 +204,27 @@ export function TodayView() {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { count: overdueCount } = await (supabase.from("leads") as any)
         .select("id", { count: "exact", head: true })
-        .lt("next_action_date", nowIso)
+        .lt("next_action_due_at", nowIso)
         .in("status", activeStatuses);
 
       // Due today count
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { count: dueTodayCount } = await (supabase.from("leads") as any)
         .select("id", { count: "exact", head: true })
-        .gte("next_action_date", todayStart.toISOString())
-        .lte("next_action_date", todayEnd.toISOString())
+        .gte("next_action_due_at", todayStart.toISOString())
+        .lte("next_action_due_at", todayEnd.toISOString())
         .in("status", activeStatuses);
 
       // Calls today
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { count: callsTodayCount } = await (supabase.from("calls_log") as any)
-        .select("id", { count: "exact", head: true })
-        .gte("started_at", todayStart.toISOString())
-        .eq("user_id", currentUser.id);
+      let callsTodayCount: number | null = 0;
+      if (currentUser?.id) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const { count } = await (supabase.from("calls_log") as any)
+          .select("id", { count: "exact", head: true })
+          .gte("started_at", todayStart.toISOString())
+          .eq("user_id", currentUser.id);
+        callsTodayCount = count;
+      }
 
       setStats({
         pipelineValue,
@@ -236,25 +237,25 @@ export function TodayView() {
       // Get overdue + today + upcoming leads with next_action_date, ordered by date asc (overdue first)
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { data: queueLeads } = await (supabase.from("leads") as any)
-        .select("id, address, city, owner_first_name, owner_last_name, next_action_date, next_action, status, ai_score, created_at")
+        .select("id, next_action_due_at, next_action, status, priority, created_at, source, notes")
         .in("status", activeStatuses)
-        .order("next_action_date", { ascending: true, nullsFirst: false })
+        .order("next_action_due_at", { ascending: true, nullsFirst: false })
         .limit(10);
 
       // Also get leads with no next_action_date that are new (created < 48h)
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { data: noDateLeads } = await (supabase.from("leads") as any)
-        .select("id, address, city, owner_first_name, owner_last_name, next_action_date, next_action, status, ai_score, created_at")
-        .is("next_action_date", null)
-        .in("status", ["new"])
+        .select("id, next_action_due_at, next_action, status, priority, created_at, source, notes")
+        .is("next_action_due_at", null)
+        .in("status", ["staging", "prospect"])
         .order("created_at", { ascending: false })
         .limit(5);
 
       const combined: PriorityLead[] = [...(queueLeads ?? []), ...(noDateLeads ?? [])];
       // Sort: most overdue first, then due today, then upcoming, then no-date new
       combined.sort((a, b) => {
-        const da = daysDiff(a.next_action_date);
-        const db = daysDiff(b.next_action_date);
+        const da = daysDiff(a.next_action_due_at);
+        const db = daysDiff(b.next_action_due_at);
         // nulls go to end
         if (da === null && db === null) return 0;
         if (da === null) return 1;
@@ -267,10 +268,10 @@ export function TodayView() {
       // --- Recent Activity ---
       const allowedTypes = ["call", "stage_change", "promote", "offer", "disposition", "lead_created"];
       // Build OR filter for event_type
-      const orFilter = allowedTypes.map((t) => `event_type.ilike.%${t}%`).join(",");
+      const orFilter = allowedTypes.map((t) => `action.ilike.%${t}%`).join(",");
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { data: events } = await (supabase.from("event_log") as any)
-        .select("id, event_type, description, created_at")
+        .select("id, action, details, created_at")
         .or(orFilter)
         .order("created_at", { ascending: false })
         .limit(5);
@@ -281,7 +282,7 @@ export function TodayView() {
       const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { data: stalled } = await (supabase.from("leads") as any)
-        .select("id, address, owner_first_name, owner_last_name, updated_at")
+        .select("id, source, notes, updated_at")
         .eq("status", "disposition")
         .lt("updated_at", oneDayAgo)
         .order("updated_at", { ascending: true })
@@ -293,7 +294,7 @@ export function TodayView() {
     } finally {
       setLoading(false);
     }
-  }, [currentUser.id]);
+  }, [currentUser?.id]);
 
   useEffect(() => {
     fetchAll();
@@ -346,13 +347,13 @@ export function TodayView() {
           icon={AlertTriangle}
           label="Overdue"
           value={s.overdue}
-          accent={s.overdue > 0 ? "text-foreground" : "text-foreground"}
+          accent={s.overdue > 0 ? "text-red-400" : "text-muted-foreground"}
         />
         <StatCard
           icon={CalendarCheck}
           label="Due Today"
           value={s.dueToday}
-          accent={s.dueToday > 0 ? "text-foreground" : "text-foreground"}
+          accent={s.dueToday > 0 ? "text-amber-400" : "text-muted-foreground"}
         />
         <StatCard
           icon={PhoneCall}
@@ -378,11 +379,8 @@ export function TodayView() {
           ) : (
             <>
               {priorityLeads.map((lead) => {
-                const diff = daysDiff(lead.next_action_date);
-                const ownerName = [lead.owner_first_name, lead.owner_last_name].filter(Boolean).join(" ") || "Unknown Owner";
-                const displayAddress = lead.address
-                  ? `${lead.address}${lead.city ? `, ${lead.city}` : ""}`
-                  : ownerName;
+                const diff = daysDiff(lead.next_action_due_at);
+                const displayLabel = lead.source || `Lead ${lead.id.slice(0, 8)}`;
 
                 return (
                   <div
@@ -392,12 +390,9 @@ export function TodayView() {
                     {/* Urgency dot */}
                     <div className={cn("h-2.5 w-2.5 rounded-full shrink-0", urgencyDotColor(diff))} />
 
-                    {/* Middle: Address + Owner + Why */}
+                    {/* Middle: Source + Why */}
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-semibold truncate">{displayAddress}</p>
-                      {lead.address && (
-                        <p className="text-sm text-muted-foreground truncate">{ownerName}</p>
-                      )}
+                      <p className="text-sm font-semibold truncate">{displayLabel}</p>
                       <p
                         className={cn(
                           "text-sm mt-0.5",
@@ -414,21 +409,21 @@ export function TodayView() {
                       </p>
                     </div>
 
-                    {/* Right: Score + Call button */}
+                    {/* Right: Priority + Call button */}
                     <div className="flex items-center gap-2 shrink-0">
-                      {lead.ai_score !== null && (
+                      {lead.priority !== null && (
                         <Badge
                           variant="outline"
                           className={cn(
                             "text-sm font-mono tabular-nums",
-                            lead.ai_score >= 80
+                            lead.priority >= 80
                               ? "border-border/40 text-foreground"
-                              : lead.ai_score >= 60
+                              : lead.priority >= 60
                                 ? "border-border/40 text-foreground"
                                 : "border-border text-foreground"
                           )}
                         >
-                          {lead.ai_score}
+                          {lead.priority}
                         </Badge>
                       )}
                       <Button
@@ -475,8 +470,11 @@ export function TodayView() {
               </p>
             ) : (
               recentEvents.map((evt) => {
-                const config = eventIcon(evt.event_type);
+                const config = eventIcon(evt.action);
                 const Icon = config.icon;
+                const detailText = evt.details && typeof evt.details === "object"
+                  ? (evt.details as Record<string, unknown>).summary as string ?? evt.action
+                  : evt.action;
                 return (
                   <div key={evt.id} className="flex items-start gap-2.5 py-1">
                     <div className={cn("mt-0.5 shrink-0", config.color)}>
@@ -484,7 +482,7 @@ export function TodayView() {
                     </div>
                     <div className="flex-1 min-w-0">
                       <p className="text-sm leading-tight truncate">
-                        {evt.description || evt.event_type}
+                        {detailText}
                       </p>
                       <p className="text-sm text-muted-foreground">{timeAgo(evt.created_at)}</p>
                     </div>
@@ -511,7 +509,6 @@ export function TodayView() {
               </div>
             ) : (
               stalledDeals.map((deal) => {
-                const ownerName = [deal.owner_first_name, deal.owner_last_name].filter(Boolean).join(" ");
                 const daysStalled = Math.floor((Date.now() - new Date(deal.updated_at).getTime()) / 86400000);
                 return (
                   <button
@@ -520,7 +517,7 @@ export function TodayView() {
                     className="w-full flex items-center justify-between text-left p-2 rounded-lg hover:bg-white/[0.03] transition-colors"
                   >
                     <div className="min-w-0">
-                      <p className="text-xs font-medium truncate">{deal.address || ownerName || "Unknown"}</p>
+                      <p className="text-xs font-medium truncate">{deal.source || `Lead ${deal.id.slice(0, 8)}`}</p>
                     </div>
                     <Badge variant="outline" className="text-sm border-border/30 text-foreground shrink-0 ml-2">
                       {daysStalled}d stalled

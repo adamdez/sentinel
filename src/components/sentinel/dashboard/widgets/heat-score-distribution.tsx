@@ -31,14 +31,14 @@ export function HeatScoreDistribution() {
   const fetchData = useCallback(async () => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { data: leads } = await (supabase.from("leads") as any)
-      .select("heat_score")
-      .not("heat_score", "is", null);
+      .select("priority")
+      .not("priority", "is", null);
 
-    const rows = (leads ?? []) as { heat_score: number }[];
+    const rows = (leads ?? []) as { priority: number }[];
     const counts = [0, 0, 0, 0];
 
     for (const r of rows) {
-      const s = r.heat_score ?? 0;
+      const s = r.priority ?? 0;
       if (s >= 85) counts[0]++;
       else if (s >= 65) counts[1]++;
       else if (s >= 40) counts[2]++;
