@@ -26,10 +26,10 @@ interface Props {
 }
 
 const TEMP_COLORS: Record<string, string> = {
-  hot: "text-foreground",
-  warm: "text-foreground",
-  cool: "text-primary",
-  cold: "text-foreground",
+  hot: "text-red-400",
+  warm: "text-amber-400",
+  cool: "text-sky-400",
+  cold: "text-muted-foreground/60",
   dead: "text-muted-foreground/40",
 };
 

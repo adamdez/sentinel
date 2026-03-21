@@ -7,10 +7,10 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useProspects, type ProspectRow } from "@/hooks/use-prospects";
 
 function scoreColor(composite: number): { bg: string; ring: string } {
-  if (composite >= 85) return { bg: "bg-primary", ring: "rgba(0,0,0,0.4)" };
-  if (composite >= 65) return { bg: "bg-muted", ring: "rgba(0,0,0,0.35)" };
-  if (composite >= 40) return { bg: "bg-muted", ring: "rgba(148,163,184,0.3)" };
-  return { bg: "bg-muted", ring: "rgba(249,115,22,0.3)" };
+  if (composite >= 85) return { bg: "bg-red-500", ring: "rgba(239,68,68,0.4)" };
+  if (composite >= 65) return { bg: "bg-amber-500", ring: "rgba(245,158,11,0.35)" };
+  if (composite >= 40) return { bg: "bg-sky-500", ring: "rgba(14,165,233,0.3)" };
+  return { bg: "bg-muted-foreground/50", ring: "rgba(148,163,184,0.2)" };
 }
 
 function hashToPosition(str: string, seed: number): { top: string; left: string } {

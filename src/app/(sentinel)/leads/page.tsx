@@ -31,8 +31,8 @@ function InboxStat({
     <div
       className={cn(
         "rounded-[10px] border px-3 py-2 min-w-[120px]",
-        tone === "danger" && "border-border/25 bg-muted/[0.04]",
-        tone === "warn" && "border-border/25 bg-muted/[0.04]",
+        tone === "danger" && "border-red-500/25 bg-red-500/[0.04]",
+        tone === "warn" && "border-amber-500/25 bg-amber-500/[0.04]",
         tone === "neutral" && "border-glass-border bg-glass/30",
       )}
     >

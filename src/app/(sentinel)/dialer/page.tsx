@@ -599,8 +599,16 @@ function DialerPageInner() {
 
     initDevice();
 
+    const timeout = setTimeout(() => {
+      if (!cancelled && deviceRef.current === null) {
+        setDeviceStatus("error");
+        toast.error("VoIP connection timed out — check network or refresh the page");
+      }
+    }, 15_000);
+
     return () => {
       cancelled = true;
+      clearTimeout(timeout);
       if (deviceRef.current) {
         deviceRef.current.destroy();
         deviceRef.current = null;

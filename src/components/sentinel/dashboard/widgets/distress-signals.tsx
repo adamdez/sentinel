@@ -13,20 +13,20 @@ interface SignalRow {
 }
 
 const SIGNAL_COLORS: Record<string, string> = {
-  probate: "text-foreground",
-  pre_foreclosure: "text-foreground",
-  tax_lien: "text-foreground",
-  code_violation: "text-foreground",
-  water_shutoff: "text-foreground",
-  condemned: "text-foreground",
-  vacant: "text-foreground",
-  divorce: "text-foreground",
-  bankruptcy: "text-foreground",
-  inherited: "text-foreground",
-  absentee: "text-primary-400",
-  fsbo: "text-foreground",
-  tired_landlord: "text-foreground",
-  underwater: "text-foreground",
+  probate: "text-violet-400",
+  pre_foreclosure: "text-red-400",
+  tax_lien: "text-amber-400",
+  code_violation: "text-red-400",
+  water_shutoff: "text-red-400",
+  condemned: "text-red-300",
+  vacant: "text-sky-400",
+  divorce: "text-violet-400",
+  bankruptcy: "text-red-400",
+  inherited: "text-violet-400",
+  absentee: "text-sky-400",
+  fsbo: "text-emerald-400",
+  tired_landlord: "text-amber-400",
+  underwater: "text-amber-400",
 };
 
 function labelFor(type: string): string {

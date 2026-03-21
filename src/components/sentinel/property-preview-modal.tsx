@@ -84,16 +84,16 @@ interface PropertyData {
 // ── Signal styling ─────────────────────────────────────────────────────
 
 const SIGNAL_COLORS: Record<string, string> = {
-  pre_foreclosure: "bg-muted/20 text-foreground border-border/30",
-  foreclosure: "bg-muted/20 text-foreground border-border/30",
-  probate: "bg-muted/20 text-foreground border-border/30",
-  tax_lien: "bg-muted/20 text-foreground border-border/30",
-  bankruptcy: "bg-muted/20 text-foreground border-border/30",
-  divorce: "bg-muted/20 text-foreground border-border/30",
-  vacant: "bg-muted/20 text-foreground border-border/30",
-  absentee: "bg-muted/20 text-foreground border-border/30",
-  underwater: "bg-muted/20 text-foreground border-border/30",
-  tired_landlord: "bg-muted/20 text-foreground border-border/30",
+  pre_foreclosure: "bg-red-500/15 text-red-400 border-red-500/30",
+  foreclosure: "bg-red-500/20 text-red-300 border-red-500/40",
+  probate: "bg-violet-500/15 text-violet-400 border-violet-500/30",
+  tax_lien: "bg-amber-500/15 text-amber-400 border-amber-500/30",
+  bankruptcy: "bg-red-500/15 text-red-400 border-red-500/30",
+  divorce: "bg-violet-500/15 text-violet-400 border-violet-500/30",
+  vacant: "bg-sky-500/15 text-sky-400 border-sky-500/30",
+  absentee: "bg-sky-500/15 text-sky-400 border-sky-500/30",
+  underwater: "bg-amber-500/15 text-amber-400 border-amber-500/30",
+  tired_landlord: "bg-amber-500/15 text-amber-400 border-amber-500/30",
 };
 
 // ── Currency formatter ─────────────────────────────────────────────────

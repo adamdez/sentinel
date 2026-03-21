@@ -530,8 +530,8 @@ function Metric({
       className={cn(
         "rounded-[10px] border px-2.5 py-2",
         tone === "default" && "border-glass-border bg-glass/30",
-        tone === "warn" && "border-border/25 bg-muted/[0.05]",
-        tone === "positive" && "border-border/25 bg-muted/[0.05]"
+        tone === "warn" && "border-amber-500/25 bg-amber-500/[0.05]",
+        tone === "positive" && "border-emerald-500/25 bg-emerald-500/[0.05]"
       )}
     >
       <p className="text-sm uppercase tracking-wider text-muted-foreground">{label}</p>

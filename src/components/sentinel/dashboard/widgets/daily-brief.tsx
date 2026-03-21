@@ -20,23 +20,23 @@ import type { DailyBriefResponse, BriefLead } from "@/app/api/leads/daily-brief/
 const SIGNAL_META = {
   flagged_ai_output: {
     Icon: BrainCircuit,
-    color: "text-foreground",
-    bg: "bg-muted/8",
-    border: "border-border/20",
+    color: "text-violet-400",
+    bg: "bg-violet-500/8",
+    border: "border-violet-500/20",
     label: "AI Flagged",
   },
   overdue_task: {
     Icon: ClipboardCheck,
-    color: "text-foreground",
-    bg: "bg-muted/8",
-    border: "border-border/20",
+    color: "text-red-400",
+    bg: "bg-red-500/8",
+    border: "border-red-500/20",
     label: "Overdue Task",
   },
   overdue_follow_up_lead: {
     Icon: CalendarX,
-    color: "text-foreground",
-    bg: "bg-muted/8",
-    border: "border-border/20",
+    color: "text-amber-400",
+    bg: "bg-amber-500/8",
+    border: "border-amber-500/20",
     label: "Follow-up Missed",
   },
   defaulted_callback: {
@@ -98,13 +98,13 @@ function LeadRow({ lead, idx }: { lead: BriefLead; idx: number }) {
 
 function SlippageBar({ pct }: { pct: number | null }) {
   if (pct === null) return <span className="text-muted-foreground/40 text-sm">no data</span>;
-  const color = pct >= 75 ? "bg-muted" : pct >= 40 ? "bg-muted" : "bg-muted";
+  const color = pct >= 75 ? "bg-red-500" : pct >= 40 ? "bg-amber-500" : "bg-emerald-500";
   return (
     <div className="flex items-center gap-2">
       <div className="flex-1 h-1 bg-secondary/30 rounded-full overflow-hidden">
         <div className={`h-full rounded-full ${color} transition-all`} style={{ width: `${Math.min(pct, 100)}%` }} />
       </div>
-      <span className={`text-sm font-bold shrink-0 ${pct >= 75 ? "text-foreground" : pct >= 40 ? "text-foreground" : "text-foreground"}`}>
+      <span className={`text-sm font-bold shrink-0 ${pct >= 75 ? "text-red-400" : pct >= 40 ? "text-amber-400" : "text-emerald-400"}`}>
         {pct}%
       </span>
     </div>

@@ -50,11 +50,11 @@ const TIMELINE_LABELS: Record<string, string> = {
 };
 
 const ROUTE_LABELS: Record<string, { label: string; color: string }> = {
-  offer_ready: { label: "Offer Ready",  color: "text-foreground" },
+  offer_ready: { label: "Offer Ready",  color: "text-emerald-400" },
   follow_up:   { label: "Follow Up",    color: "text-primary" },
-  nurture:     { label: "Nurture",      color: "text-foreground" },
-  dead:        { label: "Dead",         color: "text-foreground" },
-  escalate:    { label: "Escalate",     color: "text-foreground" },
+  nurture:     { label: "Nurture",      color: "text-sky-400" },
+  dead:        { label: "Dead",         color: "text-muted-foreground/50" },
+  escalate:    { label: "Escalate",     color: "text-amber-400" },
 };
 
 const DISPO_LABELS: Record<string, string> = {
@@ -435,11 +435,11 @@ export function SellerMemoryPanel({ sessionId, context: contextProp, className =
                   <Thermometer className="h-3 w-3 text-foreground/50 shrink-0" />
                   <span className="text-xs font-semibold uppercase tracking-wider text-foreground/40">Temp</span>
                   <span className={`text-sm font-semibold ${
-                    memory.lastCallDealTemperature === "hot"  ? "text-foreground" :
-                    memory.lastCallDealTemperature === "warm" ? "text-foreground" :
-                    memory.lastCallDealTemperature === "cool" ? "text-foreground" :
-                    memory.lastCallDealTemperature === "cold" ? "text-foreground" :
-                    "text-foreground"
+                    memory.lastCallDealTemperature === "hot"  ? "text-red-400" :
+                    memory.lastCallDealTemperature === "warm" ? "text-amber-400" :
+                    memory.lastCallDealTemperature === "cool" ? "text-sky-400" :
+                    memory.lastCallDealTemperature === "cold" ? "text-muted-foreground/60" :
+                    "text-muted-foreground/40"
                   }`}>
                     {memory.lastCallDealTemperature.charAt(0).toUpperCase() + memory.lastCallDealTemperature.slice(1)}
                   </span>

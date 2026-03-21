@@ -67,6 +67,7 @@ import { useCoachSurface } from "@/providers/coach-provider";
 import { CoachPanel, CoachToggle } from "@/components/sentinel/coach-panel";
 import { NumericInput } from "@/components/sentinel/numeric-input";
 import { usePreCallBrief } from "@/hooks/use-pre-call-brief";
+import { SellerMemoryPreview } from "@/components/sentinel/seller-memory-preview";
 import { supabase } from "@/lib/supabase";
 import { precheckWorkflowStageChange } from "@/lib/workflow-stage-precheck";
 import { getAllowedTransitions } from "@/lib/lead-guardrails";
@@ -1099,6 +1100,8 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
       )}
 
       {/* â•â•â• 3. DISTRESS SIGNALS + EXTERNAL LINKS — side by side â•â•â• */}
+      <SellerMemoryPreview leadId={cf.id} />
+
       <div className="flex gap-3">
         {/* Distress Signals — left half */}
         <div ref={sectionSignals} className="flex-1 min-w-0 rounded-[12px] border border-white/[0.06] bg-white/[0.02] p-3">

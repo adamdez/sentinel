@@ -60,11 +60,11 @@ interface PostCallDraftPanelProps {
 // ── Temperature display ───────────────────────────────────────────────────────
 
 const TEMP_META: Record<string, { label: string; color: string; bg: string }> = {
-  hot:  { label: "Hot",  color: "text-foreground",    bg: "bg-muted/15 border-border/30" },
-  warm: { label: "Warm", color: "text-foreground", bg: "bg-muted/15 border-border/30" },
-  cool: { label: "Cool", color: "text-foreground",   bg: "bg-muted/15 border-border/30" },
-  cold: { label: "Cold", color: "text-foreground",  bg: "bg-muted/15 border-border/30" },
-  dead: { label: "Dead", color: "text-foreground",   bg: "bg-muted/10 border-border/20" },
+  hot:  { label: "Hot",  color: "text-red-400",              bg: "bg-red-500/15 border-red-500/30" },
+  warm: { label: "Warm", color: "text-amber-400",            bg: "bg-amber-500/15 border-amber-500/30" },
+  cool: { label: "Cool", color: "text-sky-400",              bg: "bg-sky-500/15 border-sky-500/30" },
+  cold: { label: "Cold", color: "text-muted-foreground/60",  bg: "bg-muted/15 border-border/30" },
+  dead: { label: "Dead", color: "text-muted-foreground/40",  bg: "bg-muted/10 border-border/20" },
 };
 
 // ── Assemble structured draft into a summary string ───────────────────────────

@@ -104,10 +104,10 @@ interface Lead {
 // ── Helpers ────────────────────────────────────────────────────────────
 
 function scoreColor(score: number) {
-  if (score >= 85) return { label: "FIRE", class: "text-foreground bg-muted/15 border-border/30" };
-  if (score >= 65) return { label: "HOT", class: "text-foreground bg-muted/15 border-border/30" };
-  if (score >= 40) return { label: "WARM", class: "text-foreground bg-muted/15 border-border/30" };
-  return { label: "COLD", class: "text-foreground bg-muted/15 border-border/30" };
+  if (score >= 85) return { label: "FIRE", class: "text-red-400 bg-red-500/10 border-red-500/30" };
+  if (score >= 65) return { label: "HOT", class: "text-amber-400 bg-amber-500/10 border-amber-500/30" };
+  if (score >= 40) return { label: "WARM", class: "text-sky-400 bg-sky-500/10 border-sky-500/30" };
+  return { label: "COLD", class: "text-muted-foreground bg-muted/10 border-border/30" };
 }
 
 function daysAgoLabel(dateStr: string | null): string {

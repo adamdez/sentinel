@@ -198,8 +198,8 @@ function KpiCard({ icon: Icon, label, value, subtitle, tone = "default" }: KpiCa
       className={cn(
         "rounded-[12px] border px-3 py-2.5 bg-glass/40 transition-colors",
         tone === "default" && "border-glass-border",
-        tone === "positive" && "border-border/25 bg-muted/[0.04]",
-        tone === "danger" && "border-border/30 bg-muted/[0.06] shadow-[0_0_12px_rgba(239,68,68,0.08)]"
+        tone === "positive" && "border-emerald-500/25 bg-emerald-500/[0.04]",
+        tone === "danger" && "border-red-500/30 bg-red-500/[0.06] shadow-[0_0_12px_rgba(239,68,68,0.08)]"
       )}
     >
       <div className="flex items-center gap-1.5 mb-1">

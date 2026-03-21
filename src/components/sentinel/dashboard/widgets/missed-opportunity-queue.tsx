@@ -15,17 +15,17 @@ const SIGNAL_META: Record<
   flagged_ai_output: {
     label: "AI Review",
     Icon: BrainCircuit,
-    color: "text-foreground",
+    color: "text-violet-400",
   },
   overdue_task: {
     label: "Overdue Task",
     Icon: ClipboardCheck,
-    color: "text-foreground",
+    color: "text-red-400",
   },
   overdue_follow_up_lead: {
     label: "Follow-up Missed",
     Icon: CalendarX,
-    color: "text-foreground",
+    color: "text-amber-400",
   },
   defaulted_callback: {
     label: "No Date Set",

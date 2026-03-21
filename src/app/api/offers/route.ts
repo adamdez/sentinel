@@ -78,7 +78,10 @@ export async function POST(req: NextRequest) {
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
-  // Update deal with latest offer price — critical state transition
+  // Primary mutation succeeded — from here, failures are warnings, not errors.
+  // Returning 500 after the insert is committed causes duplicate offers on retry.
+  const warnings: string[] = [];
+
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { error: dealErr } = await (sb.from("deals") as any)
     .update({
@@ -89,13 +92,9 @@ export async function POST(req: NextRequest) {
     .eq("id", dealId);
   if (dealErr) {
     console.error("[offers] Deal status update failed:", dealErr.message);
-    return NextResponse.json(
-      { error: "Offer created but deal status update failed", offerId: data.id, detail: dealErr.message },
-      { status: 500 },
-    );
+    warnings.push("deal_status_update_failed");
   }
 
-  // Audit log
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { error: logErr } = await (sb.from("event_log") as any).insert({
     user_id: user.id,
@@ -106,7 +105,10 @@ export async function POST(req: NextRequest) {
   });
   if (logErr) console.error("[offers] Audit log failed:", logErr.message);
 
-  return NextResponse.json({ offer: data }, { status: 201 });
+  return NextResponse.json(
+    { offer: data, ...(warnings.length > 0 && { warnings }) },
+    { status: 201 },
+  );
 }
 
 /**
@@ -148,7 +150,11 @@ export async function PATCH(req: NextRequest) {
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
-  // If offer accepted, update deal to under_contract — most critical transition
+  // Primary mutation succeeded — from here, failures are warnings.
+  // The offer status is already committed; returning 500 would cause
+  // a retry that either no-ops or leaves the caller confused.
+  const warnings: string[] = [];
+
   if (status === "accepted" && data.deals) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { error: dealErr } = await (sb.from("deals") as any)
@@ -160,14 +166,10 @@ export async function PATCH(req: NextRequest) {
       .eq("id", data.deal_id);
     if (dealErr) {
       console.error("[offers] CRITICAL: Deal under_contract transition failed:", dealErr.message);
-      return NextResponse.json(
-        { error: "Offer accepted but deal status update failed — manual intervention required", detail: dealErr.message },
-        { status: 500 },
-      );
+      warnings.push("deal_under_contract_failed");
     }
 
-    // Move lead to disposition stage — hard failure if this breaks
-    if (data.deals.lead_id) {
+    if (data.deals.lead_id && !dealErr) {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { error: leadErr } = await (sb.from("leads") as any)
         .update({
@@ -178,11 +180,10 @@ export async function PATCH(req: NextRequest) {
         .eq("id", data.deals.lead_id);
       if (leadErr) {
         console.error("[offers] CRITICAL: Lead stage transition to disposition failed:", leadErr.message);
-        return NextResponse.json(
-          { error: "Deal updated but lead stage transition failed — manual intervention required", detail: leadErr.message },
-          { status: 500 },
-        );
+        warnings.push("lead_disposition_transition_failed");
       }
+    } else if (data.deals.lead_id && dealErr) {
+      warnings.push("lead_disposition_skipped_due_to_deal_failure");
     }
   }
 
@@ -192,9 +193,9 @@ export async function PATCH(req: NextRequest) {
     action: `offer.${status}`,
     entity_type: "deal",
     entity_id: data.deal_id,
-    details: { offerId, status, amount: data.amount },
+    details: { offerId, status, amount: data.amount, warnings },
   });
   if (patchLogErr) console.error("[offers] Audit log failed:", patchLogErr.message);
 
-  return NextResponse.json({ offer: data });
+  return NextResponse.json({ offer: data, ...(warnings.length > 0 && { warnings }) });
 }

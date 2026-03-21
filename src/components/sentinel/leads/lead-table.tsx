@@ -38,23 +38,23 @@ interface LeadTableProps {
 }
 
 const DISTRESS_COLORS: Partial<Record<string, string>> = {
-  probate: "bg-muted/15 text-foreground border-border/30",
-  pre_foreclosure: "bg-muted/15 text-foreground border-border/30",
-  tax_lien: "bg-muted/15 text-foreground border-border/30",
-  code_violation: "bg-muted/15 text-foreground border-border/30",
-  vacant: "bg-muted/15 text-foreground border-border/30",
-  divorce: "bg-muted/15 text-foreground border-border/30",
-  bankruptcy: "bg-muted/15 text-foreground border-border/30",
-  fsbo: "bg-muted/15 text-foreground border-border/30",
-  absentee: "bg-primary-500/15 text-primary-400 border-primary-500/30",
-  inherited: "bg-muted/15 text-foreground border-border/30",
-  water_shutoff: "bg-muted/15 text-foreground border-border/30",
-  condemned: "bg-muted/15 text-foreground border-border/30",
-  tired_landlord: "bg-muted/15 text-foreground border-border/30",
-  underwater: "bg-muted/15 text-foreground border-border/30",
-  tax_delinquent: "bg-muted/15 text-foreground border-border/30",
-  absentee_owner: "bg-primary-500/15 text-primary-300 border-primary-500/30",
-  code_issue: "bg-muted/15 text-foreground border-border/30",
+  probate: "bg-violet-500/15 text-violet-400 border-violet-500/30",
+  pre_foreclosure: "bg-red-500/15 text-red-400 border-red-500/30",
+  tax_lien: "bg-amber-500/15 text-amber-400 border-amber-500/30",
+  code_violation: "bg-red-500/15 text-red-400 border-red-500/30",
+  vacant: "bg-sky-500/15 text-sky-400 border-sky-500/30",
+  divorce: "bg-violet-500/15 text-violet-400 border-violet-500/30",
+  bankruptcy: "bg-red-500/15 text-red-400 border-red-500/30",
+  fsbo: "bg-emerald-500/15 text-emerald-400 border-emerald-500/30",
+  absentee: "bg-sky-500/15 text-sky-400 border-sky-500/30",
+  inherited: "bg-violet-500/15 text-violet-400 border-violet-500/30",
+  water_shutoff: "bg-red-500/15 text-red-400 border-red-500/30",
+  condemned: "bg-red-500/20 text-red-300 border-red-500/40",
+  tired_landlord: "bg-amber-500/15 text-amber-400 border-amber-500/30",
+  underwater: "bg-amber-500/15 text-amber-400 border-amber-500/30",
+  tax_delinquent: "bg-amber-500/15 text-amber-400 border-amber-500/30",
+  absentee_owner: "bg-sky-500/15 text-sky-400 border-sky-500/30",
+  code_issue: "bg-red-500/15 text-red-400 border-red-500/30",
   rural: "bg-muted/15 text-foreground border-border/30",
   mobile_home: "bg-muted/15 text-foreground border-border/30",
   possible_developer: "bg-muted/15 text-foreground border-border/30",
@@ -253,28 +253,28 @@ function speedToLeadMeta(lead: LeadRow): { text: string; className: string } {
     const responseMs = Math.max(0, attemptMs - promotedMs);
     const label = hasLoggedFirstAttempt ? "First response" : "First response est";
     if (responseMs <= 5 * 60 * 1000) {
-      return { text: `${label} ${formatElapsed(responseMs)} (Fast)`, className: "text-foreground" };
+      return { text: `${label} ${formatElapsed(responseMs)} (Fast)`, className: "text-emerald-400" };
     }
     if (responseMs <= 15 * 60 * 1000) {
       return { text: `${label} ${formatElapsed(responseMs)} (OK)`, className: "text-foreground" };
     }
-    return { text: `${label} ${formatElapsed(responseMs)} (Slow)`, className: "text-foreground" };
+    return { text: `${label} ${formatElapsed(responseMs)} (Slow)`, className: "text-amber-400" };
   }
 
   const ageMs = Date.now() - promotedMs;
   if (ageMs > 15 * 60 * 1000) {
-    return { text: `First response pending ${formatElapsed(ageMs)}`, className: "text-foreground font-medium" };
+    return { text: `First response pending ${formatElapsed(ageMs)}`, className: "text-red-400 font-medium" };
   }
   if (ageMs > 5 * 60 * 1000) {
-    return { text: `First response pending ${formatElapsed(ageMs)}`, className: "text-foreground" };
+    return { text: `First response pending ${formatElapsed(ageMs)}`, className: "text-amber-400" };
   }
   return { text: `First response pending ${formatElapsed(ageMs)}`, className: "text-foreground" };
 }
 
 function urgencyTextClass(urgency: UrgencyLevel): string {
   switch (urgency) {
-    case "critical": return "text-foreground font-semibold";
-    case "high": return "text-foreground";
+    case "critical": return "text-red-400 font-semibold";
+    case "high": return "text-amber-400";
     case "normal": return "text-muted-foreground/70";
     case "low": return "text-muted-foreground/50";
     case "none": return "text-muted-foreground/40";
@@ -545,29 +545,53 @@ export function LeadTable({
             </div>
 
             {/* Property + Owner (consolidated) */}
-            <div className="flex flex-col justify-center min-w-0 gap-0.5">
-              <span
-                className="text-sm font-semibold truncate text-foreground"
-                style={{ WebkitFontSmoothing: "antialiased" }}
-              >
-                {lead.address}{lead.city ? `, ${lead.city}` : ""}
-              </span>
-              <div className="flex items-center gap-1.5 min-w-0 overflow-hidden">
-                <span
-                  className="text-xs font-medium text-muted-foreground/90 truncate shrink"
-                  style={{ WebkitFontSmoothing: "antialiased" }}
-                >
-                  {lead.ownerName}
-                </span>
-                {lead.ownerPhone ? (
-                  <span className="text-sm text-foreground/80 tabular-nums shrink-0">
-                    {formatPhone(lead.ownerPhone)}
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <div className="flex flex-col justify-center min-w-0 gap-0.5">
+                  <span
+                    className="text-sm font-semibold truncate text-foreground"
+                    style={{ WebkitFontSmoothing: "antialiased" }}
+                  >
+                    {lead.address}{lead.city ? `, ${lead.city}` : ""}
                   </span>
-                ) : (
-                  <span className="text-xs text-muted-foreground/30 shrink-0">No phone</span>
-                )}
-              </div>
-            </div>
+                  <div className="flex items-center gap-1.5 min-w-0 overflow-hidden">
+                    <span
+                      className="text-xs font-medium text-muted-foreground/90 truncate shrink"
+                      style={{ WebkitFontSmoothing: "antialiased" }}
+                    >
+                      {lead.ownerName}
+                    </span>
+                    {lead.ownerPhone ? (
+                      <span className="text-sm text-foreground/80 tabular-nums shrink-0">
+                        {formatPhone(lead.ownerPhone)}
+                      </span>
+                    ) : (
+                      <span className="text-xs text-muted-foreground/30 shrink-0">No phone</span>
+                    )}
+                  </div>
+                </div>
+              </TooltipTrigger>
+              {(lead.sellerSituationSummaryShort || lead.recommendedCallAngle || lead.topFact1 || lead.notes) && (
+                <TooltipContent side="right" className="max-w-xs space-y-1.5 text-left">
+                  {lead.sellerSituationSummaryShort && (
+                    <p className="text-sm font-medium">{lead.sellerSituationSummaryShort}</p>
+                  )}
+                  {lead.recommendedCallAngle && (
+                    <p className="text-xs text-muted-foreground"><span className="text-primary font-medium">Call angle:</span> {lead.recommendedCallAngle}</p>
+                  )}
+                  {(lead.topFact1 || lead.topFact2 || lead.topFact3) && (
+                    <ul className="text-xs text-muted-foreground space-y-0.5">
+                      {lead.topFact1 && <li>• {lead.topFact1}</li>}
+                      {lead.topFact2 && <li>• {lead.topFact2}</li>}
+                      {lead.topFact3 && <li>• {lead.topFact3}</li>}
+                    </ul>
+                  )}
+                  {!lead.sellerSituationSummaryShort && lead.notes && (
+                    <p className="text-xs text-muted-foreground line-clamp-3">{lead.notes}</p>
+                  )}
+                </TooltipContent>
+              )}
+            </Tooltip>
 
             {/* Score (badge only) */}
             <div className="flex items-center">
