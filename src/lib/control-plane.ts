@@ -463,6 +463,100 @@ async function executeApprovedAction(item: {
       return { executed: true, action: item.action, detail: { taskCreated: true } };
     }
 
+    case "vapi_post_call_promote": {
+      // Promote Vapi post-call analysis results to the leads table
+      const leadId = item.entity_id;
+      if (!leadId) {
+        return { executed: false, action: item.action, reason: "no_lead_id" };
+      }
+
+      const sb4 = createServerClient();
+
+      // Fetch current lead notes to append (never overwrite)
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data: lead, error: leadFetchErr } = await (sb4.from("leads") as any)
+        .select("id, notes")
+        .eq("id", leadId)
+        .single();
+
+      if (leadFetchErr || !lead) {
+        return { executed: false, action: item.action, reason: "lead_not_found" };
+      }
+
+      const proposal = item.proposal as {
+        next_action?: string;
+        next_action_due_at?: string;
+        deal_temperature?: string;
+        promises_made?: string[];
+        objections_raised?: string[];
+        decision_maker_confidence?: string;
+        voice_session_id?: string;
+      };
+
+      // Build appended note entry
+      const dateLabel = new Date().toLocaleDateString("en-US", {
+        month: "short", day: "numeric", year: "numeric",
+      });
+      const noteParts = [
+        `[Vapi post-call ${dateLabel}]`,
+        proposal.deal_temperature ? `Temperature: ${proposal.deal_temperature}` : null,
+        proposal.next_action ? `Next action: ${proposal.next_action}` : null,
+        proposal.promises_made?.length ? `Promises: ${proposal.promises_made.join("; ")}` : null,
+        proposal.objections_raised?.length ? `Objections: ${proposal.objections_raised.join("; ")}` : null,
+        proposal.decision_maker_confidence ? `DM confidence: ${proposal.decision_maker_confidence}` : null,
+      ].filter(Boolean).join("\n");
+
+      const updatedNotes = lead.notes
+        ? `${lead.notes}\n\n${noteParts}`
+        : noteParts;
+
+      // Write to leads table: next_action, next_action_due_at, notes (appended)
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { error: leadUpdateErr } = await (sb4.from("leads") as any)
+        .update({
+          next_action: proposal.next_action ?? null,
+          next_action_due_at: proposal.next_action_due_at ?? null,
+          notes: updatedNotes,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", leadId);
+
+      if (leadUpdateErr) {
+        return { executed: false, action: item.action, reason: `lead_update_failed: ${leadUpdateErr.message}` };
+      }
+
+      // Log event
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      await (sb4.from("event_log") as any).insert({
+        action: "vapi_post_call.promoted",
+        entity_type: "lead",
+        entity_id: leadId,
+        details: {
+          deal_temperature: proposal.deal_temperature,
+          next_action: proposal.next_action,
+          voice_session_id: proposal.voice_session_id,
+        },
+      }).catch(() => {});
+
+      // Mark review_queue item as promoted
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      await (sb4.from("review_queue") as any)
+        .update({ status: "promoted", updated_at: new Date().toISOString() })
+        .eq("entity_id", leadId)
+        .eq("action", "vapi_post_call_promote")
+        .eq("status", "approved");
+
+      return {
+        executed: true,
+        action: item.action,
+        detail: {
+          leadId,
+          next_action: proposal.next_action,
+          deal_temperature: proposal.deal_temperature,
+        },
+      };
+    }
+
     case "follow_up_call": {
       // Call follow-ups just create a task — Logan makes the actual call
       const leadId = item.entity_id;

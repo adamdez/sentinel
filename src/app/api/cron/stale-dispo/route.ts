@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@/lib/supabase";
 import { getFeatureFlag } from "@/lib/control-plane";
+import { n8nStaleDispo } from "@/lib/n8n-dispatch";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -88,6 +89,19 @@ export async function GET(req: NextRequest) {
       } catch (err) {
         console.error(`[stale-dispo] Failed for deal ${deal.id}:`, err);
       }
+    }
+
+    // Fire n8n webhook for Adam visibility — fire-and-forget
+    if (staleDeals.length > 0) {
+      n8nStaleDispo({
+        count: staleDeals.length,
+        deals: staleDeals.map((d) => ({
+          dealId: d.id,
+          leadId: d.lead_id,
+        })),
+        detectedAt: now.toISOString(),
+        triggered,
+      });
     }
 
     return NextResponse.json({

@@ -7,6 +7,7 @@ import { detectDistressSignals, type DetectedSignal } from "@/lib/distress-signa
 import { upsertContact } from "@/lib/upsert-contact";
 import { deduplicateByProperty } from "@/lib/dedup-property";
 import { resolveMarket } from "@/lib/market-resolver";
+import { n8nInboundLeadReceived } from "@/lib/n8n-dispatch";
 
 type SbResult<T> = { data: T | null; error: { code?: string; message: string } | null };
 
@@ -732,6 +733,18 @@ export async function POST(request: NextRequest) {
         .eq("id", leadId);
       log("Step 11 — Existing lead UPDATED (property dedup merge)", { leadId });
     }
+
+    // ── 11b. Fire n8n webhook (fire-and-forget, never blocks) ────────
+
+    n8nInboundLeadReceived({
+      leadId: leadId!,
+      source: "propertyradar",
+      channel: "api_ingest",
+      ownerName: ownerName || null,
+      phone: ownerPhone || null,
+      address: address || null,
+    }).catch(() => {/* swallowed — n8n dispatch is best-effort */});
+    log("Step 11b — n8n inbound.lead_received dispatched (fire-and-forget)");
 
     // ── 12. Compliance scrub placeholder ──────────────────────────────
 

@@ -161,6 +161,35 @@ export function n8nInboundLeadReceived(data: {
 }
 
 /**
+ * Lead enriched via skip-trace (operator-initiated)
+ */
+export function n8nLeadEnriched(data: {
+  leadId: string;
+  propertyId: string;
+  source: string;
+  provider: string[];
+  phonesFound: number;
+  emailsFound: number;
+}): Promise<N8NDispatchResult> {
+  return fireN8NWebhook("lead.enriched", data);
+}
+
+/**
+ * Stale dispo deals detected (deals in disposition >48h with no buyer outreach)
+ */
+export function n8nStaleDispo(data: {
+  count: number;
+  deals: Array<{
+    dealId: string;
+    leadId: string;
+  }>;
+  detectedAt: string;
+  triggered: number;
+}): Promise<N8NDispatchResult> {
+  return fireN8NWebhook("deal.stale_dispo", data);
+}
+
+/**
  * Agent completed a run (for monitoring/alerting in n8n)
  */
 export function n8nAgentRunCompleted(data: {

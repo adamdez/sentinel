@@ -81,10 +81,18 @@ async function handleBrowserVoice(req: NextRequest) {
     : "";
 
   // Build TwiML — dial the prospect directly from the browser
-  // Optionally add <Stream> for real-time transcription if server is configured
+  // Optionally add <Stream> for real-time transcription via Deepgram (WI-1)
+  // TRANSCRIPTION_WS_URL = WebSocket relay server that bridges Twilio audio → Deepgram
+  // Only enabled when both the WS URL is configured and DEEPGRAM_API_KEY is set
   const transcriptionUrl = process.env.TRANSCRIPTION_WS_URL; // e.g. wss://sentinel-transcription.fly.dev/media-stream
-  const streamLine = transcriptionUrl && callLogId
-    ? `  <Stream url="${transcriptionUrl}?callLogId=${encodeURIComponent(callLogId)}" />`
+  const hasDeepgram = !!process.env.DEEPGRAM_API_KEY;
+  const streamParams = new URLSearchParams();
+  if (callLogId) streamParams.set("callLogId", callLogId);
+  if (sessionId) streamParams.set("sessionId", sessionId);
+  if (agentId)   streamParams.set("userId", agentId);
+  const streamQuery = streamParams.toString();
+  const streamLine = transcriptionUrl && hasDeepgram && (callLogId || sessionId)
+    ? `  <Stream url="${transcriptionUrl}${streamQuery ? `?${streamQuery}` : ""}" track="both_tracks" />`
     : "";
 
   const twiml = [

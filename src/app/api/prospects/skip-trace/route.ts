@@ -5,6 +5,7 @@ import type { DistressType } from "@/lib/types";
 import { distressFingerprint, normalizeCounty as globalNormalizeCounty } from "@/lib/dedup";
 import { dualSkipTrace, skipTraceResultToOwnerFlags } from "@/lib/skip-trace";
 import { detectDistressSignals, type DetectedSignal } from "@/lib/distress-signals";
+import { n8nLeadEnriched } from "@/lib/n8n-dispatch";
 
 const PR_API_BASE = "https://api.propertyradar.com/v1/properties";
 
@@ -236,6 +237,18 @@ export async function POST(req: NextRequest) {
     await Promise.all(writes);
     console.log(`[SkipTrace Perf] DB writes: ${Date.now() - tWriteStart}ms`);
     console.log(`[SkipTrace Perf] TOTAL: ${Date.now() - t0}ms`);
+
+    // Fire n8n webhook (fire-and-forget — never blocks response)
+    if (lead_id) {
+      n8nLeadEnriched({
+        leadId: lead_id,
+        propertyId: property_id,
+        source: "skip_trace",
+        provider: skipResult.providers,
+        phonesFound: skipResult.totalPhoneCount,
+        emailsFound: skipResult.totalEmailCount,
+      }).catch(() => {/* swallowed — n8n dispatch is non-critical */});
+    }
 
     // Map unified format back to the shape the UI expects
     const phones = skipResult.phones.map((p) => p.number);

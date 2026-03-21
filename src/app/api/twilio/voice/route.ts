@@ -58,10 +58,25 @@ async function handleVoiceWebhook(req: NextRequest) {
   if (prospectPhone) {
     // Agent just picked up — bridge to the prospect.
     // The prospect sees the Twilio number (CNAM "Dominion Homes") as caller ID.
+
+    // WI-1: Optionally add <Stream> for real-time Deepgram transcription
+    const transcriptionUrl = process.env.TRANSCRIPTION_WS_URL;
+    const hasDeepgram = !!process.env.DEEPGRAM_API_KEY;
+    const sessionId = url.searchParams.get("sessionId");
+    const streamParams = new URLSearchParams();
+    if (callLogId) streamParams.set("callLogId", callLogId);
+    if (sessionId) streamParams.set("sessionId", sessionId);
+    if (agentId)   streamParams.set("userId", agentId);
+    const streamQuery = streamParams.toString();
+    const streamLine = transcriptionUrl && hasDeepgram && (callLogId || sessionId)
+      ? `  <Stream url="${transcriptionUrl}${streamQuery ? `?${streamQuery}` : ""}" track="both_tracks" />`
+      : "";
+
     twiml = [
       '<?xml version="1.0" encoding="UTF-8"?>',
       "<Response>",
       '  <Say voice="Polly.Joanna">Sentinel call. Connecting to prospect now.</Say>',
+      ...(streamLine ? [streamLine] : []),
       `  <Dial callerId="${twilioNumber}" timeout="30" action="${actionUrl}">`,
       `    <Number>${prospectPhone}</Number>`,
       "  </Dial>",

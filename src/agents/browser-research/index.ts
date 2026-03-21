@@ -16,6 +16,48 @@ import { logGeneration } from "@/lib/langfuse";
 
 const FIRECRAWL_API_URL = "https://api.firecrawl.dev/v1";
 const AGENT_NAME = "browser-research";
+const CONCURRENCY_LIMIT = 3;
+
+// ── Retry with exponential backoff ────────────────────────────────────
+
+async function withRetry<T>(
+  fn: () => Promise<T>,
+  maxRetries = 2,
+  baseDelay = 1000,
+): Promise<T | null> {
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    try {
+      return await fn();
+    } catch (err) {
+      if (attempt === maxRetries) {
+        console.error(
+          `[browser-research] Failed after ${maxRetries + 1} attempts:`,
+          err,
+        );
+        return null;
+      }
+      await new Promise((resolve) =>
+        setTimeout(resolve, baseDelay * Math.pow(2, attempt)),
+      );
+    }
+  }
+  return null;
+}
+
+// ── Batch concurrency limiter ─────────────────────────────────────────
+
+async function runInBatches<T>(
+  tasks: (() => Promise<T>)[],
+  limit: number,
+): Promise<PromiseSettledResult<T>[]> {
+  const results: PromiseSettledResult<T>[] = [];
+  for (let i = 0; i < tasks.length; i += limit) {
+    const batch = tasks.slice(i, i + limit);
+    const batchResults = await Promise.allSettled(batch.map((t) => t()));
+    results.push(...batchResults);
+  }
+  return results;
+}
 
 export interface BrowserResearchInput {
   leadId: string;
@@ -65,7 +107,7 @@ export async function runBrowserResearch(input: BrowserResearchInput): Promise<R
   try {
     const queries = buildSearchQueries(input);
 
-    // Phase 1: Run ALL Firecrawl searches in parallel (fast — ~3-5s total)
+    // Phase 1: Run Firecrawl searches in batches of CONCURRENCY_LIMIT
     interface SearchResult {
       url?: string;
       title?: string;
@@ -74,7 +116,7 @@ export async function runBrowserResearch(input: BrowserResearchInput): Promise<R
       queryText: string;
     }
 
-    const searchPromises = queries.map(async (query): Promise<SearchResult[]> => {
+    const searchTasks = queries.map((query) => async (): Promise<SearchResult[]> => {
       try {
         const searchRes = await fetch(`${FIRECRAWL_API_URL}/search`, {
           method: "POST",
@@ -104,8 +146,20 @@ export async function runBrowserResearch(input: BrowserResearchInput): Promise<R
       }
     });
 
-    const allResults: SearchResult[] = (await Promise.all(searchPromises)).flat();
+    const searchSettled = await runInBatches(searchTasks, CONCURRENCY_LIMIT);
+    const rawResults: SearchResult[] = searchSettled
+      .filter((r): r is PromiseFulfilledResult<SearchResult[]> => r.status === "fulfilled")
+      .flatMap((r) => r.value);
     const sourcesSearched = queries.length;
+
+    // Dedup by URL — first occurrence wins
+    const seenUrls = new Set<string>();
+    const allResults = rawResults.filter((r) => {
+      const url = r.url?.toLowerCase();
+      if (!url || seenUrls.has(url)) return false;
+      seenUrls.add(url);
+      return true;
+    });
 
     // Phase 2: Store artifacts in parallel (fast — ~1-2s)
     const artifactIds = new Map<number, string>();
@@ -142,26 +196,53 @@ export async function runBrowserResearch(input: BrowserResearchInput): Promise<R
 
     for (const result of extractable) {
       try {
-        const facts = await extractFactsFromContent(
-          result.markdown!,
-          result.category,
-          input,
-          runId,
+        // Retry extraction up to 2 times with exponential backoff
+        const facts = await withRetry(
+          () =>
+            extractFactsFromContent(
+              result.markdown!,
+              result.category,
+              input,
+              runId,
+            ),
+          2,
+          1000,
         );
+        if (!facts) {
+          errors.push(`Extraction failed for "${result.category}" after retries`);
+          continue;
+        }
         for (const fact of facts) {
+          // Contradiction check: see if a different value already exists for this lead + field
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const { data: existing } = await (sb.from("fact_assertions") as any)
+            .select("id, value, confidence")
+            .eq("lead_id", input.leadId)
+            .eq("field_name", fact.field)
+            .limit(1)
+            .maybeSingle();
+
+          const insertPayload: Record<string, unknown> = {
+            lead_id: input.leadId,
+            field_name: fact.field,
+            value: fact.value,
+            confidence: fact.confidence,
+            source_type: `browser_research_${result.category}`,
+            source_provider: "firecrawl",
+            source_url: result.url,
+            artifact_id: artifactIds.get(result.idx),
+            run_id: runId,
+          };
+
+          // If an existing fact has a different value, flag contradiction
+          if (existing && existing.value !== fact.value) {
+            insertPayload.contradiction_with = existing.id;
+            insertPayload.confidence = "low"; // Downgrade on contradiction
+          }
+
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           await (sb.from("fact_assertions") as any)
-            .insert({
-              lead_id: input.leadId,
-              field_name: fact.field,
-              value: fact.value,
-              confidence: fact.confidence,
-              source_type: `browser_research_${result.category}`,
-              source_provider: "firecrawl",
-              source_url: result.url,
-              artifact_id: artifactIds.get(result.idx),
-              run_id: runId,
-            })
+            .insert(insertPayload)
             .select()
             .then(() => {})
             .catch(() => {}); // Skip duplicates
@@ -261,12 +342,12 @@ async function extractFactsFromContent(
   input: BrowserResearchInput,
   traceId: string,
 ): Promise<ExtractedFact[]> {
-  try {
-    const { analyzeWithClaude } = await import("@/lib/claude-client");
-    const apiKey = process.env.ANTHROPIC_API_KEY;
-    if (!apiKey) return [];
+  // Errors propagate to caller so withRetry can catch and retry them
+  const { analyzeWithClaude } = await import("@/lib/claude-client");
+  const apiKey = process.env.ANTHROPIC_API_KEY;
+  if (!apiKey) return [];
 
-    const prompt = `Extract structured facts from this web content about a property/owner. Return ONLY a JSON array of facts.
+  const prompt = `Extract structured facts from this web content about a property/owner. Return ONLY a JSON array of facts.
 
 Property: ${input.propertyAddress ?? "unknown"}
 Owner: ${input.ownerName ?? "unknown"}
@@ -287,26 +368,23 @@ Valid fields: owner_occupation, owner_age_estimate, property_last_sale_price, pr
 
 Only include facts you can actually extract from the content. Empty array [] if nothing relevant.`;
 
-    const result = await analyzeWithClaude({
-      prompt,
-      systemPrompt: "You are a real estate research analyst extracting structured facts from web content. Return only valid JSON arrays. Be conservative — only extract facts clearly stated in the content.",
-      apiKey,
-      temperature: 0.1,
-      maxTokens: 2048,
-      model: "claude-sonnet-4-6",
-      traceId,
-      generationName: `extract_facts_${category}`,
-    });
+  const result = await analyzeWithClaude({
+    prompt,
+    systemPrompt: "You are a real estate research analyst extracting structured facts from web content. Return only valid JSON arrays. Be conservative — only extract facts clearly stated in the content.",
+    apiKey,
+    temperature: 0.1,
+    maxTokens: 2048,
+    model: "claude-sonnet-4-6",
+    traceId,
+    generationName: `extract_facts_${category}`,
+  });
 
-    // Parse JSON from response
-    const jsonMatch = result.match(/\[[\s\S]*\]/);
-    if (!jsonMatch) return [];
+  // Parse JSON from response
+  const jsonMatch = result.match(/\[[\s\S]*\]/);
+  if (!jsonMatch) return [];
 
-    const facts: ExtractedFact[] = JSON.parse(jsonMatch[0]);
-    return facts.filter((f) => f.field && f.value);
-  } catch {
-    return [];
-  }
+  const facts: ExtractedFact[] = JSON.parse(jsonMatch[0]);
+  return facts.filter((f) => f.field && f.value);
 }
 
 // Suppress unused import warning — logGeneration used via claude-client

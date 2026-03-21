@@ -179,7 +179,7 @@ function IntelligenceSummaryBlock({ cf }: { cf: ClientFile }) {
     if (value == null) return null;
     return (
       <div className="space-y-1">
-        <div className="flex items-center justify-between text-[10px]">
+        <div className="flex items-center justify-between text-sm">
           <span className="text-muted-foreground uppercase tracking-wider font-medium">{label}</span>
           <span className="font-semibold text-foreground">{value}</span>
         </div>
@@ -198,7 +198,7 @@ function IntelligenceSummaryBlock({ cf }: { cf: ClientFile }) {
       <div className="flex items-center gap-2">
         <Brain className="h-4 w-4 text-muted-foreground" />
         <h3 className="text-xs font-semibold text-foreground">Intelligence Summary</h3>
-        <Badge className="border-white/20 bg-white/[0.08] text-foreground text-[9px] ml-auto">CRM Projection</Badge>
+        <Badge className="border-white/20 bg-white/[0.08] text-foreground text-xs ml-auto">CRM Projection</Badge>
       </div>
 
       {/* Scores row */}
@@ -213,7 +213,7 @@ function IntelligenceSummaryBlock({ cf }: { cf: ClientFile }) {
       {/* Seller situation */}
       {cf.sellerSituationSummaryShort && (
         <div>
-          <h4 className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold mb-1">
+          <h4 className="text-sm uppercase tracking-wider text-muted-foreground font-semibold mb-1">
             Seller Situation
           </h4>
           <p className="text-sm text-foreground/90 leading-relaxed whitespace-pre-wrap">
@@ -225,7 +225,7 @@ function IntelligenceSummaryBlock({ cf }: { cf: ClientFile }) {
       {/* Recommended call angle */}
       {cf.recommendedCallAngle && (
         <div className="rounded-[10px] border border-white/15 bg-white/[0.05] px-3 py-2">
-          <h4 className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold mb-1">
+          <h4 className="text-sm uppercase tracking-wider text-muted-foreground font-semibold mb-1">
             Recommended Call Angle
           </h4>
           <p className="text-sm text-foreground/90">{cf.recommendedCallAngle}</p>
@@ -235,7 +235,7 @@ function IntelligenceSummaryBlock({ cf }: { cf: ClientFile }) {
       {/* Top facts */}
       {facts.length > 0 && (
         <div>
-          <h4 className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold mb-2">
+          <h4 className="text-sm uppercase tracking-wider text-muted-foreground font-semibold mb-2">
             Top Facts
           </h4>
           <ul className="space-y-1.5">
@@ -963,8 +963,8 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
                   tags: cf.tags,
                   bestAddress: cf.fullAddress,
                 }} />
-                {ownerAge && <span className="text-[10px] text-muted-foreground/60">Age ~{ownerAge}</span>}
-                {pipelineDays != null && <Badge variant="outline" className="text-[8px] border-white/10 text-muted-foreground/60">{pipelineDays}d</Badge>}
+                {ownerAge && <span className="text-sm text-muted-foreground/60">Age ~{ownerAge}</span>}
+                {pipelineDays != null && <Badge variant="outline" className="text-xs border-white/10 text-muted-foreground/60">{pipelineDays}d</Badge>}
               </div>
             </div>
           </div>
@@ -975,7 +975,7 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
               <div className="flex items-start gap-2">
                 <MapPinned className="h-3.5 w-3.5 text-muted-foreground mt-0.5 shrink-0" />
                 <div className="flex-1 min-w-0">
-                  <p className="text-[9px] text-muted-foreground uppercase tracking-widest">Mailing Address (Absentee)</p>
+                  <p className="text-xs text-muted-foreground uppercase tracking-widest">Mailing Address (Absentee)</p>
                   <div className="flex items-center gap-1.5">
                     <p className="text-sm text-foreground truncate">{typeof mailingAddr === "string" ? mailingAddr : JSON.stringify(mailingAddr)}</p>
                     <CopyBtn text={typeof mailingAddr === "string" ? mailingAddr : JSON.stringify(mailingAddr)} />
@@ -992,7 +992,7 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
                 <ShieldAlert className="h-4 w-4 text-foreground shrink-0" />
                 <div>
                   <p className="text-xs font-bold text-foreground uppercase">Known TCPA Litigator</p>
-                  <p className="text-[10px] text-muted-foreground">Do NOT call or text this owner. High litigation risk.</p>
+                  <p className="text-sm text-muted-foreground">Do NOT call or text this owner. High litigation risk.</p>
                 </div>
               </div>
             </div>
@@ -1002,7 +1002,7 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
           {/* Heir Contacts (probate situations) */}
           {heirContacts.length > 0 && (
             <div className="mt-3 space-y-2">
-              <p className="text-[10px] text-foreground/90 uppercase tracking-wider font-semibold flex items-center gap-1.5">
+              <p className="text-sm text-foreground/90 uppercase tracking-wider font-semibold flex items-center gap-1.5">
                 <AlertTriangle className="h-3 w-3" />Heir / Decision-Maker Contacts
               </p>
               {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
@@ -1036,7 +1036,7 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
               <div className="flex items-center justify-between gap-2">
                 <span>{skipTraceResult}</span>
                 {skipTraceMs != null && (
-                  <span className={cn("font-mono text-[10px] shrink-0 px-1.5 py-0.5 rounded", skipTraceMs <= 2000 ? "text-foreground bg-white/[0.08]" : "text-muted-foreground bg-white/[0.05]")}>
+                  <span className={cn("font-mono text-sm shrink-0 px-1.5 py-0.5 rounded", skipTraceMs <= 2000 ? "text-foreground bg-white/[0.08]" : "text-muted-foreground bg-white/[0.05]")}>
                     {(skipTraceMs / 1000).toFixed(2)}s
                   </span>
                 )}
@@ -1050,21 +1050,21 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
                 <AlertTriangle className="h-4 w-4 text-foreground shrink-0 mt-0.5" />
                 <div className="flex-1 min-w-0 space-y-1">
                   <p className="text-xs font-semibold text-foreground">{skipTraceError.error}</p>
-                  {skipTraceError.reason && <p className="text-[11px] text-muted-foreground">{skipTraceError.reason}</p>}
+                  {skipTraceError.reason && <p className="text-sm text-muted-foreground">{skipTraceError.reason}</p>}
                   {skipTraceError.address_issues && skipTraceError.address_issues.length > 0 && (
                     <div className="space-y-0.5">
                       {skipTraceError.address_issues.map((issue, i) => (
-                        <p key={i} className="text-[10px] text-muted-foreground flex items-center gap-1">
+                        <p key={i} className="text-sm text-muted-foreground flex items-center gap-1">
                           <span className="text-foreground">&#9679;</span>{issue}
                         </p>
                       ))}
                     </div>
                   )}
-                  {skipTraceError.suggestion && <p className="text-[11px] text-muted-foreground italic">{skipTraceError.suggestion}</p>}
-                  {skipTraceError.tier_reached && <p className="text-[10px] text-muted-foreground/50 font-mono">Lookup stopped at: {skipTraceError.tier_reached}</p>}
+                  {skipTraceError.suggestion && <p className="text-sm text-muted-foreground italic">{skipTraceError.suggestion}</p>}
+                  {skipTraceError.tier_reached && <p className="text-sm text-muted-foreground/50 font-mono">Lookup stopped at: {skipTraceError.tier_reached}</p>}
                 </div>
                 {skipTraceMs != null && (
-                  <span className="font-mono text-[10px] shrink-0 px-1.5 py-0.5 rounded text-muted-foreground bg-white/[0.06]">
+                  <span className="font-mono text-sm shrink-0 px-1.5 py-0.5 rounded text-muted-foreground bg-white/[0.06]">
                     {(skipTraceMs / 1000).toFixed(2)}s
                   </span>
                 )}
@@ -1091,7 +1091,7 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
             <p className="text-xs font-bold text-foreground uppercase tracking-wide">
               {isLitigator ? "TCPA Litigator — DO NOT CONTACT" : "DNC Numbers Detected"}
             </p>
-            <p className="text-[10px] text-muted-foreground mt-0.5">
+            <p className="text-sm text-muted-foreground mt-0.5">
               {isLitigator ? "High litigation risk. No calls, texts, or mailers to this owner." : "One or more phone numbers are on the DNC list. Check before dialing."}
             </p>
           </div>
@@ -1105,7 +1105,7 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
           <div className="flex items-center justify-between mb-2">
             <div className="flex items-center gap-2">
               <AlertTriangle className="h-3 w-3 text-foreground" />
-              <p className="text-[10px] text-foreground/90 uppercase tracking-wider font-semibold">Distress Signals</p>
+              <p className="text-sm text-foreground/90 uppercase tracking-wider font-semibold">Distress Signals</p>
             </div>
           </div>
           {distressEvents.length > 0 ? (
@@ -1122,26 +1122,26 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
                     key={evt.id}
                     title={`${motivation}\nPer ${sourceName(evt.source)} Â· ${evtDate.isActual ? "filed" : "detected"} ${evtDate.date}`}
                     className={cn(
-                      "inline-flex items-center gap-1 px-2 py-1 rounded-full text-[10px] font-semibold border cursor-default transition-colors",
+                      "inline-flex items-center gap-1 px-2 py-1 rounded-full text-sm font-semibold border cursor-default transition-colors",
                       cfg?.color ?? "text-muted-foreground bg-white/[0.06] border-white/20",
                       isRecent && "ring-1 ring-white/20"
                     )}
                   >
                     <EvtIcon className="h-2.5 w-2.5 shrink-0" />
                     {cfg?.label ?? evt.event_type.replace(/_/g, " ")}
-                    <span className="text-[8px] opacity-60">Â· {evtDate.date.replace(/\/\d{4}$/, "")}</span>
+                    <span className="text-xs opacity-60">Â· {evtDate.date.replace(/\/\d{4}$/, "")}</span>
                     {isRecent && <Flame className="h-2.5 w-2.5 text-foreground shrink-0" />}
                   </span>
                 );
               })}
               {distressEvents.length > 6 && (
-                <span className="inline-flex items-center px-2 py-1 rounded-full text-[10px] font-semibold border border-white/10 text-muted-foreground bg-white/[0.03]">
+                <span className="inline-flex items-center px-2 py-1 rounded-full text-sm font-semibold border border-white/10 text-muted-foreground bg-white/[0.03]">
                   +{distressEvents.length - 6} more
                 </span>
               )}
             </div>
           ) : (
-            <p className="text-[10px] text-muted-foreground/50">No distress signals found (checked: tax liens, foreclosure, probate, code violations)</p>
+            <p className="text-sm text-muted-foreground/50">No distress signals found (checked: tax liens, foreclosure, probate, code violations)</p>
           )}
         </div>
 
@@ -1149,31 +1149,31 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
         <div className="flex-1 min-w-0 rounded-[12px] border border-white/[0.06] bg-white/[0.02] p-3">
           <div className="flex items-center gap-2 mb-2">
             <Globe className="h-3 w-3 text-muted-foreground" />
-            <p className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold">External Links</p>
+            <p className="text-sm text-muted-foreground uppercase tracking-wider font-semibold">External Links</p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
             {cf.radarId && (
-              <a href={`https://app.propertyradar.com/properties/${cf.radarId}`} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 text-[10px] text-muted-foreground hover:text-foreground transition-colors">
+              <a href={`https://app.propertyradar.com/properties/${cf.radarId}`} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground transition-colors">
                 <Radar className="h-2.5 w-2.5" />PropertyRadar
               </a>
             )}
             {(() => {
               const listingUrl = String(cf.ownerFlags?.listing_url ?? cf.ownerFlags?.link ?? "");
               return listingUrl ? (
-                <a href={listingUrl} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 text-[10px] text-muted-foreground hover:text-muted-foreground transition-colors">
+                <a href={listingUrl} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 text-sm text-muted-foreground hover:text-muted-foreground transition-colors">
                   <ExternalLink className="h-2.5 w-2.5" />Listing
                 </a>
               ) : null;
             })()}
             {cf.fullAddress && (
               <>
-                <a href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(cf.fullAddress)}`} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 text-[10px] text-muted-foreground hover:text-foreground transition-colors">
+                <a href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(cf.fullAddress)}`} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground transition-colors">
                   <Map className="h-2.5 w-2.5" />Maps
                 </a>
-                <a href={`https://www.zillow.com/homes/${encodeURIComponent(cf.fullAddress)}_rb/`} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 text-[10px] text-muted-foreground hover:text-foreground transition-colors">
+                <a href={`https://www.zillow.com/homes/${encodeURIComponent(cf.fullAddress)}_rb/`} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground transition-colors">
                   <ExternalLink className="h-2.5 w-2.5" />Zillow
                 </a>
-                <a href={`https://www.redfin.com/search#query=${encodeURIComponent(cf.fullAddress)}`} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 text-[10px] text-muted-foreground hover:text-foreground transition-colors">
+                <a href={`https://www.redfin.com/search#query=${encodeURIComponent(cf.fullAddress)}`} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground transition-colors">
                   <ExternalLink className="h-2.5 w-2.5" />Redfin
                 </a>
               </>
@@ -1186,21 +1186,21 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
             if (countyInfo) {
               return (
                 <div className="space-y-1.5 pt-2 mt-2 border-t border-white/[0.06]">
-                  <p className="text-[9px] text-muted-foreground/60 uppercase tracking-wider">{countyInfo.name}</p>
+                  <p className="text-xs text-muted-foreground/60 uppercase tracking-wider">{countyInfo.name}</p>
                   <div className="flex flex-wrap gap-1.5">
                     <a href={countyInfo.gis(cf.apn ?? "")} target="_blank" rel="noopener noreferrer">
-                      <Button size="sm" variant="outline" className="gap-1 text-[9px] h-6 px-2">
+                      <Button size="sm" variant="outline" className="gap-1 text-xs h-6 px-2">
                         <Map className="h-2.5 w-2.5 text-muted-foreground" />GIS
                       </Button>
                     </a>
                     <a href={countyInfo.assessor(cf.apn ?? "")} target="_blank" rel="noopener noreferrer">
-                      <Button size="sm" variant="outline" className="gap-1 text-[9px] h-6 px-2">
+                      <Button size="sm" variant="outline" className="gap-1 text-xs h-6 px-2">
                         <Building className="h-2.5 w-2.5 text-muted-foreground" />Assessor
                       </Button>
                     </a>
                     {countyInfo.treasurer && (
                       <a href={countyInfo.treasurer(cf.apn ?? "")} target="_blank" rel="noopener noreferrer">
-                        <Button size="sm" variant="outline" className="gap-1 text-[9px] h-6 px-2">
+                        <Button size="sm" variant="outline" className="gap-1 text-xs h-6 px-2">
                           <DollarSign className="h-2.5 w-2.5 text-muted-foreground" />Tax
                         </Button>
                       </a>
@@ -1214,7 +1214,7 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
               return (
                 <div className="pt-2 mt-2 border-t border-white/[0.06]">
                   <a href={`https://www.google.com/search?q=${searchQ}`} target="_blank" rel="noopener noreferrer">
-                    <Button size="sm" variant="outline" className="gap-1 text-[9px] h-6 px-2">
+                    <Button size="sm" variant="outline" className="gap-1 text-xs h-6 px-2">
                       <Search className="h-2.5 w-2.5 text-muted-foreground" />{cf.county} Records
                     </Button>
                   </a>
@@ -1228,7 +1228,7 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
 
       {/* Prospecting Intake — compact inline summary */}
       {(prospectingSnapshot.sourceChannel || prospectingSnapshot.nicheTag || prospectingSnapshot.outboundStatus) && (
-        <div className="rounded-[10px] border border-white/[0.06] bg-white/[0.02] px-3 py-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-[10px]">
+        <div className="rounded-[10px] border border-white/[0.06] bg-white/[0.02] px-3 py-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm">
           <span className="text-muted-foreground">
             Source: <span className="text-foreground font-medium">{sourceChannelLabel(prospectingSnapshot.sourceChannel ?? cf.source)}</span>
           </span>
@@ -1256,12 +1256,12 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
       <div className="rounded-[12px] border border-white/[0.06] bg-white/[0.02] p-3 space-y-2.5">
         <div className="flex items-center gap-2">
           <Clock className="h-3.5 w-3.5 text-foreground" />
-          <p className="text-[11px] text-muted-foreground uppercase tracking-wider font-semibold">Recent Communication</p>
+          <p className="text-sm text-muted-foreground uppercase tracking-wider font-semibold">Recent Communication</p>
           {activityLog.length > 0 && (
-            <Badge variant="outline" className="text-[9px] ml-1">{Math.min(activityLog.length, 4)}</Badge>
+            <Badge variant="outline" className="text-xs ml-1">{Math.min(activityLog.length, 4)}</Badge>
           )}
           <button
-            className="ml-auto text-[10px] text-muted-foreground hover:text-foreground transition-colors"
+            className="ml-auto text-sm text-muted-foreground hover:text-foreground transition-colors"
             onClick={() => setTimelinesOpen(true)}
           >
             Open full timeline
@@ -1289,53 +1289,53 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
                   <div className="min-w-0">
                     <p className="font-semibold text-foreground capitalize">
                       {dispositionLabel}
-                      {isSystemEvent && <span className="ml-1.5 text-[9px] font-normal text-muted-foreground/40">System event</span>}
+                      {isSystemEvent && <span className="ml-1.5 text-xs font-normal text-muted-foreground/40">System event</span>}
                     </p>
-                    {notePreview && <p className="text-[10px] text-muted-foreground/65 truncate max-w-[430px]">{notePreview}</p>}
+                    {notePreview && <p className="text-sm text-muted-foreground/65 truncate max-w-[430px]">{notePreview}</p>}
                   </div>
-                  <p className="shrink-0 text-[9px] text-muted-foreground/50">{formatRelativeFromNow(entry.created_at)}</p>
+                  <p className="shrink-0 text-xs text-muted-foreground/50">{formatRelativeFromNow(entry.created_at)}</p>
                 </div>
               );
             })}
           </div>
         ) : (
-          <p className="text-[11px] text-muted-foreground/55">No calls, texts, or notes logged yet.</p>
+          <p className="text-sm text-muted-foreground/55">No calls, texts, or notes logged yet.</p>
         )}
       </div>
 
       <div className="rounded-[12px] border border-white/[0.06] bg-white/[0.02] p-3 space-y-2.5">
         <div className="flex items-center gap-2">
           <Phone className="h-3.5 w-3.5 text-foreground" />
-          <p className="text-[11px] text-muted-foreground uppercase tracking-wider font-semibold">Call Assist</p>
-          <Badge variant="outline" className="text-[9px] ml-1 border-white/[0.14] text-muted-foreground">
+          <p className="text-sm text-muted-foreground uppercase tracking-wider font-semibold">Call Assist</p>
+          <Badge variant="outline" className="text-xs ml-1 border-white/[0.14] text-muted-foreground">
             Talking points
           </Badge>
           {callAssistAllCards.length > callAssistDefaultCards.length && (
             <button
               type="button"
               onClick={() => setShowAllCallAssist((prev) => !prev)}
-              className="ml-auto text-[10px] text-muted-foreground hover:text-foreground transition-colors"
+              className="ml-auto text-sm text-muted-foreground hover:text-foreground transition-colors"
             >
               {showAllCallAssist ? "Show less" : `Show all (${callAssistAllCards.length})`}
             </button>
           )}
         </div>
-        <p className="text-[10px] text-muted-foreground/60">
+        <p className="text-sm text-muted-foreground/60">
           Compact scaffolding for live calls. Adapt naturally to seller context.
         </p>
         <div className="space-y-2">
           {callAssistVisibleCards.map((card) => (
             <div key={card.id} className="rounded-[8px] border border-white/[0.06] bg-white/[0.015] px-2.5 py-2">
-              <p className="text-[11px] font-semibold text-foreground">{card.title}</p>
-              <p className="text-[10px] text-muted-foreground/65 mt-0.5">{card.summary}</p>
+              <p className="text-sm font-semibold text-foreground">{card.title}</p>
+              <p className="text-sm text-muted-foreground/65 mt-0.5">{card.summary}</p>
               <div className="mt-1.5 space-y-1">
                 {card.talkingPoints.slice(0, 2).map((point, idx) => (
-                  <p key={idx} className="text-[10px] text-foreground/85">
+                  <p key={idx} className="text-sm text-foreground/85">
                     <span className="text-muted-foreground mr-1">&#8226;</span>{point}
                   </p>
                 ))}
               </div>
-              <p className="text-[9px] text-foreground/80 mt-1.5">{card.actionHint}</p>
+              <p className="text-xs text-foreground/80 mt-1.5">{card.actionHint}</p>
             </div>
           ))}
         </div>
@@ -1377,42 +1377,42 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <Scale className="h-3.5 w-3.5 text-foreground" />
-                <p className="text-[11px] text-muted-foreground uppercase tracking-wider font-semibold">Valuation Summary</p>
+                <p className="text-sm text-muted-foreground uppercase tracking-wider font-semibold">Valuation Summary</p>
               </div>
               <div className="flex items-center gap-1.5">
                 {isStale && (
-                  <span className="text-[9px] text-muted-foreground flex items-center gap-0.5">
+                  <span className="text-xs text-muted-foreground flex items-center gap-0.5">
                     <Clock className="h-2.5 w-2.5" />
                     {daysSinceUpdate}d ago
                   </span>
                 )}
                 {snapVersion && (
-                  <span className="text-[8px] text-muted-foreground/50 font-mono">v{snapVersion}</span>
+                  <span className="text-xs text-muted-foreground/50 font-mono">v{snapVersion}</span>
                 )}
               </div>
             </div>
 
             <div className="grid grid-cols-3 gap-2">
               <div>
-                <p className="text-[9px] text-muted-foreground uppercase">ARV</p>
+                <p className="text-xs text-muted-foreground uppercase">ARV</p>
                 <p className="text-sm font-bold text-foreground font-mono">
                   {displayArv > 0 ? `$${(displayArv / 1000).toFixed(0)}k` : "—"}
                 </p>
               </div>
               <div>
-                <p className="text-[9px] text-muted-foreground uppercase">MAO</p>
+                <p className="text-xs text-muted-foreground uppercase">MAO</p>
                 <p className="text-sm font-bold text-foreground font-mono">
                   {displayMao > 0 ? `$${(displayMao / 1000).toFixed(0)}k` : "—"}
                 </p>
               </div>
               <div>
-                <p className="text-[9px] text-muted-foreground uppercase">Confidence</p>
+                <p className="text-xs text-muted-foreground uppercase">Confidence</p>
                 <p className={cn("text-sm font-bold capitalize", confColor)}>{displayConf}</p>
               </div>
             </div>
 
             {(snapCompCount != null || snapCondAdj != null) && (
-              <div className="flex items-center gap-3 text-[9px] text-muted-foreground/70">
+              <div className="flex items-center gap-3 text-xs text-muted-foreground/70">
                 {snapCompCount != null && <span>{snapCompCount} comp{snapCompCount !== 1 ? "s" : ""}</span>}
                 {snapCondAdj != null && snapCondAdj !== 0 && <span>Condition adj: {snapCondAdj > 0 ? "+" : ""}{snapCondAdj}%</span>}
               </div>
@@ -1421,7 +1421,7 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
             {dangerWarnings.length > 0 && (
               <div className="space-y-1">
                 {dangerWarnings.map((w, i) => (
-                  <p key={i} className="text-[9px] text-foreground flex items-center gap-1">
+                  <p key={i} className="text-xs text-foreground flex items-center gap-1">
                     <AlertTriangle className="h-2.5 w-2.5 shrink-0" />
                     {w.message}
                   </p>
@@ -1430,7 +1430,7 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
             )}
 
             {isStale && (
-              <p className="text-[9px] text-muted-foreground">
+              <p className="text-xs text-muted-foreground">
                 Valuation is {daysSinceUpdate} days old — consider re-running comps.
               </p>
             )}
@@ -1445,12 +1445,12 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
           className="w-full flex items-center gap-2 px-3 py-2.5 text-left"
         >
           <Briefcase className="h-3.5 w-3.5 text-foreground" />
-          <p className="text-[11px] text-muted-foreground uppercase tracking-wider font-semibold">Deal Progress</p>
+          <p className="text-sm text-muted-foreground uppercase tracking-wider font-semibold">Deal Progress</p>
           {!isDealStage && cf.offerStatus === "none" && (
-            <span className="text-[9px] text-muted-foreground/50">No offer activity yet</span>
+            <span className="text-xs text-muted-foreground/50">No offer activity yet</span>
           )}
           {cf.offerStatus !== "none" && !dealProgressOpen && (
-            <span className="text-[9px] text-muted-foreground">{offerStatusLabel}</span>
+            <span className="text-xs text-muted-foreground">{offerStatusLabel}</span>
           )}
           <ChevronDown className={cn("h-3.5 w-3.5 text-muted-foreground/40 ml-auto transition-transform", dealProgressOpen && "rotate-180")} />
         </button>
@@ -1468,13 +1468,13 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
       <div className="rounded-[12px] border border-white/[0.06] bg-white/[0.02] p-3 space-y-2">
         <div className="flex items-center gap-2">
           <Briefcase className="h-3.5 w-3.5 text-foreground" />
-          <p className="text-[11px] text-muted-foreground uppercase tracking-wider font-semibold">Offer Progress</p>
+          <p className="text-sm text-muted-foreground uppercase tracking-wider font-semibold">Offer Progress</p>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
-          <span className={cn("text-[10px] px-2 py-0.5 rounded border font-medium", offerStatusToneClass)}>
+          <span className={cn("text-sm px-2 py-0.5 rounded border font-medium", offerStatusToneClass)}>
             {offerStatusLabel}
           </span>
-          <span className="text-[10px] text-muted-foreground/70">
+          <span className="text-sm text-muted-foreground/70">
             {offerStatusHint}
           </span>
         </div>
@@ -1483,13 +1483,13 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
             "rounded-[8px] border px-2.5 py-2 space-y-1.5",
             offerPrepStale || offerPrepMissing ? "border-white/12 bg-white/[0.05]" : "border-white/20 bg-white/[0.06]",
           )}>
-            <p className="text-[10px] text-foreground/90">
+            <p className="text-sm text-foreground/90">
               Workload: <span className="font-semibold">Run comps + prepare offer range</span>
             </p>
-            <p className="text-[10px] text-muted-foreground/80">
+            <p className="text-sm text-muted-foreground/80">
               Next offer-prep follow-up: <span className="text-foreground font-medium">{offerPrepDueLabel}</span>
             </p>
-            <p className={cn("text-[10px]", offerPrepStale || offerPrepMissing ? "text-foreground" : "text-foreground/80")}>
+            <p className={cn("text-sm", offerPrepStale || offerPrepMissing ? "text-foreground" : "text-foreground/80")}>
               {offerPrepStale || offerPrepMissing
                 ? offerPrepHealth.hint
                 : "Offer-prep path is active and on track."}
@@ -1517,13 +1517,13 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
       <div className="rounded-[12px] border border-white/[0.06] bg-white/[0.02] p-3 space-y-2">
         <div className="flex items-center gap-2">
           <Calculator className="h-3.5 w-3.5 text-foreground" />
-          <p className="text-[11px] text-muted-foreground uppercase tracking-wider font-semibold">Offer Prep Snapshot</p>
-          <Badge variant="outline" className="text-[9px] border-white/[0.14] text-muted-foreground">Operator entered</Badge>
+          <p className="text-sm text-muted-foreground uppercase tracking-wider font-semibold">Offer Prep Snapshot</p>
+          <Badge variant="outline" className="text-xs border-white/[0.14] text-muted-foreground">Operator entered</Badge>
           {offerPrepHealth.state !== "not_applicable" && (
             <Badge
               variant="outline"
               className={cn(
-                "text-[9px]",
+                "text-xs",
                 offerPrepHealth.state === "ready"
                   ? "border-white/15 text-foreground"
                   : "border-white/12 text-foreground",
@@ -1536,14 +1536,14 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
             <button
               type="button"
               onClick={() => onOfferPrepEditToggle(!offerPrepEditing)}
-              className="ml-auto text-[10px] text-foreground/75 hover:text-foreground transition-colors"
+              className="ml-auto text-sm text-foreground/75 hover:text-foreground transition-colors"
               disabled={offerPrepSaving}
             >
               {offerPrepEditing ? "Cancel" : "Edit"}
             </button>
           )}
         </div>
-        <p className="text-[10px] text-muted-foreground/70">
+        <p className="text-sm text-muted-foreground/70">
           Offer progress is derived. Offer prep snapshot is operator-entered and should reflect your current comping assumptions.
         </p>
 
@@ -1551,7 +1551,7 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
           <div className="space-y-2.5">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
               <label className="space-y-1">
-                <span className="text-[9px] uppercase tracking-wider text-muted-foreground">ARV Used</span>
+                <span className="text-xs uppercase tracking-wider text-muted-foreground">ARV Used</span>
                 <input
                   type="number"
                   min={0}
@@ -1562,7 +1562,7 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
                 />
               </label>
               <label className="space-y-1">
-                <span className="text-[9px] uppercase tracking-wider text-muted-foreground">Rehab Estimate</span>
+                <span className="text-xs uppercase tracking-wider text-muted-foreground">Rehab Estimate</span>
                 <input
                   type="number"
                   min={0}
@@ -1573,7 +1573,7 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
                 />
               </label>
               <label className="space-y-1">
-                <span className="text-[9px] uppercase tracking-wider text-muted-foreground">MAO Low</span>
+                <span className="text-xs uppercase tracking-wider text-muted-foreground">MAO Low</span>
                 <input
                   type="number"
                   min={0}
@@ -1584,7 +1584,7 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
                 />
               </label>
               <label className="space-y-1">
-                <span className="text-[9px] uppercase tracking-wider text-muted-foreground">MAO High</span>
+                <span className="text-xs uppercase tracking-wider text-muted-foreground">MAO High</span>
                 <input
                   type="number"
                   min={0}
@@ -1597,7 +1597,7 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
               <label className="space-y-1">
-                <span className="text-[9px] uppercase tracking-wider text-muted-foreground">Confidence</span>
+                <span className="text-xs uppercase tracking-wider text-muted-foreground">Confidence</span>
                 <select
                   value={offerPrepDraft.confidence}
                   onChange={(e) => onOfferPrepDraftChange({ confidence: (e.target.value as OfferPrepConfidence | "") })}
@@ -1610,7 +1610,7 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
                 </select>
               </label>
               <label className="space-y-1">
-                <span className="text-[9px] uppercase tracking-wider text-muted-foreground">Sheet / Calculator Link (optional)</span>
+                <span className="text-xs uppercase tracking-wider text-muted-foreground">Sheet / Calculator Link (optional)</span>
                 <input
                   type="url"
                   value={offerPrepDraft.sheetUrl}
@@ -1621,10 +1621,10 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
               </label>
             </div>
             <div className="flex items-center justify-between gap-2">
-              <p className="text-[10px] text-muted-foreground/65">
+              <p className="text-sm text-muted-foreground/65">
                 Last updated: <span className="text-foreground/85">{offerPrepUpdatedLabel}</span>
               </p>
-              <Button size="sm" className="h-7 text-[11px]" disabled={offerPrepSaving} onClick={onOfferPrepSave}>
+              <Button size="sm" className="h-7 text-sm" disabled={offerPrepSaving} onClick={onOfferPrepSave}>
                 {offerPrepSaving ? <Loader2 className="h-3 w-3 animate-spin" /> : <Save className="h-3 w-3" />}
                 Save Snapshot
               </Button>
@@ -1634,15 +1634,15 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
           const allEmpty = offerPrepSnapshot.arvUsed == null && offerPrepSnapshot.rehabEstimate == null && offerPrepSnapshot.maoLow == null && offerPrepSnapshot.maoHigh == null && !offerPrepSnapshot.confidence && !offerPrepSnapshot.updatedAt;
           if (allEmpty && !offerPrepExpanded) {
             return (
-              <div className="flex items-center gap-2 text-[11px]">
+              <div className="flex items-center gap-2 text-sm">
                 <p className="text-muted-foreground">Offer details: Not started yet</p>
-                <button type="button" onClick={() => setOfferPrepExpanded(true)} className="text-[10px] text-muted-foreground hover:text-foreground transition-colors">[Show details]</button>
+                <button type="button" onClick={() => setOfferPrepExpanded(true)} className="text-sm text-muted-foreground hover:text-foreground transition-colors">[Show details]</button>
               </div>
             );
           }
           return (
             <div className="space-y-2">
-              <div className="grid grid-cols-2 md:grid-cols-3 gap-2 text-[11px]">
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-2 text-sm">
                 <p className="text-muted-foreground">ARV Used: <span className="text-foreground font-medium">{offerPrepSnapshot.arvUsed != null ? formatCurrency(offerPrepSnapshot.arvUsed) : "Not set"}</span></p>
                 <p className="text-muted-foreground">Rehab: <span className="text-foreground font-medium">{offerPrepSnapshot.rehabEstimate != null ? formatCurrency(offerPrepSnapshot.rehabEstimate) : "Not set"}</span></p>
                 <p className="text-muted-foreground">MAO Low: <span className="text-foreground font-medium">{offerPrepSnapshot.maoLow != null ? formatCurrency(offerPrepSnapshot.maoLow) : "Not set"}</span></p>
@@ -1655,7 +1655,7 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
                   href={offerPrepSnapshot.sheetUrl}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1 text-[10px] text-foreground/80 hover:text-foreground"
+                  className="inline-flex items-center gap-1 text-sm text-foreground/80 hover:text-foreground"
                 >
                   <ExternalLink className="h-2.5 w-2.5" />
                   Open comp/calculator sheet
@@ -1750,16 +1750,16 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
         <div className="rounded-[12px] border border-white/[0.06] bg-white/[0.02] p-3 space-y-3">
           <div className="flex items-center gap-2">
             <CheckCircle2 className="h-3.5 w-3.5 text-foreground" />
-            <p className="text-[11px] text-muted-foreground uppercase tracking-wider font-semibold">Qualification</p>
+            <p className="text-sm text-muted-foreground uppercase tracking-wider font-semibold">Qualification</p>
             {!qualificationEditable && (
-              <Badge variant="outline" className="text-[9px] ml-1 border-white/[0.14] text-muted-foreground">Read-only</Badge>
+              <Badge variant="outline" className="text-xs ml-1 border-white/[0.14] text-muted-foreground">Read-only</Badge>
             )}
           </div>
 
           {qualificationEditable ? (
             <div className="space-y-3">
               <div className="rounded-[8px] border border-white/[0.08] bg-white/[0.015] px-2.5 py-2 space-y-1.5">
-                <div className="flex items-center justify-between text-[10px]">
+                <div className="flex items-center justify-between text-sm">
                   <span className="uppercase tracking-wider text-muted-foreground font-semibold">Qualification Completeness</span>
                   <span className={cn(
                     "font-semibold",
@@ -1786,17 +1786,17 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
                   />
                 </div>
                 {qualificationMissingLabels.length > 0 ? (
-                  <p className="text-[10px] text-muted-foreground/75">
+                  <p className="text-sm text-muted-foreground/75">
                     Missing before routing: <span className="text-foreground/85">{qualificationMissingLabels.join(", ")}</span>
                   </p>
                 ) : (
-                  <p className="text-[10px] text-foreground">Core qualification inputs are complete.</p>
+                  <p className="text-sm text-foreground">Core qualification inputs are complete.</p>
                 )}
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
                 <div className="space-y-1.5">
-                  <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">Motivation</p>
+                  <p className="text-sm uppercase tracking-wider text-muted-foreground font-semibold">Motivation</p>
                   <div className="flex items-center gap-1.5">
                     {[1, 2, 3, 4, 5].map((level) => (
                       <button
@@ -1804,7 +1804,7 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
                         type="button"
                         onClick={() => onQualificationChange({ motivationLevel: level })}
                         className={cn(
-                          "h-7 w-7 rounded-[8px] border text-[11px] font-semibold transition-colors",
+                          "h-7 w-7 rounded-[8px] border text-sm font-semibold transition-colors",
                           qualification.motivationLevel === level
                             ? "border-white/40 bg-white/[0.12] text-foreground"
                             : "border-white/[0.12] bg-white/[0.04] text-muted-foreground hover:border-white/[0.2]"
@@ -1817,7 +1817,7 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
                 </div>
 
                 <div className="space-y-1.5">
-                  <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">Condition</p>
+                  <p className="text-sm uppercase tracking-wider text-muted-foreground font-semibold">Condition</p>
                   <div className="flex items-center gap-1.5">
                     {[1, 2, 3, 4, 5].map((level) => (
                       <button
@@ -1825,7 +1825,7 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
                         type="button"
                         onClick={() => onQualificationChange({ conditionLevel: level })}
                         className={cn(
-                          "h-7 w-7 rounded-[8px] border text-[11px] font-semibold transition-colors",
+                          "h-7 w-7 rounded-[8px] border text-sm font-semibold transition-colors",
                           qualification.conditionLevel === level
                             ? "border-white/40 bg-white/[0.12] text-foreground"
                             : "border-white/[0.12] bg-white/[0.04] text-muted-foreground hover:border-white/[0.2]"
@@ -1840,7 +1840,7 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
                 <div className="space-y-1.5">
-                  <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">Occupancy</p>
+                  <p className="text-sm uppercase tracking-wider text-muted-foreground font-semibold">Occupancy</p>
                   <div className="flex items-center gap-1.5">
                     {[1, 2, 3, 4, 5].map((level) => (
                       <button
@@ -1848,7 +1848,7 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
                         type="button"
                         onClick={() => onQualificationChange({ occupancyScore: level })}
                         className={cn(
-                          "h-7 w-7 rounded-[8px] border text-[11px] font-semibold transition-colors",
+                          "h-7 w-7 rounded-[8px] border text-sm font-semibold transition-colors",
                           qualification.occupancyScore === level
                             ? "border-white/40 bg-white/[0.12] text-foreground"
                             : "border-white/[0.12] bg-white/[0.04] text-muted-foreground hover:border-white/[0.2]"
@@ -1857,12 +1857,12 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
                         {level}
                       </button>
                     ))}
-                    <span className="text-[9px] text-muted-foreground/60 ml-1">1=occupied · 5=vacant</span>
+                    <span className="text-xs text-muted-foreground/60 ml-1">1=occupied · 5=vacant</span>
                   </div>
                 </div>
 
                 <div className="space-y-1.5">
-                  <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">Equity / Flexibility</p>
+                  <p className="text-sm uppercase tracking-wider text-muted-foreground font-semibold">Equity / Flexibility</p>
                   <div className="flex items-center gap-1.5">
                     {[1, 2, 3, 4, 5].map((level) => (
                       <button
@@ -1870,7 +1870,7 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
                         type="button"
                         onClick={() => onQualificationChange({ equityFlexibilityScore: level })}
                         className={cn(
-                          "h-7 w-7 rounded-[8px] border text-[11px] font-semibold transition-colors",
+                          "h-7 w-7 rounded-[8px] border text-sm font-semibold transition-colors",
                           qualification.equityFlexibilityScore === level
                             ? "border-white/40 bg-white/[0.12] text-foreground"
                             : "border-white/[0.12] bg-white/[0.04] text-muted-foreground hover:border-white/[0.2]"
@@ -1879,14 +1879,14 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
                         {level}
                       </button>
                     ))}
-                    <span className="text-[9px] text-muted-foreground/60 ml-1">1=rigid · 5=flexible</span>
+                    <span className="text-xs text-muted-foreground/60 ml-1">1=rigid · 5=flexible</span>
                   </div>
                 </div>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
                 <div className="space-y-1.5">
-                  <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">Timeline</p>
+                  <p className="text-sm uppercase tracking-wider text-muted-foreground font-semibold">Timeline</p>
                   <select
                     value={qualification.sellerTimeline ?? ""}
                     onChange={(e) => onQualificationChange({ sellerTimeline: (e.target.value || null) as SellerTimeline | null })}
@@ -1900,7 +1900,7 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
                 </div>
 
                 <div className="space-y-1.5">
-                  <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">Asking Price</p>
+                  <p className="text-sm uppercase tracking-wider text-muted-foreground font-semibold">Asking Price</p>
                   <input
                     type="number"
                     min={0}
@@ -1931,7 +1931,7 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
               {/* Qualification Score Badge */}
               {cf.qualificationScoreTotal != null && (
                 <div className={cn(
-                  "rounded-[8px] border px-2.5 py-2 text-[11px] flex items-center justify-between",
+                  "rounded-[8px] border px-2.5 py-2 text-sm flex items-center justify-between",
                   cf.qualificationScoreTotal >= 25
                     ? "border-white/15 bg-white/[0.06] text-foreground"
                     : cf.qualificationScoreTotal >= 18
@@ -1950,18 +1950,18 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
                 </div>
               )}
               {offerReadySuggested && cf.qualificationScoreTotal == null && (
-                <div className="rounded-[8px] border border-white/15 bg-white/[0.06] px-2.5 py-2 text-[11px] text-foreground">
+                <div className="rounded-[8px] border border-white/15 bg-white/[0.06] px-2.5 py-2 text-sm text-foreground">
                   Suggestion: this lead looks <span className="font-semibold">Offer Ready</span> based on motivation, timeline, and lead score.
                 </div>
               )}
               {qualificationSuggestedRoute && qualificationSuggestedRoute !== qualification.qualificationRoute && (
-                <div className="rounded-[8px] border border-white/20 bg-white/[0.06] px-2.5 py-2 text-[11px] text-foreground flex items-center justify-between gap-2">
+                <div className="rounded-[8px] border border-white/20 bg-white/[0.06] px-2.5 py-2 text-sm text-foreground flex items-center justify-between gap-2">
                   <span>
                     Server suggestion: <span className="font-semibold">{qualificationRouteLabel(qualificationSuggestedRoute)}</span>
                   </span>
                   <Button
                     size="sm"
-                    className="h-6 text-[10px]"
+                    className="h-6 text-sm"
                     disabled={qualificationSaving}
                     onClick={() => onQualificationRouteSelect(qualificationSuggestedRoute)}
                   >
@@ -1971,7 +1971,7 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
               )}
 
               <div className="space-y-1.5">
-                <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">Route</p>
+                <p className="text-sm uppercase tracking-wider text-muted-foreground font-semibold">Route</p>
                 <div className="flex flex-wrap items-center gap-1.5">
                   {QUALIFICATION_ROUTE_OPTIONS.map((route) => (
                     <button
@@ -1980,7 +1980,7 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
                       disabled={qualificationSaving}
                       onClick={() => onQualificationRouteSelect(route.id)}
                       className={cn(
-                        "h-7 px-2.5 rounded-[8px] border text-[11px] font-medium transition-colors",
+                        "h-7 px-2.5 rounded-[8px] border text-sm font-medium transition-colors",
                         qualification.qualificationRoute === route.id
                           ? "border-white/40 bg-white/[0.12] text-foreground"
                           : "border-white/[0.12] bg-white/[0.04] text-muted-foreground hover:border-white/[0.2]",
@@ -1992,7 +1992,7 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
                   ))}
                   <Button
                     size="sm"
-                    className="h-7 text-[11px] ml-auto"
+                    className="h-7 text-sm ml-auto"
                     disabled={qualificationSaving || !qualificationDirty}
                     onClick={onQualificationSave}
                   >
@@ -2001,14 +2001,14 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
                   </Button>
                 </div>
                 {qualification.qualificationRoute === "escalate" && (
-                  <p className={cn("text-[10px]", cf.assignedTo ? "text-foreground/85" : "text-foreground")}>
+                  <p className={cn("text-sm", cf.assignedTo ? "text-foreground/85" : "text-foreground")}>
                     {cf.assignedTo
                       ? "Escalation creates an Adam review task. Ownership stays with the current assignee until manually reassigned."
                       : "Escalation requires an assigned owner first. Claim or assign this lead before saving."}
                   </p>
                 )}
                 {qualification.qualificationRoute === "offer_ready" && (
-                  <p className="text-[10px] text-foreground/85">
+                  <p className="text-sm text-foreground/85">
                     Offer Ready creates an offer-prep task and keeps this lead on an active offer-prep follow-up path.
                   </p>
                 )}
@@ -2054,8 +2054,8 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
           className="w-full flex items-center gap-2 p-4 text-left"
         >
           <Eye className="h-3.5 w-3.5 text-muted-foreground" />
-          <p className="text-[11px] text-muted-foreground uppercase tracking-wider font-semibold">Advanced</p>
-          <span className="text-[9px] text-muted-foreground/50">
+          <p className="text-sm text-muted-foreground uppercase tracking-wider font-semibold">Advanced</p>
+          <span className="text-xs text-muted-foreground/50">
             {hasDeepIntel ? "Deep Crawl + Metadata" : "Intelligence tools"}
           </span>
           <ChevronDown className={cn("h-3.5 w-3.5 text-muted-foreground/40 ml-auto transition-transform", advancedOpen && "rotate-180")} />
@@ -2073,11 +2073,11 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
               <div className="px-4 pb-4 space-y-3">
                 <div className="rounded-[10px] border border-white/[0.06] bg-white/[0.02] p-3">
                   <div className="flex items-center justify-between gap-2">
-                    <p className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold">Deep Crawl Intelligence</p>
+                    <p className="text-sm text-muted-foreground uppercase tracking-wider font-semibold">Deep Crawl Intelligence</p>
                     {deepCrawlResult ? (
                       <button
                         onClick={() => setDeepCrawlExpanded(!deepCrawlExpanded)}
-                        className="h-6 px-2.5 rounded-md text-[9px] font-semibold border flex items-center gap-1 transition-colors border-white/15 bg-white/[0.06] text-foreground hover:bg-white/[0.06]"
+                        className="h-6 px-2.5 rounded-md text-xs font-semibold border flex items-center gap-1 transition-colors border-white/15 bg-white/[0.06] text-foreground hover:bg-white/[0.06]"
                       >
                         <FileText className="h-3 w-3" />
                         {deepCrawlExpanded ? "Hide Report" : "Deep Crawl Report"}
@@ -2086,7 +2086,7 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
                       <button
                         onClick={loadSavedReport}
                         disabled={loadingReport}
-                        className="h-6 px-2.5 rounded-md text-[9px] font-semibold border flex items-center gap-1 transition-colors border-white/15 bg-white/[0.06] text-foreground hover:bg-white/[0.06]"
+                        className="h-6 px-2.5 rounded-md text-xs font-semibold border flex items-center gap-1 transition-colors border-white/15 bg-white/[0.06] text-foreground hover:bg-white/[0.06]"
                       >
                         {loadingReport ? <Loader2 className="h-3 w-3 animate-spin" /> : <FileText className="h-3 w-3" />}
                         {loadingReport ? "Loading Report..." : "View Saved Report"}
@@ -2095,14 +2095,14 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
                       <button
                         onClick={executeDeepCrawl}
                         disabled={deepCrawling}
-                        className="h-6 px-2.5 rounded-md text-[9px] font-semibold border flex items-center gap-1 transition-colors border-white/12 bg-white/[0.05] text-muted-foreground hover:bg-white/[0.05]"
+                        className="h-6 px-2.5 rounded-md text-xs font-semibold border flex items-center gap-1 transition-colors border-white/12 bg-white/[0.05] text-muted-foreground hover:bg-white/[0.05]"
                       >
                         {deepCrawling ? <Loader2 className="h-3 w-3 animate-spin" /> : <Search className="h-3 w-3" />}
                         {deepCrawling ? "Deep Crawling..." : "~120s Deep Crawl"}
                       </button>
                     )}
                   </div>
-                  <p className="mt-2 text-[10px] text-muted-foreground/60">
+                  <p className="mt-2 text-sm text-muted-foreground/60">
                     Detailed intelligence and metadata are hidden by default to keep the operator workflow focused.
                   </p>
                 </div>
@@ -2123,7 +2123,7 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
                 )}
 
                 <div className="rounded-[10px] border border-white/[0.06] bg-white/[0.02] p-3">
-                  <p className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold mb-2">Metadata</p>
+                  <p className="text-sm text-muted-foreground uppercase tracking-wider font-semibold mb-2">Metadata</p>
                   <div className="grid grid-cols-2 gap-x-6">
                     <InfoRow icon={Zap} label="Source" value={cf.source} />
                     <InfoRow icon={Clock} label="Promoted" value={cf.promotedAt ? new Date(cf.promotedAt).toLocaleDateString() : null} />
@@ -2135,7 +2135,7 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
                   </div>
                   {cf.notes && (
                     <div className="mt-2">
-                      <p className="text-[10px] text-muted-foreground uppercase tracking-wider mb-0.5">Notes</p>
+                      <p className="text-sm text-muted-foreground uppercase tracking-wider mb-0.5">Notes</p>
                       <p className="text-xs text-foreground/80">{cf.notes}</p>
                     </div>
                   )}
@@ -2173,7 +2173,7 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
                     </button>
                   </>
                 )}
-                <div className="absolute top-2 left-2 bg-black/60 backdrop-blur-sm text-white text-[9px] font-medium px-1.5 py-0.5 rounded-full flex items-center gap-1 z-10">
+                <div className="absolute top-2 left-2 bg-black/60 backdrop-blur-sm text-white text-xs font-medium px-1.5 py-0.5 rounded-full flex items-center gap-1 z-10">
                   <ImageIcon className="h-2.5 w-2.5" />{zPhotoIdx + 1} / {allPhotos.length}
                 </div>
               </>
@@ -2202,7 +2202,7 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
             )}
             <div className="absolute inset-0 bg-gradient-to-t from-[rgba(7,7,13,0.85)] via-[rgba(7,7,13,0.2)] to-transparent pointer-events-none" />
             {zPhotosLoading && allPhotos.length === 0 && (
-              <div className="absolute top-2 left-2 bg-black/60 backdrop-blur-sm text-white text-[9px] font-medium px-1.5 py-0.5 rounded-full flex items-center gap-1 z-10">
+              <div className="absolute top-2 left-2 bg-black/60 backdrop-blur-sm text-white text-xs font-medium px-1.5 py-0.5 rounded-full flex items-center gap-1 z-10">
                 <Loader2 className="h-2.5 w-2.5 animate-spin" />Loading photos...
               </div>
             )}
@@ -2221,7 +2221,7 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
                   <span className="text-xs font-bold bg-black/50 backdrop-blur-sm px-2 py-0.5 rounded">{cf.lotSize.toLocaleString()} lot</span>
                 )}
               </div>
-              <div className="flex items-center gap-1 text-[9px] text-white/50">
+              <div className="flex items-center gap-1 text-xs text-white/50">
                 <ImageIcon className="h-2.5 w-2.5" />{allPhotos.length > 0 ? `${allPhotos.length} photos Â· Zillow` : streetViewLink ? `Click to explore Â· ${imageLabel}` : imageLabel}
               </div>
             </div>
@@ -2239,9 +2239,9 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
                     {cf.fullAddress && <CopyBtn text={cf.fullAddress} />}
                   </div>
                   <div className="flex items-center gap-3 mt-0.5">
-                    {cf.county && <span className="text-[10px] text-muted-foreground">{cf.county} County</span>}
+                    {cf.county && <span className="text-sm text-muted-foreground">{cf.county} County</span>}
                     {cf.apn && (
-                      <span className="text-[10px] text-muted-foreground/60 font-mono flex items-center gap-1">
+                      <span className="text-sm text-muted-foreground/60 font-mono flex items-center gap-1">
                         APN: {cf.apn} <CopyBtn text={cf.apn} />
                       </span>
                     )}
@@ -2253,27 +2253,27 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
               {(cf.propertyType || cf.bedrooms != null || cf.sqft != null) && (
                 <div className="flex items-center gap-2 flex-wrap">
                   {cf.propertyType && (
-                    <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-muted-foreground bg-white/[0.04] border border-white/[0.08] px-2 py-0.5 rounded-full">
+                    <span className="inline-flex items-center gap-1 text-sm font-semibold text-muted-foreground bg-white/[0.04] border border-white/[0.08] px-2 py-0.5 rounded-full">
                       <Building className="h-2.5 w-2.5" />{cf.propertyType}
                     </span>
                   )}
                   {!imageUrl && cf.bedrooms != null && (
-                    <span className="text-[10px] font-semibold text-muted-foreground bg-white/[0.04] border border-white/[0.08] px-2 py-0.5 rounded-full">
+                    <span className="text-sm font-semibold text-muted-foreground bg-white/[0.04] border border-white/[0.08] px-2 py-0.5 rounded-full">
                       {cf.bedrooms}bd / {cf.bathrooms ?? "?"}ba
                     </span>
                   )}
                   {!imageUrl && cf.sqft != null && (
-                    <span className="text-[10px] font-semibold text-muted-foreground bg-white/[0.04] border border-white/[0.08] px-2 py-0.5 rounded-full">
+                    <span className="text-sm font-semibold text-muted-foreground bg-white/[0.04] border border-white/[0.08] px-2 py-0.5 rounded-full">
                       {cf.sqft.toLocaleString()} sqft
                     </span>
                   )}
                   {!imageUrl && cf.yearBuilt && (
-                    <span className="text-[10px] font-semibold text-muted-foreground bg-white/[0.04] border border-white/[0.08] px-2 py-0.5 rounded-full">
+                    <span className="text-sm font-semibold text-muted-foreground bg-white/[0.04] border border-white/[0.08] px-2 py-0.5 rounded-full">
                       Built {cf.yearBuilt}
                     </span>
                   )}
                   {!imageUrl && cf.lotSize && (
-                    <span className="text-[10px] font-semibold text-muted-foreground bg-white/[0.04] border border-white/[0.08] px-2 py-0.5 rounded-full">
+                    <span className="text-sm font-semibold text-muted-foreground bg-white/[0.04] border border-white/[0.08] px-2 py-0.5 rounded-full">
                       {cf.lotSize.toLocaleString()} lot
                     </span>
                   )}
@@ -2296,7 +2296,7 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
                   onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
                 />
                 <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent pointer-events-none" />
-                <div className="absolute bottom-1 left-1.5 right-1.5 flex items-center gap-1 text-[8px] text-white/70 pointer-events-none">
+                <div className="absolute bottom-1 left-1.5 right-1.5 flex items-center gap-1 text-xs text-white/70 pointer-events-none">
                   <ImageIcon className="h-2 w-2" />{streetViewUrl ? "Street View" : "Satellite"}
                 </div>
                 <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
@@ -2313,7 +2313,7 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
                 const cfg = DISTRESS_CFG[tag];
                 return (
                   <span key={tag} className={cn(
-                    "text-[9px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider border",
+                    "text-xs font-bold px-2 py-0.5 rounded-full uppercase tracking-wider border",
                     cfg?.color ?? "text-muted-foreground bg-white/[0.06] border-white/20"
                   )}>
                     {cfg?.label ?? tag.replace(/_/g, " ")}
@@ -2321,7 +2321,7 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
                 );
               })}
               {warningFlags.map((f) => (
-                <span key={f.label} className={cn("flex items-center gap-1 px-2 py-0.5 rounded-full border text-[9px] font-bold uppercase tracking-wider", f.color)}>
+                <span key={f.label} className={cn("flex items-center gap-1 px-2 py-0.5 rounded-full border text-xs font-bold uppercase tracking-wider", f.color)}>
                   <AlertTriangle className="h-2.5 w-2.5" />{f.label}
                 </span>
               ))}
@@ -2336,9 +2336,9 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               <Target className="h-3.5 w-3.5 text-foreground" />
-              <p className="text-[11px] text-foreground/80 uppercase tracking-wider font-semibold">MAO Breakdown</p>
+              <p className="text-sm text-foreground/80 uppercase tracking-wider font-semibold">MAO Breakdown</p>
             </div>
-            <span className="text-[9px] text-muted-foreground/50 italic">
+            <span className="text-xs text-muted-foreground/50 italic">
               {arvSource === "comps" ? `Based on ${compCount || "selected"} comps` : "Based on AVM estimate"}
             </span>
           </div>
@@ -2372,7 +2372,7 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
       <div className="rounded-[12px] border border-white/15 bg-white/[0.02] p-4 space-y-3">
         <div className="flex items-center gap-2">
           <TrendingUp className="h-3.5 w-3.5 text-foreground" />
-          <p className="text-[11px] text-foreground/80 uppercase tracking-wider font-semibold">Lead Intelligence</p>
+          <p className="text-sm text-foreground/80 uppercase tracking-wider font-semibold">Lead Intelligence</p>
         </div>
 
         <div className="grid grid-cols-2 gap-2.5">
@@ -2384,20 +2384,20 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
           >
             <div className="absolute inset-0 bg-gradient-to-b from-white/[0.02] to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
             <div className="flex items-center justify-between mb-1 relative z-10">
-              <p className="text-[9px] text-muted-foreground/60 uppercase tracking-widest">Match Score</p>
-              <span className="text-[8px] text-foreground/40 group-hover:text-muted-foreground transition-colors">drill &rarr;</span>
+              <p className="text-xs text-muted-foreground/60 uppercase tracking-widest">Match Score</p>
+              <span className="text-xs text-foreground/40 group-hover:text-muted-foreground transition-colors">drill &rarr;</span>
             </div>
             <div className="flex items-center gap-3 relative z-10">
               <p className="text-3xl font-black tabular-nums" style={{ textShadow: `0 0 12px ${tc.glow}` }}>{cf.compositeScore}</p>
               <div>
-                <span className={cn("text-[9px] font-bold px-1.5 py-0.5 rounded uppercase tracking-wider", tc.text, `${tc.bar}/20`)}>{{ platinum: "Top priority", gold: "High priority", silver: "Medium", bronze: "Low priority" }[tier]}</span>
-                <p className="text-[9px] text-muted-foreground/50 mt-0.5">{cf.tags.length} signal{cf.tags.length !== 1 ? "s" : ""} stacked</p>
+                <span className={cn("text-xs font-bold px-1.5 py-0.5 rounded uppercase tracking-wider", tc.text, `${tc.bar}/20`)}>{{ platinum: "Top priority", gold: "High priority", silver: "Medium", bronze: "Low priority" }[tier]}</span>
+                <p className="text-xs text-muted-foreground/50 mt-0.5">{cf.tags.length} signal{cf.tags.length !== 1 ? "s" : ""} stacked</p>
               </div>
             </div>
             <div className="h-1.5 rounded-full bg-secondary mt-2 overflow-hidden relative z-10">
               <div className={cn("h-full rounded-full transition-all", tc.bar)} style={{ width: `${Math.min(cf.compositeScore, 100)}%` }} />
             </div>
-            <p className="text-[8px] text-muted-foreground/40 mt-1 relative z-10">Score ranges: 0-30 Low, 31-50 Medium, 51-75 High, 76-100 Top</p>
+            <p className="text-xs text-muted-foreground/40 mt-1 relative z-10">Score ranges: 0-30 Low, 31-50 Medium, 51-75 High, 76-100 Top</p>
           </button>
 
           {/* Equity & Spread */}
@@ -2410,22 +2410,22 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
           >
             {equityIsGreen && <div className="absolute inset-0 bg-gradient-to-b from-white/[0.06] to-transparent pointer-events-none" />}
             <div className="flex items-center justify-between mb-1 relative z-10">
-              <p className="text-[9px] text-muted-foreground/60 uppercase tracking-widest">Equity &amp; Spread</p>
-              <span className="text-[8px] text-foreground group-hover:text-foreground transition-colors">details &rarr;</span>
+              <p className="text-xs text-muted-foreground/60 uppercase tracking-widest">Equity &amp; Spread</p>
+              <span className="text-xs text-foreground group-hover:text-foreground transition-colors">details &rarr;</span>
             </div>
             <div className="flex items-center gap-3 relative z-10">
               <p className={cn("text-3xl font-black tabular-nums", equityIsGreen ? "text-foreground" : "text-foreground")}
                 style={{ textShadow: equityIsGreen ? "0 0 16px rgba(52,211,153,0.35)" : undefined }}>
                 {cf.equityPercent != null ? `${cf.equityPercent}%` : "N/A"}
               </p>
-              <div className="text-[10px] text-muted-foreground space-y-0.5">
+              <div className="text-sm text-muted-foreground space-y-0.5">
                 {cf.estimatedValue != null && <p>AVM {formatCurrency(cf.estimatedValue)}</p>}
                 {cf.availableEquity != null && <p>{formatCurrency(cf.availableEquity)} avail.</p>}
                 {estimatedOwed != null && <p>Owed ~{formatCurrency(estimatedOwed)}</p>}
               </div>
             </div>
             {roomLabel && (
-              <p className={cn("text-[9px] mt-1.5 relative z-10 font-semibold", roomColor.split(" ")[0])}>
+              <p className={cn("text-xs mt-1.5 relative z-10 font-semibold", roomColor.split(" ")[0])}>
                 {roomLabel === "HIGH SPREAD" ? "Room to negotiate — strong equity" : roomLabel === "MODERATE" ? "Some room — watch margins" : "Tight spread — proceed with caution"}
               </p>
             )}
@@ -2438,8 +2438,8 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
             className="rounded-[10px] border border-white/[0.06] bg-white/[0.03] p-3 text-left transition-all cursor-pointer hover:bg-white/[0.04] hover:border-white/[0.12] group"
           >
             <div className="flex items-center justify-between mb-1">
-              <p className="text-[9px] text-muted-foreground/60 uppercase tracking-widest">Signal Freshness</p>
-              <span className="text-[8px] text-muted-foreground/40 group-hover:text-muted-foreground/70 transition-colors">timeline &rarr;</span>
+              <p className="text-xs text-muted-foreground/60 uppercase tracking-widest">Signal Freshness</p>
+              <span className="text-xs text-muted-foreground/40 group-hover:text-muted-foreground/70 transition-colors">timeline &rarr;</span>
             </div>
             {freshestEvent ? (
               <>
@@ -2447,9 +2447,9 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
                   <p className="text-2xl font-black text-muted-foreground" style={{ textShadow: "0 0 12px rgba(251,146,60,0.3)" }}>
                     {freshestDays != null && freshestDays <= 0 ? "Today" : `${freshestDays}d`}
                   </p>
-                  <p className="text-[9px] text-muted-foreground/50">since newest</p>
+                  <p className="text-xs text-muted-foreground/50">since newest</p>
                 </div>
-                <p className="text-[9px] text-muted-foreground mt-1 font-semibold">
+                <p className="text-xs text-muted-foreground mt-1 font-semibold">
                   {freshestDays != null && freshestDays <= 7 ? "Very fresh — call ASAP before competitors" :
                    freshestDays != null && freshestDays <= 30 ? "Recent signal — still a warm window" :
                    "Aging signal — may need re-verification"}
@@ -2472,20 +2472,20 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
             className="rounded-[10px] border border-white/[0.06] bg-white/[0.03] p-3 text-left transition-all cursor-pointer hover:bg-white/[0.04] hover:border-white/[0.12] group"
           >
             <div className="flex items-center justify-between mb-1">
-              <p className="text-[9px] text-muted-foreground/60 uppercase tracking-widest">Owner Situation</p>
-              <span className="text-[8px] text-foreground/40 group-hover:text-muted-foreground transition-colors">contact &rarr;</span>
+              <p className="text-xs text-muted-foreground/60 uppercase tracking-widest">Owner Situation</p>
+              <span className="text-xs text-foreground/40 group-hover:text-muted-foreground transition-colors">contact &rarr;</span>
             </div>
             <div className="space-y-1.5">
               <div className="flex flex-wrap items-center gap-1">
                 {cf.isAbsentee ? (
-                  <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-white/[0.06]/10 text-foreground border border-white/12">ABSENTEE</span>
+                  <span className="text-xs font-bold px-1.5 py-0.5 rounded bg-white/[0.06]/10 text-foreground border border-white/12">ABSENTEE</span>
                 ) : (
-                  <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-white/[0.06]/10 text-foreground border border-white/15">Owner-Occupied</span>
+                  <span className="text-xs font-bold px-1.5 py-0.5 rounded bg-white/[0.06]/10 text-foreground border border-white/15">Owner-Occupied</span>
                 )}
-                {cf.isFreeClear && <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-white/[0.05]/10 text-muted-foreground border border-white/12">FREE &amp; CLEAR</span>}
-                {cf.isVacant && <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-white/[0.05]/10 text-muted-foreground border border-white/12">Vacant Property</span>}
+                {cf.isFreeClear && <span className="text-xs font-bold px-1.5 py-0.5 rounded bg-white/[0.05]/10 text-muted-foreground border border-white/12">FREE &amp; CLEAR</span>}
+                {cf.isVacant && <span className="text-xs font-bold px-1.5 py-0.5 rounded bg-white/[0.05]/10 text-muted-foreground border border-white/12">Vacant Property</span>}
               </div>
-              <p className="text-[9px] text-muted-foreground/70 font-semibold">
+              <p className="text-xs text-muted-foreground/70 font-semibold">
                 {cf.isAbsentee && ownerAge && ownerAge >= 65 ? "Elderly absentee — likely estate/caretaker situation" :
                  cf.isAbsentee ? "Absentee owner — may be motivated to offload" :
                  cf.isFreeClear ? "Free & clear — no mortgage pressure, but no urgency either" :
@@ -2506,8 +2506,8 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
       {(cf.totalCalls > 0 || cf.lastContactAt) && (
         <div className="flex items-center gap-3 rounded-[10px] border border-white/[0.06] bg-white/[0.02] px-3 py-2">
           <Phone className="h-3.5 w-3.5 text-foreground shrink-0" />
-          <p className="text-[11px] text-muted-foreground uppercase tracking-wider font-semibold shrink-0">Call Summary</p>
-          <div className="flex items-center gap-2 ml-2 text-[11px] text-foreground/80 flex-wrap">
+          <p className="text-sm text-muted-foreground uppercase tracking-wider font-semibold shrink-0">Call Summary</p>
+          <div className="flex items-center gap-2 ml-2 text-sm text-foreground/80 flex-wrap">
             {cf.lastContactAt && (
               <span className="flex items-center gap-1">
                 <Clock className="h-3 w-3 text-muted-foreground/50" />
@@ -2544,7 +2544,7 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
             )}
           </div>
           {cf.nextCallScheduledAt && (
-            <span className="ml-auto text-[10px] text-muted-foreground flex items-center gap-1 shrink-0">
+            <span className="ml-auto text-sm text-muted-foreground flex items-center gap-1 shrink-0">
               <Calendar className="h-3 w-3" />
               Next: {new Date(cf.nextCallScheduledAt).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
             </span>
@@ -2562,8 +2562,8 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
             <div className="h-7 w-7 rounded-[8px] bg-white/[0.05]/15 flex items-center justify-center">
               <Brain className="h-3.5 w-3.5 text-muted-foreground" />
             </div>
-            <p className="text-[11px] text-muted-foreground uppercase tracking-wider font-semibold">Call Playbook</p>
-            <Badge variant="outline" className="text-[8px] border-white/12 text-muted-foreground ml-1">GROK AI</Badge>
+            <p className="text-sm text-muted-foreground uppercase tracking-wider font-semibold">Call Playbook</p>
+            <Badge variant="outline" className="text-xs border-white/12 text-muted-foreground ml-1">GROK AI</Badge>
             {briefLoading && <Loader2 className="h-3 w-3 text-muted-foreground animate-spin ml-auto" />}
             {!briefLoading && (
               <button
@@ -2592,7 +2592,7 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
                 {/* Suggested Opener */}
                 {brief.suggestedOpener && (
                   <div className="pt-2 border-t border-white/12">
-                    <p className="text-[9px] text-muted-foreground uppercase tracking-widest mb-1">Suggested Opener</p>
+                    <p className="text-xs text-muted-foreground uppercase tracking-widest mb-1">Suggested Opener</p>
                     <p className="text-xs text-foreground/80 italic leading-relaxed">&ldquo;{brief.suggestedOpener}&rdquo;</p>
                   </div>
                 )}
@@ -2600,11 +2600,11 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
                 {/* Talking Points */}
                 {brief.talkingPoints.length > 0 && (
                   <div className="pt-2 border-t border-white/12">
-                    <p className="text-[9px] text-muted-foreground uppercase tracking-widest mb-1.5">Talking Points</p>
+                    <p className="text-xs text-muted-foreground uppercase tracking-widest mb-1.5">Talking Points</p>
                     <div className="space-y-1">
                       {brief.talkingPoints.map((tp, i) => (
                         <div key={i} className="flex items-start gap-2 text-xs">
-                          <span className="text-muted-foreground mt-0.5 shrink-0 text-[10px]">{i + 1}.</span>
+                          <span className="text-muted-foreground mt-0.5 shrink-0 text-sm">{i + 1}.</span>
                           <p className="text-foreground/80 leading-relaxed">{tp}</p>
                         </div>
                       ))}
@@ -2615,7 +2615,7 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
                 {/* Objections & Rebuttals */}
                 {brief.objections.length > 0 && (
                   <div className="pt-2 border-t border-white/12">
-                    <p className="text-[9px] text-muted-foreground uppercase tracking-widest mb-1.5">Likely Objections</p>
+                    <p className="text-xs text-muted-foreground uppercase tracking-widest mb-1.5">Likely Objections</p>
                     <div className="space-y-2">
                       {brief.objections.map((obj, i) => (
                         <div key={i} className="rounded-[8px] border border-white/[0.04] bg-white/[0.02] px-3 py-2">
@@ -2630,7 +2630,7 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
                 {/* Negotiation Anchor */}
                 {brief.negotiationAnchor && (
                   <div className="pt-2 border-t border-white/12">
-                    <p className="text-[9px] text-muted-foreground uppercase tracking-widest mb-1">Negotiation Anchor</p>
+                    <p className="text-xs text-muted-foreground uppercase tracking-widest mb-1">Negotiation Anchor</p>
                     <p className="text-xs text-foreground/90 font-semibold">{brief.negotiationAnchor}</p>
                   </div>
                 )}
@@ -2638,7 +2638,7 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
                 {/* Watch-Outs */}
                 {brief.watchOuts.length > 0 && (
                   <div className="pt-2 border-t border-white/12">
-                    <p className="text-[9px] text-foreground uppercase tracking-widest mb-1">Watch-Outs</p>
+                    <p className="text-xs text-foreground uppercase tracking-widest mb-1">Watch-Outs</p>
                     <div className="space-y-1">
                       {brief.watchOuts.map((wo, i) => (
                         <div key={i} className="flex items-start gap-1.5 text-xs text-muted-foreground">
@@ -2653,7 +2653,7 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
                 {/* Risk Flags / Contradictions */}
                 {brief.riskFlags.length > 0 && (
                   <div className="pt-2 border-t border-white/12">
-                    <p className="text-[9px] text-muted-foreground uppercase tracking-widest mb-1">Risk Flags / Things That May Not Line Up</p>
+                    <p className="text-xs text-muted-foreground uppercase tracking-widest mb-1">Risk Flags / Things That May Not Line Up</p>
                     <div className="space-y-1">
                       {brief.riskFlags.map((rf, i) => (
                         <div key={i} className="flex items-start gap-1.5 text-xs text-foreground/85">
@@ -2678,12 +2678,12 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
         <div className="flex items-center gap-2 rounded-[10px] border border-white/12 bg-white/[0.05] px-3 py-2">
           <Brain className="h-3.5 w-3.5 text-muted-foreground" />
           <div className="min-w-0">
-            <p className="text-[11px] text-muted-foreground/40 italic">Call script not generated yet</p>
-            <p className="text-[9px] text-muted-foreground/30 mt-0.5">AI will create a script based on property data and owner situation</p>
+            <p className="text-sm text-muted-foreground/40 italic">Call script not generated yet</p>
+            <p className="text-xs text-muted-foreground/30 mt-0.5">AI will create a script based on property data and owner situation</p>
           </div>
           <button
             onClick={regenerateBrief}
-            className="ml-auto flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] text-muted-foreground hover:text-muted-foreground hover:bg-white/[0.05]/10 transition-colors"
+            className="ml-auto flex items-center gap-1 px-2 py-0.5 rounded-md text-sm text-muted-foreground hover:text-muted-foreground hover:bg-white/[0.05]/10 transition-colors"
           >
             <RefreshCw className="h-2.5 w-2.5" />
             Generate Call Script
@@ -2696,9 +2696,9 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
         <div className="rounded-[12px] border border-white/[0.06] bg-white/[0.02] p-4 space-y-3">
           <div className="flex items-center gap-2 mb-1">
             <PhoneForwarded className="h-3.5 w-3.5 text-foreground" />
-            <p className="text-[11px] text-muted-foreground uppercase tracking-wider font-semibold">Call History &amp; Notes</p>
+            <p className="text-sm text-muted-foreground uppercase tracking-wider font-semibold">Call History &amp; Notes</p>
             {cf.totalCalls > 0 && (
-              <span className="text-[10px] text-muted-foreground ml-auto font-medium">
+              <span className="text-sm text-muted-foreground ml-auto font-medium">
                 {getCadencePosition(cf.totalCalls).label}
               </span>
             )}
@@ -2721,29 +2721,29 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
                 <div className="rounded-[10px] border border-white/[0.06] bg-white/[0.03] p-2.5 text-center">
                   <Phone className="h-3 w-3 text-foreground mx-auto mb-1" />
                   <p className="text-lg font-bold text-foreground">{cf.totalCalls}</p>
-                  <p className="text-[9px] text-muted-foreground/60 uppercase tracking-wider">Total Calls</p>
+                  <p className="text-xs text-muted-foreground/60 uppercase tracking-wider">Total Calls</p>
                 </div>
                 <div className="rounded-[10px] border border-white/[0.06] bg-white/[0.03] p-2.5 text-center">
                   <PhoneForwarded className="h-3 w-3 text-foreground mx-auto mb-1" />
                   <p className="text-lg font-bold text-foreground">{cf.liveAnswers}</p>
-                  <p className="text-[9px] text-muted-foreground/60 uppercase tracking-wider">Live Answers</p>
+                  <p className="text-xs text-muted-foreground/60 uppercase tracking-wider">Live Answers</p>
                 </div>
                 <div className="rounded-[10px] border border-white/[0.06] bg-white/[0.03] p-2.5 text-center">
                   <Voicemail className="h-3 w-3 text-foreground mx-auto mb-1" />
                   <p className="text-lg font-bold text-foreground">{cf.voicemailsLeft}</p>
-                  <p className="text-[9px] text-muted-foreground/60 uppercase tracking-wider">Voicemails</p>
+                  <p className="text-xs text-muted-foreground/60 uppercase tracking-wider">Voicemails</p>
                 </div>
               </div>
 
               <div className="flex items-center gap-3">
                 {cf.lastContactAt && (
-                  <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground/60">
+                  <div className="flex items-center gap-1.5 text-sm text-muted-foreground/60">
                     <Clock className="h-3 w-3" />
                     <span>Last: {new Date(cf.lastContactAt).toLocaleDateString("en-US", { month: "short", day: "numeric" })} {new Date(cf.lastContactAt).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}</span>
                   </div>
                 )}
                 {cf.nextCallScheduledAt && (
-                  <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground ml-auto">
+                  <div className="flex items-center gap-1.5 text-sm text-muted-foreground ml-auto">
                     <Calendar className="h-3 w-3" />
                     <span>Next: {new Date(cf.nextCallScheduledAt).toLocaleDateString("en-US", { month: "short", day: "numeric" })} {new Date(cf.nextCallScheduledAt).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}</span>
                   </div>
@@ -2761,8 +2761,8 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
                 className="w-full flex items-center gap-2 text-left"
               >
                 <Zap className="h-3.5 w-3.5 text-muted-foreground" />
-                <p className="text-[11px] text-muted-foreground uppercase tracking-wider font-semibold">AI Call Notes</p>
-                <Badge variant="outline" className="text-[9px] ml-1 border-white/12 text-muted-foreground">{summaryNotes.length}</Badge>
+                <p className="text-sm text-muted-foreground uppercase tracking-wider font-semibold">AI Call Notes</p>
+                <Badge variant="outline" className="text-xs ml-1 border-white/12 text-muted-foreground">{summaryNotes.length}</Badge>
                 <ChevronRight className={cn("h-3.5 w-3.5 text-muted-foreground/40 ml-auto transition-transform", notesExpanded && "rotate-90")} />
               </button>
 
@@ -2778,17 +2778,17 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
                     {summaryNotes.map((note) => (
                       <div key={note.id} className="rounded-[10px] border border-white/[0.06] bg-white/[0.03] p-3 space-y-1.5">
                         <div className="flex items-center gap-2">
-                          <span className="text-[9px] font-semibold uppercase text-muted-foreground">{note.disposition}</span>
-                          <span className="text-[9px] text-muted-foreground/40">
+                          <span className="text-xs font-semibold uppercase text-muted-foreground">{note.disposition}</span>
+                          <span className="text-xs text-muted-foreground/40">
                             {new Date(note.started_at).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
                             {" "}
                             {new Date(note.started_at).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}
                           </span>
                           {note.duration_sec > 0 && (
-                            <span className="text-[9px] text-muted-foreground/40 ml-auto">{Math.floor(note.duration_sec / 60)}:{(note.duration_sec % 60).toString().padStart(2, "0")}</span>
+                            <span className="text-xs text-muted-foreground/40 ml-auto">{Math.floor(note.duration_sec / 60)}:{(note.duration_sec % 60).toString().padStart(2, "0")}</span>
                           )}
                         </div>
-                        <p className="text-[11px] text-muted-foreground/80 leading-relaxed whitespace-pre-line">{note.ai_summary}</p>
+                        <p className="text-sm text-muted-foreground/80 leading-relaxed whitespace-pre-line">{note.ai_summary}</p>
                       </div>
                     ))}
                   </motion.div>
@@ -2796,7 +2796,7 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
               </AnimatePresence>
 
               {!notesExpanded && summaryNotes[0] && (
-                <p className="text-[11px] text-muted-foreground/60 leading-relaxed line-clamp-3 whitespace-pre-line">{summaryNotes[0].ai_summary}</p>
+                <p className="text-sm text-muted-foreground/60 leading-relaxed line-clamp-3 whitespace-pre-line">{summaryNotes[0].ai_summary}</p>
               )}
             </>
           )}
@@ -2807,12 +2807,12 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
       <div ref={sectionEquity} className="rounded-[12px] border border-white/[0.06] bg-white/[0.02] p-4 space-y-3">
         <div className="flex items-center gap-2 mb-1">
           <Home className="h-3.5 w-3.5 text-muted-foreground" />
-          <p className="text-[11px] text-muted-foreground uppercase tracking-wider font-semibold">Property Details</p>
+          <p className="text-sm text-muted-foreground uppercase tracking-wider font-semibold">Property Details</p>
           {(cf.bedrooms == null || cf.sqft == null || cf.yearBuilt == null) && (
             <Button
               size="sm"
               variant="outline"
-              className="text-[10px] h-6 gap-1 ml-auto text-foreground border-white/20 hover:bg-white/10"
+              className="text-sm h-6 gap-1 ml-auto text-foreground border-white/20 hover:bg-white/10"
               onClick={onAutofill}
               disabled={autofilling}
             >
@@ -2829,7 +2829,7 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
               <div className="flex items-start gap-2">
                 <Banknote className="h-3.5 w-3.5 text-muted-foreground mt-0.5 shrink-0" />
                 <div className="flex-1 min-w-0">
-                  <p className="text-[9px] text-muted-foreground/60 uppercase tracking-widest mb-1">Tax &amp; Transfer</p>
+                  <p className="text-xs text-muted-foreground/60 uppercase tracking-widest mb-1">Tax &amp; Transfer</p>
                   <div className="grid grid-cols-2 gap-x-4 gap-y-0.5 text-xs">
                     {prRaw.AssessedValue && (
                       <p className="text-muted-foreground">Tax Assessed: <span className="text-foreground font-medium">{formatCurrency(Number(prRaw.AssessedValue))}</span></p>
@@ -2855,27 +2855,27 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
               <div className="flex items-start gap-2">
                 <Zap className="h-3.5 w-3.5 text-muted-foreground mt-0.5 shrink-0" />
                 <div className="flex-1 min-w-0">
-                  <p className="text-[9px] text-muted-foreground/60 uppercase tracking-widest mb-1">Predictive Intelligence</p>
+                  <p className="text-xs text-muted-foreground/60 uppercase tracking-widest mb-1">Predictive Intelligence</p>
                   <div className="flex items-center gap-4">
                     <div>
-                      <p className="text-[9px] text-muted-foreground/50 uppercase tracking-widest">Distress In</p>
+                      <p className="text-xs text-muted-foreground/50 uppercase tracking-widest">Distress In</p>
                       <p className="text-lg font-bold text-muted-foreground" style={{ textShadow: "0 0 10px rgba(251,146,60,0.3)" }}>~{cf.prediction.daysUntilDistress}d</p>
                     </div>
                     <div className="h-8 w-px bg-white/[0.06]" />
                     <div>
-                      <p className="text-[9px] text-muted-foreground/50 uppercase tracking-widest">Confidence</p>
+                      <p className="text-xs text-muted-foreground/50 uppercase tracking-widest">Confidence</p>
                       <p className="text-lg font-bold text-foreground" style={{ textShadow: "0 0 10px rgba(255,255,255,0.08)" }}>{cf.prediction.confidence}%</p>
                     </div>
                     <div className="h-8 w-px bg-white/[0.06]" />
                     <div>
-                      <p className="text-[9px] text-muted-foreground/50 uppercase tracking-widest">Pred Score</p>
+                      <p className="text-xs text-muted-foreground/50 uppercase tracking-widest">Pred Score</p>
                       <p className="text-lg font-bold text-foreground">{cf.prediction.predictiveScore}</p>
                     </div>
                     {cf.prediction.lifeEventProbability != null && cf.prediction.lifeEventProbability > 0.10 && (
                       <>
                         <div className="h-8 w-px bg-white/[0.06]" />
                         <div>
-                          <p className="text-[9px] text-muted-foreground/50 uppercase tracking-widest">Life Event</p>
+                          <p className="text-xs text-muted-foreground/50 uppercase tracking-widest">Life Event</p>
                           <p className="text-lg font-bold text-foreground" style={{ textShadow: "0 1px 0 rgba(255,255,255,0.05)" }}>{Math.round(cf.prediction.lifeEventProbability * 100)}%</p>
                         </div>
                       </>
@@ -2887,7 +2887,7 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
           ) : (
             <div className="flex items-center gap-2 rounded-[8px] border border-white/[0.04] bg-white/[0.015] px-2.5 py-1.5 col-span-2">
               <Zap className="h-3 w-3 text-muted-foreground/40 shrink-0" />
-              <p className="text-[10px] text-muted-foreground/35 italic">No predictive data yet</p>
+              <p className="text-sm text-muted-foreground/35 italic">No predictive data yet</p>
             </div>
           )}
         </div>
@@ -2895,7 +2895,7 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
 
       {/* â•â•â• 10. EDIT DETAILS â•â•â• */}
       {canEdit && (
-        <button onClick={onEdit} className="flex items-center gap-1.5 px-3 py-1.5 rounded-[10px] text-[11px] font-semibold text-foreground bg-white/[0.06] border border-white/15 hover:bg-white/[0.1] hover:border-white/20 shadow-[var(--shadow-badge-glow-tight)] transition-all active:scale-[0.97]">
+        <button onClick={onEdit} className="flex items-center gap-1.5 px-3 py-1.5 rounded-[10px] text-sm font-semibold text-foreground bg-white/[0.06] border border-white/15 hover:bg-white/[0.1] hover:border-white/20 shadow-[var(--shadow-badge-glow-tight)] transition-all active:scale-[0.97]">
           <Pencil className="h-3 w-3" />Edit Details
         </button>
       )}
@@ -2908,9 +2908,9 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
             className="w-full flex items-center gap-2 p-4 text-left"
           >
             <Clock className="h-3.5 w-3.5 text-foreground" />
-            <p className="text-[11px] text-muted-foreground uppercase tracking-wider font-semibold">Full Activity Timeline</p>
-            <Badge variant="outline" className="text-[9px] ml-1">{activityLog.length}</Badge>
-            <span className="text-[9px] text-muted-foreground/45">calls, texts, updates</span>
+            <p className="text-sm text-muted-foreground uppercase tracking-wider font-semibold">Full Activity Timeline</p>
+            <Badge variant="outline" className="text-xs ml-1">{activityLog.length}</Badge>
+            <span className="text-xs text-muted-foreground/45">calls, texts, updates</span>
             <ChevronDown className={cn("h-3.5 w-3.5 text-muted-foreground/40 ml-auto transition-transform", timelinesOpen && "rotate-180")} />
           </button>
           <AnimatePresence>
@@ -2948,16 +2948,16 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
                               )}
                             </div>
                             {notePreview && (
-                              <p className="text-[10px] text-muted-foreground/60 mt-0.5 truncate max-w-[420px]">{notePreview}</p>
+                              <p className="text-sm text-muted-foreground/60 mt-0.5 truncate max-w-[420px]">{notePreview}</p>
                             )}
                           </div>
                         </div>
                         <div className="shrink-0 text-right">
-                          <p className="text-[9px] text-muted-foreground/45">
+                          <p className="text-xs text-muted-foreground/45">
                             {new Date(entry.created_at).toLocaleDateString("en-US", { month: "short", day: "numeric" })}{" "}
                             {new Date(entry.created_at).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}
                           </p>
-                          <p className="text-[9px] text-muted-foreground/35">{formatRelativeFromNow(entry.created_at)}</p>
+                          <p className="text-xs text-muted-foreground/35">{formatRelativeFromNow(entry.created_at)}</p>
                         </div>
                       </div>
                     );
@@ -2998,7 +2998,7 @@ function PropertyRadarTab({ cf }: { cf: ClientFile }) {
             {entries.map(([key, val]) => (
               <div key={key} className="flex items-start gap-2 py-1">
                 <div className="flex-1 min-w-0">
-                  <p className="text-[10px] text-muted-foreground uppercase tracking-wider font-mono">{key}</p>
+                  <p className="text-sm text-muted-foreground uppercase tracking-wider font-mono">{key}</p>
                   <p className="text-xs text-foreground truncate">{typeof val === "object" ? JSON.stringify(val) : String(val)}</p>
                 </div>
               </div>
@@ -3088,7 +3088,7 @@ function CountyRecordsTab({ cf }: { cf: ClientFile }) {
         )}
       </Section>
 
-      <div className="text-[10px] text-muted-foreground/50 italic">
+      <div className="text-sm text-muted-foreground/50 italic">
         Tip: Search the APN <span className="font-mono text-foreground/60">{cf.apn}</span> on the county GIS to pull official parcel data, liens, and tax history.
       </div>
     </div>
@@ -3109,12 +3109,12 @@ function SubjectPhotoCarousel({ photos, onSkipTrace }: { photos: string[]; onSki
         {onSkipTrace ? (
           <button
             onClick={onSkipTrace}
-            className="text-[9px] text-foreground hover:underline font-medium mt-0.5"
+            className="text-xs text-foreground hover:underline font-medium mt-0.5"
           >
             Enrich for photos
           </button>
         ) : (
-          <p className="text-[9px] text-muted-foreground leading-tight">
+          <p className="text-xs text-muted-foreground leading-tight">
             Enrich for photos
           </p>
         )}
@@ -3216,7 +3216,7 @@ function CompDetailPanel({ comp, onClose }: { comp: CompProperty; onClose: () =>
           {loading && allPhotos.length === 0 ? (
             <div className="h-full flex items-center justify-center">
               <Loader2 className="h-5 w-5 text-foreground animate-spin" />
-              <span className="ml-2 text-[10px] text-muted-foreground">Fetching photosâ€¦</span>
+              <span className="ml-2 text-sm text-muted-foreground">Fetching photosâ€¦</span>
             </div>
           ) : allPhotos.length > 0 ? (
             <>
@@ -3240,13 +3240,13 @@ function CompDetailPanel({ comp, onClose }: { comp: CompProperty; onClose: () =>
                   >
                     <ChevronRight className="h-3.5 w-3.5" />
                   </button>
-                  <span className="absolute bottom-1.5 right-2 text-[9px] bg-black/60 text-white/80 px-1.5 py-0.5 rounded-full">
+                  <span className="absolute bottom-1.5 right-2 text-xs bg-black/60 text-white/80 px-1.5 py-0.5 rounded-full">
                     {safeIdx + 1}/{allPhotos.length}
                   </span>
                 </>
               )}
               {loading && (
-                <span className="absolute top-1.5 right-2 text-[8px] bg-black/60 text-foreground px-1.5 py-0.5 rounded-full flex items-center gap-1">
+                <span className="absolute top-1.5 right-2 text-xs bg-black/60 text-foreground px-1.5 py-0.5 rounded-full flex items-center gap-1">
                   <Loader2 className="h-2.5 w-2.5 animate-spin" />loading more
                 </span>
               )}
@@ -3254,13 +3254,13 @@ function CompDetailPanel({ comp, onClose }: { comp: CompProperty; onClose: () =>
           ) : (
             <div className="h-full flex items-center justify-center">
               <ImageIcon className="h-5 w-5 text-muted-foreground/40" />
-              <span className="ml-2 text-[10px] text-muted-foreground">No photos available</span>
+              <span className="ml-2 text-sm text-muted-foreground">No photos available</span>
             </div>
           )}
         </div>
         {/* Property details */}
         <div className="flex-1 p-3 min-w-0">
-          <div className="grid grid-cols-2 gap-x-6 gap-y-1.5 text-[11px]">
+          <div className="grid grid-cols-2 gap-x-6 gap-y-1.5 text-sm">
             <div><span className="text-muted-foreground">Beds:</span> <span className="font-medium">{comp.beds ?? "—"}</span></div>
             <div><span className="text-muted-foreground">Baths:</span> <span className="font-medium">{comp.baths ?? "—"}</span></div>
             <div><span className="text-muted-foreground">Sqft:</span> <span className="font-medium">{comp.sqft?.toLocaleString() ?? "—"}</span></div>
@@ -3278,19 +3278,19 @@ function CompDetailPanel({ comp, onClose }: { comp: CompProperty; onClose: () =>
             ) : null}
           </div>
           <div className="flex flex-wrap gap-1.5 mt-2">
-            {comp.isVacant && <span className="px-1.5 py-0.5 rounded text-[9px] bg-white/[0.05]/10 text-muted-foreground border border-white/12">Vacant</span>}
-            {comp.isAbsentee && <span className="px-1.5 py-0.5 rounded text-[9px] bg-white/[0.06]/10 text-foreground border border-white/12">Absentee</span>}
-            {comp.isFreeAndClear && <span className="px-1.5 py-0.5 rounded text-[9px] bg-white/[0.06]/10 text-foreground border border-white/15">Free & Clear</span>}
-            {comp.isForeclosure && <span className="px-1.5 py-0.5 rounded text-[9px] bg-white/[0.05]/10 text-foreground border border-white/15">Foreclosure</span>}
-            {comp.isListedForSale && <span className="px-1.5 py-0.5 rounded text-[9px] bg-white/[0.05]/10 text-muted-foreground border border-white/12">Listed</span>}
-            {comp.isRecentSale && <span className="px-1.5 py-0.5 rounded text-[9px] bg-white/10 text-foreground border border-white/20">Recent Sale</span>}
+            {comp.isVacant && <span className="px-1.5 py-0.5 rounded text-xs bg-white/[0.05]/10 text-muted-foreground border border-white/12">Vacant</span>}
+            {comp.isAbsentee && <span className="px-1.5 py-0.5 rounded text-xs bg-white/[0.06]/10 text-foreground border border-white/12">Absentee</span>}
+            {comp.isFreeAndClear && <span className="px-1.5 py-0.5 rounded text-xs bg-white/[0.06]/10 text-foreground border border-white/15">Free & Clear</span>}
+            {comp.isForeclosure && <span className="px-1.5 py-0.5 rounded text-xs bg-white/[0.05]/10 text-foreground border border-white/15">Foreclosure</span>}
+            {comp.isListedForSale && <span className="px-1.5 py-0.5 rounded text-xs bg-white/[0.05]/10 text-muted-foreground border border-white/12">Listed</span>}
+            {comp.isRecentSale && <span className="px-1.5 py-0.5 rounded text-xs bg-white/10 text-foreground border border-white/20">Recent Sale</span>}
           </div>
           {comp.lat && comp.lng && (
             <a
               href={getGoogleStreetViewLink(comp.lat, comp.lng)}
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-flex items-center gap-1 text-[9px] text-foreground hover:underline mt-2"
+              className="inline-flex items-center gap-1 text-xs text-foreground hover:underline mt-2"
             >
               <ExternalLink className="h-2.5 w-2.5" />
               Street View
@@ -3591,14 +3591,14 @@ function CompsTab({ cf, selectedComps, onAddComp, onRemoveComp, onSkipTrace, com
           <p className="text-sm font-bold truncate" style={{ textShadow: "0 0 8px rgba(255,255,255,0.12)" }}>
             {cf.fullAddress}
           </p>
-          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-1.5 text-[11px] text-muted-foreground">
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-1.5 text-sm text-muted-foreground">
             {cf.bedrooms != null && <span className="flex items-center gap-1"><Home className="h-3 w-3" />{cf.bedrooms} bd</span>}
             {cf.bathrooms != null && <span className="flex items-center gap-1"><Home className="h-3 w-3" />{cf.bathrooms} ba</span>}
             {cf.sqft != null && <span className="flex items-center gap-1"><Ruler className="h-3 w-3" />{cf.sqft.toLocaleString()} sqft</span>}
             {cf.yearBuilt != null && <span className="flex items-center gap-1"><Calendar className="h-3 w-3" />{cf.yearBuilt}</span>}
             {cf.propertyType && <span className="flex items-center gap-1"><Building className="h-3 w-3" />{cf.propertyType}</span>}
           </div>
-          <div className="flex items-center gap-3 mt-1.5 text-[11px]">
+          <div className="flex items-center gap-3 mt-1.5 text-sm">
             {cf.estimatedValue != null && (
               <span className="font-semibold text-foreground">{formatCurrency(cf.estimatedValue)} AVM</span>
             )}
@@ -3623,26 +3623,26 @@ function CompsTab({ cf, selectedComps, onAddComp, onRemoveComp, onSkipTrace, com
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <Scale className="h-3.5 w-3.5 text-foreground" />
-            <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Decision Summary</span>
+            <span className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Decision Summary</span>
           </div>
           <div className="flex items-center gap-2">
             {isScreeningMode ? (
-              <span className="text-[9px] font-mono px-1.5 py-0.5 rounded border border-white/12 bg-white/[0.05]/10 text-muted-foreground font-bold">
+              <span className="text-xs font-mono px-1.5 py-0.5 rounded border border-white/12 bg-white/[0.05]/10 text-muted-foreground font-bold">
                 Screening Only
               </span>
             ) : modeLabel ? (
-              <span className="text-[9px] font-mono px-1.5 py-0.5 rounded border border-white/10 bg-white/[0.04] text-muted-foreground">
+              <span className="text-xs font-mono px-1.5 py-0.5 rounded border border-white/10 bg-white/[0.04] text-muted-foreground">
                 {modeLabel}
               </span>
             ) : null}
             {isStale && (
-              <span className="text-[9px] text-muted-foreground flex items-center gap-0.5">
+              <span className="text-xs text-muted-foreground flex items-center gap-0.5">
                 <Clock className="h-2.5 w-2.5" />
                 {daysSinceSnapshot}d since save
               </span>
             )}
             {frozenCount > 0 && (
-              <span className={cn("text-[9px] flex items-center gap-0.5",
+              <span className={cn("text-xs flex items-center gap-0.5",
                 apnsDrifted ? "text-muted-foreground" : countDrifted ? "text-muted-foreground" : "text-muted-foreground/70",
               )}>
                 {apnsDrifted
@@ -3659,22 +3659,22 @@ function CompsTab({ cf, selectedComps, onAddComp, onRemoveComp, onSkipTrace, com
           <>
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <p className="text-[9px] text-muted-foreground uppercase mb-0.5">{isScreeningMode ? "Screening Estimate" : "ARV"}</p>
+                <p className="text-xs text-muted-foreground uppercase mb-0.5">{isScreeningMode ? "Screening Estimate" : "ARV"}</p>
                 <p className={cn("text-2xl font-black font-mono tracking-tight", isScreeningMode ? "text-muted-foreground" : "text-foreground")} style={isScreeningMode ? {} : { textShadow: "0 0 10px rgba(255,255,255,0.08)" }}>
                   {isScreeningMode ? formatRoughCurrency(arv) : formatCurrency(arv)}
                 </p>
                 {!isScreeningMode && arvLow > 0 && arvHigh > 0 && arvRangeResult.compCount > 1 && (
-                  <p className="text-[10px] text-muted-foreground/70 font-mono mt-0.5">
+                  <p className="text-sm text-muted-foreground/70 font-mono mt-0.5">
                     {formatCurrency(arvLow)} {"\u2014"} {formatCurrency(arvHigh)}
                   </p>
                 )}
               </div>
               <div>
-                <p className="text-[9px] text-muted-foreground uppercase mb-0.5">{isScreeningMode ? <span className="text-muted-foreground">Screening Range</span> : "MAO"}</p>
+                <p className="text-xs text-muted-foreground uppercase mb-0.5">{isScreeningMode ? <span className="text-muted-foreground">Screening Range</span> : "MAO"}</p>
                 <p className={cn("text-2xl font-black font-mono tracking-tight", isScreeningMode ? "text-muted-foreground" : "text-foreground")}>
                   {compsUnderwrite.mao > 0 ? (isScreeningMode ? (quickScreenResult ? `${formatRoughCurrency(quickScreenResult.maoLow)} - ${formatRoughCurrency(quickScreenResult.maoHigh)}` : formatRoughCurrency(compsUnderwrite.mao)) : formatCurrency(compsUnderwrite.mao)) : "\u2014"}
                 </p>
-                <p className="text-[9px] text-muted-foreground/60 mt-0.5">
+                <p className="text-xs text-muted-foreground/60 mt-0.5">
                   {!isScreeningMode && `${offerPct}% less $${(rehabEst / 1000).toFixed(0)}k rehab, $12k fee, $9.5k costs`}
                 </p>
               </div>
@@ -3682,13 +3682,13 @@ function CompsTab({ cf, selectedComps, onAddComp, onRemoveComp, onSkipTrace, com
 
             {isScreeningMode ? (
               <div className="space-y-2">
-                <p className="text-[10px] text-muted-foreground italic">
+                <p className="text-sm text-muted-foreground italic">
                   AVM-only screening estimate. Run comps before offering.
                 </p>
                 {screeningReasons.length > 0 && (
                   <div className="flex flex-wrap gap-1">
                     {screeningReasons.map((r, i) => (
-                      <span key={i} className="text-[8px] px-1.5 py-0.5 rounded border border-white/12 bg-white/[0.05]/5 text-muted-foreground">{r}</span>
+                      <span key={i} className="text-xs px-1.5 py-0.5 rounded border border-white/12 bg-white/[0.05]/5 text-muted-foreground">{r}</span>
                     ))}
                   </div>
                 )}
@@ -3696,18 +3696,18 @@ function CompsTab({ cf, selectedComps, onAddComp, onRemoveComp, onSkipTrace, com
             ) : (
               <div className="flex items-start gap-2">
                 <span className={cn(
-                  "text-[10px] px-1.5 py-0.5 rounded-full font-bold uppercase shrink-0",
+                  "text-sm px-1.5 py-0.5 rounded-full font-bold uppercase shrink-0",
                   arvConfidence === "high" ? "bg-white/[0.06]/20 text-foreground" :
                   arvConfidence === "medium" ? "bg-white/[0.05]/20 text-muted-foreground" :
                   "bg-white/[0.05]/20 text-foreground",
                 )}>
                   {arvConfidence}
                 </span>
-                <p className="text-[11px] text-foreground/80">{confidenceReason}</p>
+                <p className="text-sm text-foreground/80">{confidenceReason}</p>
               </div>
             )}
 
-            <p className="text-[10px] text-muted-foreground/70">
+            <p className="text-sm text-muted-foreground/70">
               {cf.conditionLevel == null ? (
                 <span className="text-muted-foreground font-semibold">Condition: Not assessed</span>
               ) : conditionAdj !== 0 ? (
@@ -3727,22 +3727,22 @@ function CompsTab({ cf, selectedComps, onAddComp, onRemoveComp, onSkipTrace, com
               return (
                 <>
                   {danger.map((w, i) => (
-                    <p key={`d-${i}`} className="text-[10px] flex items-center gap-1 text-foreground">
+                    <p key={`d-${i}`} className="text-sm flex items-center gap-1 text-foreground">
                       <AlertTriangle className="h-3 w-3 shrink-0" />
                       {w.message}
                     </p>
                   ))}
                   {shownWarn.map((w, i) => (
-                    <p key={`w-${i}`} className="text-[10px] flex items-center gap-1 text-muted-foreground">
+                    <p key={`w-${i}`} className="text-sm flex items-center gap-1 text-muted-foreground">
                       <AlertTriangle className="h-3 w-3 shrink-0" />
                       {w.message}
                     </p>
                   ))}
                   {overflowCount > 0 && (
-                    <p className="text-[9px] text-muted-foreground/50">+{overflowCount} more</p>
+                    <p className="text-xs text-muted-foreground/50">+{overflowCount} more</p>
                   )}
                   {danger.length > 0 && (
-                    <p className="text-[10px] text-foreground font-semibold mt-1">Review with Adam before offering</p>
+                    <p className="text-sm text-foreground font-semibold mt-1">Review with Adam before offering</p>
                   )}
                 </>
               );
@@ -3751,7 +3751,7 @@ function CompsTab({ cf, selectedComps, onAddComp, onRemoveComp, onSkipTrace, com
             {isScreeningMode && (
               <button
                 onClick={() => setResearchMode(true)}
-                className="w-full mt-1 py-1.5 rounded-[6px] border border-white/30 bg-white/10 text-foreground text-[11px] font-semibold hover:bg-white/20 transition-colors"
+                className="w-full mt-1 py-1.5 rounded-[6px] border border-white/30 bg-white/10 text-foreground text-sm font-semibold hover:bg-white/20 transition-colors"
               >
                 Underwrite with comps
               </button>
@@ -3782,12 +3782,12 @@ function CompsTab({ cf, selectedComps, onAddComp, onRemoveComp, onSkipTrace, com
           <div className="rounded-[8px] border border-white/12 bg-white/[0.05] px-3 py-2 flex items-start gap-2">
             <AlertTriangle className="h-3.5 w-3.5 text-muted-foreground shrink-0 mt-0.5" />
             <div className="flex-1">
-              <p className="text-[11px] text-foreground font-semibold">Evidence needs strengthening</p>
-              <p className="text-[10px] text-muted-foreground mt-0.5">{nudgeReason}</p>
+              <p className="text-sm text-foreground font-semibold">Evidence needs strengthening</p>
+              <p className="text-sm text-muted-foreground mt-0.5">{nudgeReason}</p>
             </div>
             <button
               onClick={() => setResearchMode(true)}
-              className="text-[10px] text-foreground underline shrink-0"
+              className="text-sm text-foreground underline shrink-0"
             >
               Open Research Mode
             </button>
@@ -3804,7 +3804,7 @@ function CompsTab({ cf, selectedComps, onAddComp, onRemoveComp, onSkipTrace, com
         if (compsToShow.length === 0 && arv > 0) {
           return (
             <div className="rounded-[10px] border border-white/[0.06] bg-white/[0.02] p-3 text-center">
-              <p className="text-[11px] text-muted-foreground">No comps selected {"\u2014"} open Research Mode to find and add comps.</p>
+              <p className="text-sm text-muted-foreground">No comps selected {"\u2014"} open Research Mode to find and add comps.</p>
             </div>
           );
         }
@@ -3813,7 +3813,7 @@ function CompsTab({ cf, selectedComps, onAddComp, onRemoveComp, onSkipTrace, com
 
         return (
           <div className="space-y-2">
-            <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
+            <p className="text-sm font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
               <CheckCircle2 className="h-3 w-3 text-foreground" />
               Top {compsToShow.length} Comp Evidence
             </p>
@@ -3838,19 +3838,19 @@ function CompsTab({ cf, selectedComps, onAddComp, onRemoveComp, onSkipTrace, com
                 >
                   <div className="flex items-start justify-between gap-2">
                     <div className="min-w-0 flex-1">
-                      <p className="text-[11px] font-semibold truncate">{comp.streetAddress}</p>
-                      <div className="flex flex-wrap items-center gap-x-2.5 gap-y-0.5 mt-1 text-[10px] text-muted-foreground">
+                      <p className="text-sm font-semibold truncate">{comp.streetAddress}</p>
+                      <div className="flex flex-wrap items-center gap-x-2.5 gap-y-0.5 mt-1 text-sm text-muted-foreground">
                         {salePrice > 0 && <span className="font-semibold text-foreground">{formatCurrency(salePrice)}</span>}
                         {ppsf != null && <span className="font-mono">${ppsf}/sqft</span>}
                         {dist != null && <span>{dist.toFixed(1)}mi</span>}
                         {saleMonths != null && <span>{saleMonths}mo ago</span>}
                       </div>
                     </div>
-                    <span className={cn("text-[10px] font-bold shrink-0 mt-0.5", qualityColor)}>
+                    <span className={cn("text-sm font-bold shrink-0 mt-0.5", qualityColor)}>
                       {qualityLabel}
                     </span>
                   </div>
-                  <p className="text-[9px] text-muted-foreground/70 mt-1 italic">{rationale}</p>
+                  <p className="text-xs text-muted-foreground/70 mt-1 italic">{rationale}</p>
                   {(() => {
                     const flags: Array<{ label: string; color: string }> = [];
                     if (comp.isForeclosure) flags.push({ label: "Foreclosure", color: "text-foreground border-white/15 bg-white/[0.05]/10" });
@@ -3862,11 +3862,11 @@ function CompsTab({ cf, selectedComps, onAddComp, onRemoveComp, onSkipTrace, com
                     return (
                       <div className="flex flex-wrap items-center gap-1 mt-1">
                         {flags.map((f, fi) => (
-                          <span key={fi} className={cn("text-[8px] px-1 py-0.5 rounded border", f.color)}>{f.label}</span>
+                          <span key={fi} className={cn("text-xs px-1 py-0.5 rounded border", f.color)}>{f.label}</span>
                         ))}
                         {hasPhoto
-                          ? <span className="text-[8px] text-muted-foreground/50 flex items-center gap-0.5"><Camera className="h-2.5 w-2.5" />Photo</span>
-                          : <span className="text-[8px] text-muted-foreground/40 flex items-center gap-0.5"><CameraOff className="h-2.5 w-2.5" />No photo</span>
+                          ? <span className="text-xs text-muted-foreground/50 flex items-center gap-0.5"><Camera className="h-2.5 w-2.5" />Photo</span>
+                          : <span className="text-xs text-muted-foreground/40 flex items-center gap-0.5"><CameraOff className="h-2.5 w-2.5" />No photo</span>
                         }
                       </div>
                     );
@@ -3881,7 +3881,7 @@ function CompsTab({ cf, selectedComps, onAddComp, onRemoveComp, onSkipTrace, com
       {/* === RESEARCH MODE TOGGLE === */}
       <button
         onClick={() => setResearchMode((prev) => !prev)}
-        className="w-full flex items-center justify-center gap-2 py-2 rounded-[8px] border border-white/[0.06] bg-white/[0.02] hover:bg-white/[0.04] transition-colors text-[11px] text-muted-foreground"
+        className="w-full flex items-center justify-center gap-2 py-2 rounded-[8px] border border-white/[0.06] bg-white/[0.02] hover:bg-white/[0.04] transition-colors text-sm text-muted-foreground"
       >
         <ChevronDown className={cn("h-3 w-3 transition-transform", researchMode && "rotate-180")} />
         {researchMode ? "Hide Research Mode" : "Research Mode \u2014 Map, all comps, score details"}
@@ -3909,7 +3909,7 @@ function CompsTab({ cf, selectedComps, onAddComp, onRemoveComp, onSkipTrace, com
                 </p>
               </div>
               <div className="overflow-x-auto">
-                <table className="w-full text-[11px]">
+                <table className="w-full text-sm">
                   <thead>
                     <tr className="border-b border-white/[0.06] bg-white/[0.04]">
                       <th className="px-2 py-2 font-medium text-muted-foreground w-[52px]"></th>
@@ -3944,7 +3944,7 @@ function CompsTab({ cf, selectedComps, onAddComp, onRemoveComp, onSkipTrace, com
                         <td className="px-3 py-2 max-w-[180px]">
                           <div className="truncate">{comp.streetAddress}</div>
                           {comp.lastSaleDate && (
-                            <div className="text-[9px] text-muted-foreground">
+                            <div className="text-xs text-muted-foreground">
                               Sold {new Date(comp.lastSaleDate).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
                             </div>
                           )}
@@ -3977,23 +3977,23 @@ function CompsTab({ cf, selectedComps, onAddComp, onRemoveComp, onSkipTrace, com
           {/* Condition Adjustment slider */}
           <div className="rounded-[10px] border border-white/[0.06] bg-[rgba(12,12,22,0.5)] p-3">
             <div className="flex items-center justify-between mb-2">
-              <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Condition Adjustment</p>
+              <p className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Condition Adjustment</p>
               <span className={cn("text-xs font-bold", conditionAdj > 0 ? "text-foreground" : conditionAdj < 0 ? "text-foreground" : "text-muted-foreground")}>
                 {CONDITION_LABELS[conditionAdj] ?? `${conditionAdj > 0 ? "+" : ""}${conditionAdj}%`}
               </span>
             </div>
-            <p className="text-[9px] text-muted-foreground/60 mb-2">Adjust the ARV up or down based on the subject property{"'"}s condition relative to the comps. If it needs more work than the comps, slide left. If it{"'"}s in better shape, slide right.</p>
+            <p className="text-xs text-muted-foreground/60 mb-2">Adjust the ARV up or down based on the subject property{"'"}s condition relative to the comps. If it needs more work than the comps, slide left. If it{"'"}s in better shape, slide right.</p>
             <input type="range" min={-15} max={5} step={5} value={conditionAdj} onChange={(e) => onConditionAdjChange(Number(e.target.value))} className="w-full h-1.5 accent-foreground bg-secondary rounded-full" />
           </div>
 
           {/* Live ARV + Profit projection */}
           <div className="grid grid-cols-2 gap-4">
             <div className="rounded-lg border border-white/15 bg-white/4 p-4">
-              <p className="text-[10px] font-semibold text-foreground uppercase tracking-wider mb-3 flex items-center gap-1.5">
+              <p className="text-sm font-semibold text-foreground uppercase tracking-wider mb-3 flex items-center gap-1.5">
                 <TrendingUp className="h-3 w-3" />
                 Live ARV
                 {selectedComps.length > 0 && (
-                  <span className={cn("ml-auto text-[9px] px-1.5 py-0.5 rounded-full font-medium",
+                  <span className={cn("ml-auto text-xs px-1.5 py-0.5 rounded-full font-medium",
                     arvConfidence === "high" ? "bg-white/[0.06]/20 text-foreground" :
                     arvConfidence === "medium" ? "bg-white/[0.05]/20 text-muted-foreground" :
                     "bg-white/[0.05]/20 text-foreground"
@@ -4030,7 +4030,7 @@ function CompsTab({ cf, selectedComps, onAddComp, onRemoveComp, onSkipTrace, com
                       {formatCurrency(arv)}
                     </span>
                   </div>
-                  <p className="text-[9px] text-muted-foreground/60 pt-1">
+                  <p className="text-xs text-muted-foreground/60 pt-1">
                     {avgPpsqft != null ? `Based on ${arvRangeResult.compCount} comp${arvRangeResult.compCount > 1 ? "s" : ""} × ${subjectSqft.toLocaleString()} sqft` : `Average of ${compMetrics.length} comp sale price${compMetrics.length > 1 ? "s" : ""}`}
                   </p>
                 </div>
@@ -4054,15 +4054,15 @@ function CompsTab({ cf, selectedComps, onAddComp, onRemoveComp, onSkipTrace, com
                       {formatCurrency(arv)}
                     </span>
                   </div>
-                  <p className="text-[9px] text-muted-foreground/60 pt-1">Add comps for a more accurate ARV</p>
+                  <p className="text-xs text-muted-foreground/60 pt-1">Add comps for a more accurate ARV</p>
                 </div>
               ) : (
-                <p className="text-[10px] text-muted-foreground">Add comps to calculate</p>
+                <p className="text-sm text-muted-foreground">Add comps to calculate</p>
               )}
             </div>
 
             <div className="rounded-[12px] border border-glass-border bg-secondary/10 p-4">
-              <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-3 flex items-center gap-1.5">
+              <p className="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-3 flex items-center gap-1.5">
                 <DollarSign className="h-3 w-3" />
                 Quick Profit Projection
               </p>
@@ -4075,14 +4075,14 @@ function CompsTab({ cf, selectedComps, onAddComp, onRemoveComp, onSkipTrace, com
                   <span className="text-muted-foreground flex items-center gap-1">
                     Offer
                     <input type="range" min={50} max={80} step={5} value={offerPct} onChange={(e) => setOfferPct(Number(e.target.value))} className="w-14 h-1 accent-foreground" />
-                    <span className="text-[10px] font-mono w-7 text-right">{offerPct}%</span>
+                    <span className="text-sm font-mono w-7 text-right">{offerPct}%</span>
                   </span>
                   <span className="font-medium text-foreground">-{formatCurrency(offer)}</span>
                 </div>
                 <div className="flex justify-between items-center">
                   <span className="text-muted-foreground flex items-center gap-1">
                     Rehab
-                    <input type="number" value={rehabEst} onChange={(e) => setRehabEst(Number(e.target.value) || 0)} className="w-16 h-5 text-[10px] text-right bg-white/[0.06] border border-white/[0.1] rounded px-1 font-mono" />
+                    <input type="number" value={rehabEst} onChange={(e) => setRehabEst(Number(e.target.value) || 0)} className="w-16 h-5 text-sm text-right bg-white/[0.06] border border-white/[0.1] rounded px-1 font-mono" />
                   </span>
                   <span className="font-medium text-foreground">-{formatCurrency(rehabEst)}</span>
                 </div>
@@ -4092,7 +4092,7 @@ function CompsTab({ cf, selectedComps, onAddComp, onRemoveComp, onSkipTrace, com
                     {formatCurrency(profit)}
                   </span>
                 </div>
-                <div className="flex justify-between text-[10px]">
+                <div className="flex justify-between text-sm">
                   <span className="text-muted-foreground">ROI</span>
                   <span className={cn("font-semibold", roi >= 0 ? "text-foreground" : "text-foreground")}>{roi}%</span>
                 </div>
@@ -4152,7 +4152,7 @@ function OfferCalcTab({ cf, computedArv }: { cf: ClientFile; computedArv: number
     <div className="space-y-4">
       <Section title="Deal Inputs" icon={Calculator}>
         {computedArv > 0 && (
-          <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground mb-2">
+          <div className="flex items-center gap-1.5 text-sm text-muted-foreground mb-2">
             <CheckCircle2 className="h-3 w-3" />
             ARV auto-filled from Comps &amp; ARV tab
           </div>
@@ -4171,30 +4171,30 @@ function OfferCalcTab({ cf, computedArv }: { cf: ClientFile; computedArv: number
       <Section title="Profit Projection" icon={TrendingUp}>
         <div className="grid grid-cols-2 gap-3">
           <div className="rounded-lg border border-white/20 bg-white/4 p-3 text-center">
-            <p className="text-[10px] text-muted-foreground uppercase">MAO (75% Rule)</p>
+            <p className="text-sm text-muted-foreground uppercase">MAO (75% Rule)</p>
             <p className="text-xl font-bold text-foreground" style={{ textShadow: "0 0 10px rgba(255,255,255,0.08)" }}>
               {mao > 0 ? formatCurrency(mao) : "—"}
             </p>
-            <p className="text-[10px] text-muted-foreground mt-0.5">ARV Ã— 0.75 âˆ’ Rehab</p>
+            <p className="text-sm text-muted-foreground mt-0.5">ARV Ã— 0.75 âˆ’ Rehab</p>
           </div>
           <div className="rounded-[10px] border border-white/[0.06] bg-white/[0.04] p-3 text-center">
-            <p className="text-[10px] text-muted-foreground uppercase">Total Costs</p>
+            <p className="text-sm text-muted-foreground uppercase">Total Costs</p>
             <p className="text-xl font-bold">{totalCosts > 0 ? formatCurrency(totalCosts) : "—"}</p>
-            <p className="text-[10px] text-muted-foreground mt-0.5">Purchase + Rehab + Hold + Close</p>
+            <p className="text-sm text-muted-foreground mt-0.5">Purchase + Rehab + Hold + Close</p>
           </div>
           <div className={cn("rounded-[10px] border p-3 text-center", grossProfit > 0 ? "border-white/15 bg-white/[0.06]/5" : "border-white/15 bg-white/[0.05]/5")}>
-            <p className="text-[10px] text-muted-foreground uppercase">Gross Profit</p>
+            <p className="text-sm text-muted-foreground uppercase">Gross Profit</p>
             <p className={cn("text-xl font-bold", grossProfit > 0 ? "text-foreground" : "text-foreground")}>
               {arvNum > 0 && purchaseNum > 0 ? formatCurrency(grossProfit) : "—"}
             </p>
-            <p className="text-[10px] text-muted-foreground mt-0.5">ROI: {roi != null ? `${roi}%` : "—"}</p>
+            <p className="text-sm text-muted-foreground mt-0.5">ROI: {roi != null ? `${roi}%` : "—"}</p>
           </div>
           <div className={cn("rounded-lg border p-3 text-center", netProfit > 0 ? "border-white/20 bg-white/4" : "border-white/15 bg-white/[0.05]/5")}>
-            <p className="text-[10px] text-muted-foreground uppercase">Net After Assignment</p>
+            <p className="text-sm text-muted-foreground uppercase">Net After Assignment</p>
             <p className={cn("text-xl font-bold", netProfit > 0 ? "text-foreground" : "text-foreground")} style={netProfit > 0 ? { textShadow: "0 0 10px rgba(255,255,255,0.08)" } : undefined}>
               {arvNum > 0 && purchaseNum > 0 ? formatCurrency(netProfit) : "—"}
             </p>
-            <p className="text-[10px] text-muted-foreground mt-0.5">Gross âˆ’ Assignment Fee</p>
+            <p className="text-sm text-muted-foreground mt-0.5">Gross âˆ’ Assignment Fee</p>
           </div>
         </div>
       </Section>
@@ -4292,7 +4292,7 @@ function DocumentsTab({ cf, computedArv }: { cf: ClientFile; computedArv: number
     <div className="space-y-4">
       {/* PSA Preview */}
       <Section title="Purchase & Sale Agreement (RCW 61.40.010)" icon={FileText}>
-        <pre className="text-[11px] leading-relaxed text-foreground/80 bg-white/[0.02] rounded-[10px] p-4 border border-white/[0.06] overflow-auto max-h-64 whitespace-pre-wrap font-mono">
+        <pre className="text-sm leading-relaxed text-foreground/80 bg-white/[0.02] rounded-[10px] p-4 border border-white/[0.06] overflow-auto max-h-64 whitespace-pre-wrap font-mono">
           {psaBody}
         </pre>
       </Section>
@@ -4317,7 +4317,7 @@ function DocumentsTab({ cf, computedArv }: { cf: ClientFile; computedArv: number
       </div>
 
       {/* Auto-filled data summary */}
-      <div className="text-[10px] text-muted-foreground/50 space-y-0.5">
+      <div className="text-sm text-muted-foreground/50 space-y-0.5">
         <p>Auto-filled from client file: {cf.ownerName} â€¢ {cf.fullAddress} â€¢ APN {cf.apn}</p>
         <p>Heat Score: {cf.compositeScore} ({cf.scoreLabel.toUpperCase()}) — Equity: {cf.equityPercent ?? "N/A"}% — ARV: {cf.estimatedValue ? formatCurrency(cf.estimatedValue) : "N/A"}</p>
       </div>
@@ -4496,6 +4496,15 @@ export function MasterClientFileModal({ clientFile: incomingClientFile, open, on
       } : undefined,
     },
   );
+
+  // ── WI-7: Auto-run contradiction scan on modal open ──
+  useEffect(() => {
+    if (!clientFile?.id) return;
+
+    // Fire-and-forget — don't block modal rendering
+    fetch(`/api/leads/${clientFile.id}/contradiction-scan`, { method: 'POST' })
+      .catch(() => {}); // Silent fail — contradictions are informational
+  }, [clientFile?.id]);
 
   useEffect(() => {
     const propId = clientFile?.propertyId;
@@ -6232,23 +6241,23 @@ export function MasterClientFileModal({ clientFile: incomingClientFile, open, on
                       <span className="shrink-0">·</span>
                       <span className="shrink-0">{marketLabel}</span>
                       <span className="shrink-0">·</span>
-                      <Badge variant="outline" className="text-[9px] gap-1 border-white/20 text-foreground shrink-0">
+                      <Badge variant="outline" className="text-xs gap-1 border-white/20 text-foreground shrink-0">
                         <Target className="h-2.5 w-2.5" />{currentStageLabel}
                       </Badge>
-                      <span className="shrink-0 text-[9px]">Owner: {assigneeLabel}</span>
+                      <span className="shrink-0 text-xs">Owner: {assigneeLabel}</span>
                     </div>
                     <div className="flex flex-wrap items-center gap-1.5">
                       {clientFile.attribution && (
                         <Fragment>
                           {clientFile.attribution.campaignName && (
-                            <Badge variant="outline" className="text-[9px] gap-1 border-white/12 text-foreground">
+                            <Badge variant="outline" className="text-xs gap-1 border-white/12 text-foreground">
                               <Globe className="h-2.5 w-2.5" />Cam: {clientFile.attribution.campaignName}
                             </Badge>
                           )}
                         </Fragment>
                       )}
                       {clientFile.qualificationRoute === "escalate" && (
-                        <Badge variant="outline" className="text-[9px] gap-1 border-white/12 text-foreground">
+                        <Badge variant="outline" className="text-xs gap-1 border-white/12 text-foreground">
                           <AlertTriangle className="h-2.5 w-2.5" />Escalated Review
                         </Badge>
                       )}
@@ -6258,7 +6267,7 @@ export function MasterClientFileModal({ clientFile: incomingClientFile, open, on
                         const sevenDaysAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
                         const isStale = !Number.isNaN(fuMs) ? fuMs < sevenDaysAgo : true;
                         return isStale ? (
-                          <Badge variant="outline" className="text-[9px] gap-1 border-white/15 text-foreground">
+                          <Badge variant="outline" className="text-xs gap-1 border-white/15 text-foreground">
                             <AlertTriangle className="h-2.5 w-2.5" />Stale Nurture
                           </Badge>
                         ) : null;
@@ -6273,7 +6282,7 @@ export function MasterClientFileModal({ clientFile: incomingClientFile, open, on
                       <PredictiveDistressBadge data={clientFile.prediction as PredictiveDistressData} size="sm" />
                     )}
                     {clientFile.enriched && (
-                      <Badge variant="outline" className="text-[9px] gap-1 text-foreground border-white/20">
+                      <Badge variant="outline" className="text-xs gap-1 text-foreground border-white/20">
                         <CheckCircle2 className="h-2.5 w-2.5" />Enriched
                       </Badge>
                     )}
@@ -6404,7 +6413,7 @@ export function MasterClientFileModal({ clientFile: incomingClientFile, open, on
                       <Button
                         size="sm"
                         variant="outline"
-                        className="gap-1.5 h-7 text-[10px]"
+                        className="gap-1.5 h-7 text-sm"
                         disabled={claiming || isAssignedToCurrentUser}
                         onClick={handleClaimLead}
                       >
@@ -6417,7 +6426,7 @@ export function MasterClientFileModal({ clientFile: incomingClientFile, open, on
                         <select
                           value={reassignTargetId}
                           onChange={(e) => setReassignTargetId(e.target.value)}
-                          className="h-6 rounded border border-white/[0.1] bg-white/[0.04] px-1.5 text-[10px] text-foreground focus:outline-none focus:border-white/30"
+                          className="h-6 rounded border border-white/[0.1] bg-white/[0.04] px-1.5 text-sm text-foreground focus:outline-none focus:border-white/30"
                           aria-label="Select lead owner"
                         >
                           <option value="">Owner</option>
@@ -6428,7 +6437,7 @@ export function MasterClientFileModal({ clientFile: incomingClientFile, open, on
                         <Button
                           size="sm"
                           variant="outline"
-                          className="h-6 text-[10px] px-1.5 border-white/[0.15]"
+                          className="h-6 text-sm px-1.5 border-white/[0.15]"
                           disabled={reassigning || !reassignTargetId || reassignTargetId === (clientFile.assignedTo ?? "")}
                           onClick={handleReassignLead}
                         >
@@ -6440,7 +6449,7 @@ export function MasterClientFileModal({ clientFile: incomingClientFile, open, on
                       value={selectedStage}
                       onChange={(e) => setSelectedStage(e.target.value as WorkflowStageId)}
                       disabled={stageUpdating}
-                      className="h-7 rounded-[6px] border border-white/[0.1] bg-white/[0.04] px-2 text-[10px] text-foreground focus:outline-none focus:border-white/30"
+                      className="h-7 rounded-[6px] border border-white/[0.1] bg-white/[0.04] px-2 text-sm text-foreground focus:outline-none focus:border-white/30"
                       aria-label="Move lead stage"
                     >
                       {WORKFLOW_STAGE_OPTIONS.map((stage) => (
@@ -6450,7 +6459,7 @@ export function MasterClientFileModal({ clientFile: incomingClientFile, open, on
                     <Button
                       size="sm"
                       variant="outline"
-                      className="gap-1 h-7 text-[10px] border-white/20 hover:border-white/40 hover:bg-white/[0.06]"
+                      className="gap-1 h-7 text-sm border-white/20 hover:border-white/40 hover:bg-white/[0.06]"
                       disabled={stageUpdating || !stageChanged || !stagePrecheck.ok}
                       onClick={handleMoveStage}
                     >
@@ -6460,7 +6469,7 @@ export function MasterClientFileModal({ clientFile: incomingClientFile, open, on
                   </div>
                 </div>
                 {stageChanged && !stagePrecheck.ok && (
-                  <p className="mt-2 text-[10px] text-foreground">
+                  <p className="mt-2 text-sm text-foreground">
                     Before moving to {workflowStageLabel(selectedStage)}:{" "}
                     <span className="font-medium">{stagePrecheck.requiredActions[0]}</span>
                   </p>
@@ -6470,12 +6479,12 @@ export function MasterClientFileModal({ clientFile: incomingClientFile, open, on
                     {closeoutOpen && (
                       <div className="rounded-[10px] border border-white/20 bg-white/[0.06] p-2.5 space-y-2">
                         <div className="flex items-center justify-between gap-2">
-                          <p className="text-[10px] uppercase tracking-wider font-semibold text-foreground">Log Call Result</p>
-                          <span className="text-[9px] text-foreground/80">{closeoutActionLabel(closeoutAction)}</span>
+                          <p className="text-sm uppercase tracking-wider font-semibold text-foreground">Log Call Result</p>
+                          <span className="text-xs text-foreground/80">{closeoutActionLabel(closeoutAction)}</span>
                         </div>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
                           <label className="space-y-1">
-                            <span className="text-[9px] uppercase tracking-wider text-muted-foreground">Call Outcome</span>
+                            <span className="text-xs uppercase tracking-wider text-muted-foreground">Call Outcome</span>
                             <select
                               value={closeoutOutcome}
                               onChange={(e) => setCloseoutOutcome(e.target.value)}
@@ -6491,7 +6500,7 @@ export function MasterClientFileModal({ clientFile: incomingClientFile, open, on
                             </select>
                           </label>
                           <label className="space-y-1">
-                            <span className="text-[9px] uppercase tracking-wider text-muted-foreground">Next Action</span>
+                            <span className="text-xs uppercase tracking-wider text-muted-foreground">Next Action</span>
                             <select
                               value={closeoutAction}
                               onChange={(e) => {
@@ -6518,7 +6527,7 @@ export function MasterClientFileModal({ clientFile: incomingClientFile, open, on
                           </label>
                         </div>
                         <div className="space-y-1">
-                          <p className="text-[9px] uppercase tracking-wider text-muted-foreground">Follow-Up Preset</p>
+                          <p className="text-xs uppercase tracking-wider text-muted-foreground">Follow-Up Preset</p>
                           <div className="flex flex-wrap gap-1.5">
                             {CLOSEOUT_PRESETS.map((preset) => (
                               <button
@@ -6526,7 +6535,7 @@ export function MasterClientFileModal({ clientFile: incomingClientFile, open, on
                                 type="button"
                                 onClick={() => handleCloseoutPresetSelect(preset.id)}
                                 className={cn(
-                                  "h-6 px-2 rounded-[7px] border text-[10px] transition-colors",
+                                  "h-6 px-2 rounded-[7px] border text-sm transition-colors",
                                   closeoutPreset === preset.id
                                     ? "border-white/40 text-foreground bg-white/[0.12]"
                                     : "border-white/[0.12] text-muted-foreground hover:text-foreground hover:border-white/[0.24]",
@@ -6536,12 +6545,12 @@ export function MasterClientFileModal({ clientFile: incomingClientFile, open, on
                               </button>
                             ))}
                           </div>
-                          <p className="text-[10px] text-muted-foreground/75">
+                          <p className="text-sm text-muted-foreground/75">
                             Call presets schedule lead follow-up dates; only route actions create workflow tasks.
                           </p>
                         </div>
                         <label className="space-y-1 block">
-                          <span className="text-[9px] uppercase tracking-wider text-muted-foreground">Follow-Up Date</span>
+                          <span className="text-xs uppercase tracking-wider text-muted-foreground">Follow-Up Date</span>
                           <input
                             type="datetime-local"
                             value={closeoutAt}
@@ -6562,7 +6571,7 @@ export function MasterClientFileModal({ clientFile: incomingClientFile, open, on
                         <div className="flex items-center gap-2">
                           <Button
                             size="sm"
-                            className="h-7 text-[11px]"
+                            className="h-7 text-sm"
                             disabled={closeoutSaving}
                             onClick={handleSaveCallCloseout}
                           >
@@ -6572,7 +6581,7 @@ export function MasterClientFileModal({ clientFile: incomingClientFile, open, on
                           <Button
                             size="sm"
                             variant="ghost"
-                            className="h-7 text-[11px] text-muted-foreground"
+                            className="h-7 text-sm text-muted-foreground"
                             onClick={() => {
                               setCloseoutOpen(false);
                               setCloseoutOutcome(clientFile.dispositionCode ?? "");
@@ -6588,13 +6597,13 @@ export function MasterClientFileModal({ clientFile: incomingClientFile, open, on
                           >
                             Cancel
                           </Button>
-                          <span className="ml-auto text-[9px] text-muted-foreground/50">{closeoutNote.length}/1000</span>
+                          <span className="ml-auto text-xs text-muted-foreground/50">{closeoutNote.length}/1000</span>
                         </div>
                       </div>
                     )}
                     {nextActionEditorOpen && (
                       <div className="rounded-[10px] border border-white/12 bg-white/[0.05] p-2.5 space-y-2">
-                        <p className="text-[10px] uppercase tracking-wider font-semibold text-foreground">Next Action</p>
+                        <p className="text-sm uppercase tracking-wider font-semibold text-foreground">Next Action</p>
                         <input
                           type="datetime-local"
                           value={nextActionAt}
@@ -6604,7 +6613,7 @@ export function MasterClientFileModal({ clientFile: incomingClientFile, open, on
                         <div className="flex items-center gap-2">
                           <Button
                             size="sm"
-                            className="h-7 text-[11px]"
+                            className="h-7 text-sm"
                             disabled={settingNextAction}
                             onClick={handleSetNextAction}
                           >
@@ -6614,7 +6623,7 @@ export function MasterClientFileModal({ clientFile: incomingClientFile, open, on
                           <Button
                             size="sm"
                             variant="ghost"
-                            className="h-7 text-[11px] text-muted-foreground"
+                            className="h-7 text-sm text-muted-foreground"
                             onClick={() => {
                               setNextActionAt(toLocalDateTimeInput(clientFile.nextCallScheduledAt ?? clientFile.followUpDate));
                               setNextActionEditorOpen(false);
@@ -6627,7 +6636,7 @@ export function MasterClientFileModal({ clientFile: incomingClientFile, open, on
                     )}
                     {noteEditorOpen && (
                       <div className="rounded-[10px] border border-white/[0.12] bg-white/[0.03] p-2.5 space-y-2">
-                        <p className="text-[10px] uppercase tracking-wider font-semibold text-muted-foreground">Lead Note</p>
+                        <p className="text-sm uppercase tracking-wider font-semibold text-muted-foreground">Lead Note</p>
                         <textarea
                           value={noteDraft}
                           onChange={(e) => setNoteDraft(e.target.value)}
@@ -6638,7 +6647,7 @@ export function MasterClientFileModal({ clientFile: incomingClientFile, open, on
                         <div className="flex items-center gap-2">
                           <Button
                             size="sm"
-                            className="h-7 text-[11px]"
+                            className="h-7 text-sm"
                             disabled={savingNote || !noteDraft.trim()}
                             onClick={handleAppendNote}
                           >
@@ -6648,7 +6657,7 @@ export function MasterClientFileModal({ clientFile: incomingClientFile, open, on
                           <Button
                             size="sm"
                             variant="ghost"
-                            className="h-7 text-[11px] text-muted-foreground"
+                            className="h-7 text-sm text-muted-foreground"
                             onClick={() => {
                               setNoteDraft("");
                               setNoteEditorOpen(false);
@@ -6656,7 +6665,7 @@ export function MasterClientFileModal({ clientFile: incomingClientFile, open, on
                           >
                             Cancel
                           </Button>
-                          <span className="ml-auto text-[9px] text-muted-foreground/50">{noteDraft.length}/1000</span>
+                          <span className="ml-auto text-xs text-muted-foreground/50">{noteDraft.length}/1000</span>
                         </div>
                       </div>
                     )}
@@ -6668,17 +6677,17 @@ export function MasterClientFileModal({ clientFile: incomingClientFile, open, on
               <div className="shrink-0 px-4 py-1.5 border-b border-white/[0.06] bg-[rgba(8,10,18,0.55)]">
                 {(clientFile.status === "prospect" || clientFile.status === "staging") ? (
                   <div className="flex items-center gap-2">
-                    <span className="text-[10px] text-muted-foreground">Prospect — not in pipeline yet.</span>
+                    <span className="text-sm text-muted-foreground">Prospect — not in pipeline yet.</span>
                     <button
                       type="button"
-                      className="flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-semibold text-foreground hover:bg-white/10 border border-white/25 transition-colors"
+                      className="flex items-center gap-1 px-2 py-0.5 rounded-md text-sm font-semibold text-foreground hover:bg-white/10 border border-white/25 transition-colors"
                       onClick={() => { setSelectedStage("lead"); }}
                     >
                       Move to Pipeline <ArrowRight className="h-2.5 w-2.5" />
                     </button>
                   </div>
                 ) : (
-                  <div className="flex items-center gap-4 text-[10px] flex-wrap">
+                  <div className="flex items-center gap-4 text-sm flex-wrap">
                     <div className={cn("flex items-center gap-1.5 px-2 py-1 rounded-md border font-semibold text-xs", urgencyToneClass)}>
                       <UrgencyIcon className="h-3 w-3 shrink-0" />
                       <span>{nextActionUrgency.label}</span>
@@ -6705,7 +6714,7 @@ export function MasterClientFileModal({ clientFile: incomingClientFile, open, on
                     key={tab.id}
                     onClick={() => setActiveTab(tab.id)}
                     className={cn(
-                      "flex items-center gap-1.5 px-3 py-1.5 rounded-[10px] text-[11px] font-medium transition-all whitespace-nowrap",
+                      "flex items-center gap-1.5 px-3 py-1.5 rounded-[10px] text-sm font-medium transition-all whitespace-nowrap",
                       activeTab === tab.id
                         ? "text-foreground bg-white/[0.08] border border-white/15 shadow-[var(--shadow-badge-glow-tight)]"
                         : "text-muted-foreground hover:text-foreground border border-transparent hover:border-glass-border"
@@ -6715,7 +6724,7 @@ export function MasterClientFileModal({ clientFile: incomingClientFile, open, on
                   </button>
                 ))}
 
-                <span className="ml-1 mr-0.5 px-1.5 text-[8px] uppercase tracking-[0.16em] text-muted-foreground/35 border-l border-white/[0.08]">
+                <span className="ml-1 mr-0.5 px-1.5 text-xs uppercase tracking-[0.16em] text-muted-foreground/35 border-l border-white/[0.08]">
                   Advanced
                 </span>
 
@@ -6724,7 +6733,7 @@ export function MasterClientFileModal({ clientFile: incomingClientFile, open, on
                     key={tab.id}
                     onClick={() => setActiveTab(tab.id)}
                     className={cn(
-                      "flex items-center gap-1.5 px-2.5 py-1.5 rounded-[10px] text-[10px] font-medium transition-all whitespace-nowrap",
+                      "flex items-center gap-1.5 px-2.5 py-1.5 rounded-[10px] text-sm font-medium transition-all whitespace-nowrap",
                       activeTab === tab.id
                         ? "text-foreground bg-white/[0.08] border border-white/15 shadow-[var(--shadow-badge-glow-tight)]"
                         : "text-muted-foreground/55 hover:text-muted-foreground border border-transparent hover:border-white/[0.08]"
@@ -6732,7 +6741,7 @@ export function MasterClientFileModal({ clientFile: incomingClientFile, open, on
                   >
                     <tab.icon className="h-3 w-3" />{tab.label}
                     {tab.id === "comps" && selectedComps.length > 0 && (
-                      <span className="ml-1 bg-white/10 text-foreground text-[9px] px-1.5 rounded-full font-semibold">{selectedComps.length}</span>
+                      <span className="ml-1 bg-white/10 text-foreground text-xs px-1.5 rounded-full font-semibold">{selectedComps.length}</span>
                     )}
                   </button>
                 ))}
@@ -6846,7 +6855,7 @@ export function MasterClientFileModal({ clientFile: incomingClientFile, open, on
                   <div className="px-6 py-3 border-b border-white/[0.06] space-y-2">
                     <div className="flex items-center gap-2">
                       <MessageSquare className="h-3.5 w-3.5 text-foreground" />
-                      <p className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold">SMS to ***{(smsPhone || displayPhone)?.slice(-4)}</p>
+                      <p className="text-sm text-muted-foreground uppercase tracking-wider font-semibold">SMS to ***{(smsPhone || displayPhone)?.slice(-4)}</p>
                       <button onClick={() => setSmsOpen(false)} className="ml-auto text-muted-foreground hover:text-foreground">
                         <X className="h-3 w-3" />
                       </button>
@@ -6859,7 +6868,7 @@ export function MasterClientFileModal({ clientFile: incomingClientFile, open, on
                       maxLength={320}
                     />
                     <div className="flex items-center justify-between">
-                      <span className="text-[9px] text-muted-foreground/40">{smsMessage.length}/320</span>
+                      <span className="text-xs text-muted-foreground/40">{smsMessage.length}/320</span>
                       <Button size="sm" className="gap-1.5" disabled={smsSending || !smsMessage.trim()} onClick={() => handleSendSms()}>
                         {smsSending ? <Loader2 className="h-3 w-3 animate-spin" /> : <Send className="h-3 w-3" />}
                         {smsSending ? "Sendingâ€¦" : "Send SMS"}
@@ -6876,7 +6885,7 @@ export function MasterClientFileModal({ clientFile: incomingClientFile, open, on
                       <a href={`mailto:${clientFile.ownerEmail}`}><Mail className="h-3.5 w-3.5" />Email</a>
                     </Button>
                   )}
-                  <div className="ml-auto text-[10px] text-muted-foreground">
+                  <div className="ml-auto text-sm text-muted-foreground">
                     Lead ID: {clientFile.id.slice(0, 8)} â€¢ {sourceLabel}
                   </div>
                   <Button
