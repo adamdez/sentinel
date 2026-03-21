@@ -64,3 +64,4 @@ desktop.ini
 
 # supabase
 supabase/.temp/
+.env*.local

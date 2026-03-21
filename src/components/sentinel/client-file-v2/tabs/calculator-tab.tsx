@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { formatCurrency } from "@/lib/utils";
 import {
   calculateWholesaleUnderwrite,
@@ -8,18 +8,44 @@ import {
 } from "@/lib/valuation";
 
 interface DealCalculatorProps {
+  /** Explicit ARV passed by parent (e.g. from comps tab computation) */
   arv: number;
+  /** Comp-derived ARV stored in ownerFlags.comp_arv */
+  compArv?: number;
+  /** AVM / assessed value from properties.estimated_value */
+  estimatedValue?: number;
+  /** Seller asking price or price expectation, if known */
+  askingPrice?: number;
   initialRepairs?: number;
 }
 
-export function DealCalculatorTab({ arv, initialRepairs = VALUATION_DEFAULTS.rehabEstimate }: DealCalculatorProps) {
+export function DealCalculatorTab({
+  arv: arvProp,
+  compArv,
+  estimatedValue,
+  askingPrice,
+  initialRepairs = VALUATION_DEFAULTS.rehabEstimate,
+}: DealCalculatorProps) {
+  // Auto-populate ARV: prefer explicit prop > comp ARV > estimated value
+  const bestArv = arvProp > 0 ? arvProp : (compArv && compArv > 0) ? compArv : (estimatedValue ?? 0);
+  const [arvInput, setArvInput] = useState(bestArv > 0 ? bestArv.toString() : "");
   const [repairs, setRepairs] = useState(initialRepairs);
   const [maoPercentage, setMaoPercentage] = useState(Math.round(VALUATION_DEFAULTS.offerPercentage * 100));
+
+  // Re-sync ARV when parent passes updated comp data
+  useEffect(() => {
+    const incoming = arvProp > 0 ? arvProp : (compArv && compArv > 0) ? compArv : 0;
+    if (incoming > 0) setArvInput(incoming.toString());
+  }, [arvProp, compArv]);
+
+  const arv = parseFloat(arvInput) || 0;
+  const arvSource: "comps" | "avm" | "manual" =
+    arvProp > 0 || (compArv && compArv > 0) ? "comps" : (estimatedValue && estimatedValue > 0) ? "avm" : "manual";
 
   // Canonical MAO via valuation kernel — what-if scenario mode
   const underwrite = calculateWholesaleUnderwrite({
     arv,
-    arvSource: "manual",
+    arvSource,
     offerPercentage: maoPercentage / 100,
     rehabEstimate: repairs,
     assignmentFeeTarget: 0, // What-if mode: show raw MAO without fee
@@ -37,10 +63,16 @@ export function DealCalculatorTab({ arv, initialRepairs = VALUATION_DEFAULTS.reh
         <div className="space-y-4">
           <div>
             <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider block mb-1.5">After Repair Value (ARV)</label>
-            <div className="px-3 py-2 bg-white/5 rounded border border-white/10 font-mono text-lg text-emerald-400 font-bold">
-              {formatCurrency(arv)}
-            </div>
-            <p className="text-[10px] text-muted-foreground mt-1">Based on neighborhood comps</p>
+            <input
+              type="number"
+              value={arvInput}
+              onChange={(e) => setArvInput(e.target.value)}
+              placeholder="Enter ARV"
+              className="w-full bg-white/5 border border-white/10 rounded px-3 py-2 font-mono text-lg text-emerald-400 font-bold focus:outline-none focus:border-cyan-500/50"
+            />
+            <p className="text-[10px] text-muted-foreground mt-1">
+              {arvSource === "comps" ? "Auto-filled from comps" : arvSource === "avm" ? "Auto-filled from estimated value" : "Enter manually or run comps"}
+            </p>
           </div>
 
           <div>

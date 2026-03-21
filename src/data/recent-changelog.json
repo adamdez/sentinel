@@ -1,5 +1,30 @@
 [
   {
+    "hash": "5b0788b3",
+    "date": "2026-03-21",
+    "message": "feat: universal search (phone, email, contacts) + score badge labels"
+  },
+  {
+    "hash": "30d92c73",
+    "date": "2026-03-21",
+    "message": "feat: operator-first UX overhaul — 6 waves of expert-audited changes"
+  },
+  {
+    "hash": "3cc8e64f",
+    "date": "2026-03-20",
+    "message": "fix: comprehensive UX audit — lead detail view overhaul"
+  },
+  {
+    "hash": "dc20a47b",
+    "date": "2026-03-20",
+    "message": "feat: add individual + bulk delete to leads page and pipeline cards"
+  },
+  {
+    "hash": "07c581d3",
+    "date": "2026-03-20",
+    "message": "fix: guard dashboard against stale widget IDs in saved layouts"
+  },
+  {
     "hash": "d630e7b9",
     "date": "2026-03-20",
     "message": "feat: blueprint v4 compliance — durable jobs, write path fix, Vapi full capability, observability"
@@ -98,30 +123,5 @@
     "hash": "71fdf193",
     "date": "2026-03-19",
     "message": "ui: monochrome glass theme, strip cosmic classes; dialer panels + sessions"
-  },
-  {
-    "hash": "c400b843",
-    "date": "2026-03-16",
-    "message": "fix(ads): add campaign.status to SELECT in GAQL queries"
-  },
-  {
-    "hash": "48d80135",
-    "date": "2026-03-16",
-    "message": "fix(ads): fix type cast for CampaignBudgetData in intel-action"
-  },
-  {
-    "hash": "f773a6e1",
-    "date": "2026-03-16",
-    "message": "fix(ads): fix intel action execution failures"
-  },
-  {
-    "hash": "0204c4cc",
-    "date": "2026-03-16",
-    "message": "feat(ads): add Apply Fix + Discuss in Chat buttons to Key Intel findings"
-  },
-  {
-    "hash": "063a8529",
-    "date": "2026-03-16",
-    "message": "fix(ads): use camelCase field names for Google Ads API v23 response"
   }
 ]

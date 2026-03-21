@@ -504,6 +504,8 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
 
   const [scoreBreakdown, setScoreBreakdown] = useState<ScoreType | null>(null);
   const [offerPrepExpanded, setOfferPrepExpanded] = useState(false);
+  const isDealStage = ["negotiation", "disposition", "qualified"].includes(cf.status);
+  const [dealProgressOpen, setDealProgressOpen] = useState(isDealStage || cf.offerStatus !== "none");
   const canEdit = ["prospect", "lead"].includes(cf.status);
 
   const { brief, loading: briefLoading, regenerate: regenerateBrief } = usePreCallBrief(cf.id);
@@ -1224,56 +1226,30 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
         </div>
       </div>
 
-      {(prospectingSnapshot.sourceChannel || prospectingSnapshot.nicheTag || prospectingSnapshot.importBatchId || prospectingSnapshot.outboundStatus) && (
-        <div className="rounded-[12px] border border-white/[0.06] bg-white/[0.02] p-3 space-y-2.5">
-          <div className="flex items-center gap-2">
-            <Radar className="h-3.5 w-3.5 text-cyan" />
-            <p className="text-[11px] text-muted-foreground uppercase tracking-wider font-semibold">Prospecting Intake</p>
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-[11px]">
-            <div className="rounded-[8px] border border-white/[0.06] bg-white/[0.02] px-2.5 py-2">
-              <p className="text-[10px] text-muted-foreground/65">Source Channel</p>
-              <p className="font-medium text-foreground">{sourceChannelLabel(prospectingSnapshot.sourceChannel ?? cf.source)}</p>
-              {prospectingSnapshot.sourceVendor && (
-                <p className="text-[10px] text-muted-foreground/65 mt-0.5">Vendor: {prospectingSnapshot.sourceVendor}</p>
-              )}
-              {prospectingSnapshot.sourceListName && (
-                <p className="text-[10px] text-muted-foreground/65">List: {prospectingSnapshot.sourceListName}</p>
-              )}
-            </div>
-            <div className="rounded-[8px] border border-white/[0.06] bg-white/[0.02] px-2.5 py-2">
-              <p className="text-[10px] text-muted-foreground/65">Import / Niche</p>
-              <p className={cn("font-medium", prospectingSnapshot.nicheTag ? "text-foreground" : "text-amber-400")}>{prospectingSnapshot.nicheTag ? tagLabel(prospectingSnapshot.nicheTag) : "Unclassified \u2014 tag during qualification"}</p>
-              {prospectingSnapshot.importBatchId && (
-                <p className="text-[10px] text-muted-foreground/65 mt-0.5">Batch: {prospectingSnapshot.importBatchId}</p>
-              )}
-              {prospectingSnapshot.sourcePullDate && (
-                <p className="text-[10px] text-muted-foreground/65">Pulled: {prospectingSnapshot.sourcePullDate}</p>
-              )}
-            </div>
-            <div className="rounded-[8px] border border-white/[0.06] bg-white/[0.02] px-2.5 py-2">
-              <p className="text-[10px] text-muted-foreground/65">Contact Status</p>
-              <p className="font-medium text-foreground">{prospectingSnapshot.outboundStatus ? (prospectingSnapshot.outboundStatus === "new_import" ? "Ready to Contact" : tagLabel(prospectingSnapshot.outboundStatus)) : "Not set"}</p>
-              {prospectingSnapshot.outreachType && (
-                <p className="text-[10px] text-muted-foreground/65 mt-0.5">Outreach: {tagLabel(prospectingSnapshot.outreachType)}</p>
-              )}
-              {prospectingSnapshot.skipTraceStatus && (
-                <p className="text-[10px] text-muted-foreground/65">Skip trace: {tagLabel(prospectingSnapshot.skipTraceStatus)}</p>
-              )}
-            </div>
-            <div className="rounded-[8px] border border-white/[0.06] bg-white/[0.02] px-2.5 py-2">
-              <p className="text-[10px] text-muted-foreground/65">Contact Attempts</p>
-              <p className="font-medium text-foreground">{prospectingSnapshot.attemptCount ?? cf.totalCalls ?? 0}</p>
-              <p className="text-[10px] text-muted-foreground/65 mt-0.5">
-                Last outcome: {prospectingSnapshot.callOutcome ? tagLabel(prospectingSnapshot.callOutcome) : (cf.dispositionCode ? tagLabel(cf.dispositionCode) : "None")}
-              </p>
-              {(prospectingSnapshot.doNotCall || prospectingSnapshot.badRecord || prospectingSnapshot.wrongNumber) && (
-                <p className="text-[10px] text-amber-300 mt-0.5">
-                  {[prospectingSnapshot.doNotCall ? "DNC" : null, prospectingSnapshot.badRecord ? "Bad record" : null, prospectingSnapshot.wrongNumber ? "Wrong number" : null].filter(Boolean).join(" • ")}
-                </p>
-              )}
-            </div>
-          </div>
+      {/* Prospecting Intake — compact inline summary */}
+      {(prospectingSnapshot.sourceChannel || prospectingSnapshot.nicheTag || prospectingSnapshot.outboundStatus) && (
+        <div className="rounded-[10px] border border-white/[0.06] bg-white/[0.02] px-3 py-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-[10px]">
+          <span className="text-muted-foreground">
+            Source: <span className="text-foreground font-medium">{sourceChannelLabel(prospectingSnapshot.sourceChannel ?? cf.source)}</span>
+          </span>
+          {prospectingSnapshot.nicheTag && (
+            <span className="text-muted-foreground">
+              Niche: <span className="text-foreground font-medium">{tagLabel(prospectingSnapshot.nicheTag)}</span>
+            </span>
+          )}
+          <span className="text-muted-foreground">
+            Attempts: <span className="text-foreground font-medium">{prospectingSnapshot.attemptCount ?? cf.totalCalls ?? 0}</span>
+          </span>
+          {(prospectingSnapshot.callOutcome || cf.dispositionCode) && (
+            <span className="text-muted-foreground">
+              Last: <span className="text-foreground font-medium">{tagLabel(prospectingSnapshot.callOutcome ?? cf.dispositionCode ?? "")}</span>
+            </span>
+          )}
+          {(prospectingSnapshot.doNotCall || prospectingSnapshot.badRecord || prospectingSnapshot.wrongNumber) && (
+            <span className="text-amber-300 font-semibold">
+              {[prospectingSnapshot.doNotCall ? "DNC" : null, prospectingSnapshot.badRecord ? "Bad record" : null, prospectingSnapshot.wrongNumber ? "Wrong number" : null].filter(Boolean).join(" · ")}
+            </span>
+          )}
         </div>
       )}
 
@@ -1461,6 +1437,33 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
           </div>
         );
       })()}
+
+      {/* ═══ DEAL PROGRESS — collapsible for early-stage leads ═══ */}
+      <div className="rounded-[12px] border border-white/[0.06] bg-white/[0.015]">
+        <button
+          onClick={() => setDealProgressOpen(!dealProgressOpen)}
+          className="w-full flex items-center gap-2 px-3 py-2.5 text-left"
+        >
+          <Briefcase className="h-3.5 w-3.5 text-cyan" />
+          <p className="text-[11px] text-muted-foreground uppercase tracking-wider font-semibold">Deal Progress</p>
+          {!isDealStage && cf.offerStatus === "none" && (
+            <span className="text-[9px] text-muted-foreground/50">No offer activity yet</span>
+          )}
+          {cf.offerStatus !== "none" && !dealProgressOpen && (
+            <span className="text-[9px] text-cyan/70">{offerStatusLabel}</span>
+          )}
+          <ChevronDown className={cn("h-3.5 w-3.5 text-muted-foreground/40 ml-auto transition-transform", dealProgressOpen && "rotate-180")} />
+        </button>
+        <AnimatePresence>
+          {dealProgressOpen && (
+            <motion.div
+              initial={{ height: 0, opacity: 0 }}
+              animate={{ height: "auto", opacity: 1 }}
+              exit={{ height: 0, opacity: 0 }}
+              transition={{ duration: 0.2 }}
+              className="overflow-hidden"
+            >
+              <div className="px-3 pb-3 space-y-3">
 
       <div className="rounded-[12px] border border-white/[0.06] bg-white/[0.02] p-3 space-y-2">
         <div className="flex items-center gap-2">
@@ -1721,6 +1724,12 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
           initialFriction={cf.dispoFrictionLevel ?? null}
         />
       )}
+
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
 
       {/* Dossier Block — renders only when a reviewed dossier exists for this lead */}
       {/* leadType: absentee_landlord detected from isAbsentee flag or tag; drives renderer + source types */}
@@ -4204,6 +4213,17 @@ function OfferCalcTab({ cf, computedArv }: { cf: ClientFile; computedArv: number
 // Tab: Documents / PSA
 // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
+/** Title-case a string: "dez smith" → "Dez Smith" */
+function titleCase(str: string): string {
+  return str.replace(/\S+/g, (w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase());
+}
+
+/** Display APN — hide synthetic MANUAL- prefixed values */
+function displayApn(apn: string | null | undefined): string {
+  if (!apn || apn.startsWith("MANUAL-")) return "Per county records";
+  return apn;
+}
+
 function DocumentsTab({ cf, computedArv }: { cf: ClientFile; computedArv: number }) {
   const today = new Date().toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" });
   const bestArv = computedArv > 0 ? computedArv : cf.estimatedValue ?? 0;
@@ -4211,18 +4231,22 @@ function DocumentsTab({ cf, computedArv }: { cf: ClientFile; computedArv: number
   const psaUnderwrite = bestArv > 0 ? calculateWholesaleUnderwrite({ arv: bestArv }) : null;
   const autoMao = psaUnderwrite ? formatCurrency(psaUnderwrite.mao) : "____________";
 
+  const sellerName = titleCase(cf.ownerName ?? "");
+  const countyName = titleCase(cf.county ?? "");
+  const apnDisplay = displayApn(cf.apn);
+
   const psaBody = useMemo(() => [
     `REAL ESTATE PURCHASE AND SALE AGREEMENT`,
     ``,
     `Date: ${today}`,
     ``,
     `BUYER: Dominion Homes LLC and/or assigns`,
-    `SELLER: ${cf.ownerName}`,
+    `SELLER: ${sellerName}`,
     ``,
     `PROPERTY:`,
     `  Address: ${cf.fullAddress}`,
-    `  APN: ${cf.apn}`,
-    `  County: ${cf.county}`,
+    `  APN: ${apnDisplay}`,
+    `  County: ${countyName}`,
     `  Legal Description: Per county records`,
     ``,
     `PURCHASE PRICE: ${autoMao}`,
@@ -4241,11 +4265,11 @@ function DocumentsTab({ cf, computedArv }: { cf: ClientFile; computedArv: number
     `contract to a third party for a fee. Seller acknowledges this disclosure.`,
     ``,
     `SELLER: ______________________________  Date: ____________`,
-    `         ${cf.ownerName}`,
+    `         ${sellerName}`,
     ``,
     `BUYER:  ______________________________  Date: ____________`,
     `         Dominion Homes LLC`,
-  ].join("\n"), [cf, today, autoMao]);
+  ].join("\n"), [cf, today, autoMao, sellerName, countyName, apnDisplay]);
 
   const handlePrint = useCallback(() => {
     const w = window.open("", "_blank", "width=800,height=1100");
@@ -4258,10 +4282,11 @@ function DocumentsTab({ cf, computedArv }: { cf: ClientFile; computedArv: number
   }, [cf.fullAddress, psaBody]);
 
   const gmailUrl = useMemo(() => {
-    const subject = encodeURIComponent(`PSA — ${cf.fullAddress} — ${cf.ownerName}`);
-    const body = encodeURIComponent(`Hi ${cf.ownerName.split(" ")[0]},\n\nPlease find the Purchase and Sale Agreement for the property at:\n${cf.fullAddress}\nAPN: ${cf.apn}\n\nI'll follow up shortly to discuss terms.\n\nBest,\nAdam DesJardin\nDominion Homes LLC`);
+    const firstName = titleCase((cf.ownerName ?? "").split(" ")[0]);
+    const subject = encodeURIComponent(`PSA — ${cf.fullAddress} — ${sellerName}`);
+    const body = encodeURIComponent(`Hi ${firstName},\n\nPlease find the Purchase and Sale Agreement for the property at:\n${cf.fullAddress}\nAPN: ${apnDisplay}\n\nI'll follow up shortly to discuss terms.\n\nBest,\nAdam DesJardin\nDominion Homes LLC`);
     return `https://mail.google.com/mail/?view=cm&su=${subject}&body=${body}`;
-  }, [cf]);
+  }, [cf, sellerName, apnDisplay]);
 
   return (
     <div className="space-y-4">
@@ -6187,12 +6212,12 @@ export function MasterClientFileModal({ clientFile: incomingClientFile, open, on
               data-operator-safe
             >
             <div className="flex-1 overflow-hidden flex flex-col min-w-0">
-              {/* Header */}
+              {/* Header — compact */}
               <div className="shrink-0 border-b border-white/[0.06] bg-[rgba(4,4,12,0.88)] backdrop-blur-2xl rounded-t-[16px]">
-                <div className="flex items-start justify-between gap-4 px-6 py-4">
-                  <div className="min-w-0 space-y-2">
+                <div className="flex items-start justify-between gap-4 px-4 py-2.5">
+                  <div className="min-w-0 space-y-1">
                     <div className="flex items-center gap-2 min-w-0">
-                      <h2 className="text-lg font-bold truncate" style={{ textShadow: "0 0 12px rgba(0,212,255,0.12)" }}>
+                      <h2 className="text-base font-bold truncate" style={{ textShadow: "0 0 12px rgba(0,212,255,0.12)" }}>
                         {clientFile.ownerName || "Unknown Seller"}
                       </h2>
                       <RelationshipBadge data={{
@@ -6202,14 +6227,17 @@ export function MasterClientFileModal({ clientFile: incomingClientFile, open, on
                         bestAddress: clientFile.fullAddress,
                       }} />
                     </div>
-                    <p className="text-xs text-muted-foreground truncate">{clientFile.fullAddress}</p>
+                    <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                      <span className="truncate">{clientFile.fullAddress}</span>
+                      <span className="shrink-0">·</span>
+                      <span className="shrink-0">{marketLabel}</span>
+                      <span className="shrink-0">·</span>
+                      <Badge variant="outline" className="text-[9px] gap-1 border-cyan/20 text-cyan shrink-0">
+                        <Target className="h-2.5 w-2.5" />{currentStageLabel}
+                      </Badge>
+                      <span className="shrink-0 text-[9px]">Owner: {assigneeLabel}</span>
+                    </div>
                     <div className="flex flex-wrap items-center gap-1.5">
-                      <Badge variant="outline" className="text-[9px] gap-1 border-white/[0.14]">
-                        <MapPin className="h-2.5 w-2.5" />{marketLabel}
-                      </Badge>
-                      <Badge variant="outline" className="text-[9px] gap-1 border-white/[0.14]">
-                        <Radar className="h-2.5 w-2.5" />{sourceLabel}
-                      </Badge>
                       {clientFile.attribution && (
                         <Fragment>
                           {clientFile.attribution.campaignName && (
@@ -6217,24 +6245,8 @@ export function MasterClientFileModal({ clientFile: incomingClientFile, open, on
                               <Globe className="h-2.5 w-2.5" />Cam: {clientFile.attribution.campaignName}
                             </Badge>
                           )}
-                          {clientFile.attribution.adGroupName && (
-                            <Badge variant="outline" className="text-[9px] gap-1 border-white/[0.12] text-muted-foreground">
-                              AdG: {clientFile.attribution.adGroupName}
-                            </Badge>
-                          )}
-                          {clientFile.attribution.keywordText && (
-                            <Badge variant="outline" className="text-[9px] gap-1 border-white/[0.12] text-muted-foreground italic">
-                              &ldquo;{clientFile.attribution.keywordText}&rdquo;
-                            </Badge>
-                          )}
                         </Fragment>
                       )}
-                      <Badge variant="outline" className="text-[9px] gap-1 border-cyan/20 text-cyan">
-                        <Target className="h-2.5 w-2.5" />{currentStageLabel}
-                      </Badge>
-                      <Badge variant="outline" className="text-[9px] gap-1 border-white/[0.14]">
-                        <Users className="h-2.5 w-2.5" />Owner: {assigneeLabel}
-                      </Badge>
                       {clientFile.qualificationRoute === "escalate" && (
                         <Badge variant="outline" className="text-[9px] gap-1 border-amber-500/25 text-amber-300">
                           <AlertTriangle className="h-2.5 w-2.5" />Escalated Review
@@ -6273,12 +6285,12 @@ export function MasterClientFileModal({ clientFile: incomingClientFile, open, on
                 </div>
               </div>
 
-              {/* Primary operator actions */}
-              <div className="shrink-0 px-4 py-3 border-b border-white/[0.06] bg-[rgba(12,12,22,0.6)]">
-                <div className="flex flex-wrap items-center gap-2">
+              {/* Primary operator actions — single compact row */}
+              <div className="shrink-0 px-4 py-2 border-b border-white/[0.06] bg-[rgba(12,12,22,0.6)]">
+                <div className="flex flex-wrap items-center gap-1.5">
                   {needsConsent ? (
                     <div className="flex items-center gap-2 rounded-md border border-yellow-500/30 bg-yellow-500/[0.06] px-3 py-1.5">
-                      <span className="text-xs text-yellow-300/90">This person asked to be called — confirm to dial</span>
+                      <span className="text-xs text-yellow-300/90">Confirm to dial</span>
                       <Button
                         size="sm"
                         className="h-6 gap-1.5 bg-yellow-500/20 hover:bg-yellow-500/30 text-yellow-200 border border-yellow-500/30 text-xs"
@@ -6299,48 +6311,27 @@ export function MasterClientFileModal({ clientFile: incomingClientFile, open, on
                   <Button
                     size="sm"
                     variant="outline"
-                    className="gap-2 border-emerald-500/30 bg-emerald-500/10 hover:border-emerald-500/50 hover:bg-emerald-500/20 text-emerald-300 font-semibold px-4 py-2"
+                    className="gap-1.5 h-7 border-emerald-500/30 bg-emerald-500/10 hover:border-emerald-500/50 hover:bg-emerald-500/20 text-emerald-300 font-semibold px-3"
                     disabled={!displayPhone || calling}
                     onClick={() => handleDial()}
                   >
-                    {calling ? <Loader2 className="h-4 w-4 animate-spin" /> : <Phone className="h-4 w-4" />}
+                    {calling ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Phone className="h-3.5 w-3.5" />}
                     {calling ? "Dialing..." : "Call"}
                   </Button>
                   )}
-                  {clientFile && (
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      className="gap-2 border-cyan/15 hover:border-cyan/35 hover:bg-cyan/[0.05] text-cyan/80"
-                      onClick={async () => {
-                        const { data: { session } } = await supabase.auth.getSession();
-                        const res = await fetch(`/api/leads/${clientFile.id}/queue`, {
-                          method: "POST",
-                          headers: {
-                            "Content-Type": "application/json",
-                            ...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}),
-                          },
-                        });
-                        if (res.ok) toast.success("Added to call queue");
-                        else toast.error("Could not add to queue");
-                      }}
-                    >
-                      <ListPlus className="h-3.5 w-3.5" />Queue for Dialer
-                    </Button>
-                  )}
                   <Button
                     size="sm"
                     variant="outline"
-                    className="gap-2 border-emerald-500/20 hover:border-emerald-500/40 hover:bg-emerald-500/[0.06]"
+                    className="gap-1.5 h-7 border-emerald-500/20 hover:border-emerald-500/40 hover:bg-emerald-500/[0.06]"
                     disabled={!displayPhone}
                     onClick={() => setSmsOpen((v) => !v)}
                   >
-                    <MessageSquare className="h-3.5 w-3.5 text-emerald-400" />Text
+                    <MessageSquare className="h-3 w-3 text-emerald-400" />Text
                   </Button>
                   <Button
                     size="sm"
                     variant="outline"
-                    className="gap-2 border-cyan/25 hover:border-cyan/45 hover:bg-cyan/[0.08]"
+                    className="gap-1.5 h-7 border-cyan/25 hover:border-cyan/45 hover:bg-cyan/[0.08]"
                     onClick={() => {
                       setCloseoutOpen((v) => {
                         const next = !v;
@@ -6361,72 +6352,95 @@ export function MasterClientFileModal({ clientFile: incomingClientFile, open, on
                       setNoteEditorOpen(false);
                     }}
                   >
-                    <CheckCircle2 className="h-3.5 w-3.5 text-cyan" />Log Outcome
+                    <CheckCircle2 className="h-3 w-3 text-cyan" />Log Outcome
                   </Button>
-                  {!(isAssignedToCurrentUser && assignmentOptions.length > 0) && (
-                  <Button
-                    size="sm"
-                    className="gap-2"
-                    disabled={claiming || isAssignedToCurrentUser}
-                    onClick={handleClaimLead}
-                  >
-                    {claiming ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Users className="h-3.5 w-3.5" />}
-                    {claiming ? "Saving..." : claimButtonLabel}
-                  </Button>
-                  )}
-                  {assignmentOptions.length > 0 && (
-                    <div className="flex items-center gap-1.5 rounded-[8px] border border-white/[0.12] bg-white/[0.03] px-1.5 py-1">
-                      <select
-                        value={reassignTargetId}
-                        onChange={(e) => setReassignTargetId(e.target.value)}
-                        className="h-7 rounded-[6px] border border-white/[0.12] bg-white/[0.04] px-2 text-[11px] text-foreground focus:outline-none focus:border-cyan/30"
-                        aria-label="Select lead owner"
-                      >
-                        <option value="">Select owner</option>
-                        {assignmentOptions.map((option) => (
-                          <option key={option.id} value={option.id}>{option.name}</option>
-                        ))}
-                      </select>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="h-7 text-[11px] border-white/[0.18] hover:border-cyan/35"
-                        disabled={reassigning || !reassignTargetId || reassignTargetId === (clientFile.assignedTo ?? "")}
-                        onClick={handleReassignLead}
-                      >
-                        {reassigning ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : "Reassign"}
-                      </Button>
-                    </div>
-                  )}
                   <Button
                     size="sm"
                     variant="outline"
-                    className="gap-2 border-amber-500/20 hover:border-amber-500/40 hover:bg-amber-500/[0.06]"
+                    className="gap-1.5 h-7 border-amber-500/20 hover:border-amber-500/40 hover:bg-amber-500/[0.06]"
                     onClick={() => {
                       setNextActionEditorOpen((v) => !v);
                       setCloseoutOpen(false);
                     }}
                   >
-                    <Calendar className="h-3.5 w-3.5 text-amber-400" />Set Next Action
+                    <Calendar className="h-3 w-3 text-amber-400" />Next Action
                   </Button>
                   <Button
                     size="sm"
                     variant="outline"
-                    className="gap-2 border-white/[0.14] hover:border-white/[0.25] hover:bg-white/[0.06]"
+                    className="gap-1.5 h-7 border-white/[0.14] hover:border-white/[0.25] hover:bg-white/[0.06]"
                     onClick={() => {
                       setNoteEditorOpen((v) => !v);
                       setCloseoutOpen(false);
                     }}
                   >
-                    <FileText className="h-3.5 w-3.5" />Log Note
+                    <FileText className="h-3 w-3" />Note
                   </Button>
+                  {clientFile && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="gap-1.5 h-7 border-cyan/15 hover:border-cyan/35 hover:bg-cyan/[0.05] text-cyan/80"
+                      onClick={async () => {
+                        const { data: { session } } = await supabase.auth.getSession();
+                        const res = await fetch(`/api/leads/${clientFile.id}/queue`, {
+                          method: "POST",
+                          headers: {
+                            "Content-Type": "application/json",
+                            ...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}),
+                          },
+                        });
+                        if (res.ok) toast.success("Added to call queue");
+                        else toast.error("Could not add to queue");
+                      }}
+                    >
+                      <ListPlus className="h-3 w-3" />Queue
+                    </Button>
+                  )}
 
-                  <div className="ml-auto flex items-center gap-2">
+                  {/* Secondary: owner + stage — pushed right */}
+                  <div className="ml-auto flex items-center gap-1.5">
+                    {!(isAssignedToCurrentUser && assignmentOptions.length > 0) && !isAssignedToCurrentUser && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="gap-1.5 h-7 text-[10px]"
+                        disabled={claiming || isAssignedToCurrentUser}
+                        onClick={handleClaimLead}
+                      >
+                        {claiming ? <Loader2 className="h-3 w-3 animate-spin" /> : <Users className="h-3 w-3" />}
+                        {claiming ? "..." : claimButtonLabel}
+                      </Button>
+                    )}
+                    {assignmentOptions.length > 0 && (
+                      <div className="flex items-center gap-1 rounded-[6px] border border-white/[0.1] bg-white/[0.02] px-1 py-0.5">
+                        <select
+                          value={reassignTargetId}
+                          onChange={(e) => setReassignTargetId(e.target.value)}
+                          className="h-6 rounded border border-white/[0.1] bg-white/[0.04] px-1.5 text-[10px] text-foreground focus:outline-none focus:border-cyan/30"
+                          aria-label="Select lead owner"
+                        >
+                          <option value="">Owner</option>
+                          {assignmentOptions.map((option) => (
+                            <option key={option.id} value={option.id}>{option.name}</option>
+                          ))}
+                        </select>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-6 text-[10px] px-1.5 border-white/[0.15]"
+                          disabled={reassigning || !reassignTargetId || reassignTargetId === (clientFile.assignedTo ?? "")}
+                          onClick={handleReassignLead}
+                        >
+                          {reassigning ? <Loader2 className="h-3 w-3 animate-spin" /> : "Go"}
+                        </Button>
+                      </div>
+                    )}
                     <select
                       value={selectedStage}
                       onChange={(e) => setSelectedStage(e.target.value as WorkflowStageId)}
                       disabled={stageUpdating}
-                      className="h-8 rounded-[8px] border border-white/[0.12] bg-white/[0.04] px-2.5 text-xs text-foreground focus:outline-none focus:border-cyan/30"
+                      className="h-7 rounded-[6px] border border-white/[0.1] bg-white/[0.04] px-2 text-[10px] text-foreground focus:outline-none focus:border-cyan/30"
                       aria-label="Move lead stage"
                     >
                       {WORKFLOW_STAGE_OPTIONS.map((stage) => (
@@ -6436,12 +6450,12 @@ export function MasterClientFileModal({ clientFile: incomingClientFile, open, on
                     <Button
                       size="sm"
                       variant="outline"
-                      className="gap-1.5 border-cyan/20 hover:border-cyan/40 hover:bg-cyan/[0.06]"
+                      className="gap-1 h-7 text-[10px] border-cyan/20 hover:border-cyan/40 hover:bg-cyan/[0.06]"
                       disabled={stageUpdating || !stageChanged || !stagePrecheck.ok}
                       onClick={handleMoveStage}
                     >
-                      {stageUpdating ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <ArrowRight className="h-3.5 w-3.5" />}
-                      Move Stage
+                      {stageUpdating ? <Loader2 className="h-3 w-3 animate-spin" /> : <ArrowRight className="h-3 w-3" />}
+                      Move
                     </Button>
                   </div>
                 </div>
@@ -6650,58 +6664,38 @@ export function MasterClientFileModal({ clientFile: incomingClientFile, open, on
                 )}
               </div>
 
-              {/* Next action strip */}
-              <div className="shrink-0 px-4 py-2.5 border-b border-white/[0.06] bg-[rgba(8,10,18,0.55)]">
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-2">
-                  <div className={cn("rounded-[10px] border px-3 py-2", urgencyToneClass)}>
-                    <p className="text-[9px] uppercase tracking-wider font-semibold">Contact Urgency</p>
-                    {(clientFile.status === "prospect" || clientFile.status === "staging") ? (
-                      <div className="mt-1 flex items-center gap-2">
-                        <span className="text-[11px] text-muted-foreground">Ready to promote?</span>
-                        <button
-                          type="button"
-                          className="flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-semibold text-cyan hover:bg-cyan/10 border border-cyan/25 transition-colors"
-                          onClick={() => {
-                            setSelectedStage("lead");
-                          }}
-                        >
-                          Move to Pipeline <ArrowRight className="h-2.5 w-2.5" />
-                        </button>
-                      </div>
-                    ) : (
-                      <>
-                        <div className="mt-1 flex items-center gap-1.5 text-xs">
-                          <UrgencyIcon className="h-3.5 w-3.5 shrink-0" />
-                          <span className="font-semibold">{nextActionUrgency.label}</span>
-                        </div>
-                        <p className={cn("text-[10px] mt-1", !clientFile.assignedTo ? "text-amber-300" : "opacity-80")}>
-                          {!clientFile.assignedTo
-                            ? "Owner unassigned. Claim or assign to keep this lead active."
-                            : isAssignedToCurrentUser
-                              ? "This callback is assigned to you"
-                              : `Next action owned by ${assigneeLabel}.`}
-                        </p>
-                        {missingNextAction && (
-                          <p className="text-[10px] mt-1 font-semibold">Set a next action to keep momentum.</p>
-                        )}
-                      </>
-                    )}
+              {/* Compact status strip */}
+              <div className="shrink-0 px-4 py-1.5 border-b border-white/[0.06] bg-[rgba(8,10,18,0.55)]">
+                {(clientFile.status === "prospect" || clientFile.status === "staging") ? (
+                  <div className="flex items-center gap-2">
+                    <span className="text-[10px] text-muted-foreground">Prospect — not in pipeline yet.</span>
+                    <button
+                      type="button"
+                      className="flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-semibold text-cyan hover:bg-cyan/10 border border-cyan/25 transition-colors"
+                      onClick={() => { setSelectedStage("lead"); }}
+                    >
+                      Move to Pipeline <ArrowRight className="h-2.5 w-2.5" />
+                    </button>
                   </div>
-                  <div className="rounded-[10px] border border-white/[0.08] bg-white/[0.02] px-3 py-2">
-                    <p className="text-[9px] uppercase tracking-wider text-muted-foreground font-semibold">Last Contact Attempt</p>
-                    <p className="text-xs mt-1 text-foreground">{formatDateTimeShort(clientFile.lastContactAt)}</p>
+                ) : (
+                  <div className="flex items-center gap-4 text-[10px] flex-wrap">
+                    <div className={cn("flex items-center gap-1.5 px-2 py-1 rounded-md border font-semibold text-xs", urgencyToneClass)}>
+                      <UrgencyIcon className="h-3 w-3 shrink-0" />
+                      <span>{nextActionUrgency.label}</span>
+                    </div>
+                    <span className="text-muted-foreground">
+                      Last: <span className="text-foreground">{formatDateTimeShort(clientFile.lastContactAt)}</span>
+                    </span>
+                    <span className={cn(missingNextAction ? "text-amber-300 font-semibold" : "text-muted-foreground")}>
+                      Next: <span className={cn(missingNextAction ? "" : "text-foreground")}>
+                        {missingNextAction ? "Not set — needs action" : `${nextActionView.label} · ${formatDateTimeShort(nextActionIso)}`}
+                      </span>
+                    </span>
+                    <span className="text-muted-foreground">
+                      Seq: <span className="text-foreground">{currentSequenceLabel}</span>
+                    </span>
                   </div>
-                  <div className="rounded-[10px] border border-white/[0.08] bg-white/[0.02] px-3 py-2">
-                    <p className="text-[9px] uppercase tracking-wider text-muted-foreground font-semibold">Next Action</p>
-                    <p className={cn("text-xs mt-1", missingNextAction ? "text-amber-300 font-semibold" : "text-foreground")}>
-                      {missingNextAction ? "Not set" : `${nextActionView.label} • ${formatDateTimeShort(nextActionIso)}`}
-                    </p>
-                  </div>
-                  <div className="rounded-[10px] border border-white/[0.08] bg-white/[0.02] px-3 py-2">
-                    <p className="text-[9px] uppercase tracking-wider text-muted-foreground font-semibold">Call Sequence</p>
-                    <p className="text-xs mt-1 text-foreground">{currentSequenceLabel}</p>
-                  </div>
-                </div>
+                )}
               </div>
 
               {/* Tabs */}

@@ -410,10 +410,10 @@ export function ContactTab({ cf, overlay, onSkipTrace, skipTracing, onDial, onSm
                       {detail?.dnc && <Badge variant="outline" className="text-[7px] py-0 px-1 border-red-500/30 text-red-400">DNC</Badge>}
                     </div>
                     <div className="flex items-center gap-1.5 mt-0.5">
-                      {detail?.lineType && (
+                      {detail?.lineType && detail.lineType.toLowerCase() !== "unknown" && (
                         <span className="text-[10px] text-muted-foreground capitalize">{detail.lineType}</span>
                       )}
-                      {detail?.confidence != null && (
+                      {detail?.confidence != null && detail.confidence > 0 && (
                         <span className="text-[10px] text-muted-foreground">{detail.confidence}%</span>
                       )}
                       {detail?.source && (
