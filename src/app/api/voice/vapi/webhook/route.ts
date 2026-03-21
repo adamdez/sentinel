@@ -10,6 +10,7 @@ import type { TransferResult } from "@/providers/voice/vapi-functions";
 import { buildAssistantConfig } from "@/providers/voice/vapi-adapter";
 import { notifyMissedCall } from "@/lib/notify";
 import { sendTransferFailedSMS } from "@/providers/voice/vapi-sms";
+import { trackedDelivery } from "@/lib/delivery-tracker";
 import type { VapiWebhookPayload } from "@/providers/voice/types";
 import { createAgentRun, completeAgentRun } from "@/lib/control-plane";
 import { inngest } from "@/inngest/client";
@@ -130,7 +131,9 @@ async function handleAssistantRequest(message: VapiWebhookPayload["message"]) {
   // Create voice session early — don't wait for first function call
   const vapiCallId = message.call?.id;
   if (vapiCallId) {
-    resolveVoiceSession(vapiCallId, message.call, runId).catch(() => {});
+    resolveVoiceSession(vapiCallId, message.call, runId).catch((err) => {
+      console.error("[vapi/webhook] resolveVoiceSession failed:", err instanceof Error ? err.message : String(err));
+    });
   }
 
   return NextResponse.json({ assistant: config });
@@ -343,14 +346,17 @@ async function handleEndOfCallReport(
     const isSellerOrUnknown = !session.caller_type || session.caller_type === "seller" || session.caller_type === "unknown";
     if (!wasTransferred && isSellerOrUnknown) {
       const fromNumber = message.call?.customer?.number ?? null;
-      notifyMissedCall({
-        callerPhone: fromNumber ?? "unknown",
-        callerName: null,
-        callSummary: message.summary ?? null,
-        propertyAddress: null,
-        leadId: session.lead_id,
-        callTimestamp: new Date().toISOString(),
-      }).catch(() => {});
+      trackedDelivery(
+        { channel: "sms", eventType: "missed_call", entityType: "call", entityId: session.lead_id ?? undefined },
+        () => notifyMissedCall({
+          callerPhone: fromNumber ?? "unknown",
+          callerName: null,
+          callSummary: message.summary ?? null,
+          propertyAddress: null,
+          leadId: session.lead_id,
+          callTimestamp: new Date().toISOString(),
+        })
+      );
     }
 
     // Complete the agent run for this session (control plane traceability)
@@ -363,7 +369,9 @@ async function handleEndOfCallReport(
           duration: message.durationSeconds,
           summary: message.summary,
         },
-      }).catch(() => {});
+      }).catch((err) => {
+        console.error("[vapi/webhook] completeAgentRun failed:", err instanceof Error ? err.message : String(err));
+      });
     }
 
     // Trigger post-call AI analysis (durable, retried if fails)
@@ -425,7 +433,10 @@ async function handleTransferDestinationRequest(
       );
 
       // Send transfer-failed SMS to caller
-      sendTransferFailedSMS(callerPhone, "our team").catch(() => {});
+      trackedDelivery(
+        { channel: "sms", eventType: "transfer_failed", entityType: "call" },
+        () => sendTransferFailedSMS(callerPhone, "our team")
+      );
     }
 
     // Return a Vapi-compatible response that ends the transfer attempt gracefully.
@@ -507,14 +518,17 @@ async function handleHang(
       session.caller_type === "unknown";
 
     if (isSellerOrUnknown && session.from_number) {
-      notifyMissedCall({
-        callerPhone: session.from_number,
-        callerName: null,
-        callSummary: "Caller hung up during AI conversation",
-        propertyAddress: null,
-        leadId: session.lead_id,
-        callTimestamp: new Date().toISOString(),
-      }).catch(() => {});
+      trackedDelivery(
+        { channel: "sms", eventType: "missed_call", entityType: "call", entityId: session.lead_id ?? undefined },
+        () => notifyMissedCall({
+          callerPhone: session.from_number,
+          callerName: null,
+          callSummary: "Caller hung up during AI conversation",
+          propertyAddress: null,
+          leadId: session.lead_id,
+          callTimestamp: new Date().toISOString(),
+        })
+      );
     }
   }
 

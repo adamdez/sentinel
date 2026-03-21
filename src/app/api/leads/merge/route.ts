@@ -130,7 +130,7 @@ export async function POST(req: NextRequest) {
 
   // ── Step 4: Audit log ──
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  await (sb.from("event_log") as any).insert({
+  const { error: logErr } = await (sb.from("event_log") as any).insert({
     user_id: user.id,
     action: "lead.merged",
     entity_type: "lead",
@@ -142,7 +142,8 @@ export async function POST(req: NextRequest) {
       fieldsEnriched: Object.keys(enrichUpdates).filter((k) => k !== "updated_at"),
       reassignCounts,
     },
-  }).catch(() => {});
+  });
+  if (logErr) console.error("[leads/merge] Audit log for merge failed:", logErr.message);
 
   return NextResponse.json({
     ok: true,

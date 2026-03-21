@@ -78,26 +78,33 @@ export async function POST(req: NextRequest) {
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
-  // Update deal with latest offer price
+  // Update deal with latest offer price — critical state transition
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  await (sb.from("deals") as any)
+  const { error: dealErr } = await (sb.from("deals") as any)
     .update({
       offer_price: amount,
       status: "negotiating",
       updated_at: new Date().toISOString(),
     })
-    .eq("id", dealId)
-    .catch(() => {});
+    .eq("id", dealId);
+  if (dealErr) {
+    console.error("[offers] Deal status update failed:", dealErr.message);
+    return NextResponse.json(
+      { error: "Offer created but deal status update failed", offerId: data.id, detail: dealErr.message },
+      { status: 500 },
+    );
+  }
 
   // Audit log
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  await (sb.from("event_log") as any).insert({
+  const { error: logErr } = await (sb.from("event_log") as any).insert({
     user_id: user.id,
     action: "offer.created",
     entity_type: "deal",
     entity_id: dealId,
     details: { offerType, amount, offerId: data.id },
-  }).catch(() => {});
+  });
+  if (logErr) console.error("[offers] Audit log failed:", logErr.message);
 
   return NextResponse.json({ offer: data }, { status: 201 });
 }
@@ -141,40 +148,53 @@ export async function PATCH(req: NextRequest) {
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
-  // If offer accepted, update deal to under_contract
+  // If offer accepted, update deal to under_contract — most critical transition
   if (status === "accepted" && data.deals) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    await (sb.from("deals") as any)
+    const { error: dealErr } = await (sb.from("deals") as any)
       .update({
         status: "under_contract",
         contract_price: data.amount,
         updated_at: new Date().toISOString(),
       })
-      .eq("id", data.deal_id)
-      .catch(() => {});
+      .eq("id", data.deal_id);
+    if (dealErr) {
+      console.error("[offers] CRITICAL: Deal under_contract transition failed:", dealErr.message);
+      return NextResponse.json(
+        { error: "Offer accepted but deal status update failed — manual intervention required", detail: dealErr.message },
+        { status: 500 },
+      );
+    }
 
-    // Move lead to disposition stage
+    // Move lead to disposition stage — hard failure if this breaks
     if (data.deals.lead_id) {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      await (sb.from("leads") as any)
+      const { error: leadErr } = await (sb.from("leads") as any)
         .update({
           status: "disposition",
           next_action: "Begin dispo — find end buyer",
           updated_at: new Date().toISOString(),
         })
-        .eq("id", data.deals.lead_id)
-        .catch(() => {});
+        .eq("id", data.deals.lead_id);
+      if (leadErr) {
+        console.error("[offers] CRITICAL: Lead stage transition to disposition failed:", leadErr.message);
+        return NextResponse.json(
+          { error: "Deal updated but lead stage transition failed — manual intervention required", detail: leadErr.message },
+          { status: 500 },
+        );
+      }
     }
   }
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  await (sb.from("event_log") as any).insert({
+  const { error: patchLogErr } = await (sb.from("event_log") as any).insert({
     user_id: user.id,
     action: `offer.${status}`,
     entity_type: "deal",
     entity_id: data.deal_id,
     details: { offerId, status, amount: data.amount },
-  }).catch(() => {});
+  });
+  if (patchLogErr) console.error("[offers] Audit log failed:", patchLogErr.message);
 
   return NextResponse.json({ offer: data });
 }

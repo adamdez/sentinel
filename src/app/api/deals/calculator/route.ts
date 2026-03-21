@@ -169,10 +169,10 @@ export async function POST(req: NextRequest) {
     },
   };
 
-  // If dealId provided, save the calculation to the deal
+  // If dealId provided, save the calculation to the deal — critical writeback
   if (dealId) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    await (sb.from("deals") as any)
+    const { error: dealErr } = await (sb.from("deals") as any)
       .update({
         arv,
         repair_estimate: repairEstimate,
@@ -180,19 +180,26 @@ export async function POST(req: NextRequest) {
         assignment_fee: assignmentFeeMid,
         updated_at: new Date().toISOString(),
       })
-      .eq("id", dealId)
-      .catch(() => {});
+      .eq("id", dealId);
+    if (dealErr) {
+      console.error("[calculator] Deal writeback failed:", dealErr.message);
+      return NextResponse.json(
+        { error: "Calculator ran but deal update failed", detail: dealErr.message, result },
+        { status: 500 },
+      );
+    }
   }
 
   // Audit log
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  await (sb.from("event_log") as any).insert({
+  const { error: logErr } = await (sb.from("event_log") as any).insert({
     user_id: user.id,
     action: "deal.calculator_run",
     entity_type: dealId ? "deal" : "lead",
     entity_id: dealId ?? leadId ?? null,
     details: { arv, repairEstimate, mao, assignmentFeeMid, dealScore },
-  }).catch(() => {});
+  });
+  if (logErr) console.error("[calculator] Audit log failed:", logErr.message);
 
   return NextResponse.json(result);
 }

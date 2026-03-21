@@ -97,22 +97,29 @@ export async function POST(req: NextRequest) {
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
-  // Also flag matching contacts
+  // Also flag matching contacts — compliance-critical
   const normalizedPhones = entries.map((e) => e.phone);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  await (sb.from("contacts") as any)
+  const { error: contactErr } = await (sb.from("contacts") as any)
     .update({ dnc_status: true, updated_at: new Date().toISOString() })
-    .in("phone", normalizedPhones)
-    .catch(() => {});
+    .in("phone", normalizedPhones);
+  if (contactErr) {
+    console.error("[dnc] COMPLIANCE: Contact DNC flag update failed:", contactErr.message);
+    return NextResponse.json(
+      { error: "DNC list updated but contact flag sync failed — compliance risk", detail: contactErr.message },
+      { status: 500 },
+    );
+  }
 
   // Audit log
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  await (sb.from("event_log") as any).insert({
+  const { error: logErr } = await (sb.from("event_log") as any).insert({
     user_id: user.id,
     action: "dnc.added",
     entity_type: "dnc",
     details: { count: phones.length, reason, source },
-  }).catch(() => {});
+  });
+  if (logErr) console.error("[dnc] Audit log failed:", logErr.message);
 
   return NextResponse.json({ added: count ?? phones.length, reason, source });
 }
@@ -136,20 +143,27 @@ export async function DELETE(req: NextRequest) {
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
-  // Also clear contact flag
+  // Also clear contact flag — compliance-critical
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  await (sb.from("contacts") as any)
+  const { error: contactErr } = await (sb.from("contacts") as any)
     .update({ dnc_status: false, updated_at: new Date().toISOString() })
-    .eq("phone", normalized)
-    .catch(() => {});
+    .eq("phone", normalized);
+  if (contactErr) {
+    console.error("[dnc] COMPLIANCE: Contact DNC flag clear failed:", contactErr.message);
+    return NextResponse.json(
+      { error: "DNC entry removed but contact flag sync failed — compliance risk", detail: contactErr.message },
+      { status: 500 },
+    );
+  }
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  await (sb.from("event_log") as any).insert({
+  const { error: delLogErr } = await (sb.from("event_log") as any).insert({
     user_id: user.id,
     action: "dnc.removed",
     entity_type: "dnc",
     details: { phone: normalized },
-  }).catch(() => {});
+  });
+  if (delLogErr) console.error("[dnc] Audit log failed:", delLogErr.message);
 
   return NextResponse.json({ removed: normalized });
 }

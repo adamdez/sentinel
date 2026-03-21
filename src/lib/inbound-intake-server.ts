@@ -4,6 +4,7 @@ import { createServerClient } from "@/lib/supabase";
 import { findDuplicateCandidate, requireImportUser, updateExistingRecordFromImport } from "@/lib/imports-server";
 import { inboundCandidateToRecord, withDuplicateStatus, type NormalizedInboundCandidate } from "@/lib/inbound-intake";
 import { notifyNewInboundLead } from "@/lib/notify";
+import { trackedDelivery } from "@/lib/delivery-tracker";
 
 type SupabaseLike = ReturnType<typeof createServerClient>;
 
@@ -122,16 +123,19 @@ export async function processInboundCandidate(args: {
       resolved = true;
       resolution = "created";
 
-      // Speed-to-lead: instant SMS alert to Logan (fire-and-forget)
-      notifyNewInboundLead({
-        channel: candidate.sourceChannel,
-        ownerName: candidate.ownerName,
-        phone: candidate.phone,
-        propertyAddress: candidate.propertyAddress,
-        source: candidate.sourceVendor ?? candidate.sourceChannel,
-        leadId,
-        receivedAt: candidate.receivedAt,
-      }).catch(() => {});
+      // Speed-to-lead: instant SMS alert to Logan (tracked delivery)
+      trackedDelivery(
+        { channel: "sms", eventType: "new_inbound_lead", entityType: "lead", entityId: leadId ?? undefined },
+        () => notifyNewInboundLead({
+          channel: candidate.sourceChannel,
+          ownerName: candidate.ownerName,
+          phone: candidate.phone,
+          propertyAddress: candidate.propertyAddress,
+          source: candidate.sourceVendor ?? candidate.sourceChannel,
+          leadId: leadId!,
+          receivedAt: candidate.receivedAt,
+        })
+      );
 
       // n8n outbound webhook (fire-and-forget)
       import("@/lib/n8n-dispatch").then(({ n8nInboundLeadReceived }) => {

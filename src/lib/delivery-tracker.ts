@@ -75,7 +75,7 @@ export async function trackDelivery(options: DeliveryOptions) {
  */
 export async function trackedDelivery(
   options: DeliveryOptions,
-  deliveryFn: () => Promise<void>
+  deliveryFn: () => Promise<unknown>
 ): Promise<void> {
   const tracker = await trackDelivery(options);
   try {
