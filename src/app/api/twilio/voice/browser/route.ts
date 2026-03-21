@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@/lib/supabase";
+import twilio from "twilio";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -21,6 +22,27 @@ const SYSTEM_USER_ID = "00000000-0000-0000-0000-000000000000";
  * Returns TwiML that dials the prospect directly.
  */
 async function handleBrowserVoice(req: NextRequest) {
+  // ── Twilio signature validation (P0 security) ──────────────────────
+  const twilioAuthToken = process.env.TWILIO_AUTH_TOKEN;
+  if (!twilioAuthToken) {
+    console.error("[BrowserVoice] TWILIO_AUTH_TOKEN not set — rejecting request");
+    return NextResponse.json({ error: "Server misconfigured" }, { status: 500 });
+  }
+  const twilioSignature = req.headers.get("x-twilio-signature") || "";
+  const reqUrl = new URL(req.url);
+  // Twilio sends form-encoded POST; read params from body for validation
+  const bodyForValidation = Object.fromEntries(await req.clone().formData());
+  const isValidTwilio = twilio.validateRequest(
+    twilioAuthToken,
+    twilioSignature,
+    reqUrl.origin + reqUrl.pathname,
+    bodyForValidation as Record<string, string>,
+  );
+  if (!isValidTwilio) {
+    console.warn("[BrowserVoice] Invalid Twilio signature — rejecting");
+    return NextResponse.json({ error: "Invalid Twilio signature" }, { status: 403 });
+  }
+
   const formData = await req.formData();
 
   const to = formData.get("To") as string | null;

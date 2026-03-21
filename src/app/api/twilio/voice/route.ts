@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@/lib/supabase";
+import twilio from "twilio";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -17,6 +18,34 @@ const SYSTEM_USER_ID = "00000000-0000-0000-0000-000000000000";
  *   ?agentId=<user_id>&callLogId=<id>&prospectPhone=<e164>
  */
 async function handleVoiceWebhook(req: NextRequest) {
+  // ── Twilio signature validation (P0 security) ──────────────────────
+  const twilioAuthToken = process.env.TWILIO_AUTH_TOKEN;
+  if (!twilioAuthToken) {
+    console.error("[TwilioVoice] TWILIO_AUTH_TOKEN not set — rejecting request");
+    return NextResponse.json({ error: "Server misconfigured" }, { status: 500 });
+  }
+  const twilioSignature = req.headers.get("x-twilio-signature") || "";
+  // For GET requests, params are in the URL; for POST, read form body
+  let bodyParams: Record<string, string> = {};
+  if (req.method === "POST") {
+    try {
+      bodyParams = Object.fromEntries(await req.clone().formData()) as Record<string, string>;
+    } catch {
+      // POST may not always have form data (e.g. empty body) — proceed with empty params
+    }
+  }
+  const reqUrl = new URL(req.url);
+  const isValidTwilio = twilio.validateRequest(
+    twilioAuthToken,
+    twilioSignature,
+    reqUrl.origin + reqUrl.pathname,
+    bodyParams,
+  );
+  if (!isValidTwilio) {
+    console.warn("[TwilioVoice] Invalid Twilio signature — rejecting");
+    return NextResponse.json({ error: "Invalid Twilio signature" }, { status: 403 });
+  }
+
   const url = new URL(req.url);
   const agentId = url.searchParams.get("agentId");
   const callLogId = url.searchParams.get("callLogId");

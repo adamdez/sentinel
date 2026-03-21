@@ -809,12 +809,13 @@ export async function PATCH(req: NextRequest) {
 
     // Optimistic locking: only update if lock_version matches what the client expects.
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { error, count } = await (sb.from("leads") as any)
+    const { data: updateData2, error } = await (sb.from("leads") as any)
       .update(updateData)
       .eq("id", lead_id)
-      .eq("lock_version", expectedVersion);
+      .eq("lock_version", expectedVersion)
+      .select("id");
 
-    if (count === 0 && !error) {
+    if (!error && (!updateData2 || updateData2.length === 0)) {
       if (createdTaskId) {
         // Best-effort compensation for optimistic lock conflict.
         // eslint-disable-next-line @typescript-eslint/no-explicit-any

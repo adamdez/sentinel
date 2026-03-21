@@ -135,7 +135,11 @@ interface IngestRequest {
 export async function POST(request: NextRequest) {
   const cronSecret = process.env.CRON_SECRET;
   const cronAuth = request.headers.get("authorization");
-  if (cronSecret && cronAuth !== `Bearer ${cronSecret}`) {
+  if (!cronSecret) {
+    console.error("[PropertyRadar] CRON_SECRET not configured");
+    return NextResponse.json({ error: "Server misconfigured" }, { status: 500 });
+  }
+  if (cronAuth !== `Bearer ${cronSecret}`) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
@@ -854,13 +858,13 @@ async function fetchByRadarId(apiKey: string, radarId: string) {
   console.log("[PropertyRadar] RadarID response:", res.status, rawText.slice(0, 2000));
 
   return NextResponse.json({
-    success: res.ok,
+    success: false,
+    partial: true,
     radarId,
     httpStatus: res.status,
     response: rawText.length < 5000 ? safeParseJson(rawText) : rawText.slice(0, 5000),
-    note: "Direct RadarID lookup — full ingestion pipeline not yet wired for this path",
-    // TODO: Wire into the same upsert/score/promote pipeline
-  });
+    note: "Radar ID lookup succeeded but full ingestion pipeline is not wired for this path. Use the standard webhook flow.",
+  }, { status: 422 });
 }
 
 /**

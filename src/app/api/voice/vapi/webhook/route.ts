@@ -318,7 +318,8 @@ async function handleEndOfCallReport(
       .single();
 
     if (callsLogErr) {
-      console.error("[vapi/webhook] calls_log INSERT failed (non-fatal):", callsLogErr.message);
+      console.error("[vapi/webhook] calls_log INSERT FAILED — this is the source of truth for calls:", callsLogErr.message);
+      return NextResponse.json({ error: "Failed to persist call record" }, { status: 500 });
     }
 
     const callsLogId = callsLogRow?.id ?? null;
