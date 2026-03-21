@@ -1,0 +1,67 @@
+# dependencies
+/node_modules
+/.pnp
+.pnp.*
+.yarn/*
+!.yarn/patches
+!.yarn/plugins
+!.yarn/releases
+!.yarn/versions
+
+# testing
+/coverage
+
+# next.js
+/.next/
+/out/
+
+# production
+/build
+/sentinel-mcp/build
+/sentinel-mcp/node_modules
+/src/mcp
+
+# misc
+.DS_Store
+*.pem
+nul
+
+# internal audit/agent files
+cursor-*.md
+
+# Claude Code (local workspace data)
+.claude/worktrees/
+.claude/settings.local.json
+.claude/plans/
+
+# playwright
+/playwright-report/
+/test-results/
+e2e/.auth/
+e2e/test-results/
+e2e/playwright-report/
+
+# debug
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# env files
+.env*
+!.env.example
+
+# vercel
+.vercel
+
+# typescript
+*.tsbuildinfo
+next-env.d.ts
+
+# OS files
+desktop.ini
+.DS_Store
+
+# supabase
+supabase/.temp/
+.env*.local
