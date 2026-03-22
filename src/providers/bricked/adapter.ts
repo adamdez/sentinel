@@ -85,16 +85,48 @@ interface BrickedLandLocation {
   countyName?: string;
 }
 
+interface BrickedTax {
+  year?: number;
+  taxAmount?: number;
+  assessedValue?: number;
+  taxAmountChange?: number;
+  assessedValueChange?: number;
+  amountChange?: number;
+  amount?: number;
+}
+
+interface BrickedHistoricListing {
+  listingDate?: number;
+  status?: string;
+  amount?: number;
+  pricePerSquareFoot?: number;
+  daysOnMarket?: number;
+  agentName?: string;
+  mlsName?: string;
+  mlsNumber?: string;
+}
+
 interface BrickedMortgage {
   seq?: number;
   amount?: number;
   interestRate?: number;
   recordingDate?: number;
+  documentDate?: number;
   maturityDate?: number;
+  recordingBook?: string;
+  recordingPage?: string;
+  documentNumber?: string;
   lenderName?: string;
   termType?: string;
+  term?: string;
+  documentCode?: string;
+  transactionType?: string;
+  granteeName?: string;
+  riders?: string;
+  description?: string;
   loanType?: string;
   position?: string;
+  termDescription?: string;
 }
 
 interface BrickedMortgageDebt {
@@ -126,6 +158,7 @@ interface BrickedOwnership {
   ownerOccupancy?: string;
   taxExemptions?: string;
   taxAmount?: number;
+  taxes?: BrickedTax[];
   transactions?: BrickedTransaction[];
 }
 
@@ -147,6 +180,7 @@ interface BrickedMls {
   interiorFeatures?: string;
   applianceFeatures?: string;
   agent?: BrickedMlsAgent;
+  historicListings?: BrickedHistoricListing[];
 }
 
 interface BrickedAddress {
@@ -238,12 +272,32 @@ export class BrickedAdapter extends BaseProviderAdapter {
       },
     });
 
+    return this.extractFacts(data, false);
+  }
+
+  /**
+   * Retrieve a previously created Bricked analysis by its ID.
+   * Useful for refreshing data without consuming a new credit.
+   */
+  async getProperty(brickedId: string): Promise<ProviderLookupResult> {
+    const apiKey = this.getApiKey();
+
+    const data = await this.fetchJson<BrickedCreateResponse>(
+      `${this.config.baseUrl}/property/get/${brickedId}`,
+      { headers: { "x-api-key": apiKey } },
+    );
+
+    return this.extractFacts(data, true);
+  }
+
+  /** Shared fact extraction for both create and get responses */
+  private extractFacts(data: BrickedCreateResponse, cached: boolean): ProviderLookupResult {
     if (!data.id || !data.property) {
       return {
         provider: "bricked",
         rawPayload: data as unknown as Record<string, unknown>,
         facts: [],
-        cached: false,
+        cached,
         fetchedAt: new Date().toISOString(),
       };
     }
@@ -266,11 +320,12 @@ export class BrickedAdapter extends BaseProviderAdapter {
     add("cmv_estimate", data.cmv, "cmv", "high");
     add("total_repair_cost", data.totalRepairCost, "totalRepairCost", "medium");
 
-    // Bricked share link (useful for Sentinel dossier)
+    // Bricked links
     add("bricked_share_link", data.shareLink, "shareLink", "high");
+    add("bricked_dashboard_link", data.dashboardLink, "dashboardLink", "high");
     add("bricked_property_id", data.id, "id", "high");
 
-    // ── Subject property details ──────────────────────────────────────
+    // ── Subject property details (full extraction) ────────────────────
     const det = data.property.details;
     if (det) {
       add("bedrooms", det.bedrooms, "property.details.bedrooms", "high");
@@ -283,6 +338,19 @@ export class BrickedAdapter extends BaseProviderAdapter {
       add("last_sale_date", det.lastSaleDate, "property.details.lastSaleDate", "high");
       add("market_status", det.marketStatus, "property.details.marketStatus", "medium");
       add("days_on_market", det.daysOnMarket, "property.details.daysOnMarket", "medium");
+      // Previously missing details
+      add("basement_type", det.basementType, "property.details.basementType", "medium");
+      add("basement_sqft", det.basementSquareFeet, "property.details.basementSquareFeet", "medium");
+      add("pool_available", det.poolAvailable, "property.details.poolAvailable", "medium");
+      add("garage_type", det.garageType, "property.details.garageType", "medium");
+      add("garage_sqft", det.garageSquareFeet, "property.details.garageSquareFeet", "medium");
+      add("air_conditioning", det.airConditioningType, "property.details.airConditioningType", "medium");
+      add("heating_type", det.heatingType, "property.details.heatingType", "medium");
+      add("heating_fuel", det.heatingFuelType, "property.details.heatingFuelType", "medium");
+      add("hoa_present", det.hoaPresent, "property.details.hoaPresent", "medium");
+      add("hoa_fee", det.hoa1Fee, "property.details.hoa1Fee", "medium");
+      add("fireplaces", det.fireplaces, "property.details.fireplaces", "medium");
+      add("exterior_wall_type", det.exteriorWallType, "property.details.exteriorWallType", "medium");
       if (det.renovationScore?.hasScore) {
         add("renovation_score", det.renovationScore.score, "property.details.renovationScore.score", "medium");
         add("renovation_confidence", det.renovationScore.confidence, "property.details.renovationScore.confidence", "medium");
@@ -295,6 +363,8 @@ export class BrickedAdapter extends BaseProviderAdapter {
       add("apn", land.apn, "property.landLocation.apn", "high");
       add("zoning", land.zoning, "property.landLocation.zoning", "medium");
       add("land_use", land.landUse, "property.landLocation.landUse", "medium");
+      add("property_class", land.propertyClass, "property.landLocation.propertyClass", "medium");
+      add("school_district", land.schoolDistrict, "property.landLocation.schoolDistrict", "medium");
       add("subdivision", land.subdivision, "property.landLocation.subdivision", "medium");
       add("county_name", land.countyName, "property.landLocation.countyName", "high");
     }
@@ -306,6 +376,10 @@ export class BrickedAdapter extends BaseProviderAdapter {
       add("estimated_equity", debt.estimatedEquity, "property.mortgageDebt.estimatedEquity", "medium");
       add("ltv_ratio", debt.ltvRatio, "property.mortgageDebt.ltvRatio", "medium");
       add("purchase_method", debt.purchaseMethod, "property.mortgageDebt.purchaseMethod", "medium");
+      // Full mortgage table as JSON for UI rendering
+      if (debt.mortgages && debt.mortgages.length > 0) {
+        add("bricked_mortgages", JSON.stringify(debt.mortgages), "property.mortgageDebt.mortgages", "medium");
+      }
     }
 
     // ── Ownership ─────────────────────────────────────────────────────
@@ -322,6 +396,14 @@ export class BrickedAdapter extends BaseProviderAdapter {
       add("owner_type", own.ownerType, "property.ownership.ownerType", "medium");
       add("owner_occupancy", own.ownerOccupancy, "property.ownership.ownerOccupancy", "medium");
       add("tax_amount", own.taxAmount, "property.ownership.taxAmount", "medium");
+      // Full transaction history as JSON
+      if (own.transactions && own.transactions.length > 0) {
+        add("bricked_transactions", JSON.stringify(own.transactions), "property.ownership.transactions", "medium");
+      }
+      // Full tax history as JSON
+      if (own.taxes && own.taxes.length > 0) {
+        add("bricked_taxes", JSON.stringify(own.taxes), "property.ownership.taxes", "medium");
+      }
     }
 
     // ── MLS ───────────────────────────────────────────────────────────
@@ -331,9 +413,17 @@ export class BrickedAdapter extends BaseProviderAdapter {
       add("mls_list_price", mls.amount, "property.mls.amount", "high");
       add("mls_days_on_market", mls.daysOnMarket, "property.mls.daysOnMarket", "medium");
       add("mls_number", mls.mlsNumber, "property.mls.mlsNumber", "high");
+      add("mls_interior_features", mls.interiorFeatures, "property.mls.interiorFeatures", "medium");
+      add("mls_appliance_features", mls.applianceFeatures, "property.mls.applianceFeatures", "medium");
       if (mls.agent) {
         add("listing_agent_name", mls.agent.agentName, "property.mls.agent.agentName", "medium");
         add("listing_agent_phone", mls.agent.agentPhone, "property.mls.agent.agentPhone", "medium");
+        add("listing_office_name", mls.agent.officeName, "property.mls.agent.officeName", "medium");
+        add("listing_office_phone", mls.agent.officePhone, "property.mls.agent.officePhone", "medium");
+      }
+      // Full MLS listing history as JSON
+      if (mls.historicListings && mls.historicListings.length > 0) {
+        add("bricked_mls_history", JSON.stringify(mls.historicListings), "property.mls.historicListings", "medium");
       }
     }
 
@@ -350,8 +440,17 @@ export class BrickedAdapter extends BaseProviderAdapter {
       add("zip_code", addr.zip, "property.address.zip", "high");
     }
 
-    // ── Repair line items (top 5 for facts, full set in raw) ─────────
+    // ── Images ───────────────────────────────────────────────────────
+    const images = data.property.images;
+    if (images && images.length > 0) {
+      add("bricked_images", JSON.stringify(images), "property.images", "high");
+    }
+
+    // ── Repair line items (individual + full JSON) ────────────────────
     const repairs = data.repairs ?? [];
+    if (repairs.length > 0) {
+      add("bricked_repairs", JSON.stringify(repairs), "repairs", "medium");
+    }
     repairs.slice(0, 5).forEach((r, i) => {
       if (r.repair && r.cost) {
         add(
@@ -363,65 +462,38 @@ export class BrickedAdapter extends BaseProviderAdapter {
       }
     });
 
-    // ── Comparable sales (top 5 for facts, full set in raw) ──────────
+    // ── Comparable sales (structured JSON + count) ────────────────────
     const comps = data.comps ?? [];
     add("comp_count", comps.length, "comps.length", "high");
 
-    const selectedComps = comps.filter((c) => c.selected);
-    (selectedComps.length > 0 ? selectedComps : comps).slice(0, 5).forEach((comp, i) => {
-      const compAddr = comp.address?.fullAddress ?? "Unknown address";
-      const salePrice = comp.details?.lastSaleAmount;
-      const adjValue = comp.adjusted_value;
-      const sqft = comp.details?.squareFeet;
-      const beds = comp.details?.bedrooms;
-      const baths = comp.details?.bathrooms;
-
-      const parts = [compAddr];
-      if (salePrice) parts.push(`sold $${salePrice.toLocaleString()}`);
-      if (adjValue) parts.push(`adj $${adjValue.toLocaleString()}`);
-      if (beds || baths) parts.push(`${beds ?? "?"}bd/${baths ?? "?"}ba`);
-      if (sqft) parts.push(`${sqft.toLocaleString()}sf`);
-      parts.push(comp.compType ?? comp.listingType ?? "");
-
-      add(`comp_${i + 1}`, parts.filter(Boolean).join(" | "), `comps[${i}]`, "medium");
-    });
+    if (comps.length > 0) {
+      // Store full structured comp data for rich UI rendering
+      const compData = comps.map((c) => ({
+        address: c.address?.fullAddress,
+        lat: c.latitude,
+        lng: c.longitude,
+        beds: c.details?.bedrooms,
+        baths: c.details?.bathrooms,
+        sqft: c.details?.squareFeet,
+        yearBuilt: c.details?.yearBuilt,
+        lastSaleAmount: c.details?.lastSaleAmount,
+        lastSaleDate: c.details?.lastSaleDate,
+        adjustedValue: c.adjusted_value,
+        compType: c.compType,
+        listingType: c.listingType,
+        selected: c.selected,
+        marketStatus: c.details?.marketStatus,
+        renovationScore: c.details?.renovationScore?.hasScore ? c.details.renovationScore.score : null,
+        images: c.images,
+      }));
+      add("bricked_comps", JSON.stringify(compData), "comps", "medium");
+    }
 
     return {
       provider: "bricked",
       rawPayload: data as unknown as Record<string, unknown>,
       facts,
-      cached: false,
-      fetchedAt: new Date().toISOString(),
-    };
-  }
-
-  /**
-   * Retrieve a previously created Bricked analysis by its ID.
-   * Useful for refreshing data without consuming a new credit.
-   */
-  async getProperty(brickedId: string): Promise<ProviderLookupResult> {
-    const apiKey = this.getApiKey();
-
-    const data = await this.fetchJson<BrickedCreateResponse>(
-      `${this.config.baseUrl}/property/get/${brickedId}`,
-      { headers: { "x-api-key": apiKey } },
-    );
-
-    // Reuse the same normalization — response shape is identical
-    return this.normalizeResponse(data);
-  }
-
-  /** Shared normalization for both create and get responses */
-  private normalizeResponse(data: BrickedCreateResponse): ProviderLookupResult {
-    // This is the same logic as lookupProperty's normalization.
-    // For now we delegate by constructing a minimal adapter call.
-    // The full normalization lives in lookupProperty above.
-    // If we need to DRY this up later, extract a shared method.
-    return {
-      provider: "bricked",
-      rawPayload: data as unknown as Record<string, unknown>,
-      facts: [], // getProperty callers use rawPayload directly
-      cached: true,
+      cached,
       fetchedAt: new Date().toISOString(),
     };
   }
@@ -441,8 +513,10 @@ export type {
   BrickedOwnership,
   BrickedOwner,
   BrickedTransaction,
+  BrickedTax,
   BrickedMls,
   BrickedMlsAgent,
+  BrickedHistoricListing,
   BrickedAddress,
   BrickedComp,
   BrickedRepair,

@@ -31,8 +31,8 @@ import {
   Brain, Phone, CalendarClock, TrendingUp, Clock, Loader2,
   MessageSquare, Sparkles, CheckSquare, AlertTriangle,
   User, ChevronDown, ChevronUp, Pen, Handshake, ArrowRight,
-  Thermometer,
 } from "lucide-react";
+import { cn } from "@/lib/utils";
 import { GlassCard } from "@/components/sentinel/glass-card";
 import { supabase } from "@/lib/supabase";
 import type { CRMLeadContext, RepeatCallMemory, CallMemoryEntry } from "@/lib/dialer/types";
@@ -398,11 +398,25 @@ export function SellerMemoryPanel({ sessionId, context: contextProp, className =
           )}
 
           {/* ── Structured post-call intelligence ─────────────── */}
-          {/* Renders promises, next action, and deal temp from the most
-              recent post_call_structures row (via call-memory API). Only
-              shows when at least one structured field exists. */}
+          {/* Renders deal temp badge, promises, next action, and callback
+              timing from the most recent post_call_structures row (via
+              call-memory API). Only shows when at least one structured
+              field exists. */}
           {(memory?.lastCallPromises || memory?.lastCallObjection || memory?.lastCallNextAction || memory?.lastCallCallbackTiming || memory?.lastCallDealTemperature) ? (
             <div className="rounded-[8px] bg-primary/[0.03] border border-primary/10 px-2.5 py-1.5 space-y-1">
+              {memory.lastCallDealTemperature && (
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="text-xs text-muted-foreground/50 uppercase">Deal Temp:</span>
+                  <span className={cn("text-xs font-bold px-1.5 py-0.5 rounded",
+                    memory.lastCallDealTemperature === "hot" ? "bg-red-500/20 text-red-400" :
+                    memory.lastCallDealTemperature === "warm" ? "bg-amber-500/20 text-amber-400" :
+                    memory.lastCallDealTemperature === "cool" ? "bg-blue-500/20 text-blue-400" :
+                    "bg-muted/20 text-muted-foreground"
+                  )}>
+                    {memory.lastCallDealTemperature.charAt(0).toUpperCase() + memory.lastCallDealTemperature.slice(1)}
+                  </span>
+                </div>
+              )}
               {memory.lastCallPromises && (
                 <div className="flex items-start gap-1.5">
                   <Handshake className="h-3 w-3 text-primary/50 shrink-0 mt-0.5" />
@@ -422,27 +436,9 @@ export function SellerMemoryPanel({ sessionId, context: contextProp, className =
                 </div>
               )}
               {memory.lastCallCallbackTiming && (
-                <div className="flex items-start gap-1.5">
-                  <CalendarClock className="h-3 w-3 text-primary/50 shrink-0 mt-0.5" />
-                  <div className="min-w-0 flex-1">
-                    <span className="text-xs font-semibold uppercase tracking-wider text-primary/40">Best callback timing</span>
-                    <p className="text-sm text-foreground/75 leading-snug">{memory.lastCallCallbackTiming}</p>
-                  </div>
-                </div>
-              )}
-              {memory.lastCallDealTemperature && (
-                <div className="flex items-center gap-1.5">
-                  <Thermometer className="h-3 w-3 text-foreground/50 shrink-0" />
-                  <span className="text-xs font-semibold uppercase tracking-wider text-foreground/40">Temp</span>
-                  <span className={`text-sm font-semibold ${
-                    memory.lastCallDealTemperature === "hot"  ? "text-red-400" :
-                    memory.lastCallDealTemperature === "warm" ? "text-amber-400" :
-                    memory.lastCallDealTemperature === "cool" ? "text-sky-400" :
-                    memory.lastCallDealTemperature === "cold" ? "text-muted-foreground/60" :
-                    "text-muted-foreground/40"
-                  }`}>
-                    {memory.lastCallDealTemperature.charAt(0).toUpperCase() + memory.lastCallDealTemperature.slice(1)}
-                  </span>
+                <div className="flex items-center gap-1.5 text-xs">
+                  <span className="text-muted-foreground/50">Best callback:</span>
+                  <span className="text-foreground/80">{memory.lastCallCallbackTiming}</span>
                 </div>
               )}
             </div>
@@ -496,6 +492,13 @@ export function SellerMemoryPanel({ sessionId, context: contextProp, className =
                     Decision-maker
                   </span>
                   <ProvenanceBadge source={memory.decisionMakerSource} />
+                  {memory?.decisionMakerConfirmed != null && (
+                    <span className={cn("text-xs px-1 py-0.5 rounded ml-1",
+                      memory.decisionMakerConfirmed ? "bg-green-500/20 text-green-400" : "bg-muted/20 text-muted-foreground/60"
+                    )}>
+                      {memory.decisionMakerConfirmed ? "Confirmed" : "AI-derived"}
+                    </span>
+                  )}
                 </div>
                 <p className={`text-sm leading-snug ${
                   memory.decisionMakerSource === "ai"

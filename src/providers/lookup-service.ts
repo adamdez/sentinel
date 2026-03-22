@@ -6,11 +6,12 @@
  *   Provider payload → dossier_artifacts → fact_assertions → dossier
  *
  * Usage:
- *   const results = await lookupProperty({ address, zip }, ["attom", "bricked"]);
+ *   const results = await lookupProperty({ address, zip }, ["bricked", "propertyradar"]);
  *   // Results are raw ProviderLookupResults — persist through intelligence pipeline
  */
 
-import { attomAdapter } from "./attom/adapter";
+// ATTOM cancelled — adapter file kept for reference but unregistered
+// import { attomAdapter } from "./attom/adapter";
 import { brickedAdapter } from "./bricked/adapter";
 import { regridAdapter } from "./regrid/adapter";
 import { propertyRadarAdapter } from "./propertyradar/adapter";
@@ -18,7 +19,6 @@ import { firecrawlAdapter } from "./firecrawl/adapter";
 import type { BaseProviderAdapter, ProviderLookupResult, ProviderError } from "./base-adapter";
 
 const ADAPTERS: Record<string, BaseProviderAdapter> = {
-  attom: attomAdapter,
   bricked: brickedAdapter,
   regrid: regridAdapter,
   propertyradar: propertyRadarAdapter,

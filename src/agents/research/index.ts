@@ -130,7 +130,7 @@ function buildResearchPrompt(
     }));
 
     parts.push(
-      "## Provider Intelligence (ATTOM / PropertyRadar / Bricked AI)",
+      "## Provider Intelligence (PropertyRadar / Bricked AI)",
       "Treat this as structured evidence from provider adapters. Prefer these facts when relevant.",
       "Bricked AI provides ARV, CMV, repair estimates, and comparable sales — high confidence for valuation.",
       "```json",
@@ -267,7 +267,7 @@ export async function runResearchAgent(
       input.triggeredBy,
     );
 
-    // ── Pull provider intelligence (ATTOM + PropertyRadar + Bricked) ────
+    // ── Pull provider intelligence (PropertyRadar + Bricked) ─────────────
     const lookupParams = {
       address: lead.properties?.address ?? undefined,
       apn: lead.properties?.apn ?? undefined,
@@ -278,7 +278,7 @@ export async function runResearchAgent(
     let providerResults: ProviderLookupResult[] = [];
 
     if (lookupParams.address || lookupParams.apn) {
-      const providerLookup = await lookupProperty(lookupParams, ["attom", "propertyradar", "bricked"]);
+      const providerLookup = await lookupProperty(lookupParams, ["propertyradar", "bricked"]);
       providerResults = providerLookup.results.filter((r) => r.facts.length > 0);
 
       if (providerLookup.errors.length > 0) {
@@ -316,7 +316,7 @@ export async function runResearchAgent(
     const allContradictions: Array<{ factType: string; newValue: string; existingValue: string; existingFactId: string }> = [];
 
     // Persist provider adapter artifacts/facts through the intelligence write path.
-    // This makes ATTOM/PropertyRadar evidence available to review workflows today.
+    // This makes PropertyRadar/Bricked evidence available to review workflows today.
     let factCount = 0;
     for (const providerResult of providerResults) {
       const providerArtifactId = await createArtifact({

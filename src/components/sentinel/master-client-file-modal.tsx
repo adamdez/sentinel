@@ -9,7 +9,7 @@ import {
   Copy, CheckCircle2, Search, Loader2, Building, Ruler, LandPlot,
   Banknote, Scale, UserX, Eye, FileText, Calculator, Globe, Send,
   Radar, LayoutDashboard, Map, Printer, ImageIcon, ChevronLeft, ChevronRight,
-  Pencil, Save, Voicemail, PhoneForwarded, Brain, Crosshair, MapPinned,
+  Pencil, Save, Voicemail, PhoneForwarded, Brain, Crosshair, MapPinned, Wrench,
   MessageSquare, Flame, Smartphone, ShieldAlert, PhoneOff, Circle,
   RefreshCw, Target, ArrowRight, ChevronDown, Trash2, Lock, Contact2, Plus,
   Users, Briefcase, CheckCircle, XCircle, Camera, CameraOff, ListPlus,
@@ -1386,6 +1386,81 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
               </div>
             )}
 
+            {/* Bricked AI — Mortgage Detail */}
+            {(() => {
+              const mortJson = cf.ownerFlags?.bricked_mortgages as string | undefined;
+              if (!mortJson) return null;
+              let mortgages: Array<{ position?: string; lenderName?: string; amount?: number; interestRate?: number; loanType?: string; maturityDate?: number }> = [];
+              try { mortgages = JSON.parse(mortJson); } catch { return null; }
+              if (mortgages.length === 0) return null;
+              return (
+                <div className="mt-2 space-y-1">
+                  <p className="text-xs font-semibold text-muted-foreground/50 uppercase tracking-wider">Mortgage Detail</p>
+                  <div className="text-xs space-y-0.5">
+                    {mortgages.map((m, i) => (
+                      <div key={i} className="flex items-center gap-2 text-muted-foreground/70">
+                        <span className="font-mono shrink-0">{m.position ?? `#${i + 1}`}</span>
+                        <span className="truncate">{m.lenderName ?? "Unknown"}</span>
+                        <span className="font-mono shrink-0">{m.amount ? `$${(m.amount / 1000).toFixed(0)}k` : "—"}</span>
+                        {m.interestRate != null && <span className="font-mono shrink-0">{m.interestRate}%</span>}
+                        {m.loanType && <span className="shrink-0">{m.loanType}</span>}
+                        {m.maturityDate && <span className="shrink-0 text-muted-foreground/50">{new Date(m.maturityDate * 1000).getFullYear()}</span>}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              );
+            })()}
+
+            {/* Bricked AI — Sale History */}
+            {(() => {
+              const txJson = cf.ownerFlags?.bricked_transactions as string | undefined;
+              if (!txJson) return null;
+              let txns: Array<{ saleDate?: number; amount?: number; purchaseMethod?: string; sellerNames?: string; buyerNames?: string }> = [];
+              try { txns = JSON.parse(txJson); } catch { return null; }
+              if (txns.length === 0) return null;
+              return (
+                <div className="mt-2 space-y-1">
+                  <p className="text-xs font-semibold text-muted-foreground/50 uppercase tracking-wider">Sale History</p>
+                  <div className="text-xs space-y-0.5">
+                    {txns.slice(0, 5).map((tx, i) => (
+                      <div key={i} className="flex items-center gap-2 text-muted-foreground/70">
+                        {tx.saleDate && <span className="font-mono shrink-0">{new Date(tx.saleDate * 1000).toLocaleDateString("en-US", { month: "short", year: "numeric" })}</span>}
+                        <span className="font-mono shrink-0 text-foreground/80">{tx.amount ? `$${(tx.amount / 1000).toFixed(0)}k` : "—"}</span>
+                        {tx.purchaseMethod && <span className="shrink-0">{tx.purchaseMethod}</span>}
+                        {tx.buyerNames && <span className="truncate">{tx.buyerNames}</span>}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              );
+            })()}
+
+            {/* Bricked AI — MLS History */}
+            {(() => {
+              const mlsJson = cf.ownerFlags?.bricked_mls_history as string | undefined;
+              if (!mlsJson) return null;
+              let listings: Array<{ listingDate?: number; status?: string; amount?: number; daysOnMarket?: number; agentName?: string }> = [];
+              try { listings = JSON.parse(mlsJson); } catch { return null; }
+              if (listings.length === 0) return null;
+              return (
+                <div className="mt-2 space-y-1">
+                  <p className="text-xs font-semibold text-muted-foreground/50 uppercase tracking-wider">MLS History</p>
+                  <div className="text-xs space-y-0.5">
+                    {listings.slice(0, 5).map((l, i) => (
+                      <div key={i} className="flex items-center gap-2 text-muted-foreground/70">
+                        {l.listingDate && <span className="font-mono shrink-0">{new Date(l.listingDate * 1000).toLocaleDateString("en-US", { month: "short", year: "numeric" })}</span>}
+                        {l.status && <span className="shrink-0">{l.status}</span>}
+                        <span className="font-mono shrink-0 text-foreground/80">{l.amount ? `$${(l.amount / 1000).toFixed(0)}k` : "—"}</span>
+                        {l.daysOnMarket != null && <span className="shrink-0">{l.daysOnMarket}d</span>}
+                        {l.agentName && <span className="truncate">{l.agentName}</span>}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              );
+            })()}
+
             {dangerWarnings.length > 0 && (
               <div className="space-y-1">
                 {dangerWarnings.map((w, i) => (
@@ -2197,6 +2272,23 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
                   </span>
                 </div>
               )}
+              {/* Monetizability + Dispo Friction (Bricked AI derived) */}
+              {(cf.monetizabilityScore != null || cf.dispoFrictionLevel) && (
+                <div className="flex items-center gap-3 flex-wrap">
+                  {cf.monetizabilityScore != null && (
+                    <div className="flex items-center gap-1.5 text-xs">
+                      <span className="text-muted-foreground/50">Monetizability:</span>
+                      <span className="font-mono font-bold text-foreground">{String(cf.monetizabilityScore)}/10</span>
+                    </div>
+                  )}
+                  {cf.dispoFrictionLevel && (
+                    <div className="flex items-center gap-1.5 text-xs">
+                      <span className="text-muted-foreground/50">Dispo friction:</span>
+                      <span className="text-foreground/80">{String(cf.dispoFrictionLevel)}</span>
+                    </div>
+                  )}
+                </div>
+              )}
               {offerReadySuggested && cf.qualificationScoreTotal == null && (
                 <div className="rounded-[8px] border border-white/15 bg-white/[0.06] px-2.5 py-2 text-sm text-foreground">
                   Suggestion: this lead looks <span className="font-semibold">Offer Ready</span> based on motivation, timeline, and lead score.
@@ -2289,6 +2381,12 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
                 )}>
                   Score: {cf.qualificationScoreTotal}/35
                 </p>
+              )}
+              {cf.monetizabilityScore != null && (
+                <p className="text-muted-foreground">Monetizability: <span className="text-foreground font-medium">{cf.monetizabilityScore}/10</span></p>
+              )}
+              {cf.dispoFrictionLevel && (
+                <p className="text-muted-foreground">Dispo friction: <span className="text-foreground font-medium">{String(cf.dispoFrictionLevel)}</span></p>
               )}
             </div>
           )}
@@ -3417,6 +3515,11 @@ function CompsTab({ cf, selectedComps, onAddComp, onRemoveComp, onSkipTrace, com
     if (Array.isArray(pr.photos)) urls.push(...pr.photos.filter((u: unknown) => typeof u === "string"));
     if (typeof pr.PropertyImageUrl === "string" && pr.PropertyImageUrl) urls.push(pr.PropertyImageUrl);
     if (typeof pr.StreetViewUrl === "string" && pr.StreetViewUrl) urls.push(pr.StreetViewUrl);
+    // Bricked AI photos
+    const brickedImgs = (oFlags?.bricked_images) as string | undefined;
+    if (brickedImgs) {
+      try { const parsed = JSON.parse(brickedImgs); if (Array.isArray(parsed)) urls.push(...parsed.filter((u: unknown) => typeof u === "string")); } catch {}
+    }
     // Deduplicate
     return [...new Set(urls)];
   }, [cf.ownerFlags]);
@@ -3677,6 +3780,12 @@ function CompsTab({ cf, selectedComps, onAddComp, onRemoveComp, onSkipTrace, com
                     : `Saved ${frozenCount} comps${snapDate ? ` - ${snapDate}` : ""}`}
               </span>
             )}
+            {typeof cf.ownerFlags?.bricked_share_link === "string" && (
+              <a href={cf.ownerFlags.bricked_share_link} target="_blank" rel="noopener noreferrer"
+                className="text-xs text-primary underline hover:text-primary/80">
+                View Bricked Report
+              </a>
+            )}
           </div>
         </div>
 
@@ -3788,6 +3897,38 @@ function CompsTab({ cf, selectedComps, onAddComp, onRemoveComp, onSkipTrace, com
       </div>
 
 
+      {/* === BRICKED REPAIR BREAKDOWN === */}
+      {(() => {
+        const repairsJson = cf.ownerFlags?.bricked_repairs as string | undefined;
+        if (!repairsJson) return null;
+        let repairItems: Array<{ repair?: string; description?: string; cost?: number }> = [];
+        try { repairItems = JSON.parse(repairsJson); } catch { return null; }
+        if (!Array.isArray(repairItems) || repairItems.length === 0) return null;
+        const totalRepair = (cf.ownerFlags?.bricked_repair_cost as number) ?? repairItems.reduce((sum, r) => sum + (r.cost ?? 0), 0);
+        return (
+          <details className="rounded-[10px] border border-white/[0.06] bg-white/[0.02]">
+            <summary className="p-3 cursor-pointer flex items-center justify-between text-sm">
+              <span className="font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
+                <Wrench className="h-3 w-3" />
+                Repair Estimate ({repairItems.length} items)
+              </span>
+              <span className="font-mono font-bold text-foreground">{formatCurrency(totalRepair)}</span>
+            </summary>
+            <div className="px-3 pb-3 space-y-1">
+              {repairItems.map((r, i) => (
+                <div key={i} className="flex items-center justify-between text-sm py-1 border-t border-white/[0.04]">
+                  <div className="min-w-0">
+                    <span className="text-foreground/90">{r.repair}</span>
+                    {r.description && <span className="text-muted-foreground/60 ml-1.5 text-xs">({r.description})</span>}
+                  </div>
+                  <span className="font-mono text-foreground/80 shrink-0 ml-3">{r.cost ? formatCurrency(r.cost) : "\u2014"}</span>
+                </div>
+              ))}
+            </div>
+          </details>
+        );
+      })()}
+
       {/* === NUDGE BAR === */}
       {(() => {
         const strongCompCount = selectedComps.filter((c) => scoreComp(c, subject).total >= 55).length;
@@ -3825,6 +3966,52 @@ function CompsTab({ cf, selectedComps, onAddComp, onRemoveComp, onSkipTrace, com
         const compsToShow = selectedComps.length > 0
           ? selectedComps.slice(0, 3)
           : [];
+
+        // Show Bricked comps if no manual comps selected
+        const brickedCompsJson = cf.ownerFlags?.bricked_comps as string | undefined;
+        let brickedComps: Array<{ address?: string; beds?: number; baths?: number; sqft?: number; lastSaleAmount?: number; adjustedValue?: number; compType?: string; selected?: boolean }> = [];
+        if (brickedCompsJson && compsToShow.length === 0) {
+          try { brickedComps = JSON.parse(brickedCompsJson); } catch {}
+        }
+
+        if (compsToShow.length === 0 && brickedComps.length > 0 && arv > 0) {
+          return (
+            <div className="space-y-2">
+              <p className="text-sm font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
+                <CheckCircle2 className="h-3 w-3 text-foreground" />
+                Bricked AI Comps ({brickedComps.length})
+              </p>
+              {brickedComps.slice(0, 5).map((bc, idx) => {
+                const price = bc.lastSaleAmount ?? bc.adjustedValue ?? 0;
+                const ppsf = price > 0 && bc.sqft ? Math.round(price / bc.sqft) : null;
+                return (
+                  <div key={idx} className="rounded-[8px] border border-white/[0.06] bg-white/[0.02] px-3 py-2.5">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0 flex-1">
+                        <p className="text-sm font-semibold truncate">{bc.address ?? "Unknown"}</p>
+                        <div className="flex flex-wrap items-center gap-x-2.5 gap-y-0.5 mt-1 text-sm text-muted-foreground">
+                          {price > 0 && <span className="font-semibold text-foreground">{formatCurrency(price)}</span>}
+                          {ppsf != null && <span className="font-mono">${ppsf}/sqft</span>}
+                          {bc.beds != null && <span>{bc.beds}bd</span>}
+                          {bc.baths != null && <span>{bc.baths}ba</span>}
+                          {bc.sqft != null && <span>{bc.sqft.toLocaleString()} sqft</span>}
+                        </div>
+                      </div>
+                      {bc.compType && (
+                        <span className="text-xs font-mono px-1.5 py-0.5 rounded border border-white/10 bg-white/[0.04] text-muted-foreground shrink-0">
+                          {bc.compType}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+              <p className="text-xs text-muted-foreground text-center mt-1">
+                Bricked AI comps shown {"\u2014"} open Research Mode to select manual comps.
+              </p>
+            </div>
+          );
+        }
 
         if (compsToShow.length === 0 && arv > 0) {
           return (
