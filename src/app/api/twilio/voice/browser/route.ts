@@ -113,7 +113,8 @@ async function handleBrowserVoice(req: NextRequest) {
   if (callLogId) streamParams.set("callLogId", callLogId);
   if (sessionId) streamParams.set("sessionId", sessionId);
   if (agentId)   streamParams.set("userId", agentId);
-  const streamQuery = streamParams.toString();
+  // URLSearchParams uses raw & — must be &amp; inside XML attributes
+  const streamQuery = streamParams.toString().replace(/&/g, "&amp;");
   // <Stream> must be wrapped in <Start> per Twilio TwiML spec
   const streamLines = transcriptionUrl && hasDeepgram && (callLogId || sessionId)
     ? [
