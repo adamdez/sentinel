@@ -185,11 +185,15 @@ function TodayView() {
       }
 
       const twoDaysAgo = new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString();
+      // New inbound = real-time leads (ads, forms, calls), NOT bulk CSV imports or crawlers
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { count: newInboundCount, error: e4 } = await (supabase.from("leads") as any)
         .select("id", { count: "exact", head: true })
         .in("status", ["staging", "prospect"])
-        .gte("created_at", twoDaysAgo);
+        .gte("created_at", twoDaysAgo)
+        .not("source", "like", "csv:%")
+        .not("source", "eq", "craigslist")
+        .not("source", "like", "crawl%");
       if (e4) throw e4;
 
       setStats({
@@ -225,10 +229,14 @@ function TodayView() {
     try {
       const twoDaysAgo = new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString();
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      // New inbound leads only — exclude bulk CSV imports and crawlers
       const { data, error } = await (supabase.from("leads") as any)
         .select("id, next_action_due_at, next_call_scheduled_at, next_action, status, priority, created_at, source, notes, properties(address, city, owner_name)")
         .in("status", ["staging", "prospect"])
         .gte("created_at", twoDaysAgo)
+        .not("source", "like", "csv:%")
+        .not("source", "eq", "craigslist")
+        .not("source", "like", "crawl%")
         .order("created_at", { ascending: false })
         .limit(6);
       if (error) throw error;
