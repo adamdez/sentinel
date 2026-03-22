@@ -5,27 +5,20 @@
  * then POSTs final transcript chunks back to Sentinel's webhook endpoint.
  *
  * Flow:
- *   Twilio <Stream> ──WS──> This relay ──WS──> Deepgram Nova-3
- *                                                    │
- *   Sentinel /api/webhooks/deepgram <──HTTP POST─────┘
- *
- * Deploy on Railway, Fly.io, Render, or any platform that supports
- * long-lived WebSocket connections.
+ *   Twilio <Stream> --WS--> This relay --WS--> Deepgram Nova-3
+ *                                                   |
+ *   Sentinel /api/webhooks/deepgram <--HTTP POST----'
  *
  * Env vars:
- *   DEEPGRAM_API_KEY        — Deepgram API key
- *   SENTINEL_WEBHOOK_URL    — Full URL to POST transcripts to
- *   DEEPGRAM_WEBHOOK_SECRET — Shared secret for webhook auth
- *   PORT                    — Server port (default 8080)
+ *   DEEPGRAM_API_KEY
+ *   SENTINEL_WEBHOOK_URL
+ *   DEEPGRAM_WEBHOOK_SECRET
+ *   PORT (default 8080)
  */
 
 require("dotenv").config();
 const http = require("http");
 const { WebSocketServer, WebSocket } = require("ws");
-
-// ─────────────────────────────────────────────────────────────
-// Config
-// ─────────────────────────────────────────────────────────────
 
 const PORT = parseInt(process.env.PORT || "8080", 10);
 const DEEPGRAM_API_KEY = process.env.DEEPGRAM_API_KEY;
@@ -45,29 +38,61 @@ if (!WEBHOOK_SECRET) {
   process.exit(1);
 }
 
-// ─────────────────────────────────────────────────────────────
-// Real estate vocabulary boosting (matches deepgram-client.ts)
-// ─────────────────────────────────────────────────────────────
-
-const REAL_ESTATE_KEYWORDS = [
-  "ARV", "MAO", "comps", "comparable sales", "assessed value", "tax assessed",
-  "fair market value", "probate", "foreclosure", "pre-foreclosure", "lien",
-  "tax lien", "quitclaim", "quitclaim deed", "warranty deed", "deed",
-  "title company", "title search", "cloud on title", "wholesaling", "wholesale",
-  "assignment", "assignment fee", "double close", "earnest money", "EMD",
-  "escrow", "closing costs", "proof of funds", "cash offer", "as-is", "rehab",
-  "distressed", "code violations", "deferred maintenance", "foundation issues",
-  "mold", "fire damage", "motivated seller", "absentee owner", "vacant property",
-  "inherited property", "divorce", "relocation", "behind on payments",
-  "tax delinquent", "Spokane", "Kootenai", "Coeur d'Alene", "Dominion", "Sentinel",
+const REAL_ESTATE_KEYTERMS = [
+  "ARV",
+  "MAO",
+  "comps",
+  "comparable sales",
+  "assessed value",
+  "tax assessed",
+  "fair market value",
+  "probate",
+  "foreclosure",
+  "pre-foreclosure",
+  "lien",
+  "tax lien",
+  "quitclaim",
+  "quitclaim deed",
+  "warranty deed",
+  "deed",
+  "title company",
+  "title search",
+  "cloud on title",
+  "wholesaling",
+  "wholesale",
+  "assignment",
+  "assignment fee",
+  "double close",
+  "earnest money",
+  "EMD",
+  "escrow",
+  "closing costs",
+  "proof of funds",
+  "cash offer",
+  "as-is",
+  "rehab",
+  "distressed",
+  "code violations",
+  "deferred maintenance",
+  "foundation issues",
+  "mold",
+  "fire damage",
+  "motivated seller",
+  "absentee owner",
+  "vacant property",
+  "inherited property",
+  "divorce",
+  "relocation",
+  "behind on payments",
+  "tax delinquent",
+  "Spokane",
+  "Kootenai",
+  "Coeur d'Alene",
+  "Dominion",
+  "Sentinel",
 ];
 
-// ─────────────────────────────────────────────────────────────
-// HTTP server + WebSocket server
-// ─────────────────────────────────────────────────────────────
-
 const server = http.createServer((req, res) => {
-  // Health check endpoint
   if (req.url === "/health" && req.method === "GET") {
     res.writeHead(200, { "Content-Type": "application/json" });
     res.end(JSON.stringify({ status: "ok", uptime: process.uptime() }));
@@ -78,8 +103,6 @@ const server = http.createServer((req, res) => {
 });
 
 const wss = new WebSocketServer({ server });
-
-// Track active sessions for graceful shutdown
 const activeSessions = new Map();
 
 wss.on("connection", (twilioWs, req) => {
@@ -87,58 +110,57 @@ wss.on("connection", (twilioWs, req) => {
   let sessionId = url.searchParams.get("sessionId") || `unknown-${Date.now()}`;
   let callLogId = url.searchParams.get("callLogId") || "";
   let userId = url.searchParams.get("userId") || "";
-  let connectionOpenedSent = false;
-
-  console.log(`[Relay] Twilio stream connected — session=${sessionId}`);
-
   let deepgramWs = null;
-  let sequenceNum = 0;
   let streamSid = null;
+  let sequenceNum = 0;
   let audioReceived = false;
+  let connectionOpenedSent = false;
+  let startSeen = false;
 
-  // ── Notify Sentinel of connection open ───────────────────
-  postToSentinel({
-    event: "connection.open",
-    session_id: sessionId,
-    user_id: userId,
-    call_log_id: callLogId,
-  }).catch(() => {});
+  console.log(`[Relay] Twilio stream connected - session=${sessionId}`);
 
-  // ── Connect to Deepgram ──────────────────────────────────
-  const dgUrl = buildDeepgramUrl();
-  deepgramWs = new WebSocket(dgUrl, {
-    headers: {
-      Authorization: `Token ${DEEPGRAM_API_KEY}`,
-    },
-  });
+  function notifyConnectionOpen() {
+    if (connectionOpenedSent) return;
+    connectionOpenedSent = true;
+    postToSentinel({
+      event: "connection.open",
+      session_id: sessionId,
+      user_id: userId,
+      call_log_id: callLogId,
+    }).catch(() => {});
+  }
 
-  deepgramWs.on("open", () => {
-    console.log(`[Relay] Deepgram connected — session=${sessionId}`);
-  });
+  function ensureDeepgramConnection() {
+    if (deepgramWs) return;
 
-  deepgramWs.on("message", (raw) => {
-    try {
-      const msg = JSON.parse(raw.toString());
+    deepgramWs = new WebSocket(buildDeepgramUrl(), {
+      headers: {
+        Authorization: `Token ${DEEPGRAM_API_KEY}`,
+      },
+    });
 
-      // Only handle Results messages
-      if (msg.type !== "Results") return;
+    deepgramWs.on("open", () => {
+      console.log(`[Relay] Deepgram connected - session=${sessionId}`);
+    });
 
-      const alternatives = msg.channel?.alternatives || [];
-      if (alternatives.length === 0) return;
+    deepgramWs.on("message", (raw) => {
+      try {
+        const msg = JSON.parse(raw.toString());
+        if (msg.type !== "Results") return;
 
-      const best = alternatives[0];
-      if (!best.transcript || best.transcript.trim() === "") return;
+        const alternatives = msg.channel?.alternatives || [];
+        if (alternatives.length === 0) return;
 
-      const channelIndex = Array.isArray(msg.channel_index)
-        ? msg.channel_index[0] ?? 0
-        : 0;
+        const best = alternatives[0];
+        if (!best.transcript || best.transcript.trim() === "") return;
 
-      const isFinal = msg.is_final ?? false;
-      const speechFinal = msg.speech_final ?? false;
+        if (!(msg.is_final ?? false)) return;
 
-      // Only POST final transcripts to Sentinel
-      if (isFinal) {
-        sequenceNum++;
+        const channelIndex = Array.isArray(msg.channel_index)
+          ? msg.channel_index[0] ?? 0
+          : 0;
+
+        sequenceNum += 1;
         postToSentinel({
           event: "transcript",
           session_id: sessionId,
@@ -150,49 +172,59 @@ wss.on("connection", (twilioWs, req) => {
             channel_index: channelIndex,
             confidence: best.confidence ?? 0,
             is_final: true,
-            speech_final: speechFinal,
+            speech_final: msg.speech_final ?? false,
             start: msg.start ?? 0,
             duration: msg.duration ?? 0,
           },
-        }).catch((err) => {
-          console.error(`[Relay] Failed to POST transcript — session=${sessionId}:`, err.message);
-        });
+        })
+          .then(() => {
+            console.log(
+              `[Relay] Transcript delivered - session=${sessionId} seq=${sequenceNum} speaker=${channelIndex === 0 ? "operator" : "seller"}`
+            );
+          })
+          .catch((err) => {
+            console.error(`[Relay] Failed to POST transcript - session=${sessionId}:`, err.message);
+          });
+      } catch (err) {
+        console.error(`[Relay] Failed to parse Deepgram message - session=${sessionId}:`, err.message);
       }
-    } catch (err) {
-      console.error(`[Relay] Failed to parse Deepgram message — session=${sessionId}:`, err.message);
+    });
+
+    deepgramWs.on("error", (err) => {
+      console.error(`[Relay] Deepgram WS error - session=${sessionId}:`, err.message);
+    });
+
+    deepgramWs.on("close", (code, reason) => {
+      console.log(`[Relay] Deepgram WS closed - session=${sessionId} code=${code} reason=${reason}`);
+      deepgramWs = null;
+    });
+  }
+
+  function closeDeepgram() {
+    if (deepgramWs && deepgramWs.readyState === WebSocket.OPEN) {
+      deepgramWs.send(JSON.stringify({ type: "CloseStream" }));
+      setTimeout(() => {
+        if (deepgramWs && deepgramWs.readyState === WebSocket.OPEN) {
+          deepgramWs.close();
+        }
+      }, 2000);
     }
-  });
+  }
 
-  deepgramWs.on("error", (err) => {
-    console.error(`[Relay] Deepgram WS error — session=${sessionId}:`, err.message);
-  });
-
-  deepgramWs.on("close", (code, reason) => {
-    console.log(`[Relay] Deepgram WS closed — session=${sessionId} code=${code} reason=${reason}`);
-  });
-
-  // ── Handle Twilio media stream ───────────────────────────
   twilioWs.on("message", (raw) => {
     try {
       const msg = JSON.parse(raw.toString());
 
       switch (msg.event) {
         case "connected":
-          console.log(`[Relay] Twilio stream connected event — session=${sessionId}`);
-          if (!connectionOpenedSent) {
-            connectionOpenedSent = true;
-            postToSentinel({
-              event: "connection.open",
-              session_id: sessionId,
-              user_id: userId,
-              call_log_id: callLogId,
-            }).catch(() => {});
-          }
+          console.log(`[Relay] Twilio stream connected event - session=${sessionId}`);
           break;
 
-        case "start":
-          streamSid = msg.start?.streamSid;
+        case "start": {
+          startSeen = true;
+          streamSid = msg.start?.streamSid ?? null;
           const customParameters = msg.start?.customParameters || {};
+
           if (typeof customParameters.sessionId === "string" && customParameters.sessionId.trim()) {
             sessionId = customParameters.sessionId.trim();
           }
@@ -202,74 +234,62 @@ wss.on("connection", (twilioWs, req) => {
           if (typeof customParameters.userId === "string" && customParameters.userId.trim()) {
             userId = customParameters.userId.trim();
           }
-          console.log(`[Relay] Twilio stream started — session=${sessionId} streamSid=${streamSid}`);
+
+          console.log(`[Relay] Twilio stream started - session=${sessionId} streamSid=${streamSid}`);
+          console.log(
+            `[Relay] Stream metadata - session=${sessionId} callLog=${callLogId || "none"} user=${userId || "none"}`
+          );
+
+          notifyConnectionOpen();
+          ensureDeepgramConnection();
+          activeSessions.set(sessionId, { twilioWs, deepgramWs, startedAt: Date.now() });
           break;
+        }
 
         case "media":
           if (!audioReceived) {
             audioReceived = true;
-            console.log(`[Relay] First audio packet — session=${sessionId}`);
+            console.log(`[Relay] First audio packet - session=${sessionId}`);
           }
 
-          // Forward raw mulaw audio to Deepgram
           if (deepgramWs && deepgramWs.readyState === WebSocket.OPEN) {
-            // Twilio sends base64-encoded mulaw audio in msg.media.payload
-            const audioBuffer = Buffer.from(msg.media.payload, "base64");
-            deepgramWs.send(audioBuffer);
+            deepgramWs.send(Buffer.from(msg.media.payload, "base64"));
+          } else if (!startSeen) {
+            console.warn(`[Relay] Media arrived before start event - session=${sessionId}`);
+          } else if (!deepgramWs) {
+            console.warn(`[Relay] Dropping audio before Deepgram socket opened - session=${sessionId}`);
           }
           break;
 
         case "stop":
-          console.log(`[Relay] Twilio stream stopped — session=${sessionId}`);
+          console.log(`[Relay] Twilio stream stopped - session=${sessionId}`);
           closeDeepgram();
           break;
 
         default:
-          // mark, dtmf, etc. — ignore
           break;
       }
     } catch (err) {
-      console.error(`[Relay] Failed to parse Twilio message — session=${sessionId}:`, err.message);
+      console.error(`[Relay] Failed to parse Twilio message - session=${sessionId}:`, err.message);
     }
   });
 
   twilioWs.on("close", () => {
-    console.log(`[Relay] Twilio WS closed — session=${sessionId}`);
+    console.log(`[Relay] Twilio WS closed - session=${sessionId}`);
     closeDeepgram();
-
-    // Notify Sentinel
     postToSentinel({
       event: "connection.close",
       session_id: sessionId,
       user_id: userId,
+      call_log_id: callLogId,
     }).catch(() => {});
-
     activeSessions.delete(sessionId);
   });
 
   twilioWs.on("error", (err) => {
-    console.error(`[Relay] Twilio WS error — session=${sessionId}:`, err.message);
+    console.error(`[Relay] Twilio WS error - session=${sessionId}:`, err.message);
   });
-
-  // ── Helpers ──────────────────────────────────────────────
-  function closeDeepgram() {
-    if (deepgramWs && deepgramWs.readyState === WebSocket.OPEN) {
-      // Send close message to Deepgram to flush remaining audio
-      deepgramWs.send(JSON.stringify({ type: "CloseStream" }));
-      setTimeout(() => {
-        if (deepgramWs.readyState === WebSocket.OPEN) {
-          deepgramWs.close();
-        }
-      }, 2000);
-    }
-  }
-
-  activeSessions.set(sessionId, { twilioWs, deepgramWs, startedAt: Date.now() });
 });
-
-// ─────────────────────────────────────────────────────────────
-// Deepgram WebSocket URL builder
-// ─────────────────────────────────────────────────────────────
 
 function buildDeepgramUrl() {
   const params = new URLSearchParams({
@@ -277,22 +297,21 @@ function buildDeepgramUrl() {
     language: "en-US",
     encoding: "mulaw",
     sample_rate: "8000",
-    channels: "1", // Twilio sends mono per track
+    channels: "1",
     smart_format: "true",
     interim_results: "true",
     utterance_end_ms: "1000",
     vad_events: "true",
     endpointing: "300",
     punctuate: "true",
-    keywords: REAL_ESTATE_KEYWORDS.map((kw) => `${kw}:2`).join(","),
   });
+
+  for (const term of REAL_ESTATE_KEYTERMS) {
+    params.append("keyterm", term);
+  }
 
   return `wss://api.deepgram.com/v1/listen?${params.toString()}`;
 }
-
-// ─────────────────────────────────────────────────────────────
-// POST transcript to Sentinel webhook
-// ─────────────────────────────────────────────────────────────
 
 async function postToSentinel(payload) {
   const controller = new AbortController();
@@ -312,23 +331,21 @@ async function postToSentinel(payload) {
     if (!res.ok) {
       const body = await res.text().catch(() => "");
       console.warn(
-        `[Relay] Sentinel webhook returned ${res.status} — ` +
-        `session=${payload.session_id}: ${body.substring(0, 200)}`
+        `[Relay] Sentinel webhook returned ${res.status} - session=${payload.session_id}: ${body.substring(0, 200)}`
       );
+      throw new Error(`Sentinel webhook ${res.status}`);
     }
+
+    return res;
   } finally {
     clearTimeout(timeout);
   }
 }
 
-// ─────────────────────────────────────────────────────────────
-// Graceful shutdown
-// ─────────────────────────────────────────────────────────────
-
 function shutdown(signal) {
-  console.log(`[Relay] ${signal} received — shutting down ${activeSessions.size} active sessions`);
+  console.log(`[Relay] ${signal} received - shutting down ${activeSessions.size} active sessions`);
 
-  for (const [sessionId, session] of activeSessions) {
+  for (const [id, session] of activeSessions) {
     try {
       if (session.deepgramWs?.readyState === WebSocket.OPEN) {
         session.deepgramWs.send(JSON.stringify({ type: "CloseStream" }));
@@ -338,7 +355,7 @@ function shutdown(signal) {
         session.twilioWs.close();
       }
     } catch (err) {
-      console.error(`[Relay] Error closing session ${sessionId}:`, err.message);
+      console.error(`[Relay] Error closing session ${id}:`, err.message);
     }
   }
 
@@ -347,19 +364,14 @@ function shutdown(signal) {
     process.exit(0);
   });
 
-  // Force exit after 5s
   setTimeout(() => process.exit(1), 5000);
 }
 
 process.on("SIGTERM", () => shutdown("SIGTERM"));
 process.on("SIGINT", () => shutdown("SIGINT"));
 
-// ─────────────────────────────────────────────────────────────
-// Start
-// ─────────────────────────────────────────────────────────────
-
 server.listen(PORT, "0.0.0.0", () => {
   console.log(`[Relay] Deepgram relay listening on 0.0.0.0:${PORT}`);
   console.log(`[Relay] Webhook target: ${SENTINEL_WEBHOOK_URL}`);
-  console.log(`[Relay] Deepgram model: nova-3, encoding: mulaw, 8kHz`);
+  console.log("[Relay] Deepgram model: nova-3, encoding: mulaw, 8kHz");
 });
