@@ -150,21 +150,33 @@ export async function publishSession(
   // may have failed (old URL, TwiML error, network issue). Don't block the operator.
   if (!TERMINAL_STATUSES.has(session.status)) {
     console.warn(`[publish-manager] Session ${session.id} still in "${session.status}" — auto-ending for publish`);
+    // The DB trigger enforces valid transitions. "initiating" can only go to
+    // ringing/connected/failed — NOT directly to "ended". Use "failed" as a
+    // catch-all terminal state when the session never properly connected.
+    const targetStatus = session.status === "initiating" ? "failed" : "ended";
     const { error: endErr } = await sb
       .from("call_sessions")
-      .update({ status: "ended", ended_at: new Date().toISOString() })
+      .update({ status: targetStatus, ended_at: new Date().toISOString() })
       .eq("id", session.id);
     if (endErr) {
       console.error("[publish-manager] Failed to auto-end session:", endErr);
-      return {
-        ok: false,
-        calls_log_id: null,
-        lead_id: null,
-        error: "Session must be in a terminal state (ended or failed) before publishing",
-        code: "INVALID_TRANSITION",
-      };
+      // Last resort: try "failed" which is valid from any non-terminal state
+      const { error: failErr } = await sb
+        .from("call_sessions")
+        .update({ status: "failed", ended_at: new Date().toISOString() })
+        .eq("id", session.id);
+      if (failErr) {
+        console.error("[publish-manager] Even 'failed' transition rejected:", failErr);
+        return {
+          ok: false,
+          calls_log_id: null,
+          lead_id: null,
+          error: "Session must be in a terminal state (ended or failed) before publishing",
+          code: "INVALID_TRANSITION",
+        };
+      }
     }
-    session.status = "ended" as typeof session.status;
+    session.status = targetStatus as typeof session.status;
   }
 
   const leadId = session.lead_id ?? null;

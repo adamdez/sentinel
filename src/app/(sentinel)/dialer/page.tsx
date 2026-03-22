@@ -491,6 +491,7 @@ function DialerPageInner() {
   const [currentCallSid, setCurrentCallSid] = useState<string | null>(null);
   const [liveCallStatus, setLiveCallStatus] = useState<string | null>(null);
   const statusPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const activeCallRef = useRef<Call | null>(null);
   const [diagOpen, setDiagOpen] = useState(false);
   const [diagResults, setDiagResults] = useState<{ name: string; status: string; message: string; detail?: string }[] | null>(null);
   const [diagLoading, setDiagLoading] = useState(false);
@@ -500,6 +501,9 @@ function DialerPageInner() {
       setCurrentLead(queue[0]);
     }
   }, [queue, currentLead]);
+
+  // Keep activeCallRef in sync for polling callback closures
+  useEffect(() => { activeCallRef.current = activeCall; }, [activeCall]);
 
   // Sync currentLead with refreshed queue data when the queue updates.
   // Deps intentionally use currentLead?.id (not currentLead) to avoid an
@@ -666,6 +670,21 @@ function DialerPageInner() {
           setTransferStatus(`Call failed: ${reason}`);
           // Don't auto-reset to idle — let the user see the error and disposition
         }
+
+        // Safety net: if Twilio says the call completed but we still show
+        // "connected", force-disconnect the browser leg so the operator
+        // doesn't sit on dead air thinking the customer is still there.
+        if (status === "completed" && callState === "connected") {
+          console.warn("[Dialer] Twilio reports completed but UI still connected — forcing disconnect");
+          if (activeCallRef.current) {
+            try { activeCallRef.current.disconnect(); } catch { /* already dead */ }
+          }
+          setActiveCall(null);
+          setCallState("ended");
+          setTransferStatus(null);
+          setLiveCallStatus("completed");
+          timer.stop();
+        }
       } catch {
         // Non-blocking
       }
@@ -830,12 +849,32 @@ function DialerPageInner() {
       call.on("ringing", () => {
         setLiveCallStatus("ringing");
         setTransferStatus("Ringing prospect…");
+        // Advance session: initiating → ringing (required before ended is valid)
+        if (newSessionId) {
+          authHeaders().then((hdrs) =>
+            fetch(`/api/dialer/v1/sessions/${newSessionId}`, {
+              method: "PATCH",
+              headers: hdrs,
+              body: JSON.stringify({ status: "ringing" }),
+            })
+          ).catch(() => {});
+        }
       });
 
       call.on("accept", () => {
         setLiveCallStatus("in-progress");
         setTransferStatus("Connected via VoIP — Dominion Homes");
         toast.success("Call connected via VoIP");
+        // Advance session: ringing → connected (or initiating → connected)
+        if (newSessionId) {
+          authHeaders().then((hdrs) =>
+            fetch(`/api/dialer/v1/sessions/${newSessionId}`, {
+              method: "PATCH",
+              headers: hdrs,
+              body: JSON.stringify({ status: "connected" }),
+            })
+          ).catch(() => {});
+        }
       });
 
       call.on("disconnect", () => {
@@ -843,7 +882,7 @@ function DialerPageInner() {
         setActiveCall(null);
         setCallState("ended");
         timer.stop();
-        // Advance session to terminal so publish can proceed (fire-and-forget; 409 is non-fatal
+        // Advance session to terminal so publish can proceed (409 is non-fatal
         // if Twilio StatusCallback already advanced it first, or if session was never created).
         if (newSessionId) {
           authHeaders().then((hdrs) =>
@@ -997,6 +1036,7 @@ function DialerPageInner() {
       setManualCallLogId(data.callLogId);
 
       // Create a session so PostCallPanel can render after the call
+      let manualSessionIdLocal: string | null = null;
       try {
         const sessRes = await fetch("/api/dialer/v1/sessions", {
           method: "POST",
@@ -1008,7 +1048,8 @@ function DialerPageInner() {
         });
         if (sessRes.ok) {
           const sessData = await sessRes.json();
-          setManualSessionId(sessData.session?.id ?? null);
+          manualSessionIdLocal = sessData.session?.id ?? null;
+          setManualSessionId(manualSessionIdLocal);
         }
       } catch { /* non-fatal — manual dial still works without session */ }
 
@@ -1027,15 +1068,45 @@ function DialerPageInner() {
 
       call.on("ringing", () => {
         toast.success(`Ringing ${formatUsPhone(manualPhone)} via VoIP…`);
+        // Advance manual session: initiating → ringing
+        if (manualSessionIdLocal) {
+          authHeaders().then((hdrs) =>
+            fetch(`/api/dialer/v1/sessions/${manualSessionIdLocal}`, {
+              method: "PATCH",
+              headers: hdrs,
+              body: JSON.stringify({ status: "ringing" }),
+            })
+          ).catch(() => {});
+        }
       });
 
       call.on("accept", () => {
         toast.success(`Connected to ${formatUsPhone(manualPhone)} via VoIP`);
+        // Advance manual session: ringing → connected
+        if (manualSessionIdLocal) {
+          authHeaders().then((hdrs) =>
+            fetch(`/api/dialer/v1/sessions/${manualSessionIdLocal}`, {
+              method: "PATCH",
+              headers: hdrs,
+              body: JSON.stringify({ status: "connected" }),
+            })
+          ).catch(() => {});
+        }
       });
 
       call.on("disconnect", () => {
         setActiveCall(null);
         setManualStatus("ended");
+        // Advance manual session to terminal so closeout works
+        if (manualSessionIdLocal) {
+          authHeaders().then((hdrs) =>
+            fetch(`/api/dialer/v1/sessions/${manualSessionIdLocal}`, {
+              method: "PATCH",
+              headers: hdrs,
+              body: JSON.stringify({ status: "ended" }),
+            })
+          ).catch(() => {});
+        }
       });
 
       call.on("error", (err: { message?: string }) => {

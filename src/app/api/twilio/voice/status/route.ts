@@ -178,16 +178,13 @@ export async function POST(req: NextRequest) {
           .eq("id", callLogId);
       }
 
-      const twiml = [
-        '<?xml version="1.0" encoding="UTF-8"?>',
-        "<Response>",
-        `  <Say voice="Polly.Joanna">The prospect did not answer. Status: ${dialStatus || "unknown"}. Goodbye.</Say>`,
-        "</Response>",
-      ].join("\n");
-
-      return new NextResponse(twiml, {
-        headers: { "Content-Type": "text/xml" },
-      });
+      // Immediately hang up the browser leg — do NOT play a <Say> because it
+      // keeps the call alive and the operator hears dead air thinking the
+      // customer is still on the line.
+      return new NextResponse(
+        '<?xml version="1.0" encoding="UTF-8"?><Response><Hangup/></Response>',
+        { headers: { "Content-Type": "text/xml" } },
+      );
     }
 
     // Prospect answered and the call completed normally
@@ -226,8 +223,9 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    // Explicitly hang up the browser leg when the prospect disconnects
     return new NextResponse(
-      '<?xml version="1.0" encoding="UTF-8"?><Response></Response>',
+      '<?xml version="1.0" encoding="UTF-8"?><Response><Hangup/></Response>',
       { headers: { "Content-Type": "text/xml" } },
     );
   }
