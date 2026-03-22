@@ -205,7 +205,8 @@ export async function POST(req: NextRequest) {
   if (callLogId) {
     const liveNote = `${speaker === "operator" ? "You" : "Seller"}: ${transcript.text.trim()}`;
     // Append to existing live_notes jsonb array via raw SQL for atomicity
-    await sb.rpc("append_live_note", {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    await (sb.rpc as any)("append_live_note", {
       p_call_log_id: callLogId,
       p_note: liveNote,
     }).catch((err: unknown) => {

@@ -424,25 +424,7 @@ function DialerPageInner() {
   // Reset to false each time callState returns to idle so the next call starts fresh.
   const noteScaffoldSeeded = useRef(false);
 
-  // Subscribe to live_notes updates from transcription server via Supabase realtime
-  useEffect(() => {
-    if (!currentCallLogId) { setLiveNotes([]); return; }
-    const channel = supabase
-      .channel(`live-notes-${currentCallLogId}`)
-      .on(
-        "postgres_changes",
-        { event: "UPDATE", schema: "public", table: "calls_log", filter: `id=eq.${currentCallLogId}` },
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        (payload: any) => {
-          const notes = payload.new?.live_notes;
-          if (Array.isArray(notes) && notes.length > 0) {
-            setLiveNotes(notes);
-          }
-        },
-      )
-      .subscribe();
-    return () => { supabase.removeChannel(channel); };
-  }, [currentCallLogId]);
+  // Live notes realtime subscription is below manualCallLogId declaration
 
   // Seed structured note scaffold once when call first becomes connected (session-backed only).
   // Only fires when callNotes is empty — never overwrites operator input.
@@ -475,6 +457,28 @@ function DialerPageInner() {
   const [smsComposeOpen, setSmsComposeOpen] = useState(false);
   const [smsComposeMsg, setSmsComposeMsg] = useState("");
   const [smsComposeSending, setSmsComposeSending] = useState(false);
+
+  // Subscribe to live_notes updates from transcription server via Supabase realtime
+  // Covers both session-based calls (currentCallLogId) and manual dial (manualCallLogId)
+  const activeCallLogForNotes = currentCallLogId || manualCallLogId;
+  useEffect(() => {
+    if (!activeCallLogForNotes) { setLiveNotes([]); return; }
+    const channel = supabase
+      .channel(`live-notes-${activeCallLogForNotes}`)
+      .on(
+        "postgres_changes",
+        { event: "UPDATE", schema: "public", table: "calls_log", filter: `id=eq.${activeCallLogForNotes}` },
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (payload: any) => {
+          const notes = payload.new?.live_notes;
+          if (Array.isArray(notes) && notes.length > 0) {
+            setLiveNotes(notes);
+          }
+        },
+      )
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
+  }, [activeCallLogForNotes]);
 
   // Inline SMS compose for the lead card (separate from manual-dial SMS compose)
   const [leadSmsOpen, setLeadSmsOpen] = useState(false);
@@ -1714,6 +1718,36 @@ function DialerPageInner() {
             </motion.div>
           )}
         </AnimatePresence>
+
+        {/* AI Live Notes for manual dial — real-time transcription */}
+        {(manualStatus === "connected" || manualStatus === "ended" || (manualCallLogId && liveNotes.length > 0)) && (
+          <GlassCard hover={false} className="!p-3 mt-3 border-primary/10">
+            <div className="flex items-center gap-1.5 mb-2">
+              <Zap className="h-3 w-3 text-primary/60" />
+              <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Live Notes</p>
+              {manualStatus === "connected" && (
+                <span className="ml-auto flex items-center gap-1 text-xs text-primary/50">
+                  <span className="h-1.5 w-1.5 rounded-full bg-primary animate-pulse" />
+                  Listening
+                </span>
+              )}
+            </div>
+            {liveNotes.length > 0 ? (
+              <ul className="space-y-1 max-h-48 overflow-y-auto">
+                {liveNotes.map((note, i) => (
+                  <li key={i} className="text-sm text-foreground/80 flex items-start gap-1.5">
+                    <span className="text-primary/40 mt-0.5 shrink-0">&bull;</span>
+                    <span>{note}</span>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="text-sm text-muted-foreground/40 italic">
+                Notes will appear as the conversation progresses...
+              </p>
+            )}
+          </GlassCard>
+        )}
 
         {/* Manual dial PostCallPanel — session-backed publish path */}
         {manualStatus === "ended" && manualSessionId && (
