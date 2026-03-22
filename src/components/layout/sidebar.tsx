@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { useState, useCallback, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
+  Activity,
   CalendarCheck,
   Phone,
   Users,
@@ -119,6 +120,7 @@ const adminSection: NavSection = {
     { label: "Settings", href: "/settings", icon: Settings },
     { label: "Gmail", href: "/gmail", icon: Mail },
     { label: "Import", href: "/admin/import", icon: Upload },
+    { label: "System Health", href: "/admin/health", icon: Activity },
     { label: "Grok", href: "/grok", icon: Bug },
   ],
 };
