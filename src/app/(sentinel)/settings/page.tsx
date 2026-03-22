@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { Palette, Phone, Loader2, Check, SlidersHorizontal, MapPin } from "lucide-react";
+import { Palette, Phone, Loader2, Check } from "lucide-react";
 import Link from "next/link";
 import { toast } from "sonner";
 import { PageShell } from "@/components/sentinel/page-shell";
@@ -73,21 +73,19 @@ export default function SettingsPage() {
   return (
     <PageShell
       title="Settings"
-      description="Sentinel Settings — System configuration, team management, and compliance"
+      description="System configuration and control plane"
     >
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        <div className="lg:col-span-2 space-y-4">
+      <div className="space-y-6">
+        {/* Operator Settings */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
           <GlassCard hover={false}>
             <h3 className="text-sm font-semibold mb-1 flex items-center gap-2">
               <Palette className="h-4 w-4 text-foreground" />
               Appearance
             </h3>
             <p className="text-xs text-muted-foreground mb-3">
-              Light or Dark monochrome shell — glass panels, grayscale chrome, and high-contrast text. Preference is saved on this device.
+              Theme preference saved on this device.
             </p>
-            <label htmlFor="sentinel-theme" className="text-sm uppercase tracking-wide text-muted-foreground block mb-1.5">
-              Theme
-            </label>
             <select
               id="sentinel-theme"
               value={theme}
@@ -101,26 +99,22 @@ export default function SettingsPage() {
                 </option>
               ))}
             </select>
-            <p className="text-sm text-muted-foreground mt-2">
-              {SENTINEL_THEMES.find((t) => t.id === theme)?.description}
-            </p>
           </GlassCard>
 
-          {/* Personal Cell for Warm Transfer */}
-          <GlassCard hover={false} glow>
+          <GlassCard hover={false}>
             <h3 className="text-sm font-semibold mb-1 flex items-center gap-2">
               <Phone className="h-4 w-4 text-foreground" />
               My Personal Cell
               <Badge variant="outline" className="text-xs">Warm Transfer</Badge>
             </h3>
-            <p className="text-sm text-muted-foreground/60 mb-3">
-              Twilio will ring this number when you dial from the Dialer. Caller ID shows &quot;Dominion Homes&quot;.
+            <p className="text-xs text-muted-foreground/60 mb-3">
+              Twilio rings this number when you dial. Caller ID shows Dominion Homes.
             </p>
             <div className="flex items-center gap-2">
               <Input
                 value={personalCell}
                 onChange={(e) => setPersonalCell(e.target.value)}
-                placeholder="+1XXXXXXXXXX (E.164 format)"
+                placeholder="+1XXXXXXXXXX"
                 className="flex-1 font-mono text-sm bg-white/[0.03] border-white/[0.06] focus:border-ring focus:ring-ring/20"
               />
               <Button
@@ -140,54 +134,89 @@ export default function SettingsPage() {
               </Button>
             </div>
             {currentUser.personal_cell && (
-              <p className="text-sm text-muted-foreground mt-2 flex items-center gap-1">
+              <p className="text-xs text-muted-foreground mt-2 flex items-center gap-1">
                 <span className="h-1.5 w-1.5 rounded-full bg-foreground/50 animate-pulse" />
-                Active — calls transfer to {currentUser.personal_cell}
+                Active — {currentUser.personal_cell}
               </p>
             )}
           </GlassCard>
-
         </div>
 
-        <div className="space-y-4">
-          <GlassCard hover={false} className="space-y-3">
-            <h3 className="text-sm font-semibold flex items-center gap-2">
-              <SlidersHorizontal className="h-4 w-4 text-primary" />
-              Control plane
-            </h3>
-            <p className="text-sm text-muted-foreground/60">
-              Agent + voice feature flags backed by <code className="text-sm">feature_flags</code>.
-            </p>
-            <Link
-              href="/settings/agent-controls"
-              className="inline-flex text-xs text-foreground hover:underline font-medium"
-            >
-              Open agent controls →
-            </Link>
-          </GlassCard>
-
-          <GlassCard hover={false} className="space-y-3">
-            <h3 className="text-sm font-semibold flex items-center gap-2">
-              <MapPin className="h-4 w-4 text-foreground" />
-              Property lookup
-            </h3>
-            <p className="text-sm text-muted-foreground/60">
-              Multi-provider property search and promote-to-lead.
-            </p>
-            <Link href="/properties/lookup" className="inline-flex text-xs text-foreground hover:underline font-medium">
-              Open property lookup →
-            </Link>
-          </GlassCard>
-
-          <GlassCard hover={false}>
-            <h3 className="text-sm font-semibold mb-3">Webhook URL</h3>
-            <Input
-              value="/api/ingest"
-              readOnly
-              className="text-xs font-mono"
-            />
-          </GlassCard>
+        {/* Control Plane — AI / Voice / Policies */}
+        <div>
+          <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground/50 mb-2">
+            Control Plane
+          </p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+            {[
+              { label: "Prompt Registry", href: "/settings/prompt-registry", desc: "AI prompt versions and tracking" },
+              { label: "Voice Registry", href: "/settings/voice-registry", desc: "Voice scripts and handoff rules" },
+              { label: "Source Policies", href: "/settings/source-policies", desc: "Evidence source trust policies" },
+              { label: "Agent Controls", href: "/settings/agent-controls", desc: "Feature flags and rollout" },
+            ].map((tool) => (
+              <Link key={tool.href} href={tool.href}>
+                <GlassCard hover className="!p-3 h-full">
+                  <p className="text-sm font-medium text-foreground">{tool.label}</p>
+                  <p className="text-xs text-muted-foreground/50 mt-0.5">{tool.desc}</p>
+                </GlassCard>
+              </Link>
+            ))}
+          </div>
         </div>
+
+        {/* Review Surfaces */}
+        <div>
+          <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground/50 mb-2">
+            Review & QA
+          </p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+            {[
+              { label: "Research Review", href: "/dialer/review/dossier-queue", desc: "Approve or reject AI research" },
+              { label: "Call QA", href: "/dialer/qa", desc: "Flagged call findings" },
+              { label: "AI Evals", href: "/dialer/review/eval", desc: "Model output review" },
+              { label: "Call Review", href: "/dialer/war-room", desc: "Operational call review" },
+            ].map((tool) => (
+              <Link key={tool.href} href={tool.href}>
+                <GlassCard hover className="!p-3 h-full">
+                  <p className="text-sm font-medium text-foreground">{tool.label}</p>
+                  <p className="text-xs text-muted-foreground/50 mt-0.5">{tool.desc}</p>
+                </GlassCard>
+              </Link>
+            ))}
+          </div>
+        </div>
+
+        {/* Data & Utilities */}
+        <div>
+          <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground/50 mb-2">
+            Data & Utilities
+          </p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+            {[
+              { label: "Import", href: "/admin/import", desc: "Bulk data import and normalization" },
+              { label: "Analytics", href: "/analytics", desc: "Source and market attribution" },
+              { label: "Trust Language", href: "/settings/trust-language", desc: "Approved seller-facing language" },
+              { label: "Predictive Calibration", href: "/analytics/predictive-calibration", desc: "Scoring model tuning" },
+            ].map((tool) => (
+              <Link key={tool.href} href={tool.href}>
+                <GlassCard hover className="!p-3 h-full">
+                  <p className="text-sm font-medium text-foreground">{tool.label}</p>
+                  <p className="text-xs text-muted-foreground/50 mt-0.5">{tool.desc}</p>
+                </GlassCard>
+              </Link>
+            ))}
+          </div>
+        </div>
+
+        {/* Webhook */}
+        <GlassCard hover={false} className="max-w-md">
+          <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">Webhook URL</h3>
+          <Input
+            value="/api/ingest"
+            readOnly
+            className="text-xs font-mono"
+          />
+        </GlassCard>
       </div>
     </PageShell>
   );

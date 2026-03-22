@@ -223,7 +223,7 @@ function WeeklyTable() {
         <span className="flex items-center gap-1"><TrendingUp className="h-2 w-2 text-foreground" /> better vs prior week</span>
         <span className="flex items-center gap-1"><TrendingDown className="h-2 w-2 text-foreground" /> worse vs prior week</span>
         <span className="flex items-center gap-1"><span className="h-1.5 w-1.5 rounded-full bg-primary inline-block" /> current week (partial)</span>
-        <Link href="/dialer/review" className="text-primary/60 hover:text-primary ml-auto">Full review →</Link>
+        <Link href="/dialer/review" className="text-primary/60 hover:text-primary ml-auto">Review Console →</Link>
       </div>
     </div>
   );
@@ -262,7 +262,7 @@ export default function WarRoomPage() {
   return (
     <PageShell
       title="Call Review"
-      description="Operator command surface — overdue first, top signals, direct action links."
+      description="Operational review — overdue first, top signals, direct action links."
       actions={
         <div className="flex items-center gap-2">
           <Link
@@ -270,14 +270,7 @@ export default function WarRoomPage() {
             className="flex items-center gap-1.5 rounded-[10px] border border-white/[0.07] bg-white/[0.03] px-3 py-1.5 text-sm text-muted-foreground hover:text-foreground hover:border-white/[0.12] transition-colors"
           >
             <TrendingUp className="h-3 w-3" />
-            Weekly Review
-          </Link>
-          <Link
-            href="/dialer"
-            className="flex items-center gap-1.5 rounded-[10px] border border-white/[0.07] bg-white/[0.03] px-3 py-1.5 text-sm text-muted-foreground hover:text-foreground hover:border-white/[0.12] transition-colors"
-          >
-            <Phone className="h-3 w-3" />
-            Dialer
+            Review Console
           </Link>
         </div>
       }
@@ -339,7 +332,7 @@ export default function WarRoomPage() {
         {/* ── Action links ──────────────────────────────────────── */}
         <div className="flex flex-wrap gap-2">
           {[
-            { href: "/tasks",           label: "Tasks",           icon: CheckSquare },
+            { href: "/tasks",           label: "Follow-Ups",      icon: CheckSquare },
             { href: "/leads",           label: "Leads",           icon: Phone },
             { href: "/dialer",          label: "Dialer",          icon: Phone },
             { href: "/dialer/inbound",  label: "Inbound",         icon: PhoneIncoming },

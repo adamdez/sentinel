@@ -2,18 +2,16 @@
 
 import { useState, useEffect, useCallback, useRef } from "react";
 import {
-  DollarSign,
   AlertTriangle,
   CalendarCheck,
   Phone,
   PhoneCall,
-  Clock,
   ArrowRight,
-  UserPlus,
-  FileCheck,
-  Zap,
   Activity,
   CheckCircle2,
+  ShieldAlert,
+  Inbox,
+  Ban,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -22,20 +20,15 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { supabase } from "@/lib/supabase";
 import { useSentinelStore } from "@/lib/store";
 import { cn } from "@/lib/utils";
-import { DailyBrief } from "./widgets/daily-brief";
-import { MissedOpportunityQueue } from "./widgets/missed-opportunity-queue";
-import { LiveMap } from "./widgets/live-map";
-import { KpiSummaryRow } from "@/components/sentinel/kpi-summary-row";
+import type { LeadStatus } from "@/lib/types";
 
-/* ------------------------------------------------------------------ */
-/*  Types                                                              */
-/* ------------------------------------------------------------------ */
+const ACTIVE_STATUSES: LeadStatus[] = ["lead", "negotiation", "disposition", "nurture"];
 
-interface BusinessStats {
-  pipelineValue: number;
+interface BriefStats {
   overdue: number;
   dueToday: number;
   callsToday: number;
+  newInbound: number;
 }
 
 interface PriorityLead {
@@ -51,13 +44,6 @@ interface PriorityLead {
   properties: { address: string | null; city: string | null; owner_name: string | null } | null;
 }
 
-interface RecentEvent {
-  id: string;
-  action: string;
-  details: Record<string, unknown> | null;
-  created_at: string;
-}
-
 interface StalledDeal {
   id: string;
   source: string | null;
@@ -66,9 +52,14 @@ interface StalledDeal {
   properties: { address: string | null; city: string | null; owner_name: string | null } | null;
 }
 
-/* ------------------------------------------------------------------ */
-/*  Helpers                                                            */
-/* ------------------------------------------------------------------ */
+interface ReviewBlocker {
+  id: string;
+  entity_type: string | null;
+  status: string | null;
+  created_at: string;
+}
+
+type SectionError = string | null;
 
 function timeAgo(dateStr: string): string {
   const diff = Date.now() - new Date(dateStr).getTime();
@@ -90,100 +81,75 @@ function daysDiff(dateStr: string | null): number | null {
   return Math.round((target.getTime() - now.getTime()) / 86400000);
 }
 
-function urgencyDotColor(daysUntil: number | null): string {
-  if (daysUntil === null) return "bg-muted-foreground/40";
-  if (daysUntil <= -3) return "bg-red-500";
-  if (daysUntil < 0) return "bg-amber-500";
-  if (daysUntil === 0) return "bg-amber-400";
+function effectiveDueDate(lead: PriorityLead): string | null {
+  return lead.next_call_scheduled_at ?? lead.next_action_due_at ?? null;
+}
+
+function urgencyDotColor(diff: number | null): string {
+  if (diff === null) return "bg-muted-foreground/40";
+  if (diff < 0) return "bg-red-500";
+  if (diff === 0) return "bg-amber-400";
   return "bg-emerald-500";
 }
 
-/** Pick the earliest non-null scheduling date for a lead */
-function effectiveDueDate(lead: PriorityLead): string | null {
-  return lead.next_action_due_at ?? lead.next_call_scheduled_at ?? null;
-}
-
 function urgencyText(lead: PriorityLead): string {
-  const diff = daysDiff(effectiveDueDate(lead));
-  if (diff === null) {
-    // No next action date — check if new
-    const created = new Date(lead.created_at);
-    const ageHrs = (Date.now() - created.getTime()) / 3600000;
-    if (ageHrs < 48) return "New — needs first contact";
-    return "No follow-up scheduled";
-  }
-  if (diff <= -1) {
-    const label = lead.next_action || "Callback";
-    return `${label} ${Math.abs(diff)}d overdue`;
-  }
-  if (diff === 0) return lead.next_action ? `${lead.next_action} due today` : "Due today";
-  return lead.next_action ? `${lead.next_action} in ${diff}d` : `Due in ${diff}d`;
+  const d = effectiveDueDate(lead);
+  const diff = daysDiff(d);
+  const action = lead.next_action || "Follow up";
+  if (diff === null) return `${action} — no date set`;
+  if (diff < -1) return `${action} — ${Math.abs(diff)} days overdue`;
+  if (diff === -1) return `${action} — overdue since yesterday`;
+  if (diff === 0) return `${action} — due today`;
+  if (diff === 1) return `${action} — due tomorrow`;
+  return `${action} — due in ${diff} days`;
 }
 
-const EVENT_ICONS: Record<string, { icon: React.ComponentType<{ className?: string }>; color: string }> = {
-  call: { icon: Phone, color: "text-primary" },
-  stage_change: { icon: Zap, color: "text-foreground" },
-  promote: { icon: UserPlus, color: "text-foreground" },
-  offer: { icon: DollarSign, color: "text-foreground" },
-  disposition: { icon: FileCheck, color: "text-foreground" },
-  lead_created: { icon: UserPlus, color: "text-foreground" },
-};
-
-function eventIcon(eventType: string) {
-  // Match partial keys (e.g. "call_completed" matches "call")
-  for (const [key, val] of Object.entries(EVENT_ICONS)) {
-    if (eventType.includes(key)) return val;
-  }
-  return { icon: Activity, color: "text-foreground" };
+function leadLabel(lead: PriorityLead): string {
+  const prop = Array.isArray(lead.properties) ? lead.properties[0] : lead.properties;
+  if (prop?.address) return `${prop.address}${prop.city ? `, ${prop.city}` : ""}`;
+  if (prop?.owner_name) return prop.owner_name;
+  return lead.source || `Lead ${lead.id.slice(0, 8)}`;
 }
 
-/* ------------------------------------------------------------------ */
-/*  Section 1 — Business Status Strip                                  */
-/* ------------------------------------------------------------------ */
-
-function StatCard({
-  icon: Icon,
-  label,
-  value,
-  accent,
-}: {
-  icon: React.ComponentType<{ className?: string }>;
-  label: string;
-  value: string | number;
-  accent?: string;
-}) {
+function SectionErrorBanner({ message }: { message: string }) {
   return (
-    <Card className="bg-muted/60 border-border/60">
-      <CardContent className="p-4 flex items-center gap-3">
-        <div className={cn("p-2 rounded-lg bg-muted/80", accent)}>
-          <Icon className="h-4 w-4" />
-        </div>
-        <div>
-          <p className="text-xl font-bold leading-none">{value}</p>
-          <p className="text-sm text-muted-foreground mt-0.5">{label}</p>
-        </div>
-      </CardContent>
-    </Card>
+    <div className="flex items-center gap-2 px-3 py-2.5 rounded-lg bg-red-500/10 border border-red-500/20 text-red-400 text-sm">
+      <ShieldAlert className="h-4 w-4 shrink-0" />
+      <span>{message}</span>
+    </div>
   );
 }
 
-/* ------------------------------------------------------------------ */
-/*  TodayView (main component)                                         */
-/* ------------------------------------------------------------------ */
+function EmptySection({ icon: Icon, message }: { icon: typeof CheckCircle2; message: string }) {
+  return (
+    <div className="flex items-center gap-2 text-sm text-muted-foreground py-6 justify-center">
+      <Icon className="h-4 w-4" />
+      {message}
+    </div>
+  );
+}
 
-export function TodayView() {
+function TodayView() {
   const { currentUser } = useSentinelStore();
 
-  // ---------- state ----------
-  const [stats, setStats] = useState<BusinessStats | null>(null);
-  const [priorityLeads, setPriorityLeads] = useState<PriorityLead[]>([]);
-  const [recentEvents, setRecentEvents] = useState<RecentEvent[]>([]);
+  const [stats, setStats] = useState<BriefStats | null>(null);
+  const [statsError, setStatsError] = useState<SectionError>(null);
+  const [overdueLeads, setOverdueLeads] = useState<PriorityLead[]>([]);
+  const [overdueError, setOverdueError] = useState<SectionError>(null);
+  const [inboundLeads, setInboundLeads] = useState<PriorityLead[]>([]);
+  const [inboundError, setInboundError] = useState<SectionError>(null);
+  const [callNowLeads, setCallNowLeads] = useState<PriorityLead[]>([]);
+  const [callNowError, setCallNowError] = useState<SectionError>(null);
+  const [callbackLeads, setCallbackLeads] = useState<PriorityLead[]>([]);
+  const [callbackError, setCallbackError] = useState<SectionError>(null);
   const [stalledDeals, setStalledDeals] = useState<StalledDeal[]>([]);
+  const [stalledError, setStalledError] = useState<SectionError>(null);
+  const [reviewBlockers, setReviewBlockers] = useState<ReviewBlocker[]>([]);
+  const [reviewError, setReviewError] = useState<SectionError>(null);
   const [loading, setLoading] = useState(true);
 
   const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
 
-  // ---------- fetchers ----------
   const fetchAll = useCallback(async () => {
     const todayStart = new Date();
     todayStart.setHours(0, 0, 0, 0);
@@ -191,131 +157,168 @@ export function TodayView() {
     todayEnd.setHours(23, 59, 59, 999);
     const nowIso = new Date().toISOString();
 
+    // Stats
     try {
-      // --- Stats ---
-      const activeStatuses = ["lead", "negotiation", "disposition", "working", "closed", "nurture"];
-
-      // Pipeline value — sum estimated_value from properties joined to active leads
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { data: pipelineData } = await (supabase.from("leads") as any)
-        .select("id, properties(estimated_value)")
-        .in("status", activeStatuses);
-
-      let pipelineValue = 0;
-      if (pipelineData) {
-        for (const lead of pipelineData) {
-          const prop = lead.properties;
-          if (prop) {
-            const val = Array.isArray(prop) ? prop[0]?.estimated_value : prop?.estimated_value;
-            if (typeof val === "number") pipelineValue += val;
-          }
-        }
-      }
-
-      // Overdue count — use next_call_scheduled_at (primary scheduling field) to match Lead Inbox
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { count: overdueCount } = await (supabase.from("leads") as any)
+      const { count: overdueCount, error: e1 } = await (supabase.from("leads") as any)
         .select("id", { count: "exact", head: true })
         .or(`next_call_scheduled_at.lt.${nowIso},next_action_due_at.lt.${nowIso}`)
-        .in("status", activeStatuses);
+        .in("status", ACTIVE_STATUSES);
+      if (e1) throw e1;
 
-      // Due today count
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { count: dueTodayCount } = await (supabase.from("leads") as any)
+      const { count: dueTodayCount, error: e2 } = await (supabase.from("leads") as any)
         .select("id", { count: "exact", head: true })
         .or(`and(next_call_scheduled_at.gte.${todayStart.toISOString()},next_call_scheduled_at.lte.${todayEnd.toISOString()}),and(next_action_due_at.gte.${todayStart.toISOString()},next_action_due_at.lte.${todayEnd.toISOString()})`)
-        .in("status", activeStatuses);
+        .in("status", ACTIVE_STATUSES);
+      if (e2) throw e2;
 
-      // Calls today
       let callsTodayCount: number | null = 0;
       if (currentUser?.id) {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const { count } = await (supabase.from("calls_log") as any)
+        const { count, error: e3 } = await (supabase.from("calls_log") as any)
           .select("id", { count: "exact", head: true })
           .gte("started_at", todayStart.toISOString())
           .eq("user_id", currentUser.id);
+        if (e3) throw e3;
         callsTodayCount = count;
       }
 
+      const twoDaysAgo = new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString();
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { count: newInboundCount, error: e4 } = await (supabase.from("leads") as any)
+        .select("id", { count: "exact", head: true })
+        .in("status", ["staging", "prospect"])
+        .gte("created_at", twoDaysAgo);
+      if (e4) throw e4;
+
       setStats({
-        pipelineValue,
         overdue: overdueCount ?? 0,
         dueToday: dueTodayCount ?? 0,
         callsToday: callsTodayCount ?? 0,
+        newInbound: newInboundCount ?? 0,
       });
+      setStatsError(null);
+    } catch (err) {
+      console.error("[Today] stats error:", err);
+      setStatsError("Failed to load status counts");
+    }
 
-      // --- Priority Queue ---
-      // Get overdue + today + upcoming leads with next_action_date, ordered by date asc (overdue first)
+    // Overdue follow-ups
+    try {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { data: queueLeads } = await (supabase.from("leads") as any)
+      const { data, error } = await (supabase.from("leads") as any)
         .select("id, next_action_due_at, next_call_scheduled_at, next_action, status, priority, created_at, source, notes, properties(address, city, owner_name)")
-        .in("status", activeStatuses)
+        .or(`next_call_scheduled_at.lt.${nowIso},next_action_due_at.lt.${nowIso}`)
+        .in("status", ACTIVE_STATUSES)
         .order("next_action_due_at", { ascending: true, nullsFirst: false })
-        .limit(10);
+        .limit(8);
+      if (error) throw error;
+      setOverdueLeads(data ?? []);
+      setOverdueError(null);
+    } catch (err) {
+      console.error("[Today] overdue error:", err);
+      setOverdueError("Failed to load overdue follow-ups");
+    }
 
-      // Also get leads with no next_action_date that are new (created < 48h)
+    // New inbound / awaiting first contact
+    try {
+      const twoDaysAgo = new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString();
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { data: noDateLeads } = await (supabase.from("leads") as any)
+      const { data, error } = await (supabase.from("leads") as any)
         .select("id, next_action_due_at, next_call_scheduled_at, next_action, status, priority, created_at, source, notes, properties(address, city, owner_name)")
-        .is("next_action_due_at", null)
         .in("status", ["staging", "prospect"])
+        .gte("created_at", twoDaysAgo)
         .order("created_at", { ascending: false })
-        .limit(5);
+        .limit(6);
+      if (error) throw error;
+      setInboundLeads(data ?? []);
+      setInboundError(null);
+    } catch (err) {
+      console.error("[Today] inbound error:", err);
+      setInboundError("Failed to load new inbound leads");
+    }
 
-      const combined: PriorityLead[] = [...(queueLeads ?? []), ...(noDateLeads ?? [])];
-      // Sort: most overdue first, then due today, then upcoming, then no-date new
-      combined.sort((a, b) => {
-        const da = daysDiff(a.next_action_due_at);
-        const db = daysDiff(b.next_action_due_at);
-        // nulls go to end
-        if (da === null && db === null) return 0;
-        if (da === null) return 1;
-        if (db === null) return -1;
-        return da - db;
-      });
-
-      setPriorityLeads(combined.slice(0, 10));
-
-      // --- Recent Activity ---
-      const allowedTypes = ["call", "stage_change", "promote", "offer", "disposition", "lead_created"];
-      // Build OR filter for event_type
-      const orFilter = allowedTypes.map((t) => `action.ilike.%${t}%`).join(",");
+    // Top call-now leads (high priority, active, with a next action)
+    try {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { data: events } = await (supabase.from("event_log") as any)
-        .select("id, action, details, created_at")
-        .or(orFilter)
-        .order("created_at", { ascending: false })
-        .limit(5);
+      const { data, error } = await (supabase.from("leads") as any)
+        .select("id, next_action_due_at, next_call_scheduled_at, next_action, status, priority, created_at, source, notes, properties(address, city, owner_name)")
+        .in("status", ACTIVE_STATUSES)
+        .not("next_action", "is", null)
+        .order("priority", { ascending: false })
+        .limit(6);
+      if (error) throw error;
+      setCallNowLeads(data ?? []);
+      setCallNowError(null);
+    } catch (err) {
+      console.error("[Today] call-now error:", err);
+      setCallNowError("Failed to load priority call queue");
+    }
 
-      setRecentEvents((events as RecentEvent[]) ?? []);
-
-      // --- Stalled Deals ---
-      const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+    // Today's callbacks
+    try {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { data: stalled } = await (supabase.from("leads") as any)
+      const { data, error } = await (supabase.from("leads") as any)
+        .select("id, next_action_due_at, next_call_scheduled_at, next_action, status, priority, created_at, source, notes, properties(address, city, owner_name)")
+        .gte("next_call_scheduled_at", todayStart.toISOString())
+        .lte("next_call_scheduled_at", todayEnd.toISOString())
+        .in("status", ACTIVE_STATUSES)
+        .order("next_call_scheduled_at", { ascending: true })
+        .limit(8);
+      if (error) throw error;
+      setCallbackLeads(data ?? []);
+      setCallbackError(null);
+    } catch (err) {
+      console.error("[Today] callbacks error:", err);
+      setCallbackError("Failed to load today's callbacks");
+    }
+
+    // Stalled dispo
+    try {
+      const twoDaysAgo = new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString();
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data, error } = await (supabase.from("leads") as any)
         .select("id, source, notes, updated_at, properties(address, city, owner_name)")
         .eq("status", "disposition")
-        .lt("updated_at", oneDayAgo)
+        .lt("updated_at", twoDaysAgo)
         .order("updated_at", { ascending: true })
         .limit(5);
-
-      setStalledDeals((stalled as StalledDeal[]) ?? []);
+      if (error) throw error;
+      setStalledDeals(data ?? []);
+      setStalledError(null);
     } catch (err) {
-      console.error("[TodayView] fetch error:", err);
-    } finally {
-      setLoading(false);
+      console.error("[Today] stalled dispo error:", err);
+      setStalledError("Failed to load stalled dispo items");
     }
+
+    // Review blockers
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data, error } = await (supabase.from("review_queue") as any)
+        .select("id, entity_type, status, created_at")
+        .eq("status", "pending")
+        .order("created_at", { ascending: true })
+        .limit(5);
+      if (error) throw error;
+      setReviewBlockers(data ?? []);
+      setReviewError(null);
+    } catch (err) {
+      console.error("[Today] review error:", err);
+      setReviewError("Failed to load review queue");
+    }
+
+    setLoading(false);
   }, [currentUser?.id]);
 
   useEffect(() => {
     fetchAll();
 
-    // Real-time refresh on leads or calls changes
     const channel = supabase
-      .channel("today_view_rt")
+      .channel("today_brief_rt")
       .on("postgres_changes", { event: "*", schema: "public", table: "leads" }, () => fetchAll())
       .on("postgres_changes", { event: "*", schema: "public", table: "calls_log" }, () => fetchAll())
-      .on("postgres_changes", { event: "INSERT", schema: "public", table: "event_log" }, () => fetchAll())
+      .on("postgres_changes", { event: "*", schema: "public", table: "review_queue" }, () => fetchAll())
       .subscribe();
 
     channelRef.current = channel;
@@ -324,270 +327,317 @@ export function TodayView() {
     };
   }, [fetchAll]);
 
-  // ---------- loading skeleton ----------
   if (loading) {
     return (
-      <div className="space-y-6">
+      <div className="space-y-5">
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
           {Array.from({ length: 4 }).map((_, i) => (
-            <Skeleton key={i} className="h-20 rounded-xl bg-muted/40" />
+            <Skeleton key={i} className="h-16 rounded-xl bg-muted/40" />
           ))}
         </div>
-        <Skeleton className="h-64 rounded-xl bg-muted/40" />
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <Skeleton className="h-40 rounded-xl bg-muted/40" />
-          <Skeleton className="h-40 rounded-xl bg-muted/40" />
-        </div>
+        {Array.from({ length: 3 }).map((_, i) => (
+          <Skeleton key={i} className="h-36 rounded-xl bg-muted/40" />
+        ))}
       </div>
     );
   }
 
-  const s = stats ?? { pipelineValue: 0, overdue: 0, dueToday: 0, callsToday: 0 };
-
   return (
-    <div className="space-y-6">
-      {/* ---- Section 1: Business Status Strip ---- */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <StatCard
-          icon={DollarSign}
-          label="Pipeline Value"
-          value={s.pipelineValue > 0 ? `$${(s.pipelineValue / 1000).toFixed(0)}k` : "$0"}
-          accent="text-foreground"
-        />
-        <StatCard
-          icon={AlertTriangle}
-          label="Overdue"
-          value={s.overdue}
-          accent={s.overdue > 0 ? "text-red-400" : "text-muted-foreground"}
-        />
-        <StatCard
-          icon={CalendarCheck}
-          label="Due Today"
-          value={s.dueToday}
-          accent={s.dueToday > 0 ? "text-amber-400" : "text-muted-foreground"}
-        />
-        <StatCard
-          icon={PhoneCall}
-          label="Calls Today"
-          value={s.callsToday}
-          accent="text-primary"
-        />
-      </div>
+    <div className="space-y-5">
+      {/* Status strip */}
+      {statsError ? (
+        <SectionErrorBanner message={statsError} />
+      ) : stats && (
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+          <StatPill
+            icon={AlertTriangle}
+            label="Overdue"
+            value={stats.overdue}
+            color={stats.overdue > 0 ? "text-red-400" : "text-muted-foreground"}
+          />
+          <StatPill
+            icon={Inbox}
+            label="New Inbound"
+            value={stats.newInbound}
+            color={stats.newInbound > 0 ? "text-amber-400" : "text-muted-foreground"}
+          />
+          <StatPill
+            icon={CalendarCheck}
+            label="Due Today"
+            value={stats.dueToday}
+            color={stats.dueToday > 0 ? "text-amber-400" : "text-muted-foreground"}
+          />
+          <StatPill
+            icon={PhoneCall}
+            label="Calls Today"
+            value={stats.callsToday}
+            color="text-primary"
+          />
+        </div>
+      )}
 
-      {/* ---- KPI Summary ---- */}
-      <KpiSummaryRow period="week" />
+      {/* 1. Overdue follow-ups */}
+      <BriefSection
+        icon={AlertTriangle}
+        title="Overdue Follow-ups"
+        iconColor="text-red-400"
+        error={overdueError}
+        count={overdueLeads.length}
+        emptyMessage="No overdue follow-ups"
+        emptyIcon={CheckCircle2}
+      >
+        {overdueLeads.map((lead) => (
+          <LeadRow key={lead.id} lead={lead} />
+        ))}
+        {overdueLeads.length > 0 && (
+          <a
+            href="/leads?filter=overdue"
+            className="flex items-center justify-center gap-1 text-sm text-primary hover:text-primary/80 pt-1 transition-colors"
+          >
+            View all overdue in Lead Queue <ArrowRight className="h-3 w-3" />
+          </a>
+        )}
+      </BriefSection>
 
-      {/* ---- Daily Brief + Missed Opportunities ---- */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <Card className="bg-muted/60 border-border/60">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-semibold flex items-center gap-2">
-              <CalendarCheck className="h-4 w-4 text-primary" />
-              Daily Brief
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <DailyBrief />
-          </CardContent>
-        </Card>
-        <Card className="bg-muted/60 border-border/60">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-semibold flex items-center gap-2">
-              <AlertTriangle className="h-4 w-4 text-primary" />
-              Missed Opportunities
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <MissedOpportunityQueue />
-          </CardContent>
-        </Card>
-      </div>
+      {/* 2. New inbound / awaiting first contact */}
+      <BriefSection
+        icon={Inbox}
+        title="New Inbound — Awaiting First Contact"
+        iconColor="text-amber-400"
+        error={inboundError}
+        count={inboundLeads.length}
+        emptyMessage="No new inbound leads in the last 48 hours"
+        emptyIcon={CheckCircle2}
+      >
+        {inboundLeads.map((lead) => (
+          <LeadRow key={lead.id} lead={lead} showAge />
+        ))}
+        {inboundLeads.length > 0 && (
+          <a
+            href="/leads?filter=new_inbound"
+            className="flex items-center justify-center gap-1 text-sm text-primary hover:text-primary/80 pt-1 transition-colors"
+          >
+            View all new inbound <ArrowRight className="h-3 w-3" />
+          </a>
+        )}
+      </BriefSection>
 
-      {/* ---- Live Map ---- */}
-      <LiveMap />
+      {/* 3. Top call-now leads */}
+      <BriefSection
+        icon={Phone}
+        title="Priority Call Queue"
+        iconColor="text-primary"
+        error={callNowError}
+        count={callNowLeads.length}
+        emptyMessage="No active leads with a pending action"
+        emptyIcon={Activity}
+      >
+        {callNowLeads.map((lead) => (
+          <LeadRow key={lead.id} lead={lead} showScore />
+        ))}
+        {callNowLeads.length > 0 && (
+          <a
+            href="/leads"
+            className="flex items-center justify-center gap-1 text-sm text-primary hover:text-primary/80 pt-1 transition-colors"
+          >
+            Full Lead Queue <ArrowRight className="h-3 w-3" />
+          </a>
+        )}
+      </BriefSection>
 
-      {/* ---- Section 2: Priority Queue ---- */}
-      <Card className="bg-muted/60 border-border/60">
-        <CardHeader className="pb-3">
-          <CardTitle className="text-sm font-semibold flex items-center gap-2">
-            <Clock className="h-4 w-4 text-primary" />
-            Priority Queue
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-1.5">
-          {priorityLeads.length === 0 ? (
-            <div className="text-center py-8 text-sm text-muted-foreground">
-              No leads with pending actions. Add a lead to get started.
-            </div>
-          ) : (
-            <>
-              {priorityLeads.map((lead) => {
-                const diff = daysDiff(effectiveDueDate(lead));
-                const prop = Array.isArray(lead.properties) ? lead.properties[0] : lead.properties;
-                const displayLabel =
-                  prop?.address
-                    ? `${prop.address}${prop.city ? `, ${prop.city}` : ""}`
-                    : prop?.owner_name
-                      ? prop.owner_name
-                      : lead.source || `Lead ${lead.id.slice(0, 8)}`;
-
-                return (
-                  <div
-                    key={lead.id}
-                    className="flex items-center gap-3 p-2.5 rounded-lg hover:bg-white/[0.03] transition-colors group"
-                  >
-                    {/* Urgency dot */}
-                    <div className={cn("h-2.5 w-2.5 rounded-full shrink-0", urgencyDotColor(diff))} />
-
-                    {/* Middle: Source + Why */}
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-semibold truncate">{displayLabel}</p>
-                      <p
-                        className={cn(
-                          "text-sm mt-0.5",
-                          diff !== null && diff <= -3
-                            ? "text-foreground font-medium"
-                            : diff !== null && diff < 0
-                              ? "text-foreground"
-                              : diff === 0
-                                ? "text-foreground"
-                                : "text-muted-foreground"
-                        )}
-                      >
-                        {urgencyText(lead)}
-                      </p>
-                    </div>
-
-                    {/* Right: Priority + Call button */}
-                    <div className="flex items-center gap-2 shrink-0">
-                      {lead.priority !== null && (
-                        <Badge
-                          variant="outline"
-                          className={cn(
-                            "text-sm font-mono tabular-nums",
-                            lead.priority >= 80
-                              ? "border-border/40 text-foreground"
-                              : lead.priority >= 60
-                                ? "border-border/40 text-foreground"
-                                : "border-border text-foreground"
-                          )}
-                        >
-                          {lead.priority}
-                        </Badge>
-                      )}
-                      <Button
-                        size="sm"
-                        className="h-7 text-sm gap-1 opacity-70 group-hover:opacity-100 transition-opacity"
-                        onClick={() => {
-                          window.location.href = `/leads?open=${lead.id}`;
-                        }}
-                      >
-                        <Phone className="h-3 w-3" />
-                        CALL NOW
-                      </Button>
-                    </div>
-                  </div>
-                );
-              })}
-
-              <a
-                href="/leads"
-                className="flex items-center justify-center gap-1 text-sm text-primary hover:text-primary/80 pt-2 transition-colors"
-              >
-                View all in Lead Queue
-                <ArrowRight className="h-3 w-3" />
-              </a>
-            </>
-          )}
-        </CardContent>
-      </Card>
-
-      {/* ---- Bottom row: Activity + Stalled ---- */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {/* ---- Section 3: Recent Activity ---- */}
-        <Card className="bg-muted/60 border-border/60">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-semibold flex items-center gap-2">
-              <Activity className="h-4 w-4 text-primary" />
-              Recent Activity
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-2">
-            {recentEvents.length === 0 ? (
-              <p className="text-xs text-muted-foreground text-center py-4">
-                No recent activity — actions will appear as you work leads.
-              </p>
-            ) : (
-              recentEvents.map((evt) => {
-                const config = eventIcon(evt.action);
-                const Icon = config.icon;
-                const detailText = evt.details && typeof evt.details === "object"
-                  ? (evt.details as Record<string, unknown>).summary as string ?? evt.action
-                  : evt.action;
-                return (
-                  <div key={evt.id} className="flex items-start gap-2.5 py-1">
-                    <div className={cn("mt-0.5 shrink-0", config.color)}>
-                      <Icon className="h-3 w-3" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm leading-tight truncate">
-                        {detailText}
-                      </p>
-                      <p className="text-sm text-muted-foreground">{timeAgo(evt.created_at)}</p>
-                    </div>
-                  </div>
-                );
-              })
-            )}
-          </CardContent>
-        </Card>
-
-        {/* ---- Section 4: Stalled Deals ---- */}
-        <Card className="bg-muted/60 border-border/60">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-semibold flex items-center gap-2">
-              <AlertTriangle className="h-4 w-4 text-foreground" />
-              Stalled Deals
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-2">
-            {stalledDeals.length === 0 ? (
-              <div className="flex items-center gap-2 text-xs text-foreground py-4 justify-center">
-                <CheckCircle2 className="h-4 w-4" />
-                No stalled deals
+      {/* 4. Today's callbacks */}
+      <BriefSection
+        icon={CalendarCheck}
+        title="Today's Callbacks"
+        iconColor="text-emerald-400"
+        error={callbackError}
+        count={callbackLeads.length}
+        emptyMessage="No callbacks scheduled for today"
+        emptyIcon={CalendarCheck}
+      >
+        {callbackLeads.map((lead) => {
+          const time = lead.next_call_scheduled_at
+            ? new Date(lead.next_call_scheduled_at).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })
+            : null;
+          return (
+            <div key={lead.id} className="flex items-center gap-3 p-2.5 rounded-lg hover:bg-white/[0.03] transition-colors group">
+              <div className="h-2.5 w-2.5 rounded-full shrink-0 bg-emerald-500" />
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-semibold truncate">{leadLabel(lead)}</p>
+                <p className="text-sm text-muted-foreground mt-0.5">
+                  {time ? `Callback at ${time}` : lead.next_action || "Follow up"}
+                </p>
               </div>
-            ) : (
-              stalledDeals.map((deal) => {
-                const daysStalled = Math.floor((Date.now() - new Date(deal.updated_at).getTime()) / 86400000);
-                const dealProp = Array.isArray(deal.properties) ? deal.properties[0] : deal.properties;
-                const dealLabel =
-                  dealProp?.address
-                    ? `${dealProp.address}${dealProp.city ? `, ${dealProp.city}` : ""}`
-                    : dealProp?.owner_name
-                      ? dealProp.owner_name
-                      : deal.source || `Lead ${deal.id.slice(0, 8)}`;
-                return (
-                  <button
-                    key={deal.id}
-                    onClick={() => { window.location.href = `/leads?open=${deal.id}`; }}
-                    className="w-full flex items-center justify-between text-left p-2 rounded-lg hover:bg-white/[0.03] transition-colors"
-                  >
-                    <div className="min-w-0">
-                      <p className="text-xs font-medium truncate">{dealLabel}</p>
-                    </div>
-                    <Badge variant="outline" className="text-sm border-border/30 text-foreground shrink-0 ml-2">
-                      {daysStalled}d stalled
-                    </Badge>
-                  </button>
-                );
-              })
+              <Button
+                size="sm"
+                className="h-7 text-sm gap-1 opacity-70 group-hover:opacity-100 transition-opacity"
+                onClick={() => { window.location.href = `/leads?open=${lead.id}`; }}
+              >
+                <Phone className="h-3 w-3" />
+                Open
+              </Button>
+            </div>
+          );
+        })}
+      </BriefSection>
+
+      {/* 5. Stalled dispo blockers */}
+      <BriefSection
+        icon={Ban}
+        title="Stalled Dispo"
+        iconColor="text-amber-400"
+        error={stalledError}
+        count={stalledDeals.length}
+        emptyMessage="No stalled dispo items"
+        emptyIcon={CheckCircle2}
+      >
+        {stalledDeals.map((deal) => {
+          const daysStalled = Math.floor((Date.now() - new Date(deal.updated_at).getTime()) / 86400000);
+          const dealProp = Array.isArray(deal.properties) ? deal.properties[0] : deal.properties;
+          const label = dealProp?.address
+            ? `${dealProp.address}${dealProp.city ? `, ${dealProp.city}` : ""}`
+            : dealProp?.owner_name ?? deal.source ?? `Lead ${deal.id.slice(0, 8)}`;
+          return (
+            <button
+              key={deal.id}
+              onClick={() => { window.location.href = `/leads?open=${deal.id}`; }}
+              className="w-full flex items-center justify-between text-left p-2.5 rounded-lg hover:bg-white/[0.03] transition-colors"
+            >
+              <p className="text-sm font-medium truncate">{label}</p>
+              <Badge variant="outline" className="text-sm border-amber-500/30 text-amber-400 shrink-0 ml-2">
+                {daysStalled}d stalled
+              </Badge>
+            </button>
+          );
+        })}
+      </BriefSection>
+
+      {/* 6. Review blockers */}
+      <BriefSection
+        icon={ShieldAlert}
+        title="Review Blockers"
+        iconColor="text-violet-400"
+        error={reviewError}
+        count={reviewBlockers.length}
+        emptyMessage="No pending review items"
+        emptyIcon={CheckCircle2}
+      >
+        {reviewBlockers.map((item) => (
+          <div key={item.id} className="flex items-center gap-3 p-2.5 rounded-lg hover:bg-white/[0.03] transition-colors">
+            <div className="h-2.5 w-2.5 rounded-full shrink-0 bg-violet-500" />
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium truncate">{item.entity_type ?? "Review item"}</p>
+              <p className="text-sm text-muted-foreground">{timeAgo(item.created_at)}</p>
+            </div>
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-7 text-sm opacity-70 hover:opacity-100"
+              onClick={() => { window.location.href = "/dialer/review/dossier-queue"; }}
+            >
+              Review
+            </Button>
+          </div>
+        ))}
+      </BriefSection>
+    </div>
+  );
+}
+
+function StatPill({ icon: Icon, label, value, color }: {
+  icon: typeof AlertTriangle;
+  label: string;
+  value: number;
+  color: string;
+}) {
+  return (
+    <Card className="bg-muted/40 border-border/40">
+      <CardContent className="flex items-center gap-3 p-3">
+        <Icon className={cn("h-4 w-4 shrink-0", color)} />
+        <div>
+          <p className={cn("text-xl font-bold leading-none tabular-nums", color)}>{value}</p>
+          <p className="text-sm text-muted-foreground mt-0.5">{label}</p>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+function BriefSection({ icon: Icon, title, iconColor, error, count, emptyMessage, emptyIcon, children }: {
+  icon: typeof AlertTriangle;
+  title: string;
+  iconColor: string;
+  error: SectionError;
+  count: number;
+  emptyMessage: string;
+  emptyIcon: typeof CheckCircle2;
+  children: React.ReactNode;
+}) {
+  return (
+    <Card className="bg-muted/40 border-border/40">
+      <CardHeader className="pb-2">
+        <CardTitle className="text-sm font-semibold flex items-center gap-2">
+          <Icon className={cn("h-4 w-4", iconColor)} />
+          {title}
+          {!error && count > 0 && (
+            <Badge variant="outline" className="ml-auto text-sm tabular-nums border-border/40">
+              {count}
+            </Badge>
+          )}
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-1">
+        {error ? (
+          <SectionErrorBanner message={error} />
+        ) : count === 0 ? (
+          <EmptySection icon={emptyIcon} message={emptyMessage} />
+        ) : (
+          children
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+function LeadRow({ lead, showScore, showAge }: { lead: PriorityLead; showScore?: boolean; showAge?: boolean }) {
+  const diff = daysDiff(effectiveDueDate(lead));
+  return (
+    <div className="flex items-center gap-3 p-2.5 rounded-lg hover:bg-white/[0.03] transition-colors group">
+      <div className={cn("h-2.5 w-2.5 rounded-full shrink-0", urgencyDotColor(diff))} />
+      <div className="flex-1 min-w-0">
+        <p className="text-sm font-semibold truncate">{leadLabel(lead)}</p>
+        <p className={cn(
+          "text-sm mt-0.5",
+          diff !== null && diff < 0 ? "text-red-400" : "text-muted-foreground"
+        )}>
+          {showAge ? `${lead.source ?? "Unknown source"} — ${timeAgo(lead.created_at)}` : urgencyText(lead)}
+        </p>
+      </div>
+      <div className="flex items-center gap-2 shrink-0">
+        {showScore && lead.priority !== null && (
+          <Badge
+            variant="outline"
+            className={cn(
+              "text-sm font-mono tabular-nums",
+              lead.priority >= 80 ? "border-red-500/30 text-red-400" :
+              lead.priority >= 60 ? "border-amber-500/30 text-amber-400" :
+              "border-border text-muted-foreground"
             )}
-          </CardContent>
-        </Card>
+          >
+            {lead.priority}
+          </Badge>
+        )}
+        <Button
+          size="sm"
+          className="h-7 text-sm gap-1 opacity-70 group-hover:opacity-100 transition-opacity"
+          onClick={() => { window.location.href = `/leads?open=${lead.id}`; }}
+        >
+          <Phone className="h-3 w-3" />
+          Open
+        </Button>
       </div>
     </div>
   );
 }
 
-/** Backward-compatible export — other files import DashboardGrid */
 export { TodayView as DashboardGrid };

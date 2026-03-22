@@ -9,18 +9,18 @@ import { useSentinelStore } from "@/lib/store";
 import { useModal } from "@/providers/modal-provider";
 
 export default function DashboardPage() {
-  const { currentUser, ghostMode } = useSentinelStore();
+  const { ghostMode } = useSentinelStore();
   const { openModal } = useModal();
 
   return (
     <PageShell
       title="Today"
-      description={`${new Date().toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" })}`}
+      description={new Date().toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" })}
       actions={
         <div className="flex items-center gap-2">
           <Button size="sm" className="gap-2 text-xs" onClick={() => openModal("new-prospect")}>
             <Plus className="h-3 w-3" />
-            Add Lead
+            New Seller Lead
           </Button>
           {ghostMode && (
             <Badge variant="outline" className="text-sm gap-1 border-border/30 text-foreground">

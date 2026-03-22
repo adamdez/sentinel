@@ -371,7 +371,7 @@ export default function OutboundPilotPage() {
             <ChevronRight className="w-3 h-3" /> Trust Language
           </Link>
           <Link href="/dialer/review" className="hover:text-muted-foreground flex items-center gap-1 transition-colors">
-            <ChevronRight className="w-3 h-3" /> Dialer Review
+            <ChevronRight className="w-3 h-3" /> Review Console
           </Link>
         </div>
 

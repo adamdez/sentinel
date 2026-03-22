@@ -470,7 +470,7 @@ export function GlobalSearch() {
             if (!open) setOpen(true);
           }}
           onKeyDown={handleKeyDown}
-          placeholder="Search anything in Sentinel..."
+          placeholder="Find lead, address, APN, or phone..."
           className="flex-1 bg-transparent outline-none text-sm placeholder:text-muted-foreground"
         />
         {query ? (

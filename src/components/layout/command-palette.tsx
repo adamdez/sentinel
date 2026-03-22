@@ -7,8 +7,6 @@ import { motion, AnimatePresence } from "framer-motion";
 import {
   LayoutDashboard,
   Phone,
-  Mail,
-  Calendar,
   Users,
   Contact,
   BarChart3,
@@ -17,8 +15,6 @@ import {
   Search,
   Zap,
   FileSignature,
-  Megaphone,
-  DollarSign,
   Home,
   MapPin,
   ArrowRight,
@@ -55,19 +51,26 @@ interface DataResult {
 type SearchResult = NavCommand | DataResult;
 
 const NAV_COMMANDS: NavCommand[] = [
-  { kind: "nav", label: "Dashboard", href: "/dashboard", icon: LayoutDashboard, group: "Pages" },
-  { kind: "nav", label: "Leads", href: "/leads", icon: Users, group: "Pages" },
-  { kind: "nav", label: "Pipeline", href: "/pipeline", icon: Zap, group: "Pages" },
-  { kind: "nav", label: "Dialer", href: "/dialer", icon: Phone, group: "Pages" },
-  { kind: "nav", label: "Buyers", href: "/buyers", icon: Contact, group: "Pages" },
-  { kind: "nav", label: "Dispo Board", href: "/dispo", icon: FileSignature, group: "Pages" },
-  { kind: "nav", label: "Tasks", href: "/tasks", icon: Calendar, group: "Pages" },
-  { kind: "nav", label: "Review Queue", href: "/dialer/review/dossier-queue", icon: Search, group: "Pages" },
-  { kind: "nav", label: "Property Lookup", href: "/properties/lookup", icon: MapPin, group: "Pages" },
-  { kind: "nav", label: "Ads", href: "/ads", icon: Home, group: "Pages" },
-  { kind: "nav", label: "Analytics", href: "/analytics", icon: BarChart3, group: "Pages" },
-  { kind: "nav", label: "Settings", href: "/settings", icon: Settings, group: "Pages" },
-  { kind: "nav", label: "Import", href: "/admin/import", icon: Upload, group: "Pages" },
+  { kind: "nav", label: "Today", href: "/dashboard", icon: LayoutDashboard, group: "Core" },
+  { kind: "nav", label: "Lead Queue", href: "/leads", icon: Users, group: "Core" },
+  { kind: "nav", label: "Dialer", href: "/dialer", icon: Phone, group: "Core" },
+  { kind: "nav", label: "Dispo", href: "/dispo", icon: FileSignature, group: "Core" },
+  { kind: "nav", label: "Pipeline", href: "/pipeline", icon: Zap, group: "Core" },
+  { kind: "nav", label: "Property Research", href: "/properties/lookup", icon: MapPin, group: "Tools" },
+  { kind: "nav", label: "Buyers", href: "/buyers", icon: Contact, group: "Tools" },
+  { kind: "nav", label: "Ads", href: "/ads", icon: Home, group: "Tools" },
+  { kind: "nav", label: "Research Review", href: "/dialer/review/dossier-queue", icon: Search, group: "Review" },
+  { kind: "nav", label: "Call QA", href: "/dialer/qa", icon: Search, group: "Review" },
+  { kind: "nav", label: "Call Review", href: "/dialer/war-room", icon: Phone, group: "Review" },
+  { kind: "nav", label: "Review Console", href: "/dialer/review", icon: BarChart3, group: "Review" },
+  { kind: "nav", label: "AI Evals", href: "/dialer/review/eval", icon: Search, group: "Review" },
+  { kind: "nav", label: "Analytics", href: "/analytics", icon: BarChart3, group: "Admin" },
+  { kind: "nav", label: "Settings", href: "/settings", icon: Settings, group: "Admin" },
+  { kind: "nav", label: "Prompt Registry", href: "/settings/prompt-registry", icon: Settings, group: "Admin" },
+  { kind: "nav", label: "Voice Registry", href: "/settings/voice-registry", icon: Settings, group: "Admin" },
+  { kind: "nav", label: "Source Policies", href: "/settings/source-policies", icon: Settings, group: "Admin" },
+  { kind: "nav", label: "Agent Controls", href: "/settings/agent-controls", icon: Settings, group: "Admin" },
+  { kind: "nav", label: "Import", href: "/admin/import", icon: Upload, group: "Admin" },
 ];
 
 
@@ -154,7 +157,7 @@ export function CommandPalette() {
             id: lead?.id ?? p.id,
             primary: p.owner_name ?? "Unknown",
             secondary: [p.address, p.city, p.state, p.apn].filter(Boolean).join(", "),
-            href: isProspect ? "/sales-funnel/prospects" : "/leads",
+            href: lead?.id ? `/leads?open=${lead.id}` : "/leads",
             score: score > 0 ? score : undefined,
             scoreLabel: score > 0 ? label as DataResult["scoreLabel"] : undefined,
             status: lead?.status ?? "prospect",
@@ -223,7 +226,7 @@ export function CommandPalette() {
               <div className="flex items-center border-b border-glass-border px-3">
                 <Search className="mr-2 h-4 w-4 shrink-0 text-primary/70" />
                 <Command.Input
-                  placeholder="Search owners, addresses, APNs, contacts, pages..."
+                  placeholder="Find lead, address, APN, or phone..."
                   className="flex h-12 w-full bg-transparent py-3 text-sm outline-none placeholder:text-muted-foreground"
                   value={query}
                   onValueChange={setQuery}
@@ -246,7 +249,7 @@ export function CommandPalette() {
 
                 {prospects.length > 0 && (
                   <Command.Group
-                    heading="Prospects"
+                    heading="Leads"
                     className="[&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:py-1.5 [&_[cmdk-group-heading]]:text-sm [&_[cmdk-group-heading]]:font-semibold [&_[cmdk-group-heading]]:text-primary/70 [&_[cmdk-group-heading]]:uppercase [&_[cmdk-group-heading]]:tracking-wider"
                   >
                     {prospects.map((r) => (

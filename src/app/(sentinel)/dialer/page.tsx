@@ -1335,7 +1335,7 @@ function DialerPageInner() {
   return (
     <PageShell
       title="Dialer"
-      description="AI-prioritized, compliance-gated, Twilio-powered calling"
+      description="Call workspace — prepare, call, close out"
       actions={
         <div className="flex items-center gap-2">
           {ghostMode && (
@@ -1509,15 +1509,12 @@ function DialerPageInner() {
       </AnimatePresence>
 
       {/* ── Quick Manual Dial ─────────────────────────────────────────── */}
-      <GlassCard hover={false} glow className="!p-4 mb-4">
-        <div className="flex items-center gap-2 mb-3">
-          <div className="h-7 w-7 rounded-[8px] flex items-center justify-center bg-primary/12" style={{ boxShadow: "0 0 12px rgba(0,0,0,0.15)" }}>
-            <Phone className="h-3.5 w-3.5 text-primary" />
-          </div>
+      <GlassCard hover={false} className="!p-3 mb-3">
+        <div className="flex items-center gap-2 mb-2">
+          <Phone className="h-3 w-3 text-muted-foreground" />
           <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-            Quick Manual Dial
+            Manual Dial
           </h2>
-          <Badge variant="cyan" className="text-xs ml-auto">Dominion Homes Caller ID</Badge>
         </div>
 
         <div className="flex items-center gap-3">
@@ -1529,7 +1526,7 @@ function DialerPageInner() {
                 setManualPhone(raw.slice(0, 10));
               }}
               placeholder="(509) 555-1234"
-              className="text-lg font-mono tracking-wide bg-white/[0.03] border-white/[0.06] focus:border-primary/30 focus:ring-ring/10 h-12 pr-24"
+              className="text-sm font-mono tracking-wide bg-white/[0.03] border-white/[0.06] focus:border-primary/30 focus:ring-ring/10 h-9 pr-24"
               onKeyDown={(e) => {
                 if (e.key === "Enter" && manualStatus === "idle") {
                   e.preventDefault();
@@ -1552,11 +1549,10 @@ function DialerPageInner() {
               <Button
                 onClick={handleManualDial}
                 disabled={manualDialing || manualPhone.length < 10}
-                className="gap-2 h-12 px-6 bg-primary/15 hover:bg-primary/25 text-primary border border-primary/25 text-sm font-semibold"
-                style={{ boxShadow: "0 0 20px rgba(0,0,0,0.1)" }}
+                className="gap-1.5 h-9 px-4 bg-primary/15 hover:bg-primary/25 text-primary border border-primary/25 text-xs font-semibold"
               >
-                {manualDialing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Phone className="h-4 w-4" />}
-                Dial Now
+                {manualDialing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Phone className="h-3.5 w-3.5" />}
+                Dial
               </Button>
               <Button
                 onClick={() => {
@@ -1568,20 +1564,19 @@ function DialerPageInner() {
                 }}
                 disabled={manualPhone.length < 10}
                 variant="outline"
-                className="gap-2 h-12 px-6 border-border text-foreground hover:bg-muted text-sm font-semibold"
-                style={{ boxShadow: "0 0 16px rgba(0,0,0,0.08)" }}
+                className="gap-1.5 h-9 px-4 border-border text-foreground hover:bg-muted text-xs font-semibold"
               >
-                <MessageSquare className="h-4 w-4" />
-                Send Text
+                <MessageSquare className="h-3.5 w-3.5" />
+                Text
               </Button>
             </>
           ) : (
             <Button
               onClick={handleManualHangup}
               variant="destructive"
-              className="gap-2 h-12 px-6 text-sm font-semibold"
+              className="gap-1.5 h-9 px-4 text-xs font-semibold"
             >
-              <PhoneOff className="h-4 w-4" />
+              <PhoneOff className="h-3.5 w-3.5" />
               End
             </Button>
           )}
@@ -1648,17 +1643,26 @@ function DialerPageInner() {
         )}
       </GlassCard>
 
-      <div className="grid grid-cols-3 md:grid-cols-6 gap-3">
-        {kpiKeys.map((k) => (
-          <KpiCard key={k} kpiKey={k} value={stats[k]} loading={statsLoading} onClick={() => setActiveKpi(k)} />
-        ))}
+      {/* Compact KPI summary — click any stat for detail */}
+      <div className="flex items-center gap-4 px-3 py-1.5 rounded-[10px] border border-white/[0.06] bg-white/[0.02] text-xs text-muted-foreground mb-3">
+        {kpiKeys.slice(0, 4).map((k) => {
+          const meta = KPI_META[k];
+          const display = meta.format ? meta.format(stats[k]) : stats[k];
+          return (
+            <button key={k} onClick={() => setActiveKpi(k)} className="flex items-center gap-1.5 hover:text-foreground transition-colors">
+              <meta.icon className="h-3 w-3" />
+              <span className="font-medium text-foreground/80">{statsLoading ? "—" : display}</span>
+              <span className="uppercase tracking-wider text-muted-foreground/50">{meta.label}</span>
+            </button>
+          );
+        })}
       </div>
 
       {activeKpi && (
         <StatDetailModal kpiKey={activeKpi} userId={currentUser.id} onClose={() => setActiveKpi(null)} />
       )}
 
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 mt-4">
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
         <div className="lg:col-span-3">
           <GlassCard hover={false} className="!p-3">
             <div className="flex items-center justify-between mb-3">
@@ -1674,8 +1678,8 @@ function DialerPageInner() {
                 Refresh
               </button>
             </div>
-            <p className="text-sm text-muted-foreground/60 mb-2">
-              Ordered for today: overdue and due follow-up first, then unscheduled owner work.
+            <p className="text-sm text-muted-foreground/50 mb-2">
+              Overdue first, then due today, then unscheduled.
             </p>
 
             {queueLoading ? (
@@ -1687,12 +1691,12 @@ function DialerPageInner() {
             ) : queue.length === 0 ? (
               <div className="text-center py-6 space-y-3">
                 <Phone className="h-6 w-6 mx-auto text-muted-foreground/20" />
-                <p className="text-xs text-muted-foreground/50">No leads ready — go to Prospects and claim some</p>
-                <a href="/sales-funnel/prospects">
+                <p className="text-xs text-muted-foreground/50">No leads queued — add or claim leads from the Lead Queue</p>
+                <a href="/leads">
                   <button className="px-5 py-2 rounded-[10px] text-xs font-bold text-primary bg-primary/[0.10] border border-primary/25
                     hover:bg-primary/[0.18] hover:border-primary/35 shadow-[0_0_14px_rgba(0,0,0,0.08)]
                     hover:shadow-[0_0_22px_rgba(0,0,0,0.16)] transition-all">
-                    Go to Prospects — Claim Leads
+                    Go to Lead Queue
                   </button>
                 </a>
                 <p className="text-sm text-muted-foreground/60">Claimed leads appear here automatically</p>
@@ -1884,118 +1888,77 @@ function DialerPageInner() {
 
                     {dialerContext && (
                       <div className="rounded-[10px] bg-white/[0.03] border border-white/[0.06] p-2.5 space-y-2">
-                        <div className="flex flex-wrap items-center gap-1.5">
-                          <Badge variant="outline" className="text-xs px-1.5 py-0 border-primary/20 text-primary/80">
-                            Stage: {dialerContext.stage}
-                          </Badge>
-                          <Badge variant="outline" className="text-xs px-1.5 py-0 border-white/[0.14]">
-                            Route: {dialerContext.route}
-                          </Badge>
-                          <Badge variant="outline" className="text-xs px-1.5 py-0 border-border/20 text-foreground">
-                            Next: {dialerContext.nextActionLabel}
-                          </Badge>
-                          <Badge variant="outline" className="text-xs px-1.5 py-0 border-white/[0.14]">
-                            Due: {dialerContext.dueText}
-                          </Badge>
+                        {/* Compact context line */}
+                        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
+                          <span><span className="text-foreground font-medium">{dialerContext.stage}</span></span>
+                          <span className="text-muted-foreground/30">·</span>
+                          <span>Next: <span className="text-foreground font-medium">{dialerContext.nextActionLabel}</span></span>
+                          <span className="text-muted-foreground/30">·</span>
+                          <span className={dialerContext.dueText === "Overdue" ? "text-red-400 font-medium" : ""}>Due: {dialerContext.dueText}</span>
+                          {dialerContext.qualificationGaps > 0 && (
+                            <>
+                              <span className="text-muted-foreground/30">·</span>
+                              <span className="text-amber-400">{dialerContext.qualificationGaps} qual gap{dialerContext.qualificationGaps === 1 ? "" : "s"}</span>
+                            </>
+                          )}
+                          {dialerContext.motivationLevel != null && (
+                            <>
+                              <span className="text-muted-foreground/30">·</span>
+                              <span>Motivation: <span className="text-foreground font-medium">{dialerContext.motivationLevel}/5</span></span>
+                            </>
+                          )}
+                          {dialerContext.sellerTimeline && dialerContext.sellerTimeline !== "unknown" && (
+                            <>
+                              <span className="text-muted-foreground/30">·</span>
+                              <span>Timeline: <span className="text-foreground font-medium">{TIMELINE_SHORT[dialerContext.sellerTimeline] ?? dialerContext.sellerTimeline}</span></span>
+                            </>
+                          )}
                         </div>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-1.5 text-sm text-muted-foreground/85">
-                          <p>
-                            Qualification:{" "}
-                            <span className="text-foreground font-medium">
-                              {dialerContext.qualificationScore != null
-                                ? `${dialerContext.qualificationScore}/35`
-                                : "Not scored"}
-                            </span>{" "}
-                            · {dialerContext.qualificationGaps} gap{dialerContext.qualificationGaps === 1 ? "" : "s"}
-                            {dialerContext.motivationLevel != null && (
-                              <> · Motivation: <span className="text-foreground font-medium">{dialerContext.motivationLevel}/5</span></>
-                            )}
-                          </p>
-                          <p>
-                            {dialerContext.sellerTimeline && dialerContext.sellerTimeline !== "unknown" ? (
-                              <>Timeline: <span className="text-foreground font-medium">{TIMELINE_SHORT[dialerContext.sellerTimeline] ?? dialerContext.sellerTimeline}</span> · </>
-                            ) : null}
-                            Outcome:{" "}
-                            <span className="text-foreground font-medium capitalize">{dialerContext.recentOutcome}</span>
-                            {dialerContext.lastContactAt && (
-                              <> · <span className="text-muted-foreground/50">{relativeAge(dialerContext.lastContactAt)}</span></>
-                            )}
-                          </p>
-                        </div>
-                        <p className="text-sm text-muted-foreground/80">
-                          Latest note: <span className="text-foreground/90">{dialerContext.notePreview}</span>
+                        {/* Last outcome + note */}
+                        <p className="text-xs text-muted-foreground/70">
+                          Last: <span className="text-foreground/80 capitalize">{dialerContext.recentOutcome}</span>
+                          {dialerContext.lastContactAt && <> · {relativeAge(dialerContext.lastContactAt)}</>}
+                          {dialerContext.notePreview !== "No recent note" && (
+                            <> — <span className="text-foreground/70">{dialerContext.notePreview}</span></>
+                          )}
                         </p>
-                        <div className="space-y-1">
-                          {dialerContext.assistPrompts.map((prompt, idx) => (
-                            <p key={idx} className="text-sm text-primary/85">
-                              • {prompt}
-                            </p>
-                          ))}
-                        </div>
-                        <Button
-                          variant="outline"
-                          className="w-full mt-1 gap-2 border-primary/25 text-primary hover:bg-primary/10"
-                          onClick={() => setFileModalOpen(true)}
-                        >
-                          <Eye className="h-3.5 w-3.5" />
-                          Open Lead Detail to close out
-                        </Button>
+                        {/* Call assist prompts — compact */}
+                        {dialerContext.assistPrompts.length > 0 && (
+                          <div className="space-y-0.5">
+                            {dialerContext.assistPrompts.map((prompt, idx) => (
+                              <p key={idx} className="text-xs text-primary/80">→ {prompt}</p>
+                            ))}
+                          </div>
+                        )}
                       </div>
                     )}
 
-                    <div className="grid grid-cols-3 gap-2">
-                      {[
-                        { label: "Phone", value: currentLead.properties?.owner_phone ?? "—", mono: true },
-                        { label: "ARV", value: currentLead.properties?.estimated_value ? `$${currentLead.properties.estimated_value.toLocaleString()}` : "—" },
-                        { label: "Equity", value: currentLead.properties?.equity_percent != null ? `${currentLead.properties.equity_percent}%` : "—" },
-                      ].map((item) => (
-                        <div key={item.label} className="rounded-[10px] bg-white/[0.03] border border-white/[0.04] p-2.5">
-                          <p className="text-sm text-muted-foreground/60 uppercase">{item.label}</p>
-                          <p className={`text-sm font-medium ${item.mono ? "font-mono" : ""}`}>{item.value}</p>
-                        </div>
-                      ))}
-                      <div className="rounded-[10px] bg-white/[0.03] border border-white/[0.04] p-2.5">
-                        <p className="text-sm text-muted-foreground/60 uppercase">Owed</p>
-                        <p className="text-sm font-medium">
-                          {(currentLead.properties as any)?.total_loan_balance
-                            ? `$${Number((currentLead.properties as any).total_loan_balance).toLocaleString()}`
-                            : (currentLead.properties as any)?.owner_flags?.is_free_clear ? "Free & Clear" : "—"}
-                        </p>
+                    {/* Compact property vitals — single block instead of 9 tiles */}
+                    <div className="rounded-[10px] bg-white/[0.03] border border-white/[0.06] px-3 py-2">
+                      <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs">
+                        <span className="font-mono text-foreground">{currentLead.properties?.owner_phone ?? "No phone"}</span>
+                        <span className="text-muted-foreground/40">|</span>
+                        <span>ARV <span className="text-foreground font-medium">{currentLead.properties?.estimated_value ? `$${currentLead.properties.estimated_value.toLocaleString()}` : "—"}</span></span>
+                        <span>Equity <span className="text-foreground font-medium">{currentLead.properties?.equity_percent != null ? `${currentLead.properties.equity_percent}%` : "—"}</span></span>
+                        {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
+                        <span>Owed <span className="text-foreground font-medium">{(currentLead.properties as any)?.total_loan_balance ? `$${Number((currentLead.properties as any).total_loan_balance).toLocaleString()}` : (currentLead.properties as any)?.owner_flags?.is_free_clear ? "Free & Clear" : "—"}</span></span>
+                        <span className="text-muted-foreground/40">|</span>
+                        {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
+                        <span>{(currentLead.properties as any)?.bedrooms ?? "—"}bd/{(currentLead.properties as any)?.bathrooms ?? "—"}ba</span>
+                        {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
+                        <span>{(currentLead.properties as any)?.sqft?.toLocaleString() ?? "—"} sqft</span>
+                        {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
+                        <span>Built {(currentLead.properties as any)?.year_built ?? "—"}</span>
                       </div>
-                      <div className="rounded-[10px] bg-white/[0.03] border border-white/[0.04] p-2.5">
-                        <p className="text-sm text-muted-foreground/60 uppercase">Bed/Bath</p>
-                        <p className="text-sm font-medium">
-                          {(currentLead.properties as any)?.bedrooms ?? "—"} / {(currentLead.properties as any)?.bathrooms ?? "—"}
-                        </p>
-                      </div>
-                      <div className="rounded-[10px] bg-white/[0.03] border border-white/[0.04] p-2.5">
-                        <p className="text-sm text-muted-foreground/60 uppercase">Distress</p>
-                        <div className="flex flex-wrap gap-1 mt-0.5">
-                          {(currentLead.tags ?? []).slice(0, 3).map((t) => (
-                            <span key={t} className="text-xs px-1.5 py-0.5 rounded-[6px] bg-muted/[0.08] text-foreground border border-border/15">
-                              {t}
+                      {(currentLead.tags ?? []).length > 0 && (
+                        <div className="flex flex-wrap gap-1 mt-1.5">
+                          {currentLead.tags.slice(0, 4).map((t) => (
+                            <span key={t} className="text-xs px-1.5 py-0 rounded-[5px] bg-muted/[0.08] text-foreground/80 border border-border/15">
+                              {t.replace(/_/g, " ")}
                             </span>
                           ))}
-                          {(!currentLead.tags || currentLead.tags.length === 0) && (
-                            <span className="text-sm text-muted-foreground/55">—</span>
-                          )}
                         </div>
-                      </div>
-                    </div>
-
-                    <div className="grid grid-cols-3 gap-2">
-                      <div className="rounded-[10px] bg-white/[0.03] border border-white/[0.04] p-2.5">
-                        <p className="text-sm text-muted-foreground/60 uppercase">SqFt</p>
-                        <p className="text-sm font-medium">{(currentLead.properties as any)?.sqft?.toLocaleString() ?? "—"}</p>
-                      </div>
-                      <div className="rounded-[10px] bg-white/[0.03] border border-white/[0.04] p-2.5">
-                        <p className="text-sm text-muted-foreground/60 uppercase">Year Built</p>
-                        <p className="text-sm font-medium">{(currentLead.properties as any)?.year_built ?? "—"}</p>
-                      </div>
-                      <div className="rounded-[10px] bg-white/[0.03] border border-white/[0.04] p-2.5">
-                        <p className="text-sm text-muted-foreground/60 uppercase">Lot</p>
-                        <p className="text-sm font-medium">{(currentLead.properties as any)?.lot_size?.toLocaleString() ?? "—"}</p>
-                      </div>
+                      )}
                     </div>
 
                     {/* Pre-Call Intelligence Brief */}
@@ -2092,11 +2055,10 @@ function DialerPageInner() {
                           <Button
                             onClick={() => handleDial()}
                             disabled={!currentLead.compliant && !ghostMode}
-                            className="flex-1 gap-2 bg-primary/15 hover:bg-primary/25 text-primary border border-primary/25"
+                            className="flex-1 gap-2 bg-primary hover:bg-primary/90 text-primary-foreground font-semibold shadow-sm"
                           >
                             <Phone className="h-4 w-4" />
-                            Dial {currentLead.properties?.owner_phone ? "" : "(No Phone)"}
-                            <span className="text-sm opacity-50 ml-1">Enter</span>
+                            {currentLead.properties?.owner_phone ? "Call Now" : "No Phone"}
                           </Button>
                           <Button
                             onClick={() => {
@@ -2134,28 +2096,22 @@ function DialerPageInner() {
                           </Button>
                           <Button
                             variant="destructive"
-                            className="flex-1 gap-2"
+                            className="flex-1 gap-2 font-semibold"
                             onClick={handleHangup}
                           >
                             <PhoneOff className="h-4 w-4" />
-                            Hang Up
-                            <span className="text-sm opacity-50 ml-1">Esc</span>
+                            End Call
                           </Button>
                         </>
                       )}
                       {callState === "ended" && (
-                        <div className="flex-1 text-center text-sm text-muted-foreground/60 py-2">
-                          Call ended — {timer.formatted} — select disposition below
+                        <div className="flex-1 rounded-[8px] border border-amber-500/20 bg-amber-500/[0.04] text-center text-xs text-amber-300 font-medium py-2.5">
+                          Call ended — {timer.formatted} — complete closeout before moving on
                         </div>
                       )}
                     </div>
 
-                    {callState === "idle" && (
-                      <p className="text-sm text-muted-foreground/55 flex items-center gap-1.5 pt-1">
-                        <Wifi className="h-3 w-3 text-primary/40" />
-                        VoIP call via browser — Caller ID: Dominion Homes
-                      </p>
-                    )}
+                    {false /* VoIP hint removed — shown in header badge instead */}
 
                     {/* Inline SMS compose for lead card */}
                     {leadSmsOpen && callState === "idle" && currentLead.properties?.owner_phone && (
@@ -2200,8 +2156,8 @@ function DialerPageInner() {
                 {(callState === "connected" || callState === "ended" || liveNotes.length > 0) && (
                   <GlassCard hover={false} className="!p-3 mt-3 border-primary/10">
                     <div className="flex items-center gap-1.5 mb-2">
-                      <Zap className="h-3 w-3 text-primary" />
-                      <p className="text-sm font-semibold uppercase tracking-wider text-primary/80">AI Live Notes</p>
+                      <Zap className="h-3 w-3 text-primary/60" />
+                      <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Live Notes</p>
                       {callState === "connected" && (
                         <span className="ml-auto flex items-center gap-1 text-xs text-primary/50">
                           <span className="h-1.5 w-1.5 rounded-full bg-primary animate-pulse" />
@@ -2283,8 +2239,8 @@ function DialerPageInner() {
           {currentLead && latestSummary && (
             <GlassCard hover={false} className="!p-3 mb-3">
               <div className="flex items-center gap-1.5 mb-2">
-                <Sparkles className="h-3 w-3 text-foreground" />
-                <span className="text-sm font-semibold uppercase tracking-wider text-foreground/80">AI Call Summary</span>
+                <Sparkles className="h-3 w-3 text-muted-foreground" />
+                <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Last Call Summary</span>
                 {latestSummaryTime && (
                   <span className="text-xs text-muted-foreground/40 ml-auto">
                     {new Date(latestSummaryTime).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
@@ -2352,15 +2308,13 @@ function DialerPageInner() {
 
                     <Button
                       variant="outline"
-                      className="w-full mb-2.5 gap-2 border-primary/25 text-primary hover:bg-primary/10"
+                      size="sm"
+                      className="w-full mb-2.5 gap-2 border-white/12 text-muted-foreground hover:text-foreground hover:bg-white/[0.04]"
                       onClick={() => setFileModalOpen(true)}
                     >
-                      <Eye className="h-3.5 w-3.5" />
-                      Open Lead Detail to close out
+                      <Eye className="h-3 w-3" />
+                      Open Lead Detail
                     </Button>
-                    <p className="text-sm text-muted-foreground/65 mb-3">
-                      Use Lead Detail for call closeout saves; Dialer here is context + handoff only.
-                    </p>
 
                     <div className="grid grid-cols-1 gap-1.5">
                       {DISPOSITIONS.map((d) => {
@@ -2399,17 +2353,15 @@ function DialerPageInner() {
                   </GlassCard>
                 )}
 
-                <GlassCard glow hover={false} className="!p-4 mt-3 text-center">
-                  <Clock className="h-5 w-5 mx-auto mb-1 text-primary" />
-                  <p className="text-3xl font-semibold font-mono tracking-wider text-foreground">
-                    {timer.formatted}
-                  </p>
-                  <p className="text-sm text-muted-foreground/60 mt-1 uppercase">
-                    {callState === "dialing" ? "Ringing..." :
-                     callState === "connected" ? "Live Call" :
-                     "Call Ended"}
-                  </p>
-                </GlassCard>
+                <div className="mt-3 flex items-center justify-center gap-2 px-3 py-2 rounded-[10px] border border-white/[0.06] bg-white/[0.02]">
+                  <Clock className="h-3.5 w-3.5 text-muted-foreground" />
+                  <span className="text-sm font-mono font-medium text-foreground">{timer.formatted}</span>
+                  <span className="text-xs text-muted-foreground/50 uppercase">
+                    {callState === "dialing" ? "Ringing" :
+                     callState === "connected" ? "Live" :
+                     "Ended"}
+                  </span>
+                </div>
               </motion.div>
             ) : (
               <motion.div

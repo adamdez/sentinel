@@ -1,14 +1,18 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef } from "react";
-import { AlertCircle, BarChart3, Clock3, DollarSign, Loader2, MapPinned, Radio, RotateCcw, Shield, TrendingUp, Users } from "lucide-react";
+import { useState, useEffect, useCallback, useRef, useMemo } from "react";
+import Link from "next/link";
+import {
+  AlertCircle, AlertTriangle, BarChart3, Clock3, DollarSign,
+  Loader2, MapPinned, RotateCcw, Shield, TrendingUp, TrendingDown,
+  Users, Zap, ArrowRight, ChevronDown,
+} from "lucide-react";
 import { PageShell } from "@/components/sentinel/page-shell";
 import { GlassCard } from "@/components/sentinel/glass-card";
 import { Badge } from "@/components/ui/badge";
 import { useAnalytics } from "@/hooks/use-analytics";
-import { KpiSummaryRow } from "@/components/sentinel/kpi-summary-row";
 import { formatCurrency, formatMinutes, formatPercent, type TimePeriod } from "@/lib/analytics";
-import { useSentinelStore } from "@/lib/store";
+import type { MarketScoreRow, SourceOutcomeRow, PipelineHealthRow } from "@/lib/analytics";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/lib/supabase";
 
@@ -19,11 +23,11 @@ const PERIODS: { key: TimePeriod; label: string }[] = [
   { key: "all", label: "All Time" },
 ];
 
-export default function AnalyticsPage() {
-  const { currentUser } = useSentinelStore();
-  const { period, setPeriod, data, conversionSnapshot, loading, error, refetch } = useAnalytics();
+// ── Main Page ────────────────────────────────────────────────────────────────
 
-  // Timeout: if still loading after 10 seconds, show error
+export default function AnalyticsPage() {
+  const { period, setPeriod, data, loading, error, refetch } = useAnalytics();
+
   const [timedOut, setTimedOut] = useState(false);
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => {
@@ -44,59 +48,58 @@ export default function AnalyticsPage() {
   const speed = data?.speedToLead;
   const revenue = data?.revenue;
 
-  const unknownCountyLeads = marketScoreboard.find((row) => row.market === "other")?.totalLeads ?? 0;
-  const unknownSourceLeads = sourceOutcomes.find((row) => row.sourceKey === "unknown")?.leads ?? 0;
-  const awaitingFirstContact = marketScoreboard.reduce((sum, row) => sum + row.awaitingFirstContact, 0);
+  const spokane = marketScoreboard.find((r) => r.market === "spokane");
+  const kootenai = marketScoreboard.find((r) => r.market === "kootenai");
 
-  const speedSamples = speed?.sampleCount ?? 0;
-  const estimatedSpeedSamples = speed?.estimatedSampleCount ?? 0;
-  const snapshotCount = conversionSnapshot?.snapshotCount ?? 0;
+  const totalNewLeads = marketScoreboard.reduce((s, r) => s + r.newLeads, 0);
+  const totalActive = marketScoreboard.reduce((s, r) => s + r.activePipeline, 0);
+  const totalOverdue = marketScoreboard.reduce((s, r) => s + r.overdueFollowUps, 0);
+  const totalAwaiting = marketScoreboard.reduce((s, r) => s + r.awaitingFirstContact, 0);
   const closedDeals = revenue?.closedDeals ?? 0;
-  const undatedClosedDealsExcluded = revenue?.undatedClosedDealsExcluded ?? 0;
+  const totalRevenue = revenue?.assignmentRevenue ?? 0;
 
-  const dataNotes: string[] = [];
-  if (unknownCountyLeads > 0) {
-    dataNotes.push(`${unknownCountyLeads} lead(s) are grouped under Unknown/Other county because county is missing or outside Spokane/Kootenai.`);
-  }
-  if (unknownSourceLeads > 0) {
-    dataNotes.push(`${unknownSourceLeads} lead(s) are grouped under Uncategorized / Unknown source.`);
-  }
-  if (awaitingFirstContact > 0) {
-    dataNotes.push(`${awaitingFirstContact} lead(s) still have no logged first contact attempt.`);
-  }
-  if (speedSamples === 0) {
-    dataNotes.push("No first response samples are available for this period yet.");
-  } else if (estimatedSpeedSamples > 0) {
-    dataNotes.push(`${estimatedSpeedSamples} of ${speedSamples} speed-to-lead sample(s) use last_contact_at fallback (estimated).`);
-  }
-  if (snapshotCount === 0) {
-    dataNotes.push("Conversion snapshots are not available yet; snapshot context is incomplete for this period.");
-  }
-  if (closedDeals === 0) {
-    dataNotes.push("No closed deals are recorded in this period.");
-  }
-  if (undatedClosedDealsExcluded > 0) {
-    dataNotes.push(`${undatedClosedDealsExcluded} closed deal(s) were excluded because closed_at is missing.`);
-  }
+  const sortedSources = useMemo(() =>
+    [...sourceOutcomes].sort((a, b) => {
+      if (b.assignmentRevenue !== a.assignmentRevenue) return b.assignmentRevenue - a.assignmentRevenue;
+      if (b.closedDeals !== a.closedDeals) return b.closedDeals - a.closedDeals;
+      return b.leads - a.leads;
+    }),
+  [sourceOutcomes]);
+
+  const topSource = sortedSources.length > 0 ? sortedSources[0] : null;
+
+  const watchOuts = useMemo(() => {
+    const items: Array<{ text: string; severity: "warn" | "info"; href?: string }> = [];
+    if (totalOverdue > 0) items.push({ text: `${totalOverdue} overdue follow-up${totalOverdue !== 1 ? "s" : ""} need attention`, severity: "warn", href: "/tasks" });
+    if (totalAwaiting > 3) items.push({ text: `${totalAwaiting} leads still awaiting first contact`, severity: "warn", href: "/leads?filter=new_inbound" });
+    if (speed && speed.slowOrMissingCount > 2) items.push({ text: `${speed.slowOrMissingCount} leads with slow or missing first response`, severity: "warn" });
+
+    const spokanePipeline = pipelineHealth.find((r) => r.market === "spokane");
+    const kootenaiPipeline = pipelineHealth.find((r) => r.market === "kootenai");
+    if (spokanePipeline && kootenaiPipeline) {
+      const sDead = spokanePipeline.dead;
+      const kDead = kootenaiPipeline.dead;
+      const sTotal = spokanePipeline.active + sDead + spokanePipeline.closed;
+      const kTotal = kootenaiPipeline.active + kDead + kootenaiPipeline.closed;
+      const sDeadPct = sTotal > 0 ? (sDead / sTotal) * 100 : 0;
+      const kDeadPct = kTotal > 0 ? (kDead / kTotal) * 100 : 0;
+      if (sDeadPct > 40 && sTotal > 5) items.push({ text: `Spokane dead rate ${sDeadPct.toFixed(0)}% — review source quality`, severity: "warn" });
+      if (kDeadPct > 40 && kTotal > 5) items.push({ text: `Kootenai dead rate ${kDeadPct.toFixed(0)}% — review source quality`, severity: "warn" });
+    }
+
+    const unknownSourceLeads = sourceOutcomes.find((r) => r.sourceKey === "unknown")?.leads ?? 0;
+    if (unknownSourceLeads > 3) items.push({ text: `${unknownSourceLeads} leads have no source attribution`, severity: "info" });
+
+    return items;
+  }, [totalOverdue, totalAwaiting, speed, pipelineHealth, sourceOutcomes]);
 
   return (
     <PageShell
       title="Analytics"
-      description="Business outcomes for Spokane and Kootenai. Hard-truth, estimated, and informational metrics are explicitly labeled."
-      actions={
-        <div className="flex items-center gap-2">
-          <Badge variant="outline" className="text-sm gap-1">
-            <Radio className="h-2.5 w-2.5 text-foreground animate-pulse" />
-            Live
-          </Badge>
-          <Badge variant="outline" className="text-sm gap-1">
-            <Shield className="h-2.5 w-2.5" />
-            {currentUser.role === "admin" ? "Team-wide view" : "Portfolio-scoped view"}
-          </Badge>
-        </div>
-      }
+      description="Source performance, market split, funnel discipline — Spokane & Kootenai."
     >
       <div className="space-y-4">
+        {/* ── Period selector ──────────────────────────────────── */}
         <div className="flex items-center gap-1 p-1 rounded-[14px] bg-secondary/20 border border-glass-border w-fit">
           {PERIODS.map((p) => (
             <button
@@ -114,8 +117,7 @@ export default function AnalyticsPage() {
           ))}
         </div>
 
-        <KpiSummaryRow period={period} />
-
+        {/* ── Loading / Error ──────────────────────────────────── */}
         {showError ? (
           <GlassCard hover={false} className="!p-8">
             <div className="flex flex-col items-center justify-center gap-3 text-sm text-muted-foreground">
@@ -125,46 +127,106 @@ export default function AnalyticsPage() {
                 onClick={() => { setTimedOut(false); refetch(); }}
                 className="flex items-center gap-1.5 px-3 py-1.5 rounded-[8px] text-xs font-medium bg-primary/15 text-primary border border-primary/20 hover:bg-primary/25 transition-all"
               >
-                <RotateCcw className="h-3 w-3" />
-                Retry
+                <RotateCcw className="h-3 w-3" /> Retry
               </button>
             </div>
           </GlassCard>
         ) : loading ? (
           <GlassCard hover={false} className="!p-8">
             <div className="flex items-center justify-center gap-2 text-sm text-muted-foreground">
-              <Loader2 className="h-4 w-4 animate-spin" />
-              Loading analytics...
+              <Loader2 className="h-4 w-4 animate-spin" /> Loading...
             </div>
           </GlassCard>
         ) : (
           <>
-            <GlassCard hover={false} className="!p-4">
-              <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
-                <h3 className="text-sm font-semibold">Data Trust Notes</h3>
-                <div className="flex items-center gap-1.5">
-                  <TrustBadge type="hard" />
-                  <TrustBadge type="estimated" />
-                  <TrustBadge type="informational" />
-                </div>
+            {/* ── Executive Summary ─────────────────────────────── */}
+            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-2">
+              <SummaryCard label="New Leads" value={String(totalNewLeads)} icon={Users} />
+              <SummaryCard label="Active Pipeline" value={String(totalActive)} icon={Zap} />
+              <SummaryCard label="Contracts" value={String(closedDeals)} icon={BarChart3} />
+              <SummaryCard label="Revenue" value={formatCurrency(totalRevenue)} icon={DollarSign} tone={totalRevenue > 0 ? "positive" : "default"} />
+              <SummaryCard
+                label="Speed to Lead"
+                value={speed?.medianMinutes != null ? `${speed.medianMinutes}m` : "n/a"}
+                icon={Clock3}
+                sub="median"
+              />
+              <SummaryCard
+                label="Overdue"
+                value={String(totalOverdue)}
+                icon={AlertTriangle}
+                tone={totalOverdue > 0 ? "danger" : "positive"}
+              />
+            </div>
+
+            {/* Best source callout */}
+            {topSource && topSource.leads > 0 && (
+              <div className="flex items-center gap-2 text-xs text-muted-foreground px-1">
+                <TrendingUp className="h-3 w-3 text-primary shrink-0" />
+                <span>
+                  Top source: <span className="text-foreground font-medium">{topSource.sourceLabel}</span>
+                  {" — "}{topSource.leads} lead{topSource.leads !== 1 ? "s" : ""}
+                  {topSource.closedDeals > 0 && <>, {topSource.closedDeals} closed, {formatCurrency(topSource.assignmentRevenue)}</>}
+                </span>
               </div>
+            )}
 
-              {dataNotes.length === 0 ? (
-                <p className="text-xs text-muted-foreground">No trust flags for the selected period.</p>
-              ) : (
-                <ul className="space-y-1.5 text-xs text-muted-foreground list-disc pl-4">
-                  {dataNotes.map((note) => (
-                    <li key={note}>{note}</li>
+            {/* ── Watch-outs ───────────────────────────────────── */}
+            {watchOuts.length > 0 && (
+              <GlassCard hover={false} className="!py-3 !px-4 border-amber-500/15">
+                <p className="text-xs font-bold uppercase tracking-wider text-amber-400/70 mb-1.5 flex items-center gap-1.5">
+                  <AlertTriangle className="h-3 w-3" /> Needs Attention
+                </p>
+                <div className="space-y-1">
+                  {watchOuts.map((w, i) => (
+                    <div key={i} className="flex items-center gap-2 text-xs">
+                      <span className={cn("h-1.5 w-1.5 rounded-full shrink-0", w.severity === "warn" ? "bg-amber-400" : "bg-muted-foreground/30")} />
+                      <span className="text-muted-foreground flex-1">{w.text}</span>
+                      {w.href && (
+                        <Link href={w.href} className="text-primary/60 hover:text-primary transition-colors shrink-0">
+                          View <ArrowRight className="h-2.5 w-2.5 inline" />
+                        </Link>
+                      )}
+                    </div>
                   ))}
-                </ul>
-              )}
-            </GlassCard>
+                </div>
+              </GlassCard>
+            )}
 
+            {/* ── Market Split: Spokane vs Kootenai ────────────── */}
             <GlassCard hover={false} className="!p-4">
               <div className="flex items-center justify-between mb-3">
                 <h3 className="text-sm font-semibold flex items-center gap-2">
                   <MapPinned className="h-4 w-4 text-primary" />
-                  Market Scoreboard
+                  Market Split
+                </h3>
+                <TrustBadge type="hard" />
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {[spokane, kootenai].filter(Boolean).map((m) => (
+                  <MarketCard key={m!.market} row={m!} />
+                ))}
+              </div>
+
+              {/* Comparison callout */}
+              {spokane && kootenai && (
+                <div className="mt-3 pt-3 border-t border-white/[0.04] flex flex-wrap gap-x-6 gap-y-1 text-xs text-muted-foreground">
+                  <MarketCompare label="New leads" a={spokane.newLeads} b={kootenai.newLeads} />
+                  <MarketCompare label="Active" a={spokane.activePipeline} b={kootenai.activePipeline} />
+                  <MarketCompare label="Overdue" a={spokane.overdueFollowUps} b={kootenai.overdueFollowUps} inverse />
+                  <MarketCompare label="Closed" a={spokane.closedDeals} b={kootenai.closedDeals} />
+                  <MarketCompare label="Revenue" a={spokane.assignmentRevenue} b={kootenai.assignmentRevenue} />
+                </div>
+              )}
+            </GlassCard>
+
+            {/* ── Source Performance ───────────────────────────── */}
+            <GlassCard hover={false} className="!p-4">
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="text-sm font-semibold flex items-center gap-2">
+                  <BarChart3 className="h-4 w-4 text-primary" />
+                  Source Performance
                 </h3>
                 <div className="flex items-center gap-1.5">
                   <TrustBadge type="hard" />
@@ -172,210 +234,99 @@ export default function AnalyticsPage() {
                 </div>
               </div>
 
-              <p className="text-sm text-muted-foreground mb-3">
-                Spokane and Kootenai are primary markets. Unknown/Other appears only when county mapping is missing or outside both markets.
-              </p>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                {marketScoreboard.map((row) => (
-                  <div key={row.market} className="rounded-[12px] border border-glass-border bg-glass/40 p-3">
-                    <div className="flex items-center justify-between mb-2">
-                      <p className="text-sm font-semibold">{row.label}</p>
-                      <Badge variant="outline" className="text-sm">{row.totalLeads} total leads</Badge>
-                    </div>
-                    <div className="grid grid-cols-2 gap-2 text-xs">
-                      <Metric label="New Leads" value={row.newLeads} />
-                      <Metric label="Active Pipeline" value={row.activePipeline} />
-                      <Metric label="Contacted (est)" value={formatPercent(row.contactedRatePct)} />
-                      <Metric label="Overdue Follow-up" value={row.overdueFollowUps} tone={row.overdueFollowUps > 0 ? "warn" : "default"} />
-                      <Metric label="Awaiting First Contact" value={row.awaitingFirstContact} tone={row.awaitingFirstContact > 0 ? "warn" : "default"} />
-                      <Metric label="Median First Response (est)" value={formatMinutes(row.medianSpeedToLeadMinutes)} />
-                      <Metric label="Closed Deals" value={row.closedDeals} />
-                      <Metric label="Assignment Revenue" value={formatCurrency(row.assignmentRevenue)} tone={row.assignmentRevenue > 0 ? "positive" : "default"} />
-                    </div>
-                  </div>
-                ))}
-              </div>
+              {sortedSources.length === 0 ? (
+                <p className="text-xs text-muted-foreground">No source attribution data in this period.</p>
+              ) : (
+                <SourceTable sources={sortedSources} />
+              )}
             </GlassCard>
 
-            <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
-              <GlassCard hover={false} className="xl:col-span-2 !p-4">
-                <div className="flex items-center justify-between mb-3">
-                  <h3 className="text-sm font-semibold flex items-center gap-2">
-                    <BarChart3 className="h-4 w-4 text-primary" />
-                    Source Outcomes
-                  </h3>
-                  <div className="flex items-center gap-1.5">
-                    <TrustBadge type="hard" />
-                    <TrustBadge type="estimated" />
-                  </div>
-                </div>
-
-                {sourceOutcomes.length === 0 ? (
-                  <p className="text-sm text-muted-foreground">No leads with source attribution in this period yet.</p>
-                ) : (
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-xs">
-                      <thead>
-                        <tr className="border-b border-white/[0.06] text-muted-foreground/70">
-                          <th className="text-left py-2 pr-3">Source</th>
-                          <th className="text-right py-2 px-2">Leads</th>
-                          <th className="text-right py-2 px-2">S / K</th>
-                          <th className="text-right py-2 px-2">Contacted (est)</th>
-                          <th className="text-right py-2 px-2">Contract %</th>
-                          <th className="text-right py-2 px-2">Close %</th>
-                          <th className="text-right py-2 px-2">Closed</th>
-                          <th className="text-right py-2 px-2">Revenue</th>
-                          <th className="text-right py-2 pl-2">Median First Response (est)</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {sourceOutcomes.slice(0, 10).map((row) => {
-                          const contractRate = row.leads > 0 ? Math.round((row.closedDeals / row.leads) * 1000) / 10 : null;
-                          const closeRate = row.closedDeals > 0 ? 100 : row.leads > 0 ? 0 : null;
-                          return (
-                            <tr key={row.sourceKey} className="border-b border-white/[0.03]">
-                              <td className="py-2 pr-3 font-medium">{row.sourceKey === "unknown" ? "Uncategorized / Unknown" : row.sourceLabel}</td>
-                              <td className="py-2 px-2 text-right tabular-nums">{row.leads}</td>
-                              <td className="py-2 px-2 text-right tabular-nums">{row.spokaneLeads}/{row.kootenaiLeads}</td>
-                              <td className="py-2 px-2 text-right tabular-nums">{formatPercent(row.contactedRatePct)}</td>
-                              <td className="py-2 px-2 text-right tabular-nums">{formatPercent(contractRate)}</td>
-                              <td className="py-2 px-2 text-right tabular-nums">{formatPercent(closeRate)}</td>
-                              <td className="py-2 px-2 text-right tabular-nums">{row.closedDeals}</td>
-                              <td className="py-2 px-2 text-right tabular-nums">{formatCurrency(row.assignmentRevenue)}</td>
-                              <td className="py-2 pl-2 text-right tabular-nums">{formatMinutes(row.medianSpeedToLeadMinutes)}</td>
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
-                  </div>
-                )}
-              </GlassCard>
-
+            {/* ── Funnel & Discipline ─────────────────────────── */}
+            <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+              {/* Speed to Lead */}
               <GlassCard hover={false} className="!p-4">
                 <div className="flex items-center justify-between mb-3">
                   <h3 className="text-sm font-semibold flex items-center gap-2">
                     <Clock3 className="h-4 w-4 text-primary" />
-                    Speed-to-Lead
+                    Speed to Lead
                   </h3>
                   <TrustBadge type="estimated" />
                 </div>
 
-                <div className="space-y-2 text-xs">
-                  <Metric label="Median First Response (est)" value={formatMinutes(speed?.medianMinutes ?? null)} />
-                  <Metric label="Within 15 Minutes (est)" value={formatPercent(speed?.within15mRatePct ?? null)} />
-                  <Metric label="Slow/Missing First Response" value={speed?.slowOrMissingCount ?? 0} tone={(speed?.slowOrMissingCount ?? 0) > 0 ? "warn" : "default"} />
-                  <Metric label="Sample Coverage" value={`${speedSamples} sample(s) (${speed?.coveragePct ?? 0}%)`} />
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mb-3">
+                  <MiniMetric label="Median" value={formatMinutes(speed?.medianMinutes ?? null)} />
+                  <MiniMetric label="Within 15 min" value={formatPercent(speed?.within15mRatePct ?? null)} />
+                  <MiniMetric label="Slow / missing" value={String(speed?.slowOrMissingCount ?? 0)} tone={(speed?.slowOrMissingCount ?? 0) > 0 ? "warn" : "default"} />
+                  <MiniMetric label="Coverage" value={`${speed?.sampleCount ?? 0} samples (${speed?.coveragePct ?? 0}%)`} />
                 </div>
 
-                <div className="mt-3 pt-3 border-t border-white/[0.06] space-y-1.5">
-                  {(speed?.byMarket ?? []).map((row) => (
-                    <div key={row.market} className="flex items-center justify-between text-xs">
-                      <span className="text-muted-foreground">{row.label}</span>
-                      <span className="tabular-nums">
-                        {formatMinutes(row.medianMinutes)} | {formatPercent(row.within15mRatePct)}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-
-                <p className="text-sm text-muted-foreground mt-3">
-                  Derived from first logged call attempt. When missing, last_contact_at is used as an estimate.
-                </p>
-              </GlassCard>
-            </div>
-
-            <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
-              <GlassCard hover={false} className="xl:col-span-2 !p-4">
-                <div className="flex items-center justify-between mb-3">
-                  <h3 className="text-sm font-semibold flex items-center gap-2">
-                    <TrendingUp className="h-4 w-4 text-primary" />
-                    Pipeline Health by Market
-                  </h3>
-                  <div className="flex items-center gap-1.5">
-                    <TrustBadge type="hard" />
-                    <TrustBadge type="informational" />
+                {(speed?.byMarket ?? []).length > 0 && (
+                  <div className="border-t border-white/[0.04] pt-2 space-y-1">
+                    {(speed?.byMarket ?? []).map((row) => (
+                      <div key={row.market} className="flex items-center justify-between text-xs">
+                        <span className="text-muted-foreground font-medium">{row.label}</span>
+                        <span className="tabular-nums text-foreground/70">
+                          {formatMinutes(row.medianMinutes)} median · {formatPercent(row.within15mRatePct)} within 15m
+                        </span>
+                      </div>
+                    ))}
                   </div>
-                </div>
+                )}
 
-                <div className="overflow-x-auto">
-                  <table className="w-full text-xs">
-                    <thead>
-                      <tr className="border-b border-white/[0.06] text-muted-foreground/70">
-                        <th className="text-left py-2 pr-3">Market</th>
-                        <th className="text-right py-2 px-2">Active</th>
-                        <th className="text-right py-2 px-2">Prospect</th>
-                        <th className="text-right py-2 px-2">Lead</th>
-                        <th className="text-right py-2 px-2">Negotiation</th>
-                        <th className="text-right py-2 px-2">Disposition</th>
-                        <th className="text-right py-2 px-2">Nurture</th>
-                        <th className="text-right py-2 px-2">Closed</th>
-                        <th className="text-right py-2 pl-2">Dead</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {pipelineHealth.map((row) => (
-                        <tr key={row.market} className="border-b border-white/[0.03]">
-                          <td className="py-2 pr-3 font-medium">{row.label}</td>
-                          <td className="py-2 px-2 text-right tabular-nums">{row.active}</td>
-                          <td className="py-2 px-2 text-right tabular-nums">{row.prospect}</td>
-                          <td className="py-2 px-2 text-right tabular-nums">{row.lead}</td>
-                          <td className="py-2 px-2 text-right tabular-nums">{row.negotiation}</td>
-                          <td className="py-2 px-2 text-right tabular-nums">{row.disposition}</td>
-                          <td className="py-2 px-2 text-right tabular-nums">{row.nurture}</td>
-                          <td className="py-2 px-2 text-right tabular-nums">{row.closed}</td>
-                          <td className="py-2 pl-2 text-right tabular-nums">{row.dead}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-
-                <p className="text-sm text-muted-foreground mt-3">
-                  Pipeline counts are from current lead statuses (operational truth). Snapshot count ({snapshotCount}) is informational coverage, not complete funnel truth.
+                <p className="text-[11px] text-muted-foreground/40 mt-2">
+                  From first logged call. Falls back to last_contact_at when call data is missing.
                 </p>
               </GlassCard>
 
+              {/* Revenue */}
               <GlassCard hover={false} className="!p-4">
                 <div className="flex items-center justify-between mb-3">
                   <h3 className="text-sm font-semibold flex items-center gap-2">
                     <DollarSign className="h-4 w-4 text-primary" />
-                    Revenue Outcomes
+                    Revenue
                   </h3>
                   <TrustBadge type="hard" />
                 </div>
 
-                <div className="space-y-2 text-xs">
-                  <Metric label="Closed Deals" value={closedDeals} />
-                  <Metric label="Assignment Revenue" value={formatCurrency(revenue?.assignmentRevenue ?? 0)} tone={(revenue?.assignmentRevenue ?? 0) > 0 ? "positive" : "default"} />
-                  <Metric label="Avg Assignment Fee" value={closedDeals > 0 ? formatCurrency(revenue?.avgAssignmentFee ?? 0) : "n/a"} />
+                <div className="grid grid-cols-3 gap-2 mb-3">
+                  <MiniMetric label="Closed" value={String(closedDeals)} />
+                  <MiniMetric label="Total" value={formatCurrency(totalRevenue)} tone={totalRevenue > 0 ? "positive" : "default"} />
+                  <MiniMetric label="Avg fee" value={closedDeals > 0 ? formatCurrency(revenue?.avgAssignmentFee ?? 0) : "n/a"} />
                 </div>
 
-                <div className="mt-3 pt-3 border-t border-white/[0.06] space-y-1.5">
-                  {(revenue?.byMarket ?? []).map((row) => (
-                    <div key={row.market} className="flex items-center justify-between text-xs">
-                      <span className="text-muted-foreground">{row.label}</span>
-                      <span className="tabular-nums">{row.closedDeals} | {formatCurrency(row.assignmentRevenue)}</span>
-                    </div>
-                  ))}
-                </div>
-
-                <p className="text-sm text-muted-foreground mt-3">
-                  Revenue is sourced from deals.assignment_fee on closed deals only.
-                </p>
-                <p className="text-sm text-muted-foreground mt-1">
-                  {undatedClosedDealsExcluded > 0
-                    ? `${undatedClosedDealsExcluded} closed deal(s) were excluded in this period because closed_at is missing.`
-                    : "No closed_at exclusions in this period."}
-                </p>
-                <p className="text-sm text-muted-foreground mt-1">
-                  For ad spend and campaign operations, use <a href="/ads" className="text-primary underline underline-offset-2">Ads</a>.
-                </p>
+                {(revenue?.byMarket ?? []).length > 0 && (
+                  <div className="border-t border-white/[0.04] pt-2 space-y-1">
+                    {(revenue?.byMarket ?? []).map((row) => (
+                      <div key={row.market} className="flex items-center justify-between text-xs">
+                        <span className="text-muted-foreground font-medium">{row.label}</span>
+                        <span className="tabular-nums text-foreground/70">
+                          {row.closedDeals} deal{row.closedDeals !== 1 ? "s" : ""} · {formatCurrency(row.assignmentRevenue)}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </GlassCard>
             </div>
-            {/* Dispo Funnel */}
+
+            {/* ── Pipeline by Stage ───────────────────────────── */}
+            <GlassCard hover={false} className="!p-4">
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="text-sm font-semibold flex items-center gap-2">
+                  <TrendingUp className="h-4 w-4 text-primary" />
+                  Pipeline by Stage
+                </h3>
+                <TrustBadge type="hard" />
+              </div>
+
+              <PipelineTable rows={pipelineHealth} />
+            </GlassCard>
+
+            {/* ── Dispo Funnel ─────────────────────────────────── */}
             <DispoFunnelCard />
+
+            {/* ── Data Trust Notes (demoted) ───────────────────── */}
+            <DataTrustNotes speed={speed} revenue={revenue} marketScoreboard={marketScoreboard} sourceOutcomes={sourceOutcomes} />
           </>
         )}
       </div>
@@ -383,7 +334,189 @@ export default function AnalyticsPage() {
   );
 }
 
-// ── Compact Dispo Funnel ──
+// ── Subcomponents ────────────────────────────────────────────────────────────
+
+function SummaryCard({ label, value, icon: Icon, tone = "default", sub }: {
+  label: string;
+  value: string;
+  icon: React.ComponentType<{ className?: string }>;
+  tone?: "default" | "positive" | "danger";
+  sub?: string;
+}) {
+  return (
+    <div className={cn(
+      "rounded-[12px] border px-3 py-2.5 bg-glass/40",
+      tone === "default" && "border-glass-border",
+      tone === "positive" && "border-emerald-500/25 bg-emerald-500/[0.04]",
+      tone === "danger" && "border-red-500/30 bg-red-500/[0.06]",
+    )}>
+      <div className="flex items-center gap-1.5 mb-0.5">
+        <Icon className="h-3 w-3 text-primary shrink-0" />
+        <span className="text-[11px] uppercase tracking-wider text-muted-foreground truncate">{label}</span>
+      </div>
+      <p className="text-sm font-bold tabular-nums leading-tight">{value}</p>
+      {sub && <p className="text-[10px] text-muted-foreground/40">{sub}</p>}
+    </div>
+  );
+}
+
+function MarketCard({ row }: { row: MarketScoreRow }) {
+  return (
+    <div className="rounded-[12px] border border-glass-border bg-glass/30 p-3">
+      <div className="flex items-center justify-between mb-2">
+        <p className="text-sm font-semibold">{row.label}</p>
+        <span className="text-xs text-muted-foreground tabular-nums">{row.totalLeads} total</span>
+      </div>
+      <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 text-xs">
+        <MarketStat label="New" value={row.newLeads} />
+        <MarketStat label="Active" value={row.activePipeline} />
+        <MarketStat label="Contacted" value={formatPercent(row.contactedRatePct)} sub="est" />
+        <MarketStat label="Speed" value={formatMinutes(row.medianSpeedToLeadMinutes)} sub="est" />
+        <MarketStat label="Overdue" value={row.overdueFollowUps} tone={row.overdueFollowUps > 0 ? "warn" : "default"} />
+        <MarketStat label="No Contact" value={row.awaitingFirstContact} tone={row.awaitingFirstContact > 0 ? "warn" : "default"} />
+        <MarketStat label="Closed" value={row.closedDeals} />
+        <MarketStat label="Revenue" value={formatCurrency(row.assignmentRevenue)} tone={row.assignmentRevenue > 0 ? "positive" : "default"} />
+      </div>
+    </div>
+  );
+}
+
+function MarketStat({ label, value, tone = "default", sub }: {
+  label: string;
+  value: string | number;
+  tone?: "default" | "warn" | "positive";
+  sub?: string;
+}) {
+  return (
+    <div className="flex items-baseline justify-between gap-1">
+      <span className="text-muted-foreground">{label}{sub && <span className="text-muted-foreground/30 ml-0.5 text-[10px]">({sub})</span>}</span>
+      <span className={cn(
+        "font-medium tabular-nums",
+        tone === "warn" && "text-amber-400",
+        tone === "positive" && "text-emerald-400",
+        tone === "default" && "text-foreground/80",
+      )}>{value}</span>
+    </div>
+  );
+}
+
+function MarketCompare({ label, a, b, inverse }: { label: string; a: number; b: number; inverse?: boolean }) {
+  const sWins = inverse ? a < b : a > b;
+  const kWins = inverse ? b < a : b > a;
+  const tied = a === b;
+  return (
+    <span className="flex items-center gap-1">
+      <span className="text-muted-foreground/50">{label}:</span>
+      <span className={cn("font-medium tabular-nums", sWins && "text-primary/80", !sWins && !tied && "text-muted-foreground/60")}>{a}</span>
+      <span className="text-muted-foreground/30">vs</span>
+      <span className={cn("font-medium tabular-nums", kWins && "text-primary/80", !kWins && !tied && "text-muted-foreground/60")}>{b}</span>
+    </span>
+  );
+}
+
+function SourceTable({ sources }: { sources: SourceOutcomeRow[] }) {
+  return (
+    <div className="overflow-x-auto">
+      <table className="w-full text-xs">
+        <thead>
+          <tr className="border-b border-white/[0.06] text-muted-foreground/50">
+            <th className="text-left py-1.5 pr-3 font-medium">#</th>
+            <th className="text-left py-1.5 pr-3 font-medium">Source</th>
+            <th className="text-right py-1.5 px-2 font-medium">Leads</th>
+            <th className="text-right py-1.5 px-2 font-medium">S / K</th>
+            <th className="text-right py-1.5 px-2 font-medium">Contacted</th>
+            <th className="text-right py-1.5 px-2 font-medium">Closed</th>
+            <th className="text-right py-1.5 px-2 font-medium">Revenue</th>
+            <th className="text-right py-1.5 pl-2 font-medium">Speed</th>
+          </tr>
+        </thead>
+        <tbody>
+          {sources.slice(0, 12).map((row, i) => {
+            const isTopPerformer = i === 0 && row.assignmentRevenue > 0;
+            const isWaste = row.leads >= 5 && row.closedDeals === 0 && row.contactedRatePct != null && row.contactedRatePct < 30;
+            return (
+              <tr key={row.sourceKey} className={cn(
+                "border-b border-white/[0.03]",
+                isTopPerformer && "bg-emerald-500/[0.03]",
+                isWaste && "bg-amber-500/[0.02]",
+              )}>
+                <td className="py-1.5 pr-3 text-muted-foreground/30 tabular-nums">{i + 1}</td>
+                <td className="py-1.5 pr-3 font-medium">
+                  {row.sourceKey === "unknown" ? "Unknown" : row.sourceLabel}
+                  {isWaste && <span className="ml-1.5 text-[10px] text-amber-400/60">low conversion</span>}
+                </td>
+                <td className="py-1.5 px-2 text-right tabular-nums">{row.leads}</td>
+                <td className="py-1.5 px-2 text-right tabular-nums text-muted-foreground/60">{row.spokaneLeads}/{row.kootenaiLeads}</td>
+                <td className="py-1.5 px-2 text-right tabular-nums">{formatPercent(row.contactedRatePct)}</td>
+                <td className="py-1.5 px-2 text-right tabular-nums">{row.closedDeals}</td>
+                <td className={cn("py-1.5 px-2 text-right tabular-nums", row.assignmentRevenue > 0 && "text-emerald-400/80")}>{formatCurrency(row.assignmentRevenue)}</td>
+                <td className="py-1.5 pl-2 text-right tabular-nums text-muted-foreground/60">{formatMinutes(row.medianSpeedToLeadMinutes)}</td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function PipelineTable({ rows }: { rows: PipelineHealthRow[] }) {
+  return (
+    <div className="overflow-x-auto">
+      <table className="w-full text-xs">
+        <thead>
+          <tr className="border-b border-white/[0.06] text-muted-foreground/50">
+            <th className="text-left py-1.5 pr-3 font-medium">Market</th>
+            <th className="text-right py-1.5 px-2 font-medium">Active</th>
+            <th className="text-right py-1.5 px-2 font-medium">Prospect</th>
+            <th className="text-right py-1.5 px-2 font-medium">Lead</th>
+            <th className="text-right py-1.5 px-2 font-medium">Negotiation</th>
+            <th className="text-right py-1.5 px-2 font-medium">Disposition</th>
+            <th className="text-right py-1.5 px-2 font-medium">Nurture</th>
+            <th className="text-right py-1.5 px-2 font-medium">Closed</th>
+            <th className="text-right py-1.5 pl-2 font-medium">Dead</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((row) => (
+            <tr key={row.market} className="border-b border-white/[0.03]">
+              <td className="py-1.5 pr-3 font-medium">{row.label}</td>
+              <td className="py-1.5 px-2 text-right tabular-nums font-medium">{row.active}</td>
+              <td className="py-1.5 px-2 text-right tabular-nums text-muted-foreground/60">{row.prospect}</td>
+              <td className="py-1.5 px-2 text-right tabular-nums text-muted-foreground/60">{row.lead}</td>
+              <td className="py-1.5 px-2 text-right tabular-nums text-muted-foreground/60">{row.negotiation}</td>
+              <td className="py-1.5 px-2 text-right tabular-nums text-muted-foreground/60">{row.disposition}</td>
+              <td className="py-1.5 px-2 text-right tabular-nums text-muted-foreground/60">{row.nurture}</td>
+              <td className="py-1.5 px-2 text-right tabular-nums">{row.closed}</td>
+              <td className="py-1.5 pl-2 text-right tabular-nums text-muted-foreground/40">{row.dead}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function MiniMetric({ label, value, tone = "default" }: { label: string; value: string; tone?: "default" | "warn" | "positive" }) {
+  return (
+    <div className={cn(
+      "rounded-[8px] border px-2.5 py-1.5",
+      tone === "default" && "border-glass-border bg-glass/30",
+      tone === "warn" && "border-amber-500/20 bg-amber-500/[0.04]",
+      tone === "positive" && "border-emerald-500/20 bg-emerald-500/[0.04]",
+    )}>
+      <p className="text-[10px] uppercase tracking-wider text-muted-foreground/50">{label}</p>
+      <p className="text-xs font-semibold tabular-nums">{value}</p>
+    </div>
+  );
+}
+
+function TrustBadge({ type }: { type: "hard" | "estimated" | "informational" }) {
+  const labels = { hard: "Hard truth", estimated: "Estimated", informational: "Informational" };
+  return <Badge variant="outline" className="text-[10px]">{labels[type]}</Badge>;
+}
+
+// ── Dispo Funnel ─────────────────────────────────────────────────────────────
 
 function DispoFunnelCard() {
   const [funnel, setFunnel] = useState<{
@@ -408,7 +541,6 @@ function DispoFunnelCard() {
       const allBuyers = deals.flatMap((d: any) => d.deal_buyers ?? []);
       const respondedStatuses = new Set(["interested", "offered", "follow_up", "selected"]);
 
-      // Stall detection (lightweight: deals with no buyers or all pre-contact >1d)
       const now = Date.now();
       const DAY = 86400000;
       let stalledCount = 0;
@@ -429,7 +561,6 @@ function DispoFunnelCard() {
         }
       }
 
-      // Avg days in dispo
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const dispoAges = (deals as any[])
         .map((d) => d.entered_dispo_at ? Math.max(0, Math.floor((now - new Date(d.entered_dispo_at).getTime()) / DAY)) : null)
@@ -477,65 +608,90 @@ function DispoFunnelCard() {
       <div className="flex items-center justify-between mb-3">
         <h3 className="text-sm font-semibold flex items-center gap-2">
           <Users className="h-4 w-4 text-primary" />
-          Disposition Outreach
+          Dispo Outreach Funnel
         </h3>
         <TrustBadge type="hard" />
       </div>
       <div className="grid grid-cols-6 gap-2 text-xs">
-        {steps.map((s) => (
-          <div key={s.label} className="rounded-[10px] border border-glass-border bg-glass/30 px-2.5 py-2 text-center">
-            <p className="text-sm font-semibold tabular-nums">{s.value}</p>
-            <p className="text-sm uppercase tracking-wider text-muted-foreground">{s.label}</p>
-          </div>
-        ))}
+        {steps.map((s, i) => {
+          const prevVal = i > 0 ? steps[i - 1].value : null;
+          const dropoff = prevVal != null && prevVal > 0 && s.value < prevVal;
+          return (
+            <div key={s.label} className={cn(
+              "rounded-[8px] border px-2 py-1.5 text-center",
+              dropoff ? "border-amber-500/15 bg-amber-500/[0.03]" : "border-glass-border bg-glass/30",
+            )}>
+              <p className="text-sm font-bold tabular-nums">{s.value}</p>
+              <p className="text-[10px] uppercase tracking-wider text-muted-foreground">{s.label}</p>
+            </div>
+          );
+        })}
       </div>
-      <div className="flex items-center gap-4 mt-3 text-xs text-muted-foreground">
+      <div className="flex items-center gap-4 mt-2 text-xs text-muted-foreground">
         {funnel.avgDaysInDispo != null && (
-          <span>Avg <span className="text-foreground/80 font-medium">{funnel.avgDaysInDispo === 0 ? "< 1" : funnel.avgDaysInDispo} {funnel.avgDaysInDispo === 1 ? "day" : "days"}</span> in dispo</span>
+          <span>Avg <span className="text-foreground/80 font-medium">{funnel.avgDaysInDispo === 0 ? "< 1" : funnel.avgDaysInDispo}d</span> in dispo</span>
         )}
         {funnel.stalledCount > 0 && (
-          <span className="text-foreground/80">
-            <span className="font-medium">{funnel.stalledCount}</span> {funnel.stalledCount === 1 ? "deal" : "deals"} stalled
-          </span>
+          <span className="text-amber-400/70 font-medium">{funnel.stalledCount} stalled</span>
         )}
+        <Link href="/dispo" className="text-primary/50 hover:text-primary ml-auto transition-colors text-[11px]">
+          Open Dispo <ArrowRight className="h-2.5 w-2.5 inline" />
+        </Link>
       </div>
-      <p className="text-sm text-muted-foreground mt-2">
-        Live buyer outreach funnel for deals currently in disposition. See <a href="/dispo" className="text-primary underline underline-offset-2">Dispo Board</a> for details.
-      </p>
     </GlassCard>
   );
 }
 
-function TrustBadge({ type }: { type: "hard" | "estimated" | "informational" }) {
-  if (type === "hard") {
-    return <Badge variant="outline" className="text-sm">Hard truth</Badge>;
-  }
-  if (type === "estimated") {
-    return <Badge variant="outline" className="text-sm">Estimated</Badge>;
-  }
-  return <Badge variant="outline" className="text-sm">Informational</Badge>;
-}
+// ── Data Trust Notes (demoted to bottom) ─────────────────────────────────────
 
-function Metric({
-  label,
-  value,
-  tone = "default",
-}: {
-  label: string;
-  value: string | number;
-  tone?: "default" | "warn" | "positive";
+function DataTrustNotes({ speed, revenue, marketScoreboard, sourceOutcomes }: {
+  speed: { sampleCount: number; estimatedSampleCount: number; coveragePct: number } | undefined;
+  revenue: { closedDeals: number; undatedClosedDealsExcluded: number } | undefined;
+  marketScoreboard: MarketScoreRow[];
+  sourceOutcomes: SourceOutcomeRow[];
 }) {
+  const [expanded, setExpanded] = useState(false);
+
+  const notes: string[] = [];
+  const unknownCountyLeads = marketScoreboard.find((r) => r.market === "other")?.totalLeads ?? 0;
+  const unknownSourceLeads = sourceOutcomes.find((r) => r.sourceKey === "unknown")?.leads ?? 0;
+  const awaitingFirstContact = marketScoreboard.reduce((s, r) => s + r.awaitingFirstContact, 0);
+  const speedSamples = speed?.sampleCount ?? 0;
+  const estimatedSpeedSamples = speed?.estimatedSampleCount ?? 0;
+  const closedDeals = revenue?.closedDeals ?? 0;
+  const undatedExcluded = revenue?.undatedClosedDealsExcluded ?? 0;
+
+  if (unknownCountyLeads > 0) notes.push(`${unknownCountyLeads} lead(s) grouped under Unknown/Other county.`);
+  if (unknownSourceLeads > 0) notes.push(`${unknownSourceLeads} lead(s) grouped under Unknown source.`);
+  if (awaitingFirstContact > 0) notes.push(`${awaitingFirstContact} lead(s) have no logged first contact.`);
+  if (speedSamples === 0) notes.push("No speed-to-lead samples available for this period.");
+  else if (estimatedSpeedSamples > 0) notes.push(`${estimatedSpeedSamples} of ${speedSamples} speed samples use last_contact_at fallback.`);
+  if (closedDeals === 0) notes.push("No closed deals recorded in this period.");
+  if (undatedExcluded > 0) notes.push(`${undatedExcluded} closed deal(s) excluded (missing closed_at).`);
+
+  if (notes.length === 0) return null;
+
   return (
-    <div
-      className={cn(
-        "rounded-[10px] border px-2.5 py-2",
-        tone === "default" && "border-glass-border bg-glass/30",
-        tone === "warn" && "border-amber-500/25 bg-amber-500/[0.05]",
-        tone === "positive" && "border-emerald-500/25 bg-emerald-500/[0.05]"
+    <div className="border-t border-white/[0.04] pt-2">
+      <button
+        onClick={() => setExpanded(!expanded)}
+        className="flex items-center gap-1.5 text-xs text-muted-foreground/30 hover:text-muted-foreground transition-colors w-full"
+      >
+        <ChevronDown className={cn("h-3 w-3 transition-transform", expanded && "rotate-180")} />
+        Data trust notes ({notes.length})
+        <div className="flex items-center gap-1 ml-2">
+          <TrustBadge type="hard" />
+          <TrustBadge type="estimated" />
+          <TrustBadge type="informational" />
+        </div>
+      </button>
+      {expanded && (
+        <ul className="space-y-1 text-xs text-muted-foreground mt-2 pl-4 list-disc">
+          {notes.map((note) => (
+            <li key={note}>{note}</li>
+          ))}
+        </ul>
       )}
-    >
-      <p className="text-sm uppercase tracking-wider text-muted-foreground">{label}</p>
-      <p className="text-sm font-semibold tabular-nums">{value}</p>
     </div>
   );
 }

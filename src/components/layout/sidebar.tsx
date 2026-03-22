@@ -18,6 +18,10 @@ import {
   KanbanSquare,
   MapPin,
   ShieldCheck,
+  Mail,
+  Bug,
+  Megaphone,
+  Contact,
   type LucideIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -87,16 +91,35 @@ const primaryItems: NavItem[] = [
   { label: "Pipeline", href: "/pipeline", icon: KanbanSquare },
 ];
 
+const toolsSection: NavSection = {
+  title: "Tools",
+  items: [
+    { label: "Property Research", href: "/properties/lookup", icon: MapPin },
+    { label: "Buyers", href: "/buyers", icon: Handshake },
+    { label: "Contacts", href: "/contacts", icon: Contact },
+    { label: "Ads", href: "/ads", icon: Target, badge: "ads-alerts" },
+    { label: "Campaigns", href: "/campaigns", icon: Megaphone },
+  ],
+};
+
+const reviewSection: NavSection = {
+  title: "Review",
+  items: [
+    { label: "Research Review", href: "/dialer/review/dossier-queue", icon: ShieldCheck, badge: "review-queue" },
+    { label: "Call QA", href: "/dialer/qa", icon: ShieldCheck },
+    { label: "Call Review", href: "/dialer/war-room", icon: Phone },
+    { label: "Review Console", href: "/dialer/review", icon: BarChart3 },
+  ],
+};
+
 const adminSection: NavSection = {
   title: "Admin",
   items: [
-    { label: "Ads", href: "/ads", icon: Target, badge: "ads-alerts" },
     { label: "Analytics", href: "/analytics", icon: BarChart3 },
-    { label: "Import", href: "/admin/import", icon: Upload },
-    { label: "Buyers", href: "/buyers", icon: Handshake },
     { label: "Settings", href: "/settings", icon: Settings },
-    { label: "Property Lookup", href: "/properties/lookup", icon: MapPin },
-    { label: "Research Review", href: "/dialer/review/dossier-queue", icon: ShieldCheck, badge: "review-queue" },
+    { label: "Gmail", href: "/gmail", icon: Mail },
+    { label: "Import", href: "/admin/import", icon: Upload },
+    { label: "Grok", href: "/grok", icon: Bug },
   ],
 };
 
@@ -173,8 +196,8 @@ function NavLink({ item, depth = 0, badges }: { item: NavItem; depth?: number; b
       {(() => {
         if (!item.badge || !badges) return null;
         const dot =
-          item.badge === "ads-alerts" && badges.adsAlerts > 0 ? "bg-muted" :
-          item.badge === "review-queue" && badges.reviewQueue > 0 ? "bg-muted" :
+          item.badge === "ads-alerts" && badges.adsAlerts > 0 ? "bg-amber-400" :
+          item.badge === "review-queue" && badges.reviewQueue > 0 ? "bg-violet-400" :
           null;
         if (!dot) return null;
         return (
@@ -309,7 +332,7 @@ export function Sidebar() {
                 SENTINEL
               </h1>
               <p className="text-xs text-muted-foreground tracking-wide uppercase">
-                Lead Context
+                Acquisitions OS
               </p>
             </div>
           </div>
@@ -322,6 +345,8 @@ export function Sidebar() {
                 <NavLink key={item.href} item={item} badges={badges} />
               ))}
             </div>
+            <SidebarSection section={toolsSection} badges={badges} defaultCollapsed />
+            <SidebarSection section={reviewSection} badges={badges} defaultCollapsed />
             <SidebarSection section={adminSection} badges={badges} defaultCollapsed />
           </nav>
 

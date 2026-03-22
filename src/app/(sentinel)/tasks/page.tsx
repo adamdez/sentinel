@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useMemo, useRef, useEffect } from "react";
+import { useState, useCallback, useRef, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   CheckCircle2,
@@ -12,6 +12,7 @@ import {
   Edit3,
   RotateCcw,
   ChevronRight,
+  Phone,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { PageShell } from "@/components/sentinel/page-shell";
@@ -22,8 +23,6 @@ import { useTasks, type TaskItem, type TaskView } from "@/hooks/use-tasks";
 import { supabase } from "@/lib/supabase";
 import { useHydrated } from "@/providers/hydration-provider";
 import { toast } from "sonner";
-
-// ── Helpers ──
 
 function relativeDue(dueAt: string | null): { label: string; color: string } {
   if (!dueAt) return { label: "No date", color: "text-muted-foreground" };
@@ -36,10 +35,10 @@ function relativeDue(dueAt: string | null): { label: string; color: string } {
     const absDays = Math.abs(diffDays);
     return {
       label: absDays === 1 ? "1 day overdue" : `${absDays} days overdue`,
-      color: "text-foreground",
+      color: "text-red-400",
     };
   }
-  if (diffDays === 0) return { label: "Due today", color: "text-foreground" };
+  if (diffDays === 0) return { label: "Due today", color: "text-amber-400" };
   if (diffDays === 1) return { label: "Tomorrow", color: "text-foreground" };
   if (diffDays <= 7) return { label: `In ${diffDays} days`, color: "text-foreground" };
   return {
@@ -49,20 +48,24 @@ function relativeDue(dueAt: string | null): { label: string; color: string } {
 }
 
 function priorityDot(priority: number) {
-  if (priority >= 3) return "bg-muted shadow-[0_0_6px_rgba(239,68,68,0.5)]";
-  if (priority === 2) return "bg-muted shadow-[0_0_6px_rgba(251,191,36,0.4)]";
+  if (priority >= 3) return "bg-red-500 shadow-[0_0_6px_rgba(239,68,68,0.5)]";
+  if (priority === 2) return "bg-amber-400 shadow-[0_0_6px_rgba(251,191,36,0.4)]";
   return "bg-primary/60";
 }
 
-const TABS: { key: TaskView; label: string; badgeVariant?: "destructive" | "gold" | "cyan" }[] = [
-  { key: "overdue", label: "Overdue", badgeVariant: "destructive" },
-  { key: "today", label: "Today", badgeVariant: "gold" },
-  { key: "upcoming", label: "Upcoming", badgeVariant: "cyan" },
-  { key: "all", label: "All" },
-  { key: "completed", label: "Completed" },
-];
+function isCallback(task: TaskItem): boolean {
+  const t = (task.task_type ?? "").toLowerCase();
+  const title = (task.title ?? "").toLowerCase();
+  return t === "callback" || t === "call_back" || title.includes("callback") || title.includes("call back") || title.includes("return call");
+}
 
-// ── Quick Create Bar ──
+const TABS: { key: TaskView | "callbacks"; label: string; icon: typeof Clock }[] = [
+  { key: "overdue", label: "Overdue", icon: AlertCircle },
+  { key: "today", label: "Today", icon: Clock },
+  { key: "callbacks", label: "Callbacks", icon: Phone },
+  { key: "upcoming", label: "Upcoming", icon: Calendar },
+  { key: "completed", label: "Completed", icon: CheckCircle2 },
+];
 
 function QuickCreate({ onCreate }: { onCreate: (data: Partial<TaskItem>) => Promise<TaskItem> }) {
   const [title, setTitle] = useState("");
@@ -84,10 +87,10 @@ function QuickCreate({ onCreate }: { onCreate: (data: Partial<TaskItem>) => Prom
       setTitle("");
       setDueAt("");
       setPriority(1);
-      toast.success("Task created");
+      toast.success("Follow-up created");
       inputRef.current?.focus();
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to create task");
+      toast.error(err instanceof Error ? err.message : "Failed to create");
     } finally {
       setSubmitting(false);
     }
@@ -103,7 +106,7 @@ function QuickCreate({ onCreate }: { onCreate: (data: Partial<TaskItem>) => Prom
           value={title}
           onChange={(e) => setTitle(e.target.value)}
           onKeyDown={(e) => { if (e.key === "Enter") handleSubmit(); }}
-          placeholder="Quick-add a task..."
+          placeholder="Add a follow-up..."
           className="flex-1 bg-transparent text-sm text-foreground placeholder:text-muted-foreground/50 focus:outline-none"
         />
         <input
@@ -138,9 +141,7 @@ function QuickCreate({ onCreate }: { onCreate: (data: Partial<TaskItem>) => Prom
   );
 }
 
-// ── Task Row ──
-
-function TaskRow({
+function FollowUpRow({
   task,
   onComplete,
   onReopen,
@@ -159,6 +160,7 @@ function TaskRow({
   const isCompleted = task.status === "completed";
   const due = relativeDue(task.due_at);
   const isOverdue = task.due_at && new Date(task.due_at) < new Date() && !isCompleted;
+  const cb = isCallback(task);
 
   return (
     <motion.div
@@ -169,19 +171,17 @@ function TaskRow({
       className={cn(
         "group flex items-center gap-3 px-3 py-2.5 rounded-[10px] transition-all border-l-2",
         isOverdue
-          ? "border-l-red-500/80 bg-muted/[0.03]"
+          ? "border-l-red-500/80 bg-red-500/[0.03]"
           : isCompleted
             ? "border-l-transparent bg-white/[0.01] opacity-60"
             : due.label === "Due today"
-              ? "border-l-amber-400/60 bg-muted/[0.02]"
+              ? "border-l-amber-400/60 bg-amber-500/[0.02]"
               : "border-l-transparent bg-white/[0.02]",
         "hover:bg-white/[0.04]"
       )}
     >
-      {/* Priority dot */}
       <div className={cn("h-2 w-2 rounded-full shrink-0", priorityDot(task.priority))} />
 
-      {/* Complete / Reopen button */}
       <button
         onClick={() => isCompleted ? onReopen(task.id) : onComplete(task.id)}
         className={cn(
@@ -191,19 +191,26 @@ function TaskRow({
             : "border-white/10 hover:border-primary/40 hover:bg-primary/10 text-transparent hover:text-primary"
         )}
       >
-        {isCompleted ? (
-          <CheckCircle2 className="h-3.5 w-3.5" />
-        ) : (
-          <CheckCircle2 className="h-3.5 w-3.5" />
-        )}
+        <CheckCircle2 className="h-3.5 w-3.5" />
       </button>
 
-      {/* Content */}
       <div className="flex-1 min-w-0">
-        <p className={cn("text-sm truncate", isCompleted && "line-through text-muted-foreground")}>
-          {task.title}
-        </p>
-        {task.lead_address && (
+        <div className="flex items-center gap-2">
+          <p className={cn("text-sm truncate", isCompleted && "line-through text-muted-foreground")}>
+            {task.title}
+          </p>
+          {cb && (
+            <span className="text-xs px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 shrink-0">
+              Callback
+            </span>
+          )}
+          {task.lead_status && (
+            <span className="text-xs px-1.5 py-0.5 rounded bg-white/[0.04] text-muted-foreground border border-white/[0.06] shrink-0">
+              {task.lead_status}
+            </span>
+          )}
+        </div>
+        {(task.lead_address || task.lead_owner) && (
           <button
             onClick={() => {
               if (task.lead_id) window.location.href = `/leads?open=${task.lead_id}`;
@@ -211,13 +218,13 @@ function TaskRow({
             className="text-sm text-primary/70 hover:text-primary truncate flex items-center gap-1 mt-0.5"
           >
             <ChevronRight className="h-3 w-3" />
-            {task.lead_address}
+            {task.lead_owner ? `${task.lead_owner} — ` : ""}
+            {task.lead_address ?? "Unknown property"}
           </button>
         )}
       </div>
 
-      {/* Due date */}
-      <span className={cn("text-sm shrink-0", due.color)}>
+      <span className={cn("text-sm shrink-0 tabular-nums", due.color)}>
         {isCompleted ? (
           <span className="text-muted-foreground/50">
             Done {task.completed_at
@@ -229,7 +236,6 @@ function TaskRow({
         )}
       </span>
 
-      {/* Actions */}
       <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
         {isCompleted ? (
           <button
@@ -252,7 +258,7 @@ function TaskRow({
           <div className="flex items-center gap-1">
             <button
               onClick={() => { onDelete(task.id); setConfirmDelete(false); }}
-              className="px-1.5 py-0.5 rounded text-sm bg-muted/20 text-foreground hover:bg-muted/30 transition-colors"
+              className="px-1.5 py-0.5 rounded text-sm bg-red-500/20 text-red-400 hover:bg-red-500/30 transition-colors"
             >
               Yes
             </button>
@@ -276,8 +282,6 @@ function TaskRow({
     </motion.div>
   );
 }
-
-// ── Edit Modal (inline overlay) ──
 
 function EditOverlay({
   task,
@@ -306,7 +310,7 @@ function EditOverlay({
         due_at: dueAt ? new Date(dueAt).toISOString() : null,
         priority,
       } as Partial<TaskItem>);
-      toast.success("Task updated");
+      toast.success("Updated");
       onClose();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to update");
@@ -331,26 +335,24 @@ function EditOverlay({
         className="w-full max-w-md mx-4"
       >
         <GlassCard className="p-5 space-y-4">
-          <h3 className="text-sm font-semibold">Edit Task</h3>
+          <h3 className="text-sm font-semibold">Edit Follow-Up</h3>
           <input
             type="text"
             value={title}
             onChange={(e) => setTitle(e.target.value)}
             className="w-full bg-white/[0.03] border border-white/[0.06] rounded-[8px] px-3 py-2 text-sm text-foreground focus:outline-none focus:border-primary/30 transition-all"
-            placeholder="Task title"
+            placeholder="What needs to happen?"
           />
           <textarea
             value={description}
             onChange={(e) => setDescription(e.target.value)}
             rows={2}
             className="w-full bg-white/[0.03] border border-white/[0.06] rounded-[8px] px-3 py-2 text-sm text-foreground focus:outline-none focus:border-primary/30 transition-all resize-none"
-            placeholder="Description (optional)"
+            placeholder="Notes (optional)"
           />
           <div className="flex gap-3">
             <div className="flex-1">
-              <label className="text-sm uppercase tracking-widest text-muted-foreground mb-1 block">
-                Due Date
-              </label>
+              <label className="text-sm uppercase tracking-widest text-muted-foreground mb-1 block">Due</label>
               <input
                 type="date"
                 value={dueAt}
@@ -359,9 +361,7 @@ function EditOverlay({
               />
             </div>
             <div className="flex-1">
-              <label className="text-sm uppercase tracking-widest text-muted-foreground mb-1 block">
-                Priority
-              </label>
+              <label className="text-sm uppercase tracking-widest text-muted-foreground mb-1 block">Priority</label>
               <select
                 value={priority}
                 onChange={(e) => setPriority(Number(e.target.value))}
@@ -393,8 +393,6 @@ function EditOverlay({
     </motion.div>
   );
 }
-
-// ── Counts component (with realtime subscription for live updates) ──
 
 function TaskCounts() {
   const [counts, setCounts] = useState<{ overdue: number; today: number; upcoming: number } | null>(null);
@@ -430,13 +428,10 @@ function TaskCounts() {
 
   useEffect(() => {
     fetchCounts();
-
-    // Subscribe to task changes so badges stay fresh
     const channel = supabase
       .channel("task_counts_rt")
       .on("postgres_changes", { event: "*", schema: "public", table: "tasks" }, () => fetchCounts())
       .subscribe();
-
     return () => { supabase.removeChannel(channel); };
   }, [fetchCounts]);
 
@@ -462,20 +457,17 @@ function TaskCounts() {
   );
 }
 
-// ── Empty states ──
-
-function EmptyState({ view }: { view: TaskView }) {
-  const messages: Record<TaskView, { icon: typeof CheckCircle2; text: string }> = {
-    overdue: { icon: CheckCircle2, text: "No overdue tasks - you're caught up!" },
+function EmptyState({ view }: { view: TaskView | "callbacks" }) {
+  const messages: Record<string, { icon: typeof CheckCircle2; text: string }> = {
+    overdue: { icon: CheckCircle2, text: "No overdue follow-ups. You're caught up." },
     today: { icon: Clock, text: "Nothing due today." },
-    upcoming: { icon: Calendar, text: "No upcoming tasks in the next 7 days." },
-    all: { icon: CheckCircle2, text: "No pending tasks. Create one above." },
-    completed: { icon: CheckCircle2, text: "No completed tasks yet." },
+    callbacks: { icon: Phone, text: "No scheduled callbacks right now." },
+    upcoming: { icon: Calendar, text: "No upcoming follow-ups in the next 7 days." },
+    all: { icon: CheckCircle2, text: "No pending follow-ups." },
+    completed: { icon: CheckCircle2, text: "No completed follow-ups yet." },
   };
-
-  const msg = messages[view];
+  const msg = messages[view] ?? messages.all;
   const Icon = msg.icon;
-
   return (
     <div className="flex flex-col items-center justify-center py-12 text-center">
       <div className="h-10 w-10 rounded-full bg-white/[0.03] flex items-center justify-center mb-3">
@@ -486,15 +478,15 @@ function EmptyState({ view }: { view: TaskView }) {
   );
 }
 
-// ── Main Page ──
-
 export default function TasksPage() {
   const hydrated = useHydrated();
-  const [activeTab, setActiveTab] = useState<TaskView>("today");
+  const [activeTab, setActiveTab] = useState<TaskView | "callbacks">("today");
   const [editingTask, setEditingTask] = useState<TaskItem | null>(null);
 
+  const apiView: TaskView = activeTab === "callbacks" ? "all" : activeTab;
+
   const {
-    tasks,
+    tasks: rawTasks,
     loading,
     error,
     refetch,
@@ -503,9 +495,12 @@ export default function TasksPage() {
     completeTask: handleComplete,
     reopenTask: handleReopen,
     deleteTask: handleDelete,
-  } = useTasks(activeTab);
+  } = useTasks(apiView);
 
-  // Timeout: if still loading after 10 seconds, show error
+  const tasks = activeTab === "callbacks"
+    ? rawTasks.filter((t) => isCallback(t) && t.status !== "completed")
+    : rawTasks;
+
   const [timedOut, setTimedOut] = useState(false);
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => {
@@ -521,30 +516,15 @@ export default function TasksPage() {
   const showError = error || (timedOut && loading);
 
   const onComplete = useCallback(async (id: string) => {
-    try {
-      await handleComplete(id);
-      toast.success("Task completed");
-    } catch {
-      toast.error("Failed to complete task");
-    }
+    try { await handleComplete(id); toast.success("Completed"); } catch { toast.error("Failed"); }
   }, [handleComplete]);
 
   const onReopen = useCallback(async (id: string) => {
-    try {
-      await handleReopen(id);
-      toast.success("Task reopened");
-    } catch {
-      toast.error("Failed to reopen task");
-    }
+    try { await handleReopen(id); toast.success("Reopened"); } catch { toast.error("Failed"); }
   }, [handleReopen]);
 
   const onDelete = useCallback(async (id: string) => {
-    try {
-      await handleDelete(id);
-      toast.success("Task deleted");
-    } catch {
-      toast.error("Failed to delete task");
-    }
+    try { await handleDelete(id); toast.success("Deleted"); } catch { toast.error("Failed"); }
   }, [handleDelete]);
 
   const onSaveEdit = useCallback(async (id: string, data: Partial<TaskItem>) => {
@@ -554,15 +534,15 @@ export default function TasksPage() {
   if (!hydrated) return null;
 
   return (
-    <PageShell title="Tasks & Follow-Up">
+    <PageShell
+      title="Follow-Up Queue"
+      description="Promises, callbacks, and follow-up obligations tied to real leads."
+    >
       <div className="space-y-4">
-        {/* Summary badges */}
         <TaskCounts />
 
-        {/* Quick create */}
         <QuickCreate onCreate={handleCreate} />
 
-        {/* Tab bar */}
         <div className="flex items-center gap-1 border-b border-white/[0.04] pb-0">
           {TABS.map((tab) => (
             <button
@@ -588,12 +568,11 @@ export default function TasksPage() {
           ))}
         </div>
 
-        {/* Task list */}
         <GlassCard className="p-2">
           {showError ? (
             <div className="flex flex-col items-center justify-center gap-3 py-12 text-center">
               <AlertCircle className="h-5 w-5 text-foreground/70" />
-              <p className="text-sm text-muted-foreground/60">{error || "Tasks took too long to load."}</p>
+              <p className="text-sm text-muted-foreground/60">{error || "Follow-ups took too long to load."}</p>
               <button
                 onClick={() => { setTimedOut(false); refetch(); }}
                 className="flex items-center gap-1.5 px-3 py-1.5 rounded-[8px] text-xs font-medium bg-primary/15 text-primary border border-primary/20 hover:bg-primary/25 transition-all"
@@ -614,7 +593,7 @@ export default function TasksPage() {
             <div className="space-y-1">
               <AnimatePresence mode="popLayout">
                 {tasks.map((task, i) => (
-                  <TaskRow
+                  <FollowUpRow
                     key={task.id}
                     task={task}
                     idx={i}
@@ -630,7 +609,6 @@ export default function TasksPage() {
         </GlassCard>
       </div>
 
-      {/* Edit overlay */}
       <AnimatePresence>
         {editingTask && (
           <EditOverlay

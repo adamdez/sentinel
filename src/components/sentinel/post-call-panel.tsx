@@ -37,6 +37,13 @@ import { QualGapStripCompact } from "@/components/sentinel/qual-gap-strip";
 import type { QualCheckInput } from "@/lib/dialer/qual-checklist";
 import type { PostCallStructureInput } from "@/lib/dialer/post-call-structure";
 
+interface PublishQaFinding {
+  check_type: string;
+  severity: string;
+  finding: string;
+  ai_derived: boolean;
+}
+
 async function authHeaders(): Promise<Record<string, string>> {
   const { data: { session } } = await supabase.auth.getSession();
   const headers: Record<string, string> = { "Content-Type": "application/json" };
@@ -105,6 +112,38 @@ const TIMELINE_CHIPS: { value: string; label: string }[] = [
   { value: "flexible",  label: "Flexible" },
 ];
 
+const QA_CHECK_LABELS: Record<string, string> = {
+  missing_qual: "Missing qualification",
+  no_next_action: "No next action",
+  unresolved_objection: "Unresolved objection",
+  short_call: "Short call",
+  no_notes: "No notes",
+  ai_notes_flag: "Weak follow-up (AI)",
+  trust_risk: "Trust risk (AI)",
+};
+
+function getQaSeverityTone(severity: string): string {
+  if (severity === "flag") {
+    return "border-amber-500/25 bg-amber-500/[0.06] text-amber-100";
+  }
+  if (severity === "warn") {
+    return "border-white/[0.08] bg-white/[0.03] text-foreground/80";
+  }
+  return "border-white/[0.06] bg-white/[0.02] text-muted-foreground";
+}
+
+function getQaSeverityLabel(severity: string): string {
+  if (severity === "flag") return "Flag";
+  if (severity === "warn") return "Warn";
+  return "Info";
+}
+
+function getQaSeverityWeight(severity: string): number {
+  if (severity === "flag") return 0;
+  if (severity === "warn") return 1;
+  return 2;
+}
+
 /** Minimal lead context fields needed for the qual checklist strip. */
 export interface PostCallQualContext {
   address:                string | null;
@@ -162,6 +201,7 @@ export function PostCallPanel({
   const [publishing, setPublishing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState<string | null>(null); // dispo label shown briefly on success
+  const [publishQaFindings, setPublishQaFindings] = useState<PublishQaFinding[]>([]);
   const [promoteFactsBusy, setPromoteFactsBusy] = useState(false);
   const [promoteFactsInfo, setPromoteFactsInfo] = useState<{ promoted: number; contradictions: number } | null>(
     null,
@@ -338,6 +378,7 @@ export function PostCallPanel({
     setSelected(dispo);
     setPublishing(true);
     setError(null);
+    setPublishQaFindings([]);
 
     const hdrs = await authHeaders();
     const summaryRunIdForPublish = await ensureSummaryRunId(dispo);
@@ -423,6 +464,35 @@ export function PostCallPanel({
           toast.warning(`Publish warning: ${w}`);
         }
       }
+    }
+
+    const qaFindings = Array.isArray(publishData?.qaFindings)
+      ? publishData.qaFindings.filter(
+        (finding): finding is PublishQaFinding =>
+          !!finding &&
+          typeof finding === "object" &&
+          typeof (finding as PublishQaFinding).check_type === "string" &&
+          typeof (finding as PublishQaFinding).severity === "string" &&
+          typeof (finding as PublishQaFinding).finding === "string" &&
+          typeof (finding as PublishQaFinding).ai_derived === "boolean",
+      ).sort((left, right) => getQaSeverityWeight(left.severity) - getQaSeverityWeight(right.severity))
+      : [];
+
+    setPublishQaFindings(qaFindings);
+    if (qaFindings.length > 0) {
+      const flaggedCount = qaFindings.filter((finding) => finding.severity === "flag").length;
+      const warnCount = qaFindings.filter((finding) => finding.severity === "warn").length;
+      const summaryBits: string[] = [];
+      if (flaggedCount > 0) {
+        summaryBits.push(`${flaggedCount} flag${flaggedCount === 1 ? "" : "s"}`);
+      }
+      if (warnCount > 0) {
+        summaryBits.push(`${warnCount} warning${warnCount === 1 ? "" : "s"}`);
+      }
+      if (summaryBits.length === 0) {
+        summaryBits.push(`${qaFindings.length} item${qaFindings.length === 1 ? "" : "s"}`);
+      }
+      toast.warning(`QA found ${summaryBits.join(" and ")} for this call`);
     }
 
     // Fire legacy call path AFTER publish succeeds — only for increment_lead_call_counters RPC.
@@ -605,7 +675,7 @@ export function PostCallPanel({
   const step3CallbackValue = toLocalDateTimeInput(pendingNextCallAt);
 
   // ── Header title ─────────────────────────────────────────────
-  const headerTitle = qualStep ? "Confirm Outcome" : pendingDispo ? "Set Callback" : "Log Outcome";
+  const headerTitle = qualStep ? "Confirm & Close Out" : pendingDispo ? "Set Callback" : "Close Out Call";
 
   return (
     <GlassCard hover={false} className="!p-3">
@@ -616,6 +686,45 @@ export function PostCallPanel({
             <CheckCircle2 className="h-5 w-5 text-primary" />
             <p className="text-sm font-medium text-foreground">Logged: {saved}</p>
           </div>
+          {publishQaFindings.length > 0 && (
+            <div className="rounded-[10px] border border-amber-500/20 bg-amber-500/[0.05] p-3 space-y-2">
+              <div className="flex items-center gap-2">
+                <AlertTriangle className="h-4 w-4 text-amber-200 shrink-0" />
+                <p className="text-sm font-semibold text-amber-100">
+                  QA found {publishQaFindings.length} review item{publishQaFindings.length === 1 ? "" : "s"}
+                </p>
+              </div>
+              <div className="space-y-2">
+                {publishQaFindings.slice(0, 3).map((finding, index) => (
+                  <div
+                    key={`${finding.check_type}-${index}`}
+                    className={`rounded-[8px] border px-2.5 py-2 ${getQaSeverityTone(finding.severity)}`}
+                  >
+                    <div className="flex items-center gap-1.5 mb-1">
+                      <span className="text-xs font-semibold uppercase tracking-wide">
+                        {getQaSeverityLabel(finding.severity)}
+                      </span>
+                      <span className="text-xs font-semibold">
+                        {QA_CHECK_LABELS[finding.check_type] ?? finding.check_type}
+                      </span>
+                      {finding.ai_derived && (
+                        <span className="inline-flex items-center gap-1 text-[11px] italic opacity-80">
+                          <Sparkles className="h-2.5 w-2.5" />
+                          AI-derived
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-sm leading-snug opacity-90">{finding.finding}</p>
+                  </div>
+                ))}
+              </div>
+              {publishQaFindings.length > 3 && (
+                <p className="text-xs text-amber-100/80">
+                  {publishQaFindings.length - 3} more item{publishQaFindings.length - 3 === 1 ? "" : "s"} in Call QA.
+                </p>
+              )}
+            </div>
+          )}
           {leadId ? (
             <>
               <div className="rounded-[10px] border border-white/[0.08] bg-white/[0.02] p-3 space-y-2">
@@ -653,8 +762,8 @@ export function PostCallPanel({
                   </div>
                 )}
               </div>
-              <Button size="sm" className="w-full gap-1 bg-primary/15 hover:bg-primary/25 text-primary border border-primary/25" onClick={onComplete}>
-                Continue to next lead
+              <Button size="sm" className="w-full gap-1.5 bg-primary hover:bg-primary/90 text-primary-foreground font-semibold shadow-sm" onClick={onComplete}>
+                Next Lead
                 <ArrowRight className="h-3.5 w-3.5" />
               </Button>
             </>
@@ -874,8 +983,14 @@ export function PostCallPanel({
           </div>
 
           {/* ── Next action (hard enforcement) ─────────────────── */}
-          <div className="mb-3 rounded-[10px] border border-primary/10 bg-primary/[0.03] p-2.5 space-y-1.5">
-            <p className="text-sm uppercase tracking-wider text-primary/60 font-semibold">Next Action</p>
+          <div className={`mb-3 rounded-[10px] border p-2.5 space-y-1.5 ${
+            !nextAction.trim()
+              ? "border-amber-500/25 bg-amber-500/[0.04]"
+              : "border-primary/10 bg-primary/[0.03]"
+          }`}>
+            <p className={`text-xs uppercase tracking-wider font-semibold ${!nextAction.trim() ? "text-amber-400" : "text-primary/60"}`}>
+              {!nextAction.trim() ? "Next Action — Required" : "Next Action"}
+            </p>
             <input
               type="text"
               value={nextAction}
@@ -902,14 +1017,14 @@ export function PostCallPanel({
           <Button
             onClick={handleQualConfirm}
             disabled={publishing}
-            className="w-full gap-2 bg-primary/15 hover:bg-primary/25 text-primary border border-primary/25 text-sm font-semibold"
+            className="w-full gap-2 bg-primary hover:bg-primary/90 text-primary-foreground text-sm font-semibold shadow-sm"
           >
             {publishing ? (
               <Loader2 className="h-3.5 w-3.5 animate-spin" />
             ) : (
               <CheckCircle2 className="h-3.5 w-3.5" />
             )}
-            Save &amp; Continue
+            Complete Closeout
           </Button>
 
           {/* Flag AI output — only shown when extraction ran */}
@@ -934,9 +1049,9 @@ export function PostCallPanel({
             size="sm"
             onClick={() => handlePublish(pendingDispo, pendingNextCallAt)}
             disabled={publishing}
-            className="w-full mt-1 gap-1.5 text-sm text-muted-foreground/50 hover:text-foreground"
+            className="w-full mt-1 gap-1.5 text-xs text-muted-foreground/40 hover:text-muted-foreground/70"
           >
-            Skip — save without qual update
+            Save without qual update
           </Button>
         </div>
 
@@ -984,8 +1099,14 @@ export function PostCallPanel({
           )}
 
           {/* Next action — prominent in follow-up/appointment path */}
-          <div className="mb-3 rounded-[10px] border border-primary/10 bg-primary/[0.03] p-2.5 space-y-1.5">
-            <p className="text-sm uppercase tracking-wider text-primary/60 font-semibold">Next Action</p>
+          <div className={`mb-3 rounded-[10px] border p-2.5 space-y-1.5 ${
+            !nextAction.trim()
+              ? "border-amber-500/25 bg-amber-500/[0.04]"
+              : "border-primary/10 bg-primary/[0.03]"
+          }`}>
+            <p className={`text-xs uppercase tracking-wider font-semibold ${!nextAction.trim() ? "text-amber-400" : "text-primary/60"}`}>
+              {!nextAction.trim() ? "Next Action — Required" : "Next Action"}
+            </p>
             <input
               type="text"
               value={nextAction}
@@ -1030,7 +1151,7 @@ export function PostCallPanel({
             ) : (
               <pendingMeta.icon className="h-3.5 w-3.5" />
             )}
-            Next: Confirm Outcome
+            Next: Confirm & Close Out
           </Button>
 
           <Button
@@ -1038,9 +1159,9 @@ export function PostCallPanel({
             size="sm"
             onClick={() => handlePublish(pendingDispo)}
             disabled={publishing}
-            className="w-full mt-1 gap-1.5 text-sm text-muted-foreground/50 hover:text-foreground"
+            className="w-full mt-1 gap-1.5 text-xs text-muted-foreground/40 hover:text-muted-foreground/70"
           >
-            Skip date &amp; qual — save now
+            Save without callback or qual
           </Button>
         </div>
 
@@ -1090,10 +1211,10 @@ export function PostCallPanel({
             size="sm"
             onClick={handleSkip}
             disabled={publishing}
-            className="w-full mt-1.5 gap-1.5 text-sm text-muted-foreground/60 hover:text-foreground"
+            className="w-full mt-1.5 gap-1.5 text-xs text-muted-foreground/40 hover:text-muted-foreground/70"
           >
             <SkipForward className="h-3 w-3" />
-            Skip — next lead
+            Skip closeout
           </Button>
         </>
       )}

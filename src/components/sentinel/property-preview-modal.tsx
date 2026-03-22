@@ -283,10 +283,10 @@ export function PropertyPreviewModal() {
       }
 
       setClaimed(true);
-      // Navigate to prospects after a brief delay
+      // Navigate to leads after a brief delay
       setTimeout(() => {
         close();
-        router.push("/sales-funnel/prospects");
+        router.push("/leads");
       }, 1200);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to claim lead");

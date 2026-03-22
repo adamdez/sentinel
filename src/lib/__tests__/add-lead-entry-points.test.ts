@@ -36,25 +36,22 @@ describe("modal provider contract", () => {
 // ── Trigger Point Presence ──────────────────────────────────────────
 
 describe("Add Lead button placement", () => {
-  it("Leads page has Add Lead button that triggers new-prospect modal", () => {
+  it("Leads page has New Seller Lead button that triggers new-prospect modal", () => {
     const leadsSrc = fs.readFileSync(
       path.resolve("src/app/(sentinel)/leads/page.tsx"),
       "utf-8",
     );
-    // Must have the button with correct label
-    expect(leadsSrc).toContain("Add Lead");
-    // Must call openModal with the right ID
+    expect(leadsSrc).toContain("New Seller Lead");
     expect(leadsSrc).toContain('openModal("new-prospect")');
-    // Must import useModal
     expect(leadsSrc).toContain("useModal");
   });
 
-  it("Dashboard page has Add Lead button that triggers new-prospect modal", () => {
+  it("Dashboard page has New Seller Lead button that triggers new-prospect modal", () => {
     const dashSrc = fs.readFileSync(
       path.resolve("src/app/(sentinel)/dashboard/page.tsx"),
       "utf-8",
     );
-    expect(dashSrc).toContain("Add Lead");
+    expect(dashSrc).toContain("New Seller Lead");
     expect(dashSrc).toContain('openModal("new-prospect")');
     expect(dashSrc).toContain("useModal");
   });

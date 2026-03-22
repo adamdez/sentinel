@@ -18,6 +18,7 @@
  */
 
 import { useState, useEffect, useCallback } from "react";
+import Link from "next/link";
 import {
   Shield, Loader2, Flag, AlertTriangle, Info,
   Check, X, Pen, Sparkles, RefreshCw, ChevronDown, ChevronUp,
@@ -394,9 +395,16 @@ export default function DialerQaPage() {
   return (
     <PageShell
       title="Call QA"
-      description="Review flagged calls for missing qualification, weak follow-up, and objection handling. Findings are informational — they do not auto-update CRM state."
+      description="Flagged call findings — missing qualification, weak follow-up, objection handling."
     >
       <div className="space-y-4">
+        <div className="flex items-center gap-2 text-xs text-muted-foreground/50 mb-1">
+          <Link href="/dialer/review" className="hover:text-muted-foreground transition-colors">
+            Review Console
+          </Link>
+          <span>/</span>
+          <span className="text-muted-foreground/70">Call QA</span>
+        </div>
 
         {/* ── Summary strip ─────────────────────────────────── */}
         {summary && (

@@ -67,8 +67,8 @@ function daysAgo(dateStr: string | null): number | null {
 /** Urgency → style class for action label in deal cards */
 function dispoUrgencyClass(urgency: string): string {
   switch (urgency) {
-    case "critical": return "text-foreground";
-    case "high": return "text-foreground";
+    case "critical": return "text-amber-400";
+    case "high": return "text-amber-300/80";
     case "normal": return "text-muted-foreground/70";
     default: return "text-muted-foreground/50";
   }
@@ -126,62 +126,60 @@ function OutreachFunnel({ deals }: { deals: DispoDeal[] }) {
 
 // ── Stalled Deals Panel ──
 
-function StalledDealsPanel({ deals }: { deals: DispoDeal[] }) {
+function StalledDealsPanel({ deals, onExpandDeal }: { deals: DispoDeal[]; onExpandDeal: (id: string) => void }) {
   const stalledDeals = useMemo(() => {
     const results: { deal: DispoDeal; summary: DispoActionSummary }[] = [];
     for (const deal of deals) {
       const summary = deriveDealAction(deal);
       if (summary.isStalled) results.push({ deal, summary });
     }
-    return results;
+    return results.sort((a, b) => {
+      const rank = DISPO_URGENCY_RANK;
+      return (rank[a.summary.urgency] ?? 4) - (rank[b.summary.urgency] ?? 4);
+    });
   }, [deals]);
-  const [open, setOpen] = useState(true);
 
   if (stalledDeals.length === 0) return null;
 
   return (
-    <GlassCard hover={false} delay={0} className="p-0 overflow-hidden border-border/15">
-      <button
-        onClick={() => setOpen(!open)}
-        className="w-full flex items-center gap-2 px-4 py-2.5 text-left hover:bg-white/[0.01] transition-colors"
-      >
-        <AlertTriangle className="h-3.5 w-3.5 text-foreground/70" />
-        <span className="text-xs font-semibold uppercase tracking-wider text-foreground/80">
-          Needs Attention
+    <div className="rounded-[12px] border-2 border-amber-500/25 bg-amber-500/[0.04] p-4 space-y-3">
+      <div className="flex items-center gap-2">
+        <AlertTriangle className="h-4 w-4 text-amber-400" />
+        <span className="text-xs font-bold uppercase tracking-wider text-amber-300">
+          Needs Movement
         </span>
-        <Badge variant="gold" className="text-xs">{stalledDeals.length}</Badge>
-        <div className="flex-1" />
-        <motion.div animate={{ rotate: open ? 180 : 0 }} transition={{ duration: 0.15 }}>
-          <ChevronDown className="h-3 w-3 text-muted-foreground/30" />
-        </motion.div>
-      </button>
+        <Badge variant="outline" className="text-xs border-amber-500/25 text-amber-400 bg-amber-500/[0.08]">
+          {stalledDeals.length} deal{stalledDeals.length === 1 ? "" : "s"}
+        </Badge>
+      </div>
 
-      <AnimatePresence initial={false}>
-        {open && (
-          <motion.div
-            initial={{ height: 0, opacity: 0 }}
-            animate={{ height: "auto", opacity: 1 }}
-            exit={{ height: 0, opacity: 0 }}
-            transition={{ duration: 0.15 }}
-            className="overflow-hidden"
+      <div className="space-y-1.5">
+        {stalledDeals.map((s) => (
+          <button
+            key={s.deal.id}
+            onClick={() => onExpandDeal(s.deal.id)}
+            className="w-full flex items-center gap-3 px-3 py-2 rounded-[8px] bg-white/[0.02] border border-white/[0.06] hover:bg-white/[0.04] transition-colors text-left"
           >
-            <div className="px-4 pb-3 space-y-1.5">
-              {stalledDeals.map((s) => (
-                <div key={s.deal.id} className="flex items-center gap-2 px-3 py-2 rounded-[6px] bg-muted/[0.03] border border-border/10">
-                  <MapPin className="h-3 w-3 text-foreground/50 shrink-0" />
-                  <span className="text-xs text-foreground/70 truncate flex-1">
-                    {s.deal.property_address || "No address"}
-                  </span>
-                  <span className={cn("text-xs px-1.5 py-0.5 rounded shrink-0", dispoUrgencyClass(s.summary.urgency))} title={s.summary.reason}>
-                    {s.summary.action}
-                  </span>
-                </div>
-              ))}
+            <MapPin className="h-3 w-3 text-muted-foreground/50 shrink-0" />
+            <div className="flex-1 min-w-0">
+              <p className="text-xs font-medium text-foreground truncate">
+                {s.deal.property_address || "No address"}
+              </p>
+              <p className={cn("text-xs mt-0.5", s.summary.urgency === "critical" ? "text-amber-400 font-medium" : "text-muted-foreground/70")}>
+                {s.summary.action}
+              </p>
             </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-    </GlassCard>
+            <div className="flex items-center gap-2 shrink-0">
+              <span className="text-xs text-muted-foreground/40">{s.deal.deal_buyers.length} buyer{s.deal.deal_buyers.length === 1 ? "" : "s"}</span>
+              {s.summary.daysInDispo != null && (
+                <span className="text-xs text-muted-foreground/40">{s.summary.daysInDispo}d</span>
+              )}
+              <ChevronRight className="h-3 w-3 text-muted-foreground/30" />
+            </div>
+          </button>
+        ))}
+      </div>
+    </div>
   );
 }
 
@@ -349,51 +347,58 @@ function DealCard({ deal, expanded, onToggleExpand, onStatusChange, onLinkBuyer,
   const actionSummary = useMemo(() => deriveDealAction(deal), [deal]);
 
   return (
-    <GlassCard hover delay={0} className="p-0 overflow-hidden">
+    <GlassCard hover delay={0} className={cn(
+      "p-0 overflow-hidden",
+      actionSummary.isStalled && "border-amber-500/15"
+    )}>
       {/* Card header — always visible */}
       <button
         onClick={onToggleExpand}
-        className="w-full flex items-start gap-3 p-4 text-left hover:bg-white/[0.01] transition-colors"
+        className="w-full flex items-start gap-3 p-3.5 text-left hover:bg-white/[0.01] transition-colors"
       >
-        <div className="h-9 w-9 rounded-[10px] bg-primary/6 border border-primary/12 flex items-center justify-center shrink-0 mt-0.5">
-          <MapPin className="h-4 w-4 text-primary/60" />
-        </div>
-
         <div className="flex-1 min-w-0">
-          <div className="font-medium text-sm text-foreground truncate">
-            {deal.property_address || "No address"}
-          </div>
-          {deal.lead_name && (
-            <div className="text-xs text-muted-foreground/50 mt-0.5">{formatSellerName(deal.lead_name)}</div>
-          )}
-          <div className="flex items-center gap-3 mt-1.5 text-xs text-muted-foreground/60">
-            <span>Contract: <span className="text-foreground/80 font-medium">{fmtPrice(deal.contract_price)}</span></span>
-            <span>ARV: <span className="text-foreground/80 font-medium">{fmtPrice(deal.arv)}</span></span>
-            {deal.offer_price && (
-              <span>Offer: <span className="text-foreground/80 font-medium">{fmtPrice(deal.offer_price)}</span></span>
+          <div className="flex items-center gap-2">
+            <span className="font-medium text-sm text-foreground truncate">
+              {deal.property_address || "No address"}
+            </span>
+            {deal.lead_name && (
+              <span className="text-xs text-muted-foreground/40 shrink-0">{formatSellerName(deal.lead_name)}</span>
             )}
           </div>
-          {/* Dispo action summary — compact reason line */}
+          {/* Compact financials */}
+          <div className="flex items-center gap-x-3 gap-y-0.5 mt-1 text-xs text-muted-foreground/50 flex-wrap">
+            <span>Contract <span className="text-foreground/70 font-medium">{fmtPrice(deal.contract_price)}</span></span>
+            <span>ARV <span className="text-foreground/70 font-medium">{fmtPrice(deal.arv)}</span></span>
+            {deal.offer_price && (
+              <span>Offer <span className="text-foreground/70 font-medium">{fmtPrice(deal.offer_price)}</span></span>
+            )}
+            <span className="text-muted-foreground/25">·</span>
+            <span className="flex items-center gap-1">
+              <Users className="h-2.5 w-2.5" />
+              {deal.deal_buyers.length} buyer{deal.deal_buyers.length === 1 ? "" : "s"}
+            </span>
+            {actionSummary.daysInDispo != null && (
+              <>
+                <span className="text-muted-foreground/25">·</span>
+                <span className={actionSummary.daysInDispo > 14 ? "text-amber-400/70" : ""}>{actionSummary.daysInDispo}d in dispo</span>
+              </>
+            )}
+          </div>
+          {/* Action summary — the most important line */}
           {actionSummary.urgency !== "none" && (
-            <div className={cn("text-sm mt-1.5 truncate", dispoUrgencyClass(actionSummary.urgency))} title={actionSummary.reason}>
-              {actionSummary.action}
+            <div className={cn(
+              "text-xs mt-1.5 font-medium",
+              actionSummary.urgency === "critical" ? "text-amber-400" :
+              actionSummary.urgency === "high" ? "text-amber-300/80" :
+              actionSummary.urgency === "low" ? "text-emerald-400/70" :
+              "text-muted-foreground/60"
+            )} title={actionSummary.reason}>
+              → {actionSummary.action}
             </div>
           )}
         </div>
 
-        <div className="flex flex-col items-end gap-1.5 shrink-0">
-          <div className="flex items-center gap-1.5">
-            <Users className="h-3 w-3 text-muted-foreground/40" />
-            <span className="text-xs text-muted-foreground/60">{deal.deal_buyers.length}</span>
-          </div>
-          {actionSummary.daysInDispo != null && (
-            <span className={cn(
-              "text-sm",
-              actionSummary.daysInDispo > 14 ? "text-foreground/60" : "text-muted-foreground/40"
-            )}>
-              {actionSummary.daysInDispo}d in dispo
-            </span>
-          )}
+        <div className="shrink-0 mt-1">
           <motion.div animate={{ rotate: expanded ? 180 : 0 }} transition={{ duration: 0.15 }}>
             <ChevronDown className="h-3.5 w-3.5 text-muted-foreground/30" />
           </motion.div>
@@ -411,18 +416,18 @@ function DealCard({ deal, expanded, onToggleExpand, onStatusChange, onLinkBuyer,
             className="overflow-hidden"
           >
             <div className="border-t border-white/[0.04] px-4 pb-4 pt-3">
-              {/* Dispo Prep toggle */}
+              {/* Deal Prep toggle */}
               <button
                 onClick={(e) => { e.stopPropagation(); setPrepOpen(!prepOpen); }}
-                className="flex items-center gap-2 mb-3 text-sm text-muted-foreground/60 hover:text-muted-foreground/80 transition-colors"
+                className="flex items-center gap-1.5 mb-3 text-xs text-muted-foreground/50 hover:text-muted-foreground/80 transition-colors"
               >
                 <FileText className="h-3 w-3" />
-                <span className="font-semibold tracking-wide">Dispo Prep</span>
+                <span className="font-semibold uppercase tracking-wider">Deal Prep</span>
                 <motion.div animate={{ rotate: prepOpen ? 90 : 0 }} transition={{ duration: 0.1 }}>
                   <ChevronRight className="h-3 w-3" />
                 </motion.div>
                 {deal.dispo_prep?.dispo_summary && (
-                  <span className="text-xs text-primary/40 normal-case tracking-normal font-normal ml-1">has summary</span>
+                  <span className="text-xs text-emerald-500/50 normal-case tracking-normal font-normal ml-1">ready</span>
                 )}
               </button>
 
@@ -447,21 +452,24 @@ function DealCard({ deal, expanded, onToggleExpand, onStatusChange, onLinkBuyer,
                 <DealClosingCard dealId={deal.id} onUpdate={onRefetch} />
               )}
 
-              {/* Link buyer button */}
-              <div className="flex items-center justify-between mb-3">
-                <span className="text-sm text-muted-foreground/60 font-semibold tracking-wide">Linked Buyers</span>
+              {/* Buyer section */}
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                  Buyers ({deal.deal_buyers.length})
+                </span>
                 <button
                   onClick={(e) => { e.stopPropagation(); onLinkBuyer(deal.id); }}
-                  className="flex items-center gap-1 px-2.5 py-1 text-sm font-medium text-primary bg-primary/8 hover:bg-primary/12 rounded-[6px] border border-primary/20 hover:border-primary/30 transition-all"
+                  className="flex items-center gap-1 px-2 py-1 text-xs font-medium text-primary bg-primary/8 hover:bg-primary/12 rounded-[6px] border border-primary/20 hover:border-primary/30 transition-all"
                 >
                   <Plus className="h-3 w-3" />
-                  Link Buyer
+                  Add Buyer
                 </button>
               </div>
 
               {deal.deal_buyers.length === 0 ? (
-                <div className="text-xs text-muted-foreground/40 py-4 text-center">
-                  No buyers linked yet. Add a buyer to start outreach.
+                <div className="rounded-[8px] border border-amber-500/20 bg-amber-500/[0.03] px-3 py-3 text-center">
+                  <p className="text-xs text-amber-400 font-medium">No buyers linked</p>
+                  <p className="text-xs text-muted-foreground/40 mt-0.5">Add buyer candidates to start outreach.</p>
                 </div>
               ) : (
                 <div className="space-y-2">
@@ -514,17 +522,18 @@ function DealCard({ deal, expanded, onToggleExpand, onStatusChange, onLinkBuyer,
                             </span>
                           )}
 
-                          {/* Follow-up indicator */}
-                          {db.follow_up_needed && (
-                            <CalendarClock className="h-3.5 w-3.5 text-foreground/70 shrink-0" />
-                          )}
-
-                          {/* Contact date */}
-                          {db.date_contacted && (
-                            <span className="text-sm text-muted-foreground/40 shrink-0">
-                              {new Date(db.date_contacted).toLocaleDateString()}
-                            </span>
-                          )}
+                          {/* Follow-up / timing signals */}
+                          <div className="flex items-center gap-1.5 shrink-0 text-xs text-muted-foreground/40">
+                            {db.follow_up_needed && (
+                              <span title="Follow-up needed"><CalendarClock className="h-3 w-3 text-amber-400/70" /></span>
+                            )}
+                            {db.date_contacted && !db.responded_at && PRE_RESPONSE_STATUSES.has(db.status) && (
+                              <span className="text-amber-400/60">No reply</span>
+                            )}
+                            {db.date_contacted && (
+                              <span>{new Date(db.date_contacted).toLocaleDateString()}</span>
+                            )}
+                          </div>
                         </div>
 
                         {/* Selection reason — shown when status = selected */}
@@ -648,15 +657,15 @@ export default function DispoPage() {
 
   return (
     <PageShell
-      title="Dispo Board"
-      description="Match buyers to deals in disposition"
+      title="Dispo"
+      description="Move contracts to buyers — stalled deals first"
       actions={<CoachToggle />}
     >
       {showError ? (
         <GlassCard hover={false} delay={0.02} className="py-16">
           <div className="flex flex-col items-center justify-center text-center gap-3">
             <AlertCircle className="h-5 w-5 text-foreground/70" />
-            <p className="text-sm text-muted-foreground/60">{error || "Dispo board took too long to load."}</p>
+            <p className="text-sm text-muted-foreground/60">{error || "Dispo took too long to load."}</p>
             <button
               onClick={() => { setTimedOut(false); refetch(); }}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-[8px] text-xs font-medium bg-primary/15 text-primary border border-primary/20 hover:bg-primary/25 transition-all"
@@ -671,43 +680,71 @@ export default function DispoPage() {
           <div className="h-5 w-5 border-2 border-primary/30 border-t-cyan rounded-full animate-spin" />
         </div>
       ) : deals.length === 0 ? (
-        <GlassCard hover={false} delay={0.02} className="py-16">
+        <GlassCard hover={false} delay={0.02} className="py-12">
           <div className="flex flex-col items-center justify-center text-center">
-            <div className="h-14 w-14 rounded-full bg-white/[0.03] border border-white/[0.06] flex items-center justify-center mb-4">
-              <DollarSign className="h-6 w-6 text-muted-foreground/30" />
-            </div>
+            <DollarSign className="h-6 w-6 text-muted-foreground/25 mb-3" />
             <p className="text-sm text-muted-foreground/60 font-medium">No deals in disposition</p>
-            <p className="text-xs text-muted-foreground/40 mt-1 max-w-sm">
-              Deals enter disposition from the pipeline when a seller accepts an offer.
+            <p className="text-xs text-muted-foreground/40 mt-1">
+              Deals move here when a seller accepts an offer and it&apos;s time to find a buyer.
             </p>
           </div>
         </GlassCard>
       ) : (
         <div className="space-y-3">
-          {/* Stalled deals panel */}
-          <StalledDealsPanel deals={deals} />
+          {/* Stalled deals — always visible, not collapsible */}
+          <StalledDealsPanel deals={deals} onExpandDeal={(id) => {
+            setExpandedIds((prev) => { const next = new Set(prev); next.add(id); return next; });
+            setTimeout(() => document.getElementById(`deal-${id}`)?.scrollIntoView({ behavior: "smooth", block: "center" }), 100);
+          }} />
 
-          {/* Outreach funnel bar */}
-          <OutreachFunnel deals={deals} />
+          {/* Compact pipeline summary */}
+          <div className="flex items-center gap-4 px-3 py-1.5 rounded-[10px] border border-white/[0.06] bg-white/[0.02]">
+            <OutreachFunnel deals={deals} />
+          </div>
 
-          {/* Deal cards */}
-          {deals.map((deal, i) => (
-            <motion.div
-              key={deal.id}
-              initial={hydrated ? { opacity: 0, y: 8 } : false}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: i * 0.04, duration: 0.15 }}
-            >
-              <DealCard
-                deal={deal}
-                expanded={expandedIds.has(deal.id)}
-                onToggleExpand={() => toggleExpanded(deal.id)}
-                onStatusChange={handleStatusChange}
-                onLinkBuyer={handleLinkBuyer}
-                onRefetch={refetch}
-              />
-            </motion.div>
-          ))}
+          {/* Deal cards — grouped by urgency bucket */}
+          {(() => {
+            const groups = [
+              { key: "stalled", label: "Stalled / Blocked", filter: (d: DispoDeal) => deriveDealAction(d).isStalled },
+              { key: "active", label: "Active Pipeline", filter: (d: DispoDeal) => { const a = deriveDealAction(d); return !a.isStalled && a.urgency !== "none" && a.urgency !== "low"; } },
+              { key: "progressing", label: "Progressing", filter: (d: DispoDeal) => { const a = deriveDealAction(d); return !a.isStalled && (a.urgency === "low" || a.urgency === "none"); } },
+            ];
+            let cardIdx = 0;
+            return groups.map((group) => {
+              const groupDeals = deals.filter(group.filter);
+              if (groupDeals.length === 0) return null;
+              return (
+                <div key={group.key}>
+                  <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground/50 mb-2 mt-1">
+                    {group.label} ({groupDeals.length})
+                  </p>
+                  <div className="space-y-2">
+                    {groupDeals.map((deal) => {
+                      const idx = cardIdx++;
+                      return (
+                        <motion.div
+                          key={deal.id}
+                          id={`deal-${deal.id}`}
+                          initial={hydrated ? { opacity: 0, y: 8 } : false}
+                          animate={{ opacity: 1, y: 0 }}
+                          transition={{ delay: idx * 0.04, duration: 0.15 }}
+                        >
+                          <DealCard
+                            deal={deal}
+                            expanded={expandedIds.has(deal.id)}
+                            onToggleExpand={() => toggleExpanded(deal.id)}
+                            onStatusChange={handleStatusChange}
+                            onLinkBuyer={handleLinkBuyer}
+                            onRefetch={refetch}
+                          />
+                        </motion.div>
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            });
+          })()}
         </div>
       )}
 

@@ -813,7 +813,7 @@ export function LinkedBuyersSummary({ leadId }: { leadId: string }) {
           href="/dispo"
           className="text-sm text-primary/70 hover:text-primary transition-colors flex items-center gap-1"
         >
-          Dispo Board <ArrowRight className="h-2.5 w-2.5" />
+          Disposition <ArrowRight className="h-2.5 w-2.5" />
         </Link>
       </div>
       <div className="flex items-center gap-4 text-xs">

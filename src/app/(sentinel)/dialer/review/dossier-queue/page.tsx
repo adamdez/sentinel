@@ -154,11 +154,11 @@ export default function DossierQueuePage() {
               className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground mb-2"
             >
               <ArrowLeft className="h-3 w-3" />
-              Back to review
+              Review Console
             </Link>
             <div className="flex items-center gap-2">
               <FileText className="h-5 w-5 text-foreground dark:text-foreground" />
-              <h1 className="text-xl font-semibold tracking-tight">Dossier Review Queue</h1>
+              <h1 className="text-xl font-semibold tracking-tight">Research Review</h1>
               {pendingCount != null && pendingCount > 0 && (
                 <Badge className="bg-muted text-white text-xs">{pendingCount}</Badge>
               )}

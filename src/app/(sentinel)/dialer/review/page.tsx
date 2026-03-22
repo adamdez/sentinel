@@ -262,11 +262,11 @@ function DialerReviewPageInner() {
 
   return (
     <PageShell
-      title="Dialer Review"
+      title="Review Console"
       description={
         panel === "queue"
-          ? "Approve or reject agent proposals before they execute against CRM or intelligence tables."
-          : "Weekly call and task discipline — last 4 ISO weeks. Deep data from dialer_events."
+          ? "Approve or reject agent proposals before they touch CRM."
+          : "Weekly call and task discipline — 4-week trend."
       }
     >
       <div className="flex flex-wrap gap-2 mb-2">
@@ -279,7 +279,7 @@ function DialerReviewPageInner() {
               : "border-white/[0.06] text-muted-foreground hover:border-white/10",
           )}
         >
-          Weekly KPI
+          Weekly KPIs
         </Link>
         <Link
           href="/dialer/review?panel=queue"
@@ -290,13 +290,25 @@ function DialerReviewPageInner() {
               : "border-white/[0.06] text-muted-foreground hover:border-white/10",
           )}
         >
-          Agent review queue
+          Agent Queue
         </Link>
         <Link
           href="/dialer/review/dossier-queue"
           className="rounded-[10px] px-3 py-1.5 text-sm font-medium border border-white/[0.06] text-muted-foreground hover:border-white/10 transition-colors"
         >
-          Dossier queue
+          Research Review
+        </Link>
+        <Link
+          href="/dialer/qa"
+          className="rounded-[10px] px-3 py-1.5 text-sm font-medium border border-white/[0.06] text-muted-foreground hover:border-white/10 transition-colors"
+        >
+          Call QA
+        </Link>
+        <Link
+          href="/dialer/review/eval"
+          className="rounded-[10px] px-3 py-1.5 text-sm font-medium border border-white/[0.06] text-muted-foreground hover:border-white/10 transition-colors"
+        >
+          AI Evals
         </Link>
       </div>
 
@@ -473,7 +485,7 @@ function DialerReviewPageInner() {
                 <dd className="text-muted-foreground/70">
                   Live count of pending dialer follow-up tasks past due_at. {" "}
                   <Link href="/tasks" className="text-primary/70 hover:text-primary underline-offset-2 hover:underline">
-                    View in Tasks →
+                    View Follow-Ups →
                   </Link>
                 </dd>
               </div>
@@ -889,84 +901,49 @@ function DialerReviewPageInner() {
         {/* ── Voice Policy Ledger ────────────────────────────── */}
         <VoiceConsentLedger days={14} />
 
-        {/* ── Actions ───────────────────────────────────────── */}
+        {/* ── Related review surfaces ───────────────────────── */}
         {data && !loading && (
-          <div className="flex flex-wrap gap-2">
-            <Link
-              href="/tasks"
-              className="flex items-center gap-1.5 rounded-[10px] border border-white/[0.07] bg-white/[0.03] px-3 py-2 text-sm text-muted-foreground hover:text-foreground hover:border-white/[0.12] transition-colors"
-            >
-              <CheckSquare className="h-3 w-3" />
-              Open Tasks
-            </Link>
-            <Link
-              href="/leads"
-              className="flex items-center gap-1.5 rounded-[10px] border border-white/[0.07] bg-white/[0.03] px-3 py-2 text-sm text-muted-foreground hover:text-foreground hover:border-white/[0.12] transition-colors"
-            >
-              <Phone className="h-3 w-3" />
-              Leads
-            </Link>
-            <Link
-              href="/dialer"
-              className="flex items-center gap-1.5 rounded-[10px] border border-white/[0.07] bg-white/[0.03] px-3 py-2 text-sm text-muted-foreground hover:text-foreground hover:border-white/[0.12] transition-colors"
-            >
-              <RefreshCw className="h-3 w-3" />
-              Back to Dialer
-            </Link>
-            <Link
-              href="/dialer/review/dossier-queue"
-              className="flex items-center gap-1.5 rounded-[10px] border border-border/20 bg-muted/[0.04] px-3 py-2 text-sm text-foreground/70 dark:text-foreground/70 hover:text-foreground dark:hover:text-foreground hover:border-border/30 transition-colors"
-            >
-              <FileText className="h-3 w-3" />
-              Dossier Review →
-            </Link>
-            <Link
-              href="/buyers"
-              className="flex items-center gap-1.5 rounded-[10px] border border-white/[0.07] bg-white/[0.03] px-3 py-2 text-sm text-muted-foreground hover:text-foreground hover:border-white/[0.12] transition-colors"
-            >
-              <AlertTriangle className="h-3 w-3" />
-              Buyers
-              {staleBuyerCount > 0 && (
-                <span className="ml-1 px-1.5 py-0.5 rounded-full bg-muted/20 text-foreground dark:text-foreground text-xs font-medium">
-                  {staleBuyerCount} stale
-                </span>
-              )}
-            </Link>
-            <Link
-              href="/dialer/war-room"
-              className="flex items-center gap-1.5 rounded-[10px] border border-primary/20 bg-primary/[0.04] px-3 py-2 text-sm text-primary/70 hover:text-primary hover:border-primary/30 transition-colors"
-            >
-              <TrendingUp className="h-3 w-3" />
-              Call Review →
-            </Link>
-            <Link
-              href="/settings/voice-registry"
-              className="flex items-center gap-1.5 rounded-[10px] border border-white/[0.07] bg-white/[0.03] px-3 py-2 text-sm text-muted-foreground hover:text-foreground hover:border-white/[0.12] transition-colors"
-            >
-              <Radio className="h-3 w-3" />
-              Voice Registry
-            </Link>
-            <Link
-              href="/settings/trust-language"
-              className="flex items-center gap-1.5 rounded-[10px] border border-white/[0.07] bg-white/[0.03] px-3 py-2 text-sm text-muted-foreground hover:text-foreground hover:border-white/[0.12] transition-colors"
-            >
-              <MessageSquare className="h-3 w-3" />
-              Trust Language
-            </Link>
-            <Link
-              href="/settings/outbound-pilot"
-              className="flex items-center gap-1.5 rounded-[10px] border border-border/20 bg-muted/[0.04] px-3 py-2 text-sm text-foreground/70 dark:text-foreground/70 hover:text-foreground dark:hover:text-foreground hover:border-border/30 transition-colors"
-            >
-              <ShieldAlert className="h-3 w-3" />
-              Outbound Prep
-            </Link>
-            <Link
-              href="/dialer/review/eval"
-              className="flex items-center gap-1.5 rounded-[10px] border border-border/20 bg-muted/[0.04] px-3 py-2 text-sm text-foreground/70 dark:text-foreground/70 hover:text-foreground dark:hover:text-foreground hover:border-border/30 transition-colors"
-            >
-              <Brain className="h-3 w-3" />
-              AI Eval →
-            </Link>
+          <div className="space-y-2">
+            <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground/40">
+              Related review surfaces
+            </p>
+            <div className="flex flex-wrap gap-2">
+              <Link
+                href="/dialer/review/dossier-queue"
+                className="flex items-center gap-1.5 rounded-[10px] border border-border/20 bg-muted/[0.04] px-3 py-2 text-sm text-foreground/70 hover:text-foreground hover:border-border/30 transition-colors"
+              >
+                <FileText className="h-3 w-3" />
+                Research Review
+              </Link>
+              <Link
+                href="/dialer/qa"
+                className="flex items-center gap-1.5 rounded-[10px] border border-border/20 bg-muted/[0.04] px-3 py-2 text-sm text-foreground/70 hover:text-foreground hover:border-border/30 transition-colors"
+              >
+                <Flag className="h-3 w-3" />
+                Call QA
+              </Link>
+              <Link
+                href="/dialer/war-room"
+                className="flex items-center gap-1.5 rounded-[10px] border border-border/20 bg-muted/[0.04] px-3 py-2 text-sm text-foreground/70 hover:text-foreground hover:border-border/30 transition-colors"
+              >
+                <TrendingUp className="h-3 w-3" />
+                Call Review
+              </Link>
+              <Link
+                href="/dialer/review/eval"
+                className="flex items-center gap-1.5 rounded-[10px] border border-border/20 bg-muted/[0.04] px-3 py-2 text-sm text-foreground/70 hover:text-foreground hover:border-border/30 transition-colors"
+              >
+                <Brain className="h-3 w-3" />
+                AI Evals
+              </Link>
+              <Link
+                href="/settings"
+                className="flex items-center gap-1.5 rounded-[10px] border border-white/[0.07] bg-white/[0.03] px-3 py-2 text-sm text-muted-foreground hover:text-foreground hover:border-white/[0.12] transition-colors"
+              >
+                <RefreshCw className="h-3 w-3" />
+                Settings
+              </Link>
+            </div>
           </div>
         )}
 
@@ -980,7 +957,7 @@ export default function DialerReviewPage() {
   return (
     <Suspense
       fallback={
-        <PageShell title="Dialer Review" description="Loading…">
+        <PageShell title="Review Console" description="Loading…">
           <GlassCard hover={false} className="flex items-center justify-center gap-2 py-12 text-sm text-muted-foreground">
             <Loader2 className="h-4 w-4 animate-spin" />
             Loading…

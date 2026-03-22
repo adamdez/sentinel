@@ -315,10 +315,10 @@ export default function EvalPage() {
         {/* ── Breadcrumb ── */}
         <div className="flex items-center gap-2 text-xs text-muted-foreground/50">
           <Link href="/dialer/review" className="hover:text-muted-foreground transition-colors flex items-center gap-1">
-            <ArrowLeft className="w-3 h-3" /> Dialer Review
+            <ArrowLeft className="w-3 h-3" /> Review Console
           </Link>
           <ChevronRight className="w-3 h-3" />
-          <span className="text-muted-foreground/70">AI Eval</span>
+          <span className="text-muted-foreground/70">AI Evals</span>
         </div>
 
         {/* ── Page header ── */}
@@ -359,7 +359,7 @@ export default function EvalPage() {
         {/* ── Related links ── */}
         <div className="flex flex-wrap gap-3 text-xs text-muted-foreground/40">
           <Link href="/dialer/review" className="hover:text-muted-foreground flex items-center gap-1 transition-colors">
-            <ChevronRight className="w-3 h-3" /> Dialer Review
+            <ChevronRight className="w-3 h-3" /> Review Console
           </Link>
           <Link href="/settings/prompt-registry" className="hover:text-muted-foreground flex items-center gap-1 transition-colors">
             <ChevronRight className="w-3 h-3" /> Prompt Registry

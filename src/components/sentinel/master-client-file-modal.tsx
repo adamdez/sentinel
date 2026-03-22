@@ -72,6 +72,7 @@ import { supabase } from "@/lib/supabase";
 import { precheckWorkflowStageChange } from "@/lib/workflow-stage-precheck";
 import { getAllowedTransitions } from "@/lib/lead-guardrails";
 import { LeadDossierPanel } from "@/components/sentinel/lead-dossier-panel";
+import { BrickedAnalysisPanel } from "@/components/sentinel/bricked/bricked-analysis-panel";
 import { IntakeGuideSection } from "@/components/sentinel/intake-guide-section";
 import { formatDueDateLabel } from "@/lib/due-date-label";
 import { toast } from "sonner";
@@ -6831,7 +6832,22 @@ export function MasterClientFileModal({ clientFile: incomingClientFile, open, on
                         <LeadDossierPanel leadId={clientFile.id} />
                       </div>
                     )}
-                    {activeTab === "comps" && <CompsTab cf={clientFile} selectedComps={selectedComps} onAddComp={handleAddComp} onRemoveComp={handleRemoveComp} onSkipTrace={handleSkipTrace} computedArv={computedArv} onArvChange={handleArvChange} conditionAdj={conditionAdj} onConditionAdjChange={setConditionAdj} />}
+                    {activeTab === "comps" && (
+                      process.env.NEXT_PUBLIC_BRICKED_ENABLED !== "false" && clientFile.fullAddress ? (
+                        <BrickedAnalysisPanel
+                          leadId={clientFile.id}
+                          address={clientFile.fullAddress}
+                          bedrooms={clientFile.bedrooms}
+                          bathrooms={clientFile.bathrooms}
+                          sqft={clientFile.sqft}
+                          yearBuilt={clientFile.yearBuilt}
+                          estimatedValue={clientFile.estimatedValue}
+                          computedArv={computedArv}
+                        />
+                      ) : (
+                        <CompsTab cf={clientFile} selectedComps={selectedComps} onAddComp={handleAddComp} onRemoveComp={handleRemoveComp} onSkipTrace={handleSkipTrace} computedArv={computedArv} onArvChange={handleArvChange} conditionAdj={conditionAdj} onConditionAdjChange={setConditionAdj} />
+                      )
+                    )}
                     {activeTab === "calculator" && <OfferCalcTab cf={clientFile} computedArv={computedArv} initialRepairs={((clientFile?.ownerFlags?.bricked_repair_cost as number) ?? 0) > 0 ? (clientFile?.ownerFlags?.bricked_repair_cost as number) : undefined} />}
                     {activeTab === "documents" && <DocumentsTab cf={clientFile} computedArv={computedArv} />}
                   </motion.div>
