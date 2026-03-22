@@ -147,6 +147,9 @@ import { MonetizabilityEditor } from "./master-client-file/monetizability-editor
 import { DossierBlock } from "./master-client-file/dossier-block";
 import type { LeadDossierType } from "./master-client-file/dossier-block";
 import { NegativeIntelligenceBlock } from "./negative-intelligence-block";
+import { NextActionCard } from "./master-client-file/next-action-card";
+import { SellerSnapshot } from "./master-client-file/seller-snapshot";
+import { QualificationGaps } from "./master-client-file/qualification-gaps";
 
 // Re-export for consumers that import from this file
 export type { ClientFile };
@@ -430,7 +433,7 @@ const WORKFLOW_STAGE_OPTIONS: Array<{ id: WorkflowStageId; label: string }> = [
 // Tab: Overview
 // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
-function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceMs, overlay, skipTraceError, onSkipTrace, onManualSkipTrace, onEdit, onDial, onSms, calling, dialHistory, autofilling, onAutofill, deepCrawling, deepCrawlResult, deepCrawlExpanded, setDeepCrawlExpanded, executeDeepCrawl, hasSavedReport, loadingReport, loadSavedReport, crawlSteps, deepSkipResult, activityRefreshToken, qualification, qualificationDirty, qualificationSaving, qualificationEditable, qualificationSuggestedRoute, onQualificationChange, onQualificationRouteSelect, onQualificationSave, offerPrepDraft, offerPrepEditing, offerPrepSaving, onOfferPrepDraftChange, onOfferPrepEditToggle, onOfferPrepSave, offerStatusDraft, offerStatusEditing, offerStatusSaving, onOfferStatusDraftChange, onOfferStatusEditToggle, onOfferStatusSave, buyerDispoTruthDraft, buyerDispoTruthEditing, buyerDispoTruthSaving, onBuyerDispoTruthDraftChange, onBuyerDispoTruthEditToggle, onBuyerDispoTruthSave, milestoneDraft, milestoneEditing, milestoneSaving, onMilestoneDraftChange, onMilestoneEditToggle, onSaveMilestones, isAdam }: {
+function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceMs, overlay, skipTraceError, onSkipTrace, onManualSkipTrace, onEdit, onDial, onSms, calling, dialHistory, autofilling, onAutofill, deepCrawling, deepCrawlResult, deepCrawlExpanded, setDeepCrawlExpanded, executeDeepCrawl, hasSavedReport, loadingReport, loadSavedReport, crawlSteps, deepSkipResult, activityRefreshToken, qualification, qualificationDirty, qualificationSaving, qualificationEditable, qualificationSuggestedRoute, onQualificationChange, onQualificationRouteSelect, onQualificationSave, offerPrepDraft, offerPrepEditing, offerPrepSaving, onOfferPrepDraftChange, onOfferPrepEditToggle, onOfferPrepSave, offerStatusDraft, offerStatusEditing, offerStatusSaving, onOfferStatusDraftChange, onOfferStatusEditToggle, onOfferStatusSave, buyerDispoTruthDraft, buyerDispoTruthEditing, buyerDispoTruthSaving, onBuyerDispoTruthDraftChange, onBuyerDispoTruthEditToggle, onBuyerDispoTruthSave, milestoneDraft, milestoneEditing, milestoneSaving, onMilestoneDraftChange, onMilestoneEditToggle, onSaveMilestones, isAdam, onEditNextAction }: {
   cf: ClientFile; computedArv: number; skipTracing: boolean; skipTraceResult: string | null; skipTraceMs: number | null;
   overlay: SkipTraceOverlay | null; skipTraceError: SkipTraceError | null;
   onSkipTrace: () => void; onManualSkipTrace: () => void; onEdit: () => void;
@@ -479,6 +482,7 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
   onMilestoneEditToggle: (next: boolean) => void;
   onSaveMilestones: () => void;
   isAdam: boolean;
+  onEditNextAction: () => void;
 }) {
   const displayPhone = overlay?.primaryPhone ?? cf.ownerPhone ?? (cf.ownerFlags?.contact_phone as string | null) ?? null;
   const displayEmail = overlay?.primaryEmail ?? cf.ownerEmail ?? (cf.ownerFlags?.contact_email as string | null) ?? null;
@@ -732,6 +736,9 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
 
   // MAO Formula: ARV x 75% - Repairs (10%) - Assignment Fee ($15K)
   const persistedCompArv = (cf.ownerFlags?.comp_arv as number) ?? 0;
+  const brickedShareLink = (cf.ownerFlags?.bricked_share_link as string) ?? null;
+  const brickedRepairCost = (cf.ownerFlags?.bricked_repair_cost as number) ?? 0;
+  const brickedCmv = (cf.ownerFlags?.bricked_cmv as number) ?? 0;
   const bestArv = computedArv > 0 ? computedArv : persistedCompArv > 0 ? persistedCompArv : cf.estimatedValue ?? 0;
   const arvSource: "comps" | "avm" = (computedArv > 0 || persistedCompArv > 0) ? "comps" : "avm";
   const compCount = (cf.ownerFlags?.comp_count as number) ?? 0;
@@ -946,30 +953,20 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
   }, [cf.id]);
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-4">
+      {/* -- NEXT ACTION -- */}
+      <NextActionCard cf={cf} onEditNextAction={onEditNextAction} />
+
+      {/* -- SELLER SNAPSHOT -- */}
+      <SellerSnapshot cf={cf} phoneConfidence={phoneConfidence} />
+
+      {/* -- QUALIFICATION GAPS -- */}
+      <QualificationGaps cf={cf} />
+
       {/* â•â•â• 1. CALL CARD — WHO + NUMBER (hero section) â•â•â• */}
-      <div ref={sectionOwner} className="rounded-[12px] border-2 border-white/15 bg-white/[0.04] p-4 relative overflow-hidden shadow-[0_8px_32px_rgba(0,0,0,0.28)]">
-        <div className="absolute inset-0 bg-gradient-to-br from-white/[0.05] via-transparent to-transparent pointer-events-none" />
-        <div className="absolute top-0 inset-x-0 h-[1px] bg-gradient-to-r from-transparent via-white/30 to-transparent" />
+      <div ref={sectionOwner} className="rounded-[12px] border border-white/[0.08] bg-white/[0.02] p-3.5 relative overflow-hidden">
 
         <div className="relative z-10">
-          {/* Owner name + badges */}
-          <div className="flex items-center gap-3 mb-3">
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-2 flex-wrap">
-                <p className="text-lg font-bold text-foreground truncate">{cf.ownerName || "—"}</p>
-                <RelationshipBadge data={{
-                  ownerAgeInference: cf.prediction?.ownerAgeInference,
-                  lifeEventProbability: cf.prediction?.lifeEventProbability,
-                  tags: cf.tags,
-                  bestAddress: cf.fullAddress,
-                }} />
-                {ownerAge && <span className="text-sm text-muted-foreground/60">Age ~{ownerAge}</span>}
-                {pipelineDays != null && <Badge variant="outline" className="text-xs border-white/10 text-muted-foreground/60">{pipelineDays}d</Badge>}
-              </div>
-            </div>
-          </div>
-
           {/* Mailing Address for absentee owners */}
           {mailingAddr && (
             <div className="rounded-[10px] border border-white/12 bg-white/[0.04] p-2.5 mb-3">
@@ -1102,6 +1099,192 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
       {/* â•â•â• 3. DISTRESS SIGNALS + EXTERNAL LINKS — side by side â•â•â• */}
       <SellerMemoryPreview leadId={cf.id} />
 
+      {/* â•â•â• 4. PROPERTY SNAPSHOT — Photo Carousel + Address + Badges â•â•â• */}
+      <div ref={sectionProperty} className="rounded-[12px] border border-white/[0.06] bg-white/[0.02] overflow-hidden">
+        {(allPhotos.length > 0 || imageUrl) && (
+          <div className="relative block h-32 group">
+            {allPhotos.length > 0 ? (
+              <>
+                <img
+                  src={allPhotos[zPhotoIdx]}
+                  alt={`Property photo ${zPhotoIdx + 1}`}
+                  className="w-full h-full object-cover"
+                />
+                {allPhotos.length > 1 && (
+                  <>
+                    <button
+                      onClick={() => setZPhotoIdx((i) => (i - 1 + allPhotos.length) % allPhotos.length)}
+                      className="absolute left-1.5 top-1/2 -translate-y-1/2 p-0.5 rounded bg-black/50 text-white opacity-0 group-hover:opacity-100 transition-opacity z-10"
+                    >
+                      <ChevronLeft className="h-3.5 w-3.5" />
+                    </button>
+                    <button
+                      onClick={() => setZPhotoIdx((i) => (i + 1) % allPhotos.length)}
+                      className="absolute right-1.5 top-1/2 -translate-y-1/2 p-0.5 rounded bg-black/50 text-white opacity-0 group-hover:opacity-100 transition-opacity z-10"
+                    >
+                      <ChevronRight className="h-3.5 w-3.5" />
+                    </button>
+                  </>
+                )}
+                <div className="absolute top-2 left-2 bg-black/60 backdrop-blur-sm text-white text-xs font-medium px-1.5 py-0.5 rounded-full flex items-center gap-1 z-10">
+                  <ImageIcon className="h-2.5 w-2.5" />{zPhotoIdx + 1} / {allPhotos.length}
+                </div>
+              </>
+            ) : (
+              <a
+                href={streetViewLink ?? "#"}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="block h-full cursor-pointer"
+                onClick={(e) => { if (!streetViewLink) e.preventDefault(); }}
+              >
+                <img
+                  src={imageUrl!}
+                  alt="Property"
+                  className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-[1.02]"
+                  onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
+                />
+                {streetViewLink && (
+                  <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none">
+                    <span className="bg-black/70 backdrop-blur-sm text-white text-xs font-semibold px-3 py-1.5 rounded-full flex items-center gap-1.5">
+                      <ExternalLink className="h-3 w-3" />{streetViewUrl ? "Open Street View" : "Open in Google Maps"}
+                    </span>
+                  </div>
+                )}
+              </a>
+            )}
+            <div className="absolute inset-0 bg-gradient-to-t from-[rgba(7,7,13,0.85)] via-[rgba(7,7,13,0.2)] to-transparent pointer-events-none" />
+            {zPhotosLoading && allPhotos.length === 0 && (
+              <div className="absolute top-2 left-2 bg-black/60 backdrop-blur-sm text-white text-xs font-medium px-1.5 py-0.5 rounded-full flex items-center gap-1 z-10">
+                <Loader2 className="h-2.5 w-2.5 animate-spin" />Loading photos...
+              </div>
+            )}
+            <div className="absolute bottom-2 left-3 right-3 flex items-end justify-between pointer-events-none">
+              <div className="flex items-center gap-2.5 text-white">
+                {cf.bedrooms != null && (
+                  <span className="text-xs font-bold bg-black/50 backdrop-blur-sm px-2 py-0.5 rounded">{cf.bedrooms}bd / {cf.bathrooms ?? "?"}ba</span>
+                )}
+                {cf.sqft != null && (
+                  <span className="text-xs font-bold bg-black/50 backdrop-blur-sm px-2 py-0.5 rounded">{cf.sqft.toLocaleString()} sqft</span>
+                )}
+                {cf.yearBuilt && (
+                  <span className="text-xs font-bold bg-black/50 backdrop-blur-sm px-2 py-0.5 rounded">Built {cf.yearBuilt}</span>
+                )}
+                {cf.lotSize && (
+                  <span className="text-xs font-bold bg-black/50 backdrop-blur-sm px-2 py-0.5 rounded">{cf.lotSize.toLocaleString()} lot</span>
+                )}
+              </div>
+              <div className="flex items-center gap-1 text-xs text-white/50">
+                <ImageIcon className="h-2.5 w-2.5" />{allPhotos.length > 0 ? `${allPhotos.length} photos \u00B7 Zillow` : streetViewLink ? `Click to explore \u00B7 ${imageLabel}` : imageLabel}
+              </div>
+            </div>
+          </div>
+        )}
+        <div className="p-4 space-y-3">
+          {/* Address + County + APN — with satellite thumbnail on the right */}
+          <div className="flex gap-3">
+            <div className="flex-1 min-w-0 space-y-2">
+              <div className="flex items-start gap-2">
+                <MapPin className="h-3.5 w-3.5 text-muted-foreground mt-0.5 shrink-0" />
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-1.5">
+                    <p className="text-sm font-semibold text-foreground truncate">{cf.fullAddress || "—"}</p>
+                    {cf.fullAddress && <CopyBtn text={cf.fullAddress} />}
+                  </div>
+                  <div className="flex items-center gap-3 mt-0.5">
+                    {cf.county && <span className="text-sm text-muted-foreground">{cf.county} County</span>}
+                    {cf.apn && (
+                      <span className="text-sm text-muted-foreground/60 font-mono flex items-center gap-1">
+                        APN: {cf.apn} <CopyBtn text={cf.apn} />
+                      </span>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* Property type + stats */}
+              {(cf.propertyType || cf.bedrooms != null || cf.sqft != null) && (
+                <div className="flex items-center gap-2 flex-wrap">
+                  {cf.propertyType && (
+                    <span className="inline-flex items-center gap-1 text-sm font-semibold text-muted-foreground bg-white/[0.04] border border-white/[0.08] px-2 py-0.5 rounded-full">
+                      <Building className="h-2.5 w-2.5" />{cf.propertyType}
+                    </span>
+                  )}
+                  {!imageUrl && cf.bedrooms != null && (
+                    <span className="text-sm font-semibold text-muted-foreground bg-white/[0.04] border border-white/[0.08] px-2 py-0.5 rounded-full">
+                      {cf.bedrooms}bd / {cf.bathrooms ?? "?"}ba
+                    </span>
+                  )}
+                  {!imageUrl && cf.sqft != null && (
+                    <span className="text-sm font-semibold text-muted-foreground bg-white/[0.04] border border-white/[0.08] px-2 py-0.5 rounded-full">
+                      {cf.sqft.toLocaleString()} sqft
+                    </span>
+                  )}
+                  {!imageUrl && cf.yearBuilt && (
+                    <span className="text-sm font-semibold text-muted-foreground bg-white/[0.04] border border-white/[0.08] px-2 py-0.5 rounded-full">
+                      Built {cf.yearBuilt}
+                    </span>
+                  )}
+                  {!imageUrl && cf.lotSize && (
+                    <span className="text-sm font-semibold text-muted-foreground bg-white/[0.04] border border-white/[0.08] px-2 py-0.5 rounded-full">
+                      {cf.lotSize.toLocaleString()} lot
+                    </span>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* Satellite / Street View thumbnail on the right */}
+            {(thumbUrl || streetViewUrl) && (
+              <a
+                href={streetViewLink ?? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(cf.fullAddress ?? "")}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="shrink-0 relative group rounded-lg overflow-hidden border border-white/[0.08] hover:border-white/30 transition-colors"
+              >
+                <img
+                  src={streetViewUrl ?? thumbUrl ?? ""}
+                  alt="Property"
+                  className="w-[120px] h-[90px] object-cover transition-transform duration-300 group-hover:scale-105"
+                  onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
+                />
+                <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent pointer-events-none" />
+                <div className="absolute bottom-1 left-1.5 right-1.5 flex items-center gap-1 text-xs text-white/70 pointer-events-none">
+                  <ImageIcon className="h-2 w-2" />{streetViewUrl ? "Street View" : "Satellite"}
+                </div>
+                <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
+                  <ExternalLink className="h-3.5 w-3.5 text-white drop-shadow-md" />
+                </div>
+              </a>
+            )}
+          </div>
+
+          {/* Distress type pill badges */}
+          {(cf.tags.length > 0 || warningFlags.length > 0) && (
+            <div className="flex flex-wrap gap-1.5">
+              {cf.tags.filter((t) => !t.startsWith("score-")).map((tag) => {
+                const cfg = DISTRESS_CFG[tag];
+                return (
+                  <span key={tag} className={cn(
+                    "text-xs font-bold px-2 py-0.5 rounded-full uppercase tracking-wider border",
+                    cfg?.color ?? "text-muted-foreground bg-white/[0.06] border-white/20"
+                  )}>
+                    {cfg?.label ?? tag.replace(/_/g, " ")}
+                  </span>
+                );
+              })}
+              {warningFlags.map((f) => (
+                <span key={f.label} className={cn("flex items-center gap-1 px-2 py-0.5 rounded-full border text-xs font-bold uppercase tracking-wider", f.color)}>
+                  <AlertTriangle className="h-2.5 w-2.5" />{f.label}
+                </span>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+
+
+
       {/* Phase 2.5 — Valuation Summary Card */}
       {(() => {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -1176,6 +1359,29 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
               <div className="flex items-center gap-3 text-xs text-muted-foreground/70">
                 {snapCompCount != null && <span>{snapCompCount} comp{snapCompCount !== 1 ? "s" : ""}</span>}
                 {snapCondAdj != null && snapCondAdj !== 0 && <span>Condition adj: {snapCondAdj > 0 ? "+" : ""}{snapCondAdj}%</span>}
+              </div>
+            )}
+
+            {/* Bricked AI supplemental data */}
+            {(brickedRepairCost > 0 || (brickedCmv > 0 && brickedCmv !== bestArv) || brickedShareLink) && (
+              <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground/70">
+                {brickedRepairCost > 0 && (
+                  <span>Est. Repairs: {formatCurrency(brickedRepairCost)}</span>
+                )}
+                {brickedCmv > 0 && brickedCmv !== bestArv && (
+                  <span>CMV: {formatCurrency(brickedCmv)}</span>
+                )}
+                {brickedShareLink && (
+                  <a
+                    href={brickedShareLink}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-0.5 text-blue-400 hover:text-blue-300 transition-colors"
+                  >
+                    <ExternalLink className="h-2.5 w-2.5" />
+                    View Bricked Report
+                  </a>
+                )}
               </div>
             )}
 
@@ -2186,191 +2392,6 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
           )}
         </AnimatePresence>
       </div>
-
-      {/* â•â•â• 4. PROPERTY SNAPSHOT — Photo Carousel + Address + Badges â•â•â• */}
-      <div ref={sectionProperty} className="rounded-[12px] border border-white/[0.06] bg-white/[0.02] overflow-hidden">
-        {(allPhotos.length > 0 || imageUrl) && (
-          <div className="relative block h-32 group">
-            {allPhotos.length > 0 ? (
-              <>
-                <img
-                  src={allPhotos[zPhotoIdx]}
-                  alt={`Property photo ${zPhotoIdx + 1}`}
-                  className="w-full h-full object-cover"
-                />
-                {allPhotos.length > 1 && (
-                  <>
-                    <button
-                      onClick={() => setZPhotoIdx((i) => (i - 1 + allPhotos.length) % allPhotos.length)}
-                      className="absolute left-1.5 top-1/2 -translate-y-1/2 p-0.5 rounded bg-black/50 text-white opacity-0 group-hover:opacity-100 transition-opacity z-10"
-                    >
-                      <ChevronLeft className="h-3.5 w-3.5" />
-                    </button>
-                    <button
-                      onClick={() => setZPhotoIdx((i) => (i + 1) % allPhotos.length)}
-                      className="absolute right-1.5 top-1/2 -translate-y-1/2 p-0.5 rounded bg-black/50 text-white opacity-0 group-hover:opacity-100 transition-opacity z-10"
-                    >
-                      <ChevronRight className="h-3.5 w-3.5" />
-                    </button>
-                  </>
-                )}
-                <div className="absolute top-2 left-2 bg-black/60 backdrop-blur-sm text-white text-xs font-medium px-1.5 py-0.5 rounded-full flex items-center gap-1 z-10">
-                  <ImageIcon className="h-2.5 w-2.5" />{zPhotoIdx + 1} / {allPhotos.length}
-                </div>
-              </>
-            ) : (
-              <a
-                href={streetViewLink ?? "#"}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="block h-full cursor-pointer"
-                onClick={(e) => { if (!streetViewLink) e.preventDefault(); }}
-              >
-                <img
-                  src={imageUrl!}
-                  alt="Property"
-                  className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-[1.02]"
-                  onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
-                />
-                {streetViewLink && (
-                  <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none">
-                    <span className="bg-black/70 backdrop-blur-sm text-white text-xs font-semibold px-3 py-1.5 rounded-full flex items-center gap-1.5">
-                      <ExternalLink className="h-3 w-3" />{streetViewUrl ? "Open Street View" : "Open in Google Maps"}
-                    </span>
-                  </div>
-                )}
-              </a>
-            )}
-            <div className="absolute inset-0 bg-gradient-to-t from-[rgba(7,7,13,0.85)] via-[rgba(7,7,13,0.2)] to-transparent pointer-events-none" />
-            {zPhotosLoading && allPhotos.length === 0 && (
-              <div className="absolute top-2 left-2 bg-black/60 backdrop-blur-sm text-white text-xs font-medium px-1.5 py-0.5 rounded-full flex items-center gap-1 z-10">
-                <Loader2 className="h-2.5 w-2.5 animate-spin" />Loading photos...
-              </div>
-            )}
-            <div className="absolute bottom-2 left-3 right-3 flex items-end justify-between pointer-events-none">
-              <div className="flex items-center gap-2.5 text-white">
-                {cf.bedrooms != null && (
-                  <span className="text-xs font-bold bg-black/50 backdrop-blur-sm px-2 py-0.5 rounded">{cf.bedrooms}bd / {cf.bathrooms ?? "?"}ba</span>
-                )}
-                {cf.sqft != null && (
-                  <span className="text-xs font-bold bg-black/50 backdrop-blur-sm px-2 py-0.5 rounded">{cf.sqft.toLocaleString()} sqft</span>
-                )}
-                {cf.yearBuilt && (
-                  <span className="text-xs font-bold bg-black/50 backdrop-blur-sm px-2 py-0.5 rounded">Built {cf.yearBuilt}</span>
-                )}
-                {cf.lotSize && (
-                  <span className="text-xs font-bold bg-black/50 backdrop-blur-sm px-2 py-0.5 rounded">{cf.lotSize.toLocaleString()} lot</span>
-                )}
-              </div>
-              <div className="flex items-center gap-1 text-xs text-white/50">
-                <ImageIcon className="h-2.5 w-2.5" />{allPhotos.length > 0 ? `${allPhotos.length} photos \u00B7 Zillow` : streetViewLink ? `Click to explore \u00B7 ${imageLabel}` : imageLabel}
-              </div>
-            </div>
-          </div>
-        )}
-        <div className="p-4 space-y-3">
-          {/* Address + County + APN — with satellite thumbnail on the right */}
-          <div className="flex gap-3">
-            <div className="flex-1 min-w-0 space-y-2">
-              <div className="flex items-start gap-2">
-                <MapPin className="h-3.5 w-3.5 text-muted-foreground mt-0.5 shrink-0" />
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-1.5">
-                    <p className="text-sm font-semibold text-foreground truncate">{cf.fullAddress || "—"}</p>
-                    {cf.fullAddress && <CopyBtn text={cf.fullAddress} />}
-                  </div>
-                  <div className="flex items-center gap-3 mt-0.5">
-                    {cf.county && <span className="text-sm text-muted-foreground">{cf.county} County</span>}
-                    {cf.apn && (
-                      <span className="text-sm text-muted-foreground/60 font-mono flex items-center gap-1">
-                        APN: {cf.apn} <CopyBtn text={cf.apn} />
-                      </span>
-                    )}
-                  </div>
-                </div>
-              </div>
-
-              {/* Property type + stats */}
-              {(cf.propertyType || cf.bedrooms != null || cf.sqft != null) && (
-                <div className="flex items-center gap-2 flex-wrap">
-                  {cf.propertyType && (
-                    <span className="inline-flex items-center gap-1 text-sm font-semibold text-muted-foreground bg-white/[0.04] border border-white/[0.08] px-2 py-0.5 rounded-full">
-                      <Building className="h-2.5 w-2.5" />{cf.propertyType}
-                    </span>
-                  )}
-                  {!imageUrl && cf.bedrooms != null && (
-                    <span className="text-sm font-semibold text-muted-foreground bg-white/[0.04] border border-white/[0.08] px-2 py-0.5 rounded-full">
-                      {cf.bedrooms}bd / {cf.bathrooms ?? "?"}ba
-                    </span>
-                  )}
-                  {!imageUrl && cf.sqft != null && (
-                    <span className="text-sm font-semibold text-muted-foreground bg-white/[0.04] border border-white/[0.08] px-2 py-0.5 rounded-full">
-                      {cf.sqft.toLocaleString()} sqft
-                    </span>
-                  )}
-                  {!imageUrl && cf.yearBuilt && (
-                    <span className="text-sm font-semibold text-muted-foreground bg-white/[0.04] border border-white/[0.08] px-2 py-0.5 rounded-full">
-                      Built {cf.yearBuilt}
-                    </span>
-                  )}
-                  {!imageUrl && cf.lotSize && (
-                    <span className="text-sm font-semibold text-muted-foreground bg-white/[0.04] border border-white/[0.08] px-2 py-0.5 rounded-full">
-                      {cf.lotSize.toLocaleString()} lot
-                    </span>
-                  )}
-                </div>
-              )}
-            </div>
-
-            {/* Satellite / Street View thumbnail on the right */}
-            {(thumbUrl || streetViewUrl) && (
-              <a
-                href={streetViewLink ?? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(cf.fullAddress ?? "")}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="shrink-0 relative group rounded-lg overflow-hidden border border-white/[0.08] hover:border-white/30 transition-colors"
-              >
-                <img
-                  src={streetViewUrl ?? thumbUrl ?? ""}
-                  alt="Property"
-                  className="w-[120px] h-[90px] object-cover transition-transform duration-300 group-hover:scale-105"
-                  onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
-                />
-                <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent pointer-events-none" />
-                <div className="absolute bottom-1 left-1.5 right-1.5 flex items-center gap-1 text-xs text-white/70 pointer-events-none">
-                  <ImageIcon className="h-2 w-2" />{streetViewUrl ? "Street View" : "Satellite"}
-                </div>
-                <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
-                  <ExternalLink className="h-3.5 w-3.5 text-white drop-shadow-md" />
-                </div>
-              </a>
-            )}
-          </div>
-
-          {/* Distress type pill badges */}
-          {(cf.tags.length > 0 || warningFlags.length > 0) && (
-            <div className="flex flex-wrap gap-1.5">
-              {cf.tags.filter((t) => !t.startsWith("score-")).map((tag) => {
-                const cfg = DISTRESS_CFG[tag];
-                return (
-                  <span key={tag} className={cn(
-                    "text-xs font-bold px-2 py-0.5 rounded-full uppercase tracking-wider border",
-                    cfg?.color ?? "text-muted-foreground bg-white/[0.06] border-white/20"
-                  )}>
-                    {cfg?.label ?? tag.replace(/_/g, " ")}
-                  </span>
-                );
-              })}
-              {warningFlags.map((f) => (
-                <span key={f.label} className={cn("flex items-center gap-1 px-2 py-0.5 rounded-full border text-xs font-bold uppercase tracking-wider", f.color)}>
-                  <AlertTriangle className="h-2.5 w-2.5" />{f.label}
-                </span>
-              ))}
-            </div>
-          )}
-        </div>
-      </div>
-
 
       {/* â•â•â• 6. LEAD INTELLIGENCE — 4 Tiles â•â•â• */}
       <div className="rounded-[12px] border border-white/15 bg-white/[0.02] p-4 space-y-3">
@@ -4119,7 +4140,7 @@ function CompsTab({ cf, selectedComps, onAddComp, onRemoveComp, onSkipTrace, com
 // Tab: Offer Calculator
 // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
-function OfferCalcTab({ cf, computedArv }: { cf: ClientFile; computedArv: number }) {
+function OfferCalcTab({ cf, computedArv, initialRepairs }: { cf: ClientFile; computedArv: number; initialRepairs?: number }) {
   const bestArv = computedArv > 0 ? computedArv : cf.estimatedValue ?? 0;
   const [arv, setArv] = useState(bestArv > 0 ? bestArv.toString() : "");
 
@@ -4129,7 +4150,7 @@ function OfferCalcTab({ cf, computedArv }: { cf: ClientFile; computedArv: number
   const defaultUnderwrite = bestArv > 0 ? calculateWholesaleUnderwrite({ arv: bestArv }) : null;
   const defaultMao = defaultUnderwrite ? defaultUnderwrite.mao.toString() : "";
   const [purchase, setPurchase] = useState(defaultMao);
-  const [rehab, setRehab] = useState(VALUATION_DEFAULTS.rehabEstimate.toString());
+  const [rehab, setRehab] = useState((initialRepairs ?? VALUATION_DEFAULTS.rehabEstimate).toString());
   const [holdMonths, setHoldMonths] = useState(VALUATION_DEFAULTS.holdMonths.toString());
   const [monthlyHold, setMonthlyHold] = useState(VALUATION_DEFAULTS.monthlyHoldCost.toString());
   const [closing, setClosing] = useState(VALUATION_DEFAULTS.closingCosts.toString());
@@ -6257,18 +6278,9 @@ export function MasterClientFileModal({ clientFile: incomingClientFile, open, on
                       <span className="shrink-0 text-xs">Owner: {assigneeLabel}</span>
                     </div>
                     <div className="flex flex-wrap items-center gap-1.5">
-                      {clientFile.attribution && (
-                        <Fragment>
-                          {clientFile.attribution.campaignName && (
-                            <Badge variant="outline" className="text-xs gap-1 border-white/12 text-foreground">
-                              <Globe className="h-2.5 w-2.5" />Cam: {clientFile.attribution.campaignName}
-                            </Badge>
-                          )}
-                        </Fragment>
-                      )}
                       {clientFile.qualificationRoute === "escalate" && (
-                        <Badge variant="outline" className="text-xs gap-1 border-white/12 text-foreground">
-                          <AlertTriangle className="h-2.5 w-2.5" />Escalated Review
+                        <Badge variant="outline" className="text-xs gap-1 border-red-500/20 text-red-400">
+                          <AlertTriangle className="h-2.5 w-2.5" />Escalated
                         </Badge>
                       )}
                       {clientFile.status === "nurture" && (() => {
@@ -6277,7 +6289,7 @@ export function MasterClientFileModal({ clientFile: incomingClientFile, open, on
                         const sevenDaysAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
                         const isStale = !Number.isNaN(fuMs) ? fuMs < sevenDaysAgo : true;
                         return isStale ? (
-                          <Badge variant="outline" className="text-xs gap-1 border-white/15 text-foreground">
+                          <Badge variant="outline" className="text-xs gap-1 border-amber-500/20 text-amber-400">
                             <AlertTriangle className="h-2.5 w-2.5" />Stale Nurture
                           </Badge>
                         ) : null;
@@ -6290,11 +6302,6 @@ export function MasterClientFileModal({ clientFile: incomingClientFile, open, on
                     </div>
                     {clientFile.prediction && (
                       <PredictiveDistressBadge data={clientFile.prediction as PredictiveDistressData} size="sm" />
-                    )}
-                    {clientFile.enriched && (
-                      <Badge variant="outline" className="text-xs gap-1 text-foreground border-white/20">
-                        <CheckCircle2 className="h-2.5 w-2.5" />Enriched
-                      </Badge>
                     )}
                     <CoachToggle className="ml-1" />
                     <button onClick={onClose} className="p-1.5 rounded-[10px] hover:bg-white/[0.04] transition-colors text-muted-foreground hover:text-foreground">
@@ -6329,13 +6336,12 @@ export function MasterClientFileModal({ clientFile: incomingClientFile, open, on
                   ) : (
                   <Button
                     size="sm"
-                    variant="outline"
-                    className="gap-1.5 h-7 border-white/15 bg-white/[0.06]/10 hover:border-white/15 hover:bg-white/[0.06]/20 text-foreground font-semibold px-3"
+                    className="gap-1.5 h-7 bg-primary hover:bg-primary/90 text-primary-foreground font-semibold px-4 shadow-sm"
                     disabled={!displayPhone || calling}
                     onClick={() => handleDial()}
                   >
                     {calling ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Phone className="h-3.5 w-3.5" />}
-                    {calling ? "Dialing..." : "Call"}
+                    {calling ? "Dialing..." : "Call Now"}
                   </Button>
                   )}
                   <Button
@@ -6376,13 +6382,18 @@ export function MasterClientFileModal({ clientFile: incomingClientFile, open, on
                   <Button
                     size="sm"
                     variant="outline"
-                    className="gap-1.5 h-7 border-white/12 hover:border-white/12 hover:bg-white/[0.05]"
+                    className={cn(
+                      "gap-1.5 h-7",
+                      missingNextAction
+                        ? "border-amber-500/30 bg-amber-500/[0.08] text-amber-300 hover:bg-amber-500/[0.12]"
+                        : "border-white/12 hover:border-white/12 hover:bg-white/[0.05]"
+                    )}
                     onClick={() => {
                       setNextActionEditorOpen((v) => !v);
                       setCloseoutOpen(false);
                     }}
                   >
-                    <Calendar className="h-3 w-3 text-muted-foreground" />Next Action
+                    <Calendar className="h-3 w-3" />{missingNextAction ? "Set Next Action" : "Edit Next Action"}
                   </Button>
                   <Button
                     size="sm"
@@ -6808,6 +6819,7 @@ export function MasterClientFileModal({ clientFile: incomingClientFile, open, on
                         onMilestoneEditToggle={setMilestoneEditing}
                         onSaveMilestones={handleSaveMilestones}
                         isAdam={currentUserName?.toLowerCase().includes("adam") ?? false}
+                        onEditNextAction={() => { setNextActionEditorOpen(true); setCloseoutOpen(false); }}
                       />
                     )}
                     {activeTab === "contact" && (
@@ -6820,7 +6832,7 @@ export function MasterClientFileModal({ clientFile: incomingClientFile, open, on
                       </div>
                     )}
                     {activeTab === "comps" && <CompsTab cf={clientFile} selectedComps={selectedComps} onAddComp={handleAddComp} onRemoveComp={handleRemoveComp} onSkipTrace={handleSkipTrace} computedArv={computedArv} onArvChange={handleArvChange} conditionAdj={conditionAdj} onConditionAdjChange={setConditionAdj} />}
-                    {activeTab === "calculator" && <OfferCalcTab cf={clientFile} computedArv={computedArv} />}
+                    {activeTab === "calculator" && <OfferCalcTab cf={clientFile} computedArv={computedArv} initialRepairs={((clientFile?.ownerFlags?.bricked_repair_cost as number) ?? 0) > 0 ? (clientFile?.ownerFlags?.bricked_repair_cost as number) : undefined} />}
                     {activeTab === "documents" && <DocumentsTab cf={clientFile} computedArv={computedArv} />}
                   </motion.div>
                 </AnimatePresence>

@@ -366,6 +366,53 @@ export async function runResearchAgent(
       }
     }
 
+    // ── Sync high-confidence Bricked valuation to lead ownerFlags ──────
+    // This makes ARV/CMV immediately visible in the overview tab without
+    // waiting for manual dossier promotion. Write path: provider → CRM sync.
+    const brickedResult = providerResults.find(r => r.provider === "bricked");
+    if (brickedResult && brickedResult.facts.length > 0) {
+      const getFact = (name: string) =>
+        brickedResult.facts.find(f => f.fieldName === name)?.value;
+      const brickedSync: Record<string, unknown> = {};
+
+      const arvEst = getFact("arv_estimate");
+      if (typeof arvEst === "number" && arvEst > 0) brickedSync.comp_arv = arvEst;
+
+      const cmvEst = getFact("cmv_estimate");
+      if (typeof cmvEst === "number" && cmvEst > 0) brickedSync.bricked_cmv = cmvEst;
+
+      const repairCost = getFact("total_repair_cost");
+      if (typeof repairCost === "number" && repairCost > 0) brickedSync.bricked_repair_cost = repairCost;
+
+      const shareLink = getFact("bricked_share_link");
+      if (typeof shareLink === "string" && shareLink) brickedSync.bricked_share_link = shareLink;
+
+      const brickedId = getFact("bricked_property_id");
+      if (typeof brickedId === "string" && brickedId) brickedSync.bricked_id = brickedId;
+
+      const brickedCompCount = getFact("comp_count");
+      if (typeof brickedCompCount === "number") brickedSync.comp_count = brickedCompCount;
+
+      if (Object.keys(brickedSync).length > 0) {
+        // JSONB merge via read-modify-write — preserves existing ownerFlags
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const { data: currentLead } = await (sb.from("leads") as any)
+          .select("owner_flags")
+          .eq("id", input.leadId)
+          .single();
+        const merged = {
+          ...((currentLead?.owner_flags as Record<string, unknown>) ?? {}),
+          ...brickedSync,
+        };
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        await (sb.from("leads") as any)
+          .update({ owner_flags: merged })
+          .eq("id", input.leadId);
+
+        console.log("[research-agent] Synced Bricked valuation to ownerFlags:", Object.keys(brickedSync));
+      }
+    }
+
     for (const artifact of output.artifacts) {
       const artifactId = await createArtifact({
         leadId: input.leadId,

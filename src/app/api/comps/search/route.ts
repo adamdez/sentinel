@@ -44,6 +44,7 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     const {
       radarId,
+      address,
       lat, lng,
       zip, county, state,
       beds, baths, sqft, yearBuilt, propertyType,
@@ -56,6 +57,69 @@ export async function POST(req: NextRequest) {
       "Content-Type": "application/json",
       Accept: "application/json",
     };
+
+    // ── Strategy 0: Bricked AI (preferred — returns ARV + comps + repairs) ──
+    const brickedKey = process.env.BRICKED_API_KEY;
+    if (brickedKey && address) {
+      try {
+        const brickedUrl = new URL("https://api.bricked.ai/v1/property/create");
+        brickedUrl.searchParams.set(
+          "address",
+          [address, county, state, zip].filter(Boolean).join(", "),
+        );
+
+        const brickedRes = await fetch(brickedUrl.toString(), {
+          headers: { "x-api-key": brickedKey },
+        });
+
+        if (brickedRes.ok) {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const brickedData = await brickedRes.json() as any;
+          if (brickedData?.comps?.length > 0) {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const normalizedComps = brickedData.comps.map((c: any, i: number) => ({
+              source: "bricked",
+              address: c.address?.fullAddress ?? `Comp ${i + 1}`,
+              city: c.address?.cityName ?? "",
+              state: c.address?.stateCode ?? state ?? "WA",
+              zip: c.address?.zip ?? "",
+              lat: c.latitude ?? null,
+              lng: c.longitude ?? null,
+              beds: c.details?.bedrooms ?? null,
+              baths: c.details?.bathrooms ?? null,
+              sqft: c.details?.squareFeet ?? null,
+              yearBuilt: c.details?.yearBuilt ?? null,
+              lastSalePrice: c.details?.lastSaleAmount ?? null,
+              lastSaleDate: c.details?.lastSaleDate
+                ? new Date(c.details.lastSaleDate * 1000).toISOString().slice(0, 10)
+                : null,
+              avm: c.adjusted_value ?? null,
+              distance: null,
+              similarity: null,
+              selected: c.selected ?? false,
+              compType: c.compType ?? null,
+            }));
+
+            return NextResponse.json({
+              comps: normalizedComps,
+              source: "bricked",
+              meta: {
+                arv: brickedData.arv ?? null,
+                cmv: brickedData.cmv ?? null,
+                totalRepairCost: brickedData.totalRepairCost ?? null,
+                repairs: brickedData.repairs ?? [],
+                shareLink: brickedData.shareLink ?? null,
+                brickedId: brickedData.id ?? null,
+              },
+              elapsed: Date.now() - t0,
+            });
+          }
+        }
+        console.log("[Comps] Bricked returned no comps, falling through to PropertyRadar");
+      } catch (brickedErr) {
+        console.warn("[Comps] Bricked AI error (non-fatal):", brickedErr);
+      }
+    }
 
     // ── Strategy 1: Native comps endpoint (preferred) ──────────────
     if (radarId && typeof radarId === "string") {
