@@ -413,6 +413,29 @@ export async function runResearchAgent(
       }
     }
 
+    // ── Auto-promote high-confidence provider facts ────────────────────
+    // Blueprint: "high" confidence facts from trusted providers auto-promote
+    // to avoid review queue bottleneck. Facts with contradictions still
+    // route to manual review via the standard pending path.
+    for (const providerResult of providerResults) {
+      for (const fact of providerResult.facts) {
+        if (
+          fact.confidence === "high" &&
+          !allContradictions.some(c =>
+            c.factType === `provider_${sanitizeFactKey(providerResult.provider)}_${sanitizeFactKey(fact.fieldName)}`,
+          )
+        ) {
+          const factType = `provider_${sanitizeFactKey(providerResult.provider)}_${sanitizeFactKey(fact.fieldName)}`;
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          await (sb.from("fact_assertions") as any)
+            .update({ review_status: "accepted" })
+            .eq("lead_id", input.leadId)
+            .eq("fact_type", factType)
+            .eq("review_status", "pending");
+        }
+      }
+    }
+
     for (const artifact of output.artifacts) {
       const artifactId = await createArtifact({
         leadId: input.leadId,

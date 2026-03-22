@@ -113,6 +113,10 @@ export interface CRMLeadContext {
   topFact3: string | null;
   opportunityScore: number | null;        // 0-100
   confidenceScore: number | null;         // 0-100
+
+  // Open objections from previous calls — gives Logan immediate context
+  // on what blocked the deal last time. Sourced from lead_objection_tags.
+  openObjections: Array<{ tag: string; note: string | null; created_at: string }> | null;
 }
 
 // ─────────────────────────────────────────────────────────────

@@ -336,11 +336,27 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
     }
   })();
 
+  // ── Fetch QA findings for this call (if any were generated) ──
+  // Returned in the publish response so the post-call panel can show
+  // QA issues immediately without a separate fetch.
+  let qaFindings: Array<{ check_type: string; severity: string; finding: string; ai_derived: boolean }> = [];
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: findings } = await (sb.from("call_qa_findings") as any)
+      .select("check_type, severity, finding, ai_derived")
+      .eq("session_id", sessionId)
+      .order("severity", { ascending: false });
+    if (findings) qaFindings = findings;
+  } catch {
+    // Non-fatal — never block publish response for QA findings
+  }
+
   return NextResponse.json({
     ok: true,
     calls_log_id: result.calls_log_id,
     lead_id:      result.lead_id,
     task_id:      result.task_id ?? null,
+    qaFindings,
     ...(warnings.length > 0 ? { warnings } : {}),
   });
 }

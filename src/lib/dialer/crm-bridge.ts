@@ -142,7 +142,18 @@ export async function getCRMLeadContext(
     .limit(1)
     .maybeSingle();
 
-  // ── 6. Assemble context snapshot ───────────────────────────
+  // ── 6. Open objections from previous calls ──────────────────
+  // Gives Logan immediate context on what blocked the deal last time.
+  // Capped at 5 most recent open objections.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: openObjections } = await (sb.from("lead_objection_tags") as any)
+    .select("tag, note, created_at")
+    .eq("lead_id", leadId)
+    .eq("status", "open")
+    .order("created_at", { ascending: false })
+    .limit(5);
+
+  // ── 7. Assemble context snapshot ───────────────────────────
   const ctx: CRMLeadContext = {
     leadId: lead.id,
     ownerName,
@@ -186,6 +197,8 @@ export async function getCRMLeadContext(
     topFact3: lead.top_fact_3 ?? null,
     opportunityScore: lead.opportunity_score ?? null,
     confidenceScore: lead.confidence_score ?? null,
+
+    openObjections: openObjections?.length ? openObjections : null,
   };
 
   return ctx;
