@@ -2544,6 +2544,7 @@ function DialerPageInner() {
                           <CallHistoryRow
                             key={entry.id}
                             entry={entry}
+                            allHistory={callHistory}
                             onDial={(phone) => {
                               setManualPhone(phone.replace(/\D/g, "").replace(/^1/, "").slice(0, 10));
                               window.scrollTo({ top: 0, behavior: "smooth" });
@@ -2661,7 +2662,7 @@ function formatDuration(sec: number): string {
   return `${m}:${s.toString().padStart(2, "0")}`;
 }
 
-function CallHistoryRow({ entry, onDial }: { entry: CallHistoryEntry; onDial: (phone: string) => void }) {
+function CallHistoryRow({ entry, allHistory, onDial }: { entry: CallHistoryEntry; allHistory: CallHistoryEntry[]; onDial: (phone: string) => void }) {
   const [notesOpen, setNotesOpen] = useState(false);
   const style = DISPO_STYLES[entry.disposition] ?? { color: "text-muted-foreground", bg: "bg-white/[0.03] border-white/[0.06]" };
   const isInbound = entry.direction === "inbound";
@@ -2669,6 +2670,17 @@ function CallHistoryRow({ entry, onDial }: { entry: CallHistoryEntry; onDial: (p
   const phoneDigits = (entry.phone_dialed ?? "").replace(/\D/g, "").slice(-10);
   const hasLead = Boolean(entry.lead_id);
   const hasNotes = Boolean(entry.notes?.trim() || entry.ai_summary?.trim());
+
+  // All calls to/from this phone number (for multi-call context)
+  const priorCalls = useMemo(() => {
+    if (!phoneDigits) return [];
+    return allHistory.filter((c) => {
+      const digits = (c.phone_dialed ?? "").replace(/\D/g, "").slice(-10);
+      return digits === phoneDigits && c.id !== entry.id && (c.notes?.trim() || c.ai_summary?.trim());
+    });
+  }, [allHistory, phoneDigits, entry.id]);
+
+  const hasAnyNotes = hasNotes || priorCalls.length > 0;
 
   return (
     <div>
@@ -2704,18 +2716,23 @@ function CallHistoryRow({ entry, onDial }: { entry: CallHistoryEntry; onDial: (p
           </div>
         </div>
 
-        {/* Notes button — visible when notes or AI summary exist */}
-        {hasNotes && (
+        {/* Notes button — visible when this call or any prior call to same number has notes */}
+        {hasAnyNotes && (
           <button
             onClick={() => setNotesOpen(!notesOpen)}
-            className={`h-7 w-7 rounded-[8px] flex items-center justify-center shrink-0 transition-all
+            className={`h-7 w-7 rounded-[8px] flex items-center justify-center shrink-0 transition-all relative
               ${notesOpen
                 ? "bg-primary/20 border border-primary/30 text-primary"
                 : "bg-white/[0.04] hover:bg-white/[0.08] border border-white/[0.08] hover:border-white/[0.16] text-muted-foreground/50 hover:text-foreground"
               }`}
-            title="View call notes"
+            title={`View notes${priorCalls.length > 0 ? ` (${priorCalls.length + (hasNotes ? 1 : 0)} calls)` : ""}`}
           >
             <FileText className="h-3 w-3" />
+            {priorCalls.length > 0 && (
+              <span className="absolute -top-1 -right-1 h-3.5 w-3.5 rounded-full bg-primary text-[9px] font-bold text-primary-foreground flex items-center justify-center">
+                {priorCalls.length + (hasNotes ? 1 : 0)}
+              </span>
+            )}
           </button>
         )}
 
@@ -2748,23 +2765,48 @@ function CallHistoryRow({ entry, onDial }: { entry: CallHistoryEntry; onDial: (p
         )}
       </div>
 
-      {/* Expandable notes panel */}
-      {notesOpen && hasNotes && (
-        <div className="mx-3 mb-2 px-3 py-2 rounded-[8px] bg-white/[0.02] border border-white/[0.06] text-sm space-y-1.5">
-          {entry.notes && (
+      {/* Expandable notes panel — this call + prior calls to same number */}
+      {notesOpen && hasAnyNotes && (
+        <div className="mx-3 mb-2 px-3 py-2 rounded-[8px] bg-white/[0.02] border border-white/[0.06] text-sm space-y-2 max-h-64 overflow-y-auto">
+          {/* This call's notes */}
+          {hasNotes && (
             <div>
-              <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground/50 mb-0.5">Notes</p>
-              <p className="text-foreground/70 whitespace-pre-wrap text-sm leading-relaxed">{entry.notes}</p>
-            </div>
-          )}
-          {entry.ai_summary && (
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground/50 mb-0.5 flex items-center gap-1">
-                <Sparkles className="h-2.5 w-2.5" /> AI Summary
+              <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground/50 mb-0.5">
+                This call &middot; {timeAgo(entry.started_at)}
               </p>
-              <p className="text-foreground/70 whitespace-pre-wrap text-sm leading-relaxed">{entry.ai_summary}</p>
+              {entry.notes && (
+                <p className="text-foreground/70 whitespace-pre-wrap text-sm leading-relaxed">{entry.notes}</p>
+              )}
+              {entry.ai_summary && (
+                <div className="mt-1">
+                  <p className="text-xs text-muted-foreground/40 flex items-center gap-1 mb-0.5">
+                    <Sparkles className="h-2.5 w-2.5" /> AI Summary
+                  </p>
+                  <p className="text-foreground/60 whitespace-pre-wrap text-sm leading-relaxed">{entry.ai_summary}</p>
+                </div>
+              )}
             </div>
           )}
+          {/* Prior calls to the same phone number */}
+          {priorCalls.map((prior) => (
+            <div key={prior.id} className="border-t border-white/[0.04] pt-2">
+              <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground/50 mb-0.5">
+                {prior.direction === "inbound" ? "Inbound" : "Outbound"} &middot; {timeAgo(prior.started_at)}
+                {prior.duration_sec > 0 && <span className="font-mono ml-1">{formatDuration(prior.duration_sec)}</span>}
+              </p>
+              {prior.notes && (
+                <p className="text-foreground/70 whitespace-pre-wrap text-sm leading-relaxed">{prior.notes}</p>
+              )}
+              {prior.ai_summary && (
+                <div className="mt-1">
+                  <p className="text-xs text-muted-foreground/40 flex items-center gap-1 mb-0.5">
+                    <Sparkles className="h-2.5 w-2.5" /> AI Summary
+                  </p>
+                  <p className="text-foreground/60 whitespace-pre-wrap text-sm leading-relaxed">{prior.ai_summary}</p>
+                </div>
+              )}
+            </div>
+          ))}
         </div>
       )}
     </div>
