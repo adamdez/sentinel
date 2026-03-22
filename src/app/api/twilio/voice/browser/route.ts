@@ -119,7 +119,11 @@ async function handleBrowserVoice(req: NextRequest) {
   const streamLines = transcriptionUrl && hasDeepgram && (callLogId || sessionId)
     ? [
         "  <Start>",
-        `    <Stream url="${transcriptionUrl}${streamQuery ? `?${streamQuery}` : ""}" track="both_tracks" />`,
+        `    <Stream url="${transcriptionUrl}" track="both_tracks">`,
+        ...(callLogId ? [`      <Parameter name="callLogId" value="${callLogId}" />`] : []),
+        ...(sessionId ? [`      <Parameter name="sessionId" value="${sessionId}" />`] : []),
+        ...(agentId ? [`      <Parameter name="userId" value="${agentId}" />`] : []),
+        "    </Stream>",
         "  </Start>",
       ]
     : [];

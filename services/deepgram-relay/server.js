@@ -84,9 +84,10 @@ const activeSessions = new Map();
 
 wss.on("connection", (twilioWs, req) => {
   const url = new URL(req.url || "/", `http://localhost:${PORT}`);
-  const sessionId = url.searchParams.get("sessionId") || `unknown-${Date.now()}`;
-  const callLogId = url.searchParams.get("callLogId") || "";
-  const userId = url.searchParams.get("userId") || "";
+  let sessionId = url.searchParams.get("sessionId") || `unknown-${Date.now()}`;
+  let callLogId = url.searchParams.get("callLogId") || "";
+  let userId = url.searchParams.get("userId") || "";
+  let connectionOpenedSent = false;
 
   console.log(`[Relay] Twilio stream connected — session=${sessionId}`);
 
@@ -105,7 +106,11 @@ wss.on("connection", (twilioWs, req) => {
 
   // ── Connect to Deepgram ──────────────────────────────────
   const dgUrl = buildDeepgramUrl();
-  deepgramWs = new WebSocket(dgUrl);
+  deepgramWs = new WebSocket(dgUrl, {
+    headers: {
+      Authorization: `Token ${DEEPGRAM_API_KEY}`,
+    },
+  });
 
   deepgramWs.on("open", () => {
     console.log(`[Relay] Deepgram connected — session=${sessionId}`);
@@ -174,10 +179,29 @@ wss.on("connection", (twilioWs, req) => {
       switch (msg.event) {
         case "connected":
           console.log(`[Relay] Twilio stream connected event — session=${sessionId}`);
+          if (!connectionOpenedSent) {
+            connectionOpenedSent = true;
+            postToSentinel({
+              event: "connection.open",
+              session_id: sessionId,
+              user_id: userId,
+              call_log_id: callLogId,
+            }).catch(() => {});
+          }
           break;
 
         case "start":
           streamSid = msg.start?.streamSid;
+          const customParameters = msg.start?.customParameters || {};
+          if (typeof customParameters.sessionId === "string" && customParameters.sessionId.trim()) {
+            sessionId = customParameters.sessionId.trim();
+          }
+          if (typeof customParameters.callLogId === "string" && customParameters.callLogId.trim()) {
+            callLogId = customParameters.callLogId.trim();
+          }
+          if (typeof customParameters.userId === "string" && customParameters.userId.trim()) {
+            userId = customParameters.userId.trim();
+          }
           console.log(`[Relay] Twilio stream started — session=${sessionId} streamSid=${streamSid}`);
           break;
 
