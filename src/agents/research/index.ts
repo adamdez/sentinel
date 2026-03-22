@@ -33,6 +33,8 @@ import {
   closeResearchRun,
 } from "@/lib/intelligence";
 import { analyzeWithClaude, extractJsonObject } from "@/lib/claude-client";
+import { lookupProperty } from "@/providers/lookup-service";
+import type { ProviderLookupResult } from "@/providers/base-adapter";
 import { RESEARCH_AGENT_PROMPT, RESEARCH_AGENT_MODEL, RESEARCH_AGENT_VERSION } from "./prompt";
 import type {
   LeadContext,
@@ -91,7 +93,11 @@ function toLeadContext(lead: any, leadId: string): LeadContext {
 /**
  * Build the user prompt with lead context for the Research Agent.
  */
-function buildResearchPrompt(leadContext: LeadContext, input: ResearchAgentInput): string {
+function buildResearchPrompt(
+  leadContext: LeadContext,
+  input: ResearchAgentInput,
+  providerResults: ProviderLookupResult[],
+): string {
   const parts: string[] = [
     "## Lead Context",
     "```json",
@@ -108,6 +114,29 @@ function buildResearchPrompt(leadContext: LeadContext, input: ResearchAgentInput
   if (input.operatorNotes) {
     parts.push(`## Operator Notes\n${input.operatorNotes}`);
     parts.push("");
+  }
+
+  if (providerResults.length > 0) {
+    const summarizedProviderData = providerResults.map((result) => ({
+      provider: result.provider,
+      fetchedAt: result.fetchedAt,
+      cached: result.cached,
+      factCount: result.facts.length,
+      facts: result.facts.slice(0, 60).map((fact) => ({
+        fieldName: fact.fieldName,
+        value: fact.value,
+        confidence: fact.confidence,
+      })),
+    }));
+
+    parts.push(
+      "## Provider Intelligence (ATTOM / PropertyRadar)",
+      "Treat this as structured evidence from provider adapters. Prefer these facts when relevant.",
+      "```json",
+      JSON.stringify(summarizedProviderData, null, 2),
+      "```",
+      "",
+    );
   }
 
   parts.push(
@@ -144,6 +173,20 @@ function buildResearchPrompt(leadContext: LeadContext, input: ResearchAgentInput
   );
 
   return parts.join("\n");
+}
+
+function sanitizeFactKey(input: string): string {
+  return input
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "")
+    .slice(0, 80);
+}
+
+function formatFactValue(value: string | number | boolean | null): string {
+  if (value === null || value === undefined) return "unknown";
+  if (typeof value === "boolean") return value ? "true" : "false";
+  return String(value);
 }
 
 /**
@@ -223,12 +266,31 @@ export async function runResearchAgent(
       input.triggeredBy,
     );
 
+    // ── Pull provider intelligence (ATTOM + PropertyRadar) ──────────────
+    const lookupParams = {
+      address: lead.properties?.address ?? undefined,
+      apn: lead.properties?.apn ?? undefined,
+      county: lead.properties?.county ?? undefined,
+      state: lead.properties?.state ?? undefined,
+      zip: lead.properties?.zip ?? undefined,
+    };
+    let providerResults: ProviderLookupResult[] = [];
+
+    if (lookupParams.address || lookupParams.apn) {
+      const providerLookup = await lookupProperty(lookupParams, ["attom", "propertyradar"]);
+      providerResults = providerLookup.results.filter((r) => r.facts.length > 0);
+
+      if (providerLookup.errors.length > 0) {
+        console.warn("[research-agent] Provider lookup warnings:", providerLookup.errors);
+      }
+    }
+
     // ── Call Claude ─────────────────────────────────────────────────────
     const apiKey = process.env.ANTHROPIC_API_KEY;
     if (!apiKey) throw new Error("ANTHROPIC_API_KEY not set");
 
     const leadContext = toLeadContext(lead, input.leadId);
-    const userPrompt = buildResearchPrompt(leadContext, input);
+    const userPrompt = buildResearchPrompt(leadContext, input, providerResults);
 
     const rawResponse = await analyzeWithClaude({
       prompt: userPrompt,
@@ -248,8 +310,61 @@ export async function runResearchAgent(
     const output: ResearchAgentOutput = JSON.parse(jsonStr);
 
     // ── Persist artifacts ───────────────────────────────────────────────
-    const artifactIds: string[] = [];
+    const aiArtifactIds: string[] = [];
+    let artifactCount = 0;
     const allContradictions: Array<{ factType: string; newValue: string; existingValue: string; existingFactId: string }> = [];
+
+    // Persist provider adapter artifacts/facts through the intelligence write path.
+    // This makes ATTOM/PropertyRadar evidence available to review workflows today.
+    let factCount = 0;
+    for (const providerResult of providerResults) {
+      const providerArtifactId = await createArtifact({
+        leadId: input.leadId,
+        propertyId: input.propertyId ?? lead.properties?.id,
+        sourceType: "provider_lookup",
+        sourceLabel: `${providerResult.provider} property lookup`,
+        extractedNotes: `Imported ${providerResult.facts.length} canonical facts from ${providerResult.provider}`,
+        rawExcerpt: JSON.stringify({
+          provider: providerResult.provider,
+          fetchedAt: providerResult.fetchedAt,
+          cached: providerResult.cached,
+          rawPayload: providerResult.rawPayload,
+        }).slice(0, 30_000),
+        capturedBy: input.triggeredBy,
+      });
+      artifactCount++;
+
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      await (sb.from("dossier_artifacts") as any)
+        .update({ run_id: researchRunId })
+        .eq("id", providerArtifactId);
+
+      for (const fact of providerResult.facts) {
+        const providerFactType = `provider_${sanitizeFactKey(providerResult.provider)}_${sanitizeFactKey(fact.fieldName)}`;
+        const result = await createFact({
+          artifactId: providerArtifactId,
+          leadId: input.leadId,
+          factType: providerFactType,
+          factValue: formatFactValue(fact.value),
+          confidence: fact.confidence,
+          runId: researchRunId,
+          assertedBy: input.triggeredBy,
+        });
+        factCount++;
+
+        if (result.contradictions.length > 0) {
+          allContradictions.push(
+            ...result.contradictions.map((c) => ({
+              factType: providerFactType,
+              newValue: c.newValue,
+              existingValue: c.existingValue,
+              existingFactId: c.existingFactId,
+            })),
+          );
+        }
+      }
+    }
+
     for (const artifact of output.artifacts) {
       const artifactId = await createArtifact({
         leadId: input.leadId,
@@ -261,7 +376,8 @@ export async function runResearchAgent(
         rawExcerpt: artifact.rawExcerpt,
         capturedBy: input.triggeredBy,
       });
-      artifactIds.push(artifactId);
+      aiArtifactIds.push(artifactId);
+      artifactCount++;
 
       // Link artifact to research run
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -270,10 +386,9 @@ export async function runResearchAgent(
         .eq("id", artifactId);
     }
 
-    // ── Persist facts ───────────────────────────────────────────────────
-    let factCount = 0;
+    // ── Persist model-extracted facts ───────────────────────────────────
     for (const fact of output.facts) {
-      const artifactId = artifactIds[fact.artifactIndex];
+      const artifactId = aiArtifactIds[fact.artifactIndex];
       if (!artifactId) continue; // skip if artifact index is out of range
 
       const result = await createFact({
@@ -322,7 +437,7 @@ export async function runResearchAgent(
     });
 
     // ── Close research run ──────────────────────────────────────────────
-    await closeResearchRun(researchRunId, dossierId, artifactIds.length, factCount);
+    await closeResearchRun(researchRunId, dossierId, artifactCount, factCount);
 
     // ── Auto-review + promote if mode is "auto" ──────────────────────
     // Blueprint: when mode=auto and no contradictions, auto-review the
@@ -376,7 +491,7 @@ export async function runResearchAgent(
       status: "completed",
       outputs: {
         dossierId,
-        artifactCount: artifactIds.length,
+        artifactCount,
         factCount,
         researchRunId,
         pendingReview: finalStatus === "pending_review",
@@ -386,7 +501,7 @@ export async function runResearchAgent(
     return {
       runId: agentRunId,
       dossierId,
-      artifactCount: artifactIds.length,
+      artifactCount,
       factCount,
       status: finalStatus as ResearchAgentResult["status"],
     };
