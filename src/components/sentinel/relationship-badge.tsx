@@ -53,19 +53,19 @@ function TooltipContent({ data, heir, pct, placement }: {
   const isBottom = placement === "bottom";
   return (
     <div
-      className={`absolute z-[60] left-1/2 -translate-x-1/2 w-64 p-3 rounded-[12px] bg-[rgba(8,8,16,0.96)] border border-white/[0.08] backdrop-blur-2xl text-sm ${
+      className={`absolute z-[60] left-1/2 -translate-x-1/2 w-64 p-3 rounded-[12px] bg-[rgba(8,8,16,0.96)] border border-overlay-8 backdrop-blur-2xl text-sm ${
         isBottom ? "top-full mt-2" : "bottom-full mb-2"
       }`}
       style={{
         boxShadow:
-          "0 8px 40px rgba(0,0,0,0.7), 0 0 1px rgba(255,255,255,0.06), 0 0 20px rgba(0,0,0,0.06)",
+          "0 8px 40px var(--shadow-heavy), 0 0 1px var(--overlay-6), 0 0 20px var(--shadow-soft)",
       }}
     >
       {/* Holographic top edge */}
       <div className="absolute inset-x-0 top-0 h-[1px] rounded-t-[12px] bg-gradient-to-r from-transparent via-primary/30 to-transparent" />
 
       <p className="font-semibold text-sm mb-1.5 text-foreground">
-        {heir ? "Likely Heir / Estate Contact" : "Direct Contact"}
+        {heir ? "Likely Heir / Estate Contact" : "Property Owner"}
       </p>
       <div className="space-y-1 text-muted-foreground">
         {data.ownerAgeInference != null && (
@@ -100,7 +100,7 @@ function TooltipContent({ data, heir, pct, placement }: {
 
       {/* Arrow — flips depending on placement */}
       <div
-        className={`absolute left-1/2 -translate-x-1/2 w-2 h-2 rotate-45 bg-[rgba(8,8,16,0.96)] border-white/[0.08] ${
+        className={`absolute left-1/2 -translate-x-1/2 w-2 h-2 rotate-45 bg-[rgba(8,8,16,0.96)] border-overlay-8 ${
           isBottom
             ? "bottom-full mb-px border-l border-t -mt-px top-[-4px]"
             : "top-full mt-px border-r border-b -mb-px bottom-[-4px]"
@@ -138,13 +138,13 @@ export function RelationshipBadge({ data }: { data: RelationshipData }) {
         style={{
           boxShadow: heir
             ? "0 0 12px rgba(168,85,247,0.15), inset 0 1px 0 rgba(168,85,247,0.1)"
-            : "0 0 12px rgba(255,255,255,0.12), inset 0 1px 0 rgba(255,255,255,0.08)",
+            : "0 0 12px var(--overlay-12), inset 0 1px 0 var(--overlay-8)",
         }}
       >
         <span
           className={`h-1.5 w-1.5 rounded-full ${heir ? "bg-muted animate-pulse" : "bg-muted"}`}
         />
-        {heir ? `Likely Heir / Estate — ${pct}%` : "Direct Contact"}
+        {heir ? `Likely Heir — ${pct}%` : "Owner"}
       </span>
 
       {showTip && <TooltipContent data={data} heir={heir} pct={pct} placement={placement} />}
@@ -180,7 +180,7 @@ export function RelationshipBadgeCompact({ data }: { data: RelationshipData }) {
         <span
           className={`h-1 w-1 rounded-full ${heir ? "bg-muted animate-pulse" : "bg-muted"}`}
         />
-        {heir ? `HEIR ${pct}%` : "DIRECT"}
+        {heir ? `Heir ${pct}%` : "Owner"}
       </span>
 
       {showTip && <TooltipContent data={data} heir={heir} pct={pct} placement={placement} />}

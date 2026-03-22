@@ -486,6 +486,12 @@ export interface PublishInput {
     tag:  ObjectionTag;
     note: string | null;
   }>;
+  /**
+   * Distress signals discovered during the call (e.g. bankruptcy, probate, divorce).
+   * publish-manager writes these to distress_events with source "operator_call"
+   * and triggers an immediate score recompute for the lead.
+   */
+  distress_signals?: string[];
 }
 
 export interface PublishResult {

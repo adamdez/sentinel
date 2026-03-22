@@ -401,6 +401,80 @@ export async function publishSession(
     }
   }
 
+  // ── Step 3.6: distress signals discovered on the call ────
+  //
+  // Writes operator-confirmed distress signals to distress_events table.
+  // These feed the scoring engine — writing here triggers the score to
+  // actually reflect what Logan learned on the call.
+  // Source is "operator_call" with severity 7 (operator-confirmed = high confidence).
+
+  if (leadId && input.distress_signals?.length) {
+    // Look up the property_id for this lead
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: leadRow } = await (sb.from("leads") as any)
+      .select("property_id")
+      .eq("id", leadId)
+      .single();
+
+    const propertyId = leadRow?.property_id;
+    if (propertyId) {
+      const validTypes = new Set([
+        "probate", "pre_foreclosure", "tax_lien", "code_violation",
+        "vacant", "divorce", "bankruptcy", "fsbo", "absentee", "inherited",
+        "water_shutoff", "condemned",
+      ]);
+      const validSignals = input.distress_signals.filter((s) => validTypes.has(s));
+
+      if (validSignals.length > 0) {
+        const rows = validSignals.map((signal) => ({
+          property_id: propertyId,
+          event_type: signal,
+          source: "operator_call",
+          severity: 7,
+          fingerprint: `operator_call_${propertyId}_${signal}_${new Date().toISOString().slice(0, 10)}`,
+          raw_data: { noted_by: userId, call_log_id: callsLogId },
+          confidence: 0.95,
+        }));
+
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const { error: distressErr } = await (sb.from("distress_events") as any)
+          .upsert(rows, { onConflict: "fingerprint", ignoreDuplicates: true });
+
+        if (distressErr) {
+          console.warn("[publish-manager] distress_events insert failed (non-fatal):", distressErr.message);
+        } else {
+          // Trigger immediate score recompute for this lead
+          try {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const { data: distressRows } = await (sb.from("distress_events") as any)
+              .select("severity")
+              .eq("property_id", propertyId)
+              .order("created_at", { ascending: false })
+              .limit(10);
+
+            if (distressRows && distressRows.length > 0) {
+              const avgSev = distressRows.reduce(
+                (s: number, e: { severity: number }) => s + (e.severity ?? 0), 0,
+              ) / distressRows.length;
+              const distressBoost = Math.min(Math.round(avgSev * 4), 40);
+              const basePriority = Math.min(distressBoost + (validSignals.length * 5), 95);
+
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              await (sb.from("leads") as any)
+                .update({
+                  priority: basePriority,
+                  scores_updated_at: new Date().toISOString(),
+                })
+                .eq("id", leadId);
+            }
+          } catch (scoreErr) {
+            console.warn("[publish-manager] score recompute failed (non-fatal):", scoreErr);
+          }
+        }
+      }
+    }
+  }
+
   // ── Step 4: dialer_events — publish-time audit trail ─────
   //
   // All event writes are fire-and-forget via writeDialerEvent.

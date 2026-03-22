@@ -294,12 +294,16 @@ function notePreview(note: string | null | undefined, max = 110): string {
 }
 
 function countQualificationGaps(lead: QueueLead): number {
-  let gaps = 0;
-  if (lead.motivation_level == null) gaps += 1;
-  if (lead.seller_timeline == null) gaps += 1;
-  if (lead.condition_level == null) gaps += 1;
-  if (lead.decision_maker_confirmed !== true) gaps += 1;
-  if (lead.price_expectation == null) gaps += 1;
+  return getQualificationGapNames(lead).length;
+}
+
+function getQualificationGapNames(lead: QueueLead): string[] {
+  const gaps: string[] = [];
+  if (lead.decision_maker_confirmed !== true) gaps.push("decision-maker");
+  if (lead.motivation_level == null) gaps.push("motivation");
+  if (lead.seller_timeline == null) gaps.push("timeline");
+  if (lead.condition_level == null) gaps.push("condition");
+  if (lead.price_expectation == null) gaps.push("price");
   return gaps;
 }
 
@@ -1452,6 +1456,7 @@ function DialerPageInner() {
     const recentOutcome = leadHistory?.disposition ?? currentLead.disposition_code ?? "none";
     const dueText = nextAction.dueAt ? formatDueDateLabel(nextAction.dueAt).text : "No due date";
     const qualificationGaps = countQualificationGaps(currentLead);
+    const qualificationGapNames = getQualificationGapNames(currentLead);
     const assistPrompts = compactCallAssistPrompts({
       route: currentLead.qualification_route ?? null,
       nextActionLabel: nextAction.label,
@@ -1471,6 +1476,7 @@ function DialerPageInner() {
       dueText,
       qualificationScore: currentLead.qualification_score_total,
       qualificationGaps,
+      qualificationGapNames,
       recentOutcome: recentOutcome.replace(/_/g, " "),
       notePreview: notePreview(currentLead.notes),
       assistPrompts,
@@ -1892,8 +1898,6 @@ function DialerPageInner() {
               <div className="space-y-1.5">
                 {queue.map((lead, idx) => {
                   const isActive = currentLead?.id === lead.id;
-                  const score = lead.priority ?? 0;
-                  const sl = getScoreLabel(score);
                   const rowNextAction = deriveNextActionVisibility({
                     status: lead.status,
                     qualificationRoute: lead.qualification_route,
@@ -1914,39 +1918,32 @@ function DialerPageInner() {
                           : "bg-secondary/10 border-transparent hover:bg-secondary/20"
                       }`}
                     >
-                      <div className="flex items-center gap-2">
-                        <span className="text-sm text-muted-foreground/55 font-mono w-3">{idx + 1}</span>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-xs font-medium truncate flex items-center gap-1">
+                      <div className="space-y-0.5">
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm text-muted-foreground/55 font-mono w-3">{idx + 1}</span>
+                          <p className="text-sm font-medium truncate flex-1 min-w-0">
                             {lead.properties?.owner_name ?? "Unknown"}
-                            <RelationshipBadgeCompact data={{ tags: lead.tags }} />
                           </p>
-                          <p className="text-xs text-muted-foreground/80 truncate">{lead.properties?.address ?? "No address"}</p>
-                          <p className="text-sm text-muted-foreground/65 truncate">
-                            {stageLabel(lead.status)} - {qualificationRouteLabel(lead.qualification_route)} - Next: {rowNextAction.label}
-                          </p>
+                          <RelationshipBadgeCompact data={{ tags: lead.tags }} />
+                          {!lead.compliant && !ghostMode && (
+                            <span className="h-2 w-2 rounded-full bg-foreground/80 shadow-[0_0_6px_var(--shadow-medium)] shrink-0" title="Compliance blocked" />
+                          )}
                         </div>
-                        <span className="text-xs text-muted-foreground/60 font-mono shrink-0" title={getCadencePosition(lead.total_calls ?? 0).label}>
-                          {(lead.total_calls ?? 0)}/{getCadencePosition(lead.total_calls ?? 0).totalTouches}
-                        </span>
-                        <span
-                          className={
-                            rowDue.overdue
-                              ? "text-xs px-1.5 py-0 rounded border border-border/35 bg-muted/10 text-foreground shrink-0"
-                              : rowDue.urgent
-                                ? "text-xs px-1.5 py-0 rounded border border-border/35 bg-muted/10 text-foreground shrink-0"
-                                : "text-xs px-1.5 py-0 rounded border border-overlay-12 bg-overlay-4 text-muted-foreground shrink-0"
-                          }
-                          title="Next action due state"
-                        >
-                          {rowDueLabel}
-                        </span>
-                        <Badge variant={sl.variant} className="text-xs px-1.5 py-0 shrink-0">
-                          {score}
-                        </Badge>
-                        {!lead.compliant && !ghostMode && (
-                          <span className="h-2 w-2 rounded-full bg-foreground/80 shadow-[0_0_6px_var(--shadow-medium)] shrink-0" title="Compliance blocked" />
-                        )}
+                        <div className="flex items-center gap-2 pl-5">
+                          <span className="text-xs text-muted-foreground/70 font-mono">{lead.properties?.owner_phone || "No phone"}</span>
+                          {lead.tags?.slice(0, 1).map((tag) => (
+                            <span key={tag} className="text-xs px-1.5 py-0 rounded bg-overlay-4 border border-overlay-8 text-muted-foreground/60">{tag}</span>
+                          ))}
+                        </div>
+                        <div className="flex items-center gap-2 pl-5 text-xs">
+                          <span className={rowNextAction.label === "No next action set" ? "text-amber-400/80" : "text-muted-foreground/60"}>
+                            {rowNextAction.label === "No next action set" ? "No next action" : rowNextAction.label}
+                          </span>
+                          <span className="text-muted-foreground/30">·</span>
+                          <span className={rowDue.overdue ? "text-red-400" : "text-muted-foreground/50"}>
+                            {rowDueLabel === "No due date" ? "Never" : rowDueLabel}
+                          </span>
+                        </div>
                       </div>
                     </button>
                   );
@@ -2052,15 +2049,10 @@ function DialerPageInner() {
                         </button>
                       </div>
                       <div className="flex flex-col items-end gap-1">
-                        {(() => {
-                          const sl = getScoreLabel(currentLead.priority);
-                          return (
-                            <Badge variant={sl.variant} className="text-sm px-2.5 py-0.5 gap-1">
-                              <Sparkles className="h-3 w-3" />
-                              {currentLead.priority} {sl.label}
-                            </Badge>
-                          );
-                        })()}
+                        {/* Score hidden until live scoring loop is wired — showing untrusted numbers is worse than no number */}
+                        <Badge variant="outline" className="text-sm px-2.5 py-0.5 gap-1 border-border/20 text-muted-foreground/50">
+                          —
+                        </Badge>
                         <Badge variant="outline" className="text-xs gap-1 border-primary/20 text-primary/70">
                           <Phone className="h-2.5 w-2.5" />
                           {getCadencePosition(currentLead.total_calls ?? 0).label}
@@ -2082,10 +2074,10 @@ function DialerPageInner() {
                           <span>Next: <span className="text-foreground font-medium">{dialerContext.nextActionLabel}</span></span>
                           <span className="text-muted-foreground/30">·</span>
                           <span className={dialerContext.dueText === "Overdue" ? "text-red-400 font-medium" : ""}>Due: {dialerContext.dueText}</span>
-                          {dialerContext.qualificationGaps > 0 && (
+                          {dialerContext.qualificationGapNames.length > 0 && (
                             <>
                               <span className="text-muted-foreground/30">·</span>
-                              <span className="text-amber-400">{dialerContext.qualificationGaps} qual gap{dialerContext.qualificationGaps === 1 ? "" : "s"}</span>
+                              <span className="text-amber-400">Ask: {dialerContext.qualificationGapNames.slice(0, 3).join(", ")}</span>
                             </>
                           )}
                           {dialerContext.motivationLevel != null && (
@@ -2191,12 +2183,7 @@ function DialerPageInner() {
                                   </li>
                                 ))}
                               </ul>
-                              {preCallBrief.suggestedOpener && (
-                                <div className="rounded-lg bg-overlay-3 border border-overlay-6 p-2 mt-1">
-                                  <p className="text-sm text-muted-foreground/60 uppercase mb-0.5">Suggested Opener</p>
-                                  <p className="text-xs text-foreground/70 italic">&ldquo;{preCallBrief.suggestedOpener}&rdquo;</p>
-                                </div>
-                              )}
+                              {/* Suggested Opener removed — live coach handles talk tracks during the call */}
                               {preCallBrief.nextQuestions.length > 0 && (
                                 <div className="rounded-lg bg-overlay-3 border border-overlay-6 p-2 mt-1">
                                   <p className="text-sm text-muted-foreground/60 uppercase mb-1">Best Questions</p>

@@ -127,9 +127,9 @@ function getQaSeverityTone(severity: string): string {
     return "border-amber-500/25 bg-amber-500/[0.06] text-amber-100";
   }
   if (severity === "warn") {
-    return "border-white/[0.08] bg-white/[0.03] text-foreground/80";
+    return "border-overlay-8 bg-overlay-3 text-foreground/80";
   }
-  return "border-white/[0.06] bg-white/[0.02] text-muted-foreground";
+  return "border-overlay-6 bg-overlay-2 text-muted-foreground";
 }
 
 function getQaSeverityLabel(severity: string): string {
@@ -238,6 +238,8 @@ export function PostCallPanel({
 
   // Objection tags collected from PostCallDraftPanel (confirm or skip path)
   const [objectionTags, setObjectionTags] = useState<ObjectionCapture[]>([]);
+  // Distress signals discovered during the call — writes to distress_events + triggers score recompute
+  const [distressSignals, setDistressSignals] = useState<string[]>([]);
   // Structured post-call payload captured in draft review and sent on publish.
   const [structuredDraft, setStructuredDraft] = useState<PostCallStructureInput | null>(null);
 
@@ -433,6 +435,7 @@ export function PostCallPanel({
         // Objection tags — collected from PostCallDraftPanel (confirm or skip path).
         // Forwarded to publish-manager which writes to lead_objection_tags (non-fatal).
         ...(objectionTags.length > 0 ? { objection_tags: objectionTags } : {}),
+        ...(distressSignals.length > 0 ? { distress_signals: distressSignals } : {}),
         ...(nextAction.trim() ? { next_action: nextAction.trim() } : {}),
         ...(nextActionDueAt ? { next_action_due_at: new Date(nextActionDueAt).toISOString() } : {}),
         ...(shouldSendStructure ? { post_call_structure: publishStructure } : {}),
@@ -727,7 +730,7 @@ export function PostCallPanel({
           )}
           {leadId ? (
             <>
-              <div className="rounded-[10px] border border-white/[0.08] bg-white/[0.02] p-3 space-y-2">
+              <div className="rounded-[10px] border border-overlay-8 bg-overlay-2 p-3 space-y-2">
                 <p className="text-sm uppercase tracking-wide text-muted-foreground font-semibold">
                   Intelligence
                 </p>
@@ -848,7 +851,7 @@ export function PostCallPanel({
           )}
 
           {/* ── Minimal structured corrections (no extra console) ─────── */}
-          <div className="mb-3 rounded-[10px] border border-white/[0.05] bg-white/[0.02] p-2.5 space-y-1.5">
+          <div className="mb-3 rounded-[10px] border border-overlay-5 bg-overlay-2 p-2.5 space-y-1.5">
             <p className="text-sm uppercase tracking-wider text-muted-foreground/45">Post-call structure</p>
             <textarea
               value={structuredDraft?.promises_made ?? ""}
@@ -857,7 +860,7 @@ export function PostCallPanel({
               maxLength={200}
               rows={1}
               disabled={publishing}
-              className="w-full resize-none rounded-[8px] border border-white/[0.06] bg-white/[0.03] px-2.5 py-1.5 text-sm text-foreground placeholder:text-muted-foreground/30 focus:outline-none focus:border-primary/20 disabled:opacity-50"
+              className="w-full resize-none rounded-[8px] border border-overlay-6 bg-overlay-3 px-2.5 py-1.5 text-sm text-foreground placeholder:text-muted-foreground/30 focus:outline-none focus:border-primary/20 disabled:opacity-50"
             />
             <textarea
               value={structuredDraft?.objection ?? ""}
@@ -866,7 +869,7 @@ export function PostCallPanel({
               maxLength={200}
               rows={1}
               disabled={publishing}
-              className="w-full resize-none rounded-[8px] border border-white/[0.06] bg-white/[0.03] px-2.5 py-1.5 text-sm text-foreground placeholder:text-muted-foreground/30 focus:outline-none focus:border-primary/20 disabled:opacity-50"
+              className="w-full resize-none rounded-[8px] border border-overlay-6 bg-overlay-3 px-2.5 py-1.5 text-sm text-foreground placeholder:text-muted-foreground/30 focus:outline-none focus:border-primary/20 disabled:opacity-50"
             />
             <textarea
               value={structuredDraft?.next_task_suggestion ?? ""}
@@ -875,7 +878,7 @@ export function PostCallPanel({
               maxLength={200}
               rows={1}
               disabled={publishing}
-              className="w-full resize-none rounded-[8px] border border-white/[0.06] bg-white/[0.03] px-2.5 py-1.5 text-sm text-foreground placeholder:text-muted-foreground/30 focus:outline-none focus:border-primary/20 disabled:opacity-50"
+              className="w-full resize-none rounded-[8px] border border-overlay-6 bg-overlay-3 px-2.5 py-1.5 text-sm text-foreground placeholder:text-muted-foreground/30 focus:outline-none focus:border-primary/20 disabled:opacity-50"
             />
             <textarea
               value={structuredDraft?.callback_timing_hint ?? ""}
@@ -884,7 +887,7 @@ export function PostCallPanel({
               maxLength={120}
               rows={1}
               disabled={publishing}
-              className="w-full resize-none rounded-[8px] border border-white/[0.06] bg-white/[0.03] px-2.5 py-1.5 text-sm text-foreground placeholder:text-muted-foreground/30 focus:outline-none focus:border-primary/20 disabled:opacity-50"
+              className="w-full resize-none rounded-[8px] border border-overlay-6 bg-overlay-3 px-2.5 py-1.5 text-sm text-foreground placeholder:text-muted-foreground/30 focus:outline-none focus:border-primary/20 disabled:opacity-50"
             />
           </div>
 
@@ -903,7 +906,7 @@ export function PostCallPanel({
                 min={minDatetime}
                 disabled={publishing}
                 style={{ colorScheme: "dark" }}
-                className="w-full rounded-[10px] border border-white/[0.06] bg-white/[0.03] px-3 py-2 text-xs text-foreground focus:outline-none focus:border-primary/20 disabled:opacity-50"
+                className="w-full rounded-[10px] border border-overlay-6 bg-overlay-3 px-3 py-2 text-xs text-foreground focus:outline-none focus:border-primary/20 disabled:opacity-50"
               />
             </div>
           )}
@@ -923,8 +926,31 @@ export function PostCallPanel({
               hasOpenTask:            qualContext?.hasOpenTask ?? false,
             } satisfies QualCheckInput}
             showNextQuestion={true}
-            className="mb-3 rounded-[10px] bg-white/[0.015] border border-white/[0.04] p-2.5"
+            className="mb-3 rounded-[10px] bg-white/[0.015] border border-overlay-4 p-2.5"
           />
+
+          {/* Distress signals discovered on this call */}
+          <div className="mb-3">
+            <label className="text-xs text-muted-foreground/60 uppercase tracking-wider mb-1.5 block">Distress Signals Discovered</label>
+            <div className="flex flex-wrap gap-1.5">
+              {["probate", "pre_foreclosure", "tax_lien", "bankruptcy", "divorce", "vacant", "absentee", "inherited", "condemned", "water_shutoff"].map((signal) => (
+                <button
+                  key={signal}
+                  onClick={() => setDistressSignals((prev) =>
+                    prev.includes(signal) ? prev.filter((s) => s !== signal) : [...prev, signal]
+                  )}
+                  disabled={publishing}
+                  className={`px-2 py-0.5 rounded-[8px] text-xs font-medium border transition-all ${
+                    distressSignals.includes(signal)
+                      ? "bg-primary/20 border-primary/40 text-primary"
+                      : "bg-overlay-3 border-overlay-6 text-muted-foreground/50 hover:border-white/[0.14]"
+                  } disabled:opacity-50`}
+                >
+                  {signal.replace(/_/g, " ")}
+                </button>
+              ))}
+            </div>
+          </div>
 
           {/* Motivation level */}
           <div className="flex items-center gap-1.5 mb-1.5 px-0.5">
@@ -946,7 +972,7 @@ export function PostCallPanel({
                 className={`flex-1 rounded-[10px] py-2 text-sm font-semibold border transition-all ${
                   qualMotivation === n
                     ? "bg-primary/20 border-primary/40 text-primary"
-                    : "bg-white/[0.03] border-white/[0.06] text-muted-foreground/60 hover:border-white/[0.14]"
+                    : "bg-overlay-3 border-overlay-6 text-muted-foreground/60 hover:border-white/[0.14]"
                 } disabled:opacity-50`}
               >
                 {n}
@@ -974,7 +1000,7 @@ export function PostCallPanel({
                 className={`rounded-[10px] py-2 text-xs font-medium border transition-all ${
                   qualTimeline === value
                     ? "bg-primary/20 border-primary/40 text-primary"
-                    : "bg-white/[0.03] border-white/[0.06] text-muted-foreground/60 hover:border-white/[0.14]"
+                    : "bg-overlay-3 border-overlay-6 text-muted-foreground/60 hover:border-white/[0.14]"
                 } disabled:opacity-50`}
               >
                 {label}
@@ -998,7 +1024,7 @@ export function PostCallPanel({
               placeholder="e.g. Call back Tuesday 2pm, Send offer, Research property"
               maxLength={200}
               disabled={publishing}
-              className="w-full rounded-[8px] border border-white/[0.06] bg-white/[0.03] px-2.5 py-1.5 text-xs text-foreground placeholder:text-muted-foreground/30 focus:outline-none focus:border-primary/20 disabled:opacity-50"
+              className="w-full rounded-[8px] border border-overlay-6 bg-overlay-3 px-2.5 py-1.5 text-xs text-foreground placeholder:text-muted-foreground/30 focus:outline-none focus:border-primary/20 disabled:opacity-50"
             />
             <label className="block text-sm text-muted-foreground/40 mt-1">
               Due date &amp; time <span className="opacity-60">(optional)</span>
@@ -1010,7 +1036,7 @@ export function PostCallPanel({
               min={minDatetime}
               disabled={publishing}
               style={{ colorScheme: "dark" }}
-              className="w-full rounded-[8px] border border-white/[0.06] bg-white/[0.03] px-2.5 py-1.5 text-xs text-foreground focus:outline-none focus:border-primary/20 disabled:opacity-50"
+              className="w-full rounded-[8px] border border-overlay-6 bg-overlay-3 px-2.5 py-1.5 text-xs text-foreground focus:outline-none focus:border-primary/20 disabled:opacity-50"
             />
           </div>
 
@@ -1036,7 +1062,7 @@ export function PostCallPanel({
               className={`w-full mt-1.5 flex items-center justify-center gap-1.5 rounded-[10px] px-3 py-1.5 text-sm transition-all border disabled:opacity-40 ${
                 summaryFlagged
                   ? "bg-muted/10 border-border/25 text-foreground"
-                  : "bg-white/[0.02] border-white/[0.04] text-muted-foreground/40 hover:text-muted-foreground/70 hover:border-white/[0.08]"
+                  : "bg-overlay-2 border-overlay-4 text-muted-foreground/40 hover:text-muted-foreground/70 hover:border-overlay-8"
               }`}
             >
               <Flag className="h-3 w-3" />
@@ -1075,17 +1101,17 @@ export function PostCallPanel({
             min={minDatetime}
             disabled={publishing}
             style={{ colorScheme: "dark" }}
-            className="w-full rounded-[10px] border border-white/[0.06] bg-white/[0.03] px-3 py-2 text-xs text-foreground focus:outline-none focus:border-primary/20 disabled:opacity-50 mb-3"
+            className="w-full rounded-[10px] border border-overlay-6 bg-overlay-3 px-3 py-2 text-xs text-foreground focus:outline-none focus:border-primary/20 disabled:opacity-50 mb-3"
           />
 
           {/* Callback confirmation SMS opt-in */}
           {phoneNumber && callbackAt && (
-            <label className="flex items-start gap-2 cursor-pointer rounded-[8px] border border-white/[0.05] bg-white/[0.01] px-2.5 py-2 hover:bg-white/[0.025] transition-colors mb-3">
+            <label className="flex items-start gap-2 cursor-pointer rounded-[8px] border border-overlay-5 bg-white/[0.01] px-2.5 py-2 hover:bg-white/[0.025] transition-colors mb-3">
               <input
                 type="checkbox"
                 checked={sendConfirmSms}
                 onChange={(e) => setSendConfirmSms(e.target.checked)}
-                className="mt-0.5 h-3 w-3 rounded border-white/20 bg-white/[0.03] accent-cyan"
+                className="mt-0.5 h-3 w-3 rounded border-overlay-20 bg-overlay-3 accent-cyan"
               />
               <div>
                 <p className="text-sm font-medium text-foreground/65">
@@ -1114,7 +1140,7 @@ export function PostCallPanel({
               placeholder="e.g. Call back Tuesday 2pm, Send offer, Research property"
               maxLength={200}
               disabled={publishing}
-              className="w-full rounded-[8px] border border-white/[0.06] bg-white/[0.03] px-2.5 py-1.5 text-xs text-foreground placeholder:text-muted-foreground/30 focus:outline-none focus:border-primary/20 disabled:opacity-50"
+              className="w-full rounded-[8px] border border-overlay-6 bg-overlay-3 px-2.5 py-1.5 text-xs text-foreground placeholder:text-muted-foreground/30 focus:outline-none focus:border-primary/20 disabled:opacity-50"
             />
             <label className="block text-sm text-muted-foreground/40 mt-1">
               Due date &amp; time <span className="opacity-60">(optional — defaults to callback date above)</span>
@@ -1126,7 +1152,7 @@ export function PostCallPanel({
               min={minDatetime}
               disabled={publishing}
               style={{ colorScheme: "dark" }}
-              className="w-full rounded-[8px] border border-white/[0.06] bg-white/[0.03] px-2.5 py-1.5 text-xs text-foreground focus:outline-none focus:border-primary/20 disabled:opacity-50"
+              className="w-full rounded-[8px] border border-overlay-6 bg-overlay-3 px-2.5 py-1.5 text-xs text-foreground focus:outline-none focus:border-primary/20 disabled:opacity-50"
             />
           </div>
 
@@ -1138,7 +1164,7 @@ export function PostCallPanel({
             maxLength={300}
             rows={2}
             disabled={publishing}
-            className="w-full resize-none rounded-[10px] border border-white/[0.06] bg-white/[0.03] px-3 py-2 text-xs text-foreground placeholder:text-muted-foreground/40 focus:outline-none focus:border-primary/20 disabled:opacity-50 mb-2"
+            className="w-full resize-none rounded-[10px] border border-overlay-6 bg-overlay-3 px-3 py-2 text-xs text-foreground placeholder:text-muted-foreground/40 focus:outline-none focus:border-primary/20 disabled:opacity-50 mb-2"
           />
 
           <Button
@@ -1203,7 +1229,7 @@ export function PostCallPanel({
             maxLength={300}
             rows={2}
             disabled={publishing}
-            className="w-full resize-none rounded-[10px] border border-white/[0.06] bg-white/[0.03] px-3 py-2 text-xs text-foreground placeholder:text-muted-foreground/40 focus:outline-none focus:border-primary/20 disabled:opacity-50"
+            className="w-full resize-none rounded-[10px] border border-overlay-6 bg-overlay-3 px-3 py-2 text-xs text-foreground placeholder:text-muted-foreground/40 focus:outline-none focus:border-primary/20 disabled:opacity-50"
           />
 
           <Button
