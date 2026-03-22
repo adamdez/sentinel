@@ -13,7 +13,7 @@
 
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
-import { writeQuery, readQuery } from "../db.js";
+import { query as readQuery, writeQuery } from "../db.js";
 
 export function registerResolveReviewItem(server: McpServer): void {
   server.tool(

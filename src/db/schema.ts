@@ -467,23 +467,6 @@ export const userProfiles = pgTable("user_profiles", {
   index("idx_user_profiles_role").on(table.role),
 ]);
 
-// ── Daily Devotional ────────────────────────────────────────────────
-// One row per day: ESV verse + exact Reformed commentary excerpt
-
-export const dailyDevotional = pgTable("daily_devotional", {
-  id: uuid("id").defaultRandom().primaryKey(),
-  displayDate: date("display_date").notNull(),
-  verseRef: text("verse_ref").notNull(),
-  verseText: text("verse_text").notNull(),
-  author: text("author").notNull(),
-  commentary: text("commentary").notNull(),
-  sourceUrl: text("source_url").notNull(),
-  sourceTitle: text("source_title").notNull(),
-  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-}, (table) => [
-  uniqueIndex("uq_devotional_date").on(table.displayDate),
-]);
-
 // ── Buyers ──────────────────────────────────────────────────────────
 // Buyer profiles for the dispo / buyer-liquidity workflow.
 // FK from deals.buyer_id points here (see migration 20260316_buyer_foundation.sql).

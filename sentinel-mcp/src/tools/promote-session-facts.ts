@@ -13,7 +13,7 @@
 
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
-import { readQuery, writeQuery } from "../db.js";
+import { query as readQuery, writeQuery } from "../db.js";
 
 /** Maps dialer session fact types to intel pipeline fact types */
 const FACT_TYPE_MAP: Record<string, string> = {
