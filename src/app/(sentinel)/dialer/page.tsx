@@ -482,27 +482,56 @@ function DialerPageInner() {
   const [smsComposeMsg, setSmsComposeMsg] = useState("");
   const [smsComposeSending, setSmsComposeSending] = useState(false);
 
-  // Subscribe to live_notes updates from transcription server via Supabase realtime
-  // Covers both session-based calls (currentCallLogId) and manual dial (manualCallLogId)
-  const activeCallLogForNotes = currentCallLogId || manualCallLogId;
+  // Poll transcript chunks directly from session_notes.
+  // Production does not yet have the legacy calls_log.live_notes bridge.
+  const activeSessionForNotes = dialerSessionId || manualSessionId;
   useEffect(() => {
-    if (!activeCallLogForNotes) { setLiveNotes([]); return; }
-    const channel = supabase
-      .channel(`live-notes-${activeCallLogForNotes}`)
-      .on(
-        "postgres_changes",
-        { event: "UPDATE", schema: "public", table: "calls_log", filter: `id=eq.${activeCallLogForNotes}` },
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        (payload: any) => {
-          const notes = payload.new?.live_notes;
-          if (Array.isArray(notes) && notes.length > 0) {
-            setLiveNotes(notes);
-          }
-        },
-      )
-      .subscribe();
-    return () => { supabase.removeChannel(channel); };
-  }, [activeCallLogForNotes]);
+    if (!activeSessionForNotes) {
+      setLiveNotes([]);
+      return;
+    }
+
+    let cancelled = false;
+
+    const pollNotes = async () => {
+      try {
+        const hdrs = await authHeaders();
+        const res = await fetch(
+          `/api/dialer/v1/sessions/${activeSessionForNotes}/notes?note_type=transcript_chunk`,
+          { headers: hdrs },
+        );
+        if (!res.ok) return;
+
+        const data = await res.json() as {
+          notes?: Array<{
+            content: string | null;
+            speaker: "operator" | "seller" | "ai" | null;
+          }>;
+        };
+
+        if (cancelled) return;
+
+        const nextNotes = (data.notes ?? [])
+          .filter((note) => typeof note.content === "string" && note.content.trim().length > 0)
+          .map((note) => `${note.speaker === "operator" ? "You" : note.speaker === "seller" ? "Seller" : "AI"}: ${note.content!.trim()}`)
+          .slice(-24);
+
+        setLiveNotes(nextNotes);
+      } catch {
+        if (!cancelled) return;
+      }
+    };
+
+    void pollNotes();
+    const timer = window.setInterval(() => {
+      void pollNotes();
+    }, 2000);
+
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+    };
+  }, [activeSessionForNotes]);
 
   // Inline SMS compose for the lead card (separate from manual-dial SMS compose)
   const [leadSmsOpen, setLeadSmsOpen] = useState(false);
