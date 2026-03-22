@@ -86,6 +86,11 @@ function auditEvent(
     });
 }
 
+function isMissingLiveCoachStateColumn(message: string | undefined): boolean {
+  if (!message) return false;
+  return message.includes("live_coach_state") && message.includes("does not exist");
+}
+
 // ─────────────────────────────────────────────────────────────
 // Public API
 // ─────────────────────────────────────────────────────────────
@@ -187,6 +192,9 @@ export async function getSessionLiveCoachState(
     .maybeSingle();
 
   if (error) {
+    if (isMissingLiveCoachStateColumn(error.message)) {
+      return { data: null, error: null };
+    }
     console.error("[Dialer/session-manager] getSessionLiveCoachState failed:", error.message);
     return { data: null, error: error.message, code: "DB_ERROR" };
   }
@@ -220,6 +228,9 @@ export async function updateSessionLiveCoachState(
     .eq("user_id", userId);
 
   if (error) {
+    if (isMissingLiveCoachStateColumn(error.message)) {
+      return { data: null, error: null };
+    }
     console.error("[Dialer/session-manager] updateSessionLiveCoachState failed:", error.message);
     return { data: null, error: error.message, code: "DB_ERROR" };
   }
