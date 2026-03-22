@@ -16,6 +16,7 @@ import { brickedAdapter } from "./bricked/adapter";
 import { regridAdapter } from "./regrid/adapter";
 import { propertyRadarAdapter } from "./propertyradar/adapter";
 import { firecrawlAdapter } from "./firecrawl/adapter";
+import { spokaneGisAdapter } from "./spokane-gis/adapter";
 import type { BaseProviderAdapter, ProviderLookupResult, ProviderError } from "./base-adapter";
 
 const ADAPTERS: Record<string, BaseProviderAdapter> = {
@@ -23,6 +24,7 @@ const ADAPTERS: Record<string, BaseProviderAdapter> = {
   regrid: regridAdapter,
   propertyradar: propertyRadarAdapter,
   firecrawl: firecrawlAdapter,
+  spokane_gis: spokaneGisAdapter,
 };
 
 export interface MultiProviderResult {

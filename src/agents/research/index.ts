@@ -278,7 +278,7 @@ export async function runResearchAgent(
     let providerResults: ProviderLookupResult[] = [];
 
     if (lookupParams.address || lookupParams.apn) {
-      const providerLookup = await lookupProperty(lookupParams, ["propertyradar", "bricked"]);
+      const providerLookup = await lookupProperty(lookupParams, ["propertyradar", "bricked", "spokane_gis"]);
       providerResults = providerLookup.results.filter((r) => r.facts.length > 0);
 
       if (providerLookup.errors.length > 0) {

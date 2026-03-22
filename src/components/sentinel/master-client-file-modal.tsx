@@ -1386,6 +1386,40 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
               </div>
             )}
 
+            {/* County GIS Assessment Data */}
+            {(() => {
+              const countyAssessed = (cf.ownerFlags?.county_assessed_value as number) ?? 0;
+              const countyLand = (cf.ownerFlags?.county_land_value as number) ?? 0;
+              const countyImprovement = (cf.ownerFlags?.county_improvement_value as number) ?? 0;
+              const countyLastSale = (cf.ownerFlags?.county_last_sale_price as number) ?? 0;
+              const countyLastSaleDate = cf.ownerFlags?.county_last_sale_date as string | undefined;
+              const taxExemptCode = cf.ownerFlags?.tax_exemption_code as string | undefined;
+              const taxExemptAmt = (cf.ownerFlags?.tax_exemption_amount as number) ?? 0;
+              const isVacant = cf.ownerFlags?.vacant_land === true;
+              const countyNeighborhood = cf.ownerFlags?.county_neighborhood_name as string | undefined;
+              const countyAcreage = cf.ownerFlags?.county_acreage as number | undefined;
+
+              if (countyAssessed <= 0) return null;
+
+              return (
+                <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground/70 mt-1">
+                  <span>County: {formatCurrency(countyAssessed)} assessed</span>
+                  {countyLand > 0 && countyImprovement > 0 && (
+                    <span className="text-muted-foreground/50">({formatCurrency(countyLand)} land / {formatCurrency(countyImprovement)} improvements)</span>
+                  )}
+                  {countyLastSale > 0 && (
+                    <span>Last sale: {formatCurrency(countyLastSale)}{countyLastSaleDate ? ` (${countyLastSaleDate})` : ""}</span>
+                  )}
+                  {taxExemptCode && (
+                    <span className="text-amber-400/80">Tax exempt: {taxExemptCode}{taxExemptAmt > 0 ? ` ($${(taxExemptAmt / 1000).toFixed(0)}k)` : ""}</span>
+                  )}
+                  {isVacant && <span className="text-amber-400/80">Vacant lot</span>}
+                  {countyNeighborhood && <span>Nbhd: {countyNeighborhood}</span>}
+                  {countyAcreage != null && countyAcreage > 0 && <span>{countyAcreage.toFixed(2)} acres</span>}
+                </div>
+              );
+            })()}
+
             {/* Bricked AI — Mortgage Detail */}
             {(() => {
               const mortJson = cf.ownerFlags?.bricked_mortgages as string | undefined;
