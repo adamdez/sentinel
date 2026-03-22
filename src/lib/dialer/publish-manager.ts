@@ -145,14 +145,26 @@ export async function publishSession(
   const session = sessionResult.data;
 
   // ── Terminal state guard ──────────────────────────────────
+  // If session is still initiating/active but the operator is trying to publish,
+  // auto-end it. The call has ended on the phone side — the status webhook
+  // may have failed (old URL, TwiML error, network issue). Don't block the operator.
   if (!TERMINAL_STATUSES.has(session.status)) {
-    return {
-      ok: false,
-      calls_log_id: null,
-      lead_id: null,
-      error: "Session must be in a terminal state (ended or failed) before publishing",
-      code: "INVALID_TRANSITION",
-    };
+    console.warn(`[publish-manager] Session ${session.id} still in "${session.status}" — auto-ending for publish`);
+    const { error: endErr } = await sb
+      .from("call_sessions")
+      .update({ status: "ended", ended_at: new Date().toISOString() })
+      .eq("id", session.id);
+    if (endErr) {
+      console.error("[publish-manager] Failed to auto-end session:", endErr);
+      return {
+        ok: false,
+        calls_log_id: null,
+        lead_id: null,
+        error: "Session must be in a terminal state (ended or failed) before publishing",
+        code: "INVALID_TRANSITION",
+      };
+    }
+    session.status = "ended" as typeof session.status;
   }
 
   const leadId = session.lead_id ?? null;
