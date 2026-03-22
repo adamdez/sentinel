@@ -1,91 +1,131 @@
 /**
  * Bricked AI Adapter — Mapping Tests
  *
- * Validates that Bricked AI comp/underwriting responses are correctly
+ * Validates that Bricked AI property/comp/repair responses are correctly
  * normalized into canonical Sentinel facts. No real API calls — fetch is mocked.
+ *
+ * Response shape matches https://docs.bricked.ai/api-reference/property/create
  */
 
 import type { ProviderLookupResult } from "../base-adapter";
 
 // ---------------------------------------------------------------------------
-// Sample Bricked payloads
+// Sample Bricked payloads (matching real API response shape)
 // ---------------------------------------------------------------------------
 
 const sampleBrickedResponse = {
-  success: true,
-  data: {
-    address: "1234 N Division St, Spokane, WA 99201",
-    arv: 310000,
-    arvLow: 290000,
-    arvHigh: 330000,
-    estimatedRepairCost: 35000,
-    repairCostLow: 25000,
-    repairCostHigh: 45000,
-    maxAllowableOffer: 181500,
-    comps: [
-      {
-        address: "1300 N Division St",
-        salePrice: 305000,
-        saleDate: "2025-09-15",
-        distance: 0.2,
-        beds: 3,
-        baths: 2,
-        sqft: 1500,
-        yearBuilt: 1955,
-        similarity: 0.92,
-      },
-      {
-        address: "1180 N Monroe St",
-        salePrice: 295000,
-        saleDate: "2025-08-22",
-        distance: 0.5,
-        beds: 3,
-        baths: 1.5,
-        sqft: 1380,
-        yearBuilt: 1948,
-        similarity: 0.85,
-      },
-      {
-        address: "1402 N Hamilton St",
-        salePrice: 320000,
-        saleDate: "2025-10-01",
-        distance: 0.8,
-        beds: 4,
-        baths: 2,
-        sqft: 1600,
-        yearBuilt: 1960,
-        similarity: 0.78,
-      },
-      {
-        address: "900 E Sinto Ave",
-        salePrice: 275000,
-        saleDate: "2025-07-10",
-        distance: 1.2,
-        beds: 2,
-        baths: 1,
-        sqft: 1100,
-        yearBuilt: 1940,
-        similarity: 0.65,
-      },
-    ],
-    propertyDetails: {
-      beds: 3,
-      baths: 2,
-      sqft: 1450,
+  id: "abc-123-def",
+  property: {
+    details: {
+      bedrooms: 3,
+      bathrooms: 2,
+      squareFeet: 1450,
       yearBuilt: 1952,
-      lotSize: 7200,
-      propertyType: "Single Family",
+      lotSquareFeet: 7200,
+      occupancy: "Vacant",
+      stories: 1,
+      lastSaleDate: 1609459200,
+      lastSaleAmount: 185000,
+      marketStatus: "Off Market",
+      daysOnMarket: 0,
+      renovationScore: { hasScore: true, confidence: 82, score: 65 },
     },
-    confidence: 0.88,
-    compCount: 4,
-    analysisDate: "2025-12-15",
+    landLocation: {
+      apn: "35051.2714",
+      zoning: "R1",
+      landUse: "singleFamily",
+      countyName: "Spokane",
+      subdivision: "North Hill",
+    },
+    mortgageDebt: {
+      openMortgageBalance: 95000,
+      estimatedEquity: 215000,
+      purchaseMethod: "Conventional",
+      ltvRatio: 30.6,
+      mortgages: [
+        {
+          seq: 1,
+          amount: 148000,
+          interestRate: 3.5,
+          lenderName: "Wells Fargo",
+          loanType: "Conventional",
+        },
+      ],
+    },
+    ownership: {
+      owners: [
+        { firstName: "John", lastName: "Smith" },
+        { firstName: "Jane", lastName: "Smith" },
+      ],
+      ownershipLength: 12,
+      ownerType: "Individual",
+      ownerOccupancy: "Owner Occupied",
+      taxAmount: 2800,
+    },
+    mls: {
+      status: "Sold",
+      amount: 295000,
+      daysOnMarket: 22,
+      mlsNumber: "202412345",
+      agent: {
+        agentName: "Bob Realtor",
+        agentPhone: "509-555-1234",
+      },
+    },
+    latitude: 47.6588,
+    longitude: -117.4260,
+    address: {
+      streetNumber: "1234",
+      streetName: "Division",
+      streetSuffix: "St",
+      zip: "99201",
+      cityName: "Spokane",
+      countyName: "Spokane",
+      stateCode: "WA",
+      fullAddress: "1234 N Division St, Spokane, WA 99201",
+    },
+    images: ["https://images.bricked.ai/abc123/photo1.jpg"],
   },
+  comps: [
+    {
+      details: { bedrooms: 3, bathrooms: 2, squareFeet: 1500, yearBuilt: 1955, lastSaleAmount: 305000 },
+      address: { fullAddress: "1300 N Division St, Spokane, WA 99201" },
+      selected: true,
+      compType: "Sold",
+      adjusted_value: 308000,
+    },
+    {
+      details: { bedrooms: 3, bathrooms: 1.5, squareFeet: 1380, yearBuilt: 1948, lastSaleAmount: 295000 },
+      address: { fullAddress: "1180 N Monroe St, Spokane, WA 99201" },
+      selected: true,
+      compType: "Sold",
+      adjusted_value: 298000,
+    },
+    {
+      details: { bedrooms: 4, bathrooms: 2, squareFeet: 1600, yearBuilt: 1960, lastSaleAmount: 320000 },
+      address: { fullAddress: "1402 N Hamilton St, Spokane, WA 99201" },
+      selected: false,
+      compType: "Sold",
+      adjusted_value: 312000,
+    },
+  ],
+  shareLink: "https://bricked.ai/share/abc123",
+  dashboardLink: "https://bricked.ai/dashboard/abc123",
+  cmv: 295000,
+  arv: 310000,
+  repairs: [
+    { repair: "Roof Replacement", description: "Asphalt shingle, full tear-off", cost: 12000 },
+    { repair: "Kitchen Update", description: "Cabinets, counters, appliances", cost: 15000 },
+    { repair: "Interior Paint", description: "Full interior, 3 bed/2 bath", cost: 4500 },
+    { repair: "Flooring", description: "LVP throughout main level", cost: 3500 },
+  ],
+  totalRepairCost: 35000,
 };
 
-const sampleFailedResponse = {
-  success: false,
-  error: "Insufficient comparable sales data in area",
-  data: null,
+const sampleEmptyResponse = {
+  id: "",
+  property: null,
+  comps: [],
 };
 
 // ---------------------------------------------------------------------------
@@ -94,10 +134,6 @@ const sampleFailedResponse = {
 
 function findFact(facts: ProviderLookupResult["facts"], fieldName: string) {
   return facts.find((f) => f.fieldName === fieldName);
-}
-
-function findFacts(facts: ProviderLookupResult["facts"], pattern: string) {
-  return facts.filter((f) => f.fieldName.startsWith(pattern));
 }
 
 function assert(condition: boolean, message: string) {
@@ -130,45 +166,70 @@ async function testStandardMapping(): Promise<void> {
     assert(result.provider === "bricked", "provider should be 'bricked'");
     assert(result.facts.length > 0, "should produce facts");
 
-    // ARV estimates
+    // Valuation
     assert(findFact(result.facts, "arv_estimate")?.value === 310000, "arv_estimate mapping");
-    assert(findFact(result.facts, "arv_low")?.value === 290000, "arv_low mapping");
-    assert(findFact(result.facts, "arv_high")?.value === 330000, "arv_high mapping");
+    assert(findFact(result.facts, "cmv_estimate")?.value === 295000, "cmv_estimate mapping");
+    assert(findFact(result.facts, "total_repair_cost")?.value === 35000, "total_repair_cost mapping");
 
-    // Repair costs
-    assert(findFact(result.facts, "repair_cost_estimate")?.value === 35000, "repair_cost_estimate mapping");
-    assert(findFact(result.facts, "repair_cost_low")?.value === 25000, "repair_cost_low mapping");
-    assert(findFact(result.facts, "repair_cost_high")?.value === 45000, "repair_cost_high mapping");
+    // Bricked ID + share link
+    assert(findFact(result.facts, "bricked_property_id")?.value === "abc-123-def", "bricked_property_id mapping");
+    assert(findFact(result.facts, "bricked_share_link")?.value === "https://bricked.ai/share/abc123", "share_link mapping");
 
-    // MAO
-    assert(findFact(result.facts, "max_allowable_offer")?.value === 181500, "max_allowable_offer mapping");
+    // Property details
+    assert(findFact(result.facts, "bedrooms")?.value === 3, "bedrooms mapping");
+    assert(findFact(result.facts, "bathrooms")?.value === 2, "bathrooms mapping");
+    assert(findFact(result.facts, "square_feet")?.value === 1450, "square_feet mapping");
+    assert(findFact(result.facts, "year_built")?.value === 1952, "year_built mapping");
+    assert(findFact(result.facts, "last_sale_amount")?.value === 185000, "last_sale_amount mapping");
 
-    // Analysis metadata
-    const compCountFact = findFact(result.facts, "comp_count");
-    assert(compCountFact?.value === 4, "comp_count mapping");
-    assert(compCountFact?.confidence === "high", "comp_count should be high confidence");
+    // Renovation score
+    assert(findFact(result.facts, "renovation_score")?.value === 65, "renovation_score mapping");
 
-    const confFact = findFact(result.facts, "analysis_confidence");
-    assert(confFact?.value === 0.88, "analysis_confidence mapping");
-    assert(confFact?.confidence === "medium", "analysis_confidence should be medium confidence");
+    // Land/location
+    assert(findFact(result.facts, "apn")?.value === "35051.2714", "apn mapping");
+    assert(findFact(result.facts, "zoning")?.value === "R1", "zoning mapping");
+    assert(findFact(result.facts, "county_name")?.value === "Spokane", "county_name mapping");
 
-    assert(findFact(result.facts, "analysis_date")?.value === "2025-12-15", "analysis_date mapping");
+    // Mortgage/debt
+    assert(findFact(result.facts, "estimated_equity")?.value === 215000, "estimated_equity mapping");
+    assert(findFact(result.facts, "open_mortgage_balance")?.value === 95000, "open_mortgage_balance mapping");
+    assert(findFact(result.facts, "ltv_ratio")?.value === 30.6, "ltv_ratio mapping");
 
-    // Comps — only top 3 should be mapped as individual comp facts
+    // Ownership
+    assert(findFact(result.facts, "owner_names")?.value === "John Smith; Jane Smith", "owner_names mapping");
+    assert(findFact(result.facts, "ownership_length_years")?.value === 12, "ownership_length mapping");
+    assert(findFact(result.facts, "tax_amount")?.value === 2800, "tax_amount mapping");
+
+    // MLS
+    assert(findFact(result.facts, "mls_status")?.value === "Sold", "mls_status mapping");
+    assert(findFact(result.facts, "mls_list_price")?.value === 295000, "mls_list_price mapping");
+    assert(findFact(result.facts, "mls_number")?.value === "202412345", "mls_number mapping");
+
+    // Geo
+    assert(findFact(result.facts, "latitude")?.value === 47.6588, "latitude mapping");
+    assert(findFact(result.facts, "longitude")?.value === -117.4260, "longitude mapping");
+
+    // Address
+    assert(findFact(result.facts, "full_address")?.value === "1234 N Division St, Spokane, WA 99201", "full_address mapping");
+    assert(findFact(result.facts, "city")?.value === "Spokane", "city mapping");
+
+    // Repair items
+    const repairFacts = result.facts.filter((f) => f.fieldName.startsWith("repair_item_"));
+    assert(repairFacts.length === 4, "should map 4 repair items");
+    assert((repairFacts[0].value as string).includes("Roof Replacement"), "first repair should be roof");
+    assert((repairFacts[0].value as string).includes("$12,000"), "first repair cost");
+
+    // Comp facts — selected comps first (2 selected), then unselected
     const compFacts = result.facts.filter((f) => /^comp_\d+$/.test(f.fieldName));
-    assert(compFacts.length === 3, "should map top 3 comps only");
+    assert(compFacts.length >= 2, "should map at least selected comps");
 
-    // First comp should contain address, price, date, distance, similarity
-    const comp1 = findFact(result.facts, "comp_1");
-    assert(comp1 !== undefined, "comp_1 should exist");
-    assert(typeof comp1!.value === "string", "comp value should be a formatted string");
-    assert((comp1!.value as string).includes("$305,000"), "comp_1 should contain sale price");
-    assert((comp1!.value as string).includes("1300 N Division St"), "comp_1 should contain address");
-    assert(comp1!.confidence === "medium", "comp facts should be medium confidence");
+    // Comp count
+    assert(findFact(result.facts, "comp_count")?.value === 3, "comp_count should be 3");
 
-    // Raw payload should have all 4 comps
+    // Raw payload preserved
     const raw = result.rawPayload as typeof sampleBrickedResponse;
-    assert(raw.data?.comps?.length === 4, "rawPayload should preserve all 4 comps");
+    assert(raw.comps?.length === 3, "rawPayload should preserve all 3 comps");
+    assert(raw.repairs?.length === 4, "rawPayload should preserve all 4 repairs");
 
     console.log("  PASS: testStandardMapping");
   } finally {
@@ -178,10 +239,10 @@ async function testStandardMapping(): Promise<void> {
   }
 }
 
-async function testFailedAnalysis(): Promise<void> {
+async function testEmptyResponse(): Promise<void> {
   const originalFetch = globalThis.fetch;
   globalThis.fetch = async () =>
-    new Response(JSON.stringify(sampleFailedResponse), {
+    new Response(JSON.stringify(sampleEmptyResponse), {
       status: 200,
       headers: { "Content-Type": "application/json" },
     });
@@ -197,11 +258,42 @@ async function testFailedAnalysis(): Promise<void> {
       zip: "99000",
     });
 
-    assert(result.provider === "bricked", "provider should be 'bricked' even on failure");
-    assert(result.facts.length === 0, "failed analysis should produce no facts");
+    assert(result.provider === "bricked", "provider should be 'bricked' even on empty response");
+    assert(result.facts.length === 0, "empty response should produce no facts");
     assert(result.rawPayload !== null, "rawPayload should still be present for debugging");
 
-    console.log("  PASS: testFailedAnalysis");
+    console.log("  PASS: testEmptyResponse");
+  } finally {
+    globalThis.fetch = originalFetch;
+    if (origKey !== undefined) process.env.BRICKED_API_KEY = origKey;
+    else delete process.env.BRICKED_API_KEY;
+  }
+}
+
+async function testApiError(): Promise<void> {
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async () =>
+    new Response(JSON.stringify({ error: "Invalid API key" }), {
+      status: 401,
+      headers: { "Content-Type": "application/json" },
+    });
+
+  const origKey = process.env.BRICKED_API_KEY;
+  process.env.BRICKED_API_KEY = "bad-key";
+
+  try {
+    const { brickedAdapter } = await import("./adapter");
+    let threw = false;
+    try {
+      await brickedAdapter.lookupProperty({ address: "123 Main St", state: "WA", zip: "99201" });
+    } catch (err) {
+      threw = true;
+      assert(err instanceof Error, "should throw an Error");
+      assert((err as Error).message.includes("401"), "error should mention status code");
+    }
+    assert(threw, "should throw on 401");
+
+    console.log("  PASS: testApiError");
   } finally {
     globalThis.fetch = originalFetch;
     if (origKey !== undefined) process.env.BRICKED_API_KEY = origKey;
@@ -217,7 +309,8 @@ export async function validate(): Promise<{ pass: boolean; errors: string[] }> {
   const errors: string[] = [];
   const tests = [
     { name: "testStandardMapping", fn: testStandardMapping },
-    { name: "testFailedAnalysis", fn: testFailedAnalysis },
+    { name: "testEmptyResponse", fn: testEmptyResponse },
+    { name: "testApiError", fn: testApiError },
   ];
 
   for (const t of tests) {

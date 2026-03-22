@@ -130,8 +130,9 @@ function buildResearchPrompt(
     }));
 
     parts.push(
-      "## Provider Intelligence (ATTOM / PropertyRadar)",
+      "## Provider Intelligence (ATTOM / PropertyRadar / Bricked AI)",
       "Treat this as structured evidence from provider adapters. Prefer these facts when relevant.",
+      "Bricked AI provides ARV, CMV, repair estimates, and comparable sales — high confidence for valuation.",
       "```json",
       JSON.stringify(summarizedProviderData, null, 2),
       "```",
@@ -266,7 +267,7 @@ export async function runResearchAgent(
       input.triggeredBy,
     );
 
-    // ── Pull provider intelligence (ATTOM + PropertyRadar) ──────────────
+    // ── Pull provider intelligence (ATTOM + PropertyRadar + Bricked) ────
     const lookupParams = {
       address: lead.properties?.address ?? undefined,
       apn: lead.properties?.apn ?? undefined,
@@ -277,7 +278,7 @@ export async function runResearchAgent(
     let providerResults: ProviderLookupResult[] = [];
 
     if (lookupParams.address || lookupParams.apn) {
-      const providerLookup = await lookupProperty(lookupParams, ["attom", "propertyradar"]);
+      const providerLookup = await lookupProperty(lookupParams, ["attom", "propertyradar", "bricked"]);
       providerResults = providerLookup.results.filter((r) => r.facts.length > 0);
 
       if (providerLookup.errors.length > 0) {
