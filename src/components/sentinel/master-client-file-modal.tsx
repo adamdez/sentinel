@@ -5864,44 +5864,36 @@ export function MasterClientFileModal({ clientFile: incomingClientFile, open, on
     }
 
     const { data: { session } } = await supabase.auth.getSession();
-    if (!session?.access_token) {
+    if (!session?.access_token || !session.user?.id) {
       toast.error("Session expired - cannot save note");
       return;
     }
 
     setSavingNote(true);
     try {
+      // Write note as a calls_log entry so it appears in the unified activity timeline
+      // alongside call notes, stage changes, and system events — one timeline, not two.
+      const now = new Date().toISOString();
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { data: current, error: fetchErr } = await (supabase.from("leads") as any)
-        .select("lock_version")
-        .eq("id", clientFile.id)
-        .single();
-
-      if (fetchErr || !current) {
-        toast.error("Could not load current lead state. Refresh and try again.");
-        return;
-      }
-
-      const res = await fetch("/api/prospects", {
-        method: "PATCH",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${session.access_token}`,
-          "x-lock-version": String(current.lock_version ?? 0),
-        },
-        body: JSON.stringify({
-          lead_id: clientFile.id,
-          note_append: note,
-        }),
+      const { error: insertErr } = await (supabase.from("calls_log") as any).insert({
+        lead_id: clientFile.id,
+        property_id: clientFile.propertyId ?? null,
+        user_id: session.user.id,
+        disposition: "operator_note",
+        notes: note,
+        started_at: now,
+        ended_at: now,
+        duration_sec: 0,
+        direction: "note",
+        source: "mcf",
       });
 
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        toast.error(`Could not save note: ${data.error ?? `HTTP ${res.status}`}`);
+      if (insertErr) {
+        console.error("[MCF] Note insert error:", insertErr);
+        toast.error(`Could not save note: ${insertErr.message}`);
         return;
       }
 
-      applyLeadPatchFromResponse(data);
       toast.success("Note added");
       setNoteDraft("");
       setNoteEditorOpen(false);
@@ -5913,7 +5905,7 @@ export function MasterClientFileModal({ clientFile: incomingClientFile, open, on
     } finally {
       setSavingNote(false);
     }
-  }, [applyLeadPatchFromResponse, clientFile, noteDraft, onRefresh]);
+  }, [clientFile, noteDraft, onRefresh]);
 
   const handleCloseoutPresetSelect = useCallback((presetId: CloseoutPresetId) => {
     const preset = CLOSEOUT_PRESETS.find((item) => item.id === presetId);
