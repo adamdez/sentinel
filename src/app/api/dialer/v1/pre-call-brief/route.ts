@@ -136,6 +136,89 @@ function deriveRiskSeed(args: {
   return out.slice(0, 4);
 }
 
+function inferStageAndGoal(args: {
+  latestStructured: {
+    summary_line?: string | null;
+    promises_made?: string | null;
+    objection?: string | null;
+    next_task_suggestion?: string | null;
+    deal_temperature?: string | null;
+  } | null;
+  lead: Record<string, unknown>;
+  inboundSignals?: { type: string; value: string; source: string; date: string }[];
+}) {
+  const objection = `${args.latestStructured?.objection ?? ""}`.toLowerCase();
+  const summary = `${args.latestStructured?.summary_line ?? ""}`.toLowerCase();
+  const nextTask = `${args.latestStructured?.next_task_suggestion ?? ""}`.toLowerCase();
+  const timeline = typeof args.lead.seller_timeline === "string" ? args.lead.seller_timeline : null;
+  const inboundText = (args.inboundSignals ?? []).map((s) => s.value.toLowerCase()).join(" ");
+
+  if (objection || /need to think|not sure|talk to/.test(summary)) {
+    return {
+      currentStage: "problem_awareness",
+      stageReason: "There is still friction or uncertainty to surface before pushing a next step.",
+      primaryGoal: "Clarify the real blocker and help the seller expand on it.",
+    };
+  }
+
+  if (timeline === "immediate" || /urgent|deadline|asap|this week/.test(`${summary} ${inboundText}`)) {
+    return {
+      currentStage: "consequence",
+      stageReason: "Urgency is already in the conversation, so timing and cost of waiting matter now.",
+      primaryGoal: "Clarify timing and lock a practical next step.",
+    };
+  }
+
+  if (nextTask || /follow up|appointment|send|call back/.test(summary)) {
+    return {
+      currentStage: "solution_awareness",
+      stageReason: "The seller already has some context, so this call should move toward what solving it looks like.",
+      primaryGoal: "Clarify what a workable next step would look like from the seller's side.",
+    };
+  }
+
+  return {
+    currentStage: "situation",
+    stageReason: "The highest-value move is still understanding what is happening and why now.",
+    primaryGoal: "Get the seller talking about their situation, timing, and motivation.",
+  };
+}
+
+function buildEmpathyMoves(
+  latestStructured: {
+    objection?: string | null;
+  } | null,
+) {
+  const objection = latestStructured?.objection?.trim();
+  if (objection) {
+    return [
+      {
+        type: "label",
+        text: "It sounds like you do not want to make the wrong move here.",
+        cue: `Use after they revisit: ${objection}`,
+      },
+      {
+        type: "calibrated_question",
+        text: "What would you want to feel clearer on before taking the next step?",
+        cue: "Use after the label if they are still hesitant.",
+      },
+    ];
+  }
+
+  return [
+    {
+      type: "label",
+      text: "It sounds like there is a lot going on around this property.",
+      cue: "Use once they start describing the situation in their own words.",
+    },
+    {
+      type: "calibrated_question",
+      text: "What feels most important to get handled first?",
+      cue: "Use when you need to move from facts into priorities.",
+    },
+  ];
+}
+
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
@@ -316,6 +399,12 @@ export async function POST(req: NextRequest) {
     });
     const raw = ai.text;
 
+    const stageMeta = inferStageAndGoal({
+      latestStructured: leadCtx.latestStructuredMemory ?? null,
+      lead: lead as Record<string, unknown>,
+      inboundSignals: leadCtx.inboundSignals,
+    });
+
     let brief;
     try {
       const cleaned = raw.replace(/```json\s*/g, "").replace(/```/g, "").trim();
@@ -323,11 +412,19 @@ export async function POST(req: NextRequest) {
       brief = {
         bullets: parsed.bullets ?? [],
         suggestedOpener: parsed.suggestedOpener ?? "",
+        currentStage: parsed.currentStage ?? stageMeta.currentStage,
+        stageReason: parsed.stageReason ?? stageMeta.stageReason,
+        primaryGoal: parsed.primaryGoal ?? stageMeta.primaryGoal,
         talkingPoints: parsed.talkingPoints ?? [],
-        objections: (parsed.objections ?? []).map((o: { objection?: string; rebuttal?: string }) => ({
-          objection: o.objection ?? "",
-          rebuttal: o.rebuttal ?? "",
-        })),
+        nextQuestions: Array.isArray(parsed.nextQuestions)
+          ? parsed.nextQuestions.filter((q: unknown) => typeof q === "string").slice(0, 4)
+          : [],
+        empathyMoves: Array.isArray(parsed.empathyMoves)
+          ? parsed.empathyMoves.filter((m: unknown) => !!m).slice(0, 3)
+          : buildEmpathyMoves(leadCtx.latestStructuredMemory ?? null),
+        objectionHandling: Array.isArray(parsed.objectionHandling)
+          ? parsed.objectionHandling.filter((m: unknown) => !!m).slice(0, 3)
+          : [],
         negotiationAnchor: parsed.negotiationAnchor ?? null,
         watchOuts: parsed.watchOuts ?? [],
         riskFlags: Array.isArray(parsed.riskFlags)
@@ -342,8 +439,16 @@ export async function POST(req: NextRequest) {
       brief = {
         bullets: [raw.slice(0, 80)],
         suggestedOpener: "Hi, this is Logan with Dominion Home Deals in Spokane — is now still a good time for a quick chat?",
+        currentStage: stageMeta.currentStage,
+        stageReason: stageMeta.stageReason,
+        primaryGoal: stageMeta.primaryGoal,
         talkingPoints: [],
-        objections: [],
+        nextQuestions: [
+          "What has you thinking about the property now?",
+          "What feels most important to get solved first?",
+        ],
+        empathyMoves: buildEmpathyMoves(leadCtx.latestStructuredMemory ?? null),
+        objectionHandling: [],
         negotiationAnchor: null,
         watchOuts: [],
         riskFlags: riskSeed.slice(0, 2),

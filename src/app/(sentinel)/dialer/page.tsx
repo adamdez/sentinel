@@ -27,6 +27,7 @@ import { RelationshipBadgeCompact } from "@/components/sentinel/relationship-bad
 import { getSequenceLabel, getCadencePosition } from "@/lib/call-scheduler";
 import { useCallNotes } from "@/hooks/use-call-notes";
 import { usePreCallBrief } from "@/hooks/use-pre-call-brief";
+import { useLiveCoach } from "@/hooks/use-live-coach";
 import { CallSequenceGuide } from "@/components/sentinel/call-sequence-guide";
 import { useCallHistory, type CallHistoryEntry } from "@/hooks/use-call-history";
 import { MasterClientFileModal, clientFileFromRaw } from "@/components/sentinel/master-client-file-modal";
@@ -76,10 +77,10 @@ function KpiCard({ kpiKey, value, loading, onClick }: { kpiKey: KpiKey; value: n
     <button
       onClick={onClick}
       className="rounded-[14px] glass-card p-3 text-center
-        transition-all duration-100 cursor-pointer hover:border-primary/25 hover:bg-white/[0.03]
+        transition-all duration-100 cursor-pointer hover:border-primary/25 hover:bg-overlay-3
         hover:shadow-[0_12px_40px_rgba(0,0,0,0.28)] active:scale-[0.98] group relative overflow-hidden w-full"
     >
-      <div className="absolute inset-x-0 top-0 h-[1px] bg-gradient-to-r from-transparent via-white/[0.06] to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+      <div className="absolute inset-x-0 top-0 h-[1px] bg-gradient-to-r from-transparent via-overlay-6 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
       <div
         className="h-7 w-7 rounded-[8px] flex items-center justify-center mx-auto mb-1"
         style={{ background: "rgba(255,255,255,0.06)" }}
@@ -129,26 +130,26 @@ function StatDetailModal({ kpiKey, userId, onClose }: { kpiKey: KpiKey; userId: 
           exit={{ opacity: 0, scale: 0.92, y: 24 }}
           transition={{ type: "spring", damping: 26, stiffness: 320 }}
           onClick={(e) => e.stopPropagation()}
-          className="relative max-w-md w-full mx-4 rounded-[16px] border border-white/[0.08]
+          className="relative max-w-md w-full mx-4 rounded-[16px] border border-overlay-8
             modal-glass flex flex-col overflow-hidden"
         >
-          <div className="absolute top-0 inset-x-0 h-px bg-gradient-to-r from-transparent via-white/15 to-transparent" />
+          <div className="absolute top-0 inset-x-0 h-px bg-gradient-to-r from-transparent via-overlay-15 to-transparent" />
 
           {/* Header */}
-          <div className="flex items-center justify-between px-5 py-3.5 border-b border-white/[0.06]">
+          <div className="flex items-center justify-between px-5 py-3.5 border-b border-overlay-6">
             <div className="flex items-center gap-2.5">
-              <div className="h-8 w-8 rounded-[10px] flex items-center justify-center bg-white/[0.06]">
+              <div className="h-8 w-8 rounded-[10px] flex items-center justify-center bg-overlay-6">
                 <meta.icon className={`h-4 w-4 ${meta.color}`} />
               </div>
               <h3 className="text-sm font-bold text-white">{meta.label} — Breakdown</h3>
             </div>
-            <button onClick={onClose} className="p-1.5 rounded-[10px] hover:bg-white/[0.06] transition-colors text-muted-foreground hover:text-foreground">
+            <button onClick={onClose} className="p-1.5 rounded-[10px] hover:bg-overlay-6 transition-colors text-muted-foreground hover:text-foreground">
               <X className="h-4 w-4" />
             </button>
           </div>
 
           {/* Period tabs */}
-          <div className="flex items-center gap-1 px-4 py-2 border-b border-white/[0.06]">
+          <div className="flex items-center gap-1 px-4 py-2 border-b border-overlay-6">
             {PERIOD_LABELS.map((p) => (
               <button
                 key={p.key}
@@ -195,7 +196,7 @@ function StatDetailModal({ kpiKey, userId, onClose }: { kpiKey: KpiKey; userId: 
                       <span>Your share</span>
                       <span>{teamVal > 0 ? Math.round((myVal / teamVal) * 100) : 0}%</span>
                     </div>
-                    <div className="h-2 rounded-full bg-white/[0.04] overflow-hidden">
+                    <div className="h-2 rounded-full bg-overlay-4 overflow-hidden">
                       <div
                         className="h-full rounded-full bg-gradient-to-r from-primary to-muted transition-all duration-500"
                         style={{ width: `${teamVal > 0 ? Math.min((myVal / teamVal) * 100, 100) : 0}%` }}
@@ -211,7 +212,7 @@ function StatDetailModal({ kpiKey, userId, onClose }: { kpiKey: KpiKey; userId: 
                     { label: "Answered", val: data?.my.myLiveAnswers ?? 0, color: "text-foreground" },
                     { label: "Avg Talk", val: data?.my.myAvgTalkTime ?? 0, color: "text-foreground", fmt: (v: number) => `${Math.floor(v / 60)}:${(v % 60).toString().padStart(2, "0")}` },
                   ].map((s) => (
-                    <div key={s.label} className="rounded-[10px] border border-white/[0.06] bg-white/[0.02] p-2.5 text-center">
+                    <div key={s.label} className="rounded-[10px] border border-overlay-6 bg-overlay-2 p-2.5 text-center">
                       <p className="text-sm text-muted-foreground/55 uppercase tracking-widest">{s.label}</p>
                       <p className={`text-sm font-bold font-mono ${s.color}`}>{s.fmt ? s.fmt(s.val) : s.val}</p>
                     </div>
@@ -411,6 +412,17 @@ function DialerPageInner() {
   const [consentGranted, setConsentGranted] = useState(false);
   const { latestSummary, latestSummaryTime } = useCallNotes(currentLead?.id);
   const { brief: preCallBrief, loading: briefLoading } = usePreCallBrief(currentLead?.id ?? null);
+  const [coachPopoutOpen, setCoachPopoutOpen] = useState(false);
+  const { coach: liveCoach, loading: liveCoachLoading } = useLiveCoach({
+    sessionId: dialerSessionId,
+    enabled: callState === "connected" && !!dialerSessionId,
+    mode: "outbound",
+    sessionInstructions: currentLead?.seller_timeline == null
+      ? "Prioritize timeline discovery before discussing price."
+      : currentLead?.decision_maker_confirmed !== true
+        ? "Confirm who else is involved before asking for commitment."
+        : null,
+  });
   const { history: callHistory, loading: historyLoading } = useCallHistory(currentUser.id, 30);
   const [historyFilter, setHistoryFilter] = useState<"all" | "outbound" | "inbound">("all");
 
@@ -443,6 +455,12 @@ function DialerPageInner() {
       return buildNoteScaffold(currentLead);
     });
   }, [callState, dialerSessionId, currentLead]);
+
+  useEffect(() => {
+    if (callState !== "connected") {
+      setCoachPopoutOpen(false);
+    }
+  }, [callState]);
 
   // Quick Manual Dial state
   const searchParams = useSearchParams();
@@ -1510,7 +1528,7 @@ function DialerPageInner() {
                     {diagLoading ? <Loader2 className="h-3 w-3 animate-spin" /> : null}
                     Re-test
                   </Button>
-                  <button onClick={() => setDiagOpen(false)} className="p-1 rounded hover:bg-white/[0.06]">
+                  <button onClick={() => setDiagOpen(false)} className="p-1 rounded hover:bg-overlay-6">
                     <X className="h-3.5 w-3.5 text-muted-foreground" />
                   </button>
                 </div>
@@ -1620,7 +1638,7 @@ function DialerPageInner() {
                 setManualPhone(raw.slice(0, 10));
               }}
               placeholder="(509) 555-1234"
-              className="text-sm font-mono tracking-wide bg-white/[0.03] border-white/[0.06] focus:border-primary/30 focus:ring-ring/10 h-9 pr-24"
+              className="text-sm font-mono tracking-wide bg-overlay-3 border-overlay-6 focus:border-primary/30 focus:ring-ring/10 h-9 pr-24"
               onKeyDown={(e) => {
                 if (e.key === "Enter" && manualStatus === "idle") {
                   e.preventDefault();
@@ -1686,7 +1704,7 @@ function DialerPageInner() {
               transition={{ duration: 0.2 }}
               className="overflow-hidden"
             >
-              <div className="mt-3 rounded-[12px] bg-white/[0.03] border border-border p-3 space-y-2">
+              <div className="mt-3 rounded-[12px] bg-overlay-3 border border-border p-3 space-y-2">
                 <div className="flex items-center justify-between">
                   <p className="text-sm text-muted-foreground/60 uppercase tracking-wider">
                     SMS to {formatUsPhone(manualPhone)}
@@ -1699,7 +1717,7 @@ function DialerPageInner() {
                   value={smsComposeMsg}
                   onChange={(e) => setSmsComposeMsg(e.target.value)}
                   placeholder="Hi, this is Dominion Homes..."
-                  className="w-full bg-transparent text-sm resize-none h-20 outline-none placeholder:text-muted-foreground/30 border border-white/[0.04] rounded-[8px] p-2"
+                  className="w-full bg-transparent text-sm resize-none h-20 outline-none placeholder:text-muted-foreground/30 border border-overlay-4 rounded-[8px] p-2"
                   maxLength={500}
                 />
                 <div className="flex items-center justify-between">
@@ -1768,7 +1786,7 @@ function DialerPageInner() {
       </GlassCard>
 
       {/* Compact KPI summary — click any stat for detail */}
-      <div className="flex items-center gap-4 px-3 py-1.5 rounded-[10px] border border-white/[0.06] bg-white/[0.02] text-xs text-muted-foreground mb-3">
+      <div className="flex items-center gap-4 px-3 py-1.5 rounded-[10px] border border-overlay-6 bg-overlay-2 text-xs text-muted-foreground mb-3">
         {kpiKeys.slice(0, 4).map((k) => {
           const meta = KPI_META[k];
           const display = meta.format ? meta.format(stats[k]) : stats[k];
@@ -1872,7 +1890,7 @@ function DialerPageInner() {
                               ? "text-xs px-1.5 py-0 rounded border border-border/35 bg-muted/10 text-foreground shrink-0"
                               : rowDue.urgent
                                 ? "text-xs px-1.5 py-0 rounded border border-border/35 bg-muted/10 text-foreground shrink-0"
-                                : "text-xs px-1.5 py-0 rounded border border-white/12 bg-white/[0.04] text-muted-foreground shrink-0"
+                                : "text-xs px-1.5 py-0 rounded border border-overlay-12 bg-overlay-4 text-muted-foreground shrink-0"
                           }
                           title="Next action due state"
                         >
@@ -2011,7 +2029,7 @@ function DialerPageInner() {
                     </div>
 
                     {dialerContext && (
-                      <div className="rounded-[10px] bg-white/[0.03] border border-white/[0.06] p-2.5 space-y-2">
+                      <div className="rounded-[10px] bg-overlay-3 border border-overlay-6 p-2.5 space-y-2">
                         {/* Compact context line */}
                         <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
                           <span><span className="text-foreground font-medium">{dialerContext.stage}</span></span>
@@ -2058,7 +2076,7 @@ function DialerPageInner() {
                     )}
 
                     {/* Compact property vitals — single block instead of 9 tiles */}
-                    <div className="rounded-[10px] bg-white/[0.03] border border-white/[0.06] px-3 py-2">
+                    <div className="rounded-[10px] bg-overlay-3 border border-overlay-6 px-3 py-2">
                       <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs">
                         <span className="font-mono text-foreground">{currentLead.properties?.owner_phone ?? "No phone"}</span>
                         <span className="text-muted-foreground/40">|</span>
@@ -2101,6 +2119,25 @@ function DialerPageInner() {
                           </div>
                           {preCallBrief && (
                             <>
+                              <div className="grid gap-2 mb-2 md:grid-cols-2">
+                                <div className="rounded-lg bg-overlay-3 border border-overlay-6 p-2">
+                                  <p className="text-xs text-muted-foreground/55 uppercase mb-0.5">Stage</p>
+                                  <p className="text-sm text-foreground/75 font-medium">
+                                    {preCallBrief.currentStage.replace(/_/g, " ")}
+                                  </p>
+                                  {preCallBrief.stageReason && (
+                                    <p className="text-xs text-muted-foreground/45 mt-1 leading-snug">
+                                      {preCallBrief.stageReason}
+                                    </p>
+                                  )}
+                                </div>
+                                <div className="rounded-lg bg-overlay-3 border border-overlay-6 p-2">
+                                  <p className="text-xs text-muted-foreground/55 uppercase mb-0.5">Call Goal</p>
+                                  <p className="text-sm text-foreground/75 leading-snug">
+                                    {preCallBrief.primaryGoal || "Clarify situation, timing, and what matters most."}
+                                  </p>
+                                </div>
+                              </div>
                               <ul className="space-y-1 mb-2">
                                 {preCallBrief.bullets.map((b, i) => (
                                   <li key={i} className="text-xs text-foreground/80 flex items-start gap-1.5">
@@ -2110,9 +2147,21 @@ function DialerPageInner() {
                                 ))}
                               </ul>
                               {preCallBrief.suggestedOpener && (
-                                <div className="rounded-lg bg-white/[0.03] border border-white/[0.06] p-2 mt-1">
+                                <div className="rounded-lg bg-overlay-3 border border-overlay-6 p-2 mt-1">
                                   <p className="text-sm text-muted-foreground/60 uppercase mb-0.5">Suggested Opener</p>
                                   <p className="text-xs text-foreground/70 italic">&ldquo;{preCallBrief.suggestedOpener}&rdquo;</p>
+                                </div>
+                              )}
+                              {preCallBrief.nextQuestions.length > 0 && (
+                                <div className="rounded-lg bg-overlay-3 border border-overlay-6 p-2 mt-1">
+                                  <p className="text-sm text-muted-foreground/60 uppercase mb-1">Best Questions</p>
+                                  <div className="space-y-1">
+                                    {preCallBrief.nextQuestions.slice(0, 3).map((question, i) => (
+                                      <p key={i} className="text-xs text-foreground/75 leading-snug">
+                                        • {question}
+                                      </p>
+                                    ))}
+                                  </div>
                                 </div>
                               )}
                               {preCallBrief.riskFlags.length > 0 && (
@@ -2239,7 +2288,7 @@ function DialerPageInner() {
 
                     {/* Inline SMS compose for lead card */}
                     {leadSmsOpen && callState === "idle" && currentLead.properties?.owner_phone && (
-                      <div className="mt-3 rounded-[12px] bg-white/[0.03] border border-border p-3 space-y-2">
+                      <div className="mt-3 rounded-[12px] bg-overlay-3 border border-border p-3 space-y-2">
                         <div className="flex items-center justify-between">
                           <p className="text-sm text-muted-foreground/60 uppercase tracking-wider">
                             SMS to {formatUsPhone(currentLead.properties.owner_phone.replace(/\D/g, "").slice(-10))}
@@ -2256,7 +2305,7 @@ function DialerPageInner() {
                           value={leadSmsMsg}
                           onChange={(e) => setLeadSmsMsg(e.target.value)}
                           placeholder="Write your message..."
-                          className="w-full bg-transparent text-sm resize-none h-20 outline-none placeholder:text-muted-foreground/30 border border-white/[0.04] rounded-[8px] p-2"
+                          className="w-full bg-transparent text-sm resize-none h-20 outline-none placeholder:text-muted-foreground/30 border border-overlay-4 rounded-[8px] p-2"
                           maxLength={500}
                         />
                         <div className="flex items-center justify-between">
@@ -2315,7 +2364,7 @@ function DialerPageInner() {
                   />
                   {/* Mid-call save button + saved notes */}
                   {callState === "connected" && dialerSessionId && (
-                    <div className="border-t border-white/[0.04] pt-2 mt-1">
+                    <div className="border-t border-overlay-4 pt-2 mt-1">
                       <div className="flex items-center gap-2">
                         <Button
                           size="sm"
@@ -2396,7 +2445,14 @@ function DialerPageInner() {
 
                 {/* ── Live Assist: brief-based prompts during active call ── */}
                 {callState === "connected" && preCallBrief && (
-                  <LiveAssistPanel brief={preCallBrief} className="mb-3" />
+                  <LiveAssistPanel
+                    brief={preCallBrief}
+                    coach={liveCoach}
+                    loading={liveCoachLoading}
+                    className="mb-3"
+                    popoutOpen={coachPopoutOpen}
+                    onTogglePopout={() => setCoachPopoutOpen((value) => !value)}
+                  />
                 )}
 
                 {callState === "ended" && dialerSessionId ? (
@@ -2433,7 +2489,7 @@ function DialerPageInner() {
                     <Button
                       variant="outline"
                       size="sm"
-                      className="w-full mb-2.5 gap-2 border-white/12 text-muted-foreground hover:text-foreground hover:bg-white/[0.04]"
+                      className="w-full mb-2.5 gap-2 border-overlay-12 text-muted-foreground hover:text-foreground hover:bg-overlay-4"
                       onClick={() => setFileModalOpen(true)}
                     >
                       <Eye className="h-3 w-3" />
@@ -2477,7 +2533,7 @@ function DialerPageInner() {
                   </GlassCard>
                 )}
 
-                <div className="mt-3 flex items-center justify-center gap-2 px-3 py-2 rounded-[10px] border border-white/[0.06] bg-white/[0.02]">
+                <div className="mt-3 flex items-center justify-center gap-2 px-3 py-2 rounded-[10px] border border-overlay-6 bg-overlay-2">
                   <Clock className="h-3.5 w-3.5 text-muted-foreground" />
                   <span className="text-sm font-mono font-medium text-foreground">{timer.formatted}</span>
                   <span className="text-xs text-muted-foreground/50 uppercase">
@@ -2560,6 +2616,19 @@ function DialerPageInner() {
           </AnimatePresence>
         </div>
       </div>
+
+      {callState === "connected" && coachPopoutOpen && preCallBrief && (
+        <div className="fixed right-4 top-24 z-50 w-[380px] max-w-[calc(100vw-2rem)]">
+          <LiveAssistPanel
+            brief={preCallBrief}
+            coach={liveCoach}
+            loading={liveCoachLoading}
+            variant="overlay"
+            popoutOpen={coachPopoutOpen}
+            onTogglePopout={() => setCoachPopoutOpen(false)}
+          />
+        </div>
+      )}
 
       {/* Master Client File Modal */}
       {currentLead && (
@@ -2664,7 +2733,7 @@ function formatDuration(sec: number): string {
 
 function CallHistoryRow({ entry, allHistory, onDial }: { entry: CallHistoryEntry; allHistory: CallHistoryEntry[]; onDial: (phone: string) => void }) {
   const [notesOpen, setNotesOpen] = useState(false);
-  const style = DISPO_STYLES[entry.disposition] ?? { color: "text-muted-foreground", bg: "bg-white/[0.03] border-white/[0.06]" };
+  const style = DISPO_STYLES[entry.disposition] ?? { color: "text-muted-foreground", bg: "bg-overlay-3 border-overlay-6" };
   const isInbound = entry.direction === "inbound";
   const isSms = entry.disposition === "sms_outbound";
   const phoneDigits = (entry.phone_dialed ?? "").replace(/\D/g, "").slice(-10);
@@ -2684,7 +2753,7 @@ function CallHistoryRow({ entry, allHistory, onDial }: { entry: CallHistoryEntry
 
   return (
     <div>
-      <div className="flex items-center gap-2.5 rounded-[12px] px-3 py-2.5 transition-all border border-transparent hover:border-white/[0.06] hover:bg-white/[0.02]">
+      <div className="flex items-center gap-2.5 rounded-[12px] px-3 py-2.5 transition-all border border-transparent hover:border-overlay-6 hover:bg-overlay-2">
         {/* Direction dot — indicator only, not a button */}
         <span
           className={`h-2 w-2 rounded-full shrink-0 mt-0.5 ${
@@ -2723,7 +2792,7 @@ function CallHistoryRow({ entry, allHistory, onDial }: { entry: CallHistoryEntry
             className={`h-7 w-7 rounded-[8px] flex items-center justify-center shrink-0 transition-all relative
               ${notesOpen
                 ? "bg-primary/20 border border-primary/30 text-primary"
-                : "bg-white/[0.04] hover:bg-white/[0.08] border border-white/[0.08] hover:border-white/[0.16] text-muted-foreground/50 hover:text-foreground"
+                : "bg-overlay-4 hover:bg-overlay-8 border border-overlay-8 hover:border-overlay-15 text-muted-foreground/50 hover:text-foreground"
               }`}
             title={`View notes${priorCalls.length > 0 ? ` (${priorCalls.length + (hasNotes ? 1 : 0)} calls)` : ""}`}
           >
@@ -2756,7 +2825,7 @@ function CallHistoryRow({ entry, allHistory, onDial }: { entry: CallHistoryEntry
             target="_blank"
             rel="noopener noreferrer"
             className="h-7 w-7 rounded-[8px] flex items-center justify-center shrink-0
-              bg-white/[0.04] hover:bg-white/[0.08] border border-white/[0.08] hover:border-white/[0.16]
+              bg-overlay-4 hover:bg-overlay-8 border border-overlay-8 hover:border-overlay-15
               text-muted-foreground/50 hover:text-foreground transition-all"
             title="Open lead detail"
           >
@@ -2767,7 +2836,7 @@ function CallHistoryRow({ entry, allHistory, onDial }: { entry: CallHistoryEntry
 
       {/* Expandable notes panel — this call + prior calls to same number */}
       {notesOpen && hasAnyNotes && (
-        <div className="mx-3 mb-2 px-3 py-2 rounded-[8px] bg-white/[0.02] border border-white/[0.06] text-sm space-y-2 max-h-64 overflow-y-auto">
+        <div className="mx-3 mb-2 px-3 py-2 rounded-[8px] bg-overlay-2 border border-overlay-6 text-sm space-y-2 max-h-64 overflow-y-auto">
           {/* This call's notes */}
           {hasNotes && (
             <div>
@@ -2789,7 +2858,7 @@ function CallHistoryRow({ entry, allHistory, onDial }: { entry: CallHistoryEntry
           )}
           {/* Prior calls to the same phone number */}
           {priorCalls.map((prior) => (
-            <div key={prior.id} className="border-t border-white/[0.04] pt-2">
+            <div key={prior.id} className="border-t border-overlay-4 pt-2">
               <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground/50 mb-0.5">
                 {prior.direction === "inbound" ? "Inbound" : "Outbound"} &middot; {timeAgo(prior.started_at)}
                 {prior.duration_sec > 0 && <span className="font-mono ml-1">{formatDuration(prior.duration_sec)}</span>}

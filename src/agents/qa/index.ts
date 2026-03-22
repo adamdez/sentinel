@@ -14,18 +14,85 @@
  */
 
 import { createServerClient } from "@/lib/supabase";
+import OpenAI from "openai";
 import {
   createAgentRun,
   completeAgentRun,
   isAgentEnabled,
 } from "@/lib/control-plane";
-import { QA_AGENT_VERSION, QA_THRESHOLDS } from "./prompt";
+import { QA_AGENT_VERSION, QA_ANALYSIS_PROMPT, QA_THRESHOLDS } from "./prompt";
 import type {
   QAAgentInput,
   QAResult,
   QAFlag,
   QACallMetrics,
 } from "./types";
+
+async function runTranscriptQa(transcript: string): Promise<QAFlag[]> {
+  if (!process.env.OPENAI_API_KEY || transcript.trim().length < 40) return [];
+
+  const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+  try {
+    const response = await client.responses.create({
+      model: process.env.DIALER_AI_MODEL_QA_NOTES ?? "gpt-5-mini",
+      temperature: 0,
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      input: [
+        {
+          role: "developer" as const,
+          content: [{
+            type: "input_text" as const,
+            text: `${QA_ANALYSIS_PROMPT}
+
+Return ONLY valid JSON:
+{
+  "premature_price": {"triggered": boolean, "description": string, "suggestion": string},
+  "missed_mirror": {"triggered": boolean, "description": string, "suggestion": string},
+  "no_qualifying": {"triggered": boolean, "description": string, "suggestion": string}
+}`,
+          }],
+        },
+        {
+          role: "user" as const,
+          content: [{
+            type: "input_text" as const,
+            text: transcript.slice(-7000),
+          }],
+        },
+      ] as any,
+    });
+
+    const raw = response.output_text ?? "";
+    const cleaned = raw.replace(/```json\s*/g, "").replace(/```/g, "").trim();
+    const parsed = JSON.parse(cleaned) as Record<string, {
+      triggered?: boolean;
+      description?: string;
+      suggestion?: string;
+    }>;
+
+    const out: QAFlag[] = [];
+    const maybePush = (
+      key: "premature_price" | "missed_mirror" | "no_qualifying",
+      severity: QAFlag["severity"],
+    ) => {
+      const item = parsed[key];
+      if (!item?.triggered) return;
+      out.push({
+        category: key,
+        severity,
+        description: item.description ?? key,
+        suggestion: item.suggestion ?? undefined,
+      });
+    };
+
+    maybePush("premature_price", "warning");
+    maybePush("missed_mirror", "warning");
+    maybePush("no_qualifying", "warning");
+    return out;
+  } catch {
+    return [];
+  }
+}
 
 export async function runQAAgent(input: QAAgentInput): Promise<QAResult> {
   // Check feature flag
@@ -91,6 +158,11 @@ export async function runQAAgent(input: QAAgentInput): Promise<QAResult> {
     let wordCount: number | null = null;
 
     const chunks = session?.transcript_chunks;
+    const transcriptText = Array.isArray(chunks) && chunks.length > 0
+      ? chunks
+          .map((chunk) => `[${chunk.speaker ?? "unknown"}] ${chunk.text ?? ""}`.trim())
+          .join("\n")
+      : "";
     if (Array.isArray(chunks) && chunks.length > 0) {
       let operatorMs = 0;
       let sellerMs = 0;
@@ -174,6 +246,13 @@ export async function runQAAgent(input: QAAgentInput): Promise<QAResult> {
         severity: "info",
         description: "Notes indicate positive engagement. Good rapport building.",
       });
+    }
+
+    // Optional transcript-based QA pass for empathy / pricing / qualification signals
+    const transcriptFlags = await runTranscriptQa(transcriptText);
+    for (const flag of transcriptFlags) {
+      const exists = flags.some((existing) => existing.category === flag.category);
+      if (!exists) flags.push(flag);
     }
 
     // ── Compute score ───────────────────────────────────────────────

@@ -3,6 +3,7 @@ import type { AssembledPrompt } from "./prompt-cache";
 
 export type DialerAiLane =
   | "pre_call_brief"
+  | "live_coach"
   | "summarize"
   | "draft_note"
   | "qa_notes"
@@ -53,6 +54,8 @@ function resolveModelForLane(lane: DialerAiLane): string {
   switch (lane) {
     case "pre_call_brief":
       return process.env.DIALER_AI_MODEL_PRE_CALL_BRIEF ?? heavy;
+    case "live_coach":
+      return process.env.DIALER_AI_MODEL_LIVE_COACH ?? fast;
     case "summarize":
       return process.env.DIALER_AI_MODEL_SUMMARIZE ?? fast;
     case "draft_note":

@@ -6,8 +6,13 @@ import { supabase } from "@/lib/supabase";
 export interface PreCallBrief {
   bullets: string[];
   suggestedOpener: string;
+  currentStage: string;
+  stageReason: string;
+  primaryGoal: string;
   talkingPoints: string[];
-  objections: { objection: string; rebuttal: string }[];
+  nextQuestions: string[];
+  empathyMoves: { type: string; text: string; cue: string }[];
+  objectionHandling: { objection: string; label: string; calibratedQuestion: string }[];
   negotiationAnchor: string | null;
   watchOuts: string[];
   riskFlags: string[];
@@ -58,8 +63,13 @@ export function usePreCallBrief(leadId: string | null) {
       const result: PreCallBrief = {
         bullets: data.bullets ?? [],
         suggestedOpener: data.suggestedOpener ?? "",
+        currentStage: data.currentStage ?? "situation",
+        stageReason: data.stageReason ?? "",
+        primaryGoal: data.primaryGoal ?? "",
         talkingPoints: data.talkingPoints ?? [],
-        objections: data.objections ?? [],
+        nextQuestions: data.nextQuestions ?? [],
+        empathyMoves: data.empathyMoves ?? [],
+        objectionHandling: data.objectionHandling ?? [],
         negotiationAnchor: data.negotiationAnchor ?? null,
         watchOuts: data.watchOuts ?? [],
         riskFlags: data.riskFlags ?? [],
