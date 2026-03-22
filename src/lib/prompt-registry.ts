@@ -72,6 +72,13 @@ const STATIC_FALLBACK: Record<string, PromptMeta> = {
     description: "Claude qualifier. Extracts motivation_level and seller_timeline from call notes.",
     changelog:   "Initial version. Returns null on ambiguous input.",
   },
+  "live_coach@2.0.0": {
+    workflow:    "live_coach",
+    version:     "2.0.0",
+    status:      "active",
+    description: "Discovery Map strategist. Uses deterministic gaps first, then GPT-5 to refine the next live-call move.",
+    changelog:   "Introduces DB-backed discovery map state, structured live notes, and gap-aware best-move coaching.",
+  },
 };
 
 // ── Fetch helpers ─────────────────────────────────────────────────────────────

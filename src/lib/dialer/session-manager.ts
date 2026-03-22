@@ -165,6 +165,68 @@ export async function getSession(
   return { data: rowToSession(row), error: null };
 }
 
+/**
+ * Reads the dialer-owned live coach cache blob for a session.
+ * Kept separate from CallSession so UI-facing session contracts stay stable.
+ */
+export async function getSessionLiveCoachState(
+  sb: SupabaseClient,
+  sessionId: string,
+  userId: string,
+): Promise<SessionResult<Record<string, unknown> | null>> {
+  const session = await getSession(sb, sessionId, userId);
+  if (session.error) {
+    return { data: null, error: session.error, code: session.code };
+  }
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data, error } = await (sb.from("call_sessions") as any)
+    .select("live_coach_state")
+    .eq("id", sessionId)
+    .eq("user_id", userId)
+    .maybeSingle();
+
+  if (error) {
+    console.error("[Dialer/session-manager] getSessionLiveCoachState failed:", error.message);
+    return { data: null, error: error.message, code: "DB_ERROR" };
+  }
+
+  const raw = data?.live_coach_state;
+  return {
+    data: raw && typeof raw === "object" ? (raw as Record<string, unknown>) : null,
+    error: null,
+  };
+}
+
+/**
+ * Writes the dialer-owned live coach cache blob for a session.
+ * This never touches CRM tables and is safe to overwrite on each poll.
+ */
+export async function updateSessionLiveCoachState(
+  sb: SupabaseClient,
+  sessionId: string,
+  userId: string,
+  liveCoachState: Record<string, unknown> | null,
+): Promise<SessionResult<null>> {
+  const session = await getSession(sb, sessionId, userId);
+  if (session.error) {
+    return { data: null, error: session.error, code: session.code };
+  }
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { error } = await (sb.from("call_sessions") as any)
+    .update({ live_coach_state: liveCoachState })
+    .eq("id", sessionId)
+    .eq("user_id", userId);
+
+  if (error) {
+    console.error("[Dialer/session-manager] updateSessionLiveCoachState failed:", error.message);
+    return { data: null, error: error.message, code: "DB_ERROR" };
+  }
+
+  return { data: null, error: null };
+}
+
 /** Options for listing sessions. */
 export interface ListSessionsOptions {
   limit?: number;
