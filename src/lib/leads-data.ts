@@ -537,6 +537,15 @@ export interface LeadRow {
   bathrooms: number | null;
   sqft: number | null;
   propertyType: string | null;
+  yearBuilt: number | null;
+  lotSize: number | null;
+  loanBalance: number | null;
+  lastSalePrice: number | null;
+  lastSaleDate: string | null;
+  foreclosureStage: string | null;
+  defaultAmount: number | null;
+  delinquentAmount: number | null;
+  isVacant: boolean;
   followUpDate: string | null;
   lastContactAt: string | null;
   firstAttemptAt: string | null;

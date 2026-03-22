@@ -10,6 +10,9 @@ import {
   ShieldCheck,
   ShieldAlert,
   Upload,
+  AlertTriangle,
+  Home,
+  DollarSign,
 } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
@@ -237,23 +240,7 @@ export function LeadDossierPanel({ leadId }: { leadId: string }) {
   }
 
   if (!active && !proposed) {
-    return (
-      <div className="rounded-[12px] border border-white/[0.08] bg-white/[0.02] p-6 text-center space-y-3">
-        <Brain className="h-8 w-8 mx-auto text-muted-foreground/30" />
-        <p className="text-sm text-muted-foreground">
-          No intelligence dossier yet. Run Research Agent to generate one.
-        </p>
-        <Button
-          size="sm"
-          className="gap-1.5 bg-primary/15 hover:bg-primary/25 text-primary border border-primary/25"
-          disabled={researchMutation.isPending}
-          onClick={() => researchMutation.mutate()}
-        >
-          {researchMutation.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Brain className="h-3.5 w-3.5" />}
-          Request Research
-        </Button>
-      </div>
-    );
+    return <DossierEmptyState leadId={leadId} researchMutation={researchMutation} />;
   }
 
   const display: DossierRow | null = proposed ?? active ?? null;
@@ -459,6 +446,147 @@ export function LeadDossierPanel({ leadId }: { leadId: string }) {
               ))}
             </tbody>
           </table>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Empty State with Property/Distress Context ──────────────────────────────
+
+interface PropertyContext {
+  address?: string;
+  city?: string;
+  state?: string;
+  estimated_value?: number;
+  equity_percent?: number;
+  year_built?: number;
+  property_type?: string;
+}
+
+interface DistressRow {
+  id: string;
+  event_type: string;
+  severity: number;
+  status: string;
+  event_date: string | null;
+}
+
+function DossierEmptyState({
+  leadId,
+  researchMutation,
+}: {
+  leadId: string;
+  researchMutation: ReturnType<typeof useMutation<{ ok?: boolean; runId?: string }, Error, void>>;
+}) {
+  const propertyQuery = useQuery({
+    queryKey: ["dossier-empty-property", leadId],
+    queryFn: async () => {
+      const res = await fetch(`/api/leads/${leadId}/property`, {
+        headers: await sentinelAuthHeaders(false),
+      });
+      if (!res.ok) return null;
+      const json = (await res.json()) as { property?: PropertyContext | null };
+      return json.property ?? null;
+    },
+  });
+
+  const distressQuery = useQuery({
+    queryKey: ["dossier-empty-distress", leadId],
+    queryFn: async () => {
+      const res = await fetch(`/api/leads/${leadId}/distress-events?limit=5`, {
+        headers: await sentinelAuthHeaders(false),
+      });
+      if (!res.ok) return [];
+      const json = (await res.json()) as { events?: DistressRow[] };
+      return json.events ?? [];
+    },
+  });
+
+  const prop = propertyQuery.data;
+  const distress = distressQuery.data ?? [];
+  const hasContext = prop || distress.length > 0;
+
+  return (
+    <div className="space-y-4">
+      {/* CTA */}
+      <div className="rounded-[12px] border border-white/[0.08] bg-white/[0.02] p-5 text-center space-y-3">
+        <Brain className="h-7 w-7 mx-auto text-muted-foreground/30" />
+        <p className="text-sm text-muted-foreground">
+          {hasContext
+            ? "No AI dossier yet. Property context shown below."
+            : "No intelligence dossier yet."}
+        </p>
+        <Button
+          size="sm"
+          className="gap-1.5 bg-primary/15 hover:bg-primary/25 text-primary border border-primary/25"
+          disabled={researchMutation.isPending}
+          onClick={() => researchMutation.mutate()}
+        >
+          {researchMutation.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Brain className="h-3.5 w-3.5" />}
+          Request Research
+        </Button>
+      </div>
+
+      {/* Property basics */}
+      {prop && (
+        <div className="rounded-[10px] border border-white/[0.06] bg-white/[0.02] px-3 py-2.5 space-y-2">
+          <div className="flex items-center gap-1.5">
+            <Home className="h-3 w-3 text-muted-foreground/60" />
+            <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground/60">Property</span>
+          </div>
+          {prop.address && (
+            <p className="text-sm text-foreground/80">
+              {prop.address}{prop.city ? `, ${prop.city}` : ""}{prop.state ? ` ${prop.state}` : ""}
+            </p>
+          )}
+          <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm">
+            {prop.estimated_value != null && (
+              <span className="flex items-center gap-1 text-muted-foreground">
+                <DollarSign className="h-2.5 w-2.5" />
+                AVM: ${(prop.estimated_value / 1000).toFixed(0)}k
+              </span>
+            )}
+            {prop.equity_percent != null && (
+              <span className="text-muted-foreground">
+                Equity: {prop.equity_percent}%
+              </span>
+            )}
+            {prop.year_built != null && (
+              <span className="text-muted-foreground">Built: {prop.year_built}</span>
+            )}
+            {prop.property_type && (
+              <span className="text-muted-foreground">{prop.property_type}</span>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Distress events */}
+      {distress.length > 0 && (
+        <div className="rounded-[10px] border border-white/[0.06] bg-white/[0.02] px-3 py-2.5 space-y-2">
+          <div className="flex items-center gap-1.5">
+            <AlertTriangle className="h-3 w-3 text-foreground/60" />
+            <span className="text-xs font-semibold uppercase tracking-wider text-foreground/60">Distress Signals</span>
+          </div>
+          <div className="flex flex-wrap gap-1.5">
+            {distress.map((d) => (
+              <span
+                key={d.id}
+                className={cn(
+                  "inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium",
+                  d.status === "active"
+                    ? "border-border/30 bg-muted/15 text-foreground/80"
+                    : "border-border/20 bg-muted/5 text-muted-foreground/60",
+                )}
+              >
+                {d.event_type.replace(/_/g, " ")}
+                {d.severity > 0 && (
+                  <span className="ml-1 opacity-50">S{d.severity}</span>
+                )}
+              </span>
+            ))}
+          </div>
         </div>
       )}
     </div>

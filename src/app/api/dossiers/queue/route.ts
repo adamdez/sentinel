@@ -60,7 +60,7 @@ export async function GET(req: NextRequest) {
         review_notes,
         created_at,
         updated_at,
-        leads!inner (
+        leads!dossiers_lead_id_fkey!inner (
           id,
           first_name,
           last_name,
@@ -75,7 +75,7 @@ export async function GET(req: NextRequest) {
           assigned_to,
           created_at
         ),
-        properties (
+        properties!dossiers_property_id_fkey (
           id,
           address,
           city,

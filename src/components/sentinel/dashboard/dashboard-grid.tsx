@@ -22,6 +22,10 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { supabase } from "@/lib/supabase";
 import { useSentinelStore } from "@/lib/store";
 import { cn } from "@/lib/utils";
+import { DailyBrief } from "./widgets/daily-brief";
+import { MissedOpportunityQueue } from "./widgets/missed-opportunity-queue";
+import { LiveMap } from "./widgets/live-map";
+import { KpiSummaryRow } from "@/components/sentinel/kpi-summary-row";
 
 /* ------------------------------------------------------------------ */
 /*  Types                                                              */
@@ -37,12 +41,14 @@ interface BusinessStats {
 interface PriorityLead {
   id: string;
   next_action_due_at: string | null;
+  next_call_scheduled_at: string | null;
   next_action: string | null;
   status: string | null;
   priority: number | null;
   created_at: string;
   source: string | null;
   notes: string | null;
+  properties: { address: string | null; city: string | null; owner_name: string | null } | null;
 }
 
 interface RecentEvent {
@@ -57,6 +63,7 @@ interface StalledDeal {
   source: string | null;
   notes: string | null;
   updated_at: string;
+  properties: { address: string | null; city: string | null; owner_name: string | null } | null;
 }
 
 /* ------------------------------------------------------------------ */
@@ -91,8 +98,13 @@ function urgencyDotColor(daysUntil: number | null): string {
   return "bg-emerald-500";
 }
 
+/** Pick the earliest non-null scheduling date for a lead */
+function effectiveDueDate(lead: PriorityLead): string | null {
+  return lead.next_action_due_at ?? lead.next_call_scheduled_at ?? null;
+}
+
 function urgencyText(lead: PriorityLead): string {
-  const diff = daysDiff(lead.next_action_due_at);
+  const diff = daysDiff(effectiveDueDate(lead));
   if (diff === null) {
     // No next action date — check if new
     const created = new Date(lead.created_at);
@@ -181,7 +193,7 @@ export function TodayView() {
 
     try {
       // --- Stats ---
-      const activeStatuses = ["staging", "prospect", "lead", "negotiation", "disposition", "nurture"];
+      const activeStatuses = ["lead", "negotiation", "disposition", "working", "closed", "nurture"];
 
       // Pipeline value — sum estimated_value from properties joined to active leads
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -200,19 +212,18 @@ export function TodayView() {
         }
       }
 
-      // Overdue count
+      // Overdue count — use next_call_scheduled_at (primary scheduling field) to match Lead Inbox
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { count: overdueCount } = await (supabase.from("leads") as any)
         .select("id", { count: "exact", head: true })
-        .lt("next_action_due_at", nowIso)
+        .or(`next_call_scheduled_at.lt.${nowIso},next_action_due_at.lt.${nowIso}`)
         .in("status", activeStatuses);
 
       // Due today count
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { count: dueTodayCount } = await (supabase.from("leads") as any)
         .select("id", { count: "exact", head: true })
-        .gte("next_action_due_at", todayStart.toISOString())
-        .lte("next_action_due_at", todayEnd.toISOString())
+        .or(`and(next_call_scheduled_at.gte.${todayStart.toISOString()},next_call_scheduled_at.lte.${todayEnd.toISOString()}),and(next_action_due_at.gte.${todayStart.toISOString()},next_action_due_at.lte.${todayEnd.toISOString()})`)
         .in("status", activeStatuses);
 
       // Calls today
@@ -237,7 +248,7 @@ export function TodayView() {
       // Get overdue + today + upcoming leads with next_action_date, ordered by date asc (overdue first)
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { data: queueLeads } = await (supabase.from("leads") as any)
-        .select("id, next_action_due_at, next_action, status, priority, created_at, source, notes")
+        .select("id, next_action_due_at, next_call_scheduled_at, next_action, status, priority, created_at, source, notes, properties(address, city, owner_name)")
         .in("status", activeStatuses)
         .order("next_action_due_at", { ascending: true, nullsFirst: false })
         .limit(10);
@@ -245,7 +256,7 @@ export function TodayView() {
       // Also get leads with no next_action_date that are new (created < 48h)
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { data: noDateLeads } = await (supabase.from("leads") as any)
-        .select("id, next_action_due_at, next_action, status, priority, created_at, source, notes")
+        .select("id, next_action_due_at, next_call_scheduled_at, next_action, status, priority, created_at, source, notes, properties(address, city, owner_name)")
         .is("next_action_due_at", null)
         .in("status", ["staging", "prospect"])
         .order("created_at", { ascending: false })
@@ -282,7 +293,7 @@ export function TodayView() {
       const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { data: stalled } = await (supabase.from("leads") as any)
-        .select("id, source, notes, updated_at")
+        .select("id, source, notes, updated_at, properties(address, city, owner_name)")
         .eq("status", "disposition")
         .lt("updated_at", oneDayAgo)
         .order("updated_at", { ascending: true })
@@ -363,6 +374,38 @@ export function TodayView() {
         />
       </div>
 
+      {/* ---- KPI Summary ---- */}
+      <KpiSummaryRow period="week" />
+
+      {/* ---- Daily Brief + Missed Opportunities ---- */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <Card className="bg-muted/60 border-border/60">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-sm font-semibold flex items-center gap-2">
+              <CalendarCheck className="h-4 w-4 text-primary" />
+              Daily Brief
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <DailyBrief />
+          </CardContent>
+        </Card>
+        <Card className="bg-muted/60 border-border/60">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-sm font-semibold flex items-center gap-2">
+              <AlertTriangle className="h-4 w-4 text-primary" />
+              Missed Opportunities
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <MissedOpportunityQueue />
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* ---- Live Map ---- */}
+      <LiveMap />
+
       {/* ---- Section 2: Priority Queue ---- */}
       <Card className="bg-muted/60 border-border/60">
         <CardHeader className="pb-3">
@@ -379,8 +422,14 @@ export function TodayView() {
           ) : (
             <>
               {priorityLeads.map((lead) => {
-                const diff = daysDiff(lead.next_action_due_at);
-                const displayLabel = lead.source || `Lead ${lead.id.slice(0, 8)}`;
+                const diff = daysDiff(effectiveDueDate(lead));
+                const prop = Array.isArray(lead.properties) ? lead.properties[0] : lead.properties;
+                const displayLabel =
+                  prop?.address
+                    ? `${prop.address}${prop.city ? `, ${prop.city}` : ""}`
+                    : prop?.owner_name
+                      ? prop.owner_name
+                      : lead.source || `Lead ${lead.id.slice(0, 8)}`;
 
                 return (
                   <div
@@ -510,6 +559,13 @@ export function TodayView() {
             ) : (
               stalledDeals.map((deal) => {
                 const daysStalled = Math.floor((Date.now() - new Date(deal.updated_at).getTime()) / 86400000);
+                const dealProp = Array.isArray(deal.properties) ? deal.properties[0] : deal.properties;
+                const dealLabel =
+                  dealProp?.address
+                    ? `${dealProp.address}${dealProp.city ? `, ${dealProp.city}` : ""}`
+                    : dealProp?.owner_name
+                      ? dealProp.owner_name
+                      : deal.source || `Lead ${deal.id.slice(0, 8)}`;
                 return (
                   <button
                     key={deal.id}
@@ -517,7 +573,7 @@ export function TodayView() {
                     className="w-full flex items-center justify-between text-left p-2 rounded-lg hover:bg-white/[0.03] transition-colors"
                   >
                     <div className="min-w-0">
-                      <p className="text-xs font-medium truncate">{deal.source || `Lead ${deal.id.slice(0, 8)}`}</p>
+                      <p className="text-xs font-medium truncate">{dealLabel}</p>
                     </div>
                     <Badge variant="outline" className="text-sm border-border/30 text-foreground shrink-0 ml-2">
                       {daysStalled}d stalled

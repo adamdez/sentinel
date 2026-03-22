@@ -236,43 +236,47 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
   }
 
   // ── Post-call structure write ─────────────────────────────
-  // Fire-and-forget — dialer-domain structured record. Written whenever the
+  // Awaited — dialer-domain structured record. Written whenever the
   // client passes post_call_structure (from PostCallDraftPanel confirm or
-  // operator-entered fields). Never blocks publish. One row per session (upsert).
+  // operator-entered fields). Failure is non-fatal but surfaces a warning
+  // so the operator knows seller memory won't be populated.
+  const warnings: string[] = [];
   const pcsInput = body.post_call_structure as PostCallStructureInput | undefined;
   if (pcsInput && typeof pcsInput === "object") {
     // Operator provided explicit post-call structure — write it directly
-    void (async () => {
-      try {
-        const row = assemblePostCallStructure({
-          sessionId,
-          callsLogId:       result.calls_log_id,
-          leadId:           result.lead_id,
-          publishedBy:      user.id,
-          draftNoteRunId:   typeof draftNoteRunId === "string" ? draftNoteRunId : null,
-          draftWasFlagged:  draftFlagged === true,
-          input:            pcsInput,
-        });
+    try {
+      const row = assemblePostCallStructure({
+        sessionId,
+        callsLogId:       result.calls_log_id,
+        leadId:           result.lead_id,
+        publishedBy:      user.id,
+        draftNoteRunId:   typeof draftNoteRunId === "string" ? draftNoteRunId : null,
+        draftWasFlagged:  draftFlagged === true,
+        input:            pcsInput,
+      });
 
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        await (sb.from("post_call_structures") as any)
-          .upsert(row, { onConflict: "session_id" });
-      } catch {
-        // non-fatal — structured data is a bonus, never blocks publish
-      }
-    })();
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      await (sb.from("post_call_structures") as any)
+        .upsert(row, { onConflict: "session_id" });
+    } catch (err) {
+      console.error("[publish] post-call structure write failed:", err);
+      warnings.push("post_call_structure_failed");
+    }
   } else {
     // No operator-provided structure — run AI analysis on session notes
-    // Fire-and-forget: extracts promises, objections, deal temperature,
+    // Awaited with warning: extracts promises, objections, deal temperature,
     // callback timing from transcript and writes to post_call_structures.
-    void runPostCallAnalysis(sb, {
-      sessionId,
-      callsLogId:  result.calls_log_id,
-      leadId:      result.lead_id,
-      publishedBy: user.id,
-    }).catch((err) => {
-      console.error("[publish] post-call AI analysis failed (non-fatal):", err);
-    });
+    try {
+      await runPostCallAnalysis(sb, {
+        sessionId,
+        callsLogId:  result.calls_log_id,
+        leadId:      result.lead_id,
+        publishedBy: user.id,
+      });
+    } catch (err) {
+      console.error("[publish] post-call AI analysis failed:", err);
+      warnings.push("post_call_analysis_failed");
+    }
   }
 
   // ── Eval ratings side-effects ─────────────────────────────
@@ -337,5 +341,6 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
     calls_log_id: result.calls_log_id,
     lead_id:      result.lead_id,
     task_id:      result.task_id ?? null,
+    ...(warnings.length > 0 ? { warnings } : {}),
   });
 }

@@ -398,16 +398,31 @@ export function PostCallPanel({
       }),
     }).catch(() => null);
 
+    const publishData = await publishRes?.json().catch(() => ({})) as Record<string, unknown>;
+
     if (!publishRes?.ok) {
-      const data = await publishRes?.json().catch(() => ({})) as Record<string, unknown>;
       setError(
-        data?.code === "INVALID_TRANSITION"
+        publishData?.code === "INVALID_TRANSITION"
           ? "Call still finalizing — try again in a moment"
-          : (data?.error as string) ?? "Save failed — try again",
+          : (publishData?.error as string) ?? "Save failed — try again",
       );
       setPublishing(false);
       setSelected(null);
       return;
+    }
+
+    // Surface publish warnings (e.g. post_call_analysis_failed, post_call_structure_failed)
+    const warnings = publishData?.warnings as string[] | undefined;
+    if (warnings && warnings.length > 0) {
+      for (const w of warnings) {
+        if (w === "post_call_analysis_failed") {
+          toast.warning("Seller memory not captured — structured data will populate on next call");
+        } else if (w === "post_call_structure_failed") {
+          toast.warning("Post-call structure write failed — retry from session history");
+        } else {
+          toast.warning(`Publish warning: ${w}`);
+        }
+      }
     }
 
     // Fire legacy call path AFTER publish succeeds — only for increment_lead_call_counters RPC.

@@ -1,10 +1,18 @@
 "use client";
 
-import { useMemo } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { MapPin } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useProspects, type ProspectRow } from "@/hooks/use-prospects";
+import { supabase } from "@/lib/supabase";
+
+const ACTIVE_STATUSES = ["lead", "negotiation", "disposition", "working"];
+
+interface PipelineLead {
+  id: string;
+  priority: number | null;
+  properties: { address: string | null; owner_name: string | null; apn: string | null } | null;
+}
 
 function scoreColor(composite: number): { bg: string; ring: string } {
   if (composite >= 85) return { bg: "bg-red-500", ring: "rgba(239,68,68,0.4)" };
@@ -56,22 +64,45 @@ function PinWithRing({ top, left, size, color, ringColor, delay = 0, label }: {
 }
 
 export function LiveMap() {
-  const { prospects, loading } = useProspects({
-    sortField: "composite_score",
-    sortDir: "desc",
-  });
+  const [leads, setLeads] = useState<PipelineLead[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  const fetchLeads = useCallback(async () => {
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data } = await (supabase.from("leads") as any)
+        .select("id, priority, properties(address, owner_name, apn)")
+        .in("status", ACTIVE_STATUSES)
+        .order("priority", { ascending: false, nullsFirst: false })
+        .limit(30);
+
+      setLeads((data as PipelineLead[]) ?? []);
+    } catch (err) {
+      console.error("[LiveMap] fetch error:", err);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchLeads();
+  }, [fetchLeads]);
 
   const pins = useMemo(() => {
-    return prospects.slice(0, 12).map((p: ProspectRow, i: number) => {
-      const { bg, ring } = scoreColor(p.composite_score);
-      const pos = hashToPosition(p.id + p.apn, i);
-      const size = p.composite_score >= 85 ? "h-3 w-3" : p.composite_score >= 65 ? "h-3 w-3" : "h-2.5 w-2.5";
-      return { ...pos, size, bg, ring, delay: i * 0.3, label: `${p.owner_name} — ${p.composite_score}` };
+    return leads.slice(0, 12).map((l, i) => {
+      const score = l.priority ?? 0;
+      const prop = Array.isArray(l.properties) ? l.properties[0] : l.properties;
+      const apn = prop?.apn ?? "";
+      const ownerName = prop?.owner_name ?? "Unknown";
+      const { bg, ring } = scoreColor(score);
+      const pos = hashToPosition(l.id + apn, i);
+      const size = score >= 85 ? "h-3 w-3" : score >= 65 ? "h-3 w-3" : "h-2.5 w-2.5";
+      return { ...pos, size, bg, ring, delay: i * 0.3, label: `${ownerName} — ${score}` };
     });
-  }, [prospects]);
+  }, [leads]);
 
-  const fireCount = prospects.filter((p) => p.composite_score >= 85).length;
-  const hotCount = prospects.filter((p) => p.composite_score >= 65 && p.composite_score < 85).length;
+  const fireCount = leads.filter((l) => (l.priority ?? 0) >= 85).length;
+  const hotCount = leads.filter((l) => (l.priority ?? 0) >= 65 && (l.priority ?? 0) < 85).length;
 
   if (loading) {
     return (
@@ -96,7 +127,7 @@ export function LiveMap() {
           <div className="absolute inset-0 flex items-center justify-center">
             <div className="text-center">
               <MapPin className="h-8 w-8 text-muted-foreground mx-auto mb-2" />
-              <p className="text-xs text-muted-foreground">No prospect data to map</p>
+              <p className="text-xs text-muted-foreground">No active pipeline leads to map</p>
             </div>
           </div>
         )}
@@ -121,7 +152,7 @@ export function LiveMap() {
           {hotCount > 0 && (
             <Badge variant="outline" className="text-xs border-border/30 text-foreground">{hotCount} HOT</Badge>
           )}
-          <Badge variant="outline" className="text-xs">{prospects.length} Total</Badge>
+          <Badge variant="outline" className="text-xs">{leads.length} Pipeline</Badge>
         </div>
       </div>
     </div>

@@ -27,6 +27,7 @@ import { Button } from "@/components/ui/button";
 import type { AIScore, LeadStatus } from "@/lib/types";
 import { supabase } from "@/lib/supabase";
 import { getAuthenticatedProspectPatchHeaders } from "@/lib/prospect-api-client";
+import { requiresNextAction } from "@/lib/lead-guardrails";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 
@@ -48,7 +49,9 @@ const COLUMNS: { id: string; title: string; color: string }[] = [
   { id: "lead", title: "Leads", color: "bg-primary" },
   { id: "negotiation", title: "Negotiation", color: "bg-muted" },
   { id: "disposition", title: "Disposition", color: "bg-muted" },
+  { id: "nurture", title: "Nurture", color: "bg-muted" },
   { id: "closed", title: "Closed", color: "bg-muted" },
+  { id: "dead", title: "Dead", color: "bg-muted" },
 ];
 
 function formatFreshness(dateStr: string | null | undefined): string {
@@ -215,6 +218,13 @@ export function PipelineBoard() {
   const [loading, setLoading] = useState(true);
   const [activeId, setActiveId] = useState<string | null>(null);
 
+  // Pending drag requiring next_action before commit
+  const [pendingDrag, setPendingDrag] = useState<{
+    item: PipelineItem;
+    newStatus: string;
+  } | null>(null);
+  const [nextActionInput, setNextActionInput] = useState("");
+
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
     useSensor(KeyboardSensor)
@@ -270,6 +280,44 @@ export function PipelineBoard() {
     setActiveId(event.active.id as string);
   };
 
+  const commitDrag = async (item: PipelineItem, newStatus: string, nextAction?: string) => {
+    // Optimistic update
+    setItems((prev) =>
+      prev.map((i) =>
+        i.id === item.id ? { ...i, status: newStatus } : i
+      )
+    );
+
+    try {
+      const headers = await getAuthenticatedProspectPatchHeaders();
+      const payload: Record<string, unknown> = { lead_id: item.id, status: newStatus };
+      if (nextAction) payload.next_action = nextAction;
+      const res = await fetch("/api/prospects", {
+        method: "PATCH",
+        headers,
+        body: JSON.stringify(payload),
+      });
+      if (!res.ok) {
+        const body = await res.text().catch(() => "");
+        toast.error(`Failed to move lead: ${res.status}${body ? ` — ${body.slice(0, 120)}` : ""}`);
+        setItems((prev) =>
+          prev.map((i) =>
+            i.id === item.id ? { ...i, status: item.status } : i
+          )
+        );
+      } else {
+        toast.success(`Moved to ${newStatus}`);
+      }
+    } catch (err) {
+      toast.error(`Network error updating status: ${err instanceof Error ? err.message : "unknown"}`);
+      setItems((prev) =>
+        prev.map((i) =>
+          i.id === item.id ? { ...i, status: item.status } : i
+        )
+      );
+    }
+  };
+
   const handleDragEnd = async (event: DragEndEvent) => {
     setActiveId(null);
     const { active, over } = event;
@@ -292,37 +340,26 @@ export function PipelineBoard() {
       return;
     }
 
-    setItems((prev) =>
-      prev.map((item) =>
-        item.id === draggedItem.id ? { ...item, status: newStatus } : item
-      )
-    );
-
-    try {
-      const headers = await getAuthenticatedProspectPatchHeaders();
-      const res = await fetch("/api/prospects", {
-        method: "PATCH",
-        headers,
-        body: JSON.stringify({ lead_id: draggedItem.id, status: newStatus }),
-      });
-      if (!res.ok) {
-        toast.error("Failed to update status");
-        setItems((prev) =>
-          prev.map((item) =>
-            item.id === draggedItem.id ? { ...item, status: draggedItem.status } : item
-          )
-        );
-      } else {
-        toast.success(`Moved to ${newStatus}`);
-      }
-    } catch {
-      toast.error("Network error updating status");
-      setItems((prev) =>
-        prev.map((item) =>
-          item.id === draggedItem.id ? { ...item, status: draggedItem.status } : item
-        )
-      );
+    // Check if target status requires next_action
+    if (requiresNextAction(newStatus as LeadStatus)) {
+      setPendingDrag({ item: draggedItem, newStatus });
+      setNextActionInput("");
+      return;
     }
+
+    await commitDrag(draggedItem, newStatus);
+  };
+
+  const handleConfirmNextAction = async () => {
+    if (!pendingDrag || !nextActionInput.trim()) return;
+    await commitDrag(pendingDrag.item, pendingDrag.newStatus, nextActionInput.trim());
+    setPendingDrag(null);
+    setNextActionInput("");
+  };
+
+  const handleCancelDrag = () => {
+    setPendingDrag(null);
+    setNextActionInput("");
   };
 
   const handleCall = (phone: string) => {
@@ -372,6 +409,50 @@ export function PipelineBoard() {
           ) : null}
         </DragOverlay>
       </DndContext>
+
+      {/* Next-action prompt modal */}
+      {pendingDrag && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+          <div className="w-full max-w-md rounded-2xl border border-white/10 bg-background p-5 shadow-2xl space-y-3">
+            <h3 className="text-sm font-semibold text-foreground">
+              Moving <span className="text-primary">{pendingDrag.item.name}</span> to{" "}
+              <span className="capitalize">{pendingDrag.newStatus}</span>
+            </h3>
+            <p className="text-xs text-muted-foreground">
+              What&apos;s the next action for this lead? This is required before advancing.
+            </p>
+            <input
+              type="text"
+              autoFocus
+              placeholder="e.g. Follow up call Thursday, send offer by EOD..."
+              className="w-full rounded-lg border border-white/10 bg-white/[0.04] px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground/40 focus:outline-none focus:ring-1 focus:ring-primary/40"
+              value={nextActionInput}
+              onChange={(e) => setNextActionInput(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && nextActionInput.trim()) void handleConfirmNextAction();
+                if (e.key === "Escape") handleCancelDrag();
+              }}
+            />
+            <div className="flex justify-end gap-2">
+              <Button
+                size="sm"
+                variant="ghost"
+                className="text-muted-foreground"
+                onClick={handleCancelDrag}
+              >
+                Cancel
+              </Button>
+              <Button
+                size="sm"
+                disabled={!nextActionInput.trim()}
+                onClick={() => void handleConfirmNextAction()}
+              >
+                Confirm Move
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </GlassCard>
   );
 }

@@ -12,7 +12,7 @@ import {
   Skull, Heart, Search, Ghost, Zap, ChevronRight, Timer,
   Sparkles, DollarSign, Loader2, SkipForward, MessageSquare,
   X, Send, Shield, CheckCircle2, History, ArrowDownLeft, ArrowUpRight,
-  AlertTriangle, Wifi, WifiOff,
+  AlertTriangle, Wifi, WifiOff, RefreshCw,
 } from "lucide-react";
 import { toast } from "sonner";
 import { PageShell } from "@/components/sentinel/page-shell";
@@ -256,10 +256,10 @@ function formatCurrency(n: number): string {
 }
 
 function getScoreLabel(score: number): { label: string; variant: "platinum" | "gold" | "silver" | "bronze" } {
-  if (score >= 85) return { label: "PLATINUM", variant: "platinum" };
-  if (score >= 70) return { label: "GOLD", variant: "gold" };
-  if (score >= 50) return { label: "SILVER", variant: "silver" };
-  return { label: "BRONZE", variant: "bronze" };
+  if (score >= 85) return { label: "TOP", variant: "platinum" };
+  if (score >= 70) return { label: "HIGH", variant: "gold" };
+  if (score >= 50) return { label: "MED", variant: "silver" };
+  return { label: "LOW", variant: "bronze" };
 }
 
 function stageLabel(status: string | null | undefined): string {
@@ -529,92 +529,108 @@ function DialerPageInner() {
   }, [consentGranted]);
 
   // ── Twilio VoIP Device Initialization ────────────────────────────
-  useEffect(() => {
+  const initDeviceCancelRef = useRef<(() => void) | null>(null);
+
+  const initDevice = useCallback(async () => {
     if (!currentUser.id) return;
 
+    // Tear down previous device / cancel previous init
+    if (initDeviceCancelRef.current) initDeviceCancelRef.current();
+    if (deviceRef.current) {
+      deviceRef.current.destroy();
+      deviceRef.current = null;
+    }
+
     let cancelled = false;
+    const cancel = () => { cancelled = true; };
+    initDeviceCancelRef.current = cancel;
 
-    const initDevice = async () => {
-      try {
-        const hdrs = await authHeaders();
-        const res = await fetch("/api/twilio/token", { headers: hdrs });
-        if (!res.ok) {
-          const err = await res.json().catch(() => ({ error: "Token fetch failed" }));
-          console.warn("[VoIP] Token error:", err.error);
-          setDeviceStatus("error");
-          return;
-        }
+    setDeviceStatus("initializing");
 
-        const { token, callerId: cid } = await res.json();
-        if (cancelled) return;
-
-        setVoipCallerId(cid || "");
-
-        const device = new Device(token, {
-          codecPreferences: [Call.Codec.Opus, Call.Codec.PCMU],
-          closeProtection: "A call is in progress. Are you sure you want to leave?",
-        });
-
-        device.on("registered", () => {
-          if (!cancelled) {
-            setDeviceStatus("ready");
-            console.log("[VoIP] Device registered");
-          }
-        });
-
-        device.on("error", (err: { message?: string }) => {
-          console.error("[VoIP] Device error:", err);
-          if (!cancelled) {
-            setDeviceStatus("error");
-            toast.error(`VoIP error: ${err.message ?? "unknown"}`);
-          }
-        });
-
-        device.on("unregistered", () => {
-          if (!cancelled) setDeviceStatus("offline");
-        });
-
-        // Token refresh — fires ~3 min before expiry
-        device.on("tokenWillExpire", async () => {
-          try {
-            const hdrs2 = await authHeaders();
-            const r = await fetch("/api/twilio/token", { headers: hdrs2 });
-            if (r.ok) {
-              const { token: newToken } = await r.json();
-              device.updateToken(newToken);
-              console.log("[VoIP] Token refreshed");
-            }
-          } catch {
-            console.warn("[VoIP] Token refresh failed");
-          }
-        });
-
-        await device.register();
-        if (!cancelled) deviceRef.current = device;
-      } catch (err) {
-        console.error("[VoIP] Device init failed:", err);
+    try {
+      const hdrs = await authHeaders();
+      const res = await fetch("/api/twilio/token", { headers: hdrs });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ error: "Token fetch failed" }));
+        console.warn("[VoIP] Token error:", err.error);
         if (!cancelled) setDeviceStatus("error");
+        return;
       }
-    };
+
+      const { token, callerId: cid } = await res.json();
+      if (cancelled) return;
+
+      setVoipCallerId(cid || "");
+
+      const device = new Device(token, {
+        codecPreferences: [Call.Codec.Opus, Call.Codec.PCMU],
+        closeProtection: "A call is in progress. Are you sure you want to leave?",
+      });
+
+      device.on("registered", () => {
+        if (!cancelled) {
+          setDeviceStatus("ready");
+          console.log("[VoIP] Device registered");
+        }
+      });
+
+      device.on("error", (err: { message?: string }) => {
+        console.error("[VoIP] Device error:", err);
+        if (!cancelled) {
+          setDeviceStatus("error");
+          // Silently log — no toast; user sees the subtle "VoIP Offline" badge
+        }
+      });
+
+      device.on("unregistered", () => {
+        if (!cancelled) setDeviceStatus("offline");
+      });
+
+      // Token refresh — fires ~3 min before expiry
+      device.on("tokenWillExpire", async () => {
+        try {
+          const hdrs2 = await authHeaders();
+          const r = await fetch("/api/twilio/token", { headers: hdrs2 });
+          if (r.ok) {
+            const { token: newToken } = await r.json();
+            device.updateToken(newToken);
+            console.log("[VoIP] Token refreshed");
+          }
+        } catch {
+          console.warn("[VoIP] Token refresh failed");
+        }
+      });
+
+      await device.register();
+      if (!cancelled) deviceRef.current = device;
+    } catch (err) {
+      console.error("[VoIP] Device init failed:", err);
+      if (!cancelled) setDeviceStatus("error");
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentUser.id]);
+
+  useEffect(() => {
+    if (!currentUser.id) return;
 
     initDevice();
 
     const timeout = setTimeout(() => {
-      if (!cancelled && deviceRef.current === null) {
+      if (deviceRef.current === null) {
         setDeviceStatus("error");
-        toast.error("VoIP connection timed out — check network or refresh the page");
+        console.warn("[VoIP] Connection timed out");
       }
     }, 15_000);
 
     return () => {
-      cancelled = true;
       clearTimeout(timeout);
+      if (initDeviceCancelRef.current) initDeviceCancelRef.current();
       if (deviceRef.current) {
         deviceRef.current.destroy();
         deviceRef.current = null;
       }
     };
-  }, [currentUser.id]);
+  }, [currentUser.id, initDevice]);
 
   // ── Real-time call status polling ─────────────────────────────────
   // Polls /api/dialer/call-status every 2s to track the actual Twilio call state
@@ -741,7 +757,7 @@ function DialerPageInner() {
     }
 
     if (!deviceRef.current || deviceStatus !== "ready") {
-      toast.error("VoIP not ready — check Twilio diagnostics");
+      toast.error("VoIP not connected — click Reconnect and try again");
       return;
     }
 
@@ -950,7 +966,7 @@ function DialerPageInner() {
     }
 
     if (!deviceRef.current || deviceStatus !== "ready") {
-      toast.error("VoIP not ready — check Twilio diagnostics");
+      toast.error("VoIP not connected — click Reconnect and try again");
       return;
     }
 
@@ -1336,18 +1352,38 @@ function DialerPageInner() {
             {diagLoading ? <Loader2 className="h-3 w-3 animate-spin" /> : <Wifi className="h-3 w-3" />}
             Test Twilio
           </Button>
-          <Badge variant={deviceStatus === "ready" ? "cyan" : "outline"} className={`text-sm gap-1 ${deviceStatus === "error" ? "border-border/30 text-foreground" : ""}`}>
-            {deviceStatus === "ready" ? <Zap className="h-2.5 w-2.5" /> : deviceStatus === "error" ? <WifiOff className="h-2.5 w-2.5" /> : <Loader2 className="h-2.5 w-2.5 animate-spin" />}
+          <Badge
+            variant={deviceStatus === "ready" ? "cyan" : "outline"}
+            className={`text-sm gap-1 ${
+              deviceStatus === "error" || deviceStatus === "offline"
+                ? "border-border/20 text-muted-foreground"
+                : deviceStatus === "initializing"
+                  ? "border-border/30 text-muted-foreground"
+                  : ""
+            }`}
+          >
+            {deviceStatus === "ready" ? <Zap className="h-2.5 w-2.5" /> : deviceStatus === "error" || deviceStatus === "offline" ? <WifiOff className="h-2.5 w-2.5 opacity-60" /> : <Loader2 className="h-2.5 w-2.5 animate-spin" />}
             {callState === "connected"
               ? liveCallStatus === "ringing" ? "RINGING PROSPECT…"
                 : liveCallStatus === "in-progress" ? "LIVE — VoIP"
                 : liveCallStatus === "failed" ? "CALL FAILED"
                 : "LIVE — VoIP"
               : deviceStatus === "ready" ? "VoIP Ready"
-              : deviceStatus === "error" ? "VoIP Error"
+              : deviceStatus === "error" ? "VoIP Offline"
               : deviceStatus === "initializing" ? "Connecting…"
               : "VoIP Offline"}
           </Badge>
+          {(deviceStatus === "error" || deviceStatus === "offline") && callState === "idle" && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => initDevice()}
+              className="gap-1 text-xs h-6 px-2 text-muted-foreground hover:text-primary"
+            >
+              <RefreshCw className="h-3 w-3" />
+              Reconnect
+            </Button>
+          )}
           <CoachToggle />
         </div>
       }

@@ -79,10 +79,50 @@ export function SellerMemoryPreview({ leadId, className = "" }: Props) {
     );
   }
 
-  if (!memory || memory.recentCalls.length === 0) return null;
+  // No memory at all and no objections — show first-contact hint instead of nothing
+  if (!memory || memory.recentCalls.length === 0) {
+    if (objections.length > 0) {
+      // Edge case: objections exist but no calls loaded — show objections only
+      return (
+        <div className={`rounded-xl border border-border/20 bg-muted/[0.04] p-3 space-y-2 ${className}`}>
+          <div className="flex items-center gap-1.5 text-sm font-semibold uppercase tracking-wider text-foreground/70">
+            <User className="h-3 w-3" />
+            Seller Memory
+          </div>
+          <div className="flex flex-wrap gap-1 pt-0.5">
+            {objections.map((obj, i) => (
+              <span
+                key={i}
+                className="inline-flex items-center rounded-full bg-muted/10 border border-border/20 px-1.5 py-0.5 text-xs text-foreground"
+              >
+                {OBJECTION_TAG_LABELS[obj.tag as ObjectionTag] ?? obj.tag}
+              </span>
+            ))}
+          </div>
+        </div>
+      );
+    }
+    return (
+      <div className={`rounded-xl border border-border/20 bg-muted/[0.04] p-3 ${className}`}>
+        <div className="flex items-center gap-1.5 text-sm font-semibold uppercase tracking-wider text-foreground/70">
+          <User className="h-3 w-3" />
+          Seller Memory
+        </div>
+        <p className="text-sm text-muted-foreground/40 italic mt-1.5">
+          First contact — memory will populate after calls
+        </p>
+      </div>
+    );
+  }
 
   const staleDays = memory.daysSinceLastContact;
   const staleWarn = staleDays !== null && staleDays > 21;
+
+  const hasStructuredFields = !!(
+    memory.lastCallPromises || memory.lastCallObjection ||
+    memory.lastCallNextAction || memory.lastCallCallbackTiming ||
+    memory.lastCallDealTemperature
+  );
 
   return (
     <div className={`rounded-xl border border-border/20 bg-muted/[0.04] p-3 space-y-2 ${className}`}>
@@ -111,32 +151,34 @@ export function SellerMemoryPreview({ leadId, className = "" }: Props) {
       </div>
 
       {/* Structured fields from last call */}
-      <div className="space-y-1">
-        {memory.lastCallPromises && (
-          <div className="flex items-start gap-1.5 text-sm">
-            <Handshake className="h-3 w-3 text-foreground/60 shrink-0 mt-0.5" />
-            <span className="text-foreground/70">{memory.lastCallPromises}</span>
-          </div>
-        )}
-        {memory.lastCallObjection && (
-          <div className="flex items-start gap-1.5 text-sm">
-            <AlertTriangle className="h-3 w-3 text-foreground/60 shrink-0 mt-0.5" />
-            <span className="text-foreground/70">{memory.lastCallObjection}</span>
-          </div>
-        )}
-        {memory.lastCallNextAction && (
-          <div className="flex items-start gap-1.5 text-sm">
-            <MessageSquare className="h-3 w-3 text-primary/60 shrink-0 mt-0.5" />
-            <span className="text-foreground/70">{memory.lastCallNextAction}</span>
-          </div>
-        )}
-        {memory.lastCallCallbackTiming && (
-          <div className="flex items-start gap-1.5 text-sm">
-            <CalendarClock className="h-3 w-3 text-primary/50 shrink-0 mt-0.5" />
-            <span className="text-foreground/70">{memory.lastCallCallbackTiming}</span>
-          </div>
-        )}
-      </div>
+      {hasStructuredFields && (
+        <div className="space-y-1">
+          {memory.lastCallPromises && (
+            <div className="flex items-start gap-1.5 text-sm">
+              <Handshake className="h-3 w-3 text-foreground/60 shrink-0 mt-0.5" />
+              <span className="text-foreground/70">{memory.lastCallPromises}</span>
+            </div>
+          )}
+          {memory.lastCallObjection && (
+            <div className="flex items-start gap-1.5 text-sm">
+              <AlertTriangle className="h-3 w-3 text-foreground/60 shrink-0 mt-0.5" />
+              <span className="text-foreground/70">{memory.lastCallObjection}</span>
+            </div>
+          )}
+          {memory.lastCallNextAction && (
+            <div className="flex items-start gap-1.5 text-sm">
+              <MessageSquare className="h-3 w-3 text-primary/60 shrink-0 mt-0.5" />
+              <span className="text-foreground/70">{memory.lastCallNextAction}</span>
+            </div>
+          )}
+          {memory.lastCallCallbackTiming && (
+            <div className="flex items-start gap-1.5 text-sm">
+              <CalendarClock className="h-3 w-3 text-primary/50 shrink-0 mt-0.5" />
+              <span className="text-foreground/70">{memory.lastCallCallbackTiming}</span>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Open objections */}
       {objections.length > 0 && (
@@ -152,11 +194,18 @@ export function SellerMemoryPreview({ leadId, className = "" }: Props) {
         </div>
       )}
 
-      {/* Last call note preview */}
+      {/* Last call note preview — show notes/summary when calls exist */}
       {memory.recentCalls[0] && (
         <div className="text-sm text-muted-foreground/50 leading-snug line-clamp-2 border-t border-border/10 pt-1.5 mt-1">
           {memory.recentCalls[0].notes || memory.recentCalls[0].aiSummary || "No notes from last call"}
         </div>
+      )}
+
+      {/* Hint when calls exist but no structured data was captured */}
+      {!hasStructuredFields && memory.recentCalls.length > 0 && (
+        <p className="text-xs text-muted-foreground/30 italic">
+          Structured memory will populate after next call
+        </p>
       )}
     </div>
   );

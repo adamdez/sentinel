@@ -1,17 +1,66 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Loader2, MapPin, Search, ArrowRight, Home, User, Banknote, CalendarDays, ChevronDown, AlertTriangle, Shield } from "lucide-react";
 import { toast } from "sonner";
+import { supabase } from "@/lib/supabase";
 import { PageShell } from "@/components/sentinel/page-shell";
 import { GlassCard } from "@/components/sentinel/glass-card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { sentinelAuthHeaders } from "@/lib/sentinel-auth-headers";
+
+interface AddressSuggestion {
+  id: string;
+  address: string;
+  apn: string | null;
+  county: string | null;
+  state: string | null;
+  zip: string | null;
+}
+
+function useAddressAutocomplete(query: string) {
+  const [suggestions, setSuggestions] = useState<AddressSuggestion[]>([]);
+  const [loading, setLoading] = useState(false);
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    if (timerRef.current) clearTimeout(timerRef.current);
+
+    const trimmed = query.trim();
+    if (trimmed.length < 2) {
+      setSuggestions([]);
+      return;
+    }
+
+    timerRef.current = setTimeout(async () => {
+      setLoading(true);
+      try {
+        const { data, error } = await supabase
+          .from("properties")
+          .select("id, address, apn, county, state, zip")
+          .ilike("address", `%${trimmed}%`)
+          .limit(8);
+        if (!error && data) setSuggestions(data as AddressSuggestion[]);
+      } catch {
+        // silently ignore autocomplete errors
+      } finally {
+        setLoading(false);
+      }
+    }, 300);
+
+    return () => {
+      if (timerRef.current) clearTimeout(timerRef.current);
+    };
+  }, [query]);
+
+  const clear = useCallback(() => setSuggestions([]), []);
+  return { suggestions, loading, clear };
+}
 
 export default function PropertyLookupPage() {
   const router = useRouter();
@@ -20,6 +69,31 @@ export default function PropertyLookupPage() {
   const [county, setCounty] = useState("");
   const [state, setState] = useState("");
   const [zip, setZip] = useState("");
+
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const { suggestions, loading: suggestionsLoading, clear: clearSuggestions } = useAddressAutocomplete(address);
+  const suggestionsRef = useRef<HTMLDivElement>(null);
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (suggestionsRef.current && !suggestionsRef.current.contains(e.target as Node)) {
+        setShowSuggestions(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  function selectSuggestion(s: AddressSuggestion) {
+    setAddress(s.address);
+    if (s.apn) setApn(s.apn);
+    if (s.county) setCounty(s.county);
+    if (s.state) setState(s.state);
+    if (s.zip) setZip(s.zip);
+    setShowSuggestions(false);
+    clearSuggestions();
+  }
 
   const [lookupResult, setLookupResult] = useState<LookupResponse | null>(null);
 
@@ -105,14 +179,43 @@ export default function PropertyLookupPage() {
           Search
         </h3>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-          <div className="md:col-span-2">
+          <div className="md:col-span-2 relative" ref={suggestionsRef}>
             <label className="text-sm uppercase text-muted-foreground">Address</label>
             <Input
               value={address}
-              onChange={(e) => setAddress(e.target.value)}
+              onChange={(e) => {
+                setAddress(e.target.value);
+                setShowSuggestions(true);
+              }}
+              onFocus={() => { if (suggestions.length > 0) setShowSuggestions(true); }}
               placeholder="123 Main St, Spokane"
               className="mt-1 bg-white/[0.03] border-white/[0.08]"
+              autoComplete="off"
             />
+            {showSuggestions && suggestions.length > 0 && (
+              <div className="absolute z-50 top-full left-0 right-0 mt-1 rounded-md border border-border/20 bg-background shadow-lg max-h-56 overflow-y-auto">
+                {suggestions.map((s) => (
+                  <button
+                    key={s.id}
+                    type="button"
+                    className="w-full text-left px-3 py-2 text-sm hover:bg-white/[0.06] transition-colors border-b border-border/10 last:border-b-0"
+                    onClick={() => selectSuggestion(s)}
+                  >
+                    <span className="text-foreground">{s.address}</span>
+                    {(s.county || s.state || s.zip) && (
+                      <span className="text-muted-foreground ml-2 text-xs">
+                        {[s.county, s.state, s.zip].filter(Boolean).join(", ")}
+                      </span>
+                    )}
+                  </button>
+                ))}
+              </div>
+            )}
+            {showSuggestions && suggestionsLoading && (
+              <div className="absolute z-50 top-full left-0 right-0 mt-1 rounded-md border border-border/20 bg-background shadow-lg px-3 py-2">
+                <span className="text-xs text-muted-foreground">Searching...</span>
+              </div>
+            )}
           </div>
           <div>
             <label className="text-sm uppercase text-muted-foreground">APN</label>

@@ -66,14 +66,12 @@ export async function GET(req: NextRequest) {
     const twentyFourHoursAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000).toISOString();
 
     // ── 1. Overdue callbacks ────────────────────────────────────────────────
-    // next_action_due_at < now AND next_action is set
+    // Either next_action_due_at or next_call_scheduled_at is past due
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { data: overdueCallbacks } = await (sb.from("leads") as any)
-      .select("id, property_id, contact_id, status, motivation_level, next_action, next_action_due_at, last_contact_at, created_at")
+      .select("id, property_id, contact_id, status, motivation_level, next_action, next_action_due_at, next_call_scheduled_at, last_contact_at, created_at")
       .in("status", ACTIVE_STATUSES)
-      .not("next_action", "is", null)
-      .not("next_action_due_at", "is", null)
-      .lt("next_action_due_at", nowISO)
+      .or("next_action_due_at.lt." + nowISO + ",next_call_scheduled_at.lt." + nowISO)
       .order("next_action_due_at", { ascending: true })
       .limit(30);
 

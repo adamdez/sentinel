@@ -401,7 +401,7 @@ export function SellerMemoryPanel({ sessionId, context: contextProp, className =
           {/* Renders promises, next action, and deal temp from the most
               recent post_call_structures row (via call-memory API). Only
               shows when at least one structured field exists. */}
-          {(memory?.lastCallPromises || memory?.lastCallObjection || memory?.lastCallNextAction || memory?.lastCallCallbackTiming || memory?.lastCallDealTemperature) && (
+          {(memory?.lastCallPromises || memory?.lastCallObjection || memory?.lastCallNextAction || memory?.lastCallCallbackTiming || memory?.lastCallDealTemperature) ? (
             <div className="rounded-[8px] bg-primary/[0.03] border border-primary/10 px-2.5 py-1.5 space-y-1">
               {memory.lastCallPromises && (
                 <div className="flex items-start gap-1.5">
@@ -446,7 +446,13 @@ export function SellerMemoryPanel({ sessionId, context: contextProp, className =
                 </div>
               )}
             </div>
-          )}
+          ) : (memory?.recentCalls ?? []).length > 0 && !memLoading ? (
+            <div className="rounded-[8px] bg-muted/[0.03] border border-border/10 px-2.5 py-1.5">
+              <p className="text-xs text-muted-foreground/40 italic">
+                Structured memory will populate after next call
+              </p>
+            </div>
+          ) : null}
 
           {/* ── Open objections ───────────────────────────────── */}
           {objections.length > 0 && (
