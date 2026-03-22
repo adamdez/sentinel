@@ -38,6 +38,8 @@ interface TranscriptWebhookPayload {
   session_id: string;
   /** User ID that owns the session (for note-manager ownership gate) */
   user_id: string;
+  /** calls_log ID for live_notes bridge (passed from relay via Twilio stream params) */
+  call_log_id?: string;
   /** Transcript data (only present for event=transcript) */
   transcript?: {
     text: string;
@@ -194,6 +196,21 @@ export async function POST(req: NextRequest) {
       code: result.code,
       persisted: false,
     }, { status: 500 });
+  }
+
+  // ── Bridge: append to calls_log.live_notes for realtime UI ──
+  // The dialer UI subscribes to calls_log changes via Supabase realtime.
+  // session_notes is the durable store; live_notes is the volatile UI bridge.
+  const callLogId = payload.call_log_id;
+  if (callLogId) {
+    const liveNote = `${speaker === "operator" ? "You" : "Seller"}: ${transcript.text.trim()}`;
+    // Append to existing live_notes jsonb array via raw SQL for atomicity
+    await sb.rpc("append_live_note", {
+      p_call_log_id: callLogId,
+      p_note: liveNote,
+    }).catch((err: unknown) => {
+      console.warn(`[Deepgram Webhook] live_notes bridge failed for call=${callLogId}:`, err);
+    });
   }
 
   return NextResponse.json({

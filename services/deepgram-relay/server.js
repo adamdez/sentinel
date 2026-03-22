@@ -100,6 +100,7 @@ wss.on("connection", (twilioWs, req) => {
     event: "connection.open",
     session_id: sessionId,
     user_id: userId,
+    call_log_id: callLogId,
   }).catch(() => {});
 
   // ── Connect to Deepgram ──────────────────────────────────
@@ -137,6 +138,7 @@ wss.on("connection", (twilioWs, req) => {
           event: "transcript",
           session_id: sessionId,
           user_id: userId,
+          call_log_id: callLogId,
           sequence_num: sequenceNum,
           transcript: {
             text: best.transcript.trim(),
