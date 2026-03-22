@@ -9,11 +9,8 @@ import {
   liveAssistStableBase,
   preCallBriefDynamic,
   preCallBriefSemiStable,
-  type EmpathyMove,
   type LeadContextSnapshot,
   type LiveSessionSignals,
-  type NepqStage,
-  type ObjectionCoachMove,
 } from "@/lib/dialer/prompt-cache";
 import { completeDialerAiLayered } from "@/lib/dialer/openai-lane-client";
 import { getStyleBlock } from "@/lib/conversation-style";
@@ -21,6 +18,26 @@ import type { CRMLeadContext } from "@/lib/dialer/types";
 
 type RouteContext = { params: Promise<{ id: string }> };
 type CoachMode = "inbound" | "outbound";
+type NepqStage =
+  | "connection"
+  | "situation"
+  | "problem_awareness"
+  | "solution_awareness"
+  | "consequence"
+  | "commitment";
+type EmpathyMoveType = "mirror" | "label" | "calibrated_question";
+
+interface EmpathyMove {
+  type: EmpathyMoveType;
+  text: string;
+  cue: string;
+}
+
+interface ObjectionCoachMove {
+  objection: string;
+  label: string;
+  calibratedQuestion: string;
+}
 
 interface LiveCoachResponse {
   currentStage: NepqStage;
