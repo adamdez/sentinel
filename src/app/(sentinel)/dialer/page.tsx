@@ -12,7 +12,7 @@ import {
   Skull, Heart, Search, Ghost, Zap, ChevronRight, Timer,
   Sparkles, DollarSign, Loader2, SkipForward, MessageSquare,
   X, Send, Shield, CheckCircle2, History, ArrowDownLeft, ArrowUpRight,
-  AlertTriangle, Wifi, WifiOff, RefreshCw,
+  AlertTriangle, Wifi, WifiOff, RefreshCw, FileText,
 } from "lucide-react";
 import { toast } from "sonner";
 import { PageShell } from "@/components/sentinel/page-shell";
@@ -2662,71 +2662,110 @@ function formatDuration(sec: number): string {
 }
 
 function CallHistoryRow({ entry, onDial }: { entry: CallHistoryEntry; onDial: (phone: string) => void }) {
+  const [notesOpen, setNotesOpen] = useState(false);
   const style = DISPO_STYLES[entry.disposition] ?? { color: "text-muted-foreground", bg: "bg-white/[0.03] border-white/[0.06]" };
   const isInbound = entry.direction === "inbound";
   const isSms = entry.disposition === "sms_outbound";
   const phoneDigits = (entry.phone_dialed ?? "").replace(/\D/g, "").slice(-10);
   const hasLead = Boolean(entry.lead_id);
+  const hasNotes = Boolean(entry.notes?.trim() || entry.ai_summary?.trim());
 
   return (
-    <div className="flex items-center gap-2.5 rounded-[12px] px-3 py-2.5 transition-all border border-transparent hover:border-white/[0.06] hover:bg-white/[0.02]">
-      {/* Direction dot — indicator only, not a button */}
-      <span
-        className={`h-2 w-2 rounded-full shrink-0 mt-0.5 ${
-          isSms ? "bg-muted" : isInbound ? "bg-muted" : "bg-primary"
-        }`}
-        title={isSms ? "SMS" : isInbound ? "Inbound" : "Outbound"}
-      />
+    <div>
+      <div className="flex items-center gap-2.5 rounded-[12px] px-3 py-2.5 transition-all border border-transparent hover:border-white/[0.06] hover:bg-white/[0.02]">
+        {/* Direction dot — indicator only, not a button */}
+        <span
+          className={`h-2 w-2 rounded-full shrink-0 mt-0.5 ${
+            isSms ? "bg-muted" : isInbound ? "bg-muted" : "bg-primary"
+          }`}
+          title={isSms ? "SMS" : isInbound ? "Inbound" : "Outbound"}
+        />
 
-      {/* Contact + phone */}
-      <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-1.5">
-          <p className="text-sm font-medium truncate">
-            {entry.owner_name ?? formatUsPhone(phoneDigits)}
-          </p>
-          {entry.owner_name && (
-            <span className="text-sm text-muted-foreground/45 font-mono shrink-0">
-              {formatUsPhone(phoneDigits)}
+        {/* Contact + phone */}
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-1.5">
+            <p className="text-sm font-medium truncate">
+              {entry.owner_name ?? formatUsPhone(phoneDigits)}
+            </p>
+            {entry.owner_name && (
+              <span className="text-sm text-muted-foreground/45 font-mono shrink-0">
+                {formatUsPhone(phoneDigits)}
+              </span>
+            )}
+          </div>
+          <div className="flex items-center gap-2 mt-0.5">
+            <span className={`text-xs px-1.5 py-0.5 rounded-[5px] border font-medium uppercase tracking-wider shrink-0 ${style.color} ${style.bg}`}>
+              {entry.disposition.replace(/_/g, " ")}
             </span>
-          )}
+            {entry.duration_sec > 0 && (
+              <span className="text-sm text-muted-foreground/45 font-mono">{formatDuration(entry.duration_sec)}</span>
+            )}
+            <span className="text-sm text-muted-foreground/35">{timeAgo(entry.started_at)}</span>
+          </div>
         </div>
-        <div className="flex items-center gap-2 mt-0.5">
-          <span className={`text-xs px-1.5 py-0.5 rounded-[5px] border font-medium uppercase tracking-wider shrink-0 ${style.color} ${style.bg}`}>
-            {entry.disposition.replace(/_/g, " ")}
-          </span>
-          {entry.duration_sec > 0 && (
-            <span className="text-sm text-muted-foreground/45 font-mono">{formatDuration(entry.duration_sec)}</span>
-          )}
-          <span className="text-sm text-muted-foreground/35">{timeAgo(entry.started_at)}</span>
-        </div>
+
+        {/* Notes button — visible when notes or AI summary exist */}
+        {hasNotes && (
+          <button
+            onClick={() => setNotesOpen(!notesOpen)}
+            className={`h-7 w-7 rounded-[8px] flex items-center justify-center shrink-0 transition-all
+              ${notesOpen
+                ? "bg-primary/20 border border-primary/30 text-primary"
+                : "bg-white/[0.04] hover:bg-white/[0.08] border border-white/[0.08] hover:border-white/[0.16] text-muted-foreground/50 hover:text-foreground"
+              }`}
+            title="View call notes"
+          >
+            <FileText className="h-3 w-3" />
+          </button>
+        )}
+
+        {/* Redial button — always visible */}
+        {phoneDigits && (
+          <button
+            onClick={() => onDial(entry.phone_dialed)}
+            className="h-7 w-7 rounded-[8px] flex items-center justify-center shrink-0
+              bg-primary/8 hover:bg-primary/20 border border-primary/15 hover:border-primary/30
+              text-primary/70 hover:text-primary transition-all"
+            title={`Redial ${formatUsPhone(phoneDigits)}`}
+          >
+            <Phone className="h-3 w-3" />
+          </button>
+        )}
+
+        {/* Open Lead button — always visible when linked to a lead */}
+        {hasLead && (
+          <a
+            href={`/leads?open=${entry.lead_id}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="h-7 w-7 rounded-[8px] flex items-center justify-center shrink-0
+              bg-white/[0.04] hover:bg-white/[0.08] border border-white/[0.08] hover:border-white/[0.16]
+              text-muted-foreground/50 hover:text-foreground transition-all"
+            title="Open lead detail"
+          >
+            <ArrowUpRight className="h-3 w-3" />
+          </a>
+        )}
       </div>
 
-      {/* Redial button — always visible */}
-      {phoneDigits && (
-        <button
-          onClick={() => onDial(entry.phone_dialed)}
-          className="h-7 w-7 rounded-[8px] flex items-center justify-center shrink-0
-            bg-primary/8 hover:bg-primary/20 border border-primary/15 hover:border-primary/30
-            text-primary/70 hover:text-primary transition-all"
-          title={`Redial ${formatUsPhone(phoneDigits)}`}
-        >
-          <Phone className="h-3 w-3" />
-        </button>
-      )}
-
-      {/* Open Lead button — always visible when linked to a lead */}
-      {hasLead && (
-        <a
-          href={`/leads?open=${entry.lead_id}`}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="h-7 w-7 rounded-[8px] flex items-center justify-center shrink-0
-            bg-white/[0.04] hover:bg-white/[0.08] border border-white/[0.08] hover:border-white/[0.16]
-            text-muted-foreground/50 hover:text-foreground transition-all"
-          title="Open lead detail"
-        >
-          <ArrowUpRight className="h-3 w-3" />
-        </a>
+      {/* Expandable notes panel */}
+      {notesOpen && hasNotes && (
+        <div className="mx-3 mb-2 px-3 py-2 rounded-[8px] bg-white/[0.02] border border-white/[0.06] text-sm space-y-1.5">
+          {entry.notes && (
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground/50 mb-0.5">Notes</p>
+              <p className="text-foreground/70 whitespace-pre-wrap text-sm leading-relaxed">{entry.notes}</p>
+            </div>
+          )}
+          {entry.ai_summary && (
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground/50 mb-0.5 flex items-center gap-1">
+                <Sparkles className="h-2.5 w-2.5" /> AI Summary
+              </p>
+              <p className="text-foreground/70 whitespace-pre-wrap text-sm leading-relaxed">{entry.ai_summary}</p>
+            </div>
+          )}
+        </div>
       )}
     </div>
   );
