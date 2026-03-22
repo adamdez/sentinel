@@ -334,8 +334,8 @@ process.on("SIGINT", () => shutdown("SIGINT"));
 // Start
 // ─────────────────────────────────────────────────────────────
 
-server.listen(PORT, () => {
-  console.log(`[Relay] Deepgram relay listening on port ${PORT}`);
+server.listen(PORT, "0.0.0.0", () => {
+  console.log(`[Relay] Deepgram relay listening on 0.0.0.0:${PORT}`);
   console.log(`[Relay] Webhook target: ${SENTINEL_WEBHOOK_URL}`);
   console.log(`[Relay] Deepgram model: nova-3, encoding: mulaw, 8kHz`);
 });
