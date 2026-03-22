@@ -94,6 +94,7 @@ async function handleBrowserVoice(req: NextRequest) {
 
   // PR2: thread sessionId through callback URLs so the status webhook can
   // forward it to the internal dialer session sync route.
+  // Use &amp; in URL params because these get embedded inside XML attribute values
   const sessionParam = sessionId ? `&amp;sessionId=${encodeURIComponent(sessionId)}` : "";
   const statusCallbackUrl = siteUrl
     ? `${siteUrl}/api/twilio/voice/status?callLogId=${encodeURIComponent(callLogId ?? "")}${sessionParam}&amp;type=call_status`
@@ -113,16 +114,31 @@ async function handleBrowserVoice(req: NextRequest) {
   if (sessionId) streamParams.set("sessionId", sessionId);
   if (agentId)   streamParams.set("userId", agentId);
   const streamQuery = streamParams.toString();
-  const streamLine = transcriptionUrl && hasDeepgram && (callLogId || sessionId)
-    ? `  <Stream url="${transcriptionUrl}${streamQuery ? `?${streamQuery}` : ""}" track="both_tracks" />`
-    : "";
+  // <Stream> must be wrapped in <Start> per Twilio TwiML spec
+  const streamLines = transcriptionUrl && hasDeepgram && (callLogId || sessionId)
+    ? [
+        "  <Start>",
+        `    <Stream url="${transcriptionUrl}${streamQuery ? `?${streamQuery}` : ""}" track="both_tracks" />`,
+        "  </Start>",
+      ]
+    : [];
+
+  // Normalize the To number — strip any formatting, ensure E.164
+  const toNormalized = (() => {
+    if (!to) return "";
+    const digits = to.replace(/\D/g, "");
+    if (digits.length === 0) return "";
+    if (digits.length === 11 && digits.startsWith("1")) return `+${digits}`;
+    if (digits.length === 10) return `+1${digits}`;
+    return `+${digits}`;
+  })();
 
   const twiml = [
     '<?xml version="1.0" encoding="UTF-8"?>',
     "<Response>",
-    ...(streamLine ? [streamLine] : []),
+    ...streamLines,
     `  <Dial callerId="${callerId}" timeout="30"${dialActionUrl ? ` action="${dialActionUrl}"` : ""}>`,
-    `    <Number${statusCallbackUrl ? ` statusCallback="${statusCallbackUrl}" statusCallbackEvent="initiated ringing answered completed"` : ""}>${to}</Number>`,
+    `    <Number${statusCallbackUrl ? ` statusCallback="${statusCallbackUrl}" statusCallbackEvent="initiated ringing answered completed"` : ""}>${toNormalized}</Number>`,
     "  </Dial>",
     "</Response>",
   ].join("\n");
