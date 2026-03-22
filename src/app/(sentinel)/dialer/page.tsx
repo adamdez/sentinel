@@ -882,16 +882,24 @@ function DialerPageInner() {
         setActiveCall(null);
         setCallState("ended");
         timer.stop();
-        // Advance session to terminal so publish can proceed (409 is non-fatal
-        // if Twilio StatusCallback already advanced it first, or if session was never created).
+        // Advance session to terminal so publish can proceed.
+        // Try "ended" first; fall back to "failed" if session is still in
+        // "initiating" (where "ended" is not a valid DB transition).
         if (newSessionId) {
-          authHeaders().then((hdrs) =>
-            fetch(`/api/dialer/v1/sessions/${newSessionId}`, {
+          authHeaders().then(async (hdrs) => {
+            const res = await fetch(`/api/dialer/v1/sessions/${newSessionId}`, {
               method: "PATCH",
               headers: hdrs,
               body: JSON.stringify({ status: "ended" }),
-            })
-          ).catch(() => {});
+            });
+            if (!res.ok) {
+              await fetch(`/api/dialer/v1/sessions/${newSessionId}`, {
+                method: "PATCH",
+                headers: hdrs,
+                body: JSON.stringify({ status: "failed" }),
+              });
+            }
+          }).catch(() => {});
         }
       });
 
@@ -1097,15 +1105,26 @@ function DialerPageInner() {
       call.on("disconnect", () => {
         setActiveCall(null);
         setManualStatus("ended");
-        // Advance manual session to terminal so closeout works
+        // Advance manual session to terminal so closeout works.
+        // Try "ended" first; if session is still in "initiating" (fire-and-forget
+        // ringing/connected PATCHes haven't landed), "ended" is invalid per DB
+        // trigger. Fall back to "failed" which is valid from any non-terminal state.
         if (manualSessionIdLocal) {
-          authHeaders().then((hdrs) =>
-            fetch(`/api/dialer/v1/sessions/${manualSessionIdLocal}`, {
+          authHeaders().then(async (hdrs) => {
+            const res = await fetch(`/api/dialer/v1/sessions/${manualSessionIdLocal}`, {
               method: "PATCH",
               headers: hdrs,
               body: JSON.stringify({ status: "ended" }),
-            })
-          ).catch(() => {});
+            });
+            if (!res.ok) {
+              // Fallback: "failed" is valid from initiating/ringing/connected
+              await fetch(`/api/dialer/v1/sessions/${manualSessionIdLocal}`, {
+                method: "PATCH",
+                headers: hdrs,
+                body: JSON.stringify({ status: "failed" }),
+              });
+            }
+          }).catch(() => {});
         }
       });
 

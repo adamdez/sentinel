@@ -35,6 +35,7 @@ import {
   type PublishInput,
   type PublishResult,
   type DialerEventType,
+  type CallSessionStatus,
 } from "./types";
 import { getSession } from "./session-manager";
 import { notifyPostCallSummary } from "@/lib/notify";
@@ -154,29 +155,44 @@ export async function publishSession(
     // ringing/connected/failed — NOT directly to "ended". Use "failed" as a
     // catch-all terminal state when the session never properly connected.
     const targetStatus = session.status === "initiating" ? "failed" : "ended";
-    const { error: endErr } = await sb
-      .from("call_sessions")
+    const { error: endErr } = await (sb
+      .from("call_sessions") as ReturnType<typeof sb.from>)
       .update({ status: targetStatus, ended_at: new Date().toISOString() })
       .eq("id", session.id);
     if (endErr) {
       console.error("[publish-manager] Failed to auto-end session:", endErr);
       // Last resort: try "failed" which is valid from any non-terminal state
-      const { error: failErr } = await sb
-        .from("call_sessions")
+      const { error: failErr } = await (sb
+        .from("call_sessions") as ReturnType<typeof sb.from>)
         .update({ status: "failed", ended_at: new Date().toISOString() })
         .eq("id", session.id);
       if (failErr) {
-        console.error("[publish-manager] Even 'failed' transition rejected:", failErr);
-        return {
-          ok: false,
-          calls_log_id: null,
-          lead_id: null,
-          error: "Session must be in a terminal state (ended or failed) before publishing",
-          code: "INVALID_TRANSITION",
-        };
+        // Race condition: Twilio webhook may have already moved the session
+        // to a terminal state between our read and update. Re-read to check.
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const { data: recheck } = await (sb.from("call_sessions") as any)
+          .select("status")
+          .eq("id", session.id)
+          .maybeSingle();
+        if (recheck && TERMINAL_STATUSES.has(recheck.status as CallSessionStatus)) {
+          // Session is already terminal — proceed with publish
+          console.info(`[publish-manager] Session ${session.id} already "${recheck.status}" after race — proceeding`);
+          session.status = recheck.status as typeof session.status;
+        } else {
+          console.error("[publish-manager] Even 'failed' transition rejected:", failErr);
+          return {
+            ok: false,
+            calls_log_id: null,
+            lead_id: null,
+            error: "Session must be in a terminal state (ended or failed) before publishing",
+            code: "INVALID_TRANSITION",
+          };
+        }
       }
     }
-    session.status = targetStatus as typeof session.status;
+    if (!TERMINAL_STATUSES.has(session.status)) {
+      session.status = targetStatus as typeof session.status;
+    }
   }
 
   const leadId = session.lead_id ?? null;
