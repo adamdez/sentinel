@@ -54,12 +54,12 @@ type KpiKey = "myOutbound" | "myInbound" | "myLiveAnswers" | "myAvgTalkTime" | "
 type Period = "today" | "week" | "month" | "all";
 
 const KPI_META: Record<KpiKey, { label: string; icon: React.ElementType; color: string; glow: string; teamKey: KpiKey; format?: (v: number) => string }> = {
-  myOutbound:    { label: "My Outbound",    icon: PhoneForwarded, color: "text-primary",        glow: "rgba(0,0,0,0.12)",  teamKey: "teamOutbound" },
-  myInbound:     { label: "My Inbound",     icon: PhoneIncoming,  color: "text-foreground",  glow: "rgba(0,0,0,0.1)", teamKey: "teamInbound" },
-  myLiveAnswers: { label: "Outbounds Answered", icon: Phone,       color: "text-foreground", glow: "rgba(0,0,0,0.12)", teamKey: "myLiveAnswers" },
-  myAvgTalkTime: { label: "Avg Talk Time",  icon: Timer,          color: "text-foreground",  glow: "rgba(0,0,0,0.1)", teamKey: "myAvgTalkTime", format: (s) => s > 0 ? `${Math.floor(s / 60)}:${(s % 60).toString().padStart(2, "0")}` : "0:00" },
-  teamOutbound:  { label: "Team Outbound",  icon: Users,          color: "text-foreground",    glow: "rgba(0,0,0,0.1)", teamKey: "teamOutbound" },
-  teamInbound:   { label: "Team Inbound",   icon: Users,          color: "text-foreground",    glow: "rgba(0,0,0,0.1)", teamKey: "teamInbound" },
+  myOutbound:    { label: "My Outbound",    icon: PhoneForwarded, color: "text-primary",        glow: "var(--shadow-soft)",  teamKey: "teamOutbound" },
+  myInbound:     { label: "My Inbound",     icon: PhoneIncoming,  color: "text-foreground",  glow: "var(--shadow-soft)", teamKey: "teamInbound" },
+  myLiveAnswers: { label: "Outbounds Answered", icon: Phone,       color: "text-foreground", glow: "var(--shadow-soft)", teamKey: "myLiveAnswers" },
+  myAvgTalkTime: { label: "Avg Talk Time",  icon: Timer,          color: "text-foreground",  glow: "var(--shadow-soft)", teamKey: "myAvgTalkTime", format: (s) => s > 0 ? `${Math.floor(s / 60)}:${(s % 60).toString().padStart(2, "0")}` : "0:00" },
+  teamOutbound:  { label: "Team Outbound",  icon: Users,          color: "text-foreground",    glow: "var(--shadow-soft)", teamKey: "teamOutbound" },
+  teamInbound:   { label: "Team Inbound",   icon: Users,          color: "text-foreground",    glow: "var(--shadow-soft)", teamKey: "teamInbound" },
 };
 
 const PERIOD_LABELS: { key: Period; label: string }[] = [
@@ -78,12 +78,12 @@ function KpiCard({ kpiKey, value, loading, onClick }: { kpiKey: KpiKey; value: n
       onClick={onClick}
       className="rounded-[14px] glass-card p-3 text-center
         transition-all duration-100 cursor-pointer hover:border-primary/25 hover:bg-overlay-3
-        hover:shadow-[0_12px_40px_rgba(0,0,0,0.28)] active:scale-[0.98] group relative overflow-hidden w-full"
+        hover:shadow-[0_12px_40px_var(--shadow-medium)] active:scale-[0.98] group relative overflow-hidden w-full"
     >
       <div className="absolute inset-x-0 top-0 h-[1px] bg-gradient-to-r from-transparent via-overlay-6 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
       <div
         className="h-7 w-7 rounded-[8px] flex items-center justify-center mx-auto mb-1"
-        style={{ background: "rgba(255,255,255,0.06)" }}
+        style={{ background: "var(--overlay-6)" }}
       >
         <Icon className={`h-3.5 w-3.5 ${meta.color}`} />
       </div>
@@ -177,13 +177,13 @@ function StatDetailModal({ kpiKey, userId, onClose }: { kpiKey: KpiKey; userId: 
                 <div className="grid grid-cols-2 gap-3">
                   <div className="rounded-[12px] border border-primary/15 bg-primary/[0.04] p-4 text-center">
                     <p className="text-sm text-muted-foreground/60 uppercase tracking-widest mb-1">You</p>
-                    <p className="text-3xl font-bold text-primary" style={{ textShadow: "0 0 14px rgba(0,0,0,0.3)" }}>
+                    <p className="text-3xl font-bold text-primary" style={{ textShadow: "0 0 14px var(--shadow-medium)" }}>
                       {fmt(myVal)}
                     </p>
                   </div>
                   <div className="rounded-[12px] border border-border/15 bg-muted/[0.04] p-4 text-center">
                     <p className="text-sm text-muted-foreground/60 uppercase tracking-widest mb-1">Team Total</p>
-                    <p className="text-3xl font-bold text-foreground" style={{ textShadow: "0 0 14px rgba(0,0,0,0.12)" }}>
+                    <p className="text-3xl font-bold text-foreground" style={{ textShadow: "0 0 14px var(--shadow-soft)" }}>
                       {fmt(teamVal)}
                     </p>
                   </div>
@@ -472,6 +472,12 @@ function DialerPageInner() {
   const [manualCallLogId, setManualCallLogId] = useState<string | null>(null);
   const [manualSessionId, setManualSessionId] = useState<string | null>(null);
   const [manualStatus, setManualStatus] = useState<"idle" | "dialing" | "connected" | "ended">("idle");
+  const { coach: manualLiveCoach, loading: manualLiveCoachLoading } = useLiveCoach({
+    sessionId: manualSessionId,
+    enabled: manualStatus === "connected" && !!manualSessionId,
+    mode: "outbound",
+    sessionInstructions: "Manual outbound call. Prioritize rapport, motivation, timeline, and decision-maker discovery before price.",
+  });
   const [smsComposeOpen, setSmsComposeOpen] = useState(false);
   const [smsComposeMsg, setSmsComposeMsg] = useState("");
   const [smsComposeSending, setSmsComposeSending] = useState(false);
@@ -1088,6 +1094,7 @@ function DialerPageInner() {
         params: {
           To: toE164(manualPhone),
           callLogId: data.callLogId ?? "",
+          sessionId: manualSessionIdLocal ?? "",
           agentId: currentUser.id,
           callerId: voipCallerId,
         },
@@ -1767,6 +1774,15 @@ function DialerPageInner() {
           </GlassCard>
         )}
 
+        {(manualStatus === "connected" || (manualStatus === "ended" && !!manualSessionId)) && (
+          <LiveAssistPanel
+            brief={null}
+            coach={manualLiveCoach}
+            loading={manualLiveCoachLoading}
+            className="mt-3"
+          />
+        )}
+
         {/* Manual dial PostCallPanel — session-backed publish path */}
         {manualStatus === "ended" && manualSessionId && (
           <div className="mt-3">
@@ -1836,8 +1852,8 @@ function DialerPageInner() {
                 <p className="text-xs text-muted-foreground/50">No leads queued — add or claim leads from the Lead Queue</p>
                 <a href="/leads">
                   <button className="px-5 py-2 rounded-[10px] text-xs font-bold text-primary bg-primary/[0.10] border border-primary/25
-                    hover:bg-primary/[0.18] hover:border-primary/35 shadow-[0_0_14px_rgba(0,0,0,0.08)]
-                    hover:shadow-[0_0_22px_rgba(0,0,0,0.16)] transition-all">
+                    hover:bg-primary/[0.18] hover:border-primary/35 shadow-[0_0_14px_var(--shadow-soft)]
+                    hover:shadow-[0_0_22px_var(--shadow-soft)] transition-all">
                     Go to Lead Queue
                   </button>
                 </a>
@@ -1865,7 +1881,7 @@ function DialerPageInner() {
                       onClick={() => setCurrentLead(lead)}
                       className={`w-full text-left rounded-[12px] p-2.5 transition-all duration-200 border ${
                         isActive
-                          ? "bg-primary/5 border-primary/20 shadow-[0_0_12px_rgba(0,0,0,0.1)]"
+                          ? "bg-primary/5 border-primary/20 shadow-[0_0_12px_var(--shadow-soft)]"
                           : "bg-secondary/10 border-transparent hover:bg-secondary/20"
                       }`}
                     >
@@ -1900,7 +1916,7 @@ function DialerPageInner() {
                           {score}
                         </Badge>
                         {!lead.compliant && !ghostMode && (
-                          <span className="h-2 w-2 rounded-full bg-foreground/80 shadow-[0_0_6px_rgba(0,0,0,0.25)] shrink-0" title="Compliance blocked" />
+                          <span className="h-2 w-2 rounded-full bg-foreground/80 shadow-[0_0_6px_var(--shadow-medium)] shrink-0" title="Compliance blocked" />
                         )}
                       </div>
                     </button>
