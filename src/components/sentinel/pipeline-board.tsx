@@ -44,9 +44,10 @@ interface PipelineItem {
   lastContactAt?: string | null;
 }
 
+// Pipeline shows only leads with real activity — not staging/prospect (those live in Lead Queue)
+// "Active" = made contact, seller didn't refuse. Could move to negotiation.
 const COLUMNS: { id: string; title: string; color: string }[] = [
-  { id: "prospect", title: "Prospects", color: "bg-muted" },
-  { id: "lead", title: "Leads", color: "bg-primary" },
+  { id: "lead", title: "Active", color: "bg-primary" },
   { id: "negotiation", title: "Negotiation", color: "bg-muted" },
   { id: "disposition", title: "Disposition", color: "bg-muted" },
   { id: "nurture", title: "Nurture", color: "bg-muted" },
@@ -236,7 +237,7 @@ export function PipelineBoard() {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { data, error } = await (supabase.from("leads") as any)
         .select("id, status, priority, source, tags, last_contact_at, properties(id, address, city, state, owner_name, owner_phone, equity_percent)")
-        .in("status", ["prospect", "lead", "negotiation", "disposition", "nurture", "dead", "closed"])
+        .in("status", ["lead", "negotiation", "disposition", "nurture", "dead", "closed"])
         .order("priority", { ascending: false })
         .limit(100);
 
