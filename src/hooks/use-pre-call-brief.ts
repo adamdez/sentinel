@@ -10,6 +10,7 @@ export interface PreCallBrief {
   stageReason: string;
   primaryGoal: string;
   talkingPoints: string[];
+  objections: { objection: string; rebuttal: string }[];
   nextQuestions: string[];
   empathyMoves: { type: string; text: string; cue: string }[];
   objectionHandling: { objection: string; label: string; calibratedQuestion: string }[];
@@ -67,6 +68,7 @@ export function usePreCallBrief(leadId: string | null) {
         stageReason: data.stageReason ?? "",
         primaryGoal: data.primaryGoal ?? "",
         talkingPoints: data.talkingPoints ?? [],
+        objections: data.objections ?? [],
         nextQuestions: data.nextQuestions ?? [],
         empathyMoves: data.empathyMoves ?? [],
         objectionHandling: data.objectionHandling ?? [],
