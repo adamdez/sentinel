@@ -393,6 +393,34 @@ export async function runResearchAgent(
       const brickedCompCount = getFact("comp_count");
       if (typeof brickedCompCount === "number") brickedSync.comp_count = brickedCompCount;
 
+      const brickedArv = getFact("arv_estimate");
+      if (typeof brickedArv === "number" && brickedArv > 0) brickedSync.bricked_arv = brickedArv;
+
+      const renovScore = getFact("renovation_score");
+      if (typeof renovScore === "number") brickedSync.bricked_renovation_score = renovScore;
+
+      const equity = getFact("estimated_equity");
+      if (typeof equity === "number" && equity > 0) brickedSync.bricked_equity = equity;
+
+      const mortgage = getFact("open_mortgage_balance");
+      if (typeof mortgage === "number" && mortgage > 0) brickedSync.bricked_open_mortgage = mortgage;
+
+      const ownerNames = getFact("owner_names");
+      if (typeof ownerNames === "string" && ownerNames) brickedSync.bricked_owner_names = ownerNames;
+
+      const ownerYears = getFact("ownership_length_years");
+      if (typeof ownerYears === "number") brickedSync.bricked_ownership_years = ownerYears;
+
+      const rawPayload = brickedResult.rawPayload as Record<string, unknown>;
+      const repairs = rawPayload?.repairs;
+      if (Array.isArray(repairs) && repairs.length > 0) brickedSync.bricked_repairs = repairs;
+
+      const images = (rawPayload?.property as any)?.images;
+      if (Array.isArray(images) && images.length > 0) brickedSync.bricked_subject_images = images;
+
+      const dashboardLink = rawPayload?.dashboardLink;
+      if (typeof dashboardLink === "string" && dashboardLink) brickedSync.bricked_dashboard_link = dashboardLink;
+
       if (Object.keys(brickedSync).length > 0) {
         // JSONB merge via read-modify-write — preserves existing ownerFlags
         // eslint-disable-next-line @typescript-eslint/no-explicit-any

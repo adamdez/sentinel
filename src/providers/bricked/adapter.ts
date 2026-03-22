@@ -431,4 +431,20 @@ export class BrickedAdapter extends BaseProviderAdapter {
 export const brickedAdapter = new BrickedAdapter();
 
 /** Re-export types for consumers */
-export type { BrickedCreateResponse, BrickedComp, BrickedRepair, BrickedProperty };
+export type {
+  BrickedCreateResponse,
+  BrickedProperty,
+  BrickedPropertyDetails,
+  BrickedLandLocation,
+  BrickedMortgageDebt,
+  BrickedMortgage,
+  BrickedOwnership,
+  BrickedOwner,
+  BrickedTransaction,
+  BrickedMls,
+  BrickedMlsAgent,
+  BrickedAddress,
+  BrickedComp,
+  BrickedRepair,
+  BrickedRenovationScore,
+};

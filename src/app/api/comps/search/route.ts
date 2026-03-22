@@ -67,6 +67,10 @@ export async function POST(req: NextRequest) {
           "address",
           [address, county, state, zip].filter(Boolean).join(", "),
         );
+        if (beds) brickedUrl.searchParams.set("bedrooms", String(beds));
+        if (baths) brickedUrl.searchParams.set("bathrooms", String(baths));
+        if (sqft) brickedUrl.searchParams.set("squareFeet", String(sqft));
+        if (yearBuilt) brickedUrl.searchParams.set("yearBuilt", String(yearBuilt));
 
         const brickedRes = await fetch(brickedUrl.toString(), {
           headers: { "x-api-key": brickedKey },
@@ -109,6 +113,8 @@ export async function POST(req: NextRequest) {
                 totalRepairCost: brickedData.totalRepairCost ?? null,
                 repairs: brickedData.repairs ?? [],
                 shareLink: brickedData.shareLink ?? null,
+                dashboardLink: brickedData.dashboardLink ?? null,
+                subjectImages: brickedData.property?.images ?? [],
                 brickedId: brickedData.id ?? null,
               },
               elapsed: Date.now() - t0,

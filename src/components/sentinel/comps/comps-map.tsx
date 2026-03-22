@@ -401,6 +401,7 @@ export function CompsMap({ subject, selectedComps, onAddComp, onRemoveComp, focu
       method: "POST",
       headers: fetchHeaders,
       body: JSON.stringify({
+        address: subject.address || undefined,
         radarId: subject.radarId || undefined,
         lat: subject.lat,
         lng: subject.lng,
