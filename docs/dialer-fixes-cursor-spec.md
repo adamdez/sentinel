@@ -83,16 +83,16 @@ When published via `/api/dialer/v1/sessions/[id]/publish`, include these boolean
 
 ---
 
-## Fix 4: Unlinked Calls Inbox
+## Fix 4: Unlinked Calls — Dialer Sidebar Folder + Auto-Match
 
-**Problem:** Calls that start without a lead attached (`lead_id: null`) lose their notes — there's nowhere to save follow-ups, and the post-call closeout silently fails.
+**Problem:** Calls that end without a lead attached (`lead_id: null`) disappear — there's nowhere to find them, review notes, or convert them to leads. The post-call closeout silently fails on unlinked calls.
 
 ### 4a. Phone Number Auto-Match on Call Connect
 
 **When any call connects (inbound or outbound), immediately look up the phone number:**
 
 1. **Check `leads` table** — `SELECT * FROM leads WHERE owner_phone = $phone LIMIT 5`
-   - If exactly 1 match → auto-link session to lead, load full lead context (seller memory, distress tags, property basics, talking points, score) into the dialer workspace. No clicks needed.
+   - If exactly 1 match → auto-link session to lead, load full lead context (seller memory, distress tags, property basics, talking points, score) into the dialer workspace. No clicks needed. The lead file auto-deploys.
    - If multiple matches → show a small picker: "Multiple leads match this number:" with name + address for each. Operator clicks to select.
 
 2. **Check `call_sessions` table** — `SELECT * FROM call_sessions WHERE phone_dialed = $phone AND lead_id IS NULL ORDER BY started_at DESC LIMIT 3`
@@ -100,80 +100,105 @@ When published via `/api/dialer/v1/sessions/[id]/publish`, include these boolean
 
 3. **No match** → show "New caller — no history" indicator. Non-blocking.
 
-**File for auto-match:** The dialer workspace component (wherever the call connect event is handled). Add a `useEffect` or callback that fires on call connect, queries the phone number, and populates context.
+**API endpoint (already built):** `GET /api/dialer/v1/phone-lookup?phone={number}` — returns matching leads and/or previous unlinked sessions.
 
-**API endpoint needed:** `GET /api/dialer/v1/phone-lookup?phone={number}` — returns matching leads and/or previous unlinked sessions.
+### 4b. Unlinked Calls Folder — Lives in the Dialer Sidebar
 
-### 4b. Unlinked Calls Section
+**Location:** Inside the dialer workspace itself, NOT on the Today page or dashboard. After a call ends, unlinked calls stay visible right where Logan is working. No page navigation required.
 
-**Location:** Add a section to the "Today" page (`src/app/(app)/today/page.tsx` or equivalent).
+**Where in the dialer:** Add a collapsible section in the dialer left sidebar (below the call queue), labeled "Unlinked Calls (N)". Badge count shows how many are pending.
 
-**Data source:** `SELECT cs.*, (SELECT content FROM session_notes sn WHERE sn.session_id = cs.id AND sn.note_type = 'ai_summary' LIMIT 1) as summary FROM call_sessions cs WHERE cs.lead_id IS NULL AND cs.status = 'ended' ORDER BY cs.started_at DESC`
+**Data source:** `SELECT cs.id, cs.phone_dialed, cs.started_at, cs.ended_at, cs.status, (SELECT string_agg(sn.content, ' ' ORDER BY sn.created_at) FROM session_notes sn WHERE sn.session_id = cs.id AND sn.note_type = 'transcript_chunk' AND sn.speaker = 'seller' LIMIT 500) as seller_transcript FROM call_sessions cs WHERE cs.lead_id IS NULL AND cs.status = 'ended' ORDER BY cs.started_at DESC LIMIT 50`
 
-**Layout:**
+**Each unlinked call card shows:**
 ```
-┌──────────────────────────────────────────────────────────────┐
-│  UNLINKED CALLS (3)                        [Search by phone] │
-│                                                              │
-│  ┌────────────────────────────────────────────────────────┐  │
-│  │ (509) 209-6326  ·  Today 11:17am  ·  4:32  ·  Inbound │  │
-│  │ "Caller asked about selling inherited property on      │  │
-│  │  E 5th Ave. Wants to know timeline and process."       │  │
-│  │ [Link to Lead]  [Create Lead]  [🗑 Delete]             │  │
-│  └────────────────────────────────────────────────────────┘  │
-│                                                              │
-│  ┌────────────────────────────────────────────────────────┐  │
-│  │ (641) 832-7926  ·  Today 10:45am  ·  0:45  ·  Test    │  │
-│  │ "Test call — system check with Jeff."                  │  │
-│  │ [Link to Lead]  [Create Lead]  [🗑 Delete]             │  │
-│  └────────────────────────────────────────────────────────┘  │
-└──────────────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────┐
+│ (509) 209-6326          Today 11:17am  ·  4:32      │
+│                                                      │
+│ AI Summary:                                          │
+│ "Seller owns inherited property on N Side near       │
+│  Francis/Nevada. 3bd/1.5ba ranch, 1960s build.       │
+│  Roof leaking, furnace old. Wife wants it resolved.  │
+│  Feels like a burden — wants to close the chapter."  │
+│                                                      │
+│ Discovery Map:                                       │
+│ ● Condition: roof leak, furnace old                  │
+│ ● Pain: burden, relief, wife pushing                 │
+│ ● Timeline: (not captured)                           │
+│ ● Decision: wife involved                            │
+│                                                      │
+│ [Convert to Lead]  [Link to Existing]  [Delete]      │
+└─────────────────────────────────────────────────────┘
 ```
 
-**Search bar:** Filter unlinked calls by phone number. Useful when a number calls back and operator wants to find the previous call.
+**Key detail:** The AI summary is generated from seller transcript chunks (not operator speech). If no AI summary exists yet, show the first 3 seller turns concatenated as a preview.
 
-**Actions:**
+**The discovery map slots from the call session should also display** on each card — showing which slots fired during the call. This gives Logan/Adam a quick picture of what was covered without reading the full transcript.
 
-**"Link to Lead"** — opens search overlay (reuse the global search / command palette component). Search by name, address, or phone. On select:
-- PATCH `/api/dialer/v1/sessions/{id}/link` with `{ lead_id: selectedLeadId }`
-- Session's `lead_id` updated in DB
-- Session notes become visible in lead's call history
-- Card disappears from unlinked inbox
+**Clicking on a card** expands it to show the full seller transcript (grouped into paragraphs, not raw chunks).
 
-**"Create Lead"** — opens minimal form:
+**Search bar at top of folder:** Filter by phone number. When a number calls in again, the auto-match (4a) shows the previous unlinked call. But the search bar lets you manually look up past calls too.
+
+**No expiration, no auto-delete.** Cards persist until explicitly dealt with. They stack up — that's the point. Nothing falls through the cracks.
+
+### 4c. Actions on Each Unlinked Call
+
+**"Convert to Lead"** — opens a minimal inline form (NOT a modal, stays in the dialer):
 - Phone: pre-filled from caller ID (read-only)
 - Name: text input (required)
-- Address: text input (optional)
+- Address: text input with autocomplete (optional — if Bricked search is wired, use it)
 - Source: auto-set to "inbound_call"
-- On submit: POST `/api/prospects` to create lead, then PATCH session to link
-- Card moves from unlinked inbox to Lead Queue
+- Distress tags: optional multi-select chips
+- On submit:
+  1. POST `/api/prospects` to create lead (auto-enrichment fires: county GIS + Bricked if address provided)
+  2. PATCH `/api/dialer/v1/sessions/{id}/link` to link session to new lead
+  3. All session_notes (transcript, discovery map) carry over to the lead
+  4. Seller memory populates immediately from the call data
+  5. Card disappears from unlinked folder
+  6. Lead appears in Lead Queue under Team Leads (or assigned operator)
+
+**"Link to Existing"** — opens search overlay (reuse the global search component). Search by name, address, or phone. On select:
+- PATCH `/api/dialer/v1/sessions/{id}/link` with `{ lead_id: selectedLeadId }`
+- Session notes become visible in lead's call history
+- Seller memory updates with data from this call
+- Card disappears from unlinked folder
 
 **"Delete"** — confirmation dialog: "Delete this call and its notes? This cannot be undone."
 - On confirm: DELETE `/api/dialer/v1/sessions/{id}` (deletes session + session_notes)
 - Card disappears
+- Use for test calls, junk calls, wrong numbers
 
-### 4c. API Endpoints Needed
+### 4d. API Endpoints (already built, verify working)
 
-**`GET /api/dialer/v1/phone-lookup`**
+**`GET /api/dialer/v1/phone-lookup`** ✓ Built
 ```typescript
 // Query: ?phone=5092096326
 // Returns: { leads: Lead[], unlinkedSessions: CallSession[] }
-// Searches leads.owner_phone and call_sessions.phone_dialed
 ```
 
-**`PATCH /api/dialer/v1/sessions/[id]/link`**
+**`PATCH /api/dialer/v1/sessions/[id]/link`** ✓ Built
 ```typescript
 // Body: { lead_id: string }
 // Updates call_sessions.lead_id
-// Also updates any session_notes to be associated
-// Returns: { success: true }
 ```
 
-**`DELETE /api/dialer/v1/sessions/[id]`**
+**`DELETE /api/dialer/v1/sessions/[id]`** ✓ Built
 ```typescript
-// Deletes call_sessions row + all session_notes for that session
 // Only allows deletion of sessions with lead_id IS NULL (safety)
-// Returns: { success: true }
+```
+
+### 4e. Unlinked Calls Folder — API Endpoint Needed
+
+**`GET /api/dialer/v1/sessions/unlinked`** — NEW
+```typescript
+// Returns all unlinked ended sessions with:
+// - session metadata (id, phone_dialed, started_at, duration)
+// - AI summary (from session_notes where note_type = 'ai_summary')
+// - Seller transcript preview (first 500 chars of seller-only chunks)
+// - Discovery map state (from call_sessions.live_coach_state)
+// - Count of total notes
+// Ordered by started_at DESC
+// Limit 50
 ```
 
 ---
@@ -242,20 +267,22 @@ Also: the score badge "33 LOW" overlaps with the next action text. The score col
 
 ## Summary of All Files to Touch
 
-| File | Fix | Priority |
-|------|-----|----------|
-| `src/components/sentinel/live-assist-panel.tsx` | Filter to seller-only notes, group fragments | P0 |
-| `src/components/sentinel/post-call-panel.tsx` | Add `e.stopPropagation()` to all inputs for spacebar fix | P0 |
-| `src/components/sentinel/post-call-draft-panel.tsx` | Make qual chips toggle + write to lead fields | P1 |
-| `src/hooks/use-live-coach.ts` | Stop polling when session ends | P0 |
-| `src/app/(app)/today/page.tsx` | Add Unlinked Calls inbox section | P1 |
-| `src/app/api/dialer/v1/phone-lookup/route.ts` | NEW — phone number lookup against leads + sessions | P0 |
-| `src/app/api/dialer/v1/sessions/[id]/link/route.ts` | NEW — link session to lead | P1 |
-| `src/app/api/dialer/v1/sessions/[id]/route.ts` | Add DELETE for trashing test calls | P1 |
-| Dialer workspace component | Auto-match phone on connect, show lead context | P0 |
-| `src/app/api/dialer/v1/sessions/[id]/publish/route.ts` | Trigger post-call analysis from transcript | P1 |
-| `src/lib/dialer/post-call-analysis.ts` | Read seller transcript chunks instead of manual notes | P1 |
-| Lead queue row component | Remove redundant next action line (verify if already done) | P2 |
+| File | Fix | Priority | Status |
+|------|-----|----------|--------|
+| `src/components/sentinel/live-assist-panel.tsx` | Filter to seller-only notes, group fragments | P0 | ✅ Done |
+| `src/components/sentinel/post-call-panel.tsx` | Add `e.stopPropagation()` to all inputs for spacebar fix | P0 | ✅ Done |
+| `src/components/sentinel/post-call-draft-panel.tsx` | Make qual chips toggle + write to lead fields | P1 | ✅ Done |
+| `src/hooks/use-live-coach.ts` | Stop polling when session ends | P0 | ✅ Done (was already correct) |
+| `src/app/api/dialer/v1/phone-lookup/route.ts` | Phone number lookup against leads + sessions | P0 | ✅ Done |
+| `src/app/api/dialer/v1/sessions/[id]/link/route.ts` | Link session to lead | P1 | ✅ Done |
+| `src/app/api/dialer/v1/sessions/[id]/route.ts` | DELETE for trashing test calls | P1 | ✅ Done |
+| `src/lib/dialer/post-call-analysis.ts` | Seller-only transcript for memory extraction | P1 | ✅ Done |
+| `src/lib/dialer/live-coach-service.ts` | Expanded detection patterns (38 → 95 rules) | P0 | ✅ Done |
+| Lead queue row component | Remove redundant next action line | P2 | ✅ Done |
+| Dialer workspace — auto-match on connect | Phone match → auto-deploy lead file | P0 | ✅ Done |
+| **Dialer sidebar — Unlinked Calls folder** | **Collapsible folder showing unlinked calls with AI summary, discovery map, Convert/Link/Delete actions** | **P0** | **TODO** |
+| **`src/app/api/dialer/v1/sessions/unlinked/route.ts`** | **NEW — fetch all unlinked ended sessions with summaries** | **P0** | **TODO** |
+| **Dialer sidebar — search bar** | **Filter unlinked calls by phone number** | **P1** | **TODO** |
 
 ---
 
@@ -272,13 +299,17 @@ Also: the score badge "33 LOW" overlaps with the next action text. The score col
 - [ ] Qual checklist chips toggle on click (confirmed ↔ unknown)
 - [ ] Chip states persist through publish to lead qualification fields
 
-### Unlinked Calls
-- [ ] Calls without lead_id appear in Unlinked Calls inbox on Today page
-- [ ] Each card shows phone, date, duration, AI summary
-- [ ] "Link to Lead" opens search, links session on select
-- [ ] "Create Lead" creates lead + links session
+### Unlinked Calls Folder (in Dialer Sidebar)
+- [ ] Collapsible "Unlinked Calls (N)" section visible in dialer sidebar
+- [ ] Badge count updates in real-time as calls end without linking
+- [ ] Each card shows: phone, date, duration, AI summary, discovery map slots
+- [ ] Clicking a card expands to show full seller transcript
+- [ ] "Convert to Lead" opens inline form, creates lead + links + triggers enrichment
+- [ ] "Link to Existing" opens search, links session, updates seller memory
 - [ ] "Delete" removes session + notes after confirmation
-- [ ] Search bar filters by phone number
+- [ ] Search bar at top filters by phone number
+- [ ] Cards persist until explicitly dealt with — no auto-delete
+- [ ] After converting/linking, card disappears and lead appears in queue
 
 ### Phone Auto-Match
 - [ ] Known lead calling in → lead file auto-deploys in dialer (seller memory, distress, property, score)
