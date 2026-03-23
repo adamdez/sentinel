@@ -36,7 +36,7 @@ vi.mock("./prompt", () => ({
 function setupAdsMocks(goldCase: typeof adsMonitorGoldDataset[0]) {
   // Generate 7 days of daily metrics simulating the gold case scenario
   // CPL = spend7d / leads7d = 850 / 2 = $425 (well above $60 threshold)
-  const dailyStats = [];
+  const dailyStats: Record<string, unknown>[] = [];
   const now = new Date();
 
   for (let i = 0; i < 7; i++) {
