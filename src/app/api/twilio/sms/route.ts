@@ -58,25 +58,13 @@ export async function POST(req: NextRequest) {
     },
   });
 
-  // 4. Auto-reply (only if compliant)
-  let replyTwiml: string;
-  if (scrub.allowed) {
-    replyTwiml = [
-      '<?xml version="1.0" encoding="UTF-8"?>',
-      "<Response>",
-      "  <Message>",
-      "    Thank you for contacting Dominion Homes! A member of our team will respond shortly.",
-      "    If you'd prefer not to receive messages, reply STOP at any time.",
-      "  </Message>",
-      "</Response>",
-    ].join("\n");
-  } else {
-    // Compliant opt-out — do not reply
-    replyTwiml = '<?xml version="1.0" encoding="UTF-8"?><Response></Response>';
-    console.log(`[SMS] Compliance blocked reply to ${phone.slice(-4)}: ${scrub.blockedReasons.join(", ")}`);
+  // 4. No auto-reply — just acknowledge receipt to Twilio silently.
+  // Operators reply manually through the dialer messages UI.
+  if (!scrub.allowed) {
+    console.log(`[SMS] Compliance flagged sender ${phone.slice(-4)}: ${scrub.blockedReasons.join(", ")}`);
   }
 
-  return new NextResponse(replyTwiml, {
+  return new NextResponse('<?xml version="1.0" encoding="UTF-8"?><Response></Response>', {
     headers: { "Content-Type": "text/xml" },
   });
 }
