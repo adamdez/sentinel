@@ -58,10 +58,10 @@ export function Psalm20ThemeLayer({ children }: { children: React.ReactNode }) {
             <motion.span
               key={idx}
               initial={{ opacity: 0, y: 6 }}
-              animate={{ opacity: 0.55, y: 0 }}
+              animate={{ opacity: 0.72, y: 0 }}
               exit={{ opacity: 0, y: -6 }}
               transition={{ duration: 0.8, ease: "easeInOut" }}
-              className="text-[11px] tracking-[0.18em] uppercase font-medium whitespace-nowrap"
+              className="text-[13px] tracking-[0.18em] uppercase font-medium whitespace-nowrap"
               style={{
                 color: "var(--psalm20-gold)",
                 fontFamily: "'Cormorant Garamond', Georgia, serif",

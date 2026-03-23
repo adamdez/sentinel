@@ -41,7 +41,7 @@ export function ScriptureWatermark() {
                 style={{
                   color: "var(--psalm20-gold)",
                   opacity: 0.12,
-                  fontSize: "11px",
+                  fontSize: "13px",
                 }}
               >
                 Psalm 20
@@ -54,7 +54,7 @@ export function ScriptureWatermark() {
                   style={{
                     color: "var(--psalm20-gold)",
                     opacity: line.trim() === "" ? 0 : 0.09,
-                    fontSize: "14px",
+                    fontSize: "16px",
                     letterSpacing: "0.06em",
                     fontFamily: "'Cormorant Garamond', Georgia, serif",
                     fontWeight: 400,

@@ -44,8 +44,8 @@ export function PageShell({ title, description, children, actions, operatorSafe 
               >
                 <BannerIcon className="h-3 w-3" color="var(--psalm20-gold-dim)" />
                 <span
-                  className="text-[10px] tracking-[0.2em] uppercase font-medium"
-                  style={{ color: "var(--psalm20-gold-dim)", opacity: 0.6 }}
+                  className="text-[12px] tracking-[0.2em] uppercase font-medium"
+                  style={{ color: "var(--psalm20-gold-dim)", opacity: 0.75 }}
                 >
                   {verseForRoute(pathname)}
                 </span>
