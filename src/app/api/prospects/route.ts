@@ -1363,11 +1363,54 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    // ── 3.1: Auto-fetch Bricked AI if not provided by client ──────
+    // Bricked is slower (~15s) but provides ARV, CMV, repairs, comps
+    let effectiveBrickedData = bricked_data;
+    if (!effectiveBrickedData && address?.trim()) {
+      try {
+        const brickedRes = await fetch(new URL("/api/bricked/analyze", req.nextUrl.origin), {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ address: address.trim() }),
+        });
+        if (brickedRes.ok) {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const brickedRaw = await brickedRes.json() as any;
+          if (brickedRaw?.id || brickedRaw?.address) {
+            const subject = brickedRaw.subject ?? {};
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const repairItems = (brickedRaw.repairs ?? []).map((r: any) => ({
+              item: r.name ?? r.item ?? "Unknown",
+              cost: r.cost ?? r.estimatedCost ?? 0,
+            }));
+            effectiveBrickedData = {
+              arv: brickedRaw.arv ?? null,
+              cmv: brickedRaw.cmv ?? subject.estimatedValue ?? null,
+              totalRepairCost: brickedRaw.totalRepairCost ?? null,
+              equityEstimate: subject.estimatedEquity ?? null,
+              renovationScore: brickedRaw.renovationScore ?? null,
+              brickedId: brickedRaw.id ?? "",
+              shareLink: brickedRaw.shareLink ?? null,
+              dashboardLink: brickedRaw.dashboardLink ?? null,
+              compCount: brickedRaw.comps?.length ?? 0,
+              subjectImages: brickedRaw.subjectImages ?? [],
+              repairs: repairItems,
+              rawPayload: brickedRaw,
+            };
+            console.log("[API/prospects POST] Auto-fetched Bricked AI data for", address.trim());
+          }
+        }
+      } catch (brickedErr) {
+        // Bricked failure must never block lead creation
+        console.error("[API/prospects POST] Auto-Bricked fetch failed (non-fatal):", brickedErr);
+      }
+    }
+
     // Fire-and-forget: enrichment pipeline (non-blocking for response)
     const enrichmentPromise = (async () => {
       try {
         // ── 3a: Store Bricked artifact + facts ──
-        if (bricked_data && typeof bricked_data === "object") {
+        if (effectiveBrickedData && typeof effectiveBrickedData === "object") {
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           const { data: brickedArtifact } = await (sb.from("dossier_artifacts") as any)
             .insert({
@@ -1375,7 +1418,7 @@ export async function POST(req: NextRequest) {
               property_id: property.id,
               source_type: "bricked_ai",
               source_label: "Bricked AI Property Analysis",
-              raw_excerpt: JSON.stringify(bricked_data.rawPayload ?? bricked_data),
+              raw_excerpt: JSON.stringify(effectiveBrickedData.rawPayload ?? effectiveBrickedData),
               captured_by: actorUser?.id ?? null,
             })
             .select("id")
@@ -1407,14 +1450,14 @@ export async function POST(req: NextRequest) {
               }
             };
 
-            addFact("arv_estimate", bricked_data.arv, "top_fact_1");
-            addFact("cmv_estimate", bricked_data.cmv, null);
-            addFact("total_repair_cost", bricked_data.totalRepairCost, "top_fact_3");
-            addFact("equity_estimate", bricked_data.equityEstimate, null);
-            addFact("comp_count", bricked_data.compCount, null);
-            addFact("renovation_score", bricked_data.renovationScore, null, "medium");
-            addFact("bricked_share_link", bricked_data.shareLink, null);
-            addFact("bricked_dashboard_link", bricked_data.dashboardLink, null);
+            addFact("arv_estimate", effectiveBrickedData.arv, "top_fact_1");
+            addFact("cmv_estimate", effectiveBrickedData.cmv, null);
+            addFact("total_repair_cost", effectiveBrickedData.totalRepairCost, "top_fact_3");
+            addFact("equity_estimate", effectiveBrickedData.equityEstimate, null);
+            addFact("comp_count", effectiveBrickedData.compCount, null);
+            addFact("renovation_score", effectiveBrickedData.renovationScore, null, "medium");
+            addFact("bricked_share_link", effectiveBrickedData.shareLink, null);
+            addFact("bricked_dashboard_link", effectiveBrickedData.dashboardLink, null);
 
             if (brickedFacts.length > 0) {
               // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -1431,23 +1474,23 @@ export async function POST(req: NextRequest) {
             const existingFlags = (currentProp?.owner_flags ?? {}) as Record<string, unknown>;
             const brickedFlags: Record<string, unknown> = {
               ...existingFlags,
-              bricked_arv: bricked_data.arv,
-              comp_arv: bricked_data.arv,
-              bricked_cmv: bricked_data.cmv,
-              bricked_repair_cost: bricked_data.totalRepairCost,
-              bricked_share_link: bricked_data.shareLink,
-              bricked_dashboard_link: bricked_data.dashboardLink,
-              bricked_id: bricked_data.brickedId,
-              comp_count: bricked_data.compCount,
-              bricked_equity: bricked_data.equityEstimate,
-              bricked_renovation_score: bricked_data.renovationScore,
+              bricked_arv: effectiveBrickedData.arv,
+              comp_arv: effectiveBrickedData.arv,
+              bricked_cmv: effectiveBrickedData.cmv,
+              bricked_repair_cost: effectiveBrickedData.totalRepairCost,
+              bricked_share_link: effectiveBrickedData.shareLink,
+              bricked_dashboard_link: effectiveBrickedData.dashboardLink,
+              bricked_id: effectiveBrickedData.brickedId,
+              comp_count: effectiveBrickedData.compCount,
+              bricked_equity: effectiveBrickedData.equityEstimate,
+              bricked_renovation_score: effectiveBrickedData.renovationScore,
             };
 
-            if (bricked_data.subjectImages?.length) {
-              brickedFlags.bricked_subject_images = bricked_data.subjectImages;
+            if (effectiveBrickedData.subjectImages?.length) {
+              brickedFlags.bricked_subject_images = effectiveBrickedData.subjectImages;
             }
-            if (bricked_data.repairs?.length) {
-              brickedFlags.bricked_repairs = bricked_data.repairs;
+            if (effectiveBrickedData.repairs?.length) {
+              brickedFlags.bricked_repairs = effectiveBrickedData.repairs;
             }
 
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -1546,14 +1589,14 @@ export async function POST(req: NextRequest) {
 
         // ── 3c: Auto-promote top facts to leads projection fields ──
         const topFacts: Record<string, string> = {};
-        if (bricked_data?.arv) {
-          topFacts.top_fact_1 = `ARV: $${Number(bricked_data.arv).toLocaleString()}`;
+        if (effectiveBrickedData?.arv) {
+          topFacts.top_fact_1 = `ARV: $${Number(effectiveBrickedData.arv).toLocaleString()}`;
         }
         if (effectiveGisData?.assessedValue) {
           topFacts.top_fact_2 = `Assessed: $${Number(effectiveGisData.assessedValue).toLocaleString()}`;
         }
-        if (bricked_data?.totalRepairCost) {
-          topFacts.top_fact_3 = `Repairs: $${Number(bricked_data.totalRepairCost).toLocaleString()}`;
+        if (effectiveBrickedData?.totalRepairCost) {
+          topFacts.top_fact_3 = `Repairs: $${Number(effectiveBrickedData.totalRepairCost).toLocaleString()}`;
         }
 
         if (Object.keys(topFacts).length > 0) {
@@ -1565,7 +1608,7 @@ export async function POST(req: NextRequest) {
 
         // ── 3d: Score with real enrichment data via v2.2 engine ──
         // Build scoring input from enrichment data + distress tags
-        if (bricked_data || effectiveGisData) {
+        if (effectiveBrickedData || effectiveGisData) {
           const { computeScore } = await import("@/lib/scoring");
           const signals = (normalizedTags || [])
             .filter((t: string) => [
@@ -1580,7 +1623,7 @@ export async function POST(req: NextRequest) {
               status: "active" as const,
             }));
 
-          const eqPct = bricked_data?.equityEstimate
+          const eqPct = effectiveBrickedData?.equityEstimate
             ?? (equity_percent ? Number(equity_percent) : null)
             ?? 0; // No equity data = 0 contribution, never assume 50%
 
@@ -1619,8 +1662,8 @@ export async function POST(req: NextRequest) {
       score: computedScore,
       scored: computedScore !== null,
       status: leadRow.status,
-      enriched: alreadyEnriched || !!bricked_data || !!effectiveGisData,
-      enrichment: (bricked_data || effectiveGisData)
+      enriched: alreadyEnriched || !!effectiveBrickedData || !!effectiveGisData,
+      enrichment: (effectiveBrickedData || effectiveGisData)
         ? "Enrichment data stored through dossier pipeline"
         : alreadyEnriched
           ? "Already enriched during preview"
