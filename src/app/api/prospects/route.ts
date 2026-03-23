@@ -548,12 +548,14 @@ export async function PATCH(req: NextRequest) {
     }
 
     // ── next_action hard enforcement ──
-    // Matches the enforcement in /api/leads/[id]/stage (PR-1 Stage machine).
-    // Two rules:
-    //   1. Forward-moving stage transitions require next_action to be set.
-    //   2. Clearing next_action on a lead already in a stage that requires it is rejected.
+    // Only enforce on actual stage transitions, NOT on assignment-only or
+    // metadata-only updates. An operator must be able to assign/claim a lead
+    // regardless of whether next_action is set.
+    const isStageChange = targetStatus && targetStatus !== currentStatus;
+    const isClearingNextAction = next_action !== undefined && !(typeof next_action === "string" && next_action.trim());
     const resolvedStatus = targetStatus ?? currentStatus;
-    if (requiresNextAction(resolvedStatus)) {
+
+    if (requiresNextAction(resolvedStatus) && (isStageChange || isClearingNextAction)) {
       const effectiveNextAction =
         (typeof next_action === "string" && next_action.trim())
           ? next_action.trim()
@@ -564,9 +566,9 @@ export async function PATCH(req: NextRequest) {
             : null; // next_action explicitly set to null/empty
 
       if (!effectiveNextAction) {
-        const verb = targetStatus && targetStatus !== currentStatus
+        const verb = isStageChange
           ? `advancing to "${targetStatus}"`
-          : `staying in "${currentStatus}"`;
+          : `clearing next_action in "${currentStatus}"`;
         return NextResponse.json(
           {
             error: "Missing next_action",
