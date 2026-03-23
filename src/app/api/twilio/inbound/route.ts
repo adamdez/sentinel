@@ -87,12 +87,14 @@ export async function POST(req: NextRequest) {
     const chainCallLogId = url.searchParams.get("callLogId") ?? "";
     const transcriptionUrl = process.env.TRANSCRIPTION_WS_URL;
     const hasDeepgram = !!process.env.DEEPGRAM_API_KEY;
+    const loganUid = process.env.LOGAN_USER_ID ?? "0737e969-2908-4bd6-90bd-7a4380456811";
     const chainStreamLines = transcriptionUrl && hasDeepgram && chainSessionId
       ? [
           "  <Start>",
           `    <Stream url="${transcriptionUrl}" track="both_tracks">`,
           ...(chainCallLogId ? [`      <Parameter name="callLogId" value="${chainCallLogId}" />`] : []),
           `      <Parameter name="sessionId" value="${chainSessionId}" />`,
+          `      <Parameter name="userId" value="${loganUid}" />`,
           "    </Stream>",
           "  </Start>",
         ]
@@ -262,6 +264,7 @@ export async function POST(req: NextRequest) {
         `    <Stream url="${transcriptionUrl}" track="both_tracks">`,
         ...(callLogId ? [`      <Parameter name="callLogId" value="${callLogId}" />`] : []),
         `      <Parameter name="sessionId" value="${sessionId}" />`,
+        `      <Parameter name="userId" value="${loganUserId}" />`,
         "    </Stream>",
         "  </Start>",
       ]
