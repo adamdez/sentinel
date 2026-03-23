@@ -7,6 +7,9 @@ export type ImportFileKind = "csv" | "xlsx";
 
 export type ImportTargetField =
   | "owner_name"
+  | "owner_first_name"
+  | "owner_last_name"
+  | "owner_middle_name"
   | "co_owner_name"
   | "property_address"
   | "property_city"
@@ -153,7 +156,10 @@ type FieldDefinition = {
 };
 
 const FIELD_DEFINITIONS: FieldDefinition[] = [
-  { field: "owner_name", label: "Owner Name", group: "Identity", aliases: ["owner name", "owner", "owner full name", "taxpayer", "name"] },
+  { field: "owner_name", label: "Owner Name", group: "Identity", aliases: ["owner name", "owner", "owner full name", "taxpayer", "name", "full name"] },
+  { field: "owner_first_name", label: "Owner First Name", group: "Identity", aliases: ["owner first name", "first name", "first", "given name"] },
+  { field: "owner_last_name", label: "Owner Last Name", group: "Identity", aliases: ["owner last name", "last name", "last", "surname", "family name"] },
+  { field: "owner_middle_name", label: "Owner Middle Name", group: "Identity", aliases: ["owner middle name", "middle name", "middle", "middle initial"] },
   { field: "co_owner_name", label: "Co-Owner Name", group: "Identity", aliases: ["co owner", "co-owner", "secondary owner", "spouse", "owner 2"] },
   { field: "property_address", label: "Property Address", group: "Property", aliases: ["property address", "site address", "property street", "address", "street address", "property address line 1"] },
   { field: "property_city", label: "Property City", group: "Property", aliases: ["property city", "site city", "city"] },
@@ -582,7 +588,16 @@ export function normalizeImportedRow(args: {
     });
   }
 
-  const ownerName = pick("owner_name");
+  // Auto-concat first/middle/last name if owner_name isn't directly mapped
+  let ownerName = pick("owner_name");
+  if (!ownerName) {
+    const first = pick("owner_first_name");
+    const middle = pick("owner_middle_name");
+    const last = pick("owner_last_name");
+    if (first || last) {
+      ownerName = [last, [first, middle].filter(Boolean).join(" ")].filter(Boolean).join(", ") || null;
+    }
+  }
   const propertyAddress = pick("property_address");
   const propertyCity = pick("property_city");
   const propertyState = pick("property_state")?.toUpperCase() ?? null;
