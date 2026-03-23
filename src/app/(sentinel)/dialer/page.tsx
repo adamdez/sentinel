@@ -41,6 +41,7 @@ import { SellerMemoryPanel } from "@/components/sentinel/seller-memory-panel";
 import { SellerMemoryPreview } from "@/components/sentinel/seller-memory-preview";
 import { LiveAssistPanel } from "@/components/sentinel/live-assist-panel";
 import { UnlinkedCallsFolder } from "@/components/sentinel/unlinked-calls-folder";
+import { JeffMessagesBanner } from "@/components/sentinel/jeff-messages-banner";
 
 async function authHeaders(): Promise<Record<string, string>> {
   const { data: { session } } = await supabase.auth.getSession();
@@ -606,6 +607,15 @@ function DialerPageInner() {
   const [voipCallerId, setVoipCallerId] = useState<string>("");
   const deviceRef = useRef<Device | null>(null);
 
+  // Incoming call state
+  const [incomingCall, setIncomingCall] = useState<Call | null>(null);
+  const [incomingFrom, setIncomingFrom] = useState<string | null>(null);
+  const [incomingMatch, setIncomingMatch] = useState<{ type: "lead" | "jeff" | "unknown"; name?: string; address?: string; summary?: string } | null>(null);
+  const incomingAudioRef = useRef<HTMLAudioElement | null>(null);
+
+  // Missed calls
+  const [missedCalls, setMissedCalls] = useState<Array<{ phone: string; time: string; id: string }>>([]);
+
   // Twilio diagnostics + real-time call status
   const [currentCallSid, setCurrentCallSid] = useState<string | null>(null);
   const [liveCallStatus, setLiveCallStatus] = useState<string | null>(null);
@@ -722,6 +732,61 @@ function DialerPageInner() {
         } catch {
           console.warn("[VoIP] Token refresh failed");
         }
+      });
+
+      // Incoming call handler — rings browser for inbound calls
+      device.on("incoming", (call: Call) => {
+        if (cancelled) return;
+        console.log("[VoIP] Incoming call from", call.parameters?.From);
+        const fromNumber = call.parameters?.From ?? null;
+        setIncomingCall(call);
+        setIncomingFrom(fromNumber);
+        setIncomingMatch(null);
+
+        // Auto-match caller
+        if (fromNumber) {
+          authHeaders().then((h) =>
+            fetch(`/api/dialer/v1/phone-lookup?phone=${encodeURIComponent(fromNumber)}`, { headers: h })
+          ).then((r) => r.ok ? r.json() : null).then((data) => {
+            if (!data) { setIncomingMatch({ type: "unknown" }); return; }
+            if (data.leads?.length === 1) {
+              const l = data.leads[0];
+              setIncomingMatch({ type: "lead", name: l.properties?.owner_name ?? l.owner_name ?? "Known lead", address: l.properties?.address ?? null });
+            } else if (data.leads?.length > 1) {
+              setIncomingMatch({ type: "lead", name: `${data.leads.length} leads match this number` });
+            } else if (data.unlinkedSessions?.length) {
+              setIncomingMatch({ type: "jeff", summary: "Previous caller — has history" });
+            } else {
+              setIncomingMatch({ type: "unknown" });
+            }
+          }).catch(() => setIncomingMatch({ type: "unknown" }));
+        }
+
+        // Play ring audio
+        try {
+          if (!incomingAudioRef.current) {
+            incomingAudioRef.current = new Audio("data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQ==");
+            incomingAudioRef.current.loop = true;
+          }
+          incomingAudioRef.current.play().catch(() => {});
+        } catch {}
+
+        // Handle call cancel/disconnect (caller hung up or timed out)
+        call.on("cancel", () => {
+          setIncomingCall(null);
+          setIncomingFrom(null);
+          setIncomingMatch(null);
+          incomingAudioRef.current?.pause();
+          if (fromNumber) {
+            setMissedCalls((prev) => [{ phone: fromNumber, time: new Date().toISOString(), id: crypto.randomUUID() }, ...prev.slice(0, 9)]);
+          }
+        });
+        call.on("disconnect", () => {
+          setIncomingCall(null);
+          setIncomingFrom(null);
+          setIncomingMatch(null);
+          incomingAudioRef.current?.pause();
+        });
       });
 
       await device.register();
@@ -864,6 +929,55 @@ function DialerPageInner() {
     setConsentPending(false);
     setConsentGranted(true);
   }, [currentLead]);
+
+  // ── Incoming call handlers ────────────────────────────────────────
+  const handleAnswerIncoming = useCallback(() => {
+    if (!incomingCall) return;
+    incomingAudioRef.current?.pause();
+    incomingCall.accept();
+    setActiveCall(incomingCall);
+    setCallState("connected");
+    timer.start();
+    setIncomingCall(null);
+    // If matched to a known lead, try loading it
+    if (incomingMatch?.type === "lead" && incomingFrom) {
+      const matchedLead = queue.find((q) => q.properties?.owner_phone?.replace(/\D/g, "")?.slice(-10) === incomingFrom.replace(/\D/g, "").slice(-10));
+      if (matchedLead) setCurrentLead(matchedLead);
+    }
+    toast.success("Call connected");
+  }, [incomingCall, incomingMatch, incomingFrom, queue, timer]);
+
+  const handleDeclineIncoming = useCallback(() => {
+    if (!incomingCall) return;
+    incomingAudioRef.current?.pause();
+    incomingCall.reject();
+    if (incomingFrom) {
+      setMissedCalls((prev) => [{ phone: incomingFrom!, time: new Date().toISOString(), id: crypto.randomUUID() }, ...prev.slice(0, 9)]);
+    }
+    setIncomingCall(null);
+    setIncomingFrom(null);
+    setIncomingMatch(null);
+  }, [incomingCall, incomingFrom]);
+
+  // ── Jeff callback handler ──────────────────────────────────────────
+  const handleJeffCallback = useCallback(async (phone: string, _summary: string | null) => {
+    const target = phone.replace(/\D/g, "");
+    if (!target || target.length < 10) { toast.error("Invalid phone number"); return; }
+    if (!deviceRef.current || deviceStatus !== "ready") { toast.error("VoIP not ready"); return; }
+    setCallState("dialing");
+    setManualStatus("dialing");
+    try {
+      const call = await deviceRef.current.connect({
+        params: { To: `+1${target.slice(-10)}`, CallerId: voipCallerId },
+      });
+      setActiveCall(call);
+      timer.start();
+    } catch {
+      toast.error("Call failed");
+      setCallState("idle");
+      setManualStatus("idle");
+    }
+  }, [deviceStatus, voipCallerId, timer]);
 
   const handleDial = useCallback(async (lead?: QueueLead) => {
     const target = lead ?? currentLead;
@@ -1994,8 +2108,103 @@ function DialerPageInner() {
         <StatDetailModal kpiKey={activeKpi} userId={currentUser.id} onClose={() => setActiveKpi(null)} />
       )}
 
+      {/* ── Incoming Call Overlay ────────────────────────────────────── */}
+      <AnimatePresence>
+        {incomingCall && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/70 backdrop-blur-sm"
+          >
+            <motion.div
+              initial={{ scale: 0.9, y: 20 }}
+              animate={{ scale: 1, y: 0 }}
+              exit={{ scale: 0.9, y: 20 }}
+              className="w-full max-w-md rounded-[16px] border border-overlay-8 bg-panel-solid p-8 shadow-[0_20px_60px_var(--shadow-heavy)] text-center space-y-6"
+            >
+              <div className="flex items-center justify-center">
+                <div className="h-16 w-16 rounded-full bg-emerald-500/15 border-2 border-emerald-500/40 flex items-center justify-center animate-pulse">
+                  <PhoneIncoming className="h-8 w-8 text-emerald-400" />
+                </div>
+              </div>
+              <div>
+                <p className="text-xs uppercase tracking-wider text-muted-foreground/60 mb-1">Incoming Call</p>
+                <p className="text-2xl font-bold font-mono text-foreground">
+                  {incomingFrom ? (() => { const d = incomingFrom.replace(/\D/g, "").slice(-10); return d.length === 10 ? `(${d.slice(0,3)}) ${d.slice(3,6)}-${d.slice(6)}` : incomingFrom; })() : "Unknown"}
+                </p>
+              </div>
+              {incomingMatch && (
+                <div className="rounded-[10px] bg-overlay-2 border border-overlay-6 p-3 text-left">
+                  {incomingMatch.type === "lead" && (
+                    <div className="flex items-center gap-2">
+                      <span className="h-2 w-2 rounded-full bg-emerald-400" />
+                      <span className="text-sm text-foreground font-medium">{incomingMatch.name}</span>
+                    </div>
+                  )}
+                  {incomingMatch.type === "lead" && incomingMatch.address && (
+                    <p className="text-xs text-muted-foreground/60 mt-1 ml-4">{incomingMatch.address}</p>
+                  )}
+                  {incomingMatch.type === "jeff" && (
+                    <div className="flex items-center gap-2">
+                      <span className="h-2 w-2 rounded-full bg-amber-400" />
+                      <span className="text-sm text-amber-400">{incomingMatch.summary}</span>
+                    </div>
+                  )}
+                  {incomingMatch.type === "unknown" && (
+                    <div className="flex items-center gap-2">
+                      <span className="h-2 w-2 rounded-full bg-muted-foreground/30" />
+                      <span className="text-sm text-muted-foreground/60">New caller — no history</span>
+                    </div>
+                  )}
+                </div>
+              )}
+              <div className="flex items-center justify-center gap-4">
+                <button
+                  type="button"
+                  onClick={handleAnswerIncoming}
+                  className="flex items-center gap-2 px-8 py-3 rounded-full bg-emerald-500 text-white font-bold text-sm hover:bg-emerald-400 shadow-[0_0_20px_rgba(16,185,129,0.3)] transition-all"
+                >
+                  <Phone className="h-5 w-5" /> Answer
+                </button>
+                <button
+                  type="button"
+                  onClick={handleDeclineIncoming}
+                  className="flex items-center gap-2 px-6 py-3 rounded-full bg-red-500/15 text-red-400 font-medium text-sm hover:bg-red-500/25 border border-red-500/25 transition-all"
+                >
+                  <PhoneOff className="h-4 w-4" /> Decline
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
         <div className="lg:col-span-3">
+          {/* Jeff's Messages — highest priority */}
+          <JeffMessagesBanner onCallBack={handleJeffCallback} onLinked={refetchQueue} />
+
+          {/* Missed calls */}
+          {missedCalls.length > 0 && (
+            <GlassCard hover={false} className="!p-3 mb-3 border-amber-400/20 bg-amber-400/[0.02]">
+              <h2 className="text-xs font-semibold uppercase tracking-wider text-amber-400 flex items-center gap-1.5 mb-2">
+                <PhoneIncoming className="h-3.5 w-3.5" />
+                Missed Calls ({missedCalls.length})
+              </h2>
+              <div className="space-y-1">
+                {missedCalls.map((mc) => (
+                  <div key={mc.id} className="flex items-center justify-between text-xs py-1">
+                    <span className="font-mono text-foreground/80">
+                      {(() => { const d = mc.phone.replace(/\D/g, "").slice(-10); return d.length === 10 ? `(${d.slice(0,3)}) ${d.slice(3,6)}-${d.slice(6)}` : mc.phone; })()}
+                    </span>
+                    <span className="text-muted-foreground/50">{(() => { const m = Math.floor((Date.now() - new Date(mc.time).getTime()) / 60000); return m < 1 ? "just now" : m < 60 ? `${m}m ago` : `${Math.floor(m/60)}h ago`; })()}</span>
+                  </div>
+                ))}
+              </div>
+            </GlassCard>
+          )}
+
           <GlassCard hover={false} className="!p-3">
             <div className="flex items-center justify-between mb-3">
               <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
