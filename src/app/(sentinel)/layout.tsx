@@ -6,6 +6,7 @@ import { NewProspectModal } from "@/components/sentinel/new-prospect-modal";
 import { PropertyPreviewModal } from "@/components/sentinel/property-preview-modal";
 import { Psalm20ThemeLayer } from "@/components/sentinel/psalm20/theme-layer";
 import { ScriptureWatermark } from "@/components/sentinel/psalm20/scripture-watermark";
+import { GlobalNotificationWatcher } from "@/components/sentinel/global-notification-watcher";
 
 export default function SentinelLayout({
   children,
@@ -25,6 +26,7 @@ export default function SentinelLayout({
 
       <NewProspectModal />
       <PropertyPreviewModal />
+      <GlobalNotificationWatcher />
     </div>
   );
 }
