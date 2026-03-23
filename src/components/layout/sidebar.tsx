@@ -140,7 +140,7 @@ function NavLink({ item, depth = 0, badges }: { item: NavItem; depth?: number; b
         <button
           onClick={() => setExpanded((prev) => !prev)}
           className={cn(
-            "flex w-full items-center gap-3 rounded-[12px] px-3 py-2 text-sm transition-all duration-100 hover:bg-white/[0.03] group",
+            "flex w-full items-center gap-3 rounded-[12px] px-3 py-2 text-sm transition-all duration-100 hover:bg-overlay-3 group",
             isActive && "text-sidebar-accent-foreground"
           )}
         >
@@ -163,7 +163,7 @@ function NavLink({ item, depth = 0, badges }: { item: NavItem; depth?: number; b
               transition={{ duration: 0.2 }}
               className="overflow-hidden"
             >
-              <div className="ml-3 border-l border-white/[0.04] pl-2 mt-1 space-y-0.5">
+              <div className="ml-3 border-l border-overlay-4 pl-2 mt-1 space-y-0.5">
                 {item.children.map((child) => (
                   <NavLink key={child.href} item={child} depth={depth + 1} />
                 ))}
@@ -182,14 +182,14 @@ function NavLink({ item, depth = 0, badges }: { item: NavItem; depth?: number; b
         "flex items-center gap-3 rounded-[12px] px-3 py-2 text-sm transition-all duration-100 group relative",
         isActive
           ? "sidebar-active-item text-primary font-medium"
-          : "text-sidebar-foreground hover:text-foreground hover:bg-white/[0.03]"
+          : "text-sidebar-foreground hover:text-foreground hover:bg-overlay-3"
       )}
     >
       {isActive && (
         <motion.div
           layoutId="sidebar-active"
           className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-5 rounded-r-full bg-primary"
-          style={{ boxShadow: "0 0 1px rgba(255,255,255,1), 0 0 4px rgba(255,255,255,0.5), 0 0 10px rgba(255,255,255,0.25), 0 0 18px rgba(255,255,255,0.1)" }}
+          style={{ boxShadow: "0 0 1px var(--overlay-80), 0 0 4px var(--overlay-50), 0 0 10px var(--glow-medium), 0 0 18px var(--overlay-10)" }}
           transition={{ type: "spring", stiffness: 350, damping: 30 }}
         />
       )}
@@ -243,7 +243,7 @@ function SidebarSection({ section, badges, defaultCollapsed = false }: { section
         >
           {section.title}
         </span>
-        <div className="flex-1 h-px bg-white/[0.03] ml-1" />
+        <div className="flex-1 h-px bg-overlay-3 ml-1" />
         <motion.div
           animate={{ rotate: collapsed ? 0 : 90 }}
           transition={{ duration: 0.15 }}
@@ -326,8 +326,8 @@ export function Sidebar() {
           </div>
 
           <div className="p-4 flex items-center gap-2.5">
-            <div className="h-8 w-8 rounded-[12px] bg-primary/8 flex items-center justify-center border border-primary/18" style={{ boxShadow: "0 0 1px rgba(255,255,255,0.8), 0 0 4px rgba(255,255,255,0.35), 0 0 12px rgba(255,255,255,0.15), 0 0 20px rgba(255,255,255,0.06)" }}>
-              <Zap className="h-4 w-4 text-primary drop-shadow-[0_0_8px_rgba(255,255,255,0.6)]" />
+            <div className="h-8 w-8 rounded-[12px] bg-primary/8 flex items-center justify-center border border-primary/18" style={{ boxShadow: "0 0 1px var(--overlay-80), 0 0 4px var(--overlay-35), 0 0 12px var(--overlay-15), 0 0 20px var(--overlay-6)" }}>
+              <Zap className="h-4 w-4 text-primary drop-shadow-[0_0_8px_var(--overlay-60)]" />
             </div>
             <div>
               <h1 className="text-base font-bold tracking-tight text-foreground title-glow">
@@ -339,9 +339,9 @@ export function Sidebar() {
             </div>
           </div>
 
-          <Separator className="bg-white/[0.04]" />
+          <Separator className="bg-overlay-4" />
 
-          <nav className="flex-1 min-h-0 overflow-y-auto px-3 py-1 scrollbar-thin scrollbar-thumb-white/10 scrollbar-track-transparent">
+          <nav className="flex-1 min-h-0 overflow-y-auto px-3 py-1 scrollbar-thin scrollbar-thumb-overlay-10 scrollbar-track-transparent">
             <div className="space-y-0.5 pt-2">
               {primaryItems.map((item) => (
                 <NavLink key={item.href} item={item} badges={badges} />
@@ -352,7 +352,7 @@ export function Sidebar() {
             <SidebarSection section={adminSection} badges={badges} defaultCollapsed />
           </nav>
 
-          <Separator className="mt-auto bg-white/[0.04] shrink-0" />
+          <Separator className="mt-auto bg-overlay-4 shrink-0" />
 
         </motion.aside>
       )}

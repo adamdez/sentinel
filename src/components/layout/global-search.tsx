@@ -453,7 +453,7 @@ export function GlobalSearch() {
         className={cn(
           "flex items-center gap-2 h-9 px-3 border text-sm transition-all duration-100 w-full search-scan-line",
           isOpen
-            ? "rounded-t-[12px] rounded-b-none bg-popover border-border border-b-border shadow-[0_4px_24px_rgba(0,0,0,0.12)]"
+            ? "rounded-t-[12px] rounded-b-none bg-popover border-border border-b-border shadow-[0_4px_24px_var(--shadow-soft)]"
             : "rounded-[12px] bg-secondary/50 border-glass-border hover:bg-secondary/70"
         )}
       >
@@ -482,7 +482,7 @@ export function GlobalSearch() {
             <X className="h-3.5 w-3.5" />
           </button>
         ) : (
-          <kbd className="text-sm bg-white/[0.03] px-1.5 py-0.5 rounded-[6px] border border-white/[0.06] font-mono text-muted-foreground/70">
+          <kbd className="text-sm bg-overlay-3 px-1.5 py-0.5 rounded-[6px] border border-overlay-6 font-mono text-muted-foreground/70">
             Ctrl+K
           </kbd>
         )}
@@ -496,7 +496,7 @@ export function GlobalSearch() {
             exit={{ opacity: 0, y: -4 }}
             transition={{ duration: 0.12 }}
             onMouseDown={(e) => e.preventDefault()}
-            className="absolute top-full left-0 right-0 z-50 rounded-b-[12px] rounded-t-none bg-popover border border-t-0 border-border text-popover-foreground shadow-[0_12px_40px_rgba(0,0,0,0.14)] overflow-hidden max-h-[min(480px,calc(100vh-200px))]"
+            className="absolute top-full left-0 right-0 z-50 rounded-b-[12px] rounded-t-none bg-popover border border-t-0 border-border text-popover-foreground shadow-[0_12px_40px_var(--shadow-soft)] overflow-hidden max-h-[min(480px,calc(100vh-200px))]"
           >
             {searching && results.length === 0 && suggestions.length === 0 ? (
               <div className="px-4 py-6 text-center text-sm text-muted-foreground">
@@ -530,13 +530,13 @@ export function GlobalSearch() {
                           }}
                           className={cn(
                             "flex items-center gap-3 w-full text-left px-3 py-2.5 transition-colors",
-                            isActive ? "bg-white/[0.06]" : "hover:bg-white/[0.03]"
+                            isActive ? "bg-overlay-6" : "hover:bg-overlay-3"
                           )}
                         >
                           <div
                             className={cn(
                               "h-7 w-7 rounded-md flex items-center justify-center shrink-0 border",
-                              KIND_COLORS[rec.kind] ?? "bg-white/[0.04] border-white/[0.06] text-muted-foreground"
+                              KIND_COLORS[rec.kind] ?? "bg-overlay-4 border-overlay-6 text-muted-foreground"
                             )}
                           >
                             <Icon className="h-3.5 w-3.5" />
@@ -546,7 +546,7 @@ export function GlobalSearch() {
                             <p
                               className="text-sm font-semibold truncate text-foreground"
                               style={{
-                                textShadow: isActive ? "0 1px 0 rgba(0,0,0,0.06)" : undefined,
+                                textShadow: isActive ? "0 1px 0 var(--shadow-soft)" : undefined,
                                 WebkitFontSmoothing: "antialiased",
                               }}
                             >
@@ -572,7 +572,7 @@ export function GlobalSearch() {
                           )}
 
                           {rec.status && (
-                            <span className="text-xs px-1.5 py-0.5 rounded bg-white/[0.04] text-muted-foreground border border-white/[0.06] shrink-0">
+                            <span className="text-xs px-1.5 py-0.5 rounded bg-overlay-4 text-muted-foreground border border-overlay-6 shrink-0">
                               {statusLabel(rec.status)}
                             </span>
                           )}
@@ -600,7 +600,7 @@ export function GlobalSearch() {
                 {/* ── Nationwide suggestions + fallback lookup ── */}
                 {showNationwide && (
                   <>
-                    <div className="border-t border-white/[0.04] px-3 pt-2 pb-1">
+                    <div className="border-t border-overlay-4 px-3 pt-2 pb-1">
                       <span className="text-sm font-semibold uppercase tracking-widest text-muted-foreground/50">
                         {suggestions.length > 0 ? "Nationwide Matches" : "Nationwide Search"}
                       </span>
@@ -623,7 +623,7 @@ export function GlobalSearch() {
                         }}
                         className={cn(
                           "flex items-center gap-3 w-full text-left px-3 py-2.5 transition-colors",
-                          isActive ? "bg-white/[0.06]" : "hover:bg-white/[0.03]"
+                          isActive ? "bg-overlay-6" : "hover:bg-overlay-3"
                         )}
                       >
                         <div className="h-7 w-7 rounded-md flex items-center justify-center shrink-0 border bg-muted/10 border-border/20 text-foreground">
@@ -659,7 +659,7 @@ export function GlobalSearch() {
                         }}
                         className={cn(
                           "flex items-center gap-3 w-full text-left px-3 py-3 transition-colors",
-                          isFallbackActive ? "bg-white/[0.06]" : "hover:bg-white/[0.03]"
+                          isFallbackActive ? "bg-overlay-6" : "hover:bg-overlay-3"
                         )}
                       >
                         <div className="h-7 w-7 rounded-md flex items-center justify-center shrink-0 border bg-muted/10 border-border/20 text-foreground">
@@ -686,15 +686,15 @@ export function GlobalSearch() {
               </div>
             )}
 
-            <div className="border-t border-white/[0.04] px-3 py-1.5 flex items-center gap-4 text-sm text-muted-foreground/60">
+            <div className="border-t border-overlay-4 px-3 py-1.5 flex items-center gap-4 text-sm text-muted-foreground/60">
               <span>
-                <kbd className="font-mono bg-white/[0.03] px-1 py-0.5 rounded-[4px] border border-white/[0.06]">↑↓</kbd> Navigate
+                <kbd className="font-mono bg-overlay-3 px-1 py-0.5 rounded-[4px] border border-overlay-6">↑↓</kbd> Navigate
               </span>
               <span>
-                <kbd className="font-mono bg-white/[0.03] px-1 py-0.5 rounded-[4px] border border-white/[0.06]">↵</kbd> Open
+                <kbd className="font-mono bg-overlay-3 px-1 py-0.5 rounded-[4px] border border-overlay-6">↵</kbd> Open
               </span>
               <span>
-                <kbd className="font-mono bg-white/[0.03] px-1 py-0.5 rounded-[4px] border border-white/[0.06]">Esc</kbd> Close
+                <kbd className="font-mono bg-overlay-3 px-1 py-0.5 rounded-[4px] border border-overlay-6">Esc</kbd> Close
               </span>
               {results.length > 0 && results[0].id !== "__no_result__" && results[0].id !== "__error__" && (
                 <span className="ml-auto text-primary/40">

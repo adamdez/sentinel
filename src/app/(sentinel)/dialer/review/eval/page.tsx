@@ -65,7 +65,7 @@ async function authHeaders(): Promise<Record<string, string>> {
 
 function WorkflowInfoCard({ workflow }: { workflow: EvalWorkflow }) {
   return (
-    <div className="rounded-lg border border-white/[0.04] bg-white/[0.02] px-3 py-2 space-y-0.5">
+    <div className="rounded-lg border border-overlay-4 bg-overlay-2 px-3 py-2 space-y-0.5">
       <p className="text-sm font-medium text-foreground/70">
         {EVAL_WORKFLOW_LABELS[workflow]}
       </p>
@@ -81,7 +81,7 @@ function WorkflowInfoCard({ workflow }: { workflow: EvalWorkflow }) {
 function RatingListRow({ rating }: { rating: EvalRatingRow }) {
   const [showOutput, setShowOutput] = useState(false);
   return (
-    <div className="border-b border-white/[0.03] last:border-0 py-2.5 space-y-1">
+    <div className="border-b border-overlay-3 last:border-0 py-2.5 space-y-1">
       <div className="flex items-center gap-2 flex-wrap">
         <Badge variant="outline" className={`text-xs px-1.5 py-0 ${EVAL_VERDICT_COLORS[rating.verdict]}`}>
           {EVAL_VERDICT_LABELS[rating.verdict]}
@@ -112,7 +112,7 @@ function RatingListRow({ rating }: { rating: EvalRatingRow }) {
         </button>
       )}
       {showOutput && rating.output_snapshot && (
-        <pre className="text-xs text-muted-foreground/40 bg-white/[0.02] rounded p-2 whitespace-pre-wrap max-h-28 overflow-auto">
+        <pre className="text-xs text-muted-foreground/40 bg-overlay-2 rounded p-2 whitespace-pre-wrap max-h-28 overflow-auto">
           {rating.output_snapshot}
         </pre>
       )}
@@ -153,7 +153,7 @@ function ManualRateSection({ onRated }: { onRated: () => void }) {
         </span>
       </button>
       {open && (
-        <div className="space-y-2.5 pt-1 border-t border-white/[0.04]">
+        <div className="space-y-2.5 pt-1 border-t border-overlay-4">
           <p className="text-sm text-muted-foreground/40">
             Paste the run_id from a dialer_ai_traces row to rate that specific output.
           </p>
@@ -164,7 +164,7 @@ function ManualRateSection({ onRated }: { onRated: () => void }) {
                 value={runId}
                 onChange={e => setRunId(e.target.value)}
                 placeholder="uuid or run-…"
-                className="text-xs h-7 bg-white/[0.03] border-white/[0.06]"
+                className="text-xs h-7 bg-overlay-3 border-overlay-6"
               />
             </div>
             <div className="space-y-1">
@@ -172,7 +172,7 @@ function ManualRateSection({ onRated }: { onRated: () => void }) {
               <select
                 value={wf}
                 onChange={e => setWf(e.target.value as EvalWorkflow)}
-                className="w-full h-7 text-xs rounded-md bg-background border border-white/[0.06] px-2 text-foreground"
+                className="w-full h-7 text-xs rounded-md bg-background border border-overlay-6 px-2 text-foreground"
               >
                 {EVAL_WORKFLOWS.map(w => (
                   <option key={w} value={w}>{EVAL_WORKFLOW_LABELS[w]}</option>
@@ -185,7 +185,7 @@ function ManualRateSection({ onRated }: { onRated: () => void }) {
                 value={version}
                 onChange={e => setVersion(e.target.value)}
                 placeholder="e.g. 2.1.0"
-                className="text-xs h-7 bg-white/[0.03] border-white/[0.06]"
+                className="text-xs h-7 bg-overlay-3 border-overlay-6"
               />
             </div>
             <div className="space-y-1 col-span-2">
@@ -194,7 +194,7 @@ function ManualRateSection({ onRated }: { onRated: () => void }) {
                 value={snapshot}
                 onChange={e => setSnapshot(e.target.value)}
                 placeholder="Paste output text to include in rating…"
-                className="text-xs h-7 bg-white/[0.03] border-white/[0.06]"
+                className="text-xs h-7 bg-overlay-3 border-overlay-6"
               />
             </div>
           </div>
@@ -255,7 +255,7 @@ function FullRatingsList() {
           <select
             value={workflowFilter}
             onChange={e => setWorkflowFilter(e.target.value as EvalWorkflow | "all")}
-            className="h-6 text-sm rounded border border-white/[0.06] bg-background text-muted-foreground px-1.5"
+            className="h-6 text-sm rounded border border-overlay-6 bg-background text-muted-foreground px-1.5"
           >
             <option value="all">All workflows</option>
             {EVAL_WORKFLOWS.map(w => (
@@ -265,7 +265,7 @@ function FullRatingsList() {
           <select
             value={verdictFilter}
             onChange={e => setVerdictFilter(e.target.value as EvalVerdict | "all")}
-            className="h-6 text-sm rounded border border-white/[0.06] bg-background text-muted-foreground px-1.5"
+            className="h-6 text-sm rounded border border-overlay-6 bg-background text-muted-foreground px-1.5"
           >
             <option value="all">All verdicts</option>
             {EVAL_VERDICTS.map(v => (

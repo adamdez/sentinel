@@ -66,7 +66,7 @@ export function LeadSegmentControl({
             {active && (
               <motion.div
                 layoutId="lead-segment-pill"
-                className="absolute inset-0 rounded-[10px] bg-primary/[0.08] border border-primary/15 shadow-[0_0_10px_rgba(255,255,255,0.06)]"
+                className="absolute inset-0 rounded-[10px] bg-primary/[0.08] border border-primary/15 shadow-[0_0_10px_var(--overlay-6)]"
                 transition={{ type: "spring", bounce: 0.15, duration: 0.4 }}
               />
             )}

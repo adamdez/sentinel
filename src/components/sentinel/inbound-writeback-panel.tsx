@@ -50,7 +50,7 @@ async function authHeaders(): Promise<Record<string, string>> {
 const CALLER_TYPE_STYLES: Record<InboundCallerType, string> = {
   seller:  "border-primary/25 bg-primary/[0.08] text-primary/80",
   buyer:   "border-border/25 bg-muted/[0.08] text-foreground/80",
-  vendor:  "border-white/10 bg-white/[0.03] text-muted-foreground/50",
+  vendor:  "border-overlay-10 bg-overlay-3 text-muted-foreground/50",
   spam:    "border-border/25 bg-muted/[0.08] text-foreground/60",
   unknown: "border-border/20 bg-muted/[0.05] text-foreground/60",
 };
@@ -278,7 +278,7 @@ export function InboundWritebackPanel({
                   onChange={(e) => setEditAddress(e.target.value)}
                   placeholder="Property address caller mentioned…"
                   maxLength={300}
-                  className="w-full rounded-[7px] border border-white/[0.07] bg-white/[0.02] px-2.5 py-1.5 text-sm text-foreground placeholder:text-muted-foreground/25 focus:outline-none focus:border-primary/20"
+                  className="w-full rounded-[7px] border border-overlay-8 bg-overlay-2 px-2.5 py-1.5 text-sm text-foreground placeholder:text-muted-foreground/25 focus:outline-none focus:border-primary/20"
                 />
               </div>
 
@@ -296,7 +296,7 @@ export function InboundWritebackPanel({
                   placeholder="Situation summary or call notes…"
                   maxLength={1200}
                   rows={4}
-                  className="w-full resize-none rounded-[7px] border border-white/[0.07] bg-white/[0.02] px-2.5 py-1.5 text-sm text-foreground placeholder:text-muted-foreground/25 focus:outline-none focus:border-primary/20"
+                  className="w-full resize-none rounded-[7px] border border-overlay-8 bg-overlay-2 px-2.5 py-1.5 text-sm text-foreground placeholder:text-muted-foreground/25 focus:outline-none focus:border-primary/20"
                 />
                 <p className="text-xs text-muted-foreground/20 text-right">
                   {editNote.length}/1200
@@ -311,7 +311,7 @@ export function InboundWritebackPanel({
                 <select
                   value={editDisposition}
                   onChange={(e) => setEditDisposition(e.target.value as InboundDisposition)}
-                  className="h-7 w-full text-sm rounded-[7px] border border-white/[0.07] bg-background px-2 focus:outline-none focus:ring-1 focus:ring-ring/20"
+                  className="h-7 w-full text-sm rounded-[7px] border border-overlay-8 bg-background px-2 focus:outline-none focus:ring-1 focus:ring-ring/20"
                 >
                   {INBOUND_DISPOSITIONS.map((d) => (
                     <option key={d} value={d}>{d.replace(/_/g, " ")}</option>
@@ -321,12 +321,12 @@ export function InboundWritebackPanel({
 
               {/* leads.notes opt-in — explicit gate */}
               {draft.lead_id && (
-                <label className="flex items-start gap-2 cursor-pointer rounded-[8px] border border-white/[0.05] bg-white/[0.01] px-2.5 py-2 hover:bg-white/[0.025] transition-colors">
+                <label className="flex items-start gap-2 cursor-pointer rounded-[8px] border border-overlay-5 bg-overlay-2 px-2.5 py-2 hover:bg-overlay-3 transition-colors">
                   <input
                     type="checkbox"
                     checked={updateLeadNotes}
                     onChange={(e) => setUpdateLeadNotes(e.target.checked)}
-                    className="mt-0.5 h-3 w-3 rounded border-white/20 bg-white/[0.03] accent-cyan"
+                    className="mt-0.5 h-3 w-3 rounded border-overlay-20 bg-overlay-3 accent-cyan"
                   />
                   <div>
                     <p className="text-sm font-medium text-foreground/65">
@@ -354,7 +354,7 @@ export function InboundWritebackPanel({
                   type="button"
                   onClick={handleSaveDraft}
                   disabled={saving || committing}
-                  className="flex items-center gap-1.5 rounded-[7px] border border-white/[0.07] bg-white/[0.02] px-2.5 py-1 text-sm text-muted-foreground/50 hover:text-foreground/70 transition-colors disabled:opacity-40"
+                  className="flex items-center gap-1.5 rounded-[7px] border border-overlay-8 bg-overlay-2 px-2.5 py-1 text-sm text-muted-foreground/50 hover:text-foreground/70 transition-colors disabled:opacity-40"
                 >
                   {saving ? <Loader2 className="h-2.5 w-2.5 animate-spin" /> : null}
                   Save draft

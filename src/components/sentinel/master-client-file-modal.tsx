@@ -188,7 +188,7 @@ function IntelligenceSummaryBlock({ cf }: { cf: ClientFile }) {
           <span className="text-muted-foreground uppercase tracking-wider font-medium">{label}</span>
           <span className="font-semibold text-foreground">{value}</span>
         </div>
-        <div className="h-1.5 rounded-full bg-white/[0.06] overflow-hidden">
+        <div className="h-1.5 rounded-full bg-overlay-6 overflow-hidden">
           <div
             className={cn("h-full rounded-full transition-all", color)}
             style={{ width: `${Math.min(value, 100)}%` }}
@@ -199,11 +199,11 @@ function IntelligenceSummaryBlock({ cf }: { cf: ClientFile }) {
   }
 
   return (
-    <div className="rounded-[12px] border border-white/[0.08] bg-white/[0.02] p-4 space-y-4">
+    <div className="rounded-[12px] border border-overlay-8 bg-overlay-2 p-4 space-y-4">
       <div className="flex items-center gap-2">
         <Brain className="h-4 w-4 text-muted-foreground" />
         <h3 className="text-xs font-semibold text-foreground">Intelligence Summary</h3>
-        <Badge className="border-white/20 bg-white/[0.08] text-foreground text-xs ml-auto">CRM Projection</Badge>
+        <Badge className="border-overlay-20 bg-overlay-8 text-foreground text-xs ml-auto">CRM Projection</Badge>
       </div>
 
       {/* Scores row */}
@@ -229,7 +229,7 @@ function IntelligenceSummaryBlock({ cf }: { cf: ClientFile }) {
 
       {/* Recommended call angle */}
       {cf.recommendedCallAngle && (
-        <div className="rounded-[10px] border border-white/15 bg-white/[0.05] px-3 py-2">
+        <div className="rounded-[10px] border border-overlay-15 bg-overlay-5 px-3 py-2">
           <h4 className="text-sm uppercase tracking-wider text-muted-foreground font-semibold mb-1">
             Recommended Call Angle
           </h4>
@@ -541,7 +541,7 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
     ? (cf.equityPercent >= 50 ? "HIGH SPREAD" : cf.equityPercent >= 25 ? "MODERATE" : "TIGHT")
     : null;
   const roomColor = cf.equityPercent != null
-    ? (cf.equityPercent >= 50 ? "text-foreground bg-white/[0.1]" : cf.equityPercent >= 25 ? "text-muted-foreground bg-white/[0.06]" : "text-muted-foreground bg-white/[0.04] border border-white/10")
+    ? (cf.equityPercent >= 50 ? "text-foreground bg-overlay-10" : cf.equityPercent >= 25 ? "text-muted-foreground bg-overlay-6" : "text-muted-foreground bg-overlay-4 border border-overlay-10")
     : "";
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -551,11 +551,11 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
 
   const warningFlags = useMemo(() => {
     const flags: { label: string; color: string }[] = [];
-    if (prRaw.isListedForSale === "Yes" || prRaw.isListedForSale === true) flags.push({ label: "Listed for Sale", color: "text-foreground bg-white/[0.08] border-white/15" });
-    if (prRaw.isRecentSale === "Yes" || prRaw.isRecentSale === true) flags.push({ label: "Recent Sale", color: "text-muted-foreground bg-white/[0.06] border-white/12" });
-    if (prRaw.isRecentFlip === "Yes" || prRaw.isRecentFlip === true) flags.push({ label: "Recent Flip", color: "text-muted-foreground bg-white/[0.05] border-white/10" });
-    if (prRaw.isAuction === "Yes" || prRaw.isAuction === true) flags.push({ label: "Auction", color: "text-foreground bg-white/[0.07] border-white/14" });
-    if (prRaw.isBankOwned === "Yes" || prRaw.isBankOwned === true) flags.push({ label: "Bank-Owned (REO)", color: "text-muted-foreground bg-white/[0.06] border-white/12" });
+    if (prRaw.isListedForSale === "Yes" || prRaw.isListedForSale === true) flags.push({ label: "Listed for Sale", color: "text-foreground bg-overlay-8 border-overlay-15" });
+    if (prRaw.isRecentSale === "Yes" || prRaw.isRecentSale === true) flags.push({ label: "Recent Sale", color: "text-muted-foreground bg-overlay-6 border-overlay-12" });
+    if (prRaw.isRecentFlip === "Yes" || prRaw.isRecentFlip === true) flags.push({ label: "Recent Flip", color: "text-muted-foreground bg-overlay-5 border-overlay-10" });
+    if (prRaw.isAuction === "Yes" || prRaw.isAuction === true) flags.push({ label: "Auction", color: "text-foreground bg-overlay-8 border-white/14" });
+    if (prRaw.isBankOwned === "Yes" || prRaw.isBankOwned === true) flags.push({ label: "Bank-Owned (REO)", color: "text-muted-foreground bg-overlay-6 border-overlay-12" });
     return flags;
   }, [prRaw]);
 
@@ -846,14 +846,14 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
   const offerStatusLabel = offerVisibilityLabel(cf.offerStatus);
   const offerStatusToneClass =
     cf.offerStatus === "preparing_offer"
-      ? "border-white/15 bg-white/[0.06] text-foreground"
+      ? "border-overlay-15 bg-overlay-6 text-foreground"
       : cf.offerStatus === "offer_made"
-        ? "border-white/18 bg-white/[0.08] text-foreground"
+        ? "border-white/18 bg-overlay-8 text-foreground"
         : cf.offerStatus === "seller_reviewing"
-          ? "border-white/12 bg-white/[0.05] text-muted-foreground"
+          ? "border-overlay-12 bg-overlay-5 text-muted-foreground"
           : cf.offerStatus === "declined"
-            ? "border-white/10 bg-white/[0.04] text-muted-foreground"
-            : "border-white/[0.12] bg-white/[0.03] text-muted-foreground";
+            ? "border-overlay-10 bg-overlay-4 text-muted-foreground"
+            : "border-overlay-12 bg-overlay-3 text-muted-foreground";
   const offerStatusHint =
     cf.offerStatus === "preparing_offer"
       ? "Derived from stage + qualification route: qualified and queued for offer prep."
@@ -870,12 +870,12 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
     offerStatusSnapshot.status === "accepted"
       ? "border-white/18 bg-white/[0.09] text-foreground"
       : offerStatusSnapshot.status === "passed_not_moving_forward"
-        ? "border-white/10 bg-white/[0.04] text-muted-foreground"
+        ? "border-overlay-10 bg-overlay-4 text-muted-foreground"
         : offerStatusSnapshot.status === "counter_needs_revision"
-          ? "border-white/14 bg-white/[0.06] text-muted-foreground"
+          ? "border-white/14 bg-overlay-6 text-muted-foreground"
           : offerStatusSnapshot.status
-            ? "border-white/15 bg-white/[0.06] text-foreground"
-            : "border-white/[0.12] bg-white/[0.03] text-muted-foreground";
+            ? "border-overlay-15 bg-overlay-6 text-foreground"
+            : "border-overlay-12 bg-overlay-3 text-muted-foreground";
   const offerStatusAmountLabel =
     offerStatusSnapshot.amount != null
       ? formatCurrency(offerStatusSnapshot.amount)
@@ -925,29 +925,29 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
   const buyerDispoTruthUpdatedLabel = buyerDispoTruthSnapshot.updatedAt ? formatDateTimeShort(buyerDispoTruthSnapshot.updatedAt) : "Not set";
   const buyerDispoTruthFitToneClass =
     buyerDispoTruthSnapshot.buyerFit === "broad"
-      ? "border-white/18 bg-white/[0.08] text-foreground"
+      ? "border-white/18 bg-overlay-8 text-foreground"
       : buyerDispoTruthSnapshot.buyerFit === "narrow"
-        ? "border-white/12 bg-white/[0.05] text-muted-foreground"
-        : "border-white/[0.12] bg-white/[0.03] text-muted-foreground";
+        ? "border-overlay-12 bg-overlay-5 text-muted-foreground"
+        : "border-overlay-12 bg-overlay-3 text-muted-foreground";
   const buyerDispoTruthStatusToneClass =
     buyerDispoTruthSnapshot.dispoStatus === "ready"
-      ? "border-white/16 bg-white/[0.07] text-foreground"
+      ? "border-white/16 bg-overlay-8 text-foreground"
       : buyerDispoTruthSnapshot.dispoStatus === "needs_review"
-        ? "border-white/12 bg-white/[0.05] text-muted-foreground"
-        : "border-white/[0.12] bg-white/[0.03] text-muted-foreground";
+        ? "border-overlay-12 bg-overlay-5 text-muted-foreground"
+        : "border-overlay-12 bg-overlay-3 text-muted-foreground";
   const canEditBuyerDispoTruth = cf.status !== "dead" && cf.status !== "closed";
   const buyerFitToneClass =
     buyerDispo.buyerFit === "broad"
-      ? "border-white/18 bg-white/[0.07] text-foreground"
+      ? "border-white/18 bg-overlay-8 text-foreground"
       : buyerDispo.buyerFit === "narrow"
-        ? "border-white/12 bg-white/[0.04] text-muted-foreground"
-        : "border-white/[0.12] bg-white/[0.03] text-muted-foreground";
+        ? "border-overlay-12 bg-overlay-4 text-muted-foreground"
+        : "border-overlay-12 bg-overlay-3 text-muted-foreground";
   const dispoReadinessToneClass =
     buyerDispo.dispoReadiness === "ready"
-      ? "border-white/18 bg-white/[0.07] text-foreground"
+      ? "border-white/18 bg-overlay-8 text-foreground"
       : buyerDispo.dispoReadiness === "needs_review"
-        ? "border-white/12 bg-white/[0.05] text-muted-foreground"
-        : "border-white/[0.12] bg-white/[0.03] text-muted-foreground";
+        ? "border-overlay-12 bg-overlay-5 text-muted-foreground"
+        : "border-overlay-12 bg-overlay-3 text-muted-foreground";
 
   useEffect(() => {
     setShowAllCallAssist(false);
@@ -965,12 +965,12 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
       <QualificationGaps cf={cf} />
 
       {/* â•â•â• 1. CALL CARD — WHO + NUMBER (hero section) â•â•â• */}
-      <div ref={sectionOwner} className="rounded-[12px] border border-white/[0.08] bg-white/[0.02] p-3.5 relative overflow-hidden">
+      <div ref={sectionOwner} className="rounded-[12px] border border-overlay-8 bg-overlay-2 p-3.5 relative overflow-hidden">
 
         <div className="relative z-10">
           {/* Mailing Address for absentee owners */}
           {mailingAddr && (
-            <div className="rounded-[10px] border border-white/12 bg-white/[0.04] p-2.5 mb-3">
+            <div className="rounded-[10px] border border-overlay-12 bg-overlay-4 p-2.5 mb-3">
               <div className="flex items-start gap-2">
                 <MapPinned className="h-3.5 w-3.5 text-muted-foreground mt-0.5 shrink-0" />
                 <div className="flex-1 min-w-0">
@@ -1006,7 +1006,7 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
               </p>
               {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
               {heirContacts.map((heir: any, i: number) => (
-                <div key={i} className="rounded-md border border-white/12 bg-white/[0.03] p-2.5 text-xs space-y-0.5">
+                <div key={i} className="rounded-md border border-overlay-12 bg-overlay-3 p-2.5 text-xs space-y-0.5">
                   <div className="flex items-center gap-2">
                     <User className="h-3 w-3 text-muted-foreground" />
                     <span className="font-semibold text-foreground">{heir.name ?? "Unknown Heir"}</span>
@@ -1031,11 +1031,11 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
           )}
 
           {skipTraceResult && !skipTraceError && (
-            <div className={cn("mt-2 text-xs px-3 py-2 rounded-md border", skipTraceResult.startsWith("Found") ? "text-foreground bg-white/[0.05] border-white/12" : "text-foreground bg-white/[0.04] border-white/15")}>
+            <div className={cn("mt-2 text-xs px-3 py-2 rounded-md border", skipTraceResult.startsWith("Found") ? "text-foreground bg-overlay-5 border-overlay-12" : "text-foreground bg-overlay-4 border-overlay-15")}>
               <div className="flex items-center justify-between gap-2">
                 <span>{skipTraceResult}</span>
                 {skipTraceMs != null && (
-                  <span className={cn("font-mono text-sm shrink-0 px-1.5 py-0.5 rounded", skipTraceMs <= 2000 ? "text-foreground bg-white/[0.08]" : "text-muted-foreground bg-white/[0.05]")}>
+                  <span className={cn("font-mono text-sm shrink-0 px-1.5 py-0.5 rounded", skipTraceMs <= 2000 ? "text-foreground bg-overlay-8" : "text-muted-foreground bg-overlay-5")}>
                     {(skipTraceMs / 1000).toFixed(2)}s
                   </span>
                 )}
@@ -1044,7 +1044,7 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
           )}
 
           {skipTraceError && (
-            <div className="mt-2 rounded-[10px] border border-white/15 bg-white/[0.04] p-3 space-y-2">
+            <div className="mt-2 rounded-[10px] border border-overlay-15 bg-overlay-4 p-3 space-y-2">
               <div className="flex items-start gap-2">
                 <AlertTriangle className="h-4 w-4 text-foreground shrink-0 mt-0.5" />
                 <div className="flex-1 min-w-0 space-y-1">
@@ -1063,7 +1063,7 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
                   {skipTraceError.tier_reached && <p className="text-sm text-muted-foreground/50 font-mono">Lookup stopped at: {skipTraceError.tier_reached}</p>}
                 </div>
                 {skipTraceMs != null && (
-                  <span className="font-mono text-sm shrink-0 px-1.5 py-0.5 rounded text-muted-foreground bg-white/[0.06]">
+                  <span className="font-mono text-sm shrink-0 px-1.5 py-0.5 rounded text-muted-foreground bg-overlay-6">
                     {(skipTraceMs / 1000).toFixed(2)}s
                   </span>
                 )}
@@ -1101,7 +1101,7 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
       <SellerMemoryPreview leadId={cf.id} />
 
       {/* â•â•â• 4. PROPERTY SNAPSHOT — Photo Carousel + Address + Badges â•â•â• */}
-      <div ref={sectionProperty} className="rounded-[12px] border border-white/[0.06] bg-white/[0.02] overflow-hidden">
+      <div ref={sectionProperty} className="rounded-[12px] border border-overlay-6 bg-overlay-2 overflow-hidden">
         {(allPhotos.length > 0 || imageUrl) && (
           <div className="relative block h-32 group">
             {allPhotos.length > 0 ? (
@@ -1154,7 +1154,7 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
                 )}
               </a>
             )}
-            <div className="absolute inset-0 bg-gradient-to-t from-[rgba(7,7,13,0.85)] via-[rgba(7,7,13,0.2)] to-transparent pointer-events-none" />
+            <div className="absolute inset-0 bg-gradient-to-t from-panel-deep via-panel to-transparent pointer-events-none" />
             {zPhotosLoading && allPhotos.length === 0 && (
               <div className="absolute top-2 left-2 bg-black/60 backdrop-blur-sm text-white text-xs font-medium px-1.5 py-0.5 rounded-full flex items-center gap-1 z-10">
                 <Loader2 className="h-2.5 w-2.5 animate-spin" />Loading photos...
@@ -1175,7 +1175,7 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
                   <span className="text-xs font-bold bg-black/50 backdrop-blur-sm px-2 py-0.5 rounded">{cf.lotSize.toLocaleString()} lot</span>
                 )}
               </div>
-              <div className="flex items-center gap-1 text-xs text-white/50">
+              <div className="flex items-center gap-1 text-xs text-overlay-50">
                 <ImageIcon className="h-2.5 w-2.5" />{allPhotos.length > 0 ? `${allPhotos.length} photos \u00B7 Zillow` : streetViewLink ? `Click to explore \u00B7 ${imageLabel}` : imageLabel}
               </div>
             </div>
@@ -1207,27 +1207,27 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
               {(cf.propertyType || cf.bedrooms != null || cf.sqft != null) && (
                 <div className="flex items-center gap-2 flex-wrap">
                   {cf.propertyType && (
-                    <span className="inline-flex items-center gap-1 text-sm font-semibold text-muted-foreground bg-white/[0.04] border border-white/[0.08] px-2 py-0.5 rounded-full">
+                    <span className="inline-flex items-center gap-1 text-sm font-semibold text-muted-foreground bg-overlay-4 border border-overlay-8 px-2 py-0.5 rounded-full">
                       <Building className="h-2.5 w-2.5" />{cf.propertyType}
                     </span>
                   )}
                   {!imageUrl && cf.bedrooms != null && (
-                    <span className="text-sm font-semibold text-muted-foreground bg-white/[0.04] border border-white/[0.08] px-2 py-0.5 rounded-full">
+                    <span className="text-sm font-semibold text-muted-foreground bg-overlay-4 border border-overlay-8 px-2 py-0.5 rounded-full">
                       {cf.bedrooms}bd / {cf.bathrooms ?? "?"}ba
                     </span>
                   )}
                   {!imageUrl && cf.sqft != null && (
-                    <span className="text-sm font-semibold text-muted-foreground bg-white/[0.04] border border-white/[0.08] px-2 py-0.5 rounded-full">
+                    <span className="text-sm font-semibold text-muted-foreground bg-overlay-4 border border-overlay-8 px-2 py-0.5 rounded-full">
                       {cf.sqft.toLocaleString()} sqft
                     </span>
                   )}
                   {!imageUrl && cf.yearBuilt && (
-                    <span className="text-sm font-semibold text-muted-foreground bg-white/[0.04] border border-white/[0.08] px-2 py-0.5 rounded-full">
+                    <span className="text-sm font-semibold text-muted-foreground bg-overlay-4 border border-overlay-8 px-2 py-0.5 rounded-full">
                       Built {cf.yearBuilt}
                     </span>
                   )}
                   {!imageUrl && cf.lotSize && (
-                    <span className="text-sm font-semibold text-muted-foreground bg-white/[0.04] border border-white/[0.08] px-2 py-0.5 rounded-full">
+                    <span className="text-sm font-semibold text-muted-foreground bg-overlay-4 border border-overlay-8 px-2 py-0.5 rounded-full">
                       {cf.lotSize.toLocaleString()} lot
                     </span>
                   )}
@@ -1241,7 +1241,7 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
                 href={streetViewLink ?? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(cf.fullAddress ?? "")}`}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="shrink-0 relative group rounded-lg overflow-hidden border border-white/[0.08] hover:border-white/30 transition-colors"
+                className="shrink-0 relative group rounded-lg overflow-hidden border border-overlay-8 hover:border-overlay-30 transition-colors"
               >
                 <img
                   src={streetViewUrl ?? thumbUrl ?? ""}
@@ -1268,7 +1268,7 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
                 return (
                   <span key={tag} className={cn(
                     "text-xs font-bold px-2 py-0.5 rounded-full uppercase tracking-wider border",
-                    cfg?.color ?? "text-muted-foreground bg-white/[0.06] border-white/20"
+                    cfg?.color ?? "text-muted-foreground bg-overlay-6 border-overlay-20"
                   )}>
                     {cfg?.label ?? tag.replace(/_/g, " ")}
                   </span>
@@ -1312,8 +1312,8 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
         const displayMao = snapMao ?? mao ?? 0;
         const displayConf = snapConf ?? (compCount >= 3 ? "high" : compCount >= 2 ? "medium" : "low");
         const confColor = displayConf === "high" ? "text-foreground" : displayConf === "medium" ? "text-muted-foreground" : "text-foreground";
-        const confBorder = displayConf === "high" ? "border-white/15" : displayConf === "medium" ? "border-white/12" : "border-white/15";
-        const confBg = displayConf === "high" ? "bg-white/[0.06]" : displayConf === "medium" ? "bg-white/[0.05]" : "bg-white/[0.05]";
+        const confBorder = displayConf === "high" ? "border-overlay-15" : displayConf === "medium" ? "border-overlay-12" : "border-overlay-15";
+        const confBg = displayConf === "high" ? "bg-overlay-6" : displayConf === "medium" ? "bg-overlay-5" : "bg-overlay-5";
 
         const dangerWarnings = snapWarnings.filter((w) => w.severity === "danger");
 
@@ -1517,7 +1517,7 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
 
       {/* â•â•â• 5. MAO BREAKDOWN — Full formula so agents trust the math â•â•â• */}
       {mao != null && mao > 0 && (
-        <div className="rounded-[12px] border border-white/20 bg-white/[0.03] p-4 space-y-2">
+        <div className="rounded-[12px] border border-overlay-20 bg-overlay-3 p-4 space-y-2">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               <Target className="h-3.5 w-3.5 text-foreground" />
@@ -1545,9 +1545,9 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
               <span>&minus; Assignment fee</span>
               <span>&minus;{formatCurrency(assignmentFee)}</span>
             </div>
-            <div className="border-t border-white/[0.08] pt-1.5 mt-1 flex items-center justify-between">
+            <div className="border-t border-overlay-8 pt-1.5 mt-1 flex items-center justify-between">
               <span className="text-foreground font-bold text-sm">MAO</span>
-              <span className="text-foreground font-bold text-lg" style={{ textShadow: "0 0 12px rgba(255,255,255,0.08)" }}>{formatCurrency(mao)}</span>
+              <span className="text-foreground font-bold text-lg" style={{ textShadow: "0 0 12px var(--glow-soft)" }}>{formatCurrency(mao)}</span>
             </div>
           </div>
         </div>
@@ -1555,7 +1555,7 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
 
       <div className="flex gap-3">
         {/* Distress Signals — left half */}
-        <div ref={sectionSignals} className="flex-1 min-w-0 rounded-[12px] border border-white/[0.06] bg-white/[0.02] p-3">
+        <div ref={sectionSignals} className="flex-1 min-w-0 rounded-[12px] border border-overlay-6 bg-overlay-2 p-3">
           <div className="flex items-center justify-between mb-2">
             <div className="flex items-center gap-2">
               <AlertTriangle className="h-3 w-3 text-foreground" />
@@ -1577,8 +1577,8 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
                     title={`${motivation}\nPer ${sourceName(evt.source)} \u00B7 ${evtDate.isActual ? "filed" : "detected"} ${evtDate.date}`}
                     className={cn(
                       "inline-flex items-center gap-1 px-2 py-1 rounded-full text-sm font-semibold border cursor-default transition-colors",
-                      cfg?.color ?? "text-muted-foreground bg-white/[0.06] border-white/20",
-                      isRecent && "ring-1 ring-white/20"
+                      cfg?.color ?? "text-muted-foreground bg-overlay-6 border-overlay-20",
+                      isRecent && "ring-1 ring-overlay-20"
                     )}
                   >
                     <EvtIcon className="h-2.5 w-2.5 shrink-0" />
@@ -1589,7 +1589,7 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
                 );
               })}
               {distressEvents.length > 6 && (
-                <span className="inline-flex items-center px-2 py-1 rounded-full text-sm font-semibold border border-white/10 text-muted-foreground bg-white/[0.03]">
+                <span className="inline-flex items-center px-2 py-1 rounded-full text-sm font-semibold border border-overlay-10 text-muted-foreground bg-overlay-3">
                   +{distressEvents.length - 6} more
                 </span>
               )}
@@ -1600,7 +1600,7 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
         </div>
 
         {/* External Links + County Records — right half */}
-        <div className="flex-1 min-w-0 rounded-[12px] border border-white/[0.06] bg-white/[0.02] p-3">
+        <div className="flex-1 min-w-0 rounded-[12px] border border-overlay-6 bg-overlay-2 p-3">
           <div className="flex items-center gap-2 mb-2">
             <Globe className="h-3 w-3 text-muted-foreground" />
             <p className="text-sm text-muted-foreground uppercase tracking-wider font-semibold">External Links</p>
@@ -1639,7 +1639,7 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
             const countyInfo = COUNTY_LINKS[countyKey];
             if (countyInfo) {
               return (
-                <div className="space-y-1.5 pt-2 mt-2 border-t border-white/[0.06]">
+                <div className="space-y-1.5 pt-2 mt-2 border-t border-overlay-6">
                   <p className="text-xs text-muted-foreground/60 uppercase tracking-wider">{countyInfo.name}</p>
                   <div className="flex flex-wrap gap-1.5">
                     <a href={countyInfo.gis(cf.apn ?? "")} target="_blank" rel="noopener noreferrer">
@@ -1666,7 +1666,7 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
             if (cf.apn && cf.county) {
               const searchQ = encodeURIComponent(`${cf.apn} ${cf.county} county ${cf.state} property records`);
               return (
-                <div className="pt-2 mt-2 border-t border-white/[0.06]">
+                <div className="pt-2 mt-2 border-t border-overlay-6">
                   <a href={`https://www.google.com/search?q=${searchQ}`} target="_blank" rel="noopener noreferrer">
                     <Button size="sm" variant="outline" className="gap-1 text-xs h-6 px-2">
                       <Search className="h-2.5 w-2.5 text-muted-foreground" />{cf.county} Records
@@ -1682,7 +1682,7 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
 
       {/* Prospecting Intake — compact inline summary */}
       {(prospectingSnapshot.sourceChannel || prospectingSnapshot.nicheTag || prospectingSnapshot.outboundStatus) && (
-        <div className="rounded-[10px] border border-white/[0.06] bg-white/[0.02] px-3 py-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm">
+        <div className="rounded-[10px] border border-overlay-6 bg-overlay-2 px-3 py-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm">
           <span className="text-muted-foreground">
             Source: <span className="text-foreground font-medium">{sourceChannelLabel(prospectingSnapshot.sourceChannel ?? cf.source)}</span>
           </span>
@@ -1707,7 +1707,7 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
         </div>
       )}
 
-      <div className="rounded-[12px] border border-white/[0.06] bg-white/[0.02] p-3 space-y-2.5">
+      <div className="rounded-[12px] border border-overlay-6 bg-overlay-2 p-3 space-y-2.5">
         <div className="flex items-center gap-2">
           <Clock className="h-3.5 w-3.5 text-foreground" />
           <p className="text-sm text-muted-foreground uppercase tracking-wider font-semibold">Recent Communication</p>
@@ -1739,7 +1739,7 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
                     : noteText
                 : null;
               return (
-                <div key={entry.id} className="flex items-start justify-between gap-2 rounded-[8px] border border-white/[0.06] bg-white/[0.02] px-2.5 py-2 text-xs">
+                <div key={entry.id} className="flex items-start justify-between gap-2 rounded-[8px] border border-overlay-6 bg-overlay-2 px-2.5 py-2 text-xs">
                   <div className="min-w-0">
                     <p className="font-semibold text-foreground capitalize">
                       {dispositionLabel}
@@ -1757,7 +1757,7 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
         )}
       </div>
 
-      <div className="rounded-[12px] border border-white/[0.06] bg-white/[0.02] p-3 space-y-2.5">
+      <div className="rounded-[12px] border border-overlay-6 bg-overlay-2 p-3 space-y-2.5">
         <div className="flex items-center gap-2">
           <Phone className="h-3.5 w-3.5 text-foreground" />
           <p className="text-sm text-muted-foreground uppercase tracking-wider font-semibold">Call Assist</p>
@@ -1779,7 +1779,7 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
         </p>
         <div className="space-y-2">
           {callAssistVisibleCards.map((card) => (
-            <div key={card.id} className="rounded-[8px] border border-white/[0.06] bg-white/[0.015] px-2.5 py-2">
+            <div key={card.id} className="rounded-[8px] border border-overlay-6 bg-white/[0.015] px-2.5 py-2">
               <p className="text-sm font-semibold text-foreground">{card.title}</p>
               <p className="text-sm text-muted-foreground/65 mt-0.5">{card.summary}</p>
               <div className="mt-1.5 space-y-1">
@@ -1796,7 +1796,7 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
       </div>
 
       {/* ═══ DEAL PROGRESS — collapsible for early-stage leads ═══ */}
-      <div className="rounded-[12px] border border-white/[0.06] bg-white/[0.015]">
+      <div className="rounded-[12px] border border-overlay-6 bg-white/[0.015]">
         <button
           onClick={() => setDealProgressOpen(!dealProgressOpen)}
           className="w-full flex items-center gap-2 px-3 py-2.5 text-left"
@@ -1822,7 +1822,7 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
             >
               <div className="px-3 pb-3 space-y-3">
 
-      <div className="rounded-[12px] border border-white/[0.06] bg-white/[0.02] p-3 space-y-2">
+      <div className="rounded-[12px] border border-overlay-6 bg-overlay-2 p-3 space-y-2">
         <div className="flex items-center gap-2">
           <Briefcase className="h-3.5 w-3.5 text-foreground" />
           <p className="text-sm text-muted-foreground uppercase tracking-wider font-semibold">Offer Progress</p>
@@ -1838,7 +1838,7 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
         {offerPrepActive && (
           <div className={cn(
             "rounded-[8px] border px-2.5 py-2 space-y-1.5",
-            offerPrepStale || offerPrepMissing ? "border-white/12 bg-white/[0.05]" : "border-white/20 bg-white/[0.06]",
+            offerPrepStale || offerPrepMissing ? "border-overlay-12 bg-overlay-5" : "border-overlay-20 bg-overlay-6",
           )}>
             <p className="text-sm text-foreground/90">
               Workload: <span className="font-semibold">Run comps + prepare offer range</span>
@@ -1871,7 +1871,7 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
         onSave={onOfferStatusSave}
       />
 
-      <div className="rounded-[12px] border border-white/[0.06] bg-white/[0.02] p-3 space-y-2">
+      <div className="rounded-[12px] border border-overlay-6 bg-overlay-2 p-3 space-y-2">
         <div className="flex items-center gap-2">
           <Calculator className="h-3.5 w-3.5 text-foreground" />
           <p className="text-sm text-muted-foreground uppercase tracking-wider font-semibold">Offer Prep Snapshot</p>
@@ -1882,8 +1882,8 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
               className={cn(
                 "text-xs",
                 offerPrepHealth.state === "ready"
-                  ? "border-white/15 text-foreground"
-                  : "border-white/12 text-foreground",
+                  ? "border-overlay-15 text-foreground"
+                  : "border-overlay-12 text-foreground",
               )}
             >
               {offerPrepHealth.label}
@@ -1915,7 +1915,7 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
                   step={1000}
                   value={offerPrepDraft.arvUsed}
                   onChange={(e) => onOfferPrepDraftChange({ arvUsed: e.target.value })}
-                  className="h-8 w-full rounded-[8px] border border-white/[0.12] bg-white/[0.04] px-2.5 text-xs text-foreground focus:outline-none focus:border-white/30"
+                  className="h-8 w-full rounded-[8px] border border-overlay-12 bg-overlay-4 px-2.5 text-xs text-foreground focus:outline-none focus:border-overlay-30"
                 />
               </label>
               <label className="space-y-1">
@@ -1926,7 +1926,7 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
                   step={1000}
                   value={offerPrepDraft.rehabEstimate}
                   onChange={(e) => onOfferPrepDraftChange({ rehabEstimate: e.target.value })}
-                  className="h-8 w-full rounded-[8px] border border-white/[0.12] bg-white/[0.04] px-2.5 text-xs text-foreground focus:outline-none focus:border-white/30"
+                  className="h-8 w-full rounded-[8px] border border-overlay-12 bg-overlay-4 px-2.5 text-xs text-foreground focus:outline-none focus:border-overlay-30"
                 />
               </label>
               <label className="space-y-1">
@@ -1937,7 +1937,7 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
                   step={1000}
                   value={offerPrepDraft.maoLow}
                   onChange={(e) => onOfferPrepDraftChange({ maoLow: e.target.value })}
-                  className="h-8 w-full rounded-[8px] border border-white/[0.12] bg-white/[0.04] px-2.5 text-xs text-foreground focus:outline-none focus:border-white/30"
+                  className="h-8 w-full rounded-[8px] border border-overlay-12 bg-overlay-4 px-2.5 text-xs text-foreground focus:outline-none focus:border-overlay-30"
                 />
               </label>
               <label className="space-y-1">
@@ -1948,7 +1948,7 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
                   step={1000}
                   value={offerPrepDraft.maoHigh}
                   onChange={(e) => onOfferPrepDraftChange({ maoHigh: e.target.value })}
-                  className="h-8 w-full rounded-[8px] border border-white/[0.12] bg-white/[0.04] px-2.5 text-xs text-foreground focus:outline-none focus:border-white/30"
+                  className="h-8 w-full rounded-[8px] border border-overlay-12 bg-overlay-4 px-2.5 text-xs text-foreground focus:outline-none focus:border-overlay-30"
                 />
               </label>
             </div>
@@ -1958,7 +1958,7 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
                 <select
                   value={offerPrepDraft.confidence}
                   onChange={(e) => onOfferPrepDraftChange({ confidence: (e.target.value as OfferPrepConfidence | "") })}
-                  className="h-8 w-full rounded-[8px] border border-white/[0.12] bg-white/[0.04] px-2.5 text-xs text-foreground focus:outline-none focus:border-white/30"
+                  className="h-8 w-full rounded-[8px] border border-overlay-12 bg-overlay-4 px-2.5 text-xs text-foreground focus:outline-none focus:border-overlay-30"
                 >
                   <option value="">Select confidence</option>
                   {OFFER_PREP_CONFIDENCE_OPTIONS.map((option) => (
@@ -1973,7 +1973,7 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
                   value={offerPrepDraft.sheetUrl}
                   onChange={(e) => onOfferPrepDraftChange({ sheetUrl: e.target.value })}
                   placeholder="https://docs.google.com/..."
-                  className="h-8 w-full rounded-[8px] border border-white/[0.12] bg-white/[0.04] px-2.5 text-xs text-foreground placeholder:text-muted-foreground/55 focus:outline-none focus:border-white/30"
+                  className="h-8 w-full rounded-[8px] border border-overlay-12 bg-overlay-4 px-2.5 text-xs text-foreground placeholder:text-muted-foreground/55 focus:outline-none focus:border-overlay-30"
                 />
               </label>
             </div>
@@ -2104,7 +2104,7 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
       <IntakeGuideSection cf={cf} />
 
       {showQualificationBlock && (
-        <div className="rounded-[12px] border border-white/[0.06] bg-white/[0.02] p-3 space-y-3">
+        <div className="rounded-[12px] border border-overlay-6 bg-overlay-2 p-3 space-y-3">
           <div className="flex items-center gap-2">
             <CheckCircle2 className="h-3.5 w-3.5 text-foreground" />
             <p className="text-sm text-muted-foreground uppercase tracking-wider font-semibold">Qualification</p>
@@ -2115,7 +2115,7 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
 
           {qualificationEditable ? (
             <div className="space-y-3">
-              <div className="rounded-[8px] border border-white/[0.08] bg-white/[0.015] px-2.5 py-2 space-y-1.5">
+              <div className="rounded-[8px] border border-overlay-8 bg-white/[0.015] px-2.5 py-2 space-y-1.5">
                 <div className="flex items-center justify-between text-sm">
                   <span className="uppercase tracking-wider text-muted-foreground font-semibold">Qualification Completeness</span>
                   <span className={cn(
@@ -2129,7 +2129,7 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
                     {qualificationCompleteCount}/{qualificationCompletenessTotal}
                   </span>
                 </div>
-                <div className="h-1.5 rounded-full bg-white/[0.06] overflow-hidden">
+                <div className="h-1.5 rounded-full bg-overlay-6 overflow-hidden">
                   <div
                     className={cn(
                       "h-full transition-all",
@@ -2163,8 +2163,8 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
                         className={cn(
                           "h-7 w-7 rounded-[8px] border text-sm font-semibold transition-colors",
                           qualification.motivationLevel === level
-                            ? "border-white/40 bg-white/[0.12] text-foreground"
-                            : "border-white/[0.12] bg-white/[0.04] text-muted-foreground hover:border-white/[0.2]"
+                            ? "border-overlay-40 bg-overlay-12 text-foreground"
+                            : "border-overlay-12 bg-overlay-4 text-muted-foreground hover:border-overlay-20"
                         )}
                       >
                         {level}
@@ -2184,8 +2184,8 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
                         className={cn(
                           "h-7 w-7 rounded-[8px] border text-sm font-semibold transition-colors",
                           qualification.conditionLevel === level
-                            ? "border-white/40 bg-white/[0.12] text-foreground"
-                            : "border-white/[0.12] bg-white/[0.04] text-muted-foreground hover:border-white/[0.2]"
+                            ? "border-overlay-40 bg-overlay-12 text-foreground"
+                            : "border-overlay-12 bg-overlay-4 text-muted-foreground hover:border-overlay-20"
                         )}
                       >
                         {level}
@@ -2207,8 +2207,8 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
                         className={cn(
                           "h-7 w-7 rounded-[8px] border text-sm font-semibold transition-colors",
                           qualification.occupancyScore === level
-                            ? "border-white/40 bg-white/[0.12] text-foreground"
-                            : "border-white/[0.12] bg-white/[0.04] text-muted-foreground hover:border-white/[0.2]"
+                            ? "border-overlay-40 bg-overlay-12 text-foreground"
+                            : "border-overlay-12 bg-overlay-4 text-muted-foreground hover:border-overlay-20"
                         )}
                       >
                         {level}
@@ -2229,8 +2229,8 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
                         className={cn(
                           "h-7 w-7 rounded-[8px] border text-sm font-semibold transition-colors",
                           qualification.equityFlexibilityScore === level
-                            ? "border-white/40 bg-white/[0.12] text-foreground"
-                            : "border-white/[0.12] bg-white/[0.04] text-muted-foreground hover:border-white/[0.2]"
+                            ? "border-overlay-40 bg-overlay-12 text-foreground"
+                            : "border-overlay-12 bg-overlay-4 text-muted-foreground hover:border-overlay-20"
                         )}
                       >
                         {level}
@@ -2247,7 +2247,7 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
                   <select
                     value={qualification.sellerTimeline ?? ""}
                     onChange={(e) => onQualificationChange({ sellerTimeline: (e.target.value || null) as SellerTimeline | null })}
-                    className="h-8 w-full rounded-[8px] border border-white/[0.12] bg-white/[0.04] px-2.5 text-xs text-foreground focus:outline-none focus:border-white/30"
+                    className="h-8 w-full rounded-[8px] border border-overlay-12 bg-overlay-4 px-2.5 text-xs text-foreground focus:outline-none focus:border-overlay-30"
                   >
                     <option value="">Not set</option>
                     {SELLER_TIMELINE_OPTIONS.map((option) => (
@@ -2270,7 +2270,7 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
                       });
                     }}
                     placeholder="Optional"
-                    className="h-8 w-full rounded-[8px] border border-white/[0.12] bg-white/[0.04] px-2.5 text-xs text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:border-white/30"
+                    className="h-8 w-full rounded-[8px] border border-overlay-12 bg-overlay-4 px-2.5 text-xs text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:border-overlay-30"
                   />
                 </div>
               </div>
@@ -2280,7 +2280,7 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
                   type="checkbox"
                   checked={qualification.decisionMakerConfirmed}
                   onChange={(e) => onQualificationChange({ decisionMakerConfirmed: e.target.checked })}
-                  className="h-3.5 w-3.5 rounded border-white/[0.2] bg-white/[0.04]"
+                  className="h-3.5 w-3.5 rounded border-overlay-20 bg-overlay-4"
                 />
                 Decision maker confirmed
               </label>
@@ -2290,11 +2290,11 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
                 <div className={cn(
                   "rounded-[8px] border px-2.5 py-2 text-sm flex items-center justify-between",
                   cf.qualificationScoreTotal >= 25
-                    ? "border-white/15 bg-white/[0.06] text-foreground"
+                    ? "border-overlay-15 bg-overlay-6 text-foreground"
                     : cf.qualificationScoreTotal >= 18
-                      ? "border-white/20 bg-white/[0.06] text-foreground"
+                      ? "border-overlay-20 bg-overlay-6 text-foreground"
                       : cf.qualificationScoreTotal >= 12
-                        ? "border-white/12 bg-white/[0.05] text-foreground"
+                        ? "border-overlay-12 bg-overlay-5 text-foreground"
                         : "border-border/20 bg-muted/[0.06] text-foreground"
                 )}>
                   <span>
@@ -2324,12 +2324,12 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
                 </div>
               )}
               {offerReadySuggested && cf.qualificationScoreTotal == null && (
-                <div className="rounded-[8px] border border-white/15 bg-white/[0.06] px-2.5 py-2 text-sm text-foreground">
+                <div className="rounded-[8px] border border-overlay-15 bg-overlay-6 px-2.5 py-2 text-sm text-foreground">
                   Suggestion: this lead looks <span className="font-semibold">Offer Ready</span> based on motivation, timeline, and lead score.
                 </div>
               )}
               {qualificationSuggestedRoute && qualificationSuggestedRoute !== qualification.qualificationRoute && (
-                <div className="rounded-[8px] border border-white/20 bg-white/[0.06] px-2.5 py-2 text-sm text-foreground flex items-center justify-between gap-2">
+                <div className="rounded-[8px] border border-overlay-20 bg-overlay-6 px-2.5 py-2 text-sm text-foreground flex items-center justify-between gap-2">
                   <span>
                     Server suggestion: <span className="font-semibold">{qualificationRouteLabel(qualificationSuggestedRoute)}</span>
                   </span>
@@ -2356,8 +2356,8 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
                       className={cn(
                         "h-7 px-2.5 rounded-[8px] border text-sm font-medium transition-colors",
                         qualification.qualificationRoute === route.id
-                          ? "border-white/40 bg-white/[0.12] text-foreground"
-                          : "border-white/[0.12] bg-white/[0.04] text-muted-foreground hover:border-white/[0.2]",
+                          ? "border-overlay-40 bg-overlay-12 text-foreground"
+                          : "border-overlay-12 bg-overlay-4 text-muted-foreground hover:border-overlay-20",
                         qualificationSaving && "opacity-60 cursor-not-allowed"
                       )}
                     >
@@ -2428,7 +2428,7 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
       )}
 
       {/* Advanced intelligence + metadata (collapsed by default) */}
-      <div className="rounded-[12px] border border-white/[0.06] bg-white/[0.015]">
+      <div className="rounded-[12px] border border-overlay-6 bg-white/[0.015]">
         <button
           onClick={() => setAdvancedOpen(!advancedOpen)}
           className="w-full flex items-center gap-2 p-4 text-left"
@@ -2451,13 +2451,13 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
               className="overflow-hidden"
             >
               <div className="px-4 pb-4 space-y-3">
-                <div className="rounded-[10px] border border-white/[0.06] bg-white/[0.02] p-3">
+                <div className="rounded-[10px] border border-overlay-6 bg-overlay-2 p-3">
                   <div className="flex items-center justify-between gap-2">
                     <p className="text-sm text-muted-foreground uppercase tracking-wider font-semibold">Deep Crawl Intelligence</p>
                     {deepCrawlResult ? (
                       <button
                         onClick={() => setDeepCrawlExpanded(!deepCrawlExpanded)}
-                        className="h-6 px-2.5 rounded-md text-xs font-semibold border flex items-center gap-1 transition-colors border-white/15 bg-white/[0.06] text-foreground hover:bg-white/[0.06]"
+                        className="h-6 px-2.5 rounded-md text-xs font-semibold border flex items-center gap-1 transition-colors border-overlay-15 bg-overlay-6 text-foreground hover:bg-overlay-6"
                       >
                         <FileText className="h-3 w-3" />
                         {deepCrawlExpanded ? "Hide Report" : "Deep Crawl Report"}
@@ -2466,7 +2466,7 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
                       <button
                         onClick={loadSavedReport}
                         disabled={loadingReport}
-                        className="h-6 px-2.5 rounded-md text-xs font-semibold border flex items-center gap-1 transition-colors border-white/15 bg-white/[0.06] text-foreground hover:bg-white/[0.06]"
+                        className="h-6 px-2.5 rounded-md text-xs font-semibold border flex items-center gap-1 transition-colors border-overlay-15 bg-overlay-6 text-foreground hover:bg-overlay-6"
                       >
                         {loadingReport ? <Loader2 className="h-3 w-3 animate-spin" /> : <FileText className="h-3 w-3" />}
                         {loadingReport ? "Loading Report..." : "View Saved Report"}
@@ -2475,7 +2475,7 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
                       <button
                         onClick={executeDeepCrawl}
                         disabled={deepCrawling}
-                        className="h-6 px-2.5 rounded-md text-xs font-semibold border flex items-center gap-1 transition-colors border-white/12 bg-white/[0.05] text-muted-foreground hover:bg-white/[0.05]"
+                        className="h-6 px-2.5 rounded-md text-xs font-semibold border flex items-center gap-1 transition-colors border-overlay-12 bg-overlay-5 text-muted-foreground hover:bg-overlay-5"
                       >
                         {deepCrawling ? <Loader2 className="h-3 w-3 animate-spin" /> : <Search className="h-3 w-3" />}
                         {deepCrawling ? "Deep Crawling..." : "~120s Deep Crawl"}
@@ -2502,7 +2502,7 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
                   <DeepSkipPanel result={deepSkipResult ?? deepCrawlResult?.deepSkip} />
                 )}
 
-                <div className="rounded-[10px] border border-white/[0.06] bg-white/[0.02] p-3">
+                <div className="rounded-[10px] border border-overlay-6 bg-overlay-2 p-3">
                   <p className="text-sm text-muted-foreground uppercase tracking-wider font-semibold mb-2">Metadata</p>
                   <div className="grid grid-cols-2 gap-x-6">
                     <InfoRow icon={Zap} label="Source" value={cf.source} />
@@ -2527,7 +2527,7 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
       </div>
 
       {/* â•â•â• 6. LEAD INTELLIGENCE — 4 Tiles â•â•â• */}
-      <div className="rounded-[12px] border border-white/15 bg-white/[0.02] p-4 space-y-3">
+      <div className="rounded-[12px] border border-overlay-15 bg-overlay-2 p-4 space-y-3">
         <div className="flex items-center gap-2">
           <TrendingUp className="h-3.5 w-3.5 text-foreground" />
           <p className="text-sm text-foreground/80 uppercase tracking-wider font-semibold">Lead Intelligence</p>
@@ -2538,9 +2538,9 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
           <button
             type="button"
             onClick={() => setScoreBreakdown("composite")}
-            className={cn("rounded-[10px] border p-3 text-left transition-all cursor-pointer hover:bg-white/[0.04] group relative overflow-hidden", tc.border, tc.hoverBorder)}
+            className={cn("rounded-[10px] border p-3 text-left transition-all cursor-pointer hover:bg-overlay-4 group relative overflow-hidden", tc.border, tc.hoverBorder)}
           >
-            <div className="absolute inset-0 bg-gradient-to-b from-white/[0.02] to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+            <div className="absolute inset-0 bg-gradient-to-b from-overlay-2 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
             <div className="flex items-center justify-between mb-1 relative z-10">
               <p className="text-xs text-muted-foreground/60 uppercase tracking-widest">Match Score</p>
               <span className="text-xs text-foreground/40 group-hover:text-muted-foreground transition-colors">drill &rarr;</span>
@@ -2562,11 +2562,11 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
           <button
             type="button"
             onClick={() => scrollTo(sectionEquity)}
-            className={cn("rounded-[10px] border p-3 relative overflow-hidden text-left transition-all cursor-pointer hover:bg-white/[0.04] group",
-              equityIsGreen ? "border-white/15 bg-white/[0.06] hover:border-white/15" : "border-white/[0.06] bg-white/[0.03] hover:border-white/[0.12]"
+            className={cn("rounded-[10px] border p-3 relative overflow-hidden text-left transition-all cursor-pointer hover:bg-overlay-4 group",
+              equityIsGreen ? "border-overlay-15 bg-overlay-6 hover:border-overlay-15" : "border-overlay-6 bg-overlay-3 hover:border-overlay-12"
             )}
           >
-            {equityIsGreen && <div className="absolute inset-0 bg-gradient-to-b from-white/[0.06] to-transparent pointer-events-none" />}
+            {equityIsGreen && <div className="absolute inset-0 bg-gradient-to-b from-overlay-6 to-transparent pointer-events-none" />}
             <div className="flex items-center justify-between mb-1 relative z-10">
               <p className="text-xs text-muted-foreground/60 uppercase tracking-widest">Equity &amp; Spread</p>
               <span className="text-xs text-foreground group-hover:text-foreground transition-colors">details &rarr;</span>
@@ -2593,7 +2593,7 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
           <button
             type="button"
             onClick={() => scrollTo(sectionSignals)}
-            className="rounded-[10px] border border-white/[0.06] bg-white/[0.03] p-3 text-left transition-all cursor-pointer hover:bg-white/[0.04] hover:border-white/[0.12] group"
+            className="rounded-[10px] border border-overlay-6 bg-overlay-3 p-3 text-left transition-all cursor-pointer hover:bg-overlay-4 hover:border-overlay-12 group"
           >
             <div className="flex items-center justify-between mb-1">
               <p className="text-xs text-muted-foreground/60 uppercase tracking-widest">Signal Freshness</p>
@@ -2627,7 +2627,7 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
           <button
             type="button"
             onClick={() => scrollTo(sectionOwner)}
-            className="rounded-[10px] border border-white/[0.06] bg-white/[0.03] p-3 text-left transition-all cursor-pointer hover:bg-white/[0.04] hover:border-white/[0.12] group"
+            className="rounded-[10px] border border-overlay-6 bg-overlay-3 p-3 text-left transition-all cursor-pointer hover:bg-overlay-4 hover:border-overlay-12 group"
           >
             <div className="flex items-center justify-between mb-1">
               <p className="text-xs text-muted-foreground/60 uppercase tracking-widest">Owner Situation</p>
@@ -2636,12 +2636,12 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
             <div className="space-y-1.5">
               <div className="flex flex-wrap items-center gap-1">
                 {cf.isAbsentee ? (
-                  <span className="text-xs font-bold px-1.5 py-0.5 rounded bg-white/[0.06]/10 text-foreground border border-white/12">ABSENTEE</span>
+                  <span className="text-xs font-bold px-1.5 py-0.5 rounded bg-overlay-6/10 text-foreground border border-overlay-12">ABSENTEE</span>
                 ) : (
-                  <span className="text-xs font-bold px-1.5 py-0.5 rounded bg-white/[0.06]/10 text-foreground border border-white/15">Owner-Occupied</span>
+                  <span className="text-xs font-bold px-1.5 py-0.5 rounded bg-overlay-6/10 text-foreground border border-overlay-15">Owner-Occupied</span>
                 )}
-                {cf.isFreeClear && <span className="text-xs font-bold px-1.5 py-0.5 rounded bg-white/[0.05]/10 text-muted-foreground border border-white/12">FREE &amp; CLEAR</span>}
-                {cf.isVacant && <span className="text-xs font-bold px-1.5 py-0.5 rounded bg-white/[0.05]/10 text-muted-foreground border border-white/12">Vacant Property</span>}
+                {cf.isFreeClear && <span className="text-xs font-bold px-1.5 py-0.5 rounded bg-overlay-5/10 text-muted-foreground border border-overlay-12">FREE &amp; CLEAR</span>}
+                {cf.isVacant && <span className="text-xs font-bold px-1.5 py-0.5 rounded bg-overlay-5/10 text-muted-foreground border border-overlay-12">Vacant Property</span>}
               </div>
               <p className="text-xs text-muted-foreground/70 font-semibold">
                 {cf.isAbsentee && ownerAge && ownerAge >= 65 ? "Elderly absentee — likely estate/caretaker situation" :
@@ -2662,7 +2662,7 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
 
       {/* â"€â"€ Quick Call Summary (compact inline) â"€â"€ */}
       {(cf.totalCalls > 0 || cf.lastContactAt) && (
-        <div className="flex items-center gap-3 rounded-[10px] border border-white/[0.06] bg-white/[0.02] px-3 py-2">
+        <div className="flex items-center gap-3 rounded-[10px] border border-overlay-6 bg-overlay-2 px-3 py-2">
           <Phone className="h-3.5 w-3.5 text-foreground shrink-0" />
           <p className="text-sm text-muted-foreground uppercase tracking-wider font-semibold shrink-0">Call Summary</p>
           <div className="flex items-center gap-2 ml-2 text-sm text-foreground/80 flex-wrap">
@@ -2712,21 +2712,21 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
 
       {/* â"€â"€ Call Playbook — Grok AI (upgraded pre-call brief) â"€â"€ */}
       {brief || briefLoading ? (
-        <div className="rounded-[12px] border border-white/12 bg-white/[0.05] p-4 relative overflow-hidden">
-          <div className="absolute inset-0 bg-gradient-to-br from-white/[0.05] via-transparent to-white/[0.03] pointer-events-none" />
-          <div className="absolute top-0 inset-x-0 h-[1px] bg-gradient-to-r from-transparent via-white/20 to-transparent" />
+        <div className="rounded-[12px] border border-overlay-12 bg-overlay-5 p-4 relative overflow-hidden">
+          <div className="absolute inset-0 bg-gradient-to-br from-overlay-5 via-transparent to-overlay-3 pointer-events-none" />
+          <div className="absolute top-0 inset-x-0 h-[1px] bg-gradient-to-r from-transparent via-overlay-20 to-transparent" />
 
           <div className="flex items-center gap-2 mb-3 relative z-10">
-            <div className="h-7 w-7 rounded-[8px] bg-white/[0.05]/15 flex items-center justify-center">
+            <div className="h-7 w-7 rounded-[8px] bg-overlay-5/15 flex items-center justify-center">
               <Brain className="h-3.5 w-3.5 text-muted-foreground" />
             </div>
             <p className="text-sm text-muted-foreground uppercase tracking-wider font-semibold">Call Playbook</p>
-            <Badge variant="outline" className="text-xs border-white/12 text-muted-foreground ml-1">GROK AI</Badge>
+            <Badge variant="outline" className="text-xs border-overlay-12 text-muted-foreground ml-1">GROK AI</Badge>
             {briefLoading && <Loader2 className="h-3 w-3 text-muted-foreground animate-spin ml-auto" />}
             {!briefLoading && (
               <button
                 onClick={regenerateBrief}
-                className="ml-auto p-1 rounded-md hover:bg-white/[0.05]/10 transition-colors text-muted-foreground hover:text-muted-foreground"
+                className="ml-auto p-1 rounded-md hover:bg-overlay-5/10 transition-colors text-muted-foreground hover:text-muted-foreground"
                 title="Regenerate playbook"
               >
                 <RefreshCw className="h-3 w-3" />
@@ -2749,7 +2749,7 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
 
                 {/* Suggested Opener */}
                 {brief.suggestedOpener && (
-                  <div className="pt-2 border-t border-white/12">
+                  <div className="pt-2 border-t border-overlay-12">
                     <p className="text-xs text-muted-foreground uppercase tracking-widest mb-1">Suggested Opener</p>
                     <p className="text-xs text-foreground/80 italic leading-relaxed">&ldquo;{brief.suggestedOpener}&rdquo;</p>
                   </div>
@@ -2757,7 +2757,7 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
 
                 {/* Talking Points */}
                 {brief.talkingPoints.length > 0 && (
-                  <div className="pt-2 border-t border-white/12">
+                  <div className="pt-2 border-t border-overlay-12">
                     <p className="text-xs text-muted-foreground uppercase tracking-widest mb-1.5">Talking Points</p>
                     <div className="space-y-1">
                       {brief.talkingPoints.map((tp, i) => (
@@ -2772,13 +2772,13 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
 
                 {/* Objections & Rebuttals */}
                 {brief.objections.length > 0 && (
-                  <div className="pt-2 border-t border-white/12">
+                  <div className="pt-2 border-t border-overlay-12">
                     <p className="text-xs text-muted-foreground uppercase tracking-widest mb-1.5">Likely Objections</p>
                     <div className="space-y-2">
                       {brief.objections.map((obj, i) => (
-                        <div key={i} className="rounded-[8px] border border-white/[0.04] bg-white/[0.02] px-3 py-2">
+                        <div key={i} className="rounded-[8px] border border-overlay-4 bg-overlay-2 px-3 py-2">
                           <p className="text-xs text-foreground font-medium">&ldquo;{obj.objection}&rdquo;</p>
-                          <p className="text-xs text-foreground mt-1 pl-3 border-l-2 border-white/15">{obj.rebuttal}</p>
+                          <p className="text-xs text-foreground mt-1 pl-3 border-l-2 border-overlay-15">{obj.rebuttal}</p>
                         </div>
                       ))}
                     </div>
@@ -2787,7 +2787,7 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
 
                 {/* Negotiation Anchor */}
                 {brief.negotiationAnchor && (
-                  <div className="pt-2 border-t border-white/12">
+                  <div className="pt-2 border-t border-overlay-12">
                     <p className="text-xs text-muted-foreground uppercase tracking-widest mb-1">Negotiation Anchor</p>
                     <p className="text-xs text-foreground/90 font-semibold">{brief.negotiationAnchor}</p>
                   </div>
@@ -2795,7 +2795,7 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
 
                 {/* Watch-Outs */}
                 {brief.watchOuts.length > 0 && (
-                  <div className="pt-2 border-t border-white/12">
+                  <div className="pt-2 border-t border-overlay-12">
                     <p className="text-xs text-foreground uppercase tracking-widest mb-1">Watch-Outs</p>
                     <div className="space-y-1">
                       {brief.watchOuts.map((wo, i) => (
@@ -2810,7 +2810,7 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
 
                 {/* Risk Flags / Contradictions */}
                 {brief.riskFlags.length > 0 && (
-                  <div className="pt-2 border-t border-white/12">
+                  <div className="pt-2 border-t border-overlay-12">
                     <p className="text-xs text-muted-foreground uppercase tracking-widest mb-1">Risk Flags / Things That May Not Line Up</p>
                     <div className="space-y-1">
                       {brief.riskFlags.map((rf, i) => (
@@ -2833,7 +2833,7 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
         </div>
       ) : (
         /* Compact empty-state: single line instead of full card */
-        <div className="flex items-center gap-2 rounded-[10px] border border-white/12 bg-white/[0.05] px-3 py-2">
+        <div className="flex items-center gap-2 rounded-[10px] border border-overlay-12 bg-overlay-5 px-3 py-2">
           <Brain className="h-3.5 w-3.5 text-muted-foreground" />
           <div className="min-w-0">
             <p className="text-sm text-muted-foreground/40 italic">Call script not generated yet</p>
@@ -2841,7 +2841,7 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
           </div>
           <button
             onClick={regenerateBrief}
-            className="ml-auto flex items-center gap-1 px-2 py-0.5 rounded-md text-sm text-muted-foreground hover:text-muted-foreground hover:bg-white/[0.05]/10 transition-colors"
+            className="ml-auto flex items-center gap-1 px-2 py-0.5 rounded-md text-sm text-muted-foreground hover:text-muted-foreground hover:bg-overlay-5/10 transition-colors"
           >
             <RefreshCw className="h-2.5 w-2.5" />
             Generate Call Script
@@ -2851,7 +2851,7 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
 
       {/* â•â•â• 8. CALL HISTORY + AI NOTES (merged) â•â•â• */}
       {(cf.totalCalls > 0 || cf.nextCallScheduledAt || summaryNotes.length > 0) && (
-        <div className="rounded-[12px] border border-white/[0.06] bg-white/[0.02] p-4 space-y-3">
+        <div className="rounded-[12px] border border-overlay-6 bg-overlay-2 p-4 space-y-3">
           <div className="flex items-center gap-2 mb-1">
             <PhoneForwarded className="h-3.5 w-3.5 text-foreground" />
             <p className="text-sm text-muted-foreground uppercase tracking-wider font-semibold">Call History &amp; Notes</p>
@@ -2864,29 +2864,29 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
 
           {cf.totalCalls > 0 && (
             <>
-              <div className="relative h-1.5 rounded-full bg-white/[0.06] overflow-hidden">
+              <div className="relative h-1.5 rounded-full bg-overlay-6 overflow-hidden">
                 <div
                   className="absolute inset-y-0 left-0 rounded-full transition-all duration-500"
                   style={{
                     width: `${(getCadencePosition(cf.totalCalls).touchNumber / getCadencePosition(cf.totalCalls).totalTouches) * 100}%`,
-                    background: "linear-gradient(90deg, rgba(255,255,255,0.6), rgba(255,255,255,0.6))",
-                    boxShadow: "0 0 8px rgba(255,255,255,0.3)",
+                    background: "linear-gradient(90deg, var(--overlay-60), var(--overlay-60))",
+                    boxShadow: "0 0 8px var(--overlay-30)",
                   }}
                 />
               </div>
 
               <div className="grid grid-cols-3 gap-2">
-                <div className="rounded-[10px] border border-white/[0.06] bg-white/[0.03] p-2.5 text-center">
+                <div className="rounded-[10px] border border-overlay-6 bg-overlay-3 p-2.5 text-center">
                   <Phone className="h-3 w-3 text-foreground mx-auto mb-1" />
                   <p className="text-lg font-bold text-foreground">{cf.totalCalls}</p>
                   <p className="text-xs text-muted-foreground/60 uppercase tracking-wider">Total Calls</p>
                 </div>
-                <div className="rounded-[10px] border border-white/[0.06] bg-white/[0.03] p-2.5 text-center">
+                <div className="rounded-[10px] border border-overlay-6 bg-overlay-3 p-2.5 text-center">
                   <PhoneForwarded className="h-3 w-3 text-foreground mx-auto mb-1" />
                   <p className="text-lg font-bold text-foreground">{cf.liveAnswers}</p>
                   <p className="text-xs text-muted-foreground/60 uppercase tracking-wider">Live Answers</p>
                 </div>
-                <div className="rounded-[10px] border border-white/[0.06] bg-white/[0.03] p-2.5 text-center">
+                <div className="rounded-[10px] border border-overlay-6 bg-overlay-3 p-2.5 text-center">
                   <Voicemail className="h-3 w-3 text-foreground mx-auto mb-1" />
                   <p className="text-lg font-bold text-foreground">{cf.voicemailsLeft}</p>
                   <p className="text-xs text-muted-foreground/60 uppercase tracking-wider">Voicemails</p>
@@ -2913,14 +2913,14 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
           {/* AI Call Notes inline */}
           {summaryNotes.length > 0 && (
             <>
-              {cf.totalCalls > 0 && <div className="border-t border-white/[0.06]" />}
+              {cf.totalCalls > 0 && <div className="border-t border-overlay-6" />}
               <button
                 onClick={() => setNotesExpanded(!notesExpanded)}
                 className="w-full flex items-center gap-2 text-left"
               >
                 <Zap className="h-3.5 w-3.5 text-muted-foreground" />
                 <p className="text-sm text-muted-foreground uppercase tracking-wider font-semibold">AI Call Notes</p>
-                <Badge variant="outline" className="text-xs ml-1 border-white/12 text-muted-foreground">{summaryNotes.length}</Badge>
+                <Badge variant="outline" className="text-xs ml-1 border-overlay-12 text-muted-foreground">{summaryNotes.length}</Badge>
                 <ChevronRight className={cn("h-3.5 w-3.5 text-muted-foreground/40 ml-auto transition-transform", notesExpanded && "rotate-90")} />
               </button>
 
@@ -2934,7 +2934,7 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
                     className="overflow-hidden space-y-2"
                   >
                     {summaryNotes.map((note) => (
-                      <div key={note.id} className="rounded-[10px] border border-white/[0.06] bg-white/[0.03] p-3 space-y-1.5">
+                      <div key={note.id} className="rounded-[10px] border border-overlay-6 bg-overlay-3 p-3 space-y-1.5">
                         <div className="flex items-center gap-2">
                           <span className="text-xs font-semibold uppercase text-muted-foreground">{note.disposition}</span>
                           <span className="text-xs text-muted-foreground/40">
@@ -2962,7 +2962,7 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
       )}
 
       {/* â•â•â• 9. PROPERTY DETAILS — Tax/Transfer + Predictive (no address — moved to Snapshot) â•â•â• */}
-      <div ref={sectionEquity} className="rounded-[12px] border border-white/[0.06] bg-white/[0.02] p-4 space-y-3">
+      <div ref={sectionEquity} className="rounded-[12px] border border-overlay-6 bg-overlay-2 p-4 space-y-3">
         <div className="flex items-center gap-2 mb-1">
           <Home className="h-3.5 w-3.5 text-muted-foreground" />
           <p className="text-sm text-muted-foreground uppercase tracking-wider font-semibold">Property Details</p>
@@ -2970,7 +2970,7 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
             <Button
               size="sm"
               variant="outline"
-              className="text-sm h-6 gap-1 ml-auto text-foreground border-white/20 hover:bg-white/10"
+              className="text-sm h-6 gap-1 ml-auto text-foreground border-overlay-20 hover:bg-overlay-10"
               onClick={onAutofill}
               disabled={autofilling}
             >
@@ -2983,7 +2983,7 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
         <div className="grid grid-cols-2 gap-2.5">
           {/* Tax & Transfer Details */}
           {(prRaw.AssessedValue || lastTransferType || cf.lastSalePrice) && (
-            <div className="rounded-[10px] border border-white/[0.06] bg-white/[0.03] p-2.5 col-span-2">
+            <div className="rounded-[10px] border border-overlay-6 bg-overlay-3 p-2.5 col-span-2">
               <div className="flex items-start gap-2">
                 <Banknote className="h-3.5 w-3.5 text-muted-foreground mt-0.5 shrink-0" />
                 <div className="flex-1 min-w-0">
@@ -3009,7 +3009,7 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
 
           {/* Predictive Intelligence */}
           {cf.prediction ? (
-            <div className="rounded-[10px] border border-white/[0.06] bg-white/[0.03] p-2.5 col-span-2">
+            <div className="rounded-[10px] border border-overlay-6 bg-overlay-3 p-2.5 col-span-2">
               <div className="flex items-start gap-2">
                 <Zap className="h-3.5 w-3.5 text-muted-foreground mt-0.5 shrink-0" />
                 <div className="flex-1 min-w-0">
@@ -3019,22 +3019,22 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
                       <p className="text-xs text-muted-foreground/50 uppercase tracking-widest">Distress In</p>
                       <p className="text-lg font-bold text-muted-foreground" style={{ textShadow: "0 0 10px rgba(251,146,60,0.3)" }}>~{cf.prediction.daysUntilDistress}d</p>
                     </div>
-                    <div className="h-8 w-px bg-white/[0.06]" />
+                    <div className="h-8 w-px bg-overlay-6" />
                     <div>
                       <p className="text-xs text-muted-foreground/50 uppercase tracking-widest">Confidence</p>
-                      <p className="text-lg font-bold text-foreground" style={{ textShadow: "0 0 10px rgba(255,255,255,0.08)" }}>{cf.prediction.confidence}%</p>
+                      <p className="text-lg font-bold text-foreground" style={{ textShadow: "0 0 10px var(--glow-soft)" }}>{cf.prediction.confidence}%</p>
                     </div>
-                    <div className="h-8 w-px bg-white/[0.06]" />
+                    <div className="h-8 w-px bg-overlay-6" />
                     <div>
                       <p className="text-xs text-muted-foreground/50 uppercase tracking-widest">Pred Score</p>
                       <p className="text-lg font-bold text-foreground">{cf.prediction.predictiveScore}</p>
                     </div>
                     {cf.prediction.lifeEventProbability != null && cf.prediction.lifeEventProbability > 0.10 && (
                       <>
-                        <div className="h-8 w-px bg-white/[0.06]" />
+                        <div className="h-8 w-px bg-overlay-6" />
                         <div>
                           <p className="text-xs text-muted-foreground/50 uppercase tracking-widest">Life Event</p>
-                          <p className="text-lg font-bold text-foreground" style={{ textShadow: "0 1px 0 rgba(255,255,255,0.05)" }}>{Math.round(cf.prediction.lifeEventProbability * 100)}%</p>
+                          <p className="text-lg font-bold text-foreground" style={{ textShadow: "0 1px 0 var(--overlay-5)" }}>{Math.round(cf.prediction.lifeEventProbability * 100)}%</p>
                         </div>
                       </>
                     )}
@@ -3043,7 +3043,7 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
               </div>
             </div>
           ) : (
-            <div className="flex items-center gap-2 rounded-[8px] border border-white/[0.04] bg-white/[0.015] px-2.5 py-1.5 col-span-2">
+            <div className="flex items-center gap-2 rounded-[8px] border border-overlay-4 bg-white/[0.015] px-2.5 py-1.5 col-span-2">
               <Zap className="h-3 w-3 text-muted-foreground/40 shrink-0" />
               <p className="text-sm text-muted-foreground/35 italic">No predictive data yet</p>
             </div>
@@ -3053,14 +3053,14 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
 
       {/* â•â•â• 10. EDIT DETAILS â•â•â• */}
       {canEdit && (
-        <button onClick={onEdit} className="flex items-center gap-1.5 px-3 py-1.5 rounded-[10px] text-sm font-semibold text-foreground bg-white/[0.06] border border-white/15 hover:bg-white/[0.1] hover:border-white/20 shadow-[var(--shadow-badge-glow-tight)] transition-all active:scale-[0.97]">
+        <button onClick={onEdit} className="flex items-center gap-1.5 px-3 py-1.5 rounded-[10px] text-sm font-semibold text-foreground bg-overlay-6 border border-overlay-15 hover:bg-overlay-10 hover:border-overlay-20 shadow-[var(--shadow-badge-glow-tight)] transition-all active:scale-[0.97]">
           <Pencil className="h-3 w-3" />Edit Details
         </button>
       )}
 
       {/* 12. Full Activity Timeline */}
       {activityLog.length > 0 && (
-        <div className="rounded-[12px] border border-white/[0.06] bg-white/[0.02]">
+        <div className="rounded-[12px] border border-overlay-6 bg-overlay-2">
           <button
             onClick={() => setTimelinesOpen(!timelinesOpen)}
             className="w-full flex items-center gap-2 p-4 text-left"
@@ -3094,7 +3094,7 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
                         ? "Event details logged"
                         : (noteText.length > 96 ? `${noteText.slice(0, 96)}...` : noteText);
                     return (
-                      <div key={entry.id} className="flex items-start justify-between gap-2.5 px-3 py-2.5 rounded-[8px] border border-white/[0.04] bg-white/[0.02] text-xs">
+                      <div key={entry.id} className="flex items-start justify-between gap-2.5 px-3 py-2.5 rounded-[8px] border border-overlay-4 bg-overlay-2 text-xs">
                         <div className="flex items-start gap-2.5 min-w-0">
                           <EntryIcon className={cn("h-3.5 w-3.5 shrink-0 mt-0.5", iconColor)} />
                           <div className="min-w-0">
@@ -3304,7 +3304,7 @@ function SubjectPhotoCarousel({ photos, onSkipTrace }: { photos: string[]; onSki
           </button>
           <div className="absolute bottom-1 left-1/2 -translate-x-1/2 flex gap-1">
             {photos.map((_, i) => (
-              <div key={i} className={cn("h-1 w-1 rounded-full transition-colors", i === idx ? "bg-primary" : "bg-white/40")} />
+              <div key={i} className={cn("h-1 w-1 rounded-full transition-colors", i === idx ? "bg-primary" : "bg-overlay-40")} />
             ))}
           </div>
         </>
@@ -3358,8 +3358,8 @@ function CompDetailPanel({ comp, onClose }: { comp: CompProperty; onClose: () =>
   const safeIdx = allPhotos.length > 0 ? photoIdx % allPhotos.length : 0;
 
   return (
-    <div className="rounded-[10px] border border-white/20 bg-[rgba(12,12,22,0.6)] backdrop-blur-xl overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200">
-      <div className="flex items-center justify-between px-4 py-2 border-b border-white/[0.06] bg-white/[0.04]">
+    <div className="rounded-[10px] border border-overlay-20 bg-panel-deep backdrop-blur-xl overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200">
+      <div className="flex items-center justify-between px-4 py-2 border-b border-overlay-6 bg-overlay-4">
         <p className="text-xs font-semibold flex items-center gap-1.5">
           <Eye className="h-3 w-3 text-foreground" />
           {comp.streetAddress}
@@ -3370,7 +3370,7 @@ function CompDetailPanel({ comp, onClose }: { comp: CompProperty; onClose: () =>
       </div>
       <div className="flex">
         {/* Photo carousel */}
-        <div className="w-64 h-44 shrink-0 border-r border-white/[0.06] bg-black/30 relative group">
+        <div className="w-64 h-44 shrink-0 border-r border-overlay-6 bg-black/30 relative group">
           {loading && allPhotos.length === 0 ? (
             <div className="h-full flex items-center justify-center">
               <Loader2 className="h-5 w-5 text-foreground animate-spin" />
@@ -3398,7 +3398,7 @@ function CompDetailPanel({ comp, onClose }: { comp: CompProperty; onClose: () =>
                   >
                     <ChevronRight className="h-3.5 w-3.5" />
                   </button>
-                  <span className="absolute bottom-1.5 right-2 text-xs bg-black/60 text-white/80 px-1.5 py-0.5 rounded-full">
+                  <span className="absolute bottom-1.5 right-2 text-xs bg-black/60 text-overlay-80 px-1.5 py-0.5 rounded-full">
                     {safeIdx + 1}/{allPhotos.length}
                   </span>
                 </>
@@ -3436,12 +3436,12 @@ function CompDetailPanel({ comp, onClose }: { comp: CompProperty; onClose: () =>
             ) : null}
           </div>
           <div className="flex flex-wrap gap-1.5 mt-2">
-            {comp.isVacant && <span className="px-1.5 py-0.5 rounded text-xs bg-white/[0.05]/10 text-muted-foreground border border-white/12">Vacant</span>}
-            {comp.isAbsentee && <span className="px-1.5 py-0.5 rounded text-xs bg-white/[0.06]/10 text-foreground border border-white/12">Absentee</span>}
-            {comp.isFreeAndClear && <span className="px-1.5 py-0.5 rounded text-xs bg-white/[0.06]/10 text-foreground border border-white/15">Free & Clear</span>}
-            {comp.isForeclosure && <span className="px-1.5 py-0.5 rounded text-xs bg-white/[0.05]/10 text-foreground border border-white/15">Foreclosure</span>}
-            {comp.isListedForSale && <span className="px-1.5 py-0.5 rounded text-xs bg-white/[0.05]/10 text-muted-foreground border border-white/12">Listed</span>}
-            {comp.isRecentSale && <span className="px-1.5 py-0.5 rounded text-xs bg-white/10 text-foreground border border-white/20">Recent Sale</span>}
+            {comp.isVacant && <span className="px-1.5 py-0.5 rounded text-xs bg-overlay-5/10 text-muted-foreground border border-overlay-12">Vacant</span>}
+            {comp.isAbsentee && <span className="px-1.5 py-0.5 rounded text-xs bg-overlay-6/10 text-foreground border border-overlay-12">Absentee</span>}
+            {comp.isFreeAndClear && <span className="px-1.5 py-0.5 rounded text-xs bg-overlay-6/10 text-foreground border border-overlay-15">Free & Clear</span>}
+            {comp.isForeclosure && <span className="px-1.5 py-0.5 rounded text-xs bg-overlay-5/10 text-foreground border border-overlay-15">Foreclosure</span>}
+            {comp.isListedForSale && <span className="px-1.5 py-0.5 rounded text-xs bg-overlay-5/10 text-muted-foreground border border-overlay-12">Listed</span>}
+            {comp.isRecentSale && <span className="px-1.5 py-0.5 rounded text-xs bg-overlay-10 text-foreground border border-overlay-20">Recent Sale</span>}
           </div>
           {comp.lat && comp.lng && (
             <a
@@ -3724,7 +3724,7 @@ function CompsTab({ cf, selectedComps, onAddComp, onRemoveComp, onSkipTrace, com
     <div className="space-y-4">
       {/* No-coords banner — graceful degradation */}
       {!hasCoords && (
-        <div className="rounded-[10px] border border-dashed border-white/12 bg-white/[0.03] p-3 flex items-center justify-between gap-3">
+        <div className="rounded-[10px] border border-dashed border-overlay-12 bg-overlay-3 p-3 flex items-center justify-between gap-3">
           <div className="flex items-center gap-2 min-w-0">
             <MapPinned className="h-4 w-4 text-muted-foreground shrink-0" />
             <p className="text-sm text-muted-foreground truncate">
@@ -3745,12 +3745,12 @@ function CompsTab({ cf, selectedComps, onAddComp, onRemoveComp, onSkipTrace, com
       )}
 
       {/* Subject property header with photo carousel */}
-      <div className="rounded-[10px] border border-white/[0.06] bg-[rgba(12,12,22,0.5)] backdrop-blur-xl p-0 flex overflow-hidden">
-        <div className="w-44 h-28 shrink-0 border-r border-white/[0.06] bg-white/[0.04]">
+      <div className="rounded-[10px] border border-overlay-6 bg-panel backdrop-blur-xl p-0 flex overflow-hidden">
+        <div className="w-44 h-28 shrink-0 border-r border-overlay-6 bg-overlay-4">
           <SubjectPhotoCarousel photos={photos} onSkipTrace={onSkipTrace} />
         </div>
         <div className="flex-1 p-3 flex flex-col justify-center min-w-0">
-          <p className="text-sm font-bold truncate" style={{ textShadow: "0 0 8px rgba(255,255,255,0.12)" }}>
+          <p className="text-sm font-bold truncate" style={{ textShadow: "0 0 8px var(--overlay-12)" }}>
             {cf.fullAddress}
           </p>
           <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-1.5 text-sm text-muted-foreground">
@@ -3777,10 +3777,10 @@ function CompsTab({ cf, selectedComps, onAddComp, onRemoveComp, onSkipTrace, com
       {/* === SECTION 1: DECISION SUMMARY === */}
       <div className={cn(
         "rounded-[10px] border p-4 space-y-3",
-        isScreeningMode ? "border-dashed border-white/12 bg-white/[0.05]" :
-        arvConfidence === "high" ? "border-white/15 bg-white/[0.06]" :
-        arvConfidence === "medium" ? "border-white/12 bg-white/[0.05]" :
-        "border-white/15 bg-white/[0.05]",
+        isScreeningMode ? "border-dashed border-overlay-12 bg-overlay-5" :
+        arvConfidence === "high" ? "border-overlay-15 bg-overlay-6" :
+        arvConfidence === "medium" ? "border-overlay-12 bg-overlay-5" :
+        "border-overlay-15 bg-overlay-5",
       )}>
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
@@ -3789,11 +3789,11 @@ function CompsTab({ cf, selectedComps, onAddComp, onRemoveComp, onSkipTrace, com
           </div>
           <div className="flex items-center gap-2">
             {isScreeningMode ? (
-              <span className="text-xs font-mono px-1.5 py-0.5 rounded border border-white/12 bg-white/[0.05]/10 text-muted-foreground font-bold">
+              <span className="text-xs font-mono px-1.5 py-0.5 rounded border border-overlay-12 bg-overlay-5/10 text-muted-foreground font-bold">
                 Screening Only
               </span>
             ) : modeLabel ? (
-              <span className="text-xs font-mono px-1.5 py-0.5 rounded border border-white/10 bg-white/[0.04] text-muted-foreground">
+              <span className="text-xs font-mono px-1.5 py-0.5 rounded border border-overlay-10 bg-overlay-4 text-muted-foreground">
                 {modeLabel}
               </span>
             ) : null}
@@ -3828,7 +3828,7 @@ function CompsTab({ cf, selectedComps, onAddComp, onRemoveComp, onSkipTrace, com
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <p className="text-xs text-muted-foreground uppercase mb-0.5">{isScreeningMode ? "Screening Estimate" : "ARV"}</p>
-                <p className={cn("text-2xl font-black font-mono tracking-tight", isScreeningMode ? "text-muted-foreground" : "text-foreground")} style={isScreeningMode ? {} : { textShadow: "0 0 10px rgba(255,255,255,0.08)" }}>
+                <p className={cn("text-2xl font-black font-mono tracking-tight", isScreeningMode ? "text-muted-foreground" : "text-foreground")} style={isScreeningMode ? {} : { textShadow: "0 0 10px var(--glow-soft)" }}>
                   {isScreeningMode ? formatRoughCurrency(arv) : formatCurrency(arv)}
                 </p>
                 {!isScreeningMode && arvLow > 0 && arvHigh > 0 && arvRangeResult.compCount > 1 && (
@@ -3856,7 +3856,7 @@ function CompsTab({ cf, selectedComps, onAddComp, onRemoveComp, onSkipTrace, com
                 {screeningReasons.length > 0 && (
                   <div className="flex flex-wrap gap-1">
                     {screeningReasons.map((r, i) => (
-                      <span key={i} className="text-xs px-1.5 py-0.5 rounded border border-white/12 bg-white/[0.05]/5 text-muted-foreground">{r}</span>
+                      <span key={i} className="text-xs px-1.5 py-0.5 rounded border border-overlay-12 bg-overlay-5/5 text-muted-foreground">{r}</span>
                     ))}
                   </div>
                 )}
@@ -3865,9 +3865,9 @@ function CompsTab({ cf, selectedComps, onAddComp, onRemoveComp, onSkipTrace, com
               <div className="flex items-start gap-2">
                 <span className={cn(
                   "text-sm px-1.5 py-0.5 rounded-full font-bold uppercase shrink-0",
-                  arvConfidence === "high" ? "bg-white/[0.06]/20 text-foreground" :
-                  arvConfidence === "medium" ? "bg-white/[0.05]/20 text-muted-foreground" :
-                  "bg-white/[0.05]/20 text-foreground",
+                  arvConfidence === "high" ? "bg-overlay-6/20 text-foreground" :
+                  arvConfidence === "medium" ? "bg-overlay-5/20 text-muted-foreground" :
+                  "bg-overlay-5/20 text-foreground",
                 )}>
                   {arvConfidence}
                 </span>
@@ -3919,7 +3919,7 @@ function CompsTab({ cf, selectedComps, onAddComp, onRemoveComp, onSkipTrace, com
             {isScreeningMode && (
               <button
                 onClick={() => setResearchMode(true)}
-                className="w-full mt-1 py-1.5 rounded-[6px] border border-white/30 bg-white/10 text-foreground text-sm font-semibold hover:bg-white/20 transition-colors"
+                className="w-full mt-1 py-1.5 rounded-[6px] border border-overlay-30 bg-overlay-10 text-foreground text-sm font-semibold hover:bg-overlay-20 transition-colors"
               >
                 Underwrite with comps
               </button>
@@ -3940,7 +3940,7 @@ function CompsTab({ cf, selectedComps, onAddComp, onRemoveComp, onSkipTrace, com
         if (!Array.isArray(repairItems) || repairItems.length === 0) return null;
         const totalRepair = (cf.ownerFlags?.bricked_repair_cost as number) ?? repairItems.reduce((sum, r) => sum + (r.cost ?? 0), 0);
         return (
-          <details className="rounded-[10px] border border-white/[0.06] bg-white/[0.02]">
+          <details className="rounded-[10px] border border-overlay-6 bg-overlay-2">
             <summary className="p-3 cursor-pointer flex items-center justify-between text-sm">
               <span className="font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
                 <Wrench className="h-3 w-3" />
@@ -3950,7 +3950,7 @@ function CompsTab({ cf, selectedComps, onAddComp, onRemoveComp, onSkipTrace, com
             </summary>
             <div className="px-3 pb-3 space-y-1">
               {repairItems.map((r, i) => (
-                <div key={i} className="flex items-center justify-between text-sm py-1 border-t border-white/[0.04]">
+                <div key={i} className="flex items-center justify-between text-sm py-1 border-t border-overlay-4">
                   <div className="min-w-0">
                     <span className="text-foreground/90">{r.repair}</span>
                     {r.description && <span className="text-muted-foreground/60 ml-1.5 text-xs">({r.description})</span>}
@@ -3979,7 +3979,7 @@ function CompsTab({ cf, selectedComps, onAddComp, onRemoveComp, onSkipTrace, com
               ? "Low confidence \u2014 review comp quality before offering."
               : `Only ${strongCompCount} strong comp match${strongCompCount === 1 ? "" : "es"} \u2014 review evidence before offering.`;
         return (
-          <div className="rounded-[8px] border border-white/12 bg-white/[0.05] px-3 py-2 flex items-start gap-2">
+          <div className="rounded-[8px] border border-overlay-12 bg-overlay-5 px-3 py-2 flex items-start gap-2">
             <AlertTriangle className="h-3.5 w-3.5 text-muted-foreground shrink-0 mt-0.5" />
             <div className="flex-1">
               <p className="text-sm text-foreground font-semibold">Evidence needs strengthening</p>
@@ -4019,7 +4019,7 @@ function CompsTab({ cf, selectedComps, onAddComp, onRemoveComp, onSkipTrace, com
                 const price = bc.lastSaleAmount ?? bc.adjustedValue ?? 0;
                 const ppsf = price > 0 && bc.sqft ? Math.round(price / bc.sqft) : null;
                 return (
-                  <div key={idx} className="rounded-[8px] border border-white/[0.06] bg-white/[0.02] px-3 py-2.5">
+                  <div key={idx} className="rounded-[8px] border border-overlay-6 bg-overlay-2 px-3 py-2.5">
                     <div className="flex items-start justify-between gap-2">
                       <div className="min-w-0 flex-1">
                         <p className="text-sm font-semibold truncate">{bc.address ?? "Unknown"}</p>
@@ -4032,7 +4032,7 @@ function CompsTab({ cf, selectedComps, onAddComp, onRemoveComp, onSkipTrace, com
                         </div>
                       </div>
                       {bc.compType && (
-                        <span className="text-xs font-mono px-1.5 py-0.5 rounded border border-white/10 bg-white/[0.04] text-muted-foreground shrink-0">
+                        <span className="text-xs font-mono px-1.5 py-0.5 rounded border border-overlay-10 bg-overlay-4 text-muted-foreground shrink-0">
                           {bc.compType}
                         </span>
                       )}
@@ -4049,7 +4049,7 @@ function CompsTab({ cf, selectedComps, onAddComp, onRemoveComp, onSkipTrace, com
 
         if (compsToShow.length === 0 && arv > 0) {
           return (
-            <div className="rounded-[10px] border border-white/[0.06] bg-white/[0.02] p-3 text-center">
+            <div className="rounded-[10px] border border-overlay-6 bg-overlay-2 p-3 text-center">
               <p className="text-sm text-muted-foreground">No comps selected {"\u2014"} open Research Mode to find and add comps.</p>
             </div>
           );
@@ -4079,7 +4079,7 @@ function CompsTab({ cf, selectedComps, onAddComp, onRemoveComp, onSkipTrace, com
               return (
                 <div
                   key={comp.apn}
-                  className="rounded-[8px] border border-white/[0.06] bg-white/[0.02] px-3 py-2.5 cursor-pointer hover:bg-white/[0.04] transition-colors"
+                  className="rounded-[8px] border border-overlay-6 bg-overlay-2 px-3 py-2.5 cursor-pointer hover:bg-overlay-4 transition-colors"
                   onClick={() => { setResearchMode(true); setFocusedComp(comp); }}
                 >
                   <div className="flex items-start justify-between gap-2">
@@ -4099,10 +4099,10 @@ function CompsTab({ cf, selectedComps, onAddComp, onRemoveComp, onSkipTrace, com
                   <p className="text-xs text-muted-foreground/70 mt-1 italic">{rationale}</p>
                   {(() => {
                     const flags: Array<{ label: string; color: string }> = [];
-                    if (comp.isForeclosure) flags.push({ label: "Foreclosure", color: "text-foreground border-white/15 bg-white/[0.05]/10" });
-                    if (comp.isTaxDelinquent) flags.push({ label: "Tax Delinquent", color: "text-foreground border-white/15 bg-white/[0.05]/10" });
-                    if (comp.isVacant) flags.push({ label: "Vacant", color: "text-muted-foreground border-white/12 bg-white/[0.05]/10" });
-                    if (comp.isListedForSale) flags.push({ label: "Listed", color: "text-muted-foreground border-white/12 bg-white/[0.05]/10" });
+                    if (comp.isForeclosure) flags.push({ label: "Foreclosure", color: "text-foreground border-overlay-15 bg-overlay-5/10" });
+                    if (comp.isTaxDelinquent) flags.push({ label: "Tax Delinquent", color: "text-foreground border-overlay-15 bg-overlay-5/10" });
+                    if (comp.isVacant) flags.push({ label: "Vacant", color: "text-muted-foreground border-overlay-12 bg-overlay-5/10" });
+                    if (comp.isListedForSale) flags.push({ label: "Listed", color: "text-muted-foreground border-overlay-12 bg-overlay-5/10" });
                     const hasPhoto = !!(comp.photoUrl || comp.streetViewUrl);
                     if (flags.length === 0 && hasPhoto) return null;
                     return (
@@ -4127,7 +4127,7 @@ function CompsTab({ cf, selectedComps, onAddComp, onRemoveComp, onSkipTrace, com
       {/* === RESEARCH MODE TOGGLE === */}
       <button
         onClick={() => setResearchMode((prev) => !prev)}
-        className="w-full flex items-center justify-center gap-2 py-2 rounded-[8px] border border-white/[0.06] bg-white/[0.02] hover:bg-white/[0.04] transition-colors text-sm text-muted-foreground"
+        className="w-full flex items-center justify-center gap-2 py-2 rounded-[8px] border border-overlay-6 bg-overlay-2 hover:bg-overlay-4 transition-colors text-sm text-muted-foreground"
       >
         <ChevronDown className={cn("h-3 w-3 transition-transform", researchMode && "rotate-180")} />
         {researchMode ? "Hide Research Mode" : "Research Mode \u2014 Map, all comps, score details"}
@@ -4146,7 +4146,7 @@ function CompsTab({ cf, selectedComps, onAddComp, onRemoveComp, onSkipTrace, com
               focusedComp={focusedComp}
             />
           ) : (
-            <div className="rounded-[10px] border border-dashed border-white/10 bg-white/[0.02] p-6 text-center">
+            <div className="rounded-[10px] border border-dashed border-overlay-10 bg-overlay-2 p-6 text-center">
               <MapPinned className="h-6 w-6 text-muted-foreground/50 mx-auto mb-2" />
               <p className="text-sm text-muted-foreground/60">Map requires coordinates. Retry geocode or enrich from PropertyRadar.</p>
             </div>
@@ -4154,8 +4154,8 @@ function CompsTab({ cf, selectedComps, onAddComp, onRemoveComp, onSkipTrace, com
 
           {/* Selected comps table */}
           {selectedComps.length > 0 && (
-            <div className="rounded-[10px] border border-white/[0.06] overflow-hidden">
-              <div className="flex items-center justify-between px-4 py-2 bg-[rgba(12,12,22,0.5)] border-b border-white/[0.06]">
+            <div className="rounded-[10px] border border-overlay-6 overflow-hidden">
+              <div className="flex items-center justify-between px-4 py-2 bg-panel border-b border-overlay-6">
                 <p className="text-xs font-semibold flex items-center gap-1.5">
                   <CheckCircle2 className="h-3 w-3 text-foreground" />
                   Selected Comps ({selectedComps.length})
@@ -4164,7 +4164,7 @@ function CompsTab({ cf, selectedComps, onAddComp, onRemoveComp, onSkipTrace, com
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
-                    <tr className="border-b border-white/[0.06] bg-white/[0.04]">
+                    <tr className="border-b border-overlay-6 bg-overlay-4">
                       <th className="px-2 py-2 font-medium text-muted-foreground w-[52px]"></th>
                       <th className="text-left px-3 py-2 font-medium text-muted-foreground">Address</th>
                       <th className="text-right px-3 py-2 font-medium text-muted-foreground">Beds</th>
@@ -4182,14 +4182,14 @@ function CompsTab({ cf, selectedComps, onAddComp, onRemoveComp, onSkipTrace, com
                         ?? comp.streetViewUrl
                         ?? (comp.lat && comp.lng ? getSatelliteTileUrl(comp.lat, comp.lng, 17) : null);
                       return (
-                      <tr key={comp.apn} className="border-b border-white/[0.06]/50 hover:bg-white/[0.04] cursor-pointer" onClick={() => setFocusedComp(prev => prev?.apn === comp.apn ? null : comp)}>
+                      <tr key={comp.apn} className="border-b border-overlay-6/50 hover:bg-overlay-4 cursor-pointer" onClick={() => setFocusedComp(prev => prev?.apn === comp.apn ? null : comp)}>
                         <td className="px-2 py-1.5">
                           {thumbSrc ? (
-                            <div className="w-10 h-8 rounded overflow-hidden bg-black/30 border border-white/[0.06]">
+                            <div className="w-10 h-8 rounded overflow-hidden bg-black/30 border border-overlay-6">
                               <img src={thumbSrc} alt="" className="w-full h-full object-cover" />
                             </div>
                           ) : (
-                            <div className="w-10 h-8 rounded bg-white/[0.04] border border-white/[0.06] flex items-center justify-center">
+                            <div className="w-10 h-8 rounded bg-overlay-4 border border-overlay-6 flex items-center justify-center">
                               <Home className="h-3 w-3 text-muted-foreground" />
                             </div>
                           )}
@@ -4228,7 +4228,7 @@ function CompsTab({ cf, selectedComps, onAddComp, onRemoveComp, onSkipTrace, com
           )}
 
           {/* Condition Adjustment slider */}
-          <div className="rounded-[10px] border border-white/[0.06] bg-[rgba(12,12,22,0.5)] p-3">
+          <div className="rounded-[10px] border border-overlay-6 bg-panel p-3">
             <div className="flex items-center justify-between mb-2">
               <p className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Condition Adjustment</p>
               <span className={cn("text-xs font-bold", conditionAdj > 0 ? "text-foreground" : conditionAdj < 0 ? "text-foreground" : "text-muted-foreground")}>
@@ -4241,15 +4241,15 @@ function CompsTab({ cf, selectedComps, onAddComp, onRemoveComp, onSkipTrace, com
 
           {/* Live ARV + Profit projection */}
           <div className="grid grid-cols-2 gap-4">
-            <div className="rounded-lg border border-white/15 bg-white/4 p-4">
+            <div className="rounded-lg border border-overlay-15 bg-overlay-4 p-4">
               <p className="text-sm font-semibold text-foreground uppercase tracking-wider mb-3 flex items-center gap-1.5">
                 <TrendingUp className="h-3 w-3" />
                 Live ARV
                 {selectedComps.length > 0 && (
                   <span className={cn("ml-auto text-xs px-1.5 py-0.5 rounded-full font-medium",
-                    arvConfidence === "high" ? "bg-white/[0.06]/20 text-foreground" :
-                    arvConfidence === "medium" ? "bg-white/[0.05]/20 text-muted-foreground" :
-                    "bg-white/[0.05]/20 text-foreground"
+                    arvConfidence === "high" ? "bg-overlay-6/20 text-foreground" :
+                    arvConfidence === "medium" ? "bg-overlay-5/20 text-muted-foreground" :
+                    "bg-overlay-5/20 text-foreground"
                   )}>
                     {arvConfidence} confidence
                   </span>
@@ -4277,9 +4277,9 @@ function CompsTab({ cf, selectedComps, onAddComp, onRemoveComp, onSkipTrace, com
                       </span>
                     </div>
                   )}
-                  <div className="pt-2 mt-2 border-t border-white/15 flex justify-between">
+                  <div className="pt-2 mt-2 border-t border-overlay-15 flex justify-between">
                     <span className="font-medium">Estimated ARV</span>
-                    <span className="font-bold text-foreground text-xl" style={{ textShadow: "0 0 10px rgba(255,255,255,0.1)" }}>
+                    <span className="font-bold text-foreground text-xl" style={{ textShadow: "0 0 10px var(--overlay-10)" }}>
                       {formatCurrency(arv)}
                     </span>
                   </div>
@@ -4301,9 +4301,9 @@ function CompsTab({ cf, selectedComps, onAddComp, onRemoveComp, onSkipTrace, com
                       </span>
                     </div>
                   )}
-                  <div className="pt-2 mt-2 border-t border-white/15 flex justify-between">
+                  <div className="pt-2 mt-2 border-t border-overlay-15 flex justify-between">
                     <span className="font-medium">Est. ARV</span>
-                    <span className="font-bold text-foreground text-xl" style={{ textShadow: "0 0 10px rgba(255,255,255,0.1)" }}>
+                    <span className="font-bold text-foreground text-xl" style={{ textShadow: "0 0 10px var(--overlay-10)" }}>
                       {formatCurrency(arv)}
                     </span>
                   </div>
@@ -4335,13 +4335,13 @@ function CompsTab({ cf, selectedComps, onAddComp, onRemoveComp, onSkipTrace, com
                 <div className="flex justify-between items-center">
                   <span className="text-muted-foreground flex items-center gap-1">
                     Rehab
-                    <input type="number" value={rehabEst} onChange={(e) => setRehabEst(Number(e.target.value) || 0)} className="w-16 h-5 text-sm text-right bg-white/[0.06] border border-white/[0.1] rounded px-1 font-mono" />
+                    <input type="number" value={rehabEst} onChange={(e) => setRehabEst(Number(e.target.value) || 0)} className="w-16 h-5 text-sm text-right bg-overlay-6 border border-overlay-10 rounded px-1 font-mono" />
                   </span>
                   <span className="font-medium text-foreground">-{formatCurrency(rehabEst)}</span>
                 </div>
-                <div className="pt-1.5 mt-1.5 border-t border-white/[0.06] flex justify-between">
+                <div className="pt-1.5 mt-1.5 border-t border-overlay-6 flex justify-between">
                   <span className="font-semibold">Est. Assignment Fee</span>
-                  <span className={cn("font-bold text-lg", profit >= 0 ? "text-foreground" : "text-foreground")} style={profit >= 0 ? { textShadow: "0 0 10px rgba(255,255,255,0.08)" } : {}}>
+                  <span className={cn("font-bold text-lg", profit >= 0 ? "text-foreground" : "text-foreground")} style={profit >= 0 ? { textShadow: "0 0 10px var(--glow-soft)" } : {}}>
                     {formatCurrency(profit)}
                   </span>
                 </div>
@@ -4423,28 +4423,28 @@ function OfferCalcTab({ cf, computedArv, initialRepairs }: { cf: ClientFile; com
 
       <Section title="Profit Projection" icon={TrendingUp}>
         <div className="grid grid-cols-2 gap-3">
-          <div className="rounded-lg border border-white/20 bg-white/4 p-3 text-center">
+          <div className="rounded-lg border border-overlay-20 bg-overlay-4 p-3 text-center">
             <p className="text-sm text-muted-foreground uppercase">MAO (75% Rule)</p>
-            <p className="text-xl font-bold text-foreground" style={{ textShadow: "0 0 10px rgba(255,255,255,0.08)" }}>
+            <p className="text-xl font-bold text-foreground" style={{ textShadow: "0 0 10px var(--glow-soft)" }}>
               {mao > 0 ? formatCurrency(mao) : "—"}
             </p>
             <p className="text-sm text-muted-foreground mt-0.5">ARV &times; 0.75 &minus; Rehab</p>
           </div>
-          <div className="rounded-[10px] border border-white/[0.06] bg-white/[0.04] p-3 text-center">
+          <div className="rounded-[10px] border border-overlay-6 bg-overlay-4 p-3 text-center">
             <p className="text-sm text-muted-foreground uppercase">Total Costs</p>
             <p className="text-xl font-bold">{totalCosts > 0 ? formatCurrency(totalCosts) : "—"}</p>
             <p className="text-sm text-muted-foreground mt-0.5">Purchase + Rehab + Hold + Close</p>
           </div>
-          <div className={cn("rounded-[10px] border p-3 text-center", grossProfit > 0 ? "border-white/15 bg-white/[0.06]/5" : "border-white/15 bg-white/[0.05]/5")}>
+          <div className={cn("rounded-[10px] border p-3 text-center", grossProfit > 0 ? "border-overlay-15 bg-overlay-6/5" : "border-overlay-15 bg-overlay-5/5")}>
             <p className="text-sm text-muted-foreground uppercase">Gross Profit</p>
             <p className={cn("text-xl font-bold", grossProfit > 0 ? "text-foreground" : "text-foreground")}>
               {arvNum > 0 && purchaseNum > 0 ? formatCurrency(grossProfit) : "—"}
             </p>
             <p className="text-sm text-muted-foreground mt-0.5">ROI: {roi != null ? `${roi}%` : "—"}</p>
           </div>
-          <div className={cn("rounded-lg border p-3 text-center", netProfit > 0 ? "border-white/20 bg-white/4" : "border-white/15 bg-white/[0.05]/5")}>
+          <div className={cn("rounded-lg border p-3 text-center", netProfit > 0 ? "border-overlay-20 bg-overlay-4" : "border-overlay-15 bg-overlay-5/5")}>
             <p className="text-sm text-muted-foreground uppercase">Net After Assignment</p>
-            <p className={cn("text-xl font-bold", netProfit > 0 ? "text-foreground" : "text-foreground")} style={netProfit > 0 ? { textShadow: "0 0 10px rgba(255,255,255,0.08)" } : undefined}>
+            <p className={cn("text-xl font-bold", netProfit > 0 ? "text-foreground" : "text-foreground")} style={netProfit > 0 ? { textShadow: "0 0 10px var(--glow-soft)" } : undefined}>
               {arvNum > 0 && purchaseNum > 0 ? formatCurrency(netProfit) : "—"}
             </p>
             <p className="text-sm text-muted-foreground mt-0.5">Gross &minus; Assignment Fee</p>
@@ -4453,7 +4453,7 @@ function OfferCalcTab({ cf, computedArv, initialRepairs }: { cf: ClientFile; com
       </Section>
 
       {purchaseNum > mao && mao > 0 && (
-        <div className="flex items-center gap-2 text-xs text-muted-foreground bg-white/[0.05]/5 border border-white/12 rounded-md px-3 py-2">
+        <div className="flex items-center gap-2 text-xs text-muted-foreground bg-overlay-5/5 border border-overlay-12 rounded-md px-3 py-2">
           <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
           Purchase price exceeds MAO by {formatCurrency(purchaseNum - mao)} — negotiate lower or increase ARV.
         </div>
@@ -4545,14 +4545,14 @@ function DocumentsTab({ cf, computedArv }: { cf: ClientFile; computedArv: number
     <div className="space-y-4">
       {/* PSA Preview */}
       <Section title="Purchase & Sale Agreement (RCW 61.40.010)" icon={FileText}>
-        <pre className="text-sm leading-relaxed text-foreground/80 bg-white/[0.02] rounded-[10px] p-4 border border-white/[0.06] overflow-auto max-h-64 whitespace-pre-wrap font-mono">
+        <pre className="text-sm leading-relaxed text-foreground/80 bg-overlay-2 rounded-[10px] p-4 border border-overlay-6 overflow-auto max-h-64 whitespace-pre-wrap font-mono">
           {psaBody}
         </pre>
       </Section>
 
       {/* Actions */}
       <div className="grid grid-cols-2 gap-3">
-        <Button onClick={handlePrint} className="gap-2 h-14 text-base font-bold" style={{ boxShadow: "0 0 30px rgba(0,0,0,0.35)" }}>
+        <Button onClick={handlePrint} className="gap-2 h-14 text-base font-bold" style={{ boxShadow: "0 0 30px var(--shadow-medium)" }}>
           <Printer className="h-5 w-5" />
           CREATE PSA
         </Button>
@@ -4564,7 +4564,7 @@ function DocumentsTab({ cf, computedArv }: { cf: ClientFile; computedArv: number
         </a>
       </div>
 
-      <div className="flex items-center gap-2 text-xs text-muted-foreground bg-white/4 border border-white/15 rounded-md px-3 py-2">
+      <div className="flex items-center gap-2 text-xs text-muted-foreground bg-overlay-4 border border-overlay-15 rounded-md px-3 py-2">
         <Shield className="h-3.5 w-3.5 shrink-0" />
         RCW 61.40.010 compliant — wholesaler disclosure included in all documents.
       </div>
@@ -6394,10 +6394,10 @@ export function MasterClientFileModal({ clientFile: incomingClientFile, open, on
   const nextActionUrgency = getNextActionUrgency(clientFile);
   const urgencyToneClass =
     nextActionUrgency.tone === "danger"
-      ? "text-foreground bg-white/[0.05] border-white/15"
+      ? "text-foreground bg-overlay-5 border-overlay-15"
       : nextActionUrgency.tone === "warn"
-        ? "text-foreground bg-white/[0.05] border-white/12"
-        : "text-foreground/80 bg-white/[0.06] border-white/20";
+        ? "text-foreground bg-overlay-5 border-overlay-12"
+        : "text-foreground/80 bg-overlay-6 border-overlay-20";
   const UrgencyIcon = nextActionUrgency.tone === "danger" ? AlertTriangle : Clock;
   const currentSequenceLabel =
     clientFile.totalCalls > 0
@@ -6462,16 +6462,16 @@ export function MasterClientFileModal({ clientFile: incomingClientFile, open, on
             )}
           >
             <div
-              className="flex-1 overflow-hidden rounded-[16px] border border-white/[0.08] modal-glass flex flex-row"
+              className="flex-1 overflow-hidden rounded-[16px] border border-overlay-8 modal-glass flex flex-row"
               data-operator-safe
             >
             <div className="flex-1 overflow-hidden flex flex-col min-w-0">
               {/* Header — compact */}
-              <div className="shrink-0 border-b border-white/[0.06] bg-[rgba(4,4,12,0.88)] backdrop-blur-2xl rounded-t-[16px]">
+              <div className="shrink-0 border-b border-overlay-6 bg-panel-solid backdrop-blur-2xl rounded-t-[16px]">
                 <div className="flex items-start justify-between gap-4 px-4 py-2.5">
                   <div className="min-w-0 space-y-1">
                     <div className="flex items-center gap-2 min-w-0">
-                      <h2 className="text-lg font-bold truncate" style={{ textShadow: "0 1px 0 rgba(255,255,255,0.06)" }}>
+                      <h2 className="text-lg font-bold truncate" style={{ textShadow: "0 1px 0 var(--overlay-6)" }}>
                         {clientFile.ownerName || "Unknown Seller"}
                       </h2>
                       <RelationshipBadge data={{
@@ -6486,7 +6486,7 @@ export function MasterClientFileModal({ clientFile: incomingClientFile, open, on
                       <span className="shrink-0">·</span>
                       <span className="shrink-0">{marketLabel}</span>
                       <span className="shrink-0">·</span>
-                      <Badge variant="outline" className="text-xs gap-1 border-white/20 text-foreground shrink-0">
+                      <Badge variant="outline" className="text-xs gap-1 border-overlay-20 text-foreground shrink-0">
                         <Target className="h-2.5 w-2.5" />{currentStageLabel}
                       </Badge>
                       <span className="shrink-0 text-xs">Owner: {assigneeLabel}</span>
@@ -6518,7 +6518,7 @@ export function MasterClientFileModal({ clientFile: incomingClientFile, open, on
                       <PredictiveDistressBadge data={clientFile.prediction as PredictiveDistressData} size="sm" />
                     )}
                     <CoachToggle className="ml-1" />
-                    <button onClick={onClose} className="p-1.5 rounded-[10px] hover:bg-white/[0.04] transition-colors text-muted-foreground hover:text-foreground">
+                    <button onClick={onClose} className="p-1.5 rounded-[10px] hover:bg-overlay-4 transition-colors text-muted-foreground hover:text-foreground">
                       <X className="h-4 w-4" />
                     </button>
                   </div>
@@ -6526,14 +6526,14 @@ export function MasterClientFileModal({ clientFile: incomingClientFile, open, on
               </div>
 
               {/* Primary operator actions — single compact row */}
-              <div className="shrink-0 px-4 py-2 border-b border-white/[0.06] bg-[rgba(12,12,22,0.6)]">
+              <div className="shrink-0 px-4 py-2 border-b border-overlay-6 bg-panel-deep">
                 <div className="flex flex-wrap items-center gap-1.5">
                   {needsConsent ? (
-                    <div className="flex items-center gap-2 rounded-md border border-white/20 bg-white/[0.06] px-3 py-1.5">
+                    <div className="flex items-center gap-2 rounded-md border border-overlay-20 bg-overlay-6 px-3 py-1.5">
                       <span className="text-xs text-foreground">Confirm to dial</span>
                       <Button
                         size="sm"
-                        className="h-6 gap-1.5 bg-primary hover:opacity-95 text-primary-foreground border border-white/15 text-xs"
+                        className="h-6 gap-1.5 bg-primary hover:opacity-95 text-primary-foreground border border-overlay-15 text-xs"
                         disabled={consentPending}
                         onClick={grantConsentAndDial}
                       >
@@ -6561,7 +6561,7 @@ export function MasterClientFileModal({ clientFile: incomingClientFile, open, on
                   <Button
                     size="sm"
                     variant="outline"
-                    className="gap-1.5 h-7 border-white/15 hover:border-white/15 hover:bg-white/[0.06]"
+                    className="gap-1.5 h-7 border-overlay-15 hover:border-overlay-15 hover:bg-overlay-6"
                     disabled={!displayPhone}
                     onClick={() => setSmsOpen((v) => !v)}
                   >
@@ -6570,7 +6570,7 @@ export function MasterClientFileModal({ clientFile: incomingClientFile, open, on
                   <Button
                     size="sm"
                     variant="outline"
-                    className="gap-1.5 h-7 border-white/25 hover:border-white/45 hover:bg-white/[0.08]"
+                    className="gap-1.5 h-7 border-overlay-25 hover:border-white/45 hover:bg-overlay-8"
                     onClick={() => {
                       setCloseoutOpen((v) => {
                         const next = !v;
@@ -6600,7 +6600,7 @@ export function MasterClientFileModal({ clientFile: incomingClientFile, open, on
                       "gap-1.5 h-7",
                       missingNextAction
                         ? "border-amber-500/30 bg-amber-500/[0.08] text-amber-300 hover:bg-amber-500/[0.12]"
-                        : "border-white/12 hover:border-white/12 hover:bg-white/[0.05]"
+                        : "border-overlay-12 hover:border-overlay-12 hover:bg-overlay-5"
                     )}
                     onClick={() => {
                       setNextActionEditorOpen((v) => !v);
@@ -6612,7 +6612,7 @@ export function MasterClientFileModal({ clientFile: incomingClientFile, open, on
                   <Button
                     size="sm"
                     variant="outline"
-                    className="gap-1.5 h-7 border-white/[0.14] hover:border-white/[0.25] hover:bg-white/[0.06]"
+                    className="gap-1.5 h-7 border-white/[0.14] hover:border-overlay-25 hover:bg-overlay-6"
                     onClick={() => {
                       setNoteEditorOpen((v) => !v);
                       setCloseoutOpen(false);
@@ -6624,7 +6624,7 @@ export function MasterClientFileModal({ clientFile: incomingClientFile, open, on
                     <Button
                       size="sm"
                       variant="outline"
-                      className="gap-1.5 h-7 border-white/15 hover:border-white/35 hover:bg-white/[0.05] text-foreground/80"
+                      className="gap-1.5 h-7 border-overlay-15 hover:border-overlay-35 hover:bg-overlay-5 text-foreground/80"
                       onClick={async () => {
                         const { data: { session } } = await supabase.auth.getSession();
                         const res = await fetch(`/api/leads/${clientFile.id}/queue`, {
@@ -6657,11 +6657,11 @@ export function MasterClientFileModal({ clientFile: incomingClientFile, open, on
                       </Button>
                     )}
                     {assignmentOptions.length > 0 && (
-                      <div className="flex items-center gap-1 rounded-[6px] border border-white/[0.1] bg-white/[0.02] px-1 py-0.5">
+                      <div className="flex items-center gap-1 rounded-[6px] border border-overlay-10 bg-overlay-2 px-1 py-0.5">
                         <select
                           value={reassignTargetId}
                           onChange={(e) => setReassignTargetId(e.target.value)}
-                          className="h-6 rounded border border-white/[0.1] bg-white/[0.04] px-1.5 text-sm text-foreground focus:outline-none focus:border-white/30"
+                          className="h-6 rounded border border-overlay-10 bg-overlay-4 px-1.5 text-sm text-foreground focus:outline-none focus:border-overlay-30"
                           aria-label="Select lead owner"
                         >
                           <option value="">Owner</option>
@@ -6672,7 +6672,7 @@ export function MasterClientFileModal({ clientFile: incomingClientFile, open, on
                         <Button
                           size="sm"
                           variant="outline"
-                          className="h-6 text-sm px-1.5 border-white/[0.15]"
+                          className="h-6 text-sm px-1.5 border-overlay-15"
                           disabled={reassigning || !reassignTargetId || reassignTargetId === (clientFile.assignedTo ?? "")}
                           onClick={handleReassignLead}
                         >
@@ -6684,7 +6684,7 @@ export function MasterClientFileModal({ clientFile: incomingClientFile, open, on
                       value={selectedStage}
                       onChange={(e) => setSelectedStage(e.target.value as WorkflowStageId)}
                       disabled={stageUpdating}
-                      className="h-7 rounded-[6px] border border-white/[0.1] bg-white/[0.04] px-2 text-sm text-foreground focus:outline-none focus:border-white/30"
+                      className="h-7 rounded-[6px] border border-overlay-10 bg-overlay-4 px-2 text-sm text-foreground focus:outline-none focus:border-overlay-30"
                       aria-label="Move lead stage"
                     >
                       {WORKFLOW_STAGE_OPTIONS.map((stage) => (
@@ -6694,7 +6694,7 @@ export function MasterClientFileModal({ clientFile: incomingClientFile, open, on
                     <Button
                       size="sm"
                       variant="outline"
-                      className="gap-1 h-7 text-sm border-white/20 hover:border-white/40 hover:bg-white/[0.06]"
+                      className="gap-1 h-7 text-sm border-overlay-20 hover:border-overlay-40 hover:bg-overlay-6"
                       disabled={stageUpdating || !stageChanged || !stagePrecheck.ok}
                       onClick={handleMoveStage}
                     >
@@ -6712,7 +6712,7 @@ export function MasterClientFileModal({ clientFile: incomingClientFile, open, on
                 {(closeoutOpen || nextActionEditorOpen || noteEditorOpen) && (
                   <div className="mt-2 grid grid-cols-1 lg:grid-cols-3 gap-2">
                     {closeoutOpen && (
-                      <div className="rounded-[10px] border border-white/20 bg-white/[0.06] p-2.5 space-y-2">
+                      <div className="rounded-[10px] border border-overlay-20 bg-overlay-6 p-2.5 space-y-2">
                         <div className="flex items-center justify-between gap-2">
                           <p className="text-sm uppercase tracking-wider font-semibold text-foreground">Log Call Result</p>
                           <span className="text-xs text-foreground/80">{closeoutActionLabel(closeoutAction)}</span>
@@ -6723,7 +6723,7 @@ export function MasterClientFileModal({ clientFile: incomingClientFile, open, on
                             <select
                               value={closeoutOutcome}
                               onChange={(e) => setCloseoutOutcome(e.target.value)}
-                              className="h-8 w-full rounded-[8px] border border-white/[0.12] bg-white/[0.04] px-2 text-xs text-foreground focus:outline-none focus:border-white/30"
+                              className="h-8 w-full rounded-[8px] border border-overlay-12 bg-overlay-4 px-2 text-xs text-foreground focus:outline-none focus:border-overlay-30"
                             >
                               <option value="">No change</option>
                               {closeoutOutcome && !CALL_OUTCOME_OPTIONS.some((opt) => opt.id === closeoutOutcome) && (
@@ -6753,7 +6753,7 @@ export function MasterClientFileModal({ clientFile: incomingClientFile, open, on
                                   setCloseoutAt(presetDateTimeLocal(3));
                                 }
                               }}
-                              className="h-8 w-full rounded-[8px] border border-white/[0.12] bg-white/[0.04] px-2 text-xs text-foreground focus:outline-none focus:border-white/30"
+                              className="h-8 w-full rounded-[8px] border border-overlay-12 bg-overlay-4 px-2 text-xs text-foreground focus:outline-none focus:border-overlay-30"
                             >
                               <option value="follow_up_call">Follow-Up Call</option>
                               <option value="nurture_check_in">Nurture Check-In</option>
@@ -6772,8 +6772,8 @@ export function MasterClientFileModal({ clientFile: incomingClientFile, open, on
                                 className={cn(
                                   "h-6 px-2 rounded-[7px] border text-sm transition-colors",
                                   closeoutPreset === preset.id
-                                    ? "border-white/40 text-foreground bg-white/[0.12]"
-                                    : "border-white/[0.12] text-muted-foreground hover:text-foreground hover:border-white/[0.24]",
+                                    ? "border-overlay-40 text-foreground bg-overlay-12"
+                                    : "border-overlay-12 text-muted-foreground hover:text-foreground hover:border-white/[0.24]",
                                 )}
                               >
                                 {preset.label}
@@ -6793,14 +6793,14 @@ export function MasterClientFileModal({ clientFile: incomingClientFile, open, on
                               setCloseoutDateTouched(true);
                               setCloseoutAt(e.target.value);
                             }}
-                            className="h-8 w-full rounded-[8px] border border-white/[0.12] bg-white/[0.04] px-2.5 text-xs text-foreground focus:outline-none focus:border-white/30"
+                            className="h-8 w-full rounded-[8px] border border-overlay-12 bg-overlay-4 px-2.5 text-xs text-foreground focus:outline-none focus:border-overlay-30"
                           />
                         </label>
                         <textarea
                           value={closeoutNote}
                           onChange={(e) => setCloseoutNote(e.target.value)}
                           placeholder="Quick call summary note..."
-                          className="w-full h-16 rounded-[8px] border border-white/[0.12] bg-white/[0.04] px-2.5 py-2 text-xs text-foreground placeholder:text-muted-foreground/50 resize-none focus:outline-none focus:border-white/30"
+                          className="w-full h-16 rounded-[8px] border border-overlay-12 bg-overlay-4 px-2.5 py-2 text-xs text-foreground placeholder:text-muted-foreground/50 resize-none focus:outline-none focus:border-overlay-30"
                           maxLength={1000}
                         />
                         <div className="flex items-center gap-2">
@@ -6837,13 +6837,13 @@ export function MasterClientFileModal({ clientFile: incomingClientFile, open, on
                       </div>
                     )}
                     {nextActionEditorOpen && (
-                      <div className="rounded-[10px] border border-white/12 bg-white/[0.05] p-2.5 space-y-2">
+                      <div className="rounded-[10px] border border-overlay-12 bg-overlay-5 p-2.5 space-y-2">
                         <p className="text-sm uppercase tracking-wider font-semibold text-foreground">Next Action</p>
                         <input
                           type="datetime-local"
                           value={nextActionAt}
                           onChange={(e) => setNextActionAt(e.target.value)}
-                          className="h-8 w-full rounded-[8px] border border-white/[0.12] bg-white/[0.04] px-2.5 text-xs text-foreground focus:outline-none focus:border-white/30"
+                          className="h-8 w-full rounded-[8px] border border-overlay-12 bg-overlay-4 px-2.5 text-xs text-foreground focus:outline-none focus:border-overlay-30"
                         />
                         <div className="flex items-center gap-2">
                           <Button
@@ -6870,13 +6870,13 @@ export function MasterClientFileModal({ clientFile: incomingClientFile, open, on
                       </div>
                     )}
                     {noteEditorOpen && (
-                      <div className="rounded-[10px] border border-white/[0.12] bg-white/[0.03] p-2.5 space-y-2">
+                      <div className="rounded-[10px] border border-overlay-12 bg-overlay-3 p-2.5 space-y-2">
                         <p className="text-sm uppercase tracking-wider font-semibold text-muted-foreground">Lead Note</p>
                         <textarea
                           value={noteDraft}
                           onChange={(e) => setNoteDraft(e.target.value)}
                           placeholder="Add operator note, outcome, or seller update..."
-                          className="w-full h-20 rounded-[8px] border border-white/[0.12] bg-white/[0.04] px-2.5 py-2 text-xs text-foreground placeholder:text-muted-foreground/50 resize-none focus:outline-none focus:border-white/30"
+                          className="w-full h-20 rounded-[8px] border border-overlay-12 bg-overlay-4 px-2.5 py-2 text-xs text-foreground placeholder:text-muted-foreground/50 resize-none focus:outline-none focus:border-overlay-30"
                           maxLength={1000}
                         />
                         <div className="flex items-center gap-2">
@@ -6909,13 +6909,13 @@ export function MasterClientFileModal({ clientFile: incomingClientFile, open, on
               </div>
 
               {/* Compact status strip */}
-              <div className="shrink-0 px-4 py-1.5 border-b border-white/[0.06] bg-[rgba(8,10,18,0.55)]">
+              <div className="shrink-0 px-4 py-1.5 border-b border-overlay-6 bg-[rgba(8,10,18,0.55)]">
                 {(clientFile.status === "prospect" || clientFile.status === "staging") ? (
                   <div className="flex items-center gap-2">
                     <span className="text-sm text-muted-foreground">Prospect — not in pipeline yet.</span>
                     <button
                       type="button"
-                      className="flex items-center gap-1 px-2 py-0.5 rounded-md text-sm font-semibold text-foreground hover:bg-white/10 border border-white/25 transition-colors"
+                      className="flex items-center gap-1 px-2 py-0.5 rounded-md text-sm font-semibold text-foreground hover:bg-overlay-10 border border-overlay-25 transition-colors"
                       onClick={() => { setSelectedStage("lead"); }}
                     >
                       Move to Pipeline <ArrowRight className="h-2.5 w-2.5" />
@@ -6943,7 +6943,7 @@ export function MasterClientFileModal({ clientFile: incomingClientFile, open, on
               </div>
 
               {/* Tabs */}
-              <div className="shrink-0 flex items-center gap-1 px-4 py-2 border-b border-white/[0.06] bg-[rgba(12,12,22,0.5)] overflow-x-auto scrollbar-none">
+              <div className="shrink-0 flex items-center gap-1 px-4 py-2 border-b border-overlay-6 bg-panel overflow-x-auto scrollbar-none">
                 {TABS.filter((tab) => PRIMARY_TAB_IDS.has(tab.id)).map((tab) => (
                   <button
                     key={tab.id}
@@ -6951,7 +6951,7 @@ export function MasterClientFileModal({ clientFile: incomingClientFile, open, on
                     className={cn(
                       "flex items-center gap-1.5 px-3 py-1.5 rounded-[10px] text-sm font-medium transition-all whitespace-nowrap",
                       activeTab === tab.id
-                        ? "text-foreground bg-white/[0.08] border border-white/15 shadow-[var(--shadow-badge-glow-tight)]"
+                        ? "text-foreground bg-overlay-8 border border-overlay-15 shadow-[var(--shadow-badge-glow-tight)]"
                         : "text-muted-foreground hover:text-foreground border border-transparent hover:border-glass-border"
                     )}
                   >
@@ -7068,10 +7068,10 @@ export function MasterClientFileModal({ clientFile: incomingClientFile, open, on
               </div>
 
               {/* Footer */}
-              <div className="shrink-0 flex flex-col border-t border-white/[0.06] bg-[rgba(4,4,12,0.88)] backdrop-blur-2xl rounded-b-[16px]">
+              <div className="shrink-0 flex flex-col border-t border-overlay-6 bg-panel-solid backdrop-blur-2xl rounded-b-[16px]">
                 {/* Call status banner */}
                 {callStatus && (
-                  <div className="flex items-center gap-2 px-6 py-2 bg-white/[0.08] border-b border-white/15 text-xs text-foreground">
+                  <div className="flex items-center gap-2 px-6 py-2 bg-overlay-8 border-b border-overlay-15 text-xs text-foreground">
                     <Loader2 className="h-3 w-3 animate-spin" />
                     <span className="font-semibold capitalize">{callStatus}</span>
                     <span className="text-muted-foreground/50 ml-1">via Twilio</span>
@@ -7082,7 +7082,7 @@ export function MasterClientFileModal({ clientFile: incomingClientFile, open, on
                 )}
                 {/* SMS Compose */}
                 {smsOpen && displayPhone && (
-                  <div className="px-6 py-3 border-b border-white/[0.06] space-y-2">
+                  <div className="px-6 py-3 border-b border-overlay-6 space-y-2">
                     <div className="flex items-center gap-2">
                       <MessageSquare className="h-3.5 w-3.5 text-foreground" />
                       <p className="text-sm text-muted-foreground uppercase tracking-wider font-semibold">SMS to ***{(smsPhone || displayPhone)?.slice(-4)}</p>
@@ -7094,7 +7094,7 @@ export function MasterClientFileModal({ clientFile: incomingClientFile, open, on
                       value={smsMessage}
                       onChange={(e) => setSmsMessage(e.target.value)}
                       placeholder="Type your message&hellip;"
-                      className="w-full h-16 rounded-[8px] border border-white/[0.08] bg-white/[0.04] px-3 py-2 text-xs text-foreground placeholder:text-muted-foreground/40 resize-none focus:outline-none focus:border-white/30"
+                      className="w-full h-16 rounded-[8px] border border-overlay-8 bg-overlay-4 px-3 py-2 text-xs text-foreground placeholder:text-muted-foreground/40 resize-none focus:outline-none focus:border-overlay-30"
                       maxLength={320}
                     />
                     <div className="flex items-center justify-between">

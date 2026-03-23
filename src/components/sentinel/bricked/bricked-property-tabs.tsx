@@ -38,7 +38,7 @@ function pct(v?: number | null): string {
 function Row({ label, value }: { label: string; value: React.ReactNode }) {
   if (value === "—" || value == null) return null;
   return (
-    <div className="flex justify-between gap-4 py-1.5 border-b border-white/[0.04] last:border-0">
+    <div className="flex justify-between gap-4 py-1.5 border-b border-overlay-4 last:border-0">
       <span className="text-[11px] text-muted-foreground/70 shrink-0">{label}</span>
       <span className="text-[11px] text-foreground font-mono text-right">{value}</span>
     </div>
@@ -49,8 +49,8 @@ export function BrickedPropertyTabs({ property }: { property: BrickedProperty })
   const [tab, setTab] = useState<TabKey>("property");
 
   return (
-    <div className="rounded-[10px] border border-white/[0.06] bg-[rgba(12,12,22,0.5)] overflow-hidden">
-      <div className="flex border-b border-white/[0.06] overflow-x-auto scrollbar-none">
+    <div className="rounded-[10px] border border-overlay-6 bg-panel overflow-hidden">
+      <div className="flex border-b border-overlay-6 overflow-x-auto scrollbar-none">
         {TABS.map((t) => (
           <button
             key={t.key}
@@ -136,10 +136,10 @@ function MortgageTab({ d }: { d?: BrickedProperty["mortgageDebt"] }) {
         <Row label="LTV" value={pct(d.ltvRatio)} />
       </div>
       {d.mortgages && d.mortgages.length > 0 && (
-        <div className="overflow-x-auto rounded-md border border-white/[0.06]">
+        <div className="overflow-x-auto rounded-md border border-overlay-6">
           <table className="w-full text-[10px]">
             <thead>
-              <tr className="border-b border-white/[0.06] bg-white/[0.02] text-muted-foreground text-left">
+              <tr className="border-b border-overlay-6 bg-overlay-2 text-muted-foreground text-left">
                 <th className="px-2 py-1.5">Amount</th>
                 <th className="px-2 py-1.5">Rate</th>
                 <th className="px-2 py-1.5">Type</th>
@@ -150,7 +150,7 @@ function MortgageTab({ d }: { d?: BrickedProperty["mortgageDebt"] }) {
             </thead>
             <tbody>
               {d.mortgages.map((m, i) => (
-                <tr key={i} className="border-b border-white/[0.04]">
+                <tr key={i} className="border-b border-overlay-4">
                   <td className="px-2 py-1.5 font-mono">{cur(m.amount)}</td>
                   <td className="px-2 py-1.5">{m.interestRate != null ? `${m.interestRate}%` : "—"}</td>
                   <td className="px-2 py-1.5">{m.loanType ?? "—"}</td>
@@ -183,10 +183,10 @@ function OwnershipTab({ d }: { d?: BrickedProperty["ownership"] }) {
         <Row label="Tax" value={cur(d.taxAmount)} />
       </div>
       {d.transactions && d.transactions.length > 0 && (
-        <div className="overflow-x-auto rounded-md border border-white/[0.06]">
+        <div className="overflow-x-auto rounded-md border border-overlay-6">
           <table className="w-full text-[10px]">
             <thead>
-              <tr className="border-b border-white/[0.06] bg-white/[0.02] text-muted-foreground text-left">
+              <tr className="border-b border-overlay-6 bg-overlay-2 text-muted-foreground text-left">
                 <th className="px-2 py-1.5">Date</th>
                 <th className="px-2 py-1.5">Amount</th>
                 <th className="px-2 py-1.5">Method</th>
@@ -196,7 +196,7 @@ function OwnershipTab({ d }: { d?: BrickedProperty["ownership"] }) {
             </thead>
             <tbody>
               {d.transactions.map((t, i) => (
-                <tr key={i} className="border-b border-white/[0.04]">
+                <tr key={i} className="border-b border-overlay-4">
                   <td className="px-2 py-1.5">{ts(t.saleDate)}</td>
                   <td className="px-2 py-1.5 font-mono">{cur(t.amount)}</td>
                   <td className="px-2 py-1.5">{t.purchaseMethod ?? "—"}</td>

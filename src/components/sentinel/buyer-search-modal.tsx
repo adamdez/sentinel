@@ -155,10 +155,10 @@ export function BuyerSearchModal({ dealId, open, onClose, onLinked, existingBuye
             exit={{ opacity: 0, scale: 0.95, y: 10 }}
             transition={{ duration: 0.15, ease: "easeOut" }}
             className="relative z-50 w-full max-w-lg max-h-[70vh] flex flex-col rounded-[16px] modal-glass overflow-hidden"
-            style={{ boxShadow: "inset 0 0 4px rgba(255,255,255,0.18), inset 0 0 14px rgba(0,0,0,0.12), 0 8px 26px rgba(0,0,0,0.16), 0 32px 80px rgba(0,0,0,0.08)" }}
+            style={{ boxShadow: "inset 0 0 4px var(--overlay-18), inset 0 0 14px var(--shadow-soft), 0 8px 26px var(--shadow-soft), 0 32px 80px var(--shadow-soft)" }}
           >
             {/* Header */}
-            <div className="flex items-center gap-3 p-4 border-b border-white/[0.04]">
+            <div className="flex items-center gap-3 p-4 border-b border-overlay-4">
               <div className="flex-1 min-w-0">
                 <h3 className="text-sm font-semibold text-foreground">Link Buyer to Deal</h3>
                 <p className="text-sm text-muted-foreground/50 mt-0.5">Search and select an active buyer to link</p>
@@ -180,13 +180,13 @@ export function BuyerSearchModal({ dealId, open, onClose, onLinked, existingBuye
                   onChange={(e) => setSearch(e.target.value)}
                   placeholder="Search by name, company, phone..."
                   autoFocus
-                  className="w-full bg-white/[0.03] border border-white/[0.06] rounded-[8px] pl-8 pr-3 py-2 text-sm text-foreground placeholder:text-muted-foreground/40 focus:outline-none focus:border-primary/30 focus:ring-1 focus:ring-ring/20 transition-all"
+                  className="w-full bg-overlay-3 border border-overlay-6 rounded-[8px] pl-8 pr-3 py-2 text-sm text-foreground placeholder:text-muted-foreground/40 focus:outline-none focus:border-primary/30 focus:ring-1 focus:ring-ring/20 transition-all"
                 />
               </div>
             </div>
 
             {/* Results */}
-            <div className="flex-1 overflow-y-auto px-4 pb-4 scrollbar-thin scrollbar-thumb-white/10 scrollbar-track-transparent">
+            <div className="flex-1 overflow-y-auto px-4 pb-4 scrollbar-thin scrollbar-thumb-overlay-10 scrollbar-track-transparent">
               {loading ? (
                 <div className="flex items-center justify-center py-8">
                   <div className="h-4 w-4 border-2 border-primary/30 border-t-cyan rounded-full animate-spin" />
@@ -209,9 +209,9 @@ export function BuyerSearchModal({ dealId, open, onClose, onLinked, existingBuye
                       <Fragment key={buyer.id}>
                         {showSeparator && (
                           <div className="flex items-center gap-2 py-1.5">
-                            <div className="flex-1 h-px bg-white/[0.06]" />
+                            <div className="flex-1 h-px bg-overlay-6" />
                             <span className="text-xs text-muted-foreground/40 uppercase tracking-wider">Other buyers</span>
-                            <div className="flex-1 h-px bg-white/[0.06]" />
+                            <div className="flex-1 h-px bg-overlay-6" />
                           </div>
                         )}
                         <button
@@ -220,8 +220,8 @@ export function BuyerSearchModal({ dealId, open, onClose, onLinked, existingBuye
                           className={cn(
                             "w-full flex items-center gap-3 px-3 py-2.5 rounded-[8px] text-left transition-all",
                             alreadyLinked
-                              ? "bg-white/[0.01] opacity-50 cursor-not-allowed"
-                              : "bg-white/[0.015] border border-white/[0.04] hover:border-primary/20 hover:bg-primary/[0.03] cursor-pointer"
+                              ? "bg-overlay-2 opacity-50 cursor-not-allowed"
+                              : "bg-overlay-2 border border-overlay-4 hover:border-primary/20 hover:bg-primary/[0.03] cursor-pointer"
                           )}
                         >
                           <div className="h-8 w-8 rounded-[8px] bg-primary/6 border border-primary/12 flex items-center justify-center shrink-0">

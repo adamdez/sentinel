@@ -38,7 +38,7 @@ function FilterSelect({ value, onChange, options, placeholder, className }: {
       value={value}
       onChange={(e) => onChange(e.target.value)}
       className={cn(
-        "bg-white/[0.03] border border-white/[0.06] rounded-[8px] px-2.5 py-1.5 text-xs text-foreground focus:outline-none focus:border-primary/30 transition-all appearance-none cursor-pointer",
+        "bg-overlay-3 border border-overlay-6 rounded-[8px] px-2.5 py-1.5 text-xs text-foreground focus:outline-none focus:border-primary/30 transition-all appearance-none cursor-pointer",
         className
       )}
     >
@@ -156,7 +156,7 @@ export default function BuyersPage() {
               value={search}
               onChange={(e) => handleSearch(e.target.value)}
               placeholder="Search buyers..."
-              className="w-full bg-white/[0.03] border border-white/[0.06] rounded-[8px] pl-8 pr-3 py-1.5 text-xs text-foreground placeholder:text-muted-foreground/40 focus:outline-none focus:border-primary/30 transition-all"
+              className="w-full bg-overlay-3 border border-overlay-6 rounded-[8px] pl-8 pr-3 py-1.5 text-xs text-foreground placeholder:text-muted-foreground/40 focus:outline-none focus:border-primary/30 transition-all"
             />
           </div>
           <FilterSelect value={filters.status ?? ""} onChange={(v) => handleFilterChange("status", v)} options={[{ value: "active", label: "Active" }, { value: "inactive", label: "Inactive" }]} placeholder="All Status" />
@@ -178,7 +178,7 @@ export default function BuyersPage() {
           </div>
         ) : buyers.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-16 text-center">
-            <div className="h-12 w-12 rounded-full bg-white/[0.03] border border-white/[0.06] flex items-center justify-center mb-3">
+            <div className="h-12 w-12 rounded-full bg-overlay-3 border border-overlay-6 flex items-center justify-center mb-3">
               <Filter className="h-5 w-5 text-muted-foreground/30" />
             </div>
             <p className="text-sm text-muted-foreground/60">No buyers yet</p>
@@ -188,7 +188,7 @@ export default function BuyersPage() {
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b border-white/[0.04]">
+                <tr className="border-b border-overlay-4">
                   <th className="text-left px-4 py-2.5 text-sm font-semibold uppercase tracking-wider text-muted-foreground/60">Contact</th>
                   <th className="text-left px-4 py-2.5 text-sm font-semibold uppercase tracking-wider text-muted-foreground/60">Markets</th>
                   <th className="text-left px-4 py-2.5 text-sm font-semibold uppercase tracking-wider text-muted-foreground/60">Strategy</th>
@@ -206,7 +206,7 @@ export default function BuyersPage() {
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: i * 0.02, duration: 0.1 }}
                     onClick={() => openEdit(buyer)}
-                    className="border-b border-white/[0.02] hover:bg-white/[0.02] cursor-pointer transition-colors"
+                    className="border-b border-overlay-2 hover:bg-overlay-2 cursor-pointer transition-colors"
                   >
                     <td className="px-4 py-2.5">
                       <div className="font-medium text-foreground">{buyer.contact_name}</div>

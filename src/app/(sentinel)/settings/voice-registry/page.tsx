@@ -118,7 +118,7 @@ function VersionRow({
   }
 
   return (
-    <div className="rounded-[10px] border border-white/[0.06] bg-white/[0.01] overflow-hidden">
+    <div className="rounded-[10px] border border-overlay-6 bg-overlay-2 overflow-hidden">
       {/* Header */}
       <div className="flex items-center gap-2 px-3 py-2">
         <code className="text-sm font-mono text-foreground/70 shrink-0">v{row.version}</code>
@@ -129,7 +129,7 @@ function VersionRow({
             <button
               type="button"
               onClick={() => setEditing(true)}
-              className="text-xs text-muted-foreground/40 hover:text-muted-foreground transition-colors rounded px-1.5 py-0.5 border border-transparent hover:border-white/[0.06]"
+              className="text-xs text-muted-foreground/40 hover:text-muted-foreground transition-colors rounded px-1.5 py-0.5 border border-transparent hover:border-overlay-6"
             >
               Edit
             </button>
@@ -149,7 +149,7 @@ function VersionRow({
               className={`text-xs px-2 py-0.5 rounded-full border transition-colors
                 ${row.status === opt.value
                   ? `${opt.classes} cursor-default`
-                  : "border-white/[0.06] text-muted-foreground/30 hover:text-muted-foreground/60 hover:border-white/[0.10]"
+                  : "border-overlay-6 text-muted-foreground/30 hover:text-muted-foreground/60 hover:border-overlay-10"
                 }`}
             >
               {opt.label}
@@ -193,7 +193,7 @@ function VersionRow({
 
       {/* Edit form */}
       {editing && (
-        <div className="px-3 pb-3 space-y-2 border-t border-white/[0.04] pt-2">
+        <div className="px-3 pb-3 space-y-2 border-t border-overlay-4 pt-2">
           <div>
             <label className="text-xs uppercase tracking-wider text-muted-foreground/40">
               {row.registry_type === "handoff_rule" ? "Description / summary" : "Script copy / talking points"}
@@ -276,10 +276,10 @@ function WorkflowGroup({
   const activeCount = rows.filter(r => r.status === "active").length;
 
   return (
-    <div className="rounded-[12px] border border-white/[0.06] bg-white/[0.015] overflow-hidden">
+    <div className="rounded-[12px] border border-overlay-6 bg-overlay-2 overflow-hidden">
       <button
         type="button"
-        className="w-full flex items-center gap-2 px-4 py-3 text-left hover:bg-white/[0.02] transition-colors"
+        className="w-full flex items-center gap-2 px-4 py-3 text-left hover:bg-overlay-2 transition-colors"
         onClick={() => setOpen(o => !o)}
       >
         <span className="text-sm font-semibold text-foreground/80">{label}</span>
@@ -297,7 +297,7 @@ function WorkflowGroup({
       </button>
 
       {open && (
-        <div className="px-4 pb-4 space-y-2 border-t border-white/[0.04]">
+        <div className="px-4 pb-4 space-y-2 border-t border-overlay-4">
           {rows.map(row => (
             <VersionRow key={`${row.workflow}-${row.version}-${row.registry_type}`} row={row} onUpdate={onUpdate} />
           ))}
@@ -365,7 +365,7 @@ function RegisterForm({
   }
 
   return (
-    <div className="rounded-[12px] border border-white/[0.08] bg-white/[0.02] p-4 space-y-3">
+    <div className="rounded-[12px] border border-overlay-8 bg-overlay-2 p-4 space-y-3">
       <p className="text-sm font-semibold text-foreground/70">Register new voice entry</p>
       <div className="grid grid-cols-2 gap-2">
         <div>

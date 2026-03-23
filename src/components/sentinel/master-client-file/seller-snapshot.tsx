@@ -69,7 +69,7 @@ export function SellerSnapshot({ cf, phoneConfidence }: SellerSnapshotProps) {
   if (!hasAnyData) return null;
 
   return (
-    <div className="rounded-[12px] border border-white/[0.08] bg-white/[0.02] p-3.5 space-y-3">
+    <div className="rounded-[12px] border border-overlay-8 bg-overlay-2 p-3.5 space-y-3">
       <div className="flex items-center gap-2">
         <User className="h-3.5 w-3.5 text-muted-foreground" />
         <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">

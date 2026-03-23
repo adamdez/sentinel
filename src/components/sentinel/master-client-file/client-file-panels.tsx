@@ -50,9 +50,9 @@ export function EditField({ label, value, onChange, placeholder, mono }: {
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
         className={cn(
-          "w-full px-3 py-2 rounded-[10px] text-sm bg-white/[0.04] border border-white/[0.08] text-foreground",
+          "w-full px-3 py-2 rounded-[10px] text-sm bg-overlay-4 border border-overlay-8 text-foreground",
           "placeholder:text-muted-foreground/40 focus:outline-none focus:border-primary/30 focus:ring-1 focus:ring-ring/20",
-          "transition-all hover:border-white/[0.12]",
+          "transition-all hover:border-overlay-12",
           mono && "font-mono",
         )}
       />
@@ -148,7 +148,7 @@ export function EditDetailsModal({ cf, onClose, onSaved }: { cf: ClientFile; onC
           exit={{ opacity: 0, scale: 0.92, y: 24 }}
           transition={{ type: "spring", damping: 26, stiffness: 320 }}
           onClick={(e) => e.stopPropagation()}
-          className="relative max-w-lg w-full mx-4 max-h-[85vh] overflow-hidden rounded-[16px] border border-white/[0.08]
+          className="relative max-w-lg w-full mx-4 max-h-[85vh] overflow-hidden rounded-[16px] border border-overlay-8
             modal-glass flex flex-col"
         >
           {/* Holographic accent */}
@@ -156,7 +156,7 @@ export function EditDetailsModal({ cf, onClose, onSaved }: { cf: ClientFile; onC
           <div className="absolute top-0 inset-x-0 h-12 bg-gradient-to-b from-primary/[0.03] to-transparent pointer-events-none" />
 
           {/* Header */}
-          <div className="shrink-0 flex items-center justify-between px-5 py-3.5 border-b border-white/[0.06]">
+          <div className="shrink-0 flex items-center justify-between px-5 py-3.5 border-b border-overlay-6">
             <div className="flex items-center gap-2.5">
               <div className="h-8 w-8 rounded-[10px] bg-primary/10 flex items-center justify-center">
                 <Pencil className="h-4 w-4 text-primary" />
@@ -166,7 +166,7 @@ export function EditDetailsModal({ cf, onClose, onSaved }: { cf: ClientFile; onC
                 <p className="text-sm text-muted-foreground">{cf.fullAddress}</p>
               </div>
             </div>
-            <button onClick={onClose} className="p-1.5 rounded-[10px] hover:bg-white/[0.06] transition-colors text-muted-foreground hover:text-foreground">
+            <button onClick={onClose} className="p-1.5 rounded-[10px] hover:bg-overlay-6 transition-colors text-muted-foreground hover:text-foreground">
               <X className="h-4 w-4" />
             </button>
           </div>
@@ -198,9 +198,9 @@ export function EditDetailsModal({ cf, onClose, onSaved }: { cf: ClientFile; onC
                 onChange={(e) => set("notes")(e.target.value)}
                 rows={3}
                 placeholder="Add notes about this property..."
-                className="w-full px-3 py-2 rounded-[10px] text-sm bg-white/[0.04] border border-white/[0.08] text-foreground
+                className="w-full px-3 py-2 rounded-[10px] text-sm bg-overlay-4 border border-overlay-8 text-foreground
                   placeholder:text-muted-foreground/40 focus:outline-none focus:border-primary/30 focus:ring-1 focus:ring-ring/20
-                  transition-all hover:border-white/[0.12] resize-none"
+                  transition-all hover:border-overlay-12 resize-none"
               />
             </div>
 
@@ -212,7 +212,7 @@ export function EditDetailsModal({ cf, onClose, onSaved }: { cf: ClientFile; onC
           </div>
 
           {/* Footer */}
-          <div className="shrink-0 flex items-center justify-between px-5 py-3 border-t border-white/[0.06]">
+          <div className="shrink-0 flex items-center justify-between px-5 py-3 border-t border-overlay-6">
             <p className="text-xs text-muted-foreground/40 font-mono">
               Property: {cf.propertyId.slice(0, 8)}
             </p>
@@ -225,7 +225,7 @@ export function EditDetailsModal({ cf, onClose, onSaved }: { cf: ClientFile; onC
                 onClick={handleSave}
                 disabled={saving}
                 className="text-sm h-8 px-4 gap-1.5 bg-primary/15 hover:bg-primary/25 text-primary border border-primary/20
-                  shadow-[0_0_14px_rgba(0,0,0,0.15)] hover:shadow-[0_0_22px_rgba(0,0,0,0.25)] transition-all"
+                  shadow-[0_0_14px_var(--shadow-soft)] hover:shadow-[0_0_22px_var(--shadow-medium)] transition-all"
               >
                 {saving ? <Loader2 className="h-3 w-3 animate-spin" /> : <Save className="h-3 w-3" />}
                 {saving ? "Saving..." : "Save Changes"}
@@ -306,7 +306,7 @@ export function DeleteConfirmationModal({
           <div className="absolute top-0 inset-x-0 h-12 bg-gradient-to-b from-muted/[0.05] to-transparent pointer-events-none" />
 
           {/* Header */}
-          <div className="shrink-0 flex items-center justify-between px-5 py-3.5 border-b border-white/[0.06]">
+          <div className="shrink-0 flex items-center justify-between px-5 py-3.5 border-b border-overlay-6">
             <div className="flex items-center gap-2.5">
               <div className="h-8 w-8 rounded-[10px] bg-muted/10 flex items-center justify-center">
                 <Trash2 className="h-4 w-4 text-foreground" />
@@ -316,7 +316,7 @@ export function DeleteConfirmationModal({
                 <p className="text-sm text-muted-foreground">Permanent action</p>
               </div>
             </div>
-            <button onClick={onClose} className="p-1.5 rounded-[10px] hover:bg-white/[0.06] transition-colors text-muted-foreground hover:text-foreground">
+            <button onClick={onClose} className="p-1.5 rounded-[10px] hover:bg-overlay-6 transition-colors text-muted-foreground hover:text-foreground">
               <X className="h-4 w-4" />
             </button>
           </div>
@@ -324,7 +324,7 @@ export function DeleteConfirmationModal({
           {/* Body */}
           <div className="px-5 py-4 space-y-4">
             {/* Lead details */}
-            <div className="rounded-[10px] bg-white/[0.03] border border-white/[0.06] p-3 space-y-1.5">
+            <div className="rounded-[10px] bg-overlay-3 border border-overlay-6 p-3 space-y-1.5">
               <div className="flex items-center gap-2 text-sm text-foreground">
                 <MapPin className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
                 <span className="truncate">{cf.fullAddress || cf.address}</span>
@@ -334,7 +334,7 @@ export function DeleteConfirmationModal({
                 <span className="truncate">{cf.ownerName || "Unknown Owner"}</span>
               </div>
               <div className="flex items-center gap-2">
-                <Badge variant="outline" className="text-sm border-white/[0.08]">
+                <Badge variant="outline" className="text-sm border-overlay-8">
                   {cf.status}
                 </Badge>
               </div>
@@ -361,9 +361,9 @@ export function DeleteConfirmationModal({
                 onChange={(e) => setConfirmText(e.target.value)}
                 placeholder="Type yes to confirm..."
                 autoFocus
-                className="w-full px-3 py-2 rounded-[10px] text-sm bg-white/[0.04] border border-white/[0.08] text-foreground
+                className="w-full px-3 py-2 rounded-[10px] text-sm bg-overlay-4 border border-overlay-8 text-foreground
                   placeholder:text-muted-foreground/40 focus:outline-none focus:border-border/30 focus:ring-1 focus:ring-ring/20
-                  transition-all hover:border-white/[0.12]"
+                  transition-all hover:border-overlay-12"
               />
             </div>
 
@@ -373,7 +373,7 @@ export function DeleteConfirmationModal({
           </div>
 
           {/* Footer */}
-          <div className="shrink-0 flex items-center justify-end gap-2 px-5 py-3.5 border-t border-white/[0.06]">
+          <div className="shrink-0 flex items-center justify-end gap-2 px-5 py-3.5 border-t border-overlay-6">
             <Button size="sm" variant="outline" onClick={onClose} className="text-sm h-8 px-4">
               Cancel
             </Button>
@@ -424,7 +424,7 @@ export function DeepCrawlPanel({ result, onRecrawl, isRecrawling }: { result: an
   const sources = result.sources ?? [];
 
   return (
-    <div className="rounded-[12px] border border-white/[0.06] bg-white/[0.02] p-4 space-y-4">
+    <div className="rounded-[12px] border border-overlay-6 bg-overlay-2 p-4 space-y-4">
       {/* Executive Summary */}
       <div>
         <div className="flex items-center gap-2 mb-2">
@@ -450,7 +450,7 @@ export function DeepCrawlPanel({ result, onRecrawl, isRecrawling }: { result: an
           </p>
           <div className="space-y-2">
             {ai.signalAnalysis.map((s: { headline: string; detail: string; daysUntilCritical: number | null; actionableInsight: string }, i: number) => (
-              <div key={i} className="rounded-[10px] border border-white/[0.06] bg-white/[0.02] p-3 space-y-1.5">
+              <div key={i} className="rounded-[10px] border border-overlay-6 bg-overlay-2 p-3 space-y-1.5">
                 <p className="text-sm font-semibold text-foreground flex items-center gap-1.5">
                   <AlertTriangle className="h-3 w-3 text-foreground shrink-0" />
                   {s.headline}
@@ -555,7 +555,7 @@ export function DeepCrawlPanel({ result, onRecrawl, isRecrawling }: { result: an
       )}
 
       {/* Footer */}
-      <div className="pt-2 border-t border-white/[0.06] flex items-center justify-between text-sm text-muted-foreground/50">
+      <div className="pt-2 border-t border-overlay-6 flex items-center justify-between text-sm text-muted-foreground/50">
         <div className="flex items-center gap-2">
           {crawledAgo && <span>Crawled {crawledAgo}</span>}
           {sources.length > 0 && <span>&#183; Sources: {sources.join(", ")}</span>}
@@ -593,7 +593,7 @@ export function DeepSkipPanel({ result }: { result: any }) {
   }
 
   return (
-    <div className="rounded-[12px] border border-white/[0.06] bg-white/[0.02] p-4 space-y-4">
+    <div className="rounded-[12px] border border-overlay-6 bg-overlay-2 p-4 space-y-4">
       {/* Header */}
       <div className="flex items-center gap-2">
         <Users className="h-3.5 w-3.5 text-foreground" />
@@ -611,13 +611,13 @@ export function DeepSkipPanel({ result }: { result: any }) {
           <p className="text-sm text-muted-foreground uppercase tracking-wider font-semibold">People Found</p>
           <div className="grid gap-2">
             {result.people.map((person: { name: string; role: string; phones: string[]; emails: string[]; notes: string; source: string; confidence: number; address?: string }, i: number) => (
-              <div key={i} className="rounded-[10px] border border-white/[0.06] bg-white/[0.02] p-3">
+              <div key={i} className="rounded-[10px] border border-overlay-6 bg-overlay-2 p-3">
                 <div className="flex items-center gap-2 mb-1.5">
                   <User className="h-3 w-3 text-foreground/60" />
                   <span className="text-sm font-semibold text-foreground">{person.name}</span>
                   <span className={cn(
                     "px-1.5 py-0.5 rounded-full text-xs font-bold border uppercase",
-                    ROLE_COLORS[person.role] ?? "text-muted-foreground bg-white/5 border-white/10",
+                    ROLE_COLORS[person.role] ?? "text-muted-foreground bg-overlay-5 border-overlay-10",
                   )}>
                     {person.role.replace(/_/g, " ")}
                   </span>
@@ -696,7 +696,7 @@ export function DeepSkipPanel({ result }: { result: any }) {
       )}
 
       {/* Footer */}
-      <div className="pt-2 border-t border-white/[0.06] text-sm text-muted-foreground/40">
+      <div className="pt-2 border-t border-overlay-6 text-sm text-muted-foreground/40">
         {result.crawledAt && <span>Generated {new Date(result.crawledAt).toLocaleString()}</span>}
       </div>
     </div>
@@ -728,7 +728,7 @@ export function CrawlProgressIndicator({ steps }: { steps: CrawlStep[] }) {
   };
 
   return (
-    <div className="rounded-[12px] border border-white/[0.06] bg-white/[0.02] p-3 space-y-1.5">
+    <div className="rounded-[12px] border border-overlay-6 bg-overlay-2 p-3 space-y-1.5">
       <div className="flex items-center gap-2 mb-2">
         <Loader2 className="h-3.5 w-3.5 text-primary animate-spin" />
         <p className="text-sm text-primary/80 uppercase tracking-wider font-semibold">Deep Crawl in Progress</p>
@@ -800,7 +800,7 @@ export function LinkedBuyersSummary({ leadId }: { leadId: string }) {
     .join(", ");
 
   return (
-    <div className="rounded-[12px] border border-white/[0.06] bg-white/[0.02] p-3 space-y-2">
+    <div className="rounded-[12px] border border-overlay-6 bg-overlay-2 p-3 space-y-2">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <Users className="h-3.5 w-3.5 text-primary/70" />

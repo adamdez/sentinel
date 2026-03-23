@@ -158,7 +158,7 @@ function StalledDealsPanel({ deals, onExpandDeal }: { deals: DispoDeal[]; onExpa
           <button
             key={s.deal.id}
             onClick={() => onExpandDeal(s.deal.id)}
-            className="w-full flex items-center gap-3 px-3 py-2 rounded-[8px] bg-white/[0.02] border border-white/[0.06] hover:bg-white/[0.04] transition-colors text-left"
+            className="w-full flex items-center gap-3 px-3 py-2 rounded-[8px] bg-overlay-2 border border-overlay-6 hover:bg-overlay-4 transition-colors text-left"
           >
             <MapPin className="h-3 w-3 text-muted-foreground/50 shrink-0" />
             <div className="flex-1 min-w-0">
@@ -202,7 +202,7 @@ function DispoPrepForm({ deal, onSaved }: { deal: DispoDeal; onSaved: () => void
     }
   }, [deal.id, onSaved]);
 
-  const inputClass = "w-full bg-white/[0.03] border border-white/[0.06] rounded-[6px] px-2.5 py-1.5 text-xs text-foreground placeholder:text-muted-foreground/30 focus:outline-none focus:border-primary/20 transition-all";
+  const inputClass = "w-full bg-overlay-3 border border-overlay-6 rounded-[6px] px-2.5 py-1.5 text-xs text-foreground placeholder:text-muted-foreground/30 focus:outline-none focus:border-primary/20 transition-all";
   const labelClass = "text-sm text-muted-foreground/50 font-medium mb-1";
 
   return (
@@ -325,7 +325,7 @@ function SelectionReasonInput({ dbId, currentReason, onSaved }: {
       <input
         defaultValue={currentReason ?? ""}
         placeholder="Why this buyer? (saves on blur)"
-        className="w-full bg-white/[0.02] border border-primary/10 rounded-[4px] px-2 py-1 text-sm text-foreground/70 placeholder:text-muted-foreground/30 focus:outline-none focus:border-primary/30 transition-all"
+        className="w-full bg-overlay-2 border border-primary/10 rounded-[4px] px-2 py-1 text-sm text-foreground/70 placeholder:text-muted-foreground/30 focus:outline-none focus:border-primary/30 transition-all"
         onBlur={(e) => handleBlur(e.target.value)}
         onClick={(e) => e.stopPropagation()}
       />
@@ -354,7 +354,7 @@ function DealCard({ deal, expanded, onToggleExpand, onStatusChange, onLinkBuyer,
       {/* Card header — always visible */}
       <button
         onClick={onToggleExpand}
-        className="w-full flex items-start gap-3 p-3.5 text-left hover:bg-white/[0.01] transition-colors"
+        className="w-full flex items-start gap-3 p-3.5 text-left hover:bg-overlay-2 transition-colors"
       >
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2">
@@ -415,7 +415,7 @@ function DealCard({ deal, expanded, onToggleExpand, onStatusChange, onLinkBuyer,
             transition={{ duration: 0.2 }}
             className="overflow-hidden"
           >
-            <div className="border-t border-white/[0.04] px-4 pb-4 pt-3">
+            <div className="border-t border-overlay-4 px-4 pb-4 pt-3">
               {/* Deal Prep toggle */}
               <button
                 onClick={(e) => { e.stopPropagation(); setPrepOpen(!prepOpen); }}
@@ -440,7 +440,7 @@ function DealCard({ deal, expanded, onToggleExpand, onStatusChange, onLinkBuyer,
                     transition={{ duration: 0.15 }}
                     className="overflow-hidden mb-4"
                   >
-                    <div className="p-3 rounded-[8px] bg-white/[0.01] border border-white/[0.04]">
+                    <div className="p-3 rounded-[8px] bg-overlay-2 border border-overlay-4">
                       <DispoPrepForm deal={deal} onSaved={onRefetch} />
                     </div>
                   </motion.div>
@@ -480,8 +480,8 @@ function DealCard({ deal, expanded, onToggleExpand, onStatusChange, onLinkBuyer,
                     return (
                       <div key={db.id}>
                         <div className={cn(
-                          "flex items-center gap-3 px-3 py-2.5 rounded-[8px] bg-white/[0.015] border",
-                          db.status === "selected" ? "border-primary/20" : "border-white/[0.04]"
+                          "flex items-center gap-3 px-3 py-2.5 rounded-[8px] bg-overlay-2 border",
+                          db.status === "selected" ? "border-primary/20" : "border-overlay-4"
                         )}>
                           {/* Buyer info */}
                           <div className="flex-1 min-w-0">
@@ -501,7 +501,7 @@ function DealCard({ deal, expanded, onToggleExpand, onStatusChange, onLinkBuyer,
                               e.stopPropagation();
                               onStatusChange(db.id, e.target.value, db.status);
                             }}
-                            className="bg-white/[0.03] border border-white/[0.08] rounded-[6px] px-2 py-1 text-sm text-foreground focus:outline-none focus:border-primary/30 transition-all appearance-none cursor-pointer min-w-[100px]"
+                            className="bg-overlay-3 border border-overlay-8 rounded-[6px] px-2 py-1 text-sm text-foreground focus:outline-none focus:border-primary/30 transition-all appearance-none cursor-pointer min-w-[100px]"
                           >
                             {DEAL_BUYER_STATUS_OPTIONS.map((o) => (
                               <option key={o.value} value={o.value}>{o.label}</option>
@@ -698,7 +698,7 @@ export default function DispoPage() {
           }} />
 
           {/* Compact pipeline summary */}
-          <div className="flex items-center gap-4 px-3 py-1.5 rounded-[10px] border border-white/[0.06] bg-white/[0.02]">
+          <div className="flex items-center gap-4 px-3 py-1.5 rounded-[10px] border border-overlay-6 bg-overlay-2">
             <OutreachFunnel deals={deals} />
           </div>
 

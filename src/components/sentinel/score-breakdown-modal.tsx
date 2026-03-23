@@ -107,7 +107,7 @@ export function ScoreBreakdownModal({ cf, scoreType, onClose }: { cf: ClientFile
           exit={{ opacity: 0, scale: 0.92, y: 24 }}
           transition={{ type: "spring", damping: 26, stiffness: 320 }}
           onClick={(e) => e.stopPropagation()}
-          className="relative max-w-lg w-full mx-4 max-h-[85vh] overflow-hidden rounded-[16px] border border-white/[0.08]
+          className="relative max-w-lg w-full mx-4 max-h-[85vh] overflow-hidden rounded-[16px] border border-overlay-8
             modal-glass flex flex-col"
         >
           {/* Holographic top accent */}
@@ -115,7 +115,7 @@ export function ScoreBreakdownModal({ cf, scoreType, onClose }: { cf: ClientFile
           <div className="absolute top-0 inset-x-0 h-12 bg-gradient-to-b from-primary/[0.03] to-transparent pointer-events-none" />
 
           {/* Header */}
-          <div className="shrink-0 flex items-center justify-between px-5 py-3.5 border-b border-white/[0.06]">
+          <div className="shrink-0 flex items-center justify-between px-5 py-3.5 border-b border-overlay-6">
             <div className="flex items-center gap-2.5">
               <div className={cn(
                 "h-8 w-8 rounded-[10px] flex items-center justify-center",
@@ -136,7 +136,7 @@ export function ScoreBreakdownModal({ cf, scoreType, onClose }: { cf: ClientFile
                 </p>
               </div>
             </div>
-            <button onClick={onClose} className="p-1.5 rounded-[10px] hover:bg-white/[0.06] transition-colors text-muted-foreground hover:text-foreground">
+            <button onClick={onClose} className="p-1.5 rounded-[10px] hover:bg-overlay-6 transition-colors text-muted-foreground hover:text-foreground">
               <X className="h-4 w-4" />
             </button>
           </div>
@@ -147,7 +147,7 @@ export function ScoreBreakdownModal({ cf, scoreType, onClose }: { cf: ClientFile
               <>
                 {/* Big score hero */}
                 <div className="text-center py-3">
-                  <p className="text-5xl font-black tabular-nums" style={{ textShadow: "0 0 24px rgba(0,0,0,0.3), 0 0 60px rgba(0,0,0,0.1)" }}>{cf.compositeScore}</p>
+                  <p className="text-5xl font-black tabular-nums" style={{ textShadow: "0 0 24px var(--shadow-medium), 0 0 60px var(--shadow-soft)" }}>{cf.compositeScore}</p>
                   <p className="text-sm text-muted-foreground uppercase tracking-widest mt-1">
                     {cf.scoreLabel.toUpperCase()} — Model {cf.modelVersion ?? "v2.0"}
                   </p>
@@ -198,7 +198,7 @@ export function ScoreBreakdownModal({ cf, scoreType, onClose }: { cf: ClientFile
                       const fillPct = Math.min((f.contribution / maxPts) * 100, 100);
                       const cfg = DISTRESS_CFG[f.name];
                       return (
-                        <div key={i} className="rounded-[8px] border border-white/[0.04] bg-white/[0.02] px-3 py-2">
+                        <div key={i} className="rounded-[8px] border border-overlay-4 bg-overlay-2 px-3 py-2">
                           <div className="flex items-center justify-between text-xs mb-1">
                             <span className={cn("font-medium", cfg?.color?.split(" ")[0] ?? "text-foreground")}>
                               {SIGNAL_WEIGHT_LABELS[f.name] ?? f.name}
@@ -226,7 +226,7 @@ export function ScoreBreakdownModal({ cf, scoreType, onClose }: { cf: ClientFile
                       <TrendingUp className="h-3 w-3" />Adjustments — {Math.round(totalBonusPts)} pts
                     </p>
                     {bonusFactors.map((f, i) => (
-                      <div key={i} className="flex items-center justify-between text-xs px-3 py-1.5 rounded-[8px] bg-white/[0.02] border border-white/[0.04]">
+                      <div key={i} className="flex items-center justify-between text-xs px-3 py-1.5 rounded-[8px] bg-overlay-2 border border-overlay-4">
                         <span className="text-muted-foreground">{SIGNAL_WEIGHT_LABELS[f.name] ?? f.name}</span>
                         <span className={cn("font-mono font-bold", f.contribution >= 0 ? "text-primary" : "text-foreground")}>
                           {f.contribution >= 0 ? "+" : ""}{f.contribution}
@@ -277,7 +277,7 @@ export function ScoreBreakdownModal({ cf, scoreType, onClose }: { cf: ClientFile
                       const baseWeight = SIGNAL_WEIGHTS[tag as DistressType] ?? 10;
                       const factor = factors.find((f) => f.name === tag);
                       return (
-                        <div key={tag} className="rounded-[8px] border border-white/[0.04] bg-white/[0.02] px-3 py-2.5">
+                        <div key={tag} className="rounded-[8px] border border-overlay-4 bg-overlay-2 px-3 py-2.5">
                           <div className="flex items-center gap-2 mb-1.5">
                             <TagIcon className={cn("h-3.5 w-3.5", cfg?.color?.split(" ")[0] ?? "text-muted-foreground")} />
                             <span className={cn("text-xs font-semibold", cfg?.color?.split(" ")[0] ?? "text-foreground")}>{cfg?.label ?? tag}</span>
@@ -358,7 +358,7 @@ export function ScoreBreakdownModal({ cf, scoreType, onClose }: { cf: ClientFile
             {scoreType === "deal" && (
               <>
                 <div className="text-center py-3">
-                  <p className="text-5xl font-black tabular-nums text-foreground" style={{ textShadow: "0 0 20px rgba(0,0,0,0.12)" }}>{cf.dealScore}</p>
+                  <p className="text-5xl font-black tabular-nums text-foreground" style={{ textShadow: "0 0 20px var(--shadow-soft)" }}>{cf.dealScore}</p>
                   <p className="text-sm text-muted-foreground uppercase tracking-widest mt-1">Deal Score — Investment Viability Index</p>
                 </div>
 
@@ -373,23 +373,23 @@ export function ScoreBreakdownModal({ cf, scoreType, onClose }: { cf: ClientFile
                 <div className="space-y-1.5">
                   <p className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Property Financials</p>
                   <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs">
-                    <div className="flex justify-between px-3 py-1.5 rounded-[8px] bg-white/[0.02] border border-white/[0.04]">
+                    <div className="flex justify-between px-3 py-1.5 rounded-[8px] bg-overlay-2 border border-overlay-4">
                       <span className="text-muted-foreground">ARV / AVM</span>
                       <span className="font-mono font-bold text-foreground">{arv > 0 ? formatCurrency(arv) : "—"}</span>
                     </div>
-                    <div className="flex justify-between px-3 py-1.5 rounded-[8px] bg-white/[0.02] border border-white/[0.04]">
+                    <div className="flex justify-between px-3 py-1.5 rounded-[8px] bg-overlay-2 border border-overlay-4">
                       <span className="text-muted-foreground">Equity %</span>
                       <span className={cn("font-mono font-bold", equityDataCorrupt && "text-foreground text-sm font-normal")}>
                         {equityDataCorrupt ? "Data unavailable" : eqPct > 0 ? `${eqPct}%` : "—"}
                       </span>
                     </div>
-                    <div className="flex justify-between px-3 py-1.5 rounded-[8px] bg-white/[0.02] border border-white/[0.04]">
+                    <div className="flex justify-between px-3 py-1.5 rounded-[8px] bg-overlay-2 border border-overlay-4">
                       <span className="text-muted-foreground">Available Equity</span>
                       <span className={cn("font-mono font-semibold", equityDataCorrupt && "text-foreground text-sm font-normal")}>
                         {equityDataCorrupt ? "Run property analysis" : availableEquity > 0 ? formatCurrency(availableEquity) : "—"}
                       </span>
                     </div>
-                    <div className="flex justify-between px-3 py-1.5 rounded-[8px] bg-white/[0.02] border border-white/[0.04]">
+                    <div className="flex justify-between px-3 py-1.5 rounded-[8px] bg-overlay-2 border border-overlay-4">
                       <span className="text-muted-foreground">Total Loans</span>
                       <span className="font-mono font-semibold">{cf.totalLoanBalance ? formatCurrency(cf.totalLoanBalance) : "—"}</span>
                     </div>
@@ -400,7 +400,7 @@ export function ScoreBreakdownModal({ cf, scoreType, onClose }: { cf: ClientFile
                 {arv > 0 && (
                   <div className="space-y-1.5">
                     <p className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Quick Profit Projection</p>
-                    <div className="rounded-[10px] border border-white/[0.06] bg-white/[0.02] p-3 space-y-1.5 text-xs">
+                    <div className="rounded-[10px] border border-overlay-6 bg-overlay-2 p-3 space-y-1.5 text-xs">
                       <div className="flex justify-between">
                         <span className="text-muted-foreground">ARV</span>
                         <span className="font-mono font-medium">{formatCurrency(arv)}</span>
@@ -413,9 +413,9 @@ export function ScoreBreakdownModal({ cf, scoreType, onClose }: { cf: ClientFile
                         <span className="text-muted-foreground">Rehab Est.</span>
                         <span className="font-mono text-foreground">-{formatCurrency(quickUnderwrite.rehabEstimate)}</span>
                       </div>
-                      <div className="border-t border-white/[0.06] pt-1.5 mt-1.5 flex justify-between">
+                      <div className="border-t border-overlay-6 pt-1.5 mt-1.5 flex justify-between">
                         <span className="font-semibold">Net Profit</span>
-                        <span className={cn("font-mono font-bold text-lg", profit >= 0 ? "text-foreground" : "text-foreground")} style={profit >= 0 ? { textShadow: "0 0 10px rgba(0,0,0,0.25)" } : {}}>
+                        <span className={cn("font-mono font-bold text-lg", profit >= 0 ? "text-foreground" : "text-foreground")} style={profit >= 0 ? { textShadow: "0 0 10px var(--shadow-medium)" } : {}}>
                           {formatCurrency(profit)}
                         </span>
                       </div>
@@ -434,13 +434,13 @@ export function ScoreBreakdownModal({ cf, scoreType, onClose }: { cf: ClientFile
                 <div className="space-y-1">
                   <p className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Score Components</p>
                   {bonusFactors.filter((f) => f.name === "equity" || f.name === "comp_ratio" || f.name === "ai_boost" || f.name === "stacking_bonus").map((f, i) => (
-                    <div key={i} className="flex items-center justify-between text-xs px-3 py-1.5 rounded-[8px] bg-white/[0.02] border border-white/[0.04]">
+                    <div key={i} className="flex items-center justify-between text-xs px-3 py-1.5 rounded-[8px] bg-overlay-2 border border-overlay-4">
                       <span className="text-muted-foreground">{SIGNAL_WEIGHT_LABELS[f.name] ?? f.name}</span>
                       <span className="font-mono font-bold text-primary">+{f.contribution}</span>
                     </div>
                   ))}
                   {cf.aiBoost > 0 && !bonusFactors.some((f) => f.name === "ai_boost") && (
-                    <div className="flex items-center justify-between text-xs px-3 py-1.5 rounded-[8px] bg-white/[0.02] border border-white/[0.04]">
+                    <div className="flex items-center justify-between text-xs px-3 py-1.5 rounded-[8px] bg-overlay-2 border border-overlay-4">
                       <span className="text-muted-foreground">AI Historical Boost</span>
                       <span className="font-mono font-bold text-primary">+{cf.aiBoost}</span>
                     </div>
@@ -457,7 +457,7 @@ export function ScoreBreakdownModal({ cf, scoreType, onClose }: { cf: ClientFile
           </div>
 
           {/* Footer */}
-          <div className="shrink-0 px-5 py-3 border-t border-white/[0.06] flex items-center justify-between">
+          <div className="shrink-0 px-5 py-3 border-t border-overlay-6 flex items-center justify-between">
             <p className="text-xs text-muted-foreground/40 font-mono">
               Scoring Engine {cf.modelVersion ?? "v2.0"} • {cf.tags.length} signal(s) • {cf.source}
             </p>

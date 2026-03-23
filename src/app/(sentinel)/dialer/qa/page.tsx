@@ -64,7 +64,7 @@ function SeverityBadge({ severity }: { severity: string }) {
     </span>
   );
   return (
-    <span className="inline-flex items-center gap-0.5 rounded-[4px] border border-white/[0.07] bg-white/[0.03] px-1.5 py-0.5 text-xs font-semibold text-muted-foreground/50 uppercase tracking-wide">
+    <span className="inline-flex items-center gap-0.5 rounded-[4px] border border-overlay-8 bg-overlay-3 px-1.5 py-0.5 text-xs font-semibold text-muted-foreground/50 uppercase tracking-wide">
       <Info className="h-2 w-2" aria-hidden="true" /> info
     </span>
   );
@@ -116,7 +116,7 @@ function FindingRow({
   }
 
   return (
-    <div className="rounded-[8px] border border-white/[0.05] bg-white/[0.015] p-2.5 space-y-1.5">
+    <div className="rounded-[8px] border border-overlay-5 bg-overlay-2 p-2.5 space-y-1.5">
       <div className="flex items-start gap-2">
         <div className="shrink-0 mt-0.5">
           <SeverityBadge severity={finding.severity} />
@@ -150,7 +150,7 @@ function FindingRow({
           placeholder="Brief note on why this finding is invalid or what was corrected…"
           maxLength={300}
           rows={2}
-          className="w-full resize-none rounded-[6px] border border-white/[0.06] bg-white/[0.03] px-2.5 py-1.5 text-sm text-foreground placeholder:text-muted-foreground/30 focus:outline-none focus:border-primary/20"
+          className="w-full resize-none rounded-[6px] border border-overlay-6 bg-overlay-3 px-2.5 py-1.5 text-sm text-foreground placeholder:text-muted-foreground/30 focus:outline-none focus:border-primary/20"
         />
       )}
 
@@ -169,7 +169,7 @@ function FindingRow({
           type="button"
           onClick={() => handle("invalid")}
           disabled={reviewing}
-          className="flex-1 flex items-center justify-center gap-1 rounded-[6px] border border-white/[0.06] bg-white/[0.02] px-2 py-1 text-sm text-muted-foreground/50 hover:text-foreground/70 hover:border-white/[0.12] transition-colors disabled:opacity-40"
+          className="flex-1 flex items-center justify-center gap-1 rounded-[6px] border border-overlay-6 bg-overlay-2 px-2 py-1 text-sm text-muted-foreground/50 hover:text-foreground/70 hover:border-overlay-12 transition-colors disabled:opacity-40"
         >
           <X className="h-2.5 w-2.5" aria-hidden="true" />
           Invalid
@@ -216,13 +216,13 @@ function CallQaCard({
       <button
         type="button"
         onClick={() => setExpanded((v) => !v)}
-        className="w-full flex items-center gap-3 px-3.5 py-3 hover:bg-white/[0.02] transition-colors text-left"
+        className="w-full flex items-center gap-3 px-3.5 py-3 hover:bg-overlay-2 transition-colors text-left"
       >
         {/* Severity indicator */}
         <div className={`h-6 w-1 rounded-full shrink-0 ${
           call.flagCount > 0 ? "bg-muted/50" :
           call.warnCount > 0 ? "bg-muted/40" :
-          "bg-white/10"
+          "bg-overlay-10"
         }`} />
 
         {/* Lead info */}
@@ -270,7 +270,7 @@ function CallQaCard({
 
       {/* Expanded findings */}
       {expanded && (
-        <div className="px-3.5 pb-3.5 border-t border-white/[0.04] pt-3 space-y-2">
+        <div className="px-3.5 pb-3.5 border-t border-overlay-4 pt-3 space-y-2">
           {hasFindings ? (
             call.findings.map((f) => (
               <FindingRow
@@ -322,7 +322,7 @@ function RunQaForm({ onRun }: { onRun: (callLogId: string) => Promise<void> }) {
         value={callLogId}
         onChange={(e) => setCallLogId(e.target.value)}
         placeholder="calls_log UUID to QA…"
-        className="flex-1 rounded-[8px] border border-white/[0.06] bg-white/[0.02] px-3 py-1.5 text-sm text-foreground placeholder:text-muted-foreground/30 focus:outline-none focus:border-primary/20"
+        className="flex-1 rounded-[8px] border border-overlay-6 bg-overlay-2 px-3 py-1.5 text-sm text-foreground placeholder:text-muted-foreground/30 focus:outline-none focus:border-primary/20"
       />
       <Button
         onClick={handleRun}
@@ -451,7 +451,7 @@ export default function DialerQaPage() {
               className={`rounded-[8px] border px-3 py-1 text-sm font-medium transition-colors ${
                 severity === s
                   ? "bg-primary/10 border-primary/20 text-primary"
-                  : "bg-white/[0.02] border-white/[0.06] text-muted-foreground/50 hover:border-white/[0.12]"
+                  : "bg-overlay-2 border-overlay-6 text-muted-foreground/50 hover:border-overlay-12"
               }`}
             >
               {s === "all" ? "All" : s.charAt(0).toUpperCase() + s.slice(1) + "s"}
@@ -461,7 +461,7 @@ export default function DialerQaPage() {
             type="button"
             onClick={() => void loadQueue()}
             disabled={loading}
-            className="ml-auto flex items-center gap-1 rounded-[8px] border border-white/[0.06] bg-white/[0.02] px-3 py-1 text-sm text-muted-foreground/40 hover:text-muted-foreground/70 transition-colors disabled:opacity-40"
+            className="ml-auto flex items-center gap-1 rounded-[8px] border border-overlay-6 bg-overlay-2 px-3 py-1 text-sm text-muted-foreground/40 hover:text-muted-foreground/70 transition-colors disabled:opacity-40"
           >
             {loading ? <Loader2 className="h-2.5 w-2.5 animate-spin" aria-hidden="true" /> : <RefreshCw className="h-2.5 w-2.5" aria-hidden="true" />}
             Refresh
@@ -501,7 +501,7 @@ export default function DialerQaPage() {
         )}
 
         {/* ── Context note ──────────────────────────────────── */}
-        <div className="flex items-start gap-2 rounded-[10px] border border-white/[0.04] bg-white/[0.01] px-3 py-2.5">
+        <div className="flex items-start gap-2 rounded-[10px] border border-overlay-4 bg-overlay-2 px-3 py-2.5">
           <Clock className="h-3 w-3 text-muted-foreground/25 shrink-0 mt-0.5" aria-hidden="true" />
           <p className="text-sm text-muted-foreground/30 leading-relaxed">
             QA findings are informational only. Marking a finding valid or invalid has no effect on CRM records, lead stages, or operator metrics. This surface is for Adam&apos;s operational awareness and coaching reference only.

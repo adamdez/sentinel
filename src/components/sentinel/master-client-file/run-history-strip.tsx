@@ -31,7 +31,7 @@ const STATUS_META: Record<ResearchRunStatus, {
 }> = {
   open:      { label: "Active",    icon: CircleDot,    color: "text-primary",           bg: "border-primary/20 bg-primary/[0.05]" },
   compiled:  { label: "Compiled",  icon: CheckCircle2, color: "text-foreground",    bg: "border-border/20 bg-muted/[0.04]" },
-  closed:    { label: "Closed",    icon: XCircle,      color: "text-muted-foreground/50", bg: "border-white/[0.06] bg-white/[0.02]" },
+  closed:    { label: "Closed",    icon: XCircle,      color: "text-muted-foreground/50", bg: "border-overlay-6 bg-overlay-2" },
   abandoned: { label: "Abandoned", icon: AlertCircle,  color: "text-foreground/60",   bg: "border-border/15 bg-muted/[0.03]" },
 };
 

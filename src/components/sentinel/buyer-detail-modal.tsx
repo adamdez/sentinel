@@ -53,7 +53,7 @@ function SectionHeader({ icon: Icon, label, collapsed, onToggle }: {
       <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground/80 group-hover:text-foreground/90 transition-colors">
         {label}
       </span>
-      <div className="flex-1 h-px bg-white/[0.04]" />
+      <div className="flex-1 h-px bg-overlay-4" />
       <motion.div animate={{ rotate: collapsed ? 0 : 180 }} transition={{ duration: 0.15 }}>
         <ChevronDown className="h-3 w-3 text-muted-foreground/40" />
       </motion.div>
@@ -79,7 +79,7 @@ function GlassInput({ value, onChange, placeholder, type = "text", className }: 
       onChange={(e) => onChange(e.target.value)}
       placeholder={placeholder}
       className={cn(
-        "w-full bg-white/[0.03] border border-white/[0.06] rounded-[8px] px-3 py-1.5 text-sm text-foreground placeholder:text-muted-foreground/40 focus:outline-none focus:border-primary/30 focus:ring-1 focus:ring-ring/20 transition-all",
+        "w-full bg-overlay-3 border border-overlay-6 rounded-[8px] px-3 py-1.5 text-sm text-foreground placeholder:text-muted-foreground/40 focus:outline-none focus:border-primary/30 focus:ring-1 focus:ring-ring/20 transition-all",
         className
       )}
     />
@@ -96,7 +96,7 @@ function GlassSelect({ value, onChange, options, placeholder }: {
     <select
       value={value ?? ""}
       onChange={(e) => onChange(e.target.value)}
-      className="w-full bg-white/[0.03] border border-white/[0.06] rounded-[8px] px-3 py-1.5 text-sm text-foreground focus:outline-none focus:border-primary/30 focus:ring-1 focus:ring-ring/20 transition-all appearance-none cursor-pointer"
+      className="w-full bg-overlay-3 border border-overlay-6 rounded-[8px] px-3 py-1.5 text-sm text-foreground focus:outline-none focus:border-primary/30 focus:ring-1 focus:ring-ring/20 transition-all appearance-none cursor-pointer"
     >
       {placeholder && <option value="">{placeholder}</option>}
       {options.map((o) => (
@@ -116,7 +116,7 @@ function PillToggle({ value, selected, onToggle, label }: {
         "px-2.5 py-1 rounded-full text-sm font-medium border transition-all",
         selected
           ? "bg-primary/15 border-primary/30 text-primary"
-          : "bg-white/[0.02] border-white/[0.06] text-muted-foreground/60 hover:border-white/[0.12] hover:text-muted-foreground"
+          : "bg-overlay-2 border-overlay-6 text-muted-foreground/60 hover:border-overlay-12 hover:text-muted-foreground"
       )}
     >
       {label}
@@ -250,8 +250,8 @@ export function BuyerDetailModal({ buyer, open, onClose, onSaved, isCreate }: Bu
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.95, y: 10 }}
             transition={{ duration: 0.15, ease: "easeOut" }}
-            className="relative z-50 w-full max-w-2xl max-h-[85vh] overflow-y-auto rounded-[16px] modal-glass p-6 space-y-5 scrollbar-thin scrollbar-thumb-white/10 scrollbar-track-transparent"
-            style={{ boxShadow: "inset 0 0 4px rgba(255,255,255,0.18), inset 0 0 14px rgba(0,0,0,0.12), 0 8px 26px rgba(0,0,0,0.16), 0 32px 80px rgba(0,0,0,0.08)" }}
+            className="relative z-50 w-full max-w-2xl max-h-[85vh] overflow-y-auto rounded-[16px] modal-glass p-6 space-y-5 scrollbar-thin scrollbar-thumb-overlay-10 scrollbar-track-transparent"
+            style={{ boxShadow: "inset 0 0 4px var(--overlay-18), inset 0 0 14px var(--shadow-soft), 0 8px 26px var(--shadow-soft), 0 32px 80px var(--shadow-soft)" }}
           >
             {/* Close button */}
             <button
@@ -271,13 +271,13 @@ export function BuyerDetailModal({ buyer, open, onClose, onSaved, isCreate }: Bu
                   value={form.contact_name ?? ""}
                   onChange={(v) => updateField("contact_name", v)}
                   placeholder="Contact Name"
-                  className="text-lg font-semibold bg-transparent border-transparent hover:border-white/[0.06] focus:border-primary/30 px-1 py-0"
+                  className="text-lg font-semibold bg-transparent border-transparent hover:border-overlay-6 focus:border-primary/30 px-1 py-0"
                 />
                 <GlassInput
                   value={form.company_name ?? ""}
                   onChange={(v) => updateField("company_name", v || null)}
                   placeholder="Company (optional)"
-                  className="text-sm text-muted-foreground bg-transparent border-transparent hover:border-white/[0.06] focus:border-primary/30 px-1 py-0 mt-0.5"
+                  className="text-sm text-muted-foreground bg-transparent border-transparent hover:border-overlay-6 focus:border-primary/30 px-1 py-0 mt-0.5"
                 />
               </div>
               <Badge variant={form.status === "active" ? "neon" : "secondary"} className="shrink-0 mt-1">
@@ -313,7 +313,7 @@ export function BuyerDetailModal({ buyer, open, onClose, onSaved, isCreate }: Bu
                                   "flex items-center gap-1.5 px-3 py-1.5 rounded-[8px] text-xs font-medium border transition-all",
                                   form.preferred_contact_method === m
                                     ? "bg-primary/12 border-primary/25 text-primary"
-                                    : "bg-white/[0.02] border-white/[0.06] text-muted-foreground/60 hover:border-white/[0.12]"
+                                    : "bg-overlay-2 border-overlay-6 text-muted-foreground/60 hover:border-overlay-12"
                                 )}
                               >
                                 <Icon className="h-3 w-3" />
@@ -495,7 +495,7 @@ export function BuyerDetailModal({ buyer, open, onClose, onSaved, isCreate }: Bu
                                 { label: "Offered", value: stats.offered },
                                 { label: "Selected", value: stats.selected },
                               ].map((s) => (
-                                <div key={s.label} className="px-2.5 py-2 rounded-[6px] bg-white/[0.02] border border-white/[0.04] text-center">
+                                <div key={s.label} className="px-2.5 py-2 rounded-[6px] bg-overlay-2 border border-overlay-4 text-center">
                                   <div className="text-sm font-semibold text-foreground">{s.value}</div>
                                   <div className="text-xs text-muted-foreground/50 uppercase tracking-wider mt-0.5">{s.label}</div>
                                 </div>
@@ -513,7 +513,7 @@ export function BuyerDetailModal({ buyer, open, onClose, onSaved, isCreate }: Bu
                               <div className="space-y-1.5">
                                 <div className="text-sm text-muted-foreground/50 uppercase tracking-wider font-semibold">Recent Deals</div>
                                 {stats.recent_deals.map((rd, i) => (
-                                  <div key={i} className="flex items-center gap-2 px-2.5 py-1.5 rounded-[6px] bg-white/[0.015] border border-white/[0.04] text-xs">
+                                  <div key={i} className="flex items-center gap-2 px-2.5 py-1.5 rounded-[6px] bg-overlay-2 border border-overlay-4 text-xs">
                                     <span className="flex-1 truncate text-foreground/70">{rd.property_address ?? "Unknown"}</span>
                                     <Badge
                                       variant={rd.deal_buyer_status === "selected" ? "neon" : rd.deal_buyer_status === "interested" ? "cyan" : rd.deal_buyer_status === "passed" ? "secondary" : "outline"}
@@ -548,7 +548,7 @@ export function BuyerDetailModal({ buyer, open, onClose, onSaved, isCreate }: Bu
                       onChange={(e) => updateField("notes", e.target.value || null)}
                       placeholder="Notes about this buyer..."
                       rows={3}
-                      className="w-full mt-2 bg-white/[0.03] border border-white/[0.06] rounded-[8px] px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground/40 focus:outline-none focus:border-primary/30 focus:ring-1 focus:ring-ring/20 transition-all resize-none"
+                      className="w-full mt-2 bg-overlay-3 border border-overlay-6 rounded-[8px] px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground/40 focus:outline-none focus:border-primary/30 focus:ring-1 focus:ring-ring/20 transition-all resize-none"
                     />
                   </motion.div>
                 )}
@@ -556,7 +556,7 @@ export function BuyerDetailModal({ buyer, open, onClose, onSaved, isCreate }: Bu
             </div>
 
             {/* ── Footer ── */}
-            <div className="flex items-center gap-3 pt-2 border-t border-white/[0.04]">
+            <div className="flex items-center gap-3 pt-2 border-t border-overlay-4">
               {!isCreate && (
                 <button
                   onClick={handleDeactivate}
@@ -570,7 +570,7 @@ export function BuyerDetailModal({ buyer, open, onClose, onSaved, isCreate }: Bu
               <div className="flex-1" />
               <button
                 onClick={onClose}
-                className="px-4 py-1.5 text-sm text-muted-foreground hover:text-foreground rounded-[8px] border border-white/[0.06] hover:border-white/[0.12] transition-all"
+                className="px-4 py-1.5 text-sm text-muted-foreground hover:text-foreground rounded-[8px] border border-overlay-6 hover:border-overlay-12 transition-all"
               >
                 Cancel
               </button>

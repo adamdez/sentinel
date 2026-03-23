@@ -118,7 +118,7 @@ function MotivationDots({ level }: { level: number | null }) {
           className={`h-2 w-2 rounded-full transition-colors ${
             n <= level
               ? level >= 4 ? "bg-muted" : level >= 2 ? "bg-primary" : "bg-muted"
-              : "bg-white/[0.08]"
+              : "bg-overlay-8"
           }`}
         />
       ))}
@@ -157,12 +157,12 @@ function CallHistoryRow({ call, index }: { call: CallMemoryEntry; index: number 
   const dur = fmtDuration(call.durationSec);
 
   return (
-    <div className={`rounded-[8px] border border-white/[0.05] bg-white/[0.02] overflow-hidden ${opacity}`}>
+    <div className={`rounded-[8px] border border-overlay-5 bg-overlay-2 overflow-hidden ${opacity}`}>
       {/* Row header */}
       <button
         type="button"
         onClick={() => setExpanded((v) => !v)}
-        className="w-full flex items-center gap-2 px-2.5 py-1.5 text-left hover:bg-white/[0.02] transition-colors"
+        className="w-full flex items-center gap-2 px-2.5 py-1.5 text-left hover:bg-overlay-2 transition-colors"
       >
         <span className={`text-sm font-semibold shrink-0 ${warn ? "text-foreground/70" : "text-muted-foreground/60"}`}>
           {fmtDate(call.date)}
@@ -195,7 +195,7 @@ function CallHistoryRow({ call, index }: { call: CallMemoryEntry; index: number 
 
       {/* Content */}
       {expanded && hasContent && (
-        <div className="px-2.5 pb-2 pt-0.5 border-t border-white/[0.04]">
+        <div className="px-2.5 pb-2 pt-0.5 border-t border-overlay-4">
           {isAi ? (
             <p className="text-sm text-foreground/50 italic leading-relaxed line-clamp-4">
               {content}
@@ -212,7 +212,7 @@ function CallHistoryRow({ call, index }: { call: CallMemoryEntry; index: number 
       )}
 
       {expanded && !hasContent && (
-        <div className="px-2.5 pb-2 pt-0.5 border-t border-white/[0.04]">
+        <div className="px-2.5 pb-2 pt-0.5 border-t border-overlay-4">
           <p className="text-sm text-muted-foreground/25 italic">No notes recorded</p>
         </div>
       )}
@@ -344,17 +344,17 @@ export function SellerMemoryPanel({ sessionId, context: contextProp, className =
 
           {/* ── Quick stats strip ─────────────────────────────── */}
           <div className="grid grid-cols-3 gap-1.5">
-            <div className="rounded-[8px] bg-white/[0.03] border border-white/[0.04] p-2 text-center">
+            <div className="rounded-[8px] bg-overlay-3 border border-overlay-4 p-2 text-center">
               <Phone className="h-2.5 w-2.5 text-primary/50 mx-auto mb-0.5" />
               <p className="text-sm font-bold text-foreground">{context.totalCalls}</p>
               <p className="text-xs text-muted-foreground/50 uppercase">Calls</p>
             </div>
-            <div className="rounded-[8px] bg-white/[0.03] border border-white/[0.04] p-2 text-center">
+            <div className="rounded-[8px] bg-overlay-3 border border-overlay-4 p-2 text-center">
               <TrendingUp className="h-2.5 w-2.5 text-foreground/50 mx-auto mb-0.5" />
               <p className="text-sm font-bold text-foreground">{context.liveAnswers}</p>
               <p className="text-xs text-muted-foreground/50 uppercase">Answered</p>
             </div>
-            <div className={`rounded-[8px] bg-white/[0.03] border p-2 text-center ${contactWarn ? "border-border/20" : "border-white/[0.04]"}`}>
+            <div className={`rounded-[8px] bg-overlay-3 border p-2 text-center ${contactWarn ? "border-border/20" : "border-overlay-4"}`}>
               <Clock className={`h-2.5 w-2.5 mx-auto mb-0.5 ${contactWarn ? "text-foreground/60" : "text-foreground/40"}`} />
               <p className={`text-sm font-semibold truncate ${contactWarn ? "text-foreground/80" : "text-foreground"}`}>
                 {lastContactDays !== null
@@ -543,7 +543,7 @@ export function SellerMemoryPanel({ sessionId, context: contextProp, className =
           {/* Fallback: show last call from context_snapshot if memory hasn't loaded yet */}
           {(memory?.recentCalls ?? []).length === 0 && !memLoading &&
             (context.lastCallNotes || context.lastCallAiSummary) && (
-            <div className="pt-0.5 border-t border-white/[0.04]">
+            <div className="pt-0.5 border-t border-overlay-4">
               {context.lastCallNotes ? (
                 <div className="space-y-1">
                   <div className="flex items-center gap-1">
@@ -572,7 +572,7 @@ export function SellerMemoryPanel({ sessionId, context: contextProp, className =
 
           {/* ── Qual signals (collapsible) ────────────────────── */}
           {(context.motivationLevel != null || context.sellerTimeline || context.qualificationRoute) && (
-            <div className="border-t border-white/[0.04]">
+            <div className="border-t border-overlay-4">
               <button
                 type="button"
                 onClick={() => setQualOpen((v) => !v)}

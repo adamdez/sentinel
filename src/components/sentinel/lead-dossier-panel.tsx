@@ -111,7 +111,7 @@ function confidenceChipClass(c?: string): string {
   if (x === "high") return "border-border/40 bg-muted/10 text-foreground";
   if (x === "medium") return "border-border/40 bg-muted/10 text-foreground";
   if (x === "low" || x === "unverified") return "border-border/35 bg-muted/10 text-foreground/90";
-  return "border-white/15 bg-white/[0.04] text-muted-foreground";
+  return "border-overlay-15 bg-overlay-4 text-muted-foreground";
 }
 
 export function LeadDossierPanel({ leadId }: { leadId: string }) {
@@ -356,7 +356,7 @@ export function LeadDossierPanel({ leadId }: { leadId: string }) {
           <ul className="space-y-1.5">
             {checklist.map((c, i) => (
               <li key={i} className="flex items-start gap-2 text-xs text-muted-foreground">
-                <input type="checkbox" checked={c.verified} readOnly className="mt-0.5 rounded border-white/20" />
+                <input type="checkbox" checked={c.verified} readOnly className="mt-0.5 rounded border-overlay-20" />
                 <span>{c.item}</span>
               </li>
             ))}
@@ -393,7 +393,7 @@ export function LeadDossierPanel({ leadId }: { leadId: string }) {
         Raw Artifacts ({artifactsQuery.data?.length ?? 0})
       </button>
       {artifactsOpen && (
-        <div className="rounded-lg border border-white/[0.06] bg-black/20 divide-y divide-white/[0.04] max-h-56 overflow-y-auto">
+        <div className="rounded-lg border border-overlay-6 bg-black/20 divide-y divide-overlay-4 max-h-56 overflow-y-auto">
           {(artifactsQuery.data ?? []).length === 0 ? (
             <p className="p-3 text-xs text-muted-foreground/50">No artifacts captured.</p>
           ) : (
@@ -423,10 +423,10 @@ export function LeadDossierPanel({ leadId }: { leadId: string }) {
         Fact Assertions ({factsQuery.data?.length ?? 0})
       </button>
       {factsOpen && (
-        <div className="overflow-x-auto rounded-lg border border-white/[0.06]">
+        <div className="overflow-x-auto rounded-lg border border-overlay-6">
           <table className="w-full text-sm">
             <thead>
-              <tr className="border-b border-white/[0.06] bg-white/[0.02] text-left text-muted-foreground">
+              <tr className="border-b border-overlay-6 bg-overlay-2 text-left text-muted-foreground">
                 <th className="px-2 py-1.5">Type</th>
                 <th className="px-2 py-1.5">Value</th>
                 <th className="px-2 py-1.5">Confidence</th>
@@ -435,7 +435,7 @@ export function LeadDossierPanel({ leadId }: { leadId: string }) {
             </thead>
             <tbody>
               {(factsQuery.data ?? []).map((f) => (
-                <tr key={f.id} className="border-b border-white/[0.04]">
+                <tr key={f.id} className="border-b border-overlay-4">
                   <td className="px-2 py-1.5 whitespace-nowrap">{f.fact_type}</td>
                   <td className="px-2 py-1.5 max-w-[220px] truncate" title={f.fact_value}>
                     {f.fact_value}
@@ -510,7 +510,7 @@ function DossierEmptyState({
   return (
     <div className="space-y-4">
       {/* CTA */}
-      <div className="rounded-[12px] border border-white/[0.08] bg-white/[0.02] p-5 text-center space-y-3">
+      <div className="rounded-[12px] border border-overlay-8 bg-overlay-2 p-5 text-center space-y-3">
         <Brain className="h-7 w-7 mx-auto text-muted-foreground/30" />
         <p className="text-sm text-muted-foreground">
           {hasContext
@@ -530,7 +530,7 @@ function DossierEmptyState({
 
       {/* Property basics */}
       {prop && (
-        <div className="rounded-[10px] border border-white/[0.06] bg-white/[0.02] px-3 py-2.5 space-y-2">
+        <div className="rounded-[10px] border border-overlay-6 bg-overlay-2 px-3 py-2.5 space-y-2">
           <div className="flex items-center gap-1.5">
             <Home className="h-3 w-3 text-muted-foreground/60" />
             <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground/60">Property</span>
@@ -564,7 +564,7 @@ function DossierEmptyState({
 
       {/* Distress events */}
       {distress.length > 0 && (
-        <div className="rounded-[10px] border border-white/[0.06] bg-white/[0.02] px-3 py-2.5 space-y-2">
+        <div className="rounded-[10px] border border-overlay-6 bg-overlay-2 px-3 py-2.5 space-y-2">
           <div className="flex items-center gap-1.5">
             <AlertTriangle className="h-3 w-3 text-foreground/60" />
             <span className="text-xs font-semibold uppercase tracking-wider text-foreground/60">Distress Signals</span>

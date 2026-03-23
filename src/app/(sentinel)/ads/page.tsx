@@ -126,7 +126,7 @@ export default function AdsPage() {
   return (
     <div className="flex flex-col h-full min-h-0">
       {/* Header */}
-      <div className="flex items-center justify-between px-6 py-4 border-b border-white/[0.06]">
+      <div className="flex items-center justify-between px-6 py-4 border-b border-overlay-6">
         <div className="flex items-center gap-3">
           <div className="h-9 w-9 rounded-xl bg-primary/8 flex items-center justify-center border border-primary/15">
             <Target className="h-5 w-5 text-primary" />
@@ -153,8 +153,8 @@ export default function AdsPage() {
               onClick={() => setActiveTab(tab.id)}
               className={`relative flex items-center gap-2 px-4 py-2.5 text-sm rounded-t-lg transition-all ${
                 isActive
-                  ? "text-primary bg-white/[0.03] border border-white/[0.06] border-b-transparent"
-                  : "text-muted-foreground hover:text-foreground hover:bg-white/[0.02]"
+                  ? "text-primary bg-overlay-3 border border-overlay-6 border-b-transparent"
+                  : "text-muted-foreground hover:text-foreground hover:bg-overlay-2"
               }`}
             >
               <Icon className="h-4 w-4" />
@@ -172,7 +172,7 @@ export default function AdsPage() {
       </div>
 
       {/* Tab Content */}
-      <div className="flex-1 overflow-auto px-6 py-4 border-t border-white/[0.06]">
+      <div className="flex-1 overflow-auto px-6 py-4 border-t border-overlay-6">
         <AnimatePresence mode="wait">
           <motion.div
             key={activeTab}
@@ -341,7 +341,7 @@ function DashboardTab() {
           {/* Market filter */}
           <div className="flex items-center gap-1.5">
             <Filter className="h-3.5 w-3.5 text-muted-foreground/50" />
-            <div className="flex rounded-lg border border-white/[0.08] overflow-hidden">
+            <div className="flex rounded-lg border border-overlay-8 overflow-hidden">
               {(["all", "spokane", "kootenai"] as MarketFilter[]).map((mkt) => (
                 <button
                   key={mkt}
@@ -349,7 +349,7 @@ function DashboardTab() {
                   className={`px-3 py-1.5 text-xs capitalize transition ${
                     marketFilter === mkt
                       ? "bg-primary/15 text-primary font-medium"
-                      : "text-muted-foreground/60 hover:text-foreground hover:bg-white/[0.03]"
+                      : "text-muted-foreground/60 hover:text-foreground hover:bg-overlay-3"
                   }`}
                 >
                   {mkt === "all" ? "All Markets" : mkt}
@@ -359,7 +359,7 @@ function DashboardTab() {
           </div>
 
           {/* Date range selector */}
-          <div className="flex rounded-lg border border-white/[0.08] overflow-hidden">
+          <div className="flex rounded-lg border border-overlay-8 overflow-hidden">
             {DATE_RANGE_OPTIONS.map((opt) => (
               <button
                 key={opt.days}
@@ -367,7 +367,7 @@ function DashboardTab() {
                 className={`px-3 py-1.5 text-xs transition ${
                   dateRange === opt.days
                     ? "bg-primary/15 text-primary font-medium"
-                    : "text-muted-foreground/60 hover:text-foreground hover:bg-white/[0.03]"
+                    : "text-muted-foreground/60 hover:text-foreground hover:bg-overlay-3"
                 }`}
               >
                 {opt.label}
@@ -381,7 +381,7 @@ function DashboardTab() {
               ? "border-border/20 text-foreground bg-muted/5"
               : lastSyncAt
                 ? "border-border/20 text-foreground bg-muted/5"
-                : "border-white/[0.08] text-muted-foreground/50"
+                : "border-overlay-8 text-muted-foreground/50"
           }`}>
             <Clock className="h-3 w-3" />
             <span>{syncLabel}</span>
@@ -431,12 +431,12 @@ function DashboardTab() {
           </div>
 
           {/* CTR highlight */}
-          <div className="glass-strong rounded-xl p-4 border border-white/[0.06]">
+          <div className="glass-strong rounded-xl p-4 border border-overlay-6">
             <div className="flex items-center justify-between">
               <span className="text-sm text-muted-foreground">Click-Through Rate</span>
               <span className="text-lg font-bold text-primary">{fmtPct(avgCtr)}</span>
             </div>
-            <div className="mt-2 h-2 rounded-full bg-white/[0.04] overflow-hidden">
+            <div className="mt-2 h-2 rounded-full bg-overlay-4 overflow-hidden">
               <motion.div
                 className="h-full rounded-full bg-gradient-to-r from-primary/60 to-primary"
                 initial={{ width: 0 }}
@@ -447,14 +447,14 @@ function DashboardTab() {
           </div>
 
           {/* Campaign Table */}
-          <div className="glass-strong rounded-xl border border-white/[0.06] overflow-hidden">
-            <div className="px-4 py-3 border-b border-white/[0.06]">
+          <div className="glass-strong rounded-xl border border-overlay-6 overflow-hidden">
+            <div className="px-4 py-3 border-b border-overlay-6">
               <h3 className="text-sm font-semibold">Campaigns</h3>
             </div>
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="border-b border-white/[0.04] text-muted-foreground/60">
+                  <tr className="border-b border-overlay-4 text-muted-foreground/60">
                     <th className="text-left px-4 py-2 font-medium">Campaign</th>
                     <th className="text-left px-4 py-2 font-medium">Market</th>
                     <th className="text-right px-4 py-2 font-medium">Spend</th>
@@ -467,10 +467,10 @@ function DashboardTab() {
                 </thead>
                 <tbody>
                   {campaignRows.map(([id, c]) => (
-                    <tr key={id} className="border-b border-white/[0.03] hover:bg-white/[0.02] transition">
+                    <tr key={id} className="border-b border-overlay-3 hover:bg-overlay-2 transition">
                       <td className="px-4 py-2.5 font-medium">{c.name}</td>
                       <td className="px-4 py-2.5">
-                        <span className="text-xs px-2 py-0.5 rounded-full bg-white/[0.04] capitalize">{c.market}</span>
+                        <span className="text-xs px-2 py-0.5 rounded-full bg-overlay-4 capitalize">{c.market}</span>
                       </td>
                       <td className="px-4 py-2.5 text-right">{fmt$(c.spend)}</td>
                       <td className="px-4 py-2.5 text-right">{c.clicks.toLocaleString()}</td>
@@ -492,7 +492,7 @@ function DashboardTab() {
 
 function MetricCard({ icon: Icon, label, value, trend }: { icon: React.ElementType; label: string; value: string; trend: number | null }) {
   return (
-    <div className="glass-strong rounded-xl p-4 border border-white/[0.06]">
+    <div className="glass-strong rounded-xl p-4 border border-overlay-6">
       <div className="flex items-center gap-2 mb-2">
         <Icon className="h-4 w-4 text-primary/60" />
         <span className="text-xs text-muted-foreground/60 uppercase tracking-wide">{label}</span>
@@ -743,7 +743,7 @@ function IntelligenceTab({ onSendToChat }: { onSendToChat: (message: string) => 
     act_now: "text-foreground bg-muted/10 border-border/20",
     this_week: "text-foreground bg-muted/10 border-border/20",
     monitor: "text-primary bg-primary/10 border-primary/20",
-    fyi: "text-muted-foreground bg-white/5 border-white/10",
+    fyi: "text-muted-foreground bg-overlay-5 border-overlay-10",
   };
 
   const categoryIcon: Record<string, string> = {
@@ -839,7 +839,7 @@ function IntelligenceTab({ onSendToChat }: { onSendToChat: (message: string) => 
   return (
     <div className="space-y-4">
       {/* Executive Summary */}
-      <div className="glass-strong rounded-xl border border-white/[0.06] p-4">
+      <div className="glass-strong rounded-xl border border-overlay-6 p-4">
         <div className="flex items-center justify-between mb-3">
           <div className="flex items-center gap-3">
             <h3 className="text-sm font-semibold">Intelligence Briefing</h3>
@@ -857,7 +857,7 @@ function IntelligenceTab({ onSendToChat }: { onSendToChat: (message: string) => 
           <button
             onClick={handleExtract}
             disabled={extracting}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-lg border border-white/10 text-muted-foreground hover:text-foreground transition"
+            className="flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-lg border border-overlay-10 text-muted-foreground hover:text-foreground transition"
           >
             <RefreshCw className={`h-3.5 w-3.5 ${extracting ? "animate-spin" : ""}`} />
             Refresh
@@ -911,7 +911,7 @@ function IntelligenceTab({ onSendToChat }: { onSendToChat: (message: string) => 
                   <span className={`shrink-0 text-sm px-1.5 py-0.5 rounded border ${
                     c.severity === "critical" ? "text-foreground border-border/20" :
                     c.severity === "moderate" ? "text-foreground border-border/20" :
-                    "text-muted-foreground border-white/10"
+                    "text-muted-foreground border-overlay-10"
                   }`}>{c.severity}</span>
                   <div>
                     <span className="text-foreground/80">{c.challenge}</span>
@@ -959,7 +959,7 @@ function IntelligenceTab({ onSendToChat }: { onSendToChat: (message: string) => 
           <select
             value={categoryFilter}
             onChange={(e) => setCategoryFilter(e.target.value)}
-            className="text-xs bg-black/30 border border-white/[0.08] rounded-lg px-2 py-1.5 text-foreground/80"
+            className="text-xs bg-black/30 border border-overlay-8 rounded-lg px-2 py-1.5 text-foreground/80"
           >
             <option value="all">All Categories</option>
             {categories.map((cat) => (
@@ -970,7 +970,7 @@ function IntelligenceTab({ onSendToChat }: { onSendToChat: (message: string) => 
         <select
           value={urgencyFilter}
           onChange={(e) => setUrgencyFilter(e.target.value)}
-          className="text-xs bg-black/30 border border-white/[0.08] rounded-lg px-2 py-1.5 text-foreground/80"
+          className="text-xs bg-black/30 border border-overlay-8 rounded-lg px-2 py-1.5 text-foreground/80"
         >
           <option value="all">All Urgency</option>
           <option value="act_now">Act Now</option>
@@ -986,7 +986,7 @@ function IntelligenceTab({ onSendToChat }: { onSendToChat: (message: string) => 
       {/* Data Points */}
       <div className="space-y-2">
         {filteredPoints.map((dp, i) => (
-          <div key={i} className="glass-strong rounded-lg border border-white/[0.06] p-3">
+          <div key={i} className="glass-strong rounded-lg border border-overlay-6 p-3">
             <div className="flex items-start gap-3">
               {/* Rank */}
               <div className="text-lg font-bold text-muted-foreground/20 w-8 text-right shrink-0">
@@ -996,20 +996,20 @@ function IntelligenceTab({ onSendToChat }: { onSendToChat: (message: string) => 
               <div className="flex-1 min-w-0">
                 {/* Header row */}
                 <div className="flex items-center gap-2 mb-1 flex-wrap">
-                  <span className={`text-sm px-1.5 py-0.5 rounded border border-white/10 uppercase tracking-wide ${categoryIcon[dp.category] ?? "text-muted-foreground"}`}>
+                  <span className={`text-sm px-1.5 py-0.5 rounded border border-overlay-10 uppercase tracking-wide ${categoryIcon[dp.category] ?? "text-muted-foreground"}`}>
                     {dp.category}
                   </span>
                   <span className={`text-sm px-1.5 py-0.5 rounded border ${urgencyColor[dp.urgency] ?? ""}`}>
                     {dp.urgency?.replace(/_/g, " ")}
                   </span>
-                  <span className={`text-sm px-1.5 py-0.5 rounded border border-white/10 ${
+                  <span className={`text-sm px-1.5 py-0.5 rounded border border-overlay-10 ${
                     dp.confidence === "confirmed" ? "text-foreground" :
                     dp.confidence === "inferred" ? "text-foreground" : "text-foreground"
                   }`}>
                     {dp.confidence}
                   </span>
                   {dp.market && dp.market !== "both" && (
-                    <span className="text-sm px-1.5 py-0.5 rounded border border-white/10 text-muted-foreground">
+                    <span className="text-sm px-1.5 py-0.5 rounded border border-overlay-10 text-muted-foreground">
                       {dp.market}
                     </span>
                   )}
@@ -1043,7 +1043,7 @@ function IntelligenceTab({ onSendToChat }: { onSendToChat: (message: string) => 
                   const isExecuting = executingAction === i;
 
                   return (
-                    <div className="flex items-center gap-2 mt-3 pt-2 border-t border-white/[0.04]">
+                    <div className="flex items-center gap-2 mt-3 pt-2 border-t border-overlay-4">
                       {execAction && !result?.ok && (
                         <button
                           onClick={(e) => { e.stopPropagation(); executeAction(dp, i); }}
@@ -1070,7 +1070,7 @@ function IntelligenceTab({ onSendToChat }: { onSendToChat: (message: string) => 
                           const msg = `Intel finding #${dp.rank}: "${dp.signal}"\n\nRecommended action: ${dp.recommended_action}\n\nEntity: ${dp.entity ?? "N/A"}\nCategory: ${dp.category} | Urgency: ${dp.urgency}\nImpact: ${dp.dollar_impact}\n\nHelp me understand this finding and decide what to do about it.`;
                           onSendToChat(msg);
                         }}
-                        className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-lg bg-white/[0.04] text-muted-foreground border border-white/[0.06] hover:text-foreground hover:bg-white/[0.08] transition"
+                        className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-lg bg-overlay-4 text-muted-foreground border border-overlay-6 hover:text-foreground hover:bg-overlay-8 transition"
                       >
                         <Sparkles className="h-3 w-3" />
                         Discuss in Chat
@@ -1225,7 +1225,7 @@ function CopyLabTab() {
 
       {/* Loading state */}
       {generating && (
-        <div className="glass-strong rounded-xl border border-white/[0.06] p-8">
+        <div className="glass-strong rounded-xl border border-overlay-6 p-8">
           <div className="flex flex-col items-center gap-4">
             <Loader2 className="h-8 w-8 animate-spin text-primary/60" />
             <div className="text-center">
@@ -1272,7 +1272,7 @@ function CopyLabTab() {
               </h4>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
                 {result.generated.intent_clusters.map((cluster, i) => (
-                  <div key={i} className="glass-strong rounded-xl border border-white/[0.06] p-4">
+                  <div key={i} className="glass-strong rounded-xl border border-overlay-6 p-4">
                     <div className="flex items-center gap-2 mb-2">
                       <Target className="h-4 w-4 text-primary shrink-0" />
                       <span className="text-sm font-semibold truncate">{cluster.name}</span>
@@ -1283,7 +1283,7 @@ function CopyLabTab() {
                           ? "bg-muted/10 text-foreground border-border/20"
                           : cluster.volume_signal === "medium"
                           ? "bg-primary/10 text-primary border-primary/20"
-                          : "bg-white/[0.04] text-muted-foreground/60 border-white/[0.08]"
+                          : "bg-overlay-4 text-muted-foreground/60 border-overlay-8"
                       }`}>
                         {cluster.volume_signal} volume
                       </span>
@@ -1291,7 +1291,7 @@ function CopyLabTab() {
                     <p className="text-xs text-muted-foreground/60 mb-2">{cluster.economic_potential}</p>
                     <div className="flex flex-wrap gap-1">
                       {cluster.search_terms.slice(0, 5).map((term, j) => (
-                        <span key={j} className="text-sm px-1.5 py-0.5 rounded bg-white/[0.04] text-muted-foreground/50">
+                        <span key={j} className="text-sm px-1.5 py-0.5 rounded bg-overlay-4 text-muted-foreground/50">
                           {term}
                         </span>
                       ))}
@@ -1315,11 +1315,11 @@ function CopyLabTab() {
               </h4>
               <div className="space-y-3">
                 {result.generated.ad_families.map((family, i) => (
-                  <div key={i} className="glass-strong rounded-xl border border-white/[0.06] overflow-hidden">
+                  <div key={i} className="glass-strong rounded-xl border border-overlay-6 overflow-hidden">
                     {/* Family header */}
                     <button
                       onClick={() => toggleFamily(i)}
-                      className="w-full px-4 py-3 flex items-center gap-3 text-left hover:bg-white/[0.02] transition"
+                      className="w-full px-4 py-3 flex items-center gap-3 text-left hover:bg-overlay-2 transition"
                     >
                       <FileText className="h-5 w-5 text-primary shrink-0" />
                       <div className="flex-1 min-w-0">
@@ -1329,7 +1329,7 @@ function CopyLabTab() {
                             {family.confidence}
                           </span>
                           {family.test_type && (
-                            <span className="text-xs px-2 py-0.5 rounded-full bg-white/[0.04] text-muted-foreground/50 border border-white/[0.06]">
+                            <span className="text-xs px-2 py-0.5 rounded-full bg-overlay-4 text-muted-foreground/50 border border-overlay-6">
                               {family.test_type}
                             </span>
                           )}
@@ -1348,14 +1348,14 @@ function CopyLabTab() {
                           transition={{ duration: 0.2 }}
                           className="overflow-hidden"
                         >
-                          <div className="px-4 pb-4 space-y-4 border-t border-white/[0.04] pt-3">
+                          <div className="px-4 pb-4 space-y-4 border-t border-overlay-4 pt-3">
                             {/* Evidence & rationale */}
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                              <div className="bg-white/[0.02] rounded-lg p-3">
+                              <div className="bg-overlay-2 rounded-lg p-3">
                                 <h5 className="text-xs font-semibold text-muted-foreground/60 uppercase tracking-wide mb-1">Evidence</h5>
                                 <p className="text-xs text-muted-foreground/80">{family.evidence}</p>
                               </div>
-                              <div className="bg-white/[0.02] rounded-lg p-3">
+                              <div className="bg-overlay-2 rounded-lg p-3">
                                 <h5 className="text-xs font-semibold text-muted-foreground/60 uppercase tracking-wide mb-1">Success Metric</h5>
                                 <p className="text-xs text-muted-foreground/80">{family.success_metric}</p>
                               </div>
@@ -1374,7 +1374,7 @@ function CopyLabTab() {
                               </h5>
                               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-1.5">
                                 {family.rsa.headlines.map((h, j) => (
-                                  <div key={j} className="flex items-center gap-2 bg-white/[0.02] rounded px-2.5 py-1.5">
+                                  <div key={j} className="flex items-center gap-2 bg-overlay-2 rounded px-2.5 py-1.5">
                                     <span className="text-sm text-muted-foreground/30 font-mono w-4 shrink-0">{j + 1}</span>
                                     <span className="text-xs flex-1 truncate">{h}</span>
                                     <span className={`text-sm font-mono shrink-0 ${h.length > 30 ? "text-foreground" : "text-muted-foreground/30"}`}>
@@ -1392,7 +1392,7 @@ function CopyLabTab() {
                               </h5>
                               <div className="space-y-1.5">
                                 {family.rsa.descriptions.map((d, j) => (
-                                  <div key={j} className="flex items-start gap-2 bg-white/[0.02] rounded px-2.5 py-1.5">
+                                  <div key={j} className="flex items-start gap-2 bg-overlay-2 rounded px-2.5 py-1.5">
                                     <span className="text-sm text-muted-foreground/30 font-mono w-4 shrink-0 mt-0.5">{j + 1}</span>
                                     <span className="text-xs flex-1">{d}</span>
                                     <span className={`text-sm font-mono shrink-0 mt-0.5 ${d.length > 90 ? "text-foreground" : "text-muted-foreground/30"}`}>
@@ -1413,10 +1413,10 @@ function CopyLabTab() {
                                   {family.variants.map((variant, vi) => {
                                     const variantKey = `${i}-${vi}`;
                                     return (
-                                      <div key={vi} className="border border-white/[0.04] rounded-lg overflow-hidden">
+                                      <div key={vi} className="border border-overlay-4 rounded-lg overflow-hidden">
                                         <button
                                           onClick={() => toggleVariant(variantKey)}
-                                          className="w-full px-3 py-2 flex items-center gap-2 text-left hover:bg-white/[0.02] transition text-xs"
+                                          className="w-full px-3 py-2 flex items-center gap-2 text-left hover:bg-overlay-2 transition text-xs"
                                         >
                                           <Zap className="h-3 w-3 text-foreground shrink-0" />
                                           <span className="font-medium flex-1">{variant.angle}</span>
@@ -1431,10 +1431,10 @@ function CopyLabTab() {
                                               transition={{ duration: 0.15 }}
                                               className="overflow-hidden"
                                             >
-                                              <div className="px-3 pb-3 pt-1 space-y-2 border-t border-white/[0.04]">
+                                              <div className="px-3 pb-3 pt-1 space-y-2 border-t border-overlay-4">
                                                 <div className="space-y-1">
                                                   {variant.headlines.map((h, hi) => (
-                                                    <div key={hi} className="flex items-center gap-2 bg-white/[0.02] rounded px-2 py-1">
+                                                    <div key={hi} className="flex items-center gap-2 bg-overlay-2 rounded px-2 py-1">
                                                       <span className="text-sm text-muted-foreground/30 font-mono w-3 shrink-0">{hi + 1}</span>
                                                       <span className="text-xs flex-1 truncate">{h}</span>
                                                       <span className={`text-sm font-mono shrink-0 ${h.length > 30 ? "text-foreground" : "text-muted-foreground/30"}`}>
@@ -1445,7 +1445,7 @@ function CopyLabTab() {
                                                 </div>
                                                 <div className="space-y-1">
                                                   {variant.descriptions.map((d, di) => (
-                                                    <div key={di} className="flex items-start gap-2 bg-white/[0.02] rounded px-2 py-1">
+                                                    <div key={di} className="flex items-start gap-2 bg-overlay-2 rounded px-2 py-1">
                                                       <span className="text-sm text-muted-foreground/30 font-mono w-3 shrink-0 mt-0.5">{di + 1}</span>
                                                       <span className="text-xs flex-1">{d}</span>
                                                       <span className={`text-sm font-mono shrink-0 mt-0.5 ${d.length > 90 ? "text-foreground" : "text-muted-foreground/30"}`}>
@@ -1482,7 +1482,7 @@ function CopyLabTab() {
               </h4>
               <div className="glass-strong rounded-xl border border-border/20 overflow-hidden">
                 {/* Verdict header */}
-                <div className="px-4 py-3 border-b border-white/[0.04] flex items-center gap-3">
+                <div className="px-4 py-3 border-b border-overlay-4 flex items-center gap-3">
                   <AlertTriangle className="h-5 w-5 text-foreground shrink-0" />
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
@@ -1521,7 +1521,7 @@ function CopyLabTab() {
                             <span className={`text-sm px-1.5 py-0.5 rounded uppercase font-semibold ${
                               c.severity === "critical" ? "bg-muted/15 text-foreground"
                               : c.severity === "moderate" ? "bg-muted/15 text-foreground"
-                              : "bg-white/[0.06] text-muted-foreground/50"
+                              : "bg-overlay-6 text-muted-foreground/50"
                             }`}>
                               {c.severity}
                             </span>
@@ -1695,7 +1695,7 @@ function AdGroupsTab() {
         </div>
         <button
           onClick={() => { setLoading(true); fetchAdGroups(); }}
-          className="flex items-center gap-2 px-3 py-1.5 text-xs rounded-lg bg-white/[0.04] text-muted-foreground hover:text-foreground border border-white/[0.06] transition"
+          className="flex items-center gap-2 px-3 py-1.5 text-xs rounded-lg bg-overlay-4 text-muted-foreground hover:text-foreground border border-overlay-6 transition"
         >
           <RefreshCw className="h-3 w-3" />
           Refresh
@@ -1721,8 +1721,8 @@ function AdGroupsTab() {
               key={ag.googleAdGroupId}
               className={`glass-strong rounded-xl border p-4 transition-all ${
                 isEnabled
-                  ? "border-white/[0.06]"
-                  : "border-white/[0.04] opacity-60"
+                  ? "border-overlay-6"
+                  : "border-overlay-4 opacity-60"
               }`}
             >
               <div className="flex items-center justify-between mb-2">
@@ -1768,7 +1768,7 @@ function AdGroupsTab() {
               </div>
 
               {/* Metrics */}
-              <div className="grid grid-cols-6 gap-3 mt-3 pt-3 border-t border-white/[0.04]">
+              <div className="grid grid-cols-6 gap-3 mt-3 pt-3 border-t border-overlay-4">
                 <div>
                   <p className="text-sm text-muted-foreground/40 uppercase tracking-wider">Impressions</p>
                   <p className="text-sm font-semibold">{ag.impressions.toLocaleString()}</p>
@@ -2008,7 +2008,7 @@ function LandingTab() {
               className={`text-left glass-strong rounded-xl border p-4 transition-all ${
                 isSelected
                   ? "border-primary/30 bg-primary/[0.03]"
-                  : "border-white/[0.06] hover:border-white/[0.12]"
+                  : "border-overlay-6 hover:border-overlay-12"
               }`}
             >
               <div className="flex items-start justify-between mb-2">
@@ -2032,7 +2032,7 @@ function LandingTab() {
 
               {/* Metrics Row */}
               {metrics && (metrics.clicks > 0 || metrics.impressions > 0) ? (
-                <div className="grid grid-cols-4 gap-2 pt-2 border-t border-white/[0.04]">
+                <div className="grid grid-cols-4 gap-2 pt-2 border-t border-overlay-4">
                   <div>
                     <p className="text-sm text-muted-foreground/40 uppercase tracking-wider">Clicks</p>
                     <p className="text-sm font-semibold">{metrics.clicks.toLocaleString()}</p>
@@ -2051,7 +2051,7 @@ function LandingTab() {
                   </div>
                 </div>
               ) : (
-                <div className="pt-2 border-t border-white/[0.04]">
+                <div className="pt-2 border-t border-overlay-4">
                   <p className="text-sm text-muted-foreground/30 italic">No metrics yet — page is new</p>
                 </div>
               )}
@@ -2062,7 +2062,7 @@ function LandingTab() {
 
       {/* Selected Page Detail */}
       {selectedPage && (
-        <div className="glass-strong rounded-xl border border-white/[0.06] p-4 space-y-3">
+        <div className="glass-strong rounded-xl border border-overlay-6 p-4 space-y-3">
           <div className="flex items-center gap-2 mb-1">
             <Globe className="h-4 w-4 text-primary" />
             <h4 className="text-sm font-semibold">
@@ -2083,7 +2083,7 @@ function LandingTab() {
               <p className="text-muted-foreground/70 text-xs">{LANDING_PAGES.find(p => p.path === selectedPage)?.intent}</p>
             </div>
           </div>
-          <div className="pt-2 border-t border-white/[0.04]">
+          <div className="pt-2 border-t border-overlay-4">
             <p className="text-sm text-muted-foreground/40">
               Google Ads tracking: Update your ad group final URLs to point each ad group to its matching landing page.
               Each page has gtag conversion tracking via the shared /sell layout.
@@ -2095,7 +2095,7 @@ function LandingTab() {
       {/* AI Review Section */}
       {review ? (
         <div className="space-y-4">
-          <div className="glass-strong rounded-xl border border-white/[0.06] p-4">
+          <div className="glass-strong rounded-xl border border-overlay-6 p-4">
             <div className="flex items-center gap-2 mb-3">
               <Brain className="h-5 w-5 text-primary" />
               <h3 className="text-sm font-semibold">Claude&apos;s Analysis</h3>
@@ -2107,7 +2107,7 @@ function LandingTab() {
           </div>
 
           {review.findings.length > 0 && (
-            <div className="glass-strong rounded-xl border border-white/[0.06] p-4 space-y-3">
+            <div className="glass-strong rounded-xl border border-overlay-6 p-4 space-y-3">
               <h4 className="text-sm font-semibold">Findings</h4>
               {review.findings.map((f, i) => (
                 <div key={i} className="flex items-start gap-2 text-sm">
@@ -2122,10 +2122,10 @@ function LandingTab() {
           )}
 
           {review.suggestions.length > 0 && (
-            <div className="glass-strong rounded-xl border border-white/[0.06] p-4 space-y-3">
+            <div className="glass-strong rounded-xl border border-overlay-6 p-4 space-y-3">
               <h4 className="text-sm font-semibold">Improvement Suggestions</h4>
               {review.suggestions.map((s, i) => (
-                <div key={i} className="bg-white/[0.02] rounded-lg p-3 text-sm">
+                <div key={i} className="bg-overlay-2 rounded-lg p-3 text-sm">
                   <span className="font-medium">{s.target}</span>
                   {s.old_value && s.new_value && (
                     <div className="mt-1 text-xs">
@@ -2147,7 +2147,7 @@ function LandingTab() {
       )}
 
       {/* Setup Guide */}
-      <div className="glass-strong rounded-xl border border-white/[0.06] p-4 space-y-3">
+      <div className="glass-strong rounded-xl border border-overlay-6 p-4 space-y-3">
         <h4 className="text-sm font-semibold flex items-center gap-2">
           <Settings className="h-4 w-4 text-muted-foreground/40" />
           Google Ads Setup
@@ -2157,7 +2157,7 @@ function LandingTab() {
         </p>
         <div className="space-y-2">
           {LANDING_PAGES.map((page) => (
-            <div key={page.path} className="flex items-center justify-between text-xs bg-white/[0.02] rounded-lg px-3 py-2">
+            <div key={page.path} className="flex items-center justify-between text-xs bg-overlay-2 rounded-lg px-3 py-2">
               <span className="text-muted-foreground/70">{page.adGroup}</span>
               <span className="text-primary font-mono">dominionhomedeals.com{page.path}</span>
             </div>
@@ -2330,7 +2330,7 @@ function ChatTab({ preloadMessage, onPreloadConsumed }: { preloadMessage?: strin
                 <button
                   key={s}
                   onClick={() => send(s)}
-                  className="text-xs px-3 py-1.5 rounded-full bg-white/[0.04] border border-white/[0.06] text-muted-foreground hover:text-foreground hover:bg-white/[0.06] transition"
+                  className="text-xs px-3 py-1.5 rounded-full bg-overlay-4 border border-overlay-6 text-muted-foreground hover:text-foreground hover:bg-overlay-6 transition"
                 >
                   {s}
                 </button>
@@ -2348,7 +2348,7 @@ function ChatTab({ preloadMessage, onPreloadConsumed }: { preloadMessage?: strin
               className={`max-w-[80%] rounded-xl px-4 py-2.5 text-sm ${
                 msg.role === "user"
                   ? "bg-primary/10 border border-primary/20 text-foreground"
-                  : "bg-white/[0.03] border border-white/[0.06] text-muted-foreground"
+                  : "bg-overlay-3 border border-overlay-6 text-muted-foreground"
               }`}
             >
               <div className="whitespace-pre-wrap">{msg.content || (streaming ? "..." : "")}</div>
@@ -2359,11 +2359,11 @@ function ChatTab({ preloadMessage, onPreloadConsumed }: { preloadMessage?: strin
       </div>
 
       {/* Input */}
-      <div className="border-t border-white/[0.06] pt-3 flex items-end gap-2">
+      <div className="border-t border-overlay-6 pt-3 flex items-end gap-2">
         {messages.length > 0 && (
           <button
             onClick={clearHistory}
-            className="p-2.5 rounded-lg hover:bg-white/[0.04] text-muted-foreground/40 hover:text-foreground transition shrink-0"
+            className="p-2.5 rounded-lg hover:bg-overlay-4 text-muted-foreground/40 hover:text-foreground transition shrink-0"
             title="Clear chat"
           >
             <Trash2 className="h-4 w-4" />
@@ -2382,7 +2382,7 @@ function ChatTab({ preloadMessage, onPreloadConsumed }: { preloadMessage?: strin
             }}
             placeholder="Ask Claude about your ads..."
             rows={1}
-            className="w-full bg-white/[0.04] border border-white/[0.08] rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:border-primary/30 resize-none placeholder:text-muted-foreground/30"
+            className="w-full bg-overlay-4 border border-overlay-8 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:border-primary/30 resize-none placeholder:text-muted-foreground/30"
           />
         </div>
         <button
@@ -2500,7 +2500,7 @@ function PromptEditor({ promptKey, title, subtitle, modelLabel, accentColor }: {
           {hasChanges && (
             <button
               onClick={() => setPromptText(originalText)}
-              className="flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-lg border border-white/10 text-muted-foreground hover:text-foreground hover:border-white/20 transition"
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-lg border border-overlay-10 text-muted-foreground hover:text-foreground hover:border-overlay-20 transition"
             >
               <RotateCcw className="h-3.5 w-3.5" />
               Discard
@@ -2531,7 +2531,7 @@ function PromptEditor({ promptKey, title, subtitle, modelLabel, accentColor }: {
         <textarea
           value={promptText}
           onChange={(e) => setPromptText(e.target.value)}
-          className="w-full h-[calc(100vh-420px)] min-h-[300px] p-4 rounded-lg bg-black/30 border border-white/[0.08] text-sm font-mono text-foreground/90 leading-relaxed resize-none focus:outline-none focus:border-primary/30 focus:ring-1 focus:ring-ring/20 transition placeholder:text-muted-foreground/30"
+          className="w-full h-[calc(100vh-420px)] min-h-[300px] p-4 rounded-lg bg-black/30 border border-overlay-8 text-sm font-mono text-foreground/90 leading-relaxed resize-none focus:outline-none focus:border-primary/30 focus:ring-1 focus:ring-ring/20 transition placeholder:text-muted-foreground/30"
           placeholder={`Enter the ${promptKey} prompt...`}
           spellCheck={false}
         />
@@ -2561,7 +2561,7 @@ function SystemPromptTab() {
       </div>
 
       {/* Prompt selector tabs */}
-      <div className="flex gap-1 p-1 rounded-lg bg-black/20 border border-white/[0.06] w-fit">
+      <div className="flex gap-1 p-1 rounded-lg bg-black/20 border border-overlay-6 w-fit">
         <button
           onClick={() => setActivePrompt("default")}
           className={`px-4 py-2 text-xs rounded-md transition font-medium ${

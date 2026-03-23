@@ -52,7 +52,7 @@ function ConfidenceBadge({ confidence }: { confidence: SignalConfidence }) {
     verified: "border-border/30 bg-muted/[0.08] text-foreground",
     strong:   "border-border/30 bg-muted/[0.08] text-foreground/80",
     probable: "border-border/25 bg-muted/[0.06] text-foreground/70",
-    possible: "border-white/[0.10] bg-white/[0.02] text-muted-foreground/40",
+    possible: "border-overlay-10 bg-overlay-2 text-muted-foreground/40",
   };
 
   return (
@@ -88,11 +88,11 @@ function SignalRow({ signal }: { signal: NegativeSignal }) {
   const [expanded, setExpanded] = useState(false);
 
   return (
-    <div className="border border-white/[0.05] rounded-[7px] bg-white/[0.01] overflow-hidden">
+    <div className="border border-overlay-5 rounded-[7px] bg-white/[0.01] overflow-hidden">
       <button
         type="button"
         onClick={() => setExpanded((v) => !v)}
-        className="w-full flex items-center gap-2 px-2.5 py-1.5 text-left hover:bg-white/[0.02] transition-colors"
+        className="w-full flex items-center gap-2 px-2.5 py-1.5 text-left hover:bg-overlay-2 transition-colors"
       >
         <ConfidenceBadge confidence={signal.confidence} />
         <span className="text-sm font-medium text-foreground/70 flex-1 truncate">
@@ -104,7 +104,7 @@ function SignalRow({ signal }: { signal: NegativeSignal }) {
       </button>
 
       {expanded && (
-        <div className="px-2.5 pb-2.5 pt-1.5 border-t border-white/[0.04] space-y-1">
+        <div className="px-2.5 pb-2.5 pt-1.5 border-t border-overlay-4 space-y-1">
           <p className="text-sm text-foreground/60 leading-relaxed">
             {signal.explanation}
           </p>

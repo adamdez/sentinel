@@ -139,7 +139,7 @@ function ContextRow({
 function SellerPageLinks() {
   const pages = getAllSellerPages();
   return (
-    <div className="px-3 pb-3 border-t border-white/[0.04] pt-2 space-y-1.5">
+    <div className="px-3 pb-3 border-t border-overlay-4 pt-2 space-y-1.5">
       <span className="text-xs uppercase text-muted-foreground/40 tracking-wide">Send seller to</span>
       <div className="flex flex-wrap gap-1.5">
         {pages.map((page: SellerPage) => (
@@ -149,7 +149,7 @@ function SellerPageLinks() {
             target="_blank"
             rel="noopener noreferrer"
             title={page.description}
-            className="inline-flex items-center gap-1 text-sm font-medium rounded-md border border-white/[0.08] bg-white/[0.04] hover:bg-white/[0.08] text-muted-foreground hover:text-foreground px-2 py-1 transition-colors"
+            className="inline-flex items-center gap-1 text-sm font-medium rounded-md border border-overlay-8 bg-overlay-4 hover:bg-overlay-8 text-muted-foreground hover:text-foreground px-2 py-1 transition-colors"
           >
             <ArrowRight className="w-2.5 h-2.5 opacity-50" />
             {page.label}
@@ -301,7 +301,7 @@ export function WarmTransferCard({
                   <span key={n} className={`h-1.5 w-1.5 rounded-full ${
                     n <= (ctx.motivationLevel ?? 0)
                       ? (ctx.motivationLevel ?? 0) >= 4 ? "bg-muted" : "bg-primary"
-                      : "bg-white/[0.08]"
+                      : "bg-overlay-8"
                   }`} />
                 ))}
               </div>
@@ -316,7 +316,7 @@ export function WarmTransferCard({
       </div>
 
       {/* ── Trust language quick-ref ── */}
-      <div className="px-3 pb-2 border-t border-white/[0.04] pt-2">
+      <div className="px-3 pb-2 border-t border-overlay-4 pt-2">
         <TrustLanguagePack
           context="warm_transfer"
           onlyKeys={["who_we_are", "how_got_info"]}
@@ -329,7 +329,7 @@ export function WarmTransferCard({
       <SellerPageLinks />
 
       {/* ── Transfer outcome logger ── */}
-      <div className="border-t border-white/[0.05] p-3 space-y-2.5">
+      <div className="border-t border-overlay-5 p-3 space-y-2.5">
 
         {logged && loggedOutcome ? (
           <div className={`flex items-center gap-2 rounded-[8px] px-2.5 py-2 ${

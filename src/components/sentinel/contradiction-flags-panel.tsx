@@ -114,13 +114,13 @@ function FlagRow({
 
   return (
     <div className={`rounded-[8px] border overflow-hidden transition-opacity ${
-      isResolved ? "opacity-50 border-white/[0.04]" : "border-white/[0.07]"
-    } bg-white/[0.015]`}>
+      isResolved ? "opacity-50 border-overlay-4" : "border-overlay-8"
+    } bg-overlay-2`}>
       {/* Header */}
       <button
         type="button"
         onClick={() => setExpanded((v) => !v)}
-        className="w-full flex items-center gap-2 px-2.5 py-2 text-left hover:bg-white/[0.02] transition-colors"
+        className="w-full flex items-center gap-2 px-2.5 py-2 text-left hover:bg-overlay-2 transition-colors"
       >
         <SeverityBadge severity={flag.severity} />
         <span className="text-sm font-medium text-foreground/75 flex-1 truncate">
@@ -134,7 +134,7 @@ function FlagRow({
 
       {/* Body */}
       {expanded && (
-        <div className="px-2.5 pb-2.5 border-t border-white/[0.04] pt-2 space-y-2">
+        <div className="px-2.5 pb-2.5 border-t border-overlay-4 pt-2 space-y-2">
           <p className="text-sm text-foreground/65 leading-relaxed">{flag.description}</p>
 
           <EvidencePair evidenceA={flag.evidence_a} evidenceB={flag.evidence_b} />
@@ -155,7 +155,7 @@ function FlagRow({
                   placeholder="Optional note on why this is resolved or false positive…"
                   maxLength={300}
                   rows={2}
-                  className="w-full resize-none rounded-[6px] border border-white/[0.06] bg-white/[0.03] px-2.5 py-1.5 text-sm text-foreground placeholder:text-muted-foreground/30 focus:outline-none focus:border-primary/20"
+                  className="w-full resize-none rounded-[6px] border border-overlay-6 bg-overlay-3 px-2.5 py-1.5 text-sm text-foreground placeholder:text-muted-foreground/30 focus:outline-none focus:border-primary/20"
                 />
               )}
               <div className="flex gap-1.5">
@@ -172,7 +172,7 @@ function FlagRow({
                   type="button"
                   onClick={() => { setShowNote(true); handle("false_positive"); }}
                   disabled={reviewing}
-                  className="flex-1 flex items-center justify-center gap-1 rounded-[6px] border border-white/[0.06] bg-white/[0.02] px-2 py-1 text-sm text-muted-foreground/50 hover:text-foreground/70 transition-colors disabled:opacity-40"
+                  className="flex-1 flex items-center justify-center gap-1 rounded-[6px] border border-overlay-6 bg-overlay-2 px-2 py-1 text-sm text-muted-foreground/50 hover:text-foreground/70 transition-colors disabled:opacity-40"
                 >
                   <X className="h-2.5 w-2.5" aria-hidden="true" />
                   False +
@@ -265,12 +265,12 @@ export function ContradictionFlagsPanel({ leadId, className = "" }: Contradictio
   const warnCount       = unreviewedFlags.filter((f) => f.severity === "warn").length;
 
   return (
-    <div className={`border rounded-[10px] border-white/[0.06] bg-white/[0.01] ${className}`}>
+    <div className={`border rounded-[10px] border-overlay-6 bg-overlay-2 ${className}`}>
       {/* Header */}
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
-        className="w-full flex items-center gap-2 px-3 py-2.5 hover:bg-white/[0.02] transition-colors rounded-[10px]"
+        className="w-full flex items-center gap-2 px-3 py-2.5 hover:bg-overlay-2 transition-colors rounded-[10px]"
       >
         <GitCompare className="h-3.5 w-3.5 text-foreground/60 shrink-0" aria-hidden="true" />
         <span className="text-sm font-semibold uppercase tracking-wider text-muted-foreground/60 flex-1 text-left">
@@ -304,14 +304,14 @@ export function ContradictionFlagsPanel({ leadId, className = "" }: Contradictio
 
       {/* Body */}
       {open && (
-        <div className="px-3 pb-3 border-t border-white/[0.04] pt-2.5 space-y-2">
+        <div className="px-3 pb-3 border-t border-overlay-4 pt-2.5 space-y-2">
 
           {/* Run scan button */}
           <button
             type="button"
             onClick={handleScan}
             disabled={scanning}
-            className="flex items-center gap-1.5 rounded-[7px] border border-white/[0.06] bg-white/[0.02] px-2.5 py-1 text-sm text-muted-foreground/50 hover:text-foreground/70 hover:border-white/[0.10] transition-colors disabled:opacity-40"
+            className="flex items-center gap-1.5 rounded-[7px] border border-overlay-6 bg-overlay-2 px-2.5 py-1 text-sm text-muted-foreground/50 hover:text-foreground/70 hover:border-overlay-10 transition-colors disabled:opacity-40"
           >
             {scanning
               ? <Loader2 className="h-2.5 w-2.5 animate-spin" aria-hidden="true" />
@@ -336,7 +336,7 @@ export function ContradictionFlagsPanel({ leadId, className = "" }: Contradictio
 
           {/* Already-reviewed flags — collapsed summary */}
           {!loading && reviewedFlags.length > 0 && (
-            <div className="pt-1 border-t border-white/[0.04]">
+            <div className="pt-1 border-t border-overlay-4">
               <p className="text-xs text-muted-foreground/25 uppercase tracking-wider mb-1.5">
                 Previously reviewed ({reviewedFlags.length})
               </p>

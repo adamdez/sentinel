@@ -611,7 +611,7 @@ export function CompsMap({ subject, selectedComps, onAddComp, onRemoveComp, focu
                     "px-2 py-1 rounded-md border transition-all",
                     filters[key]
                       ? "border-primary/20 bg-primary/8 text-primary"
-                      : "border-glass-border bg-secondary/20 text-muted-foreground hover:border-white/20"
+                      : "border-glass-border bg-secondary/20 text-muted-foreground hover:border-overlay-20"
                   )}
                 >
                   {label}
@@ -634,7 +634,7 @@ export function CompsMap({ subject, selectedComps, onAddComp, onRemoveComp, focu
       {/* Map + detail panel side by side */}
       <div className="flex gap-3" style={{ height: 440 }}>
         {/* Leaflet map */}
-        <div className="flex-1 rounded-[10px] overflow-hidden border border-white/[0.06] relative">
+        <div className="flex-1 rounded-[10px] overflow-hidden border border-overlay-6 relative">
           {mapReady ? (
             <MapContainer
               center={[subject.lat, subject.lng]}
@@ -731,7 +731,7 @@ color: isSelected ? "#a1a1aa" : colors.stroke,
                       offset={[0, -8]}
                       className="!bg-transparent !border-0 !shadow-none !p-0"
                     >
-                      <div className="bg-[rgba(12,12,22,0.4)] border border-white/[0.06] rounded px-1.5 py-0.5 text-xs backdrop-blur-sm whitespace-nowrap max-w-[200px] truncate">
+                      <div className="bg-panel border border-overlay-6 rounded px-1.5 py-0.5 text-xs backdrop-blur-sm whitespace-nowrap max-w-[200px] truncate">
                         {comp.streetAddress} — {comp.avm ? formatCurrency(comp.avm) : "N/A"}
                       </div>
                     </Tooltip>
@@ -753,7 +753,7 @@ color: isSelected ? "#a1a1aa" : colors.stroke,
                 exit={{ opacity: 0 }}
                 className="absolute inset-0 z-[1000] bg-black/30 backdrop-blur-[1px] flex items-center justify-center pointer-events-none"
               >
-                <div className="flex items-center gap-2 bg-[rgba(12,12,22,0.9)] border border-white/[0.06] rounded-[10px] px-3 py-2 backdrop-blur-xl">
+                <div className="flex items-center gap-2 bg-panel-solid border border-overlay-6 rounded-[10px] px-3 py-2 backdrop-blur-xl">
                   <Loader2 className="h-4 w-4 animate-spin text-primary" />
                   <span className="text-xs text-primary font-medium">Searching radius…</span>
                 </div>
@@ -764,7 +764,7 @@ color: isSelected ? "#a1a1aa" : colors.stroke,
           {/* Map legend overlay */}
           <div className="absolute bottom-2 left-2 z-[1000] flex gap-1.5 pointer-events-none">
             {Object.entries(QUALITY_COLORS).map(([key, val]) => (
-              <div key={key} className="flex items-center gap-1 bg-[rgba(12,12,22,0.8)] backdrop-blur-sm border border-white/[0.06] rounded px-1.5 py-0.5 text-xs">
+              <div key={key} className="flex items-center gap-1 bg-panel-solid backdrop-blur-sm border border-overlay-6 rounded px-1.5 py-0.5 text-xs">
                 <div className="h-2 w-2 rounded-full" style={{ backgroundColor: val.fill }} />
                 {val.label}
               </div>
@@ -774,7 +774,7 @@ color: isSelected ? "#a1a1aa" : colors.stroke,
           {/* Cached indicator */}
           {!loading && comps.length > 0 && (
             <div className="absolute top-2 right-2 z-[1000] pointer-events-none">
-              <div className="bg-[rgba(12,12,22,0.7)] backdrop-blur-sm border border-white/[0.06] rounded px-1.5 py-0.5 text-xs text-muted-foreground">
+              <div className="bg-panel-deep backdrop-blur-sm border border-overlay-6 rounded px-1.5 py-0.5 text-xs text-muted-foreground">
                 {comps.length} results • 5m cache
               </div>
             </div>
@@ -790,7 +790,7 @@ color: isSelected ? "#a1a1aa" : colors.stroke,
               animate={{ opacity: 1, x: 0 }}
               exit={{ opacity: 0, x: 20 }}
               transition={{ duration: 0.15 }}
-              className="w-[290px] shrink-0 rounded-[10px] border border-white/[0.06] bg-[rgba(12,12,22,0.5)] backdrop-blur-xl overflow-y-auto scrollbar-none"
+              className="w-[290px] shrink-0 rounded-[10px] border border-overlay-6 bg-panel backdrop-blur-xl overflow-y-auto scrollbar-none"
             >
               <CompDetailPanel
                 comp={selectedComp}
@@ -808,7 +808,7 @@ color: isSelected ? "#a1a1aa" : colors.stroke,
               animate={{ opacity: 1, x: 0 }}
               exit={{ opacity: 0, x: 20 }}
               transition={{ duration: 0.15 }}
-              className="w-[290px] shrink-0 rounded-[10px] border border-primary/20 bg-[rgba(12,12,22,0.5)] backdrop-blur-xl overflow-y-auto scrollbar-none"
+              className="w-[290px] shrink-0 rounded-[10px] border border-primary/20 bg-panel backdrop-blur-xl overflow-y-auto scrollbar-none"
             >
               <SubjectDetailPanel subject={subject} onClose={() => setShowSubject(false)} />
             </motion.div>
@@ -816,7 +816,7 @@ color: isSelected ? "#a1a1aa" : colors.stroke,
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
-              className="w-[290px] shrink-0 rounded-[10px] border border-white/[0.06] bg-[rgba(12,12,22,0.5)] backdrop-blur-xl flex items-center justify-center"
+              className="w-[290px] shrink-0 rounded-[10px] border border-overlay-6 bg-panel backdrop-blur-xl flex items-center justify-center"
             >
               <div className="text-center p-4">
                 <Eye className="h-6 w-6 text-muted-foreground mx-auto mb-2" />
@@ -895,9 +895,9 @@ function CompDetailPanel({
               }
             }}
           />
-          <div className="absolute inset-0 bg-gradient-to-t from-[rgba(12,12,22,0.8)] to-transparent" />
+          <div className="absolute inset-0 bg-gradient-to-t from-panel-solid to-transparent" />
           {comp.lastSalePrice && (
-            <div className="absolute bottom-1.5 left-2 text-sm font-bold text-white" style={{ textShadow: "0 1px 4px rgba(0,0,0,0.7)" }}>
+            <div className="absolute bottom-1.5 left-2 text-sm font-bold text-white" style={{ textShadow: "0 1px 4px var(--shadow-heavy)" }}>
               Sold {formatCurrency(comp.lastSalePrice)}
               {comp.lastSaleDate && (
                 <span className="font-normal text-white/70 ml-1">
@@ -911,7 +911,7 @@ function CompDetailPanel({
               href={streetViewLink}
               target="_blank"
               rel="noopener noreferrer"
-              className="absolute top-1.5 right-1.5 bg-black/50 backdrop-blur-sm border border-white/10 rounded px-1.5 py-0.5 text-xs text-white/80 hover:text-white hover:bg-black/70 transition-colors flex items-center gap-1"
+              className="absolute top-1.5 right-1.5 bg-black/50 backdrop-blur-sm border border-overlay-10 rounded px-1.5 py-0.5 text-xs text-overlay-80 hover:text-white hover:bg-black/70 transition-colors flex items-center gap-1"
             >
               <Eye className="h-2.5 w-2.5" />
               Street View
@@ -924,14 +924,14 @@ function CompDetailPanel({
       {/* Header */}
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">
-          <p className="font-semibold text-sm truncate" style={{ textShadow: "0 0 8px rgba(0,0,0,0.12)" }}>
+          <p className="font-semibold text-sm truncate" style={{ textShadow: "0 0 8px var(--shadow-soft)" }}>
             {comp.streetAddress || comp.address}
           </p>
           <p className="text-sm text-muted-foreground truncate">
             {comp.city}, {comp.state} {comp.zip}
           </p>
         </div>
-        <button onClick={onClose} className="p-1 rounded hover:bg-white/[0.08] shrink-0">
+        <button onClick={onClose} className="p-1 rounded hover:bg-overlay-8 shrink-0">
           <X className="h-3 w-3" />
         </button>
       </div>
@@ -988,7 +988,7 @@ function CompDetailPanel({
 
       {/* $/sqft comparison */}
       {pricePerSqft != null && (
-        <div className="flex items-center justify-between p-1.5 rounded-md border border-white/[0.06] bg-white/[0.04]">
+        <div className="flex items-center justify-between p-1.5 rounded-md border border-overlay-6 bg-overlay-4">
           <span className="text-sm text-muted-foreground">$/sqft</span>
           <div className="flex items-center gap-2">
             <span className="font-semibold text-primary">${pricePerSqft}</span>
@@ -1005,7 +1005,7 @@ function CompDetailPanel({
       )}
 
       {/* Financials */}
-      <div className="space-y-1.5 p-2 rounded-md border border-white/[0.06] bg-white/[0.04]">
+      <div className="space-y-1.5 p-2 rounded-md border border-overlay-6 bg-overlay-4">
         <div className="flex justify-between">
           <span className="text-muted-foreground">AVM / ARV</span>
           <span className="font-semibold text-primary">{comp.avm ? formatCurrency(comp.avm) : "—"}</span>
@@ -1071,7 +1071,7 @@ function CompDetailPanel({
       </div>
 
       {/* Score breakdown */}
-      <div className="space-y-1 p-2 rounded-md border border-white/[0.06] bg-white/[0.04]">
+      <div className="space-y-1 p-2 rounded-md border border-overlay-6 bg-overlay-4">
         <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1">Comp Quality Score</p>
         {[
           { label: "Distance", pts: compScore.distance, max: 30 },
@@ -1082,7 +1082,7 @@ function CompDetailPanel({
         ].map((row) => (
           <div key={row.label} className="flex items-center gap-2">
             <span className="text-xs text-muted-foreground w-14 shrink-0">{row.label}</span>
-            <div className="flex-1 h-1.5 rounded-full bg-white/[0.06] overflow-hidden">
+            <div className="flex-1 h-1.5 rounded-full bg-overlay-6 overflow-hidden">
               <div className="h-full rounded-full transition-all" style={{ width: `${(row.pts / row.max) * 100}%`, backgroundColor: colors.fill }} />
             </div>
             <span className="text-xs font-mono w-8 text-right">{row.pts}/{row.max}</span>
@@ -1094,19 +1094,19 @@ function CompDetailPanel({
       <div className="flex gap-1.5">
         {zillowUrl && (
           <a href={zillowUrl} target="_blank" rel="noopener noreferrer"
-            className="flex-1 text-center text-xs font-medium py-1.5 rounded-md border border-white/[0.06] bg-white/[0.04] hover:bg-white/[0.08] transition-colors text-foreground">
+            className="flex-1 text-center text-xs font-medium py-1.5 rounded-md border border-overlay-6 bg-overlay-4 hover:bg-overlay-8 transition-colors text-foreground">
             Zillow
           </a>
         )}
         {redfinUrl && (
           <a href={redfinUrl} target="_blank" rel="noopener noreferrer"
-            className="flex-1 text-center text-xs font-medium py-1.5 rounded-md border border-white/[0.06] bg-white/[0.04] hover:bg-white/[0.08] transition-colors text-foreground">
+            className="flex-1 text-center text-xs font-medium py-1.5 rounded-md border border-overlay-6 bg-overlay-4 hover:bg-overlay-8 transition-colors text-foreground">
             Redfin
           </a>
         )}
         {comp.lat && comp.lng && (
           <a href={`https://www.google.com/maps/@${comp.lat},${comp.lng},18z`} target="_blank" rel="noopener noreferrer"
-            className="flex-1 text-center text-xs font-medium py-1.5 rounded-md border border-white/[0.06] bg-white/[0.04] hover:bg-white/[0.08] transition-colors text-foreground">
+            className="flex-1 text-center text-xs font-medium py-1.5 rounded-md border border-overlay-6 bg-overlay-4 hover:bg-overlay-8 transition-colors text-foreground">
             Google Maps
           </a>
         )}
@@ -1138,8 +1138,8 @@ function SubjectDetailPanel({ subject, onClose }: { subject: SubjectProperty; on
       {photoSrc && (
         <div className="relative w-full h-[120px] overflow-hidden rounded-t-[10px] bg-black/40">
           <img src={photoSrc} alt="Subject" className="w-full h-full object-cover" />
-          <div className="absolute inset-0 bg-gradient-to-t from-[rgba(12,12,22,0.8)] to-transparent" />
-          <div className="absolute bottom-1.5 left-2 text-sm font-bold text-primary" style={{ textShadow: "0 1px 4px rgba(0,0,0,0.7)" }}>
+          <div className="absolute inset-0 bg-gradient-to-t from-panel-solid to-transparent" />
+          <div className="absolute bottom-1.5 left-2 text-sm font-bold text-primary" style={{ textShadow: "0 1px 4px var(--shadow-heavy)" }}>
             ★ Subject Property
           </div>
         </div>
@@ -1147,11 +1147,11 @@ function SubjectDetailPanel({ subject, onClose }: { subject: SubjectProperty; on
       <div className="px-3 pb-3 space-y-3">
         <div className="flex items-start justify-between gap-2">
           <div className="min-w-0">
-            <p className="font-semibold text-sm truncate text-primary" style={{ textShadow: "0 0 8px rgba(0,0,0,0.2)" }}>
+            <p className="font-semibold text-sm truncate text-primary" style={{ textShadow: "0 0 8px var(--shadow-medium)" }}>
               {subject.address}
             </p>
           </div>
-          <button onClick={onClose} className="p-1 rounded hover:bg-white/[0.08] shrink-0">
+          <button onClick={onClose} className="p-1 rounded hover:bg-overlay-8 shrink-0">
             <X className="h-3 w-3" />
           </button>
         </div>

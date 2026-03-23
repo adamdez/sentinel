@@ -1,8 +1,10 @@
 /**
- * Sentinel UI theme identifiers — user-facing: Light and Dark only.
- * CSS: html[data-sentinel-theme="<id>"] and html.dark for Tailwind `dark:` (dark theme only).
+ * Sentinel UI theme identifiers.
+ * CSS: html[data-sentinel-theme="<id>"] and html.dark for Tailwind `dark:` (dark + psalm20).
  */
-export type SentinelThemeId = "light" | "dark";
+export type SentinelThemeId = "light" | "dark" | "psalm20";
+
+const VALID_IDS = new Set<string>(["light", "dark", "psalm20"]);
 
 const LEGACY_TO_DARK: Record<string, true> = {
   default: true,
@@ -10,11 +12,11 @@ const LEGACY_TO_DARK: Record<string, true> = {
 };
 
 export function migrateLegacyThemeId(raw: string | null | undefined): SentinelThemeId {
-  if (raw === "light" || raw === "dark") return raw;
+  if (raw && VALID_IDS.has(raw)) return raw as SentinelThemeId;
   if (raw && LEGACY_TO_DARK[raw]) return "dark";
   return "dark";
 }
 
 export function isSentinelThemeId(value: string): value is SentinelThemeId {
-  return value === "light" || value === "dark";
+  return VALID_IDS.has(value);
 }

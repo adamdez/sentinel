@@ -49,7 +49,7 @@ export function CallSequenceGuide() {
       >
         <Info
           className="h-[14px] w-[14px] text-primary/50 group-hover:text-primary transition-colors"
-          style={{ filter: "drop-shadow(0 0 3px rgba(255,255,255,0.3))" }}
+          style={{ filter: "drop-shadow(0 0 3px var(--overlay-30))" }}
         />
       </button>
 
@@ -68,7 +68,7 @@ export function CallSequenceGuide() {
               exit={{ opacity: 0, scale: 0.92, y: 20 }}
               transition={{ type: "spring", damping: 26, stiffness: 320 }}
               onClick={(e) => e.stopPropagation()}
-              className="relative max-w-3xl w-full max-h-[85vh] overflow-hidden rounded-[16px] border border-white/[0.08]
+              className="relative max-w-3xl w-full max-h-[85vh] overflow-hidden rounded-[16px] border border-overlay-8
                 glass-strong flex flex-col"
             >
               {/* Top accent line */}
@@ -76,14 +76,14 @@ export function CallSequenceGuide() {
               <div className="absolute top-0 inset-x-0 h-12 bg-gradient-to-b from-muted/[0.03] to-transparent pointer-events-none" />
 
               {/* Header */}
-              <div className="shrink-0 flex items-center justify-between px-5 py-4 border-b border-white/[0.06]">
+              <div className="shrink-0 flex items-center justify-between px-5 py-4 border-b border-overlay-6">
                 <div>
                   <h3 className="text-sm font-bold text-foreground">7-Day Power Sequence</h3>
                   <p className="text-sm text-muted-foreground/60 mt-0.5">Proven for Predictive Leads — Backed by Data</p>
                 </div>
                 <button
                   onClick={() => setOpen(false)}
-                  className="p-1.5 rounded-[10px] hover:bg-white/[0.06] transition-colors text-muted-foreground hover:text-foreground"
+                  className="p-1.5 rounded-[10px] hover:bg-overlay-6 transition-colors text-muted-foreground hover:text-foreground"
                 >
                   <X className="h-4 w-4" />
                 </button>
@@ -93,7 +93,7 @@ export function CallSequenceGuide() {
               <div className="flex-1 overflow-y-auto p-5">
                 <table className="w-full text-left">
                   <thead>
-                    <tr className="border-b border-white/[0.08]">
+                    <tr className="border-b border-overlay-8">
                       <th className="text-sm uppercase tracking-wider text-foreground/80 font-semibold pb-3 pr-4 w-[28%]">Part of Our Plan</th>
                       <th className="text-sm uppercase tracking-wider text-primary/60 font-semibold pb-3 pr-4 w-[30%]">Source (2025–2026 Data)</th>
                       <th className="text-sm uppercase tracking-wider text-muted-foreground/60 font-semibold pb-3 w-[42%]">Exact Finding</th>
@@ -103,7 +103,7 @@ export function CallSequenceGuide() {
                     {SEQUENCE_TABLE.map((row, i) => (
                       <tr
                         key={i}
-                        className="border-b border-white/[0.04] last:border-0 hover:bg-white/[0.02] transition-colors"
+                        className="border-b border-overlay-4 last:border-0 hover:bg-overlay-2 transition-colors"
                       >
                         <td className="py-3 pr-4 align-top">
                           <p className="text-sm font-semibold text-foreground/90 leading-relaxed">{row.plan}</p>
@@ -121,11 +121,11 @@ export function CallSequenceGuide() {
               </div>
 
               {/* Footer */}
-              <div className="shrink-0 px-5 py-3 border-t border-white/[0.06] flex items-center justify-between">
+              <div className="shrink-0 px-5 py-3 border-t border-overlay-6 flex items-center justify-between">
                 <p className="text-xs text-muted-foreground/30 font-mono">Dominion Sentinel — Charter v3.1</p>
                 <button
                   onClick={() => setOpen(false)}
-                  className="text-sm text-muted-foreground/50 hover:text-foreground transition-colors px-3 py-1 rounded-[8px] hover:bg-white/[0.04]"
+                  className="text-sm text-muted-foreground/50 hover:text-foreground transition-colors px-3 py-1 rounded-[8px] hover:bg-overlay-4"
                 >
                   Close
                 </button>

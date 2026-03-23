@@ -115,7 +115,7 @@ export function TrustLanguageChip({
           <button
             type="button"
             onClick={() => copy(snippet.copy)}
-            className="flex items-center gap-1 rounded-[5px] border border-white/[0.07] bg-white/[0.03] px-2 py-0.5 text-xs text-muted-foreground/40 hover:text-muted-foreground/70 hover:border-white/[0.12] transition-colors"
+            className="flex items-center gap-1 rounded-[5px] border border-overlay-8 bg-overlay-3 px-2 py-0.5 text-xs text-muted-foreground/40 hover:text-muted-foreground/70 hover:border-overlay-12 transition-colors"
           >
             {copied
               ? <><Check className="h-2.5 w-2.5 text-foreground" /> Copied</>

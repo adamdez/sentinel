@@ -89,7 +89,7 @@ function VerdictBadge({ verdict }: { verdict: EvalVerdict }) {
 function ExampleRow({ rating }: { rating: EvalRatingRow }) {
   const [expanded, setExpanded] = useState(false);
   return (
-    <div className="rounded-lg border border-white/[0.04] bg-white/[0.02] p-2.5 space-y-1.5">
+    <div className="rounded-lg border border-overlay-4 bg-overlay-2 p-2.5 space-y-1.5">
       <div className="flex items-center gap-2 flex-wrap">
         <VerdictBadge verdict={rating.verdict} />
         {rating.rubric_dimension && (
@@ -116,7 +116,7 @@ function ExampleRow({ rating }: { rating: EvalRatingRow }) {
             Output snapshot
           </button>
           {expanded && (
-            <pre className="text-xs text-muted-foreground/50 bg-white/[0.02] rounded p-2 whitespace-pre-wrap leading-relaxed max-h-32 overflow-auto">
+            <pre className="text-xs text-muted-foreground/50 bg-overlay-2 rounded p-2 whitespace-pre-wrap leading-relaxed max-h-32 overflow-auto">
               {rating.output_snapshot}
             </pre>
           )}
@@ -176,7 +176,7 @@ export function RateOutputForm({
   }
 
   return (
-    <div className="space-y-2.5 p-3 rounded-xl border border-white/[0.06] bg-white/[0.02]">
+    <div className="space-y-2.5 p-3 rounded-xl border border-overlay-6 bg-overlay-2">
       <p className="text-sm font-medium text-muted-foreground/70">
         Rate this output — <span className="font-mono text-muted-foreground/40">{workflow}@{promptVersion}</span>
       </p>
@@ -190,7 +190,7 @@ export function RateOutputForm({
             className={`text-sm px-2.5 py-1 rounded-md border transition-colors ${
               verdict === v
                 ? EVAL_VERDICT_COLORS[v]
-                : "border-white/[0.06] text-muted-foreground/50 hover:text-muted-foreground"
+                : "border-overlay-6 text-muted-foreground/50 hover:text-muted-foreground"
             }`}
           >
             {EVAL_VERDICT_LABELS[v]}
@@ -208,7 +208,7 @@ export function RateOutputForm({
               className={`text-xs px-2 py-0.5 rounded border transition-colors ${
                 rubric === d
                   ? EVAL_RUBRIC_COLORS[d]
-                  : "border-white/[0.05] text-muted-foreground/40 hover:text-muted-foreground/60"
+                  : "border-overlay-5 text-muted-foreground/40 hover:text-muted-foreground/60"
               }`}
             >
               {EVAL_RUBRIC_LABELS[d]}
@@ -222,7 +222,7 @@ export function RateOutputForm({
         value={note}
         onChange={e => setNote(e.target.value)}
         placeholder="Optional note — what was wrong or especially good?"
-        className="text-xs min-h-[48px] bg-white/[0.02] border-white/[0.06]"
+        className="text-xs min-h-[48px] bg-overlay-2 border-overlay-6"
         rows={2}
       />
 
@@ -233,7 +233,7 @@ export function RateOutputForm({
         variant="outline"
         disabled={!verdict || saving}
         onClick={submit}
-        className="text-sm h-6 px-3 border-white/[0.08]"
+        className="text-sm h-6 px-3 border-overlay-8"
       >
         {saving ? <Loader2 className="w-2.5 h-2.5 animate-spin" /> : "Save rating"}
       </Button>
@@ -260,11 +260,11 @@ function VersionSummaryRow({
   }
 
   return (
-    <div className="rounded-xl border border-white/[0.05] bg-white/[0.02] overflow-hidden">
+    <div className="rounded-xl border border-overlay-5 bg-overlay-2 overflow-hidden">
       {/* Summary header */}
       <button
         onClick={toggle}
-        className="w-full flex items-center gap-3 px-3 py-2.5 text-left hover:bg-white/[0.02] transition-colors"
+        className="w-full flex items-center gap-3 px-3 py-2.5 text-left hover:bg-overlay-2 transition-colors"
       >
         <div className="flex-1 min-w-0 space-y-0.5">
           <div className="flex items-center gap-2 flex-wrap">
@@ -297,7 +297,7 @@ function VersionSummaryRow({
 
       {/* Examples drawer */}
       {open && (
-        <div className="border-t border-white/[0.04] px-3 py-2.5 space-y-2">
+        <div className="border-t border-overlay-4 px-3 py-2.5 space-y-2">
           <p className="text-xs text-muted-foreground/30 italic">
             {evalSampleCaveat(summary.n)}
           </p>

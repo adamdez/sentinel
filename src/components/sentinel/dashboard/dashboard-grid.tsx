@@ -468,7 +468,7 @@ function TodayView() {
             ? new Date(lead.next_call_scheduled_at).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })
             : null;
           return (
-            <div key={lead.id} className="flex items-center gap-3 p-2.5 rounded-lg hover:bg-white/[0.03] transition-colors group">
+            <div key={lead.id} className="flex items-center gap-3 p-2.5 rounded-lg hover:bg-overlay-3 transition-colors group">
               <div className="h-2.5 w-2.5 rounded-full shrink-0 bg-emerald-500" />
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-semibold truncate">{leadLabel(lead)}</p>
@@ -509,7 +509,7 @@ function TodayView() {
             <button
               key={deal.id}
               onClick={() => { window.location.href = `/leads?open=${deal.id}`; }}
-              className="w-full flex items-center justify-between text-left p-2.5 rounded-lg hover:bg-white/[0.03] transition-colors"
+              className="w-full flex items-center justify-between text-left p-2.5 rounded-lg hover:bg-overlay-3 transition-colors"
             >
               <p className="text-sm font-medium truncate">{label}</p>
               <Badge variant="outline" className="text-sm border-amber-500/30 text-amber-400 shrink-0 ml-2">
@@ -531,7 +531,7 @@ function TodayView() {
         emptyIcon={CheckCircle2}
       >
         {reviewBlockers.map((item) => (
-          <div key={item.id} className="flex items-center gap-3 p-2.5 rounded-lg hover:bg-white/[0.03] transition-colors">
+          <div key={item.id} className="flex items-center gap-3 p-2.5 rounded-lg hover:bg-overlay-3 transition-colors">
             <div className="h-2.5 w-2.5 rounded-full shrink-0 bg-violet-500" />
             <div className="flex-1 min-w-0">
               <p className="text-sm font-medium truncate">{item.entity_type ?? "Review item"}</p>
@@ -610,7 +610,7 @@ function BriefSection({ icon: Icon, title, iconColor, error, count, emptyMessage
 function LeadRow({ lead, showScore, showAge }: { lead: PriorityLead; showScore?: boolean; showAge?: boolean }) {
   const diff = daysDiff(effectiveDueDate(lead));
   return (
-    <div className="flex items-center gap-3 p-2.5 rounded-lg hover:bg-white/[0.03] transition-colors group">
+    <div className="flex items-center gap-3 p-2.5 rounded-lg hover:bg-overlay-3 transition-colors group">
       <div className={cn("h-2.5 w-2.5 rounded-full shrink-0", urgencyDotColor(diff))} />
       <div className="flex-1 min-w-0">
         <p className="text-sm font-semibold truncate">{leadLabel(lead)}</p>

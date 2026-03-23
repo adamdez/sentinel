@@ -124,7 +124,7 @@ function SourceBadge({ source }: { source: string }) {
     );
   }
   return (
-    <span className="text-xs px-1.5 py-0.5 rounded border text-muted-foreground border-white/[0.06]">
+    <span className="text-xs px-1.5 py-0.5 rounded border text-muted-foreground border-overlay-6">
       MANUAL
     </span>
   );
@@ -190,7 +190,7 @@ function SignalPill({ signal, stageLabel }: { signal: string; stageLabel?: strin
   // Filter out non-distress tags (like "score-silver")
   const label = DISTRESS_LABELS[signal];
   if (!label) return null;
-  const colors = DISTRESS_COLORS[signal] ?? { text: "text-muted-foreground", bg: "bg-white/[0.04]", border: "border-white/[0.08]" };
+  const colors = DISTRESS_COLORS[signal] ?? { text: "text-muted-foreground", bg: "bg-overlay-4", border: "border-overlay-8" };
   const displayLabel = stageLabel ? `${label}: ${stageLabel}` : label;
   return (
     <span className={cn("text-xs px-1.5 py-0.5 rounded border font-medium whitespace-nowrap", colors.text, colors.bg, colors.border)}>
@@ -587,7 +587,7 @@ export default function ProspectsPage() {
                   "text-sm px-2 py-1 rounded border transition-all",
                   sourceFilter === sf.value
                     ? "text-primary border-primary/20 bg-primary/8"
-                    : "text-muted-foreground border-glass-border hover:text-foreground hover:border-white/10"
+                    : "text-muted-foreground border-glass-border hover:text-foreground hover:border-overlay-10"
                 )}
               >
                 {sf.label}
@@ -608,7 +608,7 @@ export default function ProspectsPage() {
                     "text-sm px-2 py-1 rounded border transition-all inline-flex items-center gap-1",
                     scoreFilter === sf.value
                       ? `${sf.color} border-current/20 bg-current/8`
-                      : "text-muted-foreground border-glass-border hover:text-foreground hover:border-white/10"
+                      : "text-muted-foreground border-glass-border hover:text-foreground hover:border-overlay-10"
                   )}
                 >
                   {sf.label}
@@ -633,7 +633,7 @@ export default function ProspectsPage() {
                     "text-sm px-2 py-1 rounded border transition-all inline-flex items-center gap-1",
                     signalFilter === sf.value
                       ? `${sf.color} border-current/20 bg-current/8`
-                      : "text-muted-foreground border-glass-border hover:text-foreground hover:border-white/10"
+                      : "text-muted-foreground border-glass-border hover:text-foreground hover:border-overlay-10"
                   )}
                 >
                   {sf.label}
@@ -706,7 +706,7 @@ export default function ProspectsPage() {
           <div className="overflow-hidden rounded-[12px] border border-glass-border">
             <table className="w-full">
               <thead>
-                <tr className="border-b border-white/[0.06] bg-white/[0.02]">
+                <tr className="border-b border-overlay-6 bg-overlay-2">
                   <th className="text-left p-3 text-xs font-medium text-muted-foreground w-[280px]">Property</th>
                   <th className="text-left p-3 text-xs font-medium text-muted-foreground w-[140px]">Phone</th>
                   <th className="text-left p-3 text-xs font-medium text-muted-foreground">Distress Signals</th>
@@ -742,7 +742,7 @@ export default function ProspectsPage() {
                         transition={{ delay: Math.min(i * 0.02, 0.5) }}
                         onClick={() => openDetail(p)}
                         className={cn(
-                          "border-b border-white/[0.06] hover:bg-white/[0.04] transition-colors cursor-pointer",
+                          "border-b border-overlay-6 hover:bg-overlay-4 transition-colors cursor-pointer",
                           p.source === "ranger_push" && "bg-muted/[0.02] hover:bg-muted/[0.05]",
                           p.source === "propertyradar" && "bg-muted/[0.02] hover:bg-muted/[0.05]"
                         )}

@@ -55,7 +55,7 @@ export function OfferStatusTruthCard(props: {
   const isEmpty = statusLabel === "Not set" && amountLabel === "Not set" && updatedLabel === "Not set";
 
   return (
-    <div className="rounded-[12px] border border-white/[0.06] bg-white/[0.02] p-3 space-y-2">
+    <div className="rounded-[12px] border border-overlay-6 bg-overlay-2 p-3 space-y-2">
       <div className="flex items-center gap-2">
         <Target className="h-3.5 w-3.5 text-primary" />
         <p className="text-sm text-muted-foreground uppercase tracking-wider font-semibold">Offer Status</p>
@@ -79,7 +79,7 @@ export function OfferStatusTruthCard(props: {
               <select
                 value={draft.status}
                 onChange={(e) => onDraftChange({ status: (e.target.value as OfferStatusTruth | "") })}
-                className="h-8 w-full rounded-[8px] border border-white/[0.12] bg-white/[0.04] px-2.5 text-xs text-foreground focus:outline-none focus:border-primary/30"
+                className="h-8 w-full rounded-[8px] border border-overlay-12 bg-overlay-4 px-2.5 text-xs text-foreground focus:outline-none focus:border-primary/30"
               >
                 <option value="">Not set</option>
                 {options.map((option) => (
@@ -95,7 +95,7 @@ export function OfferStatusTruthCard(props: {
                 step={1000}
                 value={draft.amount}
                 onChange={(e) => onDraftChange({ amount: e.target.value })}
-                className="h-8 w-full rounded-[8px] border border-white/[0.12] bg-white/[0.04] px-2.5 text-xs text-foreground focus:outline-none focus:border-primary/30"
+                className="h-8 w-full rounded-[8px] border border-overlay-12 bg-overlay-4 px-2.5 text-xs text-foreground focus:outline-none focus:border-primary/30"
               />
             </label>
             <label className="space-y-1">
@@ -106,7 +106,7 @@ export function OfferStatusTruthCard(props: {
                 step={1000}
                 value={draft.amountLow}
                 onChange={(e) => onDraftChange({ amountLow: e.target.value })}
-                className="h-8 w-full rounded-[8px] border border-white/[0.12] bg-white/[0.04] px-2.5 text-xs text-foreground focus:outline-none focus:border-primary/30"
+                className="h-8 w-full rounded-[8px] border border-overlay-12 bg-overlay-4 px-2.5 text-xs text-foreground focus:outline-none focus:border-primary/30"
               />
             </label>
             <label className="space-y-1">
@@ -117,7 +117,7 @@ export function OfferStatusTruthCard(props: {
                 step={1000}
                 value={draft.amountHigh}
                 onChange={(e) => onDraftChange({ amountHigh: e.target.value })}
-                className="h-8 w-full rounded-[8px] border border-white/[0.12] bg-white/[0.04] px-2.5 text-xs text-foreground focus:outline-none focus:border-primary/30"
+                className="h-8 w-full rounded-[8px] border border-overlay-12 bg-overlay-4 px-2.5 text-xs text-foreground focus:outline-none focus:border-primary/30"
               />
             </label>
           </div>
@@ -128,7 +128,7 @@ export function OfferStatusTruthCard(props: {
               onChange={(e) => onDraftChange({ sellerResponseNote: e.target.value })}
               rows={2}
               placeholder="Seller reaction, objection, or revision context..."
-              className="w-full rounded-[8px] border border-white/[0.12] bg-white/[0.04] px-2.5 py-2 text-xs text-foreground placeholder:text-muted-foreground/55 focus:outline-none focus:border-primary/30"
+              className="w-full rounded-[8px] border border-overlay-12 bg-overlay-4 px-2.5 py-2 text-xs text-foreground placeholder:text-muted-foreground/55 focus:outline-none focus:border-primary/30"
             />
           </label>
           <div className="flex items-center justify-between gap-2">
@@ -205,7 +205,7 @@ export function BuyerDispoVisibilityCard(props: {
   const isPreOffer = buyerFitLabel === "Unknown" && dispoReadinessLabel === "Not Ready";
 
   return (
-    <div className="rounded-[12px] border border-white/[0.06] bg-white/[0.02] p-3 space-y-2">
+    <div className="rounded-[12px] border border-overlay-6 bg-overlay-2 p-3 space-y-2">
       <div className="flex items-center gap-2">
         <Users className="h-3.5 w-3.5 text-primary" />
         <p className="text-sm text-muted-foreground uppercase tracking-wider font-semibold">Buyer / Dispo Visibility</p>
@@ -219,7 +219,7 @@ export function BuyerDispoVisibilityCard(props: {
       {isPreOffer ? (
         <div className="space-y-2">
           <p className="text-sm text-muted-foreground/80">Buyer matching available after offer accepted</p>
-          <div className="rounded-[8px] border border-white/[0.08] bg-white/[0.02] px-2.5 py-2 space-y-1">
+          <div className="rounded-[8px] border border-overlay-8 bg-overlay-2 px-2.5 py-2 space-y-1">
             <p className="text-sm text-muted-foreground/60">Before buyer/dispo becomes active:</p>
             <ul className="text-sm text-muted-foreground/50 space-y-0.5 list-disc list-inside">
               <li>Seller offer must be submitted and accepted</li>
@@ -239,7 +239,7 @@ export function BuyerDispoVisibilityCard(props: {
             </span>
           </div>
           <p className="text-sm text-muted-foreground/70">{hint}</p>
-          <div className="rounded-[8px] border border-white/[0.08] bg-white/[0.02] px-2.5 py-2 space-y-1.5">
+          <div className="rounded-[8px] border border-overlay-8 bg-overlay-2 px-2.5 py-2 space-y-1.5">
             <p className="text-sm text-foreground/90">
               Next step: <span className="font-medium">{nextStep}</span>
             </p>
@@ -299,7 +299,7 @@ export function BuyerDispoTruthCard(props: {
   } = props;
 
   return (
-    <div className="rounded-[12px] border border-white/[0.06] bg-white/[0.02] p-3 space-y-2">
+    <div className="rounded-[12px] border border-overlay-6 bg-overlay-2 p-3 space-y-2">
       <div className="flex items-center gap-2">
         <Users className="h-3.5 w-3.5 text-primary" />
         <p className="text-sm text-muted-foreground uppercase tracking-wider font-semibold">Buyer / Dispo Truth</p>
@@ -323,7 +323,7 @@ export function BuyerDispoTruthCard(props: {
               <select
                 value={draft.buyerFit}
                 onChange={(e) => onDraftChange({ buyerFit: (e.target.value as BuyerFitVisibility | "") })}
-                className="h-8 w-full rounded-[8px] border border-white/[0.12] bg-white/[0.04] px-2.5 text-xs text-foreground focus:outline-none focus:border-primary/30"
+                className="h-8 w-full rounded-[8px] border border-overlay-12 bg-overlay-4 px-2.5 text-xs text-foreground focus:outline-none focus:border-primary/30"
               >
                 <option value="">Not set</option>
                 <option value="broad">Broad</option>
@@ -336,7 +336,7 @@ export function BuyerDispoTruthCard(props: {
               <select
                 value={draft.dispoStatus}
                 onChange={(e) => onDraftChange({ dispoStatus: (e.target.value as DispoReadinessVisibility | "") })}
-                className="h-8 w-full rounded-[8px] border border-white/[0.12] bg-white/[0.04] px-2.5 text-xs text-foreground focus:outline-none focus:border-primary/30"
+                className="h-8 w-full rounded-[8px] border border-overlay-12 bg-overlay-4 px-2.5 text-xs text-foreground focus:outline-none focus:border-primary/30"
               >
                 <option value="">Not set</option>
                 <option value="not_ready">Not Ready</option>
@@ -352,7 +352,7 @@ export function BuyerDispoTruthCard(props: {
               value={draft.nextStep}
               onChange={(e) => onDraftChange({ nextStep: e.target.value })}
               placeholder="Example: Review with Adam and prep buyer handoff notes"
-              className="h-8 w-full rounded-[8px] border border-white/[0.12] bg-white/[0.04] px-2.5 text-xs text-foreground placeholder:text-muted-foreground/55 focus:outline-none focus:border-primary/30"
+              className="h-8 w-full rounded-[8px] border border-overlay-12 bg-overlay-4 px-2.5 text-xs text-foreground placeholder:text-muted-foreground/55 focus:outline-none focus:border-primary/30"
             />
           </label>
           <label className="space-y-1 block">
@@ -362,7 +362,7 @@ export function BuyerDispoTruthCard(props: {
               onChange={(e) => onDraftChange({ dispoNote: e.target.value })}
               rows={2}
               placeholder="Buyer-fit caveats, seller expectations, or handoff notes..."
-              className="w-full rounded-[8px] border border-white/[0.12] bg-white/[0.04] px-2.5 py-2 text-xs text-foreground placeholder:text-muted-foreground/55 focus:outline-none focus:border-primary/30"
+              className="w-full rounded-[8px] border border-overlay-12 bg-overlay-4 px-2.5 py-2 text-xs text-foreground placeholder:text-muted-foreground/55 focus:outline-none focus:border-primary/30"
             />
           </label>
           <div className="flex items-center justify-between gap-2">
@@ -451,7 +451,7 @@ export function AcquisitionsMilestoneCard(props: {
   const hasMilestones = appointmentAt || offerAmount || contractAt || assignmentFeeProjected;
 
   return (
-    <div className="rounded-[12px] border border-white/[0.06] bg-white/[0.02] p-3 space-y-2">
+    <div className="rounded-[12px] border border-overlay-6 bg-overlay-2 p-3 space-y-2">
       <div className="flex items-center gap-2">
         <Target className="h-3.5 w-3.5 text-primary" />
         <p className="text-sm text-muted-foreground uppercase tracking-wider font-semibold">Acquisitions Milestones</p>
@@ -478,7 +478,7 @@ export function AcquisitionsMilestoneCard(props: {
                 type="datetime-local"
                 value={draft.appointmentAt}
                 onChange={(e) => onDraftChange({ appointmentAt: e.target.value })}
-                className="h-8 w-full rounded-[8px] border border-white/[0.12] bg-white/[0.04] px-2.5 text-xs text-foreground focus:outline-none focus:border-primary/30"
+                className="h-8 w-full rounded-[8px] border border-overlay-12 bg-overlay-4 px-2.5 text-xs text-foreground focus:outline-none focus:border-primary/30"
               />
             </label>
             <label className="space-y-1">
@@ -489,7 +489,7 @@ export function AcquisitionsMilestoneCard(props: {
                 step={500}
                 value={draft.offerAmount}
                 onChange={(e) => onDraftChange({ offerAmount: e.target.value })}
-                className="h-8 w-full rounded-[8px] border border-white/[0.12] bg-white/[0.04] px-2.5 text-xs text-foreground focus:outline-none focus:border-primary/30"
+                className="h-8 w-full rounded-[8px] border border-overlay-12 bg-overlay-4 px-2.5 text-xs text-foreground focus:outline-none focus:border-primary/30"
               />
             </label>
             <label className="space-y-1">
@@ -498,7 +498,7 @@ export function AcquisitionsMilestoneCard(props: {
                 type="datetime-local"
                 value={draft.contractAt}
                 onChange={(e) => onDraftChange({ contractAt: e.target.value })}
-                className="h-8 w-full rounded-[8px] border border-white/[0.12] bg-white/[0.04] px-2.5 text-xs text-foreground focus:outline-none focus:border-primary/30"
+                className="h-8 w-full rounded-[8px] border border-overlay-12 bg-overlay-4 px-2.5 text-xs text-foreground focus:outline-none focus:border-primary/30"
               />
             </label>
             <label className="space-y-1">
@@ -509,7 +509,7 @@ export function AcquisitionsMilestoneCard(props: {
                 step={500}
                 value={draft.assignmentFeeProjected}
                 onChange={(e) => onDraftChange({ assignmentFeeProjected: e.target.value })}
-                className="h-8 w-full rounded-[8px] border border-white/[0.12] bg-white/[0.04] px-2.5 text-xs text-foreground focus:outline-none focus:border-primary/30"
+                className="h-8 w-full rounded-[8px] border border-overlay-12 bg-overlay-4 px-2.5 text-xs text-foreground focus:outline-none focus:border-primary/30"
               />
             </label>
           </div>

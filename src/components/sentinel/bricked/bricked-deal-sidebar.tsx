@@ -27,7 +27,7 @@ export function BrickedDealSidebar({
   const link = dashboardLink ?? shareLink;
 
   return (
-    <div className="rounded-[10px] border border-white/[0.06] bg-[rgba(12,12,22,0.5)] backdrop-blur-xl p-4 space-y-4 sticky top-0">
+    <div className="rounded-[10px] border border-overlay-6 bg-panel backdrop-blur-xl p-4 space-y-4 sticky top-0">
       <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
         Deal Analysis
       </h3>

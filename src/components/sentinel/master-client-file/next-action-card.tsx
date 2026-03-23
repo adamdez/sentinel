@@ -26,7 +26,7 @@ export function NextActionCard({ cf, onEditNextAction }: NextActionCardProps) {
       ? "border-red-500/30"
       : dueToday
         ? "border-amber-500/25"
-        : "border-white/15";
+        : "border-overlay-15";
 
   const bgClass = missing
     ? "bg-red-500/[0.06]"
@@ -34,7 +34,7 @@ export function NextActionCard({ cf, onEditNextAction }: NextActionCardProps) {
       ? "bg-red-500/[0.04]"
       : dueToday
         ? "bg-amber-500/[0.04]"
-        : "bg-white/[0.03]";
+        : "bg-overlay-3";
 
   return (
     <div className={cn("rounded-[12px] border-2 p-3.5", borderClass, bgClass)}>
@@ -97,7 +97,7 @@ export function NextActionCard({ cf, onEditNextAction }: NextActionCardProps) {
           <Button
             size="sm"
             variant="outline"
-            className="gap-1.5 h-7 text-xs border-white/15 hover:border-white/30"
+            className="gap-1.5 h-7 text-xs border-overlay-15 hover:border-overlay-30"
             onClick={onEditNextAction}
           >
             <Pencil className="h-3 w-3" />

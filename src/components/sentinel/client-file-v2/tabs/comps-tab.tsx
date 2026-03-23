@@ -12,7 +12,7 @@ interface CompsTabProps {
 export function CompsTab({ arv }: CompsTabProps) {
   return (
     <div className="flex flex-col h-full space-y-4">
-      <div className="flex items-center justify-between border-b border-white/10 pb-4">
+      <div className="flex items-center justify-between border-b border-overlay-10 pb-4">
         <div>
           <h3 className="text-lg font-bold">Comparable Sales & ARV</h3>
           <p className="text-sm text-muted-foreground">Radius: 0.5 miles • Last 6 months</p>
@@ -23,14 +23,14 @@ export function CompsTab({ arv }: CompsTabProps) {
         </div>
       </div>
 
-      <div className="flex-1 bg-black/40 border border-white/5 rounded-xl flex flex-col items-center justify-center p-12 text-center relative overflow-hidden">
+      <div className="flex-1 bg-black/40 border border-overlay-5 rounded-xl flex flex-col items-center justify-center p-12 text-center relative overflow-hidden">
         {/* Placeholder for the real Map component from the original UI */}
-        <MapIcon className="w-16 h-16 text-white/10 mb-4" />
+        <MapIcon className="w-16 h-16 text-overlay-10 mb-4" />
         <h4 className="font-medium text-foreground/80 mb-2">Interactive Map System Required</h4>
         <p className="text-sm text-muted-foreground max-w-md">
           The map component will be mounted here. It displays the subject property in orange and up to 10 comparable recently sold homes in cyan.
         </p>
-        <button className="mt-6 flex items-center gap-2 px-4 py-2 bg-white/5 hover:bg-white/10 border border-white/10 rounded-lg text-sm font-medium transition-colors">
+        <button className="mt-6 flex items-center gap-2 px-4 py-2 bg-overlay-5 hover:bg-overlay-10 border border-overlay-10 rounded-lg text-sm font-medium transition-colors">
           <RefreshCw className="w-4 h-4" /> Refresh Comps
         </button>
         

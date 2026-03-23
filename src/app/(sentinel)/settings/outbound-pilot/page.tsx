@@ -89,7 +89,7 @@ function ReadinessSummaryCard({ summary }: { summary: PilotReadinessSummary }) {
           { label: "Not ready",        value: summary.notReadyFrames, color: "text-foreground" },
           { label: "Ready %",          value: summary.readyPct != null ? `${summary.readyPct}%` : "—", color: summary.readyPct != null && summary.readyPct >= 60 ? "text-foreground" : "text-foreground" },
         ].map(({ label, value, color }) => (
-          <div key={label} className="bg-white/[0.02] rounded-lg p-2.5 space-y-0.5">
+          <div key={label} className="bg-overlay-2 rounded-lg p-2.5 space-y-0.5">
             <p className={`text-lg font-bold ${color || "text-foreground/80"}`}>{value}</p>
             <p className="text-sm text-muted-foreground/50">{label}</p>
           </div>
@@ -102,7 +102,7 @@ function ReadinessSummaryCard({ summary }: { summary: PilotReadinessSummary }) {
           { label: "Approved",       value: summary.approvedFrames, color: "text-foreground" },
           { label: "Flagged",        value: summary.flaggedFrames,  color: "text-foreground" },
         ].map(({ label, value, color }) => (
-          <div key={label} className="bg-white/[0.02] rounded-lg p-2 space-y-0.5">
+          <div key={label} className="bg-overlay-2 rounded-lg p-2 space-y-0.5">
             <p className={`text-base font-semibold ${color}`}>{value}</p>
             <p className="text-sm text-muted-foreground/50">{label}</p>
           </div>
@@ -145,12 +145,12 @@ function PilotConfigNotes() {
         <ol className="list-decimal list-inside space-y-1.5 pl-1">
           <li>
             <span className="font-medium text-muted-foreground/80">Database migration</span> — alter{" "}
-            <code className="text-sm bg-white/[0.05] px-1 rounded">outbound_prep_frames.automation_tier</code>{" "}
-            check constraint to allow <code className="text-sm bg-white/[0.05] px-1 rounded">live_pilot</code>.
+            <code className="text-sm bg-overlay-5 px-1 rounded">outbound_prep_frames.automation_tier</code>{" "}
+            check constraint to allow <code className="text-sm bg-overlay-5 px-1 rounded">live_pilot</code>.
           </li>
           <li>
             <span className="font-medium text-muted-foreground/80">Voice registry</span> — register an{" "}
-            active <code className="text-sm bg-white/[0.05] px-1 rounded">outbound_opener</code>{" "}
+            active <code className="text-sm bg-overlay-5 px-1 rounded">outbound_opener</code>{" "}
             script version in{" "}
             <Link href="/settings/voice-registry" className="text-foreground hover:underline">
               voice registry
@@ -159,7 +159,7 @@ function PilotConfigNotes() {
           </li>
           <li>
             <span className="font-medium text-muted-foreground/80">Voice consent review</span> — all outbound
-            leads must have <code className="text-sm bg-white/[0.05] px-1 rounded">consent_basis</code>{" "}
+            leads must have <code className="text-sm bg-overlay-5 px-1 rounded">consent_basis</code>{" "}
             reviewed in the{" "}
             <Link href="/dialer/review" className="text-foreground hover:underline">
               voice ledger
@@ -169,7 +169,7 @@ function PilotConfigNotes() {
           <li>
             <span className="font-medium text-muted-foreground/80">Trust language version</span> — current
             approved version is{" "}
-            <code className="text-sm bg-white/[0.05] px-1 rounded">{TRUST_LANGUAGE_VERSION}</code>.
+            <code className="text-sm bg-overlay-5 px-1 rounded">{TRUST_LANGUAGE_VERSION}</code>.
             Review snippets at{" "}
             <Link href="/settings/trust-language" className="text-foreground hover:underline">
               trust language settings
@@ -299,7 +299,7 @@ export default function OutboundPilotPage() {
                   className={`text-sm px-2 py-0.5 rounded border transition-colors ${
                     readyFilter === f
                       ? "border-border/40 bg-muted/10 text-foreground"
-                      : "border-white/[0.06] text-muted-foreground/50 hover:text-muted-foreground"
+                      : "border-overlay-6 text-muted-foreground/50 hover:text-muted-foreground"
                   }`}
                 >
                   {f === "all" ? "All readiness" : f === "ready" ? "Ready" : "Not ready"}
@@ -313,7 +313,7 @@ export default function OutboundPilotPage() {
                   className={`text-sm px-2 py-0.5 rounded border transition-colors ${
                     reviewFilter === f
                       ? "border-border/40 bg-muted/10 text-foreground"
-                      : "border-white/[0.06] text-muted-foreground/50 hover:text-muted-foreground"
+                      : "border-overlay-6 text-muted-foreground/50 hover:text-muted-foreground"
                   }`}
                 >
                   {f === "all" ? "All reviews" : PREP_FRAME_REVIEW_STATUS_LABELS[f as PrepFrameReviewStatus]}
@@ -341,7 +341,7 @@ export default function OutboundPilotPage() {
               </p>
               <p className="text-sm text-muted-foreground/30">
                 Frames are assembled manually from lead detail or via{" "}
-                <code className="bg-white/[0.04] px-1 rounded">POST /api/dialer/v1/outbound-prep</code>.
+                <code className="bg-overlay-4 px-1 rounded">POST /api/dialer/v1/outbound-prep</code>.
               </p>
             </div>
           ) : (

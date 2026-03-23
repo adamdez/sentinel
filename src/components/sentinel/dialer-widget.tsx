@@ -33,7 +33,7 @@ export default function DialerWidget() {
   }
 
   return (
-    <Card className="glass-card p-6 bg-[#0d0d14]/85 backdrop-blur-xl border border-white/10 shadow-[0_12px_40px_rgba(0,0,0,0.28)]">
+    <Card className="glass-card p-6 bg-[#0d0d14]/85 backdrop-blur-xl border border-overlay-10 shadow-[0_12px_40px_var(--shadow-medium)]">
       <div className="text-primary text-xl font-semibold mb-4 flex items-center gap-2">
         📞 DIALER (VoIP Only)
       </div>
@@ -44,18 +44,18 @@ export default function DialerWidget() {
         placeholder="+1509..."
         value={phoneToCall}
         onChange={(e) => setPhoneToCall(e.target.value)}
-        className="mb-4 bg-black/50 border-white/10 text-white"
+        className="mb-4 bg-black/50 border-overlay-10 text-white"
       />
       
       <Button 
         onClick={makeCall} 
         disabled={connecting || !device}
-        className="w-full bg-primary hover:bg-primary/90 text-primary-foreground font-semibold text-lg py-6 border border-white/10"
+        className="w-full bg-primary hover:bg-primary/90 text-primary-foreground font-semibold text-lg py-6 border border-overlay-10"
       >
         {connecting ? 'Connecting...' : 'CALL NOW'}
       </Button>
       
-      <div className="text-sm text-white/40 mt-4 text-center">
+      <div className="text-sm text-overlay-40 mt-4 text-center">
         All calls use your personal Twilio number • Auto-recorded
       </div>
     </Card>

@@ -58,7 +58,7 @@ export function DealCalculatorTab({
     <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
       {/* Inputs */}
       <div className="space-y-6">
-        <h3 className="text-lg font-bold border-b border-white/10 pb-2">Deal Parameters</h3>
+        <h3 className="text-lg font-bold border-b border-overlay-10 pb-2">Deal Parameters</h3>
 
         <div className="space-y-4">
           <div>
@@ -68,7 +68,7 @@ export function DealCalculatorTab({
               value={arvInput}
               onChange={(e) => setArvInput(e.target.value)}
               placeholder="Enter ARV"
-              className="w-full bg-white/5 border border-white/10 rounded px-3 py-2 font-mono text-lg text-foreground font-bold focus:outline-none focus:border-primary-500/50"
+              className="w-full bg-overlay-5 border border-overlay-10 rounded px-3 py-2 font-mono text-lg text-foreground font-bold focus:outline-none focus:border-primary-500/50"
             />
             <p className="text-sm text-muted-foreground mt-1">
               {arvSource === "comps" ? "Auto-filled from comps" : arvSource === "avm" ? "Auto-filled from estimated value" : "Enter manually or run comps"}
@@ -85,7 +85,7 @@ export function DealCalculatorTab({
                 onChange={(e) => setMaoPercentage(Number(e.target.value))}
                 className="flex-1 accent-cyan-500"
               />
-              <span className="font-mono text-sm px-2 py-1 bg-white/5 rounded border border-white/10">{maoPercentage}%</span>
+              <span className="font-mono text-sm px-2 py-1 bg-overlay-5 rounded border border-overlay-10">{maoPercentage}%</span>
             </div>
           </div>
 
@@ -95,7 +95,7 @@ export function DealCalculatorTab({
               type="number"
               value={repairs}
               onChange={(e) => setRepairs(Number(e.target.value))}
-              className="w-full bg-white/5 border border-white/10 rounded px-3 py-2 font-mono text-sm focus:outline-none focus:border-primary-500/50"
+              className="w-full bg-overlay-5 border border-overlay-10 rounded px-3 py-2 font-mono text-sm focus:outline-none focus:border-primary-500/50"
             />
           </div>
         </div>
@@ -109,7 +109,7 @@ export function DealCalculatorTab({
         <p className="text-sm text-muted-foreground mb-1 font-mono">(ARV × {maoPercentage}%) − Repairs</p>
         <p className="text-sm text-foreground/70 mb-6">What-if scenario — not your final offer</p>
 
-        <div className="text-6xl font-black tracking-tighter text-primary drop-shadow-[0_0_12px_rgba(0,0,0,0.12)]">
+        <div className="text-6xl font-black tracking-tighter text-primary drop-shadow-[0_0_12px_var(--shadow-soft)]">
           {mao > 0 ? formatCurrency(mao) : "$0"}
         </div>
 

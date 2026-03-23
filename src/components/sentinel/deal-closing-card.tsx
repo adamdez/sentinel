@@ -225,7 +225,7 @@ export function DealClosingCard({ dealId, onUpdate }: DealClosingCardProps) {
 
   // ── Shared input classes ──
 
-  const inputClass = "w-full bg-white/[0.03] border border-white/[0.06] rounded-[6px] px-2.5 py-1.5 text-xs text-foreground placeholder:text-muted-foreground/30 focus:outline-none focus:border-primary/20 transition-all";
+  const inputClass = "w-full bg-overlay-3 border border-overlay-6 rounded-[6px] px-2.5 py-1.5 text-xs text-foreground placeholder:text-muted-foreground/30 focus:outline-none focus:border-primary/20 transition-all";
   const labelClass = "text-sm text-muted-foreground/50 font-medium mb-1";
 
   // ── Checklist progress ──
@@ -263,7 +263,7 @@ export function DealClosingCard({ dealId, onUpdate }: DealClosingCardProps) {
             transition={{ duration: 0.15 }}
             className="overflow-hidden"
           >
-            <div className="mt-2 p-3 rounded-[8px] bg-white/[0.01] border border-white/[0.04] space-y-3">
+            <div className="mt-2 p-3 rounded-[8px] bg-overlay-2 border border-overlay-4 space-y-3">
               {loading ? (
                 <div className="flex items-center justify-center py-6">
                   <Loader2 className="h-4 w-4 animate-spin text-primary/40" />
@@ -330,7 +330,7 @@ export function DealClosingCard({ dealId, onUpdate }: DealClosingCardProps) {
                         <button
                           key={i}
                           onClick={() => toggleChecklistItem(i)}
-                          className="flex items-center gap-2 w-full px-2 py-1.5 rounded-[4px] hover:bg-white/[0.02] transition-colors text-left"
+                          className="flex items-center gap-2 w-full px-2 py-1.5 rounded-[4px] hover:bg-overlay-2 transition-colors text-left"
                         >
                           {item.done ? (
                             <CheckSquare className="h-3.5 w-3.5 text-primary/70 shrink-0" />
@@ -378,7 +378,7 @@ export function DealClosingCard({ dealId, onUpdate }: DealClosingCardProps) {
                           <div
                             key={task.id}
                             className={cn(
-                              "flex items-center gap-2 px-2 py-1.5 rounded-[4px] bg-white/[0.01] border border-white/[0.03]",
+                              "flex items-center gap-2 px-2 py-1.5 rounded-[4px] bg-overlay-2 border border-overlay-3",
                               task.status === "completed" && "opacity-50"
                             )}
                           >

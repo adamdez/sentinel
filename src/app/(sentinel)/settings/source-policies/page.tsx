@@ -112,7 +112,7 @@ function PolicyRowItem({
   const ActiveIcon = activeOpt.icon;
 
   return (
-    <div className="flex items-start gap-4 py-3 border-b border-white/[0.04] last:border-0">
+    <div className="flex items-start gap-4 py-3 border-b border-overlay-4 last:border-0">
       {/* Source type */}
       <div className="w-44 shrink-0">
         <p className="text-sm font-medium text-foreground/85">
@@ -228,7 +228,7 @@ export default function SourcePoliciesPage() {
       actions={
         <Link
           href="/settings"
-          className="flex items-center gap-1.5 rounded-[10px] border border-white/[0.07] bg-white/[0.03] px-3 py-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors"
+          className="flex items-center gap-1.5 rounded-[10px] border border-overlay-8 bg-overlay-3 px-3 py-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors"
         >
           <ChevronLeft className="h-3 w-3" />
           Settings

@@ -11,19 +11,19 @@ const buttonVariants = cva(
     variants: {
       variant: {
         default:
-          "bg-primary text-primary-foreground border border-white/12 backdrop-blur-sm shadow-[var(--shadow-badge-glow-tight)] hover:opacity-95",
+          "bg-primary text-primary-foreground border border-overlay-12 backdrop-blur-sm shadow-[var(--shadow-badge-glow-tight)] hover:opacity-95",
         destructive:
           "bg-destructive/15 text-destructive border border-destructive/20 hover:bg-destructive/25",
         outline:
-          "border border-glass-border bg-glass/50 backdrop-blur-xl hover:bg-white/[0.06] hover:border-white/15 hover:text-foreground",
+          "border border-glass-border bg-glass/50 backdrop-blur-xl hover:bg-overlay-6 hover:border-overlay-15 hover:text-foreground",
         secondary:
           "bg-secondary text-secondary-foreground border border-glass-border hover:bg-secondary/80",
         ghost:
-          "hover:bg-white/[0.06] hover:text-foreground",
+          "hover:bg-overlay-6 hover:text-foreground",
         link:
           "text-foreground underline-offset-4 hover:underline",
         neon:
-          "bg-transparent border border-white/20 text-foreground hover:bg-white/[0.06] hover:border-white/28 shadow-[var(--shadow-badge-glow-tight)]",
+          "bg-transparent border border-overlay-20 text-foreground hover:bg-overlay-6 hover:border-white/28 shadow-[var(--shadow-badge-glow-tight)]",
       },
       size: {
         default: "h-9 px-4 py-2",

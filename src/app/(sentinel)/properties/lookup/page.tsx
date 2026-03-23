@@ -375,7 +375,7 @@ export default function PropertyLookupPage() {
               onChange={(e) => { setAddress(e.target.value); setShowSuggestions(true); }}
               onFocus={() => { if (suggestions.length > 0) setShowSuggestions(true); }}
               placeholder="123 Main St, Spokane"
-              className="mt-1 bg-white/[0.03] border-white/[0.08]"
+              className="mt-1 bg-overlay-3 border-overlay-8"
               autoComplete="off"
             />
             {showSuggestions && suggestions.length > 0 && (
@@ -384,7 +384,7 @@ export default function PropertyLookupPage() {
                   <button
                     key={s.id}
                     type="button"
-                    className="w-full text-left px-3 py-2 text-sm hover:bg-white/[0.06] transition-colors border-b border-border/10 last:border-b-0"
+                    className="w-full text-left px-3 py-2 text-sm hover:bg-overlay-6 transition-colors border-b border-border/10 last:border-b-0"
                     onClick={() => selectSuggestion(s)}
                   >
                     <span className="text-foreground">{s.address}</span>
@@ -405,25 +405,25 @@ export default function PropertyLookupPage() {
           </div>
           <div>
             <label className="text-xs uppercase tracking-wider text-muted-foreground font-medium">APN</label>
-            <Input value={apn} onChange={(e) => setApn(e.target.value)} className="mt-1 bg-white/[0.03] border-white/[0.08]" />
+            <Input value={apn} onChange={(e) => setApn(e.target.value)} className="mt-1 bg-overlay-3 border-overlay-8" />
           </div>
           <div>
             <label className="text-xs uppercase tracking-wider text-muted-foreground font-medium">County</label>
-            <Input value={county} onChange={(e) => setCounty(e.target.value)} className="mt-1 bg-white/[0.03] border-white/[0.08]" />
+            <Input value={county} onChange={(e) => setCounty(e.target.value)} className="mt-1 bg-overlay-3 border-overlay-8" />
           </div>
         </div>
         <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mt-3 items-end">
           <div>
             <label className="text-xs uppercase tracking-wider text-muted-foreground font-medium">State</label>
-            <Input value={state} onChange={(e) => setState(e.target.value)} placeholder="WA" className="mt-1 bg-white/[0.03] border-white/[0.08]" />
+            <Input value={state} onChange={(e) => setState(e.target.value)} placeholder="WA" className="mt-1 bg-overlay-3 border-overlay-8" />
           </div>
           <div>
             <label className="text-xs uppercase tracking-wider text-muted-foreground font-medium">ZIP</label>
-            <Input value={zip} onChange={(e) => setZip(e.target.value)} className="mt-1 bg-white/[0.03] border-white/[0.08]" />
+            <Input value={zip} onChange={(e) => setZip(e.target.value)} className="mt-1 bg-overlay-3 border-overlay-8" />
           </div>
           <div className="md:col-span-3 flex items-end">
             <Button
-              className="gap-2 bg-primary text-primary-foreground border border-white/15 hover:opacity-95"
+              className="gap-2 bg-primary text-primary-foreground border border-overlay-15 hover:opacity-95"
               disabled={lookupMutation.isPending || (!address.trim() && !apn.trim())}
               onClick={() => lookupMutation.mutate()}
             >
@@ -597,7 +597,7 @@ export default function PropertyLookupPage() {
                   <span className="text-muted-foreground/40 text-xs">{summary.totalFacts} total facts</span>
                 </div>
                 {summary.contradictions.length > 0 && (
-                  <div className="mt-2 pt-2 border-t border-white/[0.04]">
+                  <div className="mt-2 pt-2 border-t border-overlay-4">
                     <p className="text-xs text-amber-400 font-semibold mb-1 flex items-center gap-1">
                       <AlertTriangle className="h-3 w-3" />
                       {summary.contradictions.length} contradiction{summary.contradictions.length !== 1 ? "s" : ""}
@@ -639,7 +639,7 @@ export default function PropertyLookupPage() {
                   </div>
                   <Button
                     onClick={() => setPromoteOpen(true)}
-                    className="gap-2 bg-primary text-primary-foreground border border-white/15 hover:opacity-95 shrink-0"
+                    className="gap-2 bg-primary text-primary-foreground border border-overlay-15 hover:opacity-95 shrink-0"
                   >
                     <ArrowRight className="h-4 w-4" />
                     Promote to Lead
@@ -656,7 +656,7 @@ export default function PropertyLookupPage() {
                       value={nextAction}
                       onChange={(e) => setNextAction(e.target.value)}
                       placeholder="e.g. Call seller — verify motivation"
-                      className="mt-1 bg-white/[0.03] border-white/[0.08]"
+                      className="mt-1 bg-overlay-3 border-overlay-8"
                     />
                     {!nextAction.trim() && (
                       <p className="text-xs text-amber-400/70 mt-1">Required — no lead advances without a next action</p>
@@ -665,17 +665,17 @@ export default function PropertyLookupPage() {
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                     <div>
                       <label className="text-xs uppercase tracking-wider text-muted-foreground font-medium">Owner name</label>
-                      <Input value={ownerName} onChange={(e) => setOwnerName(e.target.value)} className="mt-1 bg-white/[0.03] border-white/[0.08]" />
+                      <Input value={ownerName} onChange={(e) => setOwnerName(e.target.value)} className="mt-1 bg-overlay-3 border-overlay-8" />
                     </div>
                     <div>
                       <label className="text-xs uppercase tracking-wider text-muted-foreground font-medium">Notes</label>
-                      <Input value={notes} onChange={(e) => setNotes(e.target.value)} className="mt-1 bg-white/[0.03] border-white/[0.08]" />
+                      <Input value={notes} onChange={(e) => setNotes(e.target.value)} className="mt-1 bg-overlay-3 border-overlay-8" />
                     </div>
                   </div>
                   <div className="flex gap-2">
                     <Button
                       disabled={!nextAction.trim() || promoteMutation.isPending}
-                      className="gap-2 bg-primary text-primary-foreground border border-white/15 hover:opacity-95"
+                      className="gap-2 bg-primary text-primary-foreground border border-overlay-15 hover:opacity-95"
                       onClick={() => promoteMutation.mutate()}
                     >
                       {promoteMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
@@ -809,7 +809,7 @@ function ProviderDetailSection({ results }: { results: ProviderResult[] }) {
   const [expanded, setExpanded] = useState(false);
 
   return (
-    <div className="border-t border-white/[0.04] pt-3 mt-2">
+    <div className="border-t border-overlay-4 pt-3 mt-2">
       <button
         onClick={() => setExpanded(!expanded)}
         className="flex items-center gap-1.5 text-xs text-muted-foreground/40 hover:text-muted-foreground transition-colors w-full"
@@ -957,13 +957,13 @@ function ProviderResultCard({ row }: { row: ProviderResult }) {
 
       <button
         onClick={() => setRawExpanded(!rawExpanded)}
-        className="flex items-center gap-1 mt-3 pt-2 border-t border-white/[0.04] text-xs text-muted-foreground/30 hover:text-muted-foreground transition-colors w-full"
+        className="flex items-center gap-1 mt-3 pt-2 border-t border-overlay-4 text-xs text-muted-foreground/30 hover:text-muted-foreground transition-colors w-full"
       >
         <ChevronDown className={cn("h-3 w-3 transition-transform", rawExpanded && "rotate-180")} />
         {rawExpanded ? "Hide" : "Show"} raw payload
       </button>
       {rawExpanded && (
-        <pre className="text-xs font-mono text-muted-foreground/50 overflow-x-auto max-h-40 overflow-y-auto bg-black/20 rounded-md p-2 border border-white/[0.04] mt-2">
+        <pre className="text-xs font-mono text-muted-foreground/50 overflow-x-auto max-h-40 overflow-y-auto bg-black/20 rounded-md p-2 border border-overlay-4 mt-2">
           {JSON.stringify(row.rawPayload, null, 2)}
         </pre>
       )}

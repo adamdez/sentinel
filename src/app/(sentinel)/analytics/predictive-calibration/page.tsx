@@ -300,10 +300,10 @@ export default function PredictiveCalibrationPage() {
                     step={config.step}
                     value={value}
                     onChange={(e) => updateWeight(config.key, parseFloat(e.target.value))}
-                    className="w-full h-1.5 appearance-none bg-white/5 rounded-full cursor-pointer
+                    className="w-full h-1.5 appearance-none bg-overlay-5 rounded-full cursor-pointer
                       [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3.5
                       [&::-webkit-slider-thumb]:h-3.5 [&::-webkit-slider-thumb]:rounded-full
-                      [&::-webkit-slider-thumb]:bg-primary [&::-webkit-slider-thumb]:shadow-[0_0_8px_rgba(0,0,0,0.5)]
+                      [&::-webkit-slider-thumb]:bg-primary [&::-webkit-slider-thumb]:shadow-[0_0_8px_var(--shadow-heavy)]
                       [&::-webkit-slider-thumb]:cursor-pointer"
                   />
                   <div

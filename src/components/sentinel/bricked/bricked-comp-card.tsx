@@ -62,7 +62,7 @@ export function BrickedCompCard({
         "rounded-[10px] border p-3 transition-all",
         highlighted
           ? "border-cyan/40 bg-cyan/[0.04] shadow-[0_0_12px_rgba(0,212,255,0.08)]"
-          : "border-white/[0.06] bg-[rgba(12,12,22,0.5)]",
+          : "border-overlay-6 bg-panel",
       )}
     >
       <div className="flex items-start gap-3">
@@ -71,7 +71,7 @@ export function BrickedCompCard({
             type="checkbox"
             checked={selected}
             onChange={() => onToggle(index)}
-            className="rounded border-white/20"
+            className="rounded border-overlay-20"
           />
           <span className="text-[10px] text-muted-foreground">Include</span>
         </label>
@@ -90,7 +90,7 @@ export function BrickedCompCard({
         {photo ? (
           <img src={photo} alt={address} className="h-[72px] w-[96px] rounded-md object-cover shrink-0" />
         ) : (
-          <div className="h-[72px] w-[96px] rounded-md bg-white/[0.03] border border-white/[0.06] flex items-center justify-center shrink-0">
+          <div className="h-[72px] w-[96px] rounded-md bg-overlay-3 border border-overlay-6 flex items-center justify-center shrink-0">
             <MapPin className="h-5 w-5 text-muted-foreground/30" />
           </div>
         )}

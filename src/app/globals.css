@@ -63,6 +63,38 @@
   --color-surface-inset: var(--surface-inset);
   --color-surface-inset-mid: var(--surface-inset-mid);
 
+  /* Overlay system — theme-aware translucent layers (replaces hardcoded white/[0.xx]) */
+  --color-overlay-2: var(--overlay-2);
+  --color-overlay-3: var(--overlay-3);
+  --color-overlay-4: var(--overlay-4);
+  --color-overlay-5: var(--overlay-5);
+  --color-overlay-6: var(--overlay-6);
+  --color-overlay-8: var(--overlay-8);
+  --color-overlay-10: var(--overlay-10);
+  --color-overlay-12: var(--overlay-12);
+  --color-overlay-15: var(--overlay-15);
+  --color-overlay-18: var(--overlay-18);
+  --color-overlay-20: var(--overlay-20);
+  --color-overlay-25: var(--overlay-25);
+  --color-overlay-30: var(--overlay-30);
+  --color-overlay-35: var(--overlay-35);
+  --color-overlay-40: var(--overlay-40);
+  --color-overlay-50: var(--overlay-50);
+  --color-overlay-60: var(--overlay-60);
+  --color-overlay-80: var(--overlay-80);
+
+  /* Panel surfaces — translucent background fills */
+  --color-panel: var(--panel);
+  --color-panel-deep: var(--panel-deep);
+  --color-panel-solid: var(--panel-solid);
+
+  /* Glow / shadow primitives */
+  --color-glow-soft: var(--glow-soft);
+  --color-glow-medium: var(--glow-medium);
+  --color-shadow-soft: var(--shadow-soft);
+  --color-shadow-medium: var(--shadow-medium);
+  --color-shadow-heavy: var(--shadow-heavy);
+
   /* Operator typography — larger minimums than Tailwind defaults (pairs with html font-size) */
   --text-xs: 0.875rem;
   --text-xs--line-height: 1.35rem;
@@ -1423,6 +1455,38 @@ html[data-sentinel-theme="dark"] {
   --shadow-badge-glow-tight: 0 2px 12px rgba(0, 0, 0, 0.28);
   --shell-modal-bg: rgba(18, 18, 20, 0.94);
   --shell-backdrop-bg: rgba(0, 0, 0, 0.72);
+
+  /* Overlay system */
+  --overlay-2: rgba(255, 255, 255, 0.02);
+  --overlay-3: rgba(255, 255, 255, 0.03);
+  --overlay-4: rgba(255, 255, 255, 0.04);
+  --overlay-5: rgba(255, 255, 255, 0.05);
+  --overlay-6: rgba(255, 255, 255, 0.06);
+  --overlay-8: rgba(255, 255, 255, 0.08);
+  --overlay-10: rgba(255, 255, 255, 0.10);
+  --overlay-12: rgba(255, 255, 255, 0.12);
+  --overlay-15: rgba(255, 255, 255, 0.15);
+  --overlay-18: rgba(255, 255, 255, 0.18);
+  --overlay-20: rgba(255, 255, 255, 0.20);
+  --overlay-25: rgba(255, 255, 255, 0.25);
+  --overlay-30: rgba(255, 255, 255, 0.30);
+  --overlay-35: rgba(255, 255, 255, 0.35);
+  --overlay-40: rgba(255, 255, 255, 0.40);
+  --overlay-50: rgba(255, 255, 255, 0.50);
+  --overlay-60: rgba(255, 255, 255, 0.60);
+  --overlay-80: rgba(255, 255, 255, 0.80);
+
+  /* Panel surfaces */
+  --panel: rgba(12, 12, 22, 0.50);
+  --panel-deep: rgba(12, 12, 22, 0.60);
+  --panel-solid: rgba(4, 4, 12, 0.88);
+
+  /* Glow / shadow */
+  --glow-soft: rgba(255, 255, 255, 0.08);
+  --glow-medium: rgba(255, 255, 255, 0.25);
+  --shadow-soft: rgba(0, 0, 0, 0.12);
+  --shadow-medium: rgba(0, 0, 0, 0.28);
+  --shadow-heavy: rgba(0, 0, 0, 0.50);
 }
 
 /* Light — monochrome only */
@@ -1505,6 +1569,148 @@ html[data-sentinel-theme="light"] {
   --shadow-badge-glow-tight: 0 2px 10px rgba(0, 0, 0, 0.06);
   --shell-modal-bg: rgba(255, 255, 255, 0.96);
   --shell-backdrop-bg: rgba(0, 0, 0, 0.35);
+
+  /* Overlay system — inverted for light: black-based translucency */
+  --overlay-2: rgba(0, 0, 0, 0.02);
+  --overlay-3: rgba(0, 0, 0, 0.02);
+  --overlay-4: rgba(0, 0, 0, 0.03);
+  --overlay-5: rgba(0, 0, 0, 0.04);
+  --overlay-6: rgba(0, 0, 0, 0.04);
+  --overlay-8: rgba(0, 0, 0, 0.06);
+  --overlay-10: rgba(0, 0, 0, 0.08);
+  --overlay-12: rgba(0, 0, 0, 0.09);
+  --overlay-15: rgba(0, 0, 0, 0.10);
+  --overlay-18: rgba(0, 0, 0, 0.12);
+  --overlay-20: rgba(0, 0, 0, 0.14);
+  --overlay-25: rgba(0, 0, 0, 0.16);
+  --overlay-30: rgba(0, 0, 0, 0.18);
+  --overlay-35: rgba(0, 0, 0, 0.22);
+  --overlay-40: rgba(0, 0, 0, 0.26);
+  --overlay-50: rgba(0, 0, 0, 0.32);
+  --overlay-60: rgba(0, 0, 0, 0.40);
+  --overlay-80: rgba(0, 0, 0, 0.55);
+
+  /* Panel surfaces */
+  --panel: rgba(255, 255, 255, 0.72);
+  --panel-deep: rgba(255, 255, 255, 0.80);
+  --panel-solid: rgba(255, 255, 255, 0.95);
+
+  /* Glow / shadow */
+  --glow-soft: rgba(0, 0, 0, 0.05);
+  --glow-medium: rgba(0, 0, 0, 0.12);
+  --shadow-soft: rgba(0, 0, 0, 0.06);
+  --shadow-medium: rgba(0, 0, 0, 0.12);
+  --shadow-heavy: rgba(0, 0, 0, 0.25);
+}
+
+/* Psalm 20 — placeholder inheriting dark; replace with custom palette */
+html[data-sentinel-theme="psalm20"] {
+  --radius: 0.875rem;
+  --background: #0c0c0d;
+  --foreground: #f4f4f5;
+  --card: rgba(255, 255, 255, 0.05);
+  --card-foreground: #f4f4f5;
+  --popover: rgba(18, 18, 20, 0.96);
+  --popover-foreground: #f4f4f5;
+  --primary: #e4e4e7;
+  --primary-foreground: #09090b;
+  --secondary: rgba(255, 255, 255, 0.06);
+  --secondary-foreground: #f4f4f5;
+  --muted: #18181b;
+  --muted-foreground: #a1a1aa;
+  --accent: rgba(255, 255, 255, 0.08);
+  --accent-foreground: #f4f4f5;
+  --destructive: #71717a;
+  --destructive-foreground: #fafafa;
+  --success: #a1a1aa;
+  --success-foreground: #09090b;
+  --warning: #d4d4d8;
+  --warning-foreground: #09090b;
+  --border: rgba(255, 255, 255, 0.1);
+  --input: rgba(255, 255, 255, 0.07);
+  --ring: #a1a1aa;
+  --chart-1: #a1a1aa;
+  --chart-2: #71717a;
+  --chart-3: #52525b;
+  --chart-4: #d4d4d8;
+  --chart-5: #3f3f46;
+  --sidebar: rgba(10, 10, 11, 0.92);
+  --sidebar-foreground: #a1a1aa;
+  --sidebar-primary: #f4f4f5;
+  --sidebar-primary-foreground: #09090b;
+  --sidebar-accent: rgba(255, 255, 255, 0.08);
+  --sidebar-accent-foreground: #f4f4f5;
+  --sidebar-border: rgba(255, 255, 255, 0.09);
+  --sidebar-ring: #d4d4d8;
+  --neon: #d4d4d8;
+  --neon-dim: #a1a1aa;
+  --cyan: #d4d4d8;
+  --purple: #a1a1aa;
+  --orange: #71717a;
+  --glass: rgba(255, 255, 255, 0.035);
+  --glass-border: rgba(255, 255, 255, 0.1);
+  --glass-refraction: transparent;
+  --glass-inner-light: rgba(255, 255, 255, 0.03);
+  --glass-depth-shadow: rgba(0, 0, 0, 0.22);
+  --holo-cyan: transparent;
+  --holo-purple: transparent;
+  --holo-orange: transparent;
+  --specular-top: 0.32;
+  --specular-bottom-purple: 0.12;
+  --border-hairline: rgba(255, 255, 255, 0.06);
+  --border-hairline-hover: rgba(255, 255, 255, 0.15);
+  --surface-inset: rgba(255, 255, 255, 0.02);
+  --surface-inset-mid: rgba(255, 255, 255, 0.04);
+  --shell-glass-border: rgba(255, 255, 255, 0.1);
+  --shell-glass-shadow-drop: rgba(0, 0, 0, 0.28);
+  --shell-glass-inset-top: rgba(255, 255, 255, 0.04);
+  --shell-glass-specular-line: rgba(255, 255, 255, 0.22);
+  --shell-glass-after-fade: rgba(255, 255, 255, 0.04);
+  --shell-glass-surface-default: rgba(255, 255, 255, 0.04);
+  --shell-glass-surface-strong: rgba(12, 12, 14, 0.72);
+  --shell-glass-surface-card: rgba(255, 255, 255, 0.045);
+  --shell-glass-surface-ultra: rgba(255, 255, 255, 0.03);
+  --shell-sidebar-bg: rgba(12, 12, 13, 0.78);
+  --shell-sidebar-border: rgba(255, 255, 255, 0.09);
+  --shell-sidebar-edge-inset: rgba(255, 255, 255, 0.04);
+  --shell-sidebar-rail: rgba(255, 255, 255, 0.06);
+  --shell-topbar-bg: rgba(14, 14, 15, 0.72);
+  --shell-topbar-border: rgba(255, 255, 255, 0.08);
+  --shell-topbar-line: rgba(255, 255, 255, 0.08);
+  --shell-nav-active-bg: rgba(255, 255, 255, 0.08);
+  --shell-nav-active-ring: rgba(255, 255, 255, 0.12);
+  --shadow-badge-glow: 0 4px 24px rgba(0, 0, 0, 0.35);
+  --shadow-badge-glow-tight: 0 2px 12px rgba(0, 0, 0, 0.28);
+  --shell-modal-bg: rgba(18, 18, 20, 0.94);
+  --shell-backdrop-bg: rgba(0, 0, 0, 0.72);
+
+  /* Overlay system (same as dark — Psalm 20 will override) */
+  --overlay-2: rgba(255, 255, 255, 0.02);
+  --overlay-3: rgba(255, 255, 255, 0.03);
+  --overlay-4: rgba(255, 255, 255, 0.04);
+  --overlay-5: rgba(255, 255, 255, 0.05);
+  --overlay-6: rgba(255, 255, 255, 0.06);
+  --overlay-8: rgba(255, 255, 255, 0.08);
+  --overlay-10: rgba(255, 255, 255, 0.10);
+  --overlay-12: rgba(255, 255, 255, 0.12);
+  --overlay-15: rgba(255, 255, 255, 0.15);
+  --overlay-18: rgba(255, 255, 255, 0.18);
+  --overlay-20: rgba(255, 255, 255, 0.20);
+  --overlay-25: rgba(255, 255, 255, 0.25);
+  --overlay-30: rgba(255, 255, 255, 0.30);
+  --overlay-35: rgba(255, 255, 255, 0.35);
+  --overlay-40: rgba(255, 255, 255, 0.40);
+  --overlay-50: rgba(255, 255, 255, 0.50);
+  --overlay-60: rgba(255, 255, 255, 0.60);
+  --overlay-80: rgba(255, 255, 255, 0.80);
+  --panel: rgba(12, 12, 22, 0.50);
+  --panel-deep: rgba(12, 12, 22, 0.60);
+  --panel-solid: rgba(4, 4, 12, 0.88);
+  --glow-soft: rgba(255, 255, 255, 0.08);
+  --glow-medium: rgba(255, 255, 255, 0.25);
+  --shadow-soft: rgba(0, 0, 0, 0.12);
+  --shadow-medium: rgba(0, 0, 0, 0.28);
+  --shadow-heavy: rgba(0, 0, 0, 0.50);
 }
 
 body {

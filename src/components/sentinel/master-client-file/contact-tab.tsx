@@ -224,7 +224,7 @@ export function ContactTab({ cf, overlay, onSkipTrace, skipTracing, onDial, onSm
     <div className="space-y-4 max-w-[680px] mx-auto">
       {/* ── Street View / Satellite Image ── */}
       {imageUrl && (
-        <div className="rounded-[12px] border border-white/[0.06] overflow-hidden">
+        <div className="rounded-[12px] border border-overlay-6 overflow-hidden">
           <a
             href={streetViewLink ?? "#"}
             target="_blank"
@@ -238,7 +238,7 @@ export function ContactTab({ cf, overlay, onSkipTrace, skipTracing, onDial, onSm
               className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-[1.02]"
               onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
             />
-            <div className="absolute inset-0 bg-gradient-to-t from-[rgba(7,7,13,0.85)] via-[rgba(7,7,13,0.2)] to-transparent pointer-events-none" />
+            <div className="absolute inset-0 bg-gradient-to-t from-panel-deep via-panel to-transparent pointer-events-none" />
             {streetViewLink && (
               <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none">
                 <span className="bg-black/70 backdrop-blur-sm text-white text-xs font-semibold px-3 py-1.5 rounded-full flex items-center gap-1.5">
@@ -246,7 +246,7 @@ export function ContactTab({ cf, overlay, onSkipTrace, skipTracing, onDial, onSm
                 </span>
               </div>
             )}
-            <div className="absolute bottom-2 right-3 flex items-center gap-1 text-xs text-white/50">
+            <div className="absolute bottom-2 right-3 flex items-center gap-1 text-xs text-overlay-50">
               <ImageIcon className="h-2.5 w-2.5" />{streetViewUrl ? "Street View" : "Satellite"}
             </div>
           </a>
@@ -264,7 +264,7 @@ export function ContactTab({ cf, overlay, onSkipTrace, skipTracing, onDial, onSm
             <>
               <button
                 onClick={() => setEditing(false)}
-                className="h-7 px-3 rounded-md text-sm font-semibold border border-white/10 text-muted-foreground hover:text-foreground transition-colors"
+                className="h-7 px-3 rounded-md text-sm font-semibold border border-overlay-10 text-muted-foreground hover:text-foreground transition-colors"
               >Cancel</button>
               <button
                 onClick={handleSave}
@@ -278,7 +278,7 @@ export function ContactTab({ cf, overlay, onSkipTrace, skipTracing, onDial, onSm
           ) : (
             <button
               onClick={() => setEditing(true)}
-              className="h-7 px-3 rounded-md text-sm font-semibold border border-white/10 text-muted-foreground hover:text-foreground transition-colors flex items-center gap-1"
+              className="h-7 px-3 rounded-md text-sm font-semibold border border-overlay-10 text-muted-foreground hover:text-foreground transition-colors flex items-center gap-1"
             >
               <Pencil className="h-3 w-3" />Edit
             </button>
@@ -287,7 +287,7 @@ export function ContactTab({ cf, overlay, onSkipTrace, skipTracing, onDial, onSm
       </div>
 
       {/* ── Property Address ── */}
-      <div className="rounded-[12px] border border-white/[0.06] bg-white/[0.02] p-4 space-y-3">
+      <div className="rounded-[12px] border border-overlay-6 bg-overlay-2 p-4 space-y-3">
         <p className="text-sm text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
           <MapPin className="h-3 w-3" />Property Address
         </p>
@@ -297,26 +297,26 @@ export function ContactTab({ cf, overlay, onSkipTrace, skipTracing, onDial, onSm
               value={propertyAddr}
               onChange={(e) => setPropertyAddr(e.target.value)}
               placeholder="Street address"
-              className="w-full bg-white/[0.04] border border-white/10 rounded-md px-3 py-1.5 text-sm text-foreground placeholder:text-muted-foreground/40 focus:outline-none focus:border-primary/30"
+              className="w-full bg-overlay-4 border border-overlay-10 rounded-md px-3 py-1.5 text-sm text-foreground placeholder:text-muted-foreground/40 focus:outline-none focus:border-primary/30"
             />
             <div className="grid grid-cols-3 gap-2">
               <input
                 value={propertyCity}
                 onChange={(e) => setPropertyCity(e.target.value)}
                 placeholder="City"
-                className="bg-white/[0.04] border border-white/10 rounded-md px-3 py-1.5 text-sm text-foreground placeholder:text-muted-foreground/40 focus:outline-none focus:border-primary/30"
+                className="bg-overlay-4 border border-overlay-10 rounded-md px-3 py-1.5 text-sm text-foreground placeholder:text-muted-foreground/40 focus:outline-none focus:border-primary/30"
               />
               <input
                 value={propertyState}
                 onChange={(e) => setPropertyState(e.target.value)}
                 placeholder="State"
-                className="bg-white/[0.04] border border-white/10 rounded-md px-3 py-1.5 text-sm text-foreground placeholder:text-muted-foreground/40 focus:outline-none focus:border-primary/30"
+                className="bg-overlay-4 border border-overlay-10 rounded-md px-3 py-1.5 text-sm text-foreground placeholder:text-muted-foreground/40 focus:outline-none focus:border-primary/30"
               />
               <input
                 value={propertyZip}
                 onChange={(e) => setPropertyZip(e.target.value)}
                 placeholder="ZIP"
-                className="bg-white/[0.04] border border-white/10 rounded-md px-3 py-1.5 text-sm text-foreground placeholder:text-muted-foreground/40 focus:outline-none focus:border-primary/30"
+                className="bg-overlay-4 border border-overlay-10 rounded-md px-3 py-1.5 text-sm text-foreground placeholder:text-muted-foreground/40 focus:outline-none focus:border-primary/30"
               />
             </div>
           </div>
@@ -329,7 +329,7 @@ export function ContactTab({ cf, overlay, onSkipTrace, skipTracing, onDial, onSm
       </div>
 
       {/* ── Mailing Address ── */}
-      <div className="rounded-[12px] border border-white/[0.06] bg-white/[0.02] p-4 space-y-3">
+      <div className="rounded-[12px] border border-overlay-6 bg-overlay-2 p-4 space-y-3">
         <p className="text-sm text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
           <Mail className="h-3 w-3" />Mailing Address
         </p>
@@ -338,7 +338,7 @@ export function ContactTab({ cf, overlay, onSkipTrace, skipTracing, onDial, onSm
             value={mailingAddr}
             onChange={(e) => setMailingAddr(e.target.value)}
             placeholder="Mailing address (if different from property)"
-            className="w-full bg-white/[0.04] border border-white/10 rounded-md px-3 py-1.5 text-sm text-foreground placeholder:text-muted-foreground/40 focus:outline-none focus:border-primary/30"
+            className="w-full bg-overlay-4 border border-overlay-10 rounded-md px-3 py-1.5 text-sm text-foreground placeholder:text-muted-foreground/40 focus:outline-none focus:border-primary/30"
           />
         ) : (
           <p className="text-sm text-foreground">{mailingAddr || <span className="text-muted-foreground/40 italic">No mailing address on file</span>}</p>
@@ -346,7 +346,7 @@ export function ContactTab({ cf, overlay, onSkipTrace, skipTracing, onDial, onSm
       </div>
 
       {/* ── Phone Numbers (5 slots) ── */}
-      <div className="rounded-[12px] border border-white/[0.06] bg-white/[0.02] p-4 space-y-3">
+      <div className="rounded-[12px] border border-overlay-6 bg-overlay-2 p-4 space-y-3">
         <div className="flex items-center justify-between">
           <p className="text-sm text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
             <Phone className="h-3 w-3" />Phone Numbers ({phoneSlots.filter((p) => p.trim().length >= 7).length}/{phoneSlots.length})
@@ -375,7 +375,7 @@ export function ContactTab({ cf, overlay, onSkipTrace, skipTracing, onDial, onSm
                     value={phone}
                     onChange={(e) => updatePhone(i, e.target.value)}
                     placeholder={`Phone ${i + 1}`}
-                    className="flex-1 bg-white/[0.04] border border-white/10 rounded-md px-3 py-1.5 text-sm font-mono text-foreground placeholder:text-muted-foreground/30 focus:outline-none focus:border-primary/30"
+                    className="flex-1 bg-overlay-4 border border-overlay-10 rounded-md px-3 py-1.5 text-sm font-mono text-foreground placeholder:text-muted-foreground/30 focus:outline-none focus:border-primary/30"
                   />
                 </div>
               );
@@ -383,9 +383,9 @@ export function ContactTab({ cf, overlay, onSkipTrace, skipTracing, onDial, onSm
 
             if (!hasPhone) {
               return (
-                <div key={i} className="rounded-[10px] border border-dashed border-white/[0.06] bg-white/[0.01] p-2.5">
+                <div key={i} className="rounded-[10px] border border-dashed border-overlay-6 bg-overlay-2 p-2.5">
                   <div className="flex items-center gap-2.5">
-                    <div className="h-7 w-7 rounded-lg bg-white/[0.03] flex items-center justify-center shrink-0">
+                    <div className="h-7 w-7 rounded-lg bg-overlay-3 flex items-center justify-center shrink-0">
                       <Lock className="h-3.5 w-3.5 text-muted-foreground/20" />
                     </div>
                     <span className="text-sm font-mono text-muted-foreground/15">(•••) •••-••••</span>
@@ -395,7 +395,7 @@ export function ContactTab({ cf, overlay, onSkipTrace, skipTracing, onDial, onSm
             }
 
             return (
-              <div key={i} className="rounded-[10px] border border-white/[0.08] bg-white/[0.03] p-2.5">
+              <div key={i} className="rounded-[10px] border border-overlay-8 bg-overlay-3 p-2.5">
                 <div className="flex items-center gap-2.5">
                   <div className={cn(
                     "h-7 w-7 rounded-lg flex items-center justify-center shrink-0",
@@ -461,7 +461,7 @@ export function ContactTab({ cf, overlay, onSkipTrace, skipTracing, onDial, onSm
       </div>
 
       {/* ── Emails (dynamic slots) ── */}
-      <div className="rounded-[12px] border border-white/[0.06] bg-white/[0.02] p-4 space-y-3">
+      <div className="rounded-[12px] border border-overlay-6 bg-overlay-2 p-4 space-y-3">
         <p className="text-sm text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
           <Mail className="h-3 w-3" />Emails ({emailSlots.filter((e) => e.includes("@")).length}/{emailSlots.length})
         </p>
@@ -478,7 +478,7 @@ export function ContactTab({ cf, overlay, onSkipTrace, skipTracing, onDial, onSm
                     value={email}
                     onChange={(e) => updateEmail(i, e.target.value)}
                     placeholder={`Email ${i + 1}`}
-                    className="flex-1 bg-white/[0.04] border border-white/10 rounded-md px-3 py-1.5 text-sm text-foreground placeholder:text-muted-foreground/30 focus:outline-none focus:border-primary/30"
+                    className="flex-1 bg-overlay-4 border border-overlay-10 rounded-md px-3 py-1.5 text-sm text-foreground placeholder:text-muted-foreground/30 focus:outline-none focus:border-primary/30"
                   />
                 </div>
               );
@@ -486,7 +486,7 @@ export function ContactTab({ cf, overlay, onSkipTrace, skipTracing, onDial, onSm
 
             if (!hasEmail) {
               return (
-                <div key={i} className="rounded-[10px] border border-dashed border-white/[0.06] bg-white/[0.01] p-2.5">
+                <div key={i} className="rounded-[10px] border border-dashed border-overlay-6 bg-overlay-2 p-2.5">
                   <div className="flex items-center gap-2.5">
                     <Lock className="h-3.5 w-3.5 text-muted-foreground/20" />
                     <span className="text-sm font-mono text-muted-foreground/15">•••••••@•••••.com</span>
@@ -496,7 +496,7 @@ export function ContactTab({ cf, overlay, onSkipTrace, skipTracing, onDial, onSm
             }
 
             return (
-              <div key={i} className="rounded-[10px] border border-white/[0.08] bg-white/[0.03] p-2.5">
+              <div key={i} className="rounded-[10px] border border-overlay-8 bg-overlay-3 p-2.5">
                 <div className="flex items-center gap-2.5">
                   <Mail className="h-3.5 w-3.5 text-primary/60" />
                   <a href={`mailto:${email}`} className="text-sm text-primary hover:underline">{email}</a>
@@ -523,7 +523,7 @@ export function ContactTab({ cf, overlay, onSkipTrace, skipTracing, onDial, onSm
 
       {/* ── Associated Persons ── */}
       {persons.length > 0 && (
-        <div className="rounded-[12px] border border-white/[0.06] bg-white/[0.02] p-4 space-y-3">
+        <div className="rounded-[12px] border border-overlay-6 bg-overlay-2 p-4 space-y-3">
           <p className="text-sm text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
             <User className="h-3 w-3" />Associated Persons ({persons.length})
           </p>
@@ -531,7 +531,7 @@ export function ContactTab({ cf, overlay, onSkipTrace, skipTracing, onDial, onSm
             {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
             {persons.map((person: any, i: number) => (
               <div key={i} className="flex items-start gap-2.5 text-sm">
-                <div className="h-7 w-7 rounded-full bg-white/[0.04] flex items-center justify-center shrink-0 mt-0.5">
+                <div className="h-7 w-7 rounded-full bg-overlay-4 flex items-center justify-center shrink-0 mt-0.5">
                   <User className="h-3.5 w-3.5 text-muted-foreground/60" />
                 </div>
                 <div className="flex-1 min-w-0">

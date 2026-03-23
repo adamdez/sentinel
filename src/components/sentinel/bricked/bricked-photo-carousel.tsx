@@ -14,7 +14,7 @@ export function BrickedPhotoCarousel({ images, address }: Props) {
 
   if (!images.length) {
     return (
-      <div className="flex items-center justify-center rounded-lg border border-white/[0.06] bg-white/[0.02] h-[260px] text-muted-foreground/40">
+      <div className="flex items-center justify-center rounded-lg border border-overlay-6 bg-overlay-2 h-[260px] text-muted-foreground/40">
         <div className="flex flex-col items-center gap-2">
           <MapPin className="h-8 w-8" />
           <span className="text-xs">No photos available</span>
@@ -27,7 +27,7 @@ export function BrickedPhotoCarousel({ images, address }: Props) {
   const next = () => setIdx((i) => (i === images.length - 1 ? 0 : i + 1));
 
   return (
-    <div className="relative rounded-lg overflow-hidden border border-white/[0.06] h-[260px] group">
+    <div className="relative rounded-lg overflow-hidden border border-overlay-6 h-[260px] group">
       <img
         src={images[idx]}
         alt={address ?? `Photo ${idx + 1}`}
@@ -57,7 +57,7 @@ export function BrickedPhotoCarousel({ images, address }: Props) {
                 onClick={() => setIdx(i)}
                 className={cn(
                   "h-1.5 rounded-full transition-all",
-                  i === idx ? "w-4 bg-white" : "w-1.5 bg-white/40",
+                  i === idx ? "w-4 bg-white" : "w-1.5 bg-overlay-40",
                 )}
               />
             ))}

@@ -87,7 +87,7 @@ async function authHeaders() {
 
 function Stat({ label, value }: { label: string; value: number | string }) {
   return (
-    <div className="rounded-xl border border-white/[0.08] bg-white/[0.03] px-3 py-2">
+    <div className="rounded-xl border border-overlay-8 bg-overlay-3 px-3 py-2">
       <p className="text-sm uppercase tracking-[0.18em] text-muted-foreground/55">{label}</p>
       <p className="mt-1 text-sm font-semibold text-foreground">{value}</p>
     </div>
@@ -213,7 +213,7 @@ export default function ImportPage() {
           <div
             className={cn(
               "cursor-pointer rounded-2xl border-2 border-dashed p-12 text-center transition-all",
-              dragOver ? "border-primary/50 bg-primary/[0.04]" : "border-white/[0.08] hover:border-primary/30 hover:bg-primary/[0.02]",
+              dragOver ? "border-primary/50 bg-primary/[0.04]" : "border-overlay-8 hover:border-primary/30 hover:bg-primary/[0.02]",
             )}
             onClick={() => fileInputRef.current?.click()}
             onDragOver={(event) => { event.preventDefault(); setDragOver(true); }}
@@ -246,7 +246,7 @@ export default function ImportPage() {
                   const nextSheet = event.target.value;
                   setSelectedSheet(nextSheet);
                   if (file) void analyzeFile(file, nextSheet, mapping, defaults);
-                }} className="rounded-lg border border-white/[0.08] bg-white/[0.04] px-2 py-1.5 text-xs text-foreground">
+                }} className="rounded-lg border border-overlay-8 bg-overlay-4 px-2 py-1.5 text-xs text-foreground">
                   {preview.workbook.sheetNames.map((name) => <option key={name} value={name}>{name}</option>)}
                 </select>
               ) : null}
@@ -269,7 +269,7 @@ export default function ImportPage() {
                 <div key={group} className="space-y-2">
                   <p className="text-sm uppercase tracking-[0.18em] text-primary/65">{group}</p>
                   {items.map((suggestion) => (
-                    <div key={suggestion.field} className="grid gap-2 rounded-xl border border-white/[0.06] bg-white/[0.02] p-3 lg:grid-cols-[160px_1fr_90px]">
+                    <div key={suggestion.field} className="grid gap-2 rounded-xl border border-overlay-6 bg-overlay-2 p-3 lg:grid-cols-[160px_1fr_90px]">
                       <div>
                         <p className="text-xs font-medium text-foreground">{suggestion.label}</p>
                         <p className="text-sm text-muted-foreground/55">{suggestion.reason}</p>
@@ -277,7 +277,7 @@ export default function ImportPage() {
                       <select
                         value={mapping[suggestion.field] ?? ""}
                         onChange={(event) => setMapping((prev) => ({ ...prev, [suggestion.field]: event.target.value || undefined }))}
-                        className="rounded-lg border border-white/[0.08] bg-white/[0.04] px-2 py-1.5 text-xs text-foreground"
+                        className="rounded-lg border border-overlay-8 bg-overlay-4 px-2 py-1.5 text-xs text-foreground"
                       >
                         <option value="">Skip</option>
                         {selectedSheetMeta?.headers.map((header) => <option key={header} value={header}>{header}</option>)}
@@ -323,7 +323,7 @@ export default function ImportPage() {
                 <p className="text-sm font-semibold text-foreground">Sample Rows</p>
                 <div className="mt-3 space-y-2">
                   {preview.previewRows.slice(0, 6).map((row) => (
-                    <div key={row.rowNumber} className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-3">
+                    <div key={row.rowNumber} className="rounded-xl border border-overlay-6 bg-overlay-2 p-3">
                       <div className="flex items-start justify-between gap-2">
                         <div>
                           <p className="text-xs font-medium">{row.ownerName ?? "Unknown owner"}</p>
@@ -351,17 +351,17 @@ export default function ImportPage() {
               <p className="text-xs text-muted-foreground/60">Set source/category once. Each row keeps raw payload and explicit warnings.</p>
             </div>
             <div className="grid gap-3 md:grid-cols-2">
-              <label className="space-y-1.5 text-xs"><span className="text-muted-foreground/70">Source Category</span><select value={defaults.sourceChannel} onChange={(event) => setDefaults((prev) => ({ ...prev, sourceChannel: event.target.value }))} className="w-full rounded-lg border border-white/[0.08] bg-white/[0.04] px-2 py-2 text-sm text-foreground">{SOURCE_CHANNEL_OPTIONS.map((option) => <option key={option} value={option}>{sourceChannelLabel(option)}</option>)}</select></label>
-              <label className="space-y-1.5 text-xs"><span className="text-muted-foreground/70">List Category</span><select value={defaults.nicheTag} onChange={(event) => setDefaults((prev) => ({ ...prev, nicheTag: event.target.value }))} className="w-full rounded-lg border border-white/[0.08] bg-white/[0.04] px-2 py-2 text-sm text-foreground"><option value="">Mixed / none</option>{NICHE_TAG_OPTIONS.map((option) => <option key={option} value={option}>{tagLabel(option)}</option>)}</select></label>
+              <label className="space-y-1.5 text-xs"><span className="text-muted-foreground/70">Source Category</span><select value={defaults.sourceChannel} onChange={(event) => setDefaults((prev) => ({ ...prev, sourceChannel: event.target.value }))} className="w-full rounded-lg border border-overlay-8 bg-overlay-4 px-2 py-2 text-sm text-foreground">{SOURCE_CHANNEL_OPTIONS.map((option) => <option key={option} value={option}>{sourceChannelLabel(option)}</option>)}</select></label>
+              <label className="space-y-1.5 text-xs"><span className="text-muted-foreground/70">List Category</span><select value={defaults.nicheTag} onChange={(event) => setDefaults((prev) => ({ ...prev, nicheTag: event.target.value }))} className="w-full rounded-lg border border-overlay-8 bg-overlay-4 px-2 py-2 text-sm text-foreground"><option value="">Mixed / none</option>{NICHE_TAG_OPTIONS.map((option) => <option key={option} value={option}>{tagLabel(option)}</option>)}</select></label>
               <label className="space-y-1.5 text-xs"><span className="text-muted-foreground/70">Source Vendor</span><Input value={defaults.sourceVendor} onChange={(event) => setDefaults((prev) => ({ ...prev, sourceVendor: event.target.value }))} placeholder="County export, PropStream, BatchData…" /></label>
               <label className="space-y-1.5 text-xs"><span className="text-muted-foreground/70">List Name</span><Input value={defaults.sourceListName} onChange={(event) => setDefaults((prev) => ({ ...prev, sourceListName: event.target.value }))} placeholder="Spokane absentee pull" /></label>
               <label className="space-y-1.5 text-xs"><span className="text-muted-foreground/70">County</span><Input value={defaults.county} onChange={(event) => setDefaults((prev) => ({ ...prev, county: event.target.value }))} placeholder="spokane" /></label>
               <label className="space-y-1.5 text-xs"><span className="text-muted-foreground/70">Pull Date</span><Input type="date" value={defaults.sourcePullDate} onChange={(event) => setDefaults((prev) => ({ ...prev, sourcePullDate: event.target.value }))} /></label>
               <label className="space-y-1.5 text-xs"><span className="text-muted-foreground/70">Import Batch ID</span><Input value={defaults.importBatchId} onChange={(event) => setDefaults((prev) => ({ ...prev, importBatchId: event.target.value }))} placeholder="batch_spokane_2026_03_11" /></label>
-              <label className="space-y-1.5 text-xs"><span className="text-muted-foreground/70">Outreach Type</span><select value={defaults.outreachType} onChange={(event) => setDefaults((prev) => ({ ...prev, outreachType: event.target.value }))} className="w-full rounded-lg border border-white/[0.08] bg-white/[0.04] px-2 py-2 text-sm text-foreground">{OUTREACH_TYPE_OPTIONS.map((option) => <option key={option} value={option}>{tagLabel(option)}</option>)}</select></label>
-              <label className="space-y-1.5 text-xs"><span className="text-muted-foreground/70">Skip Trace Status</span><select value={defaults.skipTraceStatus} onChange={(event) => setDefaults((prev) => ({ ...prev, skipTraceStatus: event.target.value }))} className="w-full rounded-lg border border-white/[0.08] bg-white/[0.04] px-2 py-2 text-sm text-foreground">{SKIP_TRACE_STATUS_OPTIONS.map((option) => <option key={option} value={option}>{tagLabel(option)}</option>)}</select></label>
+              <label className="space-y-1.5 text-xs"><span className="text-muted-foreground/70">Outreach Type</span><select value={defaults.outreachType} onChange={(event) => setDefaults((prev) => ({ ...prev, outreachType: event.target.value }))} className="w-full rounded-lg border border-overlay-8 bg-overlay-4 px-2 py-2 text-sm text-foreground">{OUTREACH_TYPE_OPTIONS.map((option) => <option key={option} value={option}>{tagLabel(option)}</option>)}</select></label>
+              <label className="space-y-1.5 text-xs"><span className="text-muted-foreground/70">Skip Trace Status</span><select value={defaults.skipTraceStatus} onChange={(event) => setDefaults((prev) => ({ ...prev, skipTraceStatus: event.target.value }))} className="w-full rounded-lg border border-overlay-8 bg-overlay-4 px-2 py-2 text-sm text-foreground">{SKIP_TRACE_STATUS_OPTIONS.map((option) => <option key={option} value={option}>{tagLabel(option)}</option>)}</select></label>
             </div>
-            <div className="rounded-2xl border border-white/[0.06] bg-white/[0.02] p-4">
+            <div className="rounded-2xl border border-overlay-6 bg-overlay-2 p-4">
               <p className="text-xs font-semibold text-foreground">High-confidence duplicates</p>
               <div className="mt-3 flex flex-wrap gap-2">
                 <Button type="button" variant={duplicateStrategy === "skip" ? "default" : "outline"} size="sm" onClick={() => setDuplicateStrategy("skip")}>Skip duplicates</Button>
@@ -390,7 +390,7 @@ export default function ImportPage() {
             <GlassCard>
               <p className="text-sm font-semibold text-foreground">Preview Statuses</p>
               <div className="mt-3 space-y-2">
-                {Object.entries(preview.reviewCounts).map(([status, count]) => <div key={status} className="flex items-center justify-between rounded-xl border border-white/[0.06] bg-white/[0.02] px-3 py-2"><span className="text-xs">{tagLabel(status)}</span><Badge variant="outline">{count}</Badge></div>)}
+                {Object.entries(preview.reviewCounts).map(([status, count]) => <div key={status} className="flex items-center justify-between rounded-xl border border-overlay-6 bg-overlay-2 px-3 py-2"><span className="text-xs">{tagLabel(status)}</span><Badge variant="outline">{count}</Badge></div>)}
               </div>
             </GlassCard>
             {preview.unmappedHeaders.length > 0 ? (
@@ -441,14 +441,14 @@ export default function ImportPage() {
             <GlassCard>
               <p className="text-sm font-semibold text-foreground">Imported status mix</p>
               <div className="mt-3 space-y-2">
-                {Object.entries(results.importedStatusCounts).length > 0 ? Object.entries(results.importedStatusCounts).map(([status, count]) => <div key={status} className="flex items-center justify-between rounded-xl border border-white/[0.06] bg-white/[0.02] px-3 py-2"><span className="text-xs">{tagLabel(status)}</span><Badge variant="outline">{count}</Badge></div>) : <p className="text-xs text-muted-foreground/60">No new prospects were created from this file.</p>}
+                {Object.entries(results.importedStatusCounts).length > 0 ? Object.entries(results.importedStatusCounts).map(([status, count]) => <div key={status} className="flex items-center justify-between rounded-xl border border-overlay-6 bg-overlay-2 px-3 py-2"><span className="text-xs">{tagLabel(status)}</span><Badge variant="outline">{count}</Badge></div>) : <p className="text-xs text-muted-foreground/60">No new prospects were created from this file.</p>}
               </div>
             </GlassCard>
             <GlassCard>
               <p className="text-sm font-semibold text-foreground">Warnings and held rows</p>
               <div className="mt-3 space-y-2">
-                {results.warnings.slice(0, 8).map((warning) => <div key={warning} className="rounded-xl border border-white/[0.06] bg-white/[0.02] px-3 py-2 text-xs text-muted-foreground/70">{warning}</div>)}
-                {results.skippedRows.slice(0, 6).map((row) => <div key={`${row.rowNumber}-${row.status}`} className="rounded-xl border border-white/[0.06] bg-white/[0.02] px-3 py-2 text-xs text-muted-foreground/70">Row {row.rowNumber}: {tagLabel(row.status)} · {row.reason}</div>)}
+                {results.warnings.slice(0, 8).map((warning) => <div key={warning} className="rounded-xl border border-overlay-6 bg-overlay-2 px-3 py-2 text-xs text-muted-foreground/70">{warning}</div>)}
+                {results.skippedRows.slice(0, 6).map((row) => <div key={`${row.rowNumber}-${row.status}`} className="rounded-xl border border-overlay-6 bg-overlay-2 px-3 py-2 text-xs text-muted-foreground/70">Row {row.rowNumber}: {tagLabel(row.status)} · {row.reason}</div>)}
                 {results.errorRows.slice(0, 6).map((row) => <div key={`${row.rowNumber}-${row.error}`} className="rounded-xl border border-border/15 bg-muted/[0.03] px-3 py-2 text-xs text-foreground/80">Row {row.rowNumber}: {row.error}</div>)}
               </div>
             </GlassCard>

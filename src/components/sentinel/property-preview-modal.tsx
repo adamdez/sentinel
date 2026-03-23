@@ -452,7 +452,7 @@ export function PropertyPreviewModal() {
                 )}
 
                 {/* Owner Info */}
-                <div className="rounded-xl bg-white/[0.03] border border-white/[0.06] p-4 space-y-2">
+                <div className="rounded-xl bg-overlay-3 border border-overlay-6 p-4 space-y-2">
                   <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground mb-2">
                     <User className="h-3.5 w-3.5" />
                     Owner
@@ -470,7 +470,7 @@ export function PropertyPreviewModal() {
                 </div>
 
                 {/* Property Specs */}
-                <div className="rounded-xl bg-white/[0.03] border border-white/[0.06] p-4">
+                <div className="rounded-xl bg-overlay-3 border border-overlay-6 p-4">
                   <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground mb-3">
                     <Home className="h-3.5 w-3.5" />
                     Property Details
@@ -486,7 +486,7 @@ export function PropertyPreviewModal() {
                 </div>
 
                 {/* Financials */}
-                <div className="rounded-xl bg-white/[0.03] border border-white/[0.06] p-4">
+                <div className="rounded-xl bg-overlay-3 border border-overlay-6 p-4">
                   <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground mb-3">
                     <DollarSign className="h-3.5 w-3.5" />
                     Financials
@@ -517,7 +517,7 @@ export function PropertyPreviewModal() {
 
                 {/* Sale History */}
                 {(property.saleDate || property.salePrice) && (
-                  <div className="rounded-xl bg-white/[0.03] border border-white/[0.06] p-4">
+                  <div className="rounded-xl bg-overlay-3 border border-overlay-6 p-4">
                     <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground mb-2">
                       <Tag className="h-3.5 w-3.5" />
                       Last Sale

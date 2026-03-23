@@ -272,7 +272,7 @@ export function LeadTable({
             type="checkbox"
             checked={allSelected}
             onChange={toggleSelectAll}
-            className="h-3.5 w-3.5 rounded border-white/20 bg-white/5 accent-cyan cursor-pointer"
+            className="h-3.5 w-3.5 rounded border-overlay-20 bg-overlay-5 accent-cyan cursor-pointer"
           />
         </div>
         <SortHeader label="Property / Owner" field="address" currentField={sortField} currentDir={sortDir} onSort={onSort} />
@@ -333,7 +333,7 @@ export function LeadTable({
             transition={{ duration: 0.15, delay: i * 0.02 }}
             onClick={() => onSelect(lead.id)}
             className={cn(
-              "grid gap-3 px-4 py-3 border-b border-white/[0.03] cursor-pointer transition-all hover:bg-white/[0.03]",
+              "grid gap-3 px-4 py-3 border-b border-overlay-3 cursor-pointer transition-all hover:bg-overlay-3",
               GRID,
               isOverdue && overdueDays >= 3 && "bg-muted/5 border-l-2 border-l-red-500/40",
               isOverdue && overdueDays < 3 && "bg-muted/5 border-l-2 border-l-amber-500/40",
@@ -346,7 +346,7 @@ export function LeadTable({
                 type="checkbox"
                 checked={selectedIds.has(lead.id)}
                 onChange={() => toggleSelect(lead.id)}
-                className="h-3.5 w-3.5 rounded border-white/20 bg-white/5 accent-cyan cursor-pointer"
+                className="h-3.5 w-3.5 rounded border-overlay-20 bg-overlay-5 accent-cyan cursor-pointer"
               />
             </div>
 

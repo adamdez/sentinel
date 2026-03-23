@@ -276,7 +276,7 @@ function DialerReviewPageInner() {
             "rounded-[10px] px-3 py-1.5 text-sm font-medium border transition-colors",
             panel === "kpi"
               ? "border-primary/30 bg-primary/10 text-primary"
-              : "border-white/[0.06] text-muted-foreground hover:border-white/10",
+              : "border-overlay-6 text-muted-foreground hover:border-overlay-10",
           )}
         >
           Weekly KPIs
@@ -287,26 +287,26 @@ function DialerReviewPageInner() {
             "rounded-[10px] px-3 py-1.5 text-sm font-medium border transition-colors",
             panel === "queue"
               ? "border-primary/30 bg-primary/10 text-primary"
-              : "border-white/[0.06] text-muted-foreground hover:border-white/10",
+              : "border-overlay-6 text-muted-foreground hover:border-overlay-10",
           )}
         >
           Agent Queue
         </Link>
         <Link
           href="/dialer/review/dossier-queue"
-          className="rounded-[10px] px-3 py-1.5 text-sm font-medium border border-white/[0.06] text-muted-foreground hover:border-white/10 transition-colors"
+          className="rounded-[10px] px-3 py-1.5 text-sm font-medium border border-overlay-6 text-muted-foreground hover:border-overlay-10 transition-colors"
         >
           Research Review
         </Link>
         <Link
           href="/dialer/qa"
-          className="rounded-[10px] px-3 py-1.5 text-sm font-medium border border-white/[0.06] text-muted-foreground hover:border-white/10 transition-colors"
+          className="rounded-[10px] px-3 py-1.5 text-sm font-medium border border-overlay-6 text-muted-foreground hover:border-overlay-10 transition-colors"
         >
           Call QA
         </Link>
         <Link
           href="/dialer/review/eval"
-          className="rounded-[10px] px-3 py-1.5 text-sm font-medium border border-white/[0.06] text-muted-foreground hover:border-white/10 transition-colors"
+          className="rounded-[10px] px-3 py-1.5 text-sm font-medium border border-overlay-6 text-muted-foreground hover:border-overlay-10 transition-colors"
         >
           AI Evals
         </Link>
@@ -352,7 +352,7 @@ function DialerReviewPageInner() {
         {data && !loading && (
           <GlassCard hover={false} className="!p-0 overflow-hidden">
             {/* Header */}
-            <div className="flex items-center justify-between px-4 py-3 border-b border-white/[0.05]">
+            <div className="flex items-center justify-between px-4 py-3 border-b border-overlay-5">
               <div className="flex items-center gap-2">
                 <TrendingUp className="h-3.5 w-3.5 text-primary" />
                 <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
@@ -368,7 +368,7 @@ function DialerReviewPageInner() {
             <div className="overflow-x-auto">
               <table className="w-full text-sm border-collapse">
                 <thead>
-                  <tr className="border-b border-white/[0.04]">
+                  <tr className="border-b border-overlay-4">
                     <th className="sticky left-0 bg-[#0d0d12] z-10 px-4 py-2.5 text-left text-sm font-medium text-muted-foreground/50 uppercase tracking-wider whitespace-nowrap min-w-[110px]">
                       Week
                     </th>
@@ -394,8 +394,8 @@ function DialerReviewPageInner() {
                     return (
                       <tr
                         key={week.week}
-                        className={`border-b border-white/[0.03] transition-colors hover:bg-white/[0.02] ${
-                          isCurrentWeek ? "bg-white/[0.015]" : ""
+                        className={`border-b border-overlay-3 transition-colors hover:bg-overlay-2 ${
+                          isCurrentWeek ? "bg-overlay-2" : ""
                         }`}
                       >
                         {/* Week label */}
@@ -444,7 +444,7 @@ function DialerReviewPageInner() {
             </div>
 
             {/* Legend */}
-            <div className="flex flex-wrap items-center gap-x-4 gap-y-1 px-4 py-3 border-t border-white/[0.04]">
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-1 px-4 py-3 border-t border-overlay-4">
               <span className="text-sm text-muted-foreground/40 flex items-center gap-1">
                 <TrendingUp className="h-2.5 w-2.5 text-foreground" /> better vs prior week
               </span>
@@ -535,7 +535,7 @@ function DialerReviewPageInner() {
                       .map((item) => (
                         <span
                           key={item.key}
-                          className="inline-flex items-center gap-1 rounded-[6px] border border-white/[0.06] bg-white/[0.02] px-2 py-0.5 text-sm text-muted-foreground/60"
+                          className="inline-flex items-center gap-1 rounded-[6px] border border-overlay-6 bg-overlay-2 px-2 py-0.5 text-sm text-muted-foreground/60"
                         >
                           <HelpCircle className="h-2 w-2 opacity-40" aria-hidden="true" />
                           {item.label}
@@ -558,7 +558,7 @@ function DialerReviewPageInner() {
                     {qualGapsData.leads.map((row) => (
                       <div
                         key={row.leadId}
-                        className="flex items-start gap-2 rounded-[8px] border border-white/[0.04] bg-white/[0.015] px-2.5 py-1.5"
+                        className="flex items-start gap-2 rounded-[8px] border border-overlay-4 bg-overlay-2 px-2.5 py-1.5"
                       >
                         <div className="min-w-0 flex-1">
                           <div className="flex items-center gap-1.5">
@@ -573,7 +573,7 @@ function DialerReviewPageInner() {
                             {row.gapLabels.map((label) => (
                               <span
                                 key={label}
-                                className="inline-flex items-center rounded-[4px] border border-white/[0.05] bg-white/[0.02] px-1.5 py-px text-xs text-muted-foreground/40"
+                                className="inline-flex items-center rounded-[4px] border border-overlay-5 bg-overlay-2 px-1.5 py-px text-xs text-muted-foreground/40"
                               >
                                 {label}
                               </span>
@@ -653,7 +653,7 @@ function DialerReviewPageInner() {
                         )}
                       </div>
                     </div>
-                    <div className="h-1 rounded-full bg-white/[0.04] overflow-hidden">
+                    <div className="h-1 rounded-full bg-overlay-4 overflow-hidden">
                       <div
                         className="h-full rounded-full bg-muted/40"
                         style={{
@@ -667,7 +667,7 @@ function DialerReviewPageInner() {
 
               {/* Recent unresolved — compact list with one-click resolve */}
               {objSummary.recent.filter((r) => r.status === "open").length > 0 && (
-                <div className="mt-3 pt-3 border-t border-white/[0.04]">
+                <div className="mt-3 pt-3 border-t border-overlay-4">
                   <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground/40 mb-1.5">
                     Recent unresolved
                   </p>
@@ -689,7 +689,7 @@ function DialerReviewPageInner() {
                           <button
                             type="button"
                             onClick={() => resolveTag(r.id)}
-                            className="shrink-0 flex items-center gap-0.5 rounded-[5px] border border-white/[0.06] bg-white/[0.02] px-1.5 py-0.5 text-xs text-muted-foreground/40 hover:text-foreground hover:border-border/30 transition-colors"
+                            className="shrink-0 flex items-center gap-0.5 rounded-[5px] border border-overlay-6 bg-overlay-2 px-1.5 py-0.5 text-xs text-muted-foreground/40 hover:text-foreground hover:border-border/30 transition-colors"
                             title="Mark resolved"
                           >
                             <X className="h-2.5 w-2.5" />
@@ -761,7 +761,7 @@ function DialerReviewPageInner() {
                 {contradictionRows.slice(0, 5).map((row) => (
                   <div
                     key={row.id}
-                    className="flex items-start gap-2 rounded-[8px] border border-white/[0.04] bg-white/[0.015] px-2.5 py-1.5"
+                    className="flex items-start gap-2 rounded-[8px] border border-overlay-4 bg-overlay-2 px-2.5 py-1.5"
                   >
                     <div className="min-w-0 flex-1">
                       <p className="text-sm text-foreground/65 leading-snug line-clamp-2">{row.description}</p>
@@ -938,7 +938,7 @@ function DialerReviewPageInner() {
               </Link>
               <Link
                 href="/settings"
-                className="flex items-center gap-1.5 rounded-[10px] border border-white/[0.07] bg-white/[0.03] px-3 py-2 text-sm text-muted-foreground hover:text-foreground hover:border-white/[0.12] transition-colors"
+                className="flex items-center gap-1.5 rounded-[10px] border border-overlay-8 bg-overlay-3 px-3 py-2 text-sm text-muted-foreground hover:text-foreground hover:border-overlay-12 transition-colors"
               >
                 <RefreshCw className="h-3 w-3" />
                 Settings

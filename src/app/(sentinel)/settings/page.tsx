@@ -115,12 +115,12 @@ export default function SettingsPage() {
                 value={personalCell}
                 onChange={(e) => setPersonalCell(e.target.value)}
                 placeholder="+1XXXXXXXXXX"
-                className="flex-1 font-mono text-sm bg-white/[0.03] border-white/[0.06] focus:border-ring focus:ring-ring/20"
+                className="flex-1 font-mono text-sm bg-overlay-3 border-overlay-6 focus:border-ring focus:ring-ring/20"
               />
               <Button
                 onClick={handleSaveCell}
                 disabled={saving}
-                className="gap-1.5 bg-primary text-primary-foreground border border-white/15 hover:opacity-95"
+                className="gap-1.5 bg-primary text-primary-foreground border border-overlay-15 hover:opacity-95"
                 size="sm"
               >
                 {saving ? (

@@ -242,7 +242,7 @@ export default function DossierQueuePage() {
                     className={`inline-flex items-center gap-1 text-sm font-medium px-2 py-0.5 rounded-full border transition-colors ${
                       active
                         ? style.badge + " ring-1 ring-offset-1 ring-offset-background"
-                        : "border-white/[0.06] text-muted-foreground/40 hover:border-white/[0.12] hover:text-muted-foreground/70"
+                        : "border-overlay-6 text-muted-foreground/40 hover:border-overlay-12 hover:text-muted-foreground/70"
                     }`}
                   >
                     {TRIAGE_REASON_LABELS[opt.code]}

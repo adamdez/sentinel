@@ -98,7 +98,7 @@ export default function HealthDashboard() {
         <button
           onClick={runCheck}
           disabled={loading}
-          className="flex items-center gap-2 px-4 py-2 bg-white/5 hover:bg-white/10 border border-border/20 rounded-lg text-sm font-medium transition-colors disabled:opacity-40"
+          className="flex items-center gap-2 px-4 py-2 bg-overlay-5 hover:bg-overlay-10 border border-border/20 rounded-lg text-sm font-medium transition-colors disabled:opacity-40"
         >
           <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
           {loading ? "Checking..." : "Re-check All"}

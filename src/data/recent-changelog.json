@@ -1,127 +1,127 @@
 [
   {
-    "hash": "7b4d1242",
-    "date": "2026-03-21",
-    "message": "Move theme toggle from Settings page to user profile dropdown"
+    "hash": "828ace0e",
+    "date": "2026-03-22",
+    "message": "[codex] Gracefully fall back when live coach column is missing"
   },
   {
-    "hash": "3f7956c5",
-    "date": "2026-03-21",
-    "message": "feat(ui): Light/Dark monochrome theme, token sweep, remove ghost-mode pack"
+    "hash": "5b861d20",
+    "date": "2026-03-22",
+    "message": "[codex] Implement live coach v2 backend"
   },
   {
-    "hash": "c6760d8c",
-    "date": "2026-03-21",
-    "message": "fix: master client file modal — operator-first restructure + data quality"
+    "hash": "6d19e8cd",
+    "date": "2026-03-22",
+    "message": "feat: dialer honesty pass — hide untrusted score, show real data, wire live scoring"
   },
   {
-    "hash": "5b0788b3",
-    "date": "2026-03-21",
-    "message": "feat: universal search (phone, email, contacts) + score badge labels"
+    "hash": "f0032626",
+    "date": "2026-03-22",
+    "message": "[codex] Read live transcripts from session notes"
   },
   {
-    "hash": "30d92c73",
-    "date": "2026-03-21",
-    "message": "feat: operator-first UX overhaul — 6 waves of expert-audited changes"
+    "hash": "6db7a6b2",
+    "date": "2026-03-22",
+    "message": "[codex] Fix Deepgram relay live stream handshake"
   },
   {
-    "hash": "3cc8e64f",
-    "date": "2026-03-20",
-    "message": "fix: comprehensive UX audit — lead detail view overhaul"
+    "hash": "beab314e",
+    "date": "2026-03-22",
+    "message": "[codex] Fix live stream metadata and Deepgram auth"
   },
   {
-    "hash": "dc20a47b",
-    "date": "2026-03-20",
-    "message": "feat: add individual + bulk delete to leads page and pipeline cards"
+    "hash": "55a6914d",
+    "date": "2026-03-22",
+    "message": "[codex] Restore deepgram relay health and keep it warm"
   },
   {
-    "hash": "07c581d3",
-    "date": "2026-03-20",
-    "message": "fix: guard dashboard against stale widget IDs in saved layouts"
+    "hash": "c401b298",
+    "date": "2026-03-22",
+    "message": "chore: remove verse of the day, wire live notes bridge, fix MCP build"
   },
   {
-    "hash": "d630e7b9",
-    "date": "2026-03-20",
-    "message": "feat: blueprint v4 compliance — durable jobs, write path fix, Vapi full capability, observability"
+    "hash": "5a11f9cc",
+    "date": "2026-03-22",
+    "message": "[codex] Wire manual dial into live coach and transcript session"
   },
   {
-    "hash": "c27222e3",
-    "date": "2026-03-20",
-    "message": "feat: inbound call chain — Logan (20s) → Adam (20s) → Jeff (Vapi AI)"
+    "hash": "454d499e",
+    "date": "2026-03-22",
+    "message": "[codex] Pin Vercel runtime region to Portland"
   },
   {
-    "hash": "00443ed7",
-    "date": "2026-03-20",
-    "message": "perf: parallelize browser research — searches concurrent, AI extraction capped at 4"
+    "hash": "3a11b01e",
+    "date": "2026-03-22",
+    "message": "[codex] Restore pre-call brief objections contract"
   },
   {
-    "hash": "47df494f",
-    "date": "2026-03-20",
-    "message": "fix: visual-distress address resolution — use city/state/zip, no lat/lng on properties"
+    "hash": "42a3e947",
+    "date": "2026-03-22",
+    "message": "[codex] Fix live coach deploy type contract"
   },
   {
-    "hash": "9259d833",
-    "date": "2026-03-20",
-    "message": "fix: browser-research route — names are on contacts table, not leads"
+    "hash": "cc0f2a8f",
+    "date": "2026-03-22",
+    "message": "[codex] Add GPT-5 live dialer coaching"
   },
   {
-    "hash": "d5faf746",
-    "date": "2026-03-20",
-    "message": "fix: remaining .insert().catch() without .select() in visual-distress"
+    "hash": "587b8766",
+    "date": "2026-03-22",
+    "message": "feat: call history notepad shows all prior calls to same phone number"
   },
   {
-    "hash": "9338a822",
-    "date": "2026-03-20",
-    "message": "fix: visual-distress Supabase insert needs .select() to be thenable"
+    "hash": "aae17c60",
+    "date": "2026-03-22",
+    "message": "feat: add notepad icon to call history rows with expandable notes"
   },
   {
-    "hash": "4f553904",
-    "date": "2026-03-20",
-    "message": "feat: service-role auth via admin API for internal agent/cron calls"
+    "hash": "29268a3d",
+    "date": "2026-03-22",
+    "message": "feat: add Live Notes panel to manual dial + fix realtime subscription"
   },
   {
-    "hash": "25896b8a",
-    "date": "2026-03-20",
-    "message": "feat: n8n dispatch on inbound leads + review approvals, complete event wiring"
+    "hash": "d6f3c7ff",
+    "date": "2026-03-22",
+    "message": "fix: bridge live transcripts to calls_log.live_notes for realtime UI"
   },
   {
-    "hash": "27c348e6",
-    "date": "2026-03-20",
-    "message": "feat: wire E2E — seller memory in pre-call, priority queue, agent auto-triggers, n8n dispatch"
+    "hash": "6743dc90",
+    "date": "2026-03-22",
+    "message": "fix: call disconnect race — fallback to failed when ended rejected"
   },
   {
-    "hash": "1130c10f",
-    "date": "2026-03-20",
-    "message": "fix: campaign-dialer cron — use valid Vercel cron expression with business hours guard"
+    "hash": "132487b3",
+    "date": "2026-03-22",
+    "message": "fix: call disconnect + closeout stuck on INVALID_TRANSITION"
   },
   {
-    "hash": "a9c6191d",
-    "date": "2026-03-20",
-    "message": "feat: blueprint v4 full build — 10 gap items, agents, intelligence pipeline, workflow engine"
+    "hash": "8f904b24",
+    "date": "2026-03-22",
+    "message": "fix: add FK cascade migration for snapshot table"
   },
   {
-    "hash": "cefbf795",
-    "date": "2026-03-19",
-    "message": "fix(dialer/inbound): server Suspense wrapper for useSearchParams (Vercel build)"
+    "hash": "49d0eb6f",
+    "date": "2026-03-22",
+    "message": "fix: escape & as &amp; in Stream URL params for valid TwiML XML"
   },
   {
-    "hash": "5e32180e",
-    "date": "2026-03-19",
-    "message": "docs: update AI-COORDINATION.md — PR-1 through PR-4 complete, new Cursor contracts"
+    "hash": "eef4cdab",
+    "date": "2026-03-22",
+    "message": "fix: unify notes — MCF lead notes now write to calls_log timeline"
   },
   {
-    "hash": "e117cea1",
-    "date": "2026-03-19",
-    "message": "feat(control-plane): PR-4 — agent runs, review queue, feature flags, Exception Agent"
+    "hash": "586f7a1e",
+    "date": "2026-03-22",
+    "message": "feat: System Health dashboard + Twilio VoIP fix + publish auto-end"
   },
   {
-    "hash": "14f3700e",
-    "date": "2026-03-19",
-    "message": "fix(dialer): fix crm-bridge address field, add owner_name fallback, wire PR-1 next_action"
+    "hash": "75df8ffa",
+    "date": "2026-03-22",
+    "message": "fix: auto-end stuck sessions on publish — don't block the operator"
   },
   {
-    "hash": "a092aa6b",
-    "date": "2026-03-19",
-    "message": "[cc] feat(pr-2): context snapshot MCP tools + ContextSnapshot interface"
+    "hash": "4656ce2e",
+    "date": "2026-03-22",
+    "message": "fix: Twilio VoIP — wrap <Stream> in <Start> + server-side phone normalization"
   }
 ]

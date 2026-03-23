@@ -33,9 +33,9 @@ function chipClass(item: QualGapItem): string {
     return "bg-muted/[0.06] border-border/15 text-foreground/60";
   }
   if (item.priority === "high") {
-    return "bg-white/[0.04] border-white/[0.10] text-foreground/70";
+    return "bg-overlay-4 border-overlay-10 text-foreground/70";
   }
-  return "bg-white/[0.02] border-white/[0.06] text-muted-foreground/50";
+  return "bg-overlay-2 border-overlay-6 text-muted-foreground/50";
 }
 
 // ── Compact strip ─────────────────────────────────────────────────────────────
@@ -183,7 +183,7 @@ function QualGapRow({ item }: { item: QualGapItem | QualChecklistItem & { known:
     <div className={`flex items-start gap-2 rounded-[6px] px-2 py-1 ${
       (item as QualGapItem).known
         ? "bg-muted/[0.03] border border-border/[0.08]"
-        : "bg-white/[0.02] border border-white/[0.04]"
+        : "bg-overlay-2 border border-overlay-4"
     }`}>
       <div className="shrink-0 mt-0.5">
         {(item as QualGapItem).known ? (

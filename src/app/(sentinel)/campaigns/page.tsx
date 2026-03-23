@@ -95,7 +95,7 @@ export default function CampaignsPage() {
           <div className="overflow-hidden rounded-[12px] border border-glass-border">
             <table className="w-full">
               <thead>
-                <tr className="border-b border-white/[0.06] bg-white/[0.02]">
+                <tr className="border-b border-overlay-6 bg-overlay-2">
                   <th className="text-left p-3 text-xs font-medium text-muted-foreground">Campaign</th>
                   <th className="text-left p-3 text-xs font-medium text-muted-foreground">Type</th>
                   <th className="text-left p-3 text-xs font-medium text-muted-foreground">Status</th>
@@ -108,7 +108,7 @@ export default function CampaignsPage() {
                 {campaigns.map((c) => {
                   const rate = c.sent_count > 0 ? ((c.response_count / c.sent_count) * 100).toFixed(1) + "%" : "—";
                   return (
-                    <tr key={c.id} className="border-b border-white/[0.06] hover:bg-white/[0.04] transition-colors">
+                    <tr key={c.id} className="border-b border-overlay-6 hover:bg-overlay-4 transition-colors">
                       <td className="p-3 text-sm font-medium">{c.name}</td>
                       <td className="p-3">
                         <Badge variant="outline" className="text-sm">{c.campaign_type}</Badge>

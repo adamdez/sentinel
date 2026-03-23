@@ -108,7 +108,7 @@ function DraftField({
         maxLength={maxLength}
         rows={2}
         disabled={disabled}
-        className="w-full resize-none rounded-[8px] border border-white/[0.06] bg-white/[0.03] px-2.5 py-1.5 text-xs text-foreground placeholder:text-muted-foreground/30 focus:outline-none focus:border-primary/20 disabled:opacity-50"
+        className="w-full resize-none rounded-[8px] border border-overlay-6 bg-overlay-3 px-2.5 py-1.5 text-xs text-foreground placeholder:text-muted-foreground/30 focus:outline-none focus:border-primary/20 disabled:opacity-50"
       />
     </div>
   );
@@ -239,7 +239,7 @@ export function PostCallDraftPanel({
               className={`flex-1 rounded-[8px] py-1 text-sm font-medium border transition-all disabled:opacity-50 ${
                 dealTemperature === t
                   ? `${m.bg} ${m.color}`
-                  : "bg-white/[0.02] border-white/[0.05] text-muted-foreground/40 hover:border-white/[0.10]"
+                  : "bg-overlay-2 border-overlay-5 text-muted-foreground/40 hover:border-overlay-10"
               }`}
             >
               {m.label}
@@ -310,7 +310,7 @@ export function PostCallDraftPanel({
               className={`rounded-[6px] px-2 py-0.5 text-sm font-medium border transition-all disabled:opacity-50 ${
                 selectedTags.has(tag)
                   ? "bg-muted/15 border-border/35 text-foreground"
-                  : "bg-white/[0.02] border-white/[0.05] text-muted-foreground/40 hover:border-white/[0.12] hover:text-muted-foreground/60"
+                  : "bg-overlay-2 border-overlay-5 text-muted-foreground/40 hover:border-overlay-12 hover:text-muted-foreground/60"
               }`}
             >
               {OBJECTION_TAG_LABELS[tag]}
@@ -326,7 +326,7 @@ export function PostCallDraftPanel({
             maxLength={120}
             rows={1}
             disabled={disabled}
-            className="mt-1 w-full resize-none rounded-[8px] border border-white/[0.06] bg-white/[0.03] px-2.5 py-1.5 text-xs text-foreground placeholder:text-muted-foreground/30 focus:outline-none focus:border-border/20 disabled:opacity-50"
+            className="mt-1 w-full resize-none rounded-[8px] border border-overlay-6 bg-overlay-3 px-2.5 py-1.5 text-xs text-foreground placeholder:text-muted-foreground/30 focus:outline-none focus:border-border/20 disabled:opacity-50"
           />
         )}
         {selectedTags.size > 0 && !showObjNote && (
@@ -363,7 +363,7 @@ export function PostCallDraftPanel({
           className={`flex-1 flex items-center justify-center gap-1 rounded-[8px] px-2 py-1.5 text-sm border transition-all disabled:opacity-40 ${
             flagged
               ? "bg-muted/10 border-border/25 text-foreground"
-              : "bg-white/[0.02] border-white/[0.04] text-muted-foreground/40 hover:text-muted-foreground/60 hover:border-white/[0.08]"
+              : "bg-overlay-2 border-overlay-4 text-muted-foreground/40 hover:text-muted-foreground/60 hover:border-overlay-8"
           }`}
         >
           <Flag className="h-3 w-3" />
@@ -373,7 +373,7 @@ export function PostCallDraftPanel({
           type="button"
           onClick={handleSkip}
           disabled={disabled}
-          className="flex-1 flex items-center justify-center gap-1 rounded-[8px] px-2 py-1.5 text-sm border bg-white/[0.02] border-white/[0.04] text-muted-foreground/40 hover:text-muted-foreground/60 hover:border-white/[0.08] transition-all disabled:opacity-40"
+          className="flex-1 flex items-center justify-center gap-1 rounded-[8px] px-2 py-1.5 text-sm border bg-overlay-2 border-overlay-4 text-muted-foreground/40 hover:text-muted-foreground/60 hover:border-overlay-8 transition-all disabled:opacity-40"
         >
           <SkipForward className="h-3 w-3" />
           Use my notes

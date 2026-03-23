@@ -55,7 +55,7 @@ export function CopyBtn({ text }: { text: string }) {
   return (
     <button
       onClick={(e) => { e.stopPropagation(); navigator.clipboard.writeText(text); setCopied(true); setTimeout(() => setCopied(false), 1200); }}
-      className="p-0.5 rounded hover:bg-white/[0.06] transition-colors shrink-0"
+      className="p-0.5 rounded hover:bg-overlay-6 transition-colors shrink-0"
       title="Copy"
     >
       {copied ? <CheckCircle2 className="h-3 w-3 text-primary" /> : <Copy className="h-3 w-3 text-muted-foreground/50 hover:text-muted-foreground" />}
@@ -68,8 +68,8 @@ export function CopyBtn({ text }: { text: string }) {
 // ═══════════════════════════════════════════════════════════════════════
 
 export const TIER_COLORS = {
-  platinum: { bar: "bg-primary-400", border: "border-primary-400/30", glow: "rgba(0,0,0,0.3)", text: "text-primary-300", hoverBorder: "hover:border-primary-400/50" },
-  gold:     { bar: "bg-muted", border: "border-border/30", glow: "rgba(0,0,0,0.3)", text: "text-foreground", hoverBorder: "hover:border-border/50" },
+  platinum: { bar: "bg-primary-400", border: "border-primary-400/30", glow: "var(--shadow-medium)", text: "text-primary-300", hoverBorder: "hover:border-primary-400/50" },
+  gold:     { bar: "bg-muted", border: "border-border/30", glow: "var(--shadow-medium)", text: "text-foreground", hoverBorder: "hover:border-border/50" },
   silver:   { bar: "bg-muted", border: "border-border/30", glow: "rgba(148,163,184,0.3)", text: "text-foreground", hoverBorder: "hover:border-border/50" },
   bronze:   { bar: "bg-muted", border: "border-border/30", glow: "rgba(249,115,22,0.3)", text: "text-foreground", hoverBorder: "hover:border-border/50" },
 } as const;
@@ -97,14 +97,14 @@ export function ScoreCard({ label, value, onClick }: { label: string; value: num
       type="button"
       onClick={onClick}
       className={cn(
-        "rounded-[10px] border bg-white/[0.04] p-3 text-center transition-all duration-200 w-full",
+        "rounded-[10px] border bg-overlay-4 p-3 text-center transition-all duration-200 w-full",
         tc.border, tc.hoverBorder,
-        "cursor-pointer hover:bg-white/[0.06] hover:shadow-[0_0_20px_var(--glow)] active:scale-[0.97]",
+        "cursor-pointer hover:bg-overlay-6 hover:shadow-[0_0_20px_var(--glow)] active:scale-[0.97]",
         "group relative overflow-hidden"
       )}
       style={{ "--glow": tc.glow } as React.CSSProperties}
     >
-      <div className="absolute inset-0 bg-gradient-to-b from-white/[0.03] to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+      <div className="absolute inset-0 bg-gradient-to-b from-overlay-3 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
       <p className={cn("text-sm uppercase tracking-wider mb-1 transition-colors relative z-10", tc.text)}>{label}</p>
       <p className="text-xl font-bold relative z-10 transition-all" style={{ textShadow: `0 0 10px ${tc.glow}` }}>{value}</p>
       <p className="text-xs text-muted-foreground/70 relative z-10 mt-0.5">{TIER_CONTEXT[tier]}</p>
@@ -137,7 +137,7 @@ export function OwnerFlag({ active, label, icon: Icon }: { active: boolean; labe
 
 export function BreakdownRow({ label, value, color }: { label: string; value: string; color: string }) {
   return (
-    <div className="flex items-center justify-between text-xs px-3 py-1.5 rounded-[8px] bg-white/[0.02] border border-white/[0.04]">
+    <div className="flex items-center justify-between text-xs px-3 py-1.5 rounded-[8px] bg-overlay-2 border border-overlay-4">
       <span className="text-muted-foreground">{label}</span>
       <span className={cn("font-mono font-semibold", color)}>{value}</span>
     </div>

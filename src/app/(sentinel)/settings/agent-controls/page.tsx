@@ -175,10 +175,10 @@ function FlagSection({
       {rows.length === 0 ? (
         <p className="text-xs text-muted-foreground/50">No flags in this group yet.</p>
       ) : (
-        <div className="overflow-x-auto rounded-lg border border-white/[0.06]">
+        <div className="overflow-x-auto rounded-lg border border-overlay-6">
           <table className="w-full text-left text-sm">
             <thead>
-              <tr className="border-b border-white/[0.06] bg-white/[0.02]">
+              <tr className="border-b border-overlay-6 bg-overlay-2">
                 <th className="px-3 py-2 font-medium text-muted-foreground">Flag key</th>
                 <th className="px-3 py-2 font-medium text-muted-foreground w-[100px]">Enabled</th>
                 <th className="px-3 py-2 font-medium text-muted-foreground w-[160px]">Mode</th>
@@ -188,7 +188,7 @@ function FlagSection({
             </thead>
             <tbody>
               {rows.map((row) => (
-                <tr key={row.id} className="border-b border-white/[0.04] last:border-0">
+                <tr key={row.id} className="border-b border-overlay-4 last:border-0">
                   <td className="px-3 py-2 font-mono text-sm text-primary/90">{row.flag_key}</td>
                   <td className="px-3 py-2">
                     <div className="flex items-center gap-2">
@@ -208,7 +208,7 @@ function FlagSection({
                       disabled={busyKey === row.flag_key}
                       onChange={(e) => onMode(row.flag_key, e.target.value)}
                       className={cn(
-                        "w-full rounded-md border border-white/[0.1] bg-white/[0.04] px-2 py-1 text-sm",
+                        "w-full rounded-md border border-overlay-10 bg-overlay-4 px-2 py-1 text-sm",
                         "text-foreground focus:outline-none focus:ring-1 focus:ring-ring/30",
                       )}
                     >

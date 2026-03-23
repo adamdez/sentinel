@@ -49,7 +49,7 @@ function agentBadgeClass(name: string): string {
   if (n.includes("qa")) return "border-border/35 bg-muted/10 text-foreground";
   if (n.includes("exception")) return "border-border/35 bg-muted/10 text-foreground";
   if (n.includes("ads")) return "border-border/35 bg-muted/10 text-foreground";
-  return "border-white/15 bg-white/[0.04] text-muted-foreground";
+  return "border-overlay-15 bg-overlay-4 text-muted-foreground";
 }
 
 function proposalPreview(p: Record<string, unknown>): string {
@@ -163,7 +163,7 @@ export function AgentReviewQueuePanel() {
                 "rounded-[10px] px-3 py-1.5 text-sm font-medium border transition-colors",
                 tab === t.id
                   ? "border-primary/30 bg-primary/10 text-primary"
-                  : "border-white/[0.06] text-muted-foreground hover:border-white/10",
+                  : "border-overlay-6 text-muted-foreground hover:border-overlay-10",
               )}
             >
               {t.label}
@@ -222,7 +222,7 @@ export function AgentReviewQueuePanel() {
               <p className="mt-2 text-xs text-muted-foreground/90 leading-relaxed">{item.rationale}</p>
             ) : null}
 
-            <pre className="mt-2 rounded-md border border-white/[0.06] bg-black/20 p-2 text-sm font-mono text-muted-foreground/80 overflow-x-auto max-h-28 overflow-y-auto">
+            <pre className="mt-2 rounded-md border border-overlay-6 bg-black/20 p-2 text-sm font-mono text-muted-foreground/80 overflow-x-auto max-h-28 overflow-y-auto">
               {proposalPreview(item.proposal)}
             </pre>
 
@@ -234,7 +234,7 @@ export function AgentReviewQueuePanel() {
                       value={rejectNotes}
                       onChange={(e) => setRejectNotes(e.target.value)}
                       placeholder="Review notes (optional)"
-                      className="w-full min-h-[64px] rounded-md border border-white/10 bg-white/[0.03] px-2 py-1.5 text-xs"
+                      className="w-full min-h-[64px] rounded-md border border-overlay-10 bg-overlay-3 px-2 py-1.5 text-xs"
                     />
                     <div className="flex gap-2">
                       <Button
@@ -306,7 +306,7 @@ export function AgentReviewQueuePanel() {
             {runsQuery.data.map((r) => (
               <div
                 key={r.id}
-                className="flex items-center justify-between gap-2 rounded-md border border-white/[0.04] px-2 py-1 text-sm"
+                className="flex items-center justify-between gap-2 rounded-md border border-overlay-4 px-2 py-1 text-sm"
               >
                 <span className={cn("font-medium truncate", agentBadgeClass(r.agent_name))}>{r.agent_name}</span>
                 <span className="text-muted-foreground/50 shrink-0">{r.status}</span>

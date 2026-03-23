@@ -41,7 +41,7 @@ const CONTEXT_COLORS: Record<TrustSnippetContext, string> = {
   warm_transfer:         "bg-muted/10 text-foreground border-border/20",
   objection_response:    "bg-muted/10 text-foreground border-border/20",
   call_strategy:         "bg-primary/10 text-primary border-primary/20",
-  always_available:      "bg-white/[0.05] text-muted-foreground/50 border-white/[0.08]",
+  always_available:      "bg-overlay-5 text-muted-foreground/50 border-overlay-8",
 };
 
 function ContextBadge({ ctx }: { ctx: TrustSnippetContext }) {
@@ -67,7 +67,7 @@ function CopyButton({ text }: { text: string }) {
     <button
       type="button"
       onClick={handleCopy}
-      className="flex items-center gap-1 rounded-[5px] border border-white/[0.07] bg-white/[0.03] px-2 py-0.5 text-xs text-muted-foreground/40 hover:text-muted-foreground/70 hover:border-white/[0.12] transition-colors shrink-0"
+      className="flex items-center gap-1 rounded-[5px] border border-overlay-8 bg-overlay-3 px-2 py-0.5 text-xs text-muted-foreground/40 hover:text-muted-foreground/70 hover:border-overlay-12 transition-colors shrink-0"
     >
       {copied
         ? <><Check className="h-2.5 w-2.5 text-foreground" /> Copied</>
@@ -81,9 +81,9 @@ function CopyButton({ text }: { text: string }) {
 
 function SnippetCard({ snippet }: { snippet: TrustSnippet }) {
   return (
-    <div className="rounded-[12px] border border-white/[0.06] bg-white/[0.01] overflow-hidden">
+    <div className="rounded-[12px] border border-overlay-6 bg-overlay-2 overflow-hidden">
       {/* Header */}
-      <div className="flex items-start gap-2 px-4 py-3 bg-white/[0.015]">
+      <div className="flex items-start gap-2 px-4 py-3 bg-overlay-2">
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
             <h3 className="text-sm font-semibold text-foreground/80">{snippet.label}</h3>

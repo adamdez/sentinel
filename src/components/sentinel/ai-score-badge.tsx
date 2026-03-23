@@ -34,8 +34,8 @@ interface AIScoreBadgeProps {
 }
 
 const labelConfig = {
-  platinum: { variant: "platinum" as const, text: "TOP", color: "text-primary-300", glow: "drop-shadow(0 0 1px rgba(0,0,0,1)) drop-shadow(0 0 3.5px rgba(0,0,0,0.48)) drop-shadow(0 0 7px rgba(0,0,0,0.24)) drop-shadow(0 0 11px rgba(0,0,0,0.11))" },
-  gold: { variant: "gold" as const, text: "HIGH", color: "text-foreground", glow: "drop-shadow(0 0 1px rgba(0,0,0,1)) drop-shadow(0 0 3.5px rgba(0,0,0,0.48)) drop-shadow(0 0 7px rgba(0,0,0,0.24))" },
+  platinum: { variant: "platinum" as const, text: "TOP", color: "text-primary-300", glow: "drop-shadow(0 0 1px rgba(0,0,0,1)) drop-shadow(0 0 3.5px var(--shadow-heavy)) drop-shadow(0 0 7px var(--shadow-medium)) drop-shadow(0 0 11px var(--shadow-soft))" },
+  gold: { variant: "gold" as const, text: "HIGH", color: "text-foreground", glow: "drop-shadow(0 0 1px rgba(0,0,0,1)) drop-shadow(0 0 3.5px var(--shadow-heavy)) drop-shadow(0 0 7px var(--shadow-medium))" },
   silver: { variant: "silver" as const, text: "MED", color: "text-foreground", glow: "drop-shadow(0 0 1px rgba(148,163,184,0.8)) drop-shadow(0 0 3.5px rgba(148,163,184,0.35))" },
   bronze: { variant: "bronze" as const, text: "LOW", color: "text-foreground", glow: "" },
 };
@@ -224,7 +224,7 @@ export function AIScoreBadge({ score, prediction, size = "md", tags, equityPerce
           {/* Factor rows */}
           <div className="space-y-0">
             {factors.map((f, i) => (
-              <div key={i} className="py-1.5 border-t border-white/[0.04] first:border-t-0">
+              <div key={i} className="py-1.5 border-t border-overlay-4 first:border-t-0">
                 <div className="flex items-center justify-between">
                   <span className={cn("text-sm font-semibold", f.color ?? "text-foreground")}>
                     {f.label}

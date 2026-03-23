@@ -145,7 +145,7 @@ export function IntakeGuideSection({ cf }: { cf: ClientFile }) {
                   "flex-1 h-7 rounded-[6px] text-sm font-medium transition-colors",
                   activeStep === i
                     ? "bg-muted/[0.12] border border-border/25 text-foreground"
-                    : "bg-white/[0.03] border border-white/[0.06] text-muted-foreground hover:border-white/[0.12]"
+                    : "bg-overlay-3 border border-overlay-6 text-muted-foreground hover:border-overlay-12"
                 )}
               >
                 {step.title}
@@ -177,7 +177,7 @@ export function IntakeGuideSection({ cf }: { cf: ClientFile }) {
 
                 {/* Field status indicators */}
                 {step.fields.length > 0 && (
-                  <div className="pt-1 border-t border-white/[0.06]">
+                  <div className="pt-1 border-t border-overlay-6">
                     <p className="text-xs uppercase tracking-wider text-muted-foreground/50 font-semibold mb-1.5">
                       Fields to capture
                     </p>

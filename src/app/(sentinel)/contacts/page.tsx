@@ -199,7 +199,7 @@ export default function ContactsPage() {
       <div className="grid grid-cols-3 gap-3 mb-4">
         {stats.map((s) => (
           <GlassCard key={s.label} hover={false} className="!p-3 flex items-center gap-3">
-            <div className={`rounded-lg bg-white/[0.04] p-2 ${s.color}`}>
+            <div className={`rounded-lg bg-overlay-4 p-2 ${s.color}`}>
               <s.icon className="h-4 w-4" />
             </div>
             <div>
@@ -228,7 +228,7 @@ export default function ContactsPage() {
         <div className="overflow-hidden rounded-[12px] border border-glass-border">
           <table className="w-full">
             <thead>
-              <tr className="border-b border-white/[0.06] bg-white/[0.02]">
+              <tr className="border-b border-overlay-6 bg-overlay-2">
                 <th className="text-left p-3 text-xs font-medium text-muted-foreground">Name</th>
                 <th className="text-left p-3 text-xs font-medium text-muted-foreground">Phone</th>
                 <th className="text-left p-3 text-xs font-medium text-muted-foreground">Email</th>
@@ -254,7 +254,7 @@ export default function ContactsPage() {
                 </tr>
               ) : (
                 contacts.map((contact) => (
-                  <tr key={contact.id} className="border-b border-white/[0.06] hover:bg-white/[0.04] transition-colors">
+                  <tr key={contact.id} className="border-b border-overlay-6 hover:bg-overlay-4 transition-colors">
                     {/* Name */}
                     <td className="p-3">
                       <button

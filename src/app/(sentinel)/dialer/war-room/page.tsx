@@ -121,7 +121,7 @@ function Section({
 }) {
   return (
     <GlassCard hover={false} className="!p-0 overflow-hidden">
-      <div className="flex items-center gap-2 px-4 py-3 border-b border-white/[0.05]">
+      <div className="flex items-center gap-2 px-4 py-3 border-b border-overlay-5">
         <Icon className={`h-3.5 w-3.5 ${iconColor}`} />
         <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
           {title}
@@ -161,7 +161,7 @@ function WeeklyTable() {
       <div className="overflow-x-auto">
         <table className="w-full text-sm border-collapse">
           <thead>
-            <tr className="border-b border-white/[0.04]">
+            <tr className="border-b border-overlay-4">
               <th className="sticky left-0 bg-[#0d0d12] z-10 px-3 py-2 text-left text-sm font-medium text-muted-foreground/50 uppercase tracking-wider whitespace-nowrap min-w-[100px]">
                 Week
               </th>
@@ -185,7 +185,7 @@ function WeeklyTable() {
               return (
                 <tr
                   key={week.week}
-                  className={`border-b border-white/[0.03] hover:bg-white/[0.02] transition-colors ${isCurrent ? "bg-white/[0.015]" : ""}`}
+                  className={`border-b border-overlay-3 hover:bg-overlay-2 transition-colors ${isCurrent ? "bg-overlay-2" : ""}`}
                 >
                   <td className="sticky left-0 bg-[#0d0d12] z-10 px-3 py-2 whitespace-nowrap">
                     <div className="flex items-center gap-1.5">
@@ -219,7 +219,7 @@ function WeeklyTable() {
           </tbody>
         </table>
       </div>
-      <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground/40 pt-1 border-t border-white/[0.04]">
+      <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground/40 pt-1 border-t border-overlay-4">
         <span className="flex items-center gap-1"><TrendingUp className="h-2 w-2 text-foreground" /> better vs prior week</span>
         <span className="flex items-center gap-1"><TrendingDown className="h-2 w-2 text-foreground" /> worse vs prior week</span>
         <span className="flex items-center gap-1"><span className="h-1.5 w-1.5 rounded-full bg-primary inline-block" /> current week (partial)</span>
@@ -267,7 +267,7 @@ export default function WarRoomPage() {
         <div className="flex items-center gap-2">
           <Link
             href="/dialer/review"
-            className="flex items-center gap-1.5 rounded-[10px] border border-white/[0.07] bg-white/[0.03] px-3 py-1.5 text-sm text-muted-foreground hover:text-foreground hover:border-white/[0.12] transition-colors"
+            className="flex items-center gap-1.5 rounded-[10px] border border-overlay-8 bg-overlay-3 px-3 py-1.5 text-sm text-muted-foreground hover:text-foreground hover:border-overlay-12 transition-colors"
           >
             <TrendingUp className="h-3 w-3" />
             Review Console
@@ -342,7 +342,7 @@ export default function WarRoomPage() {
             <Link
               key={href}
               href={href}
-              className="flex items-center gap-1.5 rounded-[10px] border border-white/[0.07] bg-white/[0.03] px-3 py-2 text-sm text-muted-foreground hover:text-foreground hover:border-white/[0.12] transition-colors"
+              className="flex items-center gap-1.5 rounded-[10px] border border-overlay-8 bg-overlay-3 px-3 py-2 text-sm text-muted-foreground hover:text-foreground hover:border-overlay-12 transition-colors"
             >
               <Icon className="h-3 w-3" />
               {label}

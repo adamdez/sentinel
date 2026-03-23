@@ -93,11 +93,11 @@ export function BuyerRadarPanel({ leadId, isAdminView = false }: BuyerRadarPanel
   }, [refetch]);
 
   return (
-    <div className="rounded-[12px] border border-white/[0.06] bg-white/[0.02] overflow-hidden">
+    <div className="rounded-[12px] border border-overlay-6 bg-overlay-2 overflow-hidden">
       {/* Header — always visible */}
       <button
         onClick={open ? () => setOpen(false) : handleOpen}
-        className="w-full flex items-center justify-between gap-2 px-3 py-2.5 hover:bg-white/[0.03] transition-colors text-left"
+        className="w-full flex items-center justify-between gap-2 px-3 py-2.5 hover:bg-overlay-3 transition-colors text-left"
       >
         <div className="flex items-center gap-2">
           <Radar className="h-3.5 w-3.5 text-primary" />
@@ -118,7 +118,7 @@ export function BuyerRadarPanel({ leadId, isAdminView = false }: BuyerRadarPanel
 
       {/* Expanded content */}
       {open && (
-        <div className="border-t border-white/[0.06] px-3 pb-3 pt-2 space-y-2">
+        <div className="border-t border-overlay-6 px-3 pb-3 pt-2 space-y-2">
 
           {error && (
             <div className="flex items-center gap-2 text-sm text-foreground/80 bg-muted/5 rounded-[8px] px-2.5 py-2">
@@ -130,7 +130,7 @@ export function BuyerRadarPanel({ leadId, isAdminView = false }: BuyerRadarPanel
           {loading && !data && (
             <div className="space-y-2 py-1">
               {[1, 2, 3].map((i) => (
-                <div key={i} className="h-11 rounded-[8px] bg-white/[0.03] animate-pulse" />
+                <div key={i} className="h-11 rounded-[8px] bg-overlay-3 animate-pulse" />
               ))}
             </div>
           )}
@@ -218,8 +218,8 @@ function BuyerRow({
     <div className={cn(
       "rounded-[8px] border px-2.5 py-2 transition-colors",
       isEliminated
-        ? "border-white/[0.04] bg-white/[0.01] opacity-40"
-        : "border-white/[0.06] bg-white/[0.03]"
+        ? "border-overlay-4 bg-overlay-2 opacity-40"
+        : "border-overlay-6 bg-overlay-3"
     )}>
       <div className="flex items-start gap-2">
         <div className="flex-1 min-w-0 space-y-1">
@@ -274,7 +274,7 @@ function BuyerRow({
                 </span>
               )}
               {flags.map((f, i) => (
-                <span key={i} className="text-[9.5px] text-muted-foreground/50 bg-white/[0.04] rounded px-1.5 py-0.5">
+                <span key={i} className="text-[9.5px] text-muted-foreground/50 bg-overlay-4 rounded px-1.5 py-0.5">
                   {f}
                 </span>
               ))}
@@ -304,7 +304,7 @@ function BuyerRow({
                     "flex items-center gap-1 text-sm px-2 py-1 rounded-[6px] font-medium transition-colors",
                     dealId
                       ? "bg-primary/10 text-primary/80 hover:bg-primary/20 border border-primary/15"
-                      : "bg-white/[0.04] text-muted-foreground/30 border border-white/[0.04] cursor-not-allowed"
+                      : "bg-overlay-4 text-muted-foreground/30 border border-overlay-4 cursor-not-allowed"
                   )}
                 >
                   <Phone className="h-2.5 w-2.5" />
@@ -317,7 +317,7 @@ function BuyerRow({
                   className={cn(
                     "flex items-center gap-1 text-sm px-2 py-1 rounded-[6px] font-medium transition-colors",
                     dealId
-                      ? "text-muted-foreground/50 hover:text-muted-foreground/80 hover:bg-white/[0.04] border border-transparent hover:border-white/[0.06]"
+                      ? "text-muted-foreground/50 hover:text-muted-foreground/80 hover:bg-overlay-4 border border-transparent hover:border-overlay-6"
                       : "text-muted-foreground/20 cursor-not-allowed"
                   )}
                 >
@@ -340,7 +340,7 @@ function StatusBadge({ status }: { status: string }) {
     interested: { label: "Interested", className: "bg-muted/10 text-foreground/70 border-border/15" },
     offered:    { label: "Offered",    className: "bg-muted/10 text-foreground/70 border-border/15" },
     selected:   { label: "Selected",   className: "bg-muted/10 text-foreground/80 border-border/15" },
-    passed:     { label: "Passed",     className: "bg-white/[0.04] text-muted-foreground/40 border-white/[0.06]" },
+    passed:     { label: "Passed",     className: "bg-overlay-4 text-muted-foreground/40 border-overlay-6" },
     follow_up:  { label: "Follow Up",  className: "bg-muted/10 text-foreground/70 border-border/15" },
   };
   const c = cfg[status];

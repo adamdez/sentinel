@@ -684,7 +684,7 @@ export function NewProspectModal() {
                         "text-xs px-3 py-1.5 rounded-[12px] border transition-all flex items-center gap-1.5",
                         assignTo === member.id
                           ? "text-primary border-primary/20 bg-primary/8"
-                          : "text-muted-foreground border-glass-border hover:border-white/20 hover:text-foreground"
+                          : "text-muted-foreground border-glass-border hover:border-overlay-20 hover:text-foreground"
                       )}
                     >
                       <Users className="h-3 w-3" />
@@ -706,7 +706,7 @@ export function NewProspectModal() {
               </Field>
 
               {/* ── Footer buttons ────────────────────────── */}
-              <div className="flex items-center justify-between pt-2 border-t border-white/[0.06]">
+              <div className="flex items-center justify-between pt-2 border-t border-overlay-6">
                 <Button variant="outline" onClick={handleClose} className="gap-2">
                   <X className="h-3.5 w-3.5" />
                   Cancel

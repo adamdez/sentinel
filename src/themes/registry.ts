@@ -23,6 +23,11 @@ export const SENTINEL_THEMES: SentinelThemeDefinition[] = [
     label: "Light",
     description: "Near-white surfaces, black text, monochrome glass — high-contrast daytime.",
   },
+  {
+    id: "psalm20",
+    label: "Psalm 20",
+    description: "Custom theme — faith-forward palette.",
+  },
 ];
 
 export const DEFAULT_SENTINEL_THEME: SentinelThemeId = "dark";

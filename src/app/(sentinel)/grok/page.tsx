@@ -369,17 +369,17 @@ export default function GrokPage() {
             <div
               className="h-9 w-9 rounded-[12px] flex items-center justify-center"
               style={{
-                background: "rgba(255,255,255, 0.08)",
-                border: "1px solid rgba(255,255,255, 0.22)",
-                boxShadow: "0 0 1px rgba(255,255,255,0.8), 0 0 4px rgba(255,255,255,0.35), 0 0 10px rgba(255,255,255,0.15), 0 0 20px rgba(255,255,255,0.06), inset 0 0 14px rgba(255,255,255,0.04)",
+                background: "var(--glow-soft)",
+                border: "1px solid var(--overlay-20)",
+                boxShadow: "0 0 1px var(--overlay-80), 0 0 4px var(--overlay-35), 0 0 10px var(--overlay-15), 0 0 20px var(--overlay-6), inset 0 0 14px var(--overlay-4)",
               }}
             >
-              <Brain className="h-5 w-5 text-primary drop-shadow-[0_0_10px_rgba(255,255,255,0.6)]" />
+              <Brain className="h-5 w-5 text-primary drop-shadow-[0_0_10px_var(--overlay-60)]" />
             </div>
             <div>
               <h2
                 className="text-sm font-bold tracking-tight"
-                style={{ textShadow: "0 0 0.8px rgba(255,255,255,0.5), 0 0 6px rgba(255,255,255,0.25), 0 0 16px rgba(255,255,255,0.1)" }}
+                style={{ textShadow: "0 0 0.8px var(--overlay-50), 0 0 6px var(--glow-medium), 0 0 16px var(--overlay-10)" }}
               >
                 GROK COMMAND CENTER
               </h2>
@@ -411,7 +411,7 @@ export default function GrokPage() {
             {messages.length > 0 && (
               <button
                 onClick={clearHistory}
-                className="p-1.5 rounded-lg hover:bg-white/5 transition-colors text-muted-foreground/50 hover:text-destructive"
+                className="p-1.5 rounded-lg hover:bg-overlay-5 transition-colors text-muted-foreground/50 hover:text-destructive"
                 title="Clear history"
               >
                 <Trash2 className="h-3.5 w-3.5" />
@@ -431,16 +431,16 @@ export default function GrokPage() {
               <div
                 className="h-16 w-16 rounded-[16px] flex items-center justify-center mb-6"
                 style={{
-                  background: "rgba(255,255,255, 0.06)",
-                  border: "1px solid rgba(255,255,255, 0.15)",
-                  boxShadow: "0 0 1px rgba(255,255,255,0.6), 0 0 8px rgba(255,255,255,0.25), 0 0 24px rgba(255,255,255,0.12), 0 0 52px rgba(255,255,255,0.05), 0 0 100px rgba(0,0,0,0.03), inset 0 0 28px rgba(255,255,255,0.04)",
+                  background: "var(--overlay-6)",
+                  border: "1px solid var(--overlay-15)",
+                  boxShadow: "0 0 1px var(--overlay-60), 0 0 8px var(--glow-medium), 0 0 24px var(--overlay-12), 0 0 52px var(--overlay-5), 0 0 100px var(--overlay-3), inset 0 0 28px var(--overlay-4)",
                 }}
               >
-                <Sparkles className="h-8 w-8 text-primary/70 drop-shadow-[0_0_14px_rgba(255,255,255,0.5)]" />
+                <Sparkles className="h-8 w-8 text-primary/70 drop-shadow-[0_0_14px_var(--overlay-50)]" />
               </div>
               <h3
                 className="text-lg font-bold mb-2"
-                style={{ textShadow: "0 0 20px rgba(0,0,0,0.15)" }}
+                style={{ textShadow: "0 0 20px var(--shadow-soft)" }}
               >
                 Welcome, {currentUser?.name || "Commander"}
               </h3>
@@ -459,7 +459,7 @@ export default function GrokPage() {
                     transition={{ delay: 0.1 + i * 0.05 }}
                     onClick={() => sendMessage(s)}
                     className="text-left px-3 py-2.5 rounded-[12px] text-xs text-muted-foreground/80 hover:text-foreground border border-glass-border hover:border-primary/22 bg-glass/30 hover:bg-primary/5 transition-all duration-100"
-                    style={{ backdropFilter: "blur(20px) saturate(1.3)", boxShadow: "inset 0 1px 0 rgba(255,255,255,0.025), inset 0 0 12px rgba(255,255,255,0.01)" }}
+                    style={{ backdropFilter: "blur(20px) saturate(1.3)", boxShadow: "inset 0 1px 0 var(--overlay-3), inset 0 0 12px var(--overlay-2)" }}
                   >
                     <Zap className="h-3 w-3 text-primary/50 inline mr-1.5" />
                     {s}
@@ -487,8 +487,8 @@ export default function GrokPage() {
                   style={{
                     backdropFilter: "blur(52px) saturate(1.5) brightness(0.93)",
                     boxShadow: msg.role === "assistant"
-                      ? "inset 0 0 4px rgba(255,255,255,0.04), inset 0 0 14px rgba(0,0,0,0.02), 0 4px 20px rgba(0,0,0,0.35), inset 0 1px 0 rgba(255,255,255,0.04)"
-                      : "inset 0 0 4px rgba(255,255,255,0.06), 0 4px 20px rgba(255,255,255,0.1), inset 0 1px 0 rgba(255,255,255,0.05)",
+                      ? "inset 0 0 4px var(--overlay-4), inset 0 0 14px var(--overlay-3), 0 4px 20px var(--shadow-medium), inset 0 1px 0 var(--overlay-4)"
+                      : "inset 0 0 4px var(--overlay-6), 0 4px 20px var(--overlay-10), inset 0 1px 0 var(--overlay-5)",
                   }}
                 >
                   {msg.role === "assistant" && (
@@ -514,7 +514,7 @@ export default function GrokPage() {
                     const actions = parseActionBlocks(msg.content);
                     if (actions.length === 0) return null;
                     return (
-                      <div className="mt-3 pt-2 border-t border-white/[0.06] space-y-2">
+                      <div className="mt-3 pt-2 border-t border-overlay-6 space-y-2">
                         {actions.map((a, i) => {
                           const actionKey = `${msg.id}-${a.action}-${i}`;
                           const result = actionResults[actionKey];
@@ -566,7 +566,7 @@ export default function GrokPage() {
                     );
                   })()}
                   {msg.role === "assistant" && msg.content && !streaming && isUpgradeRequest(msg.id) && (
-                    <div className="mt-3 pt-2 border-t border-white/[0.06]">
+                    <div className="mt-3 pt-2 border-t border-overlay-6">
                       {sentRequests.has(msg.id) ? (
                         <div className="flex items-center gap-2 text-sm text-foreground">
                           <CheckCircle2 className="h-3.5 w-3.5" />
@@ -578,10 +578,10 @@ export default function GrokPage() {
                           disabled={sendingRequest === msg.id}
                           className="flex items-center gap-2 w-full px-3 py-2.5 rounded-lg text-sm font-semibold transition-all disabled:opacity-50"
                           style={{
-                            background: "rgba(255,255,255, 0.08)",
-                            border: "1px solid rgba(255,255,255, 0.25)",
+                            background: "var(--glow-soft)",
+                            border: "1px solid var(--overlay-25)",
                             color: "rgba(255,255,255, 0.95)",
-                            boxShadow: "0 0 12px rgba(255,255,255,0.08), inset 0 0 10px rgba(255,255,255,0.03)",
+                            boxShadow: "0 0 12px var(--glow-soft), inset 0 0 10px var(--overlay-3)",
                           }}
                         >
                           {sendingRequest === msg.id ? (
@@ -641,7 +641,7 @@ export default function GrokPage() {
             className="flex items-end gap-2 rounded-[14px] px-4 py-3 border border-glass-border bg-glass/40"
             style={{
               backdropFilter: "blur(52px) saturate(1.5) brightness(0.93)",
-              boxShadow: "inset 0 0 4px rgba(255,255,255,0.04), inset 0 0 14px rgba(0,0,0,0.02), 0 -4px 24px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.04)",
+              boxShadow: "inset 0 0 4px var(--overlay-4), inset 0 0 14px var(--overlay-3), 0 -4px 24px var(--shadow-medium), inset 0 1px 0 var(--overlay-4)",
             }}
           >
             <textarea
@@ -667,7 +667,7 @@ export default function GrokPage() {
               style={{
                 background: input.trim() ? "rgba(0,0,0, 0.15)" : "transparent",
                 border: `1px solid ${input.trim() ? "rgba(0,0,0, 0.3)" : "transparent"}`,
-                boxShadow: input.trim() ? "0 0 12px rgba(0,0,0,0.1)" : "none",
+                boxShadow: input.trim() ? "0 0 12px var(--shadow-soft)" : "none",
               }}
             >
               {streaming ? (

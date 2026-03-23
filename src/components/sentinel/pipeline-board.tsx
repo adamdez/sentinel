@@ -172,7 +172,7 @@ function PipelineColumn({ title, items, count, color, onCall }: PipelineColumnPr
       <div className="flex items-center gap-2 mb-3 px-1">
         <div className={cn("h-2 w-2 rounded-full", color)} />
         <h3 className="text-sm font-semibold">{title}</h3>
-        <span className="text-xs text-muted-foreground bg-white/[0.05] px-1.5 py-0.5 rounded-full">
+        <span className="text-xs text-muted-foreground bg-overlay-5 px-1.5 py-0.5 rounded-full">
           {count}
         </span>
       </div>
@@ -403,7 +403,7 @@ export function PipelineBoard() {
         </div>
         <DragOverlay>
           {activeItem ? (
-            <div className="rounded-[14px] border border-white/12 bg-glass backdrop-blur-xl p-4 shadow-[0_12px_40px_rgba(0,0,0,0.35)] ring-1 ring-primary/15 opacity-95">
+            <div className="rounded-[14px] border border-overlay-12 bg-glass backdrop-blur-xl p-4 shadow-[0_12px_40px_var(--shadow-medium)] ring-1 ring-primary/15 opacity-95">
               <p className="font-medium text-sm">{activeItem.name}</p>
               <p className="text-xs text-muted-foreground">{activeItem.address}</p>
             </div>
@@ -414,7 +414,7 @@ export function PipelineBoard() {
       {/* Next-action prompt modal */}
       {pendingDrag && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
-          <div className="w-full max-w-md rounded-2xl border border-white/10 bg-background p-5 shadow-2xl space-y-3">
+          <div className="w-full max-w-md rounded-2xl border border-overlay-10 bg-background p-5 shadow-2xl space-y-3">
             <h3 className="text-sm font-semibold text-foreground">
               Moving <span className="text-primary">{pendingDrag.item.name}</span> to{" "}
               <span className="capitalize">{pendingDrag.newStatus}</span>
@@ -426,7 +426,7 @@ export function PipelineBoard() {
               type="text"
               autoFocus
               placeholder="e.g. Follow up call Thursday, send offer by EOD..."
-              className="w-full rounded-lg border border-white/10 bg-white/[0.04] px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground/40 focus:outline-none focus:ring-1 focus:ring-primary/40"
+              className="w-full rounded-lg border border-overlay-10 bg-overlay-4 px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground/40 focus:outline-none focus:ring-1 focus:ring-primary/40"
               value={nextActionInput}
               onChange={(e) => setNextActionInput(e.target.value)}
               onKeyDown={(e) => {

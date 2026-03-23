@@ -164,8 +164,8 @@ export function CoachToggle({ className = "" }: { className?: string }) {
       className={`
         flex items-center justify-center
         w-8 h-8 rounded-full
-        bg-white/[0.06] hover:bg-white/[0.12]
-        border border-white/[0.08] hover:border-white/[0.15]
+        bg-overlay-6 hover:bg-overlay-12
+        border border-overlay-8 hover:border-overlay-15
         text-muted-foreground hover:text-foreground
         transition-all duration-200
         ${panelOpen ? "bg-primary/10 text-primary border-primary/20" : ""}
@@ -214,18 +214,18 @@ export function CoachPanel({
           transition={{ duration: 0.2, ease: "easeInOut" }}
           className={`
             shrink-0 overflow-hidden
-            ${variant === "modal" ? "border-l border-white/[0.06]" : ""}
+            ${variant === "modal" ? "border-l border-overlay-6" : ""}
           `}
         >
           <div
             className={`
               w-[280px] h-full flex flex-col
               bg-card/95 backdrop-blur-xl
-              ${variant === "sidebar" ? "border-l border-white/[0.06]" : ""}
+              ${variant === "sidebar" ? "border-l border-overlay-6" : ""}
             `}
           >
             {/* ── Header ── */}
-            <div className="flex items-center justify-between px-3 py-2.5 border-b border-white/[0.06]">
+            <div className="flex items-center justify-between px-3 py-2.5 border-b border-overlay-6">
               <div className="flex items-center gap-2 min-w-0">
                 <HelpCircle className="h-4 w-4 text-primary-400/60 shrink-0" />
                 <div className="min-w-0">

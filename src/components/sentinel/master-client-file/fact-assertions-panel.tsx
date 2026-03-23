@@ -99,7 +99,7 @@ function FactRow({
         <div className="flex-1 min-w-0">
           <p className="text-foreground/85 leading-snug">{fact.fact_value}</p>
           <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
-            <Badge variant="outline" className="text-xs h-3.5 px-1 text-muted-foreground/50 border-white/10">
+            <Badge variant="outline" className="text-xs h-3.5 px-1 text-muted-foreground/50 border-overlay-10">
               {FACT_TYPE_LABELS[fact.fact_type]}
             </Badge>
             <span className={`text-xs ${confMeta.color}`}>
@@ -148,7 +148,7 @@ function FactRow({
           )}
           <button
             onClick={() => setExpanded(e => !e)}
-            className="rounded p-0.5 hover:bg-white/[0.04] transition-colors"
+            className="rounded p-0.5 hover:bg-overlay-4 transition-colors"
             title="Edit details"
           >
             {expanded
@@ -166,7 +166,7 @@ function FactRow({
             initial={{ height: 0, opacity: 0 }}
             animate={{ height: "auto", opacity: 1 }}
             exit={{ height: 0, opacity: 0 }}
-            className="overflow-hidden border-t border-white/[0.04]"
+            className="overflow-hidden border-t border-overlay-4"
           >
             <div className="px-2.5 py-2 space-y-2">
               <div className="grid grid-cols-2 gap-2">
@@ -236,7 +236,7 @@ function FactRow({
       </AnimatePresence>
 
       {patching && (
-        <div className="flex items-center gap-1 px-2.5 py-0.5 border-t border-white/[0.03]">
+        <div className="flex items-center gap-1 px-2.5 py-0.5 border-t border-overlay-3">
           <Loader2 className="h-2.5 w-2.5 animate-spin text-muted-foreground/30" />
           <span className="text-xs text-muted-foreground/30">Saving…</span>
         </div>
@@ -305,7 +305,7 @@ function AddFactForm({
         <motion.div
           initial={{ opacity: 0, y: -4 }}
           animate={{ opacity: 1, y: 0 }}
-          className="space-y-1.5 rounded-[8px] border border-white/[0.06] bg-white/[0.02] p-2.5"
+          className="space-y-1.5 rounded-[8px] border border-overlay-6 bg-overlay-2 p-2.5"
         >
           <Input
             value={factValue}

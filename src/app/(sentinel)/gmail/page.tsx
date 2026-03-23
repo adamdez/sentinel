@@ -506,7 +506,7 @@ function GmailPageInner() {
               transition={{ type: "spring", stiffness: 200, damping: 20 }}
               className="mx-auto mb-6"
             >
-              <div className="h-20 w-20 mx-auto rounded-2xl bg-primary/8 border border-primary/15 flex items-center justify-center shadow-[0_0_40px_rgba(0,0,0,0.15)]">
+              <div className="h-20 w-20 mx-auto rounded-2xl bg-primary/8 border border-primary/15 flex items-center justify-center shadow-[0_0_40px_var(--shadow-soft)]">
                 <Mail className="h-10 w-10 text-primary" />
               </div>
             </motion.div>
@@ -521,7 +521,7 @@ function GmailPageInner() {
               size="lg"
               onClick={handleConnect}
               disabled={connecting}
-              className="gap-3 px-8 py-6 text-base font-semibold shadow-[0_0_30px_rgba(0,0,0,0.25)] hover:shadow-[0_0_50px_rgba(0,0,0,0.4)] transition-all"
+              className="gap-3 px-8 py-6 text-base font-semibold shadow-[0_0_30px_var(--shadow-medium)] hover:shadow-[0_0_50px_var(--shadow-heavy)] transition-all"
             >
               {connecting ? (
                 <Loader2 className="h-5 w-5 animate-spin" />
@@ -698,7 +698,7 @@ function GmailPageInner() {
                       <p className="text-sm">{selectedMessage.date}</p>
                     </div>
                   </div>
-                  <div className="border-t border-white/[0.06] pt-4 text-sm text-muted-foreground leading-relaxed">
+                  <div className="border-t border-overlay-6 pt-4 text-sm text-muted-foreground leading-relaxed">
                     {selectedMessage.snippet}
                   </div>
                   <div className="flex gap-2 pt-2">
@@ -750,12 +750,12 @@ function GmailPageInner() {
                         key={i}
                         className="flex items-center gap-3 p-3 rounded-[12px] bg-secondary/20 animate-pulse"
                       >
-                        <div className="h-8 w-8 rounded-full bg-white/[0.04] shrink-0" />
+                        <div className="h-8 w-8 rounded-full bg-overlay-4 shrink-0" />
                         <div className="flex-1 space-y-1.5">
-                          <div className="h-3 w-1/3 rounded bg-white/[0.04]" />
-                          <div className="h-2 w-2/3 rounded bg-white/[0.03]" />
+                          <div className="h-3 w-1/3 rounded bg-overlay-4" />
+                          <div className="h-2 w-2/3 rounded bg-overlay-3" />
                         </div>
-                        <div className="h-3 w-10 rounded bg-white/[0.03]" />
+                        <div className="h-3 w-10 rounded bg-overlay-3" />
                       </div>
                     ))}
                   </div>

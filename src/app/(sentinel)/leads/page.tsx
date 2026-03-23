@@ -209,7 +209,7 @@ function LeadsPageInner() {
                 setAttentionFocus("none");
                 if (inboundFilter) window.history.replaceState(null, "", "/leads");
               }}
-              className="text-sm px-2.5 py-1 rounded-md border border-white/10 text-muted-foreground hover:text-foreground hover:border-white/20"
+              className="text-sm px-2.5 py-1 rounded-md border border-overlay-10 text-muted-foreground hover:text-foreground hover:border-overlay-20"
             >
               Clear
             </button>
@@ -291,7 +291,7 @@ function LeadsPageInner() {
                 <p className="text-xs font-semibold text-foreground">Source Snapshot</p>
                 <div className="mt-3 space-y-2">
                   {outboundSourceMetrics.length > 0 ? outboundSourceMetrics.map((item) => (
-                    <div key={item.label} className="grid grid-cols-[1.4fr_repeat(4,80px)] gap-2 rounded-[10px] border border-white/[0.06] bg-white/[0.02] px-3 py-2 text-sm">
+                    <div key={item.label} className="grid grid-cols-[1.4fr_repeat(4,80px)] gap-2 rounded-[10px] border border-overlay-6 bg-overlay-2 px-3 py-2 text-sm">
                       <div>
                         <p className="font-semibold text-foreground">{item.label}</p>
                         <p className="text-sm text-muted-foreground/65">{item.leads} leads</p>
@@ -323,7 +323,7 @@ function LeadsPageInner() {
                 <p className="text-xs font-semibold text-foreground">Top Niches</p>
                 <div className="mt-3 space-y-2">
                   {nicheMetrics.length > 0 ? nicheMetrics.map((item) => (
-                    <div key={item.tag} className="flex items-center justify-between rounded-[10px] border border-white/[0.06] bg-white/[0.02] px-3 py-2 text-sm">
+                    <div key={item.tag} className="flex items-center justify-between rounded-[10px] border border-overlay-6 bg-overlay-2 px-3 py-2 text-sm">
                       <span className="font-medium text-foreground">{item.label}</span>
                       <span className="text-muted-foreground/75">{item.count}</span>
                     </div>

@@ -45,21 +45,21 @@ export function ClientFileOverlay() {
         animate={{ opacity: 1, x: 0 }}
         exit={{ opacity: 0, x: "100%" }}
         transition={{ type: "spring", damping: 25, stiffness: 200 }}
-        className="fixed inset-y-2 right-2 z-50 w-full max-w-[1200px] bg-background/95 border border-white/10 rounded-xl shadow-2xl flex flex-col overflow-hidden"
+        className="fixed inset-y-2 right-2 z-50 w-full max-w-[1200px] bg-background/95 border border-overlay-10 rounded-xl shadow-2xl flex flex-col overflow-hidden"
       >
         {/* Header - Modularized */}
-        <div className="flex-none p-6 border-b border-white/10 flex justify-between items-start bg-secondary/10">
+        <div className="flex-none p-6 border-b border-overlay-10 flex justify-between items-start bg-secondary/10">
           <div>
             <h2 className="text-2xl font-bold font-mono">Client File V2</h2>
             <p className="text-muted-foreground mt-1">Lead ID: {activeLeadId}</p>
           </div>
-          <button onClick={closeOverlay} className="p-2 bg-white/5 hover:bg-white/10 rounded-full transition-colors">
+          <button onClick={closeOverlay} className="p-2 bg-overlay-5 hover:bg-overlay-10 rounded-full transition-colors">
             <X className="w-5 h-5" />
           </button>
         </div>
 
         {/* Tab Navigation */}
-        <div className="flex-none border-b border-white/10 px-6 pt-4 flex gap-6 overflow-x-auto">
+        <div className="flex-none border-b border-overlay-10 px-6 pt-4 flex gap-6 overflow-x-auto">
           {TABS.map((tab) => {
             const Icon = tab.icon;
             const isActive = activeTab === tab.id;

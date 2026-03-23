@@ -333,7 +333,7 @@ export default function PipelinePage() {
 
   return (
     <div className="flex flex-col h-full">
-      <div className="flex items-center justify-between px-6 py-4 border-b border-white/[0.06] flex-wrap gap-3">
+      <div className="flex items-center justify-between px-6 py-4 border-b border-overlay-6 flex-wrap gap-3">
         <div>
           <h1 className="text-xl font-bold text-foreground flex items-center gap-2">
             <Zap className="h-5 w-5 text-primary" />
@@ -399,7 +399,7 @@ export default function PipelinePage() {
                         {...provided.droppableProps}
                         className={cn(
                           "flex-1 min-h-[400px] p-2 rounded-b-[12px] border border-glass-border bg-glass/30 overflow-y-auto space-y-2",
-                          snapshot.isDraggingOver && "ring-2 ring-offset-2 ring-white/60 bg-white/5"
+                          snapshot.isDraggingOver && "ring-2 ring-offset-2 ring-overlay-60 bg-overlay-5"
                         )}
                       >
                         <AnimatePresence mode="popLayout">
@@ -484,7 +484,7 @@ function PipelineCard({
           onClick={() => onOpenDetail(lead.id)}
           className={cn(
             "rounded-[12px] border border-glass-border bg-glass/60 p-3 transition-all duration-150 group cursor-pointer",
-            snapshot.isDragging && "scale-[1.03] shadow-[0_0_24px_rgba(0,0,0,0.15)] border-primary/20 z-50"
+            snapshot.isDragging && "scale-[1.03] shadow-[0_0_24px_var(--shadow-soft)] border-primary/20 z-50"
           )}
         >
           <div className="flex items-start gap-2">

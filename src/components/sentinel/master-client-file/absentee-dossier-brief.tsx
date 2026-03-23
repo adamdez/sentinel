@@ -167,7 +167,7 @@ export function AbsenteeDossierBrief({
           </Badge>
           <Badge
             variant="outline"
-            className="text-xs border-white/10 text-muted-foreground/40"
+            className="text-xs border-overlay-10 text-muted-foreground/40"
           >
             {brief.sourceArtifactCount} artifact{brief.sourceArtifactCount !== 1 ? "s" : ""}
           </Badge>

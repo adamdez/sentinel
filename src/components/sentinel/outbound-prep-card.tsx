@@ -187,7 +187,7 @@ export function OutboundPrepCard({ frame, onReviewed }: OutboundPrepCardProps) {
 
       {/* ── Expanded detail ── */}
       {expanded && (
-        <div className="space-y-3 pt-1 border-t border-white/[0.04]">
+        <div className="space-y-3 pt-1 border-t border-overlay-4">
 
           {/* Objections */}
           {frame.objection_tags.length > 0 && (
@@ -218,7 +218,7 @@ export function OutboundPrepCard({ frame, onReviewed }: OutboundPrepCardProps) {
                   try {
                     const s = getTrustSnippet(key as TrustSnippetKey);
                     return (
-                      <div key={key} className="text-sm text-muted-foreground/70 bg-white/[0.02] rounded px-2 py-1">
+                      <div key={key} className="text-sm text-muted-foreground/70 bg-overlay-2 rounded px-2 py-1">
                         <span className="font-medium text-muted-foreground">{s.label}: </span>
                         {s.summary}
                       </div>
@@ -268,14 +268,14 @@ export function OutboundPrepCard({ frame, onReviewed }: OutboundPrepCardProps) {
                 <Pen className="w-2.5 h-2.5" aria-hidden="true" />
                 Last call notes
               </span>
-              <p className="text-sm text-muted-foreground/70 leading-relaxed bg-white/[0.02] rounded px-2 py-1">
+              <p className="text-sm text-muted-foreground/70 leading-relaxed bg-overlay-2 rounded px-2 py-1">
                 {snap.lastCallNotes}
               </p>
             </div>
           )}
 
           {/* Review controls */}
-          <div className="space-y-2 pt-1 border-t border-white/[0.04]">
+          <div className="space-y-2 pt-1 border-t border-overlay-4">
             <span className="text-xs uppercase text-muted-foreground/40 tracking-wide flex items-center gap-1">
               <MessageSquare className="w-2.5 h-2.5" />
               Review this frame
@@ -284,7 +284,7 @@ export function OutboundPrepCard({ frame, onReviewed }: OutboundPrepCardProps) {
               value={reviewNotes}
               onChange={e => setReviewNotes(e.target.value)}
               placeholder="Reviewer notes — what's missing, what looks good…"
-              className="text-xs min-h-[56px] bg-white/[0.03] border-white/[0.06]"
+              className="text-xs min-h-[56px] bg-overlay-3 border-overlay-6"
               rows={2}
             />
             {localReviewed && (

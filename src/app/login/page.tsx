@@ -76,7 +76,7 @@ export default function LoginPage() {
             initial={{ scale: 0.8, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
             transition={{ delay: 0.1, type: "spring", stiffness: 200 }}
-            className="h-16 w-16 rounded-2xl bg-white/[0.04] flex items-center justify-center border border-white/10 mb-4 shadow-[0_8px_32px_rgba(0,0,0,0.35)]"
+            className="h-16 w-16 rounded-2xl bg-overlay-4 flex items-center justify-center border border-overlay-10 mb-4 shadow-[0_8px_32px_var(--shadow-medium)]"
           >
             <Zap className="h-8 w-8 text-primary" />
           </motion.div>
@@ -91,9 +91,9 @@ export default function LoginPage() {
         </div>
 
         <div
-          className="rounded-[16px] p-8 bg-[rgba(10,10,18,0.55)] backdrop-blur-[30px] border border-white/[0.07]"
+          className="rounded-[16px] p-8 bg-panel backdrop-blur-[30px] border border-overlay-8"
           style={{
-            boxShadow: "0 20px 60px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.05), inset 0 -1px 0 rgba(0,0,0,0.3)",
+            boxShadow: "0 20px 60px var(--shadow-heavy), inset 0 1px 0 var(--overlay-5), inset 0 -1px 0 var(--shadow-medium)",
           }}
         >
           <AnimatePresence mode="wait">
@@ -118,8 +118,8 @@ export default function LoginPage() {
                       animate={{ opacity: 1, x: 0 }}
                       transition={{ delay: 0.1 + i * 0.08 }}
                       onClick={() => setSelectedMember(member)}
-                      className="w-full group relative flex items-center gap-4 rounded-[14px] px-5 py-4 transition-all duration-200 border border-transparent hover:border-white/10"
-                      style={{ background: "rgba(255,255,255,0.03)" }}
+                      className="w-full group relative flex items-center gap-4 rounded-[14px] px-5 py-4 transition-all duration-200 border border-transparent hover:border-overlay-10"
+                      style={{ background: "var(--overlay-3)" }}
                       whileHover={{ scale: 1.01, x: 4 }}
                       whileTap={{ scale: 0.99 }}
                     >
@@ -202,7 +202,7 @@ export default function LoginPage() {
                     className="w-full py-3 rounded-[12px] text-sm font-semibold text-black transition-all active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                     style={{
                       background: selectedMember.color,
-                      boxShadow: "0 4px 24px rgba(0,0,0,0.35)",
+                      boxShadow: "0 4px 24px var(--shadow-medium)",
                     }}
                   >
                     {signingIn ? (

@@ -131,12 +131,12 @@ function EntryRow({
   return (
     <div className={`rounded-[8px] border transition-colors ${
       isDone
-        ? "border-white/[0.03] bg-white/[0.005]"
+        ? "border-overlay-3 bg-white/[0.005]"
         : entry.risk_tier === "high"
           ? "border-border/20 bg-muted/[0.02]"
           : entry.risk_tier === "review"
             ? "border-border/20 bg-muted/[0.02]"
-            : "border-white/[0.05] bg-white/[0.01]"
+            : "border-overlay-5 bg-white/[0.01]"
     }`}>
       <button
         type="button"
@@ -165,7 +165,7 @@ function EntryRow({
       </button>
 
       {open && (
-        <div className="px-2.5 pb-2.5 space-y-2 border-t border-white/[0.04] pt-2">
+        <div className="px-2.5 pb-2.5 space-y-2 border-t border-overlay-4 pt-2">
           {/* Detail fields */}
           <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs">
             <div>
@@ -214,7 +214,7 @@ function EntryRow({
 
           {/* Review actions (only for pending) */}
           {!isDone && (
-            <div className="space-y-2 pt-1 border-t border-white/[0.04]">
+            <div className="space-y-2 pt-1 border-t border-overlay-4">
               {/* Optional corrections */}
               <div className="grid grid-cols-2 gap-2">
                 <div>
@@ -293,7 +293,7 @@ function EntryRow({
                   type="button"
                   disabled={saving}
                   onClick={() => handleAction("dismissed")}
-                  className="flex items-center gap-1 rounded-[6px] border border-white/[0.08] bg-white/[0.02] px-2 py-1 text-xs text-muted-foreground/50 hover:text-muted-foreground transition-colors"
+                  className="flex items-center gap-1 rounded-[6px] border border-overlay-8 bg-overlay-2 px-2 py-1 text-xs text-muted-foreground/50 hover:text-muted-foreground transition-colors"
                 >
                   <X className="h-2.5 w-2.5" />
                   Dismiss
@@ -358,12 +358,12 @@ export function VoiceConsentLedger({ days = 14, className = "" }: VoiceConsentLe
     <div className={`rounded-[12px] border ${
       highCount > 0
         ? "border-border/20 bg-muted/[0.01]"
-        : "border-white/[0.06] bg-white/[0.01]"
+        : "border-overlay-6 bg-white/[0.01]"
     } ${className}`}>
       {/* Header */}
       <button
         type="button"
-        className="w-full flex items-center gap-2 px-3 py-2.5 text-left hover:bg-white/[0.02] transition-colors"
+        className="w-full flex items-center gap-2 px-3 py-2.5 text-left hover:bg-overlay-2 transition-colors"
         onClick={() => setOpen(o => !o)}
       >
         <ShieldAlert className={`h-3.5 w-3.5 shrink-0 ${highCount > 0 ? "text-foreground/70" : "text-muted-foreground/40"}`} />
@@ -403,7 +403,7 @@ export function VoiceConsentLedger({ days = 14, className = "" }: VoiceConsentLe
       </button>
 
       {open && (
-        <div className="px-3 pb-3 border-t border-white/[0.04] pt-2 space-y-2">
+        <div className="px-3 pb-3 border-t border-overlay-4 pt-2 space-y-2">
           {loading && (
             <div className="flex items-center gap-1.5 text-sm text-muted-foreground/30">
               <Loader2 className="h-3 w-3 animate-spin" /> Loading…

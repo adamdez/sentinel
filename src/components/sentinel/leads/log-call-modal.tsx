@@ -71,7 +71,7 @@ export function LogCallModal({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60" onClick={onClose}>
       <div
-        className="bg-[#1a1a2e] border border-white/10 rounded-xl w-full max-w-sm p-5 shadow-2xl"
+        className="bg-[#1a1a2e] border border-overlay-10 rounded-xl w-full max-w-sm p-5 shadow-2xl"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between mb-4">
@@ -103,7 +103,7 @@ export function LogCallModal({
                   className={`text-sm px-2 py-1.5 rounded border transition-colors ${
                     disposition === d.value
                       ? "bg-primary/15 text-primary border-primary/30 font-medium"
-                      : "bg-white/[0.03] text-muted-foreground border-white/[0.08] hover:bg-white/[0.06]"
+                      : "bg-overlay-3 text-muted-foreground border-overlay-8 hover:bg-overlay-6"
                   }`}
                 >
                   {d.label}
@@ -120,7 +120,7 @@ export function LogCallModal({
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
               placeholder="Quick notes from the call..."
-              className="w-full bg-white/[0.03] border border-white/[0.08] rounded-md px-3 py-2 text-xs text-foreground placeholder:text-muted-foreground/40 resize-none h-16 focus:outline-none focus:border-primary/30"
+              className="w-full bg-overlay-3 border border-overlay-8 rounded-md px-3 py-2 text-xs text-foreground placeholder:text-muted-foreground/40 resize-none h-16 focus:outline-none focus:border-primary/30"
             />
           </div>
 

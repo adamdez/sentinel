@@ -92,7 +92,7 @@ export function MonetizabilityEditor({
   }, [leadId, score, friction, onSaved]);
 
   return (
-    <div className="rounded-[12px] border border-white/[0.06] bg-white/[0.02] p-3 space-y-2.5">
+    <div className="rounded-[12px] border border-overlay-6 bg-overlay-2 p-3 space-y-2.5">
       <div className="flex items-center gap-2">
         <BarChart2 className="h-3.5 w-3.5 text-primary/60" />
         <span className="text-sm text-muted-foreground uppercase tracking-wider font-semibold">
@@ -113,7 +113,7 @@ export function MonetizabilityEditor({
             onChange={(e) => handleScoreChange(e.target.value)}
             placeholder="—"
             className={cn(
-              "w-full px-2.5 py-1.5 rounded-[8px] text-sm bg-white/[0.04] border border-white/[0.08]",
+              "w-full px-2.5 py-1.5 rounded-[8px] text-sm bg-overlay-4 border border-overlay-8",
               "text-foreground placeholder:text-muted-foreground/30",
               "focus:outline-none focus:border-primary/30 focus:ring-1 focus:ring-ring/20 transition-all",
               "[-moz-appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none"
@@ -128,7 +128,7 @@ export function MonetizabilityEditor({
             value={friction}
             onChange={(e) => handleFrictionChange(e.target.value)}
             className={cn(
-              "w-full px-2.5 py-1.5 rounded-[8px] text-sm bg-white/[0.04] border border-white/[0.08]",
+              "w-full px-2.5 py-1.5 rounded-[8px] text-sm bg-overlay-4 border border-overlay-8",
               "text-foreground focus:outline-none focus:border-primary/30 focus:ring-1 focus:ring-ring/20 transition-all",
               friction === "" && "text-muted-foreground/40"
             )}
@@ -148,7 +148,7 @@ export function MonetizabilityEditor({
             "flex items-center gap-1 text-sm px-2.5 py-1.5 rounded-[8px] font-medium transition-colors mb-0.5",
             dirty && !saving
               ? "bg-primary/10 text-primary/80 hover:bg-primary/20 border border-primary/15"
-              : "bg-white/[0.03] text-muted-foreground/30 border border-white/[0.04] cursor-not-allowed"
+              : "bg-overlay-3 text-muted-foreground/30 border border-overlay-4 cursor-not-allowed"
           )}
         >
           {saving ? <Loader2 className="h-2.5 w-2.5 animate-spin" /> : <Save className="h-2.5 w-2.5" />}

@@ -234,7 +234,7 @@ export function CommandPalette() {
                 {query && (
                   <button
                     onClick={() => setQuery("")}
-                    className="text-sm text-muted-foreground hover:text-foreground px-2 py-1 rounded border border-white/[0.06]"
+                    className="text-sm text-muted-foreground hover:text-foreground px-2 py-1 rounded border border-overlay-6"
                   >
                     Clear
                   </button>
@@ -303,17 +303,17 @@ export function CommandPalette() {
                   </Command.Group>
                 )}
               </Command.List>
-              <div className="border-t border-white/[0.06] px-3 py-2 flex items-center gap-4 text-sm text-muted-foreground">
+              <div className="border-t border-overlay-6 px-3 py-2 flex items-center gap-4 text-sm text-muted-foreground">
                 <span>
-                  <kbd className="font-mono bg-background/50 px-1 py-0.5 rounded border border-white/[0.06]">↑↓</kbd>{" "}
+                  <kbd className="font-mono bg-background/50 px-1 py-0.5 rounded border border-overlay-6">↑↓</kbd>{" "}
                   Navigate
                 </span>
                 <span>
-                  <kbd className="font-mono bg-background/50 px-1 py-0.5 rounded border border-white/[0.06]">↵</kbd>{" "}
+                  <kbd className="font-mono bg-background/50 px-1 py-0.5 rounded border border-overlay-6">↵</kbd>{" "}
                   Open
                 </span>
                 <span>
-                  <kbd className="font-mono bg-background/50 px-1 py-0.5 rounded border border-white/[0.06]">Esc</kbd>{" "}
+                  <kbd className="font-mono bg-background/50 px-1 py-0.5 rounded border border-overlay-6">Esc</kbd>{" "}
                   Close
                 </span>
                 {hasData && (
@@ -348,7 +348,7 @@ function DataResultItem({ result, onSelect }: { result: DataResult; onSelect: (h
         "h-7 w-7 rounded-md flex items-center justify-center shrink-0 border",
         result.kind === "prospect" ? "bg-primary/8 border-primary/15 text-primary" :
         result.kind === "lead" ? "bg-muted/10 border-border/20 text-foreground" :
-        "bg-white/[0.04] border-white/[0.06] text-muted-foreground"
+        "bg-overlay-4 border-overlay-6 text-muted-foreground"
       )}>
         <Icon className="h-3.5 w-3.5" />
       </div>
@@ -373,7 +373,7 @@ function DataResultItem({ result, onSelect }: { result: DataResult; onSelect: (h
         </span>
       )}
       {result.status && (
-        <span className="text-xs px-1.5 py-0.5 rounded bg-white/[0.08] text-muted-foreground border border-white/[0.06] shrink-0">
+        <span className="text-xs px-1.5 py-0.5 rounded bg-overlay-8 text-muted-foreground border border-overlay-6 shrink-0">
           {STATUS_LABELS[result.status] ?? result.status}
         </span>
       )}

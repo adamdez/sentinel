@@ -63,7 +63,7 @@ export function ClientFileHeader({ ownerName, address, distressSignals, suggeste
             </Badge>
           ))}
           {distressSignals.length === 0 && (
-            <Badge variant="outline" className="text-muted-foreground border-white/10">No Active Distress</Badge>
+            <Badge variant="outline" className="text-muted-foreground border-overlay-10">No Active Distress</Badge>
           )}
         </div>
       </div>

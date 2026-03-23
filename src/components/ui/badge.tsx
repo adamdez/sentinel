@@ -18,11 +18,11 @@ const badgeVariants = cva(
         platinum:
           "border-primary/25 bg-primary/10 text-primary shadow-[var(--shadow-badge-glow)]",
         gold:
-          "border-white/20 bg-white/[0.08] text-foreground shadow-[var(--shadow-badge-glow-tight)]",
+          "border-overlay-20 bg-overlay-8 text-foreground shadow-[var(--shadow-badge-glow-tight)]",
         silver:
-          "border-white/15 bg-white/[0.06] text-muted-foreground",
+          "border-overlay-15 bg-overlay-6 text-muted-foreground",
         bronze:
-          "border-white/12 bg-white/[0.05] text-muted-foreground",
+          "border-overlay-12 bg-overlay-5 text-muted-foreground",
         neon:
           "border-primary/20 bg-primary/8 text-primary shadow-[var(--shadow-badge-glow-tight)]",
         cyan:

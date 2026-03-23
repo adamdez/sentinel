@@ -211,7 +211,7 @@ export default function AnalyticsPage() {
 
               {/* Comparison callout */}
               {spokane && kootenai && (
-                <div className="mt-3 pt-3 border-t border-white/[0.04] flex flex-wrap gap-x-6 gap-y-1 text-xs text-muted-foreground">
+                <div className="mt-3 pt-3 border-t border-overlay-4 flex flex-wrap gap-x-6 gap-y-1 text-xs text-muted-foreground">
                   <MarketCompare label="New leads" a={spokane.newLeads} b={kootenai.newLeads} />
                   <MarketCompare label="Active" a={spokane.activePipeline} b={kootenai.activePipeline} />
                   <MarketCompare label="Overdue" a={spokane.overdueFollowUps} b={kootenai.overdueFollowUps} inverse />
@@ -261,7 +261,7 @@ export default function AnalyticsPage() {
                 </div>
 
                 {(speed?.byMarket ?? []).length > 0 && (
-                  <div className="border-t border-white/[0.04] pt-2 space-y-1">
+                  <div className="border-t border-overlay-4 pt-2 space-y-1">
                     {(speed?.byMarket ?? []).map((row) => (
                       <div key={row.market} className="flex items-center justify-between text-xs">
                         <span className="text-muted-foreground font-medium">{row.label}</span>
@@ -295,7 +295,7 @@ export default function AnalyticsPage() {
                 </div>
 
                 {(revenue?.byMarket ?? []).length > 0 && (
-                  <div className="border-t border-white/[0.04] pt-2 space-y-1">
+                  <div className="border-t border-overlay-4 pt-2 space-y-1">
                     {(revenue?.byMarket ?? []).map((row) => (
                       <div key={row.market} className="flex items-center justify-between text-xs">
                         <span className="text-muted-foreground font-medium">{row.label}</span>
@@ -419,7 +419,7 @@ function SourceTable({ sources }: { sources: SourceOutcomeRow[] }) {
     <div className="overflow-x-auto">
       <table className="w-full text-xs">
         <thead>
-          <tr className="border-b border-white/[0.06] text-muted-foreground/50">
+          <tr className="border-b border-overlay-6 text-muted-foreground/50">
             <th className="text-left py-1.5 pr-3 font-medium">#</th>
             <th className="text-left py-1.5 pr-3 font-medium">Source</th>
             <th className="text-right py-1.5 px-2 font-medium">Leads</th>
@@ -436,7 +436,7 @@ function SourceTable({ sources }: { sources: SourceOutcomeRow[] }) {
             const isWaste = row.leads >= 5 && row.closedDeals === 0 && row.contactedRatePct != null && row.contactedRatePct < 30;
             return (
               <tr key={row.sourceKey} className={cn(
-                "border-b border-white/[0.03]",
+                "border-b border-overlay-3",
                 isTopPerformer && "bg-emerald-500/[0.03]",
                 isWaste && "bg-amber-500/[0.02]",
               )}>
@@ -465,7 +465,7 @@ function PipelineTable({ rows }: { rows: PipelineHealthRow[] }) {
     <div className="overflow-x-auto">
       <table className="w-full text-xs">
         <thead>
-          <tr className="border-b border-white/[0.06] text-muted-foreground/50">
+          <tr className="border-b border-overlay-6 text-muted-foreground/50">
             <th className="text-left py-1.5 pr-3 font-medium">Market</th>
             <th className="text-right py-1.5 px-2 font-medium">Active</th>
             <th className="text-right py-1.5 px-2 font-medium">Prospect</th>
@@ -479,7 +479,7 @@ function PipelineTable({ rows }: { rows: PipelineHealthRow[] }) {
         </thead>
         <tbody>
           {rows.map((row) => (
-            <tr key={row.market} className="border-b border-white/[0.03]">
+            <tr key={row.market} className="border-b border-overlay-3">
               <td className="py-1.5 pr-3 font-medium">{row.label}</td>
               <td className="py-1.5 px-2 text-right tabular-nums font-medium">{row.active}</td>
               <td className="py-1.5 px-2 text-right tabular-nums text-muted-foreground/60">{row.prospect}</td>
@@ -672,7 +672,7 @@ function DataTrustNotes({ speed, revenue, marketScoreboard, sourceOutcomes }: {
   if (notes.length === 0) return null;
 
   return (
-    <div className="border-t border-white/[0.04] pt-2">
+    <div className="border-t border-overlay-4 pt-2">
       <button
         onClick={() => setExpanded(!expanded)}
         className="flex items-center gap-1.5 text-xs text-muted-foreground/30 hover:text-muted-foreground transition-colors w-full"

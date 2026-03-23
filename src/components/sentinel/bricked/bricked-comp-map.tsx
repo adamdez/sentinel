@@ -50,14 +50,14 @@ export function BrickedCompMap({
 
   if (!ready) {
     return (
-      <div className="rounded-[10px] border border-white/[0.06] bg-white/[0.02] h-[320px] flex items-center justify-center text-xs text-muted-foreground/40">
+      <div className="rounded-[10px] border border-overlay-6 bg-overlay-2 h-[320px] flex items-center justify-center text-xs text-muted-foreground/40">
         Loading map…
       </div>
     );
   }
 
   return (
-    <div className="rounded-[10px] overflow-hidden border border-white/[0.06] h-[320px]">
+    <div className="rounded-[10px] overflow-hidden border border-overlay-6 h-[320px]">
       <MapContainer
         center={[subjectLat, subjectLng]}
         zoom={14}

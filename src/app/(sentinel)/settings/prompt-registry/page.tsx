@@ -70,7 +70,7 @@ function VersionRow({
   });
 
   return (
-    <div className="py-3 border-b border-white/[0.04] last:border-0 space-y-2">
+    <div className="py-3 border-b border-overlay-4 last:border-0 space-y-2">
       {/* Header row */}
       <div className="flex items-start gap-3 flex-wrap">
         <PromptVersionBadge
@@ -91,7 +91,7 @@ function VersionRow({
             className={`text-xs px-2 py-0.5 rounded border font-medium transition-colors ${
               row.status === opt.value
                 ? opt.classes
-                : "border-white/[0.06] text-muted-foreground/30 hover:border-white/[0.12] hover:text-muted-foreground/60"
+                : "border-overlay-6 text-muted-foreground/30 hover:border-overlay-12 hover:text-muted-foreground/60"
             } ${saving ? "opacity-50 cursor-not-allowed" : "cursor-pointer"}`}
           >
             {opt.label}
@@ -203,7 +203,7 @@ function RegisterForm({ onRegister }: { onRegister: (input: { workflow: string; 
   }
 
   return (
-    <div className="rounded-lg border border-white/[0.08] bg-white/[0.02] p-3 space-y-2">
+    <div className="rounded-lg border border-overlay-8 bg-overlay-2 p-3 space-y-2">
       <p className="text-sm font-semibold uppercase tracking-wider text-muted-foreground/50">Register new version</p>
       <div className="flex gap-2">
         <div className="flex-1">
@@ -308,7 +308,7 @@ export default function PromptRegistryPage() {
         {workflows.map(wf => (
           <GlassCard key={wf} hover={false} className="!p-0 overflow-hidden">
             {/* Workflow header */}
-            <div className="flex items-center gap-2 px-4 py-2.5 border-b border-white/[0.05] bg-white/[0.01]">
+            <div className="flex items-center gap-2 px-4 py-2.5 border-b border-overlay-5 bg-overlay-2">
               <span className="font-mono text-xs font-semibold text-foreground/80">{wf}</span>
               <Badge variant="secondary" className="text-xs h-4 px-1.5">
                 {grouped[wf].length} version{grouped[wf].length !== 1 ? "s" : ""}

@@ -113,12 +113,12 @@ function QuickCreate({ onCreate }: { onCreate: (data: Partial<TaskItem>) => Prom
           type="date"
           value={dueAt}
           onChange={(e) => setDueAt(e.target.value)}
-          className="bg-white/[0.03] border border-white/[0.06] rounded-[6px] px-2 py-1 text-xs text-foreground focus:outline-none focus:border-primary/30 transition-all"
+          className="bg-overlay-3 border border-overlay-6 rounded-[6px] px-2 py-1 text-xs text-foreground focus:outline-none focus:border-primary/30 transition-all"
         />
         <select
           value={priority}
           onChange={(e) => setPriority(Number(e.target.value))}
-          className="bg-white/[0.03] border border-white/[0.06] rounded-[6px] px-2 py-1 text-xs text-foreground focus:outline-none focus:border-primary/30 transition-all appearance-none cursor-pointer"
+          className="bg-overlay-3 border border-overlay-6 rounded-[6px] px-2 py-1 text-xs text-foreground focus:outline-none focus:border-primary/30 transition-all appearance-none cursor-pointer"
         >
           <option value={1}>Low</option>
           <option value={2}>Medium</option>
@@ -131,7 +131,7 @@ function QuickCreate({ onCreate }: { onCreate: (data: Partial<TaskItem>) => Prom
             "px-3 py-1.5 rounded-[8px] text-xs font-medium transition-all",
             title.trim()
               ? "bg-primary/15 text-primary border border-primary/20 hover:bg-primary/25"
-              : "bg-white/[0.03] text-muted-foreground/40 border border-white/[0.04] cursor-not-allowed"
+              : "bg-overlay-3 text-muted-foreground/40 border border-overlay-4 cursor-not-allowed"
           )}
         >
           Add
@@ -173,11 +173,11 @@ function FollowUpRow({
         isOverdue
           ? "border-l-red-500/80 bg-red-500/[0.03]"
           : isCompleted
-            ? "border-l-transparent bg-white/[0.01] opacity-60"
+            ? "border-l-transparent bg-overlay-2 opacity-60"
             : due.label === "Due today"
               ? "border-l-amber-400/60 bg-amber-500/[0.02]"
-              : "border-l-transparent bg-white/[0.02]",
-        "hover:bg-white/[0.04]"
+              : "border-l-transparent bg-overlay-2",
+        "hover:bg-overlay-4"
       )}
     >
       <div className={cn("h-2 w-2 rounded-full shrink-0", priorityDot(task.priority))} />
@@ -188,7 +188,7 @@ function FollowUpRow({
           "shrink-0 h-5 w-5 rounded-full border flex items-center justify-center transition-all",
           isCompleted
             ? "border-primary/40 bg-primary/10 text-primary"
-            : "border-white/10 hover:border-primary/40 hover:bg-primary/10 text-transparent hover:text-primary"
+            : "border-overlay-10 hover:border-primary/40 hover:bg-primary/10 text-transparent hover:text-primary"
         )}
       >
         <CheckCircle2 className="h-3.5 w-3.5" />
@@ -205,7 +205,7 @@ function FollowUpRow({
             </span>
           )}
           {task.lead_status && (
-            <span className="text-xs px-1.5 py-0.5 rounded bg-white/[0.04] text-muted-foreground border border-white/[0.06] shrink-0">
+            <span className="text-xs px-1.5 py-0.5 rounded bg-overlay-4 text-muted-foreground border border-overlay-6 shrink-0">
               {task.lead_status}
             </span>
           )}
@@ -240,7 +240,7 @@ function FollowUpRow({
         {isCompleted ? (
           <button
             onClick={() => onReopen(task.id)}
-            className="p-1 rounded hover:bg-white/5 text-muted-foreground hover:text-foreground transition-colors"
+            className="p-1 rounded hover:bg-overlay-5 text-muted-foreground hover:text-foreground transition-colors"
             title="Reopen"
           >
             <RotateCcw className="h-3.5 w-3.5" />
@@ -248,7 +248,7 @@ function FollowUpRow({
         ) : (
           <button
             onClick={() => onEdit(task)}
-            className="p-1 rounded hover:bg-white/5 text-muted-foreground hover:text-foreground transition-colors"
+            className="p-1 rounded hover:bg-overlay-5 text-muted-foreground hover:text-foreground transition-colors"
             title="Edit"
           >
             <Edit3 className="h-3.5 w-3.5" />
@@ -264,7 +264,7 @@ function FollowUpRow({
             </button>
             <button
               onClick={() => setConfirmDelete(false)}
-              className="px-1.5 py-0.5 rounded text-sm bg-white/5 text-muted-foreground hover:bg-white/10 transition-colors"
+              className="px-1.5 py-0.5 rounded text-sm bg-overlay-5 text-muted-foreground hover:bg-overlay-10 transition-colors"
             >
               No
             </button>
@@ -340,14 +340,14 @@ function EditOverlay({
             type="text"
             value={title}
             onChange={(e) => setTitle(e.target.value)}
-            className="w-full bg-white/[0.03] border border-white/[0.06] rounded-[8px] px-3 py-2 text-sm text-foreground focus:outline-none focus:border-primary/30 transition-all"
+            className="w-full bg-overlay-3 border border-overlay-6 rounded-[8px] px-3 py-2 text-sm text-foreground focus:outline-none focus:border-primary/30 transition-all"
             placeholder="What needs to happen?"
           />
           <textarea
             value={description}
             onChange={(e) => setDescription(e.target.value)}
             rows={2}
-            className="w-full bg-white/[0.03] border border-white/[0.06] rounded-[8px] px-3 py-2 text-sm text-foreground focus:outline-none focus:border-primary/30 transition-all resize-none"
+            className="w-full bg-overlay-3 border border-overlay-6 rounded-[8px] px-3 py-2 text-sm text-foreground focus:outline-none focus:border-primary/30 transition-all resize-none"
             placeholder="Notes (optional)"
           />
           <div className="flex gap-3">
@@ -357,7 +357,7 @@ function EditOverlay({
                 type="date"
                 value={dueAt}
                 onChange={(e) => setDueAt(e.target.value)}
-                className="w-full bg-white/[0.03] border border-white/[0.06] rounded-[6px] px-2.5 py-1.5 text-xs text-foreground focus:outline-none focus:border-primary/30 transition-all"
+                className="w-full bg-overlay-3 border border-overlay-6 rounded-[6px] px-2.5 py-1.5 text-xs text-foreground focus:outline-none focus:border-primary/30 transition-all"
               />
             </div>
             <div className="flex-1">
@@ -365,7 +365,7 @@ function EditOverlay({
               <select
                 value={priority}
                 onChange={(e) => setPriority(Number(e.target.value))}
-                className="w-full bg-white/[0.03] border border-white/[0.06] rounded-[6px] px-2.5 py-1.5 text-xs text-foreground focus:outline-none focus:border-primary/30 transition-all appearance-none cursor-pointer"
+                className="w-full bg-overlay-3 border border-overlay-6 rounded-[6px] px-2.5 py-1.5 text-xs text-foreground focus:outline-none focus:border-primary/30 transition-all appearance-none cursor-pointer"
               >
                 <option value={1}>Low</option>
                 <option value={2}>Medium</option>
@@ -376,7 +376,7 @@ function EditOverlay({
           <div className="flex justify-end gap-2 pt-1">
             <button
               onClick={onClose}
-              className="px-3 py-1.5 rounded-[8px] text-xs text-muted-foreground hover:text-foreground hover:bg-white/5 transition-all"
+              className="px-3 py-1.5 rounded-[8px] text-xs text-muted-foreground hover:text-foreground hover:bg-overlay-5 transition-all"
             >
               Cancel
             </button>
@@ -470,7 +470,7 @@ function EmptyState({ view }: { view: TaskView | "callbacks" }) {
   const Icon = msg.icon;
   return (
     <div className="flex flex-col items-center justify-center py-12 text-center">
-      <div className="h-10 w-10 rounded-full bg-white/[0.03] flex items-center justify-center mb-3">
+      <div className="h-10 w-10 rounded-full bg-overlay-3 flex items-center justify-center mb-3">
         <Icon className="h-5 w-5 text-muted-foreground/40" />
       </div>
       <p className="text-sm text-muted-foreground/60">{msg.text}</p>
@@ -543,7 +543,7 @@ export default function TasksPage() {
 
         <QuickCreate onCreate={handleCreate} />
 
-        <div className="flex items-center gap-1 border-b border-white/[0.04] pb-0">
+        <div className="flex items-center gap-1 border-b border-overlay-4 pb-0">
           {TABS.map((tab) => (
             <button
               key={tab.key}
@@ -560,7 +560,7 @@ export default function TasksPage() {
                 <motion.div
                   layoutId="task-tab-indicator"
                   className="absolute bottom-0 left-0 right-0 h-[2px] bg-primary"
-                  style={{ boxShadow: "0 0 8px rgba(255,255,255,0.4)" }}
+                  style={{ boxShadow: "0 0 8px var(--overlay-40)" }}
                   transition={{ type: "spring", stiffness: 350, damping: 30 }}
                 />
               )}
