@@ -59,7 +59,7 @@ export async function POST(req: NextRequest) {
     .eq("dialer_session_id", body.sessionId)
     .catch(() => {});
 
-  console.log(`[claim-inbound] Session ${body.sessionId.slice(0, 8)} claimed by ${user.email}`);
+  console.log(`[claim-inbound] Session ${body.sessionId.slice(0, 8)} claimed by ${user.id.slice(0, 8)}`);
 
   return NextResponse.json({
     ok: true,
