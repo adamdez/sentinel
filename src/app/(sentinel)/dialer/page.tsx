@@ -607,6 +607,9 @@ function DialerPageInner() {
   const [voipCallerId, setVoipCallerId] = useState<string>("");
   const deviceRef = useRef<Device | null>(null);
 
+  // Ref to track active session ID for inbound disconnect handler (avoids stale closure)
+  const activeSessionRef = useRef<string | null>(null);
+
   // Incoming call state
   const [incomingCall, setIncomingCall] = useState<Call | null>(null);
   const [incomingFrom, setIncomingFrom] = useState<string | null>(null);
@@ -786,6 +789,20 @@ function DialerPageInner() {
           setIncomingFrom(null);
           setIncomingMatch(null);
           incomingAudioRef.current?.pause();
+          // If this was an answered inbound call, end the session so closeout works
+          const sessId = activeSessionRef.current;
+          if (sessId) {
+            setActiveCall(null);
+            setCallState("ended");
+            authHeaders().then((hdrs) => {
+              fetch(`/api/dialer/v1/sessions/${sessId}`, {
+                method: "PATCH",
+                headers: hdrs,
+                body: JSON.stringify({ status: "ended" }),
+              }).catch(() => {});
+            }).catch(() => {});
+            activeSessionRef.current = null;
+          }
         });
       });
 
@@ -931,7 +948,7 @@ function DialerPageInner() {
   }, [currentLead]);
 
   // ── Incoming call handlers ────────────────────────────────────────
-  const handleAnswerIncoming = useCallback(() => {
+  const handleAnswerIncoming = useCallback(async () => {
     if (!incomingCall) return;
     incomingAudioRef.current?.pause();
     incomingCall.accept();
@@ -939,11 +956,50 @@ function DialerPageInner() {
     setCallState("connected");
     timer.start();
     setIncomingCall(null);
+
     // If matched to a known lead, try loading it
+    let matchedLead: typeof currentLead = null;
     if (incomingMatch?.type === "lead" && incomingFrom) {
-      const matchedLead = queue.find((q) => q.properties?.owner_phone?.replace(/\D/g, "")?.slice(-10) === incomingFrom.replace(/\D/g, "").slice(-10));
+      matchedLead = queue.find((q) => q.properties?.owner_phone?.replace(/\D/g, "")?.slice(-10) === incomingFrom.replace(/\D/g, "").slice(-10)) ?? null;
       if (matchedLead) setCurrentLead(matchedLead);
     }
+
+    // Create a session so transcription, notes, and closeout work for inbound calls
+    try {
+      const hdrs = await authHeaders();
+      const phoneDigits = incomingFrom?.replace(/\D/g, "") ?? "";
+      const phoneFmt = phoneDigits.length >= 10 ? `+1${phoneDigits.slice(-10)}` : incomingFrom;
+      const sessRes = await fetch("/api/dialer/v1/sessions", {
+        method: "POST",
+        headers: hdrs,
+        body: JSON.stringify({
+          lead_id: matchedLead?.id ?? null,
+          phone_dialed: phoneFmt,
+          direction: "inbound",
+        }),
+      });
+      if (sessRes.ok) {
+        const sessData = await sessRes.json();
+        const newSessionId = sessData.session?.id ?? null;
+        activeSessionRef.current = newSessionId;
+        if (matchedLead) {
+          setDialerSessionId(newSessionId);
+        } else {
+          setManualSessionId(newSessionId);
+        }
+        // Advance session to connected
+        if (newSessionId) {
+          fetch(`/api/dialer/v1/sessions/${newSessionId}`, {
+            method: "PATCH",
+            headers: hdrs,
+            body: JSON.stringify({ status: "connected" }),
+          }).catch(() => {});
+        }
+      }
+    } catch {
+      console.warn("[Dialer] Inbound session creation failed — call proceeds without tracking");
+    }
+
     toast.success("Call connected");
   }, [incomingCall, incomingMatch, incomingFrom, queue, timer]);
 
