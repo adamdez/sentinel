@@ -265,6 +265,213 @@ Also: the score badge "33 LOW" overlaps with the next action text. The score col
 
 ---
 
+## Fix 8: Jeff's Messages — Priority Tier in Dialer
+
+**Problem:** When Jeff (Vapi AI receptionist) takes a message because nobody answered in the browser, there is zero indication in Sentinel that a call happened. No notification, no missed call, no message. The caller's info and Jeff's notes vanish.
+
+**What needs to happen:** Jeff's messages are the highest-priority items in the dialer. These are people who called YOU — they're hotter than any outbound lead. They must be impossible to miss.
+
+### 8a. Jeff's Messages Banner — Top of Dialer Sidebar
+
+**Location:** Above the call queue, above the unlinked calls section. This is the first thing Logan or Adam sees when they open the dialer.
+
+**Visual treatment:** Red accent background or red dot badge. Distinct from unlinked calls (which are operator-initiated calls that ended without linking). Jeff's messages are INBOUND calls that went unanswered — higher urgency.
+
+**Label:** `🔴 JEFF'S MESSAGES (N)` — red dot with count, always visible when count > 0.
+
+**Each Jeff message card shows:**
+```
+┌─────────────────────────────────────────────────────┐
+│ 🔴 JEFF'S MESSAGES (1)                              │
+│                                                      │
+│ (509) 590-7091  ·  2 min ago  ·  Inbound            │
+│                                                      │
+│ "Seller owns inherited property near Francis/Nevada. │
+│  Roof issues, wife wants it resolved. Wants          │
+│  callback today."                                    │
+│                                                      │
+│ Motivation: inherited  ·  Timeline: soon             │
+│ Decision: wife involved                              │
+│                                                      │
+│ [Call Back Now]  [Convert to Lead]  [Dismiss]        │
+└─────────────────────────────────────────────────────┘
+```
+
+**Data source:** Jeff's messages come from Vapi's `end-of-call-report` webhook. When the call ends, Vapi sends:
+- `call.customer.number` — caller's phone number
+- `analysis.summary` — Jeff's summary of the conversation
+- `analysis.structuredData` — extracted fields (motivation, timeline, decision-maker, etc.)
+- `transcript` — full conversation transcript
+
+The webhook handler (`/api/voice/vapi/webhook/route.ts`) already receives this data and writes to `voice_sessions`. The missing piece: it needs to also write a `jeff_message` record that the dialer UI can poll for.
+
+### 8b. Jeff Message Data Model
+
+**New table or flag:** Add a `source` column to `voice_sessions` (or use existing fields) to distinguish Jeff-taken messages from other Vapi calls. Key fields:
+
+```
+voice_sessions WHERE assistant_id = jeff_assistant_id AND status = 'ended'
+  - caller_phone: from call.customer.number
+  - summary: from analysis.summary
+  - structured_data: from analysis.structuredData (JSON — motivation, timeline, decision_maker, property_mentioned)
+  - transcript: full conversation
+  - acknowledged: boolean (false until operator dismisses/acts on it)
+  - acknowledged_by: operator who acted on it
+  - acknowledged_at: timestamp
+```
+
+### 8c. Jeff Message Actions
+
+**"Call Back Now"** — dials the caller's number immediately in the browser dialer. When the call connects:
+- Jeff's summary displays as pre-call brief
+- Auto-creates an unlinked session with the caller's phone
+- If the operator converts to lead after the callback, Jeff's original notes carry over
+
+**"Convert to Lead"** — same inline form as unlinked calls (phone pre-filled, name/address inputs). On submit:
+- Creates lead via POST `/api/prospects` (auto-enrichment fires)
+- Links Jeff's voice_session to the new lead
+- Jeff's summary becomes the first entry in seller memory
+- Card disappears from Jeff's Messages, lead appears in queue
+
+**"Dismiss"** — marks `acknowledged = true`. Card disappears. Use for junk calls, wrong numbers, or calls already handled another way. No confirmation dialog needed — dismissing is soft (the data stays, just hidden from the active view).
+
+### 8d. Routing — Logan vs Adam
+
+**Default:** Jeff's messages go to Logan's dialer (he's the acquisitions manager).
+
+**Exception:** If Jeff detected a request for Adam specifically (e.g., caller says "I need to talk to Adam" or "the manager"), route to Adam's dialer instead.
+
+**Detection:** Check `analysis.summary` or `transcript` for Adam/management references. Simple string match is fine — no AI needed for this.
+
+**Fallback:** If Jeff's structured data includes a `route_to` field (which we can add to Jeff's Vapi assistant config), use that. Otherwise default to Logan.
+
+### 8e. API Endpoint Needed
+
+**`GET /api/dialer/v1/jeff-messages`** — NEW
+```typescript
+// Returns all unacknowledged Jeff messages for the current operator
+// Query: ?operator=logan@dominionhomedeals.com (or infer from session)
+// Returns: voice_sessions WHERE assistant_id = jeff_id AND acknowledged = false
+// Fields: id, caller_phone, summary, structured_data, created_at, duration
+// Ordered by created_at DESC
+```
+
+**`PATCH /api/dialer/v1/jeff-messages/[id]/acknowledge`** — NEW
+```typescript
+// Body: { action: 'dismissed' | 'called_back' | 'converted_to_lead', lead_id?: string }
+// Sets acknowledged = true, acknowledged_by, acknowledged_at
+```
+
+### 8f. Polling / Real-time
+
+The dialer should poll `GET /api/dialer/v1/jeff-messages` every 15 seconds while the dialer page is open. When a new message appears:
+- The `🔴 JEFF'S MESSAGES` badge count increments
+- A browser notification fires (if permissions granted): "Jeff took a message from (509) 590-7091"
+- Optional: play a subtle audio chime
+
+---
+
+## Fix 9: Inbound Calls Ring Browser — No Cell Phones
+
+**Problem:** When someone calls the Sentinel number, the dialer doesn't ring. Calls forward to cell phones (Logan → Adam → Jeff). The browser-based dialer has zero inbound call capability.
+
+**What needs to happen:** Inbound calls ring in the Sentinel dialer browser first. Cell phones are removed from the call chain entirely.
+
+### 9a. Inbound Call Chain (new)
+
+```
+Inbound call → Twilio
+  → Ring Logan's browser (identity: logan@dominionhomedeals.com) for 20s
+  → If no answer → Ring Adam's browser (identity: adam@dominionhomedeals.com) for 20s
+  → If no answer → Transfer to Jeff (Vapi AI receptionist)
+  → Jeff takes message → Message appears in dialer as Fix 8 above
+```
+
+**No cell phones in the chain. Period.**
+
+### 9b. Twilio Inbound Webhook Changes
+
+**File:** `src/app/api/twilio/inbound/route.ts`
+
+Change the TwiML response from:
+```xml
+<Response>
+  <Dial timeout="20"><Number>+15098225460</Number></Dial>
+  <Dial timeout="20"><Number>+15099921136</Number></Dial>
+  <Redirect>/api/voice/vapi/...</Redirect>
+</Response>
+```
+
+To:
+```xml
+<Response>
+  <Dial timeout="20">
+    <Client>logan@dominionhomedeals.com</Client>
+  </Dial>
+  <Dial timeout="20">
+    <Client>adam@dominionhomedeals.com</Client>
+  </Dial>
+  <Redirect>/api/voice/vapi/transfer</Redirect>
+</Response>
+```
+
+The `<Client>` tag rings the Twilio Client SDK in the browser instead of a phone number.
+
+### 9c. Browser Incoming Call Handler
+
+**File:** `src/app/(sentinel)/dialer/page.tsx` (or the Twilio device hook)
+
+When the Twilio Device receives an incoming call:
+
+1. **Full-screen ring overlay** — covers the dialer workspace with:
+   - Caller's phone number (large text)
+   - Auto-match result: "Known lead: Vick Eric — 2406 S Pines Rd" or "Previous caller — Jeff took a message 3 days ago" or "Unknown caller"
+   - **[Answer]** button (green, large)
+   - **[Decline]** button (red, smaller — lets it fall through to next in chain)
+   - Ring audio plays in browser
+
+2. **On Answer:**
+   - Call connects in browser via Twilio Client
+   - If matched to a lead → auto-deploy lead context (seller memory, distress, property, score)
+   - If matched to previous Jeff message → show Jeff's summary as pre-call brief
+   - If unknown → show blank context, session is unlinked
+
+3. **On Decline or Timeout (20s):**
+   - Overlay disappears
+   - Call falls through to next in chain (Adam, then Jeff)
+   - A "Missed Call" indicator appears in the dialer sidebar: "(509) 590-7091 — missed 30s ago"
+
+### 9d. Missed Call Indicators
+
+If an inbound call rings the browser but isn't answered (declined or timed out), show a missed call entry in the dialer sidebar:
+
+```
+MISSED CALLS (1)
+─────────────────
+(509) 590-7091  ·  3 min ago
+Went to: Adam's browser → Jeff
+[Call Back]
+```
+
+These persist until the call is returned or Jeff's message is handled.
+
+### 9e. Twilio Client Token — Identity Setup
+
+**File:** `src/app/api/twilio/token/route.ts`
+
+The token endpoint already generates Twilio Client capability tokens. Verify it sets the identity to the operator's email:
+```typescript
+const identity = session.user.email; // logan@dominionhomedeals.com or adam@dominionhomedeals.com
+const grant = new VoiceGrant({
+  outgoingApplicationSid: twimlAppSid,
+  incomingAllow: true, // THIS IS THE KEY — must be true for inbound
+});
+```
+
+If `incomingAllow` is not set to `true`, the browser device will never receive incoming calls.
+
+---
+
 ## Summary of All Files to Touch
 
 | File | Fix | Priority | Status |
@@ -283,6 +490,13 @@ Also: the score badge "33 LOW" overlaps with the next action text. The score col
 | **Dialer sidebar — Unlinked Calls folder** | **Collapsible folder showing unlinked calls with AI summary, discovery map, Convert/Link/Delete actions** | **P0** | **TODO** |
 | **`src/app/api/dialer/v1/sessions/unlinked/route.ts`** | **NEW — fetch all unlinked ended sessions with summaries** | **P0** | **TODO** |
 | **Dialer sidebar — search bar** | **Filter unlinked calls by phone number** | **P1** | **TODO** |
+| **Dialer sidebar — Jeff's Messages banner** | **Red-dot priority section above unlinked calls, with Call Back / Convert / Dismiss** | **P0** | **TODO** |
+| **`src/app/api/dialer/v1/jeff-messages/route.ts`** | **NEW — fetch unacknowledged Jeff messages for current operator** | **P0** | **TODO** |
+| **`src/app/api/dialer/v1/jeff-messages/[id]/acknowledge/route.ts`** | **NEW — mark Jeff message as acted on** | **P1** | **TODO** |
+| **`src/app/api/twilio/inbound/route.ts`** | **Change `<Number>` to `<Client>` for browser ringing, remove cell phones** | **P0** | **TODO** |
+| **Dialer page — incoming call overlay** | **Full-screen ring UI with caller info, Answer/Decline, auto-match** | **P0** | **TODO** |
+| **Dialer sidebar — missed calls indicator** | **Show missed inbound calls with Call Back action** | **P1** | **TODO** |
+| **`src/app/api/twilio/token/route.ts`** | **Verify `incomingAllow: true` for browser inbound** | **P0** | **TODO** |
 
 ---
 
@@ -325,3 +539,27 @@ Also: the score badge "33 LOW" overlaps with the next action text. The score col
 ### Polling
 - [ ] Live coach polling stops within 5 seconds of call ending
 - [ ] No continued API calls to live-assist after session status = "ended"
+
+### Jeff's Messages (Fix 8)
+- [ ] Jeff's Messages section visible at TOP of dialer sidebar (above unlinked calls)
+- [ ] Red dot badge with count when unacknowledged messages exist
+- [ ] Each card shows: caller phone, time, Jeff's summary, extracted motivation/timeline/decision-maker
+- [ ] "Call Back Now" dials caller in browser, shows Jeff's notes as pre-call brief
+- [ ] "Convert to Lead" creates lead with Jeff's notes as first seller memory entry
+- [ ] "Dismiss" hides the card (soft delete — data retained)
+- [ ] Messages route to Logan by default, Adam if caller specifically requested management
+- [ ] Browser notification fires when new Jeff message arrives
+- [ ] Polling every 15 seconds for new messages
+
+### Inbound Browser Ringing (Fix 9)
+- [ ] Inbound call rings Logan's browser for 20s (no cell phone)
+- [ ] If Logan doesn't answer → rings Adam's browser for 20s (no cell phone)
+- [ ] If Adam doesn't answer → transfers to Jeff (Vapi)
+- [ ] Full-screen ring overlay shows caller phone + auto-match result
+- [ ] Answer button connects call in browser
+- [ ] Decline button lets call fall through to next in chain
+- [ ] Known lead auto-deploys context on answer (seller memory, distress, property)
+- [ ] Previous Jeff message caller shows Jeff's summary on answer
+- [ ] Missed call indicator appears in sidebar after timeout/decline
+- [ ] `incomingAllow: true` set in Twilio token grant
+- [ ] Zero cell phone numbers in the inbound call chain
