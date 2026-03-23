@@ -40,7 +40,18 @@ export type ImportTargetField =
   | "possible_developer_flag"
   | "out_of_area_flag"
   | "do_not_call_flag"
-  | "bad_data_flag";
+  | "bad_data_flag"
+  | "lien_amount"
+  | "amount_due"
+  | "foreclosure_flag"
+  | "pre_foreclosure_flag"
+  | "list_type"
+  | "estimated_value"
+  | "property_type"
+  | "bedrooms"
+  | "bathrooms"
+  | "sqft"
+  | "year_built";
 
 export interface ParsedSheetPreview {
   name: string;
@@ -137,6 +148,13 @@ export interface NormalizedImportRecord {
   phone2: string | null;
   email: string | null;
   notes: string | null;
+  estimatedValue: string | null;
+  propertyType: string | null;
+  bedrooms: string | null;
+  bathrooms: string | null;
+  sqft: string | null;
+  yearBuilt: string | null;
+  lienAmount: string | null;
   sourceVendor: string | null;
   sourceListName: string | null;
   distressTags: string[];
@@ -191,6 +209,17 @@ const FIELD_DEFINITIONS: FieldDefinition[] = [
   { field: "out_of_area_flag", label: "Out Of Area Flag", group: "Tags", aliases: ["out of area", "out-of-area"] },
   { field: "do_not_call_flag", label: "Do Not Call Flag", group: "Tags", aliases: ["do not call", "dnc"] },
   { field: "bad_data_flag", label: "Bad Data Flag", group: "Tags", aliases: ["bad data", "bad record", "invalid data"] },
+  { field: "lien_amount", label: "Lien Amount", group: "Financial", aliases: ["lien amount", "lien balance", "tax lien amount", "lien"] },
+  { field: "amount_due", label: "Amount Due", group: "Financial", aliases: ["amount due", "amount owed", "total due", "balance due", "delinquent amount", "tax due"] },
+  { field: "foreclosure_flag", label: "Foreclosure Flag", group: "Tags", aliases: ["foreclosure", "in foreclosure", "foreclosure status"] },
+  { field: "pre_foreclosure_flag", label: "Pre-Foreclosure Flag", group: "Tags", aliases: ["pre foreclosure", "pre-foreclosure", "preforeclosure", "lis pendens", "notice of default"] },
+  { field: "list_type", label: "List Type", group: "Context", aliases: ["list type", "record type", "lead type", "category type"] },
+  { field: "estimated_value", label: "Estimated Value", group: "Property", aliases: ["estimated value", "total assessment", "assessed value", "avm", "market value", "appraised value", "total value"] },
+  { field: "property_type", label: "Property Type", group: "Property", aliases: ["property type", "prop type", "land use", "property class", "use code"] },
+  { field: "bedrooms", label: "Bedrooms", group: "Property", aliases: ["bedrooms", "beds", "bed count", "br"] },
+  { field: "bathrooms", label: "Bathrooms", group: "Property", aliases: ["bathrooms", "baths", "bath count", "ba"] },
+  { field: "sqft", label: "Square Footage", group: "Property", aliases: ["square footage", "sqft", "sq ft", "living area", "building area", "gla"] },
+  { field: "year_built", label: "Year Built", group: "Property", aliases: ["year built", "yr built", "built year", "construction year"] },
 ];
 
 const YES_VALUES = new Set(["1", "true", "yes", "y", "x", "checked"]);
@@ -575,6 +604,29 @@ export function normalizeImportedRow(args: {
   tagIf(coerceBoolean(pick("mobile_home_flag")), "mobile_home", tags);
   tagIf(coerceBoolean(pick("possible_developer_flag")), "possible_developer", tags);
   tagIf(coerceBoolean(pick("out_of_area_flag")), "out_of_area", tags);
+  tagIf(coerceBoolean(pick("foreclosure_flag")), "pre_foreclosure", tags);
+  tagIf(coerceBoolean(pick("pre_foreclosure_flag")), "pre_foreclosure", tags);
+
+  // Lien amount or amount due > 0 implies tax_lien distress
+  const lienAmt = pick("lien_amount");
+  const amtDue = pick("amount_due");
+  if (lienAmt && parseFloat(lienAmt) > 0) tags.add("tax_lien");
+  if (amtDue && parseFloat(amtDue) > 0) tags.add("tax_lien");
+
+  // List type column (e.g., "Pre-Foreclosures", "Tax Liens", "Probate")
+  const listType = pick("list_type");
+  if (listType) {
+    const lt = listType.toLowerCase();
+    if (lt.includes("probate")) tags.add("probate");
+    if (lt.includes("pre-foreclosure") || lt.includes("preforeclosure") || lt.includes("pre foreclosure")) tags.add("pre_foreclosure");
+    if (lt.includes("foreclosure") && !lt.includes("pre")) tags.add("pre_foreclosure");
+    if (lt.includes("tax lien") || lt.includes("tax late") || lt.includes("tax delinq")) tags.add("tax_lien");
+    if (lt.includes("vacant")) tags.add("vacant");
+    if (lt.includes("inherit")) tags.add("inherited");
+    if (lt.includes("bankrupt")) tags.add("bankruptcy");
+    if (lt.includes("divorce")) tags.add("divorce");
+    if (lt.includes("absentee")) tags.add("absentee");
+  }
   tagIf(coerceBoolean(pick("do_not_call_flag")), "do_not_call", tags);
   tagIf(coerceBoolean(pick("bad_data_flag")), "bad_data", tags);
 
@@ -662,6 +714,13 @@ export function normalizeImportedRow(args: {
     phone2,
     email,
     notes: pick("notes"),
+    estimatedValue: pick("estimated_value"),
+    propertyType: pick("property_type"),
+    bedrooms: pick("bedrooms"),
+    bathrooms: pick("bathrooms"),
+    sqft: pick("sqft"),
+    yearBuilt: pick("year_built"),
+    lienAmount: lienAmt ?? amtDue ?? null,
     sourceVendor: pick("source_vendor") ?? cleanString(defaults.sourceVendor),
     sourceListName: pick("source_list_name") ?? cleanString(defaults.sourceListName),
     distressTags: [...tags],
@@ -689,8 +748,16 @@ export function buildProspectPayload(record: NormalizedImportRecord, defaults: N
     county: record.county ?? defaults.county,
     owner_phone: record.phone,
     owner_email: record.email,
-    notes: mergedNotes,
+    notes: record.lienAmount
+      ? `${mergedNotes}\nLien/Amount Due: $${Number(record.lienAmount).toLocaleString()}`
+      : mergedNotes,
     distress_tags: record.distressTags,
+    estimated_value: record.estimatedValue || undefined,
+    property_type: record.propertyType || undefined,
+    bedrooms: record.bedrooms || undefined,
+    bathrooms: record.bathrooms || undefined,
+    sqft: record.sqft || undefined,
+    year_built: record.yearBuilt || undefined,
     source: defaults.sourceChannel,
     source_channel: defaults.sourceChannel,
     source_vendor: record.sourceVendor ?? defaults.sourceVendor,
