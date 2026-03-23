@@ -2406,14 +2406,6 @@ function DialerPageInner() {
               </div>
             )}
           </GlassCard>
-          <SmsMessagesPanel onCallNumber={(phone) => {
-            const digits = phone.replace(/\D/g, "").slice(-10);
-            if (digits.length === 10 && deviceStatus === "ready") {
-              timer.start();
-              const formatted = `+1${digits}`;
-              deviceRef.current?.connect({ params: { To: formatted, From: voipCallerId || "" } });
-            }
-          }} />
           <UnlinkedCallsFolder onLinked={refetchQueue} />
         </div>
 
@@ -3112,6 +3104,15 @@ function DialerPageInner() {
               </motion.div>
             )}
           </AnimatePresence>
+
+          <SmsMessagesPanel onCallNumber={(phone) => {
+            const digits = phone.replace(/\D/g, "").slice(-10);
+            if (digits.length === 10 && deviceStatus === "ready") {
+              timer.start();
+              const formatted = `+1${digits}`;
+              deviceRef.current?.connect({ params: { To: formatted, From: voipCallerId || "" } });
+            }
+          }} />
         </div>
       </div>
 
