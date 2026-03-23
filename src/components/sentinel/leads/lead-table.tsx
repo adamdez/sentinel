@@ -2,6 +2,7 @@
 
 import { useState, useCallback } from "react";
 import { motion } from "framer-motion";
+import { formatOwnerName } from "@/lib/format-name";
 import {
   ArrowUpDown,
   ArrowUp,
@@ -365,7 +366,7 @@ export function LeadTable({
                       className="text-xs font-medium text-muted-foreground/90 truncate shrink"
                       style={{ WebkitFontSmoothing: "antialiased" }}
                     >
-                      {lead.ownerName}
+                      {formatOwnerName(lead.ownerName)}
                     </span>
                     {lead.ownerPhone ? (
                       <span className="text-sm text-foreground/80 tabular-nums shrink-0">

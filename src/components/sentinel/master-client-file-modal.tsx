@@ -75,6 +75,7 @@ import { LeadDossierPanel } from "@/components/sentinel/lead-dossier-panel";
 import { BrickedAnalysisPanel } from "@/components/sentinel/bricked/bricked-analysis-panel";
 import { IntakeGuideSection } from "@/components/sentinel/intake-guide-section";
 import { formatDueDateLabel } from "@/lib/due-date-label";
+import { formatOwnerName } from "@/lib/format-name";
 import { toast } from "sonner";
 import { extractProspectingSnapshot, sourceChannelLabel, tagLabel } from "@/lib/prospecting";
 import Link from "next/link";
@@ -3207,7 +3208,7 @@ function CountyRecordsTab({ cf }: { cf: ClientFile }) {
           <InfoRow icon={Copy} label="APN" value={cf.apn} mono highlight />
           <InfoRow icon={MapPin} label="County" value={cf.county} />
           <InfoRow icon={MapPin} label="Full Address" value={cf.fullAddress} />
-          <InfoRow icon={User} label="Owner" value={cf.ownerName} />
+          <InfoRow icon={User} label="Owner" value={formatOwnerName(cf.ownerName)} />
         </div>
 
         {countyInfo ? (
@@ -6472,7 +6473,7 @@ export function MasterClientFileModal({ clientFile: incomingClientFile, open, on
                   <div className="min-w-0 space-y-1">
                     <div className="flex items-center gap-2 min-w-0">
                       <h2 className="text-lg font-bold truncate" style={{ textShadow: "0 1px 0 var(--overlay-6)" }}>
-                        {clientFile.ownerName || "Unknown Seller"}
+                        {formatOwnerName(clientFile.ownerName) || "Unknown Seller"}
                       </h2>
                       <RelationshipBadge data={{
                         ownerAgeInference: clientFile.prediction?.ownerAgeInference,
