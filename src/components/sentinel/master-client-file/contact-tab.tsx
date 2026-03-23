@@ -7,6 +7,7 @@ import { useState, useEffect, useMemo } from "react";
 import {
   ExternalLink, Phone, MessageSquare, Mail, MapPin, User, Lock,
   Loader2, Save, Pencil, ImageIcon, Contact2, Crosshair, Smartphone,
+  Scale, Calendar, FileText, Users,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
@@ -88,11 +89,21 @@ export function ContactTab({ cf, overlay, onSkipTrace, skipTracing, onDial, onSm
   const [propertyZip, setPropertyZip] = useState(cf.zip ?? "");
   const [mailingAddr, setMailingAddr] = useState(defaultMailing);
 
+  // Imported phones/emails from vendor list import (stored in owner_flags)
+  const importPhones = (cf.ownerFlags?.import_phones as string[] | undefined) ?? [];
+  const importEmails = (cf.ownerFlags?.import_emails as string[] | undefined) ?? [];
+
   // Dynamic phone slots — show all returned phones, minimum 5 empty slots
   const initialPhones = (() => {
     const phones: string[] = [];
-    for (const pd of phoneDetails) phones.push(pd.number);
-    if (phones.length === 0 && cf.ownerPhone) phones.push(cf.ownerPhone);
+    const seen = new Set<string>();
+    const addUnique = (num: string) => {
+      const digits = num.replace(/\D/g, "").slice(-10);
+      if (digits.length >= 7 && !seen.has(digits)) { seen.add(digits); phones.push(num); }
+    };
+    for (const pd of phoneDetails) addUnique(pd.number);
+    if (phones.length === 0 && cf.ownerPhone) addUnique(cf.ownerPhone);
+    for (const ip of importPhones) addUnique(ip);
     const MIN_PHONE_SLOTS = 5;
     while (phones.length < MIN_PHONE_SLOTS) phones.push("");
     return phones;
@@ -102,8 +113,14 @@ export function ContactTab({ cf, overlay, onSkipTrace, skipTracing, onDial, onSm
   // Dynamic email slots — show all returned emails, minimum 2 empty slots
   const initialEmails = (() => {
     const emails: string[] = [];
-    for (const ed of emailDetails) emails.push(ed.email);
-    if (emails.length === 0 && cf.ownerEmail) emails.push(cf.ownerEmail);
+    const seen = new Set<string>();
+    const addUnique = (em: string) => {
+      const lower = em.trim().toLowerCase();
+      if (lower.includes("@") && !seen.has(lower)) { seen.add(lower); emails.push(em); }
+    };
+    for (const ed of emailDetails) addUnique(ed.email);
+    if (emails.length === 0 && cf.ownerEmail) addUnique(cf.ownerEmail);
+    for (const ie of importEmails) addUnique(ie);
     const MIN_EMAIL_SLOTS = 2;
     while (emails.length < MIN_EMAIL_SLOTS) emails.push("");
     return emails;
@@ -567,8 +584,147 @@ export function ContactTab({ cf, overlay, onSkipTrace, skipTracing, onDial, onSm
         </div>
       )}
 
+      {/* ── Legal / Probate Metadata ── */}
+      <ImportedLegalSection ownerFlags={cf.ownerFlags} />
+
+      {/* ── Imported Contacts (Deceased, Survivor, Petitioner, Attorney) ── */}
+      <ImportedContactsSection ownerFlags={cf.ownerFlags} onDial={onDial} onSms={onSms} calling={calling} />
+
       {/* ── Text Messages ── */}
       <LeadSmsPreview phone={cf.ownerPhone ?? null} onSms={onSms} />
+    </div>
+  );
+}
+
+// ── Legal / Probate metadata from vendor list import ──────────────────
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function ImportedLegalSection({ ownerFlags }: { ownerFlags: Record<string, any> | null | undefined }) {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const legal = (ownerFlags?.legal_metadata ?? null) as Record<string, any> | null;
+  if (!legal) return null;
+
+  const rows: Array<{ label: string; value: string }> = [];
+  if (legal.document_type) rows.push({ label: "Document Type", value: legal.document_type });
+  if (legal.case_number) rows.push({ label: "Case Number", value: legal.case_number });
+  if (legal.file_date) rows.push({ label: "File Date", value: legal.file_date });
+  if (legal.date_of_death) rows.push({ label: "Date of Death", value: legal.date_of_death });
+  if (rows.length === 0) return null;
+
+  return (
+    <div className="rounded-[12px] border border-overlay-6 bg-overlay-2 p-4 space-y-3">
+      <p className="text-sm text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
+        <Scale className="h-3 w-3" />Legal / Probate Info
+      </p>
+      <div className="grid grid-cols-2 gap-x-6 gap-y-2">
+        {rows.map((row) => (
+          <div key={row.label} className="flex flex-col">
+            <span className="text-xs text-muted-foreground/60">{row.label}</span>
+            <span className="text-sm font-semibold text-foreground">{row.value}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ── Imported contacts: deceased, survivor, petitioner, attorney ────────
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function ImportedContactsSection({ ownerFlags, onDial, onSms, calling }: {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  ownerFlags: Record<string, any> | null | undefined;
+  onDial: (phone: string) => void;
+  onSms: (phone: string) => void;
+  calling: boolean;
+}) {
+  if (!ownerFlags) return null;
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const deceased = (ownerFlags.deceased_person ?? null) as Record<string, any> | null;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const survivor = (ownerFlags.survivor_contact ?? null) as Record<string, any> | null;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const petitioner = (ownerFlags.petitioner_contact ?? null) as Record<string, any> | null;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const attorney = (ownerFlags.attorney_contact ?? null) as Record<string, any> | null;
+
+  const hasAny = deceased || survivor || petitioner || attorney;
+  if (!hasAny) return null;
+
+  const buildName = (p: Record<string, string | null>) =>
+    [p.first_name, p.middle_name, p.last_name].filter(Boolean).join(" ") || null;
+
+  const buildAddr = (p: Record<string, string | null>) => {
+    const parts = [p.address, p.city, p.state, p.zip].filter(Boolean);
+    return parts.length > 0 ? parts.join(", ") : null;
+  };
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const cards: Array<{ role: string; icon: React.ReactNode; person: Record<string, any> }> = [];
+  if (deceased) cards.push({ role: "Deceased", icon: <Calendar className="h-3 w-3" />, person: deceased });
+  if (survivor) cards.push({ role: "Survivor", icon: <Users className="h-3 w-3" />, person: survivor });
+  if (petitioner) cards.push({ role: "Petitioner / PR", icon: <FileText className="h-3 w-3" />, person: petitioner });
+  if (attorney) cards.push({ role: "Attorney", icon: <Scale className="h-3 w-3" />, person: attorney });
+
+  return (
+    <div className="rounded-[12px] border border-overlay-6 bg-overlay-2 p-4 space-y-3">
+      <p className="text-sm text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
+        <Users className="h-3 w-3" />Imported Contacts ({cards.length})
+      </p>
+      <div className="space-y-2">
+        {cards.map(({ role, icon, person }) => {
+          const name = buildName(person);
+          const addr = buildAddr(person);
+          const phone = person.phone as string | null;
+          const email = person.email as string | null;
+          const barNo = person.bar_number as string | null;
+
+          return (
+            <div key={role} className="rounded-[10px] border border-overlay-8 bg-overlay-3 p-3 space-y-1.5">
+              <div className="flex items-center gap-2">
+                <div className="h-7 w-7 rounded-full bg-overlay-4 flex items-center justify-center shrink-0">
+                  {icon}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-sm font-semibold text-foreground">{name ?? "Unknown"}</span>
+                    <Badge variant="outline" className="text-xs py-0 px-1">{role}</Badge>
+                  </div>
+                </div>
+                {phone && (
+                  <div className="flex items-center gap-1 shrink-0">
+                    <button
+                      onClick={() => onDial(phone)}
+                      disabled={calling}
+                      className="h-6 px-2 rounded-md text-xs font-semibold bg-primary/10 text-primary hover:bg-primary/20 border border-primary/20 transition-all flex items-center gap-1 disabled:opacity-30"
+                    >
+                      <Phone className="h-2.5 w-2.5" />Dial
+                    </button>
+                    <button
+                      onClick={() => onSms(phone)}
+                      className="h-6 px-2 rounded-md text-xs font-semibold bg-muted/10 text-foreground hover:bg-muted/20 border border-border/20 transition-all flex items-center gap-1"
+                    >
+                      <MessageSquare className="h-2.5 w-2.5" />
+                    </button>
+                  </div>
+                )}
+              </div>
+              <div className="pl-9 space-y-0.5 text-sm text-muted-foreground">
+                {addr && <p className="flex items-center gap-1"><MapPin className="h-3 w-3 shrink-0" />{addr}</p>}
+                {phone && <p className="flex items-center gap-1"><Phone className="h-3 w-3 shrink-0" />{phone}</p>}
+                {email && (
+                  <p className="flex items-center gap-1">
+                    <Mail className="h-3 w-3 shrink-0" />
+                    <a href={`mailto:${email}`} className="text-primary hover:underline">{email}</a>
+                  </p>
+                )}
+                {barNo && <p className="flex items-center gap-1"><Scale className="h-3 w-3 shrink-0" />Bar #{barNo}</p>}
+              </div>
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 }

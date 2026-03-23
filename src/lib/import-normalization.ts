@@ -10,6 +10,7 @@ export type ImportTargetField =
   | "owner_first_name"
   | "owner_last_name"
   | "owner_middle_name"
+  | "owner_suffix"
   | "co_owner_name"
   | "property_address"
   | "property_city"
@@ -23,7 +24,12 @@ export type ImportTargetField =
   | "county"
   | "phone"
   | "phone2"
+  | "phone3"
+  | "phone4"
+  | "phone5"
   | "email"
+  | "email2"
+  | "email3"
   | "notes"
   | "source_vendor"
   | "source_list_name"
@@ -51,7 +57,47 @@ export type ImportTargetField =
   | "bedrooms"
   | "bathrooms"
   | "sqft"
-  | "year_built";
+  | "year_built"
+  // Legal / Probate
+  | "document_type"
+  | "case_number"
+  | "file_date"
+  | "date_of_death"
+  // Deceased
+  | "deceased_first_name"
+  | "deceased_last_name"
+  | "deceased_middle_name"
+  // Survivor
+  | "survivor_first_name"
+  | "survivor_last_name"
+  | "survivor_middle_name"
+  | "survivor_address"
+  | "survivor_city"
+  | "survivor_state"
+  | "survivor_zip"
+  | "survivor_phone"
+  | "survivor_email"
+  // Petitioner / Personal Representative
+  | "petitioner_first_name"
+  | "petitioner_last_name"
+  | "petitioner_middle_name"
+  | "petitioner_address"
+  | "petitioner_city"
+  | "petitioner_state"
+  | "petitioner_zip"
+  | "petitioner_phone"
+  | "petitioner_email"
+  // Attorney
+  | "attorney_first_name"
+  | "attorney_last_name"
+  | "attorney_middle_name"
+  | "attorney_address"
+  | "attorney_city"
+  | "attorney_state"
+  | "attorney_zip"
+  | "attorney_phone"
+  | "attorney_email"
+  | "attorney_bar_number";
 
 export interface ParsedSheetPreview {
   name: string;
@@ -133,6 +179,7 @@ export interface DuplicateCandidate {
 export interface NormalizedImportRecord {
   rowNumber: number;
   ownerName: string | null;
+  ownerSuffix: string | null;
   coOwnerName: string | null;
   propertyAddress: string | null;
   propertyCity: string | null;
@@ -146,7 +193,12 @@ export interface NormalizedImportRecord {
   county: string | null;
   phone: string | null;
   phone2: string | null;
+  phone3: string | null;
+  phone4: string | null;
+  phone5: string | null;
   email: string | null;
+  email2: string | null;
+  email3: string | null;
   notes: string | null;
   estimatedValue: string | null;
   propertyType: string | null;
@@ -164,6 +216,46 @@ export interface NormalizedImportRecord {
   unmappedColumns: Record<string, string>;
   mappingWarnings: string[];
   duplicate: DuplicateCandidate;
+  // Legal / Probate
+  documentType: string | null;
+  caseNumber: string | null;
+  fileDate: string | null;
+  dateOfDeath: string | null;
+  // Deceased
+  deceasedFirstName: string | null;
+  deceasedLastName: string | null;
+  deceasedMiddleName: string | null;
+  // Survivor
+  survivorFirstName: string | null;
+  survivorLastName: string | null;
+  survivorMiddleName: string | null;
+  survivorAddress: string | null;
+  survivorCity: string | null;
+  survivorState: string | null;
+  survivorZip: string | null;
+  survivorPhone: string | null;
+  survivorEmail: string | null;
+  // Petitioner
+  petitionerFirstName: string | null;
+  petitionerLastName: string | null;
+  petitionerMiddleName: string | null;
+  petitionerAddress: string | null;
+  petitionerCity: string | null;
+  petitionerState: string | null;
+  petitionerZip: string | null;
+  petitionerPhone: string | null;
+  petitionerEmail: string | null;
+  // Attorney
+  attorneyFirstName: string | null;
+  attorneyLastName: string | null;
+  attorneyMiddleName: string | null;
+  attorneyAddress: string | null;
+  attorneyCity: string | null;
+  attorneyState: string | null;
+  attorneyZip: string | null;
+  attorneyPhone: string | null;
+  attorneyEmail: string | null;
+  attorneyBarNumber: string | null;
 }
 
 type FieldDefinition = {
@@ -178,20 +270,26 @@ const FIELD_DEFINITIONS: FieldDefinition[] = [
   { field: "owner_first_name", label: "Owner First Name", group: "Identity", aliases: ["owner first name", "first name", "first", "given name"] },
   { field: "owner_last_name", label: "Owner Last Name", group: "Identity", aliases: ["owner last name", "last name", "last", "surname", "family name"] },
   { field: "owner_middle_name", label: "Owner Middle Name", group: "Identity", aliases: ["owner middle name", "middle name", "middle", "middle initial"] },
+  { field: "owner_suffix", label: "Owner Suffix", group: "Identity", aliases: ["suffix", "owner suffix", "name suffix"] },
   { field: "co_owner_name", label: "Co-Owner Name", group: "Identity", aliases: ["co owner", "co-owner", "secondary owner", "spouse", "owner 2"] },
   { field: "property_address", label: "Property Address", group: "Property", aliases: ["property address", "site address", "property street", "address", "street address", "property address line 1"] },
   { field: "property_city", label: "Property City", group: "Property", aliases: ["property city", "site city", "city"] },
   { field: "property_state", label: "Property State", group: "Property", aliases: ["property state", "state", "st"] },
-  { field: "property_zip", label: "Property Zip", group: "Property", aliases: ["property zip", "zip", "zip code", "postal code"] },
+  { field: "property_zip", label: "Property Zip", group: "Property", aliases: ["property zip", "property zipcode", "zip", "zip code", "postal code"] },
   { field: "mailing_address", label: "Mailing Address", group: "Mailing", aliases: ["mailing address", "owner address", "tax mailing address", "mail address"] },
   { field: "mailing_city", label: "Mailing City", group: "Mailing", aliases: ["mailing city", "owner city", "mail city"] },
   { field: "mailing_state", label: "Mailing State", group: "Mailing", aliases: ["mailing state", "owner state", "mail state"] },
   { field: "mailing_zip", label: "Mailing Zip", group: "Mailing", aliases: ["mailing zip", "owner zip", "mail zip"] },
   { field: "apn", label: "APN / Parcel", group: "Property", aliases: ["apn", "parcel", "parcel id", "parcel number", "tax id", "pin"] },
   { field: "county", label: "County", group: "Property", aliases: ["county", "county name", "market"] },
-  { field: "phone", label: "Primary Phone", group: "Contact", aliases: ["phone", "owner phone", "contact phone", "mobile", "cell", "phone 1"] },
-  { field: "phone2", label: "Secondary Phone", group: "Contact", aliases: ["phone 2", "secondary phone", "other phone", "alternate phone"] },
-  { field: "email", label: "Email", group: "Contact", aliases: ["email", "email address", "owner email", "contact email"] },
+  { field: "phone", label: "Primary Phone", group: "Contact", aliases: ["phone", "owner phone", "contact phone", "mobile", "cell", "phone 1", "wireless 1"] },
+  { field: "phone2", label: "Secondary Phone", group: "Contact", aliases: ["phone 2", "secondary phone", "other phone", "alternate phone", "wireless 2", "landline 1"] },
+  { field: "phone3", label: "Phone 3", group: "Contact", aliases: ["phone 3", "wireless 3", "landline 2"] },
+  { field: "phone4", label: "Phone 4", group: "Contact", aliases: ["phone 4", "wireless 4", "landline 3"] },
+  { field: "phone5", label: "Phone 5", group: "Contact", aliases: ["phone 5", "wireless 5", "landline 4", "landline 5"] },
+  { field: "email", label: "Email", group: "Contact", aliases: ["email", "email address", "owner email", "contact email", "email 1", "email id 1"] },
+  { field: "email2", label: "Email 2", group: "Contact", aliases: ["email 2", "email id 2", "secondary email", "alternate email"] },
+  { field: "email3", label: "Email 3", group: "Contact", aliases: ["email 3", "email id 3"] },
   { field: "notes", label: "Notes", group: "Context", aliases: ["notes", "comments", "remarks", "description", "situation"] },
   { field: "source_vendor", label: "Source Vendor", group: "Source", aliases: ["vendor", "source vendor", "provider", "source company"] },
   { field: "source_list_name", label: "List Name", group: "Source", aliases: ["list name", "campaign", "list", "audience"] },
@@ -214,12 +312,52 @@ const FIELD_DEFINITIONS: FieldDefinition[] = [
   { field: "foreclosure_flag", label: "Foreclosure Flag", group: "Tags", aliases: ["foreclosure", "in foreclosure", "foreclosure status"] },
   { field: "pre_foreclosure_flag", label: "Pre-Foreclosure Flag", group: "Tags", aliases: ["pre foreclosure", "pre-foreclosure", "preforeclosure", "lis pendens", "notice of default"] },
   { field: "list_type", label: "List Type", group: "Context", aliases: ["list type", "record type", "lead type", "category type"] },
-  { field: "estimated_value", label: "Estimated Value", group: "Property", aliases: ["estimated value", "total assessment", "assessed value", "avm", "market value", "appraised value", "total value"] },
-  { field: "property_type", label: "Property Type", group: "Property", aliases: ["property type", "prop type", "land use", "property class", "use code"] },
+  { field: "estimated_value", label: "Estimated Value", group: "Property", aliases: ["estimated value", "total assessment", "assessed value", "avm", "market value", "appraised value", "total value", "property value", "property value last assessed", "last assessed value", "last assessed"] },
+  { field: "property_type", label: "Property Type", group: "Property", aliases: ["property type", "prop type", "land use", "property class", "use code", "property use"] },
   { field: "bedrooms", label: "Bedrooms", group: "Property", aliases: ["bedrooms", "beds", "bed count", "br"] },
   { field: "bathrooms", label: "Bathrooms", group: "Property", aliases: ["bathrooms", "baths", "bath count", "ba"] },
   { field: "sqft", label: "Square Footage", group: "Property", aliases: ["square footage", "sqft", "sq ft", "living area", "building area", "gla"] },
   { field: "year_built", label: "Year Built", group: "Property", aliases: ["year built", "yr built", "built year", "construction year"] },
+  // Legal / Probate
+  { field: "document_type", label: "Document Type", group: "Legal", aliases: ["document type", "record type", "filing type", "doc type"] },
+  { field: "case_number", label: "Case Number", group: "Legal", aliases: ["case number", "case no", "case id", "docket number", "court case"] },
+  { field: "file_date", label: "File Date", group: "Legal", aliases: ["file date", "filing date", "recorded date", "record date"] },
+  { field: "date_of_death", label: "Date of Death", group: "Legal", aliases: ["date of death", "dod", "death date", "decedent date of death"] },
+  // Deceased
+  { field: "deceased_first_name", label: "Deceased First Name", group: "Deceased", aliases: ["first name deceased", "deceased first name", "decedent first name"] },
+  { field: "deceased_last_name", label: "Deceased Last Name", group: "Deceased", aliases: ["deceased last name", "decedent last name", "last name deceased"] },
+  { field: "deceased_middle_name", label: "Deceased Middle Name", group: "Deceased", aliases: ["deceased middle name", "decedent middle name", "middle name deceased"] },
+  // Survivor
+  { field: "survivor_first_name", label: "Survivor First Name", group: "Survivor", aliases: ["survivor first name", "survivor first"] },
+  { field: "survivor_last_name", label: "Survivor Last Name", group: "Survivor", aliases: ["survivor last name", "survivor last"] },
+  { field: "survivor_middle_name", label: "Survivor Middle Name", group: "Survivor", aliases: ["survivor middle name", "survivor middle"] },
+  { field: "survivor_address", label: "Survivor Address", group: "Survivor", aliases: ["survivor address", "survivor street"] },
+  { field: "survivor_city", label: "Survivor City", group: "Survivor", aliases: ["survivor city"] },
+  { field: "survivor_state", label: "Survivor State", group: "Survivor", aliases: ["survivor state"] },
+  { field: "survivor_zip", label: "Survivor Zip", group: "Survivor", aliases: ["survivor zip", "survivor zipcode"] },
+  { field: "survivor_phone", label: "Survivor Phone", group: "Survivor", aliases: ["survivor phone", "sr wireless 1", "sr landline 1"] },
+  { field: "survivor_email", label: "Survivor Email", group: "Survivor", aliases: ["survivor email", "sr email id 1", "sr email 1"] },
+  // Petitioner / Personal Representative
+  { field: "petitioner_first_name", label: "Petitioner First Name", group: "Petitioner", aliases: ["petitioner first name", "petitioner first", "pr first name"] },
+  { field: "petitioner_last_name", label: "Petitioner Last Name", group: "Petitioner", aliases: ["petitioner last name", "petitioner last", "pr last name"] },
+  { field: "petitioner_middle_name", label: "Petitioner Middle Name", group: "Petitioner", aliases: ["petitioner middle name", "petitioner middle", "pr middle name"] },
+  { field: "petitioner_address", label: "Petitioner Address", group: "Petitioner", aliases: ["petitioner address", "petitioner street", "pr address"] },
+  { field: "petitioner_city", label: "Petitioner City", group: "Petitioner", aliases: ["petitioner city", "pr city"] },
+  { field: "petitioner_state", label: "Petitioner State", group: "Petitioner", aliases: ["petitioner state", "pr state"] },
+  { field: "petitioner_zip", label: "Petitioner Zip", group: "Petitioner", aliases: ["petitioner zip", "petitioner zipcode", "pr zip"] },
+  { field: "petitioner_phone", label: "Petitioner Phone", group: "Petitioner", aliases: ["petitioner phone", "pr wireless 1", "pr landline 1", "pr phone"] },
+  { field: "petitioner_email", label: "Petitioner Email", group: "Petitioner", aliases: ["petitioner email", "pr email id 1", "pr email 1"] },
+  // Attorney
+  { field: "attorney_first_name", label: "Attorney First Name", group: "Attorney", aliases: ["attorney first name", "attorney first", "atty first name"] },
+  { field: "attorney_last_name", label: "Attorney Last Name", group: "Attorney", aliases: ["attorney last name", "attorney last", "atty last name"] },
+  { field: "attorney_middle_name", label: "Attorney Middle Name", group: "Attorney", aliases: ["attorney middle name", "attorney middle", "atty middle name"] },
+  { field: "attorney_address", label: "Attorney Address", group: "Attorney", aliases: ["attorney address", "attorney street", "atty address"] },
+  { field: "attorney_city", label: "Attorney City", group: "Attorney", aliases: ["attorney city", "atty city"] },
+  { field: "attorney_state", label: "Attorney State", group: "Attorney", aliases: ["attorney state", "atty state"] },
+  { field: "attorney_zip", label: "Attorney Zip", group: "Attorney", aliases: ["attorney zip", "attorney zipcode", "atty zip"] },
+  { field: "attorney_phone", label: "Attorney Phone", group: "Attorney", aliases: ["attorney phone", "attorney ph number", "atty phone"] },
+  { field: "attorney_email", label: "Attorney Email", group: "Attorney", aliases: ["attorney email", "attorney email id", "atty email"] },
+  { field: "attorney_bar_number", label: "Attorney Bar No", group: "Attorney", aliases: ["attorney bar no", "attorney bar number", "bar number", "bar no"] },
 ];
 
 const YES_VALUES = new Set(["1", "true", "yes", "y", "x", "checked"]);
@@ -256,8 +394,10 @@ function scoreSampleValue(field: ImportTargetField, samples: string[]): number {
   const populated = samples.filter(Boolean).slice(0, 4);
   if (populated.length === 0) return 0;
 
-  if (field === "email" && populated.some((value) => value.includes("@"))) return 0.08;
-  if ((field === "phone" || field === "phone2") && populated.some((value) => value.replace(/\D/g, "").length >= 10)) return 0.08;
+  const emailFields = new Set<ImportTargetField>(["email", "email2", "email3", "survivor_email", "petitioner_email", "attorney_email"]);
+  const phoneFields = new Set<ImportTargetField>(["phone", "phone2", "phone3", "phone4", "phone5", "survivor_phone", "petitioner_phone", "attorney_phone"]);
+  if (emailFields.has(field) && populated.some((value) => value.includes("@"))) return 0.08;
+  if (phoneFields.has(field) && populated.some((value) => value.replace(/\D/g, "").length >= 10)) return 0.08;
   if ((field === "property_zip" || field === "mailing_zip") && populated.some((value) => ZIP_PATTERN.test(value))) return 0.08;
   if ((field === "property_state" || field === "mailing_state") && populated.some((value) => TWO_LETTER_STATE.test(value.toUpperCase()))) return 0.08;
   if ((field === "property_address" || field === "mailing_address") && populated.some((value) => /\d/.test(value) && /[A-Za-z]/.test(value))) return 0.08;
@@ -630,6 +770,18 @@ export function normalizeImportedRow(args: {
   tagIf(coerceBoolean(pick("do_not_call_flag")), "do_not_call", tags);
   tagIf(coerceBoolean(pick("bad_data_flag")), "bad_data", tags);
 
+  const docType = pick("document_type");
+  if (docType) {
+    const dt = docType.toLowerCase();
+    if (dt.includes("probate")) tags.add("probate");
+    if (dt.includes("pre-probate") || dt.includes("pre probate")) tags.add("inherited");
+    if (dt.includes("tax")) tags.add("tax_delinquent");
+  }
+
+  if (pick("date_of_death") || pick("deceased_first_name")) {
+    tags.add("probate");
+  }
+
   if (defaults.nicheTag) {
     tags.add(defaults.nicheTag);
   }
@@ -699,6 +851,7 @@ export function normalizeImportedRow(args: {
   return {
     rowNumber,
     ownerName,
+    ownerSuffix: pick("owner_suffix"),
     coOwnerName: pick("co_owner_name"),
     propertyAddress,
     propertyCity,
@@ -712,7 +865,12 @@ export function normalizeImportedRow(args: {
     county,
     phone,
     phone2,
+    phone3: cleanPhone(pick("phone3")),
+    phone4: cleanPhone(pick("phone4")),
+    phone5: cleanPhone(pick("phone5")),
     email,
+    email2: cleanEmail(pick("email2")),
+    email3: cleanEmail(pick("email3")),
     notes: pick("notes"),
     estimatedValue: pick("estimated_value"),
     propertyType: pick("property_type"),
@@ -730,7 +888,54 @@ export function normalizeImportedRow(args: {
     unmappedColumns,
     mappingWarnings,
     duplicate: duplicate ?? { level: "none", reasons: [] },
+    // Legal / Probate
+    documentType: pick("document_type"),
+    caseNumber: pick("case_number"),
+    fileDate: pick("file_date"),
+    dateOfDeath: pick("date_of_death"),
+    // Deceased
+    deceasedFirstName: pick("deceased_first_name"),
+    deceasedLastName: pick("deceased_last_name"),
+    deceasedMiddleName: pick("deceased_middle_name"),
+    // Survivor
+    survivorFirstName: pick("survivor_first_name"),
+    survivorLastName: pick("survivor_last_name"),
+    survivorMiddleName: pick("survivor_middle_name"),
+    survivorAddress: pick("survivor_address"),
+    survivorCity: pick("survivor_city"),
+    survivorState: pick("survivor_state")?.toUpperCase() ?? null,
+    survivorZip: pick("survivor_zip"),
+    survivorPhone: cleanPhone(pick("survivor_phone")),
+    survivorEmail: cleanEmail(pick("survivor_email")),
+    // Petitioner
+    petitionerFirstName: pick("petitioner_first_name"),
+    petitionerLastName: pick("petitioner_last_name"),
+    petitionerMiddleName: pick("petitioner_middle_name"),
+    petitionerAddress: pick("petitioner_address"),
+    petitionerCity: pick("petitioner_city"),
+    petitionerState: pick("petitioner_state")?.toUpperCase() ?? null,
+    petitionerZip: pick("petitioner_zip"),
+    petitionerPhone: cleanPhone(pick("petitioner_phone")),
+    petitionerEmail: cleanEmail(pick("petitioner_email")),
+    // Attorney
+    attorneyFirstName: pick("attorney_first_name"),
+    attorneyLastName: pick("attorney_last_name"),
+    attorneyMiddleName: pick("attorney_middle_name"),
+    attorneyAddress: pick("attorney_address"),
+    attorneyCity: pick("attorney_city"),
+    attorneyState: pick("attorney_state")?.toUpperCase() ?? null,
+    attorneyZip: pick("attorney_zip"),
+    attorneyPhone: cleanPhone(pick("attorney_phone")),
+    attorneyEmail: cleanEmail(pick("attorney_email")),
+    attorneyBarNumber: pick("attorney_bar_number"),
   };
+}
+
+function buildPersonObject(first: string | null, last: string | null, middle: string | null, extra?: Record<string, string | null>) {
+  if (!first && !last) return null;
+  const obj: Record<string, string | null> = { first_name: first, last_name: last, middle_name: middle };
+  if (extra) Object.assign(obj, extra);
+  return obj;
 }
 
 export function buildProspectPayload(record: NormalizedImportRecord, defaults: NormalizationDefaults) {
@@ -738,8 +943,33 @@ export function buildProspectPayload(record: NormalizedImportRecord, defaults: N
     .filter(Boolean)
     .join("\n\n");
 
+  const importPhones = [record.phone3, record.phone4, record.phone5].filter(Boolean) as string[];
+  const importEmails = [record.email2, record.email3].filter(Boolean) as string[];
+
+  const legalMetadata = (record.documentType || record.caseNumber || record.fileDate || record.dateOfDeath)
+    ? { document_type: record.documentType, case_number: record.caseNumber, file_date: record.fileDate, date_of_death: record.dateOfDeath }
+    : null;
+
+  const deceasedPerson = buildPersonObject(record.deceasedFirstName, record.deceasedLastName, record.deceasedMiddleName);
+
+  const survivorContact = buildPersonObject(record.survivorFirstName, record.survivorLastName, record.survivorMiddleName, {
+    address: record.survivorAddress, city: record.survivorCity, state: record.survivorState, zip: record.survivorZip,
+    phone: record.survivorPhone, email: record.survivorEmail,
+  });
+
+  const petitionerContact = buildPersonObject(record.petitionerFirstName, record.petitionerLastName, record.petitionerMiddleName, {
+    address: record.petitionerAddress, city: record.petitionerCity, state: record.petitionerState, zip: record.petitionerZip,
+    phone: record.petitionerPhone, email: record.petitionerEmail,
+  });
+
+  const attorneyContact = buildPersonObject(record.attorneyFirstName, record.attorneyLastName, record.attorneyMiddleName, {
+    address: record.attorneyAddress, city: record.attorneyCity, state: record.attorneyState, zip: record.attorneyZip,
+    phone: record.attorneyPhone, email: record.attorneyEmail, bar_number: record.attorneyBarNumber,
+  });
+
   return {
     owner_name: record.ownerName ?? "",
+    owner_suffix: record.ownerSuffix || undefined,
     address: record.propertyAddress ?? "",
     city: record.propertyCity ?? "",
     state: record.propertyState ?? "WA",
@@ -747,6 +977,7 @@ export function buildProspectPayload(record: NormalizedImportRecord, defaults: N
     apn: record.apn ?? "",
     county: record.county ?? defaults.county,
     owner_phone: record.phone,
+    owner_phone2: record.phone2 || undefined,
     owner_email: record.email,
     notes: record.lienAmount
       ? `${mergedNotes}\nLien/Amount Due: $${Number(record.lienAmount).toLocaleString()}`
@@ -773,8 +1004,14 @@ export function buildProspectPayload(record: NormalizedImportRecord, defaults: N
     mailing_state: record.mailingState,
     mailing_zip: record.mailingZip,
     co_owner_name: record.coOwnerName,
-    // Bulk imports skip auto-Bricked to avoid cost/latency — Bricked fires when lead is opened
     skip_auto_bricked: true,
+    import_phones: importPhones.length > 0 ? importPhones : undefined,
+    import_emails: importEmails.length > 0 ? importEmails : undefined,
+    legal_metadata: legalMetadata || undefined,
+    deceased_person: deceasedPerson || undefined,
+    survivor_contact: survivorContact || undefined,
+    petitioner_contact: petitionerContact || undefined,
+    attorney_contact: attorneyContact || undefined,
     source_metadata: {
       import_batch_id: defaults.importBatchId,
       template_id: defaults.templateId || null,

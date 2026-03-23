@@ -1005,6 +1005,11 @@ export async function POST(req: NextRequest) {
       bricked_data, gis_data,
       // Bulk import flag — skip auto-Bricked to avoid cost/latency on large imports
       skip_auto_bricked,
+      // Vendor list import fields
+      owner_suffix, owner_phone2,
+      import_phones, import_emails,
+      legal_metadata, deceased_person,
+      survivor_contact, petitioner_contact, attorney_contact,
     } = body;
 
     if (!address || !county) {
@@ -1109,6 +1114,14 @@ export async function POST(req: NextRequest) {
           zip: mailingZip,
         };
       }
+      if (owner_suffix) mergedFlags.owner_suffix = owner_suffix;
+      if (Array.isArray(import_phones) && import_phones.length > 0) mergedFlags.import_phones = import_phones;
+      if (Array.isArray(import_emails) && import_emails.length > 0) mergedFlags.import_emails = import_emails;
+      if (legal_metadata && typeof legal_metadata === "object") mergedFlags.legal_metadata = legal_metadata;
+      if (deceased_person && typeof deceased_person === "object") mergedFlags.deceased_person = deceased_person;
+      if (survivor_contact && typeof survivor_contact === "object") mergedFlags.survivor_contact = survivor_contact;
+      if (petitioner_contact && typeof petitioner_contact === "object") mergedFlags.petitioner_contact = petitioner_contact;
+      if (attorney_contact && typeof attorney_contact === "object") mergedFlags.attorney_contact = attorney_contact;
       mergedFlags.prospecting_intake = {
         ...existingProspecting,
         ...compactObject({
@@ -1155,6 +1168,7 @@ export async function POST(req: NextRequest) {
         zip: zip?.trim() || null,
         owner_name: owner_name?.trim() || "Unknown Owner",
         owner_phone: owner_phone?.trim() || null,
+        owner_phone2: owner_phone2?.trim() || null,
         owner_email: owner_email?.trim() || null,
         property_type: property_type || "SFR",
         owner_flags: mergedFlags,
