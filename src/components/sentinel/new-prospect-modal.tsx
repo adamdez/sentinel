@@ -165,7 +165,6 @@ export function NewProspectModal() {
     const bricked = modalData.brickedData as any;
     if (bricked) {
       const parseAddr = (addr: string) => {
-        // Try to extract city/state/zip from "123 Main St, Spokane, WA 99201"
         const parts = addr.split(",").map((s: string) => s.trim());
         const street = parts[0] ?? addr;
         const city = parts[1] ?? "Spokane";
@@ -179,19 +178,39 @@ export function NewProspectModal() {
         return { street, city, state, zip };
       };
       const parsed = parseAddr(bricked.address ?? "");
+
+      // Lot size: normalize to acres (Bricked may return sq ft or acres)
+      let lotAcres = "";
+      if (bricked.lotSize != null) {
+        const raw = Number(bricked.lotSize);
+        if (!isNaN(raw) && raw > 0) {
+          lotAcres = raw > 500 ? String(Math.round((raw / 43560) * 100) / 100) : String(raw);
+        }
+      }
+
+      // Derive county from Bricked location data or address state
+      const brickedCounty = bricked.county
+        ? String(bricked.county).trim()
+        : "";
+
       setForm((prev) => ({
         ...prev,
         address: parsed.street,
-        city: parsed.city || prev.city,
-        state: parsed.state || prev.state,
-        zip: parsed.zip || prev.zip,
+        city: bricked.city || parsed.city || prev.city,
+        state: bricked.state || parsed.state || prev.state,
+        zip: bricked.zip || parsed.zip || prev.zip,
+        county: brickedCounty || prev.county,
+        apn: bricked.apn || prev.apn,
         owner_name: bricked.ownerNames ?? prev.owner_name,
+        phone: bricked.ownerPhone || prev.phone,
+        email: bricked.ownerEmail || prev.email,
         property_type: bricked.propertyType ?? prev.property_type,
-        bedrooms: bricked.bedrooms != null ? String(bricked.bedrooms) : prev.bedrooms,
+        bedrooms: bricked.bedrooms != null ? String(Math.round(bricked.bedrooms)) : prev.bedrooms,
         bathrooms: bricked.bathrooms != null ? String(bricked.bathrooms) : prev.bathrooms,
-        sqft: bricked.sqft != null ? String(bricked.sqft) : prev.sqft,
-        year_built: bricked.yearBuilt != null ? String(bricked.yearBuilt) : prev.year_built,
-        estimated_value: bricked.cmv != null ? String(bricked.cmv) : prev.estimated_value,
+        sqft: bricked.sqft != null ? String(Math.round(bricked.sqft)) : prev.sqft,
+        year_built: bricked.yearBuilt != null ? String(Math.round(bricked.yearBuilt)) : prev.year_built,
+        lot_size: lotAcres || prev.lot_size,
+        estimated_value: bricked.cmv != null ? String(Math.round(Number(bricked.cmv))) : prev.estimated_value,
         equity_percent: bricked.equityEstimate != null ? String(Math.round(bricked.equityEstimate)) : prev.equity_percent,
         source: "bricked_search",
         source_channel: "manual",

@@ -374,32 +374,53 @@ export function GlobalSearch() {
         return;
       }
 
-      // Build Bricked data for the new-prospect-modal
+      // Build Bricked data for the new-prospect-modal — extract everything useful
       const subject = data.subject ?? {};
+      const prop = data.property ?? {};
+      const details = prop.details ?? {};
+      const ownership = prop.ownership ?? {};
+      const location = prop.location ?? {};
+      const mortgage = prop.mortgageDebt ?? {};
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const repairItems = (data.repairs ?? []).map((r: any) => ({
         item: r.name ?? r.item ?? "Unknown",
         cost: r.cost ?? r.estimatedCost ?? 0,
       }));
 
+      // Build owner name from structured owners array or fallback to subject
+      const ownerNames = ownership.owners?.length
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        ? ownership.owners.map((o: any) => [o.firstName, o.lastName].filter(Boolean).join(" ")).filter(Boolean).join("; ")
+        : subject.ownerNames?.join(", ") ?? data.ownerNames ?? null;
+
       const brickedData = {
         address: data.address ?? lookupAddress,
-        ownerNames: subject.ownerNames?.join(", ") ?? data.ownerNames ?? null,
+        ownerNames,
         arv: data.arv ?? null,
         cmv: data.cmv ?? subject.estimatedValue ?? null,
         totalRepairCost: data.totalRepairCost ?? null,
-        equityEstimate: subject.estimatedEquity ?? null,
-        propertyType: subject.propertyType ?? subject.landUse ?? null,
-        bedrooms: subject.bedrooms ?? null,
-        bathrooms: subject.bathrooms ?? null,
-        sqft: subject.squareFeet ?? null,
-        yearBuilt: subject.yearBuilt ?? null,
-        renovationScore: data.renovationScore ?? null,
+        equityEstimate: subject.estimatedEquity ?? mortgage.estimatedEquity ?? null,
+        propertyType: subject.propertyType ?? subject.landUse ?? details.propertyType ?? null,
+        bedrooms: subject.bedrooms ?? details.bedrooms ?? null,
+        bathrooms: subject.bathrooms ?? details.bathrooms ?? null,
+        sqft: subject.squareFeet ?? details.squareFeet ?? details.livingArea ?? null,
+        yearBuilt: subject.yearBuilt ?? details.yearBuilt ?? null,
+        lotSize: subject.lotSize ?? subject.lotAcres ?? details.lotSize ?? details.lotAcres ?? details.lotSquareFeet ?? null,
+        apn: subject.apn ?? data.apn ?? details.apn ?? location.apn ?? null,
+        county: location.county ?? subject.county ?? null,
+        zip: location.zip ?? location.zipCode ?? subject.zip ?? null,
+        city: location.city ?? subject.city ?? null,
+        state: location.state ?? subject.state ?? null,
+        ownerPhone: ownership.owners?.[0]?.phone ?? subject.ownerPhone ?? null,
+        ownerEmail: ownership.owners?.[0]?.email ?? subject.ownerEmail ?? null,
+        ownershipYears: ownership.ownershipLength ?? null,
+        mortgageBalance: mortgage.openMortgageBalance ?? null,
+        renovationScore: data.renovationScore ?? (details.renovationScore?.hasScore ? details.renovationScore.score : null),
         brickedId: data.id ?? "",
         shareLink: data.shareLink ?? null,
         dashboardLink: data.dashboardLink ?? null,
         compCount: data.comps?.length ?? 0,
-        subjectImages: data.subjectImages ?? [],
+        subjectImages: data.subjectImages ?? prop.images ?? [],
         repairs: repairItems,
         rawPayload: data,
       };
