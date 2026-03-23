@@ -8,24 +8,20 @@ export const runtime = "nodejs";
  * POST /api/twilio/inbound
  *
  * Twilio webhook for INBOUND calls to the Dominion phone number.
- * Configure this URL in Twilio as the "A call comes in" webhook for your
- * purchased number (Voice → Webhook → POST).
  *
  * Flow:
- *   1. Attempt to forward to Logan's personal cell (TWILIO_FORWARD_TO_CELL env var).
- *   2. If no forward number configured, play a brief message and hang up.
- *   3. The <Dial> action URL (status callback) fires when the leg completes.
- *      If dial result is no-answer / busy / failed → create missed-call task
- *      + write inbound.missed dialer_event.
+ *   1. Ring Logan's browser (Twilio Client) for 20 seconds.
+ *   2. If no answer, ring Adam's browser for 20 seconds.
+ *   3. If no answer, forward to Jeff (Vapi AI receptionist).
+ *   4. Jeff either warm-transfers back to browser with notes, or takes a message.
  *
- * StatusCallback (POST /api/twilio/inbound?type=call_status):
- *   Fired by Twilio for the initial inbound leg — used to detect early hang-ups.
- *
- * NOTE: No voice agent, no IVR, no autonomous AI. Just ring-forward → missed signal.
+ * NO cell phones. All calls handled in-browser or by AI.
  *
  * Environment variables used:
- *   TWILIO_FORWARD_TO_CELL  — Logan's cell number in E.164, e.g. +15093001234
- *   TWILIO_PHONE_NUMBER     — The Dominion Twilio number (caller ID on forwarded call)
+ *   LOGAN_BROWSER_IDENTITY  — Logan's Twilio Client identity (email)
+ *   ADAM_BROWSER_IDENTITY   — Adam's Twilio Client identity (email)
+ *   TWILIO_PHONE_NUMBER     — The Dominion Twilio number (caller ID)
+ *   VAPI_PHONE_NUMBER       — Jeff's Vapi number (AI fallback)
  *   NEXT_PUBLIC_SITE_URL    — Base URL for callback action URLs
  */
 
@@ -65,7 +61,7 @@ export async function POST(req: NextRequest) {
   const type = url.searchParams.get("type");
   const siteUrl = buildSiteUrl(req);
 
-  // ── type=chain_step: Logan/Adam/Jeff call chain progression ───────────────
+  // ── type=chain_step: Browser → Browser → Jeff call chain ─────────────────
   if (type === "chain_step") {
     const step = url.searchParams.get("step") ?? "";
     const formData = await req.formData();
@@ -73,11 +69,11 @@ export async function POST(req: NextRequest) {
     const fromNumber = formData.get("From")?.toString() ?? "";
     const callSid = formData.get("CallSid")?.toString() ?? "";
 
-    const adamCell = process.env.ADAM_CELL ?? "";
+    const adamIdentity = process.env.ADAM_BROWSER_IDENTITY ?? "adam@dominionhomedeals.com";
     const vapiNumber = process.env.VAPI_PHONE_NUMBER ?? "";
     const twilioNumber = process.env.TWILIO_PHONE_NUMBER ?? "";
 
-    // If the person answered, log it and we're done
+    // If someone answered in their browser, log it and we're done
     if (dialStatus === "completed" || dialStatus === "in-progress") {
       await handleAnsweredInbound({ fromNumber, callSid, dialDuration: formData.get("DialCallDuration")?.toString() ?? null });
       return new NextResponse('<?xml version="1.0" encoding="UTF-8"?><Response></Response>', {
@@ -85,23 +81,23 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    // Person didn't answer — move to next step
+    // Nobody answered — move to next step
     let nextTwiml: string;
 
-    if (step === "logan" && adamCell) {
-      // Logan didn't answer → try Adam for 20 seconds
-      console.log("[inbound] Logan missed → trying Adam");
+    if (step === "logan" && adamIdentity) {
+      // Logan's browser didn't answer → try Adam's browser for 20 seconds
+      console.log("[inbound] Logan browser missed → trying Adam browser");
       nextTwiml = [
         '<?xml version="1.0" encoding="UTF-8"?>',
         "<Response>",
         `  <Dial callerId="${twilioNumber}" timeout="20" action="${siteUrl}/api/twilio/inbound?type=chain_step&amp;step=adam" method="POST">`,
-        `    <Number>${adamCell}</Number>`,
+        `    <Client>${adamIdentity}</Client>`,
         "  </Dial>",
         "</Response>",
       ].join("\n");
-    } else if ((step === "adam" || (step === "logan" && !adamCell)) && vapiNumber) {
-      // Adam didn't answer (or no Adam) → forward to Jeff (Vapi AI)
-      console.log(`[inbound] ${step} missed → forwarding to Jeff (Vapi)`);
+    } else if ((step === "adam" || (step === "logan" && !adamIdentity)) && vapiNumber) {
+      // Adam's browser didn't answer → forward to Jeff (Vapi AI)
+      console.log(`[inbound] ${step} browser missed → forwarding to Jeff (Vapi)`);
       nextTwiml = [
         '<?xml version="1.0" encoding="UTF-8"?>',
         "<Response>",
@@ -165,52 +161,20 @@ export async function POST(req: NextRequest) {
   }
 
   // ── Initial inbound webhook: return TwiML with call chain ──────────────────
-  // Chain: Logan (20s) → Adam (20s) → Jeff/Vapi AI (always answers)
-  // If no one picks up, Jeff gets the call and logs everything.
-  const loganCell = process.env.TWILIO_FORWARD_TO_CELL ?? "";
-  const adamCell = process.env.ADAM_CELL ?? "";
-  const vapiNumber = process.env.VAPI_PHONE_NUMBER ?? ""; // Jeff's dedicated Vapi number
+  // Chain: Logan browser (20s) → Adam browser (20s) → Jeff/Vapi AI (always answers)
+  // No cell phones. All calls ring in the Sentinel dialer browser UI.
+  const loganIdentity = process.env.LOGAN_BROWSER_IDENTITY ?? "logan@dominionhomedeals.com";
   const twilioNumber = process.env.TWILIO_PHONE_NUMBER ?? "";
-  const actionUrl = `${siteUrl}/api/twilio/inbound?type=call_status`;
 
-  let twiml: string;
-
-  if (loganCell) {
-    // Full call chain: Logan → Adam → Jeff (Vapi AI)
-    const fallbackSteps: string[] = [];
-
-    // Step 1: Ring Logan for 20 seconds
-    fallbackSteps.push(
-      `  <Dial callerId="${twilioNumber}" timeout="20" action="${siteUrl}/api/twilio/inbound?type=chain_step&amp;step=logan" method="POST">`,
-      `    <Number>${loganCell}</Number>`,
-      "  </Dial>",
-    );
-
-    twiml = [
-      '<?xml version="1.0" encoding="UTF-8"?>',
-      "<Response>",
-      ...fallbackSteps,
-      "</Response>",
-    ].join("\n");
-  } else {
-    // No forward number configured — go straight to voicemail message
-    twiml = [
-      '<?xml version="1.0" encoding="UTF-8"?>',
-      "<Response>",
-      '  <Say voice="Polly.Joanna">Thank you for calling Dominion Home Deals. We are unavailable right now but will call you back shortly.</Say>',
-      "</Response>",
-    ].join("\n");
-
-    // Fire missed-call handling immediately since we're not attempting a forward
-    try {
-      const formData = await req.formData();
-      const fromNumber = formData.get("From")?.toString() ?? "";
-      const callSid    = formData.get("CallSid")?.toString()  ?? "";
-      if (fromNumber) await handleMissedInbound({ fromNumber, callSid, siteUrl });
-    } catch {
-      // non-fatal
-    }
-  }
+  // Step 1: Ring Logan's browser for 20 seconds
+  const twiml = [
+    '<?xml version="1.0" encoding="UTF-8"?>',
+    "<Response>",
+    `  <Dial callerId="${twilioNumber}" timeout="20" action="${siteUrl}/api/twilio/inbound?type=chain_step&amp;step=logan" method="POST">`,
+    `    <Client>${loganIdentity}</Client>`,
+    "  </Dial>",
+    "</Response>",
+  ].join("\n");
 
   return new NextResponse(twiml, {
     status: 200,
