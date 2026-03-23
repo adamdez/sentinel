@@ -1475,15 +1475,26 @@ export function applyStrategistMove(
   };
 }
 
+/** Minimum cooldown between strategist calls even when new evidence arrives */
+const STRATEGIST_MIN_COOLDOWN_MS = 8_000;
+
 export function shouldInvokeStrategist(
   state: LiveCoachCachedState,
   reduction: ReduceLiveCoachStateResult,
   now = Date.now(),
 ): boolean {
   if (!state.bestMove) return reduction.state.recentTurns.length > 0;
-  if (reduction.gapChanged || reduction.hasNewSellerEvidence) return true;
   if (!state.lastStrategizedAt) return true;
-  return now - Date.parse(state.lastStrategizedAt) >= STRATEGIST_STALE_MS;
+
+  const elapsed = now - Date.parse(state.lastStrategizedAt);
+
+  // Gap changed or new seller evidence — allow but enforce minimum cooldown
+  if (reduction.gapChanged || reduction.hasNewSellerEvidence) {
+    return elapsed >= STRATEGIST_MIN_COOLDOWN_MS;
+  }
+
+  // Otherwise use the stale threshold (25s)
+  return elapsed >= STRATEGIST_STALE_MS;
 }
 
 export function reduceLiveCoachState(
