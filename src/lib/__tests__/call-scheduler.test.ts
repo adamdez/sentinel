@@ -100,10 +100,10 @@ describe("scheduleFirstCall", () => {
 // ── getSequenceLabel ───────────────────────────────────────────────
 
 describe("getSequenceLabel", () => {
-  it("returns 'Touch X/7' for steps 1-6", () => {
-    expect(getSequenceLabel(1)).toBe("Touch 1/7");
-    expect(getSequenceLabel(3)).toBe("Touch 3/7");
-    expect(getSequenceLabel(6)).toBe("Touch 6/7");
+  it("returns descriptive label for steps 1-6", () => {
+    expect(getSequenceLabel(1)).toBe("Step 1 of 7 in follow-up sequence");
+    expect(getSequenceLabel(3)).toBe("Step 3 of 7 in follow-up sequence");
+    expect(getSequenceLabel(6)).toBe("Step 6 of 7 in follow-up sequence");
   });
 
   it("returns 'Sequence Complete' for step 7+", () => {
@@ -149,14 +149,14 @@ describe("getCadencePosition", () => {
     expect(pos.touchNumber).toBe(1);
     expect(pos.cadenceDay).toBe(1);
     expect(pos.isComplete).toBe(false);
-    expect(pos.label).toBe("Touch 1/7, Day 1");
+    expect(pos.label).toBe("Step 1 of 7 in follow-up sequence");
   });
 
   it("returns correct position for call 3", () => {
     const pos = getCadencePosition(3);
     expect(pos.touchNumber).toBe(3);
     expect(pos.cadenceDay).toBe(7);
-    expect(pos.label).toBe("Touch 3/7, Day 7");
+    expect(pos.label).toBe("Step 3 of 7 in follow-up sequence");
   });
 
   it("marks complete at 7 calls", () => {

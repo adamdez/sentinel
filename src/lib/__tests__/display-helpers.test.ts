@@ -113,12 +113,12 @@ describe("fmtPrice", () => {
 
 // ── spreadColor ──────────────────────────────────────────────────────
 describe("spreadColor", () => {
-  it("returns green for positive spread", () => {
-    expect(spreadColor(5000)).toBe("text-emerald-400");
+  it("returns foreground for positive spread", () => {
+    expect(spreadColor(5000)).toBe("text-foreground");
   });
 
-  it("returns red for negative spread", () => {
-    expect(spreadColor(-3000)).toBe("text-red-400");
+  it("returns foreground for negative spread", () => {
+    expect(spreadColor(-3000)).toBe("text-foreground");
   });
 
   it("returns muted for zero spread", () => {

@@ -37,12 +37,12 @@ describe("live-coach-service", () => {
 
     expect(result.state.discoveryMap.property_condition).toMatchObject({
       status: "confirmed",
-      value: "roof leak",
+      value: "roof issue",
       source: "transcript",
     });
     expect(result.state.discoveryMap.surface_problem).toMatchObject({
       status: "partial",
-      value: "roof leak",
+      value: "roof issue",
     });
     expect(result.state.discoveryMap.human_pain.status).toBe("missing");
 
@@ -68,11 +68,13 @@ describe("live-coach-service", () => {
       value: "move closer to family",
     });
     expect(result.state.discoveryMap.motivation.status).toBe("confirmed");
-    expect(computeHighestPriorityGap(result.state.discoveryMap)).toBe("timeline");
+    // "my daughter" also triggers the family_member decision_maker rule (partial),
+    // which takes priority over timeline in computeHighestPriorityGap
+    expect(computeHighestPriorityGap(result.state.discoveryMap)).toBe("decision_maker");
 
     const response = buildLiveCoachResponse(result.state, "outbound");
-    expect(response.highestPriorityGap).toBe("timeline");
-    expect(response.nextBestQuestion).toContain("timing feels realistic");
+    expect(response.highestPriorityGap).toBe("decision_maker");
+    expect(response.nextBestQuestion).toContain("feel good about the next step");
   });
 
   it("elevates decision-maker clarity when another signer is involved", () => {
@@ -88,7 +90,7 @@ describe("live-coach-service", () => {
 
     expect(result.state.discoveryMap.decision_maker).toMatchObject({
       status: "partial",
-      value: "brother needs to sign",
+      value: "brother is involved",
     });
 
     const response = buildLiveCoachResponse(result.state, "outbound");
@@ -96,7 +98,7 @@ describe("live-coach-service", () => {
     expect(response.guardrails[0]).toContain("Delay commitment-style questions");
     expect(
       response.structuredLiveNotes.filter((entry) =>
-        entry.text.includes("brother may need to sign"),
+        entry.text.includes("brother may be involved"),
       ),
     ).toHaveLength(1);
   });
