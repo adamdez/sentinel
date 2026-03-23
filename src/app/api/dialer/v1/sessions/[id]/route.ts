@@ -1,11 +1,13 @@
 /**
- * GET   /api/dialer/v1/sessions/[id]  — fetch a single session
- * PATCH /api/dialer/v1/sessions/[id]  — update status, twilio_sid, disposition, etc.
+ * GET    /api/dialer/v1/sessions/[id]  — fetch a single session
+ * PATCH  /api/dialer/v1/sessions/[id]  — update status, twilio_sid, disposition, etc.
+ * DELETE /api/dialer/v1/sessions/[id]  — delete an unlinked session + its notes
  *
  * BOUNDARY RULES:
  *   - Auth via getDialerUser() — not @/lib/supabase
  *   - All writes via session-manager (enforces state machine + ownership)
  *   - Returns 404 / 403 / 409 per session-manager error codes
+ *   - DELETE is only allowed for unlinked sessions (lead_id IS NULL)
  */
 
 export const dynamic = "force-dynamic";
@@ -129,4 +131,46 @@ export async function PATCH(req: NextRequest, { params }: RouteContext) {
   }
 
   return NextResponse.json({ session: result.data });
+}
+
+// ─────────────────────────────────────────────────────────────
+// DELETE /api/dialer/v1/sessions/[id]
+// Safety: only allows deletion of sessions with lead_id IS NULL
+// ─────────────────────────────────────────────────────────────
+export async function DELETE(req: NextRequest, { params }: RouteContext) {
+  const user = await getDialerUser(req.headers.get("authorization"));
+  if (!user) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  const { id } = await params;
+  const sb = createDialerClient();
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: session, error: fetchErr } = await (sb.from("call_sessions") as any)
+    .select("id, lead_id")
+    .eq("id", id)
+    .single();
+
+  if (fetchErr || !session) {
+    return NextResponse.json({ error: "Session not found" }, { status: 404 });
+  }
+
+  if (session.lead_id) {
+    return NextResponse.json(
+      { error: "Cannot delete a session linked to a lead" },
+      { status: 400 },
+    );
+  }
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  await (sb.from("session_notes") as any).delete().eq("session_id", id);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { error: deleteErr } = await (sb.from("call_sessions") as any).delete().eq("id", id);
+
+  if (deleteErr) {
+    return NextResponse.json({ error: deleteErr.message }, { status: 500 });
+  }
+
+  return NextResponse.json({ success: true });
 }

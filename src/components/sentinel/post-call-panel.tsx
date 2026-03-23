@@ -34,7 +34,7 @@ import type { PublishDisposition } from "@/lib/dialer/types";
 import { PostCallDraftPanel } from "@/components/sentinel/post-call-draft-panel";
 import type { PostCallDraft, ObjectionCapture } from "@/components/sentinel/post-call-draft-panel";
 import { QualGapStripCompact } from "@/components/sentinel/qual-gap-strip";
-import type { QualCheckInput } from "@/lib/dialer/qual-checklist";
+import type { QualCheckInput, QualItemKey } from "@/lib/dialer/qual-checklist";
 import type { PostCallStructureInput } from "@/lib/dialer/post-call-structure";
 
 interface PublishQaFinding {
@@ -241,6 +241,8 @@ export function PostCallPanel({
   const [nextAction, setNextAction] = useState("");
   const [nextActionDueAt, setNextActionDueAt] = useState("");
 
+  // Qual checklist overrides — operator-toggled confirmations
+  const [qualOverrides, setQualOverrides] = useState<Partial<Record<QualItemKey, boolean>>>({});
   // Objection tags collected from PostCallDraftPanel (confirm or skip path)
   const [objectionTags, setObjectionTags] = useState<ObjectionCapture[]>([]);
   // Distress signals discovered during the call — writes to distress_events + triggers score recompute
@@ -445,6 +447,11 @@ export function PostCallPanel({
         ...(nextAction.trim() ? { next_action: nextAction.trim() } : {}),
         ...(nextActionDueAt ? { next_action_due_at: new Date(nextActionDueAt).toISOString() } : {}),
         ...(shouldSendStructure ? { post_call_structure: publishStructure } : {}),
+        ...(Object.keys(qualOverrides).length > 0 ? { qual_confirmed: {
+          decision_maker_confirmed: qualOverrides.decision_maker,
+          condition_level: qualOverrides.condition ? 1 : undefined,
+          occupancy_score: qualOverrides.occupancy ? 1 : undefined,
+        } } : {}),
       }),
     }).catch(() => null);
 
@@ -712,7 +719,10 @@ export function PostCallPanel({
   const headerTitle = qualStep ? "Confirm & Close Out" : pendingDispo ? "Set Callback" : "Close Out Call";
 
   return (
-    <GlassCard hover={false} className="!p-3">
+    <GlassCard hover={false} className="!p-3" onKeyDown={(e) => {
+      const tag = (e.target as HTMLElement).tagName;
+      if (tag === "INPUT" || tag === "TEXTAREA") e.stopPropagation();
+    }}>
       {/* ── Success confirmation (briefly shown before auto-advance) ── */}
       {saved ? (
         <div className="flex flex-col items-stretch gap-3 py-4 px-1">
@@ -990,6 +1000,8 @@ export function PostCallPanel({
               motivationLevel:        qualMotivation,
               hasOpenTask:            qualContext?.hasOpenTask ?? false,
             } satisfies QualCheckInput}
+            overrides={qualOverrides}
+            onToggle={(key, confirmed) => setQualOverrides((prev) => ({ ...prev, [key]: confirmed }))}
             showNextQuestion={true}
             className="mb-3 rounded-[10px] bg-white/[0.015] border border-overlay-4 p-2.5"
           />

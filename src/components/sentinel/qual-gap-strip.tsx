@@ -19,7 +19,7 @@
 
 import { Check, HelpCircle, ChevronDown, ChevronUp } from "lucide-react";
 import { useState } from "react";
-import type { QualGapItem, QualChecklistItem } from "@/lib/dialer/qual-checklist";
+import type { QualGapItem, QualChecklistItem, QualItemKey } from "@/lib/dialer/qual-checklist";
 import { computeQualGaps, nextQualQuestion } from "@/lib/dialer/qual-checklist";
 import type { QualCheckInput } from "@/lib/dialer/qual-checklist";
 
@@ -44,15 +44,25 @@ export interface QualGapStripCompactProps {
   input: QualCheckInput;
   /** Show the next-question suggestion below the strip */
   showNextQuestion?: boolean;
+  /** Manual overrides from operator — keys toggled to true are marked confirmed */
+  overrides?: Partial<Record<QualItemKey, boolean>>;
+  /** When provided, chips become clickable toggles */
+  onToggle?: (key: QualItemKey, confirmed: boolean) => void;
   className?: string;
 }
 
 export function QualGapStripCompact({
   input,
   showNextQuestion = true,
+  overrides,
+  onToggle,
   className = "",
 }: QualGapStripCompactProps) {
-  const items = computeQualGaps(input);
+  const items = computeQualGaps(input).map((item) =>
+    overrides?.[item.key] !== undefined
+      ? { ...item, known: overrides[item.key]! }
+      : item,
+  );
   const gaps  = items.filter((i) => !i.known);
   const next  = nextQualQuestion(gaps);
 
@@ -76,20 +86,26 @@ export function QualGapStripCompact({
 
       {/* Chip row */}
       <div className="flex flex-wrap gap-1">
-        {items.map((item) => (
-          <span
-            key={item.key}
-            title={item.known ? "Known" : item.question}
-            className={`inline-flex items-center gap-0.5 rounded-[5px] border px-1.5 py-0.5 text-sm font-medium transition-colors ${chipClass(item)}`}
-          >
-            {item.known ? (
-              <Check className="h-2.5 w-2.5 shrink-0" aria-hidden="true" />
-            ) : (
-              <HelpCircle className="h-2.5 w-2.5 shrink-0 opacity-50" aria-hidden="true" />
-            )}
-            {item.label}
-          </span>
-        ))}
+        {items.map((item) => {
+          const isToggleable = !!onToggle;
+          const Tag = isToggleable ? "button" : "span";
+          return (
+            <Tag
+              key={item.key}
+              type={isToggleable ? "button" : undefined}
+              title={item.known ? "Confirmed — click to mark unknown" : item.question}
+              onClick={isToggleable ? () => onToggle!(item.key, !item.known) : undefined}
+              className={`inline-flex items-center gap-0.5 rounded-[5px] border px-1.5 py-0.5 text-sm font-medium transition-colors ${chipClass(item)} ${isToggleable ? "cursor-pointer hover:opacity-80" : ""}`}
+            >
+              {item.known ? (
+                <Check className="h-2.5 w-2.5 shrink-0" aria-hidden="true" />
+              ) : (
+                <HelpCircle className="h-2.5 w-2.5 shrink-0 opacity-50" aria-hidden="true" />
+              )}
+              {item.label}
+            </Tag>
+          );
+        })}
       </div>
 
       {/* Next question suggestion */}

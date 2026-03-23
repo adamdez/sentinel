@@ -23,7 +23,7 @@ import { updateAiTraceReview } from "@/lib/dialer/ai-trace-writer";
 import { assemblePostCallStructure, type PostCallStructureInput } from "@/lib/dialer/post-call-structure";
 import { runPostCallAnalysis } from "@/lib/dialer/post-call-analysis";
 import type { WriteEvalRatingInput } from "@/lib/eval-ratings";
-import type { PublishDisposition, SellerTimeline, QualificationRoute, ObjectionTag } from "@/lib/dialer/types";
+import type { PublishDisposition, SellerTimeline, QualificationRoute, ObjectionTag, PublishInput } from "@/lib/dialer/types";
 import type { SessionErrorCode } from "@/lib/dialer/types";
 
 type RouteContext = { params: Promise<{ id: string }> };
@@ -186,6 +186,9 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
     callback_at:          typeof callbackAt === "string" ? callbackAt : undefined,
     task_assigned_to:     typeof taskAssignedTo === "string" ? taskAssignedTo : undefined,
     objection_tags:       objectionTags,
+    ...(body.qual_confirmed && typeof body.qual_confirmed === "object" ? {
+      qual_confirmed: body.qual_confirmed as PublishInput["qual_confirmed"],
+    } : {}),
   });
 
   if (!result.ok) {

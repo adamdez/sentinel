@@ -6,12 +6,18 @@ import {
   CalendarCheck,
   Phone,
   PhoneCall,
+  PhoneIncoming,
   ArrowRight,
   Activity,
   CheckCircle2,
   ShieldAlert,
   Inbox,
   Ban,
+  Link2,
+  Plus,
+  Trash2,
+  Loader2,
+  Search,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -23,6 +29,15 @@ import { cn } from "@/lib/utils";
 import type { LeadStatus } from "@/lib/types";
 
 const ACTIVE_STATUSES: LeadStatus[] = ["lead", "negotiation", "disposition", "nurture"];
+
+interface UnlinkedCall {
+  id: string;
+  phone_dialed: string | null;
+  started_at: string;
+  duration_sec: number | null;
+  direction: string | null;
+  ai_summary: string | null;
+}
 
 interface BriefStats {
   overdue: number;
@@ -146,6 +161,8 @@ function TodayView() {
   const [stalledError, setStalledError] = useState<SectionError>(null);
   const [reviewBlockers, setReviewBlockers] = useState<ReviewBlocker[]>([]);
   const [reviewError, setReviewError] = useState<SectionError>(null);
+  const [unlinkedCalls, setUnlinkedCalls] = useState<UnlinkedCall[]>([]);
+  const [unlinkedError, setUnlinkedError] = useState<SectionError>(null);
   const [loading, setLoading] = useState(true);
 
   const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
@@ -314,6 +331,23 @@ function TodayView() {
     } catch (err) {
       console.error("[Today] review error:", err);
       setReviewError("Failed to load review queue");
+    }
+
+    // Unlinked calls
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data, error } = await (supabase.from("call_sessions") as any)
+        .select("id, phone_dialed, started_at, duration_sec, direction, ai_summary")
+        .is("lead_id", null)
+        .eq("status", "ended")
+        .order("started_at", { ascending: false })
+        .limit(10);
+      if (error) throw error;
+      setUnlinkedCalls(data ?? []);
+      setUnlinkedError(null);
+    } catch (err) {
+      console.error("[Today] unlinked calls error:", err);
+      setUnlinkedError("Failed to load unlinked calls");
     }
 
     setLoading(false);
@@ -548,6 +582,23 @@ function TodayView() {
           </div>
         ))}
       </BriefSection>
+
+      {/* Unlinked Calls */}
+      {(unlinkedCalls.length > 0 || unlinkedError) && (
+        <BriefSection
+          icon={PhoneIncoming}
+          iconColor="text-muted-foreground"
+          title="Unlinked Calls"
+          error={unlinkedError}
+          count={unlinkedCalls.length}
+          emptyMessage="No unlinked calls"
+          emptyIcon={CheckCircle2}
+        >
+          {unlinkedCalls.map((call) => (
+            <UnlinkedCallRow key={call.id} call={call} onAction={fetchAll} />
+          ))}
+        </BriefSection>
+      )}
     </div>
   );
 }
@@ -642,6 +693,87 @@ function LeadRow({ lead, showScore, showAge }: { lead: PriorityLead; showScore?:
         >
           <Phone className="h-3 w-3" />
           Open
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+function UnlinkedCallRow({ call, onAction }: { call: UnlinkedCall; onAction: () => void }) {
+  const [deleting, setDeleting] = useState(false);
+
+  const formatPhone = (p: string | null) => {
+    if (!p) return "Unknown";
+    const d = p.replace(/\D/g, "").slice(-10);
+    if (d.length === 10) return `(${d.slice(0, 3)}) ${d.slice(3, 6)}-${d.slice(6)}`;
+    return p;
+  };
+
+  const formatDuration = (sec: number | null) => {
+    if (!sec) return "0:00";
+    const m = Math.floor(sec / 60);
+    const s = sec % 60;
+    return `${m}:${s.toString().padStart(2, "0")}`;
+  };
+
+  const handleDelete = async () => {
+    if (!window.confirm("Delete this call and its notes? This cannot be undone.")) return;
+    setDeleting(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const headers: Record<string, string> = { "Content-Type": "application/json" };
+      if (session?.access_token) headers["Authorization"] = `Bearer ${session.access_token}`;
+      const res = await fetch(`/api/dialer/v1/sessions/${call.id}`, { method: "DELETE", headers });
+      if (!res.ok) throw new Error("Delete failed");
+      onAction();
+    } catch {
+      setDeleting(false);
+    }
+  };
+
+  const started = new Date(call.started_at);
+  const timeStr = started.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
+  const dateStr = started.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+
+  return (
+    <div className="flex items-start gap-3 p-2.5 rounded-lg hover:bg-overlay-3 transition-colors group">
+      <div className="h-2.5 w-2.5 rounded-full shrink-0 bg-muted-foreground/30 mt-1.5" />
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-2 text-sm">
+          <span className="font-semibold">{formatPhone(call.phone_dialed)}</span>
+          <span className="text-muted-foreground/50">·</span>
+          <span className="text-muted-foreground/60">{dateStr} {timeStr}</span>
+          <span className="text-muted-foreground/50">·</span>
+          <span className="text-muted-foreground/60">{formatDuration(call.duration_sec)}</span>
+          {call.direction && (
+            <>
+              <span className="text-muted-foreground/50">·</span>
+              <span className="text-muted-foreground/60 capitalize">{call.direction}</span>
+            </>
+          )}
+        </div>
+        {call.ai_summary && (
+          <p className="text-sm text-muted-foreground mt-0.5 line-clamp-2">{call.ai_summary}</p>
+        )}
+      </div>
+      <div className="flex items-center gap-1 shrink-0 opacity-50 group-hover:opacity-100 transition-opacity">
+        <Button
+          size="sm"
+          variant="outline"
+          className="h-7 text-xs gap-1"
+          onClick={() => { window.location.href = `/leads?phone=${call.phone_dialed ?? ""}`; }}
+        >
+          <Link2 className="h-3 w-3" />
+          Link
+        </Button>
+        <Button
+          size="sm"
+          variant="ghost"
+          className="h-7 text-xs text-muted-foreground/50 hover:text-red-400"
+          onClick={handleDelete}
+          disabled={deleting}
+        >
+          {deleting ? <Loader2 className="h-3 w-3 animate-spin" /> : <Trash2 className="h-3 w-3" />}
         </Button>
       </div>
     </div>

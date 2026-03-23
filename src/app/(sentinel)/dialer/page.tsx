@@ -494,6 +494,43 @@ function DialerPageInner() {
   const [smsComposeMsg, setSmsComposeMsg] = useState("");
   const [smsComposeSending, setSmsComposeSending] = useState(false);
 
+  // Phone auto-match: when a manual call connects, look up the number
+  const [phoneMatchResult, setPhoneMatchResult] = useState<{
+    leads: Array<{ id: string; ownerName: string; address: string | null }>;
+    unlinkedSessions: Array<{ id: string; startedAt: string; summary: string | null }>;
+  } | null>(null);
+  const phoneMatchFired = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (manualStatus !== "connected" || !manualPhone || currentLead) return;
+    if (phoneMatchFired.current === manualPhone) return;
+    phoneMatchFired.current = manualPhone;
+
+    (async () => {
+      try {
+        const hdrs = await authHeaders();
+        const res = await fetch(`/api/dialer/v1/phone-lookup?phone=${manualPhone}`, { headers: hdrs });
+        if (!res.ok) return;
+        const data = await res.json();
+        setPhoneMatchResult(data);
+        if (data.leads?.length === 1) {
+          toast.info(`Auto-matched: ${data.leads[0].ownerName ?? data.leads[0].address ?? "Lead found"}`);
+        } else if (data.leads?.length > 1) {
+          toast.info(`${data.leads.length} leads match this number`);
+        } else if (data.unlinkedSessions?.length > 0) {
+          toast.info("Previous unlinked call found for this number");
+        }
+      } catch { /* non-fatal */ }
+    })();
+  }, [manualStatus, manualPhone, currentLead]);
+
+  useEffect(() => {
+    if (manualStatus === "idle") {
+      setPhoneMatchResult(null);
+      phoneMatchFired.current = null;
+    }
+  }, [manualStatus]);
+
   // Poll transcript chunks directly from session_notes.
   // Production does not yet have the legacy calls_log.live_notes bridge.
   const activeSessionForNotes = dialerSessionId || manualSessionId;
@@ -523,12 +560,24 @@ function DialerPageInner() {
 
         if (cancelled) return;
 
-        const nextNotes = (data.notes ?? [])
-          .filter((note) => typeof note.content === "string" && note.content.trim().length > 0)
-          .map((note) => `${note.speaker === "operator" ? "You" : note.speaker === "seller" ? "Seller" : "AI"}: ${note.content!.trim()}`)
-          .slice(-24);
+        const sellerOnly = (data.notes ?? [])
+          .filter((note) => note.speaker === "seller" && typeof note.content === "string" && note.content.trim().length > 0);
 
-        setLiveNotes(nextNotes);
+        // Group consecutive seller fragments into readable paragraphs
+        const grouped: string[] = [];
+        let currentGroup = "";
+        for (const note of sellerOnly) {
+          const text = note.content!.trim();
+          if (currentGroup.length + text.length > 300) {
+            if (currentGroup) grouped.push(`Seller: "${currentGroup}"`);
+            currentGroup = text;
+          } else {
+            currentGroup = currentGroup ? `${currentGroup} ${text}` : text;
+          }
+        }
+        if (currentGroup) grouped.push(`Seller: "${currentGroup}"`);
+
+        setLiveNotes(grouped.slice(-12));
       } catch {
         if (!cancelled) return;
       }
@@ -1816,6 +1865,55 @@ function DialerPageInner() {
             </motion.div>
           )}
         </AnimatePresence>
+
+        {/* Phone auto-match banner */}
+        {phoneMatchResult && !currentLead && manualStatus === "connected" && (
+          <GlassCard hover={false} className="!p-2.5 mt-3 border-primary/15">
+            {phoneMatchResult.leads.length === 1 ? (
+              <button
+                type="button"
+                onClick={() => {
+                  const lead = queue.find((q) => q.id === phoneMatchResult.leads[0].id);
+                  if (lead) { setCurrentLead(lead); toast.success("Lead loaded"); }
+                  else toast.info("Lead found but not in queue — search in Leads tab");
+                }}
+                className="w-full text-left text-sm text-foreground/85 hover:text-foreground"
+              >
+                <span className="text-primary font-medium">Match found:</span>{" "}
+                {phoneMatchResult.leads[0].ownerName} — {phoneMatchResult.leads[0].address ?? "No address"}
+                <span className="text-xs text-muted-foreground/50 ml-2">Click to load</span>
+              </button>
+            ) : phoneMatchResult.leads.length > 1 ? (
+              <div className="space-y-1">
+                <p className="text-xs text-muted-foreground/60 font-semibold uppercase tracking-wider">Multiple leads match this number</p>
+                {phoneMatchResult.leads.slice(0, 3).map((l) => (
+                  <button
+                    key={l.id}
+                    type="button"
+                    onClick={() => {
+                      const lead = queue.find((q) => q.id === l.id);
+                      if (lead) { setCurrentLead(lead); toast.success("Lead loaded"); }
+                      else toast.info("Lead found but not in queue — search in Leads tab");
+                    }}
+                    className="block w-full text-left text-sm text-foreground/75 hover:text-foreground px-1.5 py-0.5 rounded hover:bg-overlay-4"
+                  >
+                    {l.ownerName} — {l.address ?? "No address"}
+                  </button>
+                ))}
+              </div>
+            ) : phoneMatchResult.unlinkedSessions.length > 0 ? (
+              <p className="text-sm text-muted-foreground/70">
+                <span className="text-primary/70 font-medium">Previous caller:</span>{" "}
+                {phoneMatchResult.unlinkedSessions[0].summary ?? "No summary"}{" "}
+                <span className="text-xs text-muted-foreground/40">
+                  ({new Date(phoneMatchResult.unlinkedSessions[0].startedAt).toLocaleDateString()})
+                </span>
+              </p>
+            ) : (
+              <p className="text-sm text-muted-foreground/50">New caller — no history</p>
+            )}
+          </GlassCard>
+        )}
 
         {/* AI Live Notes for manual dial — real-time transcription */}
         {(manualStatus === "connected" || manualStatus === "ended" || (manualCallLogId && displayedManualLiveNotes.length > 0)) && (

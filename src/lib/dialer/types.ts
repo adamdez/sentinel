@@ -492,6 +492,12 @@ export interface PublishInput {
    * and triggers an immediate score recompute for the lead.
    */
   distress_signals?: string[];
+  /** Qual checklist confirmations toggled by operator in post-call closeout. */
+  qual_confirmed?: {
+    decision_maker_confirmed?: boolean;
+    condition_level?: number;
+    occupancy_score?: number;
+  };
 }
 
 export interface PublishResult {

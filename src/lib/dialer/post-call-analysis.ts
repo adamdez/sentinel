@@ -122,9 +122,12 @@ export async function runPostCallAnalysis(
       if (notesErr || !notes?.length) {
         return { ...nullResult, error: "No notes found for session" };
       }
-      // Concatenate all notes in sequence order to build the transcript
-      transcript = (notes as Array<{ content: string | null; speaker: string | null }>)
-        .filter((n) => n.content)
+      const allNotes = (notes as Array<{ content: string | null; speaker: string | null }>)
+        .filter((n) => n.content);
+      // Prefer seller-only transcript for memory extraction; fall back to all speakers
+      const sellerNotes = allNotes.filter((n) => n.speaker === "seller");
+      const source = sellerNotes.length >= 3 ? sellerNotes : allNotes;
+      transcript = source
         .map((n) =>
           n.speaker ? `[${n.speaker}] ${n.content}` : n.content
         )

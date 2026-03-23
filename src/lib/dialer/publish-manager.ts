@@ -258,6 +258,12 @@ export async function publishSession(
     if (input.qualification_route !== undefined) qualPatch.qualification_route = input.qualification_route;
     if (input.next_action         !== undefined) qualPatch.next_action         = input.next_action;
     if (input.next_action_due_at  !== undefined) qualPatch.next_action_due_at  = input.next_action_due_at;
+    if (input.qual_confirmed) {
+      const qc = input.qual_confirmed;
+      if (qc.decision_maker_confirmed !== undefined) qualPatch.decision_maker_confirmed = qc.decision_maker_confirmed;
+      if (qc.condition_level          !== undefined) qualPatch.condition_level          = qc.condition_level;
+      if (qc.occupancy_score          !== undefined) qualPatch.occupancy_score          = qc.occupancy_score;
+    }
 
     if (Object.keys(qualPatch).length > 0) {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
