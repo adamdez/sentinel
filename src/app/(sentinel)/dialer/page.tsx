@@ -2898,6 +2898,15 @@ function DialerPageInner() {
         </div>
 
         <div className="lg:col-span-4">
+          <SmsMessagesPanel onCallNumber={(phone) => {
+            const digits = phone.replace(/\D/g, "").slice(-10);
+            if (digits.length === 10 && deviceStatus === "ready") {
+              timer.start();
+              const formatted = `+1${digits}`;
+              deviceRef.current?.connect({ params: { To: formatted, From: voipCallerId || "" } });
+            }
+          }} />
+
           {/* Last Call AI Summary */}
           {currentLead && latestSummary && (
             <GlassCard hover={false} className="!p-3 mb-3">
@@ -3104,15 +3113,6 @@ function DialerPageInner() {
               </motion.div>
             )}
           </AnimatePresence>
-
-          <SmsMessagesPanel onCallNumber={(phone) => {
-            const digits = phone.replace(/\D/g, "").slice(-10);
-            if (digits.length === 10 && deviceStatus === "ready") {
-              timer.start();
-              const formatted = `+1${digits}`;
-              deviceRef.current?.connect({ params: { To: formatted, From: voipCallerId || "" } });
-            }
-          }} />
         </div>
       </div>
 

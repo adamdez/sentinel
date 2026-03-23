@@ -372,7 +372,7 @@ export function SmsMessagesPanel({ onCallNumber }: SmsMessagesPanelProps) {
   };
 
   return (
-    <GlassCard hover={false} className="!p-3 mt-3">
+    <GlassCard hover={false} className="!p-3 mb-3">
       {/* Section header */}
       <button
         onClick={() => { setOpen((prev) => !prev); setActivePhone(null); }}
