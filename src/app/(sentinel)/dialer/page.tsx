@@ -482,6 +482,14 @@ function DialerPageInner() {
     mode: "outbound",
     sessionInstructions: "Manual outbound call. Prioritize rapport, motivation, timeline, and decision-maker discovery before price.",
   });
+  const displayedLiveNotes =
+    liveCoach?.structuredLiveNotes?.length
+      ? liveCoach.structuredLiveNotes.map((note) => note.text)
+      : liveNotes;
+  const displayedManualLiveNotes =
+    manualLiveCoach?.structuredLiveNotes?.length
+      ? manualLiveCoach.structuredLiveNotes.map((note) => note.text)
+      : liveNotes;
   const [smsComposeOpen, setSmsComposeOpen] = useState(false);
   const [smsComposeMsg, setSmsComposeMsg] = useState("");
   const [smsComposeSending, setSmsComposeSending] = useState(false);
@@ -1780,11 +1788,13 @@ function DialerPageInner() {
         </AnimatePresence>
 
         {/* AI Live Notes for manual dial — real-time transcription */}
-        {(manualStatus === "connected" || manualStatus === "ended" || (manualCallLogId && liveNotes.length > 0)) && (
+        {(manualStatus === "connected" || manualStatus === "ended" || (manualCallLogId && displayedManualLiveNotes.length > 0)) && (
           <GlassCard hover={false} className="!p-3 mt-3 border-primary/10">
             <div className="flex items-center gap-1.5 mb-2">
               <Zap className="h-3 w-3 text-primary/60" />
-              <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Live Notes</p>
+              <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                {manualLiveCoach?.structuredLiveNotes?.length ? "Structured Live Notes" : "Live Notes"}
+              </p>
               {manualStatus === "connected" && (
                 <span className="ml-auto flex items-center gap-1 text-xs text-primary/50">
                   <span className="h-1.5 w-1.5 rounded-full bg-primary animate-pulse" />
@@ -1792,9 +1802,9 @@ function DialerPageInner() {
                 </span>
               )}
             </div>
-            {liveNotes.length > 0 ? (
+            {displayedManualLiveNotes.length > 0 ? (
               <ul className="space-y-1 max-h-48 overflow-y-auto">
-                {liveNotes.map((note, i) => (
+                {displayedManualLiveNotes.map((note, i) => (
                   <li key={i} className="text-sm text-foreground/80 flex items-start gap-1.5">
                     <span className="text-primary/40 mt-0.5 shrink-0">&bull;</span>
                     <span>{note}</span>
@@ -2358,11 +2368,13 @@ function DialerPageInner() {
                 </GlassCard>
 
                 {/* AI Live Notes — auto-generated from call transcription */}
-                {(callState === "connected" || callState === "ended" || liveNotes.length > 0) && (
+                {(callState === "connected" || callState === "ended" || displayedLiveNotes.length > 0) && (
                   <GlassCard hover={false} className="!p-3 mt-3 border-primary/10">
                     <div className="flex items-center gap-1.5 mb-2">
                       <Zap className="h-3 w-3 text-primary/60" />
-                      <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Live Notes</p>
+                      <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                        {liveCoach?.structuredLiveNotes?.length ? "Structured Live Notes" : "Live Notes"}
+                      </p>
                       {callState === "connected" && (
                         <span className="ml-auto flex items-center gap-1 text-xs text-primary/50">
                           <span className="h-1.5 w-1.5 rounded-full bg-primary animate-pulse" />
@@ -2370,9 +2382,9 @@ function DialerPageInner() {
                         </span>
                       )}
                     </div>
-                    {liveNotes.length > 0 ? (
+                    {displayedLiveNotes.length > 0 ? (
                       <ul className="space-y-1">
-                        {liveNotes.map((note, i) => (
+                        {displayedLiveNotes.map((note, i) => (
                           <li key={i} className="text-sm text-foreground/80 flex items-start gap-1.5">
                             <span className="text-primary/40 mt-0.5 shrink-0">•</span>
                             <span>{note}</span>
@@ -2476,7 +2488,7 @@ function DialerPageInner() {
                 )}
 
                 {/* ── Live Assist: brief-based prompts during active call ── */}
-                {callState === "connected" && preCallBrief && (
+                {callState === "connected" && (preCallBrief || liveCoach) && (
                   <LiveAssistPanel
                     brief={preCallBrief}
                     coach={liveCoach}
@@ -2649,7 +2661,7 @@ function DialerPageInner() {
         </div>
       </div>
 
-      {callState === "connected" && coachPopoutOpen && preCallBrief && (
+      {callState === "connected" && coachPopoutOpen && (preCallBrief || liveCoach) && (
         <div className="fixed right-4 top-24 z-50 w-[380px] max-w-[calc(100vw-2rem)]">
           <LiveAssistPanel
             brief={preCallBrief}

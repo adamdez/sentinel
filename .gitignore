@@ -20,6 +20,13 @@
 /sentinel-mcp/build
 /sentinel-mcp/node_modules
 /src/mcp
+services/deepgram-relay/node_modules/
+
+# deploy artifacts
+deploy-*/
+deploy-*.zip
+deploy-*.tar
+deploy-clean/
 
 # misc
 .DS_Store

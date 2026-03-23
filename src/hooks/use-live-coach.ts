@@ -1,51 +1,14 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import type {
+  LiveCoachMode as SharedLiveCoachMode,
+  LiveCoachResponseV2,
+} from "@/lib/dialer/live-coach-types";
 import { supabase } from "@/lib/supabase";
 
-export type LiveCoachMode = "inbound" | "outbound";
-export type NepqStage =
-  | "connection"
-  | "situation"
-  | "problem_awareness"
-  | "solution_awareness"
-  | "consequence"
-  | "commitment";
-
-export type EmpathyMoveType =
-  | "mirror"
-  | "label"
-  | "calibrated_question";
-
-export interface EmpathyMove {
-  type: EmpathyMoveType;
-  text: string;
-  cue: string;
-}
-
-export interface ObjectionCoachMove {
-  objection: string;
-  label: string;
-  calibratedQuestion: string;
-}
-
-export interface LiveCoachState {
-  currentStage: NepqStage;
-  stageReason: string;
-  primaryGoal: string;
-  nextBestQuestion: string;
-  nextQuestions: string[];
-  empathyMoves: EmpathyMove[];
-  objectionHandling: ObjectionCoachMove[];
-  coachNotes: string[];
-  guardrails: string[];
-  buyingSignals: string[];
-  riskFlags: string[];
-  transcriptExcerpt: string;
-  updatedAt: string;
-  mode: LiveCoachMode;
-  source: "gpt5" | "fallback";
-}
+export type LiveCoachMode = SharedLiveCoachMode;
+export type LiveCoachState = LiveCoachResponseV2;
 
 interface UseLiveCoachOptions {
   sessionId: string | null;
@@ -60,7 +23,7 @@ export function useLiveCoach({
   enabled,
   mode = "outbound",
   sessionInstructions,
-  intervalMs = 6000,
+  intervalMs = 2500,
 }: UseLiveCoachOptions) {
   const [coach, setCoach] = useState<LiveCoachState | null>(null);
   const [loading, setLoading] = useState(false);
