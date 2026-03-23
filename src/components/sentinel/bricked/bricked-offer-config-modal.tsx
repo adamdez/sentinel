@@ -8,16 +8,18 @@ import { formatCurrency } from "@/lib/utils";
 export interface DealConfig {
   holdingCostPct: number;
   closingCostPct: number;
-  wholesaleFee: number;
+  wholesaleFeePct: number;
   profitPct: number;
   offerPriceOverride?: number;
+  /** @deprecated Use wholesaleFeePct instead */
+  wholesaleFee?: number;
 }
 
 export const DEFAULT_DEAL_CONFIG: DealConfig = {
-  holdingCostPct: 5,
-  closingCostPct: 7,
-  wholesaleFee: 10000,
-  profitPct: 15,
+  holdingCostPct: 0,
+  closingCostPct: 0,
+  wholesaleFeePct: 7,
+  profitPct: 20,
 };
 
 interface Props {
@@ -33,8 +35,9 @@ export function computeOfferPrice(arv: number, repairCost: number, config: DealC
   if (config.offerPriceOverride != null) return config.offerPriceOverride;
   const holding = arv * (config.holdingCostPct / 100);
   const closing = arv * (config.closingCostPct / 100);
+  const wholesale = arv * ((config.wholesaleFeePct ?? 7) / 100);
   const profit = arv * (config.profitPct / 100);
-  return arv - repairCost - holding - closing - config.wholesaleFee - profit;
+  return arv - repairCost - holding - closing - wholesale - profit;
 }
 
 export function BrickedOfferConfigModal({ open, onClose, onSave, arv, repairCost, initialConfig }: Props) {
@@ -44,9 +47,10 @@ export function BrickedOfferConfigModal({ open, onClose, onSave, arv, repairCost
   const computed = useMemo(() => {
     const holding = arv * (cfg.holdingCostPct / 100);
     const closing = arv * (cfg.closingCostPct / 100);
+    const wholesale = arv * ((cfg.wholesaleFeePct ?? 7) / 100);
     const profit = arv * (cfg.profitPct / 100);
-    const auto = arv - repairCost - holding - closing - cfg.wholesaleFee - profit;
-    return { holding, closing, profit, auto, final: overrideActive && cfg.offerPriceOverride != null ? cfg.offerPriceOverride : auto };
+    const auto = arv - repairCost - holding - closing - wholesale - profit;
+    return { holding, closing, wholesale, profit, auto, final: overrideActive && cfg.offerPriceOverride != null ? cfg.offerPriceOverride : auto };
   }, [arv, repairCost, cfg, overrideActive]);
 
   const update = <K extends keyof DealConfig>(key: K, value: DealConfig[K]) =>
@@ -55,7 +59,7 @@ export function BrickedOfferConfigModal({ open, onClose, onSave, arv, repairCost
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center">
+    <div className="fixed inset-0 z-[9999] flex items-center justify-center">
       <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
       <div
         className="relative z-10 w-full max-w-2xl rounded-[14px] border border-overlay-8 bg-panel-solid backdrop-blur-2xl shadow-[0_20px_60px_var(--shadow-heavy)]"
@@ -72,7 +76,7 @@ export function BrickedOfferConfigModal({ open, onClose, onSave, arv, repairCost
           <div className="flex-1 space-y-4">
             <PctField label="Holding Costs" value={cfg.holdingCostPct} arv={arv} onChange={(v) => update("holdingCostPct", v)} />
             <PctField label="Closing Costs" value={cfg.closingCostPct} arv={arv} onChange={(v) => update("closingCostPct", v)} />
-            <DollarField label="Wholesale Fee" value={cfg.wholesaleFee} onChange={(v) => update("wholesaleFee", v)} />
+            <PctField label="Wholesale Fee" value={cfg.wholesaleFeePct ?? 7} arv={arv} onChange={(v) => update("wholesaleFeePct", v)} />
             <PctField label="Profit Percentage" value={cfg.profitPct} arv={arv} onChange={(v) => update("profitPct", v)} />
             <div className="pt-2 border-t border-overlay-6">
               <div className="flex items-center gap-2 mb-1.5">
@@ -112,7 +116,7 @@ export function BrickedOfferConfigModal({ open, onClose, onSave, arv, repairCost
             <SummaryLine label="Repair Cost" value={`-${formatCurrency(repairCost)}`} negative />
             <SummaryLine label={`Holding (${cfg.holdingCostPct}%)`} value={`-${formatCurrency(computed.holding)}`} negative />
             <SummaryLine label={`Closing (${cfg.closingCostPct}%)`} value={`-${formatCurrency(computed.closing)}`} negative />
-            <SummaryLine label="Wholesale Fee" value={`-${formatCurrency(cfg.wholesaleFee)}`} negative />
+            <SummaryLine label={`Wholesale (${cfg.wholesaleFeePct ?? 7}%)`} value={`-${formatCurrency(computed.wholesale)}`} negative />
             <SummaryLine label={`Profit (${cfg.profitPct}%)`} value={`-${formatCurrency(computed.profit)}`} negative />
             <div className="pt-2 border-t border-overlay-6">
               <SummaryLine label="Offer Price" value={formatCurrency(computed.final)} highlight />
@@ -156,23 +160,6 @@ function PctField({ label, value, arv, onChange }: { label: string; value: numbe
           <span className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground text-xs">%</span>
         </div>
         <span className="text-xs font-mono text-muted-foreground w-24 text-right">{formatCurrency(dollar)}</span>
-      </div>
-    </div>
-  );
-}
-
-function DollarField({ label, value, onChange }: { label: string; value: number; onChange: (v: number) => void }) {
-  return (
-    <div>
-      <label className="text-[10px] uppercase text-muted-foreground font-semibold tracking-wider">{label}</label>
-      <div className="relative mt-1">
-        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-xs">$</span>
-        <input
-          type="number"
-          value={value}
-          onChange={(e) => onChange(Number(e.target.value) || 0)}
-          className="w-full pl-7 pr-3 py-2 rounded-md border border-overlay-8 bg-overlay-3 text-sm font-mono text-foreground focus:outline-none focus:ring-1 focus:ring-primary/30"
-        />
       </div>
     </div>
   );

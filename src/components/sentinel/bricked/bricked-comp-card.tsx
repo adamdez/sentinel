@@ -73,16 +73,16 @@ export function BrickedCompCard({
             onChange={() => onToggle(index)}
             className="rounded border-overlay-20"
           />
-          <span className="text-[10px] text-muted-foreground">Include</span>
+          <span className="text-xs text-muted-foreground">Include</span>
         </label>
         {distance && (
-          <span className="text-[10px] text-muted-foreground/60 ml-auto">{distance}</span>
+          <span className="text-xs text-muted-foreground/60 ml-auto">{distance}</span>
         )}
         {comp.mls?.mlsNumber && (
-          <Badge variant="outline" className="text-[8px] shrink-0">MLS</Badge>
+          <Badge variant="outline" className="text-[10px] shrink-0">MLS</Badge>
         )}
         {comp.compType && (
-          <Badge variant="outline" className="text-[8px] shrink-0 capitalize">{comp.compType}</Badge>
+          <Badge variant="outline" className="text-[10px] shrink-0 capitalize">{comp.compType}</Badge>
         )}
       </div>
 
@@ -95,8 +95,8 @@ export function BrickedCompCard({
           </div>
         )}
         <div className="min-w-0 flex-1">
-          <p className="text-xs font-medium text-foreground truncate">{address}</p>
-          <p className="text-[10px] text-muted-foreground mt-0.5">
+          <p className="text-sm font-medium text-foreground truncate">{address}</p>
+          <p className="text-xs text-muted-foreground mt-0.5">
             {[
               beds != null ? `${beds} beds` : null,
               baths != null ? `${baths} bath` : null,
@@ -106,7 +106,7 @@ export function BrickedCompCard({
               .filter(Boolean)
               .join(" · ")}
           </p>
-          <p className="text-[10px] text-muted-foreground/60 mt-0.5">
+          <p className="text-xs text-muted-foreground/60 mt-0.5">
             {[
               saleDate ? `Sold ${ts(saleDate)}` : null,
               dom != null ? `${dom} DOM` : null,
@@ -120,7 +120,7 @@ export function BrickedCompCard({
             {salePrice != null ? formatCurrency(salePrice) : "—"}
           </p>
           {comp.adjusted_value != null && comp.adjusted_value !== salePrice && (
-            <p className="text-[10px] text-cyan/80 font-mono">
+            <p className="text-xs text-cyan/80 font-mono">
               Adj {formatCurrency(comp.adjusted_value)}
             </p>
           )}

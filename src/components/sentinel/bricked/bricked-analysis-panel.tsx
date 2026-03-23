@@ -160,7 +160,7 @@ export function BrickedAnalysisPanel({
       {/* Header */}
       <div>
         <h2 className="text-sm font-semibold">{analysis.property.address?.fullAddress ?? address}</h2>
-        <p className="text-[10px] text-muted-foreground/60 mt-0.5">
+        <p className="text-xs text-muted-foreground/60 mt-0.5">
           Bricked ID: {analysis.id}
         </p>
       </div>
@@ -193,12 +193,12 @@ export function BrickedAnalysisPanel({
 
       {/* Comparable Properties */}
       <div className="flex items-center gap-3 pt-2">
-        <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+        <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
           Comparable Properties
         </h3>
-        <Badge variant="outline" className="text-[9px]">{selectedSet.size} selected</Badge>
+        <Badge variant="outline" className="text-[10px]">{selectedSet.size} selected</Badge>
         {computedArv != null && (
-          <span className="ml-auto text-xs font-mono text-emerald-400">
+          <span className="ml-auto text-sm font-mono text-emerald-400">
             ARV {formatCurrency(computedArv)}
           </span>
         )}

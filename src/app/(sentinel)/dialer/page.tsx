@@ -40,6 +40,7 @@ import { PostCallPanel } from "@/components/sentinel/post-call-panel";
 import { SellerMemoryPanel } from "@/components/sentinel/seller-memory-panel";
 import { SellerMemoryPreview } from "@/components/sentinel/seller-memory-preview";
 import { LiveAssistPanel } from "@/components/sentinel/live-assist-panel";
+import { UnlinkedCallsFolder } from "@/components/sentinel/unlinked-calls-folder";
 
 async function authHeaders(): Promise<Record<string, string>> {
   const { data: { session } } = await supabase.auth.getSession();
@@ -2089,6 +2090,7 @@ function DialerPageInner() {
               </div>
             )}
           </GlassCard>
+          <UnlinkedCallsFolder onLinked={refetchQueue} />
         </div>
 
         <div className="lg:col-span-5">

@@ -40,8 +40,8 @@ function Row({ label, value }: { label: string; value: React.ReactNode }) {
   if (value === "—" || value == null) return null;
   return (
     <div className="flex justify-between gap-4 py-2 border-b border-overlay-4 last:border-0">
-      <span className="text-[13px] text-muted-foreground/70 shrink-0">{label}</span>
-      <span className="text-[13px] text-foreground font-mono text-right">{value}</span>
+      <span className="text-sm text-muted-foreground/70 shrink-0">{label}</span>
+      <span className="text-sm text-foreground font-mono text-right">{value}</span>
     </div>
   );
 }
@@ -58,7 +58,7 @@ export function BrickedPropertyTabs({ property }: { property: BrickedProperty })
             type="button"
             onClick={() => setTab(t.key)}
             className={cn(
-              "px-4 py-2.5 text-[13px] font-medium whitespace-nowrap transition-colors",
+              "px-4 py-2.5 text-sm font-medium whitespace-nowrap transition-colors",
               tab === t.key
                 ? "text-cyan border-b-2 border-cyan bg-cyan/[0.04]"
                 : "text-muted-foreground hover:text-foreground",
@@ -138,7 +138,7 @@ function MortgageTab({ d }: { d?: BrickedProperty["mortgageDebt"] }) {
       </div>
       {d.mortgages && d.mortgages.length > 0 && (
         <div className="overflow-x-auto rounded-md border border-overlay-6">
-          <table className="w-full text-xs">
+          <table className="w-full text-[13px]">
             <thead>
               <tr className="border-b border-overlay-6 bg-overlay-2 text-muted-foreground text-left">
                 <th className="px-2.5 py-2">Amount</th>
@@ -185,7 +185,7 @@ function OwnershipTab({ d }: { d?: BrickedProperty["ownership"] }) {
       </div>
       {d.transactions && d.transactions.length > 0 && (
         <div className="overflow-x-auto rounded-md border border-overlay-6">
-          <table className="w-full text-xs">
+          <table className="w-full text-[13px]">
             <thead>
               <tr className="border-b border-overlay-6 bg-overlay-2 text-muted-foreground text-left">
                 <th className="px-2.5 py-2">Date</th>
@@ -231,7 +231,7 @@ function MlsTab({ d }: { d?: BrickedProperty["mls"] }) {
       {d.applianceFeatures && <Row label="Appliances" value={d.applianceFeatures} />}
       {d.agent && (
         <>
-          <p className="text-[11px] uppercase tracking-wider text-muted-foreground/60 font-semibold pt-2">Agent</p>
+          <p className="text-xs uppercase tracking-wider text-muted-foreground/60 font-semibold pt-2">Agent</p>
           <div className="grid grid-cols-2 gap-x-6 gap-y-0">
             <Row label="Name" value={d.agent.agentName} />
             <Row label="Phone" value={d.agent.agentPhone} />
@@ -242,9 +242,9 @@ function MlsTab({ d }: { d?: BrickedProperty["mls"] }) {
       )}
       {history.length > 0 && (
         <>
-          <p className="text-[11px] uppercase tracking-wider text-muted-foreground/60 font-semibold pt-2">Historic Listings</p>
+          <p className="text-xs uppercase tracking-wider text-muted-foreground/60 font-semibold pt-2">Historic Listings</p>
           <div className="overflow-x-auto rounded-md border border-overlay-6">
-            <table className="w-full text-xs">
+            <table className="w-full text-[13px]">
               <thead>
                 <tr className="border-b border-overlay-6 bg-overlay-2 text-muted-foreground text-left">
                   <th className="px-2.5 py-2">Date</th>
