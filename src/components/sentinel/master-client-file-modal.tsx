@@ -7722,7 +7722,7 @@ export function MasterClientFileModal({ clientFile: incomingClientFile, open, on
 
             className={cn(
 
-              "fixed inset-x-4 top-[3.5%] bottom-[2%] md:inset-x-auto md:left-1/2 md:-translate-x-1/2 z-50 flex flex-col transition-all duration-300",
+              "fixed inset-x-4 top-[4.5%] bottom-[2%] md:inset-x-auto md:left-1/2 md:-translate-x-1/2 z-50 flex flex-col transition-all duration-300",
 
               activeTab === "comps" ? "md:w-[1325px]" : activeTab === "dossier" ? "md:w-[1200px]" : "md:w-[1075px]",
 
