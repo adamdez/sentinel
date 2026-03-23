@@ -1603,114 +1603,164 @@ html[data-sentinel-theme="light"] {
   --shadow-heavy: rgba(0, 0, 0, 0.25);
 }
 
-/* Psalm 20 — placeholder inheriting dark; replace with custom palette */
+/* ═══════════════════════════════════════════════════════════════════
+   PSALM 20 — BANNER OF VICTORY
+   Deep midnight navy · brushed gold · warm ivory · matte obsidian
+   A fortified command center under banner, purpose, and victory.
+   ═══════════════════════════════════════════════════════════════════ */
 html[data-sentinel-theme="psalm20"] {
   --radius: 0.875rem;
-  --background: #0c0c0d;
-  --foreground: #f4f4f5;
-  --card: rgba(255, 255, 255, 0.05);
-  --card-foreground: #f4f4f5;
-  --popover: rgba(18, 18, 20, 0.96);
-  --popover-foreground: #f4f4f5;
-  --primary: #e4e4e7;
-  --primary-foreground: #09090b;
-  --secondary: rgba(255, 255, 255, 0.06);
-  --secondary-foreground: #f4f4f5;
-  --muted: #18181b;
-  --muted-foreground: #a1a1aa;
-  --accent: rgba(255, 255, 255, 0.08);
-  --accent-foreground: #f4f4f5;
-  --destructive: #71717a;
-  --destructive-foreground: #fafafa;
-  --success: #a1a1aa;
-  --success-foreground: #09090b;
-  --warning: #d4d4d8;
-  --warning-foreground: #09090b;
-  --border: rgba(255, 255, 255, 0.1);
-  --input: rgba(255, 255, 255, 0.07);
-  --ring: #a1a1aa;
-  --chart-1: #a1a1aa;
-  --chart-2: #71717a;
-  --chart-3: #52525b;
-  --chart-4: #d4d4d8;
-  --chart-5: #3f3f46;
-  --sidebar: rgba(10, 10, 11, 0.92);
-  --sidebar-foreground: #a1a1aa;
-  --sidebar-primary: #f4f4f5;
-  --sidebar-primary-foreground: #09090b;
-  --sidebar-accent: rgba(255, 255, 255, 0.08);
-  --sidebar-accent-foreground: #f4f4f5;
-  --sidebar-border: rgba(255, 255, 255, 0.09);
-  --sidebar-ring: #d4d4d8;
-  --neon: #d4d4d8;
-  --neon-dim: #a1a1aa;
-  --cyan: #d4d4d8;
-  --purple: #a1a1aa;
-  --orange: #71717a;
-  --glass: rgba(255, 255, 255, 0.035);
-  --glass-border: rgba(255, 255, 255, 0.1);
+
+  /* Midnight navy foundation */
+  --background: #080b14;
+  --foreground: #e8e0d4;
+
+  /* Cards: navy-tinted translucent */
+  --card: rgba(14, 18, 36, 0.60);
+  --card-foreground: #e8e0d4;
+
+  /* Popovers */
+  --popover: rgba(10, 14, 28, 0.97);
+  --popover-foreground: #e8e0d4;
+
+  /* Primary: brushed gold */
+  --primary: #c9a84c;
+  --primary-foreground: #0a0e1a;
+
+  /* Secondary: muted gold surface */
+  --secondary: rgba(201, 168, 76, 0.08);
+  --secondary-foreground: #e8e0d4;
+
+  /* Muted: deep navy */
+  --muted: #111628;
+  --muted-foreground: #8e8a82;
+
+  /* Accent: warm gold tint */
+  --accent: rgba(201, 168, 76, 0.10);
+  --accent-foreground: #e8e0d4;
+
+  /* Destructive: restrained wine-red */
+  --destructive: #8b3a3a;
+  --destructive-foreground: #faf0e6;
+
+  /* Status */
+  --success: #6b8f5e;
+  --success-foreground: #0a0e1a;
+  --warning: #c9a84c;
+  --warning-foreground: #0a0e1a;
+
+  /* Borders + inputs */
+  --border: rgba(201, 168, 76, 0.12);
+  --input: rgba(201, 168, 76, 0.08);
+  --ring: #c9a84c;
+
+  /* Charts: gold → bronze → navy spectrum */
+  --chart-1: #c9a84c;
+  --chart-2: #a08860;
+  --chart-3: #6b5f4a;
+  --chart-4: #e8d9b0;
+  --chart-5: #3d3528;
+
+  /* Sidebar: deep navy with gold edge */
+  --sidebar: rgba(8, 11, 22, 0.96);
+  --sidebar-foreground: #8e8a82;
+  --sidebar-primary: #c9a84c;
+  --sidebar-primary-foreground: #0a0e1a;
+  --sidebar-accent: rgba(201, 168, 76, 0.10);
+  --sidebar-accent-foreground: #e8e0d4;
+  --sidebar-border: rgba(201, 168, 76, 0.10);
+  --sidebar-ring: #c9a84c;
+
+  /* Accent color tokens: gold / bronze / wine */
+  --neon: #c9a84c;
+  --neon-dim: #a08860;
+  --cyan: #c9a84c;
+  --purple: #a08860;
+  --orange: #8b3a3a;
+
+  /* Glass: navy-tinted with gold edge highlights */
+  --glass: rgba(14, 18, 36, 0.45);
+  --glass-border: rgba(201, 168, 76, 0.12);
   --glass-refraction: transparent;
-  --glass-inner-light: rgba(255, 255, 255, 0.03);
-  --glass-depth-shadow: rgba(0, 0, 0, 0.22);
+  --glass-inner-light: rgba(201, 168, 76, 0.03);
+  --glass-depth-shadow: rgba(0, 0, 0, 0.30);
   --holo-cyan: transparent;
   --holo-purple: transparent;
   --holo-orange: transparent;
-  --specular-top: 0.32;
-  --specular-bottom-purple: 0.12;
-  --border-hairline: rgba(255, 255, 255, 0.06);
-  --border-hairline-hover: rgba(255, 255, 255, 0.15);
-  --surface-inset: rgba(255, 255, 255, 0.02);
-  --surface-inset-mid: rgba(255, 255, 255, 0.04);
-  --shell-glass-border: rgba(255, 255, 255, 0.1);
-  --shell-glass-shadow-drop: rgba(0, 0, 0, 0.28);
-  --shell-glass-inset-top: rgba(255, 255, 255, 0.04);
-  --shell-glass-specular-line: rgba(255, 255, 255, 0.22);
-  --shell-glass-after-fade: rgba(255, 255, 255, 0.04);
-  --shell-glass-surface-default: rgba(255, 255, 255, 0.04);
-  --shell-glass-surface-strong: rgba(12, 12, 14, 0.72);
-  --shell-glass-surface-card: rgba(255, 255, 255, 0.045);
-  --shell-glass-surface-ultra: rgba(255, 255, 255, 0.03);
-  --shell-sidebar-bg: rgba(12, 12, 13, 0.78);
-  --shell-sidebar-border: rgba(255, 255, 255, 0.09);
-  --shell-sidebar-edge-inset: rgba(255, 255, 255, 0.04);
-  --shell-sidebar-rail: rgba(255, 255, 255, 0.06);
-  --shell-topbar-bg: rgba(14, 14, 15, 0.72);
-  --shell-topbar-border: rgba(255, 255, 255, 0.08);
-  --shell-topbar-line: rgba(255, 255, 255, 0.08);
-  --shell-nav-active-bg: rgba(255, 255, 255, 0.08);
-  --shell-nav-active-ring: rgba(255, 255, 255, 0.12);
-  --shadow-badge-glow: 0 4px 24px rgba(0, 0, 0, 0.35);
-  --shadow-badge-glow-tight: 0 2px 12px rgba(0, 0, 0, 0.28);
-  --shell-modal-bg: rgba(18, 18, 20, 0.94);
-  --shell-backdrop-bg: rgba(0, 0, 0, 0.72);
+  --specular-top: 0.18;
+  --specular-bottom-purple: 0.06;
 
-  /* Overlay system (same as dark — Psalm 20 will override) */
-  --overlay-2: rgba(255, 255, 255, 0.02);
-  --overlay-3: rgba(255, 255, 255, 0.03);
-  --overlay-4: rgba(255, 255, 255, 0.04);
-  --overlay-5: rgba(255, 255, 255, 0.05);
-  --overlay-6: rgba(255, 255, 255, 0.06);
-  --overlay-8: rgba(255, 255, 255, 0.08);
-  --overlay-10: rgba(255, 255, 255, 0.10);
-  --overlay-12: rgba(255, 255, 255, 0.12);
-  --overlay-15: rgba(255, 255, 255, 0.15);
-  --overlay-18: rgba(255, 255, 255, 0.18);
-  --overlay-20: rgba(255, 255, 255, 0.20);
-  --overlay-25: rgba(255, 255, 255, 0.25);
-  --overlay-30: rgba(255, 255, 255, 0.30);
-  --overlay-35: rgba(255, 255, 255, 0.35);
-  --overlay-40: rgba(255, 255, 255, 0.40);
-  --overlay-50: rgba(255, 255, 255, 0.50);
-  --overlay-60: rgba(255, 255, 255, 0.60);
-  --overlay-80: rgba(255, 255, 255, 0.80);
-  --panel: rgba(12, 12, 22, 0.50);
-  --panel-deep: rgba(12, 12, 22, 0.60);
-  --panel-solid: rgba(4, 4, 12, 0.88);
-  --glow-soft: rgba(255, 255, 255, 0.08);
-  --glow-medium: rgba(255, 255, 255, 0.25);
-  --shadow-soft: rgba(0, 0, 0, 0.12);
-  --shadow-medium: rgba(0, 0, 0, 0.28);
-  --shadow-heavy: rgba(0, 0, 0, 0.50);
+  /* Hairlines: gold-tinted */
+  --border-hairline: rgba(201, 168, 76, 0.08);
+  --border-hairline-hover: rgba(201, 168, 76, 0.18);
+  --surface-inset: rgba(201, 168, 76, 0.02);
+  --surface-inset-mid: rgba(201, 168, 76, 0.04);
+
+  /* Shell chrome: navy + gold */
+  --shell-glass-border: rgba(201, 168, 76, 0.12);
+  --shell-glass-shadow-drop: rgba(0, 0, 0, 0.35);
+  --shell-glass-inset-top: rgba(201, 168, 76, 0.06);
+  --shell-glass-specular-line: rgba(201, 168, 76, 0.18);
+  --shell-glass-after-fade: rgba(201, 168, 76, 0.03);
+  --shell-glass-surface-default: rgba(14, 18, 36, 0.50);
+  --shell-glass-surface-strong: rgba(10, 14, 26, 0.78);
+  --shell-glass-surface-card: rgba(14, 18, 36, 0.55);
+  --shell-glass-surface-ultra: rgba(14, 18, 36, 0.40);
+  --shell-sidebar-bg: rgba(6, 9, 18, 0.96);
+  --shell-sidebar-border: rgba(201, 168, 76, 0.10);
+  --shell-sidebar-edge-inset: rgba(201, 168, 76, 0.06);
+  --shell-sidebar-rail: rgba(201, 168, 76, 0.08);
+  --shell-topbar-bg: rgba(8, 11, 20, 0.88);
+  --shell-topbar-border: rgba(201, 168, 76, 0.10);
+  --shell-topbar-line: rgba(201, 168, 76, 0.08);
+  --shell-nav-active-bg: rgba(201, 168, 76, 0.08);
+  --shell-nav-active-ring: rgba(201, 168, 76, 0.16);
+  --shadow-badge-glow: 0 4px 24px rgba(0, 0, 0, 0.40);
+  --shadow-badge-glow-tight: 0 2px 12px rgba(0, 0, 0, 0.35);
+  --shell-modal-bg: rgba(10, 14, 26, 0.96);
+  --shell-backdrop-bg: rgba(4, 6, 12, 0.80);
+
+  /* Overlay system: warm ivory-gold tinted translucency */
+  --overlay-2: rgba(232, 224, 212, 0.02);
+  --overlay-3: rgba(232, 224, 212, 0.03);
+  --overlay-4: rgba(232, 224, 212, 0.04);
+  --overlay-5: rgba(232, 224, 212, 0.05);
+  --overlay-6: rgba(232, 224, 212, 0.06);
+  --overlay-8: rgba(232, 224, 212, 0.08);
+  --overlay-10: rgba(232, 224, 212, 0.10);
+  --overlay-12: rgba(232, 224, 212, 0.12);
+  --overlay-15: rgba(232, 224, 212, 0.15);
+  --overlay-18: rgba(232, 224, 212, 0.18);
+  --overlay-20: rgba(232, 224, 212, 0.20);
+  --overlay-25: rgba(232, 224, 212, 0.25);
+  --overlay-30: rgba(232, 224, 212, 0.30);
+  --overlay-35: rgba(232, 224, 212, 0.35);
+  --overlay-40: rgba(232, 224, 212, 0.40);
+  --overlay-50: rgba(232, 224, 212, 0.50);
+  --overlay-60: rgba(232, 224, 212, 0.60);
+  --overlay-80: rgba(232, 224, 212, 0.80);
+
+  /* Panel surfaces: midnight navy */
+  --panel: rgba(10, 14, 28, 0.55);
+  --panel-deep: rgba(8, 11, 22, 0.70);
+  --panel-solid: rgba(6, 9, 18, 0.92);
+
+  /* Glow / shadow: gold-tinted glow, deep shadow */
+  --glow-soft: rgba(201, 168, 76, 0.06);
+  --glow-medium: rgba(201, 168, 76, 0.18);
+  --shadow-soft: rgba(0, 0, 0, 0.16);
+  --shadow-medium: rgba(0, 0, 0, 0.35);
+  --shadow-heavy: rgba(0, 0, 0, 0.55);
+
+  /* Psalm 20 theme-specific tokens */
+  --psalm20-gold: #c9a84c;
+  --psalm20-gold-dim: #a08860;
+  --psalm20-gold-glow: rgba(201, 168, 76, 0.25);
+  --psalm20-ivory: #e8e0d4;
+  --psalm20-wine: #8b3a3a;
+  --psalm20-navy: #080b14;
+  --psalm20-navy-mid: #111628;
+  --psalm20-bronze: #a08860;
 }
 
 body {
@@ -2111,4 +2161,82 @@ body {
 
 .particle-canvas-container {
   display: none !important;
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   PSALM 20 THEME-SPECIFIC OVERRIDES
+   These provide the heavy visual treatment when psalm20 is active.
+   ═══════════════════════════════════════════════════════════════════ */
+
+html[data-sentinel-theme="psalm20"] .sentinel-gradient {
+  background:
+    radial-gradient(ellipse 60% 40% at 50% 0%, rgba(201,168,76,0.04) 0%, transparent 50%),
+    radial-gradient(ellipse 80% 60% at 20% 80%, rgba(14,18,36,0.8) 0%, transparent 60%),
+    radial-gradient(ellipse 80% 60% at 80% 20%, rgba(10,14,28,0.6) 0%, transparent 60%),
+    linear-gradient(180deg, #080b14 0%, #0a0e1a 50%, #060918 100%) !important;
+  animation: none !important;
+}
+
+html[data-sentinel-theme="psalm20"] .sentinel-gradient::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(ellipse 50% 30% at 50% -5%, rgba(201,168,76,0.05) 0%, transparent 60%);
+  display: block !important;
+}
+
+/* Sidebar gold edge glow */
+html[data-sentinel-theme="psalm20"] .psalm20-sidebar {
+  border-right: 1px solid rgba(201,168,76,0.08) !important;
+}
+
+/* Glass surfaces — gold-tinted edges */
+html[data-sentinel-theme="psalm20"] .glass,
+html[data-sentinel-theme="psalm20"] .glass-strong,
+html[data-sentinel-theme="psalm20"] .glass-card,
+html[data-sentinel-theme="psalm20"] .glass-ultra {
+  border-color: rgba(201,168,76,0.10) !important;
+  box-shadow:
+    0 1px 0 rgba(201,168,76,0.04) inset,
+    0 12px 40px rgba(0,0,0,0.35) !important;
+}
+
+/* Topbar — gold bottom border */
+html[data-sentinel-theme="psalm20"] .topbar-glass {
+  border-color: rgba(201,168,76,0.10) !important;
+  background: rgba(8,11,20,0.88) !important;
+}
+
+/* Active nav indicator — gold glow */
+html[data-sentinel-theme="psalm20"] .sidebar-active-item {
+  color: #c9a84c !important;
+}
+
+/* Scrollbar — gold-tinted */
+html[data-sentinel-theme="psalm20"] ::-webkit-scrollbar-thumb {
+  background: rgba(201,168,76,0.12) !important;
+}
+
+html[data-sentinel-theme="psalm20"] ::-webkit-scrollbar-thumb:hover {
+  background: rgba(201,168,76,0.22) !important;
+}
+
+/* Focus ring — gold */
+html[data-sentinel-theme="psalm20"] *:focus-visible {
+  outline-color: rgba(201,168,76,0.4) !important;
+}
+
+/* Display typography for psalm20 — used in hero areas */
+html[data-sentinel-theme="psalm20"] .psalm20-display {
+  font-family: "Cormorant Garamond", Georgia, serif;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+}
+
+/* Selection highlight — gold */
+html[data-sentinel-theme="psalm20"] ::selection {
+  background: rgba(201,168,76,0.25);
+  color: #e8e0d4;
 }

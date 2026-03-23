@@ -9,6 +9,7 @@ import {
   Moon,
   Wifi,
   WifiOff,
+  Crown,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -119,9 +120,20 @@ export function TopBar() {
             <DropdownMenuSeparator />
             <DropdownMenuItem onClick={() => router.push("/settings")}>Settings</DropdownMenuItem>
             <DropdownMenuItem onClick={() => router.push("/analytics")}>Analytics</DropdownMenuItem>
-            <DropdownMenuItem onClick={() => setTheme(theme === "dark" ? "light" : "dark")}>
-              {theme === "dark" ? <Sun className="h-3.5 w-3.5 mr-2" /> : <Moon className="h-3.5 w-3.5 mr-2" />}
-              {theme === "dark" ? "Light Mode" : "Dark Mode"}
+            <DropdownMenuItem onClick={() => setTheme("light")}>
+              <Sun className="h-3.5 w-3.5 mr-2" />
+              Light Mode
+              {theme === "light" && <span className="ml-auto text-primary text-xs">✓</span>}
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => setTheme("dark")}>
+              <Moon className="h-3.5 w-3.5 mr-2" />
+              Dark Mode
+              {theme === "dark" && <span className="ml-auto text-primary text-xs">✓</span>}
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => setTheme("psalm20")}>
+              <Crown className="h-3.5 w-3.5 mr-2" style={{ color: theme === "psalm20" ? "var(--psalm20-gold)" : undefined }} />
+              Psalm 20
+              {theme === "psalm20" && <span className="ml-auto text-xs" style={{ color: "var(--psalm20-gold)" }}>✓</span>}
             </DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuItem className="text-destructive" onSelect={handleLogout}>

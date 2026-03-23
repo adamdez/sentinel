@@ -30,6 +30,8 @@ import { Separator } from "@/components/ui/separator";
 import { useSentinelStore } from "@/lib/store";
 import { useHydrated } from "@/providers/hydration-provider";
 import { supabase } from "@/lib/supabase";
+import { usePsalm20 } from "@/components/sentinel/psalm20/use-psalm20";
+import { ShieldIcon, BannerIcon, GoldDivider } from "@/components/sentinel/psalm20/icons";
 
 interface SidebarBadges {
   adsAlerts: number;
@@ -272,11 +274,81 @@ function SidebarSection({ section, badges, defaultCollapsed = false }: { section
   );
 }
 
+function SidebarBranding({ isPsalm20 }: { isPsalm20: boolean }) {
+  if (isPsalm20) {
+    return (
+      <div className="p-4 flex flex-col gap-2">
+        <div className="flex items-center gap-2.5">
+          <div
+            className="h-9 w-9 rounded-[12px] flex items-center justify-center border"
+            style={{
+              background: "rgba(201,168,76,0.08)",
+              borderColor: "rgba(201,168,76,0.18)",
+              boxShadow: "0 0 12px rgba(201,168,76,0.10), 0 0 24px rgba(201,168,76,0.04)",
+            }}
+          >
+            <ShieldIcon className="h-5 w-5" color="var(--psalm20-gold)" />
+          </div>
+          <div>
+            <h1
+              className="text-base font-bold tracking-[0.08em] uppercase"
+              style={{ color: "var(--psalm20-gold)", textShadow: "0 0 20px rgba(201,168,76,0.2)" }}
+            >
+              SENTINEL
+            </h1>
+            <p className="text-[10px] tracking-[0.22em] uppercase" style={{ color: "var(--psalm20-gold-dim)" }}>
+              Banner of Victory
+            </p>
+          </div>
+        </div>
+        <GoldDivider className="mt-1 opacity-50" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="p-4 flex items-center gap-2.5">
+      <div className="h-8 w-8 rounded-[12px] bg-primary/8 flex items-center justify-center border border-primary/18" style={{ boxShadow: "0 0 1px var(--overlay-80), 0 0 4px var(--overlay-35), 0 0 12px var(--overlay-15), 0 0 20px var(--overlay-6)" }}>
+        <Zap className="h-4 w-4 text-primary drop-shadow-[0_0_8px_var(--overlay-60)]" />
+      </div>
+      <div>
+        <h1 className="text-base font-bold tracking-tight text-foreground title-glow">
+          SENTINEL
+        </h1>
+        <p className="text-xs text-muted-foreground tracking-wide uppercase">
+          Acquisitions OS
+        </p>
+      </div>
+    </div>
+  );
+}
+
+function SidebarFooter({ isPsalm20 }: { isPsalm20: boolean }) {
+  if (!isPsalm20) return null;
+
+  return (
+    <div className="px-4 py-3 flex flex-col items-center gap-2">
+      <GoldDivider className="opacity-40" />
+      <div className="flex items-center gap-2">
+        <BannerIcon className="h-3 w-3" color="var(--psalm20-gold-dim)" />
+        <span
+          className="text-[9px] tracking-[0.25em] uppercase font-medium"
+          style={{ color: "var(--psalm20-gold-dim)", opacity: 0.5 }}
+        >
+          Psalm 20
+        </span>
+        <BannerIcon className="h-3 w-3" color="var(--psalm20-gold-dim)" />
+      </div>
+    </div>
+  );
+}
+
 export function Sidebar() {
   const { sidebarOpen, sidebarWidth, setSidebarWidth } = useSentinelStore();
   const badges = useSidebarBadges();
   const hydrated = useHydrated();
   const [isResizing, setIsResizing] = useState(false);
+  const isPsalm20 = usePsalm20();
 
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
@@ -311,9 +383,23 @@ export function Sidebar() {
           animate={{ width: sidebarWidth, opacity: 1 }}
           exit={{ width: 0, opacity: 0 }}
           transition={isResizing ? { duration: 0 } : { duration: 0.2, ease: "easeInOut" }}
-          className="h-screen bg-sidebar flex flex-col overflow-hidden shrink-0 sidebar-glass relative z-20"
+          className={cn(
+            "h-screen bg-sidebar flex flex-col overflow-hidden shrink-0 sidebar-glass relative z-20",
+            isPsalm20 && "psalm20-sidebar"
+          )}
         >
-          {/* Drag-to-resize handle (double-click resets to 200px) */}
+          {/* Psalm 20 — gold edge glow on right border */}
+          {isPsalm20 && (
+            <div
+              className="absolute top-0 right-0 w-px h-full pointer-events-none z-20"
+              style={{
+                background: "linear-gradient(to bottom, rgba(201,168,76,0.3), rgba(201,168,76,0.08), rgba(201,168,76,0.3))",
+                boxShadow: "0 0 8px rgba(201,168,76,0.12)",
+              }}
+            />
+          )}
+
+          {/* Drag-to-resize handle */}
           <div
             onMouseDown={handleMouseDown}
             onDoubleClick={() => setSidebarWidth(200)}
@@ -325,21 +411,9 @@ export function Sidebar() {
             )} />
           </div>
 
-          <div className="p-4 flex items-center gap-2.5">
-            <div className="h-8 w-8 rounded-[12px] bg-primary/8 flex items-center justify-center border border-primary/18" style={{ boxShadow: "0 0 1px var(--overlay-80), 0 0 4px var(--overlay-35), 0 0 12px var(--overlay-15), 0 0 20px var(--overlay-6)" }}>
-              <Zap className="h-4 w-4 text-primary drop-shadow-[0_0_8px_var(--overlay-60)]" />
-            </div>
-            <div>
-              <h1 className="text-base font-bold tracking-tight text-foreground title-glow">
-                SENTINEL
-              </h1>
-              <p className="text-xs text-muted-foreground tracking-wide uppercase">
-                Acquisitions OS
-              </p>
-            </div>
-          </div>
+          <SidebarBranding isPsalm20={isPsalm20} />
 
-          <Separator className="bg-overlay-4" />
+          {!isPsalm20 && <Separator className="bg-overlay-4" />}
 
           <nav className="flex-1 min-h-0 overflow-y-auto px-3 py-1 scrollbar-thin scrollbar-thumb-overlay-10 scrollbar-track-transparent">
             <div className="space-y-0.5 pt-2">
@@ -352,7 +426,9 @@ export function Sidebar() {
             <SidebarSection section={adminSection} badges={badges} defaultCollapsed />
           </nav>
 
-          <Separator className="mt-auto bg-overlay-4 shrink-0" />
+          <SidebarFooter isPsalm20={isPsalm20} />
+
+          {!isPsalm20 && <Separator className="mt-auto bg-overlay-4 shrink-0" />}
 
         </motion.aside>
       )}

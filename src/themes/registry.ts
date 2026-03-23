@@ -25,8 +25,8 @@ export const SENTINEL_THEMES: SentinelThemeDefinition[] = [
   },
   {
     id: "psalm20",
-    label: "Psalm 20",
-    description: "Custom theme — faith-forward palette.",
+    label: "Psalm 20 — Banner of Victory",
+    description: "Midnight navy, brushed gold, sanctuary glow — a fortified command center under banner and purpose.",
   },
 ];
 
