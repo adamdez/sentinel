@@ -972,18 +972,23 @@ function DialerPageInner() {
       const phoneDigits = incomingFrom?.replace(/\D/g, "") ?? "";
       const phoneFmt = phoneDigits.length >= 10 ? `+1${phoneDigits.slice(-10)}` : incomingFrom;
 
+      console.log("[Dialer] Inbound answer — incomingFrom:", incomingFrom, "phoneDigits:", phoneDigits);
+
       // Try to find the existing inbound session by phone number (most recent ringing session)
       const lookupRes = await fetch(`/api/dialer/v1/phone-lookup?phone=${encodeURIComponent(phoneDigits.slice(-10))}`, { headers: hdrs });
       let existingSessionId: string | null = null;
-      let existingCallLogId: string | null = null;
       if (lookupRes.ok) {
         const lookupData = await lookupRes.json();
+        console.log("[Dialer] Phone lookup result:", JSON.stringify(lookupData.unlinkedSessions?.map((s: { id: string; status: string; phoneDialed: string }) => ({ id: s.id?.slice(0, 8), status: s.status, phone: s.phoneDialed }))));
         // Find the most recent ringing/connected inbound session
         const inboundSession = lookupData.unlinkedSessions?.find((s: { status: string }) =>
           s.status === "ringing" || s.status === "connected"
         );
         if (inboundSession) {
           existingSessionId = inboundSession.id;
+          console.log("[Dialer] Found existing inbound session:", existingSessionId);
+        } else {
+          console.log("[Dialer] No ringing/connected session found — will create fallback");
         }
       }
 
