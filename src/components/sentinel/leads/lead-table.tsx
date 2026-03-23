@@ -409,17 +409,6 @@ export function LeadTable({
               <span className={cn("text-sm truncate", nextActionClass)}>
                 {nextActionText}
               </span>
-              {actionSummary.action && (
-                <span
-                  className={cn(
-                    "text-sm truncate",
-                    urgencyTextClass(actionSummary.urgency)
-                  )}
-                  title={actionSummary.reason}
-                >
-                  {actionSummary.action}
-                </span>
-              )}
             </div>
 
             {/* Last Contact */}

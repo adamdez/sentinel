@@ -254,14 +254,14 @@ export function clientFileFromRaw(lead: Record<string, any>, prop: Record<string
   const flags = prop.owner_flags ?? {};
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const prRaw = (flags.pr_raw ?? {}) as Record<string, any>;
-  const composite = lead.priority ?? 0;
+  const composite = lead.priority ?? null;
   const toNum = (v: unknown): number | null => {
     if (v == null || v === "") return null;
     const n = typeof v === "number" ? v : parseFloat(String(v).replace(/[$,%]/g, ""));
     return isNaN(n) ? null : n;
   };
   const toBool = (v: unknown) => v === true || v === 1 || v === "1" || v === "Yes" || v === "True" || v === "true";
-  const sl = (n: number): AIScore["label"] => n >= 85 ? "platinum" : n >= 65 ? "gold" : n >= 40 ? "silver" : "bronze";
+  const sl = (n: number | null): AIScore["label"] => n == null ? "unscored" : n >= 85 ? "platinum" : n >= 65 ? "gold" : n >= 40 ? "silver" : "bronze";
 
   return {
     id: lead.id, propertyId: lead.property_id ?? "", apn: prop.apn ?? "",
@@ -288,8 +288,8 @@ export function clientFileFromRaw(lead: Record<string, any>, prop: Record<string
       qualificationRoute: (lead.qualification_route as QualificationRoute | null) ?? null,
     }),
     complianceClean: true,
-    compositeScore: composite, motivationScore: Math.round(composite * 0.85),
-    dealScore: Math.round(composite * 0.75), scoreLabel: sl(composite),
+    compositeScore: composite ?? 0, motivationScore: composite != null ? Math.round(composite * 0.85) : 0,
+    dealScore: composite != null ? Math.round(composite * 0.75) : 0, scoreLabel: sl(composite),
     aiBoost: 0, factors: [], modelVersion: null,
     propertyType: prop.property_type ?? null, bedrooms: prop.bedrooms ?? null,
     bathrooms: prop.bathrooms != null ? Number(prop.bathrooms) : null,
@@ -466,6 +466,7 @@ const WORKFLOW_STAGE_SET = new Set<WorkflowStageId>(WORKFLOW_STAGE_OPTIONS.map((
 const LEGACY_MY_LEADS_ALIASES = new Set(["my_lead", "my_leads", "my_lead_status"]);
 
 export const SCORE_LABEL_CFG: Record<AIScore["label"], { text: string; color: string; bg: string }> = {
+  unscored: { text: "Unscored",     color: "text-muted-foreground/50", bg: "bg-muted/5 border-border/20" },
   platinum: { text: "Top priority", color: "text-primary-300",    bg: "bg-primary-400/10 border-primary-400/30" },
   gold:     { text: "High priority",    color: "text-foreground",   bg: "bg-muted/10 border-border/30" },
   silver:   { text: "Medium",  color: "text-foreground",   bg: "bg-muted/10 border-border/30" },

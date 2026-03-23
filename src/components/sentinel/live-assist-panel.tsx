@@ -268,6 +268,9 @@ export function LiveAssistPanel({
                   <p className="text-sm text-foreground/90 mt-1 leading-snug">
                     {nextBestQuestion || "The live coach is still collecting context."}
                   </p>
+                  <p className="text-xs text-muted-foreground/45 mt-2 leading-snug">
+                    Advisory only. The coach updates after the answer shows up in live notes or transcript capture.
+                  </p>
                 </div>
 
                 <div className="grid gap-3">

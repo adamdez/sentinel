@@ -7,7 +7,7 @@ import { scrubLead } from "@/lib/compliance";
 import { distressFingerprint, normalizeCounty as globalNormalizeCounty, isDuplicateError } from "@/lib/dedup";
 import { detectDistressSignals, type DetectedSignal } from "@/lib/distress-signals";
 import { captureStageTransition } from "@/lib/conversion-tracking";
-import { compactObject, normalizeTagList, scoringTagCount } from "@/lib/prospecting";
+import { compactObject, normalizeTagList } from "@/lib/prospecting";
 import { insertAttribution, extractDomain } from "@/lib/ads/queries/attribution";
 import { evaluateStageEntryPrerequisites, type StageEntryPrereqInput } from "@/lib/lead-guards";
 import {
@@ -999,6 +999,8 @@ export async function POST(req: NextRequest) {
       attempt_count, skip_trace_status, call_outcome, wrong_number, do_not_call,
       bad_record, outbound_status, source_metadata,
       gclid, landing_page,
+      // Enrichment data from search preview (Bricked AI + County GIS)
+      bricked_data, gis_data,
     } = body;
 
     if (!address || !county) {
@@ -1186,9 +1188,8 @@ export async function POST(req: NextRequest) {
     // ── Step 2: Save basic lead ──────────────────────────────────────
 
     const tags = normalizedTags;
-    const baseScore = Math.min(30 + scoringTagCount(tags) * 12, 100);
-    const eqBonus = toFloat(equity_percent) ?? 0;
-    const compositeScore = Math.min(Math.round(baseScore + (eqBonus as number) * 0.2), 100);
+    // No inline scoring — all leads score through the canonical v2.2 engine
+    // after enrichment. Manual leads start unscored (null).
 
     const isAssigned = assign_to && assign_to !== "unassigned";
 
@@ -1196,7 +1197,7 @@ export async function POST(req: NextRequest) {
     const leadRow: any = {
       property_id: property.id,
       status: isAssigned || sourceChannel === "manual" ? "lead" : "prospect",
-      priority: compositeScore,
+      priority: null,
       source: sourceChannel,
       tags,
       notes: notes?.trim() || (sourceChannel === "manual" ? "Manually added prospect" : "Imported prospect"),
@@ -1271,26 +1272,359 @@ export async function POST(req: NextRequest) {
         niche_tag: nicheTag,
         address,
         owner: owner_name,
-        score: compositeScore,
+        score: null,
         assigned: isAssigned ? assign_to : "unassigned",
       },
     }).then(({ error: auditErr }: { error: unknown }) => {
       if (auditErr) console.error("[API/prospects POST] Audit log failed (non-fatal):", auditErr);
     });
 
-    // If property was pre-enriched during preview, no need for cron.
-    // Otherwise, enrichment cron picks it up every 15 min.
+    // ── Step 3: Store enrichment data through dossier pipeline ──────
+    // Bricked + County GIS data from search preview → dossier_artifacts → fact_assertions
+    // High-confidence facts auto-promote (review_status = 'accepted')
+
+    let computedScore: number | null = null;
+
+    // ── 3.0: Auto-fetch County GIS if not provided by client ──────
+    // County GIS is free and fast — always fetch it on lead creation
+    let effectiveGisData = gis_data;
+    if (!effectiveGisData || effectiveGisData.skipped) {
+      try {
+        const countyForGis = finalCounty;
+        const stateForGis = (state?.trim().toUpperCase()) || "WA";
+        const addressForGis = address.trim();
+
+        if (countyForGis.includes("spokane") && stateForGis === "WA") {
+          const { spokaneGisAdapter } = await import("@/providers/spokane-gis/adapter");
+          const gisResult = await spokaneGisAdapter.lookupProperty({
+            address: addressForGis,
+            county: countyForGis,
+            state: stateForGis,
+          });
+          if (gisResult.facts.length > 0) {
+            const factsMap = new Map(gisResult.facts.map((f) => [f.fieldName, f.value]));
+            let salesHistory: Array<{ date: string | null; price: number }> = [];
+            const salesRaw = factsMap.get("county_sales_history");
+            if (typeof salesRaw === "string") { try { salesHistory = JSON.parse(salesRaw); } catch { /* ignore */ } }
+            let parcelGeometry: number[][][] | null = null;
+            const geomRaw = factsMap.get("county_parcel_geometry");
+            if (typeof geomRaw === "string") { try { parcelGeometry = JSON.parse(geomRaw); } catch { /* ignore */ } }
+            effectiveGisData = {
+              assessedValue: (factsMap.get("county_assessed_value") as number) ?? null,
+              landValue: (factsMap.get("county_land_value") as number) ?? null,
+              improvementValue: (factsMap.get("county_improvement_value") as number) ?? null,
+              lastSalePrice: (factsMap.get("county_last_sale_price") as number) ?? null,
+              lastSaleDate: (factsMap.get("county_last_sale_date") as string) ?? null,
+              parcelNumber: (factsMap.get("county_parcel_number") as string) ?? null,
+              acreage: (factsMap.get("county_acreage") as number) ?? null,
+              propUseDesc: (factsMap.get("county_prop_use_desc") as string) ?? null,
+              salesHistory,
+              parcelGeometry,
+              rawPayload: gisResult.rawPayload,
+              provider: "spokane_gis" as const,
+            };
+            console.log("[API/prospects POST] Auto-fetched Spokane County GIS data");
+          }
+        } else if (countyForGis.includes("kootenai") && stateForGis === "ID") {
+          const { kootenaiGisAdapter } = await import("@/providers/kootenai-gis/adapter");
+          const gisResult = await kootenaiGisAdapter.lookupProperty({
+            address: addressForGis,
+            county: countyForGis,
+            state: stateForGis,
+          });
+          if (gisResult.facts.length > 0) {
+            const factsMap = new Map(gisResult.facts.map((f) => [f.fieldName, f.value]));
+            let salesHistory: Array<{ date: string | null; price: number }> = [];
+            const salesRaw = factsMap.get("county_sales_history");
+            if (typeof salesRaw === "string") { try { salesHistory = JSON.parse(salesRaw); } catch { /* ignore */ } }
+            let parcelGeometry: number[][][] | null = null;
+            const geomRaw = factsMap.get("county_parcel_geometry");
+            if (typeof geomRaw === "string") { try { parcelGeometry = JSON.parse(geomRaw); } catch { /* ignore */ } }
+            effectiveGisData = {
+              assessedValue: (factsMap.get("county_assessed_value") as number) ?? null,
+              landValue: (factsMap.get("county_land_value") as number) ?? null,
+              improvementValue: (factsMap.get("county_improvement_value") as number) ?? null,
+              lastSalePrice: (factsMap.get("county_last_sale_price") as number) ?? null,
+              lastSaleDate: (factsMap.get("county_last_sale_date") as string) ?? null,
+              parcelNumber: (factsMap.get("county_parcel_number") as string) ?? null,
+              acreage: (factsMap.get("county_acreage") as number) ?? null,
+              propUseDesc: (factsMap.get("county_prop_use_desc") as string) ?? null,
+              salesHistory,
+              parcelGeometry,
+              rawPayload: gisResult.rawPayload,
+              provider: "kootenai_gis" as const,
+            };
+            console.log("[API/prospects POST] Auto-fetched Kootenai County GIS data");
+          }
+        }
+      } catch (gisErr) {
+        // GIS failure must never block lead creation
+        console.error("[API/prospects POST] Auto-GIS fetch failed (non-fatal):", gisErr);
+      }
+    }
+
+    // Fire-and-forget: enrichment pipeline (non-blocking for response)
+    const enrichmentPromise = (async () => {
+      try {
+        // ── 3a: Store Bricked artifact + facts ──
+        if (bricked_data && typeof bricked_data === "object") {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const { data: brickedArtifact } = await (sb.from("dossier_artifacts") as any)
+            .insert({
+              lead_id: lead.id,
+              property_id: property.id,
+              source_type: "bricked_ai",
+              source_label: "Bricked AI Property Analysis",
+              raw_excerpt: JSON.stringify(bricked_data.rawPayload ?? bricked_data),
+              captured_by: actorUser?.id ?? null,
+            })
+            .select("id")
+            .single();
+
+          if (brickedArtifact?.id) {
+            // Extract fact assertions from Bricked data
+            const brickedFacts: Array<{
+              artifact_id: string;
+              lead_id: string;
+              fact_type: string;
+              fact_value: string;
+              confidence: string;
+              review_status: string;
+              promoted_field: string | null;
+            }> = [];
+
+            const addFact = (type: string, value: unknown, promoted: string | null = null, conf = "high") => {
+              if (value !== null && value !== undefined && value !== "") {
+                brickedFacts.push({
+                  artifact_id: brickedArtifact.id,
+                  lead_id: lead.id,
+                  fact_type: type,
+                  fact_value: String(value),
+                  confidence: conf,
+                  review_status: conf === "high" ? "accepted" : "pending",
+                  promoted_field: promoted,
+                });
+              }
+            };
+
+            addFact("arv_estimate", bricked_data.arv, "top_fact_1");
+            addFact("cmv_estimate", bricked_data.cmv, null);
+            addFact("total_repair_cost", bricked_data.totalRepairCost, "top_fact_3");
+            addFact("equity_estimate", bricked_data.equityEstimate, null);
+            addFact("comp_count", bricked_data.compCount, null);
+            addFact("renovation_score", bricked_data.renovationScore, null, "medium");
+            addFact("bricked_share_link", bricked_data.shareLink, null);
+            addFact("bricked_dashboard_link", bricked_data.dashboardLink, null);
+
+            if (brickedFacts.length > 0) {
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              await (sb.from("fact_assertions") as any).insert(brickedFacts);
+            }
+
+            // Also store key values in owner_flags for backward compat with existing UI
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const { data: currentProp } = await (sb.from("properties") as any)
+              .select("owner_flags")
+              .eq("id", property.id)
+              .single();
+
+            const existingFlags = (currentProp?.owner_flags ?? {}) as Record<string, unknown>;
+            const brickedFlags: Record<string, unknown> = {
+              ...existingFlags,
+              bricked_arv: bricked_data.arv,
+              comp_arv: bricked_data.arv,
+              bricked_cmv: bricked_data.cmv,
+              bricked_repair_cost: bricked_data.totalRepairCost,
+              bricked_share_link: bricked_data.shareLink,
+              bricked_dashboard_link: bricked_data.dashboardLink,
+              bricked_id: bricked_data.brickedId,
+              comp_count: bricked_data.compCount,
+              bricked_equity: bricked_data.equityEstimate,
+              bricked_renovation_score: bricked_data.renovationScore,
+            };
+
+            if (bricked_data.subjectImages?.length) {
+              brickedFlags.bricked_subject_images = bricked_data.subjectImages;
+            }
+            if (bricked_data.repairs?.length) {
+              brickedFlags.bricked_repairs = bricked_data.repairs;
+            }
+
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            await (sb.from("properties") as any)
+              .update({ owner_flags: brickedFlags })
+              .eq("id", property.id);
+          }
+        }
+
+        // ── 3b: Store County GIS artifact + facts ──
+        if (effectiveGisData && typeof effectiveGisData === "object" && !effectiveGisData.skipped) {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const { data: gisArtifact } = await (sb.from("dossier_artifacts") as any)
+            .insert({
+              lead_id: lead.id,
+              property_id: property.id,
+              source_type: effectiveGisData.provider === "kootenai_gis" ? "kootenai_gis" : "spokane_gis",
+              source_label: effectiveGisData.provider === "kootenai_gis"
+                ? "Kootenai County GIS (ArcGIS)"
+                : "Spokane County GIS (ArcGIS)",
+              raw_excerpt: JSON.stringify(effectiveGisData.rawPayload ?? effectiveGisData),
+              captured_by: actorUser?.id ?? null,
+            })
+            .select("id")
+            .single();
+
+          if (gisArtifact?.id) {
+            const gisFacts: Array<{
+              artifact_id: string;
+              lead_id: string;
+              fact_type: string;
+              fact_value: string;
+              confidence: string;
+              review_status: string;
+              promoted_field: string | null;
+            }> = [];
+
+            const addGisFact = (type: string, value: unknown, promoted: string | null = null) => {
+              if (value !== null && value !== undefined && value !== "") {
+                gisFacts.push({
+                  artifact_id: gisArtifact.id,
+                  lead_id: lead.id,
+                  fact_type: type,
+                  fact_value: String(value),
+                  confidence: "high",
+                  review_status: "accepted",
+                  promoted_field: promoted,
+                });
+              }
+            };
+
+            addGisFact("county_assessed_value", effectiveGisData.assessedValue, "top_fact_2");
+            addGisFact("county_land_value", effectiveGisData.landValue, null);
+            addGisFact("county_improvement_value", effectiveGisData.improvementValue, null);
+            addGisFact("county_last_sale_price", effectiveGisData.lastSalePrice, null);
+            addGisFact("county_last_sale_date", effectiveGisData.lastSaleDate, null);
+            addGisFact("county_parcel_number", effectiveGisData.parcelNumber, null);
+            addGisFact("county_acreage", effectiveGisData.acreage, null);
+            addGisFact("county_prop_use_desc", effectiveGisData.propUseDesc, null);
+
+            if (effectiveGisData.salesHistory?.length) {
+              addGisFact("county_sales_history", JSON.stringify(effectiveGisData.salesHistory), null);
+            }
+
+            if (gisFacts.length > 0) {
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              await (sb.from("fact_assertions") as any).insert(gisFacts);
+            }
+
+            // Store GIS data in owner_flags for backward compat
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const { data: currentProp2 } = await (sb.from("properties") as any)
+              .select("owner_flags")
+              .eq("id", property.id)
+              .single();
+
+            const flags2 = (currentProp2?.owner_flags ?? {}) as Record<string, unknown>;
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            await (sb.from("properties") as any)
+              .update({
+                owner_flags: {
+                  ...flags2,
+                  gis_assessed_value: effectiveGisData.assessedValue,
+                  gis_land_value: effectiveGisData.landValue,
+                  gis_improvement_value: effectiveGisData.improvementValue,
+                  gis_sales_history: effectiveGisData.salesHistory,
+                  gis_parcel_number: effectiveGisData.parcelNumber,
+                  gis_parcel_geometry: effectiveGisData.parcelGeometry,
+                  gis_source: effectiveGisData.provider,
+                  gis_fetched_at: new Date().toISOString(),
+                },
+              })
+              .eq("id", property.id);
+          }
+        }
+
+        // ── 3c: Auto-promote top facts to leads projection fields ──
+        const topFacts: Record<string, string> = {};
+        if (bricked_data?.arv) {
+          topFacts.top_fact_1 = `ARV: $${Number(bricked_data.arv).toLocaleString()}`;
+        }
+        if (effectiveGisData?.assessedValue) {
+          topFacts.top_fact_2 = `Assessed: $${Number(effectiveGisData.assessedValue).toLocaleString()}`;
+        }
+        if (bricked_data?.totalRepairCost) {
+          topFacts.top_fact_3 = `Repairs: $${Number(bricked_data.totalRepairCost).toLocaleString()}`;
+        }
+
+        if (Object.keys(topFacts).length > 0) {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          await (sb.from("leads") as any)
+            .update(topFacts)
+            .eq("id", lead.id);
+        }
+
+        // ── 3d: Score with real enrichment data via v2.2 engine ──
+        // Build scoring input from enrichment data + distress tags
+        if (bricked_data || effectiveGisData) {
+          const { computeScore } = await import("@/lib/scoring");
+          const signals = (normalizedTags || [])
+            .filter((t: string) => [
+              "probate", "pre_foreclosure", "tax_lien", "code_violation",
+              "vacant", "divorce", "bankruptcy", "fsbo", "absentee",
+              "inherited", "water_shutoff", "condemned", "tired_landlord", "underwater",
+            ].includes(t))
+            .map((t: string) => ({
+              type: t as import("@/lib/types").DistressType,
+              severity: 5,
+              daysSinceEvent: 30,
+              status: "active" as const,
+            }));
+
+          const eqPct = bricked_data?.equityEstimate
+            ?? (equity_percent ? Number(equity_percent) : null)
+            ?? 0; // No equity data = 0 contribution, never assume 50%
+
+          const scoreResult = computeScore({
+            signals,
+            ownerFlags: {
+              absentee: normalizedTags?.includes("absentee") ?? false,
+              inherited: normalizedTags?.includes("inherited") ?? false,
+            },
+            equityPercent: eqPct,
+            compRatio: 0,
+            historicalConversionRate: 0,
+          });
+
+          computedScore = scoreResult.composite;
+
+          // Update lead priority with real score
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          await (sb.from("leads") as any)
+            .update({ priority: scoreResult.composite })
+            .eq("id", lead.id);
+        }
+      } catch (enrichErr) {
+        // Enrichment failure must never block lead creation
+        console.error("[API/prospects POST] Enrichment pipeline failed (non-fatal):", enrichErr);
+      }
+    })();
+
+    // Wait for enrichment to complete (it's fast — just DB writes + scoring)
+    await enrichmentPromise;
 
     return NextResponse.json({
       success: true,
       lead_id: lead.id,
       property_id: property.id,
-      score: compositeScore,
+      score: computedScore,
+      scored: computedScore !== null,
       status: leadRow.status,
-      enriched: alreadyEnriched,
-      enrichment: alreadyEnriched
-        ? "Already enriched during preview"
-        : "Queued for automatic enrichment (runs every 15 min)",
+      enriched: alreadyEnriched || !!bricked_data || !!effectiveGisData,
+      enrichment: (bricked_data || effectiveGisData)
+        ? "Enrichment data stored through dossier pipeline"
+        : alreadyEnriched
+          ? "Already enriched during preview"
+          : "Queued for automatic enrichment (runs every 15 min)",
     });
   } catch (err) {
     console.error("[API/prospects] Unexpected error:", err);

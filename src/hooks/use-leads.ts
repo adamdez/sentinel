@@ -81,7 +81,8 @@ const DEFAULT_FILTERS: LeadFilters = {
   excludeSuppressed: false,
 };
 
-function scoreLabel(n: number): AIScore["label"] {
+function scoreLabel(n: number | null): AIScore["label"] {
+  if (n == null) return "unscored";
   if (n >= 85) return "platinum";
   if (n >= 65) return "gold";
   if (n >= 40) return "silver";
@@ -209,7 +210,7 @@ function isEscalatedReviewAttention(lead: LeadRow): boolean {
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function mapToLeadRow(raw: any, prop: any, firstAttemptAt: string | null = null, attribution: any = null): LeadRow {
-  const composite = raw.priority ?? 0;
+  const composite = raw.priority ?? null;
   const offerPrepSnapshot = extractOfferPrepSnapshot(prop.owner_flags ?? null);
   const prospecting = extractProspectingSnapshot(prop.owner_flags ?? null);
   const offerPrepHealth = deriveOfferPrepHealth({
@@ -238,11 +239,11 @@ function mapToLeadRow(raw: any, prop: any, firstAttemptAt: string | null = null,
     assignedTo: raw.assigned_to ?? null,
     assignedName: null,
     score: {
-      composite,
-      motivation: Math.round(composite * 0.85),
+      composite: composite ?? 0,
+      motivation: composite != null ? Math.round(composite * 0.85) : 0,
       equityVelocity: Math.round((prop.equity_percent ?? 50) * 0.8),
-      urgency: Math.min(composite + 5, 100),
-      historicalConversion: Math.round(composite * 0.7),
+      urgency: composite != null ? Math.min(composite + 5, 100) : 0,
+      historicalConversion: composite != null ? Math.round(composite * 0.7) : 0,
       aiBoost: 0,
       label: scoreLabel(composite),
     },

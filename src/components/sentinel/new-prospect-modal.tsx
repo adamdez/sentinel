@@ -159,6 +159,47 @@ export function NewProspectModal() {
 
   useEffect(() => {
     if (!isOpen) return;
+
+    // Pre-fill from Bricked data (from command palette search)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const bricked = modalData.brickedData as any;
+    if (bricked) {
+      const parseAddr = (addr: string) => {
+        // Try to extract city/state/zip from "123 Main St, Spokane, WA 99201"
+        const parts = addr.split(",").map((s: string) => s.trim());
+        const street = parts[0] ?? addr;
+        const city = parts[1] ?? "Spokane";
+        let state = "WA";
+        let zip = "";
+        if (parts[2]) {
+          const stateZip = parts[2].trim().split(/\s+/);
+          state = stateZip[0] ?? "WA";
+          zip = stateZip[1] ?? "";
+        }
+        return { street, city, state, zip };
+      };
+      const parsed = parseAddr(bricked.address ?? "");
+      setForm((prev) => ({
+        ...prev,
+        address: parsed.street,
+        city: parsed.city || prev.city,
+        state: parsed.state || prev.state,
+        zip: parsed.zip || prev.zip,
+        owner_name: bricked.ownerNames ?? prev.owner_name,
+        property_type: bricked.propertyType ?? prev.property_type,
+        bedrooms: bricked.bedrooms != null ? String(bricked.bedrooms) : prev.bedrooms,
+        bathrooms: bricked.bathrooms != null ? String(bricked.bathrooms) : prev.bathrooms,
+        sqft: bricked.sqft != null ? String(bricked.sqft) : prev.sqft,
+        year_built: bricked.yearBuilt != null ? String(bricked.yearBuilt) : prev.year_built,
+        estimated_value: bricked.cmv != null ? String(bricked.cmv) : prev.estimated_value,
+        equity_percent: bricked.equityEstimate != null ? String(Math.round(bricked.equityEstimate)) : prev.equity_percent,
+        source: "bricked_search",
+        source_channel: "manual",
+      }));
+      return;
+    }
+
+    // Pre-fill from initialValues (existing flow)
     const initial = (modalData.initialValues as Partial<FormData> | undefined) ?? {};
     if (Object.keys(initial).length === 0) return;
     setForm((prev) => ({ ...prev, ...initial }));

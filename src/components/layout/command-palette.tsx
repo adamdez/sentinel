@@ -25,6 +25,7 @@ import {
 } from "lucide-react";
 import { useSentinelStore } from "@/lib/store";
 import { useCommandPalette } from "@/hooks/use-command-palette";
+import { useModal } from "@/providers/modal-provider";
 import { supabase } from "@/lib/supabase";
 import { cn } from "@/lib/utils";
 
@@ -46,6 +47,33 @@ interface DataResult {
   scoreLabel?: "platinum" | "gold" | "silver" | "bronze";
   status?: string;
   source?: string;
+}
+
+interface BrickedResult {
+  kind: "bricked";
+  address: string;
+  ownerNames: string | null;
+  arv: number | null;
+  cmv: number | null;
+  totalRepairCost: number | null;
+  equityEstimate: number | null;
+  propertyType: string | null;
+  bedrooms: number | null;
+  bathrooms: number | null;
+  sqft: number | null;
+  yearBuilt: number | null;
+  renovationScore: number | null;
+  brickedId: string;
+  shareLink: string | null;
+  dashboardLink: string | null;
+  compCount: number;
+  subjectImages: string[];
+  repairs: Array<{ item: string; cost: number }>;
+  rawPayload: Record<string, unknown>;
+}
+
+function looksLikeAddress(q: string): boolean {
+  return /^\d+\s+[a-zA-Z]/.test(q) && q.length >= 6;
 }
 
 type SearchResult = NavCommand | DataResult;
@@ -99,6 +127,7 @@ export function CommandPalette() {
   const router = useRouter();
   const { open, setOpen } = useCommandPalette();
   const { setCommandPaletteOpen } = useSentinelStore();
+  const { openModal } = useModal();
   const [query, setQuery] = useState("");
 
   const handleClose = useCallback(() => {
@@ -113,8 +142,17 @@ export function CommandPalette() {
     router.push(href);
   }, [setCommandPaletteOpen, router]);
 
+  const handleCreateFromBricked = useCallback((bricked: BrickedResult) => {
+    setCommandPaletteOpen(false);
+    setQuery("");
+    openModal("new-prospect", { brickedData: bricked });
+  }, [setCommandPaletteOpen, openModal]);
+
   const [dataResults, setDataResults] = useState<DataResult[]>([]);
+  const [brickedResult, setBrickedResult] = useState<BrickedResult | null>(null);
+  const [brickedLoading, setBrickedLoading] = useState(false);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const brickedDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current);
@@ -189,6 +227,63 @@ export function CommandPalette() {
     }, 250);
 
     return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
+  }, [query]);
+
+  // Bricked search — fires on address-like queries (longer debounce since API is slower)
+  useEffect(() => {
+    if (brickedDebounceRef.current) clearTimeout(brickedDebounceRef.current);
+    if (!looksLikeAddress(query)) { setBrickedResult(null); setBrickedLoading(false); return; }
+
+    setBrickedLoading(true);
+    brickedDebounceRef.current = setTimeout(async () => {
+      try {
+        const res = await fetch("/api/bricked/analyze", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ address: query }),
+        });
+        if (!res.ok) { setBrickedResult(null); setBrickedLoading(false); return; }
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const data = await res.json() as any;
+        if (!data?.address) { setBrickedResult(null); setBrickedLoading(false); return; }
+
+        const subject = data.subject ?? {};
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const repairItems = (data.repairs ?? []).map((r: any) => ({
+          item: r.name ?? r.item ?? "Unknown",
+          cost: r.cost ?? r.estimatedCost ?? 0,
+        }));
+
+        setBrickedResult({
+          kind: "bricked",
+          address: data.address ?? query,
+          ownerNames: subject.ownerNames?.join(", ") ?? data.ownerNames ?? null,
+          arv: data.arv ?? null,
+          cmv: data.cmv ?? subject.estimatedValue ?? null,
+          totalRepairCost: data.totalRepairCost ?? null,
+          equityEstimate: subject.estimatedEquity ?? null,
+          propertyType: subject.propertyType ?? subject.landUse ?? null,
+          bedrooms: subject.bedrooms ?? null,
+          bathrooms: subject.bathrooms ?? null,
+          sqft: subject.squareFeet ?? null,
+          yearBuilt: subject.yearBuilt ?? null,
+          renovationScore: data.renovationScore ?? null,
+          brickedId: data.id ?? "",
+          shareLink: data.shareLink ?? null,
+          dashboardLink: data.dashboardLink ?? null,
+          compCount: data.comps?.length ?? 0,
+          subjectImages: data.subjectImages ?? [],
+          repairs: repairItems,
+          rawPayload: data,
+        });
+      } catch {
+        setBrickedResult(null);
+      } finally {
+        setBrickedLoading(false);
+      }
+    }, 800);
+
+    return () => { if (brickedDebounceRef.current) clearTimeout(brickedDebounceRef.current); };
   }, [query]);
 
   const navResults = useMemo(() => {
@@ -277,6 +372,48 @@ export function CommandPalette() {
                     {contacts.map((r) => (
                       <DataResultItem key={r.id} result={r} onSelect={handleSelect} />
                     ))}
+                  </Command.Group>
+                )}
+
+                {/* Bricked Property Lookup */}
+                {(brickedResult || brickedLoading) && (
+                  <Command.Group
+                    heading="Property Lookup"
+                    className="[&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:py-1.5 [&_[cmdk-group-heading]]:text-sm [&_[cmdk-group-heading]]:font-semibold [&_[cmdk-group-heading]]:text-primary/70 [&_[cmdk-group-heading]]:uppercase [&_[cmdk-group-heading]]:tracking-wider"
+                  >
+                    {brickedLoading && !brickedResult && (
+                      <div className="flex items-center gap-3 px-2 py-3 text-sm text-muted-foreground">
+                        <div className="h-4 w-4 border-2 border-primary/30 border-t-primary rounded-full animate-spin" />
+                        <span>Searching Bricked AI...</span>
+                      </div>
+                    )}
+                    {brickedResult && (
+                      <Command.Item
+                        value={`bricked-${brickedResult.address}`}
+                        onSelect={() => handleCreateFromBricked(brickedResult)}
+                        className="flex items-center gap-3 rounded-[10px] px-2 py-2.5 text-sm cursor-pointer aria-selected:bg-accent aria-selected:text-accent-foreground transition-colors group"
+                      >
+                        <div className="h-7 w-7 rounded-md flex items-center justify-center shrink-0 border bg-primary/8 border-primary/15 text-primary">
+                          <Home className="h-3.5 w-3.5" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-semibold truncate text-foreground" style={{ WebkitFontSmoothing: "antialiased" }}>
+                            {brickedResult.address}
+                          </p>
+                          <p className="text-sm text-muted-foreground truncate">
+                            {[
+                              brickedResult.ownerNames,
+                              brickedResult.arv ? `ARV $${Number(brickedResult.arv).toLocaleString()}` : null,
+                              brickedResult.cmv ? `CMV $${Number(brickedResult.cmv).toLocaleString()}` : null,
+                              brickedResult.totalRepairCost ? `Repairs $${Number(brickedResult.totalRepairCost).toLocaleString()}` : null,
+                            ].filter(Boolean).join(" · ")}
+                          </p>
+                        </div>
+                        <span className="text-xs px-2 py-1 rounded bg-primary/10 text-primary border border-primary/20 font-semibold shrink-0">
+                          + Create Lead
+                        </span>
+                      </Command.Item>
+                    )}
                   </Command.Group>
                 )}
 

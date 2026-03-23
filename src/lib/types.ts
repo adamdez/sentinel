@@ -144,7 +144,7 @@ export interface AIScore {
   urgency: number;
   historicalConversion: number;
   aiBoost: number;
-  label: "bronze" | "silver" | "gold" | "platinum";
+  label: "unscored" | "bronze" | "silver" | "gold" | "platinum";
 }
 
 export interface PredictiveScore {

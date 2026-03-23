@@ -27,13 +27,13 @@ import { Input } from "@/components/ui/input";
 import {
   useFactAssertions,
   FACT_TYPES,
-  FACT_TYPE_LABELS,
   CONFIDENCE_LABELS,
   PROMOTED_FIELD_OPTIONS,
 } from "@/hooks/use-fact-assertions";
 import type { FactAssertionRow, FactType, FactConfidence } from "@/hooks/use-fact-assertions";
 import type { ArtifactRow } from "@/hooks/use-dossier-artifacts";
 import { SOURCE_TYPE_LABELS } from "@/hooks/use-dossier-artifacts";
+import { FACT_TYPE_LABELS, labelForFactType } from "@/lib/dossier-facts";
 
 // ── Status helpers ────────────────────────────────────────────────────────────
 
@@ -100,7 +100,7 @@ function FactRow({
           <p className="text-foreground/85 leading-snug">{fact.fact_value}</p>
           <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
             <Badge variant="outline" className="text-xs h-3.5 px-1 text-muted-foreground/50 border-overlay-10">
-              {FACT_TYPE_LABELS[fact.fact_type]}
+              {labelForFactType(fact.fact_type)}
             </Badge>
             <span className={`text-xs ${confMeta.color}`}>
               {confMeta.label}

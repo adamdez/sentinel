@@ -201,6 +201,11 @@ export function PostCallPanel({
   const [publishing, setPublishing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState<string | null>(null); // dispo label shown briefly on success
+  const [publishTargets, setPublishTargets] = useState<{
+    callsLogId: string | null;
+    leadId: string | null;
+    taskId: string | null;
+  } | null>(null);
   const [publishQaFindings, setPublishQaFindings] = useState<PublishQaFinding[]>([]);
   const [promoteFactsBusy, setPromoteFactsBusy] = useState(false);
   const [promoteFactsInfo, setPromoteFactsInfo] = useState<{ promoted: number; contradictions: number } | null>(
@@ -380,6 +385,7 @@ export function PostCallPanel({
     setSelected(dispo);
     setPublishing(true);
     setError(null);
+    setPublishTargets(null);
     setPublishQaFindings([]);
 
     const hdrs = await authHeaders();
@@ -522,6 +528,11 @@ export function PostCallPanel({
     const label = DISPO_OPTIONS.find((d) => d.key === dispo)?.label ?? dispo;
     setPublishing(false);
     setSaved(label);
+    setPublishTargets({
+      callsLogId: typeof publishData?.calls_log_id === "string" ? publishData.calls_log_id : null,
+      leadId: typeof publishData?.lead_id === "string" ? publishData.lead_id : null,
+      taskId: typeof publishData?.task_id === "string" ? publishData.task_id : null,
+    });
     setPromoteFactsInfo(null);
     if (!leadId) {
       setTimeout(() => onComplete(), 850);
@@ -555,6 +566,26 @@ export function PostCallPanel({
   };
 
   const handleSkip = () => {
+    const hasUnsavedDraft = Boolean(
+      summary.trim() ||
+      nextAction.trim() ||
+      nextActionDueAt ||
+      structuredDraft?.summary_line ||
+      structuredDraft?.promises_made ||
+      structuredDraft?.objection ||
+      structuredDraft?.next_task_suggestion ||
+      structuredDraft?.deal_temperature ||
+      objectionTags.length > 0,
+    );
+    if (
+      hasUnsavedDraft &&
+      !window.confirm(
+        "Skip closeout will discard this draft and will not save it to Call History or the Lead File. Continue?",
+      )
+    ) {
+      return;
+    }
+
     // Still fire legacy path so call counters increment even on skip
     if (callLogId) {
       authHeaders().then((hdrs) =>
@@ -689,6 +720,26 @@ export function PostCallPanel({
             <CheckCircle2 className="h-5 w-5 text-primary" />
             <p className="text-sm font-medium text-foreground">Logged: {saved}</p>
           </div>
+          <div className="rounded-[10px] border border-overlay-8 bg-overlay-2 p-3 space-y-1.5">
+            <p className="text-sm uppercase tracking-wide text-muted-foreground font-semibold">
+              Saved to
+            </p>
+            <p className="text-sm text-foreground/85">
+              {publishTargets?.callsLogId
+                ? "Call History updated with disposition, duration, and summary."
+                : "Call closeout recorded."}
+            </p>
+            {publishTargets?.leadId && (
+              <p className="text-sm text-foreground/75">
+                Lead File updated with qualification and next-action changes.
+              </p>
+            )}
+            {publishTargets?.taskId && (
+              <p className="text-sm text-foreground/75">
+                Callback task created from this closeout.
+              </p>
+            )}
+          </div>
           {publishQaFindings.length > 0 && (
             <div className="rounded-[10px] border border-amber-500/20 bg-amber-500/[0.05] p-3 space-y-2">
               <div className="flex items-center gap-2">
@@ -799,6 +850,20 @@ export function PostCallPanel({
       {error && (
         <p className="text-sm text-foreground mb-2 px-1">{error}</p>
       )}
+
+      <div className="mb-3 rounded-[10px] border border-overlay-8 bg-overlay-2 p-3 space-y-1">
+        <p className="text-sm text-foreground/85">
+          Nothing is saved to Call History or the Lead File until you finish this closeout.
+        </p>
+        <p className="text-sm text-muted-foreground">
+          Publish saves the call summary and disposition to Call History, updates the Lead File, and creates a callback task for follow-up or appointment outcomes.
+        </p>
+        {summary.trim() ? (
+          <p className="text-sm text-muted-foreground">
+            The notes from the live note box are loaded here as a draft, but they are not durable until you save this closeout.
+          </p>
+        ) : null}
+      </div>
 
       {qualStep && pendingDispo && pendingMeta ? (
         /* ── Step 3: qualification confirm ──────────────────── */
@@ -1240,7 +1305,7 @@ export function PostCallPanel({
             className="w-full mt-1.5 gap-1.5 text-xs text-muted-foreground/40 hover:text-muted-foreground/70"
           >
             <SkipForward className="h-3 w-3" />
-            Skip closeout
+            Skip closeout (discard draft)
           </Button>
         </>
       )}

@@ -34,6 +34,7 @@ interface AIScoreBadgeProps {
 }
 
 const labelConfig = {
+  unscored: { variant: "unscored" as const, text: "—", color: "text-muted-foreground/50", glow: "" },
   platinum: { variant: "platinum" as const, text: "TOP", color: "text-primary-300", glow: "drop-shadow(0 0 1px rgba(0,0,0,1)) drop-shadow(0 0 3.5px var(--shadow-heavy)) drop-shadow(0 0 7px var(--shadow-medium)) drop-shadow(0 0 11px var(--shadow-soft))" },
   gold: { variant: "gold" as const, text: "HIGH", color: "text-foreground", glow: "drop-shadow(0 0 1px rgba(0,0,0,1)) drop-shadow(0 0 3.5px var(--shadow-heavy)) drop-shadow(0 0 7px var(--shadow-medium))" },
   silver: { variant: "silver" as const, text: "MED", color: "text-foreground", glow: "drop-shadow(0 0 1px rgba(148,163,184,0.8)) drop-shadow(0 0 3.5px rgba(148,163,184,0.35))" },
@@ -41,6 +42,7 @@ const labelConfig = {
 };
 
 const LABEL_EXPLAINER: Record<AIScore["label"], string> = {
+  unscored: "No score yet — awaiting property data.",
   platinum: "Top priority — strong signals, act now.",
   gold: "High priority — worth focused outreach.",
   silver: "Medium priority — nurture and monitor.",
@@ -167,6 +169,27 @@ export function AIScoreBadge({ score, prediction, size = "md", tags, equityPerce
   const distressSignals = tags?.filter((t) => SIGNAL_TAG_SET.has(t)) ?? [];
   const factors = buildFactorRows(distressSignals, equityPercent, isAbsentee, score.aiBoost);
 
+  // Unscored leads — no data, no badge theatrics
+  if (score.label === "unscored") {
+    return (
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <span className={cn(
+            "text-muted-foreground/40 italic",
+            size === "sm" ? "text-xs" : "text-sm"
+          )}>
+            Unscored
+          </span>
+        </TooltipTrigger>
+        <TooltipContent side="bottom" className="max-w-52 p-2">
+          <p className="text-xs text-muted-foreground">
+            {LABEL_EXPLAINER.unscored}
+          </p>
+        </TooltipContent>
+      </Tooltip>
+    );
+  }
+
   const signalWeightSum = distressSignals.reduce((sum, s) => sum + (SIGNAL_WEIGHTS[s as DistressType] ?? 0), 0);
   const stackBonus = getStackingBonus(distressSignals.length);
   let ownerTotal = 0;
@@ -184,7 +207,7 @@ export function AIScoreBadge({ score, prediction, size = "md", tags, equityPerce
           className="inline-flex items-center gap-1.5 cursor-pointer"
         >
           <Badge
-            variant={config.variant}
+            variant={config.variant as "bronze" | "silver" | "gold" | "platinum"}
             className={cn(
               "gap-1",
               size === "sm" && "text-sm px-1.5 py-0",

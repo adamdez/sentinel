@@ -1284,13 +1284,37 @@ function DialerPageInner() {
       activeCall.disconnect();
       setActiveCall(null);
     }
+    if (dialerSessionId && callNotes.trim()) {
+      const normalized = callNotes.trim();
+      const alreadySaved = savedNotes.some((note) => note.content.trim() === normalized);
+      if (!alreadySaved) {
+        noteSeqRef.current += 1;
+        authHeaders().then((headers) =>
+          fetch(`/api/dialer/v1/sessions/${dialerSessionId}/notes`, {
+            method: "POST",
+            headers,
+            body: JSON.stringify({
+              note_type: "operator_note",
+              content: normalized,
+              speaker: "operator",
+              sequence_num: noteSeqRef.current,
+              is_ai_generated: false,
+            }),
+          }),
+        ).then((res) => {
+          if (res?.ok) {
+            setSavedNotes((prev) => [...prev, { content: normalized, time: new Date().toISOString() }]);
+          }
+        }).catch(() => {});
+      }
+    }
     setCallState("ended");
     setTransferStatus(null);
     setCurrentCallSid(null);
     setLiveCallStatus(null);
     setMuted(false);
     timer.stop();
-  }, [timer, activeCall]);
+  }, [timer, activeCall, dialerSessionId, callNotes, savedNotes]);
 
   const handleDisposition = useCallback(async (dispoKey: string) => {
     if (!currentCallLogId && callState !== "idle") {
@@ -1398,6 +1422,12 @@ function DialerPageInner() {
     if (!dialerSessionId || !callNotes.trim() || savingNote) return;
     setSavingNote(true);
     const content = callNotes.trim();
+    const alreadySaved = savedNotes.some((note) => note.content.trim() === content);
+    if (alreadySaved) {
+      setSavingNote(false);
+      toast.info("Latest note is already saved", { duration: 1500 });
+      return;
+    }
     try {
       noteSeqRef.current += 1;
       const res = await fetch(`/api/dialer/v1/sessions/${dialerSessionId}/notes`, {
@@ -1417,7 +1447,7 @@ function DialerPageInner() {
       }
     } catch { /* non-fatal */ }
     finally { setSavingNote(false); }
-  }, [dialerSessionId, callNotes, savingNote]);
+  }, [dialerSessionId, callNotes, savingNote, savedNotes]);
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {

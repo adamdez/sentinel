@@ -69,6 +69,20 @@ Provider payload → raw_artifacts → fact_assertions → dossier → review ga
 
 ---
 
+## Feasibility Check (Before Every Plan)
+
+Before proposing any feature, field, or UI change, verify:
+1. **Where does the data come from?** Name the specific table, provider, or pipeline that populates it today — not what's in the schema, what's actually flowing.
+2. **Is it reliably populated?** If most records would show null/empty, the plan is wrong. Say so.
+3. **Is it static or live?** Does the data update as the file progresses, or is it a one-time snapshot? Is there a refresh loop?
+4. **What shows when it's missing?** Empty columns are worse than no column. Design for the null case first.
+
+If any answer is "I don't know" — investigate before planning. Do not assume fields are populated because they exist in the schema.
+
+5. **Am I assuming what the user wants?** If the answer is a system requirement (something that *must* be true for Sentinel to work), reason about it — don't ask. Check what's actually built and running before proposing what to build. Schema ≠ data. Deployed ≠ committed. Code on disk ≠ code running in production.
+
+---
+
 ## Work Order Requirements
 
 Before writing code, declare:
