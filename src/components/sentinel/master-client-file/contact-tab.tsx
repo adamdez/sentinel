@@ -127,28 +127,40 @@ export function ContactTab({ cf, overlay, onSkipTrace, skipTracing, onDial, onSm
   })();
   const [emailSlots, setEmailSlots] = useState<string[]>(initialEmails);
 
-  // Re-sync when overlay updates (after enrichment)
+  // Re-sync when overlay updates (after enrichment), preserving imported phones/emails
   useEffect(() => {
     if (overlay) {
+      const seen = new Set<string>();
+      const addUnique = (arr: string[], num: string) => {
+        const digits = num.replace(/\D/g, "").slice(-10);
+        if (digits.length >= 7 && !seen.has(digits)) { seen.add(digits); arr.push(num); }
+      };
       const newPhones: string[] = [];
       if (overlay.phoneDetails) {
-        for (const pd of overlay.phoneDetails) newPhones.push(pd.number);
+        for (const pd of overlay.phoneDetails) addUnique(newPhones, pd.number);
       } else if (overlay.phones) {
-        for (const ph of overlay.phones) newPhones.push(ph);
+        for (const ph of overlay.phones) addUnique(newPhones, ph);
       }
+      for (const ip of importPhones) addUnique(newPhones, ip);
       while (newPhones.length < 5) newPhones.push("");
       setPhoneSlots(newPhones);
 
+      const seenEmail = new Set<string>();
+      const addUniqueEmail = (arr: string[], em: string) => {
+        const lower = em.trim().toLowerCase();
+        if (lower.includes("@") && !seenEmail.has(lower)) { seenEmail.add(lower); arr.push(em); }
+      };
       const newEmails: string[] = [];
       if (overlay.emailDetails) {
-        for (const ed of overlay.emailDetails) newEmails.push(ed.email);
+        for (const ed of overlay.emailDetails) addUniqueEmail(newEmails, ed.email);
       } else if (overlay.emails) {
-        for (const em of overlay.emails) newEmails.push(em);
+        for (const em of overlay.emails) addUniqueEmail(newEmails, em);
       }
+      for (const ie of importEmails) addUniqueEmail(newEmails, ie);
       while (newEmails.length < 2) newEmails.push("");
       setEmailSlots(newEmails);
     }
-  }, [overlay]);
+  }, [overlay, importPhones, importEmails]);
 
   const updatePhone = (i: number, val: string) => {
     setPhoneSlots((prev) => { const next = [...prev]; next[i] = val; return next; });
