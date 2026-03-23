@@ -8,7 +8,7 @@ import type { User as SentinelUser } from "@/lib/types";
 
 const TEAM_MAP: Record<string, { name: string; role: SentinelUser["role"] }> = {
   "adam@dominionhomedeals.com": { name: "Adam D.", role: "admin" },
-  "nathan@dominionhomedeals.com": { name: "Nathan Walsh", role: "admin" },
+  "nathan@dominionhomedeals.com": { name: "Guest", role: "agent" },
   "logan@dominionhomedeals.com": { name: "Logan Anyan", role: "admin" },
 };
 

@@ -1,7 +1,7 @@
 /**
  * query_calls — Call log analytics and KPIs.
  * Answers: "how many dials today?", "what's our connect rate?",
- * "show me Nathan's call stats this week"
+ * "show me Logan's call stats this week"
  */
 
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";

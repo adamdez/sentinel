@@ -632,7 +632,7 @@ export interface DynamicTeamMember {
  */
 export const TEAM_MEMBERS = [
   { id: "user-adam", name: "Adam D.", role: "admin" as const },
-  { id: "user-nathan", name: "Nathan B.", role: "agent" as const },
+  { id: "user-guest", name: "Guest", role: "agent" as const },
   { id: "user-logan", name: "Logan T.", role: "agent" as const },
 ] as const;
 

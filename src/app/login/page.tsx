@@ -17,11 +17,11 @@ const TEAM = [
     role: "Admin",
   },
   {
-    name: "Nathan",
-    initials: "NJ",
+    name: "Guest",
+    initials: "G",
     email: "nathan@dominionhomedeals.com",
     color: "#7a9094",
-    role: "Admin",
+    role: "Agent",
   },
   {
     name: "Logan",

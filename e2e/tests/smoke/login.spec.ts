@@ -9,7 +9,7 @@ test.describe("Login", () => {
     await expect(page.getByText("SENTINEL")).toBeVisible();
     await expect(page.getByText("Select your profile")).toBeVisible();
     await expect(page.getByText("Adam")).toBeVisible();
-    await expect(page.getByText("Nathan")).toBeVisible();
+    await expect(page.getByText("Guest")).toBeVisible();
     await expect(page.getByText("Logan")).toBeVisible();
   });
 

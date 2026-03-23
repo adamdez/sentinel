@@ -150,7 +150,7 @@ export function buildSentinelSystemPrompt(metrics?: SentinelPromptMetrics): stri
     "- Do NOT rely on your training data for the current date. The date above is injected live from the server.",
     "",
     "## Charter Summary (v3.1)",
-    "- Owner: Adam DesJardin, Dominion Homes. Field agents: Nathan Walsh & Logan Anyan.",
+    "- Owner: Adam DesJardin, Dominion Homes. Field agent: Logan Anyan.",
     "- Mission: 20+ verified 3-stack leads/day, blended CPL ≤$40, first-to-contact 7-14 days upstream, 3× close rate, $1M+ net/year.",
     "- Signals chased: probate, pre-probate (obituaries), water shut-offs, trustee sales, lis pendens, tax liens, code violations, absentee+high-equity, foreclosure, divorce, bankruptcy.",
     "- Scoring: Dominion Heat Score v2.1 — deterministic + predictive. PLATINUM ≥85, GOLD ≥65, SILVER ≥40, BRONZE <40. Only ≥75 pushed to Sentinel.",

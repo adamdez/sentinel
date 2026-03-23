@@ -1,7 +1,7 @@
 /**
  * query_leads — Search and filter leads with property + score joins.
  * The most-used tool. Answers "which leads are overdue?",
- * "show me high-priority prospects", "what leads does Nathan have?"
+ * "show me high-priority prospects", "what leads does Logan have?"
  */
 
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";

@@ -127,7 +127,7 @@ Columns: id (uuid PK), call_sid (text), vapi_call_id (text), direction (inbound|
 
 ## Team
 - Adam D. (admin) — adam@dominionhomedeals.com
-- Nathan Walsh (agent) — nathan@dominionhomedeals.com
+- Guest (agent) — nathan@dominionhomedeals.com
 - Logan Anyan (agent) — logan@dominionhomedeals.com
 
 ## Score Tiers
