@@ -1,4 +1,5 @@
-export { usePsalm20, verseForRoute, PSALM20_VERSES } from "./use-psalm20";
+export { usePsalm20, verseForRoute, PSALM20_VERSES, PSALM20_FULL_ESV } from "./use-psalm20";
+export { ScriptureWatermark } from "./scripture-watermark";
 export {
   BannerIcon,
   ShieldIcon,

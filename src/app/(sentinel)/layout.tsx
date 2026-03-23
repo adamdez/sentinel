@@ -5,6 +5,7 @@ import { TopBar } from "@/components/layout/top-bar";
 import { NewProspectModal } from "@/components/sentinel/new-prospect-modal";
 import { PropertyPreviewModal } from "@/components/sentinel/property-preview-modal";
 import { Psalm20ThemeLayer } from "@/components/sentinel/psalm20/theme-layer";
+import { ScriptureWatermark } from "@/components/sentinel/psalm20/scripture-watermark";
 
 export default function SentinelLayout({
   children,
@@ -13,6 +14,7 @@ export default function SentinelLayout({
 }) {
   return (
     <div className="flex h-screen overflow-hidden sentinel-gradient relative">
+      <ScriptureWatermark />
       <Sidebar />
       <div className="flex flex-col flex-1 min-w-0 relative">
         <TopBar />

@@ -6,6 +6,7 @@ import { Zap, Loader2, Shield, ArrowLeft, Lock } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { usePsalm20 } from "@/components/sentinel/psalm20/use-psalm20";
 import { ShieldIcon, BannerLarge, GoldDivider, CrownIcon, BannerIcon } from "@/components/sentinel/psalm20/icons";
+import { ScriptureWatermark } from "@/components/sentinel/psalm20/scripture-watermark";
 
 const TEAM = [
   {
@@ -73,9 +74,10 @@ export default function LoginPage() {
 
   return (
     <div className="min-h-screen sentinel-gradient flex flex-col items-center justify-center p-4 relative overflow-hidden">
-      {/* Psalm 20 ambient background — sanctuary glow */}
+      {/* Psalm 20 — full scripture watermark + sanctuary glow */}
       {isPsalm20 && (
         <>
+          <ScriptureWatermark />
           <div
             className="absolute inset-0 pointer-events-none"
             style={{
@@ -147,7 +149,7 @@ export default function LoginPage() {
                   className="text-[10px] tracking-[0.2em] uppercase italic"
                   style={{ color: "rgba(201,168,76,0.45)" }}
                 >
-                  &ldquo;We will raise our banners.&rdquo;
+                  &ldquo;In the name of our God we will set up our banners.&rdquo;
                 </span>
                 <BannerIcon className="h-3 w-3" color="rgba(201,168,76,0.35)" />
               </motion.div>

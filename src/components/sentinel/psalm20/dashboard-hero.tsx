@@ -61,7 +61,7 @@ export function Psalm20DashboardHero() {
                 className="text-[11px] tracking-[0.18em] uppercase italic"
                 style={{ color: "rgba(201,168,76,0.45)" }}
               >
-                &ldquo;May your plans succeed.&rdquo;
+                &ldquo;May he fulfill all your plans.&rdquo;
               </span>
             </div>
           </div>
