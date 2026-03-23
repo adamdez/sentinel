@@ -278,6 +278,37 @@ export function NewProspectModal() {
         outbound_status: form.outbound_status,
         assign_to: assignTo === "unassigned" ? null : assignTo,
         actor_id: currentUser.id || null,
+        // Pass Bricked enrichment data if available (from command palette search)
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        ...(modalData.brickedData ? {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          bricked_data: {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            arv: (modalData.brickedData as any).arv,
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            cmv: (modalData.brickedData as any).cmv,
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            totalRepairCost: (modalData.brickedData as any).totalRepairCost,
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            equityEstimate: (modalData.brickedData as any).equityEstimate,
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            renovationScore: (modalData.brickedData as any).renovationScore,
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            brickedId: (modalData.brickedData as any).brickedId,
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            shareLink: (modalData.brickedData as any).shareLink,
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            dashboardLink: (modalData.brickedData as any).dashboardLink,
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            compCount: (modalData.brickedData as any).compCount,
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            subjectImages: (modalData.brickedData as any).subjectImages,
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            repairs: (modalData.brickedData as any).repairs,
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            rawPayload: (modalData.brickedData as any).rawPayload,
+          },
+        } : {}),
       };
 
       console.log("[NewProspect] Sending POST /api/prospects:", payload);
