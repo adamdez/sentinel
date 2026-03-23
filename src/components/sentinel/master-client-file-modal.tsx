@@ -8001,7 +8001,10 @@ export function MasterClientFileModal({ clientFile: incomingClientFile, open, on
                     onClick={async () => {
                       try {
                         setClaiming(true);
-                        const hdrs = await authHeaders();
+                        const { data: { session: sess } } = await supabase.auth.getSession();
+                        const hdrs: Record<string, string> = sess?.access_token
+                          ? { Authorization: `Bearer ${sess.access_token}` }
+                          : {};
                         await fetch(`/api/prospects?lead_id=${clientFile.id}`, {
                           method: "PATCH",
                           headers: { ...hdrs, "Content-Type": "application/json" },
