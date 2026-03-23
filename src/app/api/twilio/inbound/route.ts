@@ -166,11 +166,96 @@ export async function POST(req: NextRequest) {
   const loganIdentity = process.env.LOGAN_BROWSER_IDENTITY ?? "logan@dominionhomedeals.com";
   const twilioNumber = process.env.TWILIO_PHONE_NUMBER ?? "";
 
+  // Parse inbound caller info
+  const formData = await req.formData();
+  const fromNumber = formData.get("From")?.toString() ?? "";
+  const callSid = formData.get("CallSid")?.toString() ?? "";
+
+  // Create a call session + calls_log entry upfront so transcription and closeout work
+  const sb = createServerClient();
+  let sessionId: string | null = null;
+  let callLogId: string | null = null;
+
+  // Try to match caller to an existing lead
+  let matchedLeadId: string | null = null;
+  if (fromNumber) {
+    const normalized = fromNumber.replace(/\D/g, "");
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: leads } = await (sb.from("leads") as any)
+      .select("id")
+      .or(`owner_phone.eq.${fromNumber},owner_phone.eq.+${normalized},owner_phone.eq.${normalized},owner_phone.eq.+1${normalized.slice(-10)}`)
+      .limit(1);
+    if (leads && leads.length > 0) matchedLeadId = leads[0].id;
+  }
+
+  // Default user for inbound calls — Logan is primary acquisitions
+  const loganUserId = process.env.LOGAN_USER_ID ?? "0737e969-2908-4bd6-90bd-7a4380456811";
+
+  try {
+    // Create call_session (columns: id, lead_id, user_id, twilio_sid, phone_dialed, status, started_at, ended_at, duration_sec, updated_at, context_snapshot, ai_summary, disposition, created_at)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: sess, error: sessErr } = await (sb.from("call_sessions") as any)
+      .insert({
+        lead_id: matchedLeadId,
+        user_id: loganUserId,
+        twilio_sid: callSid,
+        phone_dialed: fromNumber || "unknown",
+        status: "ringing",
+      })
+      .select("id")
+      .single();
+    if (sessErr) console.error("[inbound] call_sessions insert failed:", sessErr.message);
+    sessionId = sess?.id ?? null;
+
+    // Create calls_log entry so disposition works
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: cl, error: clErr } = await (sb.from("calls_log") as any)
+      .insert({
+        lead_id: matchedLeadId,
+        user_id: loganUserId,
+        phone_dialed: fromNumber || null,
+        twilio_sid: callSid,
+        disposition: "in_progress",
+        direction: "inbound",
+        dialer_session_id: sessionId,
+      })
+      .select("id")
+      .single();
+    if (clErr) console.error("[inbound] calls_log insert failed:", clErr.message);
+    callLogId = cl?.id ?? null;
+  } catch (err) {
+    console.error("[inbound] Session/call log creation failed:", err);
+  }
+
+  console.log("[inbound] Inbound call setup:", {
+    from: fromNumber ? `***${fromNumber.slice(-4)}` : "none",
+    sessionId: sessionId?.slice(0, 8),
+    callLogId: callLogId?.slice(0, 8),
+    matchedLead: matchedLeadId?.slice(0, 8) ?? "none",
+  });
+
+  // Build <Stream> for Deepgram transcription (same pattern as outbound)
+  const transcriptionUrl = process.env.TRANSCRIPTION_WS_URL;
+  const hasDeepgram = !!process.env.DEEPGRAM_API_KEY;
+  const streamLines = transcriptionUrl && hasDeepgram && sessionId
+    ? [
+        "  <Start>",
+        `    <Stream url="${transcriptionUrl}" track="both_tracks">`,
+        ...(callLogId ? [`      <Parameter name="callLogId" value="${callLogId}" />`] : []),
+        `      <Parameter name="sessionId" value="${sessionId}" />`,
+        "    </Stream>",
+        "  </Start>",
+      ]
+    : [];
+
   // Step 1: Ring Logan's browser for 20 seconds
+  // Pass sessionId and callLogId as query params so the browser can pick them up
+  const chainParams = sessionId ? `&amp;sessionId=${sessionId}&amp;callLogId=${callLogId ?? ""}` : "";
   const twiml = [
     '<?xml version="1.0" encoding="UTF-8"?>',
     "<Response>",
-    `  <Dial callerId="${twilioNumber}" timeout="20" action="${siteUrl}/api/twilio/inbound?type=chain_step&amp;step=logan" method="POST">`,
+    ...streamLines,
+    `  <Dial callerId="${twilioNumber}" timeout="20" action="${siteUrl}/api/twilio/inbound?type=chain_step&amp;step=logan${chainParams}" method="POST">`,
     `    <Client>${loganIdentity}</Client>`,
     "  </Dial>",
     "</Response>",

@@ -964,40 +964,73 @@ function DialerPageInner() {
       if (matchedLead) setCurrentLead(matchedLead);
     }
 
-    // Create a session so transcription, notes, and closeout work for inbound calls
+    // Look up the session created by the inbound webhook (or create one as fallback)
+    // The inbound webhook creates session + calls_log + starts Deepgram stream BEFORE ringing
     try {
       const hdrs = await authHeaders();
       const phoneDigits = incomingFrom?.replace(/\D/g, "") ?? "";
       const phoneFmt = phoneDigits.length >= 10 ? `+1${phoneDigits.slice(-10)}` : incomingFrom;
-      const sessRes = await fetch("/api/dialer/v1/sessions", {
-        method: "POST",
-        headers: hdrs,
-        body: JSON.stringify({
-          lead_id: matchedLead?.id ?? null,
-          phone_dialed: phoneFmt,
-          direction: "inbound",
-        }),
-      });
-      if (sessRes.ok) {
-        const sessData = await sessRes.json();
-        const newSessionId = sessData.session?.id ?? null;
-        activeSessionRef.current = newSessionId;
-        if (matchedLead) {
-          setDialerSessionId(newSessionId);
-        } else {
-          setManualSessionId(newSessionId);
+
+      // Try to find the existing inbound session by phone number (most recent ringing session)
+      const lookupRes = await fetch(`/api/dialer/v1/phone-lookup?phone=${encodeURIComponent(phoneDigits.slice(-10))}`, { headers: hdrs });
+      let existingSessionId: string | null = null;
+      let existingCallLogId: string | null = null;
+      if (lookupRes.ok) {
+        const lookupData = await lookupRes.json();
+        // Find the most recent ringing/connected inbound session
+        const inboundSession = lookupData.unlinkedSessions?.find((s: { status: string }) =>
+          s.status === "ringing" || s.status === "connected"
+        );
+        if (inboundSession) {
+          existingSessionId = inboundSession.id;
         }
-        // Advance session to connected
-        if (newSessionId) {
-          fetch(`/api/dialer/v1/sessions/${newSessionId}`, {
-            method: "PATCH",
-            headers: hdrs,
-            body: JSON.stringify({ status: "connected" }),
-          }).catch(() => {});
+      }
+
+      if (existingSessionId) {
+        // Use the existing session — advance to connected
+        activeSessionRef.current = existingSessionId;
+        if (matchedLead) {
+          setDialerSessionId(existingSessionId);
+        } else {
+          setManualSessionId(existingSessionId);
+        }
+        fetch(`/api/dialer/v1/sessions/${existingSessionId}`, {
+          method: "PATCH",
+          headers: hdrs,
+          body: JSON.stringify({ status: "connected" }),
+        }).catch(() => {});
+        // Look up the calls_log entry for disposition
+        // The inbound webhook created one linked to this session
+      } else {
+        // Fallback: create a new session if webhook didn't create one
+        const sessRes = await fetch("/api/dialer/v1/sessions", {
+          method: "POST",
+          headers: hdrs,
+          body: JSON.stringify({
+            lead_id: matchedLead?.id ?? null,
+            phone_dialed: phoneFmt,
+          }),
+        });
+        if (sessRes.ok) {
+          const sessData = await sessRes.json();
+          const newSessionId = sessData.session?.id ?? null;
+          activeSessionRef.current = newSessionId;
+          if (matchedLead) {
+            setDialerSessionId(newSessionId);
+          } else {
+            setManualSessionId(newSessionId);
+          }
+          if (newSessionId) {
+            fetch(`/api/dialer/v1/sessions/${newSessionId}`, {
+              method: "PATCH",
+              headers: hdrs,
+              body: JSON.stringify({ status: "connected" }),
+            }).catch(() => {});
+          }
         }
       }
     } catch {
-      console.warn("[Dialer] Inbound session creation failed — call proceeds without tracking");
+      console.warn("[Dialer] Inbound session lookup/creation failed — call proceeds without tracking");
     }
 
     toast.success("Call connected");
