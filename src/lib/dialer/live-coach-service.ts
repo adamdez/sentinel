@@ -465,14 +465,20 @@ function makeSignal(
 }
 
 const CONDITION_RULES = [
-  { ruleId: "roof_leak", pattern: /\broof leak|leaky roof\b/i, value: "roof leak", noteText: "Condition: roof leak mentioned" },
-  { ruleId: "foundation", pattern: /\bfoundation\b/i, value: "foundation issue", noteText: "Condition: foundation issue mentioned" },
-  { ruleId: "mold", pattern: /\bmold\b/i, value: "mold", noteText: "Condition: mold mentioned" },
-  { ruleId: "repairs", pattern: /\brepairs?|fixer|needs work\b/i, value: "repairs needed", noteText: "Condition: repairs needed" },
+  { ruleId: "roof_leak", pattern: /\broof.{0,10}(?:leak|damage|replace|repair|old|bad)|leaky roof|new roof\b/i, value: "roof issue", noteText: "Condition: roof issue mentioned" },
+  { ruleId: "foundation", pattern: /\bfoundation.{0,10}(?:crack|issue|problem|damage|settling)|crack.{0,10}foundation\b/i, value: "foundation issue", noteText: "Condition: foundation issue mentioned" },
+  { ruleId: "mold", pattern: /\bmold|mildew|water damage|moisture\b/i, value: "mold or water damage", noteText: "Condition: mold or water damage mentioned" },
+  { ruleId: "repairs", pattern: /\brepairs?|fixer|needs work|needs.{0,10}(?:update|fix|renovate)|dated|outdated|original.{0,10}(?:kitchen|bath|carpet|floor)\b/i, value: "repairs needed", noteText: "Condition: repairs or updates needed" },
+  { ruleId: "hvac", pattern: /\bhvac|furnace|ac unit|air condition|heating|boiler\b/i, value: "HVAC issue", noteText: "Condition: HVAC issue mentioned" },
+  { ruleId: "plumbing", pattern: /\bplumbing|pipe|sewer|septic|drain|water heater\b/i, value: "plumbing issue", noteText: "Condition: plumbing issue mentioned" },
+  { ruleId: "electrical", pattern: /\belectrical|wiring|breaker|panel\b/i, value: "electrical issue", noteText: "Condition: electrical issue mentioned" },
+  { ruleId: "fire_damage", pattern: /\bfire|fire damage|burned|smoke damage\b/i, value: "fire damage", noteText: "Condition: fire damage mentioned" },
+  { ruleId: "good_shape", pattern: /\bgood (?:shape|condition)|well maintained|updated|remodeled|renovated|move.?in ready\b/i, value: "good condition", noteText: "Condition: property in good condition" },
   { ruleId: "tax_lien", pattern: /\btax lien|lien\b/i, value: "tax lien", noteText: "Condition: tax lien mentioned" },
   { ruleId: "probate", pattern: /\bprobate\b/i, value: "probate", noteText: "Condition: probate mentioned" },
-  { ruleId: "tenant", pattern: /\btenant|renter\b/i, value: "tenant issue", noteText: "Condition: tenant issue mentioned" },
-  { ruleId: "vacant", pattern: /\bvacant|empty house\b/i, value: "vacant property", noteText: "Condition: vacant property mentioned" },
+  { ruleId: "tenant", pattern: /\btenant|renter|rental|lease|evict|eviction\b/i, value: "tenant issue", noteText: "Condition: tenant/rental issue mentioned" },
+  { ruleId: "vacant", pattern: /\bvacant|empty|nobody.{0,10}living|unoccupied|sitting empty|nobody there\b/i, value: "vacant property", noteText: "Condition: vacant property" },
+  { ruleId: "hoarder", pattern: /\bhoarder|hoarding|full of stuff|cluttered|junk\b/i, value: "hoarding or excess contents", noteText: "Condition: hoarding or excess contents" },
 ];
 
 const HUMAN_PAIN_RULES = [
@@ -483,48 +489,83 @@ const HUMAN_PAIN_RULES = [
   { ruleId: "losing_sleep", pattern: /\blosing sleep\b/i, value: "losing sleep over it", noteText: "Pain: situation is causing lost sleep" },
   { ruleId: "family_waiting", pattern: /\bfamily waiting\b/i, value: "family is waiting on a resolution", noteText: "Pain: family is waiting on a resolution" },
   { ruleId: "burden", pattern: /\bstress|stressed|headache|burden\b/i, value: "the situation feels heavy", noteText: "Pain: situation feels heavy" },
+  { ruleId: "cant_handle", pattern: /\bcan'?t handle|cannot handle|can'?t deal with|cannot deal\b/i, value: "can't handle the situation", noteText: "Pain: can't handle the situation" },
+  { ruleId: "hard_time", pattern: /\bhard time|difficult time|tough time|rough time\b/i, value: "going through a hard time", noteText: "Pain: going through a hard time" },
+  { ruleId: "death", pattern: /\bpassed away|died|passing|death|funeral|lost (?:my|our|her|his)\b/i, value: "dealing with a death", noteText: "Pain: dealing with a death in the family" },
+  { ruleId: "health", pattern: /\bsick|cancer|hospital|surgery|health (?:issue|problem)|medical|disabled|disability|illness\b/i, value: "health issues", noteText: "Pain: health issues mentioned" },
+  { ruleId: "divorce", pattern: /\bdivorce|separated|ex-wife|ex-husband|split up|splitting up\b/i, value: "divorce or separation", noteText: "Pain: divorce or separation" },
+  { ruleId: "behind_payments", pattern: /\bbehind on (?:payments|mortgage|the mortgage)|falling behind|can'?t afford|cannot afford\b/i, value: "behind on payments", noteText: "Pain: behind on payments" },
+  { ruleId: "dont_know_what_to_do", pattern: /\bdon'?t know what to do|no idea what to do|at a loss|don'?t know where to start\b/i, value: "doesn't know what to do", noteText: "Pain: doesn't know what to do" },
+  { ruleId: "frustration", pattern: /\bfrustrat|fed up|sick of|had enough|done with\b/i, value: "frustrated with the situation", noteText: "Pain: frustrated with the situation" },
+  { ruleId: "emotional", pattern: /\bcrying|emotional|hard to talk about|difficult to talk about|tough subject\b/i, value: "emotionally difficult", noteText: "Pain: emotionally difficult topic" },
+  { ruleId: "aging", pattern: /\bgetting older|aging|elderly|retirement|senior|nursing home|assisted living\b/i, value: "aging or life transition", noteText: "Pain: aging or life transition" },
+  { ruleId: "family_conflict", pattern: /\bfamily (?:fight|argue|disagree|conflict|drama)|siblings? (?:fighting|arguing|disagree)\b/i, value: "family conflict", noteText: "Pain: family conflict over property" },
 ];
 
 const RELIEF_RULES = [
-  { ruleId: "move_family", pattern: /\bmove closer to (my|our) (daughter|son|family|kids|grandkids)\b/i, value: "move closer to family", noteText: "Relief: wants to move closer to family" },
-  { ruleId: "get_behind", pattern: /\bget this behind me|put this behind me\b/i, value: "get this behind them", noteText: "Relief: wants to get this behind them" },
-  { ruleId: "relocate", pattern: /\bsell and relocate|relocate\b/i, value: "sell and relocate", noteText: "Relief: wants to relocate" },
-  { ruleId: "stop_paying", pattern: /\bstop paying\b/i, value: "stop paying on the property", noteText: "Relief: wants to stop paying on the property" },
-  { ruleId: "close_estate", pattern: /\bclose the estate\b/i, value: "close the estate", noteText: "Relief: wants to close the estate" },
+  { ruleId: "move_family", pattern: /\bmove closer to (my|our) (daughter|son|family|kids|grandkids|mom|dad|parent)\b/i, value: "move closer to family", noteText: "Relief: wants to move closer to family" },
+  { ruleId: "get_behind", pattern: /\bget this behind me|put this behind me|move on|move past this\b/i, value: "get this behind them", noteText: "Relief: wants to get this behind them" },
+  { ruleId: "relocate", pattern: /\brelocate|move out of state|move away|leaving town|moving to\b/i, value: "wants to relocate", noteText: "Relief: wants to relocate" },
+  { ruleId: "stop_paying", pattern: /\bstop paying|get out from under|get rid of|don'?t want.{0,15}anymore\b/i, value: "stop paying on the property", noteText: "Relief: wants to stop paying on the property" },
+  { ruleId: "close_estate", pattern: /\bclose the estate|settle the estate|wrap.{0,10}up\b/i, value: "close the estate", noteText: "Relief: wants to close the estate" },
+  { ruleId: "fresh_start", pattern: /\bfresh start|start over|new beginning|clean slate\b/i, value: "wants a fresh start", noteText: "Relief: wants a fresh start" },
+  { ruleId: "downsize", pattern: /\bdownsize|smaller place|smaller house|too big|too much house|too much space\b/i, value: "wants to downsize", noteText: "Relief: wants to downsize" },
+  { ruleId: "cash_out", pattern: /\bcash out|get (?:some |my )?money|need the (?:money|cash|equity)|access.{0,10}equity\b/i, value: "wants cash from equity", noteText: "Relief: wants to access equity/cash" },
+  { ruleId: "peace_of_mind", pattern: /\bpeace of mind|weight off|relief|one less thing\b/i, value: "wants peace of mind", noteText: "Relief: wants peace of mind" },
+  { ruleId: "just_sell", pattern: /\bjust (?:want to |wanna )?sell|just get it sold|need it sold|need to sell\b/i, value: "just wants to sell", noteText: "Relief: just wants to sell" },
 ];
 
 const TIMELINE_RULES = [
-  { ruleId: "asap", pattern: /\basap|right away|immediately\b/i, value: "as soon as possible", noteText: "Timeline: wants to move quickly" },
-  { ruleId: "this_month", pattern: /\bthis month\b/i, value: "this month", noteText: "Timeline: this month" },
-  { ruleId: "before_school", pattern: /\bbefore school starts\b/i, value: "before school starts", noteText: "Timeline: before school starts" },
-  { ruleId: "after_probate", pattern: /\bafter probate\b/i, value: "after probate", noteText: "Timeline: after probate" },
-  { ruleId: "by_friday", pattern: /\bby friday\b/i, value: "by Friday", noteText: "Timeline: by Friday" },
+  { ruleId: "asap", pattern: /\basap|right away|immediately|as fast as|as quick as\b/i, value: "as soon as possible", noteText: "Timeline: wants to move quickly" },
+  { ruleId: "this_month", pattern: /\bthis month|end of the month|by month end\b/i, value: "this month", noteText: "Timeline: this month" },
+  { ruleId: "this_week", pattern: /\bthis week|end of the week|by friday|by the weekend\b/i, value: "this week", noteText: "Timeline: this week" },
   { ruleId: "next_week", pattern: /\bnext week\b/i, value: "next week", noteText: "Timeline: next week" },
-  { ruleId: "soon", pattern: /\bsoon\b/i, value: "soon", noteText: "Timeline: wants movement soon" },
+  { ruleId: "thirty_days", pattern: /\b30 days|thirty days|a month|one month|within a month\b/i, value: "within 30 days", noteText: "Timeline: within 30 days" },
+  { ruleId: "sixty_days", pattern: /\b60 days|sixty days|two months|couple months|couple of months\b/i, value: "within 60 days", noteText: "Timeline: within 60 days" },
+  { ruleId: "ninety_days", pattern: /\b90 days|ninety days|three months|few months\b/i, value: "within 90 days", noteText: "Timeline: within 90 days" },
+  { ruleId: "by_summer", pattern: /\bby summer|before summer|this summer|end of summer\b/i, value: "by summer", noteText: "Timeline: by summer" },
+  { ruleId: "before_school", pattern: /\bbefore school starts\b/i, value: "before school starts", noteText: "Timeline: before school starts" },
+  { ruleId: "after_probate", pattern: /\bafter probate|once probate|probate closes|probate is done\b/i, value: "after probate", noteText: "Timeline: after probate" },
+  { ruleId: "no_rush", pattern: /\bno rush|no hurry|take (?:my|our) time|not in a rush|whenever|flexible\b/i, value: "no rush / flexible", noteText: "Timeline: flexible, no rush" },
+  { ruleId: "soon", pattern: /\bsoon|sooner.{0,10}later|ready to\b/i, value: "soon", noteText: "Timeline: wants movement soon" },
+  { ruleId: "yesterday", pattern: /\byesterday|should have sold|wish.{0,15}sold|already too long\b/i, value: "should have sold already", noteText: "Timeline: wishes they'd sold already" },
 ];
 
 const DECISION_RULES = [
-  { ruleId: "brother_sign", pattern: /\bmy brother (has to|needs to|must) sign\b/i, value: "brother needs to sign", noteText: "Decision maker: brother may need to sign" },
-  { ruleId: "wife", pattern: /\bmy wife|wife and i\b/i, value: "wife is involved", noteText: "Decision maker: wife may be involved" },
-  { ruleId: "husband", pattern: /\bmy husband|husband and i\b/i, value: "husband is involved", noteText: "Decision maker: husband may be involved" },
-  { ruleId: "attorney", pattern: /\battorney|lawyer\b/i, value: "attorney is involved", noteText: "Decision maker: attorney may be involved" },
-  { ruleId: "executor", pattern: /\bexecutor\b/i, value: "executor is involved", noteText: "Decision maker: executor may be involved" },
+  { ruleId: "sole_owner", pattern: /\bjust me|only me|i'm the only|it's mine|in my name|sole owner\b/i, value: "sole decision maker", noteText: "Decision maker: sole owner confirmed" },
+  { ruleId: "wife", pattern: /\bmy wife|wife and i|talk to.{0,10}wife|check with.{0,10}wife|spouse\b/i, value: "wife is involved", noteText: "Decision maker: wife may be involved" },
+  { ruleId: "husband", pattern: /\bmy husband|husband and i|talk to.{0,10}husband|check with.{0,10}husband\b/i, value: "husband is involved", noteText: "Decision maker: husband may be involved" },
+  { ruleId: "attorney", pattern: /\battorney|lawyer|legal counsel|legal team\b/i, value: "attorney is involved", noteText: "Decision maker: attorney may be involved" },
+  { ruleId: "executor", pattern: /\bexecutor|personal representative|PR of the estate\b/i, value: "executor is involved", noteText: "Decision maker: executor may be involved" },
   { ruleId: "brother", pattern: /\bbrother\b/i, value: "brother is involved", noteText: "Decision maker: brother may be involved" },
   { ruleId: "sister", pattern: /\bsister\b/i, value: "sister is involved", noteText: "Decision maker: sister may be involved" },
+  { ruleId: "family_member", pattern: /\bmy (?:mom|dad|mother|father|parent|son|daughter|uncle|aunt|cousin)\b/i, value: "family member involved", noteText: "Decision maker: family member may be involved" },
+  { ruleId: "partner", pattern: /\bpartner|co-owner|business partner|the other owner\b/i, value: "partner or co-owner involved", noteText: "Decision maker: partner or co-owner involved" },
+  { ruleId: "talk_to_someone", pattern: /\btalk to|check with|run it by|ask my|need to discuss|talk it over\b/i, value: "needs to consult someone", noteText: "Decision maker: needs to consult someone else" },
+  { ruleId: "all_agree", pattern: /\bwe all agree|everyone agrees|everyone.{0,10}on board|all on the same page\b/i, value: "all parties agree", noteText: "Decision maker: all parties in agreement" },
 ];
 
 const PRICE_RULES = [
-  { ruleId: "what_can_pay", pattern: /\bwhat can you pay\b/i, value: "asking what we can pay", noteText: "Price posture: asking what we can pay" },
-  { ruleId: "offer", pattern: /\boffer|cash price\b/i, value: "asking about an offer", noteText: "Price posture: asked about an offer" },
-  { ruleId: "owe", pattern: /\bowe\b/i, value: "amount owed matters", noteText: "Price posture: mentioned amount owed" },
-  { ruleId: "need_at_least", pattern: /\bneed at least\b/i, value: "has a minimum number in mind", noteText: "Price posture: has a minimum number in mind" },
+  { ruleId: "what_can_pay", pattern: /\bwhat can you (?:pay|offer|give)|what would you (?:pay|offer|give)|what are you thinking\b/i, value: "asking what we can pay", noteText: "Price posture: asking what we can pay" },
+  { ruleId: "offer", pattern: /\boffer|cash price|cash offer\b/i, value: "asking about an offer", noteText: "Price posture: asked about an offer" },
+  { ruleId: "owe", pattern: /\bowe|owed|mortgage.{0,15}(?:left|balance|remaining)|payoff\b/i, value: "amount owed matters", noteText: "Price posture: mentioned amount owed" },
+  { ruleId: "need_at_least", pattern: /\bneed at least|need to get|won'?t take less|bottom line|minimum|at minimum\b/i, value: "has a minimum number in mind", noteText: "Price posture: has a minimum number in mind" },
+  { ruleId: "worth", pattern: /\bworth|value|zillow says|zestimate|appraised|appraisal\b/i, value: "has a value expectation", noteText: "Price posture: referenced a value estimate" },
+  { ruleId: "listed_before", pattern: /\blisted.{0,15}(?:before|last year|ago)|had it on the market|realtor wanted|agent said\b/i, value: "previously listed or agent-priced", noteText: "Price posture: previously listed or agent-priced" },
+  { ruleId: "open_to_offer", pattern: /\bopen to|willing to listen|hear what you.{0,10}say|make me an offer|shoot me a number\b/i, value: "open to hearing an offer", noteText: "Price posture: open to hearing an offer" },
+  { ruleId: "not_giving_away", pattern: /\bnot giving.{0,10}away|not desperate|not in a hurry to.{0,10}cheap|fair price|fair deal\b/i, value: "wants a fair price, not desperate", noteText: "Price posture: wants fair value, not giving it away" },
+  { ruleId: "number_mentioned", pattern: /\b\d{2,3}(?:,\d{3}|\s?(?:thousand|k|grand))\b/i, value: "specific number mentioned", noteText: "Price posture: specific dollar amount mentioned" },
 ];
 
 const NEXT_STEP_RULES = [
-  { ruleId: "call_tomorrow", pattern: /\bcall me tomorrow|talk tomorrow\b/i, value: "call tomorrow", noteText: "Next step: call tomorrow" },
-  { ruleId: "send_offer", pattern: /\bsend (me )?an offer\b/i, value: "send an offer", noteText: "Next step: asked for an offer" },
-  { ruleId: "come_look", pattern: /\bcome (by|look)|take a look\b/i, value: "schedule a property look", noteText: "Next step: property visit may be next" },
-  { ruleId: "meet", pattern: /\bmeet next week|appointment\b/i, value: "set a meeting", noteText: "Next step: meeting may be next" },
+  { ruleId: "call_back", pattern: /\bcall (?:me )?(?:back|tomorrow|later|next week|monday|tuesday|wednesday|thursday|friday)|talk (?:tomorrow|later|next week|again)\b/i, value: "call back", noteText: "Next step: wants a callback" },
+  { ruleId: "send_offer", pattern: /\bsend (?:me )?(?:an )?offer|put something together|send (?:me )?(?:some )?numbers|email (?:me )?(?:an )?offer\b/i, value: "send an offer", noteText: "Next step: asked for an offer" },
+  { ruleId: "come_look", pattern: /\bcome (?:by|look|out|see)|take a look|walk through|drive by|see the (?:house|property|place)\b/i, value: "schedule a property look", noteText: "Next step: property visit may be next" },
+  { ruleId: "meet", pattern: /\bmeet|sit down|get together|appointment|in person\b/i, value: "set a meeting", noteText: "Next step: meeting may be next" },
+  { ruleId: "think_about_it", pattern: /\bthink about it|think it over|sleep on it|consider it|mull it over\b/i, value: "needs time to think", noteText: "Next step: needs time to think" },
+  { ruleId: "send_info", pattern: /\bsend (?:me )?(?:some )?info|more information|send (?:me )?details|email me\b/i, value: "wants more information sent", noteText: "Next step: wants info sent over" },
+  { ruleId: "talk_to_family", pattern: /\btalk to (?:my|the) (?:wife|husband|family|brother|sister|kids|attorney|lawyer)|discuss with\b/i, value: "needs to talk to family first", noteText: "Next step: needs to consult family" },
+  { ruleId: "ready_now", pattern: /\blet'?s do it|ready to go|ready to sell|where do i sign|let'?s get started|move forward\b/i, value: "ready to move forward now", noteText: "Next step: ready to move forward!" },
 ];
 
 function updateSpeakerReliability(
@@ -824,23 +865,41 @@ function detectSignals(note: LiveCoachNoteInput): SignalDetection[] {
     );
   }
 
-  if (/\bneed to sell|have to sell|must sell|need this gone\b/i.test(text)) {
-    detections.push({
-      signal: makeSignal(
-        note,
-        "motivation",
-        "motivation",
-        "seller says they need to make a change",
-        "explicit_motivation",
-        speakerConfidence(personalSpeaker, "strong"),
-        personalSpeaker,
-      ),
-      slotValue: "seller says they need to make a change",
-      proposedStatus: personalSpeaker === "seller" ? "confirmed" : "partial",
-      proposedConfidence: speakerConfidence(personalSpeaker, "strong"),
-      noteText: "Motivation: seller says they need to make a change",
-      noteSlot: "motivation",
-    });
+  const MOTIVATION_PATTERNS = [
+    { pattern: /\bneed to sell|have to sell|must sell|need this gone|gotta sell|got to sell\b/i, value: "needs to sell", ruleId: "explicit_motivation" },
+    { pattern: /\bwant to sell|looking to sell|thinking about selling|considering selling|ready to sell\b/i, value: "wants to sell", ruleId: "want_to_sell" },
+    { pattern: /\binherited|inheritance|left (?:me|us) the|passed down\b/i, value: "inherited property", ruleId: "inherited" },
+    { pattern: /\bforeclosure|foreclos|behind on (?:the )?mortgage|bank is|pre-?foreclosure\b/i, value: "facing foreclosure", ruleId: "foreclosure" },
+    { pattern: /\btax.{0,10}(?:owed|due|behind|delinquent|sale)|owe.{0,15}taxes|back taxes\b/i, value: "tax issues", ruleId: "tax_issues" },
+    { pattern: /\bcan'?t (?:keep up|maintain|afford)|too (?:expensive|much)|costing.{0,10}money\b/i, value: "can't afford to keep it", ruleId: "cant_afford" },
+    { pattern: /\btired of (?:being a )?landlord|bad tenant|problem tenant|don'?t want to be a landlord\b/i, value: "tired of being a landlord", ruleId: "tired_landlord" },
+    { pattern: /\bjob (?:transfer|relocation|opportunity)|new job|moving for work|transferred\b/i, value: "job relocation", ruleId: "job_relocation" },
+    { pattern: /\bdivorce|separated|splitting|going through a split\b/i, value: "divorce or separation", ruleId: "divorce_motivation" },
+    { pattern: /\bupsize|upgrade|bigger (?:house|place|home)|growing family|need more (?:room|space)\b/i, value: "needs more space", ruleId: "upsize" },
+    { pattern: /\bretire|retirement|retiring\b/i, value: "retirement", ruleId: "retirement" },
+    { pattern: /\bdoesn'?t make sense|not worth.{0,10}keeping|sitting on it|just sitting there\b/i, value: "property doesn't make sense to keep", ruleId: "doesnt_make_sense" },
+  ];
+
+  for (const mp of MOTIVATION_PATTERNS) {
+    if (mp.pattern.test(text)) {
+      detections.push({
+        signal: makeSignal(
+          note,
+          "motivation",
+          "motivation",
+          mp.value,
+          mp.ruleId,
+          speakerConfidence(personalSpeaker, "strong"),
+          personalSpeaker,
+        ),
+        slotValue: mp.value,
+        proposedStatus: personalSpeaker === "seller" ? "confirmed" : "partial",
+        proposedConfidence: speakerConfidence(personalSpeaker, "strong"),
+        noteText: `Motivation: ${mp.value}`,
+        noteSlot: "motivation",
+      });
+      break;
+    }
   }
 
   return detections;
