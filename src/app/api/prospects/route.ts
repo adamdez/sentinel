@@ -1001,6 +1001,8 @@ export async function POST(req: NextRequest) {
       gclid, landing_page,
       // Enrichment data from search preview (Bricked AI + County GIS)
       bricked_data, gis_data,
+      // Bulk import flag — skip auto-Bricked to avoid cost/latency on large imports
+      skip_auto_bricked,
     } = body;
 
     if (!address || !county) {
@@ -1366,7 +1368,7 @@ export async function POST(req: NextRequest) {
     // ── 3.1: Auto-fetch Bricked AI if not provided by client ──────
     // Bricked is slower (~15s) but provides ARV, CMV, repairs, comps
     let effectiveBrickedData = bricked_data;
-    if (!effectiveBrickedData && address?.trim()) {
+    if (!effectiveBrickedData && address?.trim() && !skip_auto_bricked) {
       try {
         const brickedRes = await fetch(new URL("/api/bricked/analyze", req.nextUrl.origin), {
           method: "POST",
