@@ -974,22 +974,28 @@ function DialerPageInner() {
 
       console.log("[Dialer] Inbound answer — incomingFrom:", incomingFrom, "phoneDigits:", phoneDigits);
 
-      // Try to find the existing inbound session by phone number (most recent ringing session)
-      const lookupRes = await fetch(`/api/dialer/v1/phone-lookup?phone=${encodeURIComponent(phoneDigits.slice(-10))}`, { headers: hdrs });
+      // Find the inbound session created by the webhook.
+      // We can't search by incomingFrom — Twilio Client reports the DIALED number
+      // (Adam's browser number), not the original caller's number.
+      // We can't use /api/dialer/v1/sessions — it's user-scoped and the webhook
+      // creates sessions under Logan's user ID.
+      // Instead, query the inbound-session endpoint which finds the most recent
+      // "ringing" session regardless of user.
       let existingSessionId: string | null = null;
-      if (lookupRes.ok) {
-        const lookupData = await lookupRes.json();
-        console.log("[Dialer] Phone lookup result:", JSON.stringify(lookupData.unlinkedSessions?.map((s: { id: string; status: string; phoneDialed: string }) => ({ id: s.id?.slice(0, 8), status: s.status, phone: s.phoneDialed }))));
-        // Find the most recent ringing/connected inbound session
-        const inboundSession = lookupData.unlinkedSessions?.find((s: { status: string }) =>
-          s.status === "ringing" || s.status === "connected"
-        );
-        if (inboundSession) {
-          existingSessionId = inboundSession.id;
-          console.log("[Dialer] Found existing inbound session:", existingSessionId);
-        } else {
-          console.log("[Dialer] No ringing/connected session found — will create fallback");
+      try {
+        const ringingRes = await fetch("/api/dialer/v1/sessions/inbound-ringing", { headers: hdrs });
+        if (ringingRes.ok) {
+          const ringingData = await ringingRes.json();
+          if (ringingData.session) {
+            existingSessionId = ringingData.session.id;
+            console.log("[Dialer] Found ringing inbound session:", existingSessionId, "phone:", ringingData.session.phone_dialed);
+          }
         }
+      } catch {
+        console.log("[Dialer] Ringing session lookup failed");
+      }
+      if (!existingSessionId) {
+        console.log("[Dialer] No ringing session found — will create fallback");
       }
 
       if (existingSessionId) {
