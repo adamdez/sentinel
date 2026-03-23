@@ -1,22 +1,37 @@
 "use client";
 
-import { usePathname } from "next/navigation";
-import { motion } from "framer-motion";
-import { usePsalm20, verseForRoute } from "./use-psalm20";
-import { GoldDivider, ShieldIcon } from "./icons";
+import { useState, useEffect, useCallback } from "react";
+import { motion, AnimatePresence } from "framer-motion";
+import { usePsalm20, PSALM20_VERSES } from "./use-psalm20";
+import { GoldDivider, ShieldIcon, BannerIcon } from "./icons";
+
+const CYCLE_MS = 12_000;
 
 /**
  * Psalm20ThemeLayer — renders persistent verse banner and decorative elements
  * at the top of every page when the Psalm 20 theme is active. Mounted inside
  * the sentinel layout so it wraps all page content.
+ *
+ * The banner cycles through all 10 curated ESV fragments with a crossfade,
+ * rotating every 12 seconds.
  */
 export function Psalm20ThemeLayer({ children }: { children: React.ReactNode }) {
   const active = usePsalm20();
-  const pathname = usePathname();
+  const [idx, setIdx] = useState(() => Math.floor(Math.random() * PSALM20_VERSES.length));
+
+  const advance = useCallback(() => {
+    setIdx((prev) => (prev + 1) % PSALM20_VERSES.length);
+  }, []);
+
+  useEffect(() => {
+    if (!active) return;
+    const timer = setInterval(advance, CYCLE_MS);
+    return () => clearInterval(timer);
+  }, [active, advance]);
 
   if (!active) return <>{children}</>;
 
-  const verse = verseForRoute(pathname);
+  const verse = PSALM20_VERSES[idx];
 
   return (
     <>
@@ -28,26 +43,39 @@ export function Psalm20ThemeLayer({ children }: { children: React.ReactNode }) {
         }}
       />
 
-      {/* Verse banner bar — persistent across pages */}
-      <motion.div
-        initial={{ opacity: 0, y: -4 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.4, delay: 0.1 }}
-        className="relative z-10 flex items-center justify-center gap-3 px-4 py-1.5 border-b"
+      {/* Verse banner bar — persistent across pages, cycles verses */}
+      <div
+        className="relative z-10 flex items-center justify-center gap-3 px-4 py-1.5 border-b overflow-hidden"
         style={{
           background: "rgba(201,168,76,0.03)",
           borderColor: "rgba(201,168,76,0.08)",
         }}
       >
-        <ShieldIcon className="h-3.5 w-3.5 text-[var(--psalm20-gold)] opacity-40" />
-        <span
-          className="text-[11px] tracking-[0.18em] uppercase font-medium"
-          style={{ color: "var(--psalm20-gold)", opacity: 0.55 }}
-        >
-          {verse}
-        </span>
-        <ShieldIcon className="h-3.5 w-3.5 text-[var(--psalm20-gold)] opacity-40" />
-      </motion.div>
+        <ShieldIcon className="h-3.5 w-3.5 shrink-0 text-[var(--psalm20-gold)] opacity-40" />
+
+        <div className="relative h-[16px] flex items-center justify-center min-w-0">
+          <AnimatePresence mode="wait">
+            <motion.span
+              key={idx}
+              initial={{ opacity: 0, y: 6 }}
+              animate={{ opacity: 0.55, y: 0 }}
+              exit={{ opacity: 0, y: -6 }}
+              transition={{ duration: 0.8, ease: "easeInOut" }}
+              className="text-[11px] tracking-[0.18em] uppercase font-medium whitespace-nowrap"
+              style={{
+                color: "var(--psalm20-gold)",
+                fontFamily: "'Cormorant Garamond', Georgia, serif",
+                fontWeight: 600,
+                letterSpacing: "0.14em",
+              }}
+            >
+              {verse}
+            </motion.span>
+          </AnimatePresence>
+        </div>
+
+        <BannerIcon className="h-3.5 w-3.5 shrink-0 text-[var(--psalm20-gold)] opacity-40" />
+      </div>
 
       {/* Gold divider below verse bar */}
       <GoldDivider className="relative z-10 opacity-60" />
