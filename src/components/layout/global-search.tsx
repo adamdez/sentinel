@@ -22,6 +22,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
+import { useModal } from "@/providers/modal-provider";
 import { cn } from "@/lib/utils";
 
 // ── Types ──────────────────────────────────────────────────────────────
@@ -250,6 +251,7 @@ async function searchSupabase(q: string): Promise<SearchRecord[]> {
 
 export function GlobalSearch() {
   const router = useRouter();
+  const { openModal } = useModal();
   const inputRef = useRef<HTMLInputElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const [query, setQuery] = useState("");
@@ -329,42 +331,82 @@ export function GlobalSearch() {
     [router, closeDropdown]
   );
 
-  // Nationwide PropertyRadar lookup
+  // Nationwide property lookup via Bricked AI
   const handleNationwideLookup = useCallback(async (addressOverride?: string) => {
     if (lookingUp) return;
     setLookingUp(true);
+    const lookupAddress = addressOverride ?? query;
     try {
-      const res = await fetch("/api/property-lookup", {
+      const res = await fetch("/api/bricked/analyze", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ address: addressOverride ?? query }),
+        body: JSON.stringify({ address: lookupAddress }),
       });
-      const data = await res.json();
-      if (res.ok && data.success && data.property) {
-        // Store result in sessionStorage for the preview modal to pick up
-        sessionStorage.setItem("propertyPreview", JSON.stringify(data.property));
-        setQuery("");
-        closeDropdown();
-        resetSessionToken();
-        inputRef.current?.blur();
-        // Navigate to a special preview route or dispatch a custom event
-        window.dispatchEvent(new CustomEvent("open-property-preview", { detail: data.property }));
-      } else {
-        // No result — show inline feedback
-        setResults([]);
+      if (!res.ok) {
+        setResults([{
+          id: "__no_result__",
+          kind: "contact",
+          primary: "Bricked lookup failed",
+          secondary: `HTTP ${res.status} — try a more specific address`,
+          href: "#",
+          status: undefined,
+        }]);
+        inputRef.current?.focus();
         setLookingUp(false);
-        // Briefly show an error in the dropdown
+        return;
+      }
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const data = await res.json() as any;
+      if (!data?.address && !data?.id) {
         setResults([{
           id: "__no_result__",
           kind: "contact",
           primary: "No property found",
-          secondary: data.error ?? "PropertyRadar returned no results for this address",
+          secondary: "Bricked returned no results for this address",
           href: "#",
           status: undefined,
         }]);
-        // Re-focus input so user can immediately edit the address
         inputRef.current?.focus();
+        setLookingUp(false);
+        return;
       }
+
+      // Build Bricked data for the new-prospect-modal
+      const subject = data.subject ?? {};
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const repairItems = (data.repairs ?? []).map((r: any) => ({
+        item: r.name ?? r.item ?? "Unknown",
+        cost: r.cost ?? r.estimatedCost ?? 0,
+      }));
+
+      const brickedData = {
+        address: data.address ?? lookupAddress,
+        ownerNames: subject.ownerNames?.join(", ") ?? data.ownerNames ?? null,
+        arv: data.arv ?? null,
+        cmv: data.cmv ?? subject.estimatedValue ?? null,
+        totalRepairCost: data.totalRepairCost ?? null,
+        equityEstimate: subject.estimatedEquity ?? null,
+        propertyType: subject.propertyType ?? subject.landUse ?? null,
+        bedrooms: subject.bedrooms ?? null,
+        bathrooms: subject.bathrooms ?? null,
+        sqft: subject.squareFeet ?? null,
+        yearBuilt: subject.yearBuilt ?? null,
+        renovationScore: data.renovationScore ?? null,
+        brickedId: data.id ?? "",
+        shareLink: data.shareLink ?? null,
+        dashboardLink: data.dashboardLink ?? null,
+        compCount: data.comps?.length ?? 0,
+        subjectImages: data.subjectImages ?? [],
+        repairs: repairItems,
+        rawPayload: data,
+      };
+
+      // Open the new-prospect-modal pre-filled with Bricked data
+      setQuery("");
+      closeDropdown();
+      resetSessionToken();
+      inputRef.current?.blur();
+      openModal("new-prospect", { brickedData });
     } catch {
       setResults([{
         id: "__error__",
@@ -377,7 +419,7 @@ export function GlobalSearch() {
       inputRef.current?.focus();
     }
     setLookingUp(false);
-  }, [query, lookingUp, closeDropdown]);
+  }, [query, lookingUp, closeDropdown, openModal]);
 
   useEffect(() => {
     setActiveIndex(-1);
@@ -674,7 +716,7 @@ export function GlobalSearch() {
                             {lookingUp ? "Looking up property..." : `Look up "${query}"`}
                           </p>
                           <p className="text-sm text-muted-foreground">
-                            Search any US property via PropertyRadar
+                            Search any US property via Bricked AI
                           </p>
                         </div>
                         <ArrowRight className={cn("h-3 w-3 shrink-0 transition-colors", isFallbackActive ? "text-foreground/60" : "text-foreground/40")} />
