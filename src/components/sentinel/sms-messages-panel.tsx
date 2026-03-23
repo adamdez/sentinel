@@ -269,8 +269,8 @@ function ThreadDetail({
             onChange={(e) => setDraft(e.target.value)}
             onKeyDown={handleKeyDown}
             placeholder="Type a message..."
-            rows={1}
-            className="flex-1 bg-overlay-3 border border-overlay-8 rounded-[10px] px-3 py-1.5 text-sm text-foreground placeholder:text-muted-foreground/40 resize-none focus:outline-none focus:ring-1 focus:ring-primary/30 max-h-20"
+            rows={2}
+            className="flex-1 bg-overlay-3 border border-overlay-8 rounded-[10px] px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground/40 resize-none focus:outline-none focus:ring-1 focus:ring-primary/30 max-h-28"
           />
           <button
             onClick={handleSend}
@@ -404,9 +404,9 @@ export function SmsMessagesPanel({ onCallNumber }: SmsMessagesPanelProps) {
             transition={{ duration: 0.2 }}
             className="overflow-hidden"
           >
-            <div className="pt-2 mt-2 border-t border-overlay-6" style={{ maxHeight: "420px", minHeight: "200px" }}>
+            <div className="pt-2 mt-2 border-t border-overlay-6" style={{ maxHeight: "70vh", minHeight: "300px" }}>
               {activePhone ? (
-                <div style={{ height: "380px" }}>
+                <div style={{ height: "min(65vh, 600px)" }}>
                   <ThreadDetail
                     phone={activePhone}
                     onBack={() => { setActivePhone(null); fetchThreads(); }}
@@ -423,7 +423,7 @@ export function SmsMessagesPanel({ onCallNumber }: SmsMessagesPanelProps) {
                   <p className="text-xs text-muted-foreground/40">No messages yet</p>
                 </div>
               ) : (
-                <div className="space-y-0.5 overflow-y-auto" style={{ maxHeight: "400px" }}>
+                <div className="space-y-0.5 overflow-y-auto" style={{ maxHeight: "60vh" }}>
                   {threads.map((thread) => (
                     <ThreadRow
                       key={thread.phone}
