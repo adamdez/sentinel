@@ -1198,7 +1198,7 @@ export async function POST(req: NextRequest) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const leadRow: any = {
       property_id: property.id,
-      status: isAssigned || sourceChannel === "manual" ? "lead" : "prospect",
+      status: isAssigned || sourceChannel === "manual" || sourceChannel === "csv_import" || sourceChannel === "vendor_inbound" || sourceChannel === "webform" ? "lead" : "prospect",
       priority: null,
       source: sourceChannel,
       tags,
