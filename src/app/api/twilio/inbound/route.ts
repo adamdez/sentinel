@@ -82,6 +82,23 @@ export async function POST(req: NextRequest) {
     }
 
     // Nobody answered — move to next step
+    // Carry sessionId/callLogId through the chain for Deepgram stream
+    const chainSessionId = url.searchParams.get("sessionId") ?? "";
+    const chainCallLogId = url.searchParams.get("callLogId") ?? "";
+    const transcriptionUrl = process.env.TRANSCRIPTION_WS_URL;
+    const hasDeepgram = !!process.env.DEEPGRAM_API_KEY;
+    const chainStreamLines = transcriptionUrl && hasDeepgram && chainSessionId
+      ? [
+          "  <Start>",
+          `    <Stream url="${transcriptionUrl}" track="both_tracks">`,
+          ...(chainCallLogId ? [`      <Parameter name="callLogId" value="${chainCallLogId}" />`] : []),
+          `      <Parameter name="sessionId" value="${chainSessionId}" />`,
+          "    </Stream>",
+          "  </Start>",
+        ]
+      : [];
+    const chainParams2 = chainSessionId ? `&amp;sessionId=${chainSessionId}&amp;callLogId=${chainCallLogId}` : "";
+
     let nextTwiml: string;
 
     if (step === "logan" && adamIdentity) {
@@ -90,7 +107,8 @@ export async function POST(req: NextRequest) {
       nextTwiml = [
         '<?xml version="1.0" encoding="UTF-8"?>',
         "<Response>",
-        `  <Dial callerId="${twilioNumber}" timeout="20" action="${siteUrl}/api/twilio/inbound?type=chain_step&amp;step=adam" method="POST">`,
+        ...chainStreamLines,
+        `  <Dial callerId="${twilioNumber}" timeout="20" action="${siteUrl}/api/twilio/inbound?type=chain_step&amp;step=adam${chainParams2}" method="POST">`,
         `    <Client>${adamIdentity}</Client>`,
         "  </Dial>",
         "</Response>",
@@ -101,6 +119,7 @@ export async function POST(req: NextRequest) {
       nextTwiml = [
         '<?xml version="1.0" encoding="UTF-8"?>',
         "<Response>",
+        ...chainStreamLines,
         `  <Dial callerId="${twilioNumber}" timeout="30" action="${siteUrl}/api/twilio/inbound?type=call_status" method="POST">`,
         `    <Number>${vapiNumber}</Number>`,
         "  </Dial>",
