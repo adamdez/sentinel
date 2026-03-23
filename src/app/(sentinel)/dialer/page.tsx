@@ -614,7 +614,7 @@ function DialerPageInner() {
   // Incoming call state
   const [incomingCall, setIncomingCall] = useState<Call | null>(null);
   const [incomingFrom, setIncomingFrom] = useState<string | null>(null);
-  const [incomingMatch, setIncomingMatch] = useState<{ type: "lead" | "jeff" | "unknown"; name?: string; address?: string; summary?: string } | null>(null);
+  const [incomingMatch, setIncomingMatch] = useState<{ type: "lead" | "jeff" | "transfer" | "unknown"; name?: string; address?: string; summary?: string; transferBrief?: { transferReason?: string; callerType?: string; discoverySlots?: Record<string, string>; summary?: string } } | null>(null);
   const incomingAudioRef = useRef<HTMLAudioElement | null>(null);
 
   // Missed calls
@@ -747,11 +747,36 @@ function DialerPageInner() {
         setIncomingFrom(fromNumber);
         setIncomingMatch(null);
 
-        // Auto-match caller
+        // Auto-match caller + check for Jeff transfer brief
         if (fromNumber) {
-          authHeaders().then((h) =>
-            fetch(`/api/dialer/v1/phone-lookup?phone=${encodeURIComponent(fromNumber)}`, { headers: h })
-          ).then((r) => r.ok ? r.json() : null).then((data) => {
+          authHeaders().then(async (h) => {
+            const [lookupRes, briefRes] = await Promise.all([
+              fetch(`/api/dialer/v1/phone-lookup?phone=${encodeURIComponent(fromNumber)}`, { headers: h }),
+              fetch(`/api/dialer/v1/transfer-brief?phone=${encodeURIComponent(fromNumber)}`, { headers: h }),
+            ]);
+            const data = lookupRes.ok ? await lookupRes.json() : null;
+            const briefData = briefRes.ok ? await briefRes.json() : null;
+
+            // If Jeff just transferred this caller, show the transfer brief
+            if (briefData?.brief) {
+              const b = briefData.brief;
+              const leadName = data?.leads?.[0]?.properties?.owner_name ?? data?.leads?.[0]?.owner_name ?? null;
+              const leadAddr = data?.leads?.[0]?.properties?.address ?? null;
+              setIncomingMatch({
+                type: "transfer",
+                name: leadName ?? "Seller",
+                address: leadAddr ?? undefined,
+                summary: b.transferReason ?? "Jeff qualified this caller",
+                transferBrief: {
+                  transferReason: b.transferReason,
+                  callerType: b.callerType,
+                  discoverySlots: b.discoverySlots,
+                  summary: b.summary,
+                },
+              });
+              return;
+            }
+
             if (!data) { setIncomingMatch({ type: "unknown" }); return; }
             if (data.leads?.length === 1) {
               const l = data.leads[0];
@@ -2251,6 +2276,35 @@ function DialerPageInner() {
                   )}
                   {incomingMatch.type === "lead" && incomingMatch.address && (
                     <p className="text-xs text-muted-foreground/60 mt-1 ml-4">{incomingMatch.address}</p>
+                  )}
+                  {incomingMatch.type === "transfer" && (
+                    <div className="space-y-2">
+                      <div className="flex items-center gap-2">
+                        <span className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
+                        <span className="text-sm font-semibold text-emerald-400">Jeff&apos;s Transfer Brief</span>
+                      </div>
+                      {incomingMatch.name && (
+                        <p className="text-sm text-foreground font-medium ml-4">{incomingMatch.name}</p>
+                      )}
+                      {incomingMatch.address && (
+                        <p className="text-xs text-muted-foreground/60 ml-4">{incomingMatch.address}</p>
+                      )}
+                      {incomingMatch.summary && (
+                        <p className="text-xs text-muted-foreground ml-4">{incomingMatch.summary}</p>
+                      )}
+                      {incomingMatch.transferBrief?.discoverySlots && Object.keys(incomingMatch.transferBrief.discoverySlots).length > 0 && (
+                        <div className="flex flex-wrap gap-1 ml-4 mt-1">
+                          {Object.entries(incomingMatch.transferBrief.discoverySlots).map(([slot, value]) => (
+                            <span key={slot} className="inline-flex items-center gap-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 text-[10px] text-emerald-400">
+                              <span className="font-semibold">{slot}:</span> {String(value).slice(0, 40)}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                      {incomingMatch.transferBrief?.callerType && (
+                        <p className="text-[10px] text-muted-foreground/40 ml-4 mt-1">Type: {incomingMatch.transferBrief.callerType}</p>
+                      )}
+                    </div>
                   )}
                   {incomingMatch.type === "jeff" && (
                     <div className="flex items-center gap-2">
