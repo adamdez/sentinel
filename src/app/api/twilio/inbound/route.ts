@@ -73,6 +73,8 @@ export async function POST(req: NextRequest) {
     const vapiNumber = process.env.VAPI_PHONE_NUMBER ?? "";
     const twilioNumber = process.env.TWILIO_PHONE_NUMBER ?? "";
 
+    console.log(`[inbound] chain_step=${step} dialStatus=${dialStatus} from=${fromNumber} sid=${callSid}`);
+
     // If someone answered in their browser, log it and we're done
     if (dialStatus === "completed" || dialStatus === "in-progress") {
       await handleAnsweredInbound({ fromNumber, callSid, dialDuration: formData.get("DialCallDuration")?.toString() ?? null });
@@ -282,6 +284,8 @@ export async function POST(req: NextRequest) {
     "  </Dial>",
     "</Response>",
   ].join("\n");
+
+  console.log("[inbound] Initial TwiML:", twiml.substring(0, 500));
 
   return new NextResponse(twiml, {
     status: 200,
