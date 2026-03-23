@@ -72,7 +72,7 @@ export async function POST(req: NextRequest) {
     const sheetName = typeof formData.get("sheet_name") === "string" ? String(formData.get("sheet_name")) : undefined;
     const mapping = parseJson<Partial<Record<ImportTargetField, string>>>(formData.get("mapping"), {});
     const defaults = normalizeDefaults(parseJson<Partial<NormalizationDefaults>>(formData.get("defaults"), {}), file.name);
-    const duplicateStrategy = typeof formData.get("duplicate_strategy") === "string" ? String(formData.get("duplicate_strategy")) : "skip";
+    const duplicateStrategy = typeof formData.get("duplicate_strategy") === "string" ? String(formData.get("duplicate_strategy")) : "update_missing";
     const forceCommit = formData.get("force_commit") === "true";
     const saveTemplate = formData.get("save_template") === "true" && defaults.templateName.trim().length > 0;
 

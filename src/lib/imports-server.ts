@@ -281,19 +281,58 @@ export async function updateExistingRecordFromImport(args: {
     .maybeSingle();
 
   if (lead?.id) {
-    const nextTags = Array.from(new Set([...(Array.isArray(lead.tags) ? lead.tags : []), ...record.distressTags]));
+    const existingTags: string[] = Array.isArray(lead.tags) ? lead.tags : [];
+    const nextTags = Array.from(new Set([...existingTags, ...record.distressTags]));
+    const hasNewTags = nextTags.length > existingTags.length;
     const noteAppend = [`Import append from ${defaults.importBatchId || "batch import"}`, record.notes]
       .filter(Boolean)
       .join(" - ");
+
+    const leadPatch: Record<string, unknown> = {
+      tags: nextTags,
+      source: lead.source ?? defaults.sourceChannel,
+      notes: noteAppend
+        ? [lead.notes, noteAppend].filter(Boolean).join("\n")
+        : lead.notes,
+    };
+
+    // Rescore if new distress tags were added (stacking bonus may change)
+    if (hasNewTags) {
+      try {
+        const { computeScore } = await import("@/lib/scoring");
+        const DISTRESS_TYPES = new Set([
+          "probate", "pre_foreclosure", "tax_lien", "code_violation",
+          "vacant", "divorce", "bankruptcy", "fsbo", "absentee",
+          "inherited", "water_shutoff", "condemned", "tired_landlord", "underwater",
+        ]);
+        const signals = nextTags
+          .filter((t) => DISTRESS_TYPES.has(t))
+          .map((t) => ({
+            type: t as import("@/lib/types").DistressType,
+            severity: 5 as number,
+            daysSinceEvent: 30,
+            status: "active" as const,
+          }));
+        const scoreResult = computeScore({
+          signals,
+          ownerFlags: {
+            absentee: nextTags.includes("absentee"),
+            inherited: nextTags.includes("inherited"),
+          },
+          equityPercent: 0,
+          compRatio: 0,
+          historicalConversionRate: 0,
+        });
+        leadPatch.priority = scoreResult.composite;
+        console.log(`[Import] Rescored lead ${lead.id}: ${existingTags.length} → ${nextTags.length} tags, score ${scoreResult.composite} (${scoreResult.label})`);
+      } catch (scoreErr) {
+        console.error("[Import] Rescore failed (non-fatal):", scoreErr);
+      }
+    }
+
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     await (sb.from("leads") as any)
-      .update({
-        tags: nextTags,
-        source: lead.source ?? defaults.sourceChannel,
-        notes: noteAppend
-          ? [lead.notes, noteAppend].filter(Boolean).join("\n")
-          : lead.notes,
-      })
+      .update(leadPatch)
       .eq("id", lead.id);
   }
 

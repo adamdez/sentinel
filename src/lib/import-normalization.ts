@@ -691,6 +691,8 @@ export function buildProspectPayload(record: NormalizedImportRecord, defaults: N
     mailing_state: record.mailingState,
     mailing_zip: record.mailingZip,
     co_owner_name: record.coOwnerName,
+    // Bulk imports skip auto-Bricked to avoid cost/latency — Bricked fires when lead is opened
+    skip_auto_bricked: true,
     source_metadata: {
       import_batch_id: defaults.importBatchId,
       template_id: defaults.templateId || null,
