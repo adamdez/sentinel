@@ -40,7 +40,7 @@ export function ScriptureWatermark() {
                 className="text-center mb-6 tracking-[0.35em] uppercase font-semibold"
                 style={{
                   color: "var(--psalm20-gold)",
-                  opacity: 0.06,
+                  opacity: 0.12,
                   fontSize: "11px",
                 }}
               >
@@ -53,8 +53,8 @@ export function ScriptureWatermark() {
                   className="text-center leading-[2.2]"
                   style={{
                     color: "var(--psalm20-gold)",
-                    opacity: line.trim() === "" ? 0 : 0.04,
-                    fontSize: "13px",
+                    opacity: line.trim() === "" ? 0 : 0.09,
+                    fontSize: "14px",
                     letterSpacing: "0.06em",
                     fontFamily: "'Cormorant Garamond', Georgia, serif",
                     fontWeight: 400,
