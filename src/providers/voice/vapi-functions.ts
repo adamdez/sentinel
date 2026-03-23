@@ -258,19 +258,19 @@ export async function handleTransferToOperator(
   voiceSessionId: string,
 ): Promise<TransferResult> {
   // Route to the right person — default to Logan
+  // Use BROWSER numbers (Twilio), not cell phones. This triggers the
+  // inbound chain which rings the browser dialer.
   const target = params.transfer_to ?? "logan";
   const forwardTo = target === "adam"
-    ? process.env.ADAM_CELL
-    : process.env.TWILIO_FORWARD_TO_CELL;
+    ? (process.env.TWILIO_PHONE_NUMBER_ADAM ?? process.env.ADAM_CELL)
+    : (process.env.TWILIO_PHONE_NUMBER_LOGAN ?? process.env.TWILIO_FORWARD_TO_CELL);
   const targetName = target === "adam" ? "Adam" : "Logan";
 
   const sb = createServerClient();
 
   if (!forwardTo) {
-    // Fallback: no number configured — book a callback instead + SMS
     console.warn(`[vapi-functions] No phone configured for ${target}, falling back to callback`);
 
-    // Get the caller's phone from the voice session
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { data: session } = await (sb.from("voice_sessions") as any)
       .select("from_number")
@@ -280,7 +280,6 @@ export async function handleTransferToOperator(
     const callerPhone = session?.from_number ?? null;
 
     if (callerPhone) {
-      // Auto-book callback as fallback
       await handleBookCallback(
         {
           phone_number: callerPhone,
@@ -299,7 +298,25 @@ export async function handleTransferToOperator(
     };
   }
 
-  // Update voice session with transfer info
+  // Build a structured transfer brief from the conversation so far.
+  // This gets stored on the voice_session and displayed on Logan's
+  // incoming call overlay when the transfer rings his browser.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: sessionData } = await (sb.from("voice_sessions") as any)
+    .select("extracted_facts, from_number, lead_id")
+    .eq("id", voiceSessionId)
+    .single();
+
+  const transferBrief = {
+    transfer_to: targetName,
+    reason: params.reason,
+    caller_type: params.caller_type,
+    from_number: sessionData?.from_number ?? null,
+    lead_id: sessionData?.lead_id ?? null,
+    timestamp: new Date().toISOString(),
+  };
+
+  // Update voice session with transfer info + brief
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   await (sb.from("voice_sessions") as any)
     .update({
@@ -307,6 +324,7 @@ export async function handleTransferToOperator(
       transferred_to: forwardTo,
       transfer_reason: params.reason,
       caller_type: params.caller_type,
+      transfer_brief: transferBrief,
     })
     .eq("id", voiceSessionId);
 
