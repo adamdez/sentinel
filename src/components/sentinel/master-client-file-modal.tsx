@@ -274,7 +274,7 @@ const TABS = [
   { id: "overview", label: "Overview", icon: LayoutDashboard },
   { id: "contact", label: "Contact", icon: Contact2 },
   { id: "dossier", label: "Dossier", icon: Brain },
-  { id: "comps", label: "Comps & ARV", icon: Map },
+  { id: "comps", label: "Property Intel", icon: Map },
   { id: "calculator", label: "Deal Calculator", icon: Calculator },
   { id: "documents", label: "Documents / PSA", icon: FileText },
 ] as const;
@@ -415,7 +415,7 @@ function selectCallAssistCards(cf: ClientFile): { defaultCards: CallAssistCard[]
   };
 }
 
-const PRIMARY_TAB_IDS = new Set<TabId>(["overview", "contact", "dossier"]);
+const PRIMARY_TAB_IDS = new Set<TabId>(["overview", "contact", "dossier", "comps"]);
 const ADVANCED_TAB_IDS = new Set<TabId>(["comps", "calculator", "documents"]);
 
 const WORKFLOW_STAGE_OPTIONS: Array<{ id: WorkflowStageId; label: string }> = [

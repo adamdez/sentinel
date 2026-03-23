@@ -11,7 +11,13 @@ import { BrickedDealSidebar } from "./bricked-deal-sidebar";
 import { BrickedPropertyTabs } from "./bricked-property-tabs";
 import { BrickedCompMap } from "./bricked-comp-map";
 import { BrickedCompCard } from "./bricked-comp-card";
-import { BrickedRepairsList } from "./bricked-repairs-list";
+import { BrickedRepairsList, type EditableRepair } from "./bricked-repairs-list";
+import {
+  BrickedOfferConfigModal,
+  computeOfferPrice,
+  DEFAULT_DEAL_CONFIG,
+  type DealConfig,
+} from "./bricked-offer-config-modal";
 
 export interface BrickedAnalysisPanelProps {
   leadId: string;
@@ -37,6 +43,9 @@ export function BrickedAnalysisPanel({
   const [error, setError] = useState<string | null>(null);
   const [selectedSet, setSelectedSet] = useState<Set<number>>(new Set());
   const [highlightedComp, setHighlightedComp] = useState<number | null>(null);
+  const [dealConfig, setDealConfig] = useState<DealConfig>(DEFAULT_DEAL_CONFIG);
+  const [configOpen, setConfigOpen] = useState(false);
+  const [repairTotal, setRepairTotal] = useState<number | null>(null);
   const repairsRef = useRef<HTMLDivElement>(null);
   const fetched = useRef(false);
 
@@ -96,6 +105,19 @@ export function BrickedAnalysisPanel({
     document.getElementById(`bricked-comp-${idx}`)?.scrollIntoView({ behavior: "smooth", block: "center" });
   }, []);
 
+  const handleRepairsChange = useCallback((_repairs: EditableRepair[], total: number) => {
+    setRepairTotal(total);
+  }, []);
+
+  const handleRepairsSave = useCallback((_repairs: EditableRepair[]) => {
+    // Future: persist to owner_flags.bricked_repairs
+  }, []);
+
+  const handleConfigSave = useCallback((config: DealConfig) => {
+    setDealConfig(config);
+    // Future: persist to owner_flags.deal_config
+  }, []);
+
   if (loading) {
     return (
       <div className="flex flex-col items-center justify-center gap-3 py-20 text-muted-foreground">
@@ -128,6 +150,11 @@ export function BrickedAnalysisPanel({
         selectedComps.length
       : analysis.arv;
 
+  const effectiveRepairCost = repairTotal ?? analysis.totalRepairCost ?? 0;
+  const offerPrice = computedArv != null
+    ? computeOfferPrice(computedArv, effectiveRepairCost, dealConfig)
+    : null;
+
   return (
     <div className="space-y-4">
       {/* Header */}
@@ -151,13 +178,15 @@ export function BrickedAnalysisPanel({
           <BrickedDealSidebar
             arv={computedArv}
             cmv={analysis.cmv}
-            totalRepairCost={analysis.totalRepairCost}
+            totalRepairCost={effectiveRepairCost}
+            offerPrice={offerPrice}
             selectedCompCount={selectedSet.size}
             dashboardLink={analysis.dashboardLink}
             shareLink={analysis.shareLink}
             onScrollToRepairs={() =>
               repairsRef.current?.scrollIntoView({ behavior: "smooth", block: "start" })
             }
+            onConfigureClick={() => setConfigOpen(true)}
           />
         </div>
       </div>
@@ -207,6 +236,8 @@ export function BrickedAnalysisPanel({
         ref={repairsRef}
         repairs={repairs}
         totalRepairCost={analysis.totalRepairCost}
+        onRepairsChange={handleRepairsChange}
+        onSave={handleRepairsSave}
       />
 
       {/* Mobile deal summary */}
@@ -214,15 +245,29 @@ export function BrickedAnalysisPanel({
         <BrickedDealSidebar
           arv={computedArv}
           cmv={analysis.cmv}
-          totalRepairCost={analysis.totalRepairCost}
+          totalRepairCost={effectiveRepairCost}
+          offerPrice={offerPrice}
           selectedCompCount={selectedSet.size}
           dashboardLink={analysis.dashboardLink}
           shareLink={analysis.shareLink}
           onScrollToRepairs={() =>
             repairsRef.current?.scrollIntoView({ behavior: "smooth", block: "start" })
           }
+          onConfigureClick={() => setConfigOpen(true)}
         />
       </div>
+
+      {/* Offer Config Modal */}
+      {computedArv != null && (
+        <BrickedOfferConfigModal
+          open={configOpen}
+          onClose={() => setConfigOpen(false)}
+          onSave={handleConfigSave}
+          arv={computedArv}
+          repairCost={effectiveRepairCost}
+          initialConfig={dealConfig}
+        />
+      )}
     </div>
   );
 }

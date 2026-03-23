@@ -4,6 +4,7 @@ import { useState } from "react";
 import { cn, formatCurrency } from "@/lib/utils";
 import type {
   BrickedProperty,
+  BrickedHistoricListing,
 } from "@/providers/bricked/adapter";
 
 type TabKey = "property" | "land" | "mortgage" | "ownership" | "mls";
@@ -214,6 +215,7 @@ function OwnershipTab({ d }: { d?: BrickedProperty["ownership"] }) {
 
 function MlsTab({ d }: { d?: BrickedProperty["mls"] }) {
   if (!d) return <Empty />;
+  const history: BrickedHistoricListing[] = d.historicListings ?? [];
   return (
     <div className="space-y-3">
       <div className="grid grid-cols-2 gap-x-6 gap-y-0">
@@ -235,6 +237,41 @@ function MlsTab({ d }: { d?: BrickedProperty["mls"] }) {
             <Row label="Phone" value={d.agent.agentPhone} />
             <Row label="Office" value={d.agent.officeName} />
             <Row label="Office Phone" value={d.agent.officePhone} />
+          </div>
+        </>
+      )}
+      {history.length > 0 && (
+        <>
+          <p className="text-[10px] uppercase tracking-wider text-muted-foreground/60 font-semibold pt-2">Historic Listings</p>
+          <div className="overflow-x-auto rounded-md border border-overlay-6">
+            <table className="w-full text-[10px]">
+              <thead>
+                <tr className="border-b border-overlay-6 bg-overlay-2 text-muted-foreground text-left">
+                  <th className="px-2 py-1.5">Date</th>
+                  <th className="px-2 py-1.5">Status</th>
+                  <th className="px-2 py-1.5">Amount</th>
+                  <th className="px-2 py-1.5">$/SqFt</th>
+                  <th className="px-2 py-1.5">DOM</th>
+                  <th className="px-2 py-1.5">Agent</th>
+                  <th className="px-2 py-1.5">MLS</th>
+                </tr>
+              </thead>
+              <tbody>
+                {history.map((h, i) => (
+                  <tr key={i} className="border-b border-overlay-4">
+                    <td className="px-2 py-1.5">{ts(h.listingDate)}</td>
+                    <td className="px-2 py-1.5">{h.status ?? "—"}</td>
+                    <td className="px-2 py-1.5 font-mono">{cur(h.amount)}</td>
+                    <td className="px-2 py-1.5 font-mono">
+                      {h.pricePerSquareFoot != null ? `$${h.pricePerSquareFoot.toFixed(2)}` : "—"}
+                    </td>
+                    <td className="px-2 py-1.5">{h.daysOnMarket ?? "—"}</td>
+                    <td className="px-2 py-1.5 max-w-[100px] truncate">{h.agentName ?? "N/A"}</td>
+                    <td className="px-2 py-1.5 max-w-[80px] truncate">{h.mlsName ?? "—"}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
         </>
       )}

@@ -1,6 +1,6 @@
 "use client";
 
-import { ExternalLink } from "lucide-react";
+import { ExternalLink, Settings2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { formatCurrency } from "@/lib/utils";
@@ -9,20 +9,24 @@ interface Props {
   arv: number | null | undefined;
   cmv: number | null | undefined;
   totalRepairCost: number | null | undefined;
+  offerPrice: number | null | undefined;
   selectedCompCount: number;
   dashboardLink?: string | null;
   shareLink?: string | null;
   onScrollToRepairs?: () => void;
+  onConfigureClick?: () => void;
 }
 
 export function BrickedDealSidebar({
   arv,
   cmv,
   totalRepairCost,
+  offerPrice,
   selectedCompCount,
   dashboardLink,
   shareLink,
   onScrollToRepairs,
+  onConfigureClick,
 }: Props) {
   const link = dashboardLink ?? shareLink;
 
@@ -46,6 +50,25 @@ export function BrickedDealSidebar({
         <p className="text-[10px] uppercase text-muted-foreground/70">Current Market Value</p>
         <span className="text-lg font-semibold font-mono">
           {cmv != null ? formatCurrency(cmv) : "—"}
+        </span>
+      </div>
+
+      <div>
+        <div className="flex items-center justify-between">
+          <p className="text-[10px] uppercase text-muted-foreground/70">Offer Price</p>
+          {onConfigureClick && (
+            <button
+              type="button"
+              onClick={onConfigureClick}
+              className="flex items-center gap-1 text-[9px] text-cyan hover:text-cyan/80 transition-colors"
+            >
+              <Settings2 className="h-3 w-3" />
+              Configure
+            </button>
+          )}
+        </div>
+        <span className="text-lg font-bold font-mono text-emerald-400">
+          {offerPrice != null ? formatCurrency(offerPrice) : "—"}
         </span>
       </div>
 
