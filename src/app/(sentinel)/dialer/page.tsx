@@ -999,17 +999,22 @@ function DialerPageInner() {
       }
 
       if (existingSessionId) {
-        // Use the existing session — advance to connected
+        // Claim the session — reassign user_id to the operator who answered
+        // and advance status to "connected". This is necessary because the
+        // inbound webhook creates sessions under a default user_id (Logan),
+        // but any operator can answer. Without claiming, note polling and
+        // live coach fail with FORBIDDEN.
         activeSessionRef.current = existingSessionId;
         if (matchedLead) {
           setDialerSessionId(existingSessionId);
         } else {
           setManualSessionId(existingSessionId);
+          setManualStatus("connected");
         }
-        fetch(`/api/dialer/v1/sessions/${existingSessionId}`, {
-          method: "PATCH",
+        fetch("/api/dialer/v1/sessions/claim-inbound", {
+          method: "POST",
           headers: hdrs,
-          body: JSON.stringify({ status: "connected" }),
+          body: JSON.stringify({ sessionId: existingSessionId }),
         }).catch(() => {});
         // Look up the calls_log entry for disposition
         // The inbound webhook created one linked to this session
