@@ -5,7 +5,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { usePsalm20, PSALM20_VERSES } from "./use-psalm20";
 import { GoldDivider, ShieldIcon, BannerIcon } from "./icons";
 
-const CYCLE_MS = 12_000;
+const CYCLE_MS = 9_000;
 
 /**
  * Psalm20ThemeLayer — renders persistent verse banner and decorative elements
