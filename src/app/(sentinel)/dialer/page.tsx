@@ -2611,14 +2611,7 @@ function DialerPageInner() {
                             <> — <span className="text-foreground/70">{dialerContext.notePreview}</span></>
                           )}
                         </p>
-                        {/* Call assist prompts — compact */}
-                        {dialerContext.assistPrompts.length > 0 && (
-                          <div className="space-y-0.5">
-                            {dialerContext.assistPrompts.map((prompt, idx) => (
-                              <p key={idx} className="text-xs text-primary/80">→ {prompt}</p>
-                            ))}
-                          </div>
-                        )}
+                        {/* Call assist prompts removed — live coach handles this now */}
                       </div>
                     )}
 
