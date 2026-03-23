@@ -794,6 +794,7 @@ function DialerPageInner() {
           if (sessId) {
             setActiveCall(null);
             setCallState("ended");
+            timer.stop();
             authHeaders().then((hdrs) => {
               fetch(`/api/dialer/v1/sessions/${sessId}`, {
                 method: "PATCH",
