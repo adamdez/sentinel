@@ -38,7 +38,7 @@ interface LeadTableProps {
 }
 
 // Grid definition
-const GRID = "grid-cols-[28px_1.8fr_70px_minmax(140px,1fr)_90px_80px]";
+const GRID = "grid-cols-[28px_1.8fr_80px_minmax(140px,1fr)_90px_80px]";
 
 // Helpers
 
@@ -376,6 +376,18 @@ export function LeadTable({
                       <span className="text-xs text-muted-foreground/30 shrink-0">No phone</span>
                     )}
                   </div>
+                  {lead.distressSignals.length > 0 && (
+                    <div className="flex items-center gap-1 overflow-hidden">
+                      {lead.distressSignals.slice(0, 3).map((sig, i) => (
+                        <span key={i} className="inline-flex items-center gap-0.5 px-1.5 py-0 rounded-full text-[10px] font-medium border border-overlay-12 bg-overlay-4 text-muted-foreground truncate">
+                          <AlertTriangle className="h-2.5 w-2.5 shrink-0" />{sig.replace(/_/g, " ")}
+                        </span>
+                      ))}
+                      {lead.distressSignals.length > 3 && (
+                        <span className="text-[10px] text-muted-foreground/50">+{lead.distressSignals.length - 3}</span>
+                      )}
+                    </div>
+                  )}
                 </div>
               </TooltipTrigger>
               {(lead.sellerSituationSummaryShort || lead.recommendedCallAngle || lead.topFact1 || lead.notes) && (

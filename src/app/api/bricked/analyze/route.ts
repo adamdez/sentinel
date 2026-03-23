@@ -17,6 +17,9 @@ import { createServerClient } from "@/lib/supabase";
  *   repairs?: string,
  * }
  */
+
+const BRICKED_BASE = "https://api.bricked.ai";
+
 export async function POST(req: NextRequest) {
   const sb = createServerClient();
   const authHeader = req.headers.get("authorization");
@@ -56,8 +59,19 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    // Resolve the property_id from the lead (needed for owner_flags on properties)
+    let propertyId: string | undefined;
+    if (leadId) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data: lead } = await (sb.from("leads") as any)
+        .select("property_id")
+        .eq("id", leadId)
+        .single();
+      propertyId = lead?.property_id as string | undefined;
+    }
+
     // ── Build Bricked URL ──────────────────────────────────────────────
-    const url = new URL("https://api.bricked.ai/v1/property/create");
+    const url = new URL(`${BRICKED_BASE}/v1/property/create`);
     url.searchParams.set("address", address);
     if (bedrooms != null) url.searchParams.set("bedrooms", String(bedrooms));
     if (bathrooms != null) url.searchParams.set("bathrooms", String(bathrooms));
@@ -67,19 +81,42 @@ export async function POST(req: NextRequest) {
     if (landUse) url.searchParams.set("landUse", landUse);
     if (repairs) url.searchParams.set("repairs", repairs);
 
-    // ── Call Bricked ───────────────────────────────────────────────────
+    const brickedHeaders = { "x-api-key": brickedKey };
+
+    // ── Call Bricked /create ─────────────────────────────────────────
     const brickedRes = await fetch(url.toString(), {
       method: "GET",
-      headers: { "x-api-key": brickedKey },
+      headers: brickedHeaders,
     });
 
-    if (!brickedRes.ok) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    let data: any;
+
+    if (brickedRes.ok) {
+      data = await brickedRes.json();
+    } else if (brickedRes.status === 404) {
+      // Bricked 404 = "Property not found via search".
+      // Try cached bricked_id from properties.owner_flags, then /list as last resort.
+      data = await fallbackFromCache(sb, propertyId, brickedKey);
+
+      if (!data) {
+        data = await fallbackFromList(address, brickedKey);
+      }
+
+      if (!data) {
+        console.error("[Bricked] 404 — no cache or list match for:", address);
+        return NextResponse.json(
+          {
+            error:
+              "Bricked could not find this property. It may not be in their coverage area, or the address format may differ from what they expect.",
+          },
+          { status: 502 },
+        );
+      }
+      console.log("[Bricked] /create 404 — served from fallback for:", address);
+    } else {
       const errText = await brickedRes.text().catch(() => "");
-      console.error(
-        "[Bricked] HTTP",
-        brickedRes.status,
-        errText.slice(0, 500),
-      );
+      console.error("[Bricked] HTTP", brickedRes.status, errText.slice(0, 500));
       return NextResponse.json(
         {
           error: `Bricked API returned ${brickedRes.status}`,
@@ -89,11 +126,8 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const data = (await brickedRes.json()) as any;
-
-    // ── Side-effect: merge key values into lead owner_flags ───────────
-    if (leadId) {
+    // ── Side-effect: merge key values into properties.owner_flags ────
+    if (propertyId) {
       try {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const flags: Record<string, any> = {};
@@ -134,29 +168,30 @@ export async function POST(req: NextRequest) {
         if (data.property?.images?.length)
           flags.bricked_subject_images = data.property.images;
 
-        // Non-blocking JSONB merge
+        // JSONB merge into properties.owner_flags (non-blocking)
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const { data: currentLead } = await (sb.from("leads") as any)
+        const { data: currentProp } = await (sb.from("properties") as any)
           .select("owner_flags")
-          .eq("id", leadId)
+          .eq("id", propertyId)
           .single();
         const merged = {
-          ...((currentLead?.owner_flags as Record<string, unknown>) ?? {}),
+          ...((currentProp?.owner_flags as Record<string, unknown>) ?? {}),
           ...flags,
         };
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        (sb.from("leads") as any)
+        (sb.from("properties") as any)
           .update({ owner_flags: merged })
-          .eq("id", leadId)
+          .eq("id", propertyId)
           .then(() => {})
           .catch(() => {});
       } catch {
-        // Non-blocking — don't fail the response
-        console.warn("[Bricked] Failed to update owner_flags for lead", leadId);
+        console.warn(
+          "[Bricked] Failed to update owner_flags for property",
+          propertyId,
+        );
       }
     }
 
-    // ── Return FULL Bricked response ─────────────────────────────────
     return NextResponse.json(data);
   } catch (err) {
     console.error("[Bricked] Error:", err);
@@ -164,5 +199,72 @@ export async function POST(req: NextRequest) {
       { error: "Internal server error" },
       { status: 500 },
     );
+  }
+}
+
+// ── Fallback helpers ──────────────────────────────────────────────────
+
+/** Try to serve cached data via /get/{cachedBrickedId} from properties.owner_flags */
+async function fallbackFromCache(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  sb: any,
+  propertyId: string | undefined,
+  brickedKey: string,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+): Promise<any | null> {
+  if (!propertyId) return null;
+
+  const { data: prop } = await sb
+    .from("properties")
+    .select("owner_flags")
+    .eq("id", propertyId)
+    .single();
+  const cachedId = (prop?.owner_flags as Record<string, unknown>)
+    ?.bricked_id as string | undefined;
+  if (!cachedId) return null;
+
+  const res = await fetch(`${BRICKED_BASE}/v1/property/get/${cachedId}`, {
+    method: "GET",
+    headers: { "x-api-key": brickedKey },
+  });
+  if (!res.ok) return null;
+  return res.json();
+}
+
+/** Last resort: search /list for matching address, then /get that ID */
+async function fallbackFromList(
+  address: string,
+  brickedKey: string,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+): Promise<any | null> {
+  try {
+    const listRes = await fetch(`${BRICKED_BASE}/v1/property/list?page=0`, {
+      method: "GET",
+      headers: { "x-api-key": brickedKey },
+    });
+    if (!listRes.ok) return null;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const listData = (await listRes.json()) as {
+      properties: { id: string; address: string }[];
+    };
+
+    // Normalize for comparison: lowercase, strip extra whitespace/commas
+    const norm = (s: string) =>
+      s.toLowerCase().replace(/[,\s]+/g, " ").trim();
+    const needle = norm(address);
+
+    const match = listData.properties?.find((p) =>
+      norm(p.address).includes(needle) || needle.includes(norm(p.address)),
+    );
+    if (!match) return null;
+
+    const getRes = await fetch(
+      `${BRICKED_BASE}/v1/property/get/${match.id}`,
+      { method: "GET", headers: { "x-api-key": brickedKey } },
+    );
+    if (!getRes.ok) return null;
+    return getRes.json();
+  } catch {
+    return null;
   }
 }

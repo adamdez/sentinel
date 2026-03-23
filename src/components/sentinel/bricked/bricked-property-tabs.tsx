@@ -39,9 +39,9 @@ function pct(v?: number | null): string {
 function Row({ label, value }: { label: string; value: React.ReactNode }) {
   if (value === "—" || value == null) return null;
   return (
-    <div className="flex justify-between gap-4 py-1.5 border-b border-overlay-4 last:border-0">
-      <span className="text-[11px] text-muted-foreground/70 shrink-0">{label}</span>
-      <span className="text-[11px] text-foreground font-mono text-right">{value}</span>
+    <div className="flex justify-between gap-4 py-2 border-b border-overlay-4 last:border-0">
+      <span className="text-[13px] text-muted-foreground/70 shrink-0">{label}</span>
+      <span className="text-[13px] text-foreground font-mono text-right">{value}</span>
     </div>
   );
 }
@@ -58,7 +58,7 @@ export function BrickedPropertyTabs({ property }: { property: BrickedProperty })
             type="button"
             onClick={() => setTab(t.key)}
             className={cn(
-              "px-3 py-2 text-[11px] font-medium whitespace-nowrap transition-colors",
+              "px-4 py-2.5 text-[13px] font-medium whitespace-nowrap transition-colors",
               tab === t.key
                 ? "text-cyan border-b-2 border-cyan bg-cyan/[0.04]"
                 : "text-muted-foreground hover:text-foreground",
@@ -138,26 +138,26 @@ function MortgageTab({ d }: { d?: BrickedProperty["mortgageDebt"] }) {
       </div>
       {d.mortgages && d.mortgages.length > 0 && (
         <div className="overflow-x-auto rounded-md border border-overlay-6">
-          <table className="w-full text-[10px]">
+          <table className="w-full text-xs">
             <thead>
               <tr className="border-b border-overlay-6 bg-overlay-2 text-muted-foreground text-left">
-                <th className="px-2 py-1.5">Amount</th>
-                <th className="px-2 py-1.5">Rate</th>
-                <th className="px-2 py-1.5">Type</th>
-                <th className="px-2 py-1.5">Recorded</th>
-                <th className="px-2 py-1.5">Maturity</th>
-                <th className="px-2 py-1.5">Lender</th>
+                <th className="px-2.5 py-2">Amount</th>
+                <th className="px-2.5 py-2">Rate</th>
+                <th className="px-2.5 py-2">Type</th>
+                <th className="px-2.5 py-2">Recorded</th>
+                <th className="px-2.5 py-2">Maturity</th>
+                <th className="px-2.5 py-2">Lender</th>
               </tr>
             </thead>
             <tbody>
               {d.mortgages.map((m, i) => (
                 <tr key={i} className="border-b border-overlay-4">
-                  <td className="px-2 py-1.5 font-mono">{cur(m.amount)}</td>
-                  <td className="px-2 py-1.5">{m.interestRate != null ? `${m.interestRate}%` : "—"}</td>
-                  <td className="px-2 py-1.5">{m.loanType ?? "—"}</td>
-                  <td className="px-2 py-1.5">{ts(m.recordingDate)}</td>
-                  <td className="px-2 py-1.5">{ts(m.maturityDate)}</td>
-                  <td className="px-2 py-1.5">{m.lenderName ?? "—"}</td>
+                  <td className="px-2.5 py-2 font-mono">{cur(m.amount)}</td>
+                  <td className="px-2.5 py-2">{m.interestRate != null ? `${m.interestRate}%` : "—"}</td>
+                  <td className="px-2.5 py-2">{m.loanType ?? "—"}</td>
+                  <td className="px-2.5 py-2">{ts(m.recordingDate)}</td>
+                  <td className="px-2.5 py-2">{ts(m.maturityDate)}</td>
+                  <td className="px-2.5 py-2">{m.lenderName ?? "—"}</td>
                 </tr>
               ))}
             </tbody>
@@ -185,24 +185,24 @@ function OwnershipTab({ d }: { d?: BrickedProperty["ownership"] }) {
       </div>
       {d.transactions && d.transactions.length > 0 && (
         <div className="overflow-x-auto rounded-md border border-overlay-6">
-          <table className="w-full text-[10px]">
+          <table className="w-full text-xs">
             <thead>
               <tr className="border-b border-overlay-6 bg-overlay-2 text-muted-foreground text-left">
-                <th className="px-2 py-1.5">Date</th>
-                <th className="px-2 py-1.5">Amount</th>
-                <th className="px-2 py-1.5">Method</th>
-                <th className="px-2 py-1.5">Seller</th>
-                <th className="px-2 py-1.5">Buyer</th>
+                <th className="px-2.5 py-2">Date</th>
+                <th className="px-2.5 py-2">Amount</th>
+                <th className="px-2.5 py-2">Method</th>
+                <th className="px-2.5 py-2">Seller</th>
+                <th className="px-2.5 py-2">Buyer</th>
               </tr>
             </thead>
             <tbody>
               {d.transactions.map((t, i) => (
                 <tr key={i} className="border-b border-overlay-4">
-                  <td className="px-2 py-1.5">{ts(t.saleDate)}</td>
-                  <td className="px-2 py-1.5 font-mono">{cur(t.amount)}</td>
-                  <td className="px-2 py-1.5">{t.purchaseMethod ?? "—"}</td>
-                  <td className="px-2 py-1.5">{t.sellerNames ?? "—"}</td>
-                  <td className="px-2 py-1.5">{t.buyerNames ?? "—"}</td>
+                  <td className="px-2.5 py-2">{ts(t.saleDate)}</td>
+                  <td className="px-2.5 py-2 font-mono">{cur(t.amount)}</td>
+                  <td className="px-2.5 py-2">{t.purchaseMethod ?? "—"}</td>
+                  <td className="px-2.5 py-2">{t.sellerNames ?? "—"}</td>
+                  <td className="px-2.5 py-2">{t.buyerNames ?? "—"}</td>
                 </tr>
               ))}
             </tbody>
@@ -231,7 +231,7 @@ function MlsTab({ d }: { d?: BrickedProperty["mls"] }) {
       {d.applianceFeatures && <Row label="Appliances" value={d.applianceFeatures} />}
       {d.agent && (
         <>
-          <p className="text-[10px] uppercase tracking-wider text-muted-foreground/60 font-semibold pt-2">Agent</p>
+          <p className="text-[11px] uppercase tracking-wider text-muted-foreground/60 font-semibold pt-2">Agent</p>
           <div className="grid grid-cols-2 gap-x-6 gap-y-0">
             <Row label="Name" value={d.agent.agentName} />
             <Row label="Phone" value={d.agent.agentPhone} />
@@ -242,32 +242,32 @@ function MlsTab({ d }: { d?: BrickedProperty["mls"] }) {
       )}
       {history.length > 0 && (
         <>
-          <p className="text-[10px] uppercase tracking-wider text-muted-foreground/60 font-semibold pt-2">Historic Listings</p>
+          <p className="text-[11px] uppercase tracking-wider text-muted-foreground/60 font-semibold pt-2">Historic Listings</p>
           <div className="overflow-x-auto rounded-md border border-overlay-6">
-            <table className="w-full text-[10px]">
+            <table className="w-full text-xs">
               <thead>
                 <tr className="border-b border-overlay-6 bg-overlay-2 text-muted-foreground text-left">
-                  <th className="px-2 py-1.5">Date</th>
-                  <th className="px-2 py-1.5">Status</th>
-                  <th className="px-2 py-1.5">Amount</th>
-                  <th className="px-2 py-1.5">$/SqFt</th>
-                  <th className="px-2 py-1.5">DOM</th>
-                  <th className="px-2 py-1.5">Agent</th>
-                  <th className="px-2 py-1.5">MLS</th>
+                  <th className="px-2.5 py-2">Date</th>
+                  <th className="px-2.5 py-2">Status</th>
+                  <th className="px-2.5 py-2">Amount</th>
+                  <th className="px-2.5 py-2">$/SqFt</th>
+                  <th className="px-2.5 py-2">DOM</th>
+                  <th className="px-2.5 py-2">Agent</th>
+                  <th className="px-2.5 py-2">MLS</th>
                 </tr>
               </thead>
               <tbody>
                 {history.map((h, i) => (
                   <tr key={i} className="border-b border-overlay-4">
-                    <td className="px-2 py-1.5">{ts(h.listingDate)}</td>
-                    <td className="px-2 py-1.5">{h.status ?? "—"}</td>
-                    <td className="px-2 py-1.5 font-mono">{cur(h.amount)}</td>
-                    <td className="px-2 py-1.5 font-mono">
+                    <td className="px-2.5 py-2">{ts(h.listingDate)}</td>
+                    <td className="px-2.5 py-2">{h.status ?? "—"}</td>
+                    <td className="px-2.5 py-2 font-mono">{cur(h.amount)}</td>
+                    <td className="px-2.5 py-2 font-mono">
                       {h.pricePerSquareFoot != null ? `$${h.pricePerSquareFoot.toFixed(2)}` : "—"}
                     </td>
-                    <td className="px-2 py-1.5">{h.daysOnMarket ?? "—"}</td>
-                    <td className="px-2 py-1.5 max-w-[100px] truncate">{h.agentName ?? "N/A"}</td>
-                    <td className="px-2 py-1.5 max-w-[80px] truncate">{h.mlsName ?? "—"}</td>
+                    <td className="px-2.5 py-2">{h.daysOnMarket ?? "—"}</td>
+                    <td className="px-2.5 py-2 max-w-[120px] truncate">{h.agentName ?? "N/A"}</td>
+                    <td className="px-2.5 py-2 max-w-[100px] truncate">{h.mlsName ?? "—"}</td>
                   </tr>
                 ))}
               </tbody>

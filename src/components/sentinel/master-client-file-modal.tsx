@@ -81,7 +81,7 @@ import { extractProspectingSnapshot, sourceChannelLabel, tagLabel } from "@/lib/
 import Link from "next/link";
 import { useDealBuyers } from "@/hooks/use-buyers";
 import { dealBuyerStatusLabel } from "@/lib/buyer-types";
-// ── Extracted modules ────────────────────────────────────────────────
+// Ã¢â€â‚¬Ã¢â€â‚¬ Extracted modules Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
 import {
   type ClientFile,
   clientFileFromProspect,
@@ -157,17 +157,17 @@ import { QualificationGaps } from "./master-client-file/qualification-gaps";
 export type { ClientFile };
 export { clientFileFromProspect, clientFileFromLead, clientFileFromRaw };
 
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
-// ClientFile — single unified shape for every funnel stage
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// ÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚Â
+// ClientFile Ã¢â‚¬â€ single unified shape for every funnel stage
+// ÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚Â
 
 // [EXTRACTED] ClientFile + adapters -- see extracted module files
 
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// ÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚Â
 // Constants
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// ÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚Â
 
-// ── Intelligence Summary Block (CRM projection fields) ───────────────
+// Ã¢â€â‚¬Ã¢â€â‚¬ Intelligence Summary Block (CRM projection fields) Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
 function IntelligenceSummaryBlock({ cf }: { cf: ClientFile }) {
   const hasAnyIntel =
     cf.sellerSituationSummaryShort ||
@@ -274,10 +274,8 @@ function IntelligenceSummaryBlock({ cf }: { cf: ClientFile }) {
 const TABS = [
   { id: "overview", label: "Overview", icon: LayoutDashboard },
   { id: "contact", label: "Contact", icon: Contact2 },
-  { id: "dossier", label: "Dossier", icon: Brain },
   { id: "comps", label: "Property Intel", icon: Map },
-  { id: "calculator", label: "Deal Calculator", icon: Calculator },
-  { id: "documents", label: "Documents / PSA", icon: FileText },
+  { id: "dossier", label: "Dossier", icon: Brain },
 ] as const;
 
 // [EXTRACTED] Type aliases + option constants -- see extracted module files
@@ -416,8 +414,7 @@ function selectCallAssistCards(cf: ClientFile): { defaultCards: CallAssistCard[]
   };
 }
 
-const PRIMARY_TAB_IDS = new Set<TabId>(["overview", "contact", "dossier", "comps"]);
-const ADVANCED_TAB_IDS = new Set<TabId>(["comps", "calculator", "documents"]);
+const PRIMARY_TAB_IDS = new Set<TabId>(["overview", "contact", "comps", "dossier"]);
 
 const WORKFLOW_STAGE_OPTIONS: Array<{ id: WorkflowStageId; label: string }> = [
   { id: "prospect", label: "Prospect" },
@@ -431,134 +428,37 @@ const WORKFLOW_STAGE_OPTIONS: Array<{ id: WorkflowStageId; label: string }> = [
 
 
 // [EXTRACTED] normalizeWorkflowStage through getNextActionUrgency -- see extracted module files
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// ÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚Â
 // Tab: Overview
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// ÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚Â
 
-function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceMs, overlay, skipTraceError, onSkipTrace, onManualSkipTrace, onEdit, onDial, onSms, calling, dialHistory, autofilling, onAutofill, deepCrawling, deepCrawlResult, deepCrawlExpanded, setDeepCrawlExpanded, executeDeepCrawl, hasSavedReport, loadingReport, loadSavedReport, crawlSteps, deepSkipResult, activityRefreshToken, qualification, qualificationDirty, qualificationSaving, qualificationEditable, qualificationSuggestedRoute, onQualificationChange, onQualificationRouteSelect, onQualificationSave, offerPrepDraft, offerPrepEditing, offerPrepSaving, onOfferPrepDraftChange, onOfferPrepEditToggle, onOfferPrepSave, offerStatusDraft, offerStatusEditing, offerStatusSaving, onOfferStatusDraftChange, onOfferStatusEditToggle, onOfferStatusSave, buyerDispoTruthDraft, buyerDispoTruthEditing, buyerDispoTruthSaving, onBuyerDispoTruthDraftChange, onBuyerDispoTruthEditToggle, onBuyerDispoTruthSave, milestoneDraft, milestoneEditing, milestoneSaving, onMilestoneDraftChange, onMilestoneEditToggle, onSaveMilestones, isAdam, onEditNextAction }: {
-  cf: ClientFile; computedArv: number; skipTracing: boolean; skipTraceResult: string | null; skipTraceMs: number | null;
-  overlay: SkipTraceOverlay | null; skipTraceError: SkipTraceError | null;
-  onSkipTrace: () => void; onManualSkipTrace: () => void; onEdit: () => void;
-  onDial: (phone: string) => void; onSms: (phone: string) => void;
-  calling: boolean;
-  dialHistory: Record<string, { count: number; lastDate: string; lastDisposition: string }>;
-  autofilling: boolean; onAutofill: () => void;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  deepCrawling: boolean; deepCrawlResult: any; deepCrawlExpanded: boolean;
-  setDeepCrawlExpanded: (v: boolean) => void; executeDeepCrawl: () => void;
-  hasSavedReport: boolean; loadingReport: boolean; loadSavedReport: () => void;
-  crawlSteps: CrawlStep[];
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  deepSkipResult: any;
-  activityRefreshToken: number;
-  qualification: QualificationDraft;
-  qualificationDirty: boolean;
-  qualificationSaving: boolean;
-  qualificationEditable: boolean;
-  qualificationSuggestedRoute: QualificationRoute | null;
-  onQualificationChange: (patch: Partial<QualificationDraft>) => void;
-  onQualificationRouteSelect: (route: QualificationRoute) => void;
-  onQualificationSave: () => void;
-  offerPrepDraft: OfferPrepSnapshotDraft;
-  offerPrepEditing: boolean;
-  offerPrepSaving: boolean;
-  onOfferPrepDraftChange: (patch: Partial<OfferPrepSnapshotDraft>) => void;
-  onOfferPrepEditToggle: (next: boolean) => void;
-  onOfferPrepSave: () => void;
-  offerStatusDraft: OfferStatusSnapshotDraft;
-  offerStatusEditing: boolean;
-  offerStatusSaving: boolean;
-  onOfferStatusDraftChange: (patch: Partial<OfferStatusSnapshotDraft>) => void;
-  onOfferStatusEditToggle: (next: boolean) => void;
-  onOfferStatusSave: () => void;
-  buyerDispoTruthDraft: BuyerDispoTruthDraft;
-  buyerDispoTruthEditing: boolean;
-  buyerDispoTruthSaving: boolean;
-  onBuyerDispoTruthDraftChange: (patch: Partial<BuyerDispoTruthDraft>) => void;
-  onBuyerDispoTruthEditToggle: (next: boolean) => void;
-  onBuyerDispoTruthSave: () => void;
-  milestoneDraft: MilestoneDraft;
-  milestoneEditing: boolean;
-  milestoneSaving: boolean;
-  onMilestoneDraftChange: (patch: Partial<MilestoneDraft>) => void;
-  onMilestoneEditToggle: (next: boolean) => void;
-  onSaveMilestones: () => void;
-  isAdam: boolean;
-  onEditNextAction: () => void;
+function OverviewTab({ cf, computedArv, activityRefreshToken, onDial, calling }: {
+  cf: ClientFile; computedArv: number; activityRefreshToken: number;
+  onDial: (phone: string) => void; calling: boolean;
 }) {
-  const displayPhone = overlay?.primaryPhone ?? cf.ownerPhone ?? (cf.ownerFlags?.contact_phone as string | null) ?? null;
-  const displayEmail = overlay?.primaryEmail ?? cf.ownerEmail ?? (cf.ownerFlags?.contact_email as string | null) ?? null;
-  const { notes: callHistory } = useCallNotes(cf.id, 5, activityRefreshToken);
-  const prospectingSnapshot = useMemo(() => extractProspectingSnapshot(cf.ownerFlags), [cf.ownerFlags]);
-  const [notesExpanded, setNotesExpanded] = useState(false);
-  const [showAllCallAssist, setShowAllCallAssist] = useState(false);
+  const displayPhone = cf.ownerPhone ?? (cf.ownerFlags?.contact_phone as string | null) ?? null;
+  const displayEmail = cf.ownerEmail ?? (cf.ownerFlags?.contact_email as string | null) ?? null;
+  const { notes: callHistory, loading: callHistoryLoading } = useCallNotes(cf.id, 20, activityRefreshToken);
   const summaryNotes = callHistory.filter((n) => n.ai_summary);
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const persons = overlay?.persons ?? (cf.ownerFlags?.persons as any[]) ?? [];
-  const allPhones = overlay?.phones ?? (cf.ownerFlags?.all_phones as string[]) ?? [];
-  const allEmails = overlay?.emails ?? (cf.ownerFlags?.all_emails as string[]) ?? [];
+  const lastSummary = summaryNotes[0] ?? null;
 
-  // Rich phone/email details from dual skip-trace
-  const phoneDetails: PhoneDetail[] = overlay?.phoneDetails
-    ?? (cf.ownerFlags?.all_phones as PhoneDetail[] | undefined)?.filter((p) => typeof p === "object" && p !== null && "number" in p)
-    ?? [];
-  const emailDetails: EmailDetail[] = overlay?.emailDetails
-    ?? (cf.ownerFlags?.all_emails as EmailDetail[] | undefined)?.filter((e) => typeof e === "object" && e !== null && "email" in e)
-    ?? [];
-  const isLitigator = overlay?.isLitigator ?? (cf.ownerFlags?.is_litigator as boolean) ?? false;
-  const hasDncNumbers = overlay?.hasDncNumbers ?? (cf.ownerFlags?.has_dnc_numbers as boolean) ?? false;
-  const skipProviders = overlay?.providers ?? (cf.ownerFlags?.skip_trace_providers as string[]) ?? [];
+  const { brief, loading: briefLoading } = usePreCallBrief(cf.id);
 
-  const [scoreBreakdown, setScoreBreakdown] = useState<ScoreType | null>(null);
-  const [offerPrepExpanded, setOfferPrepExpanded] = useState(false);
-  const isDealStage = ["negotiation", "disposition"].includes(cf.status);
-  const [dealProgressOpen, setDealProgressOpen] = useState(isDealStage || cf.offerStatus !== "none");
-  const canEdit = ["prospect", "lead"].includes(cf.status);
+  const DISTRESS_CFG: Record<string, { icon: typeof AlertTriangle; color: string; label: string }> = {
+    pre_foreclosure: { icon: AlertTriangle, color: "text-foreground border-overlay-20 bg-overlay-8", label: "Pre-Foreclosure" },
+    foreclosure: { icon: AlertTriangle, color: "text-foreground border-overlay-20 bg-overlay-8", label: "Foreclosure" },
+    tax_lien: { icon: DollarSign, color: "text-foreground border-overlay-15 bg-overlay-6", label: "Tax Lien" },
+    tax_delinquency: { icon: DollarSign, color: "text-foreground border-overlay-15 bg-overlay-6", label: "Tax Delinquent" },
+    divorce: { icon: Users, color: "text-muted-foreground border-overlay-12 bg-overlay-4", label: "Divorce" },
+    probate: { icon: User, color: "text-muted-foreground border-overlay-12 bg-overlay-4", label: "Probate" },
+    deceased: { icon: User, color: "text-muted-foreground border-overlay-12 bg-overlay-4", label: "Deceased" },
+    bankruptcy: { icon: AlertTriangle, color: "text-foreground border-overlay-15 bg-overlay-6", label: "Bankruptcy" },
+    code_violation: { icon: AlertTriangle, color: "text-muted-foreground border-overlay-12 bg-overlay-4", label: "Code Violation" },
+    vacant: { icon: Home, color: "text-muted-foreground border-overlay-10 bg-overlay-3", label: "Vacant" },
+    inherited: { icon: User, color: "text-muted-foreground border-overlay-12 bg-overlay-4", label: "Inherited" },
+    tired_landlord: { icon: Home, color: "text-muted-foreground border-overlay-10 bg-overlay-3", label: "Tired Landlord" },
+  };
 
-  const { brief, loading: briefLoading, regenerate: regenerateBrief } = usePreCallBrief(cf.id);
-
-  const bestPhone = allPhones[0] ?? (phoneDetails[0]?.number) ?? displayPhone;
-  const phoneConfidence = phoneDetails.length > 0
-    ? phoneDetails[0]?.confidence ?? 70
-    : allPhones.length >= 3 ? 95 : allPhones.length === 2 ? 80 : allPhones.length === 1 ? 65 : null;
-
-  const equityPct = cf.equityPercent ?? 0;
-  const equityIsGreen = equityPct >= 50;
-
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const prRaw = useMemo(() => (cf.ownerFlags?.pr_raw ?? {}) as Record<string, any>, [cf.ownerFlags?.pr_raw]);
-  const tier = getTier(cf.compositeScore);
-  const tc = TIER_COLORS[tier];
-
-  const ownerAge = prRaw.OwnerAge ? Number(prRaw.OwnerAge) : null;
-  const lastTransferDate = prRaw.LastTransferRecDate ?? prRaw.LastTransferDate ?? null;
-  const yearsOwned = lastTransferDate ? Math.floor((Date.now() - new Date(lastTransferDate).getTime()) / (365.25 * 24 * 60 * 60 * 1000)) : null;
-  const lastTransferType = prRaw.LastTransferType ?? null;
-  const lastTransferValue = prRaw.LastTransferValue ? Number(prRaw.LastTransferValue) : null;
-
-  const estimatedOwed = cf.estimatedValue && cf.equityPercent != null
-    ? Math.round(cf.estimatedValue * (1 - cf.equityPercent / 100)) : null;
-  const roomLabel = cf.equityPercent != null
-    ? (cf.equityPercent >= 50 ? "HIGH SPREAD" : cf.equityPercent >= 25 ? "MODERATE" : "TIGHT")
-    : null;
-  const roomColor = cf.equityPercent != null
-    ? (cf.equityPercent >= 50 ? "text-foreground bg-overlay-10" : cf.equityPercent >= 25 ? "text-muted-foreground bg-overlay-6" : "text-muted-foreground bg-overlay-4 border border-overlay-10")
-    : "";
-
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const mailingAddr = cf.isAbsentee ? ((persons[0] as any)?.mailing_address ?? prRaw.MailAddress ?? prRaw.MailingAddress ?? null) : null;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const heirContacts = (cf.ownerFlags?.heir_contacts as any[]) ?? [];
-
-  const warningFlags = useMemo(() => {
-    const flags: { label: string; color: string }[] = [];
-    if (prRaw.isListedForSale === "Yes" || prRaw.isListedForSale === true) flags.push({ label: "Listed for Sale", color: "text-foreground bg-overlay-8 border-overlay-15" });
-    if (prRaw.isRecentSale === "Yes" || prRaw.isRecentSale === true) flags.push({ label: "Recent Sale", color: "text-muted-foreground bg-overlay-6 border-overlay-12" });
-    if (prRaw.isRecentFlip === "Yes" || prRaw.isRecentFlip === true) flags.push({ label: "Recent Flip", color: "text-muted-foreground bg-overlay-5 border-overlay-10" });
-    if (prRaw.isAuction === "Yes" || prRaw.isAuction === true) flags.push({ label: "Auction", color: "text-foreground bg-overlay-8 border-white/14" });
-    if (prRaw.isBankOwned === "Yes" || prRaw.isBankOwned === true) flags.push({ label: "Bank-Owned (REO)", color: "text-muted-foreground bg-overlay-6 border-overlay-12" });
-    return flags;
-  }, [prRaw]);
 
   const [distressEvents, setDistressEvents] = useState<{ id: string; event_type: string; source: string; created_at: string; severity?: number; raw_data?: Record<string, unknown> }[]>([]);
   useEffect(() => {
@@ -574,50 +474,18 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
     })();
   }, [cf.propertyId]);
 
-  const freshestEvent = distressEvents[0] ?? null;
-  const freshestDays = freshestEvent
-    ? Math.floor((Date.now() - new Date(freshestEvent.created_at).getTime()) / 86400000)
-    : null;
-
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const [activityLog, setActivityLog] = useState<{ id: string; type: string; disposition?: string; notes?: string; created_at: string; duration_sec?: number; phone?: string }[]>([]);
-  const activityEventLabel = useCallback((action: string, details: Record<string, unknown> | null): string => {
-    const statusAfter = typeof details?.status_after === "string" ? details.status_after.replace(/_/g, " ") : null;
-    const routeAfter = typeof details?.qualification_route_after === "string" ? details.qualification_route_after.replace(/_/g, " ") : null;
-    const dispositionAfter = typeof details?.disposition_code_after === "string" ? details.disposition_code_after.replace(/_/g, " ") : null;
-
-    switch (action) {
-      case "NOTE_ADDED":
-        return "Note added";
-      case "CALL_CLOSEOUT":
-        return dispositionAfter ? `Log outcome: ${dispositionAfter}` : "Log outcome";
-      case "FOLLOW_UP_UPDATED":
-        return "Next action updated";
-      case "CALL_OUTCOME_UPDATED":
-        return dispositionAfter ? `Call outcome: ${dispositionAfter}` : "Call outcome updated";
-      case "QUALIFICATION_ROUTED":
-        return routeAfter === "escalate" ? "Escalation review requested" : routeAfter ? `Qualification: ${routeAfter}` : "Qualification routed";
-      case "QUALIFICATION_UPDATED":
-        return "Qualification updated";
-      case "STATUS_CHANGED":
-        return statusAfter ? `Stage moved to ${statusAfter}` : "Stage updated";
-      case "CLAIMED":
-        return "Owner updated";
-      default:
-        return action.replace(/_/g, " ").toLowerCase();
-    }
-  }, []);
-
+  const [activityLog, setActivityLog] = useState<{ id: string; type: string; disposition?: string; notes?: string; created_at: string; duration_sec?: number }[]>([]);
   useEffect(() => {
     if (!cf.id) return;
     (async () => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const [callsRes, eventsRes] = await Promise.all([
         (supabase.from("calls_log") as any)
-          .select("id, disposition, notes, started_at, duration_sec, phone_dialed")
+          .select("id, disposition, notes, started_at, duration_sec")
           .or(`lead_id.eq.${cf.id},property_id.eq.${cf.propertyId}`)
           .order("started_at", { ascending: false })
-          .limit(20),
+          .limit(30),
         (supabase.from("event_log") as any)
           .select("id, action, details, created_at")
           .eq("entity_id", cf.id)
@@ -628,2514 +496,271 @@ function OverviewTab({ cf, computedArv, skipTracing, skipTraceResult, skipTraceM
       const merged = [
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         ...(callsRes.data ?? []).map((c: any) => ({
-          id: c.id, type: c.disposition === "sms_outbound" ? "sms" : "call",
+          id: c.id, type: c.disposition === "sms_outbound" ? "sms" : c.disposition === "operator_note" ? "note" : "call",
           disposition: c.disposition, notes: c.notes,
-          created_at: c.started_at, duration_sec: c.duration_sec, phone: c.phone_dialed,
+          created_at: c.started_at, duration_sec: c.duration_sec,
         })),
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         ...(eventsRes.data ?? []).map((e: any) => {
-          const details = e.details && typeof e.details === "object" && !Array.isArray(e.details)
-            ? e.details as Record<string, unknown>
-            : null;
-          const eventNote = typeof details?.note_appended === "string" && details.note_appended.trim().length > 0
-            ? details.note_appended.trim()
-            : typeof e.details === "string"
-              ? e.details
-              : null;
-          return {
-            id: e.id,
-            type: "event",
-            disposition: activityEventLabel(e.action, details),
-            notes: eventNote,
-          created_at: e.created_at,
-          };
+          const details = e.details && typeof e.details === "object" && !Array.isArray(e.details) ? e.details as Record<string, unknown> : null;
+          const eventNote = typeof details?.note_appended === "string" && (details.note_appended as string).trim().length > 0
+            ? (details.note_appended as string).trim() : null;
+          return { id: e.id, type: "event", disposition: e.action?.replace(/_/g, " ").toLowerCase(), notes: eventNote, created_at: e.created_at };
         }),
-      ].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()).slice(0, 30);
+      ].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()).slice(0, 40);
       setActivityLog(merged);
     })();
-  }, [activityEventLabel, activityRefreshToken, cf.id, cf.propertyId]);
+  }, [activityRefreshToken, cf.id, cf.propertyId]);
 
-  const streetViewUrl = prRaw.StreetViewUrl ?? prRaw.PropertyImageUrl ?? (prRaw.Photos?.[0]) ?? null;
+  const [noteDraft, setNoteDraft] = useState("");
+  const [savingNote, setSavingNote] = useState(false);
+  const handleAddNote = useCallback(async () => {
+    if (!cf.id || !noteDraft.trim()) return;
+    setSavingNote(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const now = new Date().toISOString();
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      await (supabase.from("calls_log") as any).insert({
+        lead_id: cf.id, property_id: cf.propertyId ?? null,
+        user_id: session?.user?.id ?? null,
+        disposition: "operator_note", notes: noteDraft.trim(),
+        started_at: now, ended_at: now, duration_sec: 0,
+        direction: "note", source: "mcf",
+      });
+      setNoteDraft("");
+    } catch { /* ignore */ }
+    setSavingNote(false);
+  }, [cf.id, cf.propertyId, noteDraft]);
 
-  // â"€â"€ Zillow photo carousel â"€â"€
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const oFlags = cf.ownerFlags as any;
-  const cachedPhotos: string[] = (oFlags?.photos ?? oFlags?.deep_crawl?.photos ?? [])
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    .map((p: any) => (typeof p === "string" ? p : p?.url)).filter(Boolean);
-  const [zillowPhotos, setZillowPhotos] = useState<string[]>(cachedPhotos);
-  const [zPhotoIdx, setZPhotoIdx] = useState(0);
-  const [zPhotosLoading, setZPhotosLoading] = useState(false);
-
-  useEffect(() => {
-    // Re-fetch if fewer than 3 cached photos (old caches had only 1 Street View)
-    if (cachedPhotos.length >= 3 || !cf.fullAddress) return;
-    let cancelled = false;
-    setZPhotosLoading(true);
-    (async () => {
-      try {
-        const res = await fetch("/api/property-photos", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ address: cf.fullAddress, property_id: cf.propertyId, lat: propLat, lng: propLng }),
-        });
-        if (cancelled) return;
-        const data = await res.json();
-        if (data.photos?.length > 0) {
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          setZillowPhotos(data.photos.map((p: any) => (typeof p === "string" ? p : p.url)));
-        }
-      } catch { /* ignore */ }
-      if (!cancelled) setZPhotosLoading(false);
-    })();
-    return () => { cancelled = true; };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [cf.fullAddress, cf.propertyId]);
-
-  const allPhotos = zillowPhotos.length > 0 ? zillowPhotos : [];
-
-  // â"€â"€ Geocode if no lat/lng from data (same as Comps tab) â"€â"€
-  const extracted = extractLatLng(cf);
-  const [geocodedCoords, setGeocodedCoords] = useState<{ lat: number; lng: number } | null>(null);
-  useEffect(() => {
-    if (extracted.lat || extracted.lng || geocodedCoords || !cf.fullAddress) return;
-    let cancelled = false;
-    (async () => {
-      try {
-        const q = encodeURIComponent(cf.fullAddress);
-        const res = await fetch(
-          `https://nominatim.openstreetmap.org/search?q=${q}&format=json&limit=1`,
-          { headers: { "User-Agent": "SentinelERP/1.0" } },
-        );
-        const data = await res.json();
-        if (cancelled) return;
-        if (data?.[0]?.lat && data?.[0]?.lon) {
-          setGeocodedCoords({ lat: parseFloat(data[0].lat), lng: parseFloat(data[0].lon) });
-        }
-      } catch { /* ignore */ }
-    })();
-    return () => { cancelled = true; };
-  }, [extracted.lat, extracted.lng, geocodedCoords, cf.fullAddress]);
-
-  const propLat = extracted.lat ?? geocodedCoords?.lat ?? null;
-  const propLng = extracted.lng ?? geocodedCoords?.lng ?? null;
-
-  // â"€â"€ Clickable Street View â†’ Google Maps â"€â"€
-  const streetViewLink = propLat && propLng ? getGoogleStreetViewLink(propLat, propLng) : null;
-
-  // â"€â"€ Satellite tile fallback when no Street View available â"€â"€
-  const satelliteFallbackUrl = (!streetViewUrl && propLat && propLng) ? getSatelliteTileUrl(propLat, propLng, 18) : null;
-  const imageUrl = streetViewUrl ?? satelliteFallbackUrl;
-  const imageLabel = streetViewUrl ? "Street View" : "Satellite";
-  // â"€â"€ Small thumbnail for property tile (always satellite for compact view) â"€â"€
-  const thumbUrl = propLat && propLng ? getSatelliteTileUrl(propLat, propLng, 17) : null;
-
-  const sectionOwner = useRef<HTMLDivElement>(null);
-  const sectionSignals = useRef<HTMLDivElement>(null);
-  const sectionEquity = useRef<HTMLDivElement>(null);
-  const sectionProperty = useRef<HTMLDivElement>(null);
-  const scrollTo = (ref: React.RefObject<HTMLDivElement | null>) => ref.current?.scrollIntoView({ behavior: "smooth", block: "start" });
-
-  // MAO Formula: ARV x 75% - Repairs (10%) - Assignment Fee ($15K)
-  const persistedCompArv = (cf.ownerFlags?.comp_arv as number) ?? 0;
-  const brickedShareLink = (cf.ownerFlags?.bricked_share_link as string) ?? null;
-  const brickedRepairCost = (cf.ownerFlags?.bricked_repair_cost as number) ?? 0;
+  const bestArv = computedArv > 0 ? computedArv : (cf.ownerFlags?.bricked_arv as number) ?? cf.estimatedValue ?? 0;
   const brickedCmv = (cf.ownerFlags?.bricked_cmv as number) ?? 0;
-  const bestArv = computedArv > 0 ? computedArv : persistedCompArv > 0 ? persistedCompArv : cf.estimatedValue ?? 0;
-  const arvSource: "comps" | "avm" = (computedArv > 0 || persistedCompArv > 0) ? "comps" : "avm";
-  const compCount = (cf.ownerFlags?.comp_count as number) ?? 0;
-
-  // Canonical MAO via valuation kernel
-  const overviewUnderwrite = bestArv > 0 ? calculateWholesaleUnderwrite({
-    arv: bestArv,
-    arvSource,
-  }) : null;
-  const wholesaleValue = overviewUnderwrite?.maxAllowable ?? 0;
-  const repairEstimate = overviewUnderwrite?.rehabEstimate ?? 0;
-  const assignmentFee = overviewUnderwrite?.assignmentFeeTarget ?? VALUATION_DEFAULTS.assignmentFeeTarget;
-  const mao = overviewUnderwrite?.mao ?? null;
-
-  // â"€â"€ Signal-specific motivation text â"€â"€
-  const getSignalMotivation = (evtType: string, rd?: Record<string, unknown>): string => {
-    switch (evtType) {
-      case "pre_foreclosure": case "foreclosure": {
-        const d = rd?.ForeclosureRecDate ?? rd?.event_date;
-        return d ? `Foreclosure filed ${new Date(String(d)).toLocaleDateString()} — auction pressure` : "Foreclosure filing — auction pressure mounting";
-      }
-      case "tax_lien": case "tax_delinquency": {
-        const amt = rd?.DelinquentAmount ?? rd?.delinquent_amount;
-        const inst = rd?.NumberDelinquentInstallments;
-        return amt ? `Tax delinquent $${Number(amt).toLocaleString()}${inst ? ` — ${inst} installments behind` : ""}` : "Tax delinquent — penalties accumulating";
-      }
-      case "divorce": return "Divorce filing — forced partition possible";
-      case "probate": case "deceased": return "Estate in probate — heirs likely want quick liquidation";
-      case "bankruptcy": return "Bankruptcy filing — motivated to resolve debts";
-      case "code_violation": return "Code violations — mounting fines, pressure to sell";
-      case "vacant": return "Vacant property — carrying costs with no income";
-      case "inherited": return "Inherited property — heirs may want fast liquidation";
-      case "tired_landlord": return "Long-term landlord showing signs of fatigue — may want to exit their rental portfolio";
-      case "underwater": return "Negative equity means the owner owes more than the home is worth — potential short sale candidate";
-      default: return "Distress signal — may be motivated to sell";
-    }
-  };
-
-  // â"€â"€ Actual event date extraction from raw_data â"€â"€
-  const getEventDate = (evt: { created_at: string; raw_data?: Record<string, unknown> }): { date: string; isActual: boolean } => {
-    const rd = evt.raw_data ?? {};
-    const dateVal = rd.ForeclosureRecDate ?? rd.event_date ?? rd.filing_date ?? rd.recording_date ?? rd.delinquent_date ?? null;
-    if (dateVal && typeof dateVal === "string") {
-      try { return { date: new Date(dateVal).toLocaleDateString(), isActual: true }; } catch { /* fall through */ }
-    }
-    return { date: new Date(evt.created_at).toLocaleDateString(), isActual: false };
-  };
-
-  // â"€â"€ Humanize source name â"€â"€
-  const sourceName = (s?: string): string => {
-    switch (s) {
-      case "propertyradar": return "PropertyRadar";
-      case "attom": return "ATTOM";
-      case "manual": return "Manual entry";
-      case "bulk_seed": return "Bulk import";
-      default: return s || "Unknown";
-    }
-  };
-
-  const pipelineDays = cf.promotedAt
-    ? Math.floor((Date.now() - new Date(cf.promotedAt).getTime()) / 86400000)
-    : null;
-
-  const [timelinesOpen, setTimelinesOpen] = useState(false);
-  const [advancedOpen, setAdvancedOpen] = useState(false);
-  const hasDeepIntel = deepCrawling || hasSavedReport || Boolean(deepCrawlResult);
-  const { defaultCards: callAssistDefaultCards, allCards: callAssistAllCards } = useMemo(
-    () => selectCallAssistCards(cf),
-    [cf],
-  );
-  const callAssistVisibleCards = showAllCallAssist ? callAssistAllCards : callAssistDefaultCards;
-  const hasQualificationData =
-    qualification.motivationLevel != null
-    || qualification.sellerTimeline != null
-    || qualification.conditionLevel != null
-    || qualification.occupancyScore != null
-    || qualification.equityFlexibilityScore != null
-    || qualification.decisionMakerConfirmed
-    || qualification.priceExpectation != null
-    || qualification.qualificationRoute != null;
-  const showQualificationBlock = qualificationEditable || hasQualificationData;
-  const qualificationCompletenessItems = [
-    { label: "Motivation", complete: qualification.motivationLevel != null },
-    { label: "Timeline", complete: qualification.sellerTimeline != null },
-    { label: "Condition", complete: qualification.conditionLevel != null },
-    { label: "Occupancy", complete: qualification.occupancyScore != null },
-    { label: "Equity Flex", complete: qualification.equityFlexibilityScore != null },
-    { label: "Decision Maker", complete: qualification.decisionMakerConfirmed === true },
-    { label: "Asking Price", complete: qualification.priceExpectation != null },
-  ];
-  const qualificationCompleteCount = qualificationCompletenessItems.filter((item) => item.complete).length;
-  const qualificationCompletenessTotal = qualificationCompletenessItems.length;
-  const qualificationCompletenessRatio = qualificationCompletenessTotal > 0
-    ? qualificationCompleteCount / qualificationCompletenessTotal
-    : 0;
-  const qualificationCompletenessPct = Math.round(qualificationCompletenessRatio * 100);
-  const qualificationMissingLabels = qualificationCompletenessItems
-    .filter((item) => !item.complete)
-    .map((item) => item.label);
-  const offerReadySuggested =
-    (qualification.motivationLevel ?? 0) >= 4
-    && (qualification.sellerTimeline === "immediate" || qualification.sellerTimeline === "30_days")
-    && cf.compositeScore >= 65;
-  const offerStatusLabel = offerVisibilityLabel(cf.offerStatus);
-  const offerStatusToneClass =
-    cf.offerStatus === "preparing_offer"
-      ? "border-overlay-15 bg-overlay-6 text-foreground"
-      : cf.offerStatus === "offer_made"
-        ? "border-white/18 bg-overlay-8 text-foreground"
-        : cf.offerStatus === "seller_reviewing"
-          ? "border-overlay-12 bg-overlay-5 text-muted-foreground"
-          : cf.offerStatus === "declined"
-            ? "border-overlay-10 bg-overlay-4 text-muted-foreground"
-            : "border-overlay-12 bg-overlay-3 text-muted-foreground";
-  const offerStatusHint =
-    cf.offerStatus === "preparing_offer"
-      ? "Derived from stage + qualification route: qualified and queued for offer prep."
-      : cf.offerStatus === "offer_made"
-        ? "Derived from stage + qualification route: active offer conversation signal."
-        : cf.offerStatus === "seller_reviewing"
-          ? "Derived from stage + qualification route: waiting on seller decision/disposition."
-        : cf.offerStatus === "declined"
-          ? "Derived from stage + qualification route: offer path appears closed for now."
-          : "Derived from stage + qualification route: no offer progress signal yet.";
-  const offerStatusSnapshot = extractOfferStatusSnapshot((cf.ownerFlags ?? null) as Record<string, unknown> | null);
-  const offerStatusTruthLabelText = offerStatusTruthLabel(offerStatusSnapshot.status);
-  const offerStatusTruthToneClass =
-    offerStatusSnapshot.status === "accepted"
-      ? "border-white/18 bg-white/[0.09] text-foreground"
-      : offerStatusSnapshot.status === "passed_not_moving_forward"
-        ? "border-overlay-10 bg-overlay-4 text-muted-foreground"
-        : offerStatusSnapshot.status === "counter_needs_revision"
-          ? "border-white/14 bg-overlay-6 text-muted-foreground"
-          : offerStatusSnapshot.status
-            ? "border-overlay-15 bg-overlay-6 text-foreground"
-            : "border-overlay-12 bg-overlay-3 text-muted-foreground";
-  const offerStatusAmountLabel =
-    offerStatusSnapshot.amount != null
-      ? formatCurrency(offerStatusSnapshot.amount)
-      : offerStatusSnapshot.amountLow != null || offerStatusSnapshot.amountHigh != null
-        ? `${offerStatusSnapshot.amountLow != null ? formatCurrency(offerStatusSnapshot.amountLow) : "?"} - ${offerStatusSnapshot.amountHigh != null ? formatCurrency(offerStatusSnapshot.amountHigh) : "?"}`
-        : "Not set";
-  const offerStatusUpdatedLabel = offerStatusSnapshot.updatedAt ? formatDateTimeShort(offerStatusSnapshot.updatedAt) : "Not set";
-  const canEditOfferStatus = cf.status !== "dead" && cf.status !== "closed";
-  const offerPrepSnapshot = extractOfferPrepSnapshot((cf.ownerFlags ?? null) as Record<string, unknown> | null);
-  const offerPrepActive = cf.qualificationRoute === "offer_ready" || cf.offerStatus === "preparing_offer";
-  const offerPrepDueIso = cf.nextCallScheduledAt ?? cf.followUpDate;
-  const offerPrepDueMs = offerPrepDueIso ? new Date(offerPrepDueIso).getTime() : NaN;
-  const offerPrepMissingNextAction = !offerPrepDueIso || Number.isNaN(offerPrepDueMs);
-  const offerPrepHealth = deriveOfferPrepHealth({
-    status: cf.status,
-    qualificationRoute: cf.qualificationRoute,
-    snapshot: offerPrepSnapshot,
-    nextCallScheduledAt: cf.nextCallScheduledAt,
-    nextFollowUpAt: cf.followUpDate,
-  });
-  const offerPrepStale = offerPrepHealth.state === "stale";
-  const offerPrepMissing = offerPrepHealth.state === "missing";
-  const offerPrepDueLabel = offerPrepDueIso ? formatDateTimeShort(offerPrepDueIso) : "Not set";
-  const offerPrepUpdatedLabel = offerPrepSnapshot.updatedAt ? formatDateTimeShort(offerPrepSnapshot.updatedAt) : "Not set";
-  const canEditOfferPrep = cf.status !== "dead" && cf.status !== "closed";
-  const buyerDispo = deriveBuyerDispoVisibility({
-    status: cf.status,
-    qualificationRoute: cf.qualificationRoute,
-    offerStatus: cf.offerStatus,
-    conditionLevel: cf.conditionLevel,
-    priceExpectation: cf.priceExpectation,
-    estimatedValue: cf.estimatedValue,
-  });
-  const buyerFitLabel = buyerFitVisibilityLabel(buyerDispo.buyerFit);
-  const dispoReadinessLabel = dispoReadinessVisibilityLabel(buyerDispo.dispoReadiness);
-  const buyerDispoNextActionIso = cf.nextCallScheduledAt ?? cf.followUpDate;
-  const buyerDispoNextActionMs = buyerDispoNextActionIso ? new Date(buyerDispoNextActionIso).getTime() : NaN;
-  const buyerDispoNextActionMissing = !buyerDispoNextActionIso || Number.isNaN(buyerDispoNextActionMs);
-  const buyerDispoReadinessHigh = buyerDispo.dispoReadiness === "ready" || buyerDispo.dispoReadiness === "needs_review";
-  const buyerDispoActionMissing = buyerDispoReadinessHigh && buyerDispoNextActionMissing;
-  const buyerDispoActionStale = buyerDispoReadinessHigh && !buyerDispoNextActionMissing && buyerDispoNextActionMs < Date.now();
-  const buyerDispoNextActionLabel = buyerDispoNextActionIso ? formatDateTimeShort(buyerDispoNextActionIso) : "Not set";
-  const buyerDispoTruthSnapshot = extractBuyerDispoTruthSnapshot((cf.ownerFlags ?? null) as Record<string, unknown> | null);
-  const buyerDispoTruthBuyerFitLabel = buyerDispoTruthSnapshot.buyerFit ? buyerFitVisibilityLabel(buyerDispoTruthSnapshot.buyerFit) : "Not set";
-  const buyerDispoTruthStatusLabel = buyerDispoTruthSnapshot.dispoStatus ? dispoReadinessVisibilityLabel(buyerDispoTruthSnapshot.dispoStatus) : "Not set";
-  const buyerDispoReadyLabel = buyerDispoTruthSnapshot.dispoStatus === "ready" ? "Ready for Dispo" : "Not Ready for Dispo";
-  const buyerDispoTruthUpdatedLabel = buyerDispoTruthSnapshot.updatedAt ? formatDateTimeShort(buyerDispoTruthSnapshot.updatedAt) : "Not set";
-  const buyerDispoTruthFitToneClass =
-    buyerDispoTruthSnapshot.buyerFit === "broad"
-      ? "border-white/18 bg-overlay-8 text-foreground"
-      : buyerDispoTruthSnapshot.buyerFit === "narrow"
-        ? "border-overlay-12 bg-overlay-5 text-muted-foreground"
-        : "border-overlay-12 bg-overlay-3 text-muted-foreground";
-  const buyerDispoTruthStatusToneClass =
-    buyerDispoTruthSnapshot.dispoStatus === "ready"
-      ? "border-white/16 bg-overlay-8 text-foreground"
-      : buyerDispoTruthSnapshot.dispoStatus === "needs_review"
-        ? "border-overlay-12 bg-overlay-5 text-muted-foreground"
-        : "border-overlay-12 bg-overlay-3 text-muted-foreground";
-  const canEditBuyerDispoTruth = cf.status !== "dead" && cf.status !== "closed";
-  const buyerFitToneClass =
-    buyerDispo.buyerFit === "broad"
-      ? "border-white/18 bg-overlay-8 text-foreground"
-      : buyerDispo.buyerFit === "narrow"
-        ? "border-overlay-12 bg-overlay-4 text-muted-foreground"
-        : "border-overlay-12 bg-overlay-3 text-muted-foreground";
-  const dispoReadinessToneClass =
-    buyerDispo.dispoReadiness === "ready"
-      ? "border-white/18 bg-overlay-8 text-foreground"
-      : buyerDispo.dispoReadiness === "needs_review"
-        ? "border-overlay-12 bg-overlay-5 text-muted-foreground"
-        : "border-overlay-12 bg-overlay-3 text-muted-foreground";
-
-  useEffect(() => {
-    setShowAllCallAssist(false);
-  }, [cf.id]);
+  const repairCost = (cf.ownerFlags?.bricked_repair_cost as number) ?? 0;
+  const tier = getTier(cf.compositeScore);
+  const tc = TIER_COLORS[tier];
 
   return (
-    <div className="space-y-4">
-      {/* -- NEXT ACTION -- */}
-      <NextActionCard cf={cf} onEditNextAction={onEditNextAction} />
-
-      {/* -- SELLER SNAPSHOT -- */}
-      <SellerSnapshot cf={cf} phoneConfidence={phoneConfidence} />
-
-      {/* -- QUALIFICATION GAPS -- */}
-      <QualificationGaps cf={cf} />
-
-      {/* â•â•â• 1. CALL CARD — WHO + NUMBER (hero section) â•â•â• */}
-      <div ref={sectionOwner} className="rounded-[12px] border border-overlay-8 bg-overlay-2 p-3.5 relative overflow-hidden">
-
-        <div className="relative z-10">
-          {/* Mailing Address for absentee owners */}
-          {mailingAddr && (
-            <div className="rounded-[10px] border border-overlay-12 bg-overlay-4 p-2.5 mb-3">
-              <div className="flex items-start gap-2">
-                <MapPinned className="h-3.5 w-3.5 text-muted-foreground mt-0.5 shrink-0" />
-                <div className="flex-1 min-w-0">
-                  <p className="text-xs text-muted-foreground uppercase tracking-widest">Mailing Address (Absentee)</p>
-                  <div className="flex items-center gap-1.5">
-                    <p className="text-sm text-foreground truncate">{typeof mailingAddr === "string" ? mailingAddr : JSON.stringify(mailingAddr)}</p>
-                    <CopyBtn text={typeof mailingAddr === "string" ? mailingAddr : JSON.stringify(mailingAddr)} />
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* Litigator Warning */}
-          {isLitigator && (
-            <div className="rounded-[10px] border-2 border-foreground/25 bg-foreground/[0.08] p-3 mb-3">
-              <div className="flex items-center gap-2">
-                <ShieldAlert className="h-4 w-4 text-foreground shrink-0" />
-                <div>
-                  <p className="text-xs font-bold text-foreground uppercase">Known TCPA Litigator</p>
-                  <p className="text-sm text-muted-foreground">Do NOT call or text this owner. High litigation risk.</p>
-                </div>
-              </div>
-            </div>
-          )}
-
-
-          {/* Heir Contacts (probate situations) */}
-          {heirContacts.length > 0 && (
-            <div className="mt-3 space-y-2">
-              <p className="text-sm text-foreground/90 uppercase tracking-wider font-semibold flex items-center gap-1.5">
-                <AlertTriangle className="h-3 w-3" />Heir / Decision-Maker Contacts
-              </p>
-              {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
-              {heirContacts.map((heir: any, i: number) => (
-                <div key={i} className="rounded-md border border-overlay-12 bg-overlay-3 p-2.5 text-xs space-y-0.5">
-                  <div className="flex items-center gap-2">
-                    <User className="h-3 w-3 text-muted-foreground" />
-                    <span className="font-semibold text-foreground">{heir.name ?? "Unknown Heir"}</span>
-                    {heir.role && <span className="text-muted-foreground">({heir.role})</span>}
-                  </div>
-                  {heir.phone && (
-                    <div className="pl-5 flex items-center gap-1.5">
-                      <Phone className="h-2.5 w-2.5 text-muted-foreground" />
-                      <button onClick={() => onDial(heir.phone)} className="text-foreground hover:underline font-mono text-xs">{heir.phone}</button>
-                    </div>
-                  )}
-                  {heir.email && (
-                    <div className="pl-5 flex items-center gap-1.5">
-                      <Mail className="h-2.5 w-2.5 text-muted-foreground" />
-                      <a href={`mailto:${heir.email}`} className="text-foreground hover:underline">{heir.email}</a>
-                    </div>
-                  )}
-                  {heir.mailing && <div className="pl-5 text-muted-foreground">{heir.mailing}</div>}
-                </div>
-              ))}
-            </div>
-          )}
-
-          {skipTraceResult && !skipTraceError && (
-            <div className={cn("mt-2 text-xs px-3 py-2 rounded-md border", skipTraceResult.startsWith("Found") ? "text-foreground bg-overlay-5 border-overlay-12" : "text-foreground bg-overlay-4 border-overlay-15")}>
-              <div className="flex items-center justify-between gap-2">
-                <span>{skipTraceResult}</span>
-                {skipTraceMs != null && (
-                  <span className={cn("font-mono text-sm shrink-0 px-1.5 py-0.5 rounded", skipTraceMs <= 2000 ? "text-foreground bg-overlay-8" : "text-muted-foreground bg-overlay-5")}>
-                    {(skipTraceMs / 1000).toFixed(2)}s
-                  </span>
-                )}
-              </div>
-            </div>
-          )}
-
-          {skipTraceError && (
-            <div className="mt-2 rounded-[10px] border border-overlay-15 bg-overlay-4 p-3 space-y-2">
-              <div className="flex items-start gap-2">
-                <AlertTriangle className="h-4 w-4 text-foreground shrink-0 mt-0.5" />
-                <div className="flex-1 min-w-0 space-y-1">
-                  <p className="text-xs font-semibold text-foreground">{skipTraceError.error}</p>
-                  {skipTraceError.reason && <p className="text-sm text-muted-foreground">{skipTraceError.reason}</p>}
-                  {skipTraceError.address_issues && skipTraceError.address_issues.length > 0 && (
-                    <div className="space-y-0.5">
-                      {skipTraceError.address_issues.map((issue, i) => (
-                        <p key={i} className="text-sm text-muted-foreground flex items-center gap-1">
-                          <span className="text-foreground">&#9679;</span>{issue}
-                        </p>
-                      ))}
-                    </div>
-                  )}
-                  {skipTraceError.suggestion && <p className="text-sm text-muted-foreground italic">{skipTraceError.suggestion}</p>}
-                  {skipTraceError.tier_reached && <p className="text-sm text-muted-foreground/50 font-mono">Lookup stopped at: {skipTraceError.tier_reached}</p>}
-                </div>
-                {skipTraceMs != null && (
-                  <span className="font-mono text-sm shrink-0 px-1.5 py-0.5 rounded text-muted-foreground bg-overlay-6">
-                    {(skipTraceMs / 1000).toFixed(2)}s
-                  </span>
-                )}
-              </div>
-              <Button
-                size="sm"
-                onClick={onManualSkipTrace}
-                disabled={skipTracing}
-                className="w-full gap-2 bg-primary text-primary-foreground border-0 shadow-[var(--shadow-badge-glow-tight)] hover:opacity-95 transition-all"
+    <div className="space-y-3">
+      {/* Ã¢â€â‚¬Ã¢â€â‚¬ 1. CALL CARD (2-col span) Ã¢â€â‚¬Ã¢â€â‚¬ */}
+      <div className="rounded-[10px] border border-overlay-8 bg-overlay-2 p-3.5">
+        <div className="flex items-start justify-between gap-4">
+          <div className="space-y-1.5 min-w-0">
+            <p className="text-base font-bold text-foreground truncate">{formatOwnerName(cf.ownerName) || "Unknown Seller"}</p>
+            {displayPhone ? (
+              <button
+                onClick={() => onDial(displayPhone)}
+                disabled={calling}
+                className="flex items-center gap-1.5 text-sm text-foreground hover:underline"
               >
-                {skipTracing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Zap className="h-3.5 w-3.5" />}
-                Manual Skip Trace — Force Partial Lookup
-              </Button>
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* â•â•â• 2. COMPLIANCE GATE — DNC / Litigator â•â•â• */}
-      {(isLitigator || hasDncNumbers) && (
-        <div className="rounded-[10px] border-2 border-foreground/30 bg-foreground/[0.08] p-3 flex items-center gap-3">
-          <ShieldAlert className="h-5 w-5 text-foreground shrink-0" />
-          <div>
-            <p className="text-xs font-bold text-foreground uppercase tracking-wide">
-              {isLitigator ? "TCPA Litigator — DO NOT CONTACT" : "DNC Numbers Detected"}
-            </p>
-            <p className="text-sm text-muted-foreground mt-0.5">
-              {isLitigator ? "High litigation risk. No calls, texts, or mailers to this owner." : "One or more phone numbers are on the DNC list. Check before dialing."}
-            </p>
-          </div>
-        </div>
-      )}
-
-      {/* â•â•â• 3. DISTRESS SIGNALS + EXTERNAL LINKS — side by side â•â•â• */}
-      <SellerMemoryPreview leadId={cf.id} />
-
-      {/* â•â•â• 4. PROPERTY SNAPSHOT — Photo Carousel + Address + Badges â•â•â• */}
-      <div ref={sectionProperty} className="rounded-[12px] border border-overlay-6 bg-overlay-2 overflow-hidden">
-        {(allPhotos.length > 0 || imageUrl) && (
-          <div className="relative block h-32 group">
-            {allPhotos.length > 0 ? (
-              <>
-                <img
-                  src={allPhotos[zPhotoIdx]}
-                  alt={`Property photo ${zPhotoIdx + 1}`}
-                  className="w-full h-full object-cover"
-                />
-                {allPhotos.length > 1 && (
-                  <>
-                    <button
-                      onClick={() => setZPhotoIdx((i) => (i - 1 + allPhotos.length) % allPhotos.length)}
-                      className="absolute left-1.5 top-1/2 -translate-y-1/2 p-0.5 rounded bg-black/50 text-white opacity-0 group-hover:opacity-100 transition-opacity z-10"
-                    >
-                      <ChevronLeft className="h-3.5 w-3.5" />
-                    </button>
-                    <button
-                      onClick={() => setZPhotoIdx((i) => (i + 1) % allPhotos.length)}
-                      className="absolute right-1.5 top-1/2 -translate-y-1/2 p-0.5 rounded bg-black/50 text-white opacity-0 group-hover:opacity-100 transition-opacity z-10"
-                    >
-                      <ChevronRight className="h-3.5 w-3.5" />
-                    </button>
-                  </>
-                )}
-                <div className="absolute top-2 left-2 bg-black/60 backdrop-blur-sm text-white text-xs font-medium px-1.5 py-0.5 rounded-full flex items-center gap-1 z-10">
-                  <ImageIcon className="h-2.5 w-2.5" />{zPhotoIdx + 1} / {allPhotos.length}
-                </div>
-              </>
+                <Phone className="h-3.5 w-3.5 shrink-0" />
+                {displayPhone}
+              </button>
             ) : (
-              <a
-                href={streetViewLink ?? "#"}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="block h-full cursor-pointer"
-                onClick={(e) => { if (!streetViewLink) e.preventDefault(); }}
-              >
-                <img
-                  src={imageUrl!}
-                  alt="Property"
-                  className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-[1.02]"
-                  onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
-                />
-                {streetViewLink && (
-                  <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none">
-                    <span className="bg-black/70 backdrop-blur-sm text-white text-xs font-semibold px-3 py-1.5 rounded-full flex items-center gap-1.5">
-                      <ExternalLink className="h-3 w-3" />{streetViewUrl ? "Open Street View" : "Open in Google Maps"}
-                    </span>
-                  </div>
-                )}
-              </a>
+              <p className="text-sm text-muted-foreground/60 italic">No phone Ã¢â‚¬â€ needs skip trace</p>
             )}
-            <div className="absolute inset-0 bg-gradient-to-t from-panel-deep via-panel to-transparent pointer-events-none" />
-            {zPhotosLoading && allPhotos.length === 0 && (
-              <div className="absolute top-2 left-2 bg-black/60 backdrop-blur-sm text-white text-xs font-medium px-1.5 py-0.5 rounded-full flex items-center gap-1 z-10">
-                <Loader2 className="h-2.5 w-2.5 animate-spin" />Loading photos...
-              </div>
-            )}
-            <div className="absolute bottom-2 left-3 right-3 flex items-end justify-between pointer-events-none">
-              <div className="flex items-center gap-2.5 text-white">
-                {cf.bedrooms != null && (
-                  <span className="text-xs font-bold bg-black/50 backdrop-blur-sm px-2 py-0.5 rounded">{cf.bedrooms}bd / {cf.bathrooms ?? "?"}ba</span>
-                )}
-                {cf.sqft != null && (
-                  <span className="text-xs font-bold bg-black/50 backdrop-blur-sm px-2 py-0.5 rounded">{cf.sqft.toLocaleString()} sqft</span>
-                )}
-                {cf.yearBuilt && (
-                  <span className="text-xs font-bold bg-black/50 backdrop-blur-sm px-2 py-0.5 rounded">Built {cf.yearBuilt}</span>
-                )}
-                {cf.lotSize && (
-                  <span className="text-xs font-bold bg-black/50 backdrop-blur-sm px-2 py-0.5 rounded">{cf.lotSize.toLocaleString()} lot</span>
-                )}
-              </div>
-              <div className="flex items-center gap-1 text-xs text-overlay-50">
-                <ImageIcon className="h-2.5 w-2.5" />{allPhotos.length > 0 ? `${allPhotos.length} photos \u00B7 Zillow` : streetViewLink ? `Click to explore \u00B7 ${imageLabel}` : imageLabel}
-              </div>
-            </div>
-          </div>
-        )}
-        <div className="p-4 space-y-3">
-          {/* Address + County + APN — with satellite thumbnail on the right */}
-          <div className="flex gap-3">
-            <div className="flex-1 min-w-0 space-y-2">
-              <div className="flex items-start gap-2">
-                <MapPin className="h-3.5 w-3.5 text-muted-foreground mt-0.5 shrink-0" />
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-1.5">
-                    <p className="text-sm font-semibold text-foreground truncate">{cf.fullAddress || "—"}</p>
-                    {cf.fullAddress && <CopyBtn text={cf.fullAddress} />}
-                  </div>
-                  <div className="flex items-center gap-3 mt-0.5">
-                    {cf.county && <span className="text-sm text-muted-foreground">{cf.county} County</span>}
-                    {cf.apn && (
-                      <span className="text-sm text-muted-foreground/60 font-mono flex items-center gap-1">
-                        APN: {cf.apn} <CopyBtn text={cf.apn} />
-                      </span>
-                    )}
-                  </div>
-                </div>
-              </div>
-
-              {/* Property type + stats */}
-              {(cf.propertyType || cf.bedrooms != null || cf.sqft != null) && (
-                <div className="flex items-center gap-2 flex-wrap">
-                  {cf.propertyType && (
-                    <span className="inline-flex items-center gap-1 text-sm font-semibold text-muted-foreground bg-overlay-4 border border-overlay-8 px-2 py-0.5 rounded-full">
-                      <Building className="h-2.5 w-2.5" />{cf.propertyType}
-                    </span>
-                  )}
-                  {!imageUrl && cf.bedrooms != null && (
-                    <span className="text-sm font-semibold text-muted-foreground bg-overlay-4 border border-overlay-8 px-2 py-0.5 rounded-full">
-                      {cf.bedrooms}bd / {cf.bathrooms ?? "?"}ba
-                    </span>
-                  )}
-                  {!imageUrl && cf.sqft != null && (
-                    <span className="text-sm font-semibold text-muted-foreground bg-overlay-4 border border-overlay-8 px-2 py-0.5 rounded-full">
-                      {cf.sqft.toLocaleString()} sqft
-                    </span>
-                  )}
-                  {!imageUrl && cf.yearBuilt && (
-                    <span className="text-sm font-semibold text-muted-foreground bg-overlay-4 border border-overlay-8 px-2 py-0.5 rounded-full">
-                      Built {cf.yearBuilt}
-                    </span>
-                  )}
-                  {!imageUrl && cf.lotSize && (
-                    <span className="text-sm font-semibold text-muted-foreground bg-overlay-4 border border-overlay-8 px-2 py-0.5 rounded-full">
-                      {cf.lotSize.toLocaleString()} lot
-                    </span>
-                  )}
-                </div>
-              )}
-            </div>
-
-            {/* Satellite / Street View thumbnail on the right */}
-            {(thumbUrl || streetViewUrl) && (
-              <a
-                href={streetViewLink ?? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(cf.fullAddress ?? "")}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="shrink-0 relative group rounded-lg overflow-hidden border border-overlay-8 hover:border-overlay-30 transition-colors"
-              >
-                <img
-                  src={streetViewUrl ?? thumbUrl ?? ""}
-                  alt="Property"
-                  className="w-[120px] h-[90px] object-cover transition-transform duration-300 group-hover:scale-105"
-                  onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
-                />
-                <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent pointer-events-none" />
-                <div className="absolute bottom-1 left-1.5 right-1.5 flex items-center gap-1 text-xs text-white/70 pointer-events-none">
-                  <ImageIcon className="h-2 w-2" />{streetViewUrl ? "Street View" : "Satellite"}
-                </div>
-                <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
-                  <ExternalLink className="h-3.5 w-3.5 text-white drop-shadow-md" />
-                </div>
-              </a>
+            {displayEmail && (
+              <p className="text-sm text-muted-foreground">{displayEmail}</p>
             )}
           </div>
-
-          {/* Distress type pill badges */}
-          {(cf.tags.length > 0 || warningFlags.length > 0) && (
-            <div className="flex flex-wrap gap-1.5">
-              {cf.tags.filter((t) => !t.startsWith("score-")).map((tag) => {
-                const cfg = DISTRESS_CFG[tag];
-                return (
-                  <span key={tag} className={cn(
-                    "text-xs font-bold px-2 py-0.5 rounded-full uppercase tracking-wider border",
-                    cfg?.color ?? "text-muted-foreground bg-overlay-6 border-overlay-20"
-                  )}>
-                    {cfg?.label ?? tag.replace(/_/g, " ")}
-                  </span>
-                );
-              })}
-              {warningFlags.map((f) => (
-                <span key={f.label} className={cn("flex items-center gap-1 px-2 py-0.5 rounded-full border text-xs font-bold uppercase tracking-wider", f.color)}>
-                  <AlertTriangle className="h-2.5 w-2.5" />{f.label}
-                </span>
-              ))}
-            </div>
-          )}
+          <div className="text-right text-sm text-muted-foreground shrink-0 space-y-0.5">
+            <p className="truncate max-w-[260px]">{cf.fullAddress}</p>
+            {cf.isAbsentee && Boolean(cf.ownerFlags?.mailing_address) && (
+              <p className="text-xs text-muted-foreground/60">Mailing: {String(cf.ownerFlags.mailing_address)}</p>
+            )}
+          </div>
         </div>
       </div>
 
-
-
-      {/* Phase 2.5 — Valuation Summary Card */}
-      {(() => {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const snap = (cf.ownerFlags as any)?.offer_prep_snapshot;
-        if (!snap?.formula_version && !mao) return null;
-
-        const snapArvUsed = snap?.arv_used as number | undefined;
-        const snapMao = snap?.mao_result as number | undefined;
-        const snapConf = snap?.confidence as string | undefined;
-        const snapCompCount = snap?.comp_count as number | undefined;
-        const snapCondAdj = snap?.condition_adj_pct as number | undefined;
-        const snapUpdatedAt = snap?.updated_at as string | undefined;
-        const snapVersion = snap?.formula_version as string | undefined;
-        const snapWarnings = (snap?.warnings ?? []) as Array<{ code: string; severity: string; message: string }>;
-
-        // Staleness: >7 days since last save
-        const daysSinceUpdate = snapUpdatedAt
-          ? Math.floor((Date.now() - new Date(snapUpdatedAt).getTime()) / (1000 * 60 * 60 * 24))
-          : null;
-        const isStale = daysSinceUpdate != null && daysSinceUpdate > 7;
-
-        // Use persisted snapshot values, or live computation as fallback
-        const displayArv = snapArvUsed ?? bestArv;
-        const displayMao = snapMao ?? mao ?? 0;
-        const displayConf = snapConf ?? (compCount >= 3 ? "high" : compCount >= 2 ? "medium" : "low");
-        const confColor = displayConf === "high" ? "text-foreground" : displayConf === "medium" ? "text-muted-foreground" : "text-foreground";
-        const confBorder = displayConf === "high" ? "border-overlay-15" : displayConf === "medium" ? "border-overlay-12" : "border-overlay-15";
-        const confBg = displayConf === "high" ? "bg-overlay-6" : displayConf === "medium" ? "bg-overlay-5" : "bg-overlay-5";
-
-        const dangerWarnings = snapWarnings.filter((w) => w.severity === "danger");
-
-        return (
-          <div className={cn("rounded-[12px] border p-3 space-y-2", confBorder, confBg)}>
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Scale className="h-3.5 w-3.5 text-foreground" />
-                <p className="text-sm text-muted-foreground uppercase tracking-wider font-semibold">Valuation Summary</p>
-              </div>
-              <div className="flex items-center gap-1.5">
-                {isStale && (
-                  <span className="text-xs text-muted-foreground flex items-center gap-0.5">
-                    <Clock className="h-2.5 w-2.5" />
-                    {daysSinceUpdate}d ago
-                  </span>
-                )}
-                {snapVersion && (
-                  <span className="text-xs text-muted-foreground/50 font-mono">v{snapVersion}</span>
-                )}
-              </div>
-            </div>
-
-            <div className="grid grid-cols-3 gap-2">
-              <div>
-                <p className="text-xs text-muted-foreground uppercase">ARV</p>
-                <p className="text-sm font-bold text-foreground font-mono">
-                  {displayArv > 0 ? `$${(displayArv / 1000).toFixed(0)}k` : "—"}
-                </p>
-              </div>
-              <div>
-                <p className="text-xs text-muted-foreground uppercase">MAO</p>
-                <p className="text-sm font-bold text-foreground font-mono">
-                  {displayMao > 0 ? `$${(displayMao / 1000).toFixed(0)}k` : "—"}
-                </p>
-              </div>
-              <div>
-                <p className="text-xs text-muted-foreground uppercase">Confidence</p>
-                <p className={cn("text-sm font-bold capitalize", confColor)}>{displayConf}</p>
-              </div>
-            </div>
-
-            {(snapCompCount != null || snapCondAdj != null) && (
-              <div className="flex items-center gap-3 text-xs text-muted-foreground/70">
-                {snapCompCount != null && <span>{snapCompCount} comp{snapCompCount !== 1 ? "s" : ""}</span>}
-                {snapCondAdj != null && snapCondAdj !== 0 && <span>Condition adj: {snapCondAdj > 0 ? "+" : ""}{snapCondAdj}%</span>}
-              </div>
-            )}
-
-            {/* Bricked AI supplemental data */}
-            {(brickedRepairCost > 0 || (brickedCmv > 0 && brickedCmv !== bestArv) || brickedShareLink) && (
-              <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground/70">
-                {brickedRepairCost > 0 && (
-                  <span>Est. Repairs: {formatCurrency(brickedRepairCost)}</span>
-                )}
-                {brickedCmv > 0 && brickedCmv !== bestArv && (
-                  <span>CMV: {formatCurrency(brickedCmv)}</span>
-                )}
-                {brickedShareLink && (
-                  <a
-                    href={brickedShareLink}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center gap-0.5 text-blue-400 hover:text-blue-300 transition-colors"
-                  >
-                    <ExternalLink className="h-2.5 w-2.5" />
-                    View Bricked Report
-                  </a>
-                )}
-              </div>
-            )}
-
-            {/* County GIS Assessment Data */}
-            {(() => {
-              const countyAssessed = (cf.ownerFlags?.county_assessed_value as number) ?? 0;
-              const countyLand = (cf.ownerFlags?.county_land_value as number) ?? 0;
-              const countyImprovement = (cf.ownerFlags?.county_improvement_value as number) ?? 0;
-              const countyLastSale = (cf.ownerFlags?.county_last_sale_price as number) ?? 0;
-              const countyLastSaleDate = cf.ownerFlags?.county_last_sale_date as string | undefined;
-              const taxExemptCode = cf.ownerFlags?.tax_exemption_code as string | undefined;
-              const taxExemptAmt = (cf.ownerFlags?.tax_exemption_amount as number) ?? 0;
-              const isVacant = cf.ownerFlags?.vacant_land === true;
-              const countyNeighborhood = cf.ownerFlags?.county_neighborhood_name as string | undefined;
-              const countyAcreage = cf.ownerFlags?.county_acreage as number | undefined;
-
-              if (countyAssessed <= 0) return null;
-
-              return (
-                <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground/70 mt-1">
-                  <span>County: {formatCurrency(countyAssessed)} assessed</span>
-                  {countyLand > 0 && countyImprovement > 0 && (
-                    <span className="text-muted-foreground/50">({formatCurrency(countyLand)} land / {formatCurrency(countyImprovement)} improvements)</span>
-                  )}
-                  {countyLastSale > 0 && (
-                    <span>Last sale: {formatCurrency(countyLastSale)}{countyLastSaleDate ? ` (${countyLastSaleDate})` : ""}</span>
-                  )}
-                  {taxExemptCode && (
-                    <span className="text-amber-400/80">Tax exempt: {taxExemptCode}{taxExemptAmt > 0 ? ` ($${(taxExemptAmt / 1000).toFixed(0)}k)` : ""}</span>
-                  )}
-                  {isVacant && <span className="text-amber-400/80">Vacant lot</span>}
-                  {countyNeighborhood && <span>Nbhd: {countyNeighborhood}</span>}
-                  {countyAcreage != null && countyAcreage > 0 && <span>{countyAcreage.toFixed(2)} acres</span>}
-                </div>
-              );
-            })()}
-
-            {/* Bricked AI — Mortgage Detail */}
-            {(() => {
-              const mortJson = cf.ownerFlags?.bricked_mortgages as string | undefined;
-              if (!mortJson) return null;
-              let mortgages: Array<{ position?: string; lenderName?: string; amount?: number; interestRate?: number; loanType?: string; maturityDate?: number }> = [];
-              try { mortgages = JSON.parse(mortJson); } catch { return null; }
-              if (mortgages.length === 0) return null;
-              return (
-                <div className="mt-2 space-y-1">
-                  <p className="text-xs font-semibold text-muted-foreground/50 uppercase tracking-wider">Mortgage Detail</p>
-                  <div className="text-xs space-y-0.5">
-                    {mortgages.map((m, i) => (
-                      <div key={i} className="flex items-center gap-2 text-muted-foreground/70">
-                        <span className="font-mono shrink-0">{m.position ?? `#${i + 1}`}</span>
-                        <span className="truncate">{m.lenderName ?? "Unknown"}</span>
-                        <span className="font-mono shrink-0">{m.amount ? `$${(m.amount / 1000).toFixed(0)}k` : "—"}</span>
-                        {m.interestRate != null && <span className="font-mono shrink-0">{m.interestRate}%</span>}
-                        {m.loanType && <span className="shrink-0">{m.loanType}</span>}
-                        {m.maturityDate && <span className="shrink-0 text-muted-foreground/50">{new Date(m.maturityDate * 1000).getFullYear()}</span>}
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              );
-            })()}
-
-            {/* Bricked AI — Sale History */}
-            {(() => {
-              const txJson = cf.ownerFlags?.bricked_transactions as string | undefined;
-              if (!txJson) return null;
-              let txns: Array<{ saleDate?: number; amount?: number; purchaseMethod?: string; sellerNames?: string; buyerNames?: string }> = [];
-              try { txns = JSON.parse(txJson); } catch { return null; }
-              if (txns.length === 0) return null;
-              return (
-                <div className="mt-2 space-y-1">
-                  <p className="text-xs font-semibold text-muted-foreground/50 uppercase tracking-wider">Sale History</p>
-                  <div className="text-xs space-y-0.5">
-                    {txns.slice(0, 5).map((tx, i) => (
-                      <div key={i} className="flex items-center gap-2 text-muted-foreground/70">
-                        {tx.saleDate && <span className="font-mono shrink-0">{new Date(tx.saleDate * 1000).toLocaleDateString("en-US", { month: "short", year: "numeric" })}</span>}
-                        <span className="font-mono shrink-0 text-foreground/80">{tx.amount ? `$${(tx.amount / 1000).toFixed(0)}k` : "—"}</span>
-                        {tx.purchaseMethod && <span className="shrink-0">{tx.purchaseMethod}</span>}
-                        {tx.buyerNames && <span className="truncate">{tx.buyerNames}</span>}
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              );
-            })()}
-
-            {/* Bricked AI — MLS History */}
-            {(() => {
-              const mlsJson = cf.ownerFlags?.bricked_mls_history as string | undefined;
-              if (!mlsJson) return null;
-              let listings: Array<{ listingDate?: number; status?: string; amount?: number; daysOnMarket?: number; agentName?: string }> = [];
-              try { listings = JSON.parse(mlsJson); } catch { return null; }
-              if (listings.length === 0) return null;
-              return (
-                <div className="mt-2 space-y-1">
-                  <p className="text-xs font-semibold text-muted-foreground/50 uppercase tracking-wider">MLS History</p>
-                  <div className="text-xs space-y-0.5">
-                    {listings.slice(0, 5).map((l, i) => (
-                      <div key={i} className="flex items-center gap-2 text-muted-foreground/70">
-                        {l.listingDate && <span className="font-mono shrink-0">{new Date(l.listingDate * 1000).toLocaleDateString("en-US", { month: "short", year: "numeric" })}</span>}
-                        {l.status && <span className="shrink-0">{l.status}</span>}
-                        <span className="font-mono shrink-0 text-foreground/80">{l.amount ? `$${(l.amount / 1000).toFixed(0)}k` : "—"}</span>
-                        {l.daysOnMarket != null && <span className="shrink-0">{l.daysOnMarket}d</span>}
-                        {l.agentName && <span className="truncate">{l.agentName}</span>}
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              );
-            })()}
-
-            {dangerWarnings.length > 0 && (
-              <div className="space-y-1">
-                {dangerWarnings.map((w, i) => (
-                  <p key={i} className="text-xs text-foreground flex items-center gap-1">
-                    <AlertTriangle className="h-2.5 w-2.5 shrink-0" />
-                    {w.message}
-                  </p>
-                ))}
-              </div>
-            )}
-
-            {isStale && (
-              <p className="text-xs text-muted-foreground">
-                Valuation is {daysSinceUpdate} days old — consider re-running comps.
-              </p>
-            )}
-          </div>
-        );
-      })()}
-
-      {/* â•â•â• 5. MAO BREAKDOWN — Full formula so agents trust the math â•â•â• */}
-      {mao != null && mao > 0 && (
-        <div className="rounded-[12px] border border-overlay-20 bg-overlay-3 p-4 space-y-2">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <Target className="h-3.5 w-3.5 text-foreground" />
-              <p className="text-sm text-foreground/80 uppercase tracking-wider font-semibold">MAO Breakdown</p>
-            </div>
-            <span className="text-xs text-muted-foreground/50 italic">
-              {arvSource === "comps" ? `Based on ${compCount || "selected"} comps` : "Based on AVM estimate"}
-            </span>
-          </div>
-
-          <div className="space-y-1 font-mono text-xs">
-            <div className="flex items-center justify-between text-muted-foreground">
-              <span>ARV ({arvSource === "comps" ? "comps" : "AVM"})</span>
-              <span className="text-foreground font-semibold">{formatCurrency(bestArv)}</span>
-            </div>
-            <div className="flex items-center justify-between text-muted-foreground">
-              <span>&times; 75% wholesale</span>
-              <span className="text-foreground">{formatCurrency(wholesaleValue)}</span>
-            </div>
-            <div className="flex items-center justify-between text-foreground">
-              <span>&minus; Repairs (est. 10%)</span>
-              <span>&minus;{formatCurrency(repairEstimate)}</span>
-            </div>
-            <div className="flex items-center justify-between text-foreground">
-              <span>&minus; Assignment fee</span>
-              <span>&minus;{formatCurrency(assignmentFee)}</span>
-            </div>
-            <div className="border-t border-overlay-8 pt-1.5 mt-1 flex items-center justify-between">
-              <span className="text-foreground font-bold text-sm">MAO</span>
-              <span className="text-foreground font-bold text-lg" style={{ textShadow: "0 0 12px var(--glow-soft)" }}>{formatCurrency(mao)}</span>
-            </div>
-          </div>
-        </div>
-      )}
-
-      <div className="flex gap-3">
-        {/* Distress Signals — left half */}
-        <div ref={sectionSignals} className="flex-1 min-w-0 rounded-[12px] border border-overlay-6 bg-overlay-2 p-3">
-          <div className="flex items-center justify-between mb-2">
-            <div className="flex items-center gap-2">
-              <AlertTriangle className="h-3 w-3 text-foreground" />
-              <p className="text-sm text-foreground/90 uppercase tracking-wider font-semibold">Distress Signals</p>
-            </div>
-          </div>
+      {/* Ã¢â€â‚¬Ã¢â€â‚¬ 2x2 TILE GRID Ã¢â€â‚¬Ã¢â€â‚¬ */}
+      <div className="grid grid-cols-2 gap-3">
+        {/* Ã¢â€â‚¬Ã¢â€â‚¬ 2. DISTRESS SIGNALS Ã¢â€â‚¬Ã¢â€â‚¬ */}
+        <div className="rounded-[10px] border border-overlay-8 bg-overlay-2 p-3">
+          <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">Distress Signals</p>
           {distressEvents.length > 0 ? (
             <div className="flex flex-wrap gap-1.5">
-              {distressEvents.slice(0, 6).map((evt) => {
+              {distressEvents.slice(0, 8).map((evt) => {
                 const cfg = DISTRESS_CFG[evt.event_type];
                 const EvtIcon = cfg?.icon ?? AlertTriangle;
-                const evtDate = getEventDate(evt);
-                const daysAgo = Math.floor((Date.now() - new Date(evt.created_at).getTime()) / 86400000);
-                const isRecent = daysAgo <= 30;
-                const motivation = getSignalMotivation(evt.event_type, evt.raw_data ?? undefined);
                 return (
-                  <span
-                    key={evt.id}
-                    title={`${motivation}\nPer ${sourceName(evt.source)} \u00B7 ${evtDate.isActual ? "filed" : "detected"} ${evtDate.date}`}
-                    className={cn(
-                      "inline-flex items-center gap-1 px-2 py-1 rounded-full text-sm font-semibold border cursor-default transition-colors",
-                      cfg?.color ?? "text-muted-foreground bg-overlay-6 border-overlay-20",
-                      isRecent && "ring-1 ring-overlay-20"
-                    )}
-                  >
-                    <EvtIcon className="h-2.5 w-2.5 shrink-0" />
-                    {cfg?.label ?? evt.event_type.replace(/_/g, " ")}
-                    <span className="text-xs opacity-60">{"\u00B7"} {evtDate.date.replace(/\/\d{4}$/, "")}</span>
-                    {isRecent && <Flame className="h-2.5 w-2.5 text-foreground shrink-0" />}
+                  <span key={evt.id} className={cn("inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium border", cfg?.color ?? "border-overlay-10 text-muted-foreground bg-overlay-3")}>
+                    <EvtIcon className="h-3 w-3" />{cfg?.label ?? evt.event_type.replace(/_/g, " ")}
                   </span>
                 );
               })}
-              {distressEvents.length > 6 && (
-                <span className="inline-flex items-center px-2 py-1 rounded-full text-sm font-semibold border border-overlay-10 text-muted-foreground bg-overlay-3">
-                  +{distressEvents.length - 6} more
-                </span>
-              )}
             </div>
           ) : (
-            <p className="text-sm text-muted-foreground/50">No distress signals found (checked: tax liens, foreclosure, probate, code violations)</p>
+            <p className="text-sm text-muted-foreground/50 italic">No distress signals detected</p>
           )}
         </div>
 
-        {/* External Links + County Records — right half */}
-        <div className="flex-1 min-w-0 rounded-[12px] border border-overlay-6 bg-overlay-2 p-3">
-          <div className="flex items-center gap-2 mb-2">
-            <Globe className="h-3 w-3 text-muted-foreground" />
-            <p className="text-sm text-muted-foreground uppercase tracking-wider font-semibold">External Links</p>
-          </div>
-          <div className="flex flex-wrap items-center gap-2">
-            {cf.radarId && (
-              <a href={`https://app.propertyradar.com/properties/${cf.radarId}`} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground transition-colors">
-                <Radar className="h-2.5 w-2.5" />PropertyRadar
-              </a>
-            )}
-            {(() => {
-              const listingUrl = String(cf.ownerFlags?.listing_url ?? cf.ownerFlags?.link ?? "");
-              return listingUrl ? (
-                <a href={listingUrl} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 text-sm text-muted-foreground hover:text-muted-foreground transition-colors">
-                  <ExternalLink className="h-2.5 w-2.5" />Listing
-                </a>
-              ) : null;
-            })()}
-            {cf.fullAddress && (
-              <>
-                <a href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(cf.fullAddress)}`} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground transition-colors">
-                  <Map className="h-2.5 w-2.5" />Maps
-                </a>
-                <a href={`https://www.zillow.com/homes/${encodeURIComponent(cf.fullAddress)}_rb/`} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground transition-colors">
-                  <ExternalLink className="h-2.5 w-2.5" />Zillow
-                </a>
-                <a href={`https://www.redfin.com/search#query=${encodeURIComponent(cf.fullAddress)}`} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground transition-colors">
-                  <ExternalLink className="h-2.5 w-2.5" />Redfin
-                </a>
-              </>
-            )}
-          </div>
-          {/* County Records */}
-          {(() => {
-            const countyKey = cf.county?.toLowerCase().replace(/\s+county$/i, "").trim() ?? "";
-            const countyInfo = COUNTY_LINKS[countyKey];
-            if (countyInfo) {
-              return (
-                <div className="space-y-1.5 pt-2 mt-2 border-t border-overlay-6">
-                  <p className="text-xs text-muted-foreground/60 uppercase tracking-wider">{countyInfo.name}</p>
-                  <div className="flex flex-wrap gap-1.5">
-                    <a href={countyInfo.gis(cf.apn ?? "")} target="_blank" rel="noopener noreferrer">
-                      <Button size="sm" variant="outline" className="gap-1 text-xs h-6 px-2">
-                        <Map className="h-2.5 w-2.5 text-muted-foreground" />GIS
-                      </Button>
-                    </a>
-                    <a href={countyInfo.assessor(cf.apn ?? "")} target="_blank" rel="noopener noreferrer">
-                      <Button size="sm" variant="outline" className="gap-1 text-xs h-6 px-2">
-                        <Building className="h-2.5 w-2.5 text-muted-foreground" />Assessor
-                      </Button>
-                    </a>
-                    {countyInfo.treasurer && (
-                      <a href={countyInfo.treasurer(cf.apn ?? "")} target="_blank" rel="noopener noreferrer">
-                        <Button size="sm" variant="outline" className="gap-1 text-xs h-6 px-2">
-                          <DollarSign className="h-2.5 w-2.5 text-muted-foreground" />Tax
-                        </Button>
-                      </a>
-                    )}
-                  </div>
-                </div>
-              );
-            }
-            if (cf.apn && cf.county) {
-              const searchQ = encodeURIComponent(`${cf.apn} ${cf.county} county ${cf.state} property records`);
-              return (
-                <div className="pt-2 mt-2 border-t border-overlay-6">
-                  <a href={`https://www.google.com/search?q=${searchQ}`} target="_blank" rel="noopener noreferrer">
-                    <Button size="sm" variant="outline" className="gap-1 text-xs h-6 px-2">
-                      <Search className="h-2.5 w-2.5 text-muted-foreground" />{cf.county} Records
-                    </Button>
-                  </a>
-                </div>
-              );
-            }
-            return null;
-          })()}
+        {/* Ã¢â€â‚¬Ã¢â€â‚¬ 3. SELLER MEMORY Ã¢â€â‚¬Ã¢â€â‚¬ */}
+        <div className="rounded-[10px] border border-overlay-8 bg-overlay-2 p-3">
+          <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">Seller Memory</p>
+          {lastSummary ? (
+            <div className="space-y-1">
+              <p className="text-sm text-foreground line-clamp-4">{lastSummary.ai_summary}</p>
+              <p className="text-xs text-muted-foreground/50">{formatRelativeFromNow(lastSummary.started_at)}</p>
+            </div>
+          ) : cf.sellerSituationSummaryShort ? (
+            <p className="text-sm text-foreground line-clamp-4">{cf.sellerSituationSummaryShort}</p>
+          ) : (
+            <p className="text-sm text-muted-foreground/50 italic">No calls yet</p>
+          )}
         </div>
       </div>
 
-      {/* Prospecting Intake — compact inline summary */}
-      {(prospectingSnapshot.sourceChannel || prospectingSnapshot.nicheTag || prospectingSnapshot.outboundStatus) && (
-        <div className="rounded-[10px] border border-overlay-6 bg-overlay-2 px-3 py-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm">
-          <span className="text-muted-foreground">
-            Source: <span className="text-foreground font-medium">{sourceChannelLabel(prospectingSnapshot.sourceChannel ?? cf.source)}</span>
-          </span>
-          {prospectingSnapshot.nicheTag && (
-            <span className="text-muted-foreground">
-              Niche: <span className="text-foreground font-medium">{tagLabel(prospectingSnapshot.nicheTag)}</span>
-            </span>
-          )}
-          <span className="text-muted-foreground">
-            Attempts: <span className="text-foreground font-medium">{prospectingSnapshot.attemptCount ?? cf.totalCalls ?? 0}</span>
-          </span>
-          {(prospectingSnapshot.callOutcome || cf.dispositionCode) && (
-            <span className="text-muted-foreground">
-              Last: <span className="text-foreground font-medium">{tagLabel(prospectingSnapshot.callOutcome ?? cf.dispositionCode ?? "")}</span>
-            </span>
-          )}
-          {(prospectingSnapshot.doNotCall || prospectingSnapshot.badRecord || prospectingSnapshot.wrongNumber) && (
-            <span className="text-foreground font-semibold">
-              {[prospectingSnapshot.doNotCall ? "DNC" : null, prospectingSnapshot.badRecord ? "Bad record" : null, prospectingSnapshot.wrongNumber ? "Wrong number" : null].filter(Boolean).join(" · ")}
-            </span>
+      {/* Ã¢â€â‚¬Ã¢â€â‚¬ 4. PROPERTY BASICS (2-col span) Ã¢â€â‚¬Ã¢â€â‚¬ */}
+      <div className="rounded-[10px] border border-overlay-8 bg-overlay-2 p-3">
+        <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">Property Basics</p>
+        <div className="grid grid-cols-4 gap-x-4 gap-y-1.5 text-sm">
+          {cf.bedrooms != null && <div><span className="text-muted-foreground/60">Beds</span> <span className="text-foreground font-mono">{cf.bedrooms}</span></div>}
+          {cf.bathrooms != null && <div><span className="text-muted-foreground/60">Baths</span> <span className="text-foreground font-mono">{cf.bathrooms}</span></div>}
+          {cf.sqft != null && <div><span className="text-muted-foreground/60">Sq Ft</span> <span className="text-foreground font-mono">{cf.sqft.toLocaleString()}</span></div>}
+          {cf.yearBuilt != null && <div><span className="text-muted-foreground/60">Year</span> <span className="text-foreground font-mono">{cf.yearBuilt}</span></div>}
+          {cf.propertyType && <div><span className="text-muted-foreground/60">Type</span> <span className="text-foreground">{cf.propertyType}</span></div>}
+          {cf.lotSize != null && <div><span className="text-muted-foreground/60">Lot</span> <span className="text-foreground font-mono">{cf.lotSize.toFixed(2)} ac</span></div>}
+          {cf.apn && <div className="col-span-2"><span className="text-muted-foreground/60">APN</span> <span className="text-foreground font-mono">{cf.apn}</span></div>}
+        </div>
+        {!cf.bedrooms && !cf.sqft && !cf.yearBuilt && (
+          <p className="text-sm text-muted-foreground/50 italic">No property details enriched yet</p>
+        )}
+      </div>
+
+      {/* Ã¢â€â‚¬Ã¢â€â‚¬ Second 2x2 TILE GRID Ã¢â€â‚¬Ã¢â€â‚¬ */}
+      <div className="grid grid-cols-2 gap-3">
+        {/* Ã¢â€â‚¬Ã¢â€â‚¬ 5. TALKING POINTS Ã¢â€â‚¬Ã¢â€â‚¬ */}
+        <div className="rounded-[10px] border border-overlay-8 bg-overlay-2 p-3">
+          <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">Talking Points</p>
+          {briefLoading ? (
+            <div className="flex items-center gap-2 text-sm text-muted-foreground/50"><Loader2 className="h-3 w-3 animate-spin" />Loading...</div>
+          ) : brief?.talkingPoints?.length ? (
+            <ul className="space-y-1">
+              {brief.talkingPoints.slice(0, 3).map((tp, i) => (
+                <li key={i} className="text-sm text-foreground flex gap-1.5">
+                  <span className="text-muted-foreground/40 shrink-0">Ã¢â‚¬Â¢</span>
+                  <span className="line-clamp-2">{tp}</span>
+                </li>
+              ))}
+            </ul>
+          ) : cf.recommendedCallAngle ? (
+            <p className="text-sm text-foreground line-clamp-3">{cf.recommendedCallAngle}</p>
+          ) : (
+            <p className="text-sm text-muted-foreground/50 italic">No talking points yet</p>
           )}
         </div>
-      )}
 
-      <div className="rounded-[12px] border border-overlay-6 bg-overlay-2 p-3 space-y-2.5">
-        <div className="flex items-center gap-2">
-          <Clock className="h-3.5 w-3.5 text-foreground" />
-          <p className="text-sm text-muted-foreground uppercase tracking-wider font-semibold">Recent Communication</p>
-          {activityLog.length > 0 && (
-            <Badge variant="outline" className="text-xs ml-1">{Math.min(activityLog.length, 4)}</Badge>
+        {/* Ã¢â€â‚¬Ã¢â€â‚¬ 6. SCORE + BREAKDOWN Ã¢â€â‚¬Ã¢â€â‚¬ */}
+        <div className="rounded-[10px] border border-overlay-8 bg-overlay-2 p-3">
+          <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">Score</p>
+          {cf.compositeScore > 0 ? (
+            <div className="space-y-2">
+              <div className="flex items-center gap-3">
+                <div className={cn("w-12 h-12 rounded-lg flex items-center justify-center text-lg font-bold", tc.bar, tc.border, "border")}>
+                  {cf.compositeScore}
+                </div>
+                <div>
+                  <p className={cn("text-sm font-semibold uppercase", tc.text)}>{cf.scoreLabel}</p>
+                  {cf.prediction?.label && (
+                    <p className="text-xs text-muted-foreground/60">Distress: {cf.prediction.label}</p>
+                  )}
+                </div>
+              </div>
+              <div className="flex flex-wrap gap-1.5 text-xs">
+                {cf.isHighEquity && <span className="px-1.5 py-0.5 rounded border border-overlay-10 bg-overlay-3 text-muted-foreground">High Equity</span>}
+                {cf.isAbsentee && <span className="px-1.5 py-0.5 rounded border border-overlay-10 bg-overlay-3 text-muted-foreground">Absentee</span>}
+                {cf.isFreeClear && <span className="px-1.5 py-0.5 rounded border border-overlay-10 bg-overlay-3 text-muted-foreground">Free & Clear</span>}
+                {cf.isVacant && <span className="px-1.5 py-0.5 rounded border border-overlay-10 bg-overlay-3 text-muted-foreground">Vacant</span>}
+              </div>
+            </div>
+          ) : (
+            <p className="text-sm text-muted-foreground/50 italic">Not scored Ã¢â‚¬â€ needs enrichment</p>
           )}
-          <button
-            className="ml-auto text-sm text-muted-foreground hover:text-foreground transition-colors"
-            onClick={() => setTimelinesOpen(true)}
-          >
-            Open full timeline
-          </button>
+        </div>
+
+        {/* Ã¢â€â‚¬Ã¢â€â‚¬ 7. MONEY TILE Ã¢â€â‚¬Ã¢â€â‚¬ */}
+        <div className="rounded-[10px] border border-overlay-8 bg-overlay-2 p-3">
+          <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">Valuation</p>
+          {bestArv > 0 ? (
+            <div className="space-y-1.5 text-sm">
+              <div className="flex justify-between"><span className="text-muted-foreground/60">ARV</span><span className="text-foreground font-mono font-semibold">{formatCurrency(bestArv)}</span></div>
+              {brickedCmv > 0 && <div className="flex justify-between"><span className="text-muted-foreground/60">CMV</span><span className="text-foreground font-mono">{formatCurrency(brickedCmv)}</span></div>}
+              {cf.estimatedValue != null && cf.estimatedValue !== bestArv && <div className="flex justify-between"><span className="text-muted-foreground/60">AVM</span><span className="text-foreground font-mono">{formatCurrency(cf.estimatedValue)}</span></div>}
+              {repairCost > 0 && <div className="flex justify-between"><span className="text-muted-foreground/60">Repairs</span><span className="text-foreground font-mono">-{formatCurrency(repairCost)}</span></div>}
+              {cf.equityPercent != null && <div className="flex justify-between"><span className="text-muted-foreground/60">Equity</span><span className={cn("font-mono", cf.equityPercent >= 50 ? "text-foreground" : "text-muted-foreground")}>{cf.equityPercent}%</span></div>}
+            </div>
+          ) : (
+            <p className="text-sm text-muted-foreground/50 italic">Not enriched Ã¢â‚¬â€ open Property Intel</p>
+          )}
+        </div>
+
+        {/* Ã¢â€â‚¬Ã¢â€â‚¬ 8. DEAL PROGRESS Ã¢â€â‚¬Ã¢â€â‚¬ */}
+        <div className="rounded-[10px] border border-overlay-8 bg-overlay-2 p-3">
+          <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">Deal Progress</p>
+          <div className="space-y-1.5 text-sm">
+            <div className="flex justify-between"><span className="text-muted-foreground/60">Stage</span><span className="text-foreground capitalize">{cf.status.replace(/_/g, " ")}</span></div>
+            {cf.qualificationRoute && <div className="flex justify-between"><span className="text-muted-foreground/60">Route</span><span className="text-foreground capitalize">{cf.qualificationRoute.replace(/_/g, " ")}</span></div>}
+            {cf.offerAmount != null && <div className="flex justify-between"><span className="text-muted-foreground/60">Offer</span><span className="text-foreground font-mono">{formatCurrency(cf.offerAmount)}</span></div>}
+            {cf.totalCalls > 0 && <div className="flex justify-between"><span className="text-muted-foreground/60">Calls</span><span className="text-foreground font-mono">{cf.totalCalls} ({cf.liveAnswers} live)</span></div>}
+            {cf.nextCallScheduledAt && (
+              <div className="flex justify-between">
+                <span className="text-muted-foreground/60">Next Action</span>
+                <span className="text-foreground text-xs">{formatRelativeFromNow(cf.nextCallScheduledAt)}</span>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Ã¢â€â‚¬Ã¢â€â‚¬ NOTES & CALL HISTORY Ã¢â€â‚¬Ã¢â€â‚¬ */}
+      <div className="rounded-[10px] border border-overlay-8 bg-overlay-2 p-3.5">
+        <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3">Notes & Call History</p>
+        <div className="flex gap-2 mb-3">
+          <input
+            value={noteDraft}
+            onChange={(e) => setNoteDraft(e.target.value)}
+            onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleAddNote(); } }}
+            placeholder="+ Add note..."
+            className="flex-1 h-8 rounded-[8px] border border-overlay-12 bg-overlay-4 px-3 text-sm text-foreground placeholder:text-muted-foreground/40 focus:outline-none focus:border-overlay-30"
+            maxLength={1000}
+          />
+          <Button size="sm" className="h-8 text-sm px-3" disabled={savingNote || !noteDraft.trim()} onClick={handleAddNote}>
+            {savingNote ? <Loader2 className="h-3 w-3 animate-spin" /> : "Add"}
+          </Button>
         </div>
         {activityLog.length > 0 ? (
-          <div className="space-y-1.5">
-            {activityLog.slice(0, 4).map((entry) => {
-              const dispositionLabel = entry.disposition?.replace(/_/g, " ") ?? entry.type;
-              const isSystemEvent = !entry.duration_sec && !entry.phone && (
-                entry.type === "qualification" || entry.type === "stage_change" || entry.type === "assignment" ||
-                entry.type === "status_change" || entry.type === "system" || entry.type === "import" ||
-                (entry.notes?.startsWith("{") ?? false)
-              );
-              const noteText = entry.notes?.replace(/\s+/g, " ").trim() ?? "";
-              const notePreview = noteText.length > 0
-                ? noteText.startsWith("{")
-                  ? "Event details logged"
-                  : noteText.length > 80
-                    ? `${noteText.slice(0, 80)}...`
-                    : noteText
-                : null;
+          <div className="space-y-1 max-h-[320px] overflow-y-auto pr-1">
+            {activityLog.map((entry) => {
+              const typeBadge = entry.type === "call" ? "Call" : entry.type === "sms" ? "SMS" : entry.type === "note" ? "Note" : "Event";
+              const typeBadgeClass = entry.type === "call" ? "bg-overlay-8 text-foreground" : entry.type === "sms" ? "bg-overlay-6 text-muted-foreground" : "bg-overlay-4 text-muted-foreground";
               return (
-                <div key={entry.id} className="flex items-start justify-between gap-2 rounded-[8px] border border-overlay-6 bg-overlay-2 px-2.5 py-2 text-xs">
-                  <div className="min-w-0">
-                    <p className="font-semibold text-foreground capitalize">
-                      {dispositionLabel}
-                      {isSystemEvent && <span className="ml-1.5 text-xs font-normal text-muted-foreground/40">System event</span>}
-                    </p>
-                    {notePreview && <p className="text-sm text-muted-foreground/65 truncate max-w-[430px]">{notePreview}</p>}
+                <div key={entry.id} className="flex items-start gap-2 py-1.5 border-b border-overlay-4 last:border-0">
+                  <span className={cn("shrink-0 px-1.5 py-0.5 rounded text-[10px] font-semibold uppercase", typeBadgeClass)}>{typeBadge}</span>
+                  <div className="flex-1 min-w-0">
+                    {entry.disposition && entry.type !== "note" && (
+                      <p className="text-xs text-muted-foreground capitalize">{entry.disposition.replace(/_/g, " ")}</p>
+                    )}
+                    {entry.notes && <p className="text-sm text-foreground line-clamp-2">{entry.notes}</p>}
+                    {entry.type === "call" && entry.duration_sec != null && entry.duration_sec > 0 && (
+                      <p className="text-xs text-muted-foreground/50">{Math.floor(entry.duration_sec / 60)}m {entry.duration_sec % 60}s</p>
+                    )}
                   </div>
-                  <p className="shrink-0 text-xs text-muted-foreground/50">{formatRelativeFromNow(entry.created_at)}</p>
+                  <span className="shrink-0 text-[10px] text-muted-foreground/40">{formatRelativeFromNow(entry.created_at)}</span>
                 </div>
               );
             })}
           </div>
+        ) : callHistoryLoading ? (
+          <div className="flex items-center gap-2 py-4 justify-center text-sm text-muted-foreground/50"><Loader2 className="h-4 w-4 animate-spin" />Loading history...</div>
         ) : (
-          <p className="text-sm text-muted-foreground/55">No calls, texts, or notes logged yet.</p>
+          <p className="text-sm text-muted-foreground/50 italic text-center py-4">No activity yet</p>
         )}
       </div>
-
-      <div className="rounded-[12px] border border-overlay-6 bg-overlay-2 p-3 space-y-2.5">
-        <div className="flex items-center gap-2">
-          <Phone className="h-3.5 w-3.5 text-foreground" />
-          <p className="text-sm text-muted-foreground uppercase tracking-wider font-semibold">Call Assist</p>
-          <Badge variant="outline" className="text-xs ml-1 border-white/[0.14] text-muted-foreground">
-            Talking points
-          </Badge>
-          {callAssistAllCards.length > callAssistDefaultCards.length && (
-            <button
-              type="button"
-              onClick={() => setShowAllCallAssist((prev) => !prev)}
-              className="ml-auto text-sm text-muted-foreground hover:text-foreground transition-colors"
-            >
-              {showAllCallAssist ? "Show less" : `Show all (${callAssistAllCards.length})`}
-            </button>
-          )}
-        </div>
-        <p className="text-sm text-muted-foreground/60">
-          Compact scaffolding for live calls. Adapt naturally to seller context.
-        </p>
-        <div className="space-y-2">
-          {callAssistVisibleCards.map((card) => (
-            <div key={card.id} className="rounded-[8px] border border-overlay-6 bg-white/[0.015] px-2.5 py-2">
-              <p className="text-sm font-semibold text-foreground">{card.title}</p>
-              <p className="text-sm text-muted-foreground/65 mt-0.5">{card.summary}</p>
-              <div className="mt-1.5 space-y-1">
-                {card.talkingPoints.slice(0, 2).map((point, idx) => (
-                  <p key={idx} className="text-sm text-foreground/85">
-                    <span className="text-muted-foreground mr-1">&#8226;</span>{point}
-                  </p>
-                ))}
-              </div>
-              <p className="text-xs text-foreground/80 mt-1.5">{card.actionHint}</p>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* ═══ DEAL PROGRESS — collapsible for early-stage leads ═══ */}
-      <div className="rounded-[12px] border border-overlay-6 bg-white/[0.015]">
-        <button
-          onClick={() => setDealProgressOpen(!dealProgressOpen)}
-          className="w-full flex items-center gap-2 px-3 py-2.5 text-left"
-        >
-          <Briefcase className="h-3.5 w-3.5 text-foreground" />
-          <p className="text-sm text-muted-foreground uppercase tracking-wider font-semibold">Deal Progress</p>
-          {!isDealStage && cf.offerStatus === "none" && (
-            <span className="text-xs text-muted-foreground/50">No offer activity yet</span>
-          )}
-          {cf.offerStatus !== "none" && !dealProgressOpen && (
-            <span className="text-xs text-muted-foreground">{offerStatusLabel}</span>
-          )}
-          <ChevronDown className={cn("h-3.5 w-3.5 text-muted-foreground/40 ml-auto transition-transform", dealProgressOpen && "rotate-180")} />
-        </button>
-        <AnimatePresence>
-          {dealProgressOpen && (
-            <motion.div
-              initial={{ height: 0, opacity: 0 }}
-              animate={{ height: "auto", opacity: 1 }}
-              exit={{ height: 0, opacity: 0 }}
-              transition={{ duration: 0.2 }}
-              className="overflow-hidden"
-            >
-              <div className="px-3 pb-3 space-y-3">
-
-      <div className="rounded-[12px] border border-overlay-6 bg-overlay-2 p-3 space-y-2">
-        <div className="flex items-center gap-2">
-          <Briefcase className="h-3.5 w-3.5 text-foreground" />
-          <p className="text-sm text-muted-foreground uppercase tracking-wider font-semibold">Offer Progress</p>
-        </div>
-        <div className="flex items-center gap-2 flex-wrap">
-          <span className={cn("text-sm px-2 py-0.5 rounded border font-medium", offerStatusToneClass)}>
-            {offerStatusLabel}
-          </span>
-          <span className="text-sm text-muted-foreground/70">
-            {offerStatusHint}
-          </span>
-        </div>
-        {offerPrepActive && (
-          <div className={cn(
-            "rounded-[8px] border px-2.5 py-2 space-y-1.5",
-            offerPrepStale || offerPrepMissing ? "border-overlay-12 bg-overlay-5" : "border-overlay-20 bg-overlay-6",
-          )}>
-            <p className="text-sm text-foreground/90">
-              Workload: <span className="font-semibold">Run comps + prepare offer range</span>
-            </p>
-            <p className="text-sm text-muted-foreground/80">
-              Next offer-prep follow-up: <span className="text-foreground font-medium">{offerPrepDueLabel}</span>
-            </p>
-            <p className={cn("text-sm", offerPrepStale || offerPrepMissing ? "text-foreground" : "text-foreground/80")}>
-              {offerPrepStale || offerPrepMissing
-                ? offerPrepHealth.hint
-                : "Offer-prep path is active and on track."}
-            </p>
-          </div>
-        )}
-      </div>
-
-      <OfferStatusTruthCard
-        canEdit={canEditOfferStatus}
-        editing={offerStatusEditing}
-        saving={offerStatusSaving}
-        draft={offerStatusDraft}
-        statusLabel={offerStatusTruthLabelText}
-        statusToneClass={offerStatusTruthToneClass}
-        amountLabel={offerStatusAmountLabel}
-        sellerResponseNote={offerStatusSnapshot.sellerResponseNote}
-        updatedLabel={offerStatusUpdatedLabel}
-        options={OFFER_STATUS_OPTIONS}
-        onEditToggle={onOfferStatusEditToggle}
-        onDraftChange={onOfferStatusDraftChange}
-        onSave={onOfferStatusSave}
-      />
-
-      <div className="rounded-[12px] border border-overlay-6 bg-overlay-2 p-3 space-y-2">
-        <div className="flex items-center gap-2">
-          <Calculator className="h-3.5 w-3.5 text-foreground" />
-          <p className="text-sm text-muted-foreground uppercase tracking-wider font-semibold">Offer Prep Snapshot</p>
-          <Badge variant="outline" className="text-xs border-white/[0.14] text-muted-foreground">Operator entered</Badge>
-          {offerPrepHealth.state !== "not_applicable" && (
-            <Badge
-              variant="outline"
-              className={cn(
-                "text-xs",
-                offerPrepHealth.state === "ready"
-                  ? "border-overlay-15 text-foreground"
-                  : "border-overlay-12 text-foreground",
-              )}
-            >
-              {offerPrepHealth.label}
-            </Badge>
-          )}
-          {canEditOfferPrep && (
-            <button
-              type="button"
-              onClick={() => onOfferPrepEditToggle(!offerPrepEditing)}
-              className="ml-auto text-sm text-foreground/75 hover:text-foreground transition-colors"
-              disabled={offerPrepSaving}
-            >
-              {offerPrepEditing ? "Cancel" : "Edit"}
-            </button>
-          )}
-        </div>
-        <p className="text-sm text-muted-foreground/70">
-          Offer progress is derived. Offer prep snapshot is operator-entered and should reflect your current comping assumptions.
-        </p>
-
-        {offerPrepEditing ? (
-          <div className="space-y-2.5">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-              <label className="space-y-1">
-                <span className="text-xs uppercase tracking-wider text-muted-foreground">ARV Used</span>
-                <input
-                  type="number"
-                  min={0}
-                  step={1000}
-                  value={offerPrepDraft.arvUsed}
-                  onChange={(e) => onOfferPrepDraftChange({ arvUsed: e.target.value })}
-                  className="h-8 w-full rounded-[8px] border border-overlay-12 bg-overlay-4 px-2.5 text-xs text-foreground focus:outline-none focus:border-overlay-30"
-                />
-              </label>
-              <label className="space-y-1">
-                <span className="text-xs uppercase tracking-wider text-muted-foreground">Rehab Estimate</span>
-                <input
-                  type="number"
-                  min={0}
-                  step={1000}
-                  value={offerPrepDraft.rehabEstimate}
-                  onChange={(e) => onOfferPrepDraftChange({ rehabEstimate: e.target.value })}
-                  className="h-8 w-full rounded-[8px] border border-overlay-12 bg-overlay-4 px-2.5 text-xs text-foreground focus:outline-none focus:border-overlay-30"
-                />
-              </label>
-              <label className="space-y-1">
-                <span className="text-xs uppercase tracking-wider text-muted-foreground">MAO Low</span>
-                <input
-                  type="number"
-                  min={0}
-                  step={1000}
-                  value={offerPrepDraft.maoLow}
-                  onChange={(e) => onOfferPrepDraftChange({ maoLow: e.target.value })}
-                  className="h-8 w-full rounded-[8px] border border-overlay-12 bg-overlay-4 px-2.5 text-xs text-foreground focus:outline-none focus:border-overlay-30"
-                />
-              </label>
-              <label className="space-y-1">
-                <span className="text-xs uppercase tracking-wider text-muted-foreground">MAO High</span>
-                <input
-                  type="number"
-                  min={0}
-                  step={1000}
-                  value={offerPrepDraft.maoHigh}
-                  onChange={(e) => onOfferPrepDraftChange({ maoHigh: e.target.value })}
-                  className="h-8 w-full rounded-[8px] border border-overlay-12 bg-overlay-4 px-2.5 text-xs text-foreground focus:outline-none focus:border-overlay-30"
-                />
-              </label>
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-              <label className="space-y-1">
-                <span className="text-xs uppercase tracking-wider text-muted-foreground">Confidence</span>
-                <select
-                  value={offerPrepDraft.confidence}
-                  onChange={(e) => onOfferPrepDraftChange({ confidence: (e.target.value as OfferPrepConfidence | "") })}
-                  className="h-8 w-full rounded-[8px] border border-overlay-12 bg-overlay-4 px-2.5 text-xs text-foreground focus:outline-none focus:border-overlay-30"
-                >
-                  <option value="">Select confidence</option>
-                  {OFFER_PREP_CONFIDENCE_OPTIONS.map((option) => (
-                    <option key={option.id} value={option.id}>{option.label}</option>
-                  ))}
-                </select>
-              </label>
-              <label className="space-y-1">
-                <span className="text-xs uppercase tracking-wider text-muted-foreground">Sheet / Calculator Link (optional)</span>
-                <input
-                  type="url"
-                  value={offerPrepDraft.sheetUrl}
-                  onChange={(e) => onOfferPrepDraftChange({ sheetUrl: e.target.value })}
-                  placeholder="https://docs.google.com/..."
-                  className="h-8 w-full rounded-[8px] border border-overlay-12 bg-overlay-4 px-2.5 text-xs text-foreground placeholder:text-muted-foreground/55 focus:outline-none focus:border-overlay-30"
-                />
-              </label>
-            </div>
-            <div className="flex items-center justify-between gap-2">
-              <p className="text-sm text-muted-foreground/65">
-                Last updated: <span className="text-foreground/85">{offerPrepUpdatedLabel}</span>
-              </p>
-              <Button size="sm" className="h-7 text-sm" disabled={offerPrepSaving} onClick={onOfferPrepSave}>
-                {offerPrepSaving ? <Loader2 className="h-3 w-3 animate-spin" /> : <Save className="h-3 w-3" />}
-                Save Snapshot
-              </Button>
-            </div>
-          </div>
-        ) : (() => {
-          const allEmpty = offerPrepSnapshot.arvUsed == null && offerPrepSnapshot.rehabEstimate == null && offerPrepSnapshot.maoLow == null && offerPrepSnapshot.maoHigh == null && !offerPrepSnapshot.confidence && !offerPrepSnapshot.updatedAt;
-          if (allEmpty && !offerPrepExpanded) {
-            return (
-              <div className="flex items-center gap-2 text-sm">
-                <p className="text-muted-foreground">Offer details: Not started yet</p>
-                <button type="button" onClick={() => setOfferPrepExpanded(true)} className="text-sm text-muted-foreground hover:text-foreground transition-colors">[Show details]</button>
-              </div>
-            );
-          }
-          return (
-            <div className="space-y-2">
-              <div className="grid grid-cols-2 md:grid-cols-3 gap-2 text-sm">
-                <p className="text-muted-foreground">ARV Used: <span className="text-foreground font-medium">{offerPrepSnapshot.arvUsed != null ? formatCurrency(offerPrepSnapshot.arvUsed) : "Not set"}</span></p>
-                <p className="text-muted-foreground">Rehab: <span className="text-foreground font-medium">{offerPrepSnapshot.rehabEstimate != null ? formatCurrency(offerPrepSnapshot.rehabEstimate) : "Not set"}</span></p>
-                <p className="text-muted-foreground">MAO Low: <span className="text-foreground font-medium">{offerPrepSnapshot.maoLow != null ? formatCurrency(offerPrepSnapshot.maoLow) : "Not set"}</span></p>
-                <p className="text-muted-foreground">MAO High: <span className="text-foreground font-medium">{offerPrepSnapshot.maoHigh != null ? formatCurrency(offerPrepSnapshot.maoHigh) : "Not set"}</span></p>
-                <p className="text-muted-foreground">Confidence: <span className="text-foreground font-medium">{offerPrepSnapshot.confidence ? offerPrepSnapshot.confidence[0].toUpperCase() + offerPrepSnapshot.confidence.slice(1) : "Not set"}</span></p>
-                <p className="text-muted-foreground">Last updated: <span className="text-foreground font-medium">{offerPrepUpdatedLabel}</span></p>
-              </div>
-              {offerPrepSnapshot.sheetUrl && (
-                <a
-                  href={offerPrepSnapshot.sheetUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1 text-sm text-foreground/80 hover:text-foreground"
-                >
-                  <ExternalLink className="h-2.5 w-2.5" />
-                  Open comp/calculator sheet
-                </a>
-              )}
-            </div>
-          );
-        })()}
-      </div>
-
-      <BuyerDispoVisibilityCard
-        actionMissing={buyerDispoActionMissing}
-        actionStale={buyerDispoActionStale}
-        buyerFitLabel={buyerFitLabel}
-        buyerFitToneClass={buyerFitToneClass}
-        dispoReadinessLabel={dispoReadinessLabel}
-        dispoReadinessToneClass={dispoReadinessToneClass}
-        hint={buyerDispo.hint}
-        nextStep={buyerDispo.nextStep}
-        readinessHigh={buyerDispoReadinessHigh}
-        nextActionLabel={buyerDispoNextActionLabel}
-      />
-
-      <BuyerDispoTruthCard
-        canEdit={canEditBuyerDispoTruth}
-        editing={buyerDispoTruthEditing}
-        saving={buyerDispoTruthSaving}
-        draft={buyerDispoTruthDraft}
-        buyerFitLabel={buyerDispoTruthBuyerFitLabel}
-        buyerFitToneClass={buyerDispoTruthFitToneClass}
-        dispoStatusLabel={buyerDispoTruthStatusLabel}
-        dispoStatusToneClass={buyerDispoTruthStatusToneClass}
-        readyLabel={buyerDispoReadyLabel}
-        nextStep={buyerDispoTruthSnapshot.nextStep}
-        dispoNote={buyerDispoTruthSnapshot.dispoNote}
-        updatedLabel={buyerDispoTruthUpdatedLabel}
-        onEditToggle={onBuyerDispoTruthEditToggle}
-        onDraftChange={onBuyerDispoTruthDraftChange}
-        onSave={onBuyerDispoTruthSave}
-      />
-
-      <AcquisitionsMilestoneCard
-        editing={milestoneEditing}
-        saving={milestoneSaving}
-        draft={milestoneDraft}
-        appointmentAt={cf.appointmentAt}
-        offerAmount={cf.offerAmount}
-        contractAt={cf.contractAt}
-        assignmentFeeProjected={cf.assignmentFeeProjected}
-        onEditToggle={onMilestoneEditToggle}
-        onDraftChange={onMilestoneDraftChange}
-        onSave={onSaveMilestones}
-      />
-
-      {/* Linked Buyers Summary — visible when lead has a deal with linked buyers */}
-      <LinkedBuyersSummary leadId={cf.id} />
-
-      {/* Buyer Radar — ranked buyer match panel; opens on demand */}
-      <BuyerRadarPanel leadId={cf.id} isAdminView={isAdam} />
-
-      {/* Monetizability Editor — Adam-only: manually set score + friction level */}
-      {isAdam && (
-        <MonetizabilityEditor
-          leadId={cf.id}
-          initialScore={cf.monetizabilityScore ?? null}
-          initialFriction={cf.dispoFrictionLevel ?? null}
-        />
-      )}
-
-                  </div>
-                </motion.div>
-              )}
-            </AnimatePresence>
-          </div>
-
-      {/* Dossier Block — renders only when a reviewed dossier exists for this lead */}
-      {/* leadType: absentee_landlord detected from isAbsentee flag or tag; drives renderer + source types */}
-      <DossierBlock
-        leadId={cf.id}
-        propertyId={cf.propertyId ?? null}
-        isAdminView={isAdam}
-        leadType={(cf.isAbsentee || cf.tags?.includes("absentee") || cf.tags?.includes("absentee_landlord")) ? "absentee_landlord" as LeadDossierType : undefined}
-      />
-
-      {/* Negative Intelligence — "signals worth checking"; only renders when ≥1 signal present */}
-      <NegativeIntelligenceBlock cf={cf} />
-
-      {/* Intake Guide — visible for early-stage leads (prospect/lead with 0-1 calls) */}
-      <IntakeGuideSection cf={cf} />
-
-      {showQualificationBlock && (
-        <div className="rounded-[12px] border border-overlay-6 bg-overlay-2 p-3 space-y-3">
-          <div className="flex items-center gap-2">
-            <CheckCircle2 className="h-3.5 w-3.5 text-foreground" />
-            <p className="text-sm text-muted-foreground uppercase tracking-wider font-semibold">Qualification</p>
-            {!qualificationEditable && (
-              <Badge variant="outline" className="text-xs ml-1 border-white/[0.14] text-muted-foreground">Read-only</Badge>
-            )}
-          </div>
-
-          {qualificationEditable ? (
-            <div className="space-y-3">
-              <div className="rounded-[8px] border border-overlay-8 bg-white/[0.015] px-2.5 py-2 space-y-1.5">
-                <div className="flex items-center justify-between text-sm">
-                  <span className="uppercase tracking-wider text-muted-foreground font-semibold">Qualification Completeness</span>
-                  <span className={cn(
-                    "font-semibold",
-                    qualificationCompletenessRatio >= 0.8
-                      ? "text-emerald-400"
-                      : qualificationCompletenessRatio >= 0.4
-                        ? "text-amber-400"
-                        : "text-red-400"
-                  )}>
-                    {qualificationCompleteCount}/{qualificationCompletenessTotal}
-                  </span>
-                </div>
-                <div className="h-1.5 rounded-full bg-overlay-6 overflow-hidden">
-                  <div
-                    className={cn(
-                      "h-full transition-all",
-                      qualificationCompletenessRatio >= 0.8
-                        ? "bg-emerald-500/80"
-                        : qualificationCompletenessRatio >= 0.4
-                          ? "bg-amber-500/80"
-                          : "bg-red-500/80",
-                    )}
-                    style={{ width: `${qualificationCompletenessPct}%` }}
-                  />
-                </div>
-                {qualificationMissingLabels.length > 0 ? (
-                  <p className="text-sm text-muted-foreground/75">
-                    Missing before routing: <span className="text-foreground/85">{qualificationMissingLabels.join(", ")}</span>
-                  </p>
-                ) : (
-                  <p className="text-sm text-foreground">Core qualification inputs are complete.</p>
-                )}
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
-                <div className="space-y-1.5">
-                  <p className="text-sm uppercase tracking-wider text-muted-foreground font-semibold">Motivation</p>
-                  <div className="flex items-center gap-1.5">
-                    {[1, 2, 3, 4, 5].map((level) => (
-                      <button
-                        key={level}
-                        type="button"
-                        onClick={() => onQualificationChange({ motivationLevel: level })}
-                        className={cn(
-                          "h-7 w-7 rounded-[8px] border text-sm font-semibold transition-colors",
-                          qualification.motivationLevel === level
-                            ? "border-overlay-40 bg-overlay-12 text-foreground"
-                            : "border-overlay-12 bg-overlay-4 text-muted-foreground hover:border-overlay-20"
-                        )}
-                      >
-                        {level}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                <div className="space-y-1.5">
-                  <p className="text-sm uppercase tracking-wider text-muted-foreground font-semibold">Condition</p>
-                  <div className="flex items-center gap-1.5">
-                    {[1, 2, 3, 4, 5].map((level) => (
-                      <button
-                        key={level}
-                        type="button"
-                        onClick={() => onQualificationChange({ conditionLevel: level })}
-                        className={cn(
-                          "h-7 w-7 rounded-[8px] border text-sm font-semibold transition-colors",
-                          qualification.conditionLevel === level
-                            ? "border-overlay-40 bg-overlay-12 text-foreground"
-                            : "border-overlay-12 bg-overlay-4 text-muted-foreground hover:border-overlay-20"
-                        )}
-                      >
-                        {level}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
-                <div className="space-y-1.5">
-                  <p className="text-sm uppercase tracking-wider text-muted-foreground font-semibold">Occupancy</p>
-                  <div className="flex items-center gap-1.5">
-                    {[1, 2, 3, 4, 5].map((level) => (
-                      <button
-                        key={level}
-                        type="button"
-                        onClick={() => onQualificationChange({ occupancyScore: level })}
-                        className={cn(
-                          "h-7 w-7 rounded-[8px] border text-sm font-semibold transition-colors",
-                          qualification.occupancyScore === level
-                            ? "border-overlay-40 bg-overlay-12 text-foreground"
-                            : "border-overlay-12 bg-overlay-4 text-muted-foreground hover:border-overlay-20"
-                        )}
-                      >
-                        {level}
-                      </button>
-                    ))}
-                    <span className="text-xs text-muted-foreground/60 ml-1">1=occupied · 5=vacant</span>
-                  </div>
-                </div>
-
-                <div className="space-y-1.5">
-                  <p className="text-sm uppercase tracking-wider text-muted-foreground font-semibold">Equity / Flexibility</p>
-                  <div className="flex items-center gap-1.5">
-                    {[1, 2, 3, 4, 5].map((level) => (
-                      <button
-                        key={level}
-                        type="button"
-                        onClick={() => onQualificationChange({ equityFlexibilityScore: level })}
-                        className={cn(
-                          "h-7 w-7 rounded-[8px] border text-sm font-semibold transition-colors",
-                          qualification.equityFlexibilityScore === level
-                            ? "border-overlay-40 bg-overlay-12 text-foreground"
-                            : "border-overlay-12 bg-overlay-4 text-muted-foreground hover:border-overlay-20"
-                        )}
-                      >
-                        {level}
-                      </button>
-                    ))}
-                    <span className="text-xs text-muted-foreground/60 ml-1">1=rigid · 5=flexible</span>
-                  </div>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
-                <div className="space-y-1.5">
-                  <p className="text-sm uppercase tracking-wider text-muted-foreground font-semibold">Timeline</p>
-                  <select
-                    value={qualification.sellerTimeline ?? ""}
-                    onChange={(e) => onQualificationChange({ sellerTimeline: (e.target.value || null) as SellerTimeline | null })}
-                    className="h-8 w-full rounded-[8px] border border-overlay-12 bg-overlay-4 px-2.5 text-xs text-foreground focus:outline-none focus:border-overlay-30"
-                  >
-                    <option value="">Not set</option>
-                    {SELLER_TIMELINE_OPTIONS.map((option) => (
-                      <option key={option.id} value={option.id}>{option.label}</option>
-                    ))}
-                  </select>
-                </div>
-
-                <div className="space-y-1.5">
-                  <p className="text-sm uppercase tracking-wider text-muted-foreground font-semibold">Asking Price</p>
-                  <input
-                    type="number"
-                    min={0}
-                    step={1000}
-                    value={qualification.priceExpectation ?? ""}
-                    onChange={(e) => {
-                      const value = e.target.value;
-                      onQualificationChange({
-                        priceExpectation: value === "" ? null : Math.max(0, Number.parseInt(value, 10) || 0),
-                      });
-                    }}
-                    placeholder="Optional"
-                    className="h-8 w-full rounded-[8px] border border-overlay-12 bg-overlay-4 px-2.5 text-xs text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:border-overlay-30"
-                  />
-                </div>
-              </div>
-
-              <label className="inline-flex items-center gap-2 text-xs text-foreground">
-                <input
-                  type="checkbox"
-                  checked={qualification.decisionMakerConfirmed}
-                  onChange={(e) => onQualificationChange({ decisionMakerConfirmed: e.target.checked })}
-                  className="h-3.5 w-3.5 rounded border-overlay-20 bg-overlay-4"
-                />
-                Decision maker confirmed
-              </label>
-
-              {/* Qualification Score Badge */}
-              {cf.qualificationScoreTotal != null && (
-                <div className={cn(
-                  "rounded-[8px] border px-2.5 py-2 text-sm flex items-center justify-between",
-                  cf.qualificationScoreTotal >= 25
-                    ? "border-overlay-15 bg-overlay-6 text-foreground"
-                    : cf.qualificationScoreTotal >= 18
-                      ? "border-overlay-20 bg-overlay-6 text-foreground"
-                      : cf.qualificationScoreTotal >= 12
-                        ? "border-overlay-12 bg-overlay-5 text-foreground"
-                        : "border-border/20 bg-muted/[0.06] text-foreground"
-                )}>
-                  <span>
-                    Score: <span className="font-semibold">{cf.qualificationScoreTotal}/35</span>
-                    {cf.qualificationScoreTotal >= 25 && " — Offer Ready"}
-                    {cf.qualificationScoreTotal >= 18 && cf.qualificationScoreTotal < 25 && " — Follow Up"}
-                    {cf.qualificationScoreTotal >= 12 && cf.qualificationScoreTotal < 18 && " — Nurture"}
-                    {cf.qualificationScoreTotal < 12 && " — Likely Dead"}
-                  </span>
-                </div>
-              )}
-              {/* Monetizability + Dispo Friction (Bricked AI derived) */}
-              {(cf.monetizabilityScore != null || cf.dispoFrictionLevel) && (
-                <div className="flex items-center gap-3 flex-wrap">
-                  {cf.monetizabilityScore != null && (
-                    <div className="flex items-center gap-1.5 text-xs">
-                      <span className="text-muted-foreground/50">Monetizability:</span>
-                      <span className="font-mono font-bold text-foreground">{String(cf.monetizabilityScore)}/10</span>
-                    </div>
-                  )}
-                  {cf.dispoFrictionLevel && (
-                    <div className="flex items-center gap-1.5 text-xs">
-                      <span className="text-muted-foreground/50">Dispo friction:</span>
-                      <span className="text-foreground/80">{String(cf.dispoFrictionLevel)}</span>
-                    </div>
-                  )}
-                </div>
-              )}
-              {offerReadySuggested && cf.qualificationScoreTotal == null && (
-                <div className="rounded-[8px] border border-overlay-15 bg-overlay-6 px-2.5 py-2 text-sm text-foreground">
-                  Suggestion: this lead looks <span className="font-semibold">Offer Ready</span> based on motivation, timeline, and lead score.
-                </div>
-              )}
-              {qualificationSuggestedRoute && qualificationSuggestedRoute !== qualification.qualificationRoute && (
-                <div className="rounded-[8px] border border-overlay-20 bg-overlay-6 px-2.5 py-2 text-sm text-foreground flex items-center justify-between gap-2">
-                  <span>
-                    Server suggestion: <span className="font-semibold">{qualificationRouteLabel(qualificationSuggestedRoute)}</span>
-                  </span>
-                  <Button
-                    size="sm"
-                    className="h-6 text-sm"
-                    disabled={qualificationSaving}
-                    onClick={() => onQualificationRouteSelect(qualificationSuggestedRoute)}
-                  >
-                    Accept suggestion
-                  </Button>
-                </div>
-              )}
-
-              <div className="space-y-1.5">
-                <p className="text-sm uppercase tracking-wider text-muted-foreground font-semibold">Route</p>
-                <div className="flex flex-wrap items-center gap-1.5">
-                  {QUALIFICATION_ROUTE_OPTIONS.map((route) => (
-                    <button
-                      key={route.id}
-                      type="button"
-                      disabled={qualificationSaving}
-                      onClick={() => onQualificationRouteSelect(route.id)}
-                      className={cn(
-                        "h-7 px-2.5 rounded-[8px] border text-sm font-medium transition-colors",
-                        qualification.qualificationRoute === route.id
-                          ? "border-overlay-40 bg-overlay-12 text-foreground"
-                          : "border-overlay-12 bg-overlay-4 text-muted-foreground hover:border-overlay-20",
-                        qualificationSaving && "opacity-60 cursor-not-allowed"
-                      )}
-                    >
-                      {route.label}
-                    </button>
-                  ))}
-                  <Button
-                    size="sm"
-                    className="h-7 text-sm ml-auto"
-                    disabled={qualificationSaving || !qualificationDirty}
-                    onClick={onQualificationSave}
-                  >
-                    {qualificationSaving ? <Loader2 className="h-3 w-3 animate-spin" /> : <Save className="h-3 w-3" />}
-                    Save
-                  </Button>
-                </div>
-                {qualification.qualificationRoute === "escalate" && (
-                  <p className={cn("text-sm", cf.assignedTo ? "text-foreground/85" : "text-foreground")}>
-                    {cf.assignedTo
-                      ? "Escalation creates an Adam review task. Ownership stays with the current assignee until manually reassigned."
-                      : "Escalation requires an assigned owner first. Claim or assign this lead before saving."}
-                  </p>
-                )}
-                {qualification.qualificationRoute === "offer_ready" && (
-                  <p className="text-sm text-foreground/85">
-                    Offer Ready creates an offer-prep task and keeps this lead on an active offer-prep follow-up path.
-                  </p>
-                )}
-              </div>
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-xs">
-              {qualification.motivationLevel != null && <p className="text-muted-foreground">Motivation: <span className="text-foreground font-medium">{qualification.motivationLevel}/5</span></p>}
-              {qualification.conditionLevel != null && <p className="text-muted-foreground">Condition: <span className="text-foreground font-medium">{qualification.conditionLevel}/5</span></p>}
-              {qualification.occupancyScore != null && <p className="text-muted-foreground">Occupancy: <span className="text-foreground font-medium">{qualification.occupancyScore}/5</span></p>}
-              {qualification.equityFlexibilityScore != null && <p className="text-muted-foreground">Equity/Flex: <span className="text-foreground font-medium">{qualification.equityFlexibilityScore}/5</span></p>}
-              {qualification.sellerTimeline && <p className="text-muted-foreground">Timeline: <span className="text-foreground font-medium">{qualification.sellerTimeline.replace("_", " ")}</span></p>}
-              {qualification.priceExpectation != null && <p className="text-muted-foreground">Asking Price: <span className="text-foreground font-medium">{formatCurrency(qualification.priceExpectation)}</span></p>}
-              {qualification.qualificationRoute && <p className="text-muted-foreground">Route: <span className="text-foreground font-medium">{qualificationRouteLabel(qualification.qualificationRoute)}</span></p>}
-              {qualification.qualificationRoute === "escalate" && (
-                <p className="text-foreground/85">
-                  Escalated for Adam review. Ownership remains with {cf.assignedTo ? "the assigned operator" : "the current claimant once assigned"}.
-                </p>
-              )}
-              {qualification.qualificationRoute === "offer_ready" && (
-                <p className={cn(offerPrepStale ? "text-foreground/85" : "text-foreground/85")}>
-                  Offer-prep follow-up: {offerPrepDueLabel}{offerPrepStale ? " (stale)" : ""}
-                </p>
-              )}
-              <p className="text-muted-foreground">Decision Maker: <span className="text-foreground font-medium">{qualification.decisionMakerConfirmed ? "Confirmed" : "Not confirmed"}</span></p>
-              {cf.qualificationScoreTotal != null && (
-                <p className={cn(
-                  "font-medium",
-                  cf.qualificationScoreTotal >= 25 ? "text-emerald-400" : cf.qualificationScoreTotal >= 18 ? "text-blue-400" : cf.qualificationScoreTotal >= 12 ? "text-amber-400" : "text-red-400"
-                )}>
-                  Score: {cf.qualificationScoreTotal}/35
-                </p>
-              )}
-              {cf.monetizabilityScore != null && (
-                <p className="text-muted-foreground">Monetizability: <span className="text-foreground font-medium">{cf.monetizabilityScore}/10</span></p>
-              )}
-              {cf.dispoFrictionLevel && (
-                <p className="text-muted-foreground">Dispo friction: <span className="text-foreground font-medium">{String(cf.dispoFrictionLevel)}</span></p>
-              )}
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* Advanced intelligence + metadata (collapsed by default) */}
-      <div className="rounded-[12px] border border-overlay-6 bg-white/[0.015]">
-        <button
-          onClick={() => setAdvancedOpen(!advancedOpen)}
-          className="w-full flex items-center gap-2 p-4 text-left"
-        >
-          <Eye className="h-3.5 w-3.5 text-muted-foreground" />
-          <p className="text-sm text-muted-foreground uppercase tracking-wider font-semibold">Advanced</p>
-          <span className="text-xs text-muted-foreground/50">
-            {hasDeepIntel ? "Deep Crawl + Metadata" : "Intelligence tools"}
-          </span>
-          <ChevronDown className={cn("h-3.5 w-3.5 text-muted-foreground/40 ml-auto transition-transform", advancedOpen && "rotate-180")} />
-        </button>
-
-        <AnimatePresence>
-          {advancedOpen && (
-            <motion.div
-              initial={{ height: 0, opacity: 0 }}
-              animate={{ height: "auto", opacity: 1 }}
-              exit={{ height: 0, opacity: 0 }}
-              transition={{ duration: 0.2 }}
-              className="overflow-hidden"
-            >
-              <div className="px-4 pb-4 space-y-3">
-                <div className="rounded-[10px] border border-overlay-6 bg-overlay-2 p-3">
-                  <div className="flex items-center justify-between gap-2">
-                    <p className="text-sm text-muted-foreground uppercase tracking-wider font-semibold">Deep Crawl Intelligence</p>
-                    {deepCrawlResult ? (
-                      <button
-                        onClick={() => setDeepCrawlExpanded(!deepCrawlExpanded)}
-                        className="h-6 px-2.5 rounded-md text-xs font-semibold border flex items-center gap-1 transition-colors border-overlay-15 bg-overlay-6 text-foreground hover:bg-overlay-6"
-                      >
-                        <FileText className="h-3 w-3" />
-                        {deepCrawlExpanded ? "Hide Report" : "Deep Crawl Report"}
-                      </button>
-                    ) : hasSavedReport ? (
-                      <button
-                        onClick={loadSavedReport}
-                        disabled={loadingReport}
-                        className="h-6 px-2.5 rounded-md text-xs font-semibold border flex items-center gap-1 transition-colors border-overlay-15 bg-overlay-6 text-foreground hover:bg-overlay-6"
-                      >
-                        {loadingReport ? <Loader2 className="h-3 w-3 animate-spin" /> : <FileText className="h-3 w-3" />}
-                        {loadingReport ? "Loading Report..." : "View Saved Report"}
-                      </button>
-                    ) : (
-                      <button
-                        onClick={executeDeepCrawl}
-                        disabled={deepCrawling}
-                        className="h-6 px-2.5 rounded-md text-xs font-semibold border flex items-center gap-1 transition-colors border-overlay-12 bg-overlay-5 text-muted-foreground hover:bg-overlay-5"
-                      >
-                        {deepCrawling ? <Loader2 className="h-3 w-3 animate-spin" /> : <Search className="h-3 w-3" />}
-                        {deepCrawling ? "Deep Crawling..." : "~120s Deep Crawl"}
-                      </button>
-                    )}
-                  </div>
-                  <p className="mt-2 text-sm text-muted-foreground/60">
-                    Detailed intelligence and metadata are hidden by default to keep the operator workflow focused.
-                  </p>
-                </div>
-
-                {/* SSE Progress Indicator (during active crawl) */}
-                {deepCrawling && crawlSteps.length > 0 && !deepCrawlResult && (
-                  <CrawlProgressIndicator steps={crawlSteps} />
-                )}
-
-                {/* Deep Crawl Report */}
-                {deepCrawlResult && deepCrawlExpanded && (
-                  <DeepCrawlPanel result={deepCrawlResult} onRecrawl={executeDeepCrawl} isRecrawling={deepCrawling} />
-                )}
-
-                {/* Deep Skip Report (people intelligence) */}
-                {deepCrawlExpanded && (deepSkipResult || deepCrawlResult?.deepSkip) && (
-                  <DeepSkipPanel result={deepSkipResult ?? deepCrawlResult?.deepSkip} />
-                )}
-
-                <div className="rounded-[10px] border border-overlay-6 bg-overlay-2 p-3">
-                  <p className="text-sm text-muted-foreground uppercase tracking-wider font-semibold mb-2">Metadata</p>
-                  <div className="grid grid-cols-2 gap-x-6">
-                    <InfoRow icon={Zap} label="Source" value={cf.source} />
-                    <InfoRow icon={Clock} label="Promoted" value={cf.promotedAt ? new Date(cf.promotedAt).toLocaleDateString() : null} />
-                    <InfoRow icon={Clock} label="Last Contact" value={cf.lastContactAt ? new Date(cf.lastContactAt).toLocaleDateString() : null} />
-                    <InfoRow icon={Calendar} label="Follow-Up" value={cf.followUpDate ? new Date(cf.followUpDate).toLocaleDateString() : null} />
-                    <InfoRow icon={Copy} label="Model Version" value={cf.modelVersion} />
-                    <InfoRow icon={ExternalLink} label="Radar ID" value={cf.radarId} mono />
-                    <InfoRow icon={Clock} label="Last Enriched" value={cf.ownerFlags?.last_enriched ? new Date(cf.ownerFlags.last_enriched as string).toLocaleString() : (cf.enriched ? "Enriched (time unknown)" : null)} highlight={!!cf.ownerFlags?.last_enriched} />
-                  </div>
-                  {cf.notes && (
-                    <div className="mt-2">
-                      <p className="text-sm text-muted-foreground uppercase tracking-wider mb-0.5">Notes</p>
-                      <p className="text-xs text-foreground/80">{cf.notes}</p>
-                    </div>
-                  )}
-                </div>
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
-      </div>
-
-      {/* â•â•â• 6. LEAD INTELLIGENCE — 4 Tiles â•â•â• */}
-      <div className="rounded-[12px] border border-overlay-15 bg-overlay-2 p-4 space-y-3">
-        <div className="flex items-center gap-2">
-          <TrendingUp className="h-3.5 w-3.5 text-foreground" />
-          <p className="text-sm text-foreground/80 uppercase tracking-wider font-semibold">Lead Intelligence</p>
-        </div>
-
-        <div className="grid grid-cols-2 gap-2.5">
-          {/* Composite Score */}
-          <button
-            type="button"
-            onClick={() => setScoreBreakdown("composite")}
-            className={cn("rounded-[10px] border p-3 text-left transition-all cursor-pointer hover:bg-overlay-4 group relative overflow-hidden", tc.border, tc.hoverBorder)}
-          >
-            <div className="absolute inset-0 bg-gradient-to-b from-overlay-2 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
-            <div className="flex items-center justify-between mb-1 relative z-10">
-              <p className="text-xs text-muted-foreground/60 uppercase tracking-widest">Match Score</p>
-              <span className="text-xs text-foreground/40 group-hover:text-muted-foreground transition-colors">drill &rarr;</span>
-            </div>
-            <div className="flex items-center gap-3 relative z-10">
-              <p className="text-3xl font-black tabular-nums" style={{ textShadow: `0 0 12px ${tc.glow}` }}>{cf.compositeScore}</p>
-              <div>
-                <span className={cn("text-xs font-bold px-1.5 py-0.5 rounded uppercase tracking-wider", tc.text, `${tc.bar}/20`)}>{{ platinum: "Top priority", gold: "High priority", silver: "Medium", bronze: "Low priority" }[tier]}</span>
-                <p className="text-xs text-muted-foreground/50 mt-0.5">{cf.tags.length} signal{cf.tags.length !== 1 ? "s" : ""} stacked</p>
-              </div>
-            </div>
-            <div className="h-1.5 rounded-full bg-secondary mt-2 overflow-hidden relative z-10">
-              <div className={cn("h-full rounded-full transition-all", tc.bar)} style={{ width: `${Math.min(cf.compositeScore, 100)}%` }} />
-            </div>
-            <p className="text-xs text-muted-foreground/40 mt-1 relative z-10">Score ranges: 0-30 Low, 31-50 Medium, 51-75 High, 76-100 Top</p>
-          </button>
-
-          {/* Equity & Spread */}
-          <button
-            type="button"
-            onClick={() => scrollTo(sectionEquity)}
-            className={cn("rounded-[10px] border p-3 relative overflow-hidden text-left transition-all cursor-pointer hover:bg-overlay-4 group",
-              equityIsGreen ? "border-overlay-15 bg-overlay-6 hover:border-overlay-15" : "border-overlay-6 bg-overlay-3 hover:border-overlay-12"
-            )}
-          >
-            {equityIsGreen && <div className="absolute inset-0 bg-gradient-to-b from-overlay-6 to-transparent pointer-events-none" />}
-            <div className="flex items-center justify-between mb-1 relative z-10">
-              <p className="text-xs text-muted-foreground/60 uppercase tracking-widest">Equity &amp; Spread</p>
-              <span className="text-xs text-foreground group-hover:text-foreground transition-colors">details &rarr;</span>
-            </div>
-            <div className="flex items-center gap-3 relative z-10">
-              <p className={cn("text-3xl font-black tabular-nums", equityIsGreen ? "text-foreground" : "text-foreground")}
-                style={{ textShadow: equityIsGreen ? "0 0 16px rgba(52,211,153,0.35)" : undefined }}>
-                {cf.equityPercent != null ? `${cf.equityPercent}%` : "N/A"}
-              </p>
-              <div className="text-sm text-muted-foreground space-y-0.5">
-                {cf.estimatedValue != null && <p>AVM {formatCurrency(cf.estimatedValue)}</p>}
-                {cf.availableEquity != null && <p>{formatCurrency(cf.availableEquity)} avail.</p>}
-                {estimatedOwed != null && <p>Owed ~{formatCurrency(estimatedOwed)}</p>}
-              </div>
-            </div>
-            {roomLabel && (
-              <p className={cn("text-xs mt-1.5 relative z-10 font-semibold", roomColor.split(" ")[0])}>
-                {roomLabel === "HIGH SPREAD" ? "Room to negotiate — strong equity" : roomLabel === "MODERATE" ? "Some room — watch margins" : "Tight spread — proceed with caution"}
-              </p>
-            )}
-          </button>
-
-          {/* Signal Freshness */}
-          <button
-            type="button"
-            onClick={() => scrollTo(sectionSignals)}
-            className="rounded-[10px] border border-overlay-6 bg-overlay-3 p-3 text-left transition-all cursor-pointer hover:bg-overlay-4 hover:border-overlay-12 group"
-          >
-            <div className="flex items-center justify-between mb-1">
-              <p className="text-xs text-muted-foreground/60 uppercase tracking-widest">Signal Freshness</p>
-              <span className="text-xs text-muted-foreground/40 group-hover:text-muted-foreground/70 transition-colors">timeline &rarr;</span>
-            </div>
-            {freshestEvent ? (
-              <>
-                <div className="flex items-center gap-2">
-                  <p className="text-2xl font-black text-muted-foreground" style={{ textShadow: "0 0 12px rgba(251,146,60,0.3)" }}>
-                    {freshestDays != null && freshestDays <= 0 ? "Today" : `${freshestDays}d`}
-                  </p>
-                  <p className="text-xs text-muted-foreground/50">since newest</p>
-                </div>
-                <p className="text-xs text-muted-foreground mt-1 font-semibold">
-                  {freshestDays != null && freshestDays <= 7 ? "Very fresh — call ASAP before competitors" :
-                   freshestDays != null && freshestDays <= 30 ? "Recent signal — still a warm window" :
-                   "Aging signal — may need re-verification"}
-                </p>
-              </>
-            ) : cf.tags.length > 0 ? (
-              <div className="flex items-center gap-2">
-                <AlertTriangle className="h-4 w-4 text-muted-foreground/50" />
-                <p className="text-xs text-muted-foreground/60">{cf.tags.length} signal{cf.tags.length !== 1 ? "s" : ""} detected</p>
-              </div>
-            ) : (
-              <p className="text-xs text-muted-foreground/40 italic">No active signals</p>
-            )}
-          </button>
-
-          {/* Owner Situation */}
-          <button
-            type="button"
-            onClick={() => scrollTo(sectionOwner)}
-            className="rounded-[10px] border border-overlay-6 bg-overlay-3 p-3 text-left transition-all cursor-pointer hover:bg-overlay-4 hover:border-overlay-12 group"
-          >
-            <div className="flex items-center justify-between mb-1">
-              <p className="text-xs text-muted-foreground/60 uppercase tracking-widest">Owner Situation</p>
-              <span className="text-xs text-foreground/40 group-hover:text-muted-foreground transition-colors">contact &rarr;</span>
-            </div>
-            <div className="space-y-1.5">
-              <div className="flex flex-wrap items-center gap-1">
-                {cf.isAbsentee ? (
-                  <span className="text-xs font-bold px-1.5 py-0.5 rounded bg-overlay-6/10 text-foreground border border-overlay-12">ABSENTEE</span>
-                ) : (
-                  <span className="text-xs font-bold px-1.5 py-0.5 rounded bg-overlay-6/10 text-foreground border border-overlay-15">Owner-Occupied</span>
-                )}
-                {cf.isFreeClear && <span className="text-xs font-bold px-1.5 py-0.5 rounded bg-overlay-5/10 text-muted-foreground border border-overlay-12">FREE &amp; CLEAR</span>}
-                {cf.isVacant && <span className="text-xs font-bold px-1.5 py-0.5 rounded bg-overlay-5/10 text-muted-foreground border border-overlay-12">Vacant Property</span>}
-              </div>
-              <p className="text-xs text-muted-foreground/70 font-semibold">
-                {cf.isAbsentee && ownerAge && ownerAge >= 65 ? "Elderly absentee — likely estate/caretaker situation" :
-                 cf.isAbsentee ? "Absentee owner — may be motivated to offload" :
-                 cf.isFreeClear ? "Free & clear — no mortgage pressure, but no urgency either" :
-                 yearsOwned != null && yearsOwned >= 20 ? `${yearsOwned}yr owner — long tenure, may be ready to move` :
-                 ownerAge ? `Owner ~${ownerAge} — ${ownerAge >= 65 ? "senior, life transition likely" : "younger owner"}` :
-                 "Standard owner situation"}
-              </p>
-            </div>
-          </button>
-        </div>
-      </div>
-
-      {scoreBreakdown && (
-        <ScoreBreakdownModal cf={cf} scoreType={scoreBreakdown} onClose={() => setScoreBreakdown(null)} />
-      )}
-
-      {/* â"€â"€ Quick Call Summary (compact inline) â"€â"€ */}
-      {(cf.totalCalls > 0 || cf.lastContactAt) && (
-        <div className="flex items-center gap-3 rounded-[10px] border border-overlay-6 bg-overlay-2 px-3 py-2">
-          <Phone className="h-3.5 w-3.5 text-foreground shrink-0" />
-          <p className="text-sm text-muted-foreground uppercase tracking-wider font-semibold shrink-0">Call Summary</p>
-          <div className="flex items-center gap-2 ml-2 text-sm text-foreground/80 flex-wrap">
-            {cf.lastContactAt && (
-              <span className="flex items-center gap-1">
-                <Clock className="h-3 w-3 text-muted-foreground/50" />
-                Last called: <span className="font-medium text-foreground">{(() => {
-                  const diff = Date.now() - new Date(cf.lastContactAt).getTime();
-                  const days = Math.floor(diff / (1000 * 60 * 60 * 24));
-                  if (days === 0) return "Today";
-                  if (days === 1) return "1d ago";
-                  return `${days}d ago`;
-                })()}</span>
-              </span>
-            )}
-            {cf.lastContactAt && cf.totalCalls > 0 && <span className="text-muted-foreground/30">|</span>}
-            {cf.totalCalls > 0 && (
-              <span>Total: <span className="font-medium text-foreground">{cf.totalCalls}</span></span>
-            )}
-            {cf.liveAnswers > 0 && (
-              <>
-                <span className="text-muted-foreground/30">|</span>
-                <span>Live: <span className="font-medium text-foreground">{cf.liveAnswers}</span></span>
-              </>
-            )}
-            {cf.voicemailsLeft > 0 && (
-              <>
-                <span className="text-muted-foreground/30">|</span>
-                <span>VM: <span className="font-medium text-foreground">{cf.voicemailsLeft}</span></span>
-              </>
-            )}
-            {callHistory.length > 0 && callHistory[0].disposition && (
-              <>
-                <span className="text-muted-foreground/30">|</span>
-                <span>Last: <span className="font-medium text-muted-foreground">{callHistory[0].disposition}</span></span>
-              </>
-            )}
-          </div>
-          {cf.nextCallScheduledAt && (
-            <span className="ml-auto text-sm text-muted-foreground flex items-center gap-1 shrink-0">
-              <Calendar className="h-3 w-3" />
-              Next: {new Date(cf.nextCallScheduledAt).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
-            </span>
-          )}
-        </div>
-      )}
-
-      {/* â"€â"€ Call Playbook — Grok AI (upgraded pre-call brief) â"€â"€ */}
-      {brief || briefLoading ? (
-        <div className="rounded-[12px] border border-overlay-12 bg-overlay-5 p-4 relative overflow-hidden">
-          <div className="absolute inset-0 bg-gradient-to-br from-overlay-5 via-transparent to-overlay-3 pointer-events-none" />
-          <div className="absolute top-0 inset-x-0 h-[1px] bg-gradient-to-r from-transparent via-overlay-20 to-transparent" />
-
-          <div className="flex items-center gap-2 mb-3 relative z-10">
-            <div className="h-7 w-7 rounded-[8px] bg-overlay-5/15 flex items-center justify-center">
-              <Brain className="h-3.5 w-3.5 text-muted-foreground" />
-            </div>
-            <p className="text-sm text-muted-foreground uppercase tracking-wider font-semibold">Call Playbook</p>
-            <Badge variant="outline" className="text-xs border-overlay-12 text-muted-foreground ml-1">GROK AI</Badge>
-            {briefLoading && <Loader2 className="h-3 w-3 text-muted-foreground animate-spin ml-auto" />}
-            {!briefLoading && (
-              <button
-                onClick={regenerateBrief}
-                className="ml-auto p-1 rounded-md hover:bg-overlay-5/10 transition-colors text-muted-foreground hover:text-muted-foreground"
-                title="Regenerate playbook"
-              >
-                <RefreshCw className="h-3 w-3" />
-              </button>
-            )}
-          </div>
-
-          <div className="relative z-10 space-y-3">
-            {brief ? (
-              <>
-                {/* Key Bullets */}
-                <div className="space-y-1.5">
-                  {brief.bullets.map((bullet, i) => (
-                    <div key={i} className="flex items-start gap-2 text-xs">
-                      <span className="text-muted-foreground mt-0.5 shrink-0">&#9670;</span>
-                      <p className="text-foreground/90 leading-relaxed">{bullet}</p>
-                    </div>
-                  ))}
-                </div>
-
-                {/* Suggested Opener */}
-                {brief.suggestedOpener && (
-                  <div className="pt-2 border-t border-overlay-12">
-                    <p className="text-xs text-muted-foreground uppercase tracking-widest mb-1">Suggested Opener</p>
-                    <p className="text-xs text-foreground/80 italic leading-relaxed">&ldquo;{brief.suggestedOpener}&rdquo;</p>
-                  </div>
-                )}
-
-                {/* Talking Points */}
-                {brief.talkingPoints.length > 0 && (
-                  <div className="pt-2 border-t border-overlay-12">
-                    <p className="text-xs text-muted-foreground uppercase tracking-widest mb-1.5">Talking Points</p>
-                    <div className="space-y-1">
-                      {brief.talkingPoints.map((tp, i) => (
-                        <div key={i} className="flex items-start gap-2 text-xs">
-                          <span className="text-muted-foreground mt-0.5 shrink-0 text-sm">{i + 1}.</span>
-                          <p className="text-foreground/80 leading-relaxed">{tp}</p>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {/* Objections & Rebuttals */}
-                {brief.objections.length > 0 && (
-                  <div className="pt-2 border-t border-overlay-12">
-                    <p className="text-xs text-muted-foreground uppercase tracking-widest mb-1.5">Likely Objections</p>
-                    <div className="space-y-2">
-                      {brief.objections.map((obj, i) => (
-                        <div key={i} className="rounded-[8px] border border-overlay-4 bg-overlay-2 px-3 py-2">
-                          <p className="text-xs text-foreground font-medium">&ldquo;{obj.objection}&rdquo;</p>
-                          <p className="text-xs text-foreground mt-1 pl-3 border-l-2 border-overlay-15">{obj.rebuttal}</p>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {/* Negotiation Anchor */}
-                {brief.negotiationAnchor && (
-                  <div className="pt-2 border-t border-overlay-12">
-                    <p className="text-xs text-muted-foreground uppercase tracking-widest mb-1">Negotiation Anchor</p>
-                    <p className="text-xs text-foreground/90 font-semibold">{brief.negotiationAnchor}</p>
-                  </div>
-                )}
-
-                {/* Watch-Outs */}
-                {brief.watchOuts.length > 0 && (
-                  <div className="pt-2 border-t border-overlay-12">
-                    <p className="text-xs text-foreground uppercase tracking-widest mb-1">Watch-Outs</p>
-                    <div className="space-y-1">
-                      {brief.watchOuts.map((wo, i) => (
-                        <div key={i} className="flex items-start gap-1.5 text-xs text-muted-foreground">
-                          <AlertTriangle className="h-3 w-3 mt-0.5 shrink-0" />
-                          <p>{wo}</p>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {/* Risk Flags / Contradictions */}
-                {brief.riskFlags.length > 0 && (
-                  <div className="pt-2 border-t border-overlay-12">
-                    <p className="text-xs text-muted-foreground uppercase tracking-widest mb-1">Risk Flags / Things That May Not Line Up</p>
-                    <div className="space-y-1">
-                      {brief.riskFlags.map((rf, i) => (
-                        <div key={i} className="flex items-start gap-1.5 text-xs text-foreground/85">
-                          <AlertTriangle className="h-3 w-3 mt-0.5 shrink-0" />
-                          <p>{rf}</p>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </>
-            ) : (
-              <div className="flex items-center justify-center py-4 gap-2">
-                <Loader2 className="h-4 w-4 text-muted-foreground animate-spin" />
-                <span className="text-xs text-muted-foreground">Generating playbook&hellip;</span>
-              </div>
-            )}
-          </div>
-        </div>
-      ) : (
-        /* Compact empty-state: single line instead of full card */
-        <div className="flex items-center gap-2 rounded-[10px] border border-overlay-12 bg-overlay-5 px-3 py-2">
-          <Brain className="h-3.5 w-3.5 text-muted-foreground" />
-          <div className="min-w-0">
-            <p className="text-sm text-muted-foreground/40 italic">Call script not generated yet</p>
-            <p className="text-xs text-muted-foreground/30 mt-0.5">AI will create a script based on property data and owner situation</p>
-          </div>
-          <button
-            onClick={regenerateBrief}
-            className="ml-auto flex items-center gap-1 px-2 py-0.5 rounded-md text-sm text-muted-foreground hover:text-muted-foreground hover:bg-overlay-5/10 transition-colors"
-          >
-            <RefreshCw className="h-2.5 w-2.5" />
-            Generate Call Script
-          </button>
-        </div>
-      )}
-
-      {/* â•â•â• 8. CALL HISTORY + AI NOTES (merged) â•â•â• */}
-      {(cf.totalCalls > 0 || cf.nextCallScheduledAt || summaryNotes.length > 0) && (
-        <div className="rounded-[12px] border border-overlay-6 bg-overlay-2 p-4 space-y-3">
-          <div className="flex items-center gap-2 mb-1">
-            <PhoneForwarded className="h-3.5 w-3.5 text-foreground" />
-            <p className="text-sm text-muted-foreground uppercase tracking-wider font-semibold">Call History &amp; Notes</p>
-            {cf.totalCalls > 0 && (
-              <span className="text-sm text-muted-foreground ml-auto font-medium">
-                {getCadencePosition(cf.totalCalls).label}
-              </span>
-            )}
-          </div>
-
-          {cf.totalCalls > 0 && (
-            <>
-              <div className="relative h-1.5 rounded-full bg-overlay-6 overflow-hidden">
-                <div
-                  className="absolute inset-y-0 left-0 rounded-full transition-all duration-500"
-                  style={{
-                    width: `${(getCadencePosition(cf.totalCalls).touchNumber / getCadencePosition(cf.totalCalls).totalTouches) * 100}%`,
-                    background: "linear-gradient(90deg, var(--overlay-60), var(--overlay-60))",
-                    boxShadow: "0 0 8px var(--overlay-30)",
-                  }}
-                />
-              </div>
-
-              <div className="grid grid-cols-3 gap-2">
-                <div className="rounded-[10px] border border-overlay-6 bg-overlay-3 p-2.5 text-center">
-                  <Phone className="h-3 w-3 text-foreground mx-auto mb-1" />
-                  <p className="text-lg font-bold text-foreground">{cf.totalCalls}</p>
-                  <p className="text-xs text-muted-foreground/60 uppercase tracking-wider">Total Calls</p>
-                </div>
-                <div className="rounded-[10px] border border-overlay-6 bg-overlay-3 p-2.5 text-center">
-                  <PhoneForwarded className="h-3 w-3 text-foreground mx-auto mb-1" />
-                  <p className="text-lg font-bold text-foreground">{cf.liveAnswers}</p>
-                  <p className="text-xs text-muted-foreground/60 uppercase tracking-wider">Live Answers</p>
-                </div>
-                <div className="rounded-[10px] border border-overlay-6 bg-overlay-3 p-2.5 text-center">
-                  <Voicemail className="h-3 w-3 text-foreground mx-auto mb-1" />
-                  <p className="text-lg font-bold text-foreground">{cf.voicemailsLeft}</p>
-                  <p className="text-xs text-muted-foreground/60 uppercase tracking-wider">Voicemails</p>
-                </div>
-              </div>
-
-              <div className="flex items-center gap-3">
-                {cf.lastContactAt && (
-                  <div className="flex items-center gap-1.5 text-sm text-muted-foreground/60">
-                    <Clock className="h-3 w-3" />
-                    <span>Last: {new Date(cf.lastContactAt).toLocaleDateString("en-US", { month: "short", day: "numeric" })} {new Date(cf.lastContactAt).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}</span>
-                  </div>
-                )}
-                {cf.nextCallScheduledAt && (
-                  <div className="flex items-center gap-1.5 text-sm text-muted-foreground ml-auto">
-                    <Calendar className="h-3 w-3" />
-                    <span>Next: {new Date(cf.nextCallScheduledAt).toLocaleDateString("en-US", { month: "short", day: "numeric" })} {new Date(cf.nextCallScheduledAt).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}</span>
-                  </div>
-                )}
-              </div>
-            </>
-          )}
-
-          {/* AI Call Notes inline */}
-          {summaryNotes.length > 0 && (
-            <>
-              {cf.totalCalls > 0 && <div className="border-t border-overlay-6" />}
-              <button
-                onClick={() => setNotesExpanded(!notesExpanded)}
-                className="w-full flex items-center gap-2 text-left"
-              >
-                <Zap className="h-3.5 w-3.5 text-muted-foreground" />
-                <p className="text-sm text-muted-foreground uppercase tracking-wider font-semibold">AI Call Notes</p>
-                <Badge variant="outline" className="text-xs ml-1 border-overlay-12 text-muted-foreground">{summaryNotes.length}</Badge>
-                <ChevronRight className={cn("h-3.5 w-3.5 text-muted-foreground/40 ml-auto transition-transform", notesExpanded && "rotate-90")} />
-              </button>
-
-              <AnimatePresence>
-                {notesExpanded && (
-                  <motion.div
-                    initial={{ height: 0, opacity: 0 }}
-                    animate={{ height: "auto", opacity: 1 }}
-                    exit={{ height: 0, opacity: 0 }}
-                    transition={{ duration: 0.2 }}
-                    className="overflow-hidden space-y-2"
-                  >
-                    {summaryNotes.map((note) => (
-                      <div key={note.id} className="rounded-[10px] border border-overlay-6 bg-overlay-3 p-3 space-y-1.5">
-                        <div className="flex items-center gap-2">
-                          <span className="text-xs font-semibold uppercase text-muted-foreground">{note.disposition}</span>
-                          <span className="text-xs text-muted-foreground/40">
-                            {new Date(note.started_at).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
-                            {" "}
-                            {new Date(note.started_at).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}
-                          </span>
-                          {note.duration_sec > 0 && (
-                            <span className="text-xs text-muted-foreground/40 ml-auto">{Math.floor(note.duration_sec / 60)}:{(note.duration_sec % 60).toString().padStart(2, "0")}</span>
-                          )}
-                        </div>
-                        <p className="text-sm text-muted-foreground/80 leading-relaxed whitespace-pre-line">{note.ai_summary}</p>
-                      </div>
-                    ))}
-                  </motion.div>
-                )}
-              </AnimatePresence>
-
-              {!notesExpanded && summaryNotes[0] && (
-                <p className="text-sm text-muted-foreground/60 leading-relaxed line-clamp-3 whitespace-pre-line">{summaryNotes[0].ai_summary}</p>
-              )}
-            </>
-          )}
-        </div>
-      )}
-
-      {/* â•â•â• 9. PROPERTY DETAILS — Tax/Transfer + Predictive (no address — moved to Snapshot) â•â•â• */}
-      <div ref={sectionEquity} className="rounded-[12px] border border-overlay-6 bg-overlay-2 p-4 space-y-3">
-        <div className="flex items-center gap-2 mb-1">
-          <Home className="h-3.5 w-3.5 text-muted-foreground" />
-          <p className="text-sm text-muted-foreground uppercase tracking-wider font-semibold">Property Details</p>
-          {(cf.bedrooms == null || cf.sqft == null || cf.yearBuilt == null) && (
-            <Button
-              size="sm"
-              variant="outline"
-              className="text-sm h-6 gap-1 ml-auto text-foreground border-overlay-20 hover:bg-overlay-10"
-              onClick={onAutofill}
-              disabled={autofilling}
-            >
-              {autofilling ? <Loader2 className="h-2.5 w-2.5 animate-spin" /> : <RefreshCw className="h-2.5 w-2.5" />}
-              {autofilling ? "Looking up..." : "Autofill Details"}
-            </Button>
-          )}
-        </div>
-
-        <div className="grid grid-cols-2 gap-2.5">
-          {/* Tax & Transfer Details */}
-          {(prRaw.AssessedValue || lastTransferType || cf.lastSalePrice) && (
-            <div className="rounded-[10px] border border-overlay-6 bg-overlay-3 p-2.5 col-span-2">
-              <div className="flex items-start gap-2">
-                <Banknote className="h-3.5 w-3.5 text-muted-foreground mt-0.5 shrink-0" />
-                <div className="flex-1 min-w-0">
-                  <p className="text-xs text-muted-foreground/60 uppercase tracking-widest mb-1">Tax &amp; Transfer</p>
-                  <div className="grid grid-cols-2 gap-x-4 gap-y-0.5 text-xs">
-                    {prRaw.AssessedValue && (
-                      <p className="text-muted-foreground">Tax Assessed: <span className="text-foreground font-medium">{formatCurrency(Number(prRaw.AssessedValue))}</span></p>
-                    )}
-                    {cf.lastSalePrice != null && (
-                      <p className="text-muted-foreground">Last Sale: <span className="text-foreground font-medium">{formatCurrency(cf.lastSalePrice)}</span>{cf.lastSaleDate ? ` (${new Date(cf.lastSaleDate).toLocaleDateString()})` : ""}</p>
-                    )}
-                    {lastTransferType && (
-                      <p className="text-muted-foreground">Transfer: <span className="text-foreground font-medium">{lastTransferType}</span>{lastTransferValue ? ` — ${formatCurrency(lastTransferValue)}` : ""}</p>
-                    )}
-                    {prRaw.DelinquentYear && (
-                      <p className="text-muted-foreground">Delinquent: <span className="font-medium">Year {prRaw.DelinquentYear}</span>{prRaw.NumberDelinquentInstallments ? ` (${prRaw.NumberDelinquentInstallments} installments)` : ""}</p>
-                    )}
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* Predictive Intelligence */}
-          {cf.prediction ? (
-            <div className="rounded-[10px] border border-overlay-6 bg-overlay-3 p-2.5 col-span-2">
-              <div className="flex items-start gap-2">
-                <Zap className="h-3.5 w-3.5 text-muted-foreground mt-0.5 shrink-0" />
-                <div className="flex-1 min-w-0">
-                  <p className="text-xs text-muted-foreground/60 uppercase tracking-widest mb-1">Predictive Intelligence</p>
-                  <div className="flex items-center gap-4">
-                    <div>
-                      <p className="text-xs text-muted-foreground/50 uppercase tracking-widest">Distress In</p>
-                      <p className="text-lg font-bold text-muted-foreground" style={{ textShadow: "0 0 10px rgba(251,146,60,0.3)" }}>~{cf.prediction.daysUntilDistress}d</p>
-                    </div>
-                    <div className="h-8 w-px bg-overlay-6" />
-                    <div>
-                      <p className="text-xs text-muted-foreground/50 uppercase tracking-widest">Confidence</p>
-                      <p className="text-lg font-bold text-foreground" style={{ textShadow: "0 0 10px var(--glow-soft)" }}>{cf.prediction.confidence}%</p>
-                    </div>
-                    <div className="h-8 w-px bg-overlay-6" />
-                    <div>
-                      <p className="text-xs text-muted-foreground/50 uppercase tracking-widest">Pred Score</p>
-                      <p className="text-lg font-bold text-foreground">{cf.prediction.predictiveScore}</p>
-                    </div>
-                    {cf.prediction.lifeEventProbability != null && cf.prediction.lifeEventProbability > 0.10 && (
-                      <>
-                        <div className="h-8 w-px bg-overlay-6" />
-                        <div>
-                          <p className="text-xs text-muted-foreground/50 uppercase tracking-widest">Life Event</p>
-                          <p className="text-lg font-bold text-foreground" style={{ textShadow: "0 1px 0 var(--overlay-5)" }}>{Math.round(cf.prediction.lifeEventProbability * 100)}%</p>
-                        </div>
-                      </>
-                    )}
-                  </div>
-                </div>
-              </div>
-            </div>
-          ) : (
-            <div className="flex items-center gap-2 rounded-[8px] border border-overlay-4 bg-white/[0.015] px-2.5 py-1.5 col-span-2">
-              <Zap className="h-3 w-3 text-muted-foreground/40 shrink-0" />
-              <p className="text-sm text-muted-foreground/35 italic">No predictive data yet</p>
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* â•â•â• 10. EDIT DETAILS â•â•â• */}
-      {canEdit && (
-        <button onClick={onEdit} className="flex items-center gap-1.5 px-3 py-1.5 rounded-[10px] text-sm font-semibold text-foreground bg-overlay-6 border border-overlay-15 hover:bg-overlay-10 hover:border-overlay-20 shadow-[var(--shadow-badge-glow-tight)] transition-all active:scale-[0.97]">
-          <Pencil className="h-3 w-3" />Edit Details
-        </button>
-      )}
-
-      {/* 12. Full Activity Timeline */}
-      {activityLog.length > 0 && (
-        <div className="rounded-[12px] border border-overlay-6 bg-overlay-2">
-          <button
-            onClick={() => setTimelinesOpen(!timelinesOpen)}
-            className="w-full flex items-center gap-2 p-4 text-left"
-          >
-            <Clock className="h-3.5 w-3.5 text-foreground" />
-            <p className="text-sm text-muted-foreground uppercase tracking-wider font-semibold">Full Activity Timeline</p>
-            <Badge variant="outline" className="text-xs ml-1">{activityLog.length}</Badge>
-            <span className="text-xs text-muted-foreground/45">calls, texts, updates</span>
-            <ChevronDown className={cn("h-3.5 w-3.5 text-muted-foreground/40 ml-auto transition-transform", timelinesOpen && "rotate-180")} />
-          </button>
-          <AnimatePresence>
-            {timelinesOpen && (
-              <motion.div
-                initial={{ height: 0, opacity: 0 }}
-                animate={{ height: "auto", opacity: 1 }}
-                exit={{ height: 0, opacity: 0 }}
-                transition={{ duration: 0.2 }}
-                className="overflow-hidden"
-              >
-                <div className="px-4 pb-4 space-y-2 max-h-56 overflow-y-auto scrollbar-thin">
-                  {activityLog.map((entry) => {
-                    const isCall = entry.type === "call";
-                    const isSms = entry.type === "sms";
-                    const EntryIcon = isCall ? Phone : isSms ? MessageSquare : Zap;
-                    const iconColor = isCall ? "text-foreground" : isSms ? "text-foreground" : "text-muted-foreground";
-                    const dispositionLabel = entry.disposition?.replace(/_/g, " ") ?? entry.type;
-                    const noteText = entry.notes?.replace(/\s+/g, " ").trim() ?? "";
-                    const notePreview = noteText.length === 0
-                      ? null
-                      : noteText.startsWith("{")
-                        ? "Event details logged"
-                        : (noteText.length > 96 ? `${noteText.slice(0, 96)}...` : noteText);
-                    return (
-                      <div key={entry.id} className="flex items-start justify-between gap-2.5 px-3 py-2.5 rounded-[8px] border border-overlay-4 bg-overlay-2 text-xs">
-                        <div className="flex items-start gap-2.5 min-w-0">
-                          <EntryIcon className={cn("h-3.5 w-3.5 shrink-0 mt-0.5", iconColor)} />
-                          <div className="min-w-0">
-                            <div className="flex flex-wrap items-center gap-1.5">
-                              <span className="font-semibold text-foreground capitalize">{dispositionLabel}</span>
-                              {entry.phone && <span className="text-muted-foreground/50 font-mono">***{entry.phone.slice(-4)}</span>}
-                              {entry.duration_sec != null && entry.duration_sec > 0 && (
-                                <span className="text-muted-foreground/50">{Math.floor(entry.duration_sec / 60)}:{(entry.duration_sec % 60).toString().padStart(2, "0")}</span>
-                              )}
-                            </div>
-                            {notePreview && (
-                              <p className="text-sm text-muted-foreground/60 mt-0.5 truncate max-w-[420px]">{notePreview}</p>
-                            )}
-                          </div>
-                        </div>
-                        <div className="shrink-0 text-right">
-                          <p className="text-xs text-muted-foreground/45">
-                            {new Date(entry.created_at).toLocaleDateString("en-US", { month: "short", day: "numeric" })}{" "}
-                            {new Date(entry.created_at).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}
-                          </p>
-                          <p className="text-xs text-muted-foreground/35">{formatRelativeFromNow(entry.created_at)}</p>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </motion.div>
-            )}
-          </AnimatePresence>
-        </div>
-      )}
-
-      {/* External links moved to section 3 (side-by-side with distress signals) */}
     </div>
   );
 }
-
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// ÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚Â
 // Tab: PropertyRadar Data
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// ÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚Â
 
 function PropertyRadarTab({ cf }: { cf: ClientFile }) {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -3184,16 +809,16 @@ function PropertyRadarTab({ cf }: { cf: ClientFile }) {
       {cf.enriched && (
         <div className="flex items-center gap-2 text-xs text-muted-foreground">
           <CheckCircle2 className="h-3.5 w-3.5" />
-          <span>Enriched from PropertyRadar{cf.radarId ? ` — RadarID: ${cf.radarId}` : ""}</span>
+          <span>Enriched from PropertyRadar{cf.radarId ? ` Ã¢â‚¬â€ RadarID: ${cf.radarId}` : ""}</span>
         </div>
       )}
     </div>
   );
 }
 
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// ÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚Â
 // Tab: County Records
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// ÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚Â
 
 function CountyRecordsTab({ cf }: { cf: ClientFile }) {
   const countyKey = cf.county.toLowerCase().replace(/\s+county$/i, "").trim();
@@ -3215,20 +840,20 @@ function CountyRecordsTab({ cf }: { cf: ClientFile }) {
           <div className="space-y-2">
             <a href={countyInfo.gis(cf.apn ?? "")} target="_blank" rel="noopener noreferrer">
               <Button size="sm" variant="outline" className="gap-2 text-xs w-full justify-start">
-                <Map className="h-3.5 w-3.5 text-foreground" />GIS / Parcel Map — {countyInfo.name}
+                <Map className="h-3.5 w-3.5 text-foreground" />GIS / Parcel Map Ã¢â‚¬â€ {countyInfo.name}
                 <ExternalLink className="h-3 w-3 ml-auto text-muted-foreground" />
               </Button>
             </a>
             <a href={countyInfo.assessor(cf.apn ?? "")} target="_blank" rel="noopener noreferrer">
               <Button size="sm" variant="outline" className="gap-2 text-xs w-full justify-start">
-                <Building className="h-3.5 w-3.5 text-foreground" />Assessor&apos;s Office — {countyInfo.name}
+                <Building className="h-3.5 w-3.5 text-foreground" />Assessor&apos;s Office Ã¢â‚¬â€ {countyInfo.name}
                 <ExternalLink className="h-3 w-3 ml-auto text-muted-foreground" />
               </Button>
             </a>
             {countyInfo.treasurer && (
               <a href={countyInfo.treasurer(cf.apn ?? "")} target="_blank" rel="noopener noreferrer">
                 <Button size="sm" variant="outline" className="gap-2 text-xs w-full justify-start">
-                  <DollarSign className="h-3.5 w-3.5 text-foreground" />Treasurer / Tax Records — {countyInfo.name}
+                  <DollarSign className="h-3.5 w-3.5 text-foreground" />Treasurer / Tax Records Ã¢â‚¬â€ {countyInfo.name}
                   <ExternalLink className="h-3 w-3 ml-auto text-muted-foreground" />
                 </Button>
               </a>
@@ -3254,9 +879,9 @@ function CountyRecordsTab({ cf }: { cf: ClientFile }) {
   );
 }
 
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
-// Tab: Comps & ARV — Interactive Leaflet Map + PropertyRadar Search
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// ÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚Â
+// Tab: Comps & ARV Ã¢â‚¬â€ Interactive Leaflet Map + PropertyRadar Search
+// ÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚Â
 
 function SubjectPhotoCarousel({ photos, onSkipTrace }: { photos: string[]; onSkipTrace?: () => void }) {
   const [idx, setIdx] = useState(0);
@@ -3314,7 +939,7 @@ function SubjectPhotoCarousel({ photos, onSkipTrace }: { photos: string[]; onSki
   );
 }
 
-// â"€â"€ Comp detail panel with auto-fetching Zillow photo carousel â"€â"€â"€â"€â"€â"€â"€â"€
+// ÃƒÂ¢"Ã¢â€šÂ¬ÃƒÂ¢"Ã¢â€šÂ¬ Comp detail panel with auto-fetching Zillow photo carousel ÃƒÂ¢"Ã¢â€šÂ¬ÃƒÂ¢"Ã¢â€šÂ¬ÃƒÂ¢"Ã¢â€šÂ¬ÃƒÂ¢"Ã¢â€šÂ¬ÃƒÂ¢"Ã¢â€šÂ¬ÃƒÂ¢"Ã¢â€šÂ¬ÃƒÂ¢"Ã¢â€šÂ¬ÃƒÂ¢"Ã¢â€šÂ¬
 
 function CompDetailPanel({ comp, onClose }: { comp: CompProperty; onClose: () => void }) {
   const [photos, setPhotos] = useState<string[]>([]);
@@ -3344,7 +969,7 @@ function CompDetailPanel({ comp, onClose }: { comp: CompProperty; onClose: () =>
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           setPhotos(data.photos.map((p: any) => (typeof p === "string" ? p : p?.url)).filter(Boolean));
         }
-      } catch { /* ignore — fallback to street view / satellite */ }
+      } catch { /* ignore Ã¢â‚¬â€ fallback to street view / satellite */ }
       if (!cancelled) setLoading(false);
     })();
     return () => { cancelled = true; };
@@ -3420,12 +1045,12 @@ function CompDetailPanel({ comp, onClose }: { comp: CompProperty; onClose: () =>
         {/* Property details */}
         <div className="flex-1 p-3 min-w-0">
           <div className="grid grid-cols-2 gap-x-6 gap-y-1.5 text-sm">
-            <div><span className="text-muted-foreground">Beds:</span> <span className="font-medium">{comp.beds ?? "—"}</span></div>
-            <div><span className="text-muted-foreground">Baths:</span> <span className="font-medium">{comp.baths ?? "—"}</span></div>
-            <div><span className="text-muted-foreground">Sqft:</span> <span className="font-medium">{comp.sqft?.toLocaleString() ?? "—"}</span></div>
-            <div><span className="text-muted-foreground">Year:</span> <span className="font-medium">{comp.yearBuilt ?? "—"}</span></div>
-            <div><span className="text-muted-foreground">AVM:</span> <span className="font-medium text-foreground">{comp.avm ? formatCurrency(comp.avm) : "—"}</span></div>
-            <div><span className="text-muted-foreground">Last Sale:</span> <span className="font-medium">{comp.lastSalePrice ? formatCurrency(comp.lastSalePrice) : "—"}</span></div>
+            <div><span className="text-muted-foreground">Beds:</span> <span className="font-medium">{comp.beds ?? "Ã¢â‚¬â€"}</span></div>
+            <div><span className="text-muted-foreground">Baths:</span> <span className="font-medium">{comp.baths ?? "Ã¢â‚¬â€"}</span></div>
+            <div><span className="text-muted-foreground">Sqft:</span> <span className="font-medium">{comp.sqft?.toLocaleString() ?? "Ã¢â‚¬â€"}</span></div>
+            <div><span className="text-muted-foreground">Year:</span> <span className="font-medium">{comp.yearBuilt ?? "Ã¢â‚¬â€"}</span></div>
+            <div><span className="text-muted-foreground">AVM:</span> <span className="font-medium text-foreground">{comp.avm ? formatCurrency(comp.avm) : "Ã¢â‚¬â€"}</span></div>
+            <div><span className="text-muted-foreground">Last Sale:</span> <span className="font-medium">{comp.lastSalePrice ? formatCurrency(comp.lastSalePrice) : "Ã¢â‚¬â€"}</span></div>
             {comp.lastSaleDate && (
               <div><span className="text-muted-foreground">Sale Date:</span> <span className="font-medium">{new Date(comp.lastSaleDate).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}</span></div>
             )}
@@ -3461,11 +1086,11 @@ function CompDetailPanel({ comp, onClose }: { comp: CompProperty; onClose: () =>
   );
 }
 
-// â"€â"€ Lat/Lng extraction with fallbacks â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
+// ÃƒÂ¢"Ã¢â€šÂ¬ÃƒÂ¢"Ã¢â€šÂ¬ Lat/Lng extraction with fallbacks ÃƒÂ¢"Ã¢â€šÂ¬ÃƒÂ¢"Ã¢â€šÂ¬ÃƒÂ¢"Ã¢â€šÂ¬ÃƒÂ¢"Ã¢â€šÂ¬ÃƒÂ¢"Ã¢â€šÂ¬ÃƒÂ¢"Ã¢â€šÂ¬ÃƒÂ¢"Ã¢â€šÂ¬ÃƒÂ¢"Ã¢â€šÂ¬ÃƒÂ¢"Ã¢â€šÂ¬ÃƒÂ¢"Ã¢â€šÂ¬ÃƒÂ¢"Ã¢â€šÂ¬ÃƒÂ¢"Ã¢â€šÂ¬ÃƒÂ¢"Ã¢â€šÂ¬ÃƒÂ¢"Ã¢â€šÂ¬ÃƒÂ¢"Ã¢â€šÂ¬ÃƒÂ¢"Ã¢â€šÂ¬ÃƒÂ¢"Ã¢â€šÂ¬ÃƒÂ¢"Ã¢â€šÂ¬ÃƒÂ¢"Ã¢â€šÂ¬ÃƒÂ¢"Ã¢â€šÂ¬ÃƒÂ¢"Ã¢â€šÂ¬ÃƒÂ¢"Ã¢â€šÂ¬ÃƒÂ¢"Ã¢â€šÂ¬ÃƒÂ¢"Ã¢â€šÂ¬ÃƒÂ¢"Ã¢â€šÂ¬ÃƒÂ¢"Ã¢â€šÂ¬ÃƒÂ¢"Ã¢â€šÂ¬ÃƒÂ¢"Ã¢â€šÂ¬ÃƒÂ¢"Ã¢â€šÂ¬ÃƒÂ¢"Ã¢â€šÂ¬ÃƒÂ¢"Ã¢â€šÂ¬ÃƒÂ¢"Ã¢â€šÂ¬ÃƒÂ¢"Ã¢â€šÂ¬
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 // [EXTRACTED] extractLatLng -- see extracted module files
-// â"€â"€ ARV adjustment helpers â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
+// ÃƒÂ¢"Ã¢â€šÂ¬ÃƒÂ¢"Ã¢â€šÂ¬ ARV adjustment helpers ÃƒÂ¢"Ã¢â€šÂ¬ÃƒÂ¢"Ã¢â€šÂ¬ÃƒÂ¢"Ã¢â€šÂ¬ÃƒÂ¢"Ã¢â€šÂ¬ÃƒÂ¢"Ã¢â€šÂ¬ÃƒÂ¢"Ã¢â€šÂ¬ÃƒÂ¢"Ã¢â€šÂ¬ÃƒÂ¢"Ã¢â€šÂ¬ÃƒÂ¢"Ã¢â€šÂ¬ÃƒÂ¢"Ã¢â€šÂ¬ÃƒÂ¢"Ã¢â€šÂ¬ÃƒÂ¢"Ã¢â€šÂ¬ÃƒÂ¢"Ã¢â€šÂ¬ÃƒÂ¢"Ã¢â€šÂ¬ÃƒÂ¢"Ã¢â€šÂ¬ÃƒÂ¢"Ã¢â€šÂ¬ÃƒÂ¢"Ã¢â€šÂ¬ÃƒÂ¢"Ã¢â€šÂ¬ÃƒÂ¢"Ã¢â€šÂ¬ÃƒÂ¢"Ã¢â€šÂ¬ÃƒÂ¢"Ã¢â€šÂ¬ÃƒÂ¢"Ã¢â€šÂ¬ÃƒÂ¢"Ã¢â€šÂ¬ÃƒÂ¢"Ã¢â€šÂ¬ÃƒÂ¢"Ã¢â€šÂ¬ÃƒÂ¢"Ã¢â€šÂ¬ÃƒÂ¢"Ã¢â€šÂ¬ÃƒÂ¢"Ã¢â€šÂ¬ÃƒÂ¢"Ã¢â€šÂ¬ÃƒÂ¢"Ã¢â€šÂ¬ÃƒÂ¢"Ã¢â€šÂ¬ÃƒÂ¢"Ã¢â€šÂ¬ÃƒÂ¢"Ã¢â€šÂ¬ÃƒÂ¢"Ã¢â€šÂ¬ÃƒÂ¢"Ã¢â€šÂ¬ÃƒÂ¢"Ã¢â€šÂ¬ÃƒÂ¢"Ã¢â€šÂ¬ÃƒÂ¢"Ã¢â€šÂ¬ÃƒÂ¢"Ã¢â€šÂ¬ÃƒÂ¢"Ã¢â€šÂ¬ÃƒÂ¢"Ã¢â€šÂ¬ÃƒÂ¢"Ã¢â€šÂ¬ÃƒÂ¢"Ã¢â€šÂ¬ÃƒÂ¢"Ã¢â€šÂ¬
 
 const CONDITION_LABELS: Record<number, string> = {
   [-15]: "Poor (\u201315%)",
@@ -3491,7 +1116,7 @@ function CompsTab({ cf, selectedComps, onAddComp, onRemoveComp, onSkipTrace, com
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const prRaw = (cf.ownerFlags?.pr_raw ?? {}) as Record<string, any>;
 
-  // â"€â"€ Lat/lng with multi-source fallback + geocoding â"€â"€
+  // ÃƒÂ¢"Ã¢â€šÂ¬ÃƒÂ¢"Ã¢â€šÂ¬ Lat/lng with multi-source fallback + geocoding ÃƒÂ¢"Ã¢â€šÂ¬ÃƒÂ¢"Ã¢â€šÂ¬
   const extracted = extractLatLng(cf);
   const [geocodedCoords, setGeocodedCoords] = useState<{ lat: number; lng: number } | null>(null);
   const [geocoding, setGeocoding] = useState(false);
@@ -3529,7 +1154,7 @@ function CompsTab({ cf, selectedComps, onAddComp, onRemoveComp, onSkipTrace, com
     return () => { cancelled = true; };
   }, [extracted.lat, extracted.lng, geocodedCoords, cf.fullAddress]);
 
-  // ARV adjustment state — conditionAdj lifted to parent for persistence
+  // ARV adjustment state Ã¢â‚¬â€ conditionAdj lifted to parent for persistence
   const [offerPct, setOfferPct] = useState(75);
   const [rehabEst, setRehabEst] = useState(40000);
 
@@ -3647,7 +1272,7 @@ function CompsTab({ cf, selectedComps, onAddComp, onRemoveComp, onSkipTrace, com
       if (data?.[0]?.lat && data?.[0]?.lon) {
         setGeocodedCoords({ lat: parseFloat(data[0].lat), lng: parseFloat(data[0].lon) });
       } else {
-        setGeocodeError("Could not geocode — try enriching from PropertyRadar");
+        setGeocodeError("Could not geocode Ã¢â‚¬â€ try enriching from PropertyRadar");
       }
     } catch {
       setGeocodeError("Geocoding service unavailable");
@@ -3723,7 +1348,7 @@ function CompsTab({ cf, selectedComps, onAddComp, onRemoveComp, onSkipTrace, com
 
   return (
     <div className="space-y-4">
-      {/* No-coords banner — graceful degradation */}
+      {/* No-coords banner Ã¢â‚¬â€ graceful degradation */}
       {!hasCoords && (
         <div className="rounded-[10px] border border-dashed border-overlay-12 bg-overlay-3 p-3 flex items-center justify-between gap-3">
           <div className="flex items-center gap-2 min-w-0">
@@ -4137,7 +1762,7 @@ function CompsTab({ cf, selectedComps, onAddComp, onRemoveComp, onSkipTrace, com
       {/* === RESEARCH MODE CONTENT === */}
       {researchMode && (
         <>
-          {/* Interactive map — requires coordinates */}
+          {/* Interactive map Ã¢â‚¬â€ requires coordinates */}
           {hasCoords ? (
             <CompsMap
               subject={subject}
@@ -4203,12 +1828,12 @@ function CompsTab({ cf, selectedComps, onAddComp, onRemoveComp, onSkipTrace, com
                             </div>
                           )}
                         </td>
-                        <td className="px-3 py-2 text-right">{comp.beds ?? "—"}</td>
-                        <td className="px-3 py-2 text-right">{comp.baths ?? "—"}</td>
-                        <td className="px-3 py-2 text-right">{comp.sqft?.toLocaleString() ?? "—"}</td>
-                        <td className="px-3 py-2 text-right">{comp.yearBuilt ?? "—"}</td>
-                        <td className="px-3 py-2 text-right font-medium text-foreground">{comp.avm ? formatCurrency(comp.avm) : "—"}</td>
-                        <td className="px-3 py-2 text-right">{comp.lastSalePrice ? formatCurrency(comp.lastSalePrice) : "—"}</td>
+                        <td className="px-3 py-2 text-right">{comp.beds ?? "Ã¢â‚¬â€"}</td>
+                        <td className="px-3 py-2 text-right">{comp.baths ?? "Ã¢â‚¬â€"}</td>
+                        <td className="px-3 py-2 text-right">{comp.sqft?.toLocaleString() ?? "Ã¢â‚¬â€"}</td>
+                        <td className="px-3 py-2 text-right">{comp.yearBuilt ?? "Ã¢â‚¬â€"}</td>
+                        <td className="px-3 py-2 text-right font-medium text-foreground">{comp.avm ? formatCurrency(comp.avm) : "Ã¢â‚¬â€"}</td>
+                        <td className="px-3 py-2 text-right">{comp.lastSalePrice ? formatCurrency(comp.lastSalePrice) : "Ã¢â‚¬â€"}</td>
                         <td className="px-3 py-2 text-center">
                           <button onClick={() => onRemoveComp(comp.apn)} className="text-foreground hover:text-foreground">
                             <X className="h-3 w-3" />
@@ -4285,7 +1910,7 @@ function CompsTab({ cf, selectedComps, onAddComp, onRemoveComp, onSkipTrace, com
                     </span>
                   </div>
                   <p className="text-xs text-muted-foreground/60 pt-1">
-                    {avgPpsqft != null ? `Based on ${arvRangeResult.compCount} comp${arvRangeResult.compCount > 1 ? "s" : ""} × ${subjectSqft.toLocaleString()} sqft` : `Average of ${compMetrics.length} comp sale price${compMetrics.length > 1 ? "s" : ""}`}
+                    {avgPpsqft != null ? `Based on ${arvRangeResult.compCount} comp${arvRangeResult.compCount > 1 ? "s" : ""} Ãƒâ€” ${subjectSqft.toLocaleString()} sqft` : `Average of ${compMetrics.length} comp sale price${compMetrics.length > 1 ? "s" : ""}`}
                   </p>
                 </div>
               ) : cf.estimatedValue ? (
@@ -4359,229 +1984,6 @@ function CompsTab({ cf, selectedComps, onAddComp, onRemoveComp, onSkipTrace, com
   );
 }
 
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
-// Tab: Offer Calculator
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
-
-function OfferCalcTab({ cf, computedArv, initialRepairs }: { cf: ClientFile; computedArv: number; initialRepairs?: number }) {
-  const bestArv = computedArv > 0 ? computedArv : cf.estimatedValue ?? 0;
-  const [arv, setArv] = useState(bestArv > 0 ? bestArv.toString() : "");
-
-  // Auto-fill ARV when Comps tab computes one
-  useEffect(() => { if (computedArv > 0) setArv(computedArv.toString()); }, [computedArv]);
-  // Default purchase price via canonical kernel
-  const defaultUnderwrite = bestArv > 0 ? calculateWholesaleUnderwrite({ arv: bestArv }) : null;
-  const defaultMao = defaultUnderwrite ? defaultUnderwrite.mao.toString() : "";
-  const [purchase, setPurchase] = useState(defaultMao);
-  const [rehab, setRehab] = useState((initialRepairs ?? VALUATION_DEFAULTS.rehabEstimate).toString());
-  const [holdMonths, setHoldMonths] = useState(VALUATION_DEFAULTS.holdMonths.toString());
-  const [monthlyHold, setMonthlyHold] = useState(VALUATION_DEFAULTS.monthlyHoldCost.toString());
-  const [closing, setClosing] = useState(VALUATION_DEFAULTS.closingCosts.toString());
-  const [assignmentFee, setAssignmentFee] = useState(VALUATION_DEFAULTS.assignmentFeeTarget.toString());
-
-  const arvNum = parseFloat(arv) || 0;
-  const purchaseNum = parseFloat(purchase) || 0;
-  const rehabNum = parseFloat(rehab) || 0;
-  const holdNum = (parseFloat(holdMonths) || 0) * (parseFloat(monthlyHold) || 0);
-  const closingNum = parseFloat(closing) || 0;
-  const feeNum = parseFloat(assignmentFee) || 0;
-
-  // All deal math via canonical kernel
-  const dealUnderwrite = calculateWholesaleUnderwrite({
-    arv: arvNum,
-    arvSource: computedArv > 0 ? "comps" : "avm",
-    rehabEstimate: rehabNum,
-    assignmentFeeTarget: feeNum,
-    holdingCosts: holdNum,
-    closingCosts: closingNum,
-    purchasePriceOverride: purchaseNum > 0 ? purchaseNum : undefined,
-  });
-  const mao = dealUnderwrite.mao;
-  const totalCosts = dealUnderwrite.totalCosts;
-  const grossProfit = dealUnderwrite.grossProfit;
-  const netProfit = dealUnderwrite.netProfit;
-  const roi = dealUnderwrite.roi != null ? dealUnderwrite.roi.toFixed(1) : null;
-
-  return (
-    <div className="space-y-4">
-      <Section title="Deal Inputs" icon={Calculator}>
-        {computedArv > 0 && (
-          <div className="flex items-center gap-1.5 text-sm text-muted-foreground mb-2">
-            <CheckCircle2 className="h-3 w-3" />
-            ARV auto-filled from Comps &amp; ARV tab
-          </div>
-        )}
-        <div className="grid grid-cols-2 gap-3">
-          <NumericInput label="ARV (After Repair Value)" value={arv} onChange={setArv} prefix="$" min={0} />
-          <NumericInput label="Purchase Price" value={purchase} onChange={setPurchase} prefix="$" min={0} />
-          <NumericInput label="Rehab Estimate" value={rehab} onChange={setRehab} prefix="$" min={0} />
-          <NumericInput label="Closing Costs" value={closing} onChange={setClosing} prefix="$" min={0} />
-          <NumericInput label="Holding Period (months)" value={holdMonths} onChange={setHoldMonths} min={0} max={60} allowDecimals={false} />
-          <NumericInput label="Monthly Holding Cost" value={monthlyHold} onChange={setMonthlyHold} prefix="$" min={0} />
-          <NumericInput label="Assignment Fee Target" value={assignmentFee} onChange={setAssignmentFee} prefix="$" min={0} />
-        </div>
-      </Section>
-
-      <Section title="Profit Projection" icon={TrendingUp}>
-        <div className="grid grid-cols-2 gap-3">
-          <div className="rounded-lg border border-overlay-20 bg-overlay-4 p-3 text-center">
-            <p className="text-sm text-muted-foreground uppercase">MAO (75% Rule)</p>
-            <p className="text-xl font-bold text-foreground" style={{ textShadow: "0 0 10px var(--glow-soft)" }}>
-              {mao > 0 ? formatCurrency(mao) : "—"}
-            </p>
-            <p className="text-sm text-muted-foreground mt-0.5">ARV &times; 0.75 &minus; Rehab</p>
-          </div>
-          <div className="rounded-[10px] border border-overlay-6 bg-overlay-4 p-3 text-center">
-            <p className="text-sm text-muted-foreground uppercase">Total Costs</p>
-            <p className="text-xl font-bold">{totalCosts > 0 ? formatCurrency(totalCosts) : "—"}</p>
-            <p className="text-sm text-muted-foreground mt-0.5">Purchase + Rehab + Hold + Close</p>
-          </div>
-          <div className={cn("rounded-[10px] border p-3 text-center", grossProfit > 0 ? "border-overlay-15 bg-overlay-6/5" : "border-overlay-15 bg-overlay-5/5")}>
-            <p className="text-sm text-muted-foreground uppercase">Gross Profit</p>
-            <p className={cn("text-xl font-bold", grossProfit > 0 ? "text-foreground" : "text-foreground")}>
-              {arvNum > 0 && purchaseNum > 0 ? formatCurrency(grossProfit) : "—"}
-            </p>
-            <p className="text-sm text-muted-foreground mt-0.5">ROI: {roi != null ? `${roi}%` : "—"}</p>
-          </div>
-          <div className={cn("rounded-lg border p-3 text-center", netProfit > 0 ? "border-overlay-20 bg-overlay-4" : "border-overlay-15 bg-overlay-5/5")}>
-            <p className="text-sm text-muted-foreground uppercase">Net After Assignment</p>
-            <p className={cn("text-xl font-bold", netProfit > 0 ? "text-foreground" : "text-foreground")} style={netProfit > 0 ? { textShadow: "0 0 10px var(--glow-soft)" } : undefined}>
-              {arvNum > 0 && purchaseNum > 0 ? formatCurrency(netProfit) : "—"}
-            </p>
-            <p className="text-sm text-muted-foreground mt-0.5">Gross &minus; Assignment Fee</p>
-          </div>
-        </div>
-      </Section>
-
-      {purchaseNum > mao && mao > 0 && (
-        <div className="flex items-center gap-2 text-xs text-muted-foreground bg-overlay-5/5 border border-overlay-12 rounded-md px-3 py-2">
-          <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
-          Purchase price exceeds MAO by {formatCurrency(purchaseNum - mao)} — negotiate lower or increase ARV.
-        </div>
-      )}
-    </div>
-  );
-}
-
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
-// Tab: Documents / PSA
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
-
-/** Title-case a string: "dez smith" → "Dez Smith" */
-function titleCase(str: string): string {
-  return str.replace(/\S+/g, (w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase());
-}
-
-/** Display APN — hide synthetic MANUAL- prefixed values */
-function displayApn(apn: string | null | undefined): string {
-  if (!apn || apn.startsWith("MANUAL-")) return "Per county records";
-  return apn;
-}
-
-function DocumentsTab({ cf, computedArv }: { cf: ClientFile; computedArv: number }) {
-  const today = new Date().toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" });
-  const bestArv = computedArv > 0 ? computedArv : cf.estimatedValue ?? 0;
-  // PSA prefill via canonical kernel
-  const psaUnderwrite = bestArv > 0 ? calculateWholesaleUnderwrite({ arv: bestArv }) : null;
-  const autoMao = psaUnderwrite ? formatCurrency(psaUnderwrite.mao) : "____________";
-
-  const sellerName = titleCase(cf.ownerName ?? "");
-  const countyName = titleCase(cf.county ?? "");
-  const apnDisplay = displayApn(cf.apn);
-
-  const psaBody = useMemo(() => [
-    `REAL ESTATE PURCHASE AND SALE AGREEMENT`,
-    ``,
-    `Date: ${today}`,
-    ``,
-    `BUYER: Dominion Homes LLC and/or assigns`,
-    `SELLER: ${sellerName}`,
-    ``,
-    `PROPERTY:`,
-    `  Address: ${cf.fullAddress}`,
-    `  APN: ${apnDisplay}`,
-    `  County: ${countyName}`,
-    `  Legal Description: Per county records`,
-    ``,
-    `PURCHASE PRICE: ${autoMao}`,
-    `EARNEST MONEY: $____________`,
-    `CLOSING DATE: ____________`,
-    ``,
-    `TERMS AND CONDITIONS:`,
-    `1. This agreement is subject to buyer's inspection within 10 business days.`,
-    `2. Seller shall deliver clear and marketable title at closing.`,
-    `3. Buyer reserves the right to assign this contract per RCW 61.40.010.`,
-    `4. All required disclosures per Washington State law shall be provided.`,
-    `5. Closing shall occur at a mutually agreed title company.`,
-    ``,
-    `DISCLOSURE: Buyer is a licensed real estate wholesaler operating under`,
-    `RCW 61.40.010 (Washington Wholesaling Act). Buyer intends to assign this`,
-    `contract to a third party for a fee. Seller acknowledges this disclosure.`,
-    ``,
-    `SELLER: ______________________________  Date: ____________`,
-    `         ${sellerName}`,
-    ``,
-    `BUYER:  ______________________________  Date: ____________`,
-    `         Dominion Homes LLC`,
-  ].join("\n"), [cf, today, autoMao, sellerName, countyName, apnDisplay]);
-
-  const handlePrint = useCallback(() => {
-    const w = window.open("", "_blank", "width=800,height=1100");
-    if (!w) return;
-    w.document.write(`<!DOCTYPE html><html><head><title>PSA — ${cf.fullAddress}</title>
-      <style>body{font-family:Courier,monospace;padding:40px;font-size:12px;line-height:1.6;white-space:pre-wrap;color:#000;}</style>
-      </head><body>${psaBody}</body></html>`);
-    w.document.close();
-    w.print();
-  }, [cf.fullAddress, psaBody]);
-
-  const gmailUrl = useMemo(() => {
-    const firstName = titleCase((cf.ownerName ?? "").split(" ")[0]);
-    const subject = encodeURIComponent(`PSA — ${cf.fullAddress} — ${sellerName}`);
-    const body = encodeURIComponent(`Hi ${firstName},\n\nPlease find the Purchase and Sale Agreement for the property at:\n${cf.fullAddress}\nAPN: ${apnDisplay}\n\nI'll follow up shortly to discuss terms.\n\nBest,\nAdam DesJardin\nDominion Homes LLC`);
-    return `https://mail.google.com/mail/?view=cm&su=${subject}&body=${body}`;
-  }, [cf, sellerName, apnDisplay]);
-
-  return (
-    <div className="space-y-4">
-      {/* PSA Preview */}
-      <Section title="Purchase & Sale Agreement (RCW 61.40.010)" icon={FileText}>
-        <pre className="text-sm leading-relaxed text-foreground/80 bg-overlay-2 rounded-[10px] p-4 border border-overlay-6 overflow-auto max-h-64 whitespace-pre-wrap font-mono">
-          {psaBody}
-        </pre>
-      </Section>
-
-      {/* Actions */}
-      <div className="grid grid-cols-2 gap-3">
-        <Button onClick={handlePrint} className="gap-2 h-14 text-base font-bold" style={{ boxShadow: "0 0 30px var(--shadow-medium)" }}>
-          <Printer className="h-5 w-5" />
-          CREATE PSA
-        </Button>
-        <a href={gmailUrl} target="_blank" rel="noopener noreferrer">
-          <Button variant="outline" className="gap-2 h-14 text-base font-bold w-full">
-            <Send className="h-5 w-5" />
-            Email via Gmail
-          </Button>
-        </a>
-      </div>
-
-      <div className="flex items-center gap-2 text-xs text-muted-foreground bg-overlay-4 border border-overlay-15 rounded-md px-3 py-2">
-        <Shield className="h-3.5 w-3.5 shrink-0" />
-        RCW 61.40.010 compliant — wholesaler disclosure included in all documents.
-      </div>
-
-      {/* Auto-filled data summary */}
-      <div className="text-sm text-muted-foreground/50 space-y-0.5">
-        <p>Auto-filled from client file: {cf.ownerName} {"\u2022"} {cf.fullAddress} {"\u2022"} APN {cf.apn}</p>
-        <p>Heat Score: {cf.compositeScore} ({cf.scoreLabel.toUpperCase()}) — Equity: {cf.equityPercent ?? "N/A"}% — ARV: {cf.estimatedValue ? formatCurrency(cf.estimatedValue) : "N/A"}</p>
-      </div>
-    </div>
-  );
-}
-
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
-// Main Modal
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 interface MasterClientFileModalProps {
   clientFile: ClientFile | null;
@@ -4623,7 +2025,7 @@ export function MasterClientFileModal({ clientFile: incomingClientFile, open, on
   const [computedArv, setComputedArv] = useState(
     () => (incomingClientFile?.ownerFlags?.comp_arv as number) ?? 0
   );
-  // Phase 2.5 — condition adjustment lifted from CompsTab for persistence
+  // Phase 2.5 Ã¢â‚¬â€ condition adjustment lifted from CompsTab for persistence
   const [conditionAdj, setConditionAdj] = useState(
     () => typeof (incomingClientFile?.ownerFlags as any)?.offer_prep_snapshot?.condition_adj_pct === "number"
       ? ((incomingClientFile?.ownerFlags as any).offer_prep_snapshot.condition_adj_pct as number)
@@ -4690,7 +2092,7 @@ export function MasterClientFileModal({ clientFile: incomingClientFile, open, on
   const [reassignTargetId, setReassignTargetId] = useState("");
   const [reassigning, setReassigning] = useState(false);
 
-  // â"€â"€ Deep Crawl state â"€â"€
+  // ÃƒÂ¢"Ã¢â€šÂ¬ÃƒÂ¢"Ã¢â€šÂ¬ Deep Crawl state ÃƒÂ¢"Ã¢â€šÂ¬ÃƒÂ¢"Ã¢â€šÂ¬
   const [deepCrawling, setDeepCrawling] = useState(false);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [deepCrawlResult, setDeepCrawlResult] = useState<any>(null);
@@ -4711,7 +2113,7 @@ export function MasterClientFileModal({ clientFile: incomingClientFile, open, on
     [incomingClientFile, clientFilePatch, ownerFlagsOverride],
   );
 
-  // ── Coach context: push lead state into the coach engine ──
+  // Ã¢â€â‚¬Ã¢â€â‚¬ Coach context: push lead state into the coach engine Ã¢â€â‚¬Ã¢â€â‚¬
   const qualCompleteness = useMemo(() => {
     if (!clientFile) return 0;
     let filled = 0;
@@ -4751,13 +2153,13 @@ export function MasterClientFileModal({ clientFile: incomingClientFile, open, on
     },
   );
 
-  // ── WI-7: Auto-run contradiction scan on modal open ──
+  // Ã¢â€â‚¬Ã¢â€â‚¬ WI-7: Auto-run contradiction scan on modal open Ã¢â€â‚¬Ã¢â€â‚¬
   useEffect(() => {
     if (!clientFile?.id) return;
 
-    // Fire-and-forget — don't block modal rendering
+    // Fire-and-forget Ã¢â‚¬â€ don't block modal rendering
     fetch(`/api/leads/${clientFile.id}/contradiction-scan`, { method: 'POST' })
-      .catch(() => {}); // Silent fail — contradictions are informational
+      .catch(() => {}); // Silent fail Ã¢â‚¬â€ contradictions are informational
   }, [clientFile?.id]);
 
   useEffect(() => {
@@ -4998,7 +2400,7 @@ export function MasterClientFileModal({ clientFile: incomingClientFile, open, on
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [clientFile?.propertyId, clientFile?.ownerFlags]);
 
-  // Fetch dial history for this lead — groups calls_log by phone_dialed
+  // Fetch dial history for this lead Ã¢â‚¬â€ groups calls_log by phone_dialed
   const fetchDialHistory = useCallback(async () => {
     if (!clientFile?.id) return;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -5268,7 +2670,7 @@ export function MasterClientFileModal({ clientFile: incomingClientFile, open, on
     }
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) {
-      toast.error("Not logged in — cannot move stage");
+      toast.error("Not logged in Ã¢â‚¬â€ cannot move stage");
       return;
     }
 
@@ -5434,7 +2836,7 @@ export function MasterClientFileModal({ clientFile: incomingClientFile, open, on
     try {
       const nowIso = new Date().toISOString();
 
-      // Phase 2.5 — Build full valuation snapshot via kernel + freeze comps
+      // Phase 2.5 Ã¢â‚¬â€ Build full valuation snapshot via kernel + freeze comps
       const subjectSqft = clientFile.sqft ?? 0;
       const compMetrics: CompMetric[] = selectedComps
         .filter((c) => (c.lastSalePrice ?? c.avm ?? 0) > 0)
@@ -5509,7 +2911,7 @@ export function MasterClientFileModal({ clientFile: incomingClientFile, open, on
               sheet_url: sheetUrl,
               updated_at: nowIso,
               updated_by: currentUserName ?? currentUserId ?? null,
-              // Phase 2.5 — full valuation packet
+              // Phase 2.5 Ã¢â‚¬â€ full valuation packet
               formula_version: FORMULA_VERSION,
               formula_mode: valuationSnapshot.formulaMode,
               arv_low: arvRange.arvLow || null,
@@ -5873,7 +3275,7 @@ export function MasterClientFileModal({ clientFile: incomingClientFile, open, on
     setSavingNote(true);
     try {
       // Write note as a calls_log entry so it appears in the unified activity timeline
-      // alongside call notes, stage changes, and system events — one timeline, not two.
+      // alongside call notes, stage changes, and system events Ã¢â‚¬â€ one timeline, not two.
       const now = new Date().toISOString();
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { error: insertErr } = await (supabase.from("calls_log") as any).insert({
@@ -6051,7 +3453,7 @@ export function MasterClientFileModal({ clientFile: incomingClientFile, open, on
         body: JSON.stringify({ leadId: clientFile.id }),
       });
       if (!res.ok) {
-        toast.error("Could not save consent — try again");
+        toast.error("Could not save consent Ã¢â‚¬â€ try again");
         return;
       }
     } catch {
@@ -6100,7 +3502,7 @@ export function MasterClientFileModal({ clientFile: incomingClientFile, open, on
         toast.error(data.error ?? "SMS failed");
       }
     } catch {
-      toast.error("Network error — SMS failed");
+      toast.error("Network error Ã¢â‚¬â€ SMS failed");
     } finally {
       setSmsSending(false);
     }
@@ -6191,7 +3593,7 @@ export function MasterClientFileModal({ clientFile: incomingClientFile, open, on
         if (data.phones?.length) parts.push(`${data.phones.length} phone(s)`);
         if (data.emails?.length) parts.push(`${data.emails.length} email(s)`);
         if (data.persons?.length) parts.push(`${data.persons.length} person(s)`);
-        setSkipTraceResult(parts.length > 0 ? `Found ${parts.join(", ")}` : "Complete — no contact info found");
+        setSkipTraceResult(parts.length > 0 ? `Found ${parts.join(", ")}` : "Complete Ã¢â‚¬â€ no contact info found");
         console.log(`[SkipTrace Perf] Total: ${total}ms | API: ${Math.round(tApi - t0)}ms`);
         onRefresh?.();
       } else {
@@ -6219,7 +3621,7 @@ export function MasterClientFileModal({ clientFile: incomingClientFile, open, on
   const handleSkipTrace = useCallback(() => executeSkipTrace(false), [executeSkipTrace]);
   const handleManualSkipTrace = useCallback(() => executeSkipTrace(true), [executeSkipTrace]);
 
-  // â"€â"€ Deep Crawl handler â"€â"€
+  // ÃƒÂ¢"Ã¢â€šÂ¬ÃƒÂ¢"Ã¢â€šÂ¬ Deep Crawl handler ÃƒÂ¢"Ã¢â€šÂ¬ÃƒÂ¢"Ã¢â€šÂ¬
   const executeDeepCrawl = useCallback(async () => {
     if (!clientFile) return;
     setDeepCrawling(true);
@@ -6243,7 +3645,7 @@ export function MasterClientFileModal({ clientFile: incomingClientFile, open, on
       // Check if this is an SSE stream or regular JSON (cached responses are still JSON)
       const contentType = res.headers.get("content-type") ?? "";
       if (contentType.includes("text/event-stream") && res.body) {
-        // SSE streaming mode — read events as they arrive
+        // SSE streaming mode Ã¢â‚¬â€ read events as they arrive
         const reader = res.body.getReader();
         const decoder = new TextDecoder();
         let buffer = "";
@@ -6265,7 +3667,7 @@ export function MasterClientFileModal({ clientFile: incomingClientFile, open, on
               const event = JSON.parse(dataLine.slice(6));
 
               if (event.phase === "complete" && event.result) {
-                // Final event — the full result
+                // Final event Ã¢â‚¬â€ the full result
                 setDeepCrawlResult(event.result);
                 setHasSavedReport(true);
                 // deepSkip is sent as a sibling field (not nested inside result)
@@ -6305,7 +3707,7 @@ export function MasterClientFileModal({ clientFile: incomingClientFile, open, on
                     });
                   }
                 }
-                toast.success(`Deep Crawl complete — ${event.result.sources?.join(", ") ?? "done"}`);
+                toast.success(`Deep Crawl complete Ã¢â‚¬â€ ${event.result.sources?.join(", ") ?? "done"}`);
                 // Also re-fetch from parent to get full updated data
                 onRefresh?.();
               } else if (event.phase === "error") {
@@ -6339,7 +3741,7 @@ export function MasterClientFileModal({ clientFile: incomingClientFile, open, on
           setHasSavedReport(true);
           // Backward compat: cached results may still have nested deepSkip
           if (data.deepSkip) setDeepSkipResult(data.deepSkip);
-          toast.success(`Deep Crawl complete — ${data.sources?.join(", ") ?? "done"}`);
+          toast.success(`Deep Crawl complete Ã¢â‚¬â€ ${data.sources?.join(", ") ?? "done"}`);
           onRefresh?.();
         }
       }
@@ -6368,10 +3770,10 @@ export function MasterClientFileModal({ clientFile: incomingClientFile, open, on
       } else if (data.success && data.filled?.length === 0) {
         toast.info("All property details already populated");
       } else {
-        // ATTOM failed — offer Zillow link
+        // ATTOM failed Ã¢â‚¬â€ offer Zillow link
         const zUrl = data.zillow_url;
         toast.error(
-          `${data.error ?? "Autofill failed"}${zUrl ? " — opening Zillow for manual lookup" : ""}`,
+          `${data.error ?? "Autofill failed"}${zUrl ? " Ã¢â‚¬â€ opening Zillow for manual lookup" : ""}`,
           { duration: 6000 },
         );
         if (zUrl) window.open(zUrl, "_blank", "noopener,noreferrer");
@@ -6467,7 +3869,7 @@ export function MasterClientFileModal({ clientFile: incomingClientFile, open, on
               data-operator-safe
             >
             <div className="flex-1 overflow-hidden flex flex-col min-w-0">
-              {/* Header — compact */}
+              {/* Header Ã¢â‚¬â€ compact */}
               <div className="shrink-0 border-b border-overlay-6 bg-panel-solid backdrop-blur-2xl rounded-t-[16px]">
                 <div className="flex items-start justify-between gap-4 px-4 py-2.5">
                   <div className="min-w-0 space-y-1">
@@ -6484,9 +3886,9 @@ export function MasterClientFileModal({ clientFile: incomingClientFile, open, on
                     </div>
                     <div className="flex items-center gap-2 text-xs text-muted-foreground">
                       <span className="truncate">{clientFile.fullAddress}</span>
-                      <span className="shrink-0">·</span>
+                      <span className="shrink-0">Ã‚Â·</span>
                       <span className="shrink-0">{marketLabel}</span>
-                      <span className="shrink-0">·</span>
+                      <span className="shrink-0">Ã‚Â·</span>
                       <Badge variant="outline" className="text-xs gap-1 border-overlay-20 text-foreground shrink-0">
                         <Target className="h-2.5 w-2.5" />{currentStageLabel}
                       </Badge>
@@ -6526,7 +3928,7 @@ export function MasterClientFileModal({ clientFile: incomingClientFile, open, on
                 </div>
               </div>
 
-              {/* Primary operator actions — single compact row */}
+              {/* Primary operator actions Ã¢â‚¬â€ single compact row */}
               <div className="shrink-0 px-4 py-2 border-b border-overlay-6 bg-panel-deep">
                 <div className="flex flex-wrap items-center gap-1.5">
                   {needsConsent ? (
@@ -6594,56 +3996,8 @@ export function MasterClientFileModal({ clientFile: incomingClientFile, open, on
                   >
                     <CheckCircle2 className="h-3 w-3 text-foreground" />Log Outcome
                   </Button>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className={cn(
-                      "gap-1.5 h-7",
-                      missingNextAction
-                        ? "border-amber-500/30 bg-amber-500/[0.08] text-amber-300 hover:bg-amber-500/[0.12]"
-                        : "border-overlay-12 hover:border-overlay-12 hover:bg-overlay-5"
-                    )}
-                    onClick={() => {
-                      setNextActionEditorOpen((v) => !v);
-                      setCloseoutOpen(false);
-                    }}
-                  >
-                    <Calendar className="h-3 w-3" />{missingNextAction ? "Set Next Action" : "Edit Next Action"}
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="gap-1.5 h-7 border-white/[0.14] hover:border-overlay-25 hover:bg-overlay-6"
-                    onClick={() => {
-                      setNoteEditorOpen((v) => !v);
-                      setCloseoutOpen(false);
-                    }}
-                  >
-                    <FileText className="h-3 w-3" />Note
-                  </Button>
-                  {clientFile && (
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      className="gap-1.5 h-7 border-overlay-15 hover:border-overlay-35 hover:bg-overlay-5 text-foreground/80"
-                      onClick={async () => {
-                        const { data: { session } } = await supabase.auth.getSession();
-                        const res = await fetch(`/api/leads/${clientFile.id}/queue`, {
-                          method: "POST",
-                          headers: {
-                            "Content-Type": "application/json",
-                            ...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}),
-                          },
-                        });
-                        if (res.ok) toast.success("Added to call queue");
-                        else toast.error("Could not add to queue");
-                      }}
-                    >
-                      <ListPlus className="h-3 w-3" />Queue
-                    </Button>
-                  )}
 
-                  {/* Secondary: owner + stage — pushed right */}
+                  {/* Secondary: owner + assign Ã¢â‚¬â€ pushed right */}
                   <div className="ml-auto flex items-center gap-1.5">
                     {!(isAssignedToCurrentUser && assignmentOptions.length > 0) && !isAssignedToCurrentUser && (
                       <Button
@@ -6681,37 +4035,10 @@ export function MasterClientFileModal({ clientFile: incomingClientFile, open, on
                         </Button>
                       </div>
                     )}
-                    <select
-                      value={selectedStage}
-                      onChange={(e) => setSelectedStage(e.target.value as WorkflowStageId)}
-                      disabled={stageUpdating}
-                      className="h-7 rounded-[6px] border border-overlay-10 bg-overlay-4 px-2 text-sm text-foreground focus:outline-none focus:border-overlay-30"
-                      aria-label="Move lead stage"
-                    >
-                      {WORKFLOW_STAGE_OPTIONS.map((stage) => (
-                        <option key={stage.id} value={stage.id}>{stage.label}</option>
-                      ))}
-                    </select>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      className="gap-1 h-7 text-sm border-overlay-20 hover:border-overlay-40 hover:bg-overlay-6"
-                      disabled={stageUpdating || !stageChanged || !stagePrecheck.ok}
-                      onClick={handleMoveStage}
-                    >
-                      {stageUpdating ? <Loader2 className="h-3 w-3 animate-spin" /> : <ArrowRight className="h-3 w-3" />}
-                      Move
-                    </Button>
                   </div>
                 </div>
-                {stageChanged && !stagePrecheck.ok && (
-                  <p className="mt-2 text-sm text-foreground">
-                    Before moving to {workflowStageLabel(selectedStage)}:{" "}
-                    <span className="font-medium">{stagePrecheck.requiredActions[0]}</span>
-                  </p>
-                )}
-                {(closeoutOpen || nextActionEditorOpen || noteEditorOpen) && (
-                  <div className="mt-2 grid grid-cols-1 lg:grid-cols-3 gap-2">
+                {closeoutOpen && (
+                  <div className="mt-2">
                     {closeoutOpen && (
                       <div className="rounded-[10px] border border-overlay-20 bg-overlay-6 p-2.5 space-y-2">
                         <div className="flex items-center justify-between gap-2">
@@ -6837,74 +4164,6 @@ export function MasterClientFileModal({ clientFile: incomingClientFile, open, on
                         </div>
                       </div>
                     )}
-                    {nextActionEditorOpen && (
-                      <div className="rounded-[10px] border border-overlay-12 bg-overlay-5 p-2.5 space-y-2">
-                        <p className="text-sm uppercase tracking-wider font-semibold text-foreground">Next Action</p>
-                        <input
-                          type="datetime-local"
-                          value={nextActionAt}
-                          onChange={(e) => setNextActionAt(e.target.value)}
-                          className="h-8 w-full rounded-[8px] border border-overlay-12 bg-overlay-4 px-2.5 text-xs text-foreground focus:outline-none focus:border-overlay-30"
-                        />
-                        <div className="flex items-center gap-2">
-                          <Button
-                            size="sm"
-                            className="h-7 text-sm"
-                            disabled={settingNextAction}
-                            onClick={handleSetNextAction}
-                          >
-                            {settingNextAction ? <Loader2 className="h-3 w-3 animate-spin" /> : <Save className="h-3 w-3" />}
-                            {nextActionAt ? "Save Next Action" : "Clear Next Action"}
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            className="h-7 text-sm text-muted-foreground"
-                            onClick={() => {
-                              setNextActionAt(toLocalDateTimeInput(clientFile.nextCallScheduledAt ?? clientFile.followUpDate));
-                              setNextActionEditorOpen(false);
-                            }}
-                          >
-                            Cancel
-                          </Button>
-                        </div>
-                      </div>
-                    )}
-                    {noteEditorOpen && (
-                      <div className="rounded-[10px] border border-overlay-12 bg-overlay-3 p-2.5 space-y-2">
-                        <p className="text-sm uppercase tracking-wider font-semibold text-muted-foreground">Lead Note</p>
-                        <textarea
-                          value={noteDraft}
-                          onChange={(e) => setNoteDraft(e.target.value)}
-                          placeholder="Add operator note, outcome, or seller update..."
-                          className="w-full h-20 rounded-[8px] border border-overlay-12 bg-overlay-4 px-2.5 py-2 text-xs text-foreground placeholder:text-muted-foreground/50 resize-none focus:outline-none focus:border-overlay-30"
-                          maxLength={1000}
-                        />
-                        <div className="flex items-center gap-2">
-                          <Button
-                            size="sm"
-                            className="h-7 text-sm"
-                            disabled={savingNote || !noteDraft.trim()}
-                            onClick={handleAppendNote}
-                          >
-                            {savingNote ? <Loader2 className="h-3 w-3 animate-spin" /> : <Save className="h-3 w-3" />}
-                            Save Note
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            className="h-7 text-sm text-muted-foreground"
-                            onClick={() => {
-                              setNoteDraft("");
-                              setNoteEditorOpen(false);
-                            }}
-                          >
-                            Cancel
-                          </Button>
-                          <span className="ml-auto text-xs text-muted-foreground/50">{noteDraft.length}/1000</span>
-                        </div>
-                      </div>
-                    )}
                   </div>
                 )}
               </div>
@@ -6913,7 +4172,7 @@ export function MasterClientFileModal({ clientFile: incomingClientFile, open, on
               <div className="shrink-0 px-4 py-1.5 border-b border-overlay-6 bg-[rgba(8,10,18,0.55)]">
                 {(clientFile.status === "prospect" || clientFile.status === "staging") ? (
                   <div className="flex items-center gap-2">
-                    <span className="text-sm text-muted-foreground">Prospect — not in pipeline yet.</span>
+                    <span className="text-sm text-muted-foreground">Prospect Ã¢â‚¬â€ not in pipeline yet.</span>
                     <button
                       type="button"
                       className="flex items-center gap-1 px-2 py-0.5 rounded-md text-sm font-semibold text-foreground hover:bg-overlay-10 border border-overlay-25 transition-colors"
@@ -6933,7 +4192,7 @@ export function MasterClientFileModal({ clientFile: incomingClientFile, open, on
                     </span>
                     <span className={cn(missingNextAction ? "text-foreground font-semibold" : "text-muted-foreground")}>
                       Next: <span className={cn(missingNextAction ? "" : "text-foreground")}>
-                        {missingNextAction ? "Not set — needs action" : `${nextActionView.label} · ${formatDateTimeShort(nextActionIso)}`}
+                        {missingNextAction ? "Not set Ã¢â‚¬â€ needs action" : `${nextActionView.label} Ã‚Â· ${formatDateTimeShort(nextActionIso)}`}
                       </span>
                     </span>
                     <span className="text-muted-foreground">
@@ -6976,65 +4235,9 @@ export function MasterClientFileModal({ clientFile: incomingClientFile, open, on
                       <OverviewTab
                         cf={overviewClientFile}
                         computedArv={computedArv}
-                        skipTracing={skipTracing}
-                        skipTraceResult={skipTraceResult}
-                        skipTraceMs={skipTraceMs}
-                        overlay={overlay}
-                        skipTraceError={skipTraceError}
-                        onSkipTrace={handleSkipTrace}
-                        onManualSkipTrace={handleManualSkipTrace}
-                        onEdit={() => setEditOpen(true)}
-                        onDial={handleDial}
-                        onSms={handleSendSms}
-                        calling={calling}
-                        dialHistory={dialHistoryMap}
-                        autofilling={autofilling}
-                        onAutofill={handleAutofill}
-                        deepCrawling={deepCrawling}
-                        deepCrawlResult={deepCrawlResult}
-                        deepCrawlExpanded={deepCrawlExpanded}
-                        setDeepCrawlExpanded={setDeepCrawlExpanded}
-                        executeDeepCrawl={executeDeepCrawl}
-                        hasSavedReport={hasSavedReport}
-                        loadingReport={loadingReport}
-                        loadSavedReport={loadSavedReport}
-                        crawlSteps={crawlSteps}
-                        deepSkipResult={deepSkipResult}
                         activityRefreshToken={activityRefreshToken}
-                        qualification={qualificationDraft}
-                        qualificationDirty={qualificationDirty}
-                        qualificationSaving={qualificationSaving}
-                        qualificationEditable={qualificationEditable}
-                        qualificationSuggestedRoute={qualificationSuggestedRoute}
-                        onQualificationChange={handleQualificationChange}
-                        onQualificationRouteSelect={handleQualificationRouteSelect}
-                        onQualificationSave={() => void persistQualification()}
-                        offerPrepDraft={offerPrepDraft}
-                        offerPrepEditing={offerPrepEditing}
-                        offerPrepSaving={offerPrepSaving}
-                        onOfferPrepDraftChange={handleOfferPrepDraftChange}
-                        onOfferPrepEditToggle={setOfferPrepEditing}
-                        onOfferPrepSave={() => void handleSaveOfferPrepSnapshot()}
-                        offerStatusDraft={offerStatusDraft}
-                        offerStatusEditing={offerStatusEditing}
-                        offerStatusSaving={offerStatusSaving}
-                        onOfferStatusDraftChange={handleOfferStatusDraftChange}
-                        onOfferStatusEditToggle={setOfferStatusEditing}
-                        onOfferStatusSave={() => void handleSaveOfferStatusSnapshot()}
-                        buyerDispoTruthDraft={buyerDispoTruthDraft}
-                        buyerDispoTruthEditing={buyerDispoTruthEditing}
-                        buyerDispoTruthSaving={buyerDispoTruthSaving}
-                        onBuyerDispoTruthDraftChange={handleBuyerDispoTruthDraftChange}
-                        onBuyerDispoTruthEditToggle={setBuyerDispoTruthEditing}
-                        onBuyerDispoTruthSave={() => void handleSaveBuyerDispoTruthSnapshot()}
-                        milestoneDraft={milestoneDraft}
-                        milestoneEditing={milestoneEditing}
-                        milestoneSaving={milestoneSaving}
-                        onMilestoneDraftChange={handleMilestoneDraftChange}
-                        onMilestoneEditToggle={setMilestoneEditing}
-                        onSaveMilestones={handleSaveMilestones}
-                        isAdam={currentUserName?.toLowerCase().includes("adam") ?? false}
-                        onEditNextAction={() => { setNextActionEditorOpen(true); setCloseoutOpen(false); }}
+                        onDial={handleDial}
+                        calling={calling}
                       />
                     )}
                     {activeTab === "contact" && (
@@ -7062,8 +4265,6 @@ export function MasterClientFileModal({ clientFile: incomingClientFile, open, on
                         <CompsTab cf={clientFile} selectedComps={selectedComps} onAddComp={handleAddComp} onRemoveComp={handleRemoveComp} onSkipTrace={handleSkipTrace} computedArv={computedArv} onArvChange={handleArvChange} conditionAdj={conditionAdj} onConditionAdjChange={setConditionAdj} />
                       )
                     )}
-                    {activeTab === "calculator" && <OfferCalcTab cf={clientFile} computedArv={computedArv} initialRepairs={((clientFile?.ownerFlags?.bricked_repair_cost as number) ?? 0) > 0 ? (clientFile?.ownerFlags?.bricked_repair_cost as number) : undefined} />}
-                    {activeTab === "documents" && <DocumentsTab cf={clientFile} computedArv={computedArv} />}
                   </motion.div>
                 </AnimatePresence>
               </div>
