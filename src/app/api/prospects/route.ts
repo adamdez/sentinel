@@ -1167,7 +1167,12 @@ export async function POST(req: NextRequest) {
       if (bathrooms) baseProperty.bathrooms = toFloat(bathrooms);
       if (sqft) baseProperty.sqft = toInt(sqft);
       if (year_built) baseProperty.year_built = toInt(year_built);
-      if (lot_size) baseProperty.lot_size = toFloat(lot_size);
+      if (lot_size) {
+        const raw = parseFloat(String(lot_size));
+        if (!isNaN(raw) && raw > 0) {
+          baseProperty.lot_size = raw < 500 ? Math.round(raw * 43560) : Math.round(raw);
+        }
+      }
 
       console.log("[API/prospects POST] Upserting property:", JSON.stringify(baseProperty));
 

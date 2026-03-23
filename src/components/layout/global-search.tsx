@@ -425,12 +425,24 @@ export function GlobalSearch() {
         rawPayload: data,
       };
 
-      // Open the new-prospect-modal pre-filled with Bricked data
+      // Backfill APN from GIS if Bricked didn't return one
+      if (!brickedData.apn && brickedData.address) {
+        const gisCounty = brickedData.county || "spokane";
+        fetch(`/api/gis/apn-lookup?address=${encodeURIComponent(brickedData.address)}&county=${encodeURIComponent(gisCounty)}`, {
+          headers,
+        })
+          .then((r) => r.ok ? r.json() : null)
+          .then((gis) => { if (gis?.apn) brickedData.apn = gis.apn; })
+          .catch(() => {})
+          .finally(() => openModal("new-prospect", { brickedData }));
+      } else {
+        openModal("new-prospect", { brickedData });
+      }
+
       setQuery("");
       closeDropdown();
       resetSessionToken();
       inputRef.current?.blur();
-      openModal("new-prospect", { brickedData });
     } catch {
       setResults([{
         id: "__error__",

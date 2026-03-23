@@ -211,7 +211,12 @@ export function NewProspectModal() {
         year_built: bricked.yearBuilt != null ? String(Math.round(bricked.yearBuilt)) : prev.year_built,
         lot_size: lotAcres || prev.lot_size,
         estimated_value: bricked.cmv != null ? String(Math.round(Number(bricked.cmv))) : prev.estimated_value,
-        equity_percent: bricked.equityEstimate != null ? String(Math.round(bricked.equityEstimate)) : prev.equity_percent,
+        equity_percent: (() => {
+          const eqDollars = Number(bricked.equityEstimate);
+          const cmv = Number(bricked.cmv);
+          if (eqDollars && cmv && cmv > 0) return String(Math.round((eqDollars / cmv) * 100));
+          return prev.equity_percent;
+        })(),
         source: "bricked_search",
         source_channel: "manual",
       }));
