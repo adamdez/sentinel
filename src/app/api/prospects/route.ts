@@ -1201,7 +1201,6 @@ export async function POST(req: NextRequest) {
     const leadRow: any = {
       property_id: property.id,
       status: isAssigned || sourceChannel === "manual" || sourceChannel === "csv_import" || sourceChannel === "vendor_inbound" || sourceChannel === "webform" ? "lead" : "prospect",
-      priority: null,
       source: sourceChannel,
       tags,
       notes: notes?.trim() || (sourceChannel === "manual" ? "Manually added prospect" : "Imported prospect"),
@@ -1372,9 +1371,12 @@ export async function POST(req: NextRequest) {
     let effectiveBrickedData = bricked_data;
     if (!effectiveBrickedData && address?.trim() && !skip_auto_bricked) {
       try {
+        const brickedHeaders: Record<string, string> = { "Content-Type": "application/json" };
+        const incomingAuth = req.headers.get("authorization");
+        if (incomingAuth) brickedHeaders["Authorization"] = incomingAuth;
         const brickedRes = await fetch(new URL("/api/bricked/analyze", req.nextUrl.origin), {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: brickedHeaders,
           body: JSON.stringify({ address: address.trim() }),
         });
         if (brickedRes.ok) {
