@@ -566,6 +566,81 @@ export function ContactTab({ cf, overlay, onSkipTrace, skipTracing, onDial, onSm
           </div>
         </div>
       )}
+
+      {/* ── Text Messages ── */}
+      <LeadSmsPreview phone={cf.ownerPhone ?? null} onSms={onSms} />
+    </div>
+  );
+}
+
+// ── Inline SMS preview for the Contact tab ───────────────────────────
+
+function LeadSmsPreview({ phone, onSms }: { phone: string | null; onSms: (phone: string) => void }) {
+  const [messages, setMessages] = useState<Array<{ id: string; direction: string; body: string; created_at: string }>>([]);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (!phone) return;
+    let active = true;
+    setLoading(true);
+    (async () => {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        const headers: Record<string, string> = { "Content-Type": "application/json" };
+        if (session?.access_token) headers["Authorization"] = `Bearer ${session.access_token}`;
+
+        const digits = phone.replace(/\D/g, "").slice(-10);
+        const e164 = `+1${digits}`;
+        const res = await fetch(`/api/twilio/sms/threads/${encodeURIComponent(e164)}?limit=5`, { headers });
+        if (res.ok && active) {
+          const data = await res.json();
+          setMessages((data.messages ?? []).slice(-5));
+        }
+      } catch { /* silent */ }
+      if (active) setLoading(false);
+    })();
+    return () => { active = false; };
+  }, [phone]);
+
+  if (!phone) return null;
+
+  return (
+    <div className="rounded-[12px] border border-overlay-6 bg-overlay-2 p-4 space-y-3">
+      <div className="flex items-center justify-between">
+        <p className="text-sm text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
+          <MessageSquare className="h-3 w-3" />Text Messages
+        </p>
+        <button
+          onClick={() => onSms(phone)}
+          className="text-xs text-primary hover:text-primary/80 transition-colors"
+        >
+          Send Text
+        </button>
+      </div>
+
+      {loading ? (
+        <div className="flex items-center justify-center py-3">
+          <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground/40" />
+        </div>
+      ) : messages.length === 0 ? (
+        <p className="text-xs text-muted-foreground/40 py-2">No text messages with this number</p>
+      ) : (
+        <div className="space-y-2">
+          {messages.map((msg) => (
+            <div key={msg.id} className={cn(
+              "text-sm px-3 py-1.5 rounded-[10px] max-w-[90%]",
+              msg.direction === "outbound"
+                ? "ml-auto bg-primary/8 border border-primary/12 text-foreground"
+                : "mr-auto bg-overlay-4 border border-overlay-6 text-foreground",
+            )}>
+              <p className="whitespace-pre-wrap break-words text-xs">{msg.body}</p>
+              <p className="text-[10px] text-muted-foreground/40 mt-0.5">
+                {new Date(msg.created_at).toLocaleString([], { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}
+              </p>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

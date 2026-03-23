@@ -42,6 +42,7 @@ import { SellerMemoryPreview } from "@/components/sentinel/seller-memory-preview
 import { LiveAssistPanel } from "@/components/sentinel/live-assist-panel";
 import { UnlinkedCallsFolder } from "@/components/sentinel/unlinked-calls-folder";
 import { JeffMessagesBanner } from "@/components/sentinel/jeff-messages-banner";
+import { SmsMessagesPanel } from "@/components/sentinel/sms-messages-panel";
 
 async function authHeaders(): Promise<Record<string, string>> {
   const { data: { session } } = await supabase.auth.getSession();
@@ -2405,6 +2406,14 @@ function DialerPageInner() {
               </div>
             )}
           </GlassCard>
+          <SmsMessagesPanel onCallNumber={(phone) => {
+            const digits = phone.replace(/\D/g, "").slice(-10);
+            if (digits.length === 10 && deviceStatus === "ready") {
+              timer.start();
+              const formatted = `+1${digits}`;
+              deviceRef.current?.connect({ params: { To: formatted, From: voipCallerId || "" } });
+            }
+          }} />
           <UnlinkedCallsFolder onLinked={refetchQueue} />
         </div>
 
