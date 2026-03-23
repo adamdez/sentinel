@@ -17,7 +17,7 @@ const CYCLE_MS = 12_000;
  */
 export function Psalm20ThemeLayer({ children }: { children: React.ReactNode }) {
   const active = usePsalm20();
-  const [idx, setIdx] = useState(() => Math.floor(Math.random() * PSALM20_VERSES.length));
+  const [idx, setIdx] = useState(0);
 
   const advance = useCallback(() => {
     setIdx((prev) => (prev + 1) % PSALM20_VERSES.length);
@@ -43,25 +43,25 @@ export function Psalm20ThemeLayer({ children }: { children: React.ReactNode }) {
         }}
       />
 
-      {/* Verse banner bar — persistent across pages, cycles verses */}
+      {/* Verse banner bar — persistent across pages, cycles through full psalm */}
       <div
-        className="relative z-10 flex items-center justify-center gap-3 px-4 py-1.5 border-b overflow-hidden"
+        className="relative z-10 flex items-center justify-center gap-4 px-6 py-3 border-b overflow-hidden"
         style={{
           background: "rgba(201,168,76,0.03)",
           borderColor: "rgba(201,168,76,0.08)",
         }}
       >
-        <ShieldIcon className="h-3.5 w-3.5 shrink-0 text-[var(--psalm20-gold)] opacity-40" />
+        <ShieldIcon className="h-5 w-5 shrink-0 text-[var(--psalm20-gold)] opacity-50" />
 
-        <div className="relative h-[16px] flex items-center justify-center min-w-0">
+        <div className="relative h-[28px] flex items-center justify-center min-w-0">
           <AnimatePresence mode="wait">
             <motion.span
               key={idx}
-              initial={{ opacity: 0, y: 6 }}
-              animate={{ opacity: 0.72, y: 0 }}
-              exit={{ opacity: 0, y: -6 }}
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 0.82, y: 0 }}
+              exit={{ opacity: 0, y: -8 }}
               transition={{ duration: 0.8, ease: "easeInOut" }}
-              className="text-[13px] tracking-[0.18em] uppercase font-medium whitespace-nowrap"
+              className="text-[22px] tracking-[0.18em] uppercase font-medium whitespace-nowrap"
               style={{
                 color: "var(--psalm20-gold)",
                 fontFamily: "'Cormorant Garamond', Georgia, serif",
@@ -74,7 +74,7 @@ export function Psalm20ThemeLayer({ children }: { children: React.ReactNode }) {
           </AnimatePresence>
         </div>
 
-        <BannerIcon className="h-3.5 w-3.5 shrink-0 text-[var(--psalm20-gold)] opacity-40" />
+        <BannerIcon className="h-5 w-5 shrink-0 text-[var(--psalm20-gold)] opacity-50" />
       </div>
 
       {/* Gold divider below verse bar */}
