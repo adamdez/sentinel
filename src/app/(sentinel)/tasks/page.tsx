@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useRef, useEffect } from "react";
+import { Fragment, useState, useCallback, useRef, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   CheckCircle2,
@@ -12,8 +12,11 @@ import {
   Edit3,
   RotateCcw,
   ChevronRight,
+  ChevronLeft,
   Phone,
+  List,
 } from "lucide-react";
+import { format, startOfWeek, addDays, isSameDay, addWeeks, subWeeks } from "date-fns";
 import { cn } from "@/lib/utils";
 import { PageShell } from "@/components/sentinel/page-shell";
 import { GlassCard } from "@/components/sentinel/glass-card";
@@ -478,10 +481,83 @@ function EmptyState({ view }: { view: TaskView | "callbacks" }) {
   );
 }
 
+function WeekCalendar({ tasks, onComplete }: { tasks: TaskItem[]; onComplete: (id: string) => void }) {
+  const [weekStart, setWeekStart] = useState(() => startOfWeek(new Date(), { weekStartsOn: 1 }));
+  const days = Array.from({ length: 5 }, (_, i) => addDays(weekStart, i));
+  const hours = [9, 10, 11, 12, 13, 14, 15, 16, 17];
+
+  const tasksBySlot = new Map<string, TaskItem[]>();
+  for (const t of tasks) {
+    if (!t.due_at) continue;
+    const d = new Date(t.due_at);
+    const key = `${format(d, "yyyy-MM-dd")}-${d.getHours()}`;
+    tasksBySlot.set(key, [...(tasksBySlot.get(key) ?? []), t]);
+  }
+
+  return (
+    <div className="space-y-2">
+      <div className="flex items-center justify-between">
+        <button onClick={() => setWeekStart(subWeeks(weekStart, 1))} className="p-1 rounded hover:bg-overlay-6 text-muted-foreground/50">
+          <ChevronLeft className="h-4 w-4" />
+        </button>
+        <span className="text-sm font-medium text-foreground/80">
+          {format(days[0], "MMM d")} — {format(days[4], "MMM d, yyyy")}
+        </span>
+        <button onClick={() => setWeekStart(addWeeks(weekStart, 1))} className="p-1 rounded hover:bg-overlay-6 text-muted-foreground/50">
+          <ChevronRight className="h-4 w-4" />
+        </button>
+      </div>
+
+      <div className="overflow-x-auto">
+        <div className="grid grid-cols-[60px_repeat(5,1fr)] min-w-[600px]">
+          {/* Header */}
+          <div className="h-8" />
+          {days.map((d) => (
+            <div key={d.toISOString()} className={cn(
+              "h-8 flex items-center justify-center text-xs font-medium border-b border-overlay-6",
+              isSameDay(d, new Date()) ? "text-primary" : "text-muted-foreground/60",
+            )}>
+              {format(d, "EEE M/d")}
+            </div>
+          ))}
+
+          {/* Hour rows */}
+          {hours.map((h) => (
+            <Fragment key={h}>
+              <div className="h-14 flex items-start justify-end pr-2 pt-0.5 text-[10px] text-muted-foreground/40 border-r border-overlay-6">
+                {h > 12 ? `${h - 12}pm` : h === 12 ? "12pm" : `${h}am`}
+              </div>
+              {days.map((d) => {
+                const key = `${format(d, "yyyy-MM-dd")}-${h}`;
+                const slotTasks = tasksBySlot.get(key) ?? [];
+                return (
+                  <div key={key} className="h-14 border-b border-r border-overlay-4 px-0.5 py-0.5 relative group hover:bg-overlay-2 transition-colors">
+                    {slotTasks.map((t) => (
+                      <button
+                        key={t.id}
+                        onClick={() => onComplete(t.id)}
+                        className="block w-full text-left px-1 py-0.5 rounded text-[10px] leading-tight font-medium bg-primary/15 text-primary/90 border border-primary/20 truncate hover:bg-primary/25 transition-colors"
+                        title={t.title}
+                      >
+                        {t.lead_owner ?? t.title.slice(0, 20)}
+                      </button>
+                    ))}
+                  </div>
+                );
+              })}
+            </Fragment>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function TasksPage() {
   const hydrated = useHydrated();
   const [activeTab, setActiveTab] = useState<TaskView | "callbacks">("today");
   const [editingTask, setEditingTask] = useState<TaskItem | null>(null);
+  const [viewMode, setViewMode] = useState<"list" | "schedule">("list");
 
   const apiView: TaskView = activeTab === "callbacks" ? "all" : activeTab;
 
@@ -566,47 +642,77 @@ export default function TasksPage() {
               )}
             </button>
           ))}
+          <div className="ml-auto flex items-center gap-0.5 pr-1">
+            <button
+              onClick={() => setViewMode("list")}
+              className={cn("p-1.5 rounded", viewMode === "list" ? "text-primary bg-primary/10" : "text-muted-foreground/40 hover:text-foreground/60")}
+              title="List view"
+            >
+              <List className="h-3.5 w-3.5" />
+            </button>
+            <button
+              onClick={() => setViewMode("schedule")}
+              className={cn("p-1.5 rounded", viewMode === "schedule" ? "text-primary bg-primary/10" : "text-muted-foreground/40 hover:text-foreground/60")}
+              title="Schedule view"
+            >
+              <Calendar className="h-3.5 w-3.5" />
+            </button>
+          </div>
         </div>
 
-        <GlassCard className="p-2">
-          {showError ? (
-            <div className="flex flex-col items-center justify-center gap-3 py-12 text-center">
-              <AlertCircle className="h-5 w-5 text-foreground/70" />
-              <p className="text-sm text-muted-foreground/60">{error || "Follow-ups took too long to load."}</p>
-              <button
-                onClick={() => { setTimedOut(false); refetch(); }}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-[8px] text-xs font-medium bg-primary/15 text-primary border border-primary/20 hover:bg-primary/25 transition-all"
-              >
-                <RotateCcw className="h-3 w-3" />
-                Retry
-              </button>
-            </div>
-          ) : loading ? (
-            <div className="space-y-2 p-2">
-              {Array.from({ length: 5 }).map((_, i) => (
-                <Skeleton key={i} className="h-12 w-full rounded-[8px]" />
-              ))}
-            </div>
-          ) : tasks.length === 0 ? (
-            <EmptyState view={activeTab} />
-          ) : (
-            <div className="space-y-1">
-              <AnimatePresence mode="popLayout">
-                {tasks.map((task, i) => (
-                  <FollowUpRow
-                    key={task.id}
-                    task={task}
-                    idx={i}
-                    onComplete={onComplete}
-                    onReopen={onReopen}
-                    onDelete={onDelete}
-                    onEdit={setEditingTask}
-                  />
+        {viewMode === "schedule" ? (
+          <GlassCard className="p-3">
+            {loading ? (
+              <div className="space-y-2 p-2">
+                {Array.from({ length: 5 }).map((_, i) => (
+                  <Skeleton key={i} className="h-12 w-full rounded-[8px]" />
                 ))}
-              </AnimatePresence>
-            </div>
-          )}
-        </GlassCard>
+              </div>
+            ) : (
+              <WeekCalendar tasks={tasks} onComplete={onComplete} />
+            )}
+          </GlassCard>
+        ) : (
+          <GlassCard className="p-2">
+            {showError ? (
+              <div className="flex flex-col items-center justify-center gap-3 py-12 text-center">
+                <AlertCircle className="h-5 w-5 text-foreground/70" />
+                <p className="text-sm text-muted-foreground/60">{error || "Follow-ups took too long to load."}</p>
+                <button
+                  onClick={() => { setTimedOut(false); refetch(); }}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-[8px] text-xs font-medium bg-primary/15 text-primary border border-primary/20 hover:bg-primary/25 transition-all"
+                >
+                  <RotateCcw className="h-3 w-3" />
+                  Retry
+                </button>
+              </div>
+            ) : loading ? (
+              <div className="space-y-2 p-2">
+                {Array.from({ length: 5 }).map((_, i) => (
+                  <Skeleton key={i} className="h-12 w-full rounded-[8px]" />
+                ))}
+              </div>
+            ) : tasks.length === 0 ? (
+              <EmptyState view={activeTab} />
+            ) : (
+              <div className="space-y-1">
+                <AnimatePresence mode="popLayout">
+                  {tasks.map((task, i) => (
+                    <FollowUpRow
+                      key={task.id}
+                      task={task}
+                      idx={i}
+                      onComplete={onComplete}
+                      onReopen={onReopen}
+                      onDelete={onDelete}
+                      onEdit={setEditingTask}
+                    />
+                  ))}
+                </AnimatePresence>
+              </div>
+            )}
+          </GlassCard>
+        )}
       </div>
 
       <AnimatePresence>

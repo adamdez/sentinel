@@ -19,7 +19,7 @@
  * publish-manager is the sole dialer write path back to CRM tables.
  */
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import {
   CheckCircle2, Loader2, SkipForward,
   Phone, PhoneOff, Voicemail, CalendarCheck,
@@ -28,6 +28,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import { QuickTaskSetter, type QuickTaskResult } from "@/components/sentinel/quick-task-setter";
 import { GlassCard } from "@/components/sentinel/glass-card";
 import { supabase } from "@/lib/supabase";
 import type { PublishDisposition } from "@/lib/dialer/types";
@@ -1085,36 +1086,30 @@ export function PostCallPanel({
             ))}
           </div>
 
-          {/* ── Next action (hard enforcement) ─────────────────── */}
+          {/* ── Next task (chip-based, hard enforcement) ───────── */}
           <div className={`mb-3 rounded-[10px] border p-2.5 space-y-1.5 ${
             !nextAction.trim()
               ? "border-amber-500/25 bg-amber-500/[0.04]"
               : "border-primary/10 bg-primary/[0.03]"
           }`}>
             <p className={`text-xs uppercase tracking-wider font-semibold ${!nextAction.trim() ? "text-amber-400" : "text-primary/60"}`}>
-              {!nextAction.trim() ? "Next Action — Required" : "Next Action"}
+              {!nextAction.trim() ? "Next Task — Required" : "Next Task"}
             </p>
-            <input
-              type="text"
-              value={nextAction}
-              onChange={(e) => setNextAction(e.target.value)}
-              placeholder="e.g. Call back Tuesday 2pm, Send offer, Research property"
-              maxLength={200}
-              disabled={publishing}
-              className="w-full rounded-[8px] border border-overlay-6 bg-overlay-3 px-2.5 py-1.5 text-xs text-foreground placeholder:text-muted-foreground/30 focus:outline-none focus:border-primary/20 disabled:opacity-50"
-            />
-            <label className="block text-sm text-muted-foreground/40 mt-1">
-              Due date &amp; time <span className="opacity-60">(optional)</span>
-            </label>
-            <input
-              type="datetime-local"
-              value={nextActionDueAt}
-              onChange={(e) => setNextActionDueAt(e.target.value)}
-              min={minDatetime}
-              disabled={publishing}
-              style={{ colorScheme: "dark" }}
-              className="w-full rounded-[8px] border border-overlay-6 bg-overlay-3 px-2.5 py-1.5 text-xs text-foreground focus:outline-none focus:border-primary/20 disabled:opacity-50"
-            />
+            {nextAction.trim() ? (
+              <div className="flex items-center justify-between">
+                <span className="text-xs text-foreground/80">{nextAction}</span>
+                <button onClick={() => { setNextAction(""); setNextActionDueAt(""); }} className="text-[10px] text-muted-foreground/40 hover:text-foreground/60">Change</button>
+              </div>
+            ) : (
+              <QuickTaskSetter
+                compact
+                onSave={(result) => {
+                  setNextAction(result.title);
+                  setNextActionDueAt(result.dueAt ? new Date(result.dueAt).toISOString() : "");
+                }}
+                onCancel={() => {}}
+              />
+            )}
           </div>
 
           <Button
@@ -1201,36 +1196,31 @@ export function PostCallPanel({
             </label>
           )}
 
-          {/* Next action — prominent in follow-up/appointment path */}
+          {/* Next task — chip-based, follow-up/appointment path */}
           <div className={`mb-3 rounded-[10px] border p-2.5 space-y-1.5 ${
             !nextAction.trim()
               ? "border-amber-500/25 bg-amber-500/[0.04]"
               : "border-primary/10 bg-primary/[0.03]"
           }`}>
             <p className={`text-xs uppercase tracking-wider font-semibold ${!nextAction.trim() ? "text-amber-400" : "text-primary/60"}`}>
-              {!nextAction.trim() ? "Next Action — Required" : "Next Action"}
+              {!nextAction.trim() ? "Next Task — Required" : "Next Task"}
             </p>
-            <input
-              type="text"
-              value={nextAction}
-              onChange={(e) => setNextAction(e.target.value)}
-              placeholder="e.g. Call back Tuesday 2pm, Send offer, Research property"
-              maxLength={200}
-              disabled={publishing}
-              className="w-full rounded-[8px] border border-overlay-6 bg-overlay-3 px-2.5 py-1.5 text-xs text-foreground placeholder:text-muted-foreground/30 focus:outline-none focus:border-primary/20 disabled:opacity-50"
-            />
-            <label className="block text-sm text-muted-foreground/40 mt-1">
-              Due date &amp; time <span className="opacity-60">(optional — defaults to callback date above)</span>
-            </label>
-            <input
-              type="datetime-local"
-              value={nextActionDueAt}
-              onChange={(e) => setNextActionDueAt(e.target.value)}
-              min={minDatetime}
-              disabled={publishing}
-              style={{ colorScheme: "dark" }}
-              className="w-full rounded-[8px] border border-overlay-6 bg-overlay-3 px-2.5 py-1.5 text-xs text-foreground focus:outline-none focus:border-primary/20 disabled:opacity-50"
-            />
+            {nextAction.trim() ? (
+              <div className="flex items-center justify-between">
+                <span className="text-xs text-foreground/80">{nextAction}</span>
+                <button onClick={() => { setNextAction(""); setNextActionDueAt(""); }} className="text-[10px] text-muted-foreground/40 hover:text-foreground/60">Change</button>
+              </div>
+            ) : (
+              <QuickTaskSetter
+                compact
+                defaultType="callback"
+                onSave={(result) => {
+                  setNextAction(result.title);
+                  setNextActionDueAt(result.dueAt ? new Date(result.dueAt).toISOString() : "");
+                }}
+                onCancel={() => {}}
+              />
+            )}
           </div>
 
           {/* Note textarea — contextual prompt for follow-up/appointment path */}

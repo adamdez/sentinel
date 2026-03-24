@@ -16,6 +16,7 @@ export interface TaskItem {
   priority: number;
   status: string;
   task_type: string;
+  notes: string | null;
   created_at: string;
   updated_at: string;
   // Joined context

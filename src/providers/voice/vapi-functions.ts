@@ -211,13 +211,27 @@ export async function handleBookCallback(
     };
   }
 
+  // Sync task to lead's next_action fields
+  if (leadId) {
+    const dueAt = new Date(Date.now() + 2 * 60 * 60 * 1000).toISOString();
+    const reason = params.reason ? `: ${params.reason}` : "";
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    await (sb.from("leads") as any)
+      .update({
+        next_action: `Callback${reason}`,
+        next_action_due_at: dueAt,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", leadId);
+  }
+
   // Update voice session to note callback was requested
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   await (sb.from("voice_sessions") as any)
     .update({
       callback_requested: true,
       callback_time: params.preferred_time ?? null,
-      caller_type: "seller", // default assumption for callback requests
+      caller_type: "seller",
     })
     .eq("id", voiceSessionId);
 

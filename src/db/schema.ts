@@ -262,12 +262,15 @@ export const tasks = pgTable("tasks", {
   completedAt: timestamp("completed_at", { withTimezone: true }),
   priority: integer("priority").notNull().default(0),
   status: varchar("status", { length: 20 }).notNull().default("pending"),
+  taskType: varchar("task_type", { length: 50 }).default("follow_up"),
+  notes: text("notes"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 }, (table) => [
   index("idx_tasks_assigned").on(table.assignedTo),
   index("idx_tasks_due").on(table.dueAt),
   index("idx_tasks_status").on(table.status),
+  index("idx_tasks_type").on(table.taskType),
 ]);
 
 // ── Campaigns ───────────────────────────────────────────────────────

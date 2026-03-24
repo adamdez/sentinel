@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@/lib/supabase";
 import { requireAuth } from "@/lib/api-auth";
+import { syncTaskToLead } from "@/lib/task-lead-sync";
 
 /**
  * GET /api/tasks — list tasks with filters
@@ -150,6 +151,11 @@ export async function POST(req: NextRequest) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { data, error } = await (sb.from("tasks") as any).insert(record).select().single();
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+
+    // Bidirectional sync: project task onto lead's next_action fields
+    if (data?.lead_id) {
+      await syncTaskToLead(sb, data.lead_id, data.title, data.due_at);
+    }
 
     return NextResponse.json({ task: data }, { status: 201 });
   } catch (err) {

@@ -19,6 +19,7 @@ export interface QueueLead {
   assigned_to: string | null;
   lock_version: number;
   next_call_scheduled_at: string | null;
+  next_action_due_at: string | null;
   next_follow_up_at: string | null;
   follow_up_date?: string | null;
   last_contact_at: string | null;
@@ -148,7 +149,7 @@ export function useDialerQueue(limit = 7) {
         return Number.isNaN(ms) ? null : ms;
       };
       const effectiveDueMs = (lead: QueueLead): number | null =>
-        toMs(lead.next_call_scheduled_at) ?? toMs(lead.next_follow_up_at) ?? toMs(lead.follow_up_date);
+        toMs(lead.next_call_scheduled_at) ?? toMs(lead.next_action_due_at) ?? toMs(lead.next_follow_up_at) ?? toMs(lead.follow_up_date);
       const rank = (lead: QueueLead): { bucket: number; dueMs: number } => {
         const dueMs = effectiveDueMs(lead);
         if (dueMs != null && dueMs <= nowMs) return { bucket: 0, dueMs };

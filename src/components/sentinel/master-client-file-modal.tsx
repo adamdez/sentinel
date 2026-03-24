@@ -26,7 +26,7 @@ import {
 
   RefreshCw, Target, ArrowRight, ChevronDown, Trash2, Lock, Contact2, Plus,
 
-  Users, Briefcase, CheckCircle, XCircle, Camera, CameraOff, ListPlus,
+  Users, Briefcase, CheckCircle, XCircle, Camera, CameraOff, ListPlus, Pin,
 
 } from "lucide-react";
 
@@ -149,6 +149,10 @@ import { LeadDossierPanel } from "@/components/sentinel/lead-dossier-panel";
 import { BrickedAnalysisPanel, type BrickedAnalysisPanelProps } from "@/components/sentinel/bricked/bricked-analysis-panel";
 
 import { LegalBriefPanel } from "@/components/sentinel/legal/legal-brief-panel";
+
+import { QuickTaskSetter, type QuickTaskResult } from "@/components/sentinel/quick-task-setter";
+
+import { createTask as createTaskApi, type TaskItem } from "@/hooks/use-tasks";
 
 import { IntakeGuideSection } from "@/components/sentinel/intake-guide-section";
 
@@ -4074,6 +4078,11 @@ export function MasterClientFileModal({ clientFile: incomingClientFile, open, on
 
   const [claiming, setClaiming] = useState(false);
 
+  const [taskPanelOpen, setTaskPanelOpen] = useState(false);
+  const [taskSaving, setTaskSaving] = useState(false);
+  const [activeTask, setActiveTask] = useState<TaskItem | null>(null);
+  const [activeTaskLoading, setActiveTaskLoading] = useState(false);
+
   const [calling, setCalling] = useState(false);
 
   const [callStatus, setCallStatus] = useState<string | null>(null);
@@ -6870,6 +6879,91 @@ export function MasterClientFileModal({ clientFile: incomingClientFile, open, on
 
 
 
+  // ── Active task fetch ─────────────────────────────────────────────
+  const fetchActiveTask = useCallback(async () => {
+    if (!clientFile?.id) return;
+    setActiveTaskLoading(true);
+    try {
+      const { data: { session: sess } } = await supabase.auth.getSession();
+      const hdrs: Record<string, string> = sess?.access_token
+        ? { Authorization: `Bearer ${sess.access_token}` }
+        : {};
+      const res = await fetch(
+        `/api/tasks?lead_id=${clientFile.id}&status=pending&view=all`,
+        { headers: hdrs },
+      );
+      if (res.ok) {
+        const json = await res.json();
+        setActiveTask(json.tasks?.[0] ?? null);
+      }
+    } catch { /* non-fatal */ } finally {
+      setActiveTaskLoading(false);
+    }
+  }, [clientFile?.id]);
+
+  useEffect(() => { fetchActiveTask(); }, [fetchActiveTask]);
+
+  const handleTaskSave = useCallback(async (result: QuickTaskResult) => {
+    if (!clientFile?.id) return;
+    setTaskSaving(true);
+    try {
+      await createTaskApi({
+        title: result.title,
+        lead_id: clientFile.id,
+        due_at: result.dueAt,
+        task_type: result.taskType,
+        notes: result.notes || undefined,
+        priority: 2,
+      } as Partial<TaskItem>);
+      toast.success("Task set");
+      setTaskPanelOpen(false);
+      fetchActiveTask();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to save task");
+    } finally {
+      setTaskSaving(false);
+    }
+  }, [clientFile?.id, fetchActiveTask]);
+
+  const handleTaskComplete = useCallback(async () => {
+    if (!activeTask) return;
+    try {
+      const { data: { session: sess } } = await supabase.auth.getSession();
+      const hdrs: Record<string, string> = sess?.access_token
+        ? { Authorization: `Bearer ${sess.access_token}`, "Content-Type": "application/json" }
+        : { "Content-Type": "application/json" };
+      await fetch(`/api/tasks/${activeTask.id}`, {
+        method: "PATCH",
+        headers: hdrs,
+        body: JSON.stringify({ status: "completed" }),
+      });
+      toast.success("Task completed");
+      setActiveTask(null);
+      fetchActiveTask();
+    } catch {
+      toast.error("Failed to complete task");
+    }
+  }, [activeTask, fetchActiveTask]);
+
+  const handleTaskDelete = useCallback(async () => {
+    if (!activeTask) return;
+    try {
+      const { data: { session: sess } } = await supabase.auth.getSession();
+      const hdrs: Record<string, string> = sess?.access_token
+        ? { Authorization: `Bearer ${sess.access_token}` }
+        : {};
+      await fetch(`/api/tasks/${activeTask.id}`, {
+        method: "DELETE",
+        headers: hdrs,
+      });
+      toast.success("Task deleted");
+      setActiveTask(null);
+      fetchActiveTask();
+    } catch {
+      toast.error("Failed to delete task");
+    }
+  }, [activeTask, fetchActiveTask]);
+
   const handleDial = useCallback((phoneNumber?: string) => {
 
     const numberToDial = phoneNumber || displayPhone;
@@ -8000,6 +8094,18 @@ export function MasterClientFileModal({ clientFile: incomingClientFile, open, on
                   <Button
                     size="sm"
                     variant="outline"
+                    className={`gap-1.5 h-7 font-medium ${
+                      taskPanelOpen
+                        ? "border-primary/60 bg-primary/15 text-primary-300"
+                        : "border-overlay-6 hover:border-primary/40 hover:bg-primary/10 text-muted-foreground/70 hover:text-primary"
+                    }`}
+                    onClick={() => setTaskPanelOpen(!taskPanelOpen)}
+                  >
+                    <Pin className="h-3 w-3" />Set Task
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
                     className="gap-1.5 h-7 border-primary/40 hover:border-primary/60 hover:bg-primary/10 text-primary font-medium"
                     disabled={claiming}
                     onClick={async () => {
@@ -8436,6 +8542,27 @@ export function MasterClientFileModal({ clientFile: incomingClientFile, open, on
 
 
 
+              {/* Inline task setter panel */}
+              <AnimatePresence>
+                {taskPanelOpen && (
+                  <motion.div
+                    initial={{ height: 0, opacity: 0 }}
+                    animate={{ height: "auto", opacity: 1 }}
+                    exit={{ height: 0, opacity: 0 }}
+                    transition={{ duration: 0.15 }}
+                    className="shrink-0 overflow-hidden border-b border-overlay-6 bg-overlay-2"
+                  >
+                    <div className="px-4 py-3">
+                      <QuickTaskSetter
+                        onSave={handleTaskSave}
+                        onCancel={() => setTaskPanelOpen(false)}
+                        saving={taskSaving}
+                      />
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+
               {/* Tabs */}
 
               <div className="shrink-0 flex items-center gap-1 px-4 py-2 border-b border-overlay-6 bg-panel overflow-x-auto scrollbar-none">
@@ -8495,21 +8622,81 @@ export function MasterClientFileModal({ clientFile: incomingClientFile, open, on
                   >
 
                     {activeTab === "overview" && (
+                      <div className="space-y-0">
+                        {/* Task tile */}
+                        <div className="px-4 pt-3">
+                          {activeTaskLoading ? (
+                            <div className="rounded-xl border border-overlay-6 bg-overlay-2 p-3 flex items-center gap-2 text-xs text-muted-foreground/50">
+                              <Loader2 className="h-3.5 w-3.5 animate-spin" /> Loading task…
+                            </div>
+                          ) : activeTask ? (
+                            <div className="rounded-xl border border-primary/15 bg-primary/[0.03] p-3 space-y-1.5">
+                              <div className="flex items-start justify-between gap-2">
+                                <div className="flex items-center gap-1.5">
+                                  <Pin className="h-3.5 w-3.5 text-primary/70 shrink-0" />
+                                  <span className="text-xs font-semibold uppercase tracking-wider text-primary/70">Next Task</span>
+                                </div>
+                                {activeTask.due_at && (
+                                  <span className={`text-[11px] font-medium shrink-0 ${
+                                    new Date(activeTask.due_at) < new Date()
+                                      ? "text-red-400"
+                                      : new Date(activeTask.due_at).toDateString() === new Date().toDateString()
+                                        ? "text-amber-400"
+                                        : "text-muted-foreground/50"
+                                  }`}>
+                                    Due: {formatDueDateLabel(activeTask.due_at).text}
+                                  </span>
+                                )}
+                              </div>
+                              <p className="text-sm text-foreground/90 leading-snug">{activeTask.title}</p>
+                              {activeTask.notes && (
+                                <p className="text-xs text-muted-foreground/50 line-clamp-2">{activeTask.notes}</p>
+                              )}
+                              <div className="flex items-center gap-2 pt-1">
+                                <button
+                                  onClick={handleTaskComplete}
+                                  className="flex items-center gap-1 px-2 py-1 rounded-md text-[11px] font-medium text-emerald-400 bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/20 transition-colors"
+                                >
+                                  <CheckCircle2 className="h-3 w-3" /> Complete
+                                </button>
+                                <button
+                                  onClick={() => setTaskPanelOpen(true)}
+                                  className="flex items-center gap-1 px-2 py-1 rounded-md text-[11px] font-medium text-muted-foreground/50 bg-overlay-3 hover:bg-overlay-6 border border-overlay-6 transition-colors"
+                                >
+                                  <Pencil className="h-3 w-3" /> Edit
+                                </button>
+                                <button
+                                  onClick={handleTaskDelete}
+                                  className="flex items-center gap-1 px-2 py-1 rounded-md text-[11px] font-medium text-red-400/60 bg-red-500/5 hover:bg-red-500/10 border border-red-500/10 transition-colors"
+                                >
+                                  <Trash2 className="h-3 w-3" /> Delete
+                                </button>
+                              </div>
+                            </div>
+                          ) : (
+                            <div className="rounded-xl border border-amber-500/20 bg-amber-500/[0.03] p-3 flex items-center justify-between">
+                              <div className="flex items-center gap-2">
+                                <Pin className="h-3.5 w-3.5 text-amber-400/70" />
+                                <span className="text-xs text-amber-400/80 font-medium">No task set — needs attention</span>
+                              </div>
+                              <button
+                                onClick={() => setTaskPanelOpen(true)}
+                                className="flex items-center gap-1 px-2.5 py-1 rounded-md text-[11px] font-semibold text-primary bg-primary/10 hover:bg-primary/20 border border-primary/20 transition-colors"
+                              >
+                                <Plus className="h-3 w-3" /> Set Task
+                              </button>
+                            </div>
+                          )}
+                        </div>
 
-                      <OverviewTab
-
-                        cf={overviewClientFile}
-
-                        computedArv={computedArv}
-
-                        activityRefreshToken={activityRefreshToken}
-
-                        onDial={handleDial}
-
-                        calling={calling}
-
-                      />
-
+                        <OverviewTab
+                          cf={overviewClientFile}
+                          computedArv={computedArv}
+                          activityRefreshToken={activityRefreshToken}
+                          onDial={handleDial}
+                          calling={calling}
+                        />
+                      </div>
                     )}
 
                     {activeTab === "contact" && (

@@ -282,6 +282,24 @@ export async function publishSession(
         };
       }
     }
+
+    // Bidirectional sync: if next_action was set, upsert a task row
+    if (input.next_action) {
+      try {
+        const { syncLeadToTask } = await import("@/lib/task-lead-sync");
+        await syncLeadToTask(
+          sb,
+          leadId,
+          input.next_action,
+          input.next_action_due_at ?? null,
+          userId,
+          "follow_up",
+        );
+      } catch (syncErr) {
+        console.error("[publish-manager] task-lead-sync failed (non-fatal):", syncErr);
+        warnings.push("task_sync_failed");
+      }
+    }
   }
 
   // ── Step 3: task creation for follow_up / appointment ────

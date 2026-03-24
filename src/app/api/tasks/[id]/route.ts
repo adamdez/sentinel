@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@/lib/supabase";
 import { requireAuth } from "@/lib/api-auth";
+import { syncTaskToLead, clearTaskFromLead } from "@/lib/task-lead-sync";
 
 /**
  * PATCH /api/tasks/[id] — update task fields
@@ -35,6 +36,13 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       update.completed_at = null;
     }
 
+    // Fetch current task for lead sync context
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: current } = await (sb.from("tasks") as any)
+      .select("lead_id, status, title")
+      .eq("id", id)
+      .single();
+
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { data, error } = await (sb.from("tasks") as any)
       .update(update)
@@ -43,6 +51,16 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       .single();
 
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+
+    // Bidirectional sync: project task changes onto lead
+    const leadId = data?.lead_id ?? current?.lead_id;
+    if (leadId) {
+      if (data.status === "completed") {
+        await clearTaskFromLead(sb, leadId, id);
+      } else if (data.status === "pending") {
+        await syncTaskToLead(sb, leadId, data.title, data.due_at);
+      }
+    }
 
     return NextResponse.json({ task: data });
   } catch (err) {
@@ -62,9 +80,21 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
 
     const { id } = await params;
 
+    // Fetch lead_id before deletion for sync
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: taskBefore } = await (sb.from("tasks") as any)
+      .select("lead_id")
+      .eq("id", id)
+      .single();
+
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { error } = await (sb.from("tasks") as any).delete().eq("id", id);
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+
+    // Bidirectional sync: clear lead's next_action or promote next pending task
+    if (taskBefore?.lead_id) {
+      await clearTaskFromLead(sb, taskBefore.lead_id, id);
+    }
 
     return NextResponse.json({ success: true });
   } catch (err) {

@@ -18,6 +18,8 @@ import {
   Trash2,
   Loader2,
   Search,
+  Pin,
+  Clock,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -163,6 +165,26 @@ function TodayView() {
   const [reviewError, setReviewError] = useState<SectionError>(null);
   const [unlinkedCalls, setUnlinkedCalls] = useState<UnlinkedCall[]>([]);
   const [unlinkedError, setUnlinkedError] = useState<SectionError>(null);
+
+  // Unified task state
+  interface DashTask {
+    id: string;
+    title: string;
+    due_at: string | null;
+    status: string;
+    task_type: string;
+    lead_id: string | null;
+    lead_address?: string | null;
+    lead_owner?: string | null;
+    lead_status?: string | null;
+    assigned_to: string | null;
+    notes: string | null;
+  }
+  const [allTasks, setAllTasks] = useState<DashTask[]>([]);
+  const [tasksError, setTasksError] = useState<SectionError>(null);
+  const [filterUser, setFilterUser] = useState<string | "all">("all");
+  const [completingId, setCompletingId] = useState<string | null>(null);
+
   const [loading, setLoading] = useState(true);
 
   const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
@@ -350,6 +372,23 @@ function TodayView() {
       setUnlinkedError("Failed to load unlinked calls");
     }
 
+    // Unified tasks — all pending tasks with lead context
+    try {
+      const { data: { session: sess } } = await supabase.auth.getSession();
+      const hdrs: Record<string, string> = sess?.access_token
+        ? { Authorization: `Bearer ${sess.access_token}` }
+        : {};
+      const res = await fetch("/api/tasks?status=pending&view=all", { headers: hdrs });
+      if (res.ok) {
+        const json = await res.json();
+        setAllTasks(json.tasks ?? []);
+      }
+      setTasksError(null);
+    } catch (err) {
+      console.error("[Today] tasks error:", err);
+      setTasksError("Failed to load tasks");
+    }
+
     setLoading(false);
   }, [currentUser?.id]);
 
@@ -361,6 +400,7 @@ function TodayView() {
       .on("postgres_changes", { event: "*", schema: "public", table: "leads" }, () => fetchAll())
       .on("postgres_changes", { event: "*", schema: "public", table: "calls_log" }, () => fetchAll())
       .on("postgres_changes", { event: "*", schema: "public", table: "review_queue" }, () => fetchAll())
+      .on("postgres_changes", { event: "*", schema: "public", table: "tasks" }, () => fetchAll())
       .subscribe();
 
     channelRef.current = channel;
@@ -417,6 +457,155 @@ function TodayView() {
           />
         </div>
       )}
+
+      {/* 0. Unified Tasks */}
+      {tasksError ? (
+        <SectionErrorBanner message={tasksError} />
+      ) : (() => {
+        const now = new Date();
+        const todayStart = new Date(now); todayStart.setHours(0, 0, 0, 0);
+        const todayEnd = new Date(now); todayEnd.setHours(23, 59, 59, 999);
+
+        const filtered = filterUser === "all"
+          ? allTasks
+          : allTasks.filter((t) => t.assigned_to === filterUser);
+
+        const overdueTasks = filtered.filter((t) => t.due_at && new Date(t.due_at) < todayStart);
+        const todayTasks = filtered.filter((t) => t.due_at && new Date(t.due_at) >= todayStart && new Date(t.due_at) <= todayEnd);
+        const upcomingTasks = filtered.filter((t) => t.due_at && new Date(t.due_at) > todayEnd);
+        const noDueTasks = filtered.filter((t) => !t.due_at);
+        const totalCount = filtered.length;
+
+        const handleCompleteTask = async (taskId: string) => {
+          setCompletingId(taskId);
+          try {
+            const { data: { session: sess } } = await supabase.auth.getSession();
+            const hdrs: Record<string, string> = sess?.access_token
+              ? { Authorization: `Bearer ${sess.access_token}`, "Content-Type": "application/json" }
+              : { "Content-Type": "application/json" };
+            await fetch(`/api/tasks/${taskId}`, { method: "PATCH", headers: hdrs, body: JSON.stringify({ status: "completed" }) });
+            fetchAll();
+          } catch { /* retry on next poll */ } finally {
+            setCompletingId(null);
+          }
+        };
+
+        const TaskRow = ({ task }: { task: DashTask }) => {
+          const dueDiff = task.due_at ? daysDiff(task.due_at) : null;
+          const dotColor = dueDiff !== null
+            ? dueDiff < 0 ? "bg-red-500" : dueDiff === 0 ? "bg-amber-400" : "bg-emerald-500"
+            : "bg-muted-foreground/40";
+          const dueLabel = task.due_at
+            ? dueDiff !== null
+              ? dueDiff < -1 ? `${Math.abs(dueDiff)} days overdue`
+              : dueDiff === -1 ? "Yesterday"
+              : dueDiff === 0 ? new Date(task.due_at).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })
+              : dueDiff === 1 ? "Tomorrow"
+              : `In ${dueDiff} days`
+            : ""
+            : "No date";
+
+          return (
+            <div className="group flex items-start gap-2.5 py-2 px-1 hover:bg-overlay-4 rounded-lg transition-colors">
+              <div className={cn("mt-1.5 h-2 w-2 rounded-full shrink-0", dotColor)} />
+              <div className="flex-1 min-w-0">
+                <a
+                  href={task.lead_id ? `/leads?open=${task.lead_id}` : "/tasks"}
+                  className="text-sm text-foreground/90 font-medium hover:text-primary truncate block"
+                >
+                  {task.title}
+                </a>
+                <div className="flex items-center gap-2 text-xs text-muted-foreground/50 mt-0.5">
+                  {task.lead_address && <span>{task.lead_address}</span>}
+                  {task.lead_owner && <span>· {task.lead_owner}</span>}
+                  {task.lead_status && <Badge variant="outline" className="text-[10px] py-0 px-1.5 h-4">{task.lead_status}</Badge>}
+                </div>
+              </div>
+              <div className="flex items-center gap-2 shrink-0">
+                <span className="text-xs text-muted-foreground/50">{dueLabel}</span>
+                {task.lead_id && (
+                  <a
+                    href={`/dialer?lead=${task.lead_id}`}
+                    className="hidden group-hover:flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-medium text-primary bg-primary/10 hover:bg-primary/20 border border-primary/20"
+                  >
+                    <Phone className="h-2.5 w-2.5" /> Call
+                  </a>
+                )}
+                <button
+                  onClick={() => handleCompleteTask(task.id)}
+                  disabled={completingId === task.id}
+                  className="hidden group-hover:flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-medium text-emerald-400 bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/20 disabled:opacity-40"
+                >
+                  {completingId === task.id ? <Loader2 className="h-2.5 w-2.5 animate-spin" /> : <CheckCircle2 className="h-2.5 w-2.5" />} Done
+                </button>
+              </div>
+            </div>
+          );
+        };
+
+        return (
+          <Card className="border-overlay-8">
+            <CardHeader className="pb-2 flex-row items-center justify-between">
+              <CardTitle className="flex items-center gap-2 text-sm font-semibold">
+                <Pin className="h-4 w-4 text-primary" /> Today&apos;s Tasks
+                <Badge variant="outline" className="ml-1">{totalCount}</Badge>
+              </CardTitle>
+              <div className="flex items-center gap-1">
+                <button
+                  onClick={() => setFilterUser("all")}
+                  className={cn("px-2 py-0.5 rounded text-[11px] font-medium border transition-colors",
+                    filterUser === "all" ? "border-primary/40 bg-primary/15 text-primary" : "border-overlay-6 text-muted-foreground/50 hover:text-foreground/70")}
+                >
+                  All
+                </button>
+                {currentUser?.id && (
+                  <button
+                    onClick={() => setFilterUser(currentUser.id)}
+                    className={cn("px-2 py-0.5 rounded text-[11px] font-medium border transition-colors",
+                      filterUser === currentUser.id ? "border-primary/40 bg-primary/15 text-primary" : "border-overlay-6 text-muted-foreground/50 hover:text-foreground/70")}
+                  >
+                    Mine
+                  </button>
+                )}
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-1 pt-0">
+              {totalCount === 0 && (
+                <EmptySection icon={CheckCircle2} message="No pending tasks" />
+              )}
+              {overdueTasks.length > 0 && (
+                <div>
+                  <p className="text-[10px] uppercase tracking-wider text-red-400 font-semibold mb-1 mt-1">Overdue ({overdueTasks.length})</p>
+                  {overdueTasks.map((t) => <TaskRow key={t.id} task={t} />)}
+                </div>
+              )}
+              {todayTasks.length > 0 && (
+                <div>
+                  <p className="text-[10px] uppercase tracking-wider text-amber-400 font-semibold mb-1 mt-2">Due Today ({todayTasks.length})</p>
+                  {todayTasks.map((t) => <TaskRow key={t.id} task={t} />)}
+                </div>
+              )}
+              {upcomingTasks.length > 0 && (
+                <div>
+                  <p className="text-[10px] uppercase tracking-wider text-muted-foreground/40 font-semibold mb-1 mt-2">Upcoming ({upcomingTasks.length})</p>
+                  {upcomingTasks.map((t) => <TaskRow key={t.id} task={t} />)}
+                </div>
+              )}
+              {noDueTasks.length > 0 && (
+                <div>
+                  <p className="text-[10px] uppercase tracking-wider text-muted-foreground/40 font-semibold mb-1 mt-2">No Date ({noDueTasks.length})</p>
+                  {noDueTasks.map((t) => <TaskRow key={t.id} task={t} />)}
+                </div>
+              )}
+              {totalCount > 0 && (
+                <a href="/tasks" className="flex items-center justify-center gap-1 text-sm text-primary hover:text-primary/80 pt-2 transition-colors">
+                  View all tasks <ArrowRight className="h-3 w-3" />
+                </a>
+              )}
+            </CardContent>
+          </Card>
+        );
+      })()}
 
       {/* 1. Overdue follow-ups */}
       <BriefSection
