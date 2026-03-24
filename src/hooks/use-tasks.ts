@@ -22,6 +22,7 @@ export interface TaskItem {
   // Joined context
   lead_address?: string | null;
   lead_owner?: string | null;
+  lead_phone?: string | null;
   lead_status?: string | null;
 }
 

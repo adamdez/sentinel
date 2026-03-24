@@ -23,6 +23,7 @@ import { GlassCard } from "@/components/sentinel/glass-card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useTasks, type TaskItem, type TaskView } from "@/hooks/use-tasks";
+import { useModal } from "@/providers/modal-provider";
 import { supabase } from "@/lib/supabase";
 import { useHydrated } from "@/providers/hydration-provider";
 import { toast } from "sonner";
@@ -160,10 +161,16 @@ function FollowUpRow({
   idx: number;
 }) {
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const { openModal } = useModal();
   const isCompleted = task.status === "completed";
   const due = relativeDue(task.due_at);
   const isOverdue = task.due_at && new Date(task.due_at) < new Date() && !isCompleted;
   const cb = isCallback(task);
+
+  const hasLead = !!(task.lead_owner || task.lead_address);
+  const primaryLabel = hasLead
+    ? [task.lead_owner, task.lead_address].filter(Boolean).join(" — ")
+    : task.title;
 
   return (
     <motion.div
@@ -198,10 +205,23 @@ function FollowUpRow({
       </button>
 
       <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-2">
-          <p className={cn("text-sm truncate", isCompleted && "line-through text-muted-foreground")}>
-            {task.title}
-          </p>
+        <button
+          onClick={() => task.lead_id ? openModal("client-file", { leadId: task.lead_id }) : null}
+          className={cn(
+            "text-sm font-medium truncate block text-left",
+            task.lead_id ? "text-foreground/90 hover:text-primary" : "text-foreground/90",
+            isCompleted && "line-through text-muted-foreground"
+          )}
+        >
+          {primaryLabel}
+        </button>
+        <div className="flex items-center gap-2 mt-0.5">
+          {hasLead && (
+            <span className="text-xs text-muted-foreground/50 truncate">{task.title}</span>
+          )}
+          {task.lead_phone && (
+            <span className="text-xs text-muted-foreground/40 shrink-0">{task.lead_phone}</span>
+          )}
           {cb && (
             <span className="text-xs px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 shrink-0">
               Callback
@@ -213,19 +233,16 @@ function FollowUpRow({
             </span>
           )}
         </div>
-        {(task.lead_address || task.lead_owner) && (
-          <button
-            onClick={() => {
-              if (task.lead_id) window.location.href = `/leads?open=${task.lead_id}`;
-            }}
-            className="text-sm text-primary/70 hover:text-primary truncate flex items-center gap-1 mt-0.5"
-          >
-            <ChevronRight className="h-3 w-3" />
-            {task.lead_owner ? `${task.lead_owner} — ` : ""}
-            {task.lead_address ?? "Unknown property"}
-          </button>
-        )}
       </div>
+
+      {task.lead_id && !isCompleted && (
+        <a
+          href={`/dialer?lead=${task.lead_id}`}
+          className="flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-medium text-primary bg-primary/10 hover:bg-primary/20 border border-primary/20 shrink-0"
+        >
+          <Phone className="h-3 w-3" /> Call
+        </a>
+      )}
 
       <span className={cn("text-sm shrink-0 tabular-nums", due.color)}>
         {isCompleted ? (

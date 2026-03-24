@@ -27,6 +27,7 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { supabase } from "@/lib/supabase";
 import { useSentinelStore } from "@/lib/store";
+import { useModal } from "@/providers/modal-provider";
 import { cn } from "@/lib/utils";
 import type { LeadStatus } from "@/lib/types";
 
@@ -148,6 +149,7 @@ function EmptySection({ icon: Icon, message }: { icon: typeof CheckCircle2; mess
 
 function TodayView() {
   const { currentUser } = useSentinelStore();
+  const { openModal } = useModal();
 
   const [stats, setStats] = useState<BriefStats | null>(null);
   const [statsError, setStatsError] = useState<SectionError>(null);
@@ -176,6 +178,7 @@ function TodayView() {
     lead_id: string | null;
     lead_address?: string | null;
     lead_owner?: string | null;
+    lead_phone?: string | null;
     lead_status?: string | null;
     assigned_to: string | null;
     notes: string | null;
@@ -505,21 +508,28 @@ function TodayView() {
             : ""
             : "No date";
 
+          const primaryLabel = task.lead_owner || task.title;
+          const secondaryParts = [
+            task.lead_address,
+            task.lead_owner ? task.title : null,
+          ].filter(Boolean).join(" · ");
+
           return (
             <div className="group flex items-start gap-2.5 py-2 px-1 hover:bg-overlay-4 rounded-lg transition-colors">
               <div className={cn("mt-1.5 h-2 w-2 rounded-full shrink-0", dotColor)} />
               <div className="flex-1 min-w-0">
-                <a
-                  href={task.lead_id ? `/leads?open=${task.lead_id}` : "/tasks"}
-                  className="text-sm text-foreground/90 font-medium hover:text-primary truncate block"
+                <button
+                  onClick={() => task.lead_id ? openModal("client-file", { leadId: task.lead_id }) : null}
+                  className="text-sm text-foreground/90 font-medium hover:text-primary truncate block text-left"
                 >
-                  {task.title}
-                </a>
-                <div className="flex items-center gap-2 text-xs text-muted-foreground/50 mt-0.5">
-                  {task.lead_address && <span>{task.lead_address}</span>}
-                  {task.lead_owner && <span>· {task.lead_owner}</span>}
-                  {task.lead_status && <Badge variant="outline" className="text-[10px] py-0 px-1.5 h-4">{task.lead_status}</Badge>}
-                </div>
+                  {primaryLabel}
+                </button>
+                {secondaryParts && (
+                  <p className="text-xs text-muted-foreground/50 mt-0.5 truncate">
+                    {secondaryParts}
+                    {task.lead_status && <Badge variant="outline" className="text-[10px] py-0 px-1.5 h-4 ml-1.5">{task.lead_status}</Badge>}
+                  </p>
+                )}
               </div>
               <div className="flex items-center gap-2 shrink-0">
                 <span className="text-xs text-muted-foreground/50">{dueLabel}</span>

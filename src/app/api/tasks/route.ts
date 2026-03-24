@@ -86,7 +86,7 @@ export async function GET(req: NextRequest) {
       if (propIds.length > 0) {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const { data: props } = await (sb.from("properties") as any)
-          .select("id, address, owner_name")
+          .select("id, address, owner_name, owner_phone")
           .in("id", propIds.slice(0, 200));
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         (props ?? []).forEach((p: any) => { propMap[p.id] = p; });
@@ -98,6 +98,7 @@ export async function GET(req: NextRequest) {
         leadMap[l.id] = {
           lead_address: prop.address ?? null,
           lead_owner: prop.owner_name ?? null,
+          lead_phone: prop.owner_phone ?? null,
           lead_status: l.status ?? null,
         };
       });
@@ -106,7 +107,7 @@ export async function GET(req: NextRequest) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const enriched = (tasks ?? []).map((t: any) => ({
       ...t,
-      ...(leadMap[t.lead_id] ?? { lead_address: null, lead_owner: null, lead_status: null }),
+      ...(leadMap[t.lead_id] ?? { lead_address: null, lead_owner: null, lead_phone: null, lead_status: null }),
     }));
 
     return NextResponse.json({ tasks: enriched });
