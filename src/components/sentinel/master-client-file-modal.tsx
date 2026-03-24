@@ -132,6 +132,8 @@ import { useCoachSurface } from "@/providers/coach-provider";
 
 import { useTwilio } from "@/providers/twilio-provider";
 
+import { useSentinelStore } from "@/lib/store";
+
 import { CoachPanel, CoachToggle } from "@/components/sentinel/coach-panel";
 
 import { NumericInput } from "@/components/sentinel/numeric-input";
@@ -4044,6 +4046,10 @@ export function MasterClientFileModal({ clientFile: incomingClientFile, open, on
 
   const { startCall, callState: twilioCallState } = useTwilio();
 
+  const { sidebarOpen, sidebarWidth } = useSentinelStore();
+
+  const sidebarOffset = sidebarOpen ? sidebarWidth / 2 : 0;
+
   const [activeTab, setActiveTab] = useState<TabId>("overview");
 
   const [skipTracing, setSkipTracing] = useState(false);
@@ -7855,11 +7861,16 @@ export function MasterClientFileModal({ clientFile: incomingClientFile, open, on
 
             className={cn(
 
-              "fixed inset-x-4 top-[4.5%] bottom-[2%] md:inset-x-auto md:left-1/2 md:-translate-x-1/2 z-50 flex flex-col transition-all duration-300",
+              "fixed inset-x-4 top-[4.5%] bottom-[2%] md:inset-x-auto md:-translate-x-1/2 z-50 flex flex-col transition-all duration-300",
 
               activeTab === "comps" ? "md:w-[1325px]" : activeTab === "dossier" || activeTab === "legal" ? "md:w-[1200px]" : "md:w-[1075px]",
 
             )}
+
+            style={{
+              left: `calc(50% + ${sidebarOffset}px)`,
+              maxWidth: `calc(100vw - ${sidebarOpen ? sidebarWidth : 0}px - 2rem)`,
+            }}
 
           >
 
