@@ -104,10 +104,37 @@ export async function GET(req: NextRequest) {
       });
     }
 
+    // Fetch last call context for each lead
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    let callMap: Record<string, { last_call_date: string; last_call_disposition: string | null; last_call_notes: string | null }> = {};
+    if (leadIds.length > 0) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data: calls } = await (sb.from("calls_log") as any)
+        .select("lead_id, created_at, disposition, notes")
+        .in("lead_id", leadIds.slice(0, 100))
+        .order("created_at", { ascending: false });
+
+      // Keep only the most recent call per lead
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (calls ?? []).forEach((c: any) => {
+        if (!callMap[c.lead_id]) {
+          callMap[c.lead_id] = {
+            last_call_date: c.created_at,
+            last_call_disposition: c.disposition ?? null,
+            last_call_notes: c.notes ? String(c.notes).slice(0, 120) : null,
+          };
+        }
+      });
+    }
+
+    const noCallContext = { last_call_date: null, last_call_disposition: null, last_call_notes: null };
+    const noLeadContext = { lead_address: null, lead_owner: null, lead_phone: null, lead_status: null };
+
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const enriched = (tasks ?? []).map((t: any) => ({
       ...t,
-      ...(leadMap[t.lead_id] ?? { lead_address: null, lead_owner: null, lead_phone: null, lead_status: null }),
+      ...(leadMap[t.lead_id] ?? noLeadContext),
+      ...(callMap[t.lead_id] ?? noCallContext),
     }));
 
     return NextResponse.json({ tasks: enriched });

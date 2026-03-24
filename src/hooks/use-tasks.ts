@@ -24,6 +24,10 @@ export interface TaskItem {
   lead_owner?: string | null;
   lead_phone?: string | null;
   lead_status?: string | null;
+  // Last call context
+  last_call_date?: string | null;
+  last_call_disposition?: string | null;
+  last_call_notes?: string | null;
 }
 
 export type TaskView = "today" | "upcoming" | "overdue" | "all" | "completed";
@@ -65,8 +69,12 @@ export async function updateTask(id: string, data: Partial<TaskItem>): Promise<T
   return json.task;
 }
 
-export async function completeTask(id: string): Promise<TaskItem> {
-  return updateTask(id, { status: "completed" } as Partial<TaskItem>);
+export async function completeTask(id: string, reason?: string): Promise<TaskItem> {
+  const patch: Partial<TaskItem> = { status: "completed" };
+  if (reason) {
+    patch.notes = `[Completed: ${reason}]`;
+  }
+  return updateTask(id, patch);
 }
 
 export async function reopenTask(id: string): Promise<TaskItem> {
@@ -145,8 +153,8 @@ export function useTasks(view: TaskView = "all") {
     return task;
   }, [fetchTasks]);
 
-  const handleComplete = useCallback(async (id: string) => {
-    const task = await completeTask(id);
+  const handleComplete = useCallback(async (id: string, reason?: string) => {
+    const task = await completeTask(id, reason);
     await fetchTasks();
     return task;
   }, [fetchTasks]);

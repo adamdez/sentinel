@@ -180,6 +180,9 @@ function TodayView() {
     lead_owner?: string | null;
     lead_phone?: string | null;
     lead_status?: string | null;
+    last_call_date?: string | null;
+    last_call_disposition?: string | null;
+    last_call_notes?: string | null;
     assigned_to: string | null;
     notes: string | null;
   }
@@ -187,6 +190,7 @@ function TodayView() {
   const [tasksError, setTasksError] = useState<SectionError>(null);
   const [filterUser, setFilterUser] = useState<string | "all">("all");
   const [completingId, setCompletingId] = useState<string | null>(null);
+  const [completingReasonId, setCompletingReasonId] = useState<string | null>(null);
 
   const [loading, setLoading] = useState(true);
 
@@ -479,18 +483,33 @@ function TodayView() {
         const noDueTasks = filtered.filter((t) => !t.due_at);
         const totalCount = filtered.length;
 
-        const handleCompleteTask = async (taskId: string) => {
+        const COMPLETION_REASONS = ["Called", "Texted", "Rescheduled", "Not needed"] as const;
+
+        const handleCompleteTask = async (taskId: string, reason: string) => {
           setCompletingId(taskId);
           try {
             const { data: { session: sess } } = await supabase.auth.getSession();
             const hdrs: Record<string, string> = sess?.access_token
               ? { Authorization: `Bearer ${sess.access_token}`, "Content-Type": "application/json" }
               : { "Content-Type": "application/json" };
-            await fetch(`/api/tasks/${taskId}`, { method: "PATCH", headers: hdrs, body: JSON.stringify({ status: "completed" }) });
+            await fetch(`/api/tasks/${taskId}`, {
+              method: "PATCH",
+              headers: hdrs,
+              body: JSON.stringify({ status: "completed", notes: `[Completed: ${reason}]` }),
+            });
+            setCompletingReasonId(null);
             fetchAll();
           } catch { /* retry on next poll */ } finally {
             setCompletingId(null);
           }
+        };
+
+        const lastCallLabel = (task: DashTask) => {
+          if (!task.last_call_date) return null;
+          const dispo = task.last_call_disposition ?? "call";
+          const ago = timeAgo(task.last_call_date);
+          const snippet = task.last_call_notes ? ` — ${task.last_call_notes.slice(0, 60)}` : "";
+          return `Last: ${dispo} ${ago}${snippet}`;
         };
 
         const TaskRow = ({ task }: { task: DashTask }) => {
@@ -513,6 +532,8 @@ function TodayView() {
             task.lead_address,
             task.lead_owner ? task.title : null,
           ].filter(Boolean).join(" · ");
+          const callContext = lastCallLabel(task);
+          const showReasonPicker = completingReasonId === task.id;
 
           return (
             <div className="group flex items-start gap-2.5 py-2 px-1 hover:bg-overlay-4 rounded-lg transition-colors">
@@ -520,7 +541,10 @@ function TodayView() {
               <div className="flex-1 min-w-0">
                 <button
                   onClick={() => task.lead_id ? openModal("client-file", { leadId: task.lead_id }) : null}
-                  className="text-sm text-foreground/90 font-medium hover:text-primary truncate block text-left"
+                  className={cn(
+                    "text-sm text-foreground/90 font-medium truncate block text-left",
+                    task.lead_id ? "hover:text-primary cursor-pointer" : "cursor-default"
+                  )}
                 >
                   {primaryLabel}
                 </button>
@@ -530,24 +554,51 @@ function TodayView() {
                     {task.lead_status && <Badge variant="outline" className="text-[10px] py-0 px-1.5 h-4 ml-1.5">{task.lead_status}</Badge>}
                   </p>
                 )}
+                {callContext && (
+                  <p className="text-[11px] text-muted-foreground/40 mt-0.5 truncate italic">
+                    {callContext}
+                  </p>
+                )}
               </div>
               <div className="flex items-center gap-2 shrink-0">
                 <span className="text-xs text-muted-foreground/50">{dueLabel}</span>
-                {task.lead_id && (
-                  <a
-                    href={`/dialer?lead=${task.lead_id}`}
+                {task.lead_phone && !showReasonPicker && (
+                  <button
+                    onClick={() => {
+                      if (task.lead_id) openModal("client-file", { leadId: task.lead_id });
+                    }}
                     className="hidden group-hover:flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-medium text-primary bg-primary/10 hover:bg-primary/20 border border-primary/20"
                   >
                     <Phone className="h-2.5 w-2.5" /> Call
-                  </a>
+                  </button>
                 )}
-                <button
-                  onClick={() => handleCompleteTask(task.id)}
-                  disabled={completingId === task.id}
-                  className="hidden group-hover:flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-medium text-emerald-400 bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/20 disabled:opacity-40"
-                >
-                  {completingId === task.id ? <Loader2 className="h-2.5 w-2.5 animate-spin" /> : <CheckCircle2 className="h-2.5 w-2.5" />} Done
-                </button>
+                {showReasonPicker ? (
+                  <div className="flex items-center gap-1 flex-wrap">
+                    {COMPLETION_REASONS.map((reason) => (
+                      <button
+                        key={reason}
+                        onClick={() => handleCompleteTask(task.id, reason)}
+                        disabled={completingId === task.id}
+                        className="px-2 py-0.5 rounded text-[10px] font-medium text-emerald-400 bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/20 disabled:opacity-40"
+                      >
+                        {completingId === task.id ? "..." : reason}
+                      </button>
+                    ))}
+                    <button
+                      onClick={() => setCompletingReasonId(null)}
+                      className="px-1.5 py-0.5 rounded text-[10px] text-muted-foreground/50 hover:text-foreground/70"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    onClick={() => setCompletingReasonId(task.id)}
+                    className="hidden group-hover:flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-medium text-emerald-400 bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/20"
+                  >
+                    <CheckCircle2 className="h-2.5 w-2.5" /> Done
+                  </button>
+                )}
               </div>
             </div>
           );

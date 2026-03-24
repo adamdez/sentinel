@@ -381,18 +381,25 @@ export async function PATCH(req: NextRequest) {
     }
 
     let estimatedValueForQualification: number | null = null;
-    if (hasQualificationMutation && currentLead.property_id) {
+    let propertyOwnerName: string | null = null;
+    let propertyAddress: string | null = null;
+    if (currentLead.property_id) {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { data: propertyForScore, error: propertyScoreErr } = await (sb.from("properties") as any)
-        .select("estimated_value")
+        .select("estimated_value, owner_name, address")
         .eq("id", currentLead.property_id)
         .single();
 
       if (propertyScoreErr) {
-        console.warn("[API/prospects PATCH] Could not load property estimated_value for qualification score:", propertyScoreErr.message);
-      } else if (propertyForScore?.estimated_value != null) {
-        const numericEstimatedValue = Number(propertyForScore.estimated_value);
-        estimatedValueForQualification = Number.isFinite(numericEstimatedValue) ? numericEstimatedValue : null;
+        console.warn("[API/prospects PATCH] Could not load property for qualification score:", propertyScoreErr.message);
+      } else if (propertyForScore) {
+        if (propertyForScore.estimated_value != null) {
+          const numericEstimatedValue = Number(propertyForScore.estimated_value);
+          estimatedValueForQualification = Number.isFinite(numericEstimatedValue) ? numericEstimatedValue : null;
+        }
+        const rawName = typeof propertyForScore.owner_name === "string" ? propertyForScore.owner_name.trim() : null;
+        propertyOwnerName = rawName && rawName !== "Unknown Owner" ? rawName : null;
+        propertyAddress = typeof propertyForScore.address === "string" ? propertyForScore.address.trim() || null : null;
       }
     }
 
@@ -433,6 +440,11 @@ export async function PATCH(req: NextRequest) {
         }
       | null = null;
 
+    const leadLabel = propertyOwnerName
+      ? propertyAddress ? `${propertyOwnerName}, ${propertyAddress}` : propertyOwnerName
+      : propertyAddress ?? null;
+    const taskSuffix = leadLabel ? ` — ${leadLabel}` : "";
+
     if (qualificationRouteChanged && nextQualificationRoute) {
       if (nextQualificationRoute === "offer_ready") {
         if (currentStatus === "lead") {
@@ -446,7 +458,7 @@ export async function PATCH(req: NextRequest) {
         }
         const followUpAt = addDays(1);
         plannedTask = {
-          title: "Run comps + prepare offer range",
+          title: `Run comps + prepare offer range${taskSuffix}`,
           description: "Offer-ready path active. Prepare range and set/confirm next seller touchpoint.",
           dueAt: nowIso,
           nextFollowUpAt: followUpAt,
@@ -456,7 +468,7 @@ export async function PATCH(req: NextRequest) {
       if (nextQualificationRoute === "follow_up") {
         const dueAt = addDays(3);
         plannedTask = {
-          title: "Follow-up call",
+          title: `Follow-up call${taskSuffix}`,
           dueAt,
           nextFollowUpAt: dueAt,
         };
@@ -475,7 +487,7 @@ export async function PATCH(req: NextRequest) {
 
         const dueAt = addDays(14);
         plannedTask = {
-          title: "Nurture check-in",
+          title: `Nurture check-in${taskSuffix}`,
           dueAt,
           nextFollowUpAt: dueAt,
         };
@@ -495,7 +507,7 @@ export async function PATCH(req: NextRequest) {
 
       if (nextQualificationRoute === "escalate") {
         plannedTask = {
-          title: "Escalation review requested",
+          title: `Escalation review requested${taskSuffix}`,
           description: "Adam review requested. Lead ownership remains with the current assignee until manually reassigned.",
           dueAt: nowIso,
           escalationReviewOnly: true,

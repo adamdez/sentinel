@@ -145,6 +145,21 @@ function QuickCreate({ onCreate }: { onCreate: (data: Partial<TaskItem>) => Prom
   );
 }
 
+const COMPLETION_REASONS = ["Called", "Texted", "Rescheduled", "Not needed"] as const;
+
+function lastCallLabel(task: TaskItem): string | null {
+  if (!task.last_call_date) return null;
+  const dispo = task.last_call_disposition ?? "call";
+  const diff = Date.now() - new Date(task.last_call_date).getTime();
+  const mins = Math.floor(diff / 60000);
+  let ago: string;
+  if (mins < 1) ago = "just now";
+  else if (mins < 60) ago = `${mins}m ago`;
+  else { const hrs = Math.floor(mins / 60); ago = hrs < 24 ? `${hrs}h ago` : `${Math.floor(hrs / 24)}d ago`; }
+  const snippet = task.last_call_notes ? ` — ${task.last_call_notes.slice(0, 60)}` : "";
+  return `Last: ${dispo} ${ago}${snippet}`;
+}
+
 function FollowUpRow({
   task,
   onComplete,
@@ -154,13 +169,14 @@ function FollowUpRow({
   idx,
 }: {
   task: TaskItem;
-  onComplete: (id: string) => void;
+  onComplete: (id: string, reason?: string) => void;
   onReopen: (id: string) => void;
   onDelete: (id: string) => void;
   onEdit: (task: TaskItem) => void;
   idx: number;
 }) {
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [showReasonPicker, setShowReasonPicker] = useState(false);
   const { openModal } = useModal();
   const isCompleted = task.status === "completed";
   const due = relativeDue(task.due_at);
@@ -171,6 +187,7 @@ function FollowUpRow({
   const primaryLabel = hasLead
     ? [task.lead_owner, task.lead_address].filter(Boolean).join(" — ")
     : task.title;
+  const callContext = lastCallLabel(task);
 
   return (
     <motion.div
@@ -193,7 +210,10 @@ function FollowUpRow({
       <div className={cn("h-2 w-2 rounded-full shrink-0", priorityDot(task.priority))} />
 
       <button
-        onClick={() => isCompleted ? onReopen(task.id) : onComplete(task.id)}
+        onClick={() => {
+          if (isCompleted) { onReopen(task.id); return; }
+          setShowReasonPicker(true);
+        }}
         className={cn(
           "shrink-0 h-5 w-5 rounded-full border flex items-center justify-center transition-all",
           isCompleted
@@ -209,7 +229,7 @@ function FollowUpRow({
           onClick={() => task.lead_id ? openModal("client-file", { leadId: task.lead_id }) : null}
           className={cn(
             "text-sm font-medium truncate block text-left",
-            task.lead_id ? "text-foreground/90 hover:text-primary" : "text-foreground/90",
+            task.lead_id ? "text-foreground/90 hover:text-primary cursor-pointer" : "text-foreground/90 cursor-default",
             isCompleted && "line-through text-muted-foreground"
           )}
         >
@@ -233,72 +253,99 @@ function FollowUpRow({
             </span>
           )}
         </div>
+        {callContext && (
+          <p className="text-[11px] text-muted-foreground/40 mt-0.5 truncate italic">
+            {callContext}
+          </p>
+        )}
       </div>
 
-      {task.lead_id && !isCompleted && (
-        <a
-          href={`/dialer?lead=${task.lead_id}`}
-          className="flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-medium text-primary bg-primary/10 hover:bg-primary/20 border border-primary/20 shrink-0"
-        >
-          <Phone className="h-3 w-3" /> Call
-        </a>
-      )}
+      {showReasonPicker && !isCompleted ? (
+        <div className="flex items-center gap-1 flex-wrap shrink-0">
+          {COMPLETION_REASONS.map((reason) => (
+            <button
+              key={reason}
+              onClick={() => { onComplete(task.id, reason); setShowReasonPicker(false); }}
+              className="px-2 py-0.5 rounded text-[10px] font-medium text-emerald-400 bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/20"
+            >
+              {reason}
+            </button>
+          ))}
+          <button
+            onClick={() => setShowReasonPicker(false)}
+            className="px-1.5 py-0.5 rounded text-[10px] text-muted-foreground/50 hover:text-foreground/70"
+          >
+            ✕
+          </button>
+        </div>
+      ) : (
+        <>
+          {task.lead_id && !isCompleted && (
+            <button
+              onClick={() => openModal("client-file", { leadId: task.lead_id! })}
+              className="flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-medium text-primary bg-primary/10 hover:bg-primary/20 border border-primary/20 shrink-0"
+            >
+              <Phone className="h-3 w-3" /> Call
+            </button>
+          )}
 
-      <span className={cn("text-sm shrink-0 tabular-nums", due.color)}>
-        {isCompleted ? (
-          <span className="text-muted-foreground/50">
-            Done {task.completed_at
-              ? new Date(task.completed_at).toLocaleDateString("en-US", { month: "short", day: "numeric" })
-              : ""}
+          <span className={cn("text-sm shrink-0 tabular-nums", due.color)}>
+            {isCompleted ? (
+              <span className="text-muted-foreground/50">
+                Done {task.completed_at
+                  ? new Date(task.completed_at).toLocaleDateString("en-US", { month: "short", day: "numeric" })
+                  : ""}
+              </span>
+            ) : (
+              due.label
+            )}
           </span>
-        ) : (
-          due.label
-        )}
-      </span>
 
-      <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
-        {isCompleted ? (
-          <button
-            onClick={() => onReopen(task.id)}
-            className="p-1 rounded hover:bg-overlay-5 text-muted-foreground hover:text-foreground transition-colors"
-            title="Reopen"
-          >
-            <RotateCcw className="h-3.5 w-3.5" />
-          </button>
-        ) : (
-          <button
-            onClick={() => onEdit(task)}
-            className="p-1 rounded hover:bg-overlay-5 text-muted-foreground hover:text-foreground transition-colors"
-            title="Edit"
-          >
-            <Edit3 className="h-3.5 w-3.5" />
-          </button>
-        )}
-        {confirmDelete ? (
-          <div className="flex items-center gap-1">
-            <button
-              onClick={() => { onDelete(task.id); setConfirmDelete(false); }}
-              className="px-1.5 py-0.5 rounded text-sm bg-red-500/20 text-red-400 hover:bg-red-500/30 transition-colors"
-            >
-              Yes
-            </button>
-            <button
-              onClick={() => setConfirmDelete(false)}
-              className="px-1.5 py-0.5 rounded text-sm bg-overlay-5 text-muted-foreground hover:bg-overlay-10 transition-colors"
-            >
-              No
-            </button>
+          <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
+            {isCompleted ? (
+              <button
+                onClick={() => onReopen(task.id)}
+                className="p-1 rounded hover:bg-overlay-5 text-muted-foreground hover:text-foreground transition-colors"
+                title="Reopen"
+              >
+                <RotateCcw className="h-3.5 w-3.5" />
+              </button>
+            ) : (
+              <button
+                onClick={() => onEdit(task)}
+                className="p-1 rounded hover:bg-overlay-5 text-muted-foreground hover:text-foreground transition-colors"
+                title="Edit"
+              >
+                <Edit3 className="h-3.5 w-3.5" />
+              </button>
+            )}
+            {confirmDelete ? (
+              <div className="flex items-center gap-1">
+                <button
+                  onClick={() => { onDelete(task.id); setConfirmDelete(false); }}
+                  className="px-1.5 py-0.5 rounded text-sm bg-red-500/20 text-red-400 hover:bg-red-500/30 transition-colors"
+                >
+                  Yes
+                </button>
+                <button
+                  onClick={() => setConfirmDelete(false)}
+                  className="px-1.5 py-0.5 rounded text-sm bg-overlay-5 text-muted-foreground hover:bg-overlay-10 transition-colors"
+                >
+                  No
+                </button>
+              </div>
+            ) : (
+              <button
+                onClick={() => setConfirmDelete(true)}
+                className="p-1 rounded hover:bg-muted/10 text-muted-foreground hover:text-foreground transition-colors"
+                title="Delete"
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+              </button>
+            )}
           </div>
-        ) : (
-          <button
-            onClick={() => setConfirmDelete(true)}
-            className="p-1 rounded hover:bg-muted/10 text-muted-foreground hover:text-foreground transition-colors"
-            title="Delete"
-          >
-            <Trash2 className="h-3.5 w-3.5" />
-          </button>
-        )}
-      </div>
+        </>
+      )}
     </motion.div>
   );
 }
@@ -608,8 +655,8 @@ export default function TasksPage() {
 
   const showError = error || (timedOut && loading);
 
-  const onComplete = useCallback(async (id: string) => {
-    try { await handleComplete(id); toast.success("Completed"); } catch { toast.error("Failed"); }
+  const onComplete = useCallback(async (id: string, reason?: string) => {
+    try { await handleComplete(id, reason); toast.success("Completed"); } catch { toast.error("Failed"); }
   }, [handleComplete]);
 
   const onReopen = useCallback(async (id: string) => {
