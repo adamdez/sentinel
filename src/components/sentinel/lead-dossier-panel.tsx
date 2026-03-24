@@ -109,10 +109,10 @@ function parseSourceLinks(raw: unknown): Array<{ label: string; url: string }> {
     .filter(Boolean) as Array<{ label: string; url: string }>;
 }
 
-export function LeadDossierPanel({ leadId }: { leadId: string }) {
+export function LeadDossierPanel({ leadId, cachedDeepCrawlResult }: { leadId: string; cachedDeepCrawlResult?: DeepCrawlResult | null }) {
   const qc = useQueryClient();
   const [artifactsOpen, setArtifactsOpen] = useState(false);
-  const [crawlResult, setCrawlResult] = useState<DeepCrawlResult | null>(null);
+  const [crawlResult, setCrawlResult] = useState<DeepCrawlResult | null>(cachedDeepCrawlResult ?? null);
   const [crawlResultOpen, setCrawlResultOpen] = useState(true);
 
   const dossierQuery = useQuery({

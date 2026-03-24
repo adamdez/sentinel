@@ -834,7 +834,7 @@ function selectCallAssistCards(cf: ClientFile): { defaultCards: CallAssistCard[]
 
 
 
-const PRIMARY_TAB_IDS = new Set<TabId>(["overview", "contact", "comps", "dossier"]);
+const PRIMARY_TAB_IDS = new Set<TabId>(["overview", "contact", "comps", "dossier", "legal"]);
 
 
 
@@ -8524,7 +8524,10 @@ export function MasterClientFileModal({ clientFile: incomingClientFile, open, on
 
                         <IntelligenceSummaryBlock cf={clientFile} />
 
-                        <LeadDossierPanel leadId={clientFile.id} />
+                        <LeadDossierPanel
+                          leadId={clientFile.id}
+                          cachedDeepCrawlResult={(clientFile.ownerFlags as Record<string, unknown> | undefined)?.deep_crawl_result as { categories: Record<string, Array<{ url: string; title: string; excerpt: string }>>; artifactCount: number; queriesRun: number } | undefined}
+                        />
 
                       </div>
 

@@ -131,6 +131,26 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     }
   }
 
+  // Persist results to owner_flags so they survive tab switches
+  if (lead.property_id) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: propFlags } = await (sb.from("properties") as any)
+      .select("owner_flags")
+      .eq("id", lead.property_id)
+      .single();
+
+    const merged = {
+      ...((propFlags?.owner_flags as Record<string, unknown>) ?? {}),
+      deep_crawl_result: { categories, artifactCount, queriesRun: queries.length },
+      deep_crawl_at: new Date().toISOString(),
+    };
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    await (sb.from("properties") as any)
+      .update({ owner_flags: merged })
+      .eq("id", lead.property_id);
+  }
+
   return NextResponse.json({
     leadId,
     categories,
