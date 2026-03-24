@@ -1179,6 +1179,7 @@ export async function POST(req: NextRequest) {
         };
       }
       if (owner_suffix) mergedFlags.owner_suffix = owner_suffix;
+      if (owner_phone2?.trim()) mergedFlags.owner_phone2 = owner_phone2.trim();
       if (Array.isArray(import_phones) && import_phones.length > 0) mergedFlags.import_phones = import_phones;
       if (Array.isArray(import_emails) && import_emails.length > 0) mergedFlags.import_emails = import_emails;
       if (legal_metadata && typeof legal_metadata === "object") mergedFlags.legal_metadata = legal_metadata;
@@ -1232,7 +1233,6 @@ export async function POST(req: NextRequest) {
         zip: zip?.trim() || null,
         owner_name: owner_name?.trim() || "Unknown Owner",
         owner_phone: owner_phone?.trim() || null,
-        owner_phone2: owner_phone2?.trim() || null,
         owner_email: owner_email?.trim() || null,
         property_type: property_type || "SFR",
         owner_flags: mergedFlags,
