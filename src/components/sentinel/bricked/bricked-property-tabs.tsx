@@ -19,7 +19,10 @@ const TABS: { key: TabKey; label: string }[] = [
 
 function ts(v?: number | null): string {
   if (v == null) return "—";
-  return new Date(v * 1000).toLocaleDateString("en-US", {
+  const ms = v > 1e10 ? v : v * 1000;
+  const d = new Date(ms);
+  if (isNaN(d.getTime())) return "—";
+  return d.toLocaleDateString("en-US", {
     month: "short",
     day: "numeric",
     year: "numeric",
