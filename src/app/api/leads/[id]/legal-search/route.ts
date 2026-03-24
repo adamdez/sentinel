@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@/lib/supabase";
-import { runLegalSearch, type NormalizedDocument } from "@/lib/county-legal-search";
+import { assessLegalDocumentMatch, runLegalSearch, type NormalizedDocument } from "@/lib/county-legal-search";
 
 /**
  * POST /api/leads/[id]/legal-search
@@ -212,15 +212,48 @@ export async function GET(
   // Get search timestamp from owner_flags
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data: prop } = await (sb.from("properties") as any)
-    .select("owner_flags")
+    .select("owner_flags, owner_name, address, city, county, apn")
     .eq("id", lead.property_id)
     .single();
 
   const flags = (prop?.owner_flags as Record<string, unknown>) ?? {};
+  const searchInput = {
+    ownerName: prop?.owner_name ?? "",
+    address: prop?.address ?? "",
+    city: prop?.city ?? "",
+    county: prop?.county ?? "",
+    apn: prop?.apn ?? "",
+  };
+
+  const filteredDocs = (docs ?? []).filter((doc: Record<string, unknown>) => {
+    const normalized: NormalizedDocument = {
+      documentType: String(doc.document_type ?? "unknown"),
+      instrumentNumber: typeof doc.instrument_number === "string" ? doc.instrument_number : null,
+      recordingDate: typeof doc.recording_date === "string" ? doc.recording_date : null,
+      documentDate: typeof doc.document_date === "string" ? doc.document_date : null,
+      grantor: typeof doc.grantor === "string" ? doc.grantor : null,
+      grantee: typeof doc.grantee === "string" ? doc.grantee : null,
+      amount: typeof doc.amount === "number" ? doc.amount : null,
+      lenderName: typeof doc.lender_name === "string" ? doc.lender_name : null,
+      status: typeof doc.status === "string" ? doc.status : "unknown",
+      caseNumber: typeof doc.case_number === "string" ? doc.case_number : null,
+      courtName: typeof doc.court_name === "string" ? doc.court_name : null,
+      caseType: typeof doc.case_type === "string" ? doc.case_type : null,
+      attorneyName: typeof doc.attorney_name === "string" ? doc.attorney_name : null,
+      contactPerson: typeof doc.contact_person === "string" ? doc.contact_person : null,
+      nextHearingDate: typeof doc.next_hearing_date === "string" ? doc.next_hearing_date : null,
+      eventDescription: typeof doc.event_description === "string" ? doc.event_description : null,
+      source: typeof doc.source === "string" ? doc.source : "unknown",
+      sourceUrl: typeof doc.source_url === "string" ? doc.source_url : null,
+      rawExcerpt: typeof doc.raw_excerpt === "string" ? doc.raw_excerpt : null,
+    };
+
+    return assessLegalDocumentMatch(normalized, searchInput).accepted;
+  });
 
   return NextResponse.json({
-    documents: docs ?? [],
+    documents: filteredDocs,
     lastSearchedAt: (flags.legal_search_at as string) ?? null,
-    totalCount: (docs ?? []).length,
+    totalCount: filteredDocs.length,
   });
 }

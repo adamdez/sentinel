@@ -116,6 +116,46 @@ function safeStr(v: unknown): string | null {
   return String(v);
 }
 
+function isValidHttpUrl(value: string | null | undefined): value is string {
+  if (!value) return false;
+  try {
+    const parsed = new URL(value);
+    return parsed.protocol === "http:" || parsed.protocol === "https:";
+  } catch {
+    return false;
+  }
+}
+
+function buildDossierSourceLinks(
+  agentFindings: AgentFinding[],
+  webFindings: Array<{ source?: string | null }>,
+  sources: string[],
+): Array<{ label: string; url: string }> {
+  const seen = new Set<string>();
+  const links: Array<{ label: string; url: string }> = [];
+
+  const push = (url: string | null | undefined, label?: string | null) => {
+    if (!isValidHttpUrl(url) || seen.has(url)) return;
+    seen.add(url);
+    links.push({
+      label: label?.trim() || new URL(url).hostname.replace(/^www\./, ""),
+      url,
+    });
+  };
+
+  for (const finding of agentFindings) {
+    push(finding.url, finding.source);
+  }
+  for (const finding of webFindings) {
+    push(finding.source ?? null, null);
+  }
+  for (const source of sources) {
+    push(source, null);
+  }
+
+  return links.slice(0, 6);
+}
+
 async function requireAuthenticatedUser(req: NextRequest, sb: ReturnType<typeof createServerClient>) {
   const authHeader = req.headers.get("authorization");
   const token = authHeader?.startsWith("Bearer ") ? authHeader.slice(7) : null;
@@ -692,13 +732,10 @@ export async function POST(req: NextRequest) {
             })(),
           );
 
-          // 4a-dossier. Fire-and-forget upsert into the dossiers table.
-          // This does NOT block the crawl, does NOT affect owner_flags, and
-          // does NOT change DeepCrawlPanel behavior.
-          // The dossier lands with status = 'proposed' and is never shown to
-          // operators until Adam reviews it via the review endpoint.
+          // 4b. Keep the dossier row in sync with the crawl that just completed.
+          // We wait for this write so the dossier tab can refresh immediately.
           if (lead_id && aiDossier) {
-            (async () => {
+            writes.push((async () => {
               try {
                 const crawlRunId = result.crawledAt; // ISO timestamp as trace ref
                 const topFacts: { fact: string; source: string }[] = [
@@ -712,15 +749,11 @@ export async function POST(req: NextRequest) {
                   })),
                 ].slice(0, 8);
 
-                const sourceLinks: { label: string; url: string }[] = (result.sources ?? [])
-                  .slice(0, 6)
-                  .map((url: string) => ({
-                    label: new URL(url).hostname.replace(/^www\./, ""),
-                    url,
-                  }))
-                  .filter((l: { label: string; url: string }) => {
-                    try { new URL(l.url); return true; } catch { return false; }
-                  });
+                const sourceLinks = buildDossierSourceLinks(
+                  allAgentFindings,
+                  aiDossier.webFindings ?? [],
+                  result.sources ?? [],
+                );
 
                 const verificationChecklist: { item: string; verified: boolean }[] = (aiDossier.redFlags ?? [])
                   .slice(0, 5)
@@ -742,16 +775,32 @@ export async function POST(req: NextRequest) {
                   ai_run_id: crawlRunId,
                 };
 
-                const { error: dossierErr } = await tbl("dossiers").insert(dossierRecord);
-                if (dossierErr) {
-                  console.error("[DeepCrawl] Failed to upsert dossier:", dossierErr);
+                const { data: existingProposed, error: existingErr } = await tbl("dossiers")
+                  .select("id")
+                  .eq("lead_id", lead_id)
+                  .eq("status", "proposed")
+                  .order("created_at", { ascending: false })
+                  .limit(1);
+
+                if (existingErr) {
+                  console.error("[DeepCrawl] Failed to inspect existing dossier:", existingErr);
+                  return;
+                }
+
+                const existingId = existingProposed?.[0]?.id as string | undefined;
+                const dossierWrite = existingId
+                  ? await tbl("dossiers").update(dossierRecord).eq("id", existingId)
+                  : await tbl("dossiers").insert(dossierRecord);
+
+                if (dossierWrite.error) {
+                  console.error("[DeepCrawl] Failed to upsert dossier:", dossierWrite.error);
                 } else {
-                  console.log("[DeepCrawl] Dossier upserted for lead", lead_id, "(status: proposed)");
+                  console.log("[DeepCrawl] Dossier synced for lead", lead_id, "(status: proposed)");
                 }
               } catch (dossierWriteErr) {
                 console.error("[DeepCrawl] Dossier write exception:", dossierWriteErr);
               }
-            })();
+            })());
           }
 
           // 4b. Backfill distress_events.raw_data with actual dates/amounts

@@ -148,7 +148,7 @@ import { precheckWorkflowStageChange } from "@/lib/workflow-stage-precheck";
 
 import { getAllowedTransitions } from "@/lib/lead-guardrails";
 
-import { LeadDossierPanel } from "@/components/sentinel/lead-dossier-panel";
+import { LeadDossierPanel, type DeepCrawlSnapshot } from "@/components/sentinel/lead-dossier-panel";
 
 import { BrickedAnalysisPanel, type BrickedAnalysisPanelProps } from "@/components/sentinel/bricked/bricked-analysis-panel";
 
@@ -8822,7 +8822,8 @@ export function MasterClientFileModal({ clientFile: incomingClientFile, open, on
 
                         <LeadDossierPanel
                           leadId={clientFile.id}
-                          cachedDeepCrawlResult={(clientFile.ownerFlags as Record<string, unknown> | undefined)?.deep_crawl_result as { categories: Record<string, Array<{ url: string; title: string; excerpt: string }>>; artifactCount: number; queriesRun: number } | undefined}
+                          cachedDeepCrawl={(((clientFile.ownerFlags as Record<string, unknown> | undefined)?.deep_crawl)
+                            ?? ((clientFile.ownerFlags as Record<string, unknown> | undefined)?.deep_crawl_result)) as DeepCrawlSnapshot | undefined}
                         />
 
                       </div>

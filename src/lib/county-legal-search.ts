@@ -15,13 +15,166 @@ const FIRECRAWL_SEARCH = "https://api.firecrawl.dev/v1/search";
 
 // ── Owner name parsing ────────────────────────────────────────────────────────
 
-function parseOwnerName(fullName: string): { last: string; first: string; middle: string } {
+const OWNER_SUFFIXES = new Set([
+  "JR",
+  "SR",
+  "II",
+  "III",
+  "IV",
+  "V",
+  "TRUST",
+  "TR",
+  "ESTATE",
+  "ET",
+  "AL",
+  "LLC",
+  "INC",
+  "LP",
+]);
+
+const ADDRESS_STOP_WORDS = new Set([
+  "N",
+  "S",
+  "E",
+  "W",
+  "NE",
+  "NW",
+  "SE",
+  "SW",
+  "ST",
+  "STREET",
+  "AVE",
+  "AVENUE",
+  "RD",
+  "ROAD",
+  "LN",
+  "LANE",
+  "DR",
+  "DRIVE",
+  "CT",
+  "COURT",
+  "PL",
+  "PLACE",
+  "BLVD",
+  "BOULEVARD",
+  "WAY",
+  "HWY",
+  "HIGHWAY",
+  "PKWY",
+  "PARKWAY",
+  "CIR",
+  "CIRCLE",
+  "TER",
+  "TERRACE",
+  "APT",
+  "UNIT",
+]);
+
+interface ParsedOwnerName {
+  last: string;
+  first: string;
+  middle: string;
+  surnameCandidates: string[];
+  givenCandidates: string[];
+  fullNameVariants: string[];
+  coreTokens: string[];
+}
+
+export interface LegalMatchAssessment {
+  accepted: boolean;
+  score: number;
+  ownerStrong: boolean;
+  addressStrong: boolean;
+  apnMatch: boolean;
+  matchedSignals: string[];
+}
+
+function normalizeMatchText(value: string | null | undefined): string {
+  return (value ?? "")
+    .toUpperCase()
+    .replace(/[^A-Z0-9]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function uniqueNonEmpty(values: Array<string | null | undefined>): string[] {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const value of values) {
+    const cleaned = normalizeMatchText(value);
+    if (!cleaned || seen.has(cleaned)) continue;
+    seen.add(cleaned);
+    out.push(cleaned);
+  }
+  return out;
+}
+
+export function parseOwnerName(fullName: string): ParsedOwnerName {
   const cleaned = fullName.replace(/\s+/g, " ").trim();
-  const parts = cleaned.split(/\s+/);
-  if (parts.length === 0) return { last: "", first: "", middle: "" };
-  if (parts.length === 1) return { last: parts[0], first: "", middle: "" };
-  // "Last First M" format (most common in county records / CSV imports)
-  return { last: parts[0], first: parts[1], middle: parts.slice(2).join(" ") };
+  const normalized = normalizeMatchText(cleaned);
+  const parts = normalized.split(" ").filter(Boolean);
+
+  if (parts.length === 0) {
+    return {
+      last: "",
+      first: "",
+      middle: "",
+      surnameCandidates: [],
+      givenCandidates: [],
+      fullNameVariants: [],
+      coreTokens: [],
+    };
+  }
+
+  if (parts.length === 1) {
+    return {
+      last: parts[0],
+      first: "",
+      middle: "",
+      surnameCandidates: [parts[0]],
+      givenCandidates: [],
+      fullNameVariants: [parts[0]],
+      coreTokens: [parts[0]],
+    };
+  }
+
+  let first = "";
+  let last = "";
+  let middle = "";
+
+  if (cleaned.includes(",")) {
+    const [lastPart, restPart] = cleaned.split(",", 2);
+    const restTokens = normalizeMatchText(restPart).split(" ").filter(Boolean);
+    last = normalizeMatchText(lastPart);
+    first = restTokens[0] ?? "";
+    middle = restTokens.slice(1).join(" ");
+  } else if (parts.length >= 3 && parts[parts.length - 1].length === 1) {
+    // County CSV imports often surface as "LAST FIRST M".
+    last = parts[0];
+    first = parts[1] ?? "";
+    middle = parts.slice(2).join(" ");
+  } else {
+    // User-entered names are usually "First Middle Last".
+    first = parts[0];
+    last = parts[parts.length - 1];
+    middle = parts.slice(1, -1).join(" ");
+  }
+
+  const swappedVariant = [last, first, middle].filter(Boolean).join(" ");
+  const naturalVariant = [first, middle, last].filter(Boolean).join(" ");
+  const coreTokens = parts.filter((token) => token.length > 1 && !OWNER_SUFFIXES.has(token));
+
+  return {
+    last,
+    first,
+    middle,
+    surnameCandidates: uniqueNonEmpty([last, parts[0], parts[parts.length - 1]])
+      .filter((token) => token.length > 1 && !OWNER_SUFFIXES.has(token)),
+    givenCandidates: uniqueNonEmpty([first, parts[0], parts[1]])
+      .filter((token) => token.length > 1 && !OWNER_SUFFIXES.has(token)),
+    fullNameVariants: uniqueNonEmpty([cleaned, normalized, naturalVariant, swappedVariant]),
+    coreTokens: uniqueNonEmpty(coreTokens),
+  };
 }
 
 // ── Types ────────────────────────────────────────────────────────────────────
@@ -54,6 +207,155 @@ export interface NormalizedDocument {
   source: string;
   sourceUrl: string | null;
   rawExcerpt: string | null;
+}
+
+interface LegalMatchContext {
+  owner: ParsedOwnerName;
+  addressTokens: string[];
+  addressNumber: string | null;
+  apnNormalized: string | null;
+}
+
+function tokenSetFromText(value: string, opts?: { minLength?: number; omit?: Set<string> }): string[] {
+  const minLength = opts?.minLength ?? 2;
+  const omit = opts?.omit ?? new Set<string>();
+  return uniqueNonEmpty(value.split(/\s+/))
+    .flatMap((item) => item.split(" "))
+    .filter((token) => token.length >= minLength && !omit.has(token));
+}
+
+function buildLegalMatchContext(input: LegalSearchInput): LegalMatchContext {
+  const primaryAddress = input.address.split(",")[0] ?? input.address;
+  const normalizedAddress = normalizeMatchText(primaryAddress);
+  const addressTokens = tokenSetFromText(normalizedAddress, { minLength: 2, omit: ADDRESS_STOP_WORDS });
+  const addressNumber = normalizedAddress.match(/\b\d+\b/)?.[0] ?? null;
+  const apnNormalized = normalizeMatchText(input.apn).replace(/\s+/g, "") || null;
+
+  return {
+    owner: parseOwnerName(input.ownerName),
+    addressTokens,
+    addressNumber,
+    apnNormalized,
+  };
+}
+
+function buildDocumentHaystack(doc: NormalizedDocument): string {
+  return normalizeMatchText([
+    doc.grantor,
+    doc.grantee,
+    doc.eventDescription,
+    doc.rawExcerpt,
+    doc.caseType,
+    doc.caseNumber,
+    doc.sourceUrl,
+    doc.instrumentNumber,
+  ].filter(Boolean).join(" "));
+}
+
+function hasWholeToken(haystack: string, token: string): boolean {
+  if (!haystack || !token) return false;
+  return ` ${haystack} `.includes(` ${token} `);
+}
+
+export function assessLegalDocumentMatch(
+  doc: NormalizedDocument,
+  input: LegalSearchInput,
+): LegalMatchAssessment {
+  const ctx = buildLegalMatchContext(input);
+  const haystack = buildDocumentHaystack(doc);
+  const matchedSignals: string[] = [];
+  let score = 0;
+  let ownerStrong = false;
+  let addressStrong = false;
+  let apnMatch = false;
+
+  const exactOwnerVariant = ctx.owner.fullNameVariants.find((variant) => hasWholeToken(haystack, variant));
+  if (exactOwnerVariant) {
+    score += 9;
+    ownerStrong = true;
+    matchedSignals.push("owner-full");
+  } else {
+    const surnameHits = ctx.owner.surnameCandidates.filter((token) => hasWholeToken(haystack, token));
+    const givenHits = ctx.owner.givenCandidates.filter((token) => hasWholeToken(haystack, token));
+    const coreHits = ctx.owner.coreTokens.filter((token) => hasWholeToken(haystack, token));
+
+    if (surnameHits.length > 0) {
+      score += 3;
+      matchedSignals.push("owner-surname");
+    }
+    if (givenHits.length > 0) {
+      score += 2;
+      matchedSignals.push("owner-given");
+    }
+    if (coreHits.length >= 2) {
+      score += 4;
+      ownerStrong = true;
+      matchedSignals.push("owner-multi-token");
+    } else if (surnameHits.length > 0 && givenHits.length > 0) {
+      score += 2;
+      ownerStrong = true;
+      matchedSignals.push("owner-first-last");
+    }
+  }
+
+  let addressTokenHits = 0;
+  if (ctx.addressNumber && hasWholeToken(haystack, ctx.addressNumber)) {
+    score += 2;
+    matchedSignals.push("address-number");
+  }
+  for (const token of ctx.addressTokens) {
+    if (hasWholeToken(haystack, token)) {
+      addressTokenHits += 1;
+    }
+  }
+  if (addressTokenHits > 0) {
+    score += Math.min(addressTokenHits, 4);
+    matchedSignals.push(`address-token:${addressTokenHits}`);
+  }
+  addressStrong = addressTokenHits >= 2 || (Boolean(ctx.addressNumber) && addressTokenHits >= 1);
+
+  if (ctx.apnNormalized) {
+    const compactHaystack = haystack.replace(/\s+/g, "");
+    if (compactHaystack.includes(ctx.apnNormalized)) {
+      score += 7;
+      apnMatch = true;
+      matchedSignals.push("apn");
+    }
+  }
+
+  const accepted = apnMatch
+    || (doc.source === "wa_courts" ? ownerStrong : ownerStrong || addressStrong);
+
+  return {
+    accepted,
+    score,
+    ownerStrong,
+    addressStrong,
+    apnMatch,
+    matchedSignals,
+  };
+}
+
+function filterDocumentsForInput(
+  docs: NormalizedDocument[],
+  input: LegalSearchInput,
+  sourceLabel: string,
+): NormalizedDocument[] {
+  let rejected = 0;
+  const filtered = docs.filter((doc) => {
+    const assessment = assessLegalDocumentMatch(doc, input);
+    if (!assessment.accepted) {
+      rejected += 1;
+      return false;
+    }
+    return true;
+  });
+
+  if (rejected > 0) {
+    console.log(`[LegalSearch:${sourceLabel}] Filtered ${rejected} low-confidence documents; kept ${filtered.length}`);
+  }
+
+  return filtered;
 }
 
 // ── Document type classifier ─────────────────────────────────────────────────
@@ -251,25 +553,39 @@ async function searchRecorder(
   apiKey: string,
 ): Promise<NormalizedDocument[]> {
   const docs: NormalizedDocument[] = [];
-  const { last, first } = parseOwnerName(input.ownerName);
-  const nameQuery = last.toUpperCase();
+  const owner = parseOwnerName(input.ownerName);
+  const { last, first } = owner;
+  const ownerPhrase = owner.fullNameVariants[0] ?? input.ownerName;
+  const nameQuery = owner.surnameCandidates[0] ?? last;
 
   // Strategy 1: Use Firecrawl actions to interact with the recorder search form.
   // The guest login at loginPOST.jsp?guest=true auto-redirects to the search page.
   // We fill the name field and submit to get actual search results.
   const recorderUrl = `https://recording.spokanecounty.org/recorder/web/loginPOST.jsp?guest=true`;
-  const formActions = [
-    { type: "wait", milliseconds: 3000 },
-    { type: "write", text: nameQuery, selector: "input[type='text']" },
-    { type: "press", key: "Enter" },
-    { type: "wait", milliseconds: 5000 },
-  ];
-  const { extract: recorderExtract, markdown: recorderMd } = await firecrawlScrape(
-    recorderUrl,
-    RECORDER_SCHEMA,
-    apiKey,
-    formActions,
-  );
+  const recorderSearchTerms = owner.surnameCandidates.length > 0 ? owner.surnameCandidates.slice(0, 2) : [last].filter(Boolean);
+  let recorderExtract: Record<string, unknown> | null = null;
+  let recorderMd = "";
+
+  for (const surnameCandidate of recorderSearchTerms) {
+    const formActions = [
+      { type: "wait", milliseconds: 3000 },
+      { type: "write", text: surnameCandidate, selector: "input[type='text']" },
+      { type: "press", key: "Enter" },
+      { type: "wait", milliseconds: 5000 },
+    ];
+    const response = await firecrawlScrape(
+      recorderUrl,
+      RECORDER_SCHEMA,
+      apiKey,
+      formActions,
+    );
+    recorderExtract = response.extract;
+    recorderMd = response.markdown;
+
+    const extractedCount = (response.extract?.documents as unknown[])?.length ?? 0;
+    console.log(`[LegalSearch:Recorder] Form search for "${surnameCandidate}" â†’ ${extractedCount} docs extracted`);
+    if (extractedCount > 0) break;
+  }
 
   console.log(`[LegalSearch:Recorder] Form search for "${nameQuery}" → ${(recorderExtract?.documents as unknown[])?.length ?? 0} docs extracted`);
 
@@ -277,13 +593,14 @@ async function searchRecorder(
   // County recorder databases aren't Google-indexed, but foreclosure notices,
   // trustee sales, and court filings often appear on legal notice sites.
   const searchQueries = [
-    `"${last}" "${first || ""}" Spokane County "notice of default" OR "lis pendens" OR "trustee sale" OR foreclosure`,
-    `"${last}" "${input.address}" Spokane County deed OR lien OR "deed of trust" OR assignment`,
+    `"${ownerPhrase}" "Spokane County" "notice of default" OR "lis pendens" OR "trustee sale" OR foreclosure`,
+    `"${ownerPhrase}" "${input.address}" "Spokane County" deed OR lien OR "deed of trust" OR assignment`,
     `"${input.address}" Spokane County recorder "recorded documents" OR "instrument"`,
+    input.apn ? `"${input.apn}" "Spokane County" recorder OR assessor OR parcel` : "",
   ];
 
   const searchResults = await Promise.all(
-    searchQueries.map((q) => firecrawlSearch(q, apiKey, 4)),
+    searchQueries.filter(Boolean).map((q) => firecrawlSearch(q, apiKey, 4)),
   );
 
   const resultUrls = searchResults
@@ -342,7 +659,7 @@ async function searchRecorder(
     }
   }
 
-  return docs;
+  return filterDocumentsForInput(docs, input, "Recorder");
 }
 
 // ── Crawler 2: WA Courts case search (per-lead) ─────────────────────────────
@@ -352,7 +669,9 @@ async function searchCourts(
   apiKey: string,
 ): Promise<NormalizedDocument[]> {
   const docs: NormalizedDocument[] = [];
-  const { last, first } = parseOwnerName(input.ownerName);
+  const owner = parseOwnerName(input.ownerName);
+  const { last, first } = owner;
+  const ownerPhrase = owner.fullNameVariants[0] ?? input.ownerName;
 
   // Strategy 1: Construct a direct WA Courts name search URL.
   // This submits the search server-side — no form interaction needed.
@@ -367,8 +686,8 @@ async function searchCourts(
 
   // Strategy 2: Web search fallback for broader results
   const searchQueries = [
-    `"${last}" "${first || ""}" "Spokane County" probate OR estate OR foreclosure OR bankruptcy`,
-    `"${last}" "${first || ""}" "Spokane" court case OR judgment OR "trustee sale"`,
+    `"${ownerPhrase}" "Spokane County" probate OR estate OR foreclosure OR bankruptcy`,
+    `"${ownerPhrase}" "Spokane" court case OR judgment OR "trustee sale"`,
   ];
 
   const searchResults = await Promise.all(
@@ -454,7 +773,7 @@ async function searchCourts(
     }
   }
 
-  return docs;
+  return filterDocumentsForInput(docs, input, "Courts");
 }
 
 /**
@@ -523,18 +842,21 @@ async function searchLiens(
   apiKey: string,
 ): Promise<NormalizedDocument[]> {
   const docs: NormalizedDocument[] = [];
-  const { last, first } = parseOwnerName(input.ownerName);
+  const owner = parseOwnerName(input.ownerName);
+  const { last, first } = owner;
+  const ownerPhrase = owner.fullNameVariants[0] ?? input.ownerName;
 
   // Search for this person's liens, foreclosure notices, and trustee sales
   // across public notice sites, county records, and legal databases
   const searchQueries = [
-    `"${last}" "${first || ""}" Spokane County lien OR "tax lien" OR "mechanic lien" OR judgment`,
-    `"${last}" "${input.address}" "notice of trustee" OR "foreclosure" OR "notice of default" Spokane`,
+    `"${ownerPhrase}" Spokane County lien OR "tax lien" OR "mechanic lien" OR judgment`,
+    `"${ownerPhrase}" "${input.address}" "notice of trustee" OR "foreclosure" OR "notice of default" Spokane`,
     `"${input.address}" Spokane County "deed of trust" OR lien OR encumbrance`,
+    input.apn ? `"${input.apn}" Spokane County lien OR parcel OR assessor` : "",
   ];
 
   const searchResults = await Promise.all(
-    searchQueries.map((q) => firecrawlSearch(q, apiKey, 4)),
+    searchQueries.filter(Boolean).map((q) => firecrawlSearch(q, apiKey, 4)),
   );
 
   const resultUrls = searchResults
@@ -589,7 +911,7 @@ async function searchLiens(
     }
   }
 
-  return docs;
+  return filterDocumentsForInput(docs, input, "Liens");
 }
 
 // ── Deduplication ────────────────────────────────────────────────────────────

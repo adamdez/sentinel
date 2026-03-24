@@ -6,21 +6,21 @@ import {
   ChevronDown,
   ChevronRight,
   ExternalLink,
-  Loader2,
-  ShieldCheck,
-  ShieldAlert,
-  Upload,
-  Search,
-  Scale,
-  Globe,
-  Users,
   FileText,
+  Globe,
   Home,
+  Loader2,
+  Scale,
+  Search,
+  ShieldAlert,
+  ShieldCheck,
+  Upload,
+  Users,
 } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
-import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { sentinelAuthHeaders } from "@/lib/sentinel-auth-headers";
 import { cn } from "@/lib/utils";
 
@@ -50,11 +50,38 @@ interface QueuePayload {
   items: Array<DossierRow & { leads?: unknown }>;
 }
 
-interface DeepCrawlResult {
+interface LegacyDeepCrawlResult {
   categories: Record<string, Array<{ url: string; title: string; excerpt: string }>>;
   artifactCount: number;
   queriesRun: number;
 }
+
+interface RichDeepCrawlSignal {
+  type: string;
+  filingDate?: string | null;
+  amount?: number | null;
+  stage?: string | null;
+  lender?: string | null;
+  source?: string | null;
+}
+
+interface RichDeepCrawlResult {
+  crawledAt?: string;
+  sources?: string[];
+  signals?: RichDeepCrawlSignal[];
+  agentFindings?: Array<{ source?: string; finding?: string; url?: string }>;
+  photos?: Array<{ url: string; source: string }>;
+  fromCache?: boolean;
+  aiDossier?: {
+    urgencyLevel?: "CRITICAL" | "HIGH" | "MEDIUM" | "LOW";
+    urgencyReason?: string;
+    webFindings?: Array<{ source: string; finding: string }>;
+    redFlags?: string[];
+    talkingPoints?: string[];
+  };
+}
+
+export type DeepCrawlSnapshot = LegacyDeepCrawlResult | RichDeepCrawlResult;
 
 const CATEGORY_META: Record<string, { label: string; icon: typeof Scale }> = {
   court: { label: "Court Records", icon: Scale },
@@ -109,11 +136,106 @@ function parseSourceLinks(raw: unknown): Array<{ label: string; url: string }> {
     .filter(Boolean) as Array<{ label: string; url: string }>;
 }
 
-export function LeadDossierPanel({ leadId, cachedDeepCrawlResult }: { leadId: string; cachedDeepCrawlResult?: DeepCrawlResult | null }) {
+function isLegacyDeepCrawlResult(result: DeepCrawlSnapshot | null | undefined): result is LegacyDeepCrawlResult {
+  return Boolean(result && "categories" in result);
+}
+
+function formatMoney(amount: number | null | undefined): string | null {
+  if (typeof amount !== "number" || Number.isNaN(amount)) return null;
+  return amount.toLocaleString("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 });
+}
+
+function formatSignalLabel(type: string): string {
+  return type.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
+function getUrgencyClasses(level?: string): string {
+  switch (level) {
+    case "CRITICAL":
+      return "border-red-500/30 bg-red-500/10 text-red-200";
+    case "HIGH":
+      return "border-amber-500/30 bg-amber-500/10 text-amber-200";
+    case "LOW":
+      return "border-emerald-500/30 bg-emerald-500/10 text-emerald-200";
+    default:
+      return "border-border/40 bg-muted/10 text-foreground";
+  }
+}
+
+async function runDeepCrawlRequest(leadId: string): Promise<DeepCrawlSnapshot> {
+  const res = await fetch(`/api/leads/${leadId}/deep-crawl`, {
+    method: "POST",
+    headers: await sentinelAuthHeaders(),
+  });
+
+  const contentType = res.headers.get("content-type") ?? "";
+  if (!res.ok && !contentType.includes("text/event-stream")) {
+    const json = await res.json().catch(() => ({}));
+    throw new Error((json as { error?: string }).error ?? "Deep crawl failed");
+  }
+
+  if (contentType.includes("text/event-stream") && res.body) {
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = "";
+    let finalResult: DeepCrawlSnapshot | null = null;
+    let streamError: string | null = null;
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+
+      buffer += decoder.decode(value, { stream: true });
+      const chunks = buffer.split("\n\n");
+      buffer = chunks.pop() ?? "";
+
+      for (const chunk of chunks) {
+        const dataLine = chunk.trim();
+        if (!dataLine.startsWith("data: ")) continue;
+
+        const event = JSON.parse(dataLine.slice(6)) as {
+          phase?: string;
+          detail?: string;
+          result?: DeepCrawlSnapshot;
+        };
+
+        if (event.phase === "error") {
+          streamError = event.detail ?? "Deep crawl failed";
+        }
+        if (event.phase === "complete" && event.result) {
+          finalResult = event.result;
+        }
+      }
+    }
+
+    if (finalResult) return finalResult;
+    throw new Error(streamError ?? "Deep crawl ended without a result");
+  }
+
+  const json = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    throw new Error((json as { error?: string }).error ?? "Deep crawl failed");
+  }
+  return json as DeepCrawlSnapshot;
+}
+
+export function LeadDossierPanel({
+  leadId,
+  cachedDeepCrawl,
+}: {
+  leadId: string;
+  cachedDeepCrawl?: DeepCrawlSnapshot | null;
+}) {
   const qc = useQueryClient();
   const [artifactsOpen, setArtifactsOpen] = useState(false);
-  const [crawlResult, setCrawlResult] = useState<DeepCrawlResult | null>(cachedDeepCrawlResult ?? null);
+  const [crawlResult, setCrawlResult] = useState<DeepCrawlSnapshot | null>(cachedDeepCrawl ?? null);
   const [crawlResultOpen, setCrawlResultOpen] = useState(true);
+
+  useEffect(() => {
+    if (cachedDeepCrawl) {
+      setCrawlResult(cachedDeepCrawl);
+    }
+  }, [cachedDeepCrawl]);
 
   const dossierQuery = useQuery({
     queryKey: ["dossier", leadId],
@@ -144,19 +266,13 @@ export function LeadDossierPanel({ leadId, cachedDeepCrawlResult }: { leadId: st
   });
 
   const deepCrawlMutation = useMutation({
-    mutationFn: async () => {
-      const res = await fetch(`/api/leads/${leadId}/deep-crawl`, {
-        method: "POST",
-        headers: await sentinelAuthHeaders(),
-      });
-      const json = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error((json as { error?: string }).error ?? "Deep crawl failed");
-      return json as DeepCrawlResult;
-    },
+    mutationFn: async () => runDeepCrawlRequest(leadId),
     onSuccess: (data) => {
       setCrawlResult(data);
       setCrawlResultOpen(true);
-      toast.success(`Deep crawl complete — ${data.artifactCount} artifacts captured`);
+      toast.success("Deep crawl complete");
+      void qc.invalidateQueries({ queryKey: ["dossier", leadId] });
+      void qc.invalidateQueries({ queryKey: ["dossier-queue-proposed", leadId] });
       void qc.invalidateQueries({ queryKey: ["dossier-artifacts", leadId] });
     },
     onError: (e) => toast.error(e instanceof Error ? e.message : "Deep crawl failed"),
@@ -205,15 +321,15 @@ export function LeadDossierPanel({ leadId, cachedDeepCrawlResult }: { leadId: st
   const topFacts = display ? parseTopFacts(display.top_facts) : [];
   const checklist = display ? parseChecklist(display.verification_checklist) : [];
   const links = display ? parseSourceLinks(display.source_links) : [];
+  const richResult = !isLegacyDeepCrawlResult(crawlResult) ? crawlResult : null;
 
   return (
     <div className="space-y-5">
-      {/* ── Deep Crawl CTA ── */}
       <div className="rounded-[10px] border border-overlay-8 bg-overlay-2 p-4 flex items-center justify-between gap-4">
         <div>
           <p className="text-sm font-semibold text-foreground">Deep Intelligence Crawl</p>
           <p className="text-xs text-muted-foreground/60 mt-0.5">
-            Searches court records, tax, social media, news, obituaries, and property condition across 8 parallel queries.
+            Builds an operator-ready seller dossier from property data, distress signals, public-web research, and AI synthesis.
           </p>
         </div>
         <Button
@@ -227,7 +343,6 @@ export function LeadDossierPanel({ leadId, cachedDeepCrawlResult }: { leadId: st
         </Button>
       </div>
 
-      {/* ── Deep Crawl Results ── */}
       {crawlResult && (
         <div className="space-y-2">
           <button
@@ -236,9 +351,12 @@ export function LeadDossierPanel({ leadId, cachedDeepCrawlResult }: { leadId: st
             className="flex items-center gap-1 text-sm font-semibold text-muted-foreground hover:text-foreground"
           >
             {crawlResultOpen ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
-            Deep Crawl Results ({crawlResult.artifactCount} artifacts from {crawlResult.queriesRun} queries)
+            {isLegacyDeepCrawlResult(crawlResult)
+              ? `Deep Crawl Results (${crawlResult.artifactCount} artifacts from ${crawlResult.queriesRun} queries)`
+              : `Deep Crawl Snapshot${richResult?.crawledAt ? ` • ${new Date(richResult.crawledAt).toLocaleString()}` : ""}`}
           </button>
-          {crawlResultOpen && (
+
+          {crawlResultOpen && isLegacyDeepCrawlResult(crawlResult) && (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
               {Object.entries(crawlResult.categories).map(([cat, results]) => {
                 const meta = CATEGORY_META[cat] ?? { label: cat.replace(/_/g, " "), icon: Search };
@@ -264,13 +382,97 @@ export function LeadDossierPanel({ leadId, cachedDeepCrawlResult }: { leadId: st
               })}
             </div>
           )}
+
+          {crawlResultOpen && richResult && (
+            <div className="space-y-3">
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-2">
+                <div className="rounded-[8px] border border-overlay-6 bg-overlay-2 p-3">
+                  <p className="text-[11px] uppercase tracking-wider text-muted-foreground/60">Urgency</p>
+                  <div className="mt-2 flex items-center gap-2">
+                    <span className={cn("inline-flex rounded-full border px-2 py-0.5 text-xs font-semibold", getUrgencyClasses(richResult.aiDossier?.urgencyLevel))}>
+                      {richResult.aiDossier?.urgencyLevel ?? "Unknown"}
+                    </span>
+                  </div>
+                  {richResult.aiDossier?.urgencyReason && (
+                    <p className="mt-2 text-xs text-muted-foreground/70 line-clamp-3">{richResult.aiDossier.urgencyReason}</p>
+                  )}
+                </div>
+
+                <div className="rounded-[8px] border border-overlay-6 bg-overlay-2 p-3">
+                  <p className="text-[11px] uppercase tracking-wider text-muted-foreground/60">Signals</p>
+                  <p className="mt-2 text-2xl font-semibold text-foreground">{richResult.signals?.length ?? 0}</p>
+                  <p className="text-xs text-muted-foreground/60">Distress or ownership signals found</p>
+                </div>
+
+                <div className="rounded-[8px] border border-overlay-6 bg-overlay-2 p-3">
+                  <p className="text-[11px] uppercase tracking-wider text-muted-foreground/60">Web Findings</p>
+                  <p className="mt-2 text-2xl font-semibold text-foreground">{richResult.aiDossier?.webFindings?.length ?? 0}</p>
+                  <p className="text-xs text-muted-foreground/60">Corroborated public-web notes</p>
+                </div>
+
+                <div className="rounded-[8px] border border-overlay-6 bg-overlay-2 p-3">
+                  <p className="text-[11px] uppercase tracking-wider text-muted-foreground/60">Evidence</p>
+                  <p className="mt-2 text-2xl font-semibold text-foreground">{richResult.agentFindings?.length ?? 0}</p>
+                  <p className="text-xs text-muted-foreground/60">
+                    {richResult.photos?.length ?? 0} photos • {richResult.sources?.length ?? 0} sources
+                  </p>
+                </div>
+              </div>
+
+              {(richResult.sources?.length ?? 0) > 0 && (
+                <div className="rounded-[8px] border border-overlay-6 bg-overlay-2 p-3 space-y-2">
+                  <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground/60">Data Sources</p>
+                  <div className="flex flex-wrap gap-2">
+                    {(richResult.sources ?? []).map((source) => (
+                      <Badge key={source} className="border-overlay-10 bg-overlay-4 text-muted-foreground">
+                        {source}
+                      </Badge>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {(richResult.signals?.length ?? 0) > 0 && (
+                <div className="rounded-[8px] border border-overlay-6 bg-overlay-2 p-3 space-y-2">
+                  <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground/60">Key Signals</p>
+                  <div className="space-y-2">
+                    {(richResult.signals ?? []).slice(0, 5).map((signal, idx) => (
+                      <div key={`${signal.type}-${idx}`} className="rounded-[8px] border border-overlay-4 bg-black/15 px-3 py-2">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="text-sm font-medium text-foreground">{formatSignalLabel(signal.type)}</span>
+                          {signal.filingDate && <span className="text-xs text-muted-foreground/70">Filed {signal.filingDate}</span>}
+                          {signal.amount != null && <span className="text-xs text-primary">{formatMoney(signal.amount)}</span>}
+                        </div>
+                        <p className="mt-1 text-xs text-muted-foreground/70">
+                          {[signal.stage, signal.lender, signal.source].filter(Boolean).join(" • ") || "No extra detail yet"}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {(richResult.aiDossier?.webFindings?.length ?? 0) > 0 && (
+                <div className="rounded-[8px] border border-overlay-6 bg-overlay-2 p-3 space-y-2">
+                  <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground/60">Web Findings</p>
+                  <div className="space-y-2">
+                    {(richResult.aiDossier?.webFindings ?? []).slice(0, 5).map((finding, idx) => (
+                      <div key={`${finding.source}-${idx}`} className="rounded-[8px] border border-overlay-4 bg-black/15 px-3 py-2">
+                        <p className="text-xs font-semibold text-foreground/80">{finding.source}</p>
+                        <p className="mt-1 text-sm text-foreground/90">{finding.finding}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
         </div>
       )}
 
-      {/* ── AI Dossier ── */}
       {loading ? (
         <div className="flex items-center gap-2 py-6 text-sm text-muted-foreground justify-center">
-          <Loader2 className="h-4 w-4 animate-spin" />Loading intelligence…
+          <Loader2 className="h-4 w-4 animate-spin" />Loading intelligence...
         </div>
       ) : display ? (
         <div className="space-y-4">
@@ -286,27 +488,42 @@ export function LeadDossierPanel({ leadId, cachedDeepCrawlResult }: { leadId: st
 
           {isProposed && (
             <div className="flex flex-wrap gap-2">
-              <Button size="sm" className="gap-1 bg-muted/90 hover:bg-muted" disabled={reviewMutation.isPending}
-                onClick={() => reviewMutation.mutate({ dossier_id: display.id, status: "reviewed" })}>
-                {reviewMutation.isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : <ShieldCheck className="h-3 w-3" />}Approve
+              <Button
+                size="sm"
+                className="gap-1 bg-muted/90 hover:bg-muted"
+                disabled={reviewMutation.isPending}
+                onClick={() => reviewMutation.mutate({ dossier_id: display.id, status: "reviewed" })}
+              >
+                {reviewMutation.isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : <ShieldCheck className="h-3 w-3" />}
+                Approve
               </Button>
-              <Button size="sm" variant="destructive" disabled={reviewMutation.isPending}
-                onClick={() => reviewMutation.mutate({ dossier_id: display.id, status: "flagged" })}>
-                {reviewMutation.isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : <ShieldAlert className="h-3 w-3" />}Reject
+              <Button
+                size="sm"
+                variant="destructive"
+                disabled={reviewMutation.isPending}
+                onClick={() => reviewMutation.mutate({ dossier_id: display.id, status: "flagged" })}
+              >
+                {reviewMutation.isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : <ShieldAlert className="h-3 w-3" />}
+                Reject
               </Button>
             </div>
           )}
 
           {!isProposed && display.status === "reviewed" && active?.id && (
-            <Button size="sm" className="gap-1.5 bg-primary/15 hover:bg-primary/25 text-primary border border-primary/25"
-              disabled={promoteMutation.isPending} onClick={() => promoteMutation.mutate(active.id)}>
-              {promoteMutation.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Upload className="h-3.5 w-3.5" />}Promote to Lead
+            <Button
+              size="sm"
+              className="gap-1.5 bg-primary/15 hover:bg-primary/25 text-primary border border-primary/25"
+              disabled={promoteMutation.isPending}
+              onClick={() => promoteMutation.mutate(active.id)}
+            >
+              {promoteMutation.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Upload className="h-3.5 w-3.5" />}
+              Promote to Lead
             </Button>
           )}
 
           <div>
             <h4 className="text-sm uppercase tracking-wider text-muted-foreground font-semibold mb-1">Situation Summary</h4>
-            <p className="text-sm text-foreground/90 leading-relaxed whitespace-pre-wrap">{display.situation_summary ?? "—"}</p>
+            <p className="text-sm text-foreground/90 leading-relaxed whitespace-pre-wrap">{display.situation_summary ?? "-"}</p>
           </div>
 
           {display.recommended_call_angle && (
@@ -371,12 +588,15 @@ export function LeadDossierPanel({ leadId, cachedDeepCrawlResult }: { leadId: st
         </div>
       )}
 
-      {/* ── Raw Artifacts ── */}
-      <button type="button" onClick={() => setArtifactsOpen((o) => !o)}
-        className="flex items-center gap-1 text-sm font-medium text-muted-foreground hover:text-foreground">
+      <button
+        type="button"
+        onClick={() => setArtifactsOpen((o) => !o)}
+        className="flex items-center gap-1 text-sm font-medium text-muted-foreground hover:text-foreground"
+      >
         {artifactsOpen ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
         Raw Artifacts ({artifactsQuery.data?.length ?? 0})
       </button>
+
       {artifactsOpen && (
         <div className="rounded-lg border border-overlay-6 bg-black/20 divide-y divide-overlay-4 max-h-56 overflow-y-auto">
           {(artifactsQuery.data ?? []).length === 0 ? (
