@@ -168,6 +168,9 @@ export async function POST(req: NextRequest) {
         if (data.property?.images?.length)
           flags.bricked_subject_images = data.property.images;
 
+        flags.bricked_full_response = data;
+        flags.bricked_fetched_at = new Date().toISOString();
+
         // JSONB merge into properties.owner_flags (non-blocking)
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const { data: currentProp } = await (sb.from("properties") as any)
@@ -179,11 +182,9 @@ export async function POST(req: NextRequest) {
           ...flags,
         };
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        (sb.from("properties") as any)
+        await (sb.from("properties") as any)
           .update({ owner_flags: merged })
-          .eq("id", propertyId)
-          .then(() => {})
-          .catch(() => {});
+          .eq("id", propertyId);
       } catch {
         console.warn(
           "[Bricked] Failed to update owner_flags for property",

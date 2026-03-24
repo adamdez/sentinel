@@ -146,7 +146,7 @@ import { getAllowedTransitions } from "@/lib/lead-guardrails";
 
 import { LeadDossierPanel } from "@/components/sentinel/lead-dossier-panel";
 
-import { BrickedAnalysisPanel } from "@/components/sentinel/bricked/bricked-analysis-panel";
+import { BrickedAnalysisPanel, type BrickedAnalysisPanelProps } from "@/components/sentinel/bricked/bricked-analysis-panel";
 
 import { IntakeGuideSection } from "@/components/sentinel/intake-guide-section";
 
@@ -8547,6 +8547,16 @@ export function MasterClientFileModal({ clientFile: incomingClientFile, open, on
                           estimatedValue={clientFile.estimatedValue}
 
                           computedArv={computedArv}
+
+                          cachedBrickedResponse={(clientFile.ownerFlags as Record<string, unknown> | undefined)?.bricked_full_response as BrickedAnalysisPanelProps["cachedBrickedResponse"]}
+
+                          cachedBrickedFetchedAt={(clientFile.ownerFlags as Record<string, unknown> | undefined)?.bricked_fetched_at as string | null}
+
+                          cachedDealConfig={(clientFile.ownerFlags as Record<string, unknown> | undefined)?.deal_config as BrickedAnalysisPanelProps["cachedDealConfig"]}
+
+                          cachedCompSelection={(clientFile.ownerFlags as Record<string, unknown> | undefined)?.bricked_comp_selection as number[] | null}
+
+                          cachedRepairsEdited={(clientFile.ownerFlags as Record<string, unknown> | undefined)?.bricked_repairs_edited as BrickedAnalysisPanelProps["cachedRepairsEdited"]}
 
                         />
 

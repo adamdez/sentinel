@@ -17,6 +17,7 @@ interface Props {
   totalRepairCost: number | null | undefined;
   onRepairsChange?: (repairs: EditableRepair[], total: number) => void;
   onSave?: (repairs: EditableRepair[]) => void;
+  initialEdited?: EditableRepair[] | null;
 }
 
 function toEditable(repairs: BrickedRepair[]): EditableRepair[] {
@@ -28,9 +29,11 @@ function toEditable(repairs: BrickedRepair[]): EditableRepair[] {
 }
 
 export const BrickedRepairsList = forwardRef<HTMLDivElement, Props>(
-  function BrickedRepairsList({ repairs, totalRepairCost, onRepairsChange, onSave }, ref) {
+  function BrickedRepairsList({ repairs, totalRepairCost, onRepairsChange, onSave, initialEdited }, ref) {
     const [open, setOpen] = useState(true);
-    const [items, setItems] = useState<EditableRepair[]>(() => toEditable(repairs));
+    const [items, setItems] = useState<EditableRepair[]>(
+      () => initialEdited?.length ? initialEdited : toEditable(repairs),
+    );
     const [editIdx, setEditIdx] = useState<number | null>(null);
     const [editValue, setEditValue] = useState("");
     const [newName, setNewName] = useState("");

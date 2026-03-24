@@ -1,7 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Loader2 } from "lucide-react";
+import { Loader2, RefreshCw } from "lucide-react";
+import { toast } from "sonner";
 import { sentinelAuthHeaders } from "@/lib/sentinel-auth-headers";
 import { formatCurrency } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
@@ -35,6 +36,11 @@ export interface BrickedAnalysisPanelProps {
   yearBuilt?: number | null;
   estimatedValue?: number | null;
   computedArv?: number;
+  cachedBrickedResponse?: BrickedAnalysisResponse | null;
+  cachedBrickedFetchedAt?: string | null;
+  cachedDealConfig?: DealConfig | null;
+  cachedCompSelection?: number[] | null;
+  cachedRepairsEdited?: EditableRepair[] | null;
 }
 
 export function BrickedAnalysisPanel({
@@ -44,17 +50,35 @@ export function BrickedAnalysisPanel({
   bathrooms,
   sqft,
   yearBuilt,
+  cachedBrickedResponse,
+  cachedBrickedFetchedAt,
+  cachedDealConfig,
+  cachedCompSelection,
+  cachedRepairsEdited,
 }: BrickedAnalysisPanelProps) {
-  const [analysis, setAnalysis] = useState<BrickedAnalysisResponse | null>(null);
+  const hasCachedData = cachedBrickedResponse != null;
+
+  const [analysis, setAnalysis] = useState<BrickedAnalysisResponse | null>(
+    cachedBrickedResponse ?? null,
+  );
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [selectedSet, setSelectedSet] = useState<Set<number>>(new Set());
+  const [lastFetchedAt, setLastFetchedAt] = useState<string | null>(cachedBrickedFetchedAt ?? null);
+  const [selectedSet, setSelectedSet] = useState<Set<number>>(() => {
+    if (cachedCompSelection) return new Set(cachedCompSelection);
+    if (cachedBrickedResponse?.comps) {
+      const s = new Set<number>();
+      cachedBrickedResponse.comps.forEach((c, i) => { if (c.selected) s.add(i); });
+      return s;
+    }
+    return new Set();
+  });
   const [highlightedComp, setHighlightedComp] = useState<number | null>(null);
-  const [dealConfig, setDealConfig] = useState<DealConfig>(DEFAULT_DEAL_CONFIG);
+  const [dealConfig, setDealConfig] = useState<DealConfig>(cachedDealConfig ?? DEFAULT_DEAL_CONFIG);
   const [configOpen, setConfigOpen] = useState(false);
   const [repairTotal, setRepairTotal] = useState<number | null>(null);
   const repairsRef = useRef<HTMLDivElement>(null);
-  const fetched = useRef(false);
+  const fetched = useRef(hasCachedData);
 
   const fetchAnalysis = useCallback(async () => {
     if (!address) return;
@@ -80,17 +104,23 @@ export function BrickedAnalysisPanel({
         );
       const data = json as BrickedAnalysisResponse;
       setAnalysis(data);
+      setLastFetchedAt(new Date().toISOString());
       const initial = new Set<number>();
       (data.comps ?? []).forEach((c, i) => {
         if (c.selected) initial.add(i);
       });
       setSelectedSet(initial);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Analysis failed");
+      const msg = e instanceof Error ? e.message : "Analysis failed";
+      if (analysis) {
+        toast.error(`Refresh failed: ${msg}`);
+      } else {
+        setError(msg);
+      }
     } finally {
       setLoading(false);
     }
-  }, [address, leadId, bedrooms, bathrooms, sqft, yearBuilt]);
+  }, [address, leadId, bedrooms, bathrooms, sqft, yearBuilt, analysis]);
 
   useEffect(() => {
     if (fetched.current) return;
@@ -98,14 +128,31 @@ export function BrickedAnalysisPanel({
     void fetchAnalysis();
   }, [fetchAnalysis]);
 
+  const persistToOwnerFlags = useCallback(
+    async (patch: Record<string, unknown>) => {
+      try {
+        const headers = await sentinelAuthHeaders();
+        await fetch("/api/bricked/persist-config", {
+          method: "POST",
+          headers,
+          body: JSON.stringify({ leadId, ...patch }),
+        });
+      } catch {
+        // non-blocking — cache persists next time
+      }
+    },
+    [leadId],
+  );
+
   const toggleComp = useCallback((idx: number) => {
     setSelectedSet((prev) => {
       const next = new Set(prev);
       if (next.has(idx)) next.delete(idx);
       else next.add(idx);
+      void persistToOwnerFlags({ bricked_comp_selection: Array.from(next) });
       return next;
     });
-  }, []);
+  }, [persistToOwnerFlags]);
 
   const handlePinClick = useCallback((idx: number) => {
     setHighlightedComp(idx);
@@ -116,16 +163,22 @@ export function BrickedAnalysisPanel({
     setRepairTotal(total);
   }, []);
 
-  const handleRepairsSave = useCallback((_repairs: EditableRepair[]) => {
-    // Future: persist to owner_flags.bricked_repairs
-  }, []);
+  const handleRepairsSave = useCallback(
+    (repairs: EditableRepair[]) => {
+      void persistToOwnerFlags({ bricked_repairs_edited: repairs });
+    },
+    [persistToOwnerFlags],
+  );
 
-  const handleConfigSave = useCallback((config: DealConfig) => {
-    setDealConfig(config);
-    // Future: persist to owner_flags.deal_config
-  }, []);
+  const handleConfigSave = useCallback(
+    (config: DealConfig) => {
+      setDealConfig(config);
+      void persistToOwnerFlags({ deal_config: config });
+    },
+    [persistToOwnerFlags],
+  );
 
-  if (loading) {
+  if (loading && !analysis) {
     return (
       <div className="flex flex-col items-center justify-center gap-3 py-20 text-muted-foreground">
         <Loader2 className="h-6 w-6 animate-spin text-cyan" />
@@ -135,7 +188,7 @@ export function BrickedAnalysisPanel({
     );
   }
 
-  if (error) {
+  if (error && !analysis) {
     return (
       <div className="rounded-[10px] border border-red-500/20 bg-red-500/[0.04] p-6 text-center text-sm text-red-400">
         {error}
@@ -143,7 +196,19 @@ export function BrickedAnalysisPanel({
     );
   }
 
-  if (!analysis) return null;
+  if (!analysis) {
+    return (
+      <div className="flex flex-col items-center justify-center gap-4 py-20">
+        <p className="text-sm text-muted-foreground">No Bricked data pulled for this property yet.</p>
+        <button
+          onClick={fetchAnalysis}
+          className="flex items-center gap-2 rounded-md bg-primary/15 px-4 py-2 text-sm font-medium text-primary border border-primary/25 hover:bg-primary/25 transition-colors"
+        >
+          Start Analysis
+        </button>
+      </div>
+    );
+  }
 
   const comps = analysis.comps ?? [];
   const repairs = analysis.repairs ?? [];
@@ -165,11 +230,26 @@ export function BrickedAnalysisPanel({
   return (
     <div className="space-y-4">
       {/* Header */}
-      <div>
-        <h2 className="text-sm font-semibold">{analysis.property.address?.fullAddress ?? address}</h2>
-        <p className="text-xs text-muted-foreground/60 mt-0.5">
-          Bricked ID: {analysis.id}
-        </p>
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <h2 className="text-sm font-semibold">{analysis.property.address?.fullAddress ?? address}</h2>
+          <p className="text-xs text-muted-foreground/60 mt-0.5">
+            Bricked ID: {analysis.id}
+            {lastFetchedAt && (
+              <span className="ml-2">
+                · Last pulled {new Date(lastFetchedAt).toLocaleDateString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}
+              </span>
+            )}
+          </p>
+        </div>
+        <button
+          onClick={fetchAnalysis}
+          disabled={loading}
+          className="flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium text-muted-foreground border border-glass-border hover:bg-muted/10 transition-colors disabled:opacity-50 shrink-0"
+        >
+          {loading ? <Loader2 className="h-3 w-3 animate-spin" /> : <RefreshCw className="h-3 w-3" />}
+          Refresh
+        </button>
       </div>
 
       {/* Two-column: photos+tabs | sidebar */}
@@ -247,6 +327,7 @@ export function BrickedAnalysisPanel({
         totalRepairCost={analysis.totalRepairCost}
         onRepairsChange={handleRepairsChange}
         onSave={handleRepairsSave}
+        initialEdited={cachedRepairsEdited}
       />
 
       {/* Mobile deal summary */}
