@@ -185,7 +185,9 @@ function FollowUpRow({
 
   const hasLead = !!(task.lead_owner || task.lead_address);
   const primaryLabel = hasLead
-    ? [task.lead_owner, task.lead_address].filter(Boolean).join(" — ")
+    ? task.lead_owner
+      ? task.lead_address ? `${task.lead_owner} — ${task.lead_address}` : task.lead_owner
+      : task.lead_address!
     : task.title;
   const callContext = lastCallLabel(task);
 

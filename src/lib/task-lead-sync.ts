@@ -74,6 +74,9 @@ export async function clearTaskFromLead(
  * When a lead's next_action is set directly (e.g. post-call closeout),
  * upsert a corresponding task row so the tasks table stays in sync.
  * Returns the task ID.
+ *
+ * If the title looks generic (no " — " separator with lead identity),
+ * we enrich it by querying the lead's property for owner_name + address.
  */
 export async function syncLeadToTask(
   sb: SupabaseClient,
@@ -83,6 +86,39 @@ export async function syncLeadToTask(
   assignedTo: string,
   taskType: string = "follow_up",
 ): Promise<string | null> {
+  let enrichedTitle = title;
+
+  // Safety net: if the title doesn't already contain lead identity, enrich it
+  if (!title.includes(" — ")) {
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data: lead } = await (sb.from("leads") as any)
+        .select("property_id")
+        .eq("id", leadId)
+        .single();
+
+      if (lead?.property_id) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const { data: prop } = await (sb.from("properties") as any)
+          .select("owner_name, address")
+          .eq("id", lead.property_id)
+          .single();
+
+        if (prop) {
+          const rawOwner = typeof prop.owner_name === "string" ? prop.owner_name.trim() : null;
+          const owner = rawOwner && rawOwner !== "Unknown Owner" ? rawOwner : null;
+          const addr = typeof prop.address === "string" ? prop.address.trim() || null : null;
+          const label = owner
+            ? addr ? `${owner}, ${addr}` : owner
+            : addr;
+          if (label) enrichedTitle = `${title} — ${label}`;
+        }
+      }
+    } catch {
+      // Non-fatal — keep the original title
+    }
+  }
+
   // Check for an existing pending task on this lead
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data: existing } = await (sb.from("tasks") as any)
@@ -98,7 +134,7 @@ export async function syncLeadToTask(
   if (existing) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     await (sb.from("tasks") as any)
-      .update({ title, due_at: dueAt, updated_at: now })
+      .update({ title: enrichedTitle, due_at: dueAt, updated_at: now })
       .eq("id", existing.id);
     return existing.id;
   }
@@ -106,7 +142,7 @@ export async function syncLeadToTask(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data: newTask, error } = await (sb.from("tasks") as any)
     .insert({
-      title,
+      title: enrichedTitle,
       lead_id: leadId,
       assigned_to: assignedTo,
       due_at: dueAt,

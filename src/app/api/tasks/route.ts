@@ -95,9 +95,11 @@ export async function GET(req: NextRequest) {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (leads ?? []).forEach((l: any) => {
         const prop = propMap[l.property_id] ?? {};
+        const rawOwner = typeof prop.owner_name === "string" ? prop.owner_name.trim() : null;
+        const owner = rawOwner && rawOwner !== "Unknown Owner" ? rawOwner : null;
         leadMap[l.id] = {
           lead_address: prop.address ?? null,
-          lead_owner: prop.owner_name ?? null,
+          lead_owner: owner,
           lead_phone: prop.owner_phone ?? null,
           lead_status: l.status ?? null,
         };

@@ -527,10 +527,11 @@ function TodayView() {
             : ""
             : "No date";
 
-          const primaryLabel = task.lead_owner || task.title;
+          const primaryLabel = task.lead_owner || task.lead_address || task.title;
           const secondaryParts = [
-            task.lead_address,
-            task.lead_owner ? task.title : null,
+            task.lead_owner ? task.lead_address : null,
+            (task.lead_owner || task.lead_address) ? task.title : null,
+            task.lead_phone,
           ].filter(Boolean).join(" · ");
           const callContext = lastCallLabel(task);
           const showReasonPicker = completingReasonId === task.id;
