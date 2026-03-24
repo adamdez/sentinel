@@ -27,6 +27,11 @@ export type ImportTargetField =
   | "phone3"
   | "phone4"
   | "phone5"
+  | "phone6"
+  | "phone7"
+  | "phone8"
+  | "phone9"
+  | "phone10"
   | "email"
   | "email2"
   | "email3"
@@ -196,6 +201,11 @@ export interface NormalizedImportRecord {
   phone3: string | null;
   phone4: string | null;
   phone5: string | null;
+  phone6: string | null;
+  phone7: string | null;
+  phone8: string | null;
+  phone9: string | null;
+  phone10: string | null;
   email: string | null;
   email2: string | null;
   email3: string | null;
@@ -283,10 +293,15 @@ const FIELD_DEFINITIONS: FieldDefinition[] = [
   { field: "apn", label: "APN / Parcel", group: "Property", aliases: ["apn", "parcel", "parcel id", "parcel number", "tax id", "pin"] },
   { field: "county", label: "County", group: "Property", aliases: ["county", "county name", "market"] },
   { field: "phone", label: "Primary Phone", group: "Contact", aliases: ["phone", "owner phone", "contact phone", "mobile", "cell", "phone 1", "wireless 1"] },
-  { field: "phone2", label: "Secondary Phone", group: "Contact", aliases: ["phone 2", "secondary phone", "other phone", "alternate phone", "wireless 2", "landline 1"] },
-  { field: "phone3", label: "Phone 3", group: "Contact", aliases: ["phone 3", "wireless 3", "landline 2"] },
-  { field: "phone4", label: "Phone 4", group: "Contact", aliases: ["phone 4", "wireless 4", "landline 3"] },
-  { field: "phone5", label: "Phone 5", group: "Contact", aliases: ["phone 5", "wireless 5", "landline 4", "landline 5"] },
+  { field: "phone2", label: "Phone 2", group: "Contact", aliases: ["phone 2", "secondary phone", "other phone", "alternate phone", "wireless 2", "mobile 2", "mobile-2"] },
+  { field: "phone3", label: "Phone 3", group: "Contact", aliases: ["phone 3", "wireless 3", "mobile 3", "mobile-3"] },
+  { field: "phone4", label: "Phone 4", group: "Contact", aliases: ["phone 4", "wireless 4", "mobile 4", "mobile-4"] },
+  { field: "phone5", label: "Phone 5", group: "Contact", aliases: ["phone 5", "wireless 5", "mobile 5", "mobile-5"] },
+  { field: "phone6", label: "Phone 6", group: "Contact", aliases: ["phone 6", "landline 1", "landline-1"] },
+  { field: "phone7", label: "Phone 7", group: "Contact", aliases: ["phone 7", "landline 2", "landline-2"] },
+  { field: "phone8", label: "Phone 8", group: "Contact", aliases: ["phone 8", "landline 3", "landline-3"] },
+  { field: "phone9", label: "Phone 9", group: "Contact", aliases: ["phone 9", "landline 4", "landline-4"] },
+  { field: "phone10", label: "Phone 10", group: "Contact", aliases: ["phone 10", "landline 5", "landline-5"] },
   { field: "email", label: "Email", group: "Contact", aliases: ["email", "email address", "owner email", "contact email", "email 1", "email id 1"] },
   { field: "email2", label: "Email 2", group: "Contact", aliases: ["email 2", "email id 2", "secondary email", "alternate email"] },
   { field: "email3", label: "Email 3", group: "Contact", aliases: ["email 3", "email id 3"] },
@@ -395,7 +410,7 @@ function scoreSampleValue(field: ImportTargetField, samples: string[]): number {
   if (populated.length === 0) return 0;
 
   const emailFields = new Set<ImportTargetField>(["email", "email2", "email3", "survivor_email", "petitioner_email", "attorney_email"]);
-  const phoneFields = new Set<ImportTargetField>(["phone", "phone2", "phone3", "phone4", "phone5", "survivor_phone", "petitioner_phone", "attorney_phone"]);
+  const phoneFields = new Set<ImportTargetField>(["phone", "phone2", "phone3", "phone4", "phone5", "phone6", "phone7", "phone8", "phone9", "phone10", "survivor_phone", "petitioner_phone", "attorney_phone"]);
   if (emailFields.has(field) && populated.some((value) => value.includes("@"))) return 0.08;
   if (phoneFields.has(field) && populated.some((value) => value.replace(/\D/g, "").length >= 10)) return 0.08;
   if ((field === "property_zip" || field === "mailing_zip") && populated.some((value) => ZIP_PATTERN.test(value))) return 0.08;
@@ -868,6 +883,11 @@ export function normalizeImportedRow(args: {
     phone3: cleanPhone(pick("phone3")),
     phone4: cleanPhone(pick("phone4")),
     phone5: cleanPhone(pick("phone5")),
+    phone6: cleanPhone(pick("phone6")),
+    phone7: cleanPhone(pick("phone7")),
+    phone8: cleanPhone(pick("phone8")),
+    phone9: cleanPhone(pick("phone9")),
+    phone10: cleanPhone(pick("phone10")),
     email,
     email2: cleanEmail(pick("email2")),
     email3: cleanEmail(pick("email3")),
@@ -943,7 +963,7 @@ export function buildProspectPayload(record: NormalizedImportRecord, defaults: N
     .filter(Boolean)
     .join("\n\n");
 
-  const importPhones = [record.phone3, record.phone4, record.phone5].filter(Boolean) as string[];
+  const importPhones = [record.phone3, record.phone4, record.phone5, record.phone6, record.phone7, record.phone8, record.phone9, record.phone10].filter(Boolean) as string[];
   const importEmails = [record.email2, record.email3].filter(Boolean) as string[];
 
   const legalMetadata = (record.documentType || record.caseNumber || record.fileDate || record.dateOfDeath)

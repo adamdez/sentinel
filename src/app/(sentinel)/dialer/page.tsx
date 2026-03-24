@@ -43,6 +43,7 @@ import { LiveAssistPanel } from "@/components/sentinel/live-assist-panel";
 import { UnlinkedCallsFolder } from "@/components/sentinel/unlinked-calls-folder";
 import { JeffMessagesBanner } from "@/components/sentinel/jeff-messages-banner";
 import { SmsMessagesPanel } from "@/components/sentinel/sms-messages-panel";
+import type { LeadPhone } from "@/lib/dialer/types";
 
 async function authHeaders(): Promise<Record<string, string>> {
   const { data: { session } } = await supabase.auth.getSession();
@@ -245,8 +246,8 @@ const DISPOSITIONS: DispoOption[] = [
   { key: "interested",  label: "Interested",   hotkey: "3", icon: Sparkles,       color: "text-primary",       bgColor: "bg-primary/8 hover:bg-primary/15 border-primary/15" },
   { key: "appointment", label: "Appointment",  hotkey: "4", icon: CalendarCheck,  color: "text-foreground",bgColor: "bg-muted/10 hover:bg-muted/20 border-border/20" },
   { key: "contract",    label: "Contract",     hotkey: "5", icon: FileSignature,  color: "text-foreground", bgColor: "bg-muted/10 hover:bg-muted/20 border-border/20" },
-  { key: "dead",        label: "Dead",         hotkey: "6", icon: Skull,          color: "text-foreground",    bgColor: "bg-muted/10 hover:bg-muted/20 border-border/20" },
-  { key: "nurture",     label: "Nurture",      hotkey: "7", icon: Heart,          color: "text-foreground",   bgColor: "bg-muted/10 hover:bg-muted/20 border-border/20" },
+  { key: "dead_lead",   label: "Dead Lead",    hotkey: "6", icon: Skull,          color: "text-foreground",    bgColor: "bg-muted/10 hover:bg-muted/20 border-border/20" },
+  { key: "disqualified", label: "Nurture",     hotkey: "7", icon: Heart,          color: "text-foreground",   bgColor: "bg-muted/10 hover:bg-muted/20 border-border/20" },
   { key: "skip_trace",  label: "Skip Trace",   hotkey: "8", icon: Search,         color: "text-primary-400",   bgColor: "bg-primary-500/10 hover:bg-primary-500/20 border-primary-500/20" },
   { key: "ghost",       label: "Property Research", hotkey: "9", icon: Ghost,        color: "text-foreground", bgColor: "bg-muted/10 hover:bg-muted/20 border-border/20" },
 ];
@@ -417,6 +418,13 @@ function DialerPageInner() {
   const [transferStatus, setTransferStatus] = useState<string | null>(null);
   const [consentPending, setConsentPending] = useState(false);
   const [consentGranted, setConsentGranted] = useState(false);
+
+  // Phone cycling roster — fetched from lead_phones API when a lead is loaded
+  const [leadPhones, setLeadPhones] = useState<LeadPhone[]>([]);
+  const [phoneIndex, setPhoneIndex] = useState(0);
+  const phonesActiveCount = leadPhones.filter(p => p.status === "active").length;
+  const phonesAttempted = leadPhones.filter(p => p.status === "active" && p.last_called_at).length;
+
   const { latestSummary, latestSummaryTime } = useCallNotes(currentLead?.id);
   const { brief: preCallBrief, loading: briefLoading } = usePreCallBrief(currentLead?.id ?? null);
   const [coachPopoutOpen, setCoachPopoutOpen] = useState(false);
@@ -444,6 +452,25 @@ function DialerPageInner() {
   const noteScaffoldSeeded = useRef(false);
 
   // Live notes realtime subscription is below manualCallLogId declaration
+
+  // Fetch phone roster when lead changes
+  useEffect(() => {
+    if (!currentLead?.id) { setLeadPhones([]); setPhoneIndex(0); return; }
+    let active = true;
+    (async () => {
+      try {
+        const hdrs = await authHeaders();
+        const res = await fetch(`/api/leads/${currentLead.id}/phones`, { headers: hdrs });
+        if (res.ok && active) {
+          const data = await res.json();
+          const phones: LeadPhone[] = data.phones ?? [];
+          setLeadPhones(phones);
+          setPhoneIndex(0);
+        }
+      } catch { /* non-fatal */ }
+    })();
+    return () => { active = false; };
+  }, [currentLead?.id]);
 
   // Seed structured note scaffold once when call first becomes connected (session-backed only).
   // Only fires when callNotes is empty — never overwrites operator input.
@@ -1115,7 +1142,11 @@ function DialerPageInner() {
     const target = lead ?? currentLead;
     if (!target) return;
 
-    const phone = target.properties?.owner_phone;
+    // Phone cycling: use lead_phones roster if available, else fall back to owner_phone
+    const activePhones = leadPhones.filter(p => p.status === "active");
+    const phone = activePhones.length > 0
+      ? activePhones[phoneIndex]?.phone ?? activePhones[0]?.phone
+      : target.properties?.owner_phone;
     if (!phone) {
       toast.error("No phone number for this lead");
       return;
@@ -1680,11 +1711,31 @@ function DialerPageInner() {
     timer.reset();
     setDispositionPending(false);
 
-    const currentIdx = queue.findIndex((l) => l.id === currentLead?.id);
-    const nextLead = queue[currentIdx + 1] ?? queue[0] ?? null;
-    setCurrentLead(nextLead);
-    refetchQueue();
-  }, [currentCallLogId, callState, callNotes, currentLead, currentUser.id, handleHangup, queue, refetchQueue, timer]);
+    // Phone cycling: if there are un-attempted active phones, stay on same lead
+    // Unless it's a terminal disposition (dead_lead / disqualified) — always advance
+    const isTerminal = dispoKey === "dead_lead" || dispoKey === "disqualified";
+    const activePhones = leadPhones.filter(p => p.status === "active");
+    const nextPhoneIdx = phoneIndex + 1;
+
+    if (!isTerminal && nextPhoneIdx < activePhones.length) {
+      setPhoneIndex(nextPhoneIdx);
+      toast.info(`Phone ${nextPhoneIdx + 1} of ${activePhones.length} — next number loaded`);
+      // Re-fetch phones to get updated last_called_at
+      if (currentLead?.id) {
+        authHeaders().then(hdrs =>
+          fetch(`/api/leads/${currentLead.id}/phones`, { headers: hdrs })
+            .then(r => r.ok ? r.json() : null)
+            .then(data => { if (data?.phones) setLeadPhones(data.phones); })
+        ).catch(() => {});
+      }
+    } else {
+      const currentIdx = queue.findIndex((l) => l.id === currentLead?.id);
+      const nextLead = queue[currentIdx + 1] ?? queue[0] ?? null;
+      setCurrentLead(nextLead);
+      setPhoneIndex(0);
+      refetchQueue();
+    }
+  }, [currentCallLogId, callState, callNotes, currentLead, currentUser.id, handleHangup, queue, refetchQueue, timer, leadPhones, phoneIndex]);
 
   // ── PostCallPanel completion handler ────────────────────────────────
   // Shared by onComplete and onSkip — PostCallPanel handles its own API calls.
@@ -2731,41 +2782,39 @@ function DialerPageInner() {
                       )}
                     </AnimatePresence>
 
-                    {/* Secondary phones from skip-trace / manual entry */}
-                    {callState === "idle" && (() => {
-                      const allPhones = (currentLead.properties?.owner_flags?.all_phones as { number: string; dnc?: boolean; lineType?: string }[] | undefined) ?? [];
-                      const manualPhones = (currentLead.properties?.owner_flags?.manual_phones as string[] | undefined) ?? [];
-                      // Combine: all_phones first, then manual_phones not already in all_phones
-                      const primaryPhone = currentLead.properties?.owner_phone ?? "";
-                      const extraPhones: string[] = [];
-                      for (const p of allPhones) {
-                        const num = p.number?.replace(/\D/g, "").slice(-10);
-                        if (num && num !== primaryPhone.replace(/\D/g, "").slice(-10)) extraPhones.push(p.number);
-                      }
-                      for (const p of manualPhones) {
-                        const num = p.replace(/\D/g, "").slice(-10);
-                        if (num && num !== primaryPhone.replace(/\D/g, "").slice(-10) && !extraPhones.some(e => e.replace(/\D/g, "").slice(-10) === num)) extraPhones.push(p);
-                      }
-                      if (extraPhones.length === 0) return null;
+                    {/* Phone roster from lead_phones */}
+                    {callState === "idle" && leadPhones.filter(p => p.status === "active").length > 1 && (() => {
+                      const activePhones = leadPhones.filter(p => p.status === "active");
                       return (
-                        <div className="flex flex-wrap gap-1.5 pb-1">
-                          <span className="text-sm text-muted-foreground/50 w-full">Additional numbers:</span>
-                          {extraPhones.slice(0, 4).map((ph, i) => (
-                            <button
-                              key={i}
-                              type="button"
-                              onClick={() => {
-                                const digits = ph.replace(/\D/g, "").replace(/^1/, "").slice(0, 10);
-                                setManualPhone(digits);
-                                window.scrollTo({ top: 0, behavior: "smooth" });
-                                toast.info(`${formatUsPhone(digits)} loaded — hit Dial Now`);
-                              }}
-                              className="h-7 px-2.5 rounded-[8px] text-sm font-mono bg-primary/8 hover:bg-primary/18 border border-primary/20 text-primary transition-all flex items-center gap-1.5"
-                            >
-                              <Phone className="h-3 w-3" />
-                              {formatUsPhone(ph.replace(/\D/g, "").slice(-10))}
-                            </button>
-                          ))}
+                        <div className="space-y-1.5 pb-1">
+                          <div className="flex items-center justify-between">
+                            <span className="text-sm text-muted-foreground/50">
+                              Phone {phoneIndex + 1} of {activePhones.length}
+                              {phonesAttempted > 0 && ` · ${phonesAttempted} tried`}
+                            </span>
+                          </div>
+                          <div className="flex flex-wrap gap-1.5">
+                            {activePhones.map((lp, i) => (
+                              <button
+                                key={lp.id}
+                                type="button"
+                                onClick={() => setPhoneIndex(i)}
+                                className={cn(
+                                  "h-7 px-2.5 rounded-[8px] text-sm font-mono border transition-all flex items-center gap-1.5",
+                                  i === phoneIndex
+                                    ? "bg-primary/15 border-primary/30 text-primary font-bold"
+                                    : lp.last_called_at
+                                      ? "bg-muted/8 border-border/20 text-muted-foreground/60"
+                                      : "bg-primary/8 hover:bg-primary/18 border-primary/20 text-primary",
+                                )}
+                              >
+                                <Phone className="h-3 w-3" />
+                                {formatUsPhone(lp.phone.replace(/\D/g, "").slice(-10))}
+                                {lp.is_primary && <span className="text-xs">★</span>}
+                                {lp.last_called_at && <span className="text-xs text-muted-foreground/40">✓</span>}
+                              </button>
+                            ))}
+                          </div>
                         </div>
                       );
                     })()}
@@ -2779,7 +2828,26 @@ function DialerPageInner() {
                             className="flex-1 gap-2 bg-primary hover:bg-primary/90 text-primary-foreground font-semibold shadow-sm"
                           >
                             <Phone className="h-4 w-4" />
-                            {currentLead.properties?.owner_phone ? "Call Now" : "No Phone"}
+                            {(() => {
+                              const active = leadPhones.filter(p => p.status === "active");
+                              if (active.length > 0) return `Call ${formatUsPhone(active[phoneIndex]?.phone.replace(/\D/g, "").slice(-10) ?? "")}`;
+                              return currentLead.properties?.owner_phone ? "Call Now" : "No Phone";
+                            })()}
+                          </Button>
+                          <Button
+                            onClick={() => {
+                              const currentIdx = queue.findIndex((l) => l.id === currentLead.id);
+                              const nextLead = queue[currentIdx + 1] ?? queue[0] ?? null;
+                              if (nextLead) {
+                                setCurrentLead(nextLead);
+                                setPhoneIndex(0);
+                              }
+                            }}
+                            variant="outline"
+                            className="gap-1.5 border-border/30 text-muted-foreground hover:text-foreground hover:bg-muted/20"
+                            title="Skip to next lead"
+                          >
+                            <SkipForward className="h-3.5 w-3.5" />
                           </Button>
                           <Button
                             onClick={() => {

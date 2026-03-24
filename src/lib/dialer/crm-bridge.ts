@@ -153,7 +153,25 @@ export async function getCRMLeadContext(
     .order("created_at", { ascending: false })
     .limit(5);
 
-  // ── 7. Assemble context snapshot ───────────────────────────
+  // ── 7. Phone roster from lead_phones ──────────────────────
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: phoneRows } = await (sb.from("lead_phones") as any)
+    .select("id, phone, label, source, status, dead_reason, is_primary, position, last_called_at, call_count")
+    .eq("lead_id", leadId)
+    .order("position", { ascending: true });
+
+  const activePhones = (phoneRows ?? []).filter((p: { status: string }) => p.status === "active");
+  const uncalledActive = activePhones.filter((p: { last_called_at: string | null }) => !p.last_called_at);
+  const nextPhone = uncalledActive.length > 0
+    ? uncalledActive[0]
+    : activePhones.length > 0
+      ? activePhones.reduce((oldest: { last_called_at: string | null }, p: { last_called_at: string | null }) =>
+          !oldest || (p.last_called_at && (!oldest.last_called_at || p.last_called_at < oldest.last_called_at)) ? p : oldest
+        , null)
+      : null;
+  const phonesAttempted = activePhones.filter((p: { last_called_at: string | null }) => p.last_called_at).length;
+
+  // ── 8. Assemble context snapshot ───────────────────────────
   const ctx: CRMLeadContext = {
     leadId: lead.id,
     ownerName,
@@ -199,6 +217,11 @@ export async function getCRMLeadContext(
     confidenceScore: lead.confidence_score ?? null,
 
     openObjections: openObjections?.length ? openObjections : null,
+
+    availablePhones: phoneRows?.length ? phoneRows : null,
+    nextPhoneToDial: nextPhone?.phone ?? null,
+    phonesAttemptedCount: phonesAttempted,
+    phonesActiveCount: activePhones.length,
   };
 
   return ctx;

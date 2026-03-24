@@ -203,7 +203,7 @@ export async function publishSession(
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data: existingLog } = await (sb.from("calls_log") as any)
-    .select("id, disposition, duration_sec")
+    .select("id, disposition, duration_sec, phone_dialed")
     .eq("dialer_session_id", sessionId)
     .maybeSingle();
 
@@ -246,6 +246,24 @@ export async function publishSession(
           code: "DB_ERROR",
         };
       }
+    }
+  }
+
+  // ── Step 1.5: lead_phones call tracking ──────────────────
+  //
+  // Update the lead_phones row for the dialed number so the dialer
+  // knows which phones have been attempted and can cycle to the next.
+
+  if (leadId && existingLog?.phone_dialed) {
+    const dialedNormalized = (existingLog.phone_dialed as string).replace(/\D/g, "").slice(-10);
+    try {
+      await sb.rpc("increment_lead_phone_call_count", {
+        p_lead_id: leadId,
+        p_phone_suffix: dialedNormalized,
+      });
+    } catch (phoneTrackErr) {
+      console.warn("[publish-manager] lead_phones tracking failed (non-fatal):", phoneTrackErr);
+      warnings.push("phone_tracking_failed");
     }
   }
 
@@ -299,6 +317,57 @@ export async function publishSession(
         console.error("[publish-manager] task-lead-sync failed (non-fatal):", syncErr);
         warnings.push("task_sync_failed");
       }
+    }
+  }
+
+  // ── Step 2.5: auto-disqualify on terminal dispositions ───
+  //
+  // "disqualified" → moves lead to nurture (recyclable, may re-engage)
+  // "dead_lead"    → moves lead to dead (archived, effectively gone)
+  //
+  // Both are backward moves in the state machine, so next_action is not
+  // enforced by guardrails. We set a default next_action for audit purposes.
+
+  if (leadId && ["disqualified", "dead_lead"].includes(input.disposition)) {
+    const targetStatus = input.disposition === "disqualified" ? "nurture" : "dead";
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data: currentLead } = await (sb.from("leads") as any)
+        .select("status, lock_version")
+        .eq("id", leadId)
+        .single();
+
+      if (currentLead && !["nurture", "dead", "closed"].includes(currentLead.status as string)) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        await (sb.from("leads") as any)
+          .update({
+            status: targetStatus,
+            lock_version: (currentLead.lock_version as number) + 1,
+            next_action: input.next_action || (targetStatus === "nurture"
+              ? "Disqualified — review for re-engagement"
+              : "Dead — archived from dialer"),
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", leadId)
+          .eq("lock_version", currentLead.lock_version);
+
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        await (sb.from("event_log") as any).insert({
+          user_id: userId,
+          action: `lead.auto_${targetStatus}`,
+          entity_type: "lead",
+          entity_id: leadId,
+          details: {
+            from: currentLead.status,
+            to: targetStatus,
+            trigger: "dialer_disposition",
+            disposition: input.disposition,
+          },
+        });
+      }
+    } catch (dqErr) {
+      console.error("[publish-manager] auto-disqualify failed (non-fatal):", dqErr);
+      warnings.push("auto_disqualify_failed");
     }
   }
 

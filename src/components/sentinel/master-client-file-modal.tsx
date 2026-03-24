@@ -4115,6 +4115,11 @@ export function MasterClientFileModal({ clientFile: incomingClientFile, open, on
 
   const [stageUpdating, setStageUpdating] = useState(false);
 
+  const [allowedTransitions, setAllowedTransitions] = useState<Array<{ status: string; requires_next_action: boolean }>>([]);
+  const [stageLockVersion, setStageLockVersion] = useState<number>(0);
+  const [stageNextAction, setStageNextAction] = useState("");
+  const [stageNextActionDueAt, setStageNextActionDueAt] = useState("");
+
   const [qualificationDraft, setQualificationDraft] = useState<QualificationDraft>(() => getQualificationDraft(incomingClientFile));
 
   const [offerPrepDraft, setOfferPrepDraft] = useState<OfferPrepSnapshotDraft>(() => getOfferPrepDraft(incomingClientFile));
@@ -4621,6 +4626,26 @@ export function MasterClientFileModal({ clientFile: incomingClientFile, open, on
 
     setSelectedStage(normalizeWorkflowStage(clientFile?.status));
 
+  }, [clientFile?.id, clientFile?.status]);
+
+  // Fetch allowed stage transitions from the stage API
+  useEffect(() => {
+    if (!clientFile?.id) return;
+    let active = true;
+    (async () => {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        const headers: Record<string, string> = {};
+        if (session?.access_token) headers["Authorization"] = `Bearer ${session.access_token}`;
+        const res = await fetch(`/api/leads/${clientFile.id}/stage`, { headers });
+        if (res.ok && active) {
+          const data = await res.json();
+          setAllowedTransitions(data.allowed_transitions ?? []);
+          setStageLockVersion(data.lock_version ?? 0);
+        }
+      } catch { /* non-fatal */ }
+    })();
+    return () => { active = false; };
   }, [clientFile?.id, clientFile?.status]);
 
 
@@ -5389,7 +5414,7 @@ export function MasterClientFileModal({ clientFile: incomingClientFile, open, on
 
 
 
-      const res = await fetch("/api/prospects", {
+      const res = await fetch(`/api/leads/${clientFile.id}/stage`, {
 
         method: "PATCH",
 
@@ -5397,17 +5422,19 @@ export function MasterClientFileModal({ clientFile: incomingClientFile, open, on
 
           "Content-Type": "application/json",
 
-          "x-lock-version": String(current.lock_version ?? 0),
-
           Authorization: `Bearer ${session.access_token}`,
 
         },
 
         body: JSON.stringify({
 
-          lead_id: clientFile.id,
+          to: selectedStage,
 
-          status: selectedStage,
+          lock_version: current.lock_version ?? 0,
+
+          next_action: stageNextAction.trim() || null,
+
+          next_action_due_at: stageNextActionDueAt || null,
 
         }),
 
@@ -5421,7 +5448,7 @@ export function MasterClientFileModal({ clientFile: incomingClientFile, open, on
 
         if (res.status === 409) {
 
-          toast.error("Stage update conflict: Refresh and try again.");
+          toast.error("Lead was updated by someone else — refresh and try again");
 
         } else if (res.status === 422) {
 
@@ -5438,6 +5465,10 @@ export function MasterClientFileModal({ clientFile: incomingClientFile, open, on
       }
 
 
+
+      if (data.lock_version != null) setStageLockVersion(data.lock_version);
+      setStageNextAction("");
+      setStageNextActionDueAt("");
 
       applyLeadPatchFromResponse(data);
 
@@ -5457,7 +5488,7 @@ export function MasterClientFileModal({ clientFile: incomingClientFile, open, on
 
     }
 
-  }, [applyLeadPatchFromResponse, clientFile, onRefresh, selectedStage]);
+  }, [applyLeadPatchFromResponse, clientFile, onRefresh, selectedStage, stageNextAction, stageNextActionDueAt, stageLockVersion]);
 
 
 
@@ -7878,11 +7909,35 @@ export function MasterClientFileModal({ clientFile: incomingClientFile, open, on
 
                       <span className="shrink-0">·</span>
 
-                      <Badge variant="outline" className="text-xs gap-1 border-overlay-20 text-foreground shrink-0">
-
-                        <Target className="h-2.5 w-2.5" />{currentStageLabel}
-
-                      </Badge>
+                      {allowedTransitions.length > 0 ? (
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          <select
+                            value={selectedStage}
+                            onChange={(e) => setSelectedStage(e.target.value as WorkflowStageId)}
+                            className="h-6 px-1.5 rounded-md text-xs font-bold border border-overlay-20 bg-overlay-4 text-foreground appearance-none cursor-pointer focus:outline-none focus:border-primary/30"
+                          >
+                            <option value={currentStage}>{currentStageLabel}</option>
+                            {allowedTransitions.map((t) => (
+                              <option key={t.status} value={t.status}>
+                                → {workflowStageLabel(t.status)}{t.requires_next_action ? " *" : ""}
+                              </option>
+                            ))}
+                          </select>
+                          {selectedStage !== currentStage && (
+                            <button
+                              onClick={handleMoveStage}
+                              disabled={stageUpdating}
+                              className="h-6 px-2 rounded-md text-xs font-bold bg-primary/15 text-primary border border-primary/25 hover:bg-primary/25 transition-colors disabled:opacity-40"
+                            >
+                              {stageUpdating ? "..." : "Move"}
+                            </button>
+                          )}
+                        </div>
+                      ) : (
+                        <Badge variant="outline" className="text-xs gap-1 border-overlay-20 text-foreground shrink-0">
+                          <Target className="h-2.5 w-2.5" />{currentStageLabel}
+                        </Badge>
+                      )}
 
                       <span className="shrink-0 text-xs">Owner: {assigneeLabel}</span>
 
@@ -8541,6 +8596,45 @@ export function MasterClientFileModal({ clientFile: incomingClientFile, open, on
               </div>
 
 
+
+              {/* Stage transition next_action input */}
+              {selectedStage !== currentStage && (() => {
+                const transition = allowedTransitions.find(t => t.status === selectedStage);
+                return transition ? (
+                  <div className="shrink-0 px-4 py-2 border-b border-overlay-6 bg-overlay-2 flex items-center gap-3">
+                    <div className="flex-1 flex items-center gap-2">
+                      <label className="text-xs text-muted-foreground shrink-0">
+                        Next action{transition.requires_next_action ? " *" : ""}:
+                      </label>
+                      <input
+                        value={stageNextAction}
+                        onChange={(e) => setStageNextAction(e.target.value)}
+                        placeholder={transition.requires_next_action ? "Required — what's the next step?" : "Optional next action"}
+                        className="flex-1 bg-overlay-4 border border-overlay-10 rounded-md px-2.5 py-1 text-xs text-foreground placeholder:text-muted-foreground/40 focus:outline-none focus:border-primary/30"
+                      />
+                      <input
+                        type="date"
+                        value={stageNextActionDueAt}
+                        onChange={(e) => setStageNextActionDueAt(e.target.value)}
+                        className="bg-overlay-4 border border-overlay-10 rounded-md px-2 py-1 text-xs text-foreground focus:outline-none focus:border-primary/30"
+                      />
+                    </div>
+                    <button
+                      onClick={handleMoveStage}
+                      disabled={stageUpdating || (transition.requires_next_action && !stageNextAction.trim())}
+                      className="h-7 px-3 rounded-md text-xs font-bold bg-primary/15 text-primary border border-primary/25 hover:bg-primary/25 transition-colors disabled:opacity-40"
+                    >
+                      {stageUpdating ? "Moving..." : `Move to ${workflowStageLabel(selectedStage)}`}
+                    </button>
+                    <button
+                      onClick={() => setSelectedStage(currentStage)}
+                      className="text-xs text-muted-foreground hover:text-foreground"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                ) : null;
+              })()}
 
               {/* Inline task setter panel */}
               <AnimatePresence>

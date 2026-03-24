@@ -3,11 +3,12 @@
 // ContactTab extracted from master-client-file-modal.tsx.
 // Receives all data via props — no closure over modal state.
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import {
   ExternalLink, Phone, MessageSquare, Mail, MapPin, User, Lock,
   Loader2, Save, Pencil, ImageIcon, Contact2, Crosshair, Smartphone,
-  Scale, Calendar, FileText, Users,
+  Scale, Calendar, FileText, Users, XCircle, RotateCcw, ChevronDown,
+  ArrowUp,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
@@ -24,6 +25,7 @@ import {
 } from "@/components/sentinel/comps/comps-map";
 import { CopyBtn } from "../master-client-file-parts";
 import type { PhoneDetail, EmailDetail, SkipTraceOverlay } from "./contact-types";
+import type { LeadPhone } from "@/lib/dialer/types";
 
 export function ContactTab({ cf, overlay, onSkipTrace, skipTracing, onDial, onSms, calling, onRefresh }: {
   cf: ClientFile; overlay: SkipTraceOverlay | null;
@@ -44,9 +46,53 @@ export function ContactTab({ cf, overlay, onSkipTrace, skipTracing, onDial, onSm
   // ── Phone & email data ──
   const persons = overlay?.persons ?? (cf.ownerFlags?.persons as Record<string, unknown>[]) ?? [];
 
-  // manual_phones: string[] saved by the contact editor
-  // all_phones: PhoneDetail[] from skip-trace enrichment
-  // Load priority: overlay (just ran skip-trace) → all_phones (enriched) → manual_phones (operator-entered) → ownerPhone
+  // Phone roster from lead_phones table (canonical source)
+  const [leadPhones, setLeadPhones] = useState<LeadPhone[]>([]);
+  const [phonesLoading, setPhonesLoading] = useState(false);
+  const [deadReasonFor, setDeadReasonFor] = useState<string | null>(null);
+
+  const fetchPhones = useCallback(async () => {
+    if (!cf.id) return;
+    setPhonesLoading(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const headers: Record<string, string> = {};
+      if (session?.access_token) headers["Authorization"] = `Bearer ${session.access_token}`;
+      const res = await fetch(`/api/leads/${cf.id}/phones`, { headers });
+      if (res.ok) {
+        const data = await res.json();
+        setLeadPhones(data.phones ?? []);
+      }
+    } catch { /* silent */ }
+    finally { setPhonesLoading(false); }
+  }, [cf.id]);
+
+  useEffect(() => { fetchPhones(); }, [fetchPhones]);
+
+  const handlePhoneAction = useCallback(async (phoneId: string, status: "dead" | "active" | "dnc", deadReason?: string) => {
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const headers: Record<string, string> = { "Content-Type": "application/json" };
+      if (session?.access_token) headers["Authorization"] = `Bearer ${session.access_token}`;
+      const res = await fetch(`/api/leads/${cf.id}/phones/${phoneId}`, {
+        method: "PATCH",
+        headers,
+        body: JSON.stringify({ status, dead_reason: deadReason }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        toast.success(status === "active" ? "Phone reactivated" : `Phone marked ${status}`);
+        if (data.all_phones_dead) toast.warning("All phones are now dead for this lead");
+        fetchPhones();
+        onRefresh?.();
+      } else {
+        toast.error("Failed to update phone");
+      }
+    } catch { toast.error("Network error"); }
+    setDeadReasonFor(null);
+  }, [cf.id, fetchPhones, onRefresh]);
+
+  // Fallback to legacy data when lead_phones is empty
   const rawManualPhones = (cf.ownerFlags?.manual_phones as string[] | undefined) ?? [];
   const phoneDetails: PhoneDetail[] = overlay?.phoneDetails
     ?? (cf.ownerFlags?.all_phones as PhoneDetail[] | undefined)?.filter((p) => typeof p === "object" && p !== null && "number" in p)
@@ -60,6 +106,8 @@ export function ContactTab({ cf, overlay, onSkipTrace, skipTracing, onDial, onSm
   const emailDetails: EmailDetail[] = overlay?.emailDetails
     ?? (cf.ownerFlags?.all_emails as EmailDetail[] | undefined)?.filter((e) => typeof e === "object" && e !== null && "email" in e)
     ?? [];
+
+  const useLeadPhones = leadPhones.length > 0;
 
   // ── Mailing address from PR raw data ──
   const prMailAddr = prRaw.MailAddress ?? prRaw.MailingAddress ?? null;
@@ -362,118 +410,227 @@ export function ContactTab({ cf, overlay, onSkipTrace, skipTracing, onDial, onSm
         )}
       </div>
 
-      {/* ── Phone Numbers (5 slots) ── */}
+      {/* ── Phone Numbers ── */}
       <div className="rounded-[12px] border border-overlay-6 bg-overlay-2 p-4 space-y-3">
         <div className="flex items-center justify-between">
           <p className="text-sm text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
-            <Phone className="h-3 w-3" />Phone Numbers ({phoneSlots.filter((p) => p.trim().length >= 7).length}/{phoneSlots.length})
+            <Phone className="h-3 w-3" />Phone Numbers
+            {useLeadPhones
+              ? ` (${leadPhones.filter(p => p.status === "active").length} active, ${leadPhones.filter(p => p.status !== "active").length} dead)`
+              : ` (${phoneSlots.filter((p) => p.trim().length >= 7).length}/${phoneSlots.length})`}
           </p>
-          {!hasPhones && (
-            <button
-              onClick={onSkipTrace}
-              disabled={skipTracing}
-              className="h-6 px-2.5 rounded-md text-xs font-semibold border border-border/30 bg-muted/[0.06] text-foreground hover:bg-muted/[0.12] transition-colors flex items-center gap-1"
-            >
-              {skipTracing ? <Loader2 className="h-3 w-3 animate-spin" /> : <Crosshair className="h-3 w-3" />}
-              {skipTracing ? "Deep Skipping..." : "~90s Deep Skip"}
-            </button>
-          )}
+          <div className="flex items-center gap-1.5">
+            {phonesLoading && <Loader2 className="h-3 w-3 animate-spin text-muted-foreground/40" />}
+            {!hasPhones && !useLeadPhones && (
+              <button
+                onClick={onSkipTrace}
+                disabled={skipTracing}
+                className="h-6 px-2.5 rounded-md text-xs font-semibold border border-border/30 bg-muted/[0.06] text-foreground hover:bg-muted/[0.12] transition-colors flex items-center gap-1"
+              >
+                {skipTracing ? <Loader2 className="h-3 w-3 animate-spin" /> : <Crosshair className="h-3 w-3" />}
+                {skipTracing ? "Deep Skipping..." : "~90s Deep Skip"}
+              </button>
+            )}
+          </div>
         </div>
         <div className="space-y-1.5">
-          {phoneSlots.map((phone, i) => {
-            const detail = phoneDetails[i];
-            const hasPhone = phone.trim().length >= 7;
+          {useLeadPhones ? (
+            /* ── API-driven phone roster from lead_phones ── */
+            leadPhones.map((lp) => {
+              const isDead = lp.status === "dead";
+              const isDnc = lp.status === "dnc";
+              const isActive = lp.status === "active";
 
-            if (editing) {
               return (
-                <div key={i} className="flex items-center gap-2">
-                  <span className="text-sm text-muted-foreground/50 w-4 text-center">{i + 1}</span>
-                  <input
-                    value={phone}
-                    onChange={(e) => updatePhone(i, e.target.value)}
-                    placeholder={`Phone ${i + 1}`}
-                    className="flex-1 bg-overlay-4 border border-overlay-10 rounded-md px-3 py-1.5 text-sm font-mono text-foreground placeholder:text-muted-foreground/30 focus:outline-none focus:border-primary/30"
-                  />
-                </div>
-              );
-            }
-
-            if (!hasPhone) {
-              return (
-                <div key={i} className="rounded-[10px] border border-dashed border-overlay-6 bg-overlay-2 p-2.5">
+                <div key={lp.id} className={cn(
+                  "rounded-[10px] border p-2.5",
+                  isDead ? "border-red-500/20 bg-red-500/5" : isDnc ? "border-orange-500/20 bg-orange-500/5" : "border-overlay-8 bg-overlay-3",
+                )}>
                   <div className="flex items-center gap-2.5">
-                    <div className="h-7 w-7 rounded-lg bg-overlay-3 flex items-center justify-center shrink-0">
-                      <Lock className="h-3.5 w-3.5 text-muted-foreground/20" />
+                    <div className={cn(
+                      "h-7 w-7 rounded-lg flex items-center justify-center shrink-0",
+                      isDead ? "bg-red-500/10" : isDnc ? "bg-orange-500/10" : lp.label === "mobile" ? "bg-muted/10" : "bg-primary/10",
+                    )}>
+                      {lp.label === "mobile" ? <Smartphone className="h-3.5 w-3.5 text-foreground" /> : <Phone className="h-3.5 w-3.5 text-primary/70" />}
                     </div>
-                    <span className="text-sm font-mono text-muted-foreground/15">(•••) •••-••••</span>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-1.5">
+                        <span className={cn("text-sm font-bold font-mono", isDead ? "text-muted-foreground line-through" : "text-foreground")}>{lp.phone}</span>
+                        {lp.is_primary && isActive && <Badge variant="outline" className="text-xs py-0 px-1 border-primary/30 text-primary">PRIMARY</Badge>}
+                        {isDead && <Badge variant="outline" className="text-xs py-0 px-1 border-red-500/30 text-red-400">DEAD</Badge>}
+                        {isDnc && <Badge variant="outline" className="text-xs py-0 px-1 border-orange-500/30 text-orange-400">DNC</Badge>}
+                      </div>
+                      <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
+                        {lp.label !== "unknown" && <span className="text-sm text-muted-foreground capitalize">{lp.label}</span>}
+                        <span className="text-sm text-muted-foreground/60">{lp.source}</span>
+                        {lp.call_count > 0 && <span className="text-sm text-muted-foreground/60">{lp.call_count} call{lp.call_count !== 1 ? "s" : ""}</span>}
+                        {lp.last_called_at && (
+                          <span className="text-sm text-muted-foreground/40">
+                            last {new Date(lp.last_called_at).toLocaleDateString([], { month: "short", day: "numeric" })}
+                          </span>
+                        )}
+                        {isDead && lp.dead_reason && <span className="text-sm text-red-400/70">{lp.dead_reason.replace(/_/g, " ")}</span>}
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-1 shrink-0">
+                      {isActive && !lp.is_primary && (
+                        <button
+                          onClick={() => handlePhoneAction(lp.id, "active")}
+                          title="Promote to primary"
+                          className="h-7 px-2 rounded-md text-sm font-semibold bg-muted/10 text-foreground hover:bg-muted/20 border border-border/20 transition-all flex items-center gap-1"
+                        >
+                          <ArrowUp className="h-3 w-3" /> Primary
+                        </button>
+                      )}
+                      {isActive && (
+                        <>
+                          <div className="relative">
+                            <button
+                              onClick={() => setDeadReasonFor(deadReasonFor === lp.id ? null : lp.id)}
+                              title="Mark phone dead"
+                              className="h-7 px-2 rounded-md text-sm font-semibold bg-red-500/8 text-red-400 hover:bg-red-500/15 border border-red-500/15 transition-all flex items-center gap-1"
+                            >
+                              <XCircle className="h-3 w-3" /> Dead
+                              <ChevronDown className="h-2.5 w-2.5" />
+                            </button>
+                            {deadReasonFor === lp.id && (
+                              <div className="absolute right-0 top-full mt-1 z-50 bg-panel-deep border border-overlay-10 rounded-lg shadow-xl p-1 min-w-[140px]">
+                                {(["wrong_number", "disconnected", "fax", "spam"] as const).map((reason) => (
+                                  <button
+                                    key={reason}
+                                    onClick={() => handlePhoneAction(lp.id, "dead", reason)}
+                                    className="w-full text-left px-3 py-1.5 text-sm text-foreground hover:bg-overlay-6 rounded-md capitalize"
+                                  >
+                                    {reason.replace(/_/g, " ")}
+                                  </button>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                          <button
+                            onClick={() => onDial(lp.phone)}
+                            disabled={calling}
+                            className="h-7 px-2 rounded-md text-sm font-semibold bg-primary/10 text-primary hover:bg-primary/20 border border-primary/20 transition-all flex items-center gap-1 disabled:opacity-30"
+                          >
+                            <Phone className="h-3 w-3" />Dial
+                          </button>
+                          <button
+                            onClick={() => onSms(lp.phone)}
+                            disabled={lp.label === "landline"}
+                            className="h-7 px-2 rounded-md text-sm font-semibold bg-muted/10 text-foreground hover:bg-muted/20 border border-border/20 transition-all flex items-center gap-1 disabled:opacity-30"
+                          >
+                            <MessageSquare className="h-3 w-3" />
+                          </button>
+                        </>
+                      )}
+                      {(isDead || isDnc) && (
+                        <button
+                          onClick={() => handlePhoneAction(lp.id, "active")}
+                          title="Reactivate phone"
+                          className="h-7 px-2 rounded-md text-sm font-semibold bg-muted/10 text-foreground hover:bg-muted/20 border border-border/20 transition-all flex items-center gap-1"
+                        >
+                          <RotateCcw className="h-3 w-3" /> Reactivate
+                        </button>
+                      )}
+                    </div>
                   </div>
                 </div>
               );
-            }
+            })
+          ) : (
+            /* ── Legacy phone slots (fallback when lead_phones is empty) ── */
+            phoneSlots.map((phone, i) => {
+              const detail = phoneDetails[i];
+              const hasPhone = phone.trim().length >= 7;
 
-            return (
-              <div key={i} className="rounded-[10px] border border-overlay-8 bg-overlay-3 p-2.5">
-                <div className="flex items-center gap-2.5">
-                  <div className={cn(
-                    "h-7 w-7 rounded-lg flex items-center justify-center shrink-0",
-                    detail?.lineType === "mobile" ? "bg-muted/10" : "bg-primary/10",
-                  )}>
-                    {detail?.lineType === "mobile" ? <Smartphone className="h-3.5 w-3.5 text-foreground" /> : <Phone className="h-3.5 w-3.5 text-primary/70" />}
+              if (editing) {
+                return (
+                  <div key={i} className="flex items-center gap-2">
+                    <span className="text-sm text-muted-foreground/50 w-4 text-center">{i + 1}</span>
+                    <input
+                      value={phone}
+                      onChange={(e) => updatePhone(i, e.target.value)}
+                      placeholder={`Phone ${i + 1}`}
+                      className="flex-1 bg-overlay-4 border border-overlay-10 rounded-md px-3 py-1.5 text-sm font-mono text-foreground placeholder:text-muted-foreground/30 focus:outline-none focus:border-primary/30"
+                    />
                   </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-1.5">
-                      <span className="text-sm font-bold font-mono text-foreground">{phone}</span>
-                      {i === 0 && <Badge variant="outline" className="text-xs py-0 px-1 border-primary/30 text-primary">BEST</Badge>}
-                      {detail?.dnc && <Badge variant="outline" className="text-xs py-0 px-1 border-border/30 text-foreground">DNC</Badge>}
-                    </div>
-                    <div className="flex items-center gap-1.5 mt-0.5">
-                      {detail?.lineType && detail.lineType.toLowerCase() !== "unknown" && (
-                        <span className="text-sm text-muted-foreground capitalize">{detail.lineType}</span>
-                      )}
-                      {detail?.confidence != null && detail.confidence > 0 && (
-                        <span className="text-sm text-muted-foreground">{detail.confidence}%</span>
-                      )}
-                      {detail?.source && (
-                        <Badge variant="outline" className={cn(
-                          "text-xs py-0 px-1",
-                          detail.source === "batchdata" ? "border-border/30 text-foreground"
-                            : String(detail.source).startsWith("openclaw") ? "border-border/30 text-foreground"
-                            : "border-primary/30 text-primary/70",
-                        )}>
-                          {detail.source === "batchdata" ? "BD" : String(detail.source).startsWith("openclaw") ? "OC" : "PR"}
-                        </Badge>
-                      )}
+                );
+              }
+
+              if (!hasPhone) {
+                return (
+                  <div key={i} className="rounded-[10px] border border-dashed border-overlay-6 bg-overlay-2 p-2.5">
+                    <div className="flex items-center gap-2.5">
+                      <div className="h-7 w-7 rounded-lg bg-overlay-3 flex items-center justify-center shrink-0">
+                        <Lock className="h-3.5 w-3.5 text-muted-foreground/20" />
+                      </div>
+                      <span className="text-sm font-mono text-muted-foreground/15">(•••) •••-••••</span>
                     </div>
                   </div>
-                  <div className="flex items-center gap-1 shrink-0">
-                    {i > 0 && (
+                );
+              }
+
+              return (
+                <div key={i} className="rounded-[10px] border border-overlay-8 bg-overlay-3 p-2.5">
+                  <div className="flex items-center gap-2.5">
+                    <div className={cn(
+                      "h-7 w-7 rounded-lg flex items-center justify-center shrink-0",
+                      detail?.lineType === "mobile" ? "bg-muted/10" : "bg-primary/10",
+                    )}>
+                      {detail?.lineType === "mobile" ? <Smartphone className="h-3.5 w-3.5 text-foreground" /> : <Phone className="h-3.5 w-3.5 text-primary/70" />}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-sm font-bold font-mono text-foreground">{phone}</span>
+                        {i === 0 && <Badge variant="outline" className="text-xs py-0 px-1 border-primary/30 text-primary">BEST</Badge>}
+                        {detail?.dnc && <Badge variant="outline" className="text-xs py-0 px-1 border-border/30 text-foreground">DNC</Badge>}
+                      </div>
+                      <div className="flex items-center gap-1.5 mt-0.5">
+                        {detail?.lineType && detail.lineType.toLowerCase() !== "unknown" && (
+                          <span className="text-sm text-muted-foreground capitalize">{detail.lineType}</span>
+                        )}
+                        {detail?.source && (
+                          <Badge variant="outline" className={cn(
+                            "text-xs py-0 px-1",
+                            detail.source === "batchdata" ? "border-border/30 text-foreground"
+                              : String(detail.source).startsWith("openclaw") ? "border-border/30 text-foreground"
+                              : "border-primary/30 text-primary/70",
+                          )}>
+                            {detail.source === "batchdata" ? "BD" : String(detail.source).startsWith("openclaw") ? "OC" : "PR"}
+                          </Badge>
+                        )}
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-1 shrink-0">
+                      {i > 0 && (
+                        <button
+                          onClick={() => promotePhone(i)}
+                          title="Set as primary (Best) number — click Save to persist"
+                          className="h-7 px-2 rounded-md text-sm font-semibold bg-muted/10 text-foreground hover:bg-muted/20 border border-border/20 transition-all flex items-center gap-1"
+                        >
+                          ★ Best
+                        </button>
+                      )}
                       <button
-                        onClick={() => promotePhone(i)}
-                        title="Set as primary (Best) number — click Save to persist"
-                        className="h-7 px-2 rounded-md text-sm font-semibold bg-muted/10 text-foreground hover:bg-muted/20 border border-border/20 transition-all flex items-center gap-1"
+                        onClick={() => onDial(phone)}
+                        disabled={calling || detail?.dnc}
+                        className="h-7 px-2 rounded-md text-sm font-semibold bg-primary/10 text-primary hover:bg-primary/20 border border-primary/20 transition-all flex items-center gap-1 disabled:opacity-30"
                       >
-                        ★ Best
+                        <Phone className="h-3 w-3" />Dial
                       </button>
-                    )}
-                    <button
-                      onClick={() => onDial(phone)}
-                      disabled={calling || detail?.dnc}
-                      className="h-7 px-2 rounded-md text-sm font-semibold bg-primary/10 text-primary hover:bg-primary/20 border border-primary/20 transition-all flex items-center gap-1 disabled:opacity-30"
-                    >
-                      <Phone className="h-3 w-3" />Dial
-                    </button>
-                    <button
-                      onClick={() => onSms(phone)}
-                      disabled={detail?.lineType === "landline"}
-                      className="h-7 px-2 rounded-md text-sm font-semibold bg-muted/10 text-foreground hover:bg-muted/20 border border-border/20 transition-all flex items-center gap-1 disabled:opacity-30"
-                    >
-                      <MessageSquare className="h-3 w-3" />
-                    </button>
+                      <button
+                        onClick={() => onSms(phone)}
+                        disabled={detail?.lineType === "landline"}
+                        className="h-7 px-2 rounded-md text-sm font-semibold bg-muted/10 text-foreground hover:bg-muted/20 border border-border/20 transition-all flex items-center gap-1 disabled:opacity-30"
+                      >
+                        <MessageSquare className="h-3 w-3" />
+                      </button>
+                    </div>
                   </div>
                 </div>
-              </div>
-            );
-          })}
+              );
+            })
+          )}
         </div>
       </div>
 

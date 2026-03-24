@@ -61,7 +61,7 @@ export function scheduleNextCall(
     };
   }
 
-  if (disposition === "dead") {
+  if (disposition === "dead" || disposition === "dead_lead" || disposition === "disqualified") {
     return {
       nextCallAt: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString(),
       sequenceStep: currentStep,

@@ -117,6 +117,31 @@ export interface CRMLeadContext {
   // Open objections from previous calls — gives Logan immediate context
   // on what blocked the deal last time. Sourced from lead_objection_tags.
   openObjections: Array<{ tag: string; note: string | null; created_at: string }> | null;
+
+  // Phone roster for dialer phone cycling.
+  // Populated from lead_phones table. The dialer uses this to show all
+  // available phones and auto-load the next un-called number.
+  availablePhones: LeadPhone[] | null;
+  nextPhoneToDial: string | null;       // phone number of the next un-called active phone
+  phonesAttemptedCount: number;          // how many active phones have been called
+  phonesActiveCount: number;             // total active (non-dead, non-dnc) phones
+}
+
+/**
+ * A phone number associated with a lead, sourced from the lead_phones table.
+ * Used by dialer for phone cycling and by contact tab for display/management.
+ */
+export interface LeadPhone {
+  id: string;
+  phone: string;
+  label: "mobile" | "landline" | "voip" | "unknown";
+  source: string;
+  status: "active" | "dead" | "dnc";
+  dead_reason: string | null;
+  is_primary: boolean;
+  position: number;
+  last_called_at: string | null;
+  call_count: number;
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -360,11 +385,12 @@ export type PublishDisposition =
   | "follow_up"       // needs callback / follow-up
   | "appointment"     // set appointment on this call
   | "offer_made"      // made an offer on this call
-  | "disqualified";   // definitively dead
+  | "disqualified"    // disqualify → nurture (recyclable)
+  | "dead_lead";      // disqualify → dead (archived, gone)
 
 export const PUBLISH_DISPOSITIONS: readonly PublishDisposition[] = [
   "completed", "voicemail", "no_answer", "not_interested",
-  "follow_up", "appointment", "offer_made", "disqualified",
+  "follow_up", "appointment", "offer_made", "disqualified", "dead_lead",
 ] as const;
 
 export type SellerTimeline = "immediate" | "30_days" | "60_days" | "flexible" | "unknown";
