@@ -1230,7 +1230,7 @@ export async function POST(req: NextRequest) {
         address: address.trim(),
         city: city?.trim() || "Unknown",
         state: state?.trim().toUpperCase() || "WA",
-        zip: zip?.trim() || null,
+        zip: zip?.trim() || "00000",
         owner_name: owner_name?.trim() || "Unknown Owner",
         owner_phone: owner_phone?.trim() || null,
         owner_email: owner_email?.trim() || null,
