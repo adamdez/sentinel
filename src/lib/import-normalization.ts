@@ -319,7 +319,7 @@ const FIELD_DEFINITIONS: FieldDefinition[] = [
   { field: "sqft", label: "Square Footage", group: "Property", aliases: ["square footage", "sqft", "sq ft", "living area", "building area", "gla"] },
   { field: "year_built", label: "Year Built", group: "Property", aliases: ["year built", "yr built", "built year", "construction year"] },
   // Legal / Probate
-  { field: "document_type", label: "Document Type", group: "Legal", aliases: ["document type", "filing type", "doc type"] },
+  { field: "document_type", label: "Document Type", group: "Legal", aliases: ["document type", "record type", "filing type", "doc type"] },
   { field: "case_number", label: "Case Number", group: "Legal", aliases: ["case number", "case no", "case id", "docket number", "court case"] },
   { field: "file_date", label: "File Date", group: "Legal", aliases: ["file date", "filing date", "recorded date", "record date"] },
   { field: "date_of_death", label: "Date of Death", group: "Legal", aliases: ["date of death", "dod", "death date", "decedent date of death"] },
