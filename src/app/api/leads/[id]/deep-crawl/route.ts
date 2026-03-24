@@ -63,7 +63,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data: lead, error: leadErr } = await (sb.from("leads") as any)
-    .select("id, owner_name, property_id")
+    .select("id, property_id")
     .eq("id", leadId)
     .single();
 
@@ -72,19 +72,18 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     return NextResponse.json({ error: "Lead not found" }, { status: 404 });
   }
 
-  // Fetch property separately to avoid PostgREST join issues
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let prop: Record<string, any> | null = null;
   if (lead.property_id) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { data: propRow } = await (sb.from("properties") as any)
-      .select("address, city, county, apn")
+      .select("owner_name, address, city, county, apn")
       .eq("id", lead.property_id)
       .single();
     prop = propRow;
   }
 
-  const ownerName = lead.owner_name ?? "";
+  const ownerName = prop?.owner_name ?? "";
   const address = prop?.address ?? "";
   const city = prop?.city ?? "";
   const county = prop?.county ?? "";
