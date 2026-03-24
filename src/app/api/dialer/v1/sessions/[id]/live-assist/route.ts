@@ -107,9 +107,13 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
 
   const now = new Date().toISOString();
   const mode = inferMode(body.mode);
+  const sessionInstructions =
+    typeof body.sessionInstructions === "string" && body.sessionInstructions.trim().length > 0
+      ? body.sessionInstructions.trim()
+      : null;
   const session = sessionResult.data;
 
-  const stateResult = await getSessionLiveCoachState(sb, sessionId, user.id);
+  const stateResult = await getSessionLiveCoachState(sb, sessionId, user.id, true);
   const cachedState = stateResult.error
     ? createEmptyLiveCoachState(now)
     : parseLiveCoachState(stateResult.data);
@@ -130,6 +134,7 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
       session.context_snapshot ?? null,
       mode,
       getStyleBlock(mode === "inbound" ? "inbound_guidance" : "objection_support"),
+      sessionInstructions,
     );
 
     try {
@@ -163,20 +168,27 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
     }
   }
 
-  const cacheWrite = await updateSessionLiveCoachState(
-    sb,
-    sessionId,
-    user.id,
-    liveCoachState as unknown as Record<string, unknown>,
-  );
-  if (cacheWrite.error) {
-    console.warn("[live-coach] failed to persist live coach state:", cacheWrite.error);
+  const previousStateJson = stateResult.error ? null : JSON.stringify(cachedState);
+  const nextStateJson = JSON.stringify(liveCoachState);
+  let cacheWriteError: string | null = null;
+
+  if (previousStateJson !== nextStateJson) {
+    const cacheWrite = await updateSessionLiveCoachState(
+      sb,
+      sessionId,
+      user.id,
+      liveCoachState as unknown as Record<string, unknown>,
+      true,
+    );
+    if (cacheWrite.error) {
+      cacheWriteError = cacheWrite.error;
+      console.warn("[live-coach] failed to persist live coach state:", cacheWrite.error);
+    }
   }
 
   const response = buildLiveCoachResponse(liveCoachState, mode);
   return NextResponse.json({
     ...response,
-    source: process.env.OPENAI_API_KEY ? "ai" : "rules",
-    state_persisted: !cacheWrite.error,
+    state_persisted: !cacheWriteError,
   });
 }

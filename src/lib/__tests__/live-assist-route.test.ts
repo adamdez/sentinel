@@ -201,4 +201,60 @@ describe("POST /api/dialer/v1/sessions/[id]/live-assist", () => {
     expect(mocks.completeDialerAiLayered).not.toHaveBeenCalled();
     expect(mocks.updateSessionLiveCoachState).toHaveBeenCalledTimes(1);
   });
+
+  it("threads session instructions into the live coach strategist prompt", async () => {
+    mocks.createDialerClient.mockReturnValue(
+      makeSessionNotesClient([
+        {
+          id: "note-1",
+          session_id: "session-1",
+          content: "I need to move soon.",
+          speaker: "seller",
+          note_type: "transcript_chunk",
+          sequence_num: 1,
+          created_at: "2026-03-22T20:00:00.000Z",
+          confidence: 0.96,
+        },
+      ]),
+    );
+    mocks.completeDialerAiLayered.mockResolvedValue({
+      text: JSON.stringify({
+        current_stage: "situation",
+        highest_priority_gap: "timeline",
+        why_this_gap_now: "Timing is still unclear.",
+        next_best_question: "What timing feels realistic from your side right now?",
+        backup_question: null,
+        suggested_mirror: null,
+        suggested_label: null,
+        guardrail: "Do not push for commitment before timing is clear.",
+      }),
+      model: "gpt-5-mini",
+      provider: "openai",
+    });
+
+    const { POST } = await import("@/app/api/dialer/v1/sessions/[id]/live-assist/route");
+    const request = new Request("http://localhost/api/dialer/v1/sessions/session-1/live-assist", {
+      method: "POST",
+      headers: {
+        authorization: "Bearer test-token",
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({
+        mode: "outbound",
+        sessionInstructions: "Prioritize timeline discovery before discussing price.",
+      }),
+    });
+
+    const response = await POST(request as never, {
+      params: Promise.resolve({ id: "session-1" }),
+    });
+    const payload = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(payload.source).toBe("gpt5");
+    expect(mocks.completeDialerAiLayered).toHaveBeenCalledTimes(1);
+    expect(mocks.completeDialerAiLayered.mock.calls[0]?.[0]?.assembled?.systemMessage).toContain(
+      "Prioritize timeline discovery before discussing price.",
+    );
+  });
 });

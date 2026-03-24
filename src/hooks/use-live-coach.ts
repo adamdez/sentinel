@@ -29,13 +29,23 @@ export function useLiveCoach({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const abortRef = useRef<AbortController | null>(null);
+  const inFlightRef = useRef(false);
+  const pollTimerRef = useRef<number | null>(null);
+
+  const clearScheduledPoll = useCallback(() => {
+    if (pollTimerRef.current !== null) {
+      window.clearTimeout(pollTimerRef.current);
+      pollTimerRef.current = null;
+    }
+  }, []);
 
   const fetchCoach = useCallback(async () => {
-    if (!sessionId || !enabled) return;
+    if (!sessionId || !enabled || inFlightRef.current) return;
 
-    abortRef.current?.abort();
+    clearScheduledPoll();
     const controller = new AbortController();
     abortRef.current = controller;
+    inFlightRef.current = true;
 
     setLoading(true);
     try {
@@ -56,7 +66,6 @@ export function useLiveCoach({
 
       if (!res.ok) {
         if (!controller.signal.aborted) {
-          setCoach(null);
           setError(`Coaching unavailable (${res.status})`);
         }
         return;
@@ -70,34 +79,50 @@ export function useLiveCoach({
     } catch (err) {
       if (err instanceof DOMException && err.name === "AbortError") return;
       console.error("[Live Coach]", err);
-      setCoach(null);
-      setError("Coaching unavailable — network error");
+      if (!controller.signal.aborted) {
+        setError("Coaching unavailable - network error");
+      }
     } finally {
+      if (abortRef.current === controller) {
+        abortRef.current = null;
+      }
+      inFlightRef.current = false;
       if (!controller.signal.aborted) {
         setLoading(false);
       }
     }
-  }, [enabled, mode, sessionId, sessionInstructions]);
+  }, [clearScheduledPoll, enabled, mode, sessionId, sessionInstructions]);
 
   useEffect(() => {
     if (!sessionId || !enabled) {
+      clearScheduledPoll();
       setCoach(null);
       setLoading(false);
       setError(null);
+      inFlightRef.current = false;
       abortRef.current?.abort();
       return;
     }
 
-    void fetchCoach();
-    const timer = window.setInterval(() => {
-      void fetchCoach();
-    }, intervalMs);
+    let cancelled = false;
+
+    const runPoll = async () => {
+      await fetchCoach();
+      if (cancelled) return;
+      pollTimerRef.current = window.setTimeout(() => {
+        void runPoll();
+      }, intervalMs);
+    };
+
+    void runPoll();
 
     return () => {
+      cancelled = true;
+      clearScheduledPoll();
+      inFlightRef.current = false;
       abortRef.current?.abort();
-      window.clearInterval(timer);
     };
-  }, [enabled, fetchCoach, intervalMs, sessionId]);
+  }, [clearScheduledPoll, enabled, fetchCoach, intervalMs, sessionId]);
 
   return {
     coach,

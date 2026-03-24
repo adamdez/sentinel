@@ -128,6 +128,30 @@ export async function GET(req: NextRequest, { params }: RouteContext) {
   if (isAI === "true")  options.is_ai_generated = true;
   if (isAI === "false") options.is_ai_generated = false;
 
+  const afterSequence = searchParams.get("after_sequence");
+  if (afterSequence !== null) {
+    const parsed = Number.parseInt(afterSequence, 10);
+    if (!Number.isInteger(parsed) || parsed < 0) {
+      return NextResponse.json(
+        { error: `Invalid after_sequence filter: "${afterSequence}"` },
+        { status: 400 },
+      );
+    }
+    options.after_sequence_num = parsed;
+  }
+
+  const limit = searchParams.get("limit");
+  if (limit !== null) {
+    const parsed = Number.parseInt(limit, 10);
+    if (!Number.isInteger(parsed) || parsed <= 0) {
+      return NextResponse.json(
+        { error: `Invalid limit filter: "${limit}"` },
+        { status: 400 },
+      );
+    }
+    options.limit = parsed;
+  }
+
   const sb = createDialerClient();
   const result = await listNotes(sb, sessionId, user.id, options);
 

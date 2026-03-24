@@ -449,6 +449,15 @@ function DialerPageInner() {
   const [savedNotes, setSavedNotes] = useState<Array<{ content: string; time: string }>>([]);
   const [savingNote, setSavingNote] = useState(false);
   const noteSeqRef = useRef(0);
+  const transcriptSyncRef = useRef<{
+    sessionId: string | null;
+    lastSequence: number;
+    sellerChunks: string[];
+  }>({
+    sessionId: null,
+    lastSequence: 0,
+    sellerChunks: [],
+  });
   // Tracks whether the note scaffold has been seeded for the current call session.
   // Reset to false each time callState returns to idle so the next call starts fresh.
   const noteScaffoldSeeded = useRef(false);
@@ -568,17 +577,54 @@ function DialerPageInner() {
   const activeSessionForNotes = dialerSessionId || manualSessionId;
   useEffect(() => {
     if (!activeSessionForNotes) {
+      transcriptSyncRef.current = {
+        sessionId: null,
+        lastSequence: 0,
+        sellerChunks: [],
+      };
       setLiveNotes([]);
       return;
     }
 
+    if (transcriptSyncRef.current.sessionId !== activeSessionForNotes) {
+      transcriptSyncRef.current = {
+        sessionId: activeSessionForNotes,
+        lastSequence: 0,
+        sellerChunks: [],
+      };
+    }
+
     let cancelled = false;
+    let timer: number | null = null;
+
+    const buildGroupedNotes = (chunks: string[]) => {
+      const grouped: string[] = [];
+      let currentGroup = "";
+
+      for (const chunk of chunks) {
+        if (currentGroup.length + chunk.length > 300) {
+          if (currentGroup) grouped.push(`Seller: "${currentGroup}"`);
+          currentGroup = chunk;
+        } else {
+          currentGroup = currentGroup ? `${currentGroup} ${chunk}` : chunk;
+        }
+      }
+
+      if (currentGroup) grouped.push(`Seller: "${currentGroup}"`);
+      return grouped.slice(-12);
+    };
 
     const pollNotes = async () => {
       try {
         const hdrs = await authHeaders();
+        const syncState = transcriptSyncRef.current;
+        const searchParams = new URLSearchParams({ note_type: "transcript_chunk" });
+        if (syncState.lastSequence > 0) {
+          searchParams.set("after_sequence", String(syncState.lastSequence));
+          searchParams.set("limit", "120");
+        }
         const res = await fetch(
-          `/api/dialer/v1/sessions/${activeSessionForNotes}/notes?note_type=transcript_chunk`,
+          `/api/dialer/v1/sessions/${activeSessionForNotes}/notes?${searchParams.toString()}`,
           { headers: hdrs },
         );
         if (!res.ok) return;
@@ -587,42 +633,58 @@ function DialerPageInner() {
           notes?: Array<{
             content: string | null;
             speaker: "operator" | "seller" | "ai" | null;
+            sequence_num: number;
           }>;
         };
 
         if (cancelled) return;
 
-        const sellerOnly = (data.notes ?? [])
-          .filter((note) => note.speaker === "seller" && typeof note.content === "string" && note.content.trim().length > 0);
+        const notes = data.notes ?? [];
+        if (notes.length > 0) {
+          const newestSequence = Math.max(
+            transcriptSyncRef.current.lastSequence,
+            ...notes.map((note) => note.sequence_num),
+          );
+          transcriptSyncRef.current.lastSequence = newestSequence;
 
-        // Group consecutive seller fragments into readable paragraphs
-        const grouped: string[] = [];
-        let currentGroup = "";
-        for (const note of sellerOnly) {
-          const text = note.content!.trim();
-          if (currentGroup.length + text.length > 300) {
-            if (currentGroup) grouped.push(`Seller: "${currentGroup}"`);
-            currentGroup = text;
+          const sellerChunks = notes
+            .filter((note) => note.speaker === "seller" && typeof note.content === "string")
+            .map((note) => note.content!.trim())
+            .filter((content) => content.length > 0);
+
+          if (syncState.lastSequence > 0) {
+            transcriptSyncRef.current.sellerChunks = [
+              ...transcriptSyncRef.current.sellerChunks,
+              ...sellerChunks,
+            ].slice(-60);
           } else {
-            currentGroup = currentGroup ? `${currentGroup} ${text}` : text;
+            transcriptSyncRef.current.sellerChunks = sellerChunks.slice(-60);
           }
         }
-        if (currentGroup) grouped.push(`Seller: "${currentGroup}"`);
 
-        setLiveNotes(grouped.slice(-12));
-      } catch {
-        if (!cancelled) return;
+        setLiveNotes(buildGroupedNotes(transcriptSyncRef.current.sellerChunks));
+      } catch (error) {
+        if (!cancelled) {
+          console.warn("[dialer] live transcript polling failed:", error);
+        }
       }
     };
 
-    void pollNotes();
-    const timer = window.setInterval(() => {
-      void pollNotes();
-    }, 2000);
+    const runPoll = async () => {
+      await pollNotes();
+      if (cancelled) return;
+      timer = window.setTimeout(() => {
+        void runPoll();
+      }, 2000);
+    };
+
+    void runPoll();
 
     return () => {
       cancelled = true;
-      window.clearInterval(timer);
+      if (timer !== null) {
+        window.clearTimeout(timer);
+      }
     };
   }, [activeSessionForNotes]);
 

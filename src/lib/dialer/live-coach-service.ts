@@ -1396,6 +1396,7 @@ function buildStableLayer(mode: LiveCoachMode, styleBlock: string): PromptLayer 
 function buildDynamicLayer(
   state: LiveCoachCachedState,
   mode: LiveCoachMode,
+  sessionInstructions?: string | null,
 ): PromptLayer {
   const bestMove = state.bestMove ?? buildRulesBestMove(state.discoveryMap, mode);
   const mapLines = SLOT_KEYS.map((slot) => {
@@ -1450,6 +1451,13 @@ function buildDynamicLayer(
       `- seller_turns: ${state.speakerReliability.sellerTurns}`,
       `- operator_turns: ${state.speakerReliability.operatorTurns}`,
       `- unknown_turns: ${state.speakerReliability.unknownTurns}`,
+      ...(sessionInstructions
+        ? [
+            "",
+            "## SESSION INSTRUCTIONS (operator-set)",
+            sessionInstructions.slice(0, 500),
+          ]
+        : []),
     ].join("\n"),
   };
 }
@@ -1459,12 +1467,13 @@ export function buildLiveCoachPrompt(
   snapshot: CRMLeadContext | null,
   mode: LiveCoachMode,
   styleBlock: string,
+  sessionInstructions?: string | null,
 ): AssembledPrompt {
   return assemblePrompt({
     layers: [
       buildStableLayer(mode, styleBlock),
       preCallBriefSemiStable(mapSnapshot(snapshot)),
-      buildDynamicLayer(state, mode),
+      buildDynamicLayer(state, mode, sessionInstructions),
     ],
     version: LIVE_COACH_PROMPT_VERSION,
     workflow: "live_coach",

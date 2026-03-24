@@ -178,10 +178,13 @@ export async function getSessionLiveCoachState(
   sb: SupabaseClient,
   sessionId: string,
   userId: string,
+  ownershipVerified = false,
 ): Promise<SessionResult<Record<string, unknown> | null>> {
-  const session = await getSession(sb, sessionId, userId);
-  if (session.error) {
-    return { data: null, error: session.error, code: session.code };
+  if (!ownershipVerified) {
+    const session = await getSession(sb, sessionId, userId);
+    if (session.error) {
+      return { data: null, error: session.error, code: session.code };
+    }
   }
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -215,10 +218,13 @@ export async function updateSessionLiveCoachState(
   sessionId: string,
   userId: string,
   liveCoachState: Record<string, unknown> | null,
+  ownershipVerified = false,
 ): Promise<SessionResult<null>> {
-  const session = await getSession(sb, sessionId, userId);
-  if (session.error) {
-    return { data: null, error: session.error, code: session.code };
+  if (!ownershipVerified) {
+    const session = await getSession(sb, sessionId, userId);
+    if (session.error) {
+      return { data: null, error: session.error, code: session.code };
+    }
   }
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any

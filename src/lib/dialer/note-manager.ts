@@ -41,6 +41,8 @@ export interface ListNotesOptions {
   note_type?: SessionNoteType;
   is_confirmed?: boolean;
   is_ai_generated?: boolean;
+  after_sequence_num?: number;
+  limit?: number;
 }
 
 export interface ConfirmNoteInput {
@@ -159,6 +161,12 @@ export async function listNotes(
   }
   if (options.is_ai_generated !== undefined) {
     query = query.eq("is_ai_generated", options.is_ai_generated);
+  }
+  if (typeof options.after_sequence_num === "number" && options.after_sequence_num > 0) {
+    query = query.gt("sequence_num", options.after_sequence_num);
+  }
+  if (typeof options.limit === "number" && options.limit > 0) {
+    query = query.limit(Math.min(options.limit, 200));
   }
 
   const { data, error } = await query;
