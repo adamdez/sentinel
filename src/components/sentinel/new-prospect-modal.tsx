@@ -124,6 +124,7 @@ export function NewProspectModal() {
   const [assignTo, setAssignTo] = useState("unassigned");
   const [createdLeadId, setCreatedLeadId] = useState<string | null>(null);
   const [showAdvanced, setShowAdvanced] = useState(false);
+  const [enriching, setEnriching] = useState(false);
   const [assignmentOptions, setAssignmentOptions] = useState<Array<{ id: string; label: string }>>([
     { id: "unassigned", label: "Unassigned (Prospect)" },
   ]);
@@ -230,6 +231,87 @@ export function NewProspectModal() {
     if (typeof modalData.assignTo === "string" && modalData.assignTo.length > 0) {
       setAssignTo(modalData.assignTo);
     }
+  }, [isOpen, modalData]);
+
+  // Background Bricked enrichment — fires when the modal opens with an enrichAddress
+  // but no brickedData (i.e., opened instantly from search, enrichment loads async)
+  useEffect(() => {
+    const enrichAddress = modalData.enrichAddress as string | undefined;
+    if (!isOpen || !enrichAddress || modalData.brickedData) return;
+
+    let active = true;
+    setEnriching(true);
+
+    (async () => {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        const headers: Record<string, string> = { "Content-Type": "application/json" };
+        if (session?.access_token) headers["Authorization"] = `Bearer ${session.access_token}`;
+
+        const res = await fetch("/api/bricked/analyze", {
+          method: "POST",
+          headers,
+          body: JSON.stringify({ address: enrichAddress }),
+        });
+
+        if (!res.ok || !active) return;
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const data = await res.json() as any;
+        if (!active || (!data?.address && !data?.id)) return;
+
+        const subject = data.subject ?? {};
+        const prop = data.property ?? {};
+        const details = prop.details ?? {};
+        const ownership = prop.ownership ?? {};
+        const location = prop.location ?? {};
+        const mortgage = prop.mortgageDebt ?? {};
+
+        const ownerNames = ownership.owners?.length
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          ? ownership.owners.map((o: any) => [o.firstName, o.lastName].filter(Boolean).join(" ")).filter(Boolean).join("; ")
+          : subject.ownerNames?.join(", ") ?? data.ownerNames ?? null;
+
+        let lotAcres = "";
+        const lotRaw = subject.lotSize ?? subject.lotAcres ?? details.lotSize ?? details.lotAcres ?? details.lotSquareFeet ?? null;
+        if (lotRaw != null) {
+          const n = Number(lotRaw);
+          if (!isNaN(n) && n > 0) lotAcres = n > 500 ? String(Math.round((n / 43560) * 100) / 100) : String(n);
+        }
+
+        const cmv = data.cmv ?? subject.estimatedValue ?? null;
+        const eqDollars = Number(subject.estimatedEquity ?? mortgage.estimatedEquity ?? 0);
+        const eqPct = eqDollars && cmv && Number(cmv) > 0 ? String(Math.round((eqDollars / Number(cmv)) * 100)) : "";
+
+        setForm((prev) => ({
+          ...prev,
+          owner_name: ownerNames || prev.owner_name,
+          phone: ownership.owners?.[0]?.phone ?? subject.ownerPhone ?? prev.phone,
+          email: ownership.owners?.[0]?.email ?? subject.ownerEmail ?? prev.email,
+          apn: subject.apn ?? data.apn ?? details.apn ?? location.apn ?? prev.apn,
+          county: (location.county ?? subject.county ?? "").trim() || prev.county,
+          city: location.city ?? subject.city ?? prev.city,
+          state: location.state ?? subject.state ?? prev.state,
+          zip: (location.zip ?? location.zipCode ?? subject.zip ?? "").toString() || prev.zip,
+          property_type: subject.propertyType ?? subject.landUse ?? details.propertyType ?? prev.property_type,
+          bedrooms: subject.bedrooms != null ? String(Math.round(subject.bedrooms)) : (details.bedrooms != null ? String(Math.round(details.bedrooms)) : prev.bedrooms),
+          bathrooms: subject.bathrooms != null ? String(subject.bathrooms) : (details.bathrooms != null ? String(details.bathrooms) : prev.bathrooms),
+          sqft: (subject.squareFeet ?? details.squareFeet ?? details.livingArea) != null ? String(Math.round(Number(subject.squareFeet ?? details.squareFeet ?? details.livingArea))) : prev.sqft,
+          year_built: (subject.yearBuilt ?? details.yearBuilt) != null ? String(Math.round(Number(subject.yearBuilt ?? details.yearBuilt))) : prev.year_built,
+          lot_size: lotAcres || prev.lot_size,
+          estimated_value: cmv != null ? String(Math.round(Number(cmv))) : prev.estimated_value,
+          equity_percent: eqPct || prev.equity_percent,
+          source: "bricked_search",
+        }));
+
+        toast.success("Property enrichment loaded");
+      } catch {
+        // Non-fatal — form already has the address, user can fill manually
+      } finally {
+        if (active) setEnriching(false);
+      }
+    })();
+
+    return () => { active = false; };
   }, [isOpen, modalData]);
 
   const update = useCallback((field: keyof FormData, value: string | string[]) => {
@@ -434,6 +516,12 @@ export function NewProspectModal() {
           <DialogTitle className="flex items-center gap-2">
             <UserPlus className="h-5 w-5 text-primary" />
             {step === "form" ? "Add New Lead" : "Lead Created"}
+            {enriching && (
+              <span className="inline-flex items-center gap-1.5 text-xs font-normal text-primary-300/70 ml-2">
+                <Loader2 className="h-3 w-3 animate-spin" />
+                Enriching property...
+              </span>
+            )}
           </DialogTitle>
           <DialogDescription>
             {step === "form"

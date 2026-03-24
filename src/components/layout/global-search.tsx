@@ -259,7 +259,6 @@ export function GlobalSearch() {
   const [activeIndex, setActiveIndex] = useState(-1);
   const [results, setResults] = useState<SearchRecord[]>([]);
   const [searching, setSearching] = useState(false);
-  const [lookingUp, setLookingUp] = useState(false);
   const [suggestions, setSuggestions] = useState<NationwideSuggestion[]>([]);
   const [loadingSuggestions, setLoadingSuggestions] = useState(false);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -331,131 +330,31 @@ export function GlobalSearch() {
     [router, closeDropdown]
   );
 
-  // Nationwide property lookup via Bricked AI
-  const handleNationwideLookup = useCallback(async (addressOverride?: string) => {
-    if (lookingUp) return;
-    setLookingUp(true);
+  // Open the new-prospect modal instantly with whatever address data we have,
+  // then let the modal fetch Bricked enrichment in the background.
+  const handleNationwideLookup = useCallback((addressOverride?: string, structured?: { city?: string; state?: string; zip?: string }) => {
     const lookupAddress = addressOverride ?? query;
-    try {
-      const { data: { session } } = await supabase.auth.getSession();
-      const headers: Record<string, string> = { "Content-Type": "application/json" };
-      if (session?.access_token) headers["Authorization"] = `Bearer ${session.access_token}`;
-      const res = await fetch("/api/bricked/analyze", {
-        method: "POST",
-        headers,
-        body: JSON.stringify({ address: lookupAddress }),
-      });
-      if (!res.ok) {
-        setResults([{
-          id: "__no_result__",
-          kind: "contact",
-          primary: "Bricked lookup failed",
-          secondary: `HTTP ${res.status} — try a more specific address`,
-          href: "#",
-          status: undefined,
-        }]);
-        inputRef.current?.focus();
-        setLookingUp(false);
-        return;
-      }
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const data = await res.json() as any;
-      if (!data?.address && !data?.id) {
-        setResults([{
-          id: "__no_result__",
-          kind: "contact",
-          primary: "No property found",
-          secondary: "Bricked returned no results for this address",
-          href: "#",
-          status: undefined,
-        }]);
-        inputRef.current?.focus();
-        setLookingUp(false);
-        return;
-      }
+    if (!lookupAddress) return;
 
-      // Build Bricked data for the new-prospect-modal — extract everything useful
-      const subject = data.subject ?? {};
-      const prop = data.property ?? {};
-      const details = prop.details ?? {};
-      const ownership = prop.ownership ?? {};
-      const location = prop.location ?? {};
-      const mortgage = prop.mortgageDebt ?? {};
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const repairItems = (data.repairs ?? []).map((r: any) => ({
-        item: r.name ?? r.item ?? "Unknown",
-        cost: r.cost ?? r.estimatedCost ?? 0,
-      }));
+    const street = lookupAddress.split(",")[0]?.trim() ?? lookupAddress;
 
-      // Build owner name from structured owners array or fallback to subject
-      const ownerNames = ownership.owners?.length
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        ? ownership.owners.map((o: any) => [o.firstName, o.lastName].filter(Boolean).join(" ")).filter(Boolean).join("; ")
-        : subject.ownerNames?.join(", ") ?? data.ownerNames ?? null;
+    openModal("new-prospect", {
+      initialValues: {
+        address: street,
+        city: structured?.city || "",
+        state: structured?.state || "",
+        zip: structured?.zip || "",
+        source: "bricked_search",
+        source_channel: "manual",
+      },
+      enrichAddress: lookupAddress,
+    });
 
-      const brickedData = {
-        address: data.address ?? lookupAddress,
-        ownerNames,
-        arv: data.arv ?? null,
-        cmv: data.cmv ?? subject.estimatedValue ?? null,
-        totalRepairCost: data.totalRepairCost ?? null,
-        equityEstimate: subject.estimatedEquity ?? mortgage.estimatedEquity ?? null,
-        propertyType: subject.propertyType ?? subject.landUse ?? details.propertyType ?? null,
-        bedrooms: subject.bedrooms ?? details.bedrooms ?? null,
-        bathrooms: subject.bathrooms ?? details.bathrooms ?? null,
-        sqft: subject.squareFeet ?? details.squareFeet ?? details.livingArea ?? null,
-        yearBuilt: subject.yearBuilt ?? details.yearBuilt ?? null,
-        lotSize: subject.lotSize ?? subject.lotAcres ?? details.lotSize ?? details.lotAcres ?? details.lotSquareFeet ?? null,
-        apn: subject.apn ?? data.apn ?? details.apn ?? location.apn ?? null,
-        county: location.county ?? subject.county ?? null,
-        zip: location.zip ?? location.zipCode ?? subject.zip ?? null,
-        city: location.city ?? subject.city ?? null,
-        state: location.state ?? subject.state ?? null,
-        ownerPhone: ownership.owners?.[0]?.phone ?? subject.ownerPhone ?? null,
-        ownerEmail: ownership.owners?.[0]?.email ?? subject.ownerEmail ?? null,
-        ownershipYears: ownership.ownershipLength ?? null,
-        mortgageBalance: mortgage.openMortgageBalance ?? null,
-        renovationScore: data.renovationScore ?? (details.renovationScore?.hasScore ? details.renovationScore.score : null),
-        brickedId: data.id ?? "",
-        shareLink: data.shareLink ?? null,
-        dashboardLink: data.dashboardLink ?? null,
-        compCount: data.comps?.length ?? 0,
-        subjectImages: data.subjectImages ?? prop.images ?? [],
-        repairs: repairItems,
-        rawPayload: data,
-      };
-
-      // Backfill APN from GIS if Bricked didn't return one
-      if (!brickedData.apn && brickedData.address) {
-        const gisCounty = brickedData.county || "spokane";
-        fetch(`/api/gis/apn-lookup?address=${encodeURIComponent(brickedData.address)}&county=${encodeURIComponent(gisCounty)}`, {
-          headers,
-        })
-          .then((r) => r.ok ? r.json() : null)
-          .then((gis) => { if (gis?.apn) brickedData.apn = gis.apn; })
-          .catch(() => {})
-          .finally(() => openModal("new-prospect", { brickedData }));
-      } else {
-        openModal("new-prospect", { brickedData });
-      }
-
-      setQuery("");
-      closeDropdown();
-      resetSessionToken();
-      inputRef.current?.blur();
-    } catch {
-      setResults([{
-        id: "__error__",
-        kind: "contact",
-        primary: "Lookup failed",
-        secondary: "Network error — check console",
-        href: "#",
-        status: undefined,
-      }]);
-      inputRef.current?.focus();
-    }
-    setLookingUp(false);
-  }, [query, lookingUp, closeDropdown, openModal]);
+    setQuery("");
+    closeDropdown();
+    resetSessionToken();
+    inputRef.current?.blur();
+  }, [query, closeDropdown, openModal]);
 
   useEffect(() => {
     setActiveIndex(-1);
@@ -509,7 +408,7 @@ export function GlobalSearch() {
         } else if (activeIndex >= localResults.length && activeIndex < localResults.length + suggestions.length) {
           // Nationwide suggestion selected
           const suggestion = suggestions[activeIndex - localResults.length];
-          handleNationwideLookup(suggestion.fullAddress);
+          handleNationwideLookup(suggestion.fullAddress, { city: suggestion.city, state: suggestion.state, zip: suggestion.zip });
         } else if (showFallbackButton && activeIndex === localResults.length + suggestions.length) {
           // Fallback "Look up" button selected
           handleNationwideLookup();
@@ -697,7 +596,7 @@ export function GlobalSearch() {
                         onMouseEnter={() => setActiveIndex(navIdx)}
                         onMouseDown={(e) => {
                           e.preventDefault();
-                          handleNationwideLookup(s.fullAddress);
+                          handleNationwideLookup(s.fullAddress, { city: s.city, state: s.state, zip: s.zip });
                         }}
                         className={cn(
                           "flex items-center gap-3 w-full text-left px-3 py-2.5 transition-colors",
@@ -705,11 +604,7 @@ export function GlobalSearch() {
                         )}
                       >
                         <div className="h-7 w-7 rounded-md flex items-center justify-center shrink-0 border bg-muted/10 border-border/20 text-foreground">
-                          {lookingUp ? (
-                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                          ) : (
-                            <MapPin className="h-3.5 w-3.5" />
-                          )}
+                          <MapPin className="h-3.5 w-3.5" />
                         </div>
                         <div className="flex-1 min-w-0">
                           <p className="text-sm font-semibold text-foreground truncate">
@@ -741,15 +636,11 @@ export function GlobalSearch() {
                         )}
                       >
                         <div className="h-7 w-7 rounded-md flex items-center justify-center shrink-0 border bg-muted/10 border-border/20 text-foreground">
-                          {lookingUp ? (
-                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                          ) : (
-                            <Globe className="h-3.5 w-3.5" />
-                          )}
+                          <Globe className="h-3.5 w-3.5" />
                         </div>
                         <div className="flex-1 min-w-0">
                           <p className="text-sm font-semibold text-foreground">
-                            {lookingUp ? "Looking up property..." : `Look up "${query}"`}
+                            {`Look up "${query}"`}
                           </p>
                           <p className="text-sm text-muted-foreground">
                             Search any US property via Bricked AI
