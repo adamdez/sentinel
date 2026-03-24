@@ -26,6 +26,7 @@ export interface DialerAiLayeredInput {
   lane: DialerAiLane;
   assembled: AssembledPrompt;
   temperature?: number;
+  max_output_tokens?: number;
 }
 
 export interface DialerAiCompletionOutput {
@@ -148,9 +149,13 @@ export async function completeDialerAiLayered(input: DialerAiLayeredInput): Prom
   const model = resolveModelForLane(input.lane);
   const client = new OpenAI({ apiKey });
 
+  // Per-lane max output tokens — live_coach needs short JSON, not essays
+  const maxTokens = input.max_output_tokens ?? (input.lane === "live_coach" ? 512 : undefined);
+
   const response = await client.responses.create({
     model,
     temperature: input.temperature ?? 0,
+    ...(maxTokens ? { max_output_tokens: maxTokens } : {}),
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     input: [
       {

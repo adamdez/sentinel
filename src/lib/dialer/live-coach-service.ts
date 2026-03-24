@@ -67,7 +67,7 @@ export const LIVE_COACH_PROMPT_VERSION = "2.0.0";
 const MAX_LIVE_NOTES = 8;
 const MAX_RECENT_TURNS = 6;
 const MAX_DETERMINISTIC_SIGNALS = 24;
-const STRATEGIST_STALE_MS = 25_000;
+const STRATEGIST_STALE_MS = 12_000;
 
 const SLOT_KEYS: DiscoveryMapSlotKey[] = [
   "surface_problem",
@@ -1535,7 +1535,7 @@ export function applyStrategistMove(
 }
 
 /** Minimum cooldown between strategist calls even when new evidence arrives */
-const STRATEGIST_MIN_COOLDOWN_MS = 8_000;
+const STRATEGIST_MIN_COOLDOWN_MS = 4_000;
 
 export function shouldInvokeStrategist(
   state: LiveCoachCachedState,
