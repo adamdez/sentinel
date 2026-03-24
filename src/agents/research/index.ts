@@ -35,6 +35,8 @@ import {
 import { analyzeWithClaude, extractJsonObject } from "@/lib/claude-client";
 import { lookupProperty } from "@/providers/lookup-service";
 import type { ProviderLookupResult } from "@/providers/base-adapter";
+import { runBrowserResearch, type WebResearchFinding } from "@/agents/browser-research";
+import { runPerplexityResearch, isPerplexityConfigured } from "@/providers/perplexity/adapter";
 import { RESEARCH_AGENT_PROMPT, RESEARCH_AGENT_MODEL, RESEARCH_AGENT_VERSION } from "./prompt";
 import type {
   LeadContext,
@@ -97,6 +99,8 @@ function buildResearchPrompt(
   leadContext: LeadContext,
   input: ResearchAgentInput,
   providerResults: ProviderLookupResult[],
+  webFindings: WebResearchFinding[] = [],
+  perplexityNarrative = "",
 ): string {
   const parts: string[] = [
     "## Lead Context",
@@ -130,7 +134,7 @@ function buildResearchPrompt(
     }));
 
     parts.push(
-      "## Provider Intelligence (PropertyRadar / Bricked AI)",
+      "## Provider Intelligence (PropertyRadar / Bricked AI / County GIS / Firecrawl)",
       "Treat this as structured evidence from provider adapters. Prefer these facts when relevant.",
       "Bricked AI provides ARV, CMV, repair estimates, and comparable sales — high confidence for valuation.",
       "```json",
@@ -140,9 +144,32 @@ function buildResearchPrompt(
     );
   }
 
+  if (webFindings.length > 0) {
+    parts.push(
+      "## Web Research Findings (Firecrawl Agent)",
+      "The following findings were gathered by autonomous web investigation. Use them as supporting evidence.",
+    );
+    for (const f of webFindings.slice(0, 30)) {
+      parts.push(`- [${f.category}] ${f.summary}${f.sourceUrl ? ` (source: ${f.sourceUrl})` : ""}${f.date ? ` [${f.date}]` : ""}`);
+    }
+    parts.push("");
+  }
+
+  if (perplexityNarrative.length > 50) {
+    parts.push(
+      "## Verified Dossier Narrative (Perplexity Deep Research)",
+      "The following narrative was independently researched and verified across hundreds of sources.",
+      "USE THIS as the primary basis for your situation_summary and recommended_call_angle.",
+      "Your job is to structure it into the JSON format below, not to rewrite it.",
+      "",
+      perplexityNarrative.slice(0, 5000),
+      "",
+    );
+  }
+
   parts.push(
     "## Instructions",
-    "Research this lead and produce a JSON response with this exact structure:",
+    "Synthesize ALL evidence above into a JSON response with this exact structure:",
     "```json",
     JSON.stringify({
       artifacts: [{
@@ -278,7 +305,7 @@ export async function runResearchAgent(
     let providerResults: ProviderLookupResult[] = [];
 
     if (lookupParams.address || lookupParams.apn) {
-      const providerLookup = await lookupProperty(lookupParams, ["propertyradar", "bricked", "spokane_gis"]);
+      const providerLookup = await lookupProperty(lookupParams, ["propertyradar", "bricked", "spokane_gis", "firecrawl"]);
       providerResults = providerLookup.results.filter((r) => r.facts.length > 0);
 
       if (providerLookup.errors.length > 0) {
@@ -286,12 +313,105 @@ export async function runResearchAgent(
       }
     }
 
-    // ── Call Claude ─────────────────────────────────────────────────────
+    // ── Phase 2: Firecrawl Agent web investigation ────────────────────
+    let webFindings: WebResearchFinding[] = [];
+    const prop = lead.properties;
+    try {
+      const webResult = await runBrowserResearch({
+        leadId: input.leadId,
+        propertyId: input.propertyId ?? prop?.id,
+        ownerName: prop?.owner_name ?? undefined,
+        propertyAddress: prop?.address ?? undefined,
+        county: prop?.county ?? undefined,
+        state: prop?.state ?? undefined,
+        apn: prop?.apn ?? undefined,
+        researchGoals: input.focusAreas,
+      });
+      webFindings = webResult.findings;
+      console.log(`[research-agent] Phase 2 complete: ${webResult.artifactsCreated} artifacts, ${webResult.factsExtracted} facts from web`);
+    } catch (webErr) {
+      console.warn("[research-agent] Phase 2 (web research) failed (non-fatal):", webErr);
+    }
+
+    // ── Phase 3: Perplexity Deep Research (verification + narrative) ──
+    let perplexityNarrative = "";
+    let perplexityCitations: Array<{ url: string; title?: string }> = [];
+    let perplexityVerifiedFacts: Array<{ factType: string; factValue: string; confidence: "low" | "medium" | "high"; sourceDescription: string }> = [];
+    let perplexityContradictions: Array<{ claim: string; sourceA: string; sourceB: string; detail: string }> = [];
+
+    if (isPerplexityConfigured()) {
+      try {
+        const providerSummary = providerResults
+          .map((r) => `${r.provider}: ${r.facts.slice(0, 20).map(f => `${f.fieldName}=${f.value}`).join(", ")}`)
+          .join("\n");
+        const webSummary = webFindings
+          .map((f) => `[${f.category}] ${f.summary}${f.sourceUrl ? ` (${f.sourceUrl})` : ""}`)
+          .join("\n");
+
+        const pxResult = await runPerplexityResearch({
+          ownerName: prop?.owner_name ?? undefined,
+          propertyAddress: prop?.address ?? undefined,
+          county: prop?.county ?? undefined,
+          state: prop?.state ?? undefined,
+          apn: prop?.apn ?? undefined,
+          providerSummary,
+          webFindings: webSummary,
+        });
+
+        if (pxResult.error) {
+          console.warn("[research-agent] Phase 3 (Perplexity) warning:", pxResult.error);
+        }
+
+        perplexityNarrative = pxResult.narrative;
+        perplexityCitations = pxResult.citations;
+        perplexityVerifiedFacts = pxResult.verifiedFacts;
+        perplexityContradictions = pxResult.contradictions;
+
+        // Persist Perplexity narrative as a verified artifact
+        if (perplexityNarrative.length > 50) {
+          const pxArtifactId = await createArtifact({
+            leadId: input.leadId,
+            propertyId: input.propertyId ?? prop?.id,
+            sourceType: "perplexity_deep_research",
+            sourceLabel: "Perplexity Sonar Deep Research — verified narrative",
+            extractedNotes: perplexityNarrative.slice(0, 8000),
+            rawExcerpt: JSON.stringify({ citations: perplexityCitations, contradictions: perplexityContradictions }).slice(0, 5000),
+            capturedBy: "perplexity-sonar",
+          });
+
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          await (sb.from("dossier_artifacts") as any)
+            .update({ run_id: researchRunId })
+            .eq("id", pxArtifactId);
+
+          // Persist Perplexity's verified facts
+          for (const vf of perplexityVerifiedFacts) {
+            await createFact({
+              artifactId: pxArtifactId,
+              leadId: input.leadId,
+              factType: `verified_${sanitizeFactKey(vf.factType)}`,
+              factValue: vf.factValue.slice(0, 500),
+              confidence: vf.confidence,
+              runId: researchRunId,
+              assertedBy: "perplexity-sonar",
+            });
+          }
+        }
+
+        console.log(`[research-agent] Phase 3 complete: ${perplexityVerifiedFacts.length} verified facts, ${perplexityContradictions.length} contradictions`);
+      } catch (pxErr) {
+        console.warn("[research-agent] Phase 3 (Perplexity) failed (non-fatal):", pxErr);
+      }
+    } else {
+      console.debug("[research-agent] Phase 3 skipped — PERPLEXITY_API_KEY not configured");
+    }
+
+    // ── Phase 4: Claude analysis (provider fact extraction + dossier structure) ──
     const apiKey = process.env.ANTHROPIC_API_KEY;
     if (!apiKey) throw new Error("ANTHROPIC_API_KEY not set");
 
     const leadContext = toLeadContext(lead, input.leadId);
-    const userPrompt = buildResearchPrompt(leadContext, input, providerResults);
+    const userPrompt = buildResearchPrompt(leadContext, input, providerResults, webFindings, perplexityNarrative);
 
     const rawResponse = await analyzeWithClaude({
       prompt: userPrompt,
@@ -310,10 +430,20 @@ export async function runResearchAgent(
 
     const output: ResearchAgentOutput = JSON.parse(jsonStr);
 
-    // ── Persist artifacts ───────────────────────────────────────────────
+    // ── Persist Claude artifacts ─────────────────────────────────────────
     const aiArtifactIds: string[] = [];
     let artifactCount = 0;
     const allContradictions: Array<{ factType: string; newValue: string; existingValue: string; existingFactId: string }> = [];
+
+    // Include Perplexity contradictions in the master list
+    for (const pc of perplexityContradictions) {
+      allContradictions.push({
+        factType: `perplexity_${sanitizeFactKey(pc.claim)}`,
+        newValue: pc.sourceB,
+        existingValue: pc.sourceA,
+        existingFactId: "perplexity-cross-ref",
+      });
+    }
 
     // Persist provider adapter artifacts/facts through the intelligence write path.
     // This makes PropertyRadar/Bricked evidence available to review workflows today.
@@ -516,21 +646,40 @@ export async function runResearchAgent(
     }
 
     // ── Compile proposed dossier ────────────────────────────────────────
+    // Prefer Perplexity narrative for situation summary when available —
+    // it's independently verified across hundreds of sources.
+    const finalSituationSummary = perplexityNarrative.length > 50
+      ? perplexityNarrative.slice(0, 2000)
+      : output.dossier.situationSummary;
+
+    // Merge source links from Claude + Perplexity citations
+    const mergedSourceLinks = [
+      ...(output.dossier.sourceLinks ?? []),
+      ...perplexityCitations.map((c) => ({ url: c.url, label: c.title ?? "Perplexity source" })),
+    ];
+
     const dossierId = await compileDossier({
       leadId: input.leadId,
       propertyId: input.propertyId ?? lead.properties?.id,
-      situationSummary: output.dossier.situationSummary,
+      situationSummary: finalSituationSummary,
       likelyDecisionMaker: output.dossier.likelyDecisionMaker ?? undefined,
       topFacts: output.dossier.topFacts,
       recommendedCallAngle: output.dossier.recommendedCallAngle,
       verificationChecklist: output.dossier.verificationChecklist,
-      sourceLinks: output.dossier.sourceLinks,
+      sourceLinks: mergedSourceLinks,
       rawAiOutput: {
         model: RESEARCH_AGENT_MODEL,
         version: RESEARCH_AGENT_VERSION,
+        phases: {
+          providers: providerResults.map(r => r.provider),
+          webResearch: { findingsCount: webFindings.length },
+          perplexity: { narrativeLength: perplexityNarrative.length, citationCount: perplexityCitations.length, verifiedFactCount: perplexityVerifiedFacts.length },
+          claude: { model: RESEARCH_AGENT_MODEL },
+        },
         contradictions: output.dossier.contradictions ?? [],
-        dbContradictions: allContradictions, // contradictions detected against existing accepted facts
-        rawResponse: rawResponse.slice(0, 2000), // truncate for storage
+        perplexityContradictions,
+        dbContradictions: allContradictions,
+        rawResponse: rawResponse.slice(0, 2000),
       },
       aiRunId: agentRunId,
     });

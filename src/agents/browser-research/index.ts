@@ -1,66 +1,121 @@
 /**
  * Browser Research Agent
  *
- * Uses Firecrawl (not Playwright directly) to perform automated web research
- * for lead dossiers. Searches county records, news, court dockets, and
- * public information to build intelligence on properties and owners.
+ * Uses Firecrawl /agent endpoint for autonomous web investigation of leads.
+ * Searches court records, social media, obituaries, news, property conditions,
+ * and listing history — without needing explicit URLs.
  *
  * Write path: research results → dossier_artifacts → fact_assertions → review gate
  * Review gate: All facts created with confidence "low" or "medium" — operator promotes
  * Rollback: Delete artifacts + facts for the research run
  */
 
-import { createServerClient } from "@/lib/supabase";
 import { createAgentRun, completeAgentRun, getFeatureFlag } from "@/lib/control-plane";
-import { logGeneration } from "@/lib/langfuse";
+import { createArtifact, createFact } from "@/lib/intelligence";
 
-const FIRECRAWL_API_URL = "https://api.firecrawl.dev/v1";
+const FIRECRAWL_AGENT_URL = "https://api.firecrawl.dev/v2/agent";
+const FIRECRAWL_STATUS_URL = "https://api.firecrawl.dev/v2/agent";
 const AGENT_NAME = "browser-research";
-const CONCURRENCY_LIMIT = 3;
 
-// ── Retry with exponential backoff ────────────────────────────────────
-
-async function withRetry<T>(
-  fn: () => Promise<T>,
-  maxRetries = 2,
-  baseDelay = 1000,
-): Promise<T | null> {
-  for (let attempt = 0; attempt <= maxRetries; attempt++) {
-    try {
-      return await fn();
-    } catch (err) {
-      if (attempt === maxRetries) {
-        console.error(
-          `[browser-research] Failed after ${maxRetries + 1} attempts:`,
-          err,
-        );
-        return null;
-      }
-      await new Promise((resolve) =>
-        setTimeout(resolve, baseDelay * Math.pow(2, attempt)),
-      );
-    }
-  }
-  return null;
-}
-
-// ── Batch concurrency limiter ─────────────────────────────────────────
-
-async function runInBatches<T>(
-  tasks: (() => Promise<T>)[],
-  limit: number,
-): Promise<PromiseSettledResult<T>[]> {
-  const results: PromiseSettledResult<T>[] = [];
-  for (let i = 0; i < tasks.length; i += limit) {
-    const batch = tasks.slice(i, i + limit);
-    const batchResults = await Promise.allSettled(batch.map((t) => t()));
-    results.push(...batchResults);
-  }
-  return results;
-}
+const INVESTIGATION_SCHEMA = {
+  type: "object",
+  properties: {
+    court_records: {
+      type: "array",
+      description: "Court cases, lawsuits, liens, judgments involving the owner",
+      items: {
+        type: "object",
+        properties: {
+          case_type: { type: "string", description: "Type: probate, foreclosure, bankruptcy, civil, criminal, lien" },
+          summary: { type: "string", description: "Brief summary of the filing or case" },
+          date: { type: "string", description: "Filing or event date" },
+          source_url: { type: "string", description: "URL where this was found" },
+        },
+      },
+    },
+    social_profiles: {
+      type: "array",
+      description: "Social media profiles found (Facebook, LinkedIn, X/Twitter)",
+      items: {
+        type: "object",
+        properties: {
+          platform: { type: "string", description: "Platform name" },
+          profile_url: { type: "string", description: "Profile URL" },
+          summary: { type: "string", description: "Key details from profile — location, occupation, recent posts" },
+        },
+      },
+    },
+    obituaries: {
+      type: "array",
+      description: "Obituaries or death notices for the owner or family members",
+      items: {
+        type: "object",
+        properties: {
+          deceased_name: { type: "string", description: "Name of deceased" },
+          relationship: { type: "string", description: "Relationship to property owner if known" },
+          date: { type: "string", description: "Date of death or obituary publication" },
+          summary: { type: "string", description: "Key details — survivors, memorial, estate mentions" },
+          source_url: { type: "string", description: "URL of obituary" },
+        },
+      },
+    },
+    news_articles: {
+      type: "array",
+      description: "News articles, arrest records, bankruptcy notices mentioning the owner",
+      items: {
+        type: "object",
+        properties: {
+          headline: { type: "string", description: "Article headline" },
+          summary: { type: "string", description: "Brief summary of the article" },
+          date: { type: "string", description: "Publication date" },
+          source_url: { type: "string", description: "Article URL" },
+        },
+      },
+    },
+    property_condition: {
+      type: "array",
+      description: "Code violations, condemned notices, permits, vacancy indicators",
+      items: {
+        type: "object",
+        properties: {
+          issue_type: { type: "string", description: "Type: code_violation, condemned, permit, vacancy" },
+          summary: { type: "string", description: "Description of the issue" },
+          date: { type: "string", description: "Date of filing or observation" },
+          source_url: { type: "string", description: "Source URL" },
+        },
+      },
+    },
+    listing_history: {
+      type: "array",
+      description: "Real estate listing history from Zillow, Redfin, Realtor.com, etc.",
+      items: {
+        type: "object",
+        properties: {
+          status: { type: "string", description: "Listed, sold, delisted, price reduced" },
+          price: { type: "number", description: "List or sale price" },
+          date: { type: "string", description: "Listing or sale date" },
+          source_url: { type: "string", description: "Listing URL" },
+        },
+      },
+    },
+    distress_signals: {
+      type: "array",
+      description: "Any indicators of seller motivation or distress",
+      items: {
+        type: "object",
+        properties: {
+          signal_type: { type: "string", description: "Type: tax_delinquent, pre_foreclosure, divorce, bankruptcy, probate, vacancy, code_violation" },
+          detail: { type: "string", description: "Specific detail about the signal" },
+          source_url: { type: "string", description: "Source URL" },
+        },
+      },
+    },
+  },
+};
 
 export interface BrowserResearchInput {
   leadId: string;
+  propertyId?: string;
   ownerName?: string;
   propertyAddress?: string;
   county?: string;
@@ -69,22 +124,30 @@ export interface BrowserResearchInput {
   researchGoals?: string[];
 }
 
+export interface WebResearchFinding {
+  category: string;
+  summary: string;
+  sourceUrl?: string;
+  date?: string;
+}
+
 export interface ResearchResult {
   runId: string;
   artifactsCreated: number;
   factsExtracted: number;
   sourcesSearched: number;
+  findings: WebResearchFinding[];
   errors: string[];
 }
 
 /**
- * Run browser research for a lead.
- * Parallelized Firecrawl searches + capped AI extraction to stay under 60s.
+ * Run autonomous web research for a lead via Firecrawl /agent.
+ * Returns structured findings persisted as artifacts + facts.
  */
 export async function runBrowserResearch(input: BrowserResearchInput): Promise<ResearchResult> {
   const flag = await getFeatureFlag("agent.research.enabled");
   if (!flag?.enabled) {
-    return { runId: "", artifactsCreated: 0, factsExtracted: 0, sourcesSearched: 0, errors: ["Feature flag disabled"] };
+    return { runId: "", artifactsCreated: 0, factsExtracted: 0, sourcesSearched: 0, findings: [], errors: ["Feature flag disabled"] };
   }
 
   const runId = await createAgentRun({
@@ -95,306 +158,191 @@ export async function runBrowserResearch(input: BrowserResearchInput): Promise<R
   });
 
   if (!runId) {
-    return { runId: "", artifactsCreated: 0, factsExtracted: 0, sourcesSearched: 0, errors: ["Dedup: already running"] };
+    return { runId: "", artifactsCreated: 0, factsExtracted: 0, sourcesSearched: 0, findings: [], errors: ["Dedup: already running"] };
   }
 
-  const sb = createServerClient();
   const firecrawlKey = process.env.FIRECRAWL_API_KEY;
+  if (!firecrawlKey) {
+    await completeAgentRun({ runId, status: "failed", error: "FIRECRAWL_API_KEY not set" });
+    return { runId, artifactsCreated: 0, factsExtracted: 0, sourcesSearched: 0, findings: [], errors: ["FIRECRAWL_API_KEY not set"] };
+  }
+
   const errors: string[] = [];
   let artifactsCreated = 0;
   let factsExtracted = 0;
+  const findings: WebResearchFinding[] = [];
 
   try {
-    const queries = buildSearchQueries(input);
+    const prompt = buildAgentPrompt(input);
 
-    // Phase 1: Run Firecrawl searches in batches of CONCURRENCY_LIMIT
-    interface SearchResult {
-      url?: string;
-      title?: string;
-      markdown?: string;
-      category: string;
-      queryText: string;
+    // Submit Firecrawl Agent job
+    const submitRes = await fetch(FIRECRAWL_AGENT_URL, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${firecrawlKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        prompt,
+        schema: INVESTIGATION_SCHEMA,
+        model: "spark-1-pro",
+        maxCredits: 150,
+      }),
+    });
+
+    if (!submitRes.ok) {
+      const errText = await submitRes.text().catch(() => "");
+      throw new Error(`Firecrawl Agent submit failed: ${submitRes.status} ${errText}`);
     }
 
-    const searchTasks = queries.map((query) => async (): Promise<SearchResult[]> => {
-      try {
-        const searchRes = await fetch(`${FIRECRAWL_API_URL}/search`, {
-          method: "POST",
-          headers: {
-            "Authorization": `Bearer ${firecrawlKey}`,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            query: query.query,
-            limit: 2,
-            scrapeOptions: { formats: ["markdown"] },
-          }),
+    const submitData = await submitRes.json();
+    const jobId = submitData.id;
+    if (!jobId) throw new Error("Firecrawl Agent returned no job ID");
+
+    // Poll for completion (max ~90 seconds)
+    const agentData = await pollAgentJob(jobId, firecrawlKey);
+    if (!agentData) {
+      throw new Error("Firecrawl Agent job timed out or failed");
+    }
+
+    // Persist each category's findings as artifacts + facts
+    const categories = [
+      { key: "court_records", factType: "court_record", label: "Court Records" },
+      { key: "social_profiles", factType: "social_profile", label: "Social Media" },
+      { key: "obituaries", factType: "obituary", label: "Obituaries" },
+      { key: "news_articles", factType: "news_article", label: "News" },
+      { key: "property_condition", factType: "property_condition", label: "Property Condition" },
+      { key: "listing_history", factType: "listing_event", label: "Listing History" },
+      { key: "distress_signals", factType: "distress_signal", label: "Distress Signals" },
+    ];
+
+    for (const cat of categories) {
+      const items = agentData[cat.key];
+      if (!Array.isArray(items) || items.length === 0) continue;
+
+      for (const item of items) {
+        const summary = item.summary ?? item.headline ?? item.detail ?? item.status ?? "";
+        const sourceUrl = item.source_url ?? item.profile_url ?? undefined;
+
+        findings.push({
+          category: cat.key,
+          summary: typeof summary === "string" ? summary.slice(0, 500) : String(summary),
+          sourceUrl,
+          date: item.date,
         });
-        if (!searchRes.ok) {
-          errors.push(`Search failed for "${query.category}": ${searchRes.status}`);
-          return [];
-        }
-        const searchData = await searchRes.json();
-        return (searchData.data ?? []).map((r: Record<string, string>) => ({
-          ...r,
-          category: query.category,
-          queryText: query.query,
-        }));
-      } catch (err) {
-        errors.push(`Error "${query.category}": ${err instanceof Error ? err.message : String(err)}`);
-        return [];
-      }
-    });
 
-    const searchSettled = await runInBatches(searchTasks, CONCURRENCY_LIMIT);
-    const rawResults: SearchResult[] = searchSettled
-      .filter((r): r is PromiseFulfilledResult<SearchResult[]> => r.status === "fulfilled")
-      .flatMap((r) => r.value);
-    const sourcesSearched = queries.length;
-
-    // Dedup by URL — first occurrence wins
-    const seenUrls = new Set<string>();
-    const allResults = rawResults.filter((r) => {
-      const url = r.url?.toLowerCase();
-      if (!url || seenUrls.has(url)) return false;
-      seenUrls.add(url);
-      return true;
-    });
-
-    // Phase 2: Store artifacts in parallel (fast — ~1-2s)
-    const artifactIds = new Map<number, string>();
-    await Promise.all(allResults.map(async (result, idx) => {
-      try {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const { data: artifact } = await (sb.from("dossier_artifacts") as any)
-          .insert({
-            lead_id: input.leadId,
-            source_type: `browser_research_${result.category}`,
-            source_provider: "firecrawl",
-            raw_payload: {
-              url: result.url,
-              title: result.title,
-              content: result.markdown?.slice(0, 5000),
-              query: result.queryText,
-            },
-            run_id: runId,
-          })
-          .select("id")
-          .single();
-        if (artifact) {
+        try {
+          const artifactId = await createArtifact({
+            leadId: input.leadId,
+            propertyId: input.propertyId,
+            sourceUrl,
+            sourceType: `web_research_${cat.key}`,
+            sourceLabel: `${cat.label}: ${typeof summary === "string" ? summary.slice(0, 100) : ""}`,
+            extractedNotes: JSON.stringify(item).slice(0, 4000),
+            capturedBy: "firecrawl-agent",
+          });
           artifactsCreated++;
-          artifactIds.set(idx, artifact.id);
-        }
-      } catch { /* skip failed inserts */ }
-    }));
 
-    // Phase 3: AI fact extraction — cap at 4 results to stay under 60s
-    const extractable = allResults
-      .map((r, idx) => ({ ...r, idx }))
-      .filter((r) => r.markdown && process.env.ANTHROPIC_API_KEY)
-      .slice(0, 4);
-
-    for (const result of extractable) {
-      try {
-        // Retry extraction up to 2 times with exponential backoff
-        const facts = await withRetry(
-          () =>
-            extractFactsFromContent(
-              result.markdown!,
-              result.category,
-              input,
+          const factValue = typeof summary === "string" ? summary.slice(0, 500) : String(summary);
+          if (factValue.length > 5) {
+            const confidenceLevel = sourceUrl ? "medium" : "low";
+            await createFact({
+              artifactId,
+              leadId: input.leadId,
+              factType: `web_${cat.factType}`,
+              factValue,
+              confidence: confidenceLevel as "low" | "medium",
               runId,
-            ),
-          2,
-          1000,
-        );
-        if (!facts) {
-          errors.push(`Extraction failed for "${result.category}" after retries`);
-          continue;
-        }
-        for (const fact of facts) {
-          // Contradiction check: see if a different value already exists for this lead + field
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          const { data: existing } = await (sb.from("fact_assertions") as any)
-            .select("id, value, confidence")
-            .eq("lead_id", input.leadId)
-            .eq("field_name", fact.field)
-            .limit(1)
-            .maybeSingle();
-
-          const insertPayload: Record<string, unknown> = {
-            lead_id: input.leadId,
-            field_name: fact.field,
-            value: fact.value,
-            confidence: fact.confidence,
-            source_type: `browser_research_${result.category}`,
-            source_provider: "firecrawl",
-            source_url: result.url,
-            artifact_id: artifactIds.get(result.idx),
-            run_id: runId,
-          };
-
-          // If an existing fact has a different value, flag contradiction
-          if (existing && existing.value !== fact.value) {
-            insertPayload.contradiction_with = existing.id;
-            insertPayload.confidence = "low"; // Downgrade on contradiction
-          }
-
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          const { error: insertErr } = await (sb.from("fact_assertions") as any)
-            .insert(insertPayload)
-            .select();
-          if (insertErr) {
-            if (insertErr.code === '23505') {
-              // Genuine duplicate — skip silently
-            } else {
-              errors.push(`Fact insert failed: ${insertErr.message}`);
-            }
-          } else {
+              assertedBy: "firecrawl-agent",
+            });
             factsExtracted++;
           }
+        } catch (persistErr) {
+          errors.push(`Persist ${cat.key}: ${persistErr instanceof Error ? persistErr.message : String(persistErr)}`);
         }
-      } catch (err) {
-        errors.push(`Extraction: ${err instanceof Error ? err.message : String(err)}`);
       }
     }
 
     await completeAgentRun({
       runId,
       status: "completed",
-      outputs: { artifactsCreated, factsExtracted, sourcesSearched, errors },
+      outputs: { artifactsCreated, factsExtracted, sourcesSearched: categories.length, errors },
     });
 
-    return { runId, artifactsCreated, factsExtracted, sourcesSearched, errors };
+    return { runId, artifactsCreated, factsExtracted, sourcesSearched: categories.length, findings, errors };
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     errors.push(msg);
     await completeAgentRun({ runId, status: "failed", error: msg });
-    return { runId, artifactsCreated, factsExtracted, sourcesSearched: 0, errors };
+    return { runId, artifactsCreated, factsExtracted, sourcesSearched: 0, findings, errors };
   }
 }
 
-// ── Search Query Builder ──────────────────────────────────────────────
+function buildAgentPrompt(input: BrowserResearchInput): string {
+  const parts: string[] = [];
+  const location = input.county && input.state
+    ? `${input.county} County, ${input.state}`
+    : "Spokane County, WA";
 
-interface SearchQuery {
-  query: string;
-  category: string;
-}
+  parts.push(`Investigate this property and its owner for a real estate acquisition company in ${location}.`);
+  parts.push("");
 
-function buildSearchQueries(input: BrowserResearchInput): SearchQuery[] {
-  const queries: SearchQuery[] = [];
-  const { ownerName, propertyAddress, county, state } = input;
-  const location = county && state ? `${county} County ${state}` : "Spokane WA";
+  if (input.ownerName) parts.push(`Property Owner: ${input.ownerName}`);
+  if (input.propertyAddress) parts.push(`Property Address: ${input.propertyAddress}`);
+  if (input.apn) parts.push(`APN/Parcel: ${input.apn}`);
+  parts.push(`Location: ${location}`);
+  parts.push("");
 
-  // Property-specific searches
-  if (propertyAddress) {
-    queries.push({
-      query: `"${propertyAddress}" property records ${location}`,
-      category: "property_records",
-    });
-    queries.push({
-      query: `"${propertyAddress}" sale listing zillow redfin`,
-      category: "listing_history",
-    });
+  parts.push("Find ALL of the following:");
+  parts.push("1. Court records: probate filings, foreclosure notices, bankruptcy, civil lawsuits, liens, judgments");
+  parts.push("2. Social media: Facebook, LinkedIn, X/Twitter profiles for the owner");
+  parts.push("3. Obituaries: death notices for the owner or immediate family members");
+  parts.push("4. News articles: any news, arrest records, or public notices mentioning the owner");
+  parts.push("5. Property condition: code violations, condemned notices, building permits, vacancy indicators");
+  parts.push("6. Listing history: past or current real estate listings on Zillow, Redfin, Realtor.com");
+  parts.push("7. Distress signals: tax delinquency, pre-foreclosure, divorce filings, bankruptcy, estate sales");
+  parts.push("");
+  parts.push("Search thoroughly across multiple sources. Include source URLs for everything found.");
+
+  if (input.researchGoals?.length) {
+    parts.push("");
+    parts.push(`Additional research goals: ${input.researchGoals.join(", ")}`);
   }
 
-  // Owner-specific searches
-  if (ownerName) {
-    queries.push({
-      query: `"${ownerName}" ${location} property owner`,
-      category: "owner_background",
-    });
-    queries.push({
-      query: `"${ownerName}" ${location} court records lawsuit`,
-      category: "court_records",
-    });
-    queries.push({
-      query: `"${ownerName}" obituary ${location}`,
-      category: "probate_check",
-    });
-  }
-
-  // County assessor
-  if (propertyAddress || input.apn) {
-    const searchTerm = input.apn ?? propertyAddress;
-    queries.push({
-      query: `${searchTerm} ${county ?? "Spokane"} county assessor tax records`,
-      category: "tax_records",
-    });
-  }
-
-  // Market context
-  if (propertyAddress) {
-    queries.push({
-      query: `${propertyAddress} neighborhood crime safety walkability`,
-      category: "neighborhood",
-    });
-  }
-
-  return queries;
+  return parts.join("\n");
 }
 
-// ── AI Fact Extraction ────────────────────────────────────────────────
+async function pollAgentJob(
+  jobId: string,
+  apiKey: string,
+  maxWaitMs = 90_000,
+): Promise<Record<string, unknown> | null> {
+  const start = Date.now();
+  let delay = 3000;
 
-interface ExtractedFact {
-  field: string;
-  value: string;
-  confidence: "low" | "medium";
+  while (Date.now() - start < maxWaitMs) {
+    await new Promise((r) => setTimeout(r, delay));
+    delay = Math.min(delay * 1.5, 10_000);
+
+    try {
+      const res = await fetch(`${FIRECRAWL_STATUS_URL}/${jobId}`, {
+        headers: { Authorization: `Bearer ${apiKey}` },
+      });
+      if (!res.ok) continue;
+
+      const status = await res.json();
+      if (status.status === "completed" && status.data) {
+        return status.data as Record<string, unknown>;
+      }
+      if (status.status === "failed" || status.status === "cancelled") {
+        return null;
+      }
+    } catch {
+      // Retry on network errors
+    }
+  }
+
+  return null;
 }
 
-async function extractFactsFromContent(
-  content: string,
-  category: string,
-  input: BrowserResearchInput,
-  traceId: string,
-): Promise<ExtractedFact[]> {
-  // Errors propagate to caller so withRetry can catch and retry them
-  const { analyzeWithClaude } = await import("@/lib/claude-client");
-  const apiKey = process.env.ANTHROPIC_API_KEY;
-  if (!apiKey) return [];
-
-  const prompt = `Extract structured facts from this web content about a property/owner. Return ONLY a JSON array of facts.
-
-Property: ${input.propertyAddress ?? "unknown"}
-Owner: ${input.ownerName ?? "unknown"}
-Research category: ${category}
-
-Content (truncated):
-${content.slice(0, 3000)}
-
-Return JSON array like:
-[
-  {"field": "owner_occupation", "value": "retired teacher", "confidence": "low"},
-  {"field": "property_last_sale_price", "value": "245000", "confidence": "medium"},
-  {"field": "tax_delinquent", "value": "true", "confidence": "medium"},
-  {"field": "probate_filing", "value": "2025-11-15", "confidence": "medium"}
-]
-
-Valid fields: owner_occupation, owner_age_estimate, property_last_sale_price, property_last_sale_date, tax_delinquent, tax_amount_owed, probate_filing, probate_date, lawsuit_filed, lawsuit_type, code_violation, vacancy_indicator, listing_history, neighborhood_quality, school_district, flood_zone, zoning, lot_size, year_built, bedrooms, bathrooms, square_footage, garage, pool, condition_notes, motivation_signal
-
-Only include facts you can actually extract from the content. Empty array [] if nothing relevant.`;
-
-  const result = await analyzeWithClaude({
-    prompt,
-    systemPrompt: "You are a real estate research analyst extracting structured facts from web content. Return only valid JSON arrays. Be conservative — only extract facts clearly stated in the content.",
-    apiKey,
-    temperature: 0.1,
-    maxTokens: 2048,
-    model: "claude-sonnet-4-6",
-    traceId,
-    generationName: `extract_facts_${category}`,
-  });
-
-  // Parse JSON from response
-  const jsonMatch = result.match(/\[[\s\S]*\]/);
-  if (!jsonMatch) return [];
-
-  const facts: ExtractedFact[] = JSON.parse(jsonMatch[0]);
-  return facts.filter((f) => f.field && f.value);
-}
-
-// Suppress unused import warning — logGeneration used via claude-client
-void logGeneration;
-
-// Export for API route
 export { AGENT_NAME };

@@ -894,6 +894,33 @@ export async function PATCH(req: NextRequest) {
       });
     }
 
+    // Auto-trigger Research Agent when a lead is first claimed (assigned_to goes from null to a user).
+    // Fire-and-forget — runs the full 4-phase pipeline (providers → Firecrawl Agent → Perplexity → dossier).
+    const isFirstClaim =
+      typeof assigned_to === "string" &&
+      assigned_to.trim().length > 0 &&
+      assigned_to !== "unassigned" &&
+      !currentLead.assigned_to;
+
+    if (isFirstClaim && currentLead.property_id) {
+      import("@/lib/control-plane").then(({ getFeatureFlag }) =>
+        getFeatureFlag("agent.research.enabled").then((flag) => {
+          if (!flag?.enabled) return;
+          import("@/agents/research").then(({ runResearchAgent }) => {
+            runResearchAgent({
+              leadId: lead_id,
+              propertyId: currentLead.property_id as string,
+              triggeredBy: user.id,
+            }).catch((err) => {
+              console.error("[prospects/PATCH] Auto-research on claim failed:", err);
+            });
+          });
+        }),
+      ).catch((err) => {
+        console.error("[prospects/PATCH] Auto-research trigger setup failed:", err);
+      });
+    }
+
     // Conversion tracking: capture stage transition snapshot (non-blocking).
     if (statusChanged && targetStatus) {
       captureStageTransition(lead_id, currentStatus, targetStatus).catch((e) =>
