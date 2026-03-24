@@ -29,17 +29,23 @@ async function handleBrowserVoice(req: NextRequest) {
     return NextResponse.json({ error: "Server misconfigured" }, { status: 500 });
   }
   const twilioSignature = req.headers.get("x-twilio-signature") || "";
-  const reqUrl = new URL(req.url);
-  // Twilio sends form-encoded POST; read params from body for validation
+  // Twilio signs against the URL it was configured to call (the TwiML App Voice URL).
+  // On Vercel, req.url returns the internal deployment hostname, NOT the custom domain,
+  // so signature validation fails every time. Use NEXT_PUBLIC_SITE_URL instead.
+  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL
+    ?? (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "");
+  const validationUrl = siteUrl
+    ? `${siteUrl}/api/twilio/voice/browser`
+    : new URL(req.url).origin + "/api/twilio/voice/browser";
   const bodyForValidation = Object.fromEntries(await req.clone().formData());
   const isValidTwilio = twilio.validateRequest(
     twilioAuthToken,
     twilioSignature,
-    reqUrl.origin + reqUrl.pathname,
+    validationUrl,
     bodyForValidation as Record<string, string>,
   );
   if (!isValidTwilio) {
-    console.warn("[BrowserVoice] Invalid Twilio signature — rejecting");
+    console.warn("[BrowserVoice] Invalid Twilio signature — rejecting. Validated against:", validationUrl);
     return NextResponse.json({ error: "Invalid Twilio signature" }, { status: 403 });
   }
 
