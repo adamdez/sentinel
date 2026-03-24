@@ -11,6 +11,7 @@ import {
   AlertTriangle,
   Trash2,
   Loader2,
+  UserCheck,
 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/lib/supabase";
@@ -144,6 +145,7 @@ export function LeadTable({
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [bulkDeleting, setBulkDeleting] = useState(false);
+  const [bulkClaiming, setBulkClaiming] = useState(false);
 
   const allSelected = leads.length > 0 && selectedIds.size === leads.length;
   const someSelected = selectedIds.size > 0;
@@ -208,6 +210,50 @@ export function LeadTable({
     onRefresh?.();
   }, [selectedIds, onRefresh]);
 
+  const handleBulkClaim = useCallback(async () => {
+    const count = selectedIds.size;
+    if (count === 0) return;
+    setBulkClaiming(true);
+    let succeeded = 0;
+    let failed = 0;
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) {
+        toast.error("Session expired. Please sign in again.");
+        setBulkClaiming(false);
+        return;
+      }
+      for (const id of selectedIds) {
+        try {
+          const res = await fetch("/api/prospects", {
+            method: "PATCH",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${session.access_token}`,
+            },
+            body: JSON.stringify({
+              lead_id: id,
+              assigned_to: currentUserId,
+            }),
+          });
+          if (res.ok) succeeded++;
+          else failed++;
+        } catch {
+          failed++;
+        }
+      }
+    } finally {
+      setBulkClaiming(false);
+      setSelectedIds(new Set());
+      if (failed > 0) {
+        toast.error(`Claimed ${succeeded}, failed ${failed}`);
+      } else {
+        toast.success(`Claimed ${succeeded} lead${succeeded > 1 ? "s" : ""}`);
+      }
+      onRefresh?.();
+    }
+  }, [selectedIds, currentUserId, onRefresh]);
+
   const addToQueue = useCallback(async (leadId: string) => {
     setQueuingId(leadId);
     try {
@@ -249,6 +295,14 @@ export function LeadTable({
       {someSelected && (
         <div className="flex items-center gap-3 px-4 py-2 border-b border-glass-border bg-muted/[0.06]">
           <span className="text-xs text-foreground font-medium">{selectedIds.size} selected</span>
+          <button
+            onClick={handleBulkClaim}
+            disabled={bulkClaiming}
+            className="flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-md bg-primary/15 text-primary border border-primary/25 hover:bg-primary/25 transition-colors disabled:opacity-50"
+          >
+            {bulkClaiming ? <Loader2 className="h-3 w-3 animate-spin" /> : <UserCheck className="h-3 w-3" />}
+            Claim Leads ({selectedIds.size})
+          </button>
           <button
             onClick={handleBulkDelete}
             disabled={bulkDeleting}
