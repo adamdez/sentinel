@@ -173,5 +173,10 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
     console.warn("[live-coach] failed to persist live coach state:", cacheWrite.error);
   }
 
-  return NextResponse.json(buildLiveCoachResponse(liveCoachState, mode));
+  const response = buildLiveCoachResponse(liveCoachState, mode);
+  return NextResponse.json({
+    ...response,
+    source: process.env.OPENAI_API_KEY ? "ai" : "rules",
+    state_persisted: !cacheWrite.error,
+  });
 }

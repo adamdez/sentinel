@@ -130,6 +130,8 @@ import {
 
 import { useCoachSurface } from "@/providers/coach-provider";
 
+import { useTwilio } from "@/providers/twilio-provider";
+
 import { CoachPanel, CoachToggle } from "@/components/sentinel/coach-panel";
 
 import { NumericInput } from "@/components/sentinel/numeric-input";
@@ -4040,6 +4042,8 @@ export function MasterClientFileModal({ clientFile: incomingClientFile, open, on
 
   const router = useRouter();
 
+  const { startCall, callState: twilioCallState } = useTwilio();
+
   const [activeTab, setActiveTab] = useState<TabId>("overview");
 
   const [skipTracing, setSkipTracing] = useState(false);
@@ -4083,7 +4087,7 @@ export function MasterClientFileModal({ clientFile: incomingClientFile, open, on
   const [activeTask, setActiveTask] = useState<TaskItem | null>(null);
   const [activeTaskLoading, setActiveTaskLoading] = useState(false);
 
-  const [calling, setCalling] = useState(false);
+  const calling = twilioCallState === "dialing" || twilioCallState === "connected";
 
   const [callStatus, setCallStatus] = useState<string | null>(null);
 
@@ -7003,9 +7007,9 @@ export function MasterClientFileModal({ clientFile: incomingClientFile, open, on
 
     const digits = numberToDial.replace(/\D/g, "").replace(/^1/, "").slice(0, 10);
 
-    router.push(`/dialer?phone=${digits}`);
+    startCall(digits, clientFile?.id, clientFile?.ownerName);
 
-  }, [displayPhone, router]);
+  }, [displayPhone, startCall, clientFile]);
 
 
 
@@ -8886,7 +8890,7 @@ export function MasterClientFileModal({ clientFile: incomingClientFile, open, on
 
                     <span className="text-muted-foreground/50 ml-1">via Twilio</span>
 
-                    <button onClick={() => { setCallStatus(null); setCalling(false); }} className="ml-auto text-muted-foreground hover:text-foreground">
+                    <button onClick={() => { setCallStatus(null); }} className="ml-auto text-muted-foreground hover:text-foreground">
 
                       <X className="h-3 w-3" />
 
@@ -8898,7 +8902,7 @@ export function MasterClientFileModal({ clientFile: incomingClientFile, open, on
 
                 {/* SMS Compose */}
 
-                {smsOpen && displayPhone && (
+                {smsOpen && (smsPhone || displayPhone) && (
 
                   <div className="px-6 py-3 border-b border-overlay-6 space-y-2">
 

@@ -5,7 +5,7 @@ export const dynamic = "force-dynamic";
 import { useState, useEffect, useCallback, useRef, useMemo, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
-import { Device, Call } from "@twilio/voice-sdk";
+import { Call } from "@twilio/voice-sdk";
 import {
   Phone, PhoneOff, PhoneForwarded, PhoneIncoming, Clock, Users, BarChart3,
   Mic, MicOff, Voicemail, CalendarCheck, FileSignature,
@@ -45,6 +45,7 @@ import { UnlinkedCallsFolder } from "@/components/sentinel/unlinked-calls-folder
 import { JeffMessagesBanner } from "@/components/sentinel/jeff-messages-banner";
 import { SmsMessagesPanel } from "@/components/sentinel/sms-messages-panel";
 import type { LeadPhone } from "@/lib/dialer/types";
+import { useTwilio } from "@/providers/twilio-provider";
 
 async function authHeaders(): Promise<Record<string, string>> {
   const { data: { session } } = await supabase.auth.getSession();
@@ -630,11 +631,9 @@ function DialerPageInner() {
   const [leadSmsMsg, setLeadSmsMsg] = useState("");
   const [leadSmsSending, setLeadSmsSending] = useState(false);
 
-  // Twilio VoIP Device
-  const [deviceStatus, setDeviceStatus] = useState<"initializing" | "ready" | "error" | "offline">("initializing");
+  // Twilio VoIP Device — lifecycle managed by TwilioProvider
+  const { deviceStatus, deviceRef, voipCallerId, initDevice } = useTwilio();
   const [activeCall, setActiveCall] = useState<Call | null>(null);
-  const [voipCallerId, setVoipCallerId] = useState<string>("");
-  const deviceRef = useRef<Device | null>(null);
 
   // Ref to track active session ID for inbound disconnect handler (avoids stale closure)
   const activeSessionRef = useRef<string | null>(null);
@@ -693,204 +692,103 @@ function DialerPageInner() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [consentGranted]);
 
-  // ── Twilio VoIP Device Initialization ────────────────────────────
-  const initDeviceCancelRef = useRef<(() => void) | null>(null);
-
-  const initDevice = useCallback(async () => {
-    if (!currentUser.id) return;
-
-    // Tear down previous device / cancel previous init
-    if (initDeviceCancelRef.current) initDeviceCancelRef.current();
-    if (deviceRef.current) {
-      deviceRef.current.destroy();
-      deviceRef.current = null;
-    }
-
-    let cancelled = false;
-    const cancel = () => { cancelled = true; };
-    initDeviceCancelRef.current = cancel;
-
-    setDeviceStatus("initializing");
-
-    try {
-      const hdrs = await authHeaders();
-      const res = await fetch("/api/twilio/token", { headers: hdrs });
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({ error: "Token fetch failed" }));
-        console.warn("[VoIP] Token error:", err.error);
-        if (!cancelled) setDeviceStatus("error");
-        return;
-      }
-
-      const { token, callerId: cid } = await res.json();
-      if (cancelled) return;
-
-      setVoipCallerId(cid || "");
-
-      const device = new Device(token, {
-        codecPreferences: [Call.Codec.Opus, Call.Codec.PCMU],
-        closeProtection: "A call is in progress. Are you sure you want to leave?",
-      });
-
-      device.on("registered", () => {
-        if (!cancelled) {
-          setDeviceStatus("ready");
-          console.log("[VoIP] Device registered");
-        }
-      });
-
-      device.on("error", (err: { message?: string }) => {
-        console.error("[VoIP] Device error:", err);
-        if (!cancelled) {
-          setDeviceStatus("error");
-          // Silently log — no toast; user sees the subtle "VoIP Offline" badge
-        }
-      });
-
-      device.on("unregistered", () => {
-        if (!cancelled) setDeviceStatus("offline");
-      });
-
-      // Token refresh — fires ~3 min before expiry
-      device.on("tokenWillExpire", async () => {
-        try {
-          const hdrs2 = await authHeaders();
-          const r = await fetch("/api/twilio/token", { headers: hdrs2 });
-          if (r.ok) {
-            const { token: newToken } = await r.json();
-            device.updateToken(newToken);
-            console.log("[VoIP] Token refreshed");
-          }
-        } catch {
-          console.warn("[VoIP] Token refresh failed");
-        }
-      });
-
-      // Incoming call handler — rings browser for inbound calls
-      device.on("incoming", (call: Call) => {
-        if (cancelled) return;
-        console.log("[VoIP] Incoming call from", call.parameters?.From);
-        const fromNumber = call.parameters?.From ?? null;
-        setIncomingCall(call);
-        setIncomingFrom(fromNumber);
-        setIncomingMatch(null);
-
-        // Auto-match caller + check for Jeff transfer brief
-        if (fromNumber) {
-          authHeaders().then(async (h) => {
-            const [lookupRes, briefRes] = await Promise.all([
-              fetch(`/api/dialer/v1/phone-lookup?phone=${encodeURIComponent(fromNumber)}`, { headers: h }),
-              fetch(`/api/dialer/v1/transfer-brief?phone=${encodeURIComponent(fromNumber)}`, { headers: h }),
-            ]);
-            const data = lookupRes.ok ? await lookupRes.json() : null;
-            const briefData = briefRes.ok ? await briefRes.json() : null;
-
-            // If Jeff just transferred this caller, show the transfer brief
-            if (briefData?.brief) {
-              const b = briefData.brief;
-              const leadName = data?.leads?.[0]?.properties?.owner_name ?? data?.leads?.[0]?.owner_name ?? null;
-              const leadAddr = data?.leads?.[0]?.properties?.address ?? null;
-              setIncomingMatch({
-                type: "transfer",
-                name: leadName ?? "Seller",
-                address: leadAddr ?? undefined,
-                summary: b.transferReason ?? "Jeff qualified this caller",
-                transferBrief: {
-                  transferReason: b.transferReason,
-                  callerType: b.callerType,
-                  discoverySlots: b.discoverySlots,
-                  summary: b.summary,
-                },
-              });
-              return;
-            }
-
-            if (!data) { setIncomingMatch({ type: "unknown" }); return; }
-            if (data.leads?.length === 1) {
-              const l = data.leads[0];
-              setIncomingMatch({ type: "lead", name: l.properties?.owner_name ?? l.owner_name ?? "Known lead", address: l.properties?.address ?? null });
-            } else if (data.leads?.length > 1) {
-              setIncomingMatch({ type: "lead", name: `${data.leads.length} leads match this number` });
-            } else if (data.unlinkedSessions?.length) {
-              setIncomingMatch({ type: "jeff", summary: "Previous caller — has history" });
-            } else {
-              setIncomingMatch({ type: "unknown" });
-            }
-          }).catch(() => setIncomingMatch({ type: "unknown" }));
-        }
-
-        // Play ring audio
-        try {
-          if (!incomingAudioRef.current) {
-            incomingAudioRef.current = new Audio("data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQ==");
-            incomingAudioRef.current.loop = true;
-          }
-          incomingAudioRef.current.play().catch(() => {});
-        } catch {}
-
-        // Handle call cancel/disconnect (caller hung up or timed out)
-        call.on("cancel", () => {
-          setIncomingCall(null);
-          setIncomingFrom(null);
-          setIncomingMatch(null);
-          incomingAudioRef.current?.pause();
-          if (fromNumber) {
-            setMissedCalls((prev) => [{ phone: fromNumber, time: new Date().toISOString(), id: crypto.randomUUID() }, ...prev.slice(0, 9)]);
-          }
-        });
-        call.on("disconnect", () => {
-          setIncomingCall(null);
-          setIncomingFrom(null);
-          setIncomingMatch(null);
-          incomingAudioRef.current?.pause();
-          // If this was an answered inbound call, end the session so closeout works
-          const sessId = activeSessionRef.current;
-          if (sessId) {
-            setActiveCall(null);
-            setCallState("ended");
-            timer.stop();
-            authHeaders().then((hdrs) => {
-              fetch(`/api/dialer/v1/sessions/${sessId}`, {
-                method: "PATCH",
-                headers: hdrs,
-                body: JSON.stringify({ status: "ended" }),
-              }).catch(() => {});
-            }).catch(() => {});
-            activeSessionRef.current = null;
-          }
-        });
-      });
-
-      await device.register();
-      if (!cancelled) deviceRef.current = device;
-    } catch (err) {
-      console.error("[VoIP] Device init failed:", err);
-      if (!cancelled) setDeviceStatus("error");
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentUser.id]);
-
+  // ── Incoming call handler — attached to provider-managed Device ──
   useEffect(() => {
-    if (!currentUser.id) return;
+    const device = deviceRef.current;
+    if (!device) return;
 
-    initDevice();
+    const handleIncoming = (call: Call) => {
+      console.log("[VoIP] Incoming call from", call.parameters?.From);
+      const fromNumber = call.parameters?.From ?? null;
+      setIncomingCall(call);
+      setIncomingFrom(fromNumber);
+      setIncomingMatch(null);
 
-    const timeout = setTimeout(() => {
-      if (deviceRef.current === null) {
-        setDeviceStatus("error");
-        console.warn("[VoIP] Connection timed out");
+      if (fromNumber) {
+        authHeaders().then(async (h) => {
+          const [lookupRes, briefRes] = await Promise.all([
+            fetch(`/api/dialer/v1/phone-lookup?phone=${encodeURIComponent(fromNumber)}`, { headers: h }),
+            fetch(`/api/dialer/v1/transfer-brief?phone=${encodeURIComponent(fromNumber)}`, { headers: h }),
+          ]);
+          const data = lookupRes.ok ? await lookupRes.json() : null;
+          const briefData = briefRes.ok ? await briefRes.json() : null;
+
+          if (briefData?.brief) {
+            const b = briefData.brief;
+            const leadName = data?.leads?.[0]?.properties?.owner_name ?? data?.leads?.[0]?.owner_name ?? null;
+            const leadAddr = data?.leads?.[0]?.properties?.address ?? null;
+            setIncomingMatch({
+              type: "transfer",
+              name: leadName ?? "Seller",
+              address: leadAddr ?? undefined,
+              summary: b.transferReason ?? "Jeff qualified this caller",
+              transferBrief: {
+                transferReason: b.transferReason,
+                callerType: b.callerType,
+                discoverySlots: b.discoverySlots,
+                summary: b.summary,
+              },
+            });
+            return;
+          }
+
+          if (!data) { setIncomingMatch({ type: "unknown" }); return; }
+          if (data.leads?.length === 1) {
+            const l = data.leads[0];
+            setIncomingMatch({ type: "lead", name: l.properties?.owner_name ?? l.owner_name ?? "Known lead", address: l.properties?.address ?? null });
+          } else if (data.leads?.length > 1) {
+            setIncomingMatch({ type: "lead", name: `${data.leads.length} leads match this number` });
+          } else if (data.unlinkedSessions?.length) {
+            setIncomingMatch({ type: "jeff", summary: "Previous caller — has history" });
+          } else {
+            setIncomingMatch({ type: "unknown" });
+          }
+        }).catch(() => setIncomingMatch({ type: "unknown" }));
       }
-    }, 15_000);
 
-    return () => {
-      clearTimeout(timeout);
-      if (initDeviceCancelRef.current) initDeviceCancelRef.current();
-      if (deviceRef.current) {
-        deviceRef.current.destroy();
-        deviceRef.current = null;
-      }
+      try {
+        if (!incomingAudioRef.current) {
+          incomingAudioRef.current = new Audio("data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQ==");
+          incomingAudioRef.current.loop = true;
+        }
+        incomingAudioRef.current.play().catch(() => {});
+      } catch {}
+
+      call.on("cancel", () => {
+        setIncomingCall(null);
+        setIncomingFrom(null);
+        setIncomingMatch(null);
+        incomingAudioRef.current?.pause();
+        if (fromNumber) {
+          setMissedCalls((prev) => [{ phone: fromNumber, time: new Date().toISOString(), id: crypto.randomUUID() }, ...prev.slice(0, 9)]);
+        }
+      });
+      call.on("disconnect", () => {
+        setIncomingCall(null);
+        setIncomingFrom(null);
+        setIncomingMatch(null);
+        incomingAudioRef.current?.pause();
+        const sessId = activeSessionRef.current;
+        if (sessId) {
+          setActiveCall(null);
+          setCallState("ended");
+          timer.stop();
+          authHeaders().then((hdrs) => {
+            fetch(`/api/dialer/v1/sessions/${sessId}`, {
+              method: "PATCH",
+              headers: hdrs,
+              body: JSON.stringify({ status: "ended" }),
+            }).catch(() => {});
+          }).catch(() => {});
+          activeSessionRef.current = null;
+        }
+      });
     };
-  }, [currentUser.id, initDevice]);
+
+    device.on("incoming", handleIncoming);
+    return () => { device.removeListener("incoming", handleIncoming); };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [deviceStatus]);
 
   // ── Real-time call status polling ─────────────────────────────────
   // Polls /api/dialer/call-status every 2s to track the actual Twilio call state

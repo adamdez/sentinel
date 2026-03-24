@@ -33,6 +33,15 @@ export async function GET(req: Request) {
 
   console.log("[Enrichment/Batch] Cron triggered:", new Date().toISOString());
 
+  // Validate required API keys before starting batch — fail loud, not silent
+  if (!process.env.PROPERTYRADAR_API_KEY) {
+    console.error("[Enrichment/Batch] PROPERTYRADAR_API_KEY not configured — batch cannot enrich");
+    return NextResponse.json(
+      { error: "PROPERTYRADAR_API_KEY not configured. Enrichment pipeline is offline.", success: false },
+      { status: 503 },
+    );
+  }
+
   try {
     const result = await processEnrichmentBatch(100, 300);
 

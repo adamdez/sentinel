@@ -343,9 +343,14 @@ export async function publishSession(
           .update({
             status: targetStatus,
             lock_version: (currentLead.lock_version as number) + 1,
-            next_action: input.next_action || (targetStatus === "nurture"
-              ? "Disqualified — review for re-engagement"
-              : "Dead — archived from dialer"),
+            next_action: input.next_action || (() => {
+              const snap = sessionResult.data.context_snapshot as { ownerName?: string | null; address?: string | null } | null;
+              const who = snap?.ownerName ?? snap?.address ?? "";
+              const suffix = who ? ` — ${who}` : "";
+              return targetStatus === "nurture"
+                ? `Nurture check-in${suffix}`
+                : `Dead — archived from dialer${suffix}`;
+            })(),
             updated_at: new Date().toISOString(),
           })
           .eq("id", leadId)
@@ -393,7 +398,9 @@ export async function publishSession(
 
   if (leadId && TASK_DISPOSITIONS.has(input.disposition)) {
     const assignedTo = input.task_assigned_to ?? userId;
-    const ownerName = (sessionResult.data.context_snapshot as { ownerName?: string | null } | null)?.ownerName ?? null;
+    const snapshot = sessionResult.data.context_snapshot as { ownerName?: string | null; address?: string | null } | null;
+    const ownerName = snapshot?.ownerName ?? null;
+    const address = snapshot?.address ?? null;
     const dispoLabel = input.disposition === "appointment" ? "Appointment" : "Follow up";
 
     let dueAt: Date;
@@ -416,13 +423,12 @@ export async function publishSession(
     taskDueAt = dueAt;
     taskDateWasDefaulted = dateWasDefaulted;
 
-    const title = ownerName
-      ? dateWasDefaulted
-        ? `${dispoLabel} — ${ownerName} (set callback date)`
-        : `${dispoLabel} — ${ownerName}`
-      : dateWasDefaulted
-        ? `${dispoLabel} — set callback date`
-        : `${dispoLabel} — dialer callback`;
+    const leadLabel = ownerName
+      ? address ? `${ownerName}, ${address}` : ownerName
+      : address ?? "dialer callback";
+    const title = dateWasDefaulted
+      ? `${dispoLabel} — ${leadLabel} (set callback date)`
+      : `${dispoLabel} — ${leadLabel}`;
 
     const taskPayload = {
       title,

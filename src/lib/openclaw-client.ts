@@ -118,6 +118,11 @@ export interface DeepSkipResult {
 
 const OPENCLAW_ENDPOINT = process.env.OPENCLAW_API_URL ?? "https://openclaw-gateway-frosty-darkness-4048.fly.dev";
 const OPENCLAW_API_KEY = process.env.OPENCLAW_API_KEY ?? "";
+
+/** Check if OpenClaw is configured with a real API key. */
+export function isOpenClawConfigured(): boolean {
+  return !!process.env.OPENCLAW_API_KEY;
+}
 const AGENT_TIMEOUT_MS = 120_000;
 const FANOUT_TIMEOUT_MS = 180_000;
 

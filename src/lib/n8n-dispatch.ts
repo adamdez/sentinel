@@ -19,6 +19,9 @@ import { trackedDelivery } from "@/lib/delivery-tracker";
 
 const TIMEOUT_MS = 8_000;
 
+// Warn once per process lifetime when n8n URL is missing (not on every call)
+let n8nMissingWarned = false;
+
 interface N8NDispatchResult {
   ok: boolean;
   event: string;
@@ -36,7 +39,11 @@ async function fireN8NWebhook(
   const secret = process.env.N8N_WEBHOOK_SECRET;
 
   if (!baseUrl) {
-    // n8n not configured — silently skip
+    // n8n not configured — warn once per process, not silently
+    if (!n8nMissingWarned) {
+      console.warn("[n8n-dispatch] N8N_WEBHOOK_BASE_URL not configured — all n8n events will be skipped. Set this env var to enable n8n delivery.");
+      n8nMissingWarned = true;
+    }
     return { ok: false, event, error: "N8N_WEBHOOK_BASE_URL not configured" };
   }
 

@@ -166,6 +166,42 @@ export async function GET(req: NextRequest) {
     }
     run.increment();
 
+    // ── 8. Provider configuration health ─────────────────────────────
+    const missingProviders: string[] = [];
+    if (!process.env.PROPERTYRADAR_API_KEY) missingProviders.push("PROPERTYRADAR_API_KEY");
+    if (!process.env.ATTOM_API_KEY) missingProviders.push("ATTOM_API_KEY");
+    if (!process.env.OPENAI_API_KEY) missingProviders.push("OPENAI_API_KEY (dialer AI features offline)");
+    if (!process.env.N8N_WEBHOOK_BASE_URL) missingProviders.push("N8N_WEBHOOK_BASE_URL (n8n delivery offline)");
+
+    if (missingProviders.length > 0) {
+      findings.push({
+        category: "missing_provider_config",
+        severity: "critical",
+        count: missingProviders.length,
+        description: `Missing env vars: ${missingProviders.join(", ")}`,
+      });
+    }
+
+    // ── 9. lead_phones ↔ owner_phone sync check ─────────────────────
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { count: phoneDriftCount } = await (sb.from("leads") as any)
+      .select("id", { count: "exact", head: true })
+      .in("status", ACTIVE_STATUSES)
+      .not("property_id", "is", null);
+    // Note: full drift detection would cross-join lead_phones vs properties.owner_phone
+    // For now, just check that active leads with phones have lead_phones rows
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { count: leadsWithoutPhoneRows } = await (sb as any).rpc("count_leads_missing_phone_rows");
+    if ((leadsWithoutPhoneRows ?? 0) > 5) {
+      findings.push({
+        category: "phone_roster_drift",
+        severity: "medium",
+        count: leadsWithoutPhoneRows ?? 0,
+        description: `${leadsWithoutPhoneRows} active leads with owner_phone but no lead_phones rows`,
+      });
+    }
+    run.increment();
+
     // ── Assemble report ─────────────────────────────────────────────
     const criticalCount = findings.filter(f => f.severity === "critical").length;
     const highCount = findings.filter(f => f.severity === "high").length;

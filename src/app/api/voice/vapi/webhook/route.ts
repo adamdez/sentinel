@@ -36,6 +36,16 @@ const SYSTEM_USER_ID = "00000000-0000-0000-0000-000000000000";
  * → extracted facts stay in voice_sessions.extracted_facts until operator promotes
  */
 export async function POST(req: NextRequest) {
+  // Validate webhook secret if configured — prevents spoofed call events
+  const expectedSecret = process.env.VAPI_WEBHOOK_SECRET;
+  if (expectedSecret) {
+    const incomingSecret = req.headers.get("x-vapi-secret") ?? req.headers.get("x-webhook-secret");
+    if (!incomingSecret || incomingSecret !== expectedSecret) {
+      console.warn("[Vapi Webhook] Unauthorized request — invalid or missing webhook secret");
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+  }
+
   try {
     const payload: VapiWebhookPayload = await req.json();
     const { message } = payload;
