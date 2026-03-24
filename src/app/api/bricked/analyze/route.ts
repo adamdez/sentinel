@@ -192,7 +192,44 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    return NextResponse.json(data);
+    let zillowEstimate: number | null = null;
+    let zillowEstimateUpdatedAt: string | null = null;
+    let zillowEstimateSourceUrl: string | null = null;
+    let zillowEstimateConfidence: string | null = null;
+
+    if (propertyId) {
+      try {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const { data: property } = await (sb.from("properties") as any)
+          .select("owner_flags")
+          .eq("id", propertyId)
+          .single();
+
+        const ownerFlags = (property?.owner_flags ?? {}) as Record<string, unknown>;
+        zillowEstimate = typeof ownerFlags.zillow_estimate === "number"
+          ? ownerFlags.zillow_estimate
+          : null;
+        zillowEstimateUpdatedAt = typeof ownerFlags.zillow_estimate_updated_at === "string"
+          ? ownerFlags.zillow_estimate_updated_at
+          : null;
+        zillowEstimateSourceUrl = typeof ownerFlags.zillow_estimate_source_url === "string"
+          ? ownerFlags.zillow_estimate_source_url
+          : null;
+        zillowEstimateConfidence = typeof ownerFlags.zillow_estimate_confidence === "string"
+          ? ownerFlags.zillow_estimate_confidence
+          : null;
+      } catch (ownerFlagsError) {
+        console.warn("[Bricked] Could not load Zillow estimate from owner_flags:", ownerFlagsError);
+      }
+    }
+
+    return NextResponse.json({
+      ...data,
+      zillowEstimate,
+      zillowEstimateUpdatedAt,
+      zillowEstimateSourceUrl,
+      zillowEstimateConfidence,
+    });
   } catch (err) {
     console.error("[Bricked] Error:", err);
     return NextResponse.json(

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@/lib/supabase";
+import { refreshZillowEstimateForLeadAssignment } from "@/lib/zillow-estimate";
 
 /**
  * POST /api/leads/[id]/queue
@@ -44,6 +45,20 @@ export async function POST(
     entity_id: leadId,
     details: { queued_at: new Date().toISOString() },
   });
+
+  try {
+    await Promise.race([
+      refreshZillowEstimateForLeadAssignment({
+        sb,
+        leadId,
+      }),
+      new Promise<never>((_, reject) => {
+        setTimeout(() => reject(new Error("Zillow refresh timed out")), 12_000);
+      }),
+    ]);
+  } catch (refreshError) {
+    console.error("[Queue] Zillow estimate refresh failed (non-fatal):", refreshError);
+  }
 
   return NextResponse.json({ success: true });
 }

@@ -19,6 +19,13 @@ import {
   type DealConfig,
 } from "./bricked-offer-config-modal";
 
+type BrickedAnalysisResponse = BrickedCreateResponse & {
+  zillowEstimate?: number | null;
+  zillowEstimateUpdatedAt?: string | null;
+  zillowEstimateSourceUrl?: string | null;
+  zillowEstimateConfidence?: string | null;
+};
+
 export interface BrickedAnalysisPanelProps {
   leadId: string;
   address: string;
@@ -38,7 +45,7 @@ export function BrickedAnalysisPanel({
   sqft,
   yearBuilt,
 }: BrickedAnalysisPanelProps) {
-  const [analysis, setAnalysis] = useState<BrickedCreateResponse | null>(null);
+  const [analysis, setAnalysis] = useState<BrickedAnalysisResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [selectedSet, setSelectedSet] = useState<Set<number>>(new Set());
@@ -71,7 +78,7 @@ export function BrickedAnalysisPanel({
         throw new Error(
           (json as { error?: string }).error ?? `Bricked returned ${res.status}`,
         );
-      const data = json as BrickedCreateResponse;
+      const data = json as BrickedAnalysisResponse;
       setAnalysis(data);
       const initial = new Set<number>();
       (data.comps ?? []).forEach((c, i) => {
@@ -174,9 +181,11 @@ export function BrickedAnalysisPanel({
           />
           <BrickedPropertyTabs property={analysis.property} />
         </div>
-        <div className="w-[240px] shrink-0 hidden lg:block">
+        <div className="w-[292px] shrink-0 hidden lg:block">
           <BrickedDealSidebar
             arv={computedArv}
+            zillowEstimate={analysis.zillowEstimate}
+            zillowEstimateSourceUrl={analysis.zillowEstimateSourceUrl}
             cmv={analysis.cmv}
             totalRepairCost={effectiveRepairCost}
             offerPrice={offerPrice}
@@ -244,6 +253,8 @@ export function BrickedAnalysisPanel({
       <div className="lg:hidden">
         <BrickedDealSidebar
           arv={computedArv}
+          zillowEstimate={analysis.zillowEstimate}
+          zillowEstimateSourceUrl={analysis.zillowEstimateSourceUrl}
           cmv={analysis.cmv}
           totalRepairCost={effectiveRepairCost}
           offerPrice={offerPrice}

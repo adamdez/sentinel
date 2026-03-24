@@ -109,6 +109,40 @@ interface FirecrawlScrapeResponse {
   error?: string;
 }
 
+interface FirecrawlSearchResultItem {
+  url?: string;
+  title?: string;
+  description?: string;
+}
+
+interface FirecrawlSearchResponse {
+  success: boolean;
+  data?: FirecrawlSearchResultItem[];
+  error?: string;
+}
+
+export interface ZillowEstimateLookupResult {
+  estimate: number | null;
+  rentEstimate: number | null;
+  listingPrice: number | null;
+  sourceUrl: string | null;
+  confidence: "low" | "medium";
+  rawPayload: Record<string, unknown>;
+  fetchedAt: string;
+  error?: string;
+}
+
+const ZILLOW_EXTRACTION_SCHEMA = {
+  type: "object",
+  properties: {
+    zestimate: { type: "number", description: "Zillow Zestimate in dollars for the property" },
+    rent_zestimate: { type: "number", description: "Zillow rent Zestimate in dollars per month" },
+    listing_price: { type: "number", description: "Current listing price if the property is actively listed" },
+    listing_status: { type: "string", description: "Listing status shown on Zillow" },
+    property_address: { type: "string", description: "Full property address as shown on Zillow" },
+  },
+};
+
 // ── Adapter Implementation ───────────────────────────────────────────────────
 
 class FirecrawlAdapter extends BaseProviderAdapter {
@@ -252,6 +286,105 @@ class FirecrawlAdapter extends BaseProviderAdapter {
     };
   }
 
+  async lookupZillowEstimate(params: {
+    address?: string;
+    city?: string;
+    state?: string;
+    zip?: string;
+  }): Promise<ZillowEstimateLookupResult> {
+    const fetchedAt = new Date().toISOString();
+    const apiKey = this.getApiKey();
+    const addressParts = [
+      params.address?.trim(),
+      params.city?.trim(),
+      params.state?.trim(),
+      params.zip?.trim(),
+    ].filter(Boolean) as string[];
+
+    if (addressParts.length === 0) {
+      return {
+        estimate: null,
+        rentEstimate: null,
+        listingPrice: null,
+        sourceUrl: null,
+        confidence: "low",
+        rawPayload: { error: "Missing address for Zillow lookup" },
+        fetchedAt,
+        error: "Missing address for Zillow lookup",
+      };
+    }
+
+    const searchQuery = `${addressParts.join(" ")} site:zillow.com`;
+    const searchResponse = await this.fetchJson<FirecrawlSearchResponse>(
+      `${this.config.baseUrl}/search`,
+      {
+        method: "POST",
+        headers: { Authorization: `Bearer ${apiKey}` },
+        body: JSON.stringify({
+          query: searchQuery,
+          limit: 5,
+        }),
+      },
+    );
+
+    const searchResults = searchResponse.data ?? [];
+    const selectedResult = selectBestZillowResult(searchResults, addressParts);
+    if (!selectedResult?.url) {
+      return {
+        estimate: null,
+        rentEstimate: null,
+        listingPrice: null,
+        sourceUrl: null,
+        confidence: "low",
+        rawPayload: {
+          searchQuery,
+          searchResults,
+        },
+        fetchedAt,
+        error: "No Zillow result found",
+      };
+    }
+
+    const scrapeResponse = await this.fetchJson<FirecrawlScrapeResponse>(
+      `${this.config.baseUrl}/scrape`,
+      {
+        method: "POST",
+        headers: { Authorization: `Bearer ${apiKey}` },
+        body: JSON.stringify({
+          url: selectedResult.url,
+          formats: ["extract", "markdown"],
+          extract: {
+            schema: ZILLOW_EXTRACTION_SCHEMA,
+          },
+          waitFor: 5000,
+        }),
+      },
+    );
+
+    const extracted = scrapeResponse.data?.extract ?? {};
+    const estimate = toNumberOrNull(extracted.zestimate);
+    const rentEstimate = toNumberOrNull(extracted.rent_zestimate);
+    const listingPrice = toNumberOrNull(extracted.listing_price);
+
+    return {
+      estimate,
+      rentEstimate,
+      listingPrice,
+      sourceUrl: selectedResult.url,
+      confidence: estimate != null ? "medium" : "low",
+      rawPayload: {
+        searchQuery,
+        searchResults,
+        selectedResult,
+        extracted,
+        markdown: scrapeResponse.data?.markdown?.slice(0, 5000),
+        metadata: scrapeResponse.data?.metadata,
+      },
+      fetchedAt,
+      error: estimate == null ? "No Zillow estimate found on page" : undefined,
+    };
+  }
+
   // ── Internal helpers ─────────────────────────────────────────────────────
 
   private findPortal(county?: string, state?: string): CountyPortal | null {
@@ -316,5 +449,58 @@ class FirecrawlAdapter extends BaseProviderAdapter {
   }
 }
 
+function normalizeForMatch(value: string): string {
+  return value.toLowerCase().replace(/[^a-z0-9]/g, "");
+}
+
+function selectBestZillowResult(
+  results: FirecrawlSearchResultItem[],
+  addressParts: string[],
+): FirecrawlSearchResultItem | null {
+  if (results.length === 0) return null;
+
+  const normalizedTokens = addressParts
+    .map(normalizeForMatch)
+    .filter((token) => token.length >= 3);
+
+  const scored = results
+    .filter((result) => typeof result.url === "string" && result.url.includes("zillow.com"))
+    .map((result) => {
+      const haystack = normalizeForMatch(
+        [result.url, result.title, result.description].filter(Boolean).join(" "),
+      );
+      const tokenMatches = normalizedTokens.reduce(
+        (count, token) => count + (haystack.includes(token) ? 1 : 0),
+        0,
+      );
+      const url = result.url ?? "";
+      const pathScore =
+        url.includes("/homedetails/") ? 3 :
+        url.includes("/b/") ? 2 :
+        url.includes("/homes/") ? 1 :
+        0;
+
+      return {
+        result,
+        score: tokenMatches * 10 + pathScore,
+      };
+    })
+    .sort((a, b) => b.score - a.score);
+
+  return scored[0]?.result ?? null;
+}
+
+function toNumberOrNull(value: unknown): number | null {
+  if (typeof value === "number" && Number.isFinite(value)) return Math.round(value);
+  if (typeof value !== "string") return null;
+
+  const digits = value.replace(/[^0-9.-]/g, "");
+  if (!digits) return null;
+  const parsed = Number.parseFloat(digits);
+  return Number.isFinite(parsed) ? Math.round(parsed) : null;
+}
+
 /** Singleton adapter instance */
 export const firecrawlAdapter = new FirecrawlAdapter();
+
+export { selectBestZillowResult, toNumberOrNull };

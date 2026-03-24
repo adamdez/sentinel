@@ -17,6 +17,7 @@ import {
   type QualificationScorePatch,
   type QualificationScoreState,
 } from "@/lib/qualification-workflow";
+import { refreshZillowEstimateForLeadAssignment } from "@/lib/zillow-estimate";
 const SYSTEM_USER_ID = "00000000-0000-0000-0000-000000000000";
 
 // ── P0: Surface missing escalation config at first request ──
@@ -86,6 +87,28 @@ async function requireAuthenticatedUser(req: NextRequest, sb: ReturnType<typeof 
   const { data, error } = await sb.auth.getUser(token);
   if (error || !data.user) return null;
   return data.user;
+}
+
+async function refreshAssignmentZillowEstimate(params: {
+  sb: ReturnType<typeof createServerClient>;
+  leadId: string;
+  propertyId?: string | null;
+  context: string;
+}) {
+  try {
+    await Promise.race([
+      refreshZillowEstimateForLeadAssignment({
+        sb: params.sb,
+        leadId: params.leadId,
+        propertyId: params.propertyId,
+      }),
+      new Promise<never>((_, reject) => {
+        setTimeout(() => reject(new Error("Zillow refresh timed out")), 12_000);
+      }),
+    ]);
+  } catch (error) {
+    console.error(`[${params.context}] Zillow estimate refresh failed (non-fatal):`, error);
+  }
 }
 
 // ── GET /api/prospects — Fetch all prospects (server-side, bypasses RLS) ──
@@ -856,6 +879,20 @@ export async function PATCH(req: NextRequest) {
     }
 
     const statusChanged = Boolean(targetStatus && currentStatus !== targetStatus);
+
+    const shouldRefreshZillowEstimate =
+      typeof updateData.assigned_to === "string" &&
+      updateData.assigned_to.length > 0 &&
+      !!currentLead.property_id;
+
+    if (shouldRefreshZillowEstimate) {
+      await refreshAssignmentZillowEstimate({
+        sb,
+        leadId: lead_id,
+        propertyId: currentLead.property_id as string,
+        context: "API/prospects PATCH",
+      });
+    }
 
     // Conversion tracking: capture stage transition snapshot (non-blocking).
     if (statusChanged && targetStatus) {
@@ -1679,6 +1716,15 @@ export async function POST(req: NextRequest) {
 
     // Wait for enrichment to complete (it's fast — just DB writes + scoring)
     await enrichmentPromise;
+
+    if (isAssigned) {
+      await refreshAssignmentZillowEstimate({
+        sb,
+        leadId: lead.id,
+        propertyId: property.id,
+        context: "API/prospects POST",
+      });
+    }
 
     return NextResponse.json({
       success: true,

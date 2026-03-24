@@ -7,6 +7,8 @@ import { formatCurrency } from "@/lib/utils";
 
 interface Props {
   arv: number | null | undefined;
+  zillowEstimate?: number | null;
+  zillowEstimateSourceUrl?: string | null;
   cmv: number | null | undefined;
   totalRepairCost: number | null | undefined;
   offerPrice: number | null | undefined;
@@ -19,6 +21,8 @@ interface Props {
 
 export function BrickedDealSidebar({
   arv,
+  zillowEstimate,
+  zillowEstimateSourceUrl,
   cmv,
   totalRepairCost,
   offerPrice,
@@ -40,16 +44,36 @@ export function BrickedDealSidebar({
         <p className="text-[10px] uppercase text-muted-foreground/70">After Repair Value</p>
         <div className="flex items-baseline gap-2 mt-0.5">
           <span className="text-2xl font-bold font-mono text-emerald-400">
-            {arv != null ? formatCurrency(arv) : "—"}
+            {arv != null ? formatCurrency(arv) : "-"}
           </span>
           <Badge variant="outline" className="text-[8px]">Bricked</Badge>
+        </div>
+        <div className="mt-2">
+          <p className="text-[10px] uppercase text-muted-foreground/70">Zillow Estimate</p>
+          <div className="flex items-baseline gap-2 mt-0.5">
+            <span className="text-base font-semibold font-mono text-foreground">
+              {zillowEstimate != null ? formatCurrency(zillowEstimate) : "-"}
+            </span>
+            <Badge variant="outline" className="text-[8px]">Zillow</Badge>
+          </div>
+          {zillowEstimateSourceUrl && (
+            <a
+              href={zillowEstimateSourceUrl}
+              target="_blank"
+              rel="noreferrer"
+              className="mt-1 inline-flex items-center gap-1 text-[10px] text-cyan hover:text-cyan/80 transition-colors"
+            >
+              <ExternalLink className="h-3 w-3" />
+              Source
+            </a>
+          )}
         </div>
       </div>
 
       <div>
         <p className="text-[10px] uppercase text-muted-foreground/70">Current Market Value</p>
         <span className="text-lg font-semibold font-mono">
-          {cmv != null ? formatCurrency(cmv) : "—"}
+          {cmv != null ? formatCurrency(cmv) : "-"}
         </span>
       </div>
 
@@ -68,7 +92,7 @@ export function BrickedDealSidebar({
           )}
         </div>
         <span className="text-lg font-bold font-mono text-emerald-400">
-          {offerPrice != null ? formatCurrency(offerPrice) : "—"}
+          {offerPrice != null ? formatCurrency(offerPrice) : "-"}
         </span>
       </div>
 
@@ -79,7 +103,7 @@ export function BrickedDealSidebar({
           onClick={onScrollToRepairs}
           className="text-lg font-semibold font-mono text-amber-300 hover:underline"
         >
-          {totalRepairCost != null ? formatCurrency(totalRepairCost) : "—"}
+          {totalRepairCost != null ? formatCurrency(totalRepairCost) : "-"}
         </button>
       </div>
 
