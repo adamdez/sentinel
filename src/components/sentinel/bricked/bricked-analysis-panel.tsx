@@ -276,6 +276,7 @@ export function BrickedAnalysisPanel({
               repairsRef.current?.scrollIntoView({ behavior: "smooth", block: "start" })
             }
             onConfigureClick={() => setConfigOpen(true)}
+            onRepairCostChange={setRepairTotal}
           />
         </div>
       </div>
@@ -346,6 +347,7 @@ export function BrickedAnalysisPanel({
             repairsRef.current?.scrollIntoView({ behavior: "smooth", block: "start" })
           }
           onConfigureClick={() => setConfigOpen(true)}
+          onRepairCostChange={setRepairTotal}
         />
       </div>
 

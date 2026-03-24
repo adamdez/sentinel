@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { ExternalLink, Settings2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -17,6 +18,7 @@ interface Props {
   shareLink?: string | null;
   onScrollToRepairs?: () => void;
   onConfigureClick?: () => void;
+  onRepairCostChange?: (cost: number) => void;
 }
 
 export function BrickedDealSidebar({
@@ -31,8 +33,11 @@ export function BrickedDealSidebar({
   shareLink,
   onScrollToRepairs,
   onConfigureClick,
+  onRepairCostChange,
 }: Props) {
   const link = dashboardLink ?? shareLink;
+  const [editingRepairs, setEditingRepairs] = useState(false);
+  const [repairInput, setRepairInput] = useState("");
 
   return (
     <div className="rounded-[10px] border border-overlay-6 bg-panel backdrop-blur-xl p-4 space-y-4 sticky top-0">
@@ -98,13 +103,45 @@ export function BrickedDealSidebar({
 
       <div>
         <p className="text-[10px] uppercase text-muted-foreground/70">Est. Repairs</p>
-        <button
-          type="button"
-          onClick={onScrollToRepairs}
-          className="text-lg font-semibold font-mono text-amber-300 hover:underline"
-        >
-          {totalRepairCost != null ? formatCurrency(totalRepairCost) : "-"}
-        </button>
+        {editingRepairs ? (
+          <div className="flex items-center gap-1 mt-0.5">
+            <span className="text-lg font-mono text-amber-300">$</span>
+            <input
+              type="number"
+              autoFocus
+              value={repairInput}
+              onChange={(e) => setRepairInput(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  const val = parseInt(repairInput.replace(/\D/g, ""), 10);
+                  if (!isNaN(val) && onRepairCostChange) onRepairCostChange(val);
+                  setEditingRepairs(false);
+                } else if (e.key === "Escape") {
+                  setEditingRepairs(false);
+                }
+              }}
+              onBlur={() => {
+                const val = parseInt(repairInput.replace(/\D/g, ""), 10);
+                if (!isNaN(val) && onRepairCostChange) onRepairCostChange(val);
+                setEditingRepairs(false);
+              }}
+              className="w-28 bg-transparent border-b border-amber-300/40 text-lg font-semibold font-mono text-amber-300 outline-none focus:border-amber-300"
+              placeholder="0"
+            />
+          </div>
+        ) : (
+          <button
+            type="button"
+            onClick={() => {
+              setRepairInput(String(totalRepairCost ?? 0));
+              setEditingRepairs(true);
+            }}
+            className="text-lg font-semibold font-mono text-amber-300 hover:underline"
+            title="Click to edit"
+          >
+            {totalRepairCost != null ? formatCurrency(totalRepairCost) : "$0"}
+          </button>
+        )}
       </div>
 
       <div>
