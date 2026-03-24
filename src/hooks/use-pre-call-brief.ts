@@ -22,6 +22,7 @@ export interface PreCallBrief {
 export function usePreCallBrief(leadId: string | null) {
   const [brief, setBrief] = useState<PreCallBrief | null>(null);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const cacheRef = useRef<Map<string, PreCallBrief>>(new Map());
   const abortRef = useRef<AbortController | null>(null);
 
@@ -30,6 +31,7 @@ export function usePreCallBrief(leadId: string | null) {
       const cached = cacheRef.current.get(id);
       if (cached) {
         setBrief(cached);
+        setError(null);
         return;
       }
     }
@@ -56,7 +58,10 @@ export function usePreCallBrief(leadId: string | null) {
       });
 
       if (!res.ok) {
-        setBrief(null);
+        if (!controller.signal.aborted) {
+          setBrief(null);
+          setError(`Brief unavailable (${res.status})`);
+        }
         return;
       }
 
@@ -80,11 +85,13 @@ export function usePreCallBrief(leadId: string | null) {
       cacheRef.current.set(id, result);
       if (!controller.signal.aborted) {
         setBrief(result);
+        setError(null);
       }
     } catch (err) {
       if (err instanceof DOMException && err.name === "AbortError") return;
       console.error("[Pre-Call Brief]", err);
       setBrief(null);
+      setError("Brief unavailable — network error");
     } finally {
       if (!controller.signal.aborted) {
         setLoading(false);
@@ -101,6 +108,7 @@ export function usePreCallBrief(leadId: string | null) {
   useEffect(() => {
     if (!leadId) {
       setBrief(null);
+      setError(null);
       return;
     }
 
@@ -111,5 +119,5 @@ export function usePreCallBrief(leadId: string | null) {
     return () => clearTimeout(timer);
   }, [leadId, fetchBrief]);
 
-  return { brief, loading, regenerate };
+  return { brief, loading, error, regenerate };
 }

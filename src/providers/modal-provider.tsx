@@ -2,7 +2,7 @@
 
 import { createContext, useCallback, useContext, useState } from "react";
 
-type ModalType = "new-prospect" | "edit-lead" | "confirm-action" | "ai-breakdown" | null;
+type ModalType = "new-prospect" | "edit-lead" | "confirm-action" | "ai-breakdown" | "client-file" | null;
 
 interface ModalContextValue {
   activeModal: ModalType;

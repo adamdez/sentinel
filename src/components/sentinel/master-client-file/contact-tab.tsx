@@ -42,6 +42,8 @@ export function ContactTab({ cf, overlay, onSkipTrace, skipTracing, onDial, onSm
   const satelliteFallbackUrl = (!streetViewUrl && propLat && propLng) ? getSatelliteTileUrl(propLat, propLng, 18) : null;
   const imageUrl = streetViewUrl ?? satelliteFallbackUrl;
   const streetViewLink = propLat && propLng ? getGoogleStreetViewLink(propLat, propLng) : null;
+  const [imgFailed, setImgFailed] = useState(false);
+  useEffect(() => { setImgFailed(false); }, [imageUrl]);
 
   // ── Phone & email data ──
   const persons = overlay?.persons ?? (cf.ownerFlags?.persons as Record<string, unknown>[]) ?? [];
@@ -288,7 +290,7 @@ export function ContactTab({ cf, overlay, onSkipTrace, skipTracing, onDial, onSm
   return (
     <div className="space-y-4 max-w-[680px] mx-auto">
       {/* ── Street View / Satellite Image ── */}
-      {imageUrl && (
+      {imageUrl && !imgFailed && (
         <div className="rounded-[12px] border border-overlay-6 overflow-hidden">
           <a
             href={streetViewLink ?? "#"}
@@ -301,7 +303,7 @@ export function ContactTab({ cf, overlay, onSkipTrace, skipTracing, onDial, onSm
               src={imageUrl}
               alt="Property"
               className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-[1.02]"
-              onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
+              onError={() => setImgFailed(true)}
             />
             <div className="absolute inset-0 bg-gradient-to-t from-panel-deep via-panel to-transparent pointer-events-none" />
             {streetViewLink && (
@@ -315,6 +317,14 @@ export function ContactTab({ cf, overlay, onSkipTrace, skipTracing, onDial, onSm
               <ImageIcon className="h-2.5 w-2.5" />{streetViewUrl ? "Street View" : "Satellite"}
             </div>
           </a>
+        </div>
+      )}
+      {(!imageUrl || imgFailed) && (
+        <div className="rounded-[12px] border border-overlay-6 bg-overlay-2 flex items-center justify-center h-32">
+          <div className="flex flex-col items-center gap-1.5 text-muted-foreground/40">
+            <ImageIcon className="h-5 w-5" />
+            <span className="text-xs">No property image available</span>
+          </div>
         </div>
       )}
 

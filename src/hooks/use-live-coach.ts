@@ -27,6 +27,7 @@ export function useLiveCoach({
 }: UseLiveCoachOptions) {
   const [coach, setCoach] = useState<LiveCoachState | null>(null);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const abortRef = useRef<AbortController | null>(null);
 
   const fetchCoach = useCallback(async () => {
@@ -54,18 +55,23 @@ export function useLiveCoach({
       });
 
       if (!res.ok) {
-        if (!controller.signal.aborted) setCoach(null);
+        if (!controller.signal.aborted) {
+          setCoach(null);
+          setError(`Coaching unavailable (${res.status})`);
+        }
         return;
       }
 
       const data = await res.json() as LiveCoachState;
       if (!controller.signal.aborted) {
         setCoach(data);
+        setError(null);
       }
     } catch (err) {
       if (err instanceof DOMException && err.name === "AbortError") return;
       console.error("[Live Coach]", err);
       setCoach(null);
+      setError("Coaching unavailable — network error");
     } finally {
       if (!controller.signal.aborted) {
         setLoading(false);
@@ -77,6 +83,7 @@ export function useLiveCoach({
     if (!sessionId || !enabled) {
       setCoach(null);
       setLoading(false);
+      setError(null);
       abortRef.current?.abort();
       return;
     }
@@ -95,6 +102,7 @@ export function useLiveCoach({
   return {
     coach,
     loading,
+    error,
     refresh: fetchCoach,
   };
 }

@@ -21,6 +21,7 @@ interface Props {
   brief: PreCallBrief | null;
   coach?: LiveCoachState | null;
   loading?: boolean;
+  error?: string | null;
   className?: string;
   variant?: "docked" | "overlay";
   popoutOpen?: boolean;
@@ -99,6 +100,7 @@ export function LiveAssistPanel({
   brief,
   coach = null,
   loading = false,
+  error = null,
   className = "",
   variant = "docked",
   popoutOpen = false,
@@ -132,7 +134,7 @@ export function LiveAssistPanel({
     }));
   }, [coach]);
 
-  if (!brief && !coach && !loading) return null;
+  if (!brief && !coach && !loading && !error) return null;
 
   return (
     <div
@@ -176,7 +178,13 @@ export function LiveAssistPanel({
 
       {expanded && (
         <div className="px-3 pb-3 pt-2 border-t border-overlay-8 space-y-3">
-          {!coach && (
+          {error && !coach && (
+            <div className="rounded-[10px] border border-amber-500/20 bg-amber-500/[0.06] p-3 flex items-center gap-2">
+              <AlertTriangle className="h-3.5 w-3.5 text-amber-400 shrink-0" />
+              <p className="text-sm text-amber-200/80">{error}</p>
+            </div>
+          )}
+          {!coach && !error && (
             <div className="rounded-[10px] border border-primary/15 bg-primary/[0.05] p-3">
               <p className="text-xs uppercase tracking-wider text-primary/70">Next Best Question</p>
               <p className="text-sm text-foreground/85 mt-1 leading-snug">

@@ -152,7 +152,17 @@ export function DailyBrief() {
   }
 
   if (error || !data) {
-    return <div className="text-center py-4 text-xs text-muted-foreground">{error ?? "No data"}</div>;
+    return (
+      <div className="flex flex-col items-center gap-2 py-4">
+        <p className="text-xs text-muted-foreground">{error ?? "No data"}</p>
+        <button
+          onClick={load}
+          className="flex items-center gap-1 text-xs text-primary/70 hover:text-primary transition-colors"
+        >
+          <RefreshCw className="h-3 w-3" /> Retry
+        </button>
+      </div>
+    );
   }
 
   const { topCallbackSlippage, topOverdueLead, topOverdueTask, topFlaggedAiOutput, topAttentionLeads, dialerWindow } = data;

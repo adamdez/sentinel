@@ -20,6 +20,7 @@ import { GlassCard } from "@/components/sentinel/glass-card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { cn } from "@/lib/utils";
 import { useSentinelStore } from "@/lib/store";
 import { supabase } from "@/lib/supabase";
 import { useDialerQueue, useDialerStats, useCallTimer, fetchDialerKpis, type QueueLead, type DialerStats } from "@/hooks/use-dialer";
@@ -426,9 +427,9 @@ function DialerPageInner() {
   const phonesAttempted = leadPhones.filter(p => p.status === "active" && p.last_called_at).length;
 
   const { latestSummary, latestSummaryTime } = useCallNotes(currentLead?.id);
-  const { brief: preCallBrief, loading: briefLoading } = usePreCallBrief(currentLead?.id ?? null);
+  const { brief: preCallBrief, loading: briefLoading, error: briefError, regenerate: retryBrief } = usePreCallBrief(currentLead?.id ?? null);
   const [coachPopoutOpen, setCoachPopoutOpen] = useState(false);
-  const { coach: liveCoach, loading: liveCoachLoading } = useLiveCoach({
+  const { coach: liveCoach, loading: liveCoachLoading, error: liveCoachError } = useLiveCoach({
     sessionId: dialerSessionId,
     enabled: callState === "connected" && !!dialerSessionId,
     mode: "outbound",
@@ -506,7 +507,7 @@ function DialerPageInner() {
   const [manualCallLogId, setManualCallLogId] = useState<string | null>(null);
   const [manualSessionId, setManualSessionId] = useState<string | null>(null);
   const [manualStatus, setManualStatus] = useState<"idle" | "dialing" | "connected" | "ended">("idle");
-  const { coach: manualLiveCoach, loading: manualLiveCoachLoading } = useLiveCoach({
+  const { coach: manualLiveCoach, loading: manualLiveCoachLoading, error: manualLiveCoachError } = useLiveCoach({
     sessionId: manualSessionId,
     enabled: manualStatus === "connected" && !!manualSessionId,
     mode: "outbound",
@@ -2250,6 +2251,7 @@ function DialerPageInner() {
             brief={null}
             coach={manualLiveCoach}
             loading={manualLiveCoachLoading}
+            error={manualLiveCoachError}
             className="mt-3"
           />
         )}
@@ -2709,7 +2711,7 @@ function DialerPageInner() {
 
                     {/* Pre-Call Intelligence Brief */}
                     <AnimatePresence>
-                      {callState === "idle" && (preCallBrief || briefLoading) && (
+                      {callState === "idle" && (preCallBrief || briefLoading || briefError) && (
                         <motion.div
                           initial={{ opacity: 0, height: 0 }}
                           animate={{ opacity: 1, height: "auto" }}
@@ -2721,6 +2723,18 @@ function DialerPageInner() {
                             <span className="text-sm font-semibold tracking-wider uppercase text-foreground">Pre-Call Brief</span>
                             {briefLoading && <Loader2 className="h-3 w-3 animate-spin text-foreground/60 ml-auto" />}
                           </div>
+                          {briefError && !preCallBrief && (
+                            <div className="flex items-center gap-2 rounded-lg bg-amber-500/[0.06] border border-amber-500/20 p-2">
+                              <AlertTriangle className="h-3.5 w-3.5 text-amber-400 shrink-0" />
+                              <p className="text-sm text-amber-200/80 flex-1">{briefError}</p>
+                              <button
+                                onClick={retryBrief}
+                                className="text-xs text-amber-300 hover:text-amber-200 underline shrink-0"
+                              >
+                                Retry
+                              </button>
+                            </div>
+                          )}
                           {preCallBrief && (
                             <>
                               <div className="grid gap-2 mb-2 md:grid-cols-2">
@@ -3076,6 +3090,7 @@ function DialerPageInner() {
                     brief={preCallBrief}
                     coach={liveCoach}
                     loading={liveCoachLoading}
+                    error={liveCoachError}
                     className="mb-3"
                     popoutOpen={coachPopoutOpen}
                     onTogglePopout={() => setCoachPopoutOpen((value) => !value)}
@@ -3250,6 +3265,7 @@ function DialerPageInner() {
             brief={preCallBrief}
             coach={liveCoach}
             loading={liveCoachLoading}
+            error={liveCoachError}
             variant="overlay"
             popoutOpen={coachPopoutOpen}
             onTogglePopout={() => setCoachPopoutOpen(false)}

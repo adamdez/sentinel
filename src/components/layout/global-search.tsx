@@ -330,6 +330,17 @@ export function GlobalSearch() {
     [router, closeDropdown]
   );
 
+  const handleOpenLead = useCallback(
+    (leadId: string) => {
+      setQuery("");
+      closeDropdown();
+      resetSessionToken();
+      inputRef.current?.blur();
+      openModal("client-file", { leadId });
+    },
+    [closeDropdown, openModal]
+  );
+
   // Open the new-prospect modal instantly with whatever address data we have,
   // then let the modal fetch Bricked enrichment in the background.
   const handleNationwideLookup = useCallback((addressOverride?: string, structured?: { city?: string; state?: string; zip?: string }) => {
@@ -402,9 +413,8 @@ export function GlobalSearch() {
       } else if (e.key === "Enter") {
         e.preventDefault();
         if (activeIndex >= 0 && activeIndex < localResults.length) {
-          // Local result selected
           const rec = localResults[activeIndex];
-          if (rec.href !== "#") handleSelect(rec.href);
+          if (rec.href !== "#") handleOpenLead(rec.id);
         } else if (activeIndex >= localResults.length && activeIndex < localResults.length + suggestions.length) {
           // Nationwide suggestion selected
           const suggestion = suggestions[activeIndex - localResults.length];
@@ -421,7 +431,7 @@ export function GlobalSearch() {
         inputRef.current?.blur();
       }
     },
-    [isOpen, activeIndex, totalNavItems, localResults, suggestions, showFallbackButton, showNationwide, handleSelect, handleNationwideLookup, closeDropdown]
+    [isOpen, activeIndex, totalNavItems, localResults, suggestions, showFallbackButton, showNationwide, handleSelect, handleOpenLead, handleNationwideLookup, closeDropdown]
   );
 
   return (
@@ -503,7 +513,7 @@ export function GlobalSearch() {
                           onMouseEnter={() => setActiveIndex(i)}
                           onMouseDown={(e) => {
                             e.preventDefault();
-                            if (rec.href !== "#") handleSelect(rec.href);
+                            if (rec.href !== "#") handleOpenLead(rec.id);
                           }}
                           className={cn(
                             "flex items-center gap-3 w-full text-left px-3 py-2.5 transition-colors",
