@@ -148,6 +148,8 @@ import { LeadDossierPanel } from "@/components/sentinel/lead-dossier-panel";
 
 import { BrickedAnalysisPanel, type BrickedAnalysisPanelProps } from "@/components/sentinel/bricked/bricked-analysis-panel";
 
+import { LegalBriefPanel } from "@/components/sentinel/legal/legal-brief-panel";
+
 import { IntakeGuideSection } from "@/components/sentinel/intake-guide-section";
 
 import { formatDueDateLabel } from "@/lib/due-date-label";
@@ -553,6 +555,8 @@ const TABS = [
   { id: "comps", label: "Property Intel", icon: Map },
 
   { id: "dossier", label: "Dossier", icon: Brain },
+
+  { id: "legal", label: "Legal", icon: Scale },
 
 ] as const;
 
@@ -7724,7 +7728,7 @@ export function MasterClientFileModal({ clientFile: incomingClientFile, open, on
 
               "fixed inset-x-4 top-[4.5%] bottom-[2%] md:inset-x-auto md:left-1/2 md:-translate-x-1/2 z-50 flex flex-col transition-all duration-300",
 
-              activeTab === "comps" ? "md:w-[1325px]" : activeTab === "dossier" ? "md:w-[1200px]" : "md:w-[1075px]",
+              activeTab === "comps" ? "md:w-[1325px]" : activeTab === "dossier" || activeTab === "legal" ? "md:w-[1200px]" : "md:w-[1075px]",
 
             )}
 
@@ -8565,6 +8569,12 @@ export function MasterClientFileModal({ clientFile: incomingClientFile, open, on
                         <CompsTab cf={clientFile} selectedComps={selectedComps} onAddComp={handleAddComp} onRemoveComp={handleRemoveComp} onSkipTrace={handleSkipTrace} computedArv={computedArv} onArvChange={handleArvChange} conditionAdj={conditionAdj} onConditionAdjChange={setConditionAdj} />
 
                       )
+
+                    )}
+
+                    {activeTab === "legal" && (
+
+                      <LegalBriefPanel leadId={clientFile.id} />
 
                     )}
 

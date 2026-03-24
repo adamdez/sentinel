@@ -337,7 +337,7 @@ export function clientFileFromRaw(lead: Record<string, any>, prop: Record<string
 // Type aliases
 // ═══════════════════════════════════════════════════════════════════════
 
-export type TabId = "overview" | "contact" | "dossier" | "comps" | "calculator" | "documents";
+export type TabId = "overview" | "contact" | "dossier" | "comps" | "calculator" | "documents" | "legal";
 export type WorkflowStageId = "prospect" | "lead" | "negotiation" | "disposition" | "nurture" | "dead" | "closed";
 export type ScoreType = "composite" | "motivation" | "deal";
 
@@ -449,7 +449,7 @@ export const OFFER_STATUS_OPTIONS: Array<{ id: OfferStatusTruth; label: string }
   { id: "passed_not_moving_forward", label: "Passed / Not Moving Forward" },
 ];
 
-export const PRIMARY_TAB_IDS = new Set<TabId>(["overview", "contact", "dossier"]);
+export const PRIMARY_TAB_IDS = new Set<TabId>(["overview", "contact", "dossier", "legal"]);
 export const ADVANCED_TAB_IDS = new Set<TabId>(["comps", "calculator", "documents"]);
 
 export const WORKFLOW_STAGE_OPTIONS: Array<{ id: WorkflowStageId; label: string }> = [

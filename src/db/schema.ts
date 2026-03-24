@@ -852,6 +852,50 @@ export const campaignLeads = pgTable("campaign_leads", {
   uniqueIndex("uq_campaign_leads").on(table.campaignId, table.leadId),
 ]);
 
+// ── Recorded Documents ───────────────────────────────────────────────
+// County-sourced legal events: deeds, liens, court filings, foreclosure notices.
+// Written by /api/leads/[id]/legal-search from Spokane County Recorder + WA Courts crawlers.
+// Never writes directly to leads or properties — read-only from the Legal tab.
+
+export const recordedDocuments = pgTable("recorded_documents", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  propertyId: uuid("property_id").notNull().references(() => properties.id, { onDelete: "cascade" }),
+  leadId: uuid("lead_id").references(() => leads.id, { onDelete: "set null" }),
+
+  documentType: text("document_type").notNull(),
+  instrumentNumber: text("instrument_number"),
+  recordingDate: timestamp("recording_date", { withTimezone: true }),
+  documentDate: timestamp("document_date", { withTimezone: true }),
+
+  grantor: text("grantor"),
+  grantee: text("grantee"),
+
+  amount: integer("amount"),
+  lenderName: text("lender_name"),
+
+  status: text("status").notNull().default("active"),
+
+  caseNumber: text("case_number"),
+  courtName: text("court_name"),
+  caseType: text("case_type"),
+  attorneyName: text("attorney_name"),
+  contactPerson: text("contact_person"),
+  nextHearingDate: timestamp("next_hearing_date", { withTimezone: true }),
+  eventDescription: text("event_description"),
+
+  source: text("source").notNull(),
+  sourceUrl: text("source_url"),
+  rawExcerpt: text("raw_excerpt"),
+  rawData: jsonb("raw_data"),
+
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (table) => [
+  index("idx_recorded_docs_property").on(table.propertyId),
+  index("idx_recorded_docs_lead").on(table.leadId),
+  index("idx_recorded_docs_type").on(table.documentType),
+  index("idx_recorded_docs_recording_date").on(table.recordingDate),
+]);
+
 export const featureFlags = pgTable("feature_flags", {
   id:             uuid("id").defaultRandom().primaryKey(),
   flagKey:        text("flag_key").notNull().unique(),
