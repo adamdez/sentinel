@@ -1522,8 +1522,14 @@ export async function POST(req: NextRequest) {
             addFact("bricked_dashboard_link", effectiveBrickedData.dashboardLink, null);
 
             if (brickedFacts.length > 0) {
-              // eslint-disable-next-line @typescript-eslint/no-explicit-any
-              await (sb.from("fact_assertions") as any).insert(brickedFacts);
+              try {
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                await (sb.from("fact_assertions") as any).insert(brickedFacts);
+              } catch (faErr) {
+                // fact_assertions schema may not match — skip silently, enrichment data
+                // is already persisted to properties.owner_flags below
+                console.warn("[API/prospects POST] fact_assertions insert skipped (Bricked):", faErr);
+              }
             }
 
             // Also store key values in owner_flags for backward compat with existing UI
@@ -1618,8 +1624,14 @@ export async function POST(req: NextRequest) {
             }
 
             if (gisFacts.length > 0) {
-              // eslint-disable-next-line @typescript-eslint/no-explicit-any
-              await (sb.from("fact_assertions") as any).insert(gisFacts);
+              try {
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                await (sb.from("fact_assertions") as any).insert(gisFacts);
+              } catch (faErr) {
+                // fact_assertions schema may not match — skip silently, enrichment data
+                // is already persisted to properties.owner_flags below
+                console.warn("[API/prospects POST] fact_assertions insert skipped (GIS):", faErr);
+              }
             }
 
             // Store GIS data in owner_flags for backward compat
