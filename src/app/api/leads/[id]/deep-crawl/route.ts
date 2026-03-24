@@ -49,23 +49,42 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   const { id: leadId } = await params;
   const sb = createServerClient();
 
+  const authHeader = req.headers.get("authorization");
+  const token = authHeader?.replace("Bearer ", "");
+  const { data: { user } } = await sb.auth.getUser(token);
+  if (!user) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
   const firecrawlKey = process.env.FIRECRAWL_API_KEY;
   if (!firecrawlKey) {
     return NextResponse.json({ error: "FIRECRAWL_API_KEY not configured" }, { status: 500 });
   }
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { data: lead } = await (sb.from("leads") as any)
-    .select("id, owner_name, property_id, properties(address, city, county, apn)")
+  const { data: lead, error: leadErr } = await (sb.from("leads") as any)
+    .select("id, owner_name, property_id")
     .eq("id", leadId)
     .single();
 
-  if (!lead) {
+  if (leadErr || !lead) {
+    console.error("[deep-crawl] Lead query failed:", leadErr?.message ?? "no rows", { leadId });
     return NextResponse.json({ error: "Lead not found" }, { status: 404 });
   }
 
+  // Fetch property separately to avoid PostgREST join issues
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let prop: Record<string, any> | null = null;
+  if (lead.property_id) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: propRow } = await (sb.from("properties") as any)
+      .select("address, city, county, apn")
+      .eq("id", lead.property_id)
+      .single();
+    prop = propRow;
+  }
+
   const ownerName = lead.owner_name ?? "";
-  const prop = lead.properties;
   const address = prop?.address ?? "";
   const city = prop?.city ?? "";
   const county = prop?.county ?? "";
