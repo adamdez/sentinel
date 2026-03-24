@@ -2621,9 +2621,22 @@ function DialerPageInner() {
                         <span className="font-mono text-foreground">{currentLead.properties?.owner_phone ?? "No phone"}</span>
                         <span className="text-muted-foreground/40">|</span>
                         <span>ARV <span className="text-foreground font-medium">{currentLead.properties?.estimated_value ? `$${currentLead.properties.estimated_value.toLocaleString()}` : "—"}</span></span>
-                        <span>Equity <span className="text-foreground font-medium">{currentLead.properties?.equity_percent != null ? `${currentLead.properties.equity_percent}%` : "—"}</span></span>
                         {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
-                        <span>Owed <span className="text-foreground font-medium">{(currentLead.properties as any)?.total_loan_balance ? `$${Number((currentLead.properties as any).total_loan_balance).toLocaleString()}` : (currentLead.properties as any)?.owner_flags?.is_free_clear ? "Free & Clear" : "—"}</span></span>
+                        <span>Equity <span className="text-foreground font-medium">{(() => {
+                          const p = currentLead.properties as any;
+                          if (p?.equity_percent != null) return `${p.equity_percent}%`;
+                          const flags = p?.owner_flags as Record<string, unknown> | null;
+                          const avail = Number(flags?.available_equity);
+                          if (avail > 0) return `$${avail.toLocaleString()}`;
+                          const arv = p?.estimated_value;
+                          const loan = Number(flags?.total_loan_balance ?? p?.total_loan_balance);
+                          if (arv && loan > 0) {
+                            const eq = arv - loan;
+                            return eq >= 0 ? `$${eq.toLocaleString()}` : `-$${Math.abs(eq).toLocaleString()}`;
+                          }
+                          if (flags?.is_free_clear || flags?.freeAndClear) return "100%";
+                          return "—";
+                        })()}</span></span>
                         <span className="text-muted-foreground/40">|</span>
                         {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
                         <span>{(currentLead.properties as any)?.bedrooms ?? "—"}bd/{(currentLead.properties as any)?.bathrooms ?? "—"}ba</span>
