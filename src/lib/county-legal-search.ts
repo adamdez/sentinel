@@ -13,6 +13,17 @@
 const FIRECRAWL_SCRAPE = "https://api.firecrawl.dev/v1/scrape";
 const FIRECRAWL_SEARCH = "https://api.firecrawl.dev/v1/search";
 
+// ── Owner name parsing ────────────────────────────────────────────────────────
+
+function parseOwnerName(fullName: string): { last: string; first: string; middle: string } {
+  const cleaned = fullName.replace(/\s+/g, " ").trim();
+  const parts = cleaned.split(/\s+/);
+  if (parts.length === 0) return { last: "", first: "", middle: "" };
+  if (parts.length === 1) return { last: parts[0], first: "", middle: "" };
+  // "Last First M" format (most common in county records / CSV imports)
+  return { last: parts[0], first: parts[1], middle: parts.slice(2).join(" ") };
+}
+
 // ── Types ────────────────────────────────────────────────────────────────────
 
 export interface LegalSearchInput {
@@ -109,24 +120,34 @@ async function firecrawlScrape(
   url: string,
   schema: Record<string, unknown>,
   apiKey: string,
+  actions?: Array<Record<string, unknown>>,
 ): Promise<{ extract: Record<string, unknown> | null; markdown: string }> {
   try {
+    const body: Record<string, unknown> = {
+      url,
+      formats: ["extract", "markdown"],
+      extract: { schema },
+      timeout: 30000,
+    };
+    if (actions && actions.length > 0) {
+      body.actions = actions;
+    }
     const res = await fetch(FIRECRAWL_SCRAPE, {
       method: "POST",
       headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
-      body: JSON.stringify({
-        url,
-        formats: ["extract", "markdown"],
-        extract: { schema },
-      }),
+      body: JSON.stringify(body),
     });
-    if (!res.ok) return { extract: null, markdown: "" };
+    if (!res.ok) {
+      console.warn(`[LegalSearch] Firecrawl scrape failed: ${res.status} ${res.statusText}`);
+      return { extract: null, markdown: "" };
+    }
     const json = await res.json();
     return {
       extract: json.data?.extract ?? null,
-      markdown: (json.data?.markdown ?? "").slice(0, 5000),
+      markdown: (json.data?.markdown ?? "").slice(0, 8000),
     };
-  } catch {
+  } catch (err) {
+    console.warn("[LegalSearch] Firecrawl scrape error:", err);
     return { extract: null, markdown: "" };
   }
 }
@@ -230,38 +251,52 @@ async function searchRecorder(
   apiKey: string,
 ): Promise<NormalizedDocument[]> {
   const docs: NormalizedDocument[] = [];
+  const { last, first } = parseOwnerName(input.ownerName);
+  const nameQuery = last.toUpperCase();
 
-  // Direct scrape of the recorder guest portal
+  // Strategy 1: Use Firecrawl actions to interact with the recorder search form.
+  // The guest login at loginPOST.jsp?guest=true auto-redirects to the search page.
+  // We fill the name field and submit to get actual search results.
   const recorderUrl = `https://recording.spokanecounty.org/recorder/web/loginPOST.jsp?guest=true`;
+  const formActions = [
+    { type: "wait", milliseconds: 3000 },
+    { type: "write", text: nameQuery, selector: "input[type='text']" },
+    { type: "press", key: "Enter" },
+    { type: "wait", milliseconds: 5000 },
+  ];
   const { extract: recorderExtract, markdown: recorderMd } = await firecrawlScrape(
     recorderUrl,
     RECORDER_SCHEMA,
     apiKey,
+    formActions,
   );
 
-  // Also do a targeted Firecrawl search for recorded documents
+  console.log(`[LegalSearch:Recorder] Form search for "${nameQuery}" → ${(recorderExtract?.documents as unknown[])?.length ?? 0} docs extracted`);
+
+  // Strategy 2: Targeted web searches for this person's recorded documents.
+  // County recorder databases aren't Google-indexed, but foreclosure notices,
+  // trustee sales, and court filings often appear on legal notice sites.
   const searchQueries = [
-    `"${input.ownerName}" "Spokane County" recorder deed OR lien OR assignment site:spokanecounty.org`,
-    `"${input.ownerName}" "Spokane County" "deed of trust" OR "lis pendens" OR "foreclosure"`,
+    `"${last}" "${first || ""}" Spokane County "notice of default" OR "lis pendens" OR "trustee sale" OR foreclosure`,
+    `"${last}" "${input.address}" Spokane County deed OR lien OR "deed of trust" OR assignment`,
+    `"${input.address}" Spokane County recorder "recorded documents" OR "instrument"`,
   ];
 
   const searchResults = await Promise.all(
-    searchQueries.map((q) => firecrawlSearch(q, apiKey, 3)),
+    searchQueries.map((q) => firecrawlSearch(q, apiKey, 4)),
   );
 
-  // Scrape each search result page with the recorder extraction schema
   const resultUrls = searchResults
     .flat()
     .map((r) => r.url)
     .filter((u) => u && !u.includes("google.") && !u.includes("bing."));
 
-  const scrapePromises = resultUrls.slice(0, 5).map((url) =>
+  const scrapePromises = resultUrls.slice(0, 6).map((url) =>
     firecrawlScrape(url, RECORDER_SCHEMA, apiKey),
   );
 
   const scrapeResults = await Promise.allSettled(scrapePromises);
 
-  // Combine direct recorder data + search-scraped data
   const allExtracts: Array<{ extract: Record<string, unknown> | null; markdown: string; url: string }> = [
     { extract: recorderExtract, markdown: recorderMd, url: recorderUrl },
   ];
@@ -317,27 +352,29 @@ async function searchCourts(
   apiKey: string,
 ): Promise<NormalizedDocument[]> {
   const docs: NormalizedDocument[] = [];
+  const { last, first } = parseOwnerName(input.ownerName);
 
-  // Search WA Courts directly
-  const courtUrl = `https://dw.courts.wa.gov/index.cfm?fa=home.casesearch&terms=accept&county=32`;
+  // Strategy 1: Construct a direct WA Courts name search URL.
+  // This submits the search server-side — no form interaction needed.
+  const courtSearchUrl = `https://dw.courts.wa.gov/index.cfm?fa=home.namesearchresult&terms=accept&county=32&last=${encodeURIComponent(last)}&first=${encodeURIComponent(first)}&middle=&SearchType=&SearchMode=&SoundexType=&partyType=&courtClassCode=&caseYear=&casePinNumber=&DisableSessionCheck=0&CaseSearchType=`;
   const { extract: courtExtract, markdown: courtMd } = await firecrawlScrape(
-    courtUrl,
+    courtSearchUrl,
     COURT_CASE_SCHEMA,
     apiKey,
   );
 
-  // Also use Firecrawl search to find court records for this person
+  console.log(`[LegalSearch:Courts] Direct search for "${last}, ${first}" → ${(courtExtract?.cases as unknown[])?.length ?? 0} cases extracted, ${courtMd.length} chars markdown`);
+
+  // Strategy 2: Web search fallback for broader results
   const searchQueries = [
-    `"${input.ownerName}" "Spokane County" probate OR estate OR "personal representative"`,
-    `"${input.ownerName}" "Spokane County" foreclosure OR "trustee sale" OR bankruptcy`,
-    `"${input.ownerName}" "Spokane" court case OR judgment OR divorce`,
+    `"${last}" "${first || ""}" "Spokane County" probate OR estate OR foreclosure OR bankruptcy`,
+    `"${last}" "${first || ""}" "Spokane" court case OR judgment OR "trustee sale"`,
   ];
 
   const searchResults = await Promise.all(
-    searchQueries.map((q) => firecrawlSearch(q, apiKey, 3)),
+    searchQueries.map((q) => firecrawlSearch(q, apiKey, 4)),
   );
 
-  // Scrape promising court result pages
   const resultUrls = searchResults
     .flat()
     .map((r) => r.url)
@@ -345,7 +382,7 @@ async function searchCourts(
       u &&
       !u.includes("google.") &&
       !u.includes("bing.") &&
-      (u.includes("courts.") || u.includes("court") || u.includes("docket") || u.includes("case")),
+      (u.includes("courts.") || u.includes("court") || u.includes("docket") || u.includes("case") || u.includes("legal")),
     );
 
   const scrapePromises = resultUrls.slice(0, 4).map((url) =>
@@ -355,7 +392,7 @@ async function searchCourts(
   const scrapeResults = await Promise.allSettled(scrapePromises);
 
   const allExtracts: Array<{ extract: Record<string, unknown> | null; markdown: string; url: string }> = [
-    { extract: courtExtract, markdown: courtMd, url: courtUrl },
+    { extract: courtExtract, markdown: courtMd, url: courtSearchUrl },
   ];
 
   scrapeResults.forEach((r, i) => {
@@ -364,8 +401,7 @@ async function searchCourts(
     }
   });
 
-  // Also extract from search result markdown directly (sometimes cases are listed
-  // in the search snippet without needing a follow-up scrape)
+  // Extract cases from search snippet markdown (case numbers in text)
   for (const resultSet of searchResults) {
     for (const result of resultSet) {
       if (result.markdown) {
@@ -373,6 +409,12 @@ async function searchCourts(
         docs.push(...inlineCases);
       }
     }
+  }
+
+  // Also try extracting cases from the direct court search markdown
+  if (courtMd) {
+    const inlineCases = extractCasesFromText(courtMd, courtSearchUrl);
+    docs.push(...inlineCases);
   }
 
   for (const { extract, markdown, url } of allExtracts) {
@@ -474,27 +516,25 @@ function normalizeDate(dateStr: string): string | null {
   }
 }
 
-// ── Crawler 3: County liens page ─────────────────────────────────────────────
+// ── Crawler 3: County liens + foreclosure notices ────────────────────────────
 
 async function searchLiens(
   input: LegalSearchInput,
   apiKey: string,
 ): Promise<NormalizedDocument[]> {
   const docs: NormalizedDocument[] = [];
+  const { last, first } = parseOwnerName(input.ownerName);
 
-  // Direct scrape of Spokane County liens page
-  const liensUrl = `https://www.spokanecounty.org/681/Liens`;
-  const { extract: lienExtract, markdown: lienMd } = await firecrawlScrape(
-    liensUrl,
-    LIEN_SCHEMA,
-    apiKey,
-  );
+  // Search for this person's liens, foreclosure notices, and trustee sales
+  // across public notice sites, county records, and legal databases
+  const searchQueries = [
+    `"${last}" "${first || ""}" Spokane County lien OR "tax lien" OR "mechanic lien" OR judgment`,
+    `"${last}" "${input.address}" "notice of trustee" OR "foreclosure" OR "notice of default" Spokane`,
+    `"${input.address}" Spokane County "deed of trust" OR lien OR encumbrance`,
+  ];
 
-  // Search for liens specific to owner/address
-  const searchResults = await firecrawlSearch(
-    `"${input.ownerName}" OR "${input.address}" "Spokane County" lien OR "tax lien" OR "mechanic lien" OR "utility lien"`,
-    apiKey,
-    3,
+  const searchResults = await Promise.all(
+    searchQueries.map((q) => firecrawlSearch(q, apiKey, 4)),
   );
 
   const resultUrls = searchResults
@@ -503,12 +543,10 @@ async function searchLiens(
     .filter((u) => u && !u.includes("google.") && !u.includes("bing."));
 
   const scrapeResults = await Promise.allSettled(
-    resultUrls.slice(0, 3).map((url) => firecrawlScrape(url, LIEN_SCHEMA, apiKey)),
+    resultUrls.slice(0, 5).map((url) => firecrawlScrape(url, LIEN_SCHEMA, apiKey)),
   );
 
-  const allExtracts: Array<{ extract: Record<string, unknown> | null; markdown: string; url: string }> = [
-    { extract: lienExtract, markdown: lienMd, url: liensUrl },
-  ];
+  const allExtracts: Array<{ extract: Record<string, unknown> | null; markdown: string; url: string }> = [];
 
   scrapeResults.forEach((r, i) => {
     if (r.status === "fulfilled") {

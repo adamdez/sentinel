@@ -369,7 +369,7 @@ export function LegalBriefPanel({ leadId }: LegalBriefPanelProps) {
 
                     {/* Expanded detail */}
                     {isExpanded && (
-                      <div className="ml-[6.5rem] pl-3 border-l border-glass-border pb-3 mb-1 space-y-1.5">
+                      <div className="ml-[6.5rem] pl-4 border-l-2 border-glass-border pb-4 mb-2 space-y-2.5 pt-1">
                         {doc.instrument_number && (
                           <DetailRow label="Instrument #" value={doc.instrument_number} />
                         )}
@@ -395,13 +395,13 @@ export function LegalBriefPanel({ leadId }: LegalBriefPanelProps) {
                             href={doc.source_url}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="inline-flex items-center gap-1 text-[11px] text-primary-300/70 hover:text-primary-300 mt-1"
+                            className="inline-flex items-center gap-1.5 text-sm text-primary-300/70 hover:text-primary-300 mt-2"
                           >
-                            <ExternalLink className="h-3 w-3" /> View source
+                            <ExternalLink className="h-4 w-4" /> View source
                           </a>
                         )}
                         {doc.raw_excerpt && (
-                          <p className="text-[10px] text-muted-foreground/40 mt-2 line-clamp-3 font-mono leading-relaxed">
+                          <p className="text-xs text-muted-foreground/40 mt-3 line-clamp-4 font-mono leading-relaxed">
                             {doc.raw_excerpt}
                           </p>
                         )}
@@ -557,9 +557,9 @@ export function LegalBriefPanel({ leadId }: LegalBriefPanelProps) {
 
 function DetailRow({ label, value }: { label: string; value: string }) {
   return (
-    <div className="flex gap-2 text-[11px]">
-      <span className="text-muted-foreground/40 w-20 shrink-0">{label}</span>
-      <span className="text-foreground/60">{value}</span>
+    <div className="flex gap-3 text-sm">
+      <span className="text-muted-foreground/40 w-28 shrink-0">{label}</span>
+      <span className="text-foreground/70">{value}</span>
     </div>
   );
 }
