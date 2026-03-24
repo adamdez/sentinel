@@ -94,9 +94,7 @@ async function handleBrowserVoice(req: NextRequest) {
     callerId = process.env.TWILIO_PHONE_NUMBER || "";
   }
 
-  // Build webhook URLs
-  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL
-    ?? (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "");
+  // Build webhook URLs (reuse siteUrl from signature validation above)
 
   // PR2: thread sessionId through callback URLs so the status webhook can
   // forward it to the internal dialer session sync route.
