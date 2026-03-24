@@ -1263,7 +1263,7 @@ export async function POST(req: NextRequest) {
       if (propErr || !upserted) {
         console.error("[API/prospects] Property upsert failed:", propErr);
         return NextResponse.json(
-          { error: "Internal server error" },
+          { error: "Internal server error", detail: `Property upsert failed: ${propErr?.message ?? propErr?.code ?? "no data returned"}`, code: propErr?.code ?? null },
           { status: 500 }
         );
       }
@@ -1308,7 +1308,7 @@ export async function POST(req: NextRequest) {
     if (leadErr || !lead) {
       console.error("[API/prospects] Lead insert failed:", leadErr);
       return NextResponse.json(
-        { error: "Internal server error" },
+        { error: "Internal server error", detail: `Lead insert failed: ${leadErr?.message ?? leadErr?.code ?? "no data returned"}`, code: leadErr?.code ?? null },
         { status: 500 }
       );
     }
@@ -1780,9 +1780,11 @@ export async function POST(req: NextRequest) {
           : "Queued for automatic enrichment (runs every 15 min)",
     });
   } catch (err) {
-    console.error("[API/prospects] Unexpected error:", err);
+    const msg = err instanceof Error ? err.message : String(err);
+    const stack = err instanceof Error ? err.stack?.split("\n").slice(0, 3).join(" | ") : undefined;
+    console.error("[API/prospects] Unexpected error:", msg, stack);
     return NextResponse.json(
-      { error: "Internal server error" },
+      { error: "Internal server error", detail: msg, stack },
       { status: 500 }
     );
   }
