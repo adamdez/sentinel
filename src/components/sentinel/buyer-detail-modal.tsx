@@ -5,12 +5,12 @@ import { motion, AnimatePresence } from "framer-motion";
 import {
   X, Phone, Mail, MessageSquare, Shield,
   Tag, StickyNote, Building2, MapPin,
-  ChevronDown, Trash2, BarChart3,
+  ChevronDown, Trash2, BarChart3, Loader2, UserX,
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
-import { useBuyerStats, updateBuyer, createBuyer } from "@/hooks/use-buyers";
+import { useBuyerStats, updateBuyer, createBuyer, deleteBuyer } from "@/hooks/use-buyers";
 import type { BuyerRow } from "@/lib/buyer-types";
 import { fmtPrice } from "@/lib/display-helpers";
 import {
@@ -33,6 +33,8 @@ interface BuyerDetailModalProps {
   open: boolean;
   onClose: () => void;
   onSaved?: (buyer: BuyerRow) => void;
+  /** Called after a buyer is permanently deleted (refresh list). */
+  onDeleted?: () => void;
   isCreate?: boolean;
 }
 
@@ -126,10 +128,11 @@ function PillToggle({ value, selected, onToggle, label }: {
 
 // ── Component ──
 
-export function BuyerDetailModal({ buyer, open, onClose, onSaved, isCreate }: BuyerDetailModalProps) {
+export function BuyerDetailModal({ buyer, open, onClose, onSaved, onDeleted, isCreate }: BuyerDetailModalProps) {
   // Form state
   const [form, setForm] = useState<Partial<BuyerRow>>({});
   const [saving, setSaving] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   // Default: Contact, Buy Box, and Performance expanded; others collapsed
   const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>({
     pof: true,
@@ -224,6 +227,29 @@ export function BuyerDetailModal({ buyer, open, onClose, onSaved, isCreate }: Bu
       setSaving(false);
     }
   }, [buyer?.id, onSaved, onClose]);
+
+  const handleDelete = useCallback(async () => {
+    if (!buyer?.id) return;
+    const name = form.contact_name?.trim() || buyer.contact_name?.trim() || "this buyer";
+    if (
+      !window.confirm(
+        `Permanently delete ${name}? This removes the buyer record. Linked deal-buyer rows are removed. This cannot be undone.`,
+      )
+    ) {
+      return;
+    }
+    setDeleting(true);
+    try {
+      await deleteBuyer(buyer.id);
+      toast.success("Buyer deleted");
+      onDeleted?.();
+      onClose();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to delete buyer");
+    } finally {
+      setDeleting(false);
+    }
+  }, [buyer?.id, buyer?.contact_name, form.contact_name, onDeleted, onClose]);
 
   if (!open) return null;
 
@@ -556,27 +582,42 @@ export function BuyerDetailModal({ buyer, open, onClose, onSaved, isCreate }: Bu
             </div>
 
             {/* ── Footer ── */}
-            <div className="flex items-center gap-3 pt-2 border-t border-overlay-4">
+            <div className="flex flex-wrap items-center gap-3 pt-2 border-t border-overlay-4">
               {!isCreate && (
-                <button
-                  onClick={handleDeactivate}
-                  disabled={saving || form.status === "inactive"}
-                  className="flex items-center gap-1.5 px-3 py-1.5 text-xs text-foreground/80 hover:text-foreground hover:bg-muted/10 rounded-[8px] border border-transparent hover:border-border/20 transition-all disabled:opacity-40"
-                >
-                  <Trash2 className="h-3 w-3" />
-                  Deactivate
-                </button>
+                <>
+                  <button
+                    type="button"
+                    onClick={handleDeactivate}
+                    disabled={saving || deleting || form.status === "inactive"}
+                    className="flex items-center gap-1.5 px-3 py-1.5 text-xs text-foreground/80 hover:text-foreground hover:bg-muted/10 rounded-[8px] border border-transparent hover:border-border/20 transition-all disabled:opacity-40"
+                  >
+                    <UserX className="h-3 w-3" />
+                    Deactivate
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleDelete}
+                    disabled={saving || deleting}
+                    className="flex items-center gap-1.5 px-3 py-1.5 text-xs text-red-400 hover:text-red-300 hover:bg-red-500/10 rounded-[8px] border border-red-500/20 hover:border-red-500/35 transition-all disabled:opacity-40"
+                  >
+                    {deleting ? <Loader2 className="h-3 w-3 animate-spin" /> : <Trash2 className="h-3 w-3" />}
+                    Delete buyer
+                  </button>
+                </>
               )}
-              <div className="flex-1" />
+              <div className="flex-1 min-w-[1rem]" />
               <button
+                type="button"
                 onClick={onClose}
-                className="px-4 py-1.5 text-sm text-muted-foreground hover:text-foreground rounded-[8px] border border-overlay-6 hover:border-overlay-12 transition-all"
+                disabled={deleting}
+                className="px-4 py-1.5 text-sm text-muted-foreground hover:text-foreground rounded-[8px] border border-overlay-6 hover:border-overlay-12 transition-all disabled:opacity-40"
               >
                 Cancel
               </button>
               <button
+                type="button"
                 onClick={handleSave}
-                disabled={saving}
+                disabled={saving || deleting}
                 className="px-4 py-1.5 text-sm font-medium text-primary bg-primary/10 hover:bg-primary/15 rounded-[8px] border border-primary/25 hover:border-primary/40 transition-all disabled:opacity-50"
               >
                 {saving ? "Saving..." : isCreate ? "Create Buyer" : "Save Changes"}

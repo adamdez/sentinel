@@ -186,6 +186,18 @@ export async function updateBuyer(id: string, data: Partial<BuyerRow>): Promise<
   return buyer;
 }
 
+export async function deleteBuyer(id: string): Promise<void> {
+  const headers = await getAuthHeaders();
+  const res = await window.fetch(`/api/buyers/${id}`, {
+    method: "DELETE",
+    headers,
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(body.error || "Failed to delete buyer");
+  }
+}
+
 export async function linkBuyerToDeal(dealId: string, buyerId: string, extra?: Partial<DealBuyerRow>): Promise<DealBuyerRow> {
   const headers = await getAuthHeaders();
   const res = await window.fetch("/api/deal-buyers", {

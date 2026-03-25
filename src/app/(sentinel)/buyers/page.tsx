@@ -262,6 +262,7 @@ export default function BuyersPage() {
         open={modalOpen}
         onClose={handleClose}
         onSaved={handleSaved}
+        onDeleted={refetch}
         isCreate={isCreate}
       />
 
