@@ -72,8 +72,27 @@ export async function POST(req: NextRequest) {
       if (!a.is_primary && b.is_primary) return 1;
       return (a.position ?? 999) - (b.position ?? 999);
     });
-    const bestPhone = sorted[0]?.phone;
+    let bestPhone = sorted[0]?.phone;
     const ownerName = (lead.properties as Record<string, unknown>)?.owner_name as string || "Unknown";
+
+    // Fallback: if lead_phones is empty, check auto-cycle phones (Jeff flow)
+    if (!bestPhone) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data: cyclePhones } = await (sb.from("dialer_auto_cycle_phones") as any)
+        .select("phone, phone_status")
+        .eq("cycle_lead_id", (
+          await (sb.from("dialer_auto_cycle_leads") as any)
+            .select("id")
+            .eq("lead_id", lead.id)
+            .in("cycle_status", ["ready", "waiting", "paused"])
+            .maybeSingle()
+        ).data?.id ?? "00000000-0000-0000-0000-000000000000")
+        .eq("phone_status", "active")
+        .order("phone_position", { ascending: true })
+        .limit(1);
+
+      bestPhone = cyclePhones?.[0]?.phone;
+    }
 
     if (!bestPhone) {
       skipped.push({ leadId: lead.id, reason: "No phone number" });

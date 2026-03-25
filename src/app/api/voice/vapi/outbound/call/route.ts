@@ -72,6 +72,25 @@ export async function POST(req: NextRequest) {
     });
     phone = sorted[0]?.phone;
   }
+  // Fallback: check auto-cycle phones if lead_phones is empty
+  if (!phone) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: cycleRow } = await (sb.from("dialer_auto_cycle_leads") as any)
+      .select("id")
+      .eq("lead_id", leadId)
+      .in("cycle_status", ["ready", "waiting", "paused"])
+      .maybeSingle();
+    if (cycleRow) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data: acPhones } = await (sb.from("dialer_auto_cycle_phones") as any)
+        .select("phone")
+        .eq("cycle_lead_id", cycleRow.id)
+        .eq("phone_status", "active")
+        .order("phone_position", { ascending: true })
+        .limit(1);
+      phone = acPhones?.[0]?.phone;
+    }
+  }
   if (!phone) {
     return NextResponse.json({ error: "Lead has no phone number" }, { status: 400 });
   }
