@@ -55,6 +55,7 @@ import { UnlinkedCallsFolder } from "@/components/sentinel/unlinked-calls-folder
 import { JeffMessagesBanner } from "@/components/sentinel/jeff-messages-banner";
 import { SmsMessagesPanel } from "@/components/sentinel/sms-messages-panel";
 import type { LeadPhone } from "@/lib/dialer/types";
+import type { JeffCallStatus } from "@/lib/dialer/jeff-batch-types";
 import { useTwilio } from "@/providers/twilio-provider";
 
 async function authHeaders(): Promise<Record<string, string>> {
@@ -633,6 +634,8 @@ function toE164(raw: string): string {
   return `+1${digits.slice(0, 10)}`;
 }
 
+type DialerMode = "queue" | "autoCycle" | "jeff";
+
 function DialerPageInner() {
   const { currentUser, ghostMode } = useSentinelStore();
   const { queue, loading: queueLoading, refetch: refetchQueue } = useDialerQueue(7);
@@ -642,7 +645,8 @@ function DialerPageInner() {
 
   const [callState, setCallState] = useState<CallState>("idle");
   const [currentLead, setCurrentLead] = useState<QueueLead | null>(null);
-  const [autoCycleMode, setAutoCycleMode] = useState(false);
+  const [dialerMode, setDialerMode] = useState<DialerMode>("queue");
+  const autoCycleMode = dialerMode !== "queue";
   const [currentDialedPhone, setCurrentDialedPhone] = useState<string | null>(null);
   const [currentCallLogId, setCurrentCallLogId] = useState<string | null>(null);
   const [dialerSessionId, setDialerSessionId] = useState<string | null>(null); // PR3b: survives call end for PostCallPanel publish
@@ -651,6 +655,11 @@ function DialerPageInner() {
   const [dispositionPending, setDispositionPending] = useState(false);
   const [smsLoading, setSmsLoading] = useState(false);
   const [transferStatus, setTransferStatus] = useState<string | null>(null);
+
+  // Jeff batch state
+  const [jeffSelectedLeads, setJeffSelectedLeads] = useState<Set<string>>(new Set());
+  const [jeffBatchInProgress, setJeffBatchInProgress] = useState(false);
+  const [jeffLeadStatuses, setJeffLeadStatuses] = useState<Map<string, JeffCallStatus>>(new Map());
 
   // Phone cycling roster — fetched from lead_phones API when a lead is loaded
   const [leadPhones, setLeadPhones] = useState<LeadPhone[]>([]);
@@ -1008,7 +1017,7 @@ function DialerPageInner() {
         return;
       }
       await refetchAutoCycle();
-      setAutoCycleMode(true);
+      setDialerMode("autoCycle");
       toast.success("Lead added to Auto Cycle");
     } catch {
       toast.error("Could not add lead to Auto Cycle");
@@ -1037,6 +1046,62 @@ function DialerPageInner() {
     }
   }, [autoCycleMode, currentLead?.id, refetchAutoCycle]);
 
+  // ── Jeff batch handlers ──────────────────────────────────────────────
+  const jeffReadyLeads = useMemo(
+    () => autoCycleQueue.filter((l) => l.autoCycle.readyNow),
+    [autoCycleQueue],
+  );
+
+  const handleJeffToggle = useCallback((leadId: string) => {
+    setJeffSelectedLeads((prev) => {
+      const next = new Set(prev);
+      if (next.has(leadId)) next.delete(leadId);
+      else next.add(leadId);
+      return next;
+    });
+  }, []);
+
+  const handleJeffSelectAllReady = useCallback(() => {
+    setJeffSelectedLeads((prev) => {
+      const allReadyIds = new Set(jeffReadyLeads.map((l) => l.id));
+      const allSelected = jeffReadyLeads.every((l) => prev.has(l.id));
+      return allSelected ? new Set<string>() : allReadyIds;
+    });
+  }, [jeffReadyLeads]);
+
+  const handleSendJeff = useCallback(async () => {
+    if (jeffSelectedLeads.size === 0) return;
+    setJeffBatchInProgress(true);
+    try {
+      const res = await fetch("/api/voice/vapi/outbound/batch", {
+        method: "POST",
+        headers: await authHeaders(),
+        body: JSON.stringify({ leadIds: Array.from(jeffSelectedLeads) }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        toast.error(data.error ?? "Could not send Jeff batch");
+        return;
+      }
+      const skippedIds = new Set((data.skipped ?? []).map((s: { leadId: string }) => s.leadId));
+      const newStatuses = new Map(jeffLeadStatuses);
+      for (const id of jeffSelectedLeads) {
+        newStatuses.set(id, skippedIds.has(id) ? "skipped" : "queued");
+      }
+      setJeffLeadStatuses(newStatuses);
+      setJeffSelectedLeads(new Set());
+      const queuedCount = jeffSelectedLeads.size - skippedIds.size;
+      if (queuedCount > 0) toast.success(`Jeff is calling ${queuedCount} lead${queuedCount === 1 ? "" : "s"}...`);
+      if (skippedIds.size > 0) {
+        const reasons = (data.skipped ?? []).map((s: { leadId: string; reason: string }) => s.reason).join(", ");
+        toast.warning(`${skippedIds.size} skipped: ${reasons}`);
+      }
+    } catch {
+      toast.error("Could not send Jeff batch");
+    } finally {
+      setJeffBatchInProgress(false);
+    }
+  }, [jeffSelectedLeads, jeffLeadStatuses]);
 
   // ── Incoming call handler — attached to provider-managed Device ──
   useEffect(() => {
@@ -2776,21 +2841,28 @@ function DialerPageInner() {
             <div className="flex items-center justify-between mb-3">
               <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
                 <Users className="h-3.5 w-3.5 text-primary" />
-                {autoCycleMode ? "Auto Cycle" : "Dial Queue"}
-                <CallSequenceGuide />
+                {dialerMode === "jeff" ? "Jeff" : autoCycleMode ? "Auto Cycle" : "Dial Queue"}
+                {dialerMode !== "jeff" && <CallSequenceGuide />}
               </h2>
               <div className="flex items-center gap-2">
-                <button
-                  onClick={() => setAutoCycleMode((value) => !value)}
-                  className={cn(
-                    "rounded-[8px] border px-2 py-1 text-[11px] uppercase tracking-wider transition-colors",
-                    autoCycleMode
-                      ? "border-primary/25 bg-primary/10 text-primary"
-                      : "border-border/20 text-muted-foreground/60 hover:text-foreground",
-                  )}
-                >
-                  {autoCycleMode ? "Auto Cycle On" : "Normal Queue"}
-                </button>
+                <div className="flex items-center gap-0.5 rounded-[8px] border border-border/20 p-0.5">
+                  {([["queue", "Queue"], ["autoCycle", "Auto Cycle"], ["jeff", "Jeff"]] as const).map(([mode, label]) => (
+                    <button
+                      key={mode}
+                      onClick={() => setDialerMode(mode)}
+                      className={cn(
+                        "px-2 py-1 rounded-[6px] text-[11px] uppercase tracking-wider transition-colors",
+                        dialerMode === mode
+                          ? mode === "jeff"
+                            ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/25"
+                            : "bg-primary/10 text-primary border border-primary/25"
+                          : "text-muted-foreground/60 hover:text-foreground border border-transparent",
+                      )}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
                 <button
                   onClick={handleModalRefresh}
                   className="text-sm text-muted-foreground/60 hover:text-foreground transition-colors"
@@ -2800,12 +2872,139 @@ function DialerPageInner() {
               </div>
             </div>
             <p className="text-sm text-muted-foreground/50 mb-2">
-              {autoCycleMode
-                ? "Ready-now leads float to the top, then the next retry due."
-                : "Overdue first, then due today, then unscheduled."}
+              {dialerMode === "jeff"
+                ? "Select ready leads and send Jeff to call them."
+                : autoCycleMode
+                  ? "Ready-now leads float to the top, then the next retry due."
+                  : "Overdue first, then due today, then unscheduled."}
             </p>
 
-            {displayedQueueLoading ? (
+            {dialerMode === "jeff" ? (
+              /* ── Jeff Tab ──────────────────────────────────────────── */
+              <>
+                <div className="flex items-center gap-2 mb-3">
+                  <button
+                    onClick={handleJeffSelectAllReady}
+                    className="text-xs text-muted-foreground/60 hover:text-foreground transition-colors underline underline-offset-2"
+                  >
+                    {jeffReadyLeads.length > 0 && jeffReadyLeads.every((l) => jeffSelectedLeads.has(l.id))
+                      ? "Deselect All"
+                      : "Select All Ready"}
+                  </button>
+                  <div className="flex-1" />
+                  <span className="text-xs text-muted-foreground/50 tabular-nums">
+                    {jeffSelectedLeads.size} selected
+                  </span>
+                  <button
+                    onClick={handleSendJeff}
+                    disabled={jeffSelectedLeads.size === 0 || jeffBatchInProgress}
+                    className={cn(
+                      "px-4 py-1.5 rounded-[10px] text-xs font-bold transition-all border",
+                      jeffSelectedLeads.size > 0 && !jeffBatchInProgress
+                        ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/25 hover:bg-emerald-500/20 hover:border-emerald-500/35 shadow-[0_0_12px_rgba(16,185,129,0.08)]"
+                        : "bg-secondary/10 text-muted-foreground/30 border-transparent cursor-not-allowed",
+                    )}
+                  >
+                    {jeffBatchInProgress ? (
+                      <span className="flex items-center gap-1.5"><Loader2 className="h-3 w-3 animate-spin" /> Sending…</span>
+                    ) : (
+                      `Send Jeff (${jeffSelectedLeads.size})`
+                    )}
+                  </button>
+                </div>
+
+                {autoCycleLoading ? (
+                  <div className="space-y-2">
+                    {[1, 2, 3, 4].map((i) => (
+                      <div key={i} className="h-14 rounded-[12px] bg-secondary/20 animate-pulse" />
+                    ))}
+                  </div>
+                ) : autoCycleQueue.length === 0 ? (
+                  <div className="text-center py-6 space-y-3">
+                    <Zap className="h-6 w-6 mx-auto text-emerald-400/30" />
+                    <p className="text-xs text-muted-foreground/50">No auto-cycle leads — add leads to Auto Cycle first</p>
+                  </div>
+                ) : (
+                  <div className="space-y-1.5">
+                    {autoCycleQueue.map((lead) => {
+                      const isReady = lead.autoCycle.readyNow;
+                      const isSelected = jeffSelectedLeads.has(lead.id);
+                      const jeffStatus = jeffLeadStatuses.get(lead.id);
+                      const phone = lead.autoCyclePhones?.[0]?.phone ?? lead.properties?.owner_phone ?? "No phone";
+                      const fmtPhone = (() => { const d = phone.replace(/\D/g, "").slice(-10); return d.length === 10 ? `(${d.slice(0,3)}) ${d.slice(3,6)}-${d.slice(6)}` : phone; })();
+
+                      return (
+                        <div
+                          key={lead.id}
+                          onClick={() => isReady && !jeffStatus && handleJeffToggle(lead.id)}
+                          className={cn(
+                            "w-full text-left rounded-[12px] p-2.5 transition-all duration-200 border",
+                            isSelected
+                              ? "bg-emerald-500/[0.04] border-emerald-500/20"
+                              : isReady && !jeffStatus
+                                ? "bg-secondary/10 border-transparent hover:bg-secondary/20 cursor-pointer"
+                                : "bg-secondary/5 border-transparent opacity-50 cursor-default",
+                          )}
+                        >
+                          <div className="space-y-0.5">
+                            <div className="flex items-center gap-2">
+                              <span
+                                className={cn(
+                                  "flex h-4 w-4 shrink-0 items-center justify-center rounded border transition-colors",
+                                  isSelected
+                                    ? "border-emerald-500/50 bg-emerald-500/20"
+                                    : "border-border/30 bg-transparent",
+                                  (!isReady || !!jeffStatus) && "opacity-40",
+                                )}
+                              >
+                                {isSelected && <CheckCircle2 className="h-3 w-3 text-emerald-400" />}
+                              </span>
+                              <p className="text-sm font-medium truncate flex-1 min-w-0">
+                                {lead.properties?.owner_name ?? "Unknown"}
+                              </p>
+                              {jeffStatus && (
+                                <span className={cn(
+                                  "rounded-[7px] px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider border",
+                                  jeffStatus === "queued" && "border-emerald-500/20 bg-emerald-500/10 text-emerald-400",
+                                  jeffStatus === "calling" && "border-blue-500/20 bg-blue-500/10 text-blue-400 animate-pulse",
+                                  jeffStatus === "transferred" && "border-primary/20 bg-primary/10 text-primary",
+                                  jeffStatus === "completed" && "border-emerald-500/20 bg-emerald-500/10 text-emerald-300",
+                                  jeffStatus === "failed" && "border-red-500/20 bg-red-500/10 text-red-400",
+                                  jeffStatus === "skipped" && "border-amber-500/20 bg-amber-500/10 text-amber-400",
+                                )}>
+                                  {jeffStatus}
+                                </span>
+                              )}
+                            </div>
+                            <div className="flex items-center gap-2 pl-6">
+                              <span className="text-xs text-muted-foreground/70 font-mono">{fmtPhone}</span>
+                            </div>
+                            <div className="flex flex-wrap items-center gap-1.5 pl-6 pt-1">
+                              <span className="rounded-[7px] border border-primary/15 bg-primary/[0.06] px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-primary/80">
+                                Round {lead.autoCycle.currentRound}
+                              </span>
+                              <span className="rounded-[7px] border border-overlay-6 bg-overlay-3 px-1.5 py-0.5 text-[10px] uppercase tracking-wider text-muted-foreground/65">
+                                {lead.autoCycle.remainingPhones} phone{lead.autoCycle.remainingPhones === 1 ? "" : "s"}
+                              </span>
+                              {lead.autoCycle.voicemailDropNext && (
+                                <span className="rounded-[7px] border border-amber-500/20 bg-amber-500/[0.07] px-1.5 py-0.5 text-[10px] uppercase tracking-wider text-amber-300">
+                                  VM next
+                                </span>
+                              )}
+                              {!isReady && (
+                                <span className="text-[10px] uppercase tracking-wider text-muted-foreground/45">
+                                  {lead.autoCycle.cycleStatus === "waiting" ? "Waiting" : lead.autoCycle.cycleStatus}
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </>
+            ) : displayedQueueLoading ? (
               <div className="space-y-2">
                 {[1, 2, 3, 4].map((i) => (
                   <div key={i} className="h-14 rounded-[12px] bg-secondary/20 animate-pulse" />

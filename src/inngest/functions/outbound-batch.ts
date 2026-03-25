@@ -4,14 +4,16 @@
  * Receives a list of leads, calls each one sequentially via Vapi
  * with a 3-second delay between calls to respect rate limits.
  *
- * Each call creates a voice_session with direction=outbound.
- * The webhook handler takes over from there for status updates,
- * function calls, and end-of-call processing.
+ * Each call creates a voice_session with direction=outbound and
+ * auto-cycle context (if the lead is enrolled). The webhook handler
+ * takes over from there for status updates, function calls,
+ * end-of-call processing, and auto-cycle outcome routing.
  */
 
 import { inngest } from "../client";
 import { createClient } from "@supabase/supabase-js";
 import { initiateOutboundCall } from "@/providers/voice/vapi-adapter";
+import { normalizePhoneForCompare } from "@/lib/dialer/auto-cycle";
 
 interface BatchLead {
   id: string;
@@ -50,17 +52,48 @@ export const outboundBatchJob = inngest.createFunction(
       const result = await step.run(`call-${lead.id}`, async () => {
         const sb = createSupabase();
 
-        // Create voice_session
+        // ── Look up auto-cycle context ──────────────────────────────
+        let autoCycleLeadId: string | null = null;
+        let autoCyclePhoneId: string | null = null;
+
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const { data: cycleRow } = await (sb.from("dialer_auto_cycle_leads") as any)
+          .select("id, cycle_status")
+          .eq("lead_id", lead.id)
+          .in("cycle_status", ["ready", "waiting", "paused"])
+          .maybeSingle();
+
+        if (cycleRow) {
+          autoCycleLeadId = cycleRow.id;
+
+          const normalizedPhone = normalizePhoneForCompare(lead.phone);
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const { data: cyclePhones } = await (sb.from("dialer_auto_cycle_phones") as any)
+            .select("id, phone, phone_status")
+            .eq("cycle_lead_id", cycleRow.id)
+            .eq("phone_status", "active");
+
+          if (cyclePhones) {
+            const match = cyclePhones.find(
+              (p: { phone: string }) => normalizePhoneForCompare(p.phone) === normalizedPhone,
+            );
+            if (match) autoCyclePhoneId = match.id;
+          }
+        }
+
+        // ── Create voice_session ────────────────────────────────────
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const { data: session, error: sessErr } = await (sb.from("voice_sessions") as any)
           .insert({
             direction: "outbound",
             lead_id: lead.id,
-            from_number: lead.phone,
+            to_number: lead.phone,
             status: "initiating",
             caller_type: "seller",
             initiated_by: initiatedBy,
             metadata: { batch_id: batchId },
+            auto_cycle_lead_id: autoCycleLeadId,
+            auto_cycle_phone_id: autoCyclePhoneId,
           })
           .select("id")
           .single();

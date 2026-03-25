@@ -3,9 +3,9 @@
  *
  * Trigger a single outbound call via Vapi (Jeff).
  * Creates a voice_session with direction=outbound, checks DNC,
- * then initiates the call via Vapi API.
+ * looks up auto-cycle context, then initiates the call via Vapi API.
  *
- * Request: { leadId: string }
+ * Request: { leadId: string; phoneNumber?: string }
  * Response: { success: true, voiceSessionId, vapiCallId } | { error: string }
  */
 
@@ -16,6 +16,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getDialerUser, createDialerClient } from "@/lib/dialer/db";
 import { isDnc } from "@/lib/dnc-check";
 import { initiateOutboundCall } from "@/providers/voice/vapi-adapter";
+import { normalizePhoneForCompare } from "@/lib/dialer/auto-cycle";
 
 function buildSiteUrl(req: NextRequest): string {
   const env = process.env.NEXT_PUBLIC_SITE_URL
@@ -31,7 +32,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  let body: { leadId?: string };
+  let body: { leadId?: string; phoneNumber?: string };
   try {
     body = await req.json();
   } catch {
@@ -56,7 +57,8 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Lead not found" }, { status: 404 });
   }
 
-  const phone = lead.phone;
+  // Use specified phone or fall back to lead's primary phone
+  const phone = body.phoneNumber || lead.phone;
   if (!phone) {
     return NextResponse.json({ error: "Lead has no phone number" }, { status: 400 });
   }
@@ -74,16 +76,48 @@ export async function POST(req: NextRequest) {
     console.warn("[outbound/call] DNC check failed, proceeding:", err);
   }
 
+  // ── Look up auto-cycle context ────────────────────────────────────────
+  let autoCycleLeadId: string | null = null;
+  let autoCyclePhoneId: string | null = null;
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: cycleRow } = await (sb.from("dialer_auto_cycle_leads") as any)
+    .select("id, cycle_status")
+    .eq("lead_id", leadId)
+    .in("cycle_status", ["ready", "waiting", "paused"])
+    .maybeSingle();
+
+  if (cycleRow) {
+    autoCycleLeadId = cycleRow.id;
+
+    // Find the matching phone in the cycle
+    const normalizedPhone = normalizePhoneForCompare(phone);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: cyclePhones } = await (sb.from("dialer_auto_cycle_phones") as any)
+      .select("id, phone, phone_status")
+      .eq("cycle_lead_id", cycleRow.id)
+      .eq("phone_status", "active");
+
+    if (cyclePhones) {
+      const match = cyclePhones.find(
+        (p: { phone: string }) => normalizePhoneForCompare(p.phone) === normalizedPhone,
+      );
+      if (match) autoCyclePhoneId = match.id;
+    }
+  }
+
   // ── Create voice_session ──────────────────────────────────────────────
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data: session, error: sessErr } = await (sb.from("voice_sessions") as any)
     .insert({
       direction: "outbound",
       lead_id: leadId,
-      from_number: phone,
+      to_number: phone,
       status: "initiating",
       caller_type: "seller",
       initiated_by: user.id,
+      auto_cycle_lead_id: autoCycleLeadId,
+      auto_cycle_phone_id: autoCyclePhoneId,
     })
     .select("id")
     .single();
@@ -118,6 +152,7 @@ export async function POST(req: NextRequest) {
       phone: `***${phone.slice(-4)}`,
       voiceSessionId: voiceSessionId.slice(0, 8),
       vapiCallId: vapiCallId.slice(0, 8),
+      autoCycle: autoCycleLeadId ? "yes" : "no",
     });
 
     return NextResponse.json({

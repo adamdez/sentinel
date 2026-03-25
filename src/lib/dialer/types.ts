@@ -375,7 +375,10 @@ export type DialerEventType =
   // inbound.committed: operator approved the inbound draft. A calls_log row was
   //   created and (optionally) leads.notes was updated via the narrow writeback contract.
   //   metadata contains calls_log_id and the approved field set.
-  | "inbound.committed";
+  | "inbound.committed"
+  // outbound.ai_handled: Jeff (Vapi) completed an outbound call.
+  //   Written by the Vapi webhook end-of-call handler for outbound direction.
+  | "outbound.ai_handled";
 
 // ─────────────────────────────────────────────────────────────
 // Trace metadata — PR2

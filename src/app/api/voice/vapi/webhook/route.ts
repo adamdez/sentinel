@@ -14,6 +14,7 @@ import { trackedDelivery } from "@/lib/delivery-tracker";
 import type { VapiWebhookPayload } from "@/providers/voice/types";
 import { createAgentRun, completeAgentRun } from "@/lib/control-plane";
 import { inngest } from "@/inngest/client";
+import { processAutoCycleOutcome, mapVapiDispositionToAutoCycle } from "@/lib/dialer/auto-cycle-outcome";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -287,7 +288,7 @@ async function handleEndOfCallReport(
   // Write a dialer_event for the completed AI call
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data: session } = await (sb.from("voice_sessions") as any)
-    .select("id, lead_id, caller_type, callback_requested, duration_seconds, direction, from_number, to_number, status, run_id")
+    .select("id, lead_id, caller_type, callback_requested, duration_seconds, direction, from_number, to_number, status, run_id, auto_cycle_lead_id, auto_cycle_phone_id")
     .eq("vapi_call_id", vapiCallId)
     .single();
 
@@ -341,7 +342,7 @@ async function handleEndOfCallReport(
     // ── Write dialer_event ──────────────────────────────────────
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     await (sb.from("dialer_events") as any).insert({
-      event_type: "inbound.ai_handled",
+      event_type: session.direction === "outbound" ? "outbound.ai_handled" : "inbound.ai_handled",
       lead_id: session.lead_id,
       session_id: null,
       task_id: null,
@@ -355,6 +356,24 @@ async function handleEndOfCallReport(
         vapi_call_id: vapiCallId,
       },
     });
+
+    // ── Auto-cycle bridge ──────────────────────────────────────
+    // When Jeff finishes an outbound call that's part of an auto-cycle,
+    // route the disposition back so the cycle advances.
+    if (session.auto_cycle_lead_id && session.lead_id) {
+      const autoCycleDispo = mapVapiDispositionToAutoCycle(disposition);
+      if (autoCycleDispo) {
+        const phoneDialed = session.direction === "outbound" ? session.to_number : session.from_number;
+        processAutoCycleOutcome({
+          leadId: session.lead_id,
+          disposition: autoCycleDispo,
+          phoneNumber: phoneDialed,
+          source: "webhook",
+        }).catch((err) => {
+          console.error("[vapi/webhook] auto-cycle outcome failed:", err instanceof Error ? err.message : String(err));
+        });
+      }
+    }
 
     // Dispatch missed-call alert if caller wasn't transferred to Logan
     const wasTransferred = endedReason === "assistant-forwarded-call";
