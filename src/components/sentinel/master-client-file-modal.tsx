@@ -1166,35 +1166,97 @@ function OverviewTab({ cf, computedArv, activityRefreshToken, onDial, calling }:
 
           <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">Distress Signals</p>
 
-          {distressEvents.length > 0 ? (
+          {(() => {
 
-            <div className="flex flex-wrap gap-1.5">
+            // Same tags as Lead Queue row (leads.tags → distressSignals in use-leads)
 
-              {distressEvents.slice(0, 8).map((evt) => {
+            const leadInboxTags = cf.tags ?? [];
 
-                const cfg = DISTRESS_CFG[evt.event_type];
+            const tagTypeSet = new Set(leadInboxTags);
 
-                const EvtIcon = cfg?.icon ?? AlertTriangle;
+            const supplementalEvents = distressEvents.filter((e) => !tagTypeSet.has(e.event_type));
 
-                return (
+            const hasAny = leadInboxTags.length > 0 || supplementalEvents.length > 0;
 
-                  <span key={evt.id} className={cn("inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium border", cfg?.color ?? "border-overlay-10 text-muted-foreground bg-overlay-3")}>
+            if (!hasAny) {
 
-                    <EvtIcon className="h-3 w-3" />{cfg?.label ?? evt.event_type.replace(/_/g, " ")}
+              return <p className="text-sm text-muted-foreground/50 italic">No distress signals detected</p>;
+
+            }
+
+            const maxInboxTags = 8;
+
+            const visibleTags = leadInboxTags.slice(0, maxInboxTags);
+
+            const tagOverflow = leadInboxTags.length - visibleTags.length;
+
+            return (
+
+              <div className="flex flex-wrap gap-1.5 items-center">
+
+                {visibleTags.map((sig, i) => (
+
+                  <span
+
+                    key={`inbox-tag-${i}-${sig}`}
+
+                    className="inline-flex items-center gap-0.5 px-1.5 py-0 rounded-full text-[10px] font-medium border border-overlay-12 bg-overlay-4 text-muted-foreground truncate max-w-[200px]"
+
+                    title={sig.replace(/_/g, " ")}
+
+                  >
+
+                    <AlertTriangle className="h-2.5 w-2.5 shrink-0" />
+
+                    {sig.replace(/_/g, " ")}
 
                   </span>
 
-                );
+                ))}
 
-              })}
+                {tagOverflow > 0 && (
 
-            </div>
+                  <span className="text-[10px] text-muted-foreground/50">+{tagOverflow}</span>
 
-          ) : (
+                )}
 
-            <p className="text-sm text-muted-foreground/50 italic">No distress signals detected</p>
+                {supplementalEvents.slice(0, 8).map((evt) => {
 
-          )}
+                  const cfg = DISTRESS_CFG[evt.event_type];
+
+                  const EvtIcon = cfg?.icon ?? AlertTriangle;
+
+                  return (
+
+                    <span
+
+                      key={evt.id}
+
+                      className={cn(
+
+                        "inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium border",
+
+                        cfg?.color ?? "border-overlay-10 text-muted-foreground bg-overlay-3",
+
+                      )}
+
+                    >
+
+                      <EvtIcon className="h-3 w-3" />
+
+                      {cfg?.label ?? evt.event_type.replace(/_/g, " ")}
+
+                    </span>
+
+                  );
+
+                })}
+
+              </div>
+
+            );
+
+          })()}
 
         </div>
 
