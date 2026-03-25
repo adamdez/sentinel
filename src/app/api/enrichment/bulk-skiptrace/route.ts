@@ -8,16 +8,15 @@
  * Founder-only endpoint.
  */
 
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@/lib/supabase";
+import { requireAuth } from "@/lib/api-auth";
 import { inngest } from "@/inngest/client";
 import { randomUUID } from "crypto";
 
-export async function POST(req: Request) {
+export async function POST(req: NextRequest) {
   const sb = createServerClient();
-  const {
-    data: { user },
-  } = await sb.auth.getUser();
+  const user = await requireAuth(req, sb);
 
   if (!user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
