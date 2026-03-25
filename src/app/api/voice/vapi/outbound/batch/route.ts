@@ -47,9 +47,14 @@ export async function POST(req: NextRequest) {
   const sb = createDialerClient();
 
   // ── Fetch leads + DNC filter ──────────────────────────────────────────
+  // Fetch leads with primary phone from lead_phones and owner name from properties
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data: leads } = await (sb.from("leads") as any)
-    .select("id, first_name, last_name, phone, property_address")
+    .select(`
+      id,
+      properties!inner ( owner_name, address ),
+      lead_phones ( phone, is_primary, position )
+    `)
     .in("id", leadIds);
 
   if (!leads || leads.length === 0) {
@@ -60,13 +65,23 @@ export async function POST(req: NextRequest) {
   const skipped: Array<{ leadId: string; reason: string }> = [];
 
   for (const lead of leads) {
-    if (!lead.phone) {
+    // Pick the best phone: primary first, then lowest position
+    const phones = (lead.lead_phones as Array<{ phone: string; is_primary: boolean; position: number }>) ?? [];
+    const sorted = [...phones].sort((a, b) => {
+      if (a.is_primary && !b.is_primary) return -1;
+      if (!a.is_primary && b.is_primary) return 1;
+      return (a.position ?? 999) - (b.position ?? 999);
+    });
+    const bestPhone = sorted[0]?.phone;
+    const ownerName = (lead.properties as Record<string, unknown>)?.owner_name as string || "Unknown";
+
+    if (!bestPhone) {
       skipped.push({ leadId: lead.id, reason: "No phone number" });
       continue;
     }
 
     try {
-      const dncResult = await isDnc(lead.phone);
+      const dncResult = await isDnc(bestPhone);
       if (dncResult.isDnc) {
         skipped.push({ leadId: lead.id, reason: `DNC: ${dncResult.reason}` });
         continue;
@@ -77,8 +92,8 @@ export async function POST(req: NextRequest) {
 
     validLeads.push({
       id: lead.id,
-      phone: lead.phone,
-      name: [lead.first_name, lead.last_name].filter(Boolean).join(" ") || "Unknown",
+      phone: bestPhone,
+      name: ownerName,
     });
   }
 

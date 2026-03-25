@@ -49,7 +49,11 @@ export async function POST(req: NextRequest) {
   // ── Fetch lead + phone ──────────────────────────────────────────────────
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data: lead, error: leadErr } = await (sb.from("leads") as any)
-    .select("id, first_name, last_name, phone, property_address, stage")
+    .select(`
+      id, status,
+      properties!inner ( owner_name, address ),
+      lead_phones ( phone, is_primary, position )
+    `)
     .eq("id", leadId)
     .single();
 
@@ -57,8 +61,17 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Lead not found" }, { status: 404 });
   }
 
-  // Use specified phone or fall back to lead's primary phone
-  const phone = body.phoneNumber || lead.phone;
+  // Use specified phone, or pick best from lead_phones (primary first, then lowest position)
+  let phone = body.phoneNumber;
+  if (!phone) {
+    const phones = (lead.lead_phones as Array<{ phone: string; is_primary: boolean; position: number }>) ?? [];
+    const sorted = [...phones].sort((a, b) => {
+      if (a.is_primary && !b.is_primary) return -1;
+      if (!a.is_primary && b.is_primary) return 1;
+      return (a.position ?? 999) - (b.position ?? 999);
+    });
+    phone = sorted[0]?.phone;
+  }
   if (!phone) {
     return NextResponse.json({ error: "Lead has no phone number" }, { status: 400 });
   }
