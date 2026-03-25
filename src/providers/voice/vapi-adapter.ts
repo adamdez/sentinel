@@ -364,20 +364,6 @@ export function buildOutboundAssistantConfig(serverUrl: string): VapiAssistantCo
     maxDurationSeconds: 180, // 3 min max — shorter than inbound
     silenceTimeoutSeconds: 20,
     responseDelaySeconds: 0.5,
-    transferPlan: {
-      mode: "server",
-      message: "One moment while I connect you.",
-      summaryPlan: {
-        enabled: true,
-        messages: [
-          {
-            role: "system",
-            content:
-              "Summarize the outbound call in 2-3 sentences for the operator receiving the transfer. Include: seller name, property address if mentioned, key motivation, and any relevant context from the conversation.",
-          },
-        ],
-      },
-    },
   };
 }
 
@@ -433,7 +419,6 @@ export async function initiateOutboundCall(
       phoneNumberId,
       customer: { number: e164Phone },
       assistant: assistantConfig,
-      serverUrl,
     }),
   });
 
