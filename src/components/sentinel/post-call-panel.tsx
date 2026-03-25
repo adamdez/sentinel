@@ -171,6 +171,8 @@ export interface PostCallPanelProps {
   phoneNumber?: string | null;
   /** Lead ID for SMS compliance check */
   leadId?: string | null;
+  /** When true, route closeout progression through the Auto Cycle overlay instead of legacy cadence. */
+  autoCycleEnabled?: boolean;
   onComplete: () => void;
   onSkip: () => void;
 }
@@ -186,6 +188,7 @@ export function PostCallPanel({
   qualContext = null,
   phoneNumber = null,
   leadId = null,
+  autoCycleEnabled = false,
   onComplete,
   onSkip,
 }: PostCallPanelProps) {
@@ -537,10 +540,24 @@ export function PostCallPanel({
       }
     }
 
+    if (autoCycleEnabled && leadId) {
+      fetch("/api/dialer/v1/auto-cycle/outcome", {
+        method: "POST",
+        headers: hdrs,
+        body: JSON.stringify({
+          leadId,
+          disposition: dispo,
+          phoneNumber,
+        }),
+      }).catch((err) => {
+        console.warn("[PostCallPanel] Auto Cycle outcome update failed (non-fatal).", err);
+      });
+    }
+
     // Fire legacy call path AFTER publish succeeds — only for increment_lead_call_counters RPC.
     // skipCallsLogWrite: publish-manager already owns the calls_log write above.
     // nextCallScheduledAt: operator-set date overrides cadence scheduling in the RPC.
-    if (callLogId) {
+    if (!autoCycleEnabled && callLogId) {
       fetch("/api/dialer/call", {
         method: "PATCH",
         headers: hdrs,
@@ -620,7 +637,7 @@ export function PostCallPanel({
     }
 
     // Still fire legacy path so call counters increment even on skip
-    if (callLogId) {
+    if (!autoCycleEnabled && callLogId) {
       authHeaders().then((hdrs) =>
         fetch("/api/dialer/call", {
           method: "PATCH",

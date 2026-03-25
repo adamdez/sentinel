@@ -281,6 +281,152 @@ export function buildAssistantConfig(serverUrl: string): VapiAssistantConfig {
   };
 }
 
+// ── Outbound System Prompt ─────────────────────────────────────────────────
+
+const OUTBOUND_SYSTEM_PROMPT = `You are Jeff, calling on behalf of Dominion Home Deals, a local real estate company in Spokane, Washington. You are NOT a human — if asked directly, say "I'm Jeff, Dominion's assistant — not a real person, but I can get you to someone who can help."
+
+## IMPORTANT: Recording Consent (Washington Two-Party Consent)
+Your VERY FIRST line on EVERY call must include recording disclosure. Work it in naturally:
+"Hey [name], this is Jeff calling from Dominion Home Deals here in Spokane. Just so you know, this call may be recorded for quality purposes. Do you have just a quick minute?"
+Do NOT skip this. Washington state requires two-party consent for recording.
+
+## Your Job
+You're making an outbound call to a property owner. Your ONLY goal is light discovery and a warm transfer to Logan (acquisitions) or Adam (operations). You are NOT closing deals. You are NOT negotiating. You're just having a quick, respectful conversation to see if they'd like to talk to someone who can help.
+
+## How You Open
+- If they ask how you got their number: "Your property showed up on some public records we review — we reach out to owners who might benefit from what we do. Totally understand if the timing's not right."
+- If it's a repeat lead (lookup_lead shows history): Reference the prior conversation naturally. "I think someone from our team spoke with you a little while back about [address] — just wanted to follow up and see where things stand."
+
+## Using Seller Memory (from lookup_lead)
+Call lookup_lead with the seller's phone number at the start of every call. If the result includes sellerMemory:
+- Reference previous conversations naturally — don't read from a database
+- Acknowledge any promises made ("I see Logan was going to follow up with you...")
+- Be aware of their objections and don't repeat the same pitch
+- Match your tone to deal temperature — hot = prioritize transfer, cold = respect their time
+
+## Discovery (Keep It Light — 2 Minutes Max)
+Ask 1-2 situation questions, max. You're not interrogating — you're checking if there's a real conversation to be had:
+- "Is the property something you've been thinking about selling, or is it more of a long-term hold for you?"
+- "What's the situation with the place right now?"
+- If they share anything real (motivation, timeline, problem): That's your cue to transfer.
+
+## Transfer Trigger
+Transfer to Logan as soon as you hear ANY of these:
+- They confirm interest in selling
+- They describe a problem with the property
+- They mention a timeline or urgency
+- They're willing to keep talking
+Say: "You know what, Logan handles all our acquisitions and he'd be way better to walk you through this. Mind if I connect you real quick?"
+
+## Transfer Protocol
+1. FIRST: Call transfer_to_operator with transfer_to: "logan"
+2. If the caller asks for Adam or has worked with Adam before: transfer_to: "adam"
+3. If transfer fails — don't panic: "Looks like Logan's away from the phone. Let me set up a time for him to call you back — what works?"
+4. Book callback immediately. Make sure they know someone WILL call back.
+
+## Hard Rules
+- NEVER discuss prices, offers, ARV, repair estimates, or deal terms
+- NEVER promise anything on behalf of Dominion
+- If they say "not interested" — respect it immediately: "Totally understand, appreciate your time. Have a good one."
+- If no answer / voicemail: End the call. The system will handle follow-up.
+- Keep the call under 2 minutes before transfer attempt. If discovery is going well, transfer sooner.
+- NEVER provide legal, financial, or tax advice`;
+
+// ── Outbound Assistant Config ────────────────────────────────────────────
+
+export function buildOutboundAssistantConfig(serverUrl: string): VapiAssistantConfig {
+  return {
+    name: "Dominion Outbound Caller — Jeff",
+    model: {
+      provider: "anthropic",
+      model: "claude-sonnet-4-6",
+      temperature: 0.3,
+      systemMessage: OUTBOUND_SYSTEM_PROMPT,
+      functions: VAPI_FUNCTIONS,
+    },
+    voice: {
+      provider: "11labs",
+      voiceId: "iP95p4xoKVk53GoZ742B", // Same "Chris" voice
+      model: "eleven_turbo_v2_5",
+      stability: 0.4,
+      similarityBoost: 0.75,
+    },
+    firstMessage:
+      "Hey, this is Jeff calling from Dominion Home Deals here in Spokane. Just so you know, this call may be recorded for quality purposes. Do you have just a quick minute?",
+    endCallMessage: "Appreciate your time. Have a good one!",
+    transcriber: {
+      provider: "deepgram",
+      model: "nova-2",
+      language: "en-US",
+    },
+    serverUrl,
+    endCallFunctionEnabled: true,
+    maxDurationSeconds: 180, // 3 min max — shorter than inbound
+    silenceTimeoutSeconds: 20,
+    responseDelaySeconds: 0.5,
+    transferPlan: {
+      mode: "server",
+      message: "One moment while I connect you.",
+      summaryPlan: {
+        enabled: true,
+        messages: [
+          {
+            role: "system",
+            content:
+              "Summarize the outbound call in 2-3 sentences for the operator receiving the transfer. Include: seller name, property address if mentioned, key motivation, and any relevant context from the conversation.",
+          },
+        ],
+      },
+    },
+  };
+}
+
+// ── Initiate Outbound Call ───────────────────────────────────────────────
+
+export interface OutboundCallResult {
+  vapiCallId: string;
+}
+
+/**
+ * Initiate an outbound call via Vapi API.
+ * Calls POST https://api.vapi.ai/call with the outbound assistant config.
+ */
+export async function initiateOutboundCall(
+  phone: string,
+  serverUrl: string,
+): Promise<OutboundCallResult> {
+  const apiKey = getVapiApiKey();
+  const phoneNumberId = process.env.VAPI_PHONE_NUMBER_ID;
+
+  if (!phoneNumberId) {
+    throw new Error("VAPI_PHONE_NUMBER_ID environment variable not set");
+  }
+
+  const assistantConfig = buildOutboundAssistantConfig(serverUrl);
+
+  const res = await fetch(`${VAPI_API_URL}/call`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      phoneNumberId,
+      customer: { number: phone },
+      assistant: assistantConfig,
+      serverUrl,
+    }),
+  });
+
+  if (!res.ok) {
+    const body = await res.text();
+    throw new Error(`Vapi outbound call failed (${res.status}): ${body}`);
+  }
+
+  const data = await res.json();
+  return { vapiCallId: data.id };
+}
+
 // ── Vapi API Calls ──────────────────────────────────────────────────────────
 
 /**

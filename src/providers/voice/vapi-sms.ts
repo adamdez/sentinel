@@ -78,6 +78,50 @@ export async function sendCallbackConfirmationSMS(
  * Send a transfer-failed notification SMS — lets the caller know
  * someone will call them back even though the transfer didn't go through.
  */
+/**
+ * Send a direct SMS to a specific phone number (operator notification).
+ * Used for pre-transfer alerts to Logan/Adam.
+ * Fire-and-forget — never throws.
+ */
+export async function sendDirectSMS(
+  to: string,
+  message: string,
+): Promise<void> {
+  const accountSid = process.env.TWILIO_ACCOUNT_SID;
+  const authToken = process.env.TWILIO_AUTH_TOKEN;
+  const fromNumber = process.env.TWILIO_PHONE_NUMBER;
+
+  if (!accountSid || !authToken || !fromNumber || !to) return;
+
+  try {
+    const url = `https://api.twilio.com/2010-04-01/Accounts/${accountSid}/Messages.json`;
+    const auth = Buffer.from(`${accountSid}:${authToken}`).toString("base64");
+
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), TIMEOUT_MS);
+
+    const res = await fetch(url, {
+      method: "POST",
+      headers: {
+        Authorization: `Basic ${auth}`,
+        "Content-Type": "application/x-www-form-urlencoded",
+      },
+      body: new URLSearchParams({ To: to, From: fromNumber, Body: message }).toString(),
+      signal: controller.signal,
+    });
+
+    clearTimeout(timeout);
+
+    if (!res.ok) {
+      const errBody = await res.text().catch(() => "");
+      console.error(`[vapi-sms] Direct SMS error ${res.status}: ${errBody.slice(0, 200)}`);
+    }
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    console.error("[vapi-sms] Direct SMS failed:", msg);
+  }
+}
+
 export async function sendTransferFailedSMS(
   to: string,
   operatorName: string,

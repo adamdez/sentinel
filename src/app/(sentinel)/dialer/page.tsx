@@ -7,12 +7,12 @@ import { useSearchParams } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { Call } from "@twilio/voice-sdk";
 import {
-  Phone, PhoneOff, PhoneForwarded, PhoneIncoming, Clock, Users, BarChart3,
+  Phone, PhoneOff, PhoneForwarded, PhoneIncoming, Clock, Users, BarChart3, Home,
   Mic, MicOff, Voicemail, CalendarCheck, FileSignature,
   Skull, Heart, Search, Ghost, Zap, ChevronRight, Timer,
   Sparkles, DollarSign, Loader2, SkipForward, MessageSquare,
   X, Send, Shield, CheckCircle2, History, ArrowDownLeft, ArrowUpRight,
-  AlertTriangle, Wifi, WifiOff, RefreshCw, FileText,
+  AlertTriangle, Wifi, WifiOff, RefreshCw, FileText, ExternalLink,
 } from "lucide-react";
 import { toast } from "sonner";
 import { PageShell } from "@/components/sentinel/page-shell";
@@ -21,9 +21,19 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
+import { calculateQuickScreen } from "@/lib/valuation";
 import { useSentinelStore } from "@/lib/store";
 import { supabase } from "@/lib/supabase";
-import { useDialerQueue, useDialerStats, useCallTimer, fetchDialerKpis, type QueueLead, type DialerStats } from "@/hooks/use-dialer";
+import {
+  useDialerQueue,
+  useAutoCycleQueue,
+  useDialerStats,
+  useCallTimer,
+  fetchDialerKpis,
+  type QueueLead,
+  type DialerStats,
+  type AutoCycleQueueLead,
+} from "@/hooks/use-dialer";
 import { RelationshipBadgeCompact } from "@/components/sentinel/relationship-badge";
 import { getSequenceLabel, getCadencePosition } from "@/lib/call-scheduler";
 import { useCallNotes } from "@/hooks/use-call-notes";
@@ -53,6 +63,55 @@ async function authHeaders(): Promise<Record<string, string>> {
   if (session?.access_token) headers["Authorization"] = `Bearer ${session.access_token}`;
   return headers;
 }
+
+// ── Transfer Brief (full shape from /api/dialer/v1/transfer-brief) ────────
+interface TransferBriefFull {
+  voiceSessionId: string;
+  fromNumber: string;
+  leadId: string | null;
+  leadUrl: string | null;
+  lead: {
+    name: string | null;
+    phone: string;
+    email: string | null;
+    address: string | null;
+    stage: string | null;
+    source: string | null;
+    tags: string[];
+  } | null;
+  property: {
+    address: string | null;
+    city: string | null;
+    county: string | null;
+    propertyType: string | null;
+  } | null;
+  recentCalls: Array<{
+    date: string;
+    direction: string;
+    disposition: string | null;
+    summary: string | null;
+  }>;
+  openTasks: Array<{
+    title: string;
+    dueDate: string | null;
+    status: string;
+  }>;
+  transferReason: string;
+  callerType: string;
+  transferBrief: string | null;
+  discoverySlots: Record<string, string>;
+  jeffNotes: string[];
+  summary: string | null;
+  createdAt: string;
+}
+
+type IncomingMatchState = {
+  type: "lead" | "jeff" | "transfer" | "unknown";
+  name?: string;
+  address?: string;
+  summary?: string;
+  transferBrief?: TransferBriefFull;
+} | null;
 
 // ── KPI Card + Detail Modal (defined outside render to avoid focus issues) ──
 
@@ -396,6 +455,177 @@ function formatUsPhone(digits: string): string {
   return `(${digits.slice(0, 3)}) ${digits.slice(3, 6)}-${digits.slice(6, 10)}`;
 }
 
+function formatMoneyFull(n: number): string {
+  return `$${Math.round(n).toLocaleString()}`;
+}
+
+function relativeUpdatedLabel(iso: string | null | undefined): string | null {
+  if (!iso) return null;
+  const ms = new Date(iso).getTime();
+  if (Number.isNaN(ms)) return null;
+  const diffMin = Math.max(0, Math.floor((Date.now() - ms) / 60_000));
+  if (diffMin < 1) return "updated just now";
+  if (diffMin < 60) return `updated ${diffMin}m ago`;
+  const diffHr = Math.floor(diffMin / 60);
+  if (diffHr < 24) return `updated ${diffHr}h ago`;
+  const diffDay = Math.floor(diffHr / 24);
+  return `updated ${diffDay}d ago`;
+}
+
+function LiveAnswerIntelPanel({
+  lead,
+  dialedPhone,
+  onOpenDetail,
+}: {
+  lead: QueueLead;
+  dialedPhone: string | null;
+  onOpenDetail: () => void;
+}) {
+  const ownerFlags = (lead.properties?.owner_flags as Record<string, unknown> | null) ?? null;
+  const estimatedValue = lead.properties?.estimated_value ?? null;
+  const compArv = typeof ownerFlags?.comp_arv === "number" ? ownerFlags.comp_arv : null;
+  const brickedArv = typeof ownerFlags?.bricked_arv === "number" ? ownerFlags.bricked_arv : null;
+  const brickedCmv = typeof ownerFlags?.bricked_cmv === "number" ? ownerFlags.bricked_cmv : null;
+  const repairCost = typeof ownerFlags?.bricked_repair_cost === "number" ? ownerFlags.bricked_repair_cost : null;
+  const compCount = typeof ownerFlags?.comp_count === "number" ? ownerFlags.comp_count : 0;
+  const compAddresses = Array.isArray(ownerFlags?.comp_addresses)
+    ? ownerFlags.comp_addresses.filter((value): value is string => typeof value === "string" && value.trim().length > 0)
+    : [];
+  const mailingAddress = typeof ownerFlags?.mailing_address === "string" ? ownerFlags.mailing_address : null;
+  const compUpdatedAt = typeof ownerFlags?.comp_arv_updated_at === "string" ? ownerFlags.comp_arv_updated_at : null;
+  const bestArv = compArv ?? brickedArv ?? estimatedValue ?? null;
+  const arvSource = compArv != null
+    ? `${compCount || 1} saved comp${compCount === 1 ? "" : "s"}`
+    : brickedArv != null
+      ? "Bricked valuation"
+      : estimatedValue != null
+        ? "AVM estimate"
+        : "No value yet";
+  const quickScreen = estimatedValue && estimatedValue > 0 ? calculateQuickScreen(estimatedValue) : null;
+  const valuationHint = compCount > 0
+    ? "Use this ARV anchor and confirm condition fast."
+    : quickScreen
+      ? "No saved comps yet. Use the screen range carefully and validate repairs."
+      : "Open Property Intel if the seller gets specific on price.";
+
+  return (
+    <GlassCard hover={false} className="!p-3 mb-3 border-primary/10">
+      <div className="flex items-start justify-between gap-3 mb-3">
+        <div>
+          <div className="flex items-center gap-1.5 mb-1">
+            <Home className="h-3.5 w-3.5 text-primary/70" />
+            <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+              Live Property Intel
+            </p>
+          </div>
+          <p className="text-sm font-semibold text-foreground">
+            {lead.properties?.address ?? "No property address"}
+          </p>
+          <p className="text-xs text-muted-foreground/55 mt-0.5">
+            {lead.properties?.owner_name ?? "Unknown owner"}
+            {dialedPhone ? ` · ${formatUsPhone(dialedPhone.replace(/\D/g, "").slice(-10))}` : ""}
+          </p>
+          {mailingAddress && (
+            <p className="text-xs text-muted-foreground/45 mt-1">
+              Mailing: {mailingAddress}
+            </p>
+          )}
+        </div>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={onOpenDetail}
+          className="gap-1.5 border-border/20 text-muted-foreground hover:text-foreground"
+        >
+          <Eye className="h-3.5 w-3.5" />
+          Full File
+        </Button>
+      </div>
+
+      <div className="grid grid-cols-2 gap-2.5 mb-3">
+        <div className="rounded-[10px] border border-primary/15 bg-primary/[0.05] p-2.5">
+          <p className="text-[11px] uppercase tracking-wider text-primary/65 mb-1">Best ARV</p>
+          <p className="text-lg font-semibold text-primary">
+            {bestArv ? formatMoneyFull(bestArv) : "—"}
+          </p>
+          <p className="text-xs text-muted-foreground/50 mt-1">{arvSource}</p>
+        </div>
+        <div className="rounded-[10px] border border-border/15 bg-overlay-2 p-2.5">
+          <p className="text-[11px] uppercase tracking-wider text-muted-foreground/55 mb-1">Quick Screen</p>
+          {quickScreen ? (
+            <>
+              <p className="text-sm font-semibold text-foreground">
+                {formatMoneyFull(quickScreen.maoLow)} - {formatMoneyFull(quickScreen.maoHigh)}
+              </p>
+              <p className="text-xs text-muted-foreground/45 mt-1">rough offer range off AVM</p>
+            </>
+          ) : (
+            <p className="text-sm text-muted-foreground/40 italic">Need AVM</p>
+          )}
+        </div>
+      </div>
+
+      <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 text-sm mb-3">
+        <div className="flex items-center justify-between gap-3">
+          <span className="text-muted-foreground/55">AVM</span>
+          <span className="font-mono text-foreground">{estimatedValue ? formatMoneyFull(estimatedValue) : "—"}</span>
+        </div>
+        <div className="flex items-center justify-between gap-3">
+          <span className="text-muted-foreground/55">Equity</span>
+          <span className="font-mono text-foreground">{lead.properties?.equity_percent != null ? `${lead.properties.equity_percent}%` : "—"}</span>
+        </div>
+        <div className="flex items-center justify-between gap-3">
+          <span className="text-muted-foreground/55">CMV</span>
+          <span className="font-mono text-foreground">{brickedCmv ? formatMoneyFull(brickedCmv) : "—"}</span>
+        </div>
+        <div className="flex items-center justify-between gap-3">
+          <span className="text-muted-foreground/55">Repairs</span>
+          <span className="font-mono text-foreground">{repairCost ? `-${formatMoneyFull(repairCost)}` : "—"}</span>
+        </div>
+      </div>
+
+      <div className="flex flex-wrap gap-1.5 mb-3">
+        <span className="px-2 py-1 rounded-[8px] text-[11px] border border-overlay-6 bg-overlay-2 text-muted-foreground/65">
+          {stageLabel(lead.status)}
+        </span>
+        <span className="px-2 py-1 rounded-[8px] text-[11px] border border-overlay-6 bg-overlay-2 text-muted-foreground/65">
+          {qualificationRouteLabel(lead.qualification_route)}
+        </span>
+        {lead.seller_timeline && (
+          <span className="px-2 py-1 rounded-[8px] text-[11px] border border-overlay-6 bg-overlay-2 text-muted-foreground/65">
+            Timeline {lead.seller_timeline.replace(/_/g, " ")}
+          </span>
+        )}
+        {lead.motivation_level != null && (
+          <span className="px-2 py-1 rounded-[8px] text-[11px] border border-overlay-6 bg-overlay-2 text-muted-foreground/65">
+            Motivation {lead.motivation_level}/5
+          </span>
+        )}
+      </div>
+
+      <div className="rounded-[10px] border border-overlay-6 bg-overlay-2 px-2.5 py-2">
+        <div className="flex items-center justify-between gap-3 mb-1.5">
+          <p className="text-xs uppercase tracking-wider text-muted-foreground/55">Comp Notes</p>
+          <span className="text-[11px] text-muted-foreground/40">
+            {relativeUpdatedLabel(compUpdatedAt) ?? (compCount > 0 ? `${compCount} comp${compCount === 1 ? "" : "s"} saved` : "No saved comps")}
+          </span>
+        </div>
+        {compAddresses.length > 0 ? (
+          <ul className="space-y-1">
+            {compAddresses.slice(0, 3).map((address) => (
+              <li key={address} className="text-sm text-foreground/78">
+                {address}
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="text-sm text-muted-foreground/45">{valuationHint}</p>
+        )}
+      </div>
+    </GlassCard>
+  );
+}
+
 function toE164(raw: string): string {
   let digits = raw.replace(/\D/g, "");
   // Strip leading country code "1" so we don't double it
@@ -406,11 +636,14 @@ function toE164(raw: string): string {
 function DialerPageInner() {
   const { currentUser, ghostMode } = useSentinelStore();
   const { queue, loading: queueLoading, refetch: refetchQueue } = useDialerQueue(7);
+  const { queue: autoCycleQueue, loading: autoCycleLoading, refetch: refetchAutoCycle } = useAutoCycleQueue(12);
   const { stats, loading: statsLoading } = useDialerStats();
   const timer = useCallTimer();
 
   const [callState, setCallState] = useState<CallState>("idle");
   const [currentLead, setCurrentLead] = useState<QueueLead | null>(null);
+  const [autoCycleMode, setAutoCycleMode] = useState(false);
+  const [currentDialedPhone, setCurrentDialedPhone] = useState<string | null>(null);
   const [currentCallLogId, setCurrentCallLogId] = useState<string | null>(null);
   const [dialerSessionId, setDialerSessionId] = useState<string | null>(null); // PR3b: survives call end for PostCallPanel publish
   const [muted, setMuted] = useState(false);
@@ -424,6 +657,12 @@ function DialerPageInner() {
   const [phoneIndex, setPhoneIndex] = useState(0);
   const phonesActiveCount = leadPhones.filter(p => p.status === "active").length;
   const phonesAttempted = leadPhones.filter(p => p.status === "active" && p.last_called_at).length;
+  const displayedQueue = autoCycleMode ? autoCycleQueue : queue;
+  const displayedQueueLoading = autoCycleMode ? autoCycleLoading : queueLoading;
+  const currentLeadAutoCycleEntry = autoCycleQueue.find((lead) => lead.id === currentLead?.id);
+  const currentAutoCycleLead = (autoCycleMode
+    ? currentLeadAutoCycleEntry
+    : null) as AutoCycleQueueLead | undefined;
 
   const { latestSummary, latestSummaryTime } = useCallNotes(currentLead?.id);
   const { brief: preCallBrief, loading: briefLoading, error: briefError, regenerate: retryBrief } = usePreCallBrief(currentLead?.id ?? null);
@@ -474,12 +713,17 @@ function DialerPageInner() {
           const data = await res.json();
           const phones: LeadPhone[] = data.phones ?? [];
           setLeadPhones(phones);
-          setPhoneIndex(0);
+          if (autoCycleMode && currentAutoCycleLead?.autoCycle.nextPhoneId) {
+            const idx = phones.findIndex((phone) => phone.id === currentAutoCycleLead.autoCycle.nextPhoneId);
+            setPhoneIndex(idx >= 0 ? idx : 0);
+          } else {
+            setPhoneIndex(0);
+          }
         }
       } catch { /* non-fatal */ }
     })();
     return () => { active = false; };
-  }, [currentLead?.id]);
+  }, [autoCycleMode, currentAutoCycleLead?.autoCycle.nextPhoneId, currentLead?.id]);
 
   // Seed structured note scaffold once when call first becomes connected (session-backed only).
   // Only fires when callNotes is empty — never overwrites operator input.
@@ -701,7 +945,7 @@ function DialerPageInner() {
   // Incoming call state
   const [incomingCall, setIncomingCall] = useState<Call | null>(null);
   const [incomingFrom, setIncomingFrom] = useState<string | null>(null);
-  const [incomingMatch, setIncomingMatch] = useState<{ type: "lead" | "jeff" | "transfer" | "unknown"; name?: string; address?: string; summary?: string; transferBrief?: { transferReason?: string; callerType?: string; discoverySlots?: Record<string, string>; summary?: string } } | null>(null);
+  const [incomingMatch, setIncomingMatch] = useState<IncomingMatchState>(null);
   const incomingAudioRef = useRef<HTMLAudioElement | null>(null);
 
   // Missed calls
@@ -717,10 +961,16 @@ function DialerPageInner() {
   const [diagLoading, setDiagLoading] = useState(false);
 
   useEffect(() => {
-    if (!currentLead && queue.length > 0) {
-      setCurrentLead(queue[0]);
+    if (!currentLead && displayedQueue.length > 0) {
+      setCurrentLead(displayedQueue[0]);
     }
-  }, [queue, currentLead]);
+  }, [displayedQueue, currentLead]);
+
+  useEffect(() => {
+    if (!currentLead) return;
+    if (displayedQueue.some((lead) => lead.id === currentLead.id)) return;
+    setCurrentLead(displayedQueue[0] ?? null);
+  }, [displayedQueue, currentLead]);
 
   // Keep activeCallRef in sync for polling callback closures
   useEffect(() => { activeCallRef.current = activeCall; }, [activeCall]);
@@ -733,15 +983,59 @@ function DialerPageInner() {
   useEffect(() => {
     const id = currentLeadIdRef.current;
     if (!id) return;
-    const refreshedLead = queue.find((lead) => lead.id === id);
+    const refreshedLead = displayedQueue.find((lead) => lead.id === id);
     if (refreshedLead) {
       setCurrentLead(refreshedLead);
     }
-  }, [queue]);
+  }, [displayedQueue]);
 
   const handleModalRefresh = useCallback(() => {
     refetchQueue();
-  }, [refetchQueue]);
+    refetchAutoCycle();
+  }, [refetchAutoCycle, refetchQueue]);
+
+  const handleAddCurrentLeadToAutoCycle = useCallback(async () => {
+    if (!currentLead?.id) return;
+    try {
+      const res = await fetch("/api/dialer/v1/auto-cycle", {
+        method: "POST",
+        headers: await authHeaders(),
+        body: JSON.stringify({ leadId: currentLead.id }),
+      });
+      const data = await res.json().catch(() => ({} as { error?: string }));
+      if (!res.ok) {
+        toast.error(data.error ?? "Could not add lead to Auto Cycle");
+        return;
+      }
+      await refetchAutoCycle();
+      setAutoCycleMode(true);
+      toast.success("Lead added to Auto Cycle");
+    } catch {
+      toast.error("Could not add lead to Auto Cycle");
+    }
+  }, [currentLead?.id, refetchAutoCycle]);
+
+  const handleRemoveCurrentLeadFromAutoCycle = useCallback(async () => {
+    if (!currentLead?.id) return;
+    try {
+      const res = await fetch(`/api/dialer/v1/auto-cycle?leadId=${encodeURIComponent(currentLead.id)}`, {
+        method: "DELETE",
+        headers: await authHeaders(),
+      });
+      const data = await res.json().catch(() => ({} as { error?: string }));
+      if (!res.ok) {
+        toast.error(data.error ?? "Could not remove lead from Auto Cycle");
+        return;
+      }
+      await refetchAutoCycle();
+      if (autoCycleMode) {
+        setCurrentLead(null);
+      }
+      toast.success("Lead removed from Auto Cycle");
+    } catch {
+      toast.error("Could not remove lead from Auto Cycle");
+    }
+  }, [autoCycleMode, currentLead?.id, refetchAutoCycle]);
 
 
   // ── Incoming call handler — attached to provider-managed Device ──
@@ -766,20 +1060,13 @@ function DialerPageInner() {
           const briefData = briefRes.ok ? await briefRes.json() : null;
 
           if (briefData?.brief) {
-            const b = briefData.brief;
-            const leadName = data?.leads?.[0]?.properties?.owner_name ?? data?.leads?.[0]?.owner_name ?? null;
-            const leadAddr = data?.leads?.[0]?.properties?.address ?? null;
+            const b = briefData.brief as TransferBriefFull;
             setIncomingMatch({
               type: "transfer",
-              name: leadName ?? "Seller",
-              address: leadAddr ?? undefined,
+              name: b.lead?.name ?? data?.leads?.[0]?.properties?.owner_name ?? data?.leads?.[0]?.owner_name ?? "Seller",
+              address: b.lead?.address ?? b.property?.address ?? data?.leads?.[0]?.properties?.address ?? undefined,
               summary: b.transferReason ?? "Jeff qualified this caller",
-              transferBrief: {
-                transferReason: b.transferReason,
-                callerType: b.callerType,
-                discoverySlots: b.discoverySlots,
-                summary: b.summary,
-              },
+              transferBrief: b,
             });
             return;
           }
@@ -947,8 +1234,20 @@ function DialerPageInner() {
     // If matched to a known lead, try loading it
     let matchedLead: typeof currentLead = null;
     if (incomingMatch?.type === "lead" && incomingFrom) {
-      matchedLead = queue.find((q) => q.properties?.owner_phone?.replace(/\D/g, "")?.slice(-10) === incomingFrom.replace(/\D/g, "").slice(-10)) ?? null;
+      matchedLead = displayedQueue.find((q) => q.properties?.owner_phone?.replace(/\D/g, "")?.slice(-10) === incomingFrom.replace(/\D/g, "").slice(-10)) ?? null;
       if (matchedLead) setCurrentLead(matchedLead);
+    }
+
+    // Auto-open client file for Jeff transfers so the operator sees full context immediately
+    if (incomingMatch?.type === "transfer" && incomingMatch.transferBrief?.leadId) {
+      const briefLead = displayedQueue.find((q) => q.id === incomingMatch.transferBrief!.leadId) ?? null;
+      if (briefLead) {
+        matchedLead = briefLead;
+        setCurrentLead(briefLead);
+        setFileModalOpen(true);
+      } else if (incomingMatch.transferBrief.leadUrl) {
+        window.open(incomingMatch.transferBrief.leadUrl, "_blank");
+      }
     }
 
     // Look up the session created by the inbound webhook (or create one as fallback)
@@ -1037,7 +1336,7 @@ function DialerPageInner() {
     }
 
     toast.success("Call connected");
-  }, [incomingCall, incomingMatch, incomingFrom, queue, timer]);
+  }, [displayedQueue, incomingCall, incomingMatch, incomingFrom, timer]);
 
   const handleDeclineIncoming = useCallback(() => {
     if (!incomingCall) return;
@@ -1096,6 +1395,7 @@ function DialerPageInner() {
     }
 
     setCurrentLead(target);
+    setCurrentDialedPhone(phone);
     setCallState("dialing");
     setCallNotes("");
     timer.start();
@@ -1140,6 +1440,7 @@ function DialerPageInner() {
         toast.error(data.error ?? "Call failed");
         setCallState("idle");
         setDialerSessionId(null);
+        setCurrentDialedPhone(null);
         timer.reset();
         return;
       }
@@ -1250,6 +1551,7 @@ function DialerPageInner() {
       console.error("[Dialer]", err);
       toast.error("Network error — call not placed");
       setCallState("idle");
+      setCurrentDialedPhone(null);
       timer.reset();
     }
   }, [currentLead, currentUser.id, ghostMode, timer, deviceStatus, voipCallerId]);
@@ -1648,13 +1950,14 @@ function DialerPageInner() {
         ).catch(() => {});
       }
     } else {
-      const currentIdx = queue.findIndex((l) => l.id === currentLead?.id);
-      const nextLead = queue[currentIdx + 1] ?? queue[0] ?? null;
+      const currentIdx = displayedQueue.findIndex((l) => l.id === currentLead?.id);
+      const nextLead = displayedQueue[currentIdx + 1] ?? displayedQueue[0] ?? null;
       setCurrentLead(nextLead);
       setPhoneIndex(0);
-      refetchQueue();
+      if (autoCycleMode) refetchAutoCycle();
+      else refetchQueue();
     }
-  }, [currentCallLogId, callState, callNotes, currentLead, currentUser.id, handleHangup, queue, refetchQueue, timer, leadPhones, phoneIndex]);
+  }, [autoCycleMode, currentCallLogId, callState, callNotes, currentLead, currentUser.id, displayedQueue, handleHangup, refetchAutoCycle, refetchQueue, timer, leadPhones, phoneIndex]);
 
   // ── PostCallPanel completion handler ────────────────────────────────
   // Shared by onComplete and onSkip — PostCallPanel handles its own API calls.
@@ -1664,6 +1967,7 @@ function DialerPageInner() {
     setCurrentCallLogId(null);
     setCurrentCallSid(null);
     setDialerSessionId(null);
+    setCurrentDialedPhone(null);
     setLiveCallStatus(null);
     setCallNotes("");
     setTransferStatus(null);
@@ -1671,6 +1975,13 @@ function DialerPageInner() {
     setSavedNotes([]);
     noteSeqRef.current = 0;
     timer.reset();
+
+    if (autoCycleMode) {
+      setCurrentLead(null);
+      setPhoneIndex(0);
+      refetchAutoCycle();
+      return;
+    }
 
     const activePhones = leadPhones.filter((p) => p.status === "active");
     const nextPhoneIdx = phoneIndex + 1;
@@ -1685,13 +1996,13 @@ function DialerPageInner() {
         ).catch(() => {});
       }
     } else {
-      const currentIdx = queue.findIndex((l) => l.id === currentLead?.id);
-      const nextLead = queue[currentIdx + 1] ?? queue[0] ?? null;
+      const currentIdx = displayedQueue.findIndex((l) => l.id === currentLead?.id);
+      const nextLead = displayedQueue[currentIdx + 1] ?? displayedQueue[0] ?? null;
       setCurrentLead(nextLead);
       setPhoneIndex(0);
       refetchQueue();
     }
-  }, [currentLead, queue, refetchQueue, timer, leadPhones, phoneIndex]);
+  }, [autoCycleMode, currentLead, displayedQueue, refetchAutoCycle, refetchQueue, timer, leadPhones, phoneIndex]);
 
   // ── Manual dial PostCallPanel completion handler ──────────────────
   const handleManualPostCallDone = useCallback(() => {
@@ -2107,7 +2418,7 @@ function DialerPageInner() {
               <button
                 type="button"
                 onClick={() => {
-                  const lead = queue.find((q) => q.id === phoneMatchResult.leads[0].id);
+                  const lead = displayedQueue.find((q) => q.id === phoneMatchResult.leads[0].id);
                   if (lead) { setCurrentLead(lead); toast.success("Lead loaded"); }
                   else toast.info("Lead found but not in queue — search in Leads tab");
                 }}
@@ -2125,7 +2436,7 @@ function DialerPageInner() {
                     key={l.id}
                     type="button"
                     onClick={() => {
-                      const lead = queue.find((q) => q.id === l.id);
+                      const lead = displayedQueue.find((q) => q.id === l.id);
                       if (lead) { setCurrentLead(lead); toast.success("Lead loaded"); }
                       else toast.info("Lead found but not in queue — search in Leads tab");
                     }}
@@ -2241,7 +2552,10 @@ function DialerPageInner() {
               initial={{ scale: 0.9, y: 20 }}
               animate={{ scale: 1, y: 0 }}
               exit={{ scale: 0.9, y: 20 }}
-              className="w-full max-w-md rounded-[16px] border border-overlay-8 bg-panel-solid p-8 shadow-[0_20px_60px_var(--shadow-heavy)] text-center space-y-6"
+              className={cn(
+                "w-full rounded-[16px] border border-overlay-8 bg-panel-solid p-8 shadow-[0_20px_60px_var(--shadow-heavy)] text-center space-y-6 max-h-[85vh] overflow-y-auto",
+                incomingMatch?.type === "transfer" ? "max-w-xl" : "max-w-md",
+              )}
             >
               <div className="flex items-center justify-center">
                 <div className="h-16 w-16 rounded-full bg-emerald-500/15 border-2 border-emerald-500/40 flex items-center justify-center animate-pulse">
@@ -2265,35 +2579,139 @@ function DialerPageInner() {
                   {incomingMatch.type === "lead" && incomingMatch.address && (
                     <p className="text-xs text-muted-foreground/60 mt-1 ml-4">{incomingMatch.address}</p>
                   )}
-                  {incomingMatch.type === "transfer" && (
-                    <div className="space-y-2">
-                      <div className="flex items-center gap-2">
-                        <span className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
-                        <span className="text-sm font-semibold text-emerald-400">Jeff&apos;s Transfer Brief</span>
+                  {incomingMatch.type === "transfer" && (() => {
+                    const tb = incomingMatch.transferBrief;
+                    return (
+                    <div className="space-y-3 text-left">
+                      {/* Header */}
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <span className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
+                          <span className="text-sm font-semibold text-emerald-400">Jeff&apos;s Transfer Brief</span>
+                        </div>
+                        {tb?.leadUrl && (
+                          <a
+                            href={tb.leadUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-primary/15 border border-primary/30 text-xs font-semibold text-primary hover:bg-primary/25 transition-colors"
+                          >
+                            <ExternalLink className="h-3 w-3" /> Open Client File
+                          </a>
+                        )}
                       </div>
-                      {incomingMatch.name && (
-                        <p className="text-sm text-foreground font-medium ml-4">{incomingMatch.name}</p>
+
+                      {/* Name + address + reason */}
+                      <div className="space-y-1">
+                        {incomingMatch.name && (
+                          <p className="text-sm text-foreground font-medium">{incomingMatch.name}</p>
+                        )}
+                        {incomingMatch.address && (
+                          <p className="text-xs text-muted-foreground/60">{incomingMatch.address}</p>
+                        )}
+                        {incomingMatch.summary && (
+                          <p className="text-xs text-emerald-400/80 font-medium mt-1">{incomingMatch.summary}</p>
+                        )}
+                      </div>
+
+                      {/* Jeff's Notes — most important section */}
+                      {tb?.jeffNotes && tb.jeffNotes.length > 0 && (
+                        <div className="rounded-lg bg-emerald-500/[0.06] border border-emerald-500/15 p-3 space-y-1.5">
+                          <p className="text-[10px] uppercase tracking-wider text-emerald-400/70 font-semibold">Jeff&apos;s Notes</p>
+                          {tb.jeffNotes.map((note, i) => (
+                            <div key={i} className="flex items-start gap-2 text-xs text-foreground/90">
+                              <span className="text-emerald-400 mt-0.5 shrink-0">&bull;</span>
+                              <span>{note}</span>
+                            </div>
+                          ))}
+                        </div>
                       )}
-                      {incomingMatch.address && (
-                        <p className="text-xs text-muted-foreground/60 ml-4">{incomingMatch.address}</p>
-                      )}
-                      {incomingMatch.summary && (
-                        <p className="text-xs text-muted-foreground ml-4">{incomingMatch.summary}</p>
-                      )}
-                      {incomingMatch.transferBrief?.discoverySlots && Object.keys(incomingMatch.transferBrief.discoverySlots).length > 0 && (
-                        <div className="flex flex-wrap gap-1 ml-4 mt-1">
-                          {Object.entries(incomingMatch.transferBrief.discoverySlots).map(([slot, value]) => (
+
+                      {/* Discovery Slots */}
+                      {tb?.discoverySlots && Object.keys(tb.discoverySlots).length > 0 && (
+                        <div className="flex flex-wrap gap-1">
+                          {Object.entries(tb.discoverySlots).map(([slot, value]) => (
                             <span key={slot} className="inline-flex items-center gap-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 text-[10px] text-emerald-400">
                               <span className="font-semibold">{slot}:</span> {String(value).slice(0, 40)}
                             </span>
                           ))}
                         </div>
                       )}
-                      {incomingMatch.transferBrief?.callerType && (
-                        <p className="text-[10px] text-muted-foreground/40 ml-4 mt-1">Type: {incomingMatch.transferBrief.callerType}</p>
+
+                      {/* Lead Context */}
+                      {tb?.lead && (tb.lead.stage || tb.lead.source || (tb.lead.tags && tb.lead.tags.length > 0)) && (
+                        <div className="flex flex-wrap items-center gap-1.5">
+                          {tb.lead.stage && (
+                            <Badge variant="outline" className="text-[10px] border-muted-foreground/20">{tb.lead.stage}</Badge>
+                          )}
+                          {tb.lead.source && (
+                            <Badge variant="outline" className="text-[10px] border-muted-foreground/20">{tb.lead.source}</Badge>
+                          )}
+                          {tb.lead.tags?.map((tag) => (
+                            <Badge key={tag} variant="outline" className="text-[10px] border-primary/20 text-primary/70">{tag}</Badge>
+                          ))}
+                          {tb.lead.email && (
+                            <span className="text-[10px] text-muted-foreground/50 ml-1">{tb.lead.email}</span>
+                          )}
+                        </div>
+                      )}
+
+                      {/* Property Info */}
+                      {tb?.property && (tb.property.county || tb.property.propertyType) && (
+                        <div className="flex items-center gap-2 text-[10px] text-muted-foreground/50">
+                          <Home className="h-3 w-3 shrink-0" />
+                          {[tb.property.propertyType, tb.property.city, tb.property.county].filter(Boolean).join(" · ")}
+                        </div>
+                      )}
+
+                      {/* Recent Calls */}
+                      {tb?.recentCalls && tb.recentCalls.length > 0 && (
+                        <div className="space-y-1">
+                          <p className="text-[10px] uppercase tracking-wider text-muted-foreground/40 font-semibold">Recent Calls</p>
+                          {tb.recentCalls.slice(0, 3).map((call, i) => (
+                            <div key={i} className="flex items-center gap-2 text-[10px] text-muted-foreground/60">
+                              {call.direction === "inbound" ? (
+                                <ArrowDownLeft className="h-3 w-3 text-emerald-400/60 shrink-0" />
+                              ) : (
+                                <ArrowUpRight className="h-3 w-3 text-primary/60 shrink-0" />
+                              )}
+                              <span>{new Date(call.date).toLocaleDateString("en-US", { month: "short", day: "numeric" })}</span>
+                              <span className="text-muted-foreground/30">—</span>
+                              <span className="capitalize">{call.disposition ?? "No disposition"}</span>
+                              {call.summary && (
+                                <>
+                                  <span className="text-muted-foreground/30">—</span>
+                                  <span className="truncate max-w-[200px]">{call.summary}</span>
+                                </>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      )}
+
+                      {/* Open Tasks */}
+                      {tb?.openTasks && tb.openTasks.length > 0 && (
+                        <div className="space-y-1">
+                          <p className="text-[10px] uppercase tracking-wider text-muted-foreground/40 font-semibold">Open Tasks</p>
+                          {tb.openTasks.slice(0, 3).map((task, i) => (
+                            <div key={i} className="flex items-center gap-2 text-[10px] text-muted-foreground/60">
+                              <CheckCircle2 className="h-3 w-3 shrink-0 text-primary/40" />
+                              <span>{task.title}</span>
+                              {task.dueDate && (
+                                <span className="text-muted-foreground/30">— Due {new Date(task.dueDate).toLocaleDateString("en-US", { month: "short", day: "numeric" })}</span>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      )}
+
+                      {/* Caller Type */}
+                      {tb?.callerType && (
+                        <p className="text-[10px] text-muted-foreground/40">Type: {tb.callerType}</p>
                       )}
                     </div>
-                  )}
+                    );
+                  })()}
                   {incomingMatch.type === "jeff" && (
                     <div className="flex items-center gap-2">
                       <span className="h-2 w-2 rounded-full bg-amber-400" />
@@ -2358,27 +2776,42 @@ function DialerPageInner() {
             <div className="flex items-center justify-between mb-3">
               <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
                 <Users className="h-3.5 w-3.5 text-primary" />
-                Dial Queue
+                {autoCycleMode ? "Auto Cycle" : "Dial Queue"}
                 <CallSequenceGuide />
               </h2>
-              <button
-                onClick={refetchQueue}
-                className="text-sm text-muted-foreground/60 hover:text-foreground transition-colors"
-              >
-                Refresh
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setAutoCycleMode((value) => !value)}
+                  className={cn(
+                    "rounded-[8px] border px-2 py-1 text-[11px] uppercase tracking-wider transition-colors",
+                    autoCycleMode
+                      ? "border-primary/25 bg-primary/10 text-primary"
+                      : "border-border/20 text-muted-foreground/60 hover:text-foreground",
+                  )}
+                >
+                  {autoCycleMode ? "Auto Cycle On" : "Normal Queue"}
+                </button>
+                <button
+                  onClick={handleModalRefresh}
+                  className="text-sm text-muted-foreground/60 hover:text-foreground transition-colors"
+                >
+                  Refresh
+                </button>
+              </div>
             </div>
             <p className="text-sm text-muted-foreground/50 mb-2">
-              Overdue first, then due today, then unscheduled.
+              {autoCycleMode
+                ? "Ready-now leads float to the top, then the next retry due."
+                : "Overdue first, then due today, then unscheduled."}
             </p>
 
-            {queueLoading ? (
+            {displayedQueueLoading ? (
               <div className="space-y-2">
                 {[1, 2, 3, 4].map((i) => (
                   <div key={i} className="h-14 rounded-[12px] bg-secondary/20 animate-pulse" />
                 ))}
               </div>
-            ) : queue.length === 0 ? (
+            ) : displayedQueue.length === 0 ? (
               <div className="text-center py-6 space-y-3">
                 <Phone className="h-6 w-6 mx-auto text-muted-foreground/20" />
                 <p className="text-xs text-muted-foreground/50">No leads queued — add or claim leads from the Lead Queue</p>
@@ -2393,7 +2826,7 @@ function DialerPageInner() {
               </div>
             ) : (
               <div className="space-y-1.5">
-                {queue.map((lead, idx) => {
+                {displayedQueue.map((lead, idx) => {
                   const isActive = currentLead?.id === lead.id;
                   const rowNextAction = deriveNextActionVisibility({
                     status: lead.status,
@@ -2401,9 +2834,21 @@ function DialerPageInner() {
                     nextCallScheduledAt: lead.next_call_scheduled_at,
                     nextFollowUpAt: lead.next_follow_up_at ?? lead.follow_up_date ?? null,
                   });
-                  const rowDueIso = lead.next_call_scheduled_at ?? lead.next_follow_up_at ?? lead.follow_up_date ?? null;
+                  const rowDueIso = autoCycleMode && "autoCycle" in lead
+                    ? (lead as AutoCycleQueueLead).autoCycle.nextDueAt
+                    : lead.next_call_scheduled_at ?? lead.next_follow_up_at ?? lead.follow_up_date ?? null;
                   const rowDue = formatDueDateLabel(rowDueIso);
                   const rowDueLabel = rowDue.text === "n/a" ? "No due date" : rowDue.text;
+                  const autoCycleLead = autoCycleMode ? lead as AutoCycleQueueLead : null;
+                  const autoCycleStatusLabel = autoCycleLead
+                    ? autoCycleLead.autoCycle.readyNow
+                      ? "Ready now"
+                      : autoCycleLead.autoCycle.cycleStatus === "waiting"
+                        ? "Retry window"
+                        : autoCycleLead.autoCycle.cycleStatus === "paused"
+                          ? "Paused"
+                          : "In cycle"
+                    : null;
 
                   return (
                     <button
@@ -2441,6 +2886,26 @@ function DialerPageInner() {
                             {rowDueLabel === "No due date" ? "Never" : rowDueLabel}
                           </span>
                         </div>
+                        {autoCycleLead && (
+                          <div className="flex flex-wrap items-center gap-1.5 pl-5 pt-1">
+                            <span className="rounded-[7px] border border-primary/15 bg-primary/[0.06] px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-primary/80">
+                              Round {autoCycleLead.autoCycle.currentRound}
+                            </span>
+                            <span className="rounded-[7px] border border-overlay-6 bg-overlay-3 px-1.5 py-0.5 text-[10px] uppercase tracking-wider text-muted-foreground/65">
+                              {autoCycleLead.autoCycle.remainingPhones} phone{autoCycleLead.autoCycle.remainingPhones === 1 ? "" : "s"} left
+                            </span>
+                            {autoCycleStatusLabel && (
+                              <span className="text-[10px] uppercase tracking-wider text-muted-foreground/55">
+                                {autoCycleStatusLabel}
+                              </span>
+                            )}
+                            {autoCycleLead.autoCycle.voicemailDropNext && (
+                              <span className="rounded-[7px] border border-amber-500/20 bg-amber-500/[0.07] px-1.5 py-0.5 text-[10px] uppercase tracking-wider text-amber-300">
+                                VM next
+                              </span>
+                            )}
+                          </div>
+                        )}
                       </div>
                     </button>
                   );
@@ -2504,16 +2969,40 @@ function DialerPageInner() {
                           <Eye className="h-3 w-3" />
                           Open Lead Detail
                         </button>
+                        <button
+                          onClick={currentLeadAutoCycleEntry ? handleRemoveCurrentLeadFromAutoCycle : handleAddCurrentLeadToAutoCycle}
+                          className={cn(
+                            "mt-1 inline-flex items-center gap-1 text-sm transition-colors",
+                            currentLeadAutoCycleEntry
+                              ? "text-primary hover:text-primary/80"
+                              : "text-muted-foreground/70 hover:text-foreground",
+                          )}
+                        >
+                          <Zap className="h-3 w-3" />
+                          {currentLeadAutoCycleEntry ? "Remove From Auto Cycle" : "Add To Auto Cycle"}
+                        </button>
                       </div>
                       <div className="flex flex-col items-end gap-1">
                         {/* Score hidden until live scoring loop is wired — showing untrusted numbers is worse than no number */}
                         <Badge variant="outline" className="text-sm px-2.5 py-0.5 gap-1 border-border/20 text-muted-foreground/50">
                           —
                         </Badge>
+                        {currentLeadAutoCycleEntry && (
+                          <Badge variant="outline" className="text-xs gap-1 border-primary/20 text-primary/80">
+                            <Zap className="h-2.5 w-2.5" />
+                            Round {currentLeadAutoCycleEntry.autoCycle.currentRound}
+                          </Badge>
+                        )}
                         <Badge variant="outline" className="text-xs gap-1 border-primary/20 text-primary/70">
                           <Phone className="h-2.5 w-2.5" />
                           {getCadencePosition(currentLead.total_calls ?? 0).label}
                         </Badge>
+                        {currentLeadAutoCycleEntry?.autoCycle.voicemailDropNext && (
+                          <Badge variant="outline" className="text-xs gap-1 border-amber-500/20 text-amber-300">
+                            <Voicemail className="h-2.5 w-2.5" />
+                            VM Next
+                          </Badge>
+                        )}
                         {!currentLead.compliant && !ghostMode && (
                           <Badge variant="destructive" className="text-sm">
                             COMPLIANCE BLOCKED
@@ -2565,7 +3054,7 @@ function DialerPageInner() {
                     {/* Compact property vitals — single block instead of 9 tiles */}
                     <div className="rounded-[10px] bg-overlay-3 border border-overlay-6 px-3 py-2">
                       <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs">
-                        <span className="font-mono text-foreground">{currentLead.properties?.owner_phone ?? "No phone"}</span>
+                        <span className="font-mono text-foreground">{currentDialedPhone ?? currentLead.properties?.owner_phone ?? "No phone"}</span>
                         <span className="text-muted-foreground/40">|</span>
                         <span>ARV <span className="text-foreground font-medium">{currentLead.properties?.estimated_value ? `$${currentLead.properties.estimated_value.toLocaleString()}` : "—"}</span></span>
                         {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
@@ -2744,8 +3233,8 @@ function DialerPageInner() {
                           </Button>
                           <Button
                             onClick={() => {
-                              const currentIdx = queue.findIndex((l) => l.id === currentLead.id);
-                              const nextLead = queue[currentIdx + 1] ?? queue[0] ?? null;
+                              const currentIdx = displayedQueue.findIndex((l) => l.id === currentLead.id);
+                              const nextLead = displayedQueue[currentIdx + 1] ?? displayedQueue[0] ?? null;
                               if (nextLead) {
                                 setCurrentLead(nextLead);
                                 setPhoneIndex(0);
@@ -2970,6 +3459,14 @@ function DialerPageInner() {
                 exit={{ opacity: 0, y: -10 }}
                 transition={{ duration: 0.2 }}
               >
+                {callState === "connected" && currentLead && (
+                  <LiveAnswerIntelPanel
+                    lead={currentLead}
+                    dialedPhone={currentDialedPhone}
+                    onOpenDetail={() => setFileModalOpen(true)}
+                  />
+                )}
+
                 {/* ── Seller Memory: visible during and after call ── */}
                 {dialerSessionId && (
                   <SellerMemoryPanel
@@ -3008,8 +3505,9 @@ function DialerPageInner() {
                       occupancyScore: currentLead.occupancy_score ?? null,
                       hasOpenTask: false,
                     } : null}
-                    phoneNumber={currentLead?.properties?.owner_phone ?? null}
+                    phoneNumber={currentDialedPhone}
                     leadId={currentLead?.id ?? null}
+                    autoCycleEnabled={autoCycleMode}
                     onComplete={handlePostCallDone}
                     onSkip={handlePostCallDone}
                   />
@@ -3055,13 +3553,13 @@ function DialerPageInner() {
                       variant="outline"
                       className="w-full mt-3 gap-2 text-xs"
                       onClick={() => {
-                        const idx = queue.findIndex((l) => l.id === currentLead?.id);
-                        setCurrentLead(queue[(idx + 1) % queue.length] ?? null);
+                        const idx = displayedQueue.findIndex((l) => l.id === currentLead?.id);
+                        setCurrentLead(displayedQueue[(idx + 1) % displayedQueue.length] ?? null);
                         setCallState("idle");
                         setCallNotes("");
                         timer.reset();
                       }}
-                      disabled={queue.length <= 1}
+                      disabled={displayedQueue.length <= 1}
                     >
                       <SkipForward className="h-3.5 w-3.5" />
                       Next Lead

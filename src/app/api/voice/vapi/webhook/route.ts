@@ -7,7 +7,7 @@ import {
   handleEndCall,
 } from "@/providers/voice/vapi-functions";
 import type { TransferResult } from "@/providers/voice/vapi-functions";
-import { buildAssistantConfig } from "@/providers/voice/vapi-adapter";
+import { buildAssistantConfig, buildOutboundAssistantConfig } from "@/providers/voice/vapi-adapter";
 import { notifyMissedCall } from "@/lib/notify";
 import { sendTransferFailedSMS } from "@/providers/voice/vapi-sms";
 import { trackedDelivery } from "@/lib/delivery-tracker";
@@ -122,16 +122,20 @@ async function handleAssistantRequest(message: VapiWebhookPayload["message"]) {
     (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "");
   const serverUrl = `${siteUrl}/api/voice/vapi/webhook`;
 
-  const config = buildAssistantConfig(serverUrl);
+  // Detect outbound calls and return the appropriate assistant config
+  const isOutbound = message.call?.type === "outboundPhoneCall";
+  const config = isOutbound
+    ? buildOutboundAssistantConfig(serverUrl)
+    : buildAssistantConfig(serverUrl);
 
   // Create agent run for traceability before session
   const runId = await createAgentRun({
-    agentName: "vapi-inbound",
+    agentName: isOutbound ? "vapi-outbound" : "vapi-inbound",
     triggerType: "webhook",
     triggerRef: message.call?.id ?? "unknown",
     leadId: undefined,
     model: "claude-sonnet-4-6",
-    promptVersion: "inbound-v1",
+    promptVersion: isOutbound ? "outbound-v1" : "inbound-v1",
     inputs: {
       callId: message.call?.id,
       fromNumber: message.call?.customer?.number ?? null,

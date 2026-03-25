@@ -64,6 +64,9 @@ export async function POST(req: NextRequest) {
   // ── type=chain_step: Browser → Browser → Jeff call chain ─────────────────
   if (type === "chain_step") {
     const step = url.searchParams.get("step") ?? "";
+    const isTransfer = url.searchParams.get("transfer") === "1";
+    const transferVsid = url.searchParams.get("vsid") ?? "";
+    const originalFrom = url.searchParams.get("originalFrom") ?? "";
     const formData = await req.formData();
     const dialStatus = formData.get("DialCallStatus")?.toString() ?? "";
     const fromNumber = formData.get("From")?.toString() ?? "";
@@ -73,7 +76,7 @@ export async function POST(req: NextRequest) {
     const vapiNumber = process.env.VAPI_PHONE_NUMBER ?? "";
     const twilioNumber = process.env.TWILIO_PHONE_NUMBER ?? "";
 
-    console.log(`[inbound] chain_step=${step} dialStatus=${dialStatus} from=${fromNumber} sid=${callSid}`);
+    console.log(`[inbound] chain_step=${step} dialStatus=${dialStatus} from=${fromNumber} sid=${callSid}${isTransfer ? " (vapi-transfer)" : ""}`);
 
     // If someone answered in their browser, log it and we're done
     if (dialStatus === "completed" || dialStatus === "in-progress") {
@@ -102,23 +105,26 @@ export async function POST(req: NextRequest) {
         ]
       : [];
     const chainParams2 = chainSessionId ? `&amp;sessionId=${chainSessionId}&amp;callLogId=${chainCallLogId}` : "";
+    // Carry transfer flag through the chain so subsequent steps know not to loop back to Vapi
+    const transferParams = isTransfer ? `&amp;transfer=1&amp;vsid=${encodeURIComponent(transferVsid)}&amp;originalFrom=${encodeURIComponent(originalFrom)}` : "";
 
     let nextTwiml: string;
 
     if (step === "logan" && adamIdentity) {
       // Logan's browser didn't answer → try Adam's browser for 20 seconds
-      console.log("[inbound] Logan browser missed → trying Adam browser");
+      console.log(`[inbound] Logan browser missed → trying Adam browser${isTransfer ? " (transfer cascade)" : ""}`);
       nextTwiml = [
         '<?xml version="1.0" encoding="UTF-8"?>',
         "<Response>",
         ...chainStreamLines,
-        `  <Dial callerId="${twilioNumber}" timeout="20" action="${siteUrl}/api/twilio/inbound?type=chain_step&amp;step=adam${chainParams2}" method="POST">`,
+        `  <Dial callerId="${twilioNumber}" timeout="20" action="${siteUrl}/api/twilio/inbound?type=chain_step&amp;step=adam${chainParams2}${transferParams}" method="POST">`,
         `    <Client>${adamIdentity}</Client>`,
         "  </Dial>",
         "</Response>",
       ].join("\n");
-    } else if ((step === "adam" || (step === "logan" && !adamIdentity)) && vapiNumber) {
+    } else if ((step === "adam" || (step === "logan" && !adamIdentity)) && vapiNumber && !isTransfer) {
       // Adam's browser didn't answer → forward to Jeff (Vapi AI)
+      // ONLY for regular inbound. Vapi transfers skip this step to prevent looping.
       console.log(`[inbound] ${step} browser missed → forwarding to Jeff (Vapi)`);
       nextTwiml = [
         '<?xml version="1.0" encoding="UTF-8"?>',
@@ -131,8 +137,16 @@ export async function POST(req: NextRequest) {
       ].join("\n");
     } else {
       // No more fallbacks — play message, log missed call
-      console.log(`[inbound] All chain steps exhausted — missed call from ${fromNumber}`);
-      await handleMissedInbound({ fromNumber, callSid, siteUrl });
+      // For Vapi transfers: both Logan and Adam missed → book callback
+      const missedFrom = isTransfer ? (originalFrom || fromNumber) : fromNumber;
+      console.log(`[inbound] All chain steps exhausted — missed call from ${missedFrom}${isTransfer ? " (transfer cascade exhausted)" : ""}`);
+
+      if (isTransfer) {
+        await handleMissedTransfer({ originalFrom: missedFrom, callSid, voiceSessionId: transferVsid, siteUrl });
+      } else {
+        await handleMissedInbound({ fromNumber: missedFrom, callSid, siteUrl });
+      }
+
       nextTwiml = [
         '<?xml version="1.0" encoding="UTF-8"?>',
         "<Response>",
@@ -186,6 +200,10 @@ export async function POST(req: NextRequest) {
   // ── Initial inbound webhook: return TwiML with call chain ──────────────────
   // Chain: Logan browser (20s) → Adam browser (20s) → Jeff/Vapi AI (always answers)
   // No cell phones. All calls ring in the Sentinel dialer browser UI.
+  //
+  // TRANSFER CASCADE: When Jeff (Vapi) transfers a call back here, From will
+  // be the Vapi phone number. We detect this and use a modified chain that
+  // skips the Vapi fallback step (would loop). Instead: Logan → Adam → missed.
   const loganIdentity = process.env.LOGAN_BROWSER_IDENTITY ?? "logan@dominionhomedeals.com";
   const twilioNumber = process.env.TWILIO_PHONE_NUMBER ?? "";
 
@@ -194,8 +212,57 @@ export async function POST(req: NextRequest) {
   const fromNumber = formData.get("From")?.toString() ?? "";
   const callSid = formData.get("CallSid")?.toString() ?? "";
 
-  // Create a call session + calls_log entry upfront so transcription and closeout work
+  // Supabase client needed for both transfer detection and regular flow
   const sb = createServerClient();
+
+  // ── Detect Vapi transfer ──────────────────────────────────────────────
+  const vapiNumber = process.env.VAPI_PHONE_NUMBER ?? "";
+  const fromDigits = fromNumber.replace(/\D/g, "");
+  const vapiDigits = vapiNumber.replace(/\D/g, "");
+  const isVapiTransfer = fromDigits.length >= 10 && vapiDigits.length >= 10
+    && fromDigits.slice(-10) === vapiDigits.slice(-10);
+
+  if (isVapiTransfer) {
+    // This is a warm transfer from Jeff (Vapi AI).
+    // Look up the recent transferred voice_session to get original caller info.
+    const twoMinAgo = new Date(Date.now() - 2 * 60 * 1000).toISOString();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: transferSession } = await (sb.from("voice_sessions") as any)
+      .select("id, from_number, lead_id, transfer_brief")
+      .eq("status", "transferred")
+      .gte("created_at", twoMinAgo)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    const originalFrom = transferSession?.from_number ?? fromNumber;
+    const vsid = transferSession?.id ?? "";
+    const adamIdentity = process.env.ADAM_BROWSER_IDENTITY ?? "adam@dominionhomedeals.com";
+
+    console.log("[inbound] Vapi transfer detected:", {
+      originalCaller: originalFrom ? `***${originalFrom.slice(-4)}` : "unknown",
+      voiceSessionId: vsid ? vsid.slice(0, 8) : "none",
+      callSid,
+    });
+
+    // Transfer cascade TwiML: Logan (20s) → Adam (20s) → missed handler
+    // No Vapi fallback step — Jeff is the one transferring, so looping back would be infinite.
+    const transferTwiml = [
+      '<?xml version="1.0" encoding="UTF-8"?>',
+      "<Response>",
+      `  <Dial callerId="${twilioNumber}" timeout="20" action="${siteUrl}/api/twilio/inbound?type=chain_step&amp;step=logan&amp;transfer=1&amp;vsid=${encodeURIComponent(vsid)}&amp;originalFrom=${encodeURIComponent(originalFrom)}" method="POST">`,
+      `    <Client>${loganIdentity}</Client>`,
+      "  </Dial>",
+      "</Response>",
+    ].join("\n");
+
+    return new NextResponse(transferTwiml, {
+      status: 200,
+      headers: { "Content-Type": "text/xml" },
+    });
+  }
+
+  // Create a call session + calls_log entry upfront so transcription and closeout work
   let sessionId: string | null = null;
   let callLogId: string | null = null;
 
@@ -445,5 +512,128 @@ async function handleAnsweredInbound({
     fromNumber: fromNumber ? `***${fromNumber.slice(-4)}` : "none",
     leadId: leadId ? `${leadId.slice(0, 8)}…` : "no match",
     durationSec: dialDuration,
+  });
+}
+
+// ── handleMissedTransfer ──────────────────────────────────────────────────
+// Fired when a Vapi transfer cascade exhausts all steps (Logan + Adam both missed).
+// Creates a priority callback task, sends SMS to both operators, updates voice_session.
+
+async function handleMissedTransfer({
+  originalFrom,
+  callSid,
+  voiceSessionId,
+  siteUrl: _siteUrl,
+}: {
+  originalFrom: string;
+  callSid: string;
+  voiceSessionId: string;
+  siteUrl: string;
+}) {
+  const sb = createServerClient();
+  const now = new Date();
+
+  // ── 1. Look up the voice session for transfer context ─────────────────
+  let leadId: string | null = null;
+  let leadName = "Unknown caller";
+  let transferReason = "Warm transfer from Jeff";
+
+  if (voiceSessionId) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: session } = await (sb.from("voice_sessions") as any)
+      .select("lead_id, transfer_brief, transfer_reason")
+      .eq("id", voiceSessionId)
+      .single();
+
+    if (session) {
+      leadId = session.lead_id;
+      transferReason = session.transfer_reason ?? transferReason;
+      const brief = session.transfer_brief as Record<string, unknown> | null;
+      if (brief?.caller_name) leadName = String(brief.caller_name);
+    }
+
+    // Update voice_session status to transfer_missed
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    await (sb.from("voice_sessions") as any)
+      .update({ status: "transfer_missed" })
+      .eq("id", voiceSessionId);
+  }
+
+  // If we don't have a lead from the session, try matching by phone
+  if (!leadId && originalFrom) {
+    const normalized = originalFrom.replace(/\D/g, "");
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: contacts } = await (sb.from("contacts") as any)
+      .select("id, first_name, last_name, phone, leads(id)")
+      .or(`phone.eq.${originalFrom},phone.eq.+${normalized},phone.eq.${normalized}`)
+      .limit(1);
+
+    if (contacts && contacts.length > 0) {
+      const contact = contacts[0];
+      leadId = contact.leads?.[0]?.id ?? null;
+      if (leadName === "Unknown caller") {
+        leadName = [contact.first_name, contact.last_name].filter(Boolean).join(" ") || "Caller";
+      }
+    }
+  }
+
+  // ── 2. Create urgent callback task ──────────────────────────────────────
+  const dueAt = new Date(now.getTime() + 15 * 60 * 1000); // 15 minutes — urgent transfer callback
+  const taskTitle = `⚡ Missed transfer — call back ${leadName} (${originalFrom}) ASAP`;
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: taskRow, error: taskErr } = await (sb.from("tasks") as any)
+    .insert({
+      title: taskTitle,
+      lead_id: leadId,
+      due_at: dueAt.toISOString(),
+      status: "pending",
+      priority: 4, // Higher than regular missed calls
+      notes: [
+        `Transfer cascade missed at ${now.toISOString()}.`,
+        `Caller: ${originalFrom}. Reason: ${transferReason}.`,
+        `Voice session: ${voiceSessionId || "unknown"}. Twilio SID: ${callSid}.`,
+        `Both Logan and Adam were unavailable.`,
+      ].join("\n"),
+    })
+    .select("id")
+    .single();
+
+  if (taskErr) {
+    console.error("[inbound] Missed transfer task creation failed:", taskErr.message);
+  }
+
+  // ── 3. Write dialer_event ───────────────────────────────────────────────
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  await (sb.from("dialer_events") as any)
+    .insert({
+      event_type: "transfer.missed",
+      lead_id: leadId,
+      session_id: voiceSessionId || null,
+      task_id: taskRow?.id ?? null,
+      metadata: {
+        from_number: originalFrom,
+        call_sid: callSid,
+        voice_session_id: voiceSessionId,
+        transfer_reason: transferReason,
+        missed_at: now.toISOString(),
+      },
+    });
+
+  // ── 4. SMS both operators — call back ASAP ──────────────────────────────
+  const { sendDirectSMS } = await import("@/providers/voice/vapi-sms");
+
+  const loganCell = process.env.TWILIO_FORWARD_TO_CELL;
+  const adamCell = process.env.ADAM_CELL;
+  const urgentMsg = `MISSED TRANSFER: ${leadName} (${originalFrom}) — ${transferReason}. Both missed. Call back ASAP!`;
+
+  if (loganCell) sendDirectSMS(loganCell, urgentMsg).catch(() => {});
+  if (adamCell) sendDirectSMS(adamCell, urgentMsg).catch(() => {});
+
+  console.log("[inbound] Missed transfer handled:", {
+    originalFrom: originalFrom ? `***${originalFrom.slice(-4)}` : "none",
+    leadId: leadId ? `${leadId.slice(0, 8)}…` : "no match",
+    taskId: taskRow?.id ? `${taskRow.id.slice(0, 8)}…` : "failed",
+    voiceSessionId: voiceSessionId ? voiceSessionId.slice(0, 8) : "none",
   });
 }

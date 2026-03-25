@@ -5,9 +5,10 @@ import {
   dispoAgentJob,
   followUpAgentJob,
   postCallAnalysisJob,
+  outboundBatchJob,
 } from "../../../inngest";
 
 export const { GET, POST, PUT } = serve({
   client: inngest,
-  functions: [researchAgentJob, dispoAgentJob, followUpAgentJob, postCallAnalysisJob],
+  functions: [researchAgentJob, dispoAgentJob, followUpAgentJob, postCallAnalysisJob, outboundBatchJob],
 });

@@ -5,6 +5,7 @@ import { supabase } from "@/lib/supabase";
 import { scrubLeadClient } from "@/lib/compliance";
 import { useSentinelStore } from "@/lib/store";
 import type { QualificationRoute } from "@/lib/types";
+import type { AutoCycleLeadState, AutoCyclePhoneState } from "@/lib/dialer/types";
 
 // ── Queue Lead shape ──────────────────────────────────────────────────
 
@@ -54,6 +55,18 @@ export interface QueueLead {
   blendedPriority: number;
   compliant?: boolean;
   scrubbing?: boolean;
+}
+
+export interface AutoCycleQueueLead extends QueueLead {
+  autoCycle: AutoCycleLeadState;
+  autoCyclePhones: AutoCyclePhoneState[];
+}
+
+async function dialerAuthHeaders(): Promise<Record<string, string>> {
+  const { data: { session } } = await supabase.auth.getSession();
+  const headers: Record<string, string> = {};
+  if (session?.access_token) headers.Authorization = `Bearer ${session.access_token}`;
+  return headers;
 }
 
 // ── Dialer Queue Hook ─────────────────────────────────────────────────
@@ -199,6 +212,78 @@ export function useDialerQueue(limit = 7) {
 
     const channel = supabase
       .channel("dialer-queue")
+      .on("postgres_changes", { event: "*", schema: "public", table: "leads" }, () => fetchQueue())
+      .subscribe();
+
+    return () => { supabase.removeChannel(channel); };
+  }, [fetchQueue]);
+
+  return { queue, loading, refetch: fetchQueue };
+}
+
+export function useAutoCycleQueue(limit = 12) {
+  const [queue, setQueue] = useState<AutoCycleQueueLead[]>([]);
+  const [loading, setLoading] = useState(true);
+  const { currentUser, ghostMode } = useSentinelStore();
+
+  const fetchQueue = useCallback(async () => {
+    if (!currentUser.id) return;
+    try {
+      setLoading(true);
+      const hdrs = await dialerAuthHeaders();
+      const res = await fetch(`/api/dialer/v1/auto-cycle?limit=${limit}`, { headers: hdrs });
+      if (!res.ok) {
+        setLoading(false);
+        return;
+      }
+
+      const data = await res.json() as {
+        items?: Array<{
+          lead: QueueLead;
+          auto_cycle: AutoCycleLeadState;
+          phones: AutoCyclePhoneState[];
+        }>;
+      };
+
+      const rows = (data.items ?? []).map(({ lead, auto_cycle, phones }) => ({
+        ...lead,
+        predictiveScore: null,
+        blendedPriority: lead.priority,
+        autoCycle: auto_cycle,
+        autoCyclePhones: phones,
+      }));
+
+      const scrubbed = await Promise.all(
+        rows.map(async (lead) => {
+          const nextPhone = lead.autoCyclePhones.find((phone) => phone.phoneId === lead.autoCycle.nextPhoneId)
+            ?? lead.autoCyclePhones.find((phone) => phone.phoneStatus === "active")
+            ?? null;
+          const phone = nextPhone?.phone ?? lead.properties?.owner_phone;
+          if (!phone || ghostMode) return { ...lead, compliant: true, scrubbing: false };
+          try {
+            const result = await scrubLeadClient(phone);
+            return { ...lead, compliant: result.allowed, scrubbing: false };
+          } catch {
+            return { ...lead, compliant: true, scrubbing: false };
+          }
+        }),
+      );
+
+      setQueue(scrubbed);
+    } catch (err) {
+      console.error("[AutoCycleQueue] fetch failed:", err);
+    } finally {
+      setLoading(false);
+    }
+  }, [currentUser.id, ghostMode, limit]);
+
+  useEffect(() => {
+    fetchQueue();
+
+    const channel = supabase
+      .channel("auto-cycle-queue")
+      .on("postgres_changes", { event: "*", schema: "public", table: "dialer_auto_cycle_leads" }, () => fetchQueue())
+      .on("postgres_changes", { event: "*", schema: "public", table: "dialer_auto_cycle_phones" }, () => fetchQueue())
       .on("postgres_changes", { event: "*", schema: "public", table: "leads" }, () => fetchQueue())
       .subscribe();
 

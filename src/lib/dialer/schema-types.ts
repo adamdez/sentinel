@@ -93,3 +93,39 @@ export interface DialerEventRow {
   payload: Record<string, unknown> | null;
   created_at: string;
 }
+
+// Auto Cycle overlay tables
+
+export interface DialerAutoCycleLeadRow {
+  id: string;
+  lead_id: string;
+  user_id: string;
+  cycle_status: "ready" | "waiting" | "paused" | "exited";
+  current_round: number;
+  next_due_at: string | null;
+  next_phone_id: string | null;
+  last_outcome: string | null;
+  exit_reason: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface DialerAutoCyclePhoneRow {
+  id: string;
+  cycle_lead_id: string;
+  lead_id: string;
+  user_id: string;
+  phone_id: string | null;
+  phone: string;
+  phone_position: number;
+  attempt_count: number;
+  next_attempt_number: number | null;
+  next_due_at: string | null;
+  last_attempt_at: string | null;
+  last_outcome: string | null;
+  voicemail_drop_next: boolean;
+  phone_status: "active" | "dead" | "dnc" | "completed" | "exited";
+  exit_reason: string | null;
+  created_at: string;
+  updated_at: string;
+}

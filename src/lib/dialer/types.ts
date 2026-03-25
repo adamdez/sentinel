@@ -144,6 +144,41 @@ export interface LeadPhone {
   call_count: number;
 }
 
+export type AutoCycleStatus = "ready" | "waiting" | "paused" | "exited";
+export type AutoCyclePhoneStatus = "active" | "dead" | "dnc" | "completed" | "exited";
+
+export interface AutoCycleLeadState {
+  id: string;
+  leadId: string;
+  cycleStatus: AutoCycleStatus;
+  currentRound: number;
+  nextDueAt: string | null;
+  nextPhoneId: string | null;
+  lastOutcome: string | null;
+  exitReason: string | null;
+  readyNow: boolean;
+  voicemailDropNext: boolean;
+  remainingPhones: number;
+}
+
+export interface AutoCyclePhoneState {
+  id: string;
+  cycleLeadId: string;
+  leadId: string;
+  phoneId: string | null;
+  phone: string;
+  phonePosition: number;
+  attemptCount: number;
+  nextAttemptNumber: number | null;
+  nextDueAt: string | null;
+  lastAttemptAt: string | null;
+  lastOutcome: string | null;
+  voicemailDropNext: boolean;
+  phoneStatus: AutoCyclePhoneStatus;
+  exitReason: string | null;
+  dueNow: boolean;
+}
+
 // ─────────────────────────────────────────────────────────────
 // Repeat-call memory — richer context fetched on-demand
 // ─────────────────────────────────────────────────────────────

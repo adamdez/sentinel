@@ -8,7 +8,7 @@ import {
   ExternalLink, Phone, MessageSquare, Mail, MapPin, User, Lock,
   Loader2, Save, Pencil, ImageIcon, Contact2, Crosshair, Smartphone,
   Scale, Calendar, FileText, Users, XCircle, RotateCcw, ChevronDown,
-  ArrowUp,
+  ArrowUp, CheckCircle2, AlertCircle,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
@@ -24,12 +24,13 @@ import {
   getGoogleStreetViewLink,
 } from "@/components/sentinel/comps/comps-map";
 import { CopyBtn } from "../master-client-file-parts";
-import type { PhoneDetail, EmailDetail, SkipTraceOverlay } from "./contact-types";
+import type { PhoneDetail, EmailDetail, SkipTraceOverlay, SkipTraceError } from "./contact-types";
 import type { LeadPhone } from "@/lib/dialer/types";
 
-export function ContactTab({ cf, overlay, onSkipTrace, skipTracing, onDial, onSms, calling, onRefresh }: {
+export function ContactTab({ cf, overlay, onSkipTrace, skipTracing, skipTraceResult, skipTraceError, onDial, onSms, calling, onRefresh }: {
   cf: ClientFile; overlay: SkipTraceOverlay | null;
   onSkipTrace: () => void; skipTracing: boolean;
+  skipTraceResult?: string | null; skipTraceError?: SkipTraceError | null;
   onDial: (phone: string) => void; onSms: (phone: string) => void;
   calling: boolean; onRefresh?: () => void;
 }) {
@@ -44,6 +45,18 @@ export function ContactTab({ cf, overlay, onSkipTrace, skipTracing, onDial, onSm
   const streetViewLink = propLat && propLng ? getGoogleStreetViewLink(propLat, propLng) : null;
   const [imgFailed, setImgFailed] = useState(false);
   useEffect(() => { setImgFailed(false); }, [imageUrl]);
+
+  // ── Skip-trace status (durable from owner_flags, or in-session from overlay/error) ──
+  const durableSkipTraced = Boolean(cf.ownerFlags?.skip_traced);
+  const durablePhoneCount = (cf.ownerFlags?.all_phones as unknown[] | undefined)?.length ?? 0;
+  const sessionHasResults = overlay != null && (overlay.phones.length > 0 || overlay.emails.length > 0);
+  const sessionFailed = skipTraceError != null;
+  const skipStatus: "skipped" | "skip_empty" | "skip_failed" | "not_run" =
+    sessionHasResults ? "skipped"
+    : sessionFailed ? "skip_failed"
+    : (durableSkipTraced && durablePhoneCount > 0) ? "skipped"
+    : durableSkipTraced ? "skip_empty"
+    : "not_run";
 
   // ── Phone & email data ──
   const persons = overlay?.persons ?? (cf.ownerFlags?.persons as Record<string, unknown>[]) ?? [];
@@ -333,6 +346,21 @@ export function ContactTab({ cf, overlay, onSkipTrace, skipTracing, onDial, onSm
         <h3 className="text-sm font-semibold text-foreground flex items-center gap-2">
           <Contact2 className="h-4 w-4 text-primary/60" />
           Contact Information
+          {skipStatus === "skipped" && (
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+              <CheckCircle2 className="h-3 w-3" />Skipped
+            </span>
+          )}
+          {skipStatus === "skip_empty" && (
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-amber-500/10 text-amber-400 border border-amber-500/20">
+              <AlertCircle className="h-3 w-3" />Skipped — 0 contacts
+            </span>
+          )}
+          {skipStatus === "skip_failed" && (
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-red-500/10 text-red-400 border border-red-500/20">
+              <AlertCircle className="h-3 w-3" />Skip Failed
+            </span>
+          )}
         </h3>
         <div className="flex items-center gap-2">
           {editing ? (

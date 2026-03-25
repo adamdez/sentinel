@@ -322,14 +322,14 @@ export async function publishSession(
 
   // ── Step 2.5: auto-disqualify on terminal dispositions ───
   //
-  // "disqualified" → moves lead to nurture (recyclable, may re-engage)
-  // "dead_lead"    → moves lead to dead (archived, effectively gone)
+  // "not_interested" / "disqualified" → moves lead to nurture (recyclable, may re-engage)
+  // "dead_lead"                       → moves lead to dead (archived, effectively gone)
   //
   // Both are backward moves in the state machine, so next_action is not
   // enforced by guardrails. We set a default next_action for audit purposes.
 
-  if (leadId && ["disqualified", "dead_lead"].includes(input.disposition)) {
-    const targetStatus = input.disposition === "disqualified" ? "nurture" : "dead";
+  if (leadId && ["not_interested", "disqualified", "dead_lead"].includes(input.disposition)) {
+    const targetStatus = input.disposition === "dead_lead" ? "dead" : "nurture";
     try {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { data: currentLead } = await (sb.from("leads") as any)

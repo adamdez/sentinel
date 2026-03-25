@@ -933,6 +933,43 @@ export async function PATCH(req: NextRequest) {
       });
     }
 
+    // Auto-trigger skip-trace intel when lead is first claimed or reassigned to a founder.
+    // Fire-and-forget — results go to intel pipeline (artifacts + facts), not direct to CRM.
+    const shouldSkiptrace =
+      typeof effectiveAssignedTo === "string" &&
+      effectiveAssignedTo.length > 0 &&
+      currentLead.property_id;
+
+    if (shouldSkiptrace) {
+      import("@/lib/skiptrace-intel").then(({ shouldTriggerSkiptrace, runSkipTraceIntel }) => {
+        const prev = (currentLead.assigned_to as string | null) ?? null;
+        if (!shouldTriggerSkiptrace(prev, effectiveAssignedTo)) return;
+
+        // Load property address fields for skip-trace (async, non-blocking)
+        (sb.from("properties") as any) // eslint-disable-line @typescript-eslint/no-explicit-any
+          .select("address, city, state, zip, owner_name")
+          .eq("id", currentLead.property_id)
+          .single()
+          .then(({ data: prop }: { data: Record<string, unknown> | null }) => {
+            if (!prop) return;
+            runSkipTraceIntel({
+              leadId: lead_id,
+              propertyId: currentLead.property_id as string,
+              address: (prop.address as string) ?? undefined,
+              city: (prop.city as string) ?? undefined,
+              state: (prop.state as string) ?? undefined,
+              zip: (prop.zip as string) ?? undefined,
+              ownerName: (prop.owner_name as string) ?? undefined,
+              reason: isFirstClaim ? "claim" : "reassignment",
+            }).catch((err: unknown) => {
+              console.error("[prospects/PATCH] Skip-trace intel failed (non-fatal):", err);
+            });
+          });
+      }).catch((err) => {
+        console.error("[prospects/PATCH] Skip-trace intel setup failed:", err);
+      });
+    }
+
     // Conversion tracking: capture stage transition snapshot (non-blocking).
     if (statusChanged && targetStatus) {
       captureStageTransition(lead_id, currentStatus, targetStatus).catch((e) =>

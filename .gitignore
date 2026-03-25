@@ -32,6 +32,7 @@ deploy-clean/
 .DS_Store
 *.pem
 nul
+/output/
 
 # internal audit/agent files
 cursor-*.md

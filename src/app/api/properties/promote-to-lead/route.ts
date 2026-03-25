@@ -177,16 +177,23 @@ export async function POST(req: NextRequest) {
 
     // ── Auto-trigger skiptrace on promotion (fire-and-forget) ────────
     // Blueprint: "Run ONLY on lead promotion to working status."
-    // Results go to intel pipeline (artifacts + facts), not direct to leads.
-    triggerSkiptrace(newLead.id, {
-      address: address ?? null,
-      city: city ?? null,
-      state: state ?? null,
-      zip: zip ?? null,
-      ownerName: ownerName ?? null,
-      propertyId: resolvedPropertyId,
+    // Uses shared intel helper with dedup + debounce. Results go to
+    // intel pipeline (artifacts + facts), not direct to leads.
+    import("@/lib/skiptrace-intel").then(({ runSkipTraceIntel }) => {
+      runSkipTraceIntel({
+        leadId: newLead.id,
+        propertyId: resolvedPropertyId,
+        address: address ?? undefined,
+        city: city ?? undefined,
+        state: state ?? undefined,
+        zip: zip ?? undefined,
+        ownerName: ownerName ?? undefined,
+        reason: "promotion",
+      }).catch((err: unknown) => {
+        console.error("[promote-to-lead] Skiptrace intel failed (non-fatal):", err);
+      });
     }).catch((err) => {
-      console.error("[promote-to-lead] Skiptrace trigger failed (non-fatal):", err);
+      console.error("[promote-to-lead] Skiptrace intel setup failed:", err);
     });
 
     return NextResponse.json({
@@ -220,106 +227,4 @@ async function triggerResearch(
   });
 }
 
-/**
- * Fire-and-forget: run skiptrace on promotion and store results as intel artifacts.
- * Write path: dualSkipTrace → raw_artifact → fact_assertions (pending review).
- * Does NOT write directly to leads.phone — facts stay in intel until reviewed.
- */
-async function triggerSkiptrace(
-  leadId: string,
-  params: {
-    address: string | null;
-    city: string | null;
-    state: string | null;
-    zip: string | null;
-    ownerName: string | null;
-    propertyId: string;
-  },
-): Promise<void> {
-  if (!params.address) return; // Can't skiptrace without an address
-
-  const { dualSkipTrace } = await import("@/lib/skip-trace");
-  const { createArtifact, createFact } = await import("@/lib/intelligence");
-
-  const result = await dualSkipTrace({
-    id: params.propertyId,
-    address: params.address ?? undefined,
-    city: params.city ?? undefined,
-    state: params.state ?? undefined,
-    zip: params.zip ?? undefined,
-    owner_name: params.ownerName ?? undefined,
-  });
-
-  if (result.totalPhoneCount === 0 && result.totalEmailCount === 0) return;
-
-  // Step 1: Store raw skiptrace result as artifact
-  const artifactId = await createArtifact({
-    leadId,
-    propertyId: params.propertyId,
-    sourceType: "skiptrace_promotion",
-    sourceLabel: `Skip trace (${result.providers.join(", ")})`,
-    rawExcerpt: JSON.stringify({
-      phones: result.phones,
-      emails: result.emails,
-      persons: result.persons,
-      primaryPhone: result.primaryPhone,
-      primaryEmail: result.primaryEmail,
-      isLitigator: result.isLitigator,
-      hasDncNumbers: result.hasDncNumbers,
-    }).slice(0, 10000),
-    capturedBy: "promote-to-lead:skiptrace",
-  });
-
-  // Step 2: Create fact assertions for key contact data
-  if (result.primaryPhone) {
-    await createFact({
-      artifactId,
-      leadId,
-      factType: "primary_phone",
-      factValue: result.primaryPhone,
-      confidence: "medium",
-      promotedField: "phone",
-      assertedBy: `skiptrace:${result.providers.join("+")}`,
-    });
-  }
-
-  if (result.primaryEmail) {
-    await createFact({
-      artifactId,
-      leadId,
-      factType: "primary_email",
-      factValue: result.primaryEmail,
-      confidence: "medium",
-      promotedField: "email",
-      assertedBy: `skiptrace:${result.providers.join("+")}`,
-    });
-  }
-
-  if (result.isLitigator) {
-    await createFact({
-      artifactId,
-      leadId,
-      factType: "litigator_flag",
-      factValue: "true",
-      confidence: "high",
-      assertedBy: `skiptrace:${result.providers.join("+")}`,
-    });
-  }
-
-  // Store individual phone numbers as facts (top 3)
-  for (const phone of result.phones.slice(0, 3)) {
-    if (phone.number === result.primaryPhone) continue;
-    await createFact({
-      artifactId,
-      leadId,
-      factType: "phone_number",
-      factValue: phone.number,
-      confidence: phone.confidence >= 80 ? "high" : phone.confidence >= 50 ? "medium" : "low",
-      assertedBy: `skiptrace:${phone.source}`,
-    });
-  }
-
-  console.log(
-    `[promote-to-lead] Skiptrace complete: ${result.totalPhoneCount} phones, ${result.totalEmailCount} emails for lead ${leadId}`,
-  );
-}
+// triggerSkiptrace removed — now uses shared runSkipTraceIntel from @/lib/skiptrace-intel

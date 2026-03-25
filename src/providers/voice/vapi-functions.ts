@@ -23,7 +23,7 @@ import type {
   TransferCallParams,
   VapiFunctionResult,
 } from "./types";
-import { sendCallbackConfirmationSMS } from "./vapi-sms";
+import { sendCallbackConfirmationSMS, sendDirectSMS } from "./vapi-sms";
 
 // ── lookup_lead ─────────────────────────────────────────────────────────────
 
@@ -271,19 +271,21 @@ export async function handleTransferToOperator(
   params: TransferCallParams,
   voiceSessionId: string,
 ): Promise<TransferResult> {
-  // Route to the right person — default to Logan
-  // Use BROWSER numbers (Twilio), not cell phones. This triggers the
-  // inbound chain which rings the browser dialer.
+  // Transfer now routes through the Twilio inbound cascade:
+  //   Logan browser (20s) → Adam browser (20s) → missed handler (books callback)
+  // Vapi forwards to the main Dominion Twilio number, which detects
+  // the Vapi transfer and uses the cascade chain.
   const target = params.transfer_to ?? "logan";
-  const forwardTo = target === "adam"
-    ? (process.env.TWILIO_PHONE_NUMBER_ADAM ?? process.env.ADAM_CELL)
-    : (process.env.TWILIO_PHONE_NUMBER_LOGAN ?? process.env.TWILIO_FORWARD_TO_CELL);
   const targetName = target === "adam" ? "Adam" : "Logan";
 
+  // The forwarding number is the main Dominion Twilio number.
+  // The inbound handler detects From=VAPI_PHONE_NUMBER and uses the
+  // transfer cascade instead of the regular inbound chain.
+  const cascadeNumber = process.env.TWILIO_PHONE_NUMBER;
   const sb = createServerClient();
 
-  if (!forwardTo) {
-    console.warn(`[vapi-functions] No phone configured for ${target}, falling back to callback`);
+  if (!cascadeNumber) {
+    console.warn("[vapi-functions] No TWILIO_PHONE_NUMBER configured, falling back to callback");
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { data: session } = await (sb.from("voice_sessions") as any)
@@ -313,40 +315,66 @@ export async function handleTransferToOperator(
   }
 
   // Build a structured transfer brief from the conversation so far.
-  // This gets stored on the voice_session and displayed on Logan's
-  // incoming call overlay when the transfer rings his browser.
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data: sessionData } = await (sb.from("voice_sessions") as any)
     .select("extracted_facts, from_number, lead_id")
     .eq("id", voiceSessionId)
     .single();
 
+  const callerName = params.caller_name ?? "Caller";
+  const fromNumber = sessionData?.from_number ?? null;
+  const leadId = sessionData?.lead_id ?? null;
+
   const transferBrief = {
     transfer_to: targetName,
     reason: params.reason,
     caller_type: params.caller_type,
-    from_number: sessionData?.from_number ?? null,
-    lead_id: sessionData?.lead_id ?? null,
+    from_number: fromNumber,
+    lead_id: leadId,
     timestamp: new Date().toISOString(),
   };
 
   // Update voice session with transfer info + brief
+  // Store cascadeNumber as transferred_to so the inbound handler can verify
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   await (sb.from("voice_sessions") as any)
     .update({
       status: "transferred",
-      transferred_to: forwardTo,
+      transferred_to: cascadeNumber,
       transfer_reason: params.reason,
       caller_type: params.caller_type,
       transfer_brief: transferBrief,
     })
     .eq("id", voiceSessionId);
 
-  // Return Vapi's expected transfer format:
-  // - `forwardingPhoneNumber` at top level tells Vapi to initiate the PSTN transfer
-  // - `result` is the message the AI says before transferring
+  // ── Pre-transfer SMS notifications (fire-and-forget) ──────────────────
+  // Send SMS to Logan and Adam BEFORE the call rings their browsers.
+  const loganCell = process.env.TWILIO_FORWARD_TO_CELL;
+  const adamCell = process.env.ADAM_CELL;
+  const address = params.reason ?? "property inquiry";
+
+  if (loganCell) {
+    sendDirectSMS(
+      loganCell,
+      `Jeff transferring: ${callerName} (${fromNumber ?? "unknown"}) re: ${address}. Check dialer now.`,
+    ).catch(() => {/* fire-and-forget */});
+  }
+  if (adamCell) {
+    sendDirectSMS(
+      adamCell,
+      `Backup: Jeff transferring to Logan — ${callerName} (${fromNumber ?? "unknown"}) re: ${address}. You're next if he misses.`,
+    ).catch(() => {/* fire-and-forget */});
+  }
+
+  console.log("[vapi-functions] Transfer cascade initiated:", {
+    target: targetName,
+    cascadeNumber,
+    voiceSessionId: voiceSessionId.slice(0, 8),
+    reason: params.reason,
+  });
+
   return {
-    forwardingPhoneNumber: forwardTo,
+    forwardingPhoneNumber: cascadeNumber,
     result: JSON.stringify({
       success: true,
       transferTo: targetName,

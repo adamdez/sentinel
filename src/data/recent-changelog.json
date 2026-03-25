@@ -1,127 +1,127 @@
 [
   {
-    "hash": "828ace0e",
-    "date": "2026-03-22",
-    "message": "[codex] Gracefully fall back when live coach column is missing"
+    "hash": "f0366db0",
+    "date": "2026-03-24",
+    "message": "[cursor] Property carousel: merge fetched+cached photos, Street View fallback, img onError"
   },
   {
-    "hash": "5b861d20",
-    "date": "2026-03-22",
-    "message": "[codex] Implement live coach v2 backend"
+    "hash": "adf8c469",
+    "date": "2026-03-24",
+    "message": "Live coaching: always-visible 3 NEPQ questions + 3 Voss labels in yellow"
   },
   {
-    "hash": "6d19e8cd",
-    "date": "2026-03-22",
-    "message": "feat: dialer honesty pass — hide untrusted score, show real data, wire live scoring"
+    "hash": "86bc2deb",
+    "date": "2026-03-24",
+    "message": "[cursor] Close implementation gaps: dead phone auto-mark, dead lead dispo, consent cleanup, dossier placeholder, missed queue retry, phone cycling"
   },
   {
-    "hash": "f0032626",
-    "date": "2026-03-22",
-    "message": "[codex] Read live transcripts from session notes"
+    "hash": "53906e41",
+    "date": "2026-03-24",
+    "message": "[cursor] Dead phone UX fix, Dead Phone disposition, remove call consent blocker"
   },
   {
-    "hash": "6db7a6b2",
-    "date": "2026-03-22",
-    "message": "[codex] Fix Deepgram relay live stream handshake"
+    "hash": "4aeee966",
+    "date": "2026-03-24",
+    "message": "Tighten legal search and rewire dossier deep crawl"
   },
   {
-    "hash": "beab314e",
-    "date": "2026-03-22",
-    "message": "[codex] Fix live stream metadata and Deepgram auth"
+    "hash": "30f49570",
+    "date": "2026-03-24",
+    "message": "[cursor] Task UX polish — filter Unknown Owner, show phone in dashboard, enrich generic titles in syncLeadToTask"
   },
   {
-    "hash": "55a6914d",
-    "date": "2026-03-22",
-    "message": "[codex] Restore deepgram relay health and keep it warm"
+    "hash": "8cd77f89",
+    "date": "2026-03-24",
+    "message": "[cursor] Task system UX overhaul — identity, context, accountability, friction reduction"
   },
   {
-    "hash": "c401b298",
-    "date": "2026-03-22",
-    "message": "chore: remove verse of the day, wire live notes bridge, fix MCP build"
+    "hash": "1b759567",
+    "date": "2026-03-24",
+    "message": "[cursor] Fix client file modal positioning — account for sidebar width"
   },
   {
-    "hash": "5a11f9cc",
-    "date": "2026-03-22",
-    "message": "[codex] Wire manual dial into live coach and transcript session"
+    "hash": "ce2f319d",
+    "date": "2026-03-24",
+    "message": "Harden live coach and call notes polling"
   },
   {
-    "hash": "454d499e",
-    "date": "2026-03-22",
-    "message": "[codex] Pin Vercel runtime region to Portland"
+    "hash": "b951f4d6",
+    "date": "2026-03-24",
+    "message": "perf: speed up live coaching — faster polling, shorter cooldowns, token cap"
   },
   {
-    "hash": "3a11b01e",
-    "date": "2026-03-22",
-    "message": "[codex] Restore pre-call brief objections contract"
+    "hash": "95918fed",
+    "date": "2026-03-24",
+    "message": "System hardening: silent failure fixes, webhook auth, image config, task titles, Twilio provider"
   },
   {
-    "hash": "42a3e947",
-    "date": "2026-03-22",
-    "message": "[codex] Fix live coach deploy type contract"
+    "hash": "12abaa08",
+    "date": "2026-03-24",
+    "message": "[cursor] Task UX overhaul — click opens lead modal, lead name primary, call button, phone in API"
   },
   {
-    "hash": "cc0f2a8f",
-    "date": "2026-03-22",
-    "message": "[codex] Add GPT-5 live dialer coaching"
+    "hash": "2f535992",
+    "date": "2026-03-24",
+    "message": "[cursor] Search result click opens lead modal + surface error states instead of silent failures"
   },
   {
-    "hash": "587b8766",
-    "date": "2026-03-22",
-    "message": "feat: call history notepad shows all prior calls to same phone number"
+    "hash": "5415f630",
+    "date": "2026-03-24",
+    "message": "[cursor] Dialer phone cycling, dead phone marking, stage controls, default lead filter"
   },
   {
-    "hash": "aae17c60",
-    "date": "2026-03-22",
-    "message": "feat: add notepad icon to call history rows with expandable notes"
+    "hash": "aadf6f77",
+    "date": "2026-03-24",
+    "message": "fix: zip NOT NULL constraint causing all Add New Lead 500 errors"
   },
   {
-    "hash": "29268a3d",
-    "date": "2026-03-22",
-    "message": "feat: add Live Notes panel to manual dial + fix realtime subscription"
+    "hash": "d68f2d77",
+    "date": "2026-03-24",
+    "message": "debug: return actual error details in prospects POST 500 response"
   },
   {
-    "hash": "d6f3c7ff",
-    "date": "2026-03-22",
-    "message": "fix: bridge live transcripts to calls_log.live_notes for realtime UI"
+    "hash": "4668066b",
+    "date": "2026-03-24",
+    "message": "[cursor] Fix Save Lead 500 — remove owner_phone2 from property upsert (column does not exist in DB, moved to owner_flags)"
   },
   {
-    "hash": "6743dc90",
-    "date": "2026-03-22",
-    "message": "fix: call disconnect race — fallback to failed when ended rejected"
+    "hash": "066df576",
+    "date": "2026-03-24",
+    "message": "Unified task system with bidirectional sync, chip-based setter, and calendar view"
   },
   {
-    "hash": "132487b3",
-    "date": "2026-03-22",
-    "message": "fix: call disconnect + closeout stuck on INVALID_TRANSITION"
+    "hash": "b81a773e",
+    "date": "2026-03-23",
+    "message": "[cursor] Fix Save Lead 500 error — pass Bricked data from modal enrichment to API, skip redundant server-side re-fetch that was timing out the serverless function"
   },
   {
-    "hash": "8f904b24",
-    "date": "2026-03-22",
-    "message": "fix: add FK cascade migration for snapshot table"
+    "hash": "03bee49e",
+    "date": "2026-03-23",
+    "message": "[cursor] Make nationwide property search instant — open modal immediately with address, fetch Bricked enrichment in background. Previously blocked UI for 5-15s waiting for Bricked API before opening the modal."
   },
   {
-    "hash": "49d0eb6f",
-    "date": "2026-03-22",
-    "message": "fix: escape & as &amp; in Stream URL params for valid TwiML XML"
+    "hash": "ecbd0023",
+    "date": "2026-03-23",
+    "message": "[cursor] Fix legal search crawlers to submit actual searches + enlarge detail dropdown. Recorder now uses Firecrawl actions to fill/submit the search form instead of scraping the landing page. Courts crawler constructs a direct WA Courts search URL with the owner name. Liens crawler uses targeted web searches. Detail rows bumped from 11px to 14px (text-sm)."
   },
   {
-    "hash": "eef4cdab",
-    "date": "2026-03-22",
-    "message": "fix: unify notes — MCF lead notes now write to calls_log timeline"
+    "hash": "d9a3f7b1",
+    "date": "2026-03-23",
+    "message": "[cursor] Fix equity display on dialer card — fall through to owner_flags data when equity_percent is null, compute from ARV minus loan balance, remove Owed column"
   },
   {
-    "hash": "586f7a1e",
-    "date": "2026-03-22",
-    "message": "feat: System Health dashboard + Twilio VoIP fix + publish auto-end"
+    "hash": "0c121633",
+    "date": "2026-03-23",
+    "message": "[cursor] Fix duplicate siteUrl declaration in browser voice route"
   },
   {
-    "hash": "75df8ffa",
-    "date": "2026-03-22",
-    "message": "fix: auto-end stuck sessions on publish — don't block the operator"
+    "hash": "b86524e0",
+    "date": "2026-03-23",
+    "message": "[cursor] Fix outbound calls dropping — Twilio signature validation used req.url (Vercel internal hostname) instead of NEXT_PUBLIC_SITE_URL (custom domain). Signature always failed, returning 403 JSON instead of TwiML, causing immediate hangup."
   },
   {
-    "hash": "4656ce2e",
-    "date": "2026-03-22",
-    "message": "fix: Twilio VoIP — wrap <Stream> in <Start> + server-side phone normalization"
+    "hash": "e7666578",
+    "date": "2026-03-23",
+    "message": "[cursor] Fix Legal tab visibility + persist deep crawl results across tab switches. Legal tab was filtered out by local PRIMARY_TAB_IDS. Deep crawl now saves categorized results to owner_flags so they reload on mount."
   }
 ]
