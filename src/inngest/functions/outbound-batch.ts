@@ -88,10 +88,9 @@ export const outboundBatchJob = inngest.createFunction(
             direction: "outbound",
             lead_id: lead.id,
             to_number: lead.phone,
-            status: "initiating",
+            status: "ringing",
             caller_type: "seller",
-            initiated_by: initiatedBy,
-            metadata: { batch_id: batchId },
+            metadata: { batch_id: batchId, initiated_by: initiatedBy },
             auto_cycle_lead_id: autoCycleLeadId,
             auto_cycle_phone_id: autoCyclePhoneId,
           })

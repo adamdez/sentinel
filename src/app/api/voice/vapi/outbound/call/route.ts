@@ -145,9 +145,9 @@ export async function POST(req: NextRequest) {
       direction: "outbound",
       lead_id: leadId,
       to_number: phone,
-      status: "initiating",
+      status: "ringing",
       caller_type: "seller",
-      initiated_by: user.id,
+      metadata: { initiated_by: user.id },
       auto_cycle_lead_id: autoCycleLeadId,
       auto_cycle_phone_id: autoCyclePhoneId,
     })
