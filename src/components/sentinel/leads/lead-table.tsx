@@ -12,6 +12,7 @@ import {
   Trash2,
   Loader2,
   UserCheck,
+  Zap,
 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/lib/supabase";
@@ -146,6 +147,7 @@ export function LeadTable({
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [bulkDeleting, setBulkDeleting] = useState(false);
   const [bulkClaiming, setBulkClaiming] = useState(false);
+  const [bulkAutoCycling, setBulkAutoCycling] = useState(false);
 
   const allSelected = leads.length > 0 && selectedIds.size === leads.length;
   const someSelected = selectedIds.size > 0;
@@ -254,6 +256,54 @@ export function LeadTable({
     }
   }, [selectedIds, currentUserId, onRefresh]);
 
+  const handleBulkAddToAutoCycle = useCallback(async () => {
+    const count = selectedIds.size;
+    if (count === 0) return;
+    setBulkAutoCycling(true);
+    let succeeded = 0;
+    let failed = 0;
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) {
+        toast.error("Session expired. Please sign in again.");
+        return;
+      }
+      for (const id of selectedIds) {
+        try {
+          const res = await fetch("/api/dialer/v1/auto-cycle", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${session.access_token}`,
+            },
+            body: JSON.stringify({ leadId: id }),
+          });
+          if (res.ok) succeeded++;
+          else failed++;
+        } catch {
+          failed++;
+        }
+      }
+      setSelectedIds(new Set());
+      if (succeeded > 0 && failed === 0) {
+        toast.success(
+          `Added ${succeeded} lead${succeeded > 1 ? "s" : ""} to Auto Cycle — open Dialer → Jeff to call them.`,
+        );
+      } else if (succeeded > 0 && failed > 0) {
+        toast.warning(
+          `Added ${succeeded} to Auto Cycle; ${failed} skipped (need to be claimed by you, Lead stage, and have a phone).`,
+        );
+      } else if (failed > 0) {
+        toast.error(
+          "None added — leads must be claimed by you, in Lead stage, and have at least one phone.",
+        );
+      }
+      onRefresh?.();
+    } finally {
+      setBulkAutoCycling(false);
+    }
+  }, [selectedIds, onRefresh]);
+
   const addToQueue = useCallback(async (leadId: string) => {
     setQueuingId(leadId);
     try {
@@ -303,6 +353,22 @@ export function LeadTable({
             {bulkClaiming ? <Loader2 className="h-3 w-3 animate-spin" /> : <UserCheck className="h-3 w-3" />}
             Claim Leads ({selectedIds.size})
           </button>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <button
+                type="button"
+                onClick={handleBulkAddToAutoCycle}
+                disabled={bulkAutoCycling}
+                className="flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-md bg-emerald-500/10 text-emerald-400 border border-emerald-500/25 hover:bg-emerald-500/20 transition-colors disabled:opacity-50"
+              >
+                {bulkAutoCycling ? <Loader2 className="h-3 w-3 animate-spin" /> : <Zap className="h-3 w-3" />}
+                Auto Cycle / Jeff ({selectedIds.size})
+              </button>
+            </TooltipTrigger>
+            <TooltipContent side="bottom" className="max-w-xs text-xs">
+              Adds claimed leads to the dialer Auto Cycle queue (same list Jeff uses). Each lead must be yours, in Lead stage, and have a phone.
+            </TooltipContent>
+          </Tooltip>
           <button
             onClick={handleBulkDelete}
             disabled={bulkDeleting}
