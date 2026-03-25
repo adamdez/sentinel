@@ -3185,7 +3185,7 @@ function DialerPageInner() {
                             "mt-1 inline-flex items-center gap-1 text-sm transition-colors",
                             currentLeadAutoCycleEntry
                               ? "text-primary hover:text-primary/80"
-                              : "text-muted-foreground/70 hover:text-foreground",
+                              : "text-emerald-400 hover:text-emerald-300",
                           )}
                         >
                           <Zap className="h-3 w-3" />
