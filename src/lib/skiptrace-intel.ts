@@ -276,7 +276,7 @@ export async function runSkipTraceIntel(
       factValue: result.primaryPhone,
       confidence: "medium",
       promotedField: "phone",
-      assertedBy: `skiptrace:${providerLabel}`,
+      assertedBy: undefined, // UUID column — provenance tracked via sourceType on artifact
     });
     fingerprints.phones.add(normalizePhoneForDedup(result.primaryPhone));
     newFacts++;
@@ -290,7 +290,7 @@ export async function runSkipTraceIntel(
       factValue: result.primaryEmail,
       confidence: "medium",
       promotedField: "email",
-      assertedBy: `skiptrace:${providerLabel}`,
+      assertedBy: undefined, // UUID column — provenance tracked via sourceType on artifact
     });
     fingerprints.emails.add(normalizeEmailForDedup(result.primaryEmail));
     newFacts++;
@@ -303,7 +303,7 @@ export async function runSkipTraceIntel(
       factType: "litigator_flag",
       factValue: "true",
       confidence: "high",
-      assertedBy: `skiptrace:${providerLabel}`,
+      assertedBy: undefined, // UUID column — provenance tracked via sourceType on artifact
     });
     newFacts++;
   }
@@ -318,7 +318,7 @@ export async function runSkipTraceIntel(
       factType: "phone_number",
       factValue: phone.number,
       confidence: phone.confidence >= 80 ? "high" : phone.confidence >= 50 ? "medium" : "low",
-      assertedBy: `skiptrace:${phone.source}`,
+      assertedBy: undefined,
     });
     newFacts++;
   }
@@ -333,7 +333,7 @@ export async function runSkipTraceIntel(
       factType: "email",
       factValue: email.email,
       confidence: email.deliverable ? "medium" : "low",
-      assertedBy: `skiptrace:${email.source}`,
+      assertedBy: undefined,
     });
     newFacts++;
   }
