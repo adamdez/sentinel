@@ -2937,6 +2937,8 @@ function DialerPageInner() {
                         <div
                           key={lead.id}
                           onClick={() => {
+                            // Always load the lead detail panel when clicked
+                            setCurrentLead(lead);
                             if (!isReady) return;
                             // Allow re-selecting skipped/failed leads for retry
                             if (jeffStatus && jeffStatus !== "skipped" && jeffStatus !== "failed") return;
