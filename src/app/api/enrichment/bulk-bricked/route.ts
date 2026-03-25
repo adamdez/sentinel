@@ -5,7 +5,7 @@
  * Accepts optional leadIds array — if omitted, runs all leads without existing analysis.
  * Use force=true to re-analyze leads that already have Bricked data.
  *
- * Founder-only endpoint.
+ * Auth: Bearer token (founder-only) OR CRON_SECRET.
  */
 
 import { NextRequest, NextResponse } from "next/server";
@@ -15,21 +15,27 @@ import { inngest } from "@/inngest/client";
 import { randomUUID } from "crypto";
 
 export async function POST(req: NextRequest) {
-  const sb = createServerClient();
-  const user = await requireAuth(req, sb);
+  // ── Auth: accept either user Bearer token or CRON_SECRET ──────────
+  const authHeader = req.headers.get("authorization");
+  let initiatedBy = "cron";
 
-  if (!user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
-  // Founder-only gate
-  const founderIds = (process.env.FOUNDER_USER_IDS ?? "")
-    .split(",")
-    .map((s) => s.trim())
-    .filter(Boolean);
-
-  if (!founderIds.includes(user.id)) {
-    return NextResponse.json({ error: "Forbidden — founder only" }, { status: 403 });
+  if (authHeader === `Bearer ${process.env.CRON_SECRET}`) {
+    // CRON_SECRET auth — allowed
+  } else {
+    // Try user auth
+    const sb = createServerClient();
+    const user = await requireAuth(req, sb);
+    if (!user) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+    const founderIds = (process.env.FOUNDER_USER_IDS ?? "")
+      .split(",")
+      .map((s) => s.trim())
+      .filter(Boolean);
+    if (!founderIds.includes(user.id)) {
+      return NextResponse.json({ error: "Forbidden — founder only" }, { status: 403 });
+    }
+    initiatedBy = user.id;
   }
 
   const body = await req.json().catch(() => ({}));
@@ -48,7 +54,7 @@ export async function POST(req: NextRequest) {
       leadIds: leadIds ?? undefined,
       force: force ?? false,
       limit: limit ?? undefined,
-      initiatedBy: user.id,
+      initiatedBy,
     },
   });
 
