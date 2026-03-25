@@ -110,6 +110,8 @@ export interface LiveBestMove {
   suggestedMirror: string | null;
   suggestedLabel: string | null;
   guardrail: string;
+  nepqQuestions: [string, string, string];
+  vossLabels: [string, string, string];
 }
 
 export interface LiveCoachCachedState {
@@ -151,4 +153,6 @@ export interface LiveCoachResponseV2 {
   backupQuestion: string | null;
   suggestedMirror: string | null;
   suggestedLabel: string | null;
+  nepqQuestions: [string, string, string];
+  vossLabels: [string, string, string];
 }

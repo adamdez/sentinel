@@ -11,7 +11,7 @@ import {
   Minimize2,
   MoveUpRight,
   Shield,
-  Sparkles,
+
 } from "lucide-react";
 import { toast } from "sonner";
 import type { PreCallBrief } from "@/hooks/use-pre-call-brief";
@@ -110,14 +110,23 @@ export function LiveAssistPanel({
 
   const fallbackQuestion = brief?.nextQuestions?.[0] ?? "";
   const stage = coach?.currentStage ?? brief?.currentStage ?? "situation";
-  const stageReason = coach?.whyThisGapNow ?? coach?.stageReason ?? brief?.stageReason ?? "";
   const primaryGoal = coach?.primaryGoal ?? brief?.primaryGoal ?? "";
   const nextBestQuestion = coach?.nextBestQuestion ?? fallbackQuestion;
-  const backupQuestion = coach?.backupQuestion ?? brief?.nextQuestions?.[1] ?? null;
-  const suggestedMirror = coach?.suggestedMirror ?? coach?.empathyMoves?.find((move) => move.type === "mirror")?.text ?? null;
-  const suggestedLabel = coach?.suggestedLabel ?? coach?.empathyMoves?.find((move) => move.type === "label")?.text ?? null;
   const guardrail = coach?.guardrails?.[0] ?? brief?.watchOuts?.[0] ?? "Keep the call calm, specific, and discovery-first.";
   const structuredNotes = coach?.structuredLiveNotes ?? [];
+
+  const defaultNepq: [string, string, string] = [
+    brief?.nextQuestions?.[0] ?? "Can you walk me through what is going on with the property right now?",
+    brief?.nextQuestions?.[1] ?? "How is this situation affecting you personally right now?",
+    brief?.nextQuestions?.[2] ?? "What has you wanting to solve this now instead of letting it sit?",
+  ];
+  const defaultVoss: [string, string, string] = [
+    "It sounds like the property is in pretty good shape overall.",
+    "It sounds like this hasn't been too much of a hassle so far.",
+    "It sounds like there's no real rush on your end.",
+  ];
+  const nepqQuestions = coach?.nepqQuestions ?? defaultNepq;
+  const vossLabels = coach?.vossLabels ?? defaultVoss;
 
   const sourceLabel = coach?.source === "gpt5"
     ? "GPT-5"
@@ -184,17 +193,40 @@ export function LiveAssistPanel({
               <p className="text-sm text-amber-200/80">{error}</p>
             </div>
           )}
-          {!coach && !error && (
-            <div className="rounded-[10px] border border-primary/15 bg-primary/[0.05] p-3">
-              <p className="text-xs uppercase tracking-wider text-primary/70">Next Best Question</p>
-              <p className="text-sm text-foreground/85 mt-1 leading-snug">
-                {nextBestQuestion || "The live coach is still collecting context."}
-              </p>
-              {(stageReason || primaryGoal) && (
-                <p className="text-xs text-muted-foreground/50 mt-2 leading-snug">
-                  {[stageReason, primaryGoal].filter(Boolean).join(" ")}
-                </p>
-              )}
+
+          {/* Always-visible NEPQ + Voss coaching moves */}
+          {(brief || coach) && (
+            <div className="grid gap-3 md:grid-cols-2">
+              <div className="rounded-[10px] border border-yellow-500/20 bg-yellow-500/[0.06] p-3">
+                <p className="text-xs uppercase tracking-wider text-yellow-300/70 mb-2">NEPQ Questions</p>
+                <ul className="space-y-2">
+                  {nepqQuestions.map((q, i) => (
+                    <li
+                      key={`nepq-${i}`}
+                      role="button"
+                      onClick={() => copyLine(q)}
+                      className="text-sm text-yellow-300 leading-snug cursor-pointer hover:text-yellow-200 transition-colors"
+                    >
+                      {q}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+              <div className="rounded-[10px] border border-yellow-500/20 bg-yellow-500/[0.06] p-3">
+                <p className="text-xs uppercase tracking-wider text-yellow-300/70 mb-2">Tactical Labels</p>
+                <ul className="space-y-2">
+                  {vossLabels.map((label, i) => (
+                    <li
+                      key={`voss-${i}`}
+                      role="button"
+                      onClick={() => copyLine(label)}
+                      className="text-sm text-yellow-300 leading-snug cursor-pointer hover:text-yellow-200 transition-colors italic"
+                    >
+                      {label}
+                    </li>
+                  ))}
+                </ul>
+              </div>
             </div>
           )}
 
@@ -282,43 +314,6 @@ export function LiveAssistPanel({
                 </div>
 
                 <div className="grid gap-3">
-                  <div className="rounded-[10px] border border-overlay-8 bg-overlay-2 p-3">
-                    <p className="text-xs uppercase tracking-wider text-muted-foreground/55">Why Now</p>
-                    <p className="text-sm text-foreground/72 mt-1 leading-snug">
-                      {stageReason || "Stay on the clearest open gap before moving ahead."}
-                    </p>
-                  </div>
-
-                  {backupQuestion && (
-                    <div className="rounded-[10px] border border-overlay-8 bg-overlay-2 p-3">
-                      <p className="text-xs uppercase tracking-wider text-muted-foreground/55">Backup Question</p>
-                      <p className="text-sm text-foreground/72 mt-1 leading-snug">{backupQuestion}</p>
-                    </div>
-                  )}
-
-                  {(suggestedMirror || suggestedLabel) && (
-                    <div className="grid gap-3 md:grid-cols-2">
-                      <div className="rounded-[10px] border border-overlay-8 bg-overlay-2 p-3">
-                        <div className="flex items-center gap-1.5 text-xs uppercase tracking-wider text-muted-foreground/55">
-                          <Sparkles className="h-3 w-3" />
-                          Suggested Mirror
-                        </div>
-                        <p className="text-sm text-foreground/72 mt-1 leading-snug">
-                          {suggestedMirror ?? "None right now."}
-                        </p>
-                      </div>
-                      <div className="rounded-[10px] border border-overlay-8 bg-overlay-2 p-3">
-                        <div className="flex items-center gap-1.5 text-xs uppercase tracking-wider text-muted-foreground/55">
-                          <Sparkles className="h-3 w-3" />
-                          Suggested Label
-                        </div>
-                        <p className="text-sm text-foreground/72 mt-1 leading-snug">
-                          {suggestedLabel ?? "None right now."}
-                        </p>
-                      </div>
-                    </div>
-                  )}
-
                   <div className="rounded-[10px] border border-amber-500/15 bg-amber-500/[0.06] p-3">
                     <div className="flex items-center gap-1.5 text-xs uppercase tracking-wider text-amber-200/80">
                       <AlertTriangle className="h-3 w-3" />

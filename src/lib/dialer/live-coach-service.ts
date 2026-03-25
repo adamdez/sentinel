@@ -60,6 +60,15 @@ export interface ParsedStrategistMove {
   suggestedMirror: string | null;
   suggestedLabel: string | null;
   guardrail: string | null;
+  nepqQuestions: [string, string, string] | null;
+  vossLabels: [string, string, string] | null;
+}
+
+function parseTriple(val: unknown): [string, string, string] | null {
+  if (!Array.isArray(val)) return null;
+  const strings = val.filter((v): v is string => typeof v === "string" && v.length > 0);
+  if (strings.length < 3) return null;
+  return [strings[0], strings[1], strings[2]];
 }
 
 export const LIVE_COACH_STATE_VERSION = "live_coach_state@2.0.0";
@@ -346,6 +355,16 @@ function readBestMove(raw: unknown): LiveBestMove | null {
     suggestedMirror: typeof data.suggestedMirror === "string" ? data.suggestedMirror : null,
     suggestedLabel: typeof data.suggestedLabel === "string" ? data.suggestedLabel : null,
     guardrail: data.guardrail,
+    nepqQuestions: parseTriple(data.nepqQuestions) ?? [
+      data.nextBestQuestion as string,
+      typeof data.backupQuestion === "string" ? data.backupQuestion : data.nextBestQuestion as string,
+      data.nextBestQuestion as string,
+    ],
+    vossLabels: parseTriple(data.vossLabels) ?? [
+      "It sounds like the property is in pretty good shape overall.",
+      "It sounds like this hasn't been too much of a hassle so far.",
+      "It sounds like there's no real rush on your end.",
+    ],
   };
 }
 
@@ -1119,6 +1138,106 @@ function labelFromValue(value: string | null, fallback: string): string {
   return cleaned ? cleaned : fallback;
 }
 
+// ── NEPQ + Voss coaching moves (split across gaps) ──────────────────────────
+
+const GAP_PRIORITY_ORDER: DiscoveryMapSlotKey[] = [
+  "surface_problem",
+  "property_condition",
+  "human_pain",
+  "desired_relief",
+  "motivation",
+  "timeline",
+  "decision_maker",
+  "price_posture",
+  "next_step",
+];
+
+function getThreeGaps(
+  discoveryMap: DiscoveryMap,
+  primaryGap: DiscoveryMapSlotKey,
+): [DiscoveryMapSlotKey, DiscoveryMapSlotKey, DiscoveryMapSlotKey] {
+  const unresolved = GAP_PRIORITY_ORDER.filter(
+    (g) => g !== primaryGap && discoveryMap[g].status !== "confirmed",
+  );
+  const second = unresolved[0] ?? primaryGap;
+  const third = unresolved[1] ?? (unresolved[0] && unresolved[0] !== primaryGap ? primaryGap : "next_step");
+  return [primaryGap, second, third];
+}
+
+function questionForGap(gap: DiscoveryMapSlotKey, discoveryMap: DiscoveryMap): string {
+  const condition = discoveryMap.property_condition.value ?? discoveryMap.surface_problem.value;
+  const problem = discoveryMap.property_condition.value ?? discoveryMap.surface_problem.value;
+
+  switch (gap) {
+    case "surface_problem":
+      return condition
+        ? `Can you walk me through what is going on with the ${labelFromValue(condition, "property")} right now?`
+        : "Can you walk me through what is going on with the property right now?";
+    case "property_condition":
+      return "What feels like the main issue with the property as it sits today?";
+    case "human_pain":
+      return problem
+        ? `How is the ${labelFromValue(problem, "property issue")} affecting things for you personally right now?`
+        : "How is this situation affecting you personally right now?";
+    case "desired_relief":
+      return "If this got handled cleanly, what would that make possible for you?";
+    case "motivation":
+      return "What has you wanting to solve this now instead of letting it sit?";
+    case "timeline":
+      return "What timing feels realistic from your side right now?";
+    case "decision_maker":
+      return "Who besides you would need to feel good about the next step?";
+    case "price_posture":
+      return "What would make you feel like this was handled fairly?";
+    case "next_step":
+    default:
+      return "What would make the next step feel easy from your side?";
+  }
+}
+
+function vossLabelForGap(gap: DiscoveryMapSlotKey): string {
+  switch (gap) {
+    case "surface_problem":
+      return "It sounds like the property is in pretty good shape overall.";
+    case "property_condition":
+      return "It sounds like most of the property stuff is fairly manageable.";
+    case "human_pain":
+      return "It sounds like this hasn't been too much of a hassle so far.";
+    case "desired_relief":
+      return "It seems like you're not really sure what you'd want out of this.";
+    case "motivation":
+      return "It sounds like there's no real rush on your end.";
+    case "timeline":
+      return "It seems like the timing is pretty flexible for you.";
+    case "decision_maker":
+      return "It sounds like this is pretty much your call to make.";
+    case "price_posture":
+      return "It sounds like price isn't really the main thing on your mind.";
+    case "next_step":
+    default:
+      return "It seems like you're not quite ready to take a next step yet.";
+  }
+}
+
+function buildCoachingMoves(
+  discoveryMap: DiscoveryMap,
+  primaryGap: DiscoveryMapSlotKey,
+): { nepqQuestions: [string, string, string]; vossLabels: [string, string, string] } {
+  const gaps = getThreeGaps(discoveryMap, primaryGap);
+  return {
+    nepqQuestions: [
+      questionForGap(gaps[0], discoveryMap),
+      questionForGap(gaps[1], discoveryMap),
+      questionForGap(gaps[2], discoveryMap),
+    ],
+    vossLabels: [
+      vossLabelForGap(gaps[0]),
+      vossLabelForGap(gaps[1]),
+      vossLabelForGap(gaps[2]),
+    ],
+  };
+}
+
 export function buildRulesBestMove(
   discoveryMap: DiscoveryMap,
   mode: LiveCoachMode,
@@ -1126,11 +1245,14 @@ export function buildRulesBestMove(
   const gap = computeHighestPriorityGap(discoveryMap);
   const stage = stageForGap(gap);
 
+  type BaseMove = Omit<LiveBestMove, "nepqQuestions" | "vossLabels">;
+  let base: BaseMove;
+
   switch (gap) {
     case "surface_problem":
     case "property_condition": {
       const condition = discoveryMap.property_condition.value ?? discoveryMap.surface_problem.value;
-      return {
+      base = {
         currentStage: stage,
         highestPriorityGap: gap,
         whyThisGapNow: "You still need the cleanest version of the property situation before going deeper.",
@@ -1142,10 +1264,11 @@ export function buildRulesBestMove(
         suggestedLabel: "It sounds like there is still a piece of the property story to sort out.",
         guardrail: "Do not jump to price or commitment before the presenting issue is clear.",
       };
+      break;
     }
     case "human_pain": {
       const problem = discoveryMap.property_condition.value ?? discoveryMap.surface_problem.value;
-      return {
+      base = {
         currentStage: stage,
         highestPriorityGap: gap,
         whyThisGapNow: "You have surface facts, but you do not yet know how this is affecting the seller's life.",
@@ -1157,9 +1280,10 @@ export function buildRulesBestMove(
         suggestedLabel: "It sounds like this is heavier than just a property problem.",
         guardrail: "Do not answer price questions until the personal impact is clearer.",
       };
+      break;
     }
     case "desired_relief":
-      return {
+      base = {
         currentStage: stage,
         highestPriorityGap: gap,
         whyThisGapNow: "The pain is starting to show, but you still need to know what outcome the seller is trying to move toward.",
@@ -1169,8 +1293,9 @@ export function buildRulesBestMove(
         suggestedLabel: "It sounds like there is a specific relief you are hoping this could create.",
         guardrail: "Stay outcome-focused instead of debating terms.",
       };
+      break;
     case "motivation":
-      return {
+      base = {
         currentStage: stage,
         highestPriorityGap: gap,
         whyThisGapNow:
@@ -1186,8 +1311,9 @@ export function buildRulesBestMove(
             ? "Acknowledge the price question, but do not anchor a number before the why-now is clear."
             : "Do not let the call collapse into price before the why-now is clear.",
       };
+      break;
     case "timeline":
-      return {
+      base = {
         currentStage: stage,
         highestPriorityGap: gap,
         whyThisGapNow:
@@ -1203,8 +1329,9 @@ export function buildRulesBestMove(
             ? "Acknowledge the price question, but do not anchor a number before the timing is clear enough to work with."
             : "Do not push for commitment until the timeline is clear enough to work with.",
       };
+      break;
     case "decision_maker":
-      return {
+      base = {
         currentStage: stage,
         highestPriorityGap: gap,
         whyThisGapNow: "Someone else may need to weigh in, so commitment questions will backfire until that is clear.",
@@ -1214,12 +1341,13 @@ export function buildRulesBestMove(
         suggestedLabel: "It sounds like this may not be a one-person decision.",
         guardrail: "Delay commitment-style questions until the signer path is clear.",
       };
+      break;
     case "price_posture": {
       const redirectMove = buildRulesBestMove(
         { ...discoveryMap, price_posture: { ...discoveryMap.price_posture, status: "missing" } },
         mode,
       );
-      return {
+      base = {
         currentStage: stage,
         highestPriorityGap: redirectMove.highestPriorityGap,
         whyThisGapNow: "Price came up before the core discovery was complete, so you need to redirect without sounding evasive.",
@@ -1229,10 +1357,11 @@ export function buildRulesBestMove(
         suggestedLabel: "It sounds like you want to understand what this could realistically look like.",
         guardrail: "Acknowledge the price question, but do not anchor a number before motivation, timeline, and decision-maker are clearer.",
       };
+      break;
     }
     case "next_step":
     default:
-      return {
+      base = {
         currentStage: stage,
         highestPriorityGap: gap,
         whyThisGapNow: "You have enough discovery to land a concrete next move without pushing too hard.",
@@ -1244,7 +1373,11 @@ export function buildRulesBestMove(
         suggestedLabel: "It sounds like the next step needs to stay simple and low-pressure.",
         guardrail: "Do not force a bigger commitment than the discovery supports.",
       };
+      break;
   }
+
+  const coaching = buildCoachingMoves(discoveryMap, base.highestPriorityGap);
+  return { ...base, ...coaching };
 }
 
 function transcriptExcerptFromTurns(turns: LiveCoachRecentTurn[]): string {
@@ -1356,6 +1489,8 @@ export function buildLiveCoachResponse(
     backupQuestion: bestMove.backupQuestion,
     suggestedMirror: bestMove.suggestedMirror,
     suggestedLabel: bestMove.suggestedLabel,
+    nepqQuestions: bestMove.nepqQuestions,
+    vossLabels: bestMove.vossLabels,
   };
 }
 
@@ -1380,7 +1515,9 @@ function buildStableLayer(mode: LiveCoachMode, styleBlock: string): PromptLayer 
       '  "backup_question":"One short backup question or null",',
       '  "suggested_mirror":"One compact mirror or null",',
       '  "suggested_label":"One compact label or null",',
-      '  "guardrail":"One mistake to avoid right now"',
+      '  "guardrail":"One mistake to avoid right now",',
+      '  "nepq_questions":["Q1 for primary gap","Q2 for next gap","Q3 for secondary gap"],',
+      '  "voss_labels":["Label1 for primary gap","Label2 for next gap","Label3 for secondary gap"]',
       "}",
       "",
       "## STRATEGY RULES",
@@ -1389,6 +1526,8 @@ function buildStableLayer(mode: LiveCoachMode, styleBlock: string): PromptLayer 
       "- Voss: keep the mirror and label compact, conversational, and easy to say out loud.",
       "- If price came up too early, redirect toward motivation, timeline, or decision-maker clarity.",
       "- Avoid canned rebuttals, long prompt lists, and multi-question stacks.",
+      "- NEPQ questions: exactly 3 discovery questions (what/how/why). Q1 targets the primary gap, Q2 the next likely gap, Q3 a secondary gap. Each should be natural and easy to say out loud.",
+      "- Voss labels: exactly 3 tactical empathy labels that are JUST BARELY OFF — one per gap matching the questions. Subtly understate or minimize the seller's situation for that gap so they correct you with deeper truth. Start with 'It sounds like...', 'It seems like...', or 'It looks like...'. The mislabel must be plausible and subtle, not dramatic or tone-deaf.",
     ].join("\n"),
   };
 }
@@ -1436,6 +1575,8 @@ function buildDynamicLayer(
       `- Mirror: ${bestMove.suggestedMirror ?? "none"}`,
       `- Label: ${bestMove.suggestedLabel ?? "none"}`,
       `- Guardrail: ${bestMove.guardrail}`,
+      `- NEPQ Questions: ${bestMove.nepqQuestions.join(" | ")}`,
+      `- Voss Labels: ${bestMove.vossLabels.join(" | ")}`,
       "",
       "## STRUCTURED LIVE NOTES",
       ...noteLines,
@@ -1501,6 +1642,8 @@ export function parseStrategistMove(raw: string): ParsedStrategistMove {
       suggestedMirror: compact(typeof parsed.suggested_mirror === "string" ? parsed.suggested_mirror : null, 120),
       suggestedLabel: compact(typeof parsed.suggested_label === "string" ? parsed.suggested_label : null, 160),
       guardrail: compact(typeof parsed.guardrail === "string" ? parsed.guardrail : null, 180),
+      nepqQuestions: parseTriple(parsed.nepq_questions),
+      vossLabels: parseTriple(parsed.voss_labels),
     };
   } catch {
     return {
@@ -1511,6 +1654,8 @@ export function parseStrategistMove(raw: string): ParsedStrategistMove {
       suggestedMirror: null,
       suggestedLabel: null,
       guardrail: null,
+      nepqQuestions: null,
+      vossLabels: null,
     };
   }
 }
@@ -1531,6 +1676,8 @@ export function applyStrategistMove(
     suggestedMirror: parsed.suggestedMirror ?? rulesMove.suggestedMirror,
     suggestedLabel: parsed.suggestedLabel ?? rulesMove.suggestedLabel,
     guardrail: parsed.guardrail ?? rulesMove.guardrail,
+    nepqQuestions: parsed.nepqQuestions ?? rulesMove.nepqQuestions,
+    vossLabels: parsed.vossLabels ?? rulesMove.vossLabels,
   };
 
   return {
