@@ -139,7 +139,7 @@ export interface VapiAssistantConfig {
     provider: string;
     model: string;
     temperature: number;
-    systemMessage: string;
+    messages: Array<{ role: string; content: string }>;
     functions: VapiFunctionDef[];
   };
   voice: {

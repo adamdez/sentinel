@@ -238,7 +238,7 @@ export function buildAssistantConfig(serverUrl: string): VapiAssistantConfig {
       provider: "anthropic",
       model: "claude-sonnet-4-6",
       temperature: 0.3,
-      systemMessage: INBOUND_SYSTEM_PROMPT,
+      messages: [{ role: "system", content: INBOUND_SYSTEM_PROMPT }],
       functions: VAPI_FUNCTIONS,
     },
     voice: {
@@ -341,7 +341,7 @@ export function buildOutboundAssistantConfig(serverUrl: string): VapiAssistantCo
       provider: "anthropic",
       model: "claude-sonnet-4-6",
       temperature: 0.3,
-      systemMessage: OUTBOUND_SYSTEM_PROMPT,
+      messages: [{ role: "system", content: OUTBOUND_SYSTEM_PROMPT }],
       functions: VAPI_FUNCTIONS,
     },
     voice: {
