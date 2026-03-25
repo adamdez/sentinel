@@ -99,8 +99,11 @@ export const outboundBatchJob = inngest.createFunction(
           .single();
 
         if (sessErr || !session) {
+          console.error("[outbound-batch] Session creation failed:", sessErr?.message, { leadId: lead.id, phone: `***${lead.phone.slice(-4)}` });
           return { leadId: lead.id, status: "failed", error: `Session creation failed: ${sessErr?.message}` };
         }
+
+        console.log("[outbound-batch] Voice session created:", { sessionId: session.id, leadId: lead.id, phone: `***${lead.phone.slice(-4)}`, serverUrl });
 
         try {
           const { vapiCallId } = await initiateOutboundCall(lead.phone, serverUrl);
@@ -111,9 +114,11 @@ export const outboundBatchJob = inngest.createFunction(
             .update({ vapi_call_id: vapiCallId, status: "ai_handling" })
             .eq("id", session.id);
 
+          console.log("[outbound-batch] Vapi call initiated:", { vapiCallId, sessionId: session.id });
           return { leadId: lead.id, status: "initiated", voiceSessionId: session.id, vapiCallId };
         } catch (err) {
           const msg = err instanceof Error ? err.message : String(err);
+          console.error("[outbound-batch] Vapi call FAILED:", msg, { leadId: lead.id, phone: `***${lead.phone.slice(-4)}` });
 
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           await (sb.from("voice_sessions") as any)
