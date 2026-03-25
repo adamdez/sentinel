@@ -187,32 +187,16 @@ export async function POST(req: NextRequest) {
   const e164 = `+1${phone}`;
   const userId = user.id;
 
-  // 1. Lead-linked first-call consent guard (server-side authority).
+  // 1. Validate lead exists if lead-linked call
   if (body.leadId) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { data: leadRecord, error: leadErr } = await (sb.from("leads") as any)
-      .select("id, call_consent, total_calls")
+      .select("id")
       .eq("id", body.leadId)
       .single();
 
     if (leadErr || !leadRecord) {
       return NextResponse.json({ error: "Lead not found for call" }, { status: 404 });
-    }
-
-    const totalCalls = Number.isFinite(Number(leadRecord.total_calls))
-      ? Number(leadRecord.total_calls)
-      : 0;
-    const consentGranted = leadRecord.call_consent === true;
-
-    if (totalCalls <= 0 && !consentGranted) {
-      return NextResponse.json(
-        {
-          error: "Call consent required before first outbound call",
-          code: "CALL_CONSENT_REQUIRED",
-          lead_id: body.leadId,
-        },
-        { status: 403 },
-      );
     }
   }
 

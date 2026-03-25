@@ -8032,46 +8032,6 @@ export function MasterClientFileModal({ clientFile: incomingClientFile, open, on
 
                 <div className="flex flex-wrap items-center gap-1.5">
 
-                  {needsConsent ? (
-
-                    <div className="flex items-center gap-2 rounded-md border border-overlay-20 bg-overlay-6 px-3 py-1.5">
-
-                      <span className="text-xs text-foreground">Confirm to dial</span>
-
-                      <Button
-
-                        size="sm"
-
-                        className="h-6 gap-1.5 bg-primary hover:opacity-95 text-primary-foreground border border-overlay-15 text-xs"
-
-                        disabled={consentPending}
-
-                        onClick={grantConsentAndDial}
-
-                      >
-
-                        {consentPending ? <Loader2 className="h-3 w-3 animate-spin" /> : <Phone className="h-3 w-3" />}
-
-                        {consentPending ? "Saving..." : "Confirm & Call"}
-
-                      </Button>
-
-                      <button
-
-                        className="text-xs text-muted-foreground hover:text-foreground"
-
-                        onClick={() => setNeedsConsent(false)}
-
-                      >
-
-                        Cancel
-
-                      </button>
-
-                    </div>
-
-                  ) : (
-
                   <Button
 
                     size="sm"
@@ -8089,8 +8049,6 @@ export function MasterClientFileModal({ clientFile: incomingClientFile, open, on
                     {calling ? "Dialing..." : "Call Now"}
 
                   </Button>
-
-                  )}
 
                   <Button
 

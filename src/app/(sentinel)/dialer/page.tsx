@@ -1118,20 +1118,6 @@ function DialerPageInner() {
       return;
     }
 
-    // Check consent for first call — query lead record
-    if (target.total_calls === 0) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { data: leadCheck } = await (supabase.from("leads") as any)
-        .select("call_consent")
-        .eq("id", target.id)
-        .single();
-      if (!leadCheck?.call_consent) {
-        setCurrentLead(target);
-        setConsentPending(true);
-        return;
-      }
-    }
-
     if (!deviceRef.current || deviceStatus !== "ready") {
       toast.error("VoIP not connected — click Reconnect and try again");
       return;
@@ -2477,47 +2463,6 @@ function DialerPageInner() {
         </div>
 
         <div className="lg:col-span-5">
-          {/* One-time consent banner */}
-          <AnimatePresence>
-            {consentPending && currentLead && (
-              <motion.div
-                initial={{ opacity: 0, y: -8 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -8 }}
-                className="mb-3 rounded-[12px] border border-border/20 bg-muted/5 p-4"
-              >
-                <div className="flex items-start gap-3">
-                  <Shield className="h-5 w-5 text-foreground shrink-0 mt-0.5" />
-                  <div className="flex-1">
-                    <p className="text-sm font-semibold text-foreground">Agent Consent Acknowledgment</p>
-                    <p className="text-sm text-muted-foreground/70 mt-1 leading-relaxed">
-                      This call may be recorded for quality, training, and AI note summarization purposes
-                      as permitted under Washington law (RCW 9.73.030). Do you consent to continue?
-                    </p>
-                    <div className="flex items-center gap-2 mt-3">
-                      <Button
-                        size="sm"
-                        onClick={grantConsent}
-                        className="text-sm h-7 px-4 gap-1.5 bg-primary/15 hover:bg-primary/25 text-primary border border-primary/20"
-                      >
-                        <CheckCircle2 className="h-3 w-3" />
-                        Confirm & Dial
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => setConsentPending(false)}
-                        className="text-sm h-7 px-3"
-                      >
-                        Cancel
-                      </Button>
-                    </div>
-                  </div>
-                </div>
-              </motion.div>
-            )}
-          </AnimatePresence>
-
           <AnimatePresence mode="wait">
             {currentLead ? (
               <motion.div

@@ -494,14 +494,27 @@ export function ContactTab({ cf, overlay, onSkipTrace, skipTracing, onDial, onSm
                       )}
                       {isActive && (
                         <>
+                          <button
+                            onClick={() => onDial(lp.phone)}
+                            disabled={calling}
+                            className="h-7 px-2 rounded-md text-sm font-semibold bg-primary/10 text-primary hover:bg-primary/20 border border-primary/20 transition-all flex items-center gap-1 disabled:opacity-30"
+                          >
+                            <Phone className="h-3 w-3" />Dial
+                          </button>
+                          <button
+                            onClick={() => onSms(lp.phone)}
+                            disabled={lp.label === "landline"}
+                            className="h-7 px-2 rounded-md text-sm font-semibold bg-muted/10 text-foreground hover:bg-muted/20 border border-border/20 transition-all flex items-center gap-1 disabled:opacity-30"
+                          >
+                            <MessageSquare className="h-3 w-3" />
+                          </button>
                           <div className="relative">
                             <button
                               onClick={() => setDeadReasonFor(deadReasonFor === lp.id ? null : lp.id)}
                               title="Mark phone dead"
-                              className="h-7 px-2 rounded-md text-sm font-semibold bg-red-500/8 text-red-400 hover:bg-red-500/15 border border-red-500/15 transition-all flex items-center gap-1"
+                              className="h-7 w-7 rounded-md text-sm bg-transparent text-muted-foreground/40 hover:text-red-400 hover:bg-red-500/10 transition-all flex items-center justify-center"
                             >
-                              <XCircle className="h-3 w-3" /> Dead
-                              <ChevronDown className="h-2.5 w-2.5" />
+                              <XCircle className="h-3.5 w-3.5" />
                             </button>
                             {deadReasonFor === lp.id && (
                               <div className="absolute right-0 top-full mt-1 z-50 bg-panel-deep border border-overlay-10 rounded-lg shadow-xl p-1 min-w-[140px]">
@@ -517,20 +530,6 @@ export function ContactTab({ cf, overlay, onSkipTrace, skipTracing, onDial, onSm
                               </div>
                             )}
                           </div>
-                          <button
-                            onClick={() => onDial(lp.phone)}
-                            disabled={calling}
-                            className="h-7 px-2 rounded-md text-sm font-semibold bg-primary/10 text-primary hover:bg-primary/20 border border-primary/20 transition-all flex items-center gap-1 disabled:opacity-30"
-                          >
-                            <Phone className="h-3 w-3" />Dial
-                          </button>
-                          <button
-                            onClick={() => onSms(lp.phone)}
-                            disabled={lp.label === "landline"}
-                            className="h-7 px-2 rounded-md text-sm font-semibold bg-muted/10 text-foreground hover:bg-muted/20 border border-border/20 transition-all flex items-center gap-1 disabled:opacity-30"
-                          >
-                            <MessageSquare className="h-3 w-3" />
-                          </button>
                         </>
                       )}
                       {(isDead || isDnc) && (

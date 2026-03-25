@@ -24,7 +24,7 @@ import {
   CheckCircle2, Loader2, SkipForward,
   Phone, PhoneOff, Voicemail, CalendarCheck,
   DollarSign, Skull, X, ArrowRight, ChevronLeft, Flag,
-  AlertTriangle, Sparkles,
+  AlertTriangle, Sparkles, PhoneMissed,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -90,6 +90,7 @@ interface DispoMeta {
 const DISPO_OPTIONS: DispoMeta[] = [
   { key: "no_answer",      label: "No Answer",      icon: PhoneOff,      color: "text-foreground",    bg: "bg-muted/10 hover:bg-muted/20 border-border/20" },
   { key: "voicemail",      label: "Voicemail",      icon: Voicemail,     color: "text-foreground",    bg: "bg-muted/10 hover:bg-muted/20 border-border/20" },
+  { key: "dead_phone",     label: "Dead Phone",     icon: PhoneMissed,   color: "text-red-400",       bg: "bg-red-500/8 hover:bg-red-500/15 border-red-500/15" },
   { key: "completed",      label: "Talked",         icon: Phone,         color: "text-primary",        bg: "bg-primary/8 hover:bg-primary/15 border-primary/15" },
   { key: "not_interested", label: "Not Interested", icon: X,             color: "text-foreground",     bg: "bg-muted/10 hover:bg-muted/20 border-border/20" },
   { key: "follow_up",      label: "Follow Up",      icon: ArrowRight,    color: "text-foreground",  bg: "bg-muted/10 hover:bg-muted/20 border-border/20" },
