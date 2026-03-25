@@ -127,6 +127,8 @@ export interface TransferCallParams {
   reason: string;
   caller_type: CallerType;
   transfer_to?: "logan" | "adam";
+  /** Optional name from VAPI tool args for SMS / brief copy */
+  caller_name?: string;
 }
 
 // ── Vapi Assistant Configuration ────────────────────────────────────────────
