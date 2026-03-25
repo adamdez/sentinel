@@ -1,23 +1,32 @@
 /**
  * POST /api/voice/vapi/outbound/batch
  *
- * Queue a batch of leads for outbound calls via Jeff (Vapi).
- * Returns immediately with a batchId. Processing happens in the
- * background via Inngest (sequential calls with 3s delay).
+ * Initiate outbound calls via Jeff (Vapi) for a batch of leads.
+ * Calls Vapi directly (no Inngest middleman) with 3s delay between calls.
  *
  * Request: { leadIds: string[] }
- * Response: { batchId: string, queued: number, skipped: Array<{ leadId, reason }> }
+ * Response: { batchId, results, skipped }
  */
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
+export const maxDuration = 120;
 
 import { NextRequest, NextResponse } from "next/server";
 import { getDialerUser, createDialerClient } from "@/lib/dialer/db";
 import { isDnc } from "@/lib/dnc-check";
-import { inngest } from "@/inngest/client";
+import { initiateOutboundCall } from "@/providers/voice/vapi-adapter";
+import { normalizePhoneForCompare } from "@/lib/dialer/auto-cycle";
 
 const MAX_BATCH_SIZE = 10;
+
+function buildSiteUrl(req: NextRequest): string {
+  const env = process.env.NEXT_PUBLIC_SITE_URL
+    ?? (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "");
+  if (env) return env;
+  const url = new URL(req.url);
+  return `${url.protocol}//${url.host}`;
+}
 
 export async function POST(req: NextRequest) {
   const user = await getDialerUser(req.headers.get("authorization"));
@@ -46,8 +55,7 @@ export async function POST(req: NextRequest) {
 
   const sb = createDialerClient();
 
-  // ── Fetch leads + DNC filter ──────────────────────────────────────────
-  // Fetch leads with primary phone from lead_phones and owner name from properties
+  // ── Fetch leads + phones ────────────────────────────────────────────
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data: leads } = await (sb.from("leads") as any)
     .select(`
@@ -65,7 +73,6 @@ export async function POST(req: NextRequest) {
   const skipped: Array<{ leadId: string; reason: string }> = [];
 
   for (const lead of leads) {
-    // Pick the best phone: primary first, then lowest position
     const phones = (lead.lead_phones as Array<{ phone: string; is_primary: boolean; position: number }>) ?? [];
     const sorted = [...phones].sort((a, b) => {
       if (a.is_primary && !b.is_primary) return -1;
@@ -75,23 +82,25 @@ export async function POST(req: NextRequest) {
     let bestPhone = sorted[0]?.phone;
     const ownerName = (lead.properties as Record<string, unknown>)?.owner_name as string || "Unknown";
 
-    // Fallback: if lead_phones is empty, check auto-cycle phones (Jeff flow)
+    // Fallback: check auto-cycle phones if lead_phones empty
     if (!bestPhone) {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { data: cyclePhones } = await (sb.from("dialer_auto_cycle_phones") as any)
-        .select("phone, phone_status")
-        .eq("cycle_lead_id", (
-          await (sb.from("dialer_auto_cycle_leads") as any)
-            .select("id")
-            .eq("lead_id", lead.id)
-            .in("cycle_status", ["ready", "waiting", "paused"])
-            .maybeSingle()
-        ).data?.id ?? "00000000-0000-0000-0000-000000000000")
-        .eq("phone_status", "active")
-        .order("phone_position", { ascending: true })
-        .limit(1);
+      const { data: acLead } = await (sb.from("dialer_auto_cycle_leads") as any)
+        .select("id")
+        .eq("lead_id", lead.id)
+        .in("cycle_status", ["ready", "waiting", "paused"])
+        .maybeSingle();
 
-      bestPhone = cyclePhones?.[0]?.phone;
+      if (acLead) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const { data: acPhones } = await (sb.from("dialer_auto_cycle_phones") as any)
+          .select("phone")
+          .eq("cycle_lead_id", acLead.id)
+          .eq("phone_status", "active")
+          .order("phone_position", { ascending: true })
+          .limit(1);
+        bestPhone = acPhones?.[0]?.phone;
+      }
     }
 
     if (!bestPhone) {
@@ -109,11 +118,7 @@ export async function POST(req: NextRequest) {
       // DNC check failed — proceed with caution
     }
 
-    validLeads.push({
-      id: lead.id,
-      phone: bestPhone,
-      name: ownerName,
-    });
+    validLeads.push({ id: lead.id, phone: bestPhone, name: ownerName });
   }
 
   // Track leads not found in DB
@@ -133,33 +138,103 @@ export async function POST(req: NextRequest) {
     });
   }
 
-  // ── Build site URL for Inngest function ───────────────────────────────
-  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL
-    ?? (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "");
-
-  // ── Queue Inngest job ─────────────────────────────────────────────────
+  // ── Call Vapi directly for each lead ────────────────────────────────
+  const siteUrl = buildSiteUrl(req);
+  const serverUrl = `${siteUrl}/api/voice/vapi/webhook`;
   const batchId = `batch_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+  const results: Array<{ leadId: string; status: string; voiceSessionId?: string; vapiCallId?: string; error?: string }> = [];
 
-  await inngest.send({
-    name: "voice/outbound-batch.requested",
-    data: {
-      batchId,
-      leads: validLeads,
-      initiatedBy: user.id,
-      siteUrl,
-    },
-  });
+  for (let i = 0; i < validLeads.length; i++) {
+    const lead = validLeads[i];
 
-  console.log("[outbound/batch] Batch queued:", {
-    batchId,
-    queued: validLeads.length,
-    skipped: skipped.length,
-    initiatedBy: user.id,
-  });
+    // Look up auto-cycle context
+    let autoCycleLeadId: string | null = null;
+    let autoCyclePhoneId: string | null = null;
 
-  return NextResponse.json({
-    batchId,
-    queued: validLeads.length,
-    skipped,
-  });
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: cycleRow } = await (sb.from("dialer_auto_cycle_leads") as any)
+      .select("id")
+      .eq("lead_id", lead.id)
+      .in("cycle_status", ["ready", "waiting", "paused"])
+      .maybeSingle();
+
+    if (cycleRow) {
+      autoCycleLeadId = cycleRow.id;
+      const normalizedPhone = normalizePhoneForCompare(lead.phone);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data: cyclePhones } = await (sb.from("dialer_auto_cycle_phones") as any)
+        .select("id, phone")
+        .eq("cycle_lead_id", cycleRow.id)
+        .eq("phone_status", "active");
+      if (cyclePhones) {
+        const match = cyclePhones.find(
+          (p: { phone: string }) => normalizePhoneForCompare(p.phone) === normalizedPhone,
+        );
+        if (match) autoCyclePhoneId = match.id;
+      }
+    }
+
+    // Create voice_session
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: session, error: sessErr } = await (sb.from("voice_sessions") as any)
+      .insert({
+        direction: "outbound",
+        lead_id: lead.id,
+        to_number: lead.phone,
+        status: "ringing",
+        caller_type: "seller",
+        metadata: { batch_id: batchId, initiated_by: user.id },
+        auto_cycle_lead_id: autoCycleLeadId,
+        auto_cycle_phone_id: autoCyclePhoneId,
+      })
+      .select("id")
+      .single();
+
+    if (sessErr || !session) {
+      console.error("[outbound/batch] Session creation failed:", sessErr?.message, { leadId: lead.id });
+      results.push({ leadId: lead.id, status: "failed", error: `Session: ${sessErr?.message}` });
+      continue;
+    }
+
+    // Call Vapi directly
+    try {
+      const { vapiCallId } = await initiateOutboundCall(lead.phone, serverUrl);
+
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      await (sb.from("voice_sessions") as any)
+        .update({ vapi_call_id: vapiCallId, status: "ai_handling" })
+        .eq("id", session.id);
+
+      console.log("[outbound/batch] Call placed:", {
+        leadId: lead.id.slice(0, 8),
+        phone: `***${lead.phone.slice(-4)}`,
+        vapiCallId: vapiCallId.slice(0, 8),
+        sessionId: session.id.slice(0, 8),
+      });
+
+      results.push({ leadId: lead.id, status: "initiated", voiceSessionId: session.id, vapiCallId });
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      console.error("[outbound/batch] Vapi call FAILED:", msg, { leadId: lead.id });
+
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      await (sb.from("voice_sessions") as any)
+        .update({ status: "failed" })
+        .eq("id", session.id);
+
+      results.push({ leadId: lead.id, status: "failed", voiceSessionId: session.id, error: msg });
+    }
+
+    // 3s delay between calls
+    if (i < validLeads.length - 1) {
+      await new Promise((r) => setTimeout(r, 3000));
+    }
+  }
+
+  const succeeded = results.filter((r) => r.status === "initiated").length;
+  const failed = results.filter((r) => r.status === "failed").length;
+
+  console.log("[outbound/batch] Complete:", { batchId, total: validLeads.length, succeeded, failed, skipped: skipped.length });
+
+  return NextResponse.json({ batchId, results, skipped, queued: succeeded });
 }
