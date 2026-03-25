@@ -2003,10 +2003,17 @@ function DialerPageInner() {
     const activePhones = leadPhones.filter(p => p.status === "active");
     const nextPhoneIdx = phoneIndex + 1;
 
-    if (!isTerminal && nextPhoneIdx < activePhones.length) {
+    if (autoCycleMode) {
+      // Auto-cycle: always advance to next lead
+      const currentIdx = displayedQueue.findIndex((l) => l.id === currentLead?.id);
+      const nextLead = displayedQueue[currentIdx + 1] ?? displayedQueue[0] ?? null;
+      setCurrentLead(nextLead);
+      setPhoneIndex(0);
+      refetchAutoCycle();
+    } else if (!isTerminal && nextPhoneIdx < activePhones.length) {
+      // Regular queue: cycle to next phone, stay on same lead
       setPhoneIndex(nextPhoneIdx);
       toast.info(`Phone ${nextPhoneIdx + 1} of ${activePhones.length} — next number loaded`);
-      // Re-fetch phones to get updated last_called_at
       if (currentLead?.id) {
         authHeaders().then(hdrs =>
           fetch(`/api/leads/${currentLead.id}/phones`, { headers: hdrs })
@@ -2015,12 +2022,16 @@ function DialerPageInner() {
         ).catch(() => {});
       }
     } else {
-      const currentIdx = displayedQueue.findIndex((l) => l.id === currentLead?.id);
-      const nextLead = displayedQueue[currentIdx + 1] ?? displayedQueue[0] ?? null;
-      setCurrentLead(nextLead);
-      setPhoneIndex(0);
-      if (autoCycleMode) refetchAutoCycle();
-      else refetchQueue();
+      // Regular queue: all phones tried — stay on lead, operator advances manually
+      toast.info("All numbers attempted — use ⏩ to move to next lead");
+      // Re-fetch phones in case statuses changed
+      if (currentLead?.id) {
+        authHeaders().then(hdrs =>
+          fetch(`/api/leads/${currentLead.id}/phones`, { headers: hdrs })
+            .then(r => r.ok ? r.json() : null)
+            .then(data => { if (data?.phones) setLeadPhones(data.phones); })
+        ).catch(() => {});
+      }
     }
   }, [autoCycleMode, currentCallLogId, callState, callNotes, currentLead, currentUser.id, displayedQueue, handleHangup, refetchAutoCycle, refetchQueue, timer, leadPhones, phoneIndex]);
 
@@ -2048,26 +2059,24 @@ function DialerPageInner() {
       return;
     }
 
+    // Regular queue: cycle phones within lead, never auto-advance to next lead
     const activePhones = leadPhones.filter((p) => p.status === "active");
     const nextPhoneIdx = phoneIndex + 1;
     if (activePhones.length > 1 && nextPhoneIdx < activePhones.length) {
       setPhoneIndex(nextPhoneIdx);
       toast.info(`Phone ${nextPhoneIdx + 1} of ${activePhones.length} — next number loaded`);
-      if (currentLead?.id) {
-        authHeaders().then(hdrs =>
-          fetch(`/api/leads/${currentLead.id}/phones`, { headers: hdrs })
-            .then(r => r.ok ? r.json() : null)
-            .then(data => { if (data?.phones) setLeadPhones(data.phones); })
-        ).catch(() => {});
-      }
     } else {
-      const currentIdx = displayedQueue.findIndex((l) => l.id === currentLead?.id);
-      const nextLead = displayedQueue[currentIdx + 1] ?? displayedQueue[0] ?? null;
-      setCurrentLead(nextLead);
-      setPhoneIndex(0);
-      refetchQueue();
+      toast.info("All numbers attempted — use ⏩ to move to next lead");
     }
-  }, [autoCycleMode, currentLead, displayedQueue, refetchAutoCycle, refetchQueue, timer, leadPhones, phoneIndex]);
+    // Re-fetch phones to get updated statuses
+    if (currentLead?.id) {
+      authHeaders().then(hdrs =>
+        fetch(`/api/leads/${currentLead.id}/phones`, { headers: hdrs })
+          .then(r => r.ok ? r.json() : null)
+          .then(data => { if (data?.phones) setLeadPhones(data.phones); })
+      ).catch(() => {});
+    }
+  }, [autoCycleMode, currentLead, refetchAutoCycle, timer, leadPhones, phoneIndex]);
 
   // ── Manual dial PostCallPanel completion handler ──────────────────
   const handleManualPostCallDone = useCallback(() => {
