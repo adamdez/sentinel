@@ -1998,7 +1998,8 @@ function DialerPageInner() {
     setDispositionPending(false);
 
     // Phone cycling: if there are un-attempted active phones, stay on same lead
-    // Unless it's a terminal disposition (dead_lead / disqualified) — always advance
+    // Terminal dispositions (dead_lead / disqualified) skip phone cycling but still
+    // stay on lead — operator uses ⏩ to advance manually
     const isTerminal = dispoKey === "dead_lead" || dispoKey === "disqualified";
     const activePhones = leadPhones.filter(p => p.status === "active");
     const nextPhoneIdx = phoneIndex + 1;
@@ -2022,8 +2023,11 @@ function DialerPageInner() {
         ).catch(() => {});
       }
     } else {
-      // Regular queue: all phones tried — stay on lead, operator advances manually
-      toast.info("All numbers attempted — use ⏩ to move to next lead");
+      // Regular queue: all phones tried or terminal — stay on lead, operator advances manually
+      const msg = isTerminal
+        ? "Lead dispositioned — use ⏩ to move to next lead"
+        : "All numbers attempted — use ⏩ to move to next lead";
+      toast.info(msg);
       // Re-fetch phones in case statuses changed
       if (currentLead?.id) {
         authHeaders().then(hdrs =>
@@ -3072,7 +3076,7 @@ function DialerPageInner() {
                   return (
                     <button
                       key={lead.id}
-                      onClick={() => setCurrentLead(lead)}
+                      onClick={() => { setCurrentLead(lead); setPhoneIndex(0); }}
                       className={`w-full text-left rounded-[12px] p-2.5 transition-all duration-200 border ${
                         isActive
                           ? "bg-primary/5 border-primary/20 shadow-[0_0_12px_var(--shadow-soft)]"
@@ -3774,6 +3778,7 @@ function DialerPageInner() {
                       onClick={() => {
                         const idx = displayedQueue.findIndex((l) => l.id === currentLead?.id);
                         setCurrentLead(displayedQueue[(idx + 1) % displayedQueue.length] ?? null);
+                        setPhoneIndex(0);
                         setCallState("idle");
                         setCallNotes("");
                         timer.reset();
