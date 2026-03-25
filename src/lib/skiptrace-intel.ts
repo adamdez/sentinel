@@ -351,19 +351,28 @@ export async function runSkipTraceIntel(
   }
 
   if (phonesToPromote.length > 0) {
-    // Get current max position for this lead
+    // Fetch existing phones for this lead to dedup with normalization
+    // (imports may store as "5098799347", skip-trace as "+15098799347")
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data: maxPosRow } = await (sb.from("lead_phones") as any)
-      .select("position")
-      .eq("lead_id", ctx.leadId)
-      .order("position", { ascending: false })
-      .limit(1)
-      .maybeSingle();
+    const { data: existingPhones } = await (sb.from("lead_phones") as any)
+      .select("phone, position")
+      .eq("lead_id", ctx.leadId);
 
-    let nextPosition = ((maxPosRow?.position as number) ?? -1) + 1;
+    const existingNormalized = new Set(
+      (existingPhones ?? []).map((p: { phone: string }) => normalizePhoneForDedup(p.phone))
+    );
+
+    let nextPosition = Math.max(
+      -1,
+      ...(existingPhones ?? []).map((p: { position: number }) => p.position ?? -1)
+    ) + 1;
 
     for (const p of phonesToPromote) {
       const normalizedPhone = normalizePhoneForDedup(p.number);
+
+      // Skip if already exists under any format
+      if (existingNormalized.has(normalizedPhone)) continue;
+
       // Format as +1XXXXXXXXXX for consistency
       const formattedPhone = normalizedPhone.length === 10 ? `+1${normalizedPhone}` : p.number;
 
@@ -382,9 +391,10 @@ export async function runSkipTraceIntel(
 
       if (!error) {
         phonesPromoted++;
+        existingNormalized.add(normalizedPhone); // track within this batch too
         nextPosition++;
       } else if (error.code === "23505") {
-        // UNIQUE constraint violation — phone already in contact file, skip
+        // UNIQUE constraint violation — race condition safety net
       } else {
         console.error(`${tag} lead_phones insert failed:`, error.message);
       }
