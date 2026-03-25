@@ -65,18 +65,15 @@ src/lib/api-auth.ts                   # API authentication
 src/lib/twilio.ts                     # Twilio integration
 src/lib/google-ads.ts                 # Google Ads integration
 src/lib/gmail.ts                      # Gmail integration
-src/lib/grok-client.ts                # Grok integration
+src/lib/grok-client.ts               # Grok integration
 src/lib/supabase.ts                   # Supabase client
-src/lib/supabase-types.ts             # Supabase types
+src/lib/supabase-types.ts            # Supabase types
 
 # Agent & Intelligence
 src/lib/agent/*                       # Agent framework
 src/lib/crawlers/*                    # Browser agents
 src/mcp/*                             # MCP server
 sentinel-mcp/*                        # MCP package
-
-# Dialer Business Logic
-src/lib/dialer/*                      # Dialer core logic (NOT UI)
 
 # API Routes — Core Business Logic
 src/app/api/leads/*                   # Lead API
@@ -87,13 +84,16 @@ src/app/api/ingest/*                  # Data ingestion
 src/app/api/imports/*                 # Import pipelines
 src/app/api/cron/*                    # Scheduled jobs
 src/app/api/twilio/*                  # Twilio webhooks
-src/app/api/dialer/*                  # Dialer API routes
 src/app/api/dossiers/*                # Dossier API
 src/app/api/properties/*              # Property API
 src/app/api/property-lookup/*         # Property lookup
 src/app/api/inbound/*                 # Inbound handling
 src/app/api/audit/*                   # Audit API
 src/app/api/auth/*                    # Auth API
+
+# Inngest (background jobs)
+src/inngest/*                         # Inngest functions + client
+src/app/api/inngest/*                 # Inngest serve route
 
 # Configuration
 next.config.ts                        # Next.js config
@@ -128,7 +128,7 @@ src/hooks/*                           # All custom hooks
 # State Management
 src/stores/*                          # Zustand/state stores
 
-# React Providers
+# React Providers (including Twilio, voice, theme)
 src/providers/*                       # Context providers
 
 # Styling
@@ -136,6 +136,23 @@ src/providers/*                       # Context providers
 tailwind.config.*                     # Tailwind config
 components.json                       # shadcn/ui config
 postcss.config.mjs                    # PostCSS config
+```
+
+### Shared / Contested Files
+These files are touched by both platforms routinely. **Coordination required — last writer wins, merge carefully.**
+
+```
+# SHARED — both platforms touch these regularly
+src/lib/dialer/types.ts               # Dialer types (CC adds dispositions, Cursor adds UI types)
+src/lib/dialer/publish-manager.ts     # CC owns logic, Cursor may fix bugs blocking UI
+src/lib/dialer/schema-types.ts        # Shared dialer schemas
+src/app/api/dialer/*                  # CC owns routes, Cursor fixes when blocking dialer UI
+src/app/api/prospects/route.ts        # CC owns, Cursor patches for UI-blocking bugs
+src/lib/skip-trace.ts                 # CC owns, Cursor may touch for UI integration
+src/lib/types.ts                      # Shared types — assign to ONE platform per session
+src/lib/utils.ts                      # Shared utilities — assign to ONE platform per session
+package.json                          # CC adds backend deps, Cursor adds frontend deps
+tsconfig.json                         # Claude Code only unless discussed
 ```
 
 ### Codex Owns (Isolated Tasks)
@@ -150,27 +167,17 @@ vitest.config.ts                      # Test configuration
 
 # Codex CAN write to WITH explicit ticket assignment:
 src/lib/providers/*                   # Provider adapter code (when assigned)
-src/lib/types.ts                      # Type definitions (when assigned)
 scripts/*                             # Utility scripts (when assigned)
-```
-
-### Shared / Contested Files
-These files may be touched by multiple platforms. **Coordination required.**
-
-```
-# CONTESTED — requires explicit assignment per session
-src/lib/types.ts                      # Shared types — assign to ONE platform per session
-src/lib/utils.ts                      # Shared utilities — assign to ONE platform per session
-package.json                          # Dependencies — Claude Code adds backend deps,
-                                      #   Cursor adds frontend deps, coordinate if both
-tsconfig.json                         # TypeScript config — Claude Code only unless discussed
 ```
 
 ---
 
 ## Branching Protocol
 
-### Branch Naming
+### Current Reality
+All work currently ships directly to `main`. Both Claude Code and Cursor commit and push to `main`, then deploy to Vercel production.
+
+### Branch Naming (when feature branches are used)
 ```
 feat/*          → Claude Code (structural/backend features)
 ui/*            → Cursor (UI/component work)
@@ -178,19 +185,10 @@ codex/*         → Codex (isolated tasks in worktrees)
 fix/*           → Any platform (bug fixes — include platform name: fix/cc-stale-logic)
 ```
 
-### Rules
-1. **Claude Code merges to `dev` first** when working on the same phase. Structural changes come before UI.
-2. **Cursor branches off `dev` AFTER Claude Code's structural PR merges.** UI depends on data contracts.
-3. **Codex branches are always fully isolated.** They never depend on in-progress work from other platforms.
-4. **No branch lives more than 2 days without merging to `dev`.**
-5. **Test on `dev` before merging to `main`.**
-
-### Pre-Merge Checklist (Every Platform)
-Before merging ANY branch to `dev`:
-- [ ] `npm run build` passes
-- [ ] `npm run lint` passes (or no new violations)
-- [ ] No files outside your ownership zone were modified
-- [ ] If you created a new type/interface another platform needs, it's committed separately first
+### Pre-Push Checklist (Every Platform)
+Before pushing to `main`:
+- [ ] `npm run build` passes locally
+- [ ] No files outside your ownership zone were modified (unless user overrode)
 - [ ] Commit messages include platform tag: `[cc]`, `[cursor]`, or `[codex]`
 
 ---
@@ -206,24 +204,20 @@ export interface ContextSnapshot {
   lead_id: string;
   owner_name: string | null;
   address: string;
-  seller_memory: SellerMemory | null;
-  distress_flags: string[];
-  prior_calls: CallSummary[];
   // ... full contract
 }
 ```
 
 ### Step 2: Claude Code commits and pushes
 ```bash
-git add src/lib/types.ts
 git commit -m "[cc] Define ContextSnapshot interface for dialer workspace"
 git push
 ```
 
-### Step 3: Cursor/Codex pull and build against it
+### Step 3: Cursor pulls and builds against it
 ```bash
-git pull origin dev
-# Now build UI components or tests against ContextSnapshot
+git pull origin main
+# Now build UI components against ContextSnapshot
 ```
 
 **NEVER have two platforms define the same interface independently.** One platform defines, others consume.
@@ -232,13 +226,11 @@ git pull origin dev
 
 ## API Route Ownership Split
 
-API routes are split between Claude Code (logic) and Cursor (UI-specific endpoints):
-
 | Route Pattern | Owner | Why |
 |--------------|-------|-----|
 | `/api/leads/*` | Claude Code | Core lead mutations |
 | `/api/deals/*` | Claude Code | Deal state management |
-| `/api/dialer/*` | Claude Code | Call session management |
+| `/api/dialer/*` | **Shared** | CC owns logic; Cursor fixes UI-blocking bugs |
 | `/api/scoring/*` | Claude Code | Scoring engine |
 | `/api/enrichment/*` | Claude Code | Enrichment pipeline |
 | `/api/ingest/*` | Claude Code | Data ingestion |
@@ -246,12 +238,17 @@ API routes are split between Claude Code (logic) and Cursor (UI-specific endpoin
 | `/api/cron/*` | Claude Code | Scheduled jobs |
 | `/api/dossiers/*` | Claude Code | Dossier management |
 | `/api/properties/*` | Claude Code | Property data |
+| `/api/voice/*` | **Shared** | CC owns Vapi logic; Cursor owns browser voice |
 | `/api/ads/*` | Claude Code | Ads integration |
 | `/api/dashboard/*` | Cursor | Dashboard data for widgets |
 | `/api/analytics/*` | Cursor | Analytics display data |
 | `/api/settings/*` | Cursor | UI settings |
 | `/api/buyers/*` | Claude Code | Buyer data management |
 | `/api/dispo/*` | Claude Code | Disposition logic |
+| `/api/street-view` | Cursor | Image proxy for property carousel |
+| `/api/property-photos` | Cursor | Photo aggregation for property carousel |
+| `/api/inngest/*` | Claude Code | Background job serve route |
+| `/api/prospects/*` | **Shared** | CC owns lead creation; Cursor patches UI-blocking bugs |
 
 **If a new API route is needed:**
 - Claude Code creates the route file with the handler logic
@@ -264,264 +261,108 @@ API routes are split between Claude Code (logic) and Cursor (UI-specific endpoin
 
 > **Update this section every morning and evening. This is how each platform knows what's in flight.**
 
-### Current Phase: Phase 1–3 (Control plane + Intelligence foundation)
+### Current Phase: Production hardening + daily-use UX
 
-### Active Work
-| Task | Platform | Branch | Status | Files Touched |
-|------|----------|--------|--------|---------------|
-| PR-5: Intelligence foundation | Claude Code | main | **Done** | src/lib/intelligence.ts, src/app/api/dossiers/**, sentinel-mcp/src/tools/query-{dossiers,artifacts,facts}.ts |
-| PR-6: Research Agent | Claude Code | main | **Done** | src/agents/research/, src/app/api/agents/research/route.ts |
-| Stage transition UI | Cursor | — | Ready (PR-1 merged) | src/components/sentinel/* (see contract below) |
-| Review console UI | Cursor | — | Ready (PR-4 merged) | GET/PATCH /api/control-plane/review-queue |
-| Feature flag admin UI | Cursor | — | Ready (PR-4 merged) | GET/PATCH /api/control-plane/feature-flags |
-| Dossier viewer UI | Cursor | — | Ready (PR-5 merged) | GET /api/dossiers/[lead_id], dossier review/compile/promote endpoints |
+The foundation (31 PRs: database, business logic, agent fleet, intelligence pipeline, MCP server, provider adapters, voice front office, notification delivery) was shipped March 19–20 by Claude Code.
 
-### Interface Contracts — Ready for Cursor
+Since March 21, work has focused on **making the dialer and CRM usable for daily calling** — fixing bugs, building missing UI, and wiring features end-to-end.
 
-**Stage Transition (PR-1):**
-`PATCH /api/leads/[id]/stage` — stage transition endpoint. Payload type: `StageTransitionRequest` (in src/lib/types.ts).
-`GET /api/leads/[id]/stage` — returns current status, lock_version, next_action, and allowed_transitions array.
-Types exported: `StageTransitionRequest`, `StageTransitionResult`, `StageTransitionError` in `src/lib/types.ts`.
+### Active Work (March 25, 2026)
+| Task | Platform | Status | Key Files |
+|------|----------|--------|-----------|
+| Property carousel — Street View + photo merge | Cursor | **Done** | master-client-file-modal.tsx, /api/property-photos, /api/street-view |
+| Auto-cycle dialer (call next lead automatically) | Claude Code | **In progress** | src/lib/dialer/auto-cycle.ts, /api/dialer/v1/auto-cycle/* |
+| Outbound batch calling (Vapi) | Claude Code | **In progress** | /api/voice/vapi/outbound/*, src/inngest/functions/outbound-batch.ts |
+| Live coaching — NEPQ + Voss labels | Claude Code | **Done** | Live assist panel styling |
+| GOOGLE_STREET_VIEW_KEY setup | Adam (manual) | **Pending** | Vercel env var — needed for property photos |
 
-Stage change UI should:
-1. Call GET /api/leads/[id]/stage to get allowed transitions + current lock_version
-2. Show allowed transitions (filter by allowed_transitions array)
-3. Require next_action text input when `requires_next_action: true`
-4. PATCH with { to, next_action, lock_version }
-5. Handle 409 lock conflict by re-fetching and retrying
-
-**Review Queue (PR-4):**
-`GET /api/control-plane/review-queue` — list pending proposals from agents
-`PATCH /api/control-plane/review-queue` — approve/reject: `{ id, status: 'approved'|'rejected', review_notes? }`
-`GET /api/control-plane/feature-flags` — list all flags
-`PATCH /api/control-plane/feature-flags` — update: `{ flag_key, enabled?, mode?, metadata? }`
-`GET /api/control-plane/agent-runs` — list recent agent runs
-
-**Context Snapshot (PR-2):**
-`ContextSnapshot` interface exported from `src/lib/types.ts` — full lead context for dialer workspace.
-
-**Dossier Pipeline (PR-5):**
-Full intelligence pipeline API:
-- `GET /api/dossiers/[lead_id]` — active reviewed dossier for a lead
-- `POST /api/dossiers/[lead_id]` — create proposed dossier
-- `PATCH /api/dossiers/[lead_id]/review` — review (accept/flag) a dossier
-- `POST /api/dossiers/[lead_id]/compile` — compile artifacts into proposed dossier
-- `POST /api/dossiers/[lead_id]/promote` — promote reviewed dossier to lead record
-- `GET/POST /api/dossiers/[lead_id]/artifacts` — list/create artifacts
-- `GET/POST /api/dossiers/[lead_id]/facts` — list/create fact assertions
-- `PATCH/DELETE /api/dossiers/[lead_id]/facts/[fact_id]` — review/delete facts
-- `GET/POST /api/dossiers/[lead_id]/runs` — list/create research runs
-- `GET /api/dossiers/queue` — review queue with triage scoring
-Service layer: `src/lib/intelligence.ts` — `createArtifact`, `createFact` (now returns contradictions), `reviewFact`, `compileDossier`, `reviewDossier`, `syncDossierToLead`
-Review executor: `src/lib/control-plane.ts` — `resolveReviewItem(itemId, decision, reviewedBy)` dispatches approved actions (sync_dossier_to_lead, accept_facts, reject_facts, review_dossier)
-Session fact promotion: `src/lib/session-fact-promotion.ts` — `promoteSessionFact(input)`, `promoteAllSessionFacts(sessionId, leadId, promotedBy)` bridges dialer → intel pipeline
-
-### Recently Completed
-| PR | Platform | Commit | Date | Summary |
-|----|----------|--------|------|---------|
-| PR-1 | Claude Code | main | 2026-03-19 | Stage machine, guardrails, stale-leads cron |
-| PR-2 | Claude Code | main | 2026-03-19 | Sentinel MCP server (13 tools, 2 resources), ContextSnapshot |
-| PR-3 | Claude Code | main | 2026-03-19 | CRM bridge fixes, owner_name fallback, next_action wiring, 3-layer prompt cache architecture (Blueprint §15.1) |
-
-**PR-3 Prompt Cache Contracts:**
-- `src/lib/dialer/prompt-cache.ts` — 3-layer prompt builder: `assemblePrompt(layered, userMessage)` → `AssembledPrompt`
-- Layer builders: `preCallBriefStableBase()`, `preCallBriefSemiStable()`, `preCallBriefDynamic()`, `draftNoteStableBase()`, `draftNoteSemiStable()`, `draftNoteDynamic()`
-- `completeDialerAiLayered(input)` — new entry point in `openai-lane-client.ts` for cache-optimized AI calls
-- Response `_layerSizes` field: `{ stable, semiStable, dynamic }` byte counts for cache hit analysis
-- Pre-call brief and draft-note routes now use layered prompts. All other lanes (`summarize`, `qa_notes`, `inbound_assist`, `objection_strategy`) can be migrated incrementally.
-
-| PR-4 | Claude Code | main | 2026-03-19 | Control plane (agent_runs, review_queue, feature_flags), Exception Agent, morning brief, MCP now 16 tools |
-| PR-5 | Claude Code | main | 2026-03-19 | Intelligence pipeline (dossiers, artifacts, facts, research runs, source policies, contradiction flags), MCP now 19 tools, 7 migrations applied. PR-5b: contradiction detection on fact insert, review queue action executor (resolveReviewItem), session fact promotion bridge (dialer → intel pipeline), promote-facts API endpoint |
-| PR-6 | Claude Code | main | 2026-03-19 | Research Agent (Claude Agent SDK, probate dossier, gold dataset structure), feature flag seeded, API endpoint at POST /api/agents/research |
-| PR-7 | Claude Code | main | 2026-03-19 | Provider adapters (ATTOM, Bricked AI, Regrid scaffold), base adapter pattern, lookup service, canonical fact normalization |
-| PR-8 | Claude Code | main | 2026-03-19 | Universal property lookup API, promote-to-lead endpoint, stage machine enforcement, property resolution |
-
-**PR-8 Interface Contracts for Cursor:**
-- `POST /api/properties/lookup` — Body: `{ address?, apn?, county?, state?, zip?, providers?: string[] }` → Returns `{ ok, existingProperty, existingLead, configuredProviders, providerResults, providerErrors }`
-- `POST /api/properties/promote-to-lead` — Body: `{ propertyId?, address, city?, state?, zip?, county?, ownerName?, apn?, source?, notes?, nextAction }` → Returns `{ ok, created, leadId, lead, propertyId }`
-- Property lookup UI: search bar → calls lookup → displays provider results + existing property/lead status
-- Promote-to-lead button: calls promote endpoint with `nextAction` required — returns new or existing lead
-- Property card component: displays canonical facts from provider results, highlights confidence levels
-
-| PR-9 | Claude Code | main | 2026-03-19 | Vapi voice front office (voice_sessions table, AI receptionist prompt, CRM function calling, webhook handler, setup endpoint, MCP tool), feature flag seeded |
-
-**PR-9 Interface Contracts for Cursor:**
-- No direct UI required — Vapi handles the voice interface
-- `GET /api/voice/vapi/setup` — returns integration status and setup checklist
-- `POST /api/voice/vapi/setup` — creates/updates Vapi assistant configuration
-- `POST /api/voice/vapi/webhook` — Vapi server webhook (not called by UI)
-- Voice sessions visible via MCP `query_voice_sessions` tool (20 tools total)
-- `voice_sessions` table stores all AI-handled call data, linked to leads
-
-**PR-9 Manual Tasks for Adam:**
-1. Sign up for Vapi at vapi.ai ($0.05/min + LLM costs)
-2. Set `VAPI_API_KEY` environment variable
-3. Call `POST /api/voice/vapi/setup` to create assistant (returns VAPI_ASSISTANT_ID)
-4. Set `VAPI_ASSISTANT_ID` environment variable
-5. In Vapi dashboard: connect Twilio number to the assistant
-6. Enable `voice.ai.inbound` feature flag when ready to go live
-
-| PR-10 | Claude Code | main | 2026-03-19 | QA Agent (deterministic post-call analysis, talk ratio, coaching flags) + Follow-Up Agent (LLM-powered draft generation, seller memory, review-gated), API endpoints, feature flags seeded |
-
-**PR-10 Interface Contracts for Cursor:**
-- `POST /api/agents/qa` — Body: `{ callLogId, leadId }` → Returns QA rating, score, flags, metrics
-- `POST /api/agents/follow-up` — Body: `{ leadId, channel?, operatorNotes? }` → Returns drafts queued for review
-- War room page already exists — no changes needed
-- QA results visible in agent_runs (query via MCP `query_agent_runs`)
-- Follow-up drafts appear in review_queue (query via MCP `query_review_queue`)
-- Feature flags: `agent.qa.enabled`, `agent.follow-up.enabled` (both disabled, review_required mode)
-
-| PR-11 | Claude Code | main | 2026-03-19 | Dispo Agent (buyer-fit scoring + LLM outreach drafts, review-gated), API endpoint, feature flag seeded. Buyer-fit scoring engine already existed — Dispo Agent wires it to outreach generation. |
-
-**PR-11 Interface Contracts for Cursor:**
-- `POST /api/agents/dispo` — Body: `{ dealId, leadId, maxBuyers?, operatorNotes? }` → Returns ranked buyers + outreach drafts queued for review
-- Outreach drafts appear in review_queue (query via MCP `query_review_queue`)
-- Feature flag: `agent.dispo.enabled` (disabled, review_required mode)
-- Existing buyer-fit scoring at `src/lib/buyer-fit.ts` is used by the Dispo Agent
-- Dispo UI: show buyer radar (ranked list with scores + flags), allow operator to select buyer, approve/edit outreach draft
-
-| PR-12 | Claude Code | main | 2026-03-19 | Ads Monitor Agent (deterministic threshold checks, campaign waste detection, CPL/CTR/CPC alerts), gold datasets for all 6 agents, 3-layer prompt cache completion |
-
-**PR-12 Interface Contracts for Cursor:**
-- No direct UI required — Ads Monitor is informational, delivers via morning brief + n8n
-- `POST /api/agents/ads-monitor` — Body: `{ triggerType?, campaignIds? }` → Returns `AdsMonitorReport` with alerts, summary, metrics
-- Feature flag: `agent.ads_monitor.enabled` (disabled by default)
-- Alerts appear in agent_runs outputs (query via MCP)
-- Existing Ads Command Center UI at `/ads` is the operator-facing surface — no changes needed
-
-| PR-13 | Claude Code | main | 2026-03-19 | n8n integration layer — fire-and-forget webhook dispatcher, 5 typed contracts, all cron/webhook endpoints wired |
-| PR-14 | Claude Code | main | 2026-03-19 | Agent fleet E2E wiring: Follow-Up Agent auto-triggers from exception scan (top 5 stale leads per nightly scan), Dispo Agent auto-triggers on stage→disposition transition, review queue PATCH now executes approved actions via resolveReviewItem |
-| PR-15 | Claude Code | main | 2026-03-19 | MCP write tools + agent hardening: 2 new MCP tools (resolve_review_item, promote_session_facts), dedup guard on all 6 agents, feature flag key fix (follow-up), build verified clean |
-| PR-16 | Claude Code | main | 2026-03-19 | Promote-to-lead auto-triggers Research Agent (fire-and-forget) when nextAction is "research" or "call". Lookup route confirmed read-only (correct architecture). |
-| PR-17 | Claude Code | main | 2026-03-20 | CRM projection fields (Blueprint 9.1): 13 new columns on leads, syncDossierToLead writes all fields, confidence scoring, prompt_registry table + 9 seeds, address suggest endpoint, morning brief dashboard API, source attribution reporting |
-| PR-18 | Claude Code | main | 2026-03-20 | Dialer context enrichment + control plane expansion: dossier projection in CRM bridge, prompt registry CRUD, voice sessions query, post-call auto-QA trigger, lead score computation endpoint |
-| PR-19 | Claude Code | main | 2026-03-20 | Score-ranked operations: nightly score refresh cron, score-ranked lead queue API, batch research trigger, vercel.json cron scheduling |
-| PR-20 | Claude Code | main | 2026-03-20 | Intelligence E2E: pre-call brief enriched with dossier data, Research Agent auto-review/promote in auto mode, comps status tracking, LeadContext expanded with 7 dossier fields |
-| PR-21 | Claude Code | main | 2026-03-20 | Rip out n8n — replace with direct Slack webhook + Twilio SMS delivery. Deleted n8n-dispatcher.ts and n8n-contracts/. New src/lib/notify.ts handles all 5 notification channels directly. |
-| PR-22 | Claude Code | main | 2026-03-20 | Wire weekly-health + db-integrity crons to Slack. Added notifyWeeklyHealth() + notifyIntegrityAudit() to notify.ts. DB audit only fires Slack when issues found. |
-| PR-23 | Claude Code | main | 2026-03-20 | Firecrawl county extraction pipeline. New adapter (src/providers/firecrawl/adapter.ts) with Spokane + Kootenai county portals. POST /api/properties/county-extract wires through canonical write path (artifact → facts). |
-| PR-24 | Claude Code | main | 2026-03-20 | Skiptrace-on-promotion. promote-to-lead now auto-triggers dualSkipTrace (fire-and-forget). Results stored as intel artifacts + fact assertions — never written directly to leads. |
-| PR-25 | Claude Code | main | 2026-03-20 | Follow-Up Agent delivery wiring. Added follow_up_sms, follow_up_email, follow_up_call execution handlers to control plane. SMS sends via Twilio on approval. Email/call create tasks for operator. |
-| PR-26 | Claude Code | main | 2026-03-20 | Speed-to-lead SMS notification. New notifyNewInboundLead() fires instant SMS when inbound creates a lead. Wired into inbound-intake-server for all channels (webform, email, vendor). |
-| PR-27 | Claude Code | main | 2026-03-20 | Dispo Agent buyer outreach execution. Added buyer_outreach_sms, buyer_outreach_email, buyer_outreach_phone handlers to control plane. Tracks deal_buyers status on outreach. Auto-trigger already wired on stage=disposition entry. |
-| PR-28 | Claude Code | main | 2026-03-20 | PropertyRadar adapter (canonical write path). New adapter at src/providers/propertyradar/adapter.ts — lookupProperty + lookupByRadarId. Normalizes 30+ PR fields into canonical facts with confidence levels. Distress signals extracted as individual facts. |
-| PR-29 | Claude Code | main | 2026-03-20 | Stale dispo cron + speed-to-lead. New /api/cron/stale-dispo runs daily — finds deals in dispo >48h with no buyer outreach and re-triggers Dispo Agent. Added to vercel.json. |
-| PR-30 | Claude Code | main | 2026-03-20 | Provider lookup integration — added PropertyRadar + Firecrawl adapters to lookup-service.ts. All 5 providers (ATTOM, Bricked, Regrid, PropertyRadar, Firecrawl) now available through unified multi-provider lookup. |
-| PR-31 | Claude Code | main | 2026-03-20 | Stale follow-up cron. New /api/cron/stale-follow-ups runs Mon-Sat 10am PT — finds active leads with no contact in >5 days (WA) or >7 days (other). Auto-triggers Follow-Up Agent. WA leads default to call channel per blueprint rules. |
-
-**PR-13 Details:** *(superseded by PR-21 — n8n removed, replaced with direct Slack + Twilio SMS)*
-- `src/lib/notify.ts` — Direct notification dispatcher (Slack webhook + Twilio SMS)
-- All 5 notification channels wired directly:
-  1. Missed call alert → SMS via `notifyMissedCall()`
-  2. Morning digest → Slack via `notifyMorningDigest()`
-  3. Post-call summary → Slack via `notifyPostCallSummary()`
-  4. Stale follow-up nudge → SMS via `notifyStaleFollowUp()`
-  5. Ads anomaly alert → Slack via `notifyAdsAnomaly()`
-- Env vars required: `SLACK_WEBHOOK_URL`, `NOTIFY_SMS_NUMBERS` (comma-separated phone numbers)
-- Uses existing Twilio credentials (`TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_PHONE_NUMBER`)
-- No n8n dependency — Sentinel delivers directly
-
-**Agent Fleet Status (all 6 agents):**
-
-| Agent | System Prompt | Runner | Tools | Review Gate | Gold Dataset | Status |
-|-------|:---:|:---:|:---:|:---:|:---:|---|
-| Research | done | done | done | done | done | Production-ready |
-| QA | done | done | done | done | done | Production-ready |
-| Follow-Up | done | done | done | done | done | Production-ready |
-| Dispo | done | done | done | done | done | Production-ready |
-| Exception | done | done | done | done | done | Production-ready |
-| Ads Monitor | done | done | done | done | done | Production-ready |
-
-**PR-15 Details:**
-- **MCP Write Tools (22 total now):**
-  - `resolve_review_item` — approve/reject review queue proposals, auto-executes approved actions (sync dossier, accept/reject facts, review dossier)
-  - `promote_session_facts` — promote confirmed dialer session facts into intel pipeline (creates artifacts + fact assertions)
-- **Agent Dedup Guard:** `createAgentRun()` returns `null` if the same agent is already running for the same lead (5-min window). All 6 agents now handle null gracefully.
-- **Feature Flag Fix:** `agent.follow_up.enabled` → `agent.follow-up.enabled` (matches code lookup). Stale DB row cleaned.
-- **Service layer changes:**
-  - `src/lib/control-plane.ts` — `createAgentRun` return type changed to `Promise<string | null>`, added `resolveReviewItem()` + `executeApprovedAction()` dispatcher
-  - `src/lib/intelligence.ts` — `createFact` now returns `CreateFactResult` with contradiction detection
-  - `src/lib/session-fact-promotion.ts` — bridge from dialer domain to intel pipeline
-
-**PR-17 Details:**
-- **CRM Projection Fields (Blueprint 9.1):** 13 new columns on `leads` table:
-  - `seller_situation_summary_short`, `recommended_call_angle`, `likely_decision_maker`, `decision_maker_confidence`
-  - `top_fact_1`, `top_fact_2`, `top_fact_3`, `recommended_next_action`
-  - `property_snapshot_status`, `comps_status`
-  - `opportunity_score`, `contactability_score`, `confidence_score`
-- **`syncDossierToLead()`** now writes all projection fields when a reviewed dossier is promoted. Includes `computeConfidenceScore()` (fact coverage + source diversity) and `getDMConfidence()` (decision maker confidence ladder).
-- **`prompt_registry` table** created + seeded with 9 versions (2 dialer + 6 agents + 1 extraction workflow).
-- **New API routes:**
-  - `GET /api/properties/suggest?q=` — address typeahead, searches local DB, returns lead linkage
-  - `GET /api/dashboard/morning-brief` — on-demand morning brief for operator dashboard (exceptions + callbacks + top 10 leads + pipeline + reviews)
-  - `GET /api/dashboard/source-attribution` — source-level conversion funnel for prospect engine bake-off (leads → calls → qualified → contracts by source)
-- **Cursor contract:** All 3 new endpoints are ready for UI consumption. Morning brief returns `topLeads` with projection fields. Source attribution returns per-source funnel with `conversionRate` and `contactRate`.
-
-**PR-18 Details:**
-- **Dialer context enrichment (Blueprint 9.1 last mile):** `CRMLeadContext` now includes 9 dossier projection fields (`sellerSituationSummary`, `recommendedCallAngle`, `likelyDecisionMaker`, `decisionMakerConfidence`, `topFact1/2/3`, `opportunityScore`, `confidenceScore`). CRM bridge fetches them from leads table. Logan's pre-call screen now shows intelligence pipeline data.
-- **Prompt registry API (Blueprint 15.1):**
-  - `GET /api/control-plane/prompt-registry` — list prompts, filter by `?workflow=` and `?status=`
-  - `POST /api/control-plane/prompt-registry` — register new version (auto-deprecates prior active version for same workflow)
-  - `PATCH /api/control-plane/prompt-registry` — update status/description (same auto-deprecation on promote-to-active)
-- **Voice sessions query:**
-  - `GET /api/control-plane/voice-sessions` — list AI-handled voice sessions, filter by `?status=`, `?direction=`, `?lead_id=`, `?caller_type=`
-- **Post-call auto-QA (Blueprint 6.3):** `publishSession()` now auto-triggers QA Agent (fire-and-forget) after every successful call publish. QA runs deterministic analysis (talk ratio, coaching flags, score) without blocking the publish response.
-- **Lead score computation (Blueprint 9.2):**
-  - `POST /api/leads/compute-scores` — recomputes opportunity_score (distress + equity + motivation + priority), contactability_score (phone + consent + answer rate + recency), confidence_score (fact coverage). Accepts batch of up to 50 lead IDs. Writes scores to leads table.
-
-**PR-18 Cursor Contracts:**
-- `CRMLeadContext` type updated — if Cursor uses this type for dialer UI, the new fields are available immediately
-- Prompt registry UI: CRUD against `/api/control-plane/prompt-registry` — show workflow, version, status, description
-- Voice sessions: read-only list at `/api/control-plane/voice-sessions` — show caller type, intent, status, duration, summary
-
-**PR-19 Details:**
-- **Nightly score refresh:** `GET /api/cron/refresh-scores` — recomputes opportunity/contactability/confidence scores for up to 500 active leads in batches of 50. Runs at 6:45am PT (before morning brief at 7am). Secured by CRON_SECRET.
-- **Score-ranked lead queue:** `GET /api/leads/score-queue` — returns active leads sorted by weighted composite (50% opportunity + 30% contactability + 20% confidence). Supports `?limit=`, `?status=`, `?min_opportunity=`, `?assigned_to=` filters. Includes all dossier projection fields + property details.
-- **Batch research trigger:** `POST /api/agents/research/batch` — kicks off Research Agent for up to 20 leads in parallel (fire-and-forget, dedup guard). Body: `{ leadIds, focusAreas? }`.
-- **Cron scheduling:** Added `refresh-scores` to vercel.json crons (6:45am PT daily).
-
-**PR-19 Cursor Contracts:**
-- `GET /api/leads/score-queue` — operator-facing "Top Leads" panel. Each lead includes `rank`, `weightedScore`, all projection fields, and property data. Ideal for the morning brief dashboard surface.
-
-**PR-20 Details:**
-- **Pre-call brief enriched (Blueprint 3.1 + 9.1):** `buildCallCoPilotPrompt()` now includes an "Intelligence Brief" section with seller situation summary, recommended call angle, decision maker, top facts, and scores from the dossier pipeline. Pre-call brief route wires all 7 dossier projection fields into the prompt.
-- **Research Agent auto-review:** When `agent.research.enabled` mode is `auto` AND no contradictions were detected, the Research Agent now auto-reviews and promotes the dossier (calls `reviewDossier()` + `syncDossierToLead()`). Falls back to `queued_for_review` if auto-promote fails.
-- **Comps status tracking:** `PATCH /api/leads/update-comps-status` — updates `comps_status` field (pending/stale/current) after comps are pulled. Called by UI or cron.
-- **Type changes:** `LeadContext` expanded with `sellerSituationSummary`, `recommendedCallAngle`, `likelyDecisionMaker`, `decisionMakerConfidence`, `topFacts`, `opportunityScore`, `confidenceScore`. `ResearchAgentResult.status` now includes `"auto_promoted"`.
-
-**PR-22 Details:**
-- `notifyWeeklyHealth()` — Slack formatted summary: pipeline velocity, intel stats, voice sessions, agent health, quick wins
-- `notifyIntegrityAudit()` — Slack alert with critical/high findings + auto-repair summary. Only fires when issues found (silent on clean runs).
-- All 7 notification channels now covered: missed call, morning digest, post-call summary, stale follow-up, ads anomaly, weekly health, integrity audit.
-
-**PR-23 Details:**
-- `src/providers/firecrawl/adapter.ts` — Extends BaseProviderAdapter. Uses Firecrawl `/scrape` with LLM extraction schema (22 property fields).
-- County portals configured: Spokane County WA assessor, Kootenai County ID assessor. URL pattern functions for APN and address lookups.
-- `POST /api/properties/county-extract` — Accepts `{ leadId, address?, apn?, county?, state? }` or `{ leadId, url }` for direct URL scrape.
-- Write path: Firecrawl response → `dossier_artifacts` (sourceType: firecrawl_county_extract) → `fact_assertions` (canonical field names, medium confidence for known portals, low for arbitrary URLs).
-- Contradiction detection runs automatically — if Firecrawl extracts an owner name that conflicts with an existing accepted fact, it flags the contradiction.
-- Env: `FIRECRAWL_API_KEY` required.
-
-**PR-24 Details:**
-- `promote-to-lead` route now fires `triggerSkiptrace()` (fire-and-forget) after lead creation.
-- Skiptrace results stored as intel artifacts (`sourceType: skiptrace_promotion`) — NOT written directly to leads table.
-- Facts created: `primary_phone` (promoted_field: phone), `primary_email` (promoted_field: email), `litigator_flag`, individual `phone_number` entries (top 3).
-- Confidence scoring: phones with >80% confidence get "high", >50% get "medium", rest get "low".
-- Write path preserved: facts go to review queue before CRM sync. Operator approves before phone appears on lead record.
-
-**PR-25 Details:**
-- `executeApprovedAction()` in control-plane now handles 3 new actions: `follow_up_sms`, `follow_up_email`, `follow_up_call`.
-- `follow_up_sms`: Sends via Twilio directly to lead's phone. Message from approved proposal.
-- `follow_up_email`: Creates a task with email draft (to, subject, body). Operator sends from Gmail manually until Gmail OAuth is reliably connected.
-- `follow_up_call`: Creates a priority task with AI-drafted call script. Logan makes the actual call.
-- All follow-up executions log to `event_log` (action: `follow_up.{channel}_sent`).
-- Follow-Up Agent now includes phone/email/leadName in proposal payload so execution handler can send directly.
-
-**PR-25 Cursor Contracts:**
-- Review queue items with `action` starting with `follow_up_` now auto-execute on approval. The review queue UI should show the draft body and channel clearly so Logan can review before approving.
+### Recently Shipped (March 23–25)
+| What | Platform | Commit(s) |
+|------|----------|-----------|
+| Task system UX overhaul — identity, context, accountability, inline call | Cursor | 12abaa0, 8cd77f8, 30f4957 |
+| Dead phone UX + Dead Phone/Dead Lead dispositions + consent removal | Cursor | 53906e4, 86bc2de |
+| Implementation gap closure (dossier placeholder, missed queue retry, phone cycling) | Cursor | 86bc2de |
+| SMS Messages Inbox — table, webhook, send/threads, dialer panel | Cursor | 3c4259f |
+| Legal tab — county recorder + court crawlers | Cursor | 728b1b5, e766657 |
+| Property Intel persistence — Bricked cache, deal config | Cursor | 6fe011b |
+| Deep crawl pipeline — Firecrawl Agent + Perplexity | Cursor | 7986b04 |
+| Phone cycling, dead phone marking, stage controls, default filter | Cursor | 5415f63 |
+| Warm transfer + Jeff's transfer brief | Claude Code | 93d150d, 9772017 |
+| System hardening — silent failures, webhook auth, image config | Claude Code | 95918fe |
+| Live coaching — faster polling, shorter cooldowns, token cap | Claude Code | b951f4d, ce2f319 |
+| Outbound call drop fix — Twilio sig validation hostname | Cursor | b86524e |
 
 ### Blocked
-*Nothing currently blocked.*
+*Nothing currently blocked (pending GOOGLE_STREET_VIEW_KEY for full property photos).*
+
+---
+
+## Foundation PRs (March 19–20, All Shipped)
+
+These 31 PRs built the entire backend. Contracts are all consumed. Kept here as reference only — do not update.
+
+<details>
+<summary>Click to expand PR history (PR-1 through PR-31)</summary>
+
+| PR | Date | Summary |
+|----|------|---------|
+| PR-1 | 3/19 | Stage machine, guardrails, stale-leads cron |
+| PR-2 | 3/19 | MCP server (13 tools, 2 resources), ContextSnapshot |
+| PR-3 | 3/19 | CRM bridge fixes, 3-layer prompt cache architecture |
+| PR-4 | 3/19 | Control plane (agent_runs, review_queue, feature_flags), Exception Agent |
+| PR-5 | 3/19 | Intelligence pipeline (dossiers, artifacts, facts, research runs) |
+| PR-6 | 3/19 | Research Agent (Claude Agent SDK, probate dossier, gold dataset) |
+| PR-7 | 3/19 | Provider adapters (ATTOM, Bricked AI, Regrid scaffold) |
+| PR-8 | 3/19 | Universal property lookup API, promote-to-lead endpoint |
+| PR-9 | 3/19 | Vapi voice front office (AI receptionist, CRM function calling) |
+| PR-10 | 3/19 | QA Agent + Follow-Up Agent (post-call analysis, draft generation) |
+| PR-11 | 3/19 | Dispo Agent (buyer-fit scoring + LLM outreach drafts) |
+| PR-12 | 3/19 | Ads Monitor Agent, gold datasets for all 6 agents, prompt cache completion |
+| PR-13 | 3/19 | n8n integration layer (superseded by PR-21) |
+| PR-14 | 3/19 | Agent fleet E2E wiring (Follow-Up auto-trigger, Dispo auto-trigger) |
+| PR-15 | 3/19 | MCP write tools (22 total), agent dedup guard |
+| PR-16 | 3/19 | Promote-to-lead auto-triggers Research Agent |
+| PR-17 | 3/20 | CRM projection fields (13 columns), prompt_registry table, morning brief API |
+| PR-18 | 3/20 | Dialer context enrichment, prompt registry CRUD, post-call auto-QA |
+| PR-19 | 3/20 | Score-ranked lead queue, nightly score refresh cron |
+| PR-20 | 3/20 | Pre-call brief enriched with dossier data, Research Agent auto-review |
+| PR-21 | 3/20 | Rip out n8n — replace with direct Slack webhook + Twilio SMS |
+| PR-22 | 3/20 | Wire weekly-health + db-integrity crons to Slack |
+| PR-23 | 3/20 | Firecrawl county extraction pipeline |
+| PR-24 | 3/20 | Skiptrace-on-promotion (dual skip trace, fire-and-forget) |
+| PR-25 | 3/20 | Follow-Up Agent delivery wiring (SMS, email, call execution) |
+| PR-26 | 3/20 | Speed-to-lead SMS notification on inbound lead |
+| PR-27 | 3/20 | Dispo Agent buyer outreach execution |
+| PR-28 | 3/20 | PropertyRadar adapter (canonical write path) |
+| PR-29 | 3/20 | Stale dispo cron + speed-to-lead |
+| PR-30 | 3/20 | All 5 providers in unified multi-provider lookup |
+| PR-31 | 3/20 | Stale follow-up cron (Mon-Sat 10am PT) |
+
+**Agent Fleet Status (all 6 agents): Production-ready** — Research, QA, Follow-Up, Dispo, Exception, Ads Monitor.
+
+**Key contracts consumed by Cursor:**
+- `ContextSnapshot` / `CRMLeadContext` — dialer workspace context (includes 9 dossier projection fields)
+- `GET/PATCH /api/leads/[id]/stage` — stage transitions with lock_version
+- `GET /api/leads/score-queue` — score-ranked lead queue
+- `GET /api/dashboard/morning-brief` — morning brief for dashboard
+- Intelligence pipeline CRUD — `/api/dossiers/[lead_id]/*`
+- Prompt registry — `/api/control-plane/prompt-registry`
+- Notification: `src/lib/notify.ts` — direct Slack webhook + Twilio SMS (no n8n)
+
+</details>
+
+---
+
+## Warm Transfer Screen Pop (Handoff — 2026-03-24)
+
+**Status: Backend done, UI partially shipped (transfer brief shows on ring).**
+
+The transfer-brief API (`/api/dialer/v1/transfer-brief`) returns full client file context when Jeff transfers a call. Key fields: `leadUrl`, `lead` snapshot, `property`, `recentCalls`, `openTasks`, `jeffNotes[]`.
+
+**Remaining UI work:**
+- Auto-open client file modal on transfer ring (when `leadId` is present)
+- Show `jeffNotes` array prominently in the transfer overlay
+- Render `recentCalls` and `openTasks` in transfer context
 
 ---
 
@@ -533,7 +374,7 @@ Session fact promotion: `src/lib/session-fact-promotion.ts` — `promoteSessionF
 1. Read this file (AI-COORDINATION.md)
 2. Read CLAUDE.md for project-specific instructions
 3. Check the Active Work table above — is anyone else touching files you plan to modify?
-4. Pull latest `dev` branch
+4. Pull latest `main`
 
 **Your primary responsibilities:**
 - Database schema changes and migrations (you are the ONLY platform that touches the database)
@@ -542,8 +383,9 @@ Session fact promotion: `src/lib/session-fact-promotion.ts` — `promoteSessionF
 - Provider adapter design and wiring
 - MCP server implementation
 - Agent fleet architecture
-- Integration wiring (n8n webhooks, Twilio, provider adapters)
+- Integration wiring (Slack webhooks, Twilio, provider adapters)
 - TypeScript interfaces/types that other platforms consume
+- Inngest background job functions
 
 **You must NOT:**
 - Edit component files in `src/components/`
@@ -567,7 +409,7 @@ Session fact promotion: `src/lib/session-fact-promotion.ts` — `promoteSessionF
 **Before every session:**
 1. Read this file (AI-COORDINATION.md)
 2. Check the Active Work table — are you waiting on any Claude Code deliverables?
-3. Pull latest `dev` branch
+3. Pull latest `main`
 4. Check for new types/interfaces Claude Code may have added
 
 **Your primary responsibilities:**
@@ -575,14 +417,14 @@ Session fact promotion: `src/lib/session-fact-promotion.ts` — `promoteSessionF
 - Page layouts in `src/app/(sentinel)/*/page.tsx`
 - React hooks in `src/hooks/`
 - State management in `src/stores/`
+- React providers in `src/providers/` (Twilio, theme, modal, etc.)
 - Styling, responsive design, shadcn/ui customization
 - Visual bug fixes and UX improvements
-- v0-generated component integration and refinement
+- Property photo/image proxy routes (`/api/street-view`, `/api/property-photos`)
 
 **You must NOT:**
 - Edit database schema (`src/db/*`) or create migrations (`supabase/migrations/*`)
 - Edit core business logic in `src/lib/` (scoring, compliance, enrichment, lead guards, etc.)
-- Edit API routes for core domains (leads, deals, dialer, scoring, etc.)
 - Edit MCP server code
 - Edit agent framework code
 - Change `next.config.ts`, `vercel.json`, `drizzle.config.ts`, or environment files
@@ -598,6 +440,8 @@ Session fact promotion: `src/lib/session-fact-promotion.ts` — `promoteSessionF
 2. Wait for Claude Code to add the migration and update the schema
 3. Build your component against the updated type
 
+**Bug-fix exception:** When a Claude Code-owned route has a bug that blocks UI work, Cursor may fix it with the user's permission. Mark the commit clearly: `[cursor] Fix <route> — <what was broken>`.
+
 ---
 
 ### If You Are Codex
@@ -612,7 +456,6 @@ Session fact promotion: `src/lib/session-fact-promotion.ts` — `promoteSessionF
 - E2E tests (`e2e/`)
 - Provider adapter implementation (when explicitly assigned a specific adapter)
 - Type fixes and refactoring (when explicitly assigned specific files)
-- Migration scripts (when explicitly assigned)
 - Code cleanup tasks (when explicitly assigned)
 
 **You must NOT:**
@@ -623,17 +466,6 @@ Session fact promotion: `src/lib/session-fact-promotion.ts` — `promoteSessionF
 - Change shared types without explicit assignment
 - Add new dependencies to package.json without explicit assignment
 - Touch any file not listed in your ticket
-
-**Your output should always be:**
-1. A clean, reviewable PR on a `codex/*` branch
-2. All tests passing
-3. No files modified outside your ticket scope
-4. Clear commit messages with `[codex]` prefix
-
-**If your ticket is ambiguous:**
-- State what you think the ticket means in a PR comment
-- Implement the most conservative interpretation
-- Flag any decisions you made for the reviewer
 
 ---
 
@@ -646,7 +478,7 @@ Session fact promotion: `src/lib/session-fact-promotion.ts` — `promoteSessionF
 4. If it's a UI file, Cursor gets priority.
 
 ### If You Find a Bug in Another Platform's Code
-1. Do NOT fix it yourself (unless it's a one-line typo).
+1. Do NOT fix it yourself (unless it's a one-line typo or it's blocking your work — see bug-fix exception above).
 2. Note it in the Active Work table or tell the user.
 3. The owning platform fixes it in their next session.
 
@@ -654,7 +486,7 @@ Session fact promotion: `src/lib/session-fact-promotion.ts` — `promoteSessionF
 - **Backend dependency** (API, database, server-side): Claude Code adds it.
 - **Frontend dependency** (UI library, component, styling): Cursor adds it.
 - **Test dependency** (testing framework, mock library): Codex adds it.
-- **Shared dependency** (utility used by both): Claude Code adds it, then Cursor/Codex pull.
+- **Shared dependency** (utility used by both): Claude Code adds it, then Cursor pulls.
 
 ---
 
@@ -666,31 +498,9 @@ All commits must include the platform tag:
 [cc] Add stage transition validation to lead-guardrails.ts
 [cursor] Build overdue follow-up dashboard widget
 [codex] Add unit tests for ATTOM adapter normalization
-[cc] Define ContextSnapshot interface for dialer workspace
-[cursor] Wire usePreCallBrief hook to new /api/dialer/context endpoint
-[codex] Add E2E test for lead promotion flow
 ```
 
 This makes `git log` instantly readable for which platform did what.
-
----
-
-## Daily Sync Checklist
-
-### Morning (Human — 15 minutes)
-- [ ] Pull `dev`, check what merged overnight
-- [ ] Review any open Codex PRs
-- [ ] Update Active Work table in this file
-- [ ] Assign today's Codex tickets (2-4 scoped tasks)
-- [ ] Decide: what does Claude Code own today? What does Cursor own?
-- [ ] Check for merge conflicts on `dev`
-
-### Evening (Human — 10 minutes)
-- [ ] Merge completed branches to `dev`
-- [ ] Run `npm run build && npm run lint` on `dev`
-- [ ] Update Active Work table: mark completed, note blockers
-- [ ] Queue tomorrow's Codex tickets
-- [ ] Push updated AI-COORDINATION.md to `dev`
 
 ---
 
@@ -699,7 +509,7 @@ This makes `git log` instantly readable for which platform did what.
 ```
 Am I Claude Code?
   └─ Is the file in src/db/, supabase/migrations/, src/lib/ (core), src/app/api/ (core),
-     sentinel-mcp/, or configuration files?
+     sentinel-mcp/, src/inngest/, or configuration files?
      ├─ YES → Proceed
      └─ NO → STOP. Tell the user.
 
@@ -707,7 +517,9 @@ Am I Cursor?
   └─ Is the file in src/components/, src/hooks/, src/stores/, src/providers/,
      src/app/(sentinel)/*/page.tsx, or styling files?
      ├─ YES → Proceed
-     └─ NO → STOP. Tell the user.
+     └─ NO → Is it in the SHARED list and blocking your UI work?
+        ├─ YES → Fix with user permission, tag commit clearly
+        └─ NO → STOP. Tell the user.
 
 Am I Codex?
   └─ Is the file explicitly listed in my ticket?
@@ -719,29 +531,10 @@ Am I Codex?
 
 ---
 
-## Reference: Blueprint Phase → Platform Mapping
-
-| Phase | PR | Claude Code | Cursor | Codex |
-|-------|-----|-------------|--------|-------|
-| 0 | PR-0 | n8n setup, AI receptionist config, Claude Code tasks | — | — |
-| 1 | PR-1 | Stage machine, next-action logic, stale detection, DB migrations | Hard UI warnings, overdue widget | Stage enum tests, validation tests |
-| 1 | PR-2 | MCP server, context snapshot contract, publish idempotency | Dialer workspace UI shell | MCP tool unit tests, snapshot tests |
-| 2 | PR-3 | AI pipeline wiring, prompt caching, memory retrieval | Live notes panel, seller memory panel, post-call review UI | Prompt template tests, memory tests |
-| 3 | PR-4 | Run registry, agent registry, review queue, Exception Agent, feature flags | Review console UI, feature flag admin UI | Agent run logging tests, flag tests |
-| 4 | PR-5 | Artifact-fact-dossier pipeline, sync snapshot logic | Dossier viewer UI | Pipeline unit tests, normalization tests |
-| 4 | PR-6 | Claude Agent SDK + Playwright MCP agent | Research results viewer UI | Gold-set evaluation harness |
-| 5 | PR-7 | ATTOM/PropertyRadar adapters, Bricked AI API client | — | Adapter unit tests, mapping tests |
-| 5 | PR-8 | Promotion flow logic, universal lookup API | Property lookup UI, property card | Lookup API tests |
-| 6 | PR-9 | Vapi voice agent, warm transfer, MCP integration | — | Voice integration tests |
-| 7 | PR-10 | QA + Follow-Up Agent deployments, task generation | War room UI refinement | Summary eval tests |
-| 8 | PR-11 | Buyer-fit logic, InvestorLift API, stale-dispo | Dispo UI, buyer memory UI | Buyer-fit scoring tests |
-
----
-
 ## Document Version
 
-**Last updated:** 2026-03-19
-**Updated by:** Claude Code
+**Last updated:** 2026-03-25
+**Updated by:** Cursor
 **Blueprint version:** v4 (March 18, 2026)
 
 > When in doubt: ask the user. When tempted to touch a file outside your lane: ask the user.
