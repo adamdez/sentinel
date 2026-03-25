@@ -191,8 +191,9 @@ export async function POST(req: NextRequest) {
       .single();
 
     if (sessErr || !session) {
-      console.error("[outbound/batch] Session creation failed:", sessErr?.message, { leadId: lead.id });
-      results.push({ leadId: lead.id, status: "failed", error: `Session: ${sessErr?.message}` });
+      const errMsg = `Session creation failed: ${sessErr?.message}`;
+      console.error("[outbound/batch]", errMsg, { leadId: lead.id });
+      skipped.push({ leadId: lead.id, reason: errMsg });
       continue;
     }
 
@@ -215,14 +216,15 @@ export async function POST(req: NextRequest) {
       results.push({ leadId: lead.id, status: "initiated", voiceSessionId: session.id, vapiCallId });
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
-      console.error("[outbound/batch] Vapi call FAILED:", msg, { leadId: lead.id });
+      console.error("[outbound/batch] Vapi call FAILED:", msg);
 
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       await (sb.from("voice_sessions") as any)
         .update({ status: "failed" })
         .eq("id", session.id);
 
-      results.push({ leadId: lead.id, status: "failed", voiceSessionId: session.id, error: msg });
+      // Put in skipped so the UI toast shows the actual error
+      skipped.push({ leadId: lead.id, reason: `Vapi: ${msg}` });
     }
 
     // 3s delay between calls
