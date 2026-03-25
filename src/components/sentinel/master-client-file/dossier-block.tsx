@@ -72,7 +72,14 @@ export function DossierBlock({ leadId, propertyId, isAdminView = false, leadType
         </div>
       );
     }
-    if (!dossier) return null;
+    if (!dossier) {
+      return (
+        <div className="flex items-center gap-2 text-xs text-muted-foreground/50 py-2 px-1">
+          <ShieldCheck className="h-3 w-3 shrink-0" />
+          Intelligence report pending — run research to generate
+        </div>
+      );
+    }
     return <DossierRenderer dossier={dossier} leadType={leadType} isAdminView={false} onPromoted={refetch} />;
   }
 

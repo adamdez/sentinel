@@ -418,8 +418,6 @@ function DialerPageInner() {
   const [dispositionPending, setDispositionPending] = useState(false);
   const [smsLoading, setSmsLoading] = useState(false);
   const [transferStatus, setTransferStatus] = useState<string | null>(null);
-  const [consentPending, setConsentPending] = useState(false);
-  const [consentGranted, setConsentGranted] = useState(false);
 
   // Phone cycling roster — fetched from lead_phones API when a lead is loaded
   const [leadPhones, setLeadPhones] = useState<LeadPhone[]>([]);
@@ -745,14 +743,6 @@ function DialerPageInner() {
     refetchQueue();
   }, [refetchQueue]);
 
-  // Auto-dial after consent granted
-  useEffect(() => {
-    if (consentGranted && currentLead) {
-      setConsentGranted(false);
-      handleDial(currentLead);
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [consentGranted]);
 
   // ── Incoming call handler — attached to provider-managed Device ──
   useEffect(() => {
@@ -943,24 +933,6 @@ function DialerPageInner() {
       setDiagLoading(false);
     }
   }, [currentUser.id]);
-
-  const grantConsent = useCallback(async () => {
-    if (!currentLead) return;
-
-    const res = await fetch("/api/dialer/consent", {
-      method: "POST",
-      headers: await authHeaders(),
-      body: JSON.stringify({ leadId: currentLead.id }),
-    });
-    const data = await res.json().catch(() => ({}));
-    if (!res.ok || !data?.success) {
-      toast.error(data?.error ?? `Consent save failed (HTTP ${res.status})`);
-      return;
-    }
-
-    setConsentPending(false);
-    setConsentGranted(true);
-  }, [currentLead]);
 
   // ── Incoming call handlers ────────────────────────────────────────
   const handleAnswerIncoming = useCallback(async () => {
@@ -1686,6 +1658,7 @@ function DialerPageInner() {
 
   // ── PostCallPanel completion handler ────────────────────────────────
   // Shared by onComplete and onSkip — PostCallPanel handles its own API calls.
+  // Cycles to the next un-attempted phone before advancing to the next lead.
   const handlePostCallDone = useCallback(() => {
     setCallState("idle");
     setCurrentCallLogId(null);
@@ -1698,11 +1671,27 @@ function DialerPageInner() {
     setSavedNotes([]);
     noteSeqRef.current = 0;
     timer.reset();
-    const currentIdx = queue.findIndex((l) => l.id === currentLead?.id);
-    const nextLead = queue[currentIdx + 1] ?? queue[0] ?? null;
-    setCurrentLead(nextLead);
-    refetchQueue();
-  }, [currentLead, queue, refetchQueue, timer]);
+
+    const activePhones = leadPhones.filter((p) => p.status === "active");
+    const nextPhoneIdx = phoneIndex + 1;
+    if (activePhones.length > 1 && nextPhoneIdx < activePhones.length) {
+      setPhoneIndex(nextPhoneIdx);
+      toast.info(`Phone ${nextPhoneIdx + 1} of ${activePhones.length} — next number loaded`);
+      if (currentLead?.id) {
+        authHeaders().then(hdrs =>
+          fetch(`/api/leads/${currentLead.id}/phones`, { headers: hdrs })
+            .then(r => r.ok ? r.json() : null)
+            .then(data => { if (data?.phones) setLeadPhones(data.phones); })
+        ).catch(() => {});
+      }
+    } else {
+      const currentIdx = queue.findIndex((l) => l.id === currentLead?.id);
+      const nextLead = queue[currentIdx + 1] ?? queue[0] ?? null;
+      setCurrentLead(nextLead);
+      setPhoneIndex(0);
+      refetchQueue();
+    }
+  }, [currentLead, queue, refetchQueue, timer, leadPhones, phoneIndex]);
 
   // ── Manual dial PostCallPanel completion handler ──────────────────
   const handleManualPostCallDone = useCallback(() => {

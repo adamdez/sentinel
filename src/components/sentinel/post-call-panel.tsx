@@ -97,6 +97,7 @@ const DISPO_OPTIONS: DispoMeta[] = [
   { key: "appointment",    label: "Appointment",    icon: CalendarCheck, color: "text-foreground", bg: "bg-muted/10 hover:bg-muted/20 border-border/20" },
   { key: "offer_made",     label: "Offer Made",     icon: DollarSign,    color: "text-foreground",  bg: "bg-muted/10 hover:bg-muted/20 border-border/20" },
   { key: "disqualified",   label: "Disqualified",   icon: Skull,         color: "text-foreground/70",  bg: "bg-muted/8 hover:bg-muted/15 border-border/15" },
+  { key: "dead_lead",      label: "Dead Lead",      icon: Skull,         color: "text-red-400/70",     bg: "bg-red-500/6 hover:bg-red-500/12 border-red-500/10" },
 ];
 
 // Dispositions that include a callback date capture step (Step 2)
@@ -511,6 +512,29 @@ export function PostCallPanel({
         summaryBits.push(`${qaFindings.length} item${qaFindings.length === 1 ? "" : "s"}`);
       }
       toast.warning(`QA found ${summaryBits.join(" and ")} for this call`);
+    }
+
+    // Auto-mark phone dead when dead_phone dispo is selected
+    if (dispo === "dead_phone" && leadId && phoneNumber) {
+      try {
+        const phonesRes = await fetch(`/api/leads/${leadId}/phones`, { headers: hdrs });
+        if (phonesRes.ok) {
+          const phonesData = await phonesRes.json();
+          const digits = phoneNumber.replace(/\D/g, "");
+          const match = (phonesData.phones ?? []).find(
+            (p: { id: string; phone: string }) => p.phone.replace(/\D/g, "") === digits,
+          );
+          if (match) {
+            await fetch(`/api/leads/${leadId}/phones/${match.id}`, {
+              method: "PATCH",
+              headers: hdrs,
+              body: JSON.stringify({ status: "dead", dead_reason: "disconnected" }),
+            });
+          }
+        }
+      } catch {
+        console.warn("[PostCallPanel] Auto-mark dead phone failed (non-fatal)");
+      }
     }
 
     // Fire legacy call path AFTER publish succeeds — only for increment_lead_call_counters RPC.

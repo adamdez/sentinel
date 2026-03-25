@@ -4097,12 +4097,6 @@ export function MasterClientFileModal({ clientFile: incomingClientFile, open, on
 
   const [callStatus, setCallStatus] = useState<string | null>(null);
 
-  const [needsConsent, setNeedsConsent] = useState(false);
-
-  const [consentPending, setConsentPending] = useState(false);
-
-  const [pendingPhone, setPendingPhone] = useState<string | undefined>(undefined);
-
   const [smsOpen, setSmsOpen] = useState(false);
 
   const [smsMessage, setSmsMessage] = useState("");
@@ -7017,59 +7011,6 @@ export function MasterClientFileModal({ clientFile: incomingClientFile, open, on
 
   }, [displayPhone, startCall, clientFile]);
 
-
-
-  const grantConsentAndDial = useCallback(async () => {
-
-    if (!clientFile) return;
-
-    setConsentPending(true);
-
-    try {
-
-      const { data: { session } } = await supabase.auth.getSession();
-
-      const res = await fetch("/api/dialer/consent", {
-
-        method: "POST",
-
-        headers: {
-
-          "Content-Type": "application/json",
-
-          ...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}),
-
-        },
-
-        body: JSON.stringify({ leadId: clientFile.id }),
-
-      });
-
-      if (!res.ok) {
-
-        toast.error("Could not save consent — try again");
-
-        return;
-
-      }
-
-    } catch {
-
-      toast.error("Network error saving consent");
-
-      return;
-
-    } finally {
-
-      setConsentPending(false);
-
-    }
-
-    setNeedsConsent(false);
-
-    handleDial(pendingPhone);
-
-  }, [clientFile, handleDial, pendingPhone]);
 
 
 

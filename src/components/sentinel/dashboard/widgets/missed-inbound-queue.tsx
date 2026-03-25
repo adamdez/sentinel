@@ -391,9 +391,11 @@ export function MissedInboundQueueAutoLoad() {
   const token = (currentUser as { access_token?: string })?.access_token ?? null;
   const [items, setItems] = useState<MissedInbound[]>([]);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
+    setError(null);
     try {
       const res = await fetch("/api/dialer/v1/queue", {
         headers: token ? { Authorization: `Bearer ${token}` } : {},
@@ -401,15 +403,42 @@ export function MissedInboundQueueAutoLoad() {
       if (res.ok) {
         const data = await res.json();
         setItems(data.missed_inbound ?? []);
+      } else {
+        setError("Failed to load missed calls");
       }
     } catch {
-      // non-fatal
+      setError("Network error loading missed calls");
     } finally {
       setLoading(false);
     }
   }, [token]);
 
   useEffect(() => { load(); }, [load]);
+
+  if (error && !loading && items.length === 0) {
+    return (
+      <div className="space-y-2">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-1.5">
+            <PhoneIncoming className="h-3.5 w-3.5 text-foreground" />
+            <span className="text-sm font-semibold uppercase tracking-wider text-muted-foreground/60">
+              Missed Inbound
+            </span>
+          </div>
+        </div>
+        <div className="flex items-center gap-2 rounded-[8px] border border-amber-500/20 bg-amber-500/[0.06] p-2.5">
+          <AlertTriangle className="h-3.5 w-3.5 text-amber-400 shrink-0" />
+          <p className="text-sm text-amber-200/80 flex-1">{error}</p>
+          <button
+            onClick={load}
+            className="text-xs text-amber-300 hover:text-amber-200 underline shrink-0"
+          >
+            Retry
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return <MissedInboundQueue items={items} loading={loading} onRefresh={load} />;
 }
