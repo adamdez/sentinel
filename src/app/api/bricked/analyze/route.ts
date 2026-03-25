@@ -50,6 +50,7 @@ export async function POST(req: NextRequest) {
       yearBuilt,
       landUse,
       repairs,
+      brickedId: clientBrickedId,
     } = body;
 
     if (!address || typeof address !== "string") {
@@ -83,11 +84,31 @@ export async function POST(req: NextRequest) {
 
     const brickedHeaders = { "x-api-key": brickedKey };
 
+    // ── Try /get/{id} first if we have a cached bricked_id ──────────
+    // This avoids re-running the full /create analysis when the data
+    // was previously fetched but the cached response was lost client-side.
+    const cachedId = clientBrickedId as string | undefined;
+    let brickedRes: Response | null = null;
+
+    if (cachedId) {
+      const getRes = await fetch(`${BRICKED_BASE}/v1/property/get/${cachedId}`, {
+        method: "GET",
+        headers: brickedHeaders,
+      });
+      if (getRes.ok) {
+        console.log("[Bricked] Served from /get cache:", cachedId.slice(0, 8));
+        brickedRes = getRes;
+      }
+      // If /get fails, fall through to /create
+    }
+
     // ── Call Bricked /create ─────────────────────────────────────────
-    const brickedRes = await fetch(url.toString(), {
-      method: "GET",
-      headers: brickedHeaders,
-    });
+    if (!brickedRes) {
+      brickedRes = await fetch(url.toString(), {
+        method: "GET",
+        headers: brickedHeaders,
+      });
+    }
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     let data: any;
@@ -182,13 +203,31 @@ export async function POST(req: NextRequest) {
           ...flags,
         };
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        await (sb.from("properties") as any)
+        const { error: updateErr } = await (sb.from("properties") as any)
           .update({ owner_flags: merged })
           .eq("id", propertyId);
-      } catch {
-        console.warn(
-          "[Bricked] Failed to update owner_flags for property",
+        if (updateErr) {
+          console.error(
+            "[Bricked] owner_flags write FAILED for property",
+            propertyId,
+            "error:",
+            updateErr.message,
+            "merged size:",
+            JSON.stringify(merged).length,
+          );
+        } else {
+          console.log(
+            "[Bricked] owner_flags persisted for property",
+            propertyId?.slice(0, 8),
+            "size:",
+            JSON.stringify(merged).length,
+          );
+        }
+      } catch (writeErr) {
+        console.error(
+          "[Bricked] owner_flags write threw for property",
           propertyId,
+          writeErr,
         );
       }
     }

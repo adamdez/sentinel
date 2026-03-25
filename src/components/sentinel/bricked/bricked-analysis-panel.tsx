@@ -38,6 +38,7 @@ export interface BrickedAnalysisPanelProps {
   computedArv?: number;
   cachedBrickedResponse?: BrickedAnalysisResponse | null;
   cachedBrickedFetchedAt?: string | null;
+  cachedBrickedId?: string | null;
   cachedDealConfig?: DealConfig | null;
   cachedCompSelection?: number[] | null;
   cachedRepairsEdited?: EditableRepair[] | null;
@@ -52,6 +53,7 @@ export function BrickedAnalysisPanel({
   yearBuilt,
   cachedBrickedResponse,
   cachedBrickedFetchedAt,
+  cachedBrickedId,
   cachedDealConfig,
   cachedCompSelection,
   cachedRepairsEdited,
@@ -80,6 +82,23 @@ export function BrickedAnalysisPanel({
   const repairsRef = useRef<HTMLDivElement>(null);
   const fetched = useRef(hasCachedData);
 
+  // ── Sync cached data arriving after mount ──────────────────────────
+  // useState only captures the initial value. If the parent re-renders
+  // with fresh ownerFlags (e.g. after DB fetch completes), this effect
+  // hydrates the panel from the cache instead of re-running analysis.
+  useEffect(() => {
+    if (cachedBrickedResponse && !analysis) {
+      setAnalysis(cachedBrickedResponse);
+      setLastFetchedAt(cachedBrickedFetchedAt ?? null);
+      fetched.current = true;
+      if (!cachedCompSelection && cachedBrickedResponse.comps) {
+        const s = new Set<number>();
+        cachedBrickedResponse.comps.forEach((c, i) => { if (c.selected) s.add(i); });
+        setSelectedSet(s);
+      }
+    }
+  }, [cachedBrickedResponse, cachedBrickedFetchedAt, cachedCompSelection, analysis]);
+
   const fetchAnalysis = useCallback(async () => {
     if (!address) return;
     setLoading(true);
@@ -95,6 +114,9 @@ export function BrickedAnalysisPanel({
           bathrooms: bathrooms ?? undefined,
           squareFeet: sqft ?? undefined,
           yearBuilt: yearBuilt ?? undefined,
+          // Pass cached bricked_id so the API can use /get/{id}
+          // instead of /create when re-fetching previously analyzed properties
+          brickedId: cachedBrickedId ?? undefined,
         }),
       });
       const json = await res.json().catch(() => ({}));
@@ -120,10 +142,14 @@ export function BrickedAnalysisPanel({
     } finally {
       setLoading(false);
     }
-  }, [address, leadId, bedrooms, bathrooms, sqft, yearBuilt, analysis]);
+  }, [address, leadId, bedrooms, bathrooms, sqft, yearBuilt, analysis, cachedBrickedId]);
 
   useEffect(() => {
     if (fetched.current) return;
+    // If we know analysis was done before (bricked_id or fetched_at exists)
+    // but the full response is missing (large JSONB not returned), still
+    // call the analyze endpoint — it will use the /get/{id} fallback
+    // instead of creating a new analysis from scratch.
     fetched.current = true;
     void fetchAnalysis();
   }, [fetchAnalysis]);

@@ -8944,6 +8944,8 @@ export function MasterClientFileModal({ clientFile: incomingClientFile, open, on
 
                           cachedBrickedFetchedAt={(clientFile.ownerFlags as Record<string, unknown> | undefined)?.bricked_fetched_at as string | null}
 
+                          cachedBrickedId={(clientFile.ownerFlags as Record<string, unknown> | undefined)?.bricked_id as string | null}
+
                           cachedDealConfig={(clientFile.ownerFlags as Record<string, unknown> | undefined)?.deal_config as BrickedAnalysisPanelProps["cachedDealConfig"]}
 
                           cachedCompSelection={(clientFile.ownerFlags as Record<string, unknown> | undefined)?.bricked_comp_selection as number[] | null}
