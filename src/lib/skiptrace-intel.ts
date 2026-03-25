@@ -259,7 +259,9 @@ export async function runSkipTraceIntel(
       isLitigator: result.isLitigator,
       hasDncNumbers: result.hasDncNumbers,
     }).slice(0, 10000),
-    capturedBy: `skiptrace-intel:${ctx.reason}`,
+    // captured_by is UUID (user ref) — null for automated processes
+    // source_type + source_label carry the provenance instead
+    capturedBy: undefined,
   });
 
   // 4. Filtered fact creation — skip numbers/emails already in client file
