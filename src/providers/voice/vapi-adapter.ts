@@ -388,6 +388,18 @@ export interface OutboundCallResult {
 }
 
 /**
+ * Normalize a phone number to E.164 format (+1XXXXXXXXXX).
+ * Handles raw digits, (509) 425-3883, +15094253883, etc.
+ */
+function toE164(phone: string): string {
+  const digits = phone.replace(/\D/g, "");
+  if (digits.length === 10) return `+1${digits}`;
+  if (digits.length === 11 && digits.startsWith("1")) return `+${digits}`;
+  // Already has country code or non-US — return as-is with +
+  return phone.startsWith("+") ? phone : `+${digits}`;
+}
+
+/**
  * Initiate an outbound call via Vapi API.
  * Calls POST https://api.vapi.ai/call with the outbound assistant config.
  */
@@ -402,7 +414,14 @@ export async function initiateOutboundCall(
     throw new Error("VAPI_PHONE_NUMBER_ID environment variable not set");
   }
 
+  const e164Phone = toE164(phone);
   const assistantConfig = buildOutboundAssistantConfig(serverUrl);
+
+  console.log("[Vapi] Initiating outbound call:", {
+    to: `***${e164Phone.slice(-4)}`,
+    phoneNumberId: phoneNumberId.slice(0, 8),
+    serverUrl,
+  });
 
   const res = await fetch(`${VAPI_API_URL}/call`, {
     method: "POST",
@@ -412,7 +431,7 @@ export async function initiateOutboundCall(
     },
     body: JSON.stringify({
       phoneNumberId,
-      customer: { number: phone },
+      customer: { number: e164Phone },
       assistant: assistantConfig,
       serverUrl,
     }),
