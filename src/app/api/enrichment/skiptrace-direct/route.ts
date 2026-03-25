@@ -15,7 +15,7 @@ import { createServerClient } from "@/lib/supabase";
 import { requireAuth } from "@/lib/api-auth";
 import { runSkipTraceIntel } from "@/lib/skiptrace-intel";
 
-export const maxDuration = 120; // 2 minutes for Vercel
+export const maxDuration = 300; // 5 min Vercel Pro timeout
 
 export async function POST(req: NextRequest) {
   const sb = createServerClient();
