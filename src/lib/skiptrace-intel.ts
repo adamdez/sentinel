@@ -196,6 +196,7 @@ export interface SkipTraceIntelResult {
   phonesFound: number;
   emailsFound: number;
   newFactsCreated: number;
+  phonesPromoted: number;
   providers: string[];
 }
 
@@ -211,12 +212,12 @@ export async function runSkipTraceIntel(
 
   if (!ctx.address) {
     console.log(`${tag} Skipped — no address for lead ${ctx.leadId}`);
-    return { ran: false, reason: "no_address", phonesFound: 0, emailsFound: 0, newFactsCreated: 0, providers: [] };
+    return { ran: false, reason: "no_address", phonesFound: 0, emailsFound: 0, newFactsCreated: 0, phonesPromoted: 0, providers: [] };
   }
 
   if (!ctx.force && await isDebounced(sb, ctx.propertyId)) {
     console.log(`${tag} Debounced — skip-trace ran within ${DEBOUNCE_HOURS}h for property ${ctx.propertyId}`);
-    return { ran: false, reason: "debounced", phonesFound: 0, emailsFound: 0, newFactsCreated: 0, providers: [] };
+    return { ran: false, reason: "debounced", phonesFound: 0, emailsFound: 0, newFactsCreated: 0, phonesPromoted: 0, providers: [] };
   }
 
   const t0 = Date.now();
@@ -238,7 +239,7 @@ export async function runSkipTraceIntel(
     });
   } catch (err) {
     console.error(`${tag} dualSkipTrace failed:`, err);
-    return { ran: true, reason: "provider_error", phonesFound: 0, emailsFound: 0, newFactsCreated: 0, providers: [] };
+    return { ran: true, reason: "provider_error", phonesFound: 0, emailsFound: 0, newFactsCreated: 0, phonesPromoted: 0, providers: [] };
   }
 
   console.log(`${tag} Providers returned: ${result.totalPhoneCount} phones, ${result.totalEmailCount} emails [${result.providers.join("+")}] in ${Date.now() - t0}ms`);
@@ -335,10 +336,65 @@ export async function runSkipTraceIntel(
     newFacts++;
   }
 
-  // 5. Mark debounce timestamp
+  // 5. Promote new phones into lead_phones (contact file)
+  //    Uses upsert with ignoreDuplicates — UNIQUE(lead_id, phone) is the safety net.
+  let phonesPromoted = 0;
+  const phonesToPromote: Array<{ number: string; source: string; isPrimary: boolean }> = [];
+
+  if (result.primaryPhone) {
+    phonesToPromote.push({ number: result.primaryPhone, source: providerLabel, isPrimary: true });
+  }
+  for (const phone of result.phones.slice(0, 5)) {
+    phonesToPromote.push({ number: phone.number, source: phone.source, isPrimary: false });
+  }
+
+  if (phonesToPromote.length > 0) {
+    // Get current max position for this lead
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: maxPosRow } = await (sb.from("lead_phones") as any)
+      .select("position")
+      .eq("lead_id", ctx.leadId)
+      .order("position", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    let nextPosition = ((maxPosRow?.position as number) ?? -1) + 1;
+
+    for (const p of phonesToPromote) {
+      const normalizedPhone = normalizePhoneForDedup(p.number);
+      // Format as +1XXXXXXXXXX for consistency
+      const formattedPhone = normalizedPhone.length === 10 ? `+1${normalizedPhone}` : p.number;
+
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { error } = await (sb.from("lead_phones") as any)
+        .insert({
+          lead_id: ctx.leadId,
+          property_id: ctx.propertyId,
+          phone: formattedPhone,
+          label: p.isPrimary ? "primary" : "mobile",
+          source: `skiptrace:${p.source}`,
+          status: "active",
+          is_primary: p.isPrimary && nextPosition === 0,
+          position: nextPosition,
+        });
+
+      if (!error) {
+        phonesPromoted++;
+        nextPosition++;
+      } else if (error.code === "23505") {
+        // UNIQUE constraint violation — phone already in contact file, skip
+      } else {
+        console.error(`${tag} lead_phones insert failed:`, error.message);
+      }
+    }
+
+    console.log(`${tag} Promoted ${phonesPromoted} phones to lead_phones for lead ${ctx.leadId}`);
+  }
+
+  // 6. Mark debounce timestamp
   await markDebounce(sb, ctx.propertyId);
 
-  console.log(`${tag} Complete for lead ${ctx.leadId}: ${newFacts} new facts created (${result.totalPhoneCount} phones, ${result.totalEmailCount} emails total) in ${Date.now() - t0}ms`);
+  console.log(`${tag} Complete for lead ${ctx.leadId}: ${newFacts} new facts, ${phonesPromoted} phones promoted (${result.totalPhoneCount} phones, ${result.totalEmailCount} emails total) in ${Date.now() - t0}ms`);
 
   return {
     ran: true,
@@ -346,6 +402,7 @@ export async function runSkipTraceIntel(
     phonesFound: result.totalPhoneCount,
     emailsFound: result.totalEmailCount,
     newFactsCreated: newFacts,
+    phonesPromoted,
     providers: result.providers,
   };
 }
