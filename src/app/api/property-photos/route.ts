@@ -10,6 +10,8 @@ import { createClient } from "@supabase/supabase-js";
  *   3. Apify Zillow scraper (slow fallback, may fail)
  *   4. Google Street View as guaranteed fallback (always at least 1 photo)
  *
+ * Requires `GOOGLE_STREET_VIEW_KEY` for Places + Street View / satellite fallbacks (configure in Vercel).
+ *
  * Input: { address: string, property_id?: string, lat?: number, lng?: number }
  * Returns: { photos: PropertyPhoto[], cached?: boolean }
  */

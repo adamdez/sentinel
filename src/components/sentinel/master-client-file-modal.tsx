@@ -1780,13 +1780,94 @@ function CountyRecordsTab({ cf }: { cf: ClientFile }) {
 
 
 
-function SubjectPhotoCarousel({ photos, onSkipTrace }: { photos: string[]; onSkipTrace?: () => void }) {
+function SubjectPhotoCarousel({
+  photos,
+  lat,
+  lng,
+  onSkipTrace,
+}: {
+  photos: string[];
+  /** Used when all URLs fail or list is empty — same-origin `/api/street-view` proxy */
+  lat?: number | null;
+  lng?: number | null;
+  onSkipTrace?: () => void;
+}) {
+
+  const [urls, setUrls] = useState<string[]>(photos);
 
   const [idx, setIdx] = useState(0);
 
+  const [fallbackFailed, setFallbackFailed] = useState(false);
 
 
-  if (photos.length === 0) {
+
+  useEffect(() => {
+
+    setUrls(photos);
+
+    setIdx(0);
+
+    setFallbackFailed(false);
+
+  }, [photos]);
+
+
+
+  const fallbackUrl =
+
+    lat != null && lng != null && !Number.isNaN(lat) && !Number.isNaN(lng)
+
+      ? `/api/street-view?lat=${lat}&lng=${lng}&size=800x400&heading=0`
+
+      : null;
+
+
+
+  const displayUrls =
+
+    urls.length > 0 ? urls : (fallbackUrl && !fallbackFailed ? [fallbackUrl] : []);
+
+
+
+  useEffect(() => {
+
+    setIdx((i) => Math.min(i, Math.max(0, displayUrls.length - 1)));
+
+  }, [displayUrls.length]);
+
+
+
+  const handleImgError = () => {
+
+    // Showing proxy fallback while urls is empty — stop retrying the same URL
+
+    if (urls.length === 0) {
+
+      setFallbackFailed(true);
+
+      return;
+
+    }
+
+    setUrls((prev) => {
+
+      if (prev.length === 0) return prev;
+
+      const failed = prev[idx];
+
+      const next = prev.filter((u) => u !== failed);
+
+      if (failed === fallbackUrl) setFallbackFailed(true);
+
+      return next;
+
+    });
+
+  };
+
+
+
+  if (displayUrls.length === 0) {
 
     return (
 
@@ -1834,21 +1915,25 @@ function SubjectPhotoCarousel({ photos, onSkipTrace }: { photos: string[]; onSki
 
       <img
 
-        src={photos[idx]}
+        src={displayUrls[idx]}
 
         alt={`Property photo ${idx + 1}`}
 
         className="h-full w-full object-cover"
 
+        onError={handleImgError}
+
       />
 
-      {photos.length > 1 && (
+      {displayUrls.length > 1 && (
 
         <>
 
           <button
 
-            onClick={() => setIdx((i) => (i - 1 + photos.length) % photos.length)}
+            type="button"
+
+            onClick={() => setIdx((i) => (i - 1 + displayUrls.length) % displayUrls.length)}
 
             className="absolute left-1 top-1/2 -translate-y-1/2 p-0.5 rounded bg-black/50 text-white opacity-0 group-hover:opacity-100 transition-opacity"
 
@@ -1860,7 +1945,9 @@ function SubjectPhotoCarousel({ photos, onSkipTrace }: { photos: string[]; onSki
 
           <button
 
-            onClick={() => setIdx((i) => (i + 1) % photos.length)}
+            type="button"
+
+            onClick={() => setIdx((i) => (i + 1) % displayUrls.length)}
 
             className="absolute right-1 top-1/2 -translate-y-1/2 p-0.5 rounded bg-black/50 text-white opacity-0 group-hover:opacity-100 transition-opacity"
 
@@ -1872,7 +1959,7 @@ function SubjectPhotoCarousel({ photos, onSkipTrace }: { photos: string[]; onSki
 
           <div className="absolute bottom-1 left-1/2 -translate-x-1/2 flex gap-1">
 
-            {photos.map((_, i) => (
+            {displayUrls.map((_, i) => (
 
               <div key={i} className={cn("h-1 w-1 rounded-full transition-colors", i === idx ? "bg-primary" : "bg-overlay-40")} />
 
@@ -2432,7 +2519,47 @@ function CompsTab({ cf, selectedComps, onAddComp, onRemoveComp, onSkipTrace, com
 
 
 
-  const photos = cachedPhotos.length > 0 ? cachedPhotos : fetchedPhotos;
+  // Merge fetched (Places / SV / Apify) first, then cached PR/Zillow URLs — avoids stale pr_raw masking fresh API results.
+
+  const mergedPhotos = useMemo(() => {
+
+    const seen = new Set<string>();
+
+    const out: string[] = [];
+
+    for (const u of [...fetchedPhotos, ...cachedPhotos]) {
+
+      if (!u || typeof u !== "string") continue;
+
+      const t = u.trim();
+
+      if (!t || seen.has(t)) continue;
+
+      seen.add(t);
+
+      out.push(t);
+
+    }
+
+    return out;
+
+  }, [fetchedPhotos, cachedPhotos]);
+
+
+
+  const photosWithFallback = useMemo(() => {
+
+    if (mergedPhotos.length > 0) return mergedPhotos;
+
+    if (lat != null && lng != null && !Number.isNaN(lat) && !Number.isNaN(lng)) {
+
+      return [`/api/street-view?lat=${lat}&lng=${lng}&size=800x400&heading=0`];
+
+    }
+
+    return [];
+
+  }, [mergedPhotos, lat, lng]);
 
 
 
@@ -2760,7 +2887,7 @@ function CompsTab({ cf, selectedComps, onAddComp, onRemoveComp, onSkipTrace, com
 
         <div className="w-44 h-28 shrink-0 border-r border-overlay-6 bg-overlay-4">
 
-          <SubjectPhotoCarousel photos={photos} onSkipTrace={onSkipTrace} />
+          <SubjectPhotoCarousel photos={photosWithFallback} lat={lat} lng={lng} onSkipTrace={onSkipTrace} />
 
         </div>
 
@@ -8709,7 +8836,7 @@ export function MasterClientFileModal({ clientFile: incomingClientFile, open, on
 
                     {activeTab === "contact" && (
 
-                      <ContactTab cf={clientFile} overlay={overlay} onSkipTrace={handleSkipTrace} skipTracing={skipTracing} onDial={handleDial} onSms={handleSendSms} calling={calling} onRefresh={onRefresh} />
+                      <ContactTab cf={clientFile} overlay={overlay} onSkipTrace={handleSkipTrace} skipTracing={skipTracing} skipTraceResult={skipTraceResult} skipTraceError={skipTraceError} onDial={handleDial} onSms={handleSendSms} calling={calling} onRefresh={onRefresh} />
 
                     )}
 

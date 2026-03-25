@@ -6,6 +6,9 @@ import { NextRequest, NextResponse } from "next/server";
  * Server-side proxy for Google Street View Static API and Google Maps Static API.
  * Keeps the API key secret (never exposed to client).
  *
+ * Production: set `GOOGLE_STREET_VIEW_KEY` in Vercel (same key used by Places + Static Street View + Static Maps).
+ * Returns 503 JSON `{ error: "Street View not configured" }` if the env var is missing.
+ *
  * Parameters:
  *   lat, lng  — required coordinates
  *   size      — image size (default 640x480)
