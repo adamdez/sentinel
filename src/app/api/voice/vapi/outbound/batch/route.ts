@@ -19,25 +19,6 @@ import { inngest } from "@/inngest/client";
 
 const MAX_BATCH_SIZE = 10;
 
-function isBusinessHours(): boolean {
-  const TZ = "America/Los_Angeles";
-  const now = new Date();
-  const parts = new Intl.DateTimeFormat("en-US", {
-    timeZone: TZ,
-    hour: "2-digit",
-    minute: "2-digit",
-    hour12: false,
-    weekday: "short",
-  }).formatToParts(now);
-  const get = (type: string) => parts.find((p) => p.type === type)?.value ?? "";
-  const hour = parseInt(get("hour"), 10);
-  const day = get("weekday");
-
-  // Mon-Sat 9am-6pm PT
-  if (day === "Sun") return false;
-  return hour >= 9 && hour < 18;
-}
-
 export async function POST(req: NextRequest) {
   const user = await getDialerUser(req.headers.get("authorization"));
   if (!user) {
@@ -59,13 +40,6 @@ export async function POST(req: NextRequest) {
   if (leadIds.length > MAX_BATCH_SIZE) {
     return NextResponse.json(
       { error: `Maximum ${MAX_BATCH_SIZE} leads per batch` },
-      { status: 400 },
-    );
-  }
-
-  if (!isBusinessHours()) {
-    return NextResponse.json(
-      { error: "Outbound calls are only allowed during business hours (9am-6pm PT, Mon-Sat)" },
       { status: 400 },
     );
   }

@@ -34,14 +34,6 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ skipped: true, reason: "Feature flag disabled" });
   }
 
-  // Business hours guard: only run 9am-6pm Pacific Mon-Sat
-  const pstNow = new Date(new Date().toLocaleString("en-US", { timeZone: "America/Los_Angeles" }));
-  const hour = pstNow.getHours();
-  const day = pstNow.getDay(); // 0=Sun
-  if (day === 0 || hour < 9 || hour >= 18) {
-    return NextResponse.json({ skipped: true, reason: "Outside business hours (9am-6pm PT Mon-Sat)" });
-  }
-
   return withCronTracking("campaign-dialer", async (run) => {
     const sb = createServerClient();
     const now = new Date().toISOString();
