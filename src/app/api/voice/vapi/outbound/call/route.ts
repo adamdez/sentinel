@@ -51,7 +51,7 @@ export async function POST(req: NextRequest) {
   const { data: lead, error: leadErr } = await (sb.from("leads") as any)
     .select(`
       id, status,
-      properties!inner ( owner_name, address ),
+      properties ( owner_name, address ),
       lead_phones ( phone, is_primary, position )
     `)
     .eq("id", leadId)

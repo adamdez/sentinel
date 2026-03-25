@@ -2936,12 +2936,21 @@ function DialerPageInner() {
                       return (
                         <div
                           key={lead.id}
-                          onClick={() => isReady && !jeffStatus && handleJeffToggle(lead.id)}
+                          onClick={() => {
+                            if (!isReady) return;
+                            // Allow re-selecting skipped/failed leads for retry
+                            if (jeffStatus && jeffStatus !== "skipped" && jeffStatus !== "failed") return;
+                            if (jeffStatus === "skipped" || jeffStatus === "failed") {
+                              // Clear the old status so they can be re-queued
+                              setJeffLeadStatuses(prev => { const m = new Map(prev); m.delete(lead.id); return m; });
+                            }
+                            handleJeffToggle(lead.id);
+                          }}
                           className={cn(
                             "w-full text-left rounded-[12px] p-2.5 transition-all duration-200 border",
                             isSelected
                               ? "bg-emerald-500/[0.04] border-emerald-500/20"
-                              : isReady && !jeffStatus
+                              : isReady && (!jeffStatus || jeffStatus === "skipped" || jeffStatus === "failed")
                                 ? "bg-secondary/10 border-transparent hover:bg-secondary/20 cursor-pointer"
                                 : "bg-secondary/5 border-transparent opacity-50 cursor-default",
                           )}
@@ -2954,7 +2963,7 @@ function DialerPageInner() {
                                   isSelected
                                     ? "border-emerald-500/50 bg-emerald-500/20"
                                     : "border-border/30 bg-transparent",
-                                  (!isReady || !!jeffStatus) && "opacity-40",
+                                  (!isReady || (!!jeffStatus && jeffStatus !== "skipped" && jeffStatus !== "failed")) && "opacity-40",
                                 )}
                               >
                                 {isSelected && <CheckCircle2 className="h-3 w-3 text-emerald-400" />}
