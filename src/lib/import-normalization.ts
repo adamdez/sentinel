@@ -801,6 +801,22 @@ export function normalizeImportedRow(args: {
     tags.add(defaults.nicheTag);
   }
 
+  // Infer tags from the user-entered list name (e.g. "Spokane absentee probate tax delq")
+  // Uses the same keyword rules as listType column detection above.
+  const sourceListName = defaults.sourceListName;
+  if (sourceListName) {
+    const sln = sourceListName.toLowerCase();
+    if (sln.includes("probate")) tags.add("probate");
+    if (sln.includes("pre-foreclosure") || sln.includes("preforeclosure") || sln.includes("pre foreclosure")) tags.add("pre_foreclosure");
+    if (sln.includes("foreclosure") && !sln.includes("pre")) tags.add("pre_foreclosure");
+    if (sln.includes("tax lien") || sln.includes("tax late") || sln.includes("tax delinq") || sln.includes("tax delq") || sln.includes("tax tlq")) tags.add("tax_delinquent");
+    if (sln.includes("vacant")) tags.add("vacant");
+    if (sln.includes("inherit")) tags.add("inherited");
+    if (sln.includes("bankrupt")) tags.add("bankruptcy");
+    if (sln.includes("divorce")) tags.add("divorce");
+    if (sln.includes("absentee") || sln.includes("absent")) tags.add("absentee");
+  }
+
   if (distressText) {
     DISTRESS_TEXT_RULES.forEach((rule) => {
       if (rule.pattern.test(distressText)) tags.add(rule.tag);
