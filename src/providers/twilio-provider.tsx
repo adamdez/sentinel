@@ -65,6 +65,7 @@ interface TwilioContextValue {
   rejectIncoming: () => void;
   toggleMute: () => void;
   initDevice: () => Promise<void>;
+  setSuppressIncoming: (v: boolean) => void;
 }
 
 const TwilioContext = createContext<TwilioContextValue | null>(null);
@@ -114,6 +115,18 @@ export function TwilioProvider({ children }: { children: ReactNode }) {
       Notification.requestPermission();
     }
   }, []);
+
+  // When true, the provider skips its own incoming-call state management
+  // so the dialer page's richer handler runs alone (no duplicate toasts/listeners).
+  const suppressIncomingRef = useRef(false);
+  const setSuppressIncoming = useCallback((v: boolean) => {
+    suppressIncomingRef.current = v;
+  }, []);
+
+  // Track callState in a ref so the incoming handler can guard against
+  // a second inbound arriving while already on a call.
+  const callStateRef = useRef<CallState>("idle");
+  useEffect(() => { callStateRef.current = callState; }, [callState]);
 
   const deviceRef = useRef<Device | null>(null);
   const initDeviceCancelRef = useRef<(() => void) | null>(null);
@@ -183,6 +196,18 @@ export function TwilioProvider({ children }: { children: ReactNode }) {
 
       device.on("incoming", (call: Call) => {
         if (cancelled) return;
+
+        // Dialer page registers its own richer handler — skip provider state
+        if (suppressIncomingRef.current) return;
+
+        // Guard: reject if already on a call (prevents UI state corruption)
+        const current = callStateRef.current;
+        if (current === "connected" || current === "dialing" || current === "incoming") {
+          console.log("[VoIP] Rejecting incoming — already in state:", current);
+          call.reject();
+          return;
+        }
+
         const from = call.parameters?.From ?? "Unknown";
         console.log("[VoIP] Incoming call from", from);
         setIncomingCall(call);
@@ -430,6 +455,15 @@ export function TwilioProvider({ children }: { children: ReactNode }) {
         timerReset();
       }, 3000);
     });
+
+    incomingCall.on("error", (err: { message?: string }) => {
+      console.error("[VoIP] Incoming call error:", err);
+      toast.error(`Call error: ${err.message ?? "unknown"}`);
+      setActiveCall(null);
+      setCallState("idle");
+      setCallMeta(null);
+      timerReset();
+    });
   }, [incomingCall, incomingFrom, timerStart, timerStop, timerReset]);
 
   const rejectIncoming = useCallback(() => {
@@ -468,6 +502,7 @@ export function TwilioProvider({ children }: { children: ReactNode }) {
         rejectIncoming,
         toggleMute,
         initDevice,
+        setSuppressIncoming,
       }}
     >
       {children}

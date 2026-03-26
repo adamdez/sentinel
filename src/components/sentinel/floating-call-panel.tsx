@@ -4,6 +4,7 @@ import { Phone, PhoneOff, PhoneIncoming, Mic, MicOff, ExternalLink, Loader2 } fr
 import { useTwilio } from "@/providers/twilio-provider";
 import { cn } from "@/lib/utils";
 import { usePathname } from "next/navigation";
+import Link from "next/link";
 
 function formatPhone(raw: string | null): string {
   if (!raw) return "Unknown";
@@ -55,13 +56,6 @@ export function FloatingCallPanel() {
             <PhoneOff className="h-4 w-4" />
             Reject
           </button>
-          <a
-            href="/dialer"
-            className="flex items-center justify-center rounded-lg py-2 px-3 text-xs text-muted-foreground hover:text-foreground bg-overlay-4 hover:bg-overlay-6 border border-overlay-6 transition-colors"
-            title="Open Dialer"
-          >
-            <ExternalLink className="h-4 w-4" />
-          </a>
         </div>
       </div>
     );
@@ -156,13 +150,13 @@ export function FloatingCallPanel() {
             End
           </button>
 
-          <a
+          <Link
             href="/dialer"
             className="flex items-center justify-center rounded-lg py-1.5 px-2 text-xs text-muted-foreground hover:text-foreground bg-overlay-4 hover:bg-overlay-6 transition-colors"
             title="Open in Dialer"
           >
             <ExternalLink className="h-3.5 w-3.5" />
-          </a>
+          </Link>
         </div>
       )}
     </div>

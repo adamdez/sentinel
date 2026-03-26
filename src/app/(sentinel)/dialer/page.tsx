@@ -945,8 +945,15 @@ function DialerPageInner() {
   const [leadSmsSending, setLeadSmsSending] = useState(false);
 
   // Twilio VoIP Device — lifecycle managed by TwilioProvider
-  const { deviceStatus, deviceRef, voipCallerId, initDevice } = useTwilio();
+  const { deviceStatus, deviceRef, voipCallerId, initDevice, setSuppressIncoming } = useTwilio();
   const [activeCall, setActiveCall] = useState<Call | null>(null);
+
+  // Tell the provider to skip its own incoming-call handler —
+  // this page registers a richer handler with phone lookup, transfer brief, audio, etc.
+  useEffect(() => {
+    setSuppressIncoming(true);
+    return () => setSuppressIncoming(false);
+  }, [setSuppressIncoming]);
 
   // Ref to track active session ID for inbound disconnect handler (avoids stale closure)
   const activeSessionRef = useRef<string | null>(null);

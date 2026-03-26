@@ -89,7 +89,7 @@ export function JeffMessagesBanner({
         const msgs = (data.messages ?? []) as JeffMessage[];
         // Browser notification for new unacknowledged messages
         const newCount = msgs.filter((m) => !m.acknowledged).length;
-        if (newCount > prevCountRef.current && prevCountRef.current >= 0) {
+        if (newCount > prevCountRef.current && prevCountRef.current > 0) {
           const newest = msgs.find((m) => !m.acknowledged);
           if (newest && Notification.permission === "granted") {
             new Notification("Jeff took a message", {
