@@ -638,8 +638,8 @@ type DialerMode = "queue" | "autoCycle" | "jeff";
 
 function DialerPageInner() {
   const { currentUser, ghostMode } = useSentinelStore();
-  const { queue, loading: queueLoading, refetch: refetchQueue } = useDialerQueue(7);
-  const { queue: autoCycleQueue, loading: autoCycleLoading, refetch: refetchAutoCycle } = useAutoCycleQueue(12);
+  const { queue, loading: queueLoading, refetch: refetchQueue } = useDialerQueue(200);
+  const { queue: autoCycleQueue, loading: autoCycleLoading, refetch: refetchAutoCycle } = useAutoCycleQueue(200);
   const { stats, loading: statsLoading } = useDialerStats();
   const timer = useCallTimer();
 
@@ -1045,6 +1045,40 @@ function DialerPageInner() {
       toast.error("Could not remove lead from Auto Cycle");
     }
   }, [autoCycleMode, currentLead?.id, refetchAutoCycle]);
+
+  // ── Remove lead from dial queue (unassign) ──────────────────────────
+  const handleRemoveFromQueue = useCallback(async (leadId: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { error } = await (supabase.from("leads") as any)
+        .update({ assigned_to: null })
+        .eq("id", leadId);
+      if (error) throw error;
+      if (currentLead?.id === leadId) setCurrentLead(null);
+      refetchQueue();
+      toast.success("Removed from queue");
+    } catch {
+      toast.error("Could not remove from queue");
+    }
+  }, [currentLead?.id, refetchQueue]);
+
+  // ── Remove lead from auto-cycle inline ──────────────────────────────
+  const handleRemoveFromAutoCycle = useCallback(async (leadId: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    try {
+      const res = await fetch(`/api/dialer/v1/auto-cycle?leadId=${encodeURIComponent(leadId)}`, {
+        method: "DELETE",
+        headers: await authHeaders(),
+      });
+      if (!res.ok) throw new Error();
+      if (currentLead?.id === leadId) setCurrentLead(null);
+      refetchAutoCycle();
+      toast.success("Removed from Auto Cycle");
+    } catch {
+      toast.error("Could not remove");
+    }
+  }, [currentLead?.id, refetchAutoCycle]);
 
   // ── Jeff batch handlers ──────────────────────────────────────────────
   const jeffReadyLeads = useMemo(
@@ -2941,7 +2975,7 @@ function DialerPageInner() {
                     <p className="text-xs text-muted-foreground/50">No auto-cycle leads — add leads to Auto Cycle first</p>
                   </div>
                 ) : (
-                  <div className="space-y-1.5">
+                  <div className="space-y-1.5 max-h-[60vh] overflow-y-auto pr-1 scrollbar-thin scrollbar-thumb-overlay-8 scrollbar-track-transparent">
                     {autoCycleQueue.map((lead) => {
                       const isReady = lead.autoCycle.readyNow;
                       const isSelected = jeffSelectedLeads.has(lead.id);
@@ -3002,6 +3036,14 @@ function DialerPageInner() {
                                   {jeffStatus}
                                 </span>
                               )}
+                              <button
+                                type="button"
+                                onClick={(e) => handleRemoveFromAutoCycle(lead.id, e)}
+                                className="shrink-0 p-0.5 rounded text-red-400/40 hover:text-red-400 hover:bg-red-500/10 transition-colors"
+                                title="Remove from Auto Cycle"
+                              >
+                                <X className="h-3.5 w-3.5" />
+                              </button>
                             </div>
                             <div className="flex items-center gap-2 pl-6">
                               <span className="text-xs text-muted-foreground/70 font-mono">{fmtPhone}</span>
@@ -3051,7 +3093,7 @@ function DialerPageInner() {
                 <p className="text-sm text-muted-foreground/60">Claimed leads appear here automatically</p>
               </div>
             ) : (
-              <div className="space-y-1.5">
+              <div className="space-y-1.5 max-h-[60vh] overflow-y-auto pr-1 scrollbar-thin scrollbar-thumb-overlay-8 scrollbar-track-transparent">
                 {displayedQueue.map((lead, idx) => {
                   const isActive = currentLead?.id === lead.id;
                   const rowNextAction = deriveNextActionVisibility({
@@ -3092,10 +3134,17 @@ function DialerPageInner() {
                           <p className="text-sm font-medium truncate flex-1 min-w-0">
                             {lead.properties?.owner_name ?? "Unknown"}
                           </p>
-                          <RelationshipBadgeCompact data={{ tags: lead.tags }} />
                           {!lead.compliant && !ghostMode && (
                             <span className="h-2 w-2 rounded-full bg-foreground/80 shadow-[0_0_6px_var(--shadow-medium)] shrink-0" title="Compliance blocked" />
                           )}
+                          <button
+                            type="button"
+                            onClick={(e) => autoCycleMode ? handleRemoveFromAutoCycle(lead.id, e) : handleRemoveFromQueue(lead.id, e)}
+                            className="shrink-0 p-0.5 rounded text-red-400/40 hover:text-red-400 hover:bg-red-500/10 transition-colors"
+                            title={autoCycleMode ? "Remove from Auto Cycle" : "Remove from queue"}
+                          >
+                            <X className="h-3.5 w-3.5" />
+                          </button>
                         </div>
                         <div className="flex items-center gap-2 pl-5">
                           <span className="text-xs text-muted-foreground/70 font-mono">{lead.properties?.owner_phone || "No phone"}</span>
