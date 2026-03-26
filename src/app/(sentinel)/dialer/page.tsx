@@ -1057,11 +1057,11 @@ function DialerPageInner() {
   const handleRemoveFromQueue = useCallback(async (leadId: string, e: React.MouseEvent) => {
     e.stopPropagation();
     try {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { error } = await (supabase.from("leads") as any)
-        .update({ assigned_to: null })
-        .eq("id", leadId);
-      if (error) throw error;
+      const res = await fetch(`/api/dialer/v1/dial-queue?leadId=${encodeURIComponent(leadId)}`, {
+        method: "DELETE",
+        headers: await authHeaders(),
+      });
+      if (!res.ok) throw new Error();
       if (currentLead?.id === leadId) setCurrentLead(null);
       refetchQueue();
       toast.success("Removed from queue");
@@ -3144,6 +3144,7 @@ function DialerPageInner() {
                           {!lead.compliant && !ghostMode && (
                             <span className="h-2 w-2 rounded-full bg-foreground/80 shadow-[0_0_6px_var(--shadow-medium)] shrink-0" title="Compliance blocked" />
                           )}
+                          <RelationshipBadgeCompact data={{ tags: lead.tags }} />
                           <button
                             type="button"
                             onClick={(e) => autoCycleMode ? handleRemoveFromAutoCycle(lead.id, e) : handleRemoveFromQueue(lead.id, e)}

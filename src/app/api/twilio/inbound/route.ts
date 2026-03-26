@@ -246,6 +246,25 @@ export async function POST(req: NextRequest) {
       callSid,
     });
 
+    // After hours: Jeff shouldn't be transferring, but if the AI hallucinates
+    // a transfer anyway, skip the ring cascade — nobody is at their desk.
+    // Go straight to missed-transfer handler (books callback + SMS alerts).
+    const transferHours = isBusinessHours();
+    if (!transferHours.isOpen) {
+      console.log(`[inbound] After-hours Vapi transfer — skipping ring cascade, booking callback`);
+      await handleMissedTransfer({ originalFrom, callSid, voiceSessionId: vsid, siteUrl });
+      const afterHoursTwiml = [
+        '<?xml version="1.0" encoding="UTF-8"?>',
+        "<Response>",
+        `  <Say voice="Polly.Joanna">Our team is away right now. We have your information and will call you back ${transferHours.nextOpenTime}. Thank you for calling Dominion Home Deals.</Say>`,
+        "</Response>",
+      ].join("\n");
+      return new NextResponse(afterHoursTwiml, {
+        status: 200,
+        headers: { "Content-Type": "text/xml" },
+      });
+    }
+
     // Transfer cascade TwiML: Logan (20s) → Adam (20s) → missed handler
     // No Vapi fallback step — Jeff is the one transferring, so looping back would be infinite.
     const transferTwiml = [
@@ -354,7 +373,7 @@ export async function POST(req: NextRequest) {
       '<?xml version="1.0" encoding="UTF-8"?>',
       "<Response>",
       ...streamLines,
-      `  <Dial callerId="${twilioNumber}" timeout="60" action="${siteUrl}/api/twilio/inbound?type=call_status" method="POST">`,
+      `  <Dial callerId="${twilioNumber}" timeout="60" action="${siteUrl}/api/twilio/inbound?type=call_status${chainParams}" method="POST">`,
       `    <Number>${vapiNumber}</Number>`,
       "  </Dial>",
       "</Response>",

@@ -214,7 +214,7 @@ export function JeffMessagesBanner({
                   onCallBack={(phone, summary) => {
                     onCallBack?.(phone, summary);
                   }}
-                  onConvert={(leadId) => handleAcknowledge(msg.id, "converted_to_lead", leadId)}
+                  onConvert={() => {}}
                   onDismiss={() => {}}
                 />
               ))}
