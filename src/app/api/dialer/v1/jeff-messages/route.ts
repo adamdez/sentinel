@@ -48,8 +48,6 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
-  // Filter: not acknowledged (checked in extracted_facts JSONB)
-  // and not transferred (those were handled by the operator already)
   interface VoiceSession {
     id: string;
     from_number: string | null;
@@ -63,19 +61,25 @@ export async function GET(req: NextRequest) {
     ended_at: string | null;
   }
 
-  const unacked = (sessions as VoiceSession[] ?? []).filter((s) => {
+  const includeAll = req.nextUrl.searchParams.get("include") === "all";
+
+  const isAcknowledged = (s: VoiceSession): boolean => {
     const facts = s.extracted_facts;
     if (Array.isArray(facts)) {
-      return !facts.some((f) => (f as Record<string, unknown>).type === "acknowledged");
+      return facts.some((f) => (f as Record<string, unknown>).type === "acknowledged");
     }
     if (facts && typeof facts === "object" && (facts as Record<string, unknown>).acknowledged) {
-      return false;
+      return true;
     }
-    return true;
-  });
+    return false;
+  };
+
+  const filtered = includeAll
+    ? (sessions as VoiceSession[] ?? [])
+    : (sessions as VoiceSession[] ?? []).filter((s) => !isAcknowledged(s));
 
   // Determine routing for each message
-  const messages = unacked.map((s) => {
+  const messages = filtered.map((s) => {
     const text = [s.summary, s.transcript].filter(Boolean).join(" ");
     const routeToAdam = ADAM_KEYWORDS.test(text);
 
@@ -93,6 +97,7 @@ export async function GET(req: NextRequest) {
       callerType: s.caller_type,
       createdAt: s.created_at,
       routeTo: routeToAdam ? "adam" : "logan",
+      acknowledged: isAcknowledged(s),
       extracted: {
         motivation: motivation ? (motivation as Record<string, unknown>).value : null,
         urgency: urgency ? (urgency as Record<string, unknown>).value : null,
@@ -103,12 +108,12 @@ export async function GET(req: NextRequest) {
 
   // Optionally filter by operator
   const operatorParam = req.nextUrl.searchParams.get("operator");
-  const filtered = operatorParam
+  const final = operatorParam
     ? messages.filter((m) => {
         if (operatorParam.includes("adam")) return m.routeTo === "adam";
         return m.routeTo === "logan";
       })
     : messages;
 
-  return NextResponse.json({ messages: filtered, total: filtered.length });
+  return NextResponse.json({ messages: final, total: final.length });
 }

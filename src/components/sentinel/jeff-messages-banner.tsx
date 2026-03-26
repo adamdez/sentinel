@@ -20,6 +20,7 @@ interface JeffMessage {
   callerType: string | null;
   createdAt: string;
   routeTo: "logan" | "adam";
+  acknowledged?: boolean;
   extracted: {
     motivation: string | null;
     urgency: string | null;
@@ -81,22 +82,23 @@ export function JeffMessagesBanner({
   const fetchMessages = useCallback(async () => {
     try {
       const h = await authHeaders();
-      const res = await fetch("/api/dialer/v1/jeff-messages", { headers: h });
+      const res = await fetch("/api/dialer/v1/jeff-messages?include=all", { headers: h });
       if (!res.ok) return;
       const data = await res.json();
       if (mountedRef.current) {
-        const msgs = data.messages ?? [];
-        // Browser notification for new messages
-        if (msgs.length > prevCountRef.current && prevCountRef.current > 0) {
-          const newest = msgs[0];
-          if (Notification.permission === "granted") {
+        const msgs = (data.messages ?? []) as JeffMessage[];
+        // Browser notification for new unacknowledged messages
+        const newCount = msgs.filter((m) => !m.acknowledged).length;
+        if (newCount > prevCountRef.current && prevCountRef.current >= 0) {
+          const newest = msgs.find((m) => !m.acknowledged);
+          if (newest && Notification.permission === "granted") {
             new Notification("Jeff took a message", {
-              body: `From ${formatPhone(newest?.callerPhone)}`,
+              body: `From ${formatPhone(newest.callerPhone)}`,
               icon: "/icon.svg",
             });
           }
         }
-        prevCountRef.current = msgs.length;
+        prevCountRef.current = newCount;
         setMessages(msgs);
       }
     } catch { /* non-fatal */ }
@@ -125,7 +127,8 @@ export function JeffMessagesBanner({
         body: JSON.stringify({ action, lead_id: leadId ?? null }),
       });
       if (!res.ok) throw new Error("Acknowledge failed");
-      setMessages((prev) => prev.filter((m) => m.id !== id));
+      // Mark as acknowledged locally so it moves to "Recent" without refetch
+      setMessages((prev) => prev.map((m) => m.id === id ? { ...m, acknowledged: true } : m));
       if (action === "dismissed") toast.success("Message dismissed");
       else if (action === "called_back") toast.success("Calling back...");
       else if (action === "converted_to_lead") { toast.success("Lead created"); onLinked?.(); }
@@ -134,24 +137,31 @@ export function JeffMessagesBanner({
     }
   }, [onLinked]);
 
-  const count = messages.length;
-  if (count === 0) return null;
+  const newMessages = messages.filter((m) => !m.acknowledged);
+  const recentMessages = messages.filter((m) => m.acknowledged);
+  const hasNew = newMessages.length > 0;
 
   return (
-    <GlassCard hover={false} className="!p-3 mb-3 border-red-500/20 bg-red-500/[0.03]">
+    <GlassCard hover={false} className={`!p-3 mb-3 ${hasNew ? "border-red-500/20 bg-red-500/[0.03]" : "border-overlay-6 bg-overlay-2/30"}`}>
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
         className="w-full flex items-center justify-between text-left"
       >
-        <h2 className="text-xs font-semibold uppercase tracking-wider text-red-400 flex items-center gap-1.5">
-          <span className="inline-block h-2 w-2 rounded-full bg-red-500 animate-pulse" />
+        <h2 className={`text-xs font-semibold uppercase tracking-wider flex items-center gap-1.5 ${hasNew ? "text-red-400" : "text-muted-foreground/60"}`}>
+          {hasNew && <span className="inline-block h-2 w-2 rounded-full bg-red-500 animate-pulse" />}
+          <MessageSquare className="h-3.5 w-3.5" />
           Jeff&apos;s Messages
-          <span className="ml-1 px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-red-500/15 text-red-400 border border-red-500/25">
-            {count}
-          </span>
+          {hasNew && (
+            <span className="ml-1 px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-red-500/15 text-red-400 border border-red-500/25">
+              {newMessages.length} new
+            </span>
+          )}
+          {!hasNew && messages.length > 0 && (
+            <span className="ml-1 text-[10px] text-muted-foreground/40">{messages.length}</span>
+          )}
         </h2>
-        {open ? <ChevronDown className="h-3.5 w-3.5 text-red-400/50" /> : <ChevronRight className="h-3.5 w-3.5 text-red-400/50" />}
+        {open ? <ChevronDown className="h-3.5 w-3.5 text-muted-foreground/30" /> : <ChevronRight className="h-3.5 w-3.5 text-muted-foreground/30" />}
       </button>
 
       <AnimatePresence>
@@ -163,8 +173,13 @@ export function JeffMessagesBanner({
             transition={{ duration: 0.2 }}
             className="overflow-hidden"
           >
-            <div className="space-y-1.5 mt-3">
-              {messages.map((msg) => (
+            <div className="max-h-[40vh] overflow-y-auto pr-1 scrollbar-thin scrollbar-thumb-overlay-8 scrollbar-track-transparent mt-3 space-y-1.5">
+              {messages.length === 0 && (
+                <p className="text-xs text-muted-foreground/40 text-center py-4">No messages from Jeff yet</p>
+              )}
+
+              {/* New / unacknowledged messages */}
+              {newMessages.map((msg) => (
                 <JeffMessageCard
                   key={msg.id}
                   message={msg}
@@ -176,6 +191,31 @@ export function JeffMessagesBanner({
                   }}
                   onConvert={(leadId) => handleAcknowledge(msg.id, "converted_to_lead", leadId)}
                   onDismiss={() => handleAcknowledge(msg.id, "dismissed")}
+                />
+              ))}
+
+              {/* Divider between new and recent */}
+              {hasNew && recentMessages.length > 0 && (
+                <div className="flex items-center gap-2 py-1">
+                  <div className="flex-1 border-t border-overlay-6" />
+                  <span className="text-[10px] uppercase tracking-wider text-muted-foreground/30">Recent</span>
+                  <div className="flex-1 border-t border-overlay-6" />
+                </div>
+              )}
+
+              {/* Recent / acknowledged messages (dimmed, read-only with call-back) */}
+              {recentMessages.map((msg) => (
+                <JeffMessageCard
+                  key={msg.id}
+                  message={msg}
+                  dimmed
+                  expanded={expandedId === msg.id}
+                  onToggle={() => setExpandedId((prev) => prev === msg.id ? null : msg.id)}
+                  onCallBack={(phone, summary) => {
+                    onCallBack?.(phone, summary);
+                  }}
+                  onConvert={(leadId) => handleAcknowledge(msg.id, "converted_to_lead", leadId)}
+                  onDismiss={() => {}}
                 />
               ))}
             </div>
@@ -190,6 +230,7 @@ export function JeffMessagesBanner({
 
 function JeffMessageCard({
   message,
+  dimmed = false,
   expanded,
   onToggle,
   onCallBack,
@@ -197,6 +238,7 @@ function JeffMessageCard({
   onDismiss,
 }: {
   message: JeffMessage;
+  dimmed?: boolean;
   expanded: boolean;
   onToggle: () => void;
   onCallBack: (phone: string, summary: string | null) => void;
@@ -206,11 +248,11 @@ function JeffMessageCard({
   const [mode, setMode] = useState<"idle" | "convert" | "link">("idle");
 
   return (
-    <div className="rounded-[10px] border border-red-500/15 bg-red-500/[0.02] overflow-hidden">
+    <div className={`rounded-[10px] border overflow-hidden ${dimmed ? "border-overlay-6 bg-overlay-2/20 opacity-60" : "border-red-500/15 bg-red-500/[0.02]"}`}>
       <button
         type="button"
         onClick={onToggle}
-        className="w-full text-left p-2.5 hover:bg-red-500/[0.04] transition-colors"
+        className={`w-full text-left p-2.5 transition-colors ${dimmed ? "hover:bg-overlay-4" : "hover:bg-red-500/[0.04]"}`}
       >
         <div className="flex items-center justify-between">
           <span className="text-sm font-medium text-foreground/90 font-mono">
@@ -289,23 +331,27 @@ function JeffMessageCard({
                       onClick={() => onCallBack(message.callerPhone!, message.summary)}
                       className="flex items-center gap-1 text-xs px-2 py-1 rounded-[6px] bg-emerald-500/15 text-emerald-400 hover:bg-emerald-500/25 border border-emerald-500/25 transition-colors"
                     >
-                      <Phone className="h-3 w-3" /> Call Back Now
+                      <Phone className="h-3 w-3" /> Call Back{!dimmed && " Now"}
                     </button>
                   )}
-                  <button
-                    type="button"
-                    onClick={() => setMode("convert")}
-                    className="flex items-center gap-1 text-xs px-2 py-1 rounded-[6px] bg-primary/10 text-primary hover:bg-primary/20 border border-primary/20 transition-colors"
-                  >
-                    <UserPlus className="h-3 w-3" /> Convert
-                  </button>
-                  <button
-                    type="button"
-                    onClick={onDismiss}
-                    className="flex items-center gap-1 text-xs px-2 py-1 rounded-[6px] text-muted-foreground/50 hover:text-foreground hover:bg-overlay-4 transition-colors ml-auto"
-                  >
-                    <X className="h-3 w-3" /> Dismiss
-                  </button>
+                  {!dimmed && (
+                    <button
+                      type="button"
+                      onClick={() => setMode("convert")}
+                      className="flex items-center gap-1 text-xs px-2 py-1 rounded-[6px] bg-primary/10 text-primary hover:bg-primary/20 border border-primary/20 transition-colors"
+                    >
+                      <UserPlus className="h-3 w-3" /> Convert
+                    </button>
+                  )}
+                  {!dimmed && (
+                    <button
+                      type="button"
+                      onClick={onDismiss}
+                      className="flex items-center gap-1 text-xs px-2 py-1 rounded-[6px] text-muted-foreground/50 hover:text-foreground hover:bg-overlay-4 transition-colors ml-auto"
+                    >
+                      <X className="h-3 w-3" /> Dismiss
+                    </button>
+                  )}
                 </div>
               )}
 
