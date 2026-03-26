@@ -35,6 +35,69 @@ export function getVapiAssistantId(): string | null {
   return process.env.VAPI_ASSISTANT_ID ?? null;
 }
 
+// ── Business Hours ──────────────────────────────────────────────────────────
+
+const TZ = "America/Los_Angeles";
+
+/**
+ * Check if the current time is within Dominion business hours (Pacific).
+ *   Mon–Sat  7:00 am – 8:30 pm
+ *   Sunday   1:00 pm – 5:00 pm
+ */
+export function isBusinessHours(): { isOpen: boolean; nextOpenTime: string } {
+  const now = new Date();
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: TZ,
+    year: "numeric", month: "2-digit", day: "2-digit",
+    hour: "2-digit", minute: "2-digit", hour12: false, weekday: "long",
+  }).formatToParts(now);
+
+  const get = (t: string) => parts.find((p) => p.type === t)?.value ?? "";
+  const weekday = get("weekday"); // "Monday", "Tuesday", ...
+  const hour = parseInt(get("hour"), 10);
+  const minute = parseInt(get("minute"), 10);
+  const timeDecimal = hour + minute / 60; // e.g. 8:30 → 8.5, 20:30 → 20.5
+
+  const isSunday = weekday === "Sunday";
+  const isMondayToSaturday = !isSunday;
+
+  let isOpen = false;
+  if (isMondayToSaturday) {
+    // Mon–Sat 7:00am (7.0) – 8:30pm (20.5)
+    isOpen = timeDecimal >= 7 && timeDecimal < 20.5;
+  } else {
+    // Sunday 1:00pm (13.0) – 5:00pm (17.0)
+    isOpen = timeDecimal >= 13 && timeDecimal < 17;
+  }
+
+  if (isOpen) return { isOpen: true, nextOpenTime: "" };
+
+  // Calculate next open time description
+  const DAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+  const dayIndex = DAYS.indexOf(weekday);
+
+  let nextOpen: string;
+  if (isMondayToSaturday && timeDecimal < 7) {
+    // Before 7am Mon–Sat → opens later today
+    nextOpen = "today at 7am";
+  } else if (isSunday && timeDecimal < 13) {
+    // Sunday morning → opens at 1pm today
+    nextOpen = "today at 1pm";
+  } else if (weekday === "Saturday" && timeDecimal >= 20.5) {
+    // Saturday evening → Sunday 1pm
+    nextOpen = "Sunday at 1pm";
+  } else if (isSunday && timeDecimal >= 17) {
+    // Sunday evening → Monday 7am
+    nextOpen = "Monday at 7am";
+  } else {
+    // After 8:30pm Mon–Fri → tomorrow at 7am
+    const tomorrow = DAYS[(dayIndex + 1) % 7];
+    nextOpen = `${tomorrow} at 7am`;
+  }
+
+  return { isOpen: false, nextOpenTime: nextOpen };
+}
+
 // ── Assistant System Prompt ─────────────────────────────────────────────────
 
 const INBOUND_SYSTEM_PROMPT = `You are the voice assistant for Dominion Home Deals, a local real estate company in Spokane, Washington. You go by "the Dominion assistant" — never claim to be a human. If asked directly, say "I'm Dominion's assistant — not a real person, but I can definitely help or get you to someone who can."

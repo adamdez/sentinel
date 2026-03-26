@@ -1296,11 +1296,14 @@ function DialerPageInner() {
     timer.start();
     setIncomingCall(null);
 
-    // If matched to a known lead, try loading it
+    // If matched to a known lead, load it and auto-open client file
     let matchedLead: typeof currentLead = null;
     if (incomingMatch?.type === "lead" && incomingFrom) {
       matchedLead = displayedQueue.find((q) => q.properties?.owner_phone?.replace(/\D/g, "")?.slice(-10) === incomingFrom.replace(/\D/g, "").slice(-10)) ?? null;
-      if (matchedLead) setCurrentLead(matchedLead);
+      if (matchedLead) {
+        setCurrentLead(matchedLead);
+        setFileModalOpen(true);
+      }
     }
 
     // Auto-open client file for Jeff transfers so the operator sees full context immediately

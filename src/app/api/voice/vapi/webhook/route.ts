@@ -7,7 +7,7 @@ import {
   handleEndCall,
 } from "@/providers/voice/vapi-functions";
 import type { TransferResult } from "@/providers/voice/vapi-functions";
-import { buildAssistantConfig, buildOutboundAssistantConfig } from "@/providers/voice/vapi-adapter";
+import { buildAssistantConfig, buildOutboundAssistantConfig, isBusinessHours } from "@/providers/voice/vapi-adapter";
 import { notifyMissedCall } from "@/lib/notify";
 import { sendTransferFailedSMS } from "@/providers/voice/vapi-sms";
 import { trackedDelivery } from "@/lib/delivery-tracker";
@@ -128,6 +128,30 @@ async function handleAssistantRequest(message: VapiWebhookPayload["message"]) {
   const config = isOutbound
     ? buildOutboundAssistantConfig(serverUrl)
     : buildAssistantConfig(serverUrl);
+
+  // After-hours: inject message-taking override into inbound prompt
+  if (!isOutbound) {
+    const hours = isBusinessHours();
+    if (!hours.isOpen) {
+      const afterHoursOverride = `
+
+## AFTER-HOURS MODE (ACTIVE NOW)
+The office is currently closed. Do NOT attempt to transfer — nobody is at their desk.
+
+Instead:
+1. Let the caller know the team is away for the evening (or weekend). Keep it casual: "Hey, looks like the guys are away from the phone right now."
+2. Take a message: get their name, phone number, property address if relevant, and what they need.
+3. Book a callback for ${hours.nextOpenTime} using book_callback. Tell them: "Someone will give you a call back ${hours.nextOpenTime}."
+4. Reassure them their message won't get lost.
+
+Keep it warm and brief — don't run the full discovery flow after hours. Just take the message and get them off the phone feeling good.`;
+
+      const systemMsg = config.model.messages.find((m: { role: string }) => m.role === "system");
+      if (systemMsg) {
+        systemMsg.content += afterHoursOverride;
+      }
+    }
+  }
 
   // Create agent run for traceability before session
   const runId = await createAgentRun({

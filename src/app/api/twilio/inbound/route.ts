@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@/lib/supabase";
+import { isBusinessHours } from "@/providers/voice/vapi-adapter";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -339,18 +340,37 @@ export async function POST(req: NextRequest) {
       ]
     : [];
 
-  // Step 1: Ring Logan's browser for 20 seconds
-  // Pass sessionId and callLogId as query params so the browser can pick them up
+  // After-hours: skip browser ring cascade, send directly to Jeff (Vapi AI)
+  // During hours: Ring Logan's browser (20s) → chain continues to Adam → Jeff
+  const hours = isBusinessHours();
   const chainParams = sessionId ? `&amp;sessionId=${sessionId}&amp;callLogId=${callLogId ?? ""}` : "";
-  const twiml = [
-    '<?xml version="1.0" encoding="UTF-8"?>',
-    "<Response>",
-    ...streamLines,
-    `  <Dial callerId="${twilioNumber}" timeout="20" action="${siteUrl}/api/twilio/inbound?type=chain_step&amp;step=logan${chainParams}" method="POST">`,
-    `    <Client>${loganIdentity}</Client>`,
-    "  </Dial>",
-    "</Response>",
-  ].join("\n");
+
+  let twiml: string;
+
+  if (!hours.isOpen && vapiNumber) {
+    // After hours — go straight to Jeff with extra time for message-taking
+    console.log(`[inbound] After-hours (next open: ${hours.nextOpenTime}) — forwarding directly to Jeff`);
+    twiml = [
+      '<?xml version="1.0" encoding="UTF-8"?>',
+      "<Response>",
+      ...streamLines,
+      `  <Dial callerId="${twilioNumber}" timeout="60" action="${siteUrl}/api/twilio/inbound?type=call_status" method="POST">`,
+      `    <Number>${vapiNumber}</Number>`,
+      "  </Dial>",
+      "</Response>",
+    ].join("\n");
+  } else {
+    // During hours — ring Logan's browser first
+    twiml = [
+      '<?xml version="1.0" encoding="UTF-8"?>',
+      "<Response>",
+      ...streamLines,
+      `  <Dial callerId="${twilioNumber}" timeout="20" action="${siteUrl}/api/twilio/inbound?type=chain_step&amp;step=logan${chainParams}" method="POST">`,
+      `    <Client>${loganIdentity}</Client>`,
+      "  </Dial>",
+      "</Response>",
+    ].join("\n");
+  }
 
   console.log("[inbound] Initial TwiML:", twiml.substring(0, 500));
 

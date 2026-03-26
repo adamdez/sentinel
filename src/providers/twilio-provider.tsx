@@ -33,7 +33,7 @@ function toE164(raw: string): string {
 }
 
 export type DeviceStatus = "initializing" | "ready" | "error" | "offline";
-export type CallState = "idle" | "dialing" | "connected" | "ended";
+export type CallState = "idle" | "incoming" | "dialing" | "connected" | "ended";
 
 export interface CallMeta {
   phone: string;
@@ -48,6 +48,8 @@ interface TwilioContextValue {
   activeCall: Call | null;
   callState: CallState;
   callMeta: CallMeta | null;
+  incomingCall: Call | null;
+  incomingFrom: string | null;
   isMuted: boolean;
   elapsed: number;
   formatted: string;
@@ -59,6 +61,8 @@ interface TwilioContextValue {
     leadName?: string,
   ) => Promise<void>;
   endCall: () => void;
+  answerIncoming: () => void;
+  rejectIncoming: () => void;
   toggleMute: () => void;
   initDevice: () => Promise<void>;
 }
@@ -79,6 +83,8 @@ export function TwilioProvider({ children }: { children: ReactNode }) {
   const [activeCall, setActiveCall] = useState<Call | null>(null);
   const [callState, setCallState] = useState<CallState>("idle");
   const [callMeta, setCallMeta] = useState<CallMeta | null>(null);
+  const [incomingCall, setIncomingCall] = useState<Call | null>(null);
+  const [incomingFrom, setIncomingFrom] = useState<string | null>(null);
   const [isMuted, setIsMuted] = useState(false);
   const [voipCallerId, setVoipCallerId] = useState("");
 
@@ -101,6 +107,13 @@ export function TwilioProvider({ children }: { children: ReactNode }) {
   }, [timerStop]);
   useEffect(() => () => { if (timerRef.current) clearInterval(timerRef.current); }, []);
   const formatted = `${Math.floor(elapsed / 60)}:${(elapsed % 60).toString().padStart(2, "0")}`;
+
+  // Request notification permission for incoming calls
+  useEffect(() => {
+    if (typeof Notification !== "undefined" && Notification.permission === "default") {
+      Notification.requestPermission();
+    }
+  }, []);
 
   const deviceRef = useRef<Device | null>(null);
   const initDeviceCancelRef = useRef<(() => void) | null>(null);
@@ -166,6 +179,41 @@ export function TwilioProvider({ children }: { children: ReactNode }) {
         } catch {
           console.warn("[VoIP] Token refresh failed");
         }
+      });
+
+      device.on("incoming", (call: Call) => {
+        if (cancelled) return;
+        const from = call.parameters?.From ?? "Unknown";
+        console.log("[VoIP] Incoming call from", from);
+        setIncomingCall(call);
+        setIncomingFrom(from);
+        setCallState("incoming");
+
+        toast("Incoming call", {
+          description: from,
+          duration: 30_000,
+        });
+
+        // Browser notification
+        if (typeof Notification !== "undefined" && Notification.permission === "granted") {
+          new Notification("Incoming Call", {
+            body: `Call from ${from}`,
+            icon: "/icon.svg",
+            requireInteraction: true,
+          });
+        }
+
+        call.on("cancel", () => {
+          console.log("[VoIP] Incoming call cancelled");
+          setIncomingCall(null);
+          setIncomingFrom(null);
+          setCallState((prev) => prev === "incoming" ? "idle" : prev);
+        });
+
+        call.on("disconnect", () => {
+          setIncomingCall(null);
+          setIncomingFrom(null);
+        });
       });
 
       await device.register();
@@ -361,6 +409,37 @@ export function TwilioProvider({ children }: { children: ReactNode }) {
     }
   }, [activeCall]);
 
+  const answerIncoming = useCallback(() => {
+    if (!incomingCall) return;
+    incomingCall.accept();
+    setActiveCall(incomingCall);
+    setCallState("connected");
+    setCallMeta({ phone: incomingFrom ?? "Unknown" });
+    setIncomingCall(null);
+    setIncomingFrom(null);
+    setIsMuted(false);
+    timerStart();
+
+    incomingCall.on("disconnect", () => {
+      setActiveCall(null);
+      setCallState("ended");
+      timerStop();
+      setTimeout(() => {
+        setCallState("idle");
+        setCallMeta(null);
+        timerReset();
+      }, 3000);
+    });
+  }, [incomingCall, incomingFrom, timerStart, timerStop, timerReset]);
+
+  const rejectIncoming = useCallback(() => {
+    if (!incomingCall) return;
+    incomingCall.reject();
+    setIncomingCall(null);
+    setIncomingFrom(null);
+    setCallState("idle");
+  }, [incomingCall]);
+
   const toggleMute = useCallback(() => {
     if (activeCall) {
       const newMuted = !activeCall.isMuted();
@@ -376,6 +455,8 @@ export function TwilioProvider({ children }: { children: ReactNode }) {
         activeCall,
         callState,
         callMeta,
+        incomingCall,
+        incomingFrom,
         isMuted,
         elapsed,
         formatted,
@@ -383,6 +464,8 @@ export function TwilioProvider({ children }: { children: ReactNode }) {
         deviceRef,
         startCall,
         endCall,
+        answerIncoming,
+        rejectIncoming,
         toggleMute,
         initDevice,
       }}

@@ -1,19 +1,74 @@
 "use client";
 
-import { Phone, PhoneOff, Mic, MicOff, ExternalLink, Loader2 } from "lucide-react";
+import { Phone, PhoneOff, PhoneIncoming, Mic, MicOff, ExternalLink, Loader2 } from "lucide-react";
 import { useTwilio } from "@/providers/twilio-provider";
 import { cn } from "@/lib/utils";
 import { usePathname } from "next/navigation";
 
-export function FloatingCallPanel() {
-  const { callState, callMeta, formatted, isMuted, endCall, toggleMute } =
-    useTwilio();
-  const pathname = usePathname();
+function formatPhone(raw: string | null): string {
+  if (!raw) return "Unknown";
+  const d = raw.replace(/\D/g, "").slice(-10);
+  if (d.length === 10) return `(${d.slice(0, 3)}) ${d.slice(3, 6)}-${d.slice(6)}`;
+  return raw;
+}
 
-  if (callState === "idle") return null;
+export function FloatingCallPanel() {
+  const {
+    callState, callMeta, formatted, isMuted,
+    incomingCall, incomingFrom,
+    endCall, toggleMute, answerIncoming, rejectIncoming,
+  } = useTwilio();
+  const pathname = usePathname();
 
   // Don't render on the dialer page — it manages its own call UI
   if (pathname === "/dialer") return null;
+
+  // ── Incoming call popup ──────────────────────────────────────────────
+  if (callState === "incoming" && incomingCall) {
+    return (
+      <div className="fixed bottom-4 right-4 z-50 w-80 rounded-xl border shadow-2xl backdrop-blur-xl bg-card/95 border-emerald-500/30 animate-pulse-slow">
+        <div className="flex items-center gap-3 px-4 py-3">
+          <div className="relative shrink-0">
+            <div className="h-10 w-10 rounded-full flex items-center justify-center bg-emerald-500/20 text-emerald-400">
+              <PhoneIncoming className="h-5 w-5" />
+            </div>
+            <span className="absolute -top-0.5 -right-0.5 h-3 w-3 rounded-full bg-emerald-400 animate-pulse" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-semibold text-emerald-400">Incoming Call</p>
+            <p className="text-sm font-mono text-foreground/90">{formatPhone(incomingFrom)}</p>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-2 px-4 pb-3">
+          <button
+            onClick={answerIncoming}
+            className="flex-1 flex items-center justify-center gap-1.5 rounded-lg py-2 text-sm font-semibold bg-emerald-500/20 text-emerald-300 hover:bg-emerald-500/30 border border-emerald-500/30 transition-colors"
+          >
+            <Phone className="h-4 w-4" />
+            Answer
+          </button>
+          <button
+            onClick={rejectIncoming}
+            className="flex-1 flex items-center justify-center gap-1.5 rounded-lg py-2 text-sm font-semibold bg-red-500/20 text-red-300 hover:bg-red-500/30 border border-red-500/30 transition-colors"
+          >
+            <PhoneOff className="h-4 w-4" />
+            Reject
+          </button>
+          <a
+            href="/dialer"
+            className="flex items-center justify-center rounded-lg py-2 px-3 text-xs text-muted-foreground hover:text-foreground bg-overlay-4 hover:bg-overlay-6 border border-overlay-6 transition-colors"
+            title="Open Dialer"
+          >
+            <ExternalLink className="h-4 w-4" />
+          </a>
+        </div>
+      </div>
+    );
+  }
+
+  // ── Active/ended call panel ──────────────────────────────────────────
+  if (callState === "idle") return null;
 
   const isDialing = callState === "dialing";
   const isEnded = callState === "ended";
