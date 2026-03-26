@@ -1209,24 +1209,12 @@ function DialerPageInner() {
         }
       });
       call.on("disconnect", () => {
+        // Pre-accept disconnect: caller hung up while ringing.
+        // Post-accept disconnect is handled by handleAnswerIncoming's listeners.
         setIncomingCall(null);
         setIncomingFrom(null);
         setIncomingMatch(null);
         incomingAudioRef.current?.pause();
-        const sessId = activeSessionRef.current;
-        if (sessId) {
-          setActiveCall(null);
-          setCallState("ended");
-          timer.stop();
-          authHeaders().then((hdrs) => {
-            fetch(`/api/dialer/v1/sessions/${sessId}`, {
-              method: "PATCH",
-              headers: hdrs,
-              body: JSON.stringify({ status: "ended" }),
-            }).catch(() => {});
-          }).catch(() => {});
-          activeSessionRef.current = null;
-        }
       });
     };
 
@@ -1331,11 +1319,76 @@ function DialerPageInner() {
   const handleAnswerIncoming = useCallback(async () => {
     if (!incomingCall) return;
     incomingAudioRef.current?.pause();
+
+    // Accept the call first
     incomingCall.accept();
-    setActiveCall(incomingCall);
+    const acceptedCall = incomingCall;
+    setActiveCall(acceptedCall);
     setCallState("connected");
     timer.start();
     setIncomingCall(null);
+
+    // ── Attach event listeners to the accepted call ──────────────────
+    // Without these, disconnect/error events are silently lost and the
+    // UI can sit on dead air forever.
+    acceptedCall.on("disconnect", () => {
+      console.log("[Dialer] Inbound call disconnected");
+      setActiveCall(null);
+      setCallState("ended");
+      timer.stop();
+      const sessId = activeSessionRef.current;
+      if (sessId) {
+        authHeaders().then(async (hdrs) => {
+          const res = await fetch(`/api/dialer/v1/sessions/${sessId}`, {
+            method: "PATCH",
+            headers: hdrs,
+            body: JSON.stringify({ status: "ended" }),
+          });
+          if (!res.ok) {
+            await fetch(`/api/dialer/v1/sessions/${sessId}`, {
+              method: "PATCH",
+              headers: hdrs,
+              body: JSON.stringify({ status: "failed" }),
+            });
+          }
+        }).catch(() => {});
+      }
+    });
+
+    acceptedCall.on("error", (err: { message?: string }) => {
+      console.error("[Dialer] Inbound call error:", err.message);
+      toast.error(`Call error: ${err.message ?? "unknown"}`);
+      setActiveCall(null);
+      setCallState("ended");
+      timer.stop();
+      const sessId = activeSessionRef.current;
+      if (sessId) {
+        authHeaders().then((hdrs) =>
+          fetch(`/api/dialer/v1/sessions/${sessId}`, {
+            method: "PATCH",
+            headers: hdrs,
+            body: JSON.stringify({ status: "failed" }),
+          })
+        ).catch(() => {});
+      }
+    });
+
+    acceptedCall.on("cancel", () => {
+      console.log("[Dialer] Inbound call canceled by caller");
+      setActiveCall(null);
+      setCallState("idle");
+      timer.reset();
+      const sessId = activeSessionRef.current;
+      if (sessId) {
+        authHeaders().then((hdrs) =>
+          fetch(`/api/dialer/v1/sessions/${sessId}`, {
+            method: "PATCH",
+            headers: hdrs,
+            body: JSON.stringify({ status: "failed" }),
+          })
+        ).catch(() => {});
+      }
+    });
 
     // If matched to a known lead, load it and auto-open client file
     let matchedLead: typeof currentLead = null;
@@ -1369,19 +1422,16 @@ function DialerPageInner() {
       console.log("[Dialer] Inbound answer — incomingFrom:", incomingFrom, "phoneDigits:", phoneDigits);
 
       // Find the inbound session created by the webhook.
-      // We can't search by incomingFrom — Twilio Client reports the DIALED number
-      // (Adam's browser number), not the original caller's number.
-      // We can't use /api/dialer/v1/sessions — it's user-scoped and the webhook
-      // creates sessions under Logan's user ID.
-      // Instead, query the inbound-session endpoint which finds the most recent
-      // "ringing" session regardless of user.
       let existingSessionId: string | null = null;
+      let existingCallLogId: string | null = null;
+      let existingTwilioSid: string | null = null;
       try {
         const ringingRes = await fetch("/api/dialer/v1/sessions/inbound-ringing", { headers: hdrs });
         if (ringingRes.ok) {
           const ringingData = await ringingRes.json();
           if (ringingData.session) {
             existingSessionId = ringingData.session.id;
+            existingTwilioSid = ringingData.session.twilio_sid ?? null;
             console.log("[Dialer] Found ringing inbound session:", existingSessionId, "phone:", ringingData.session.phone_dialed);
           }
         }
@@ -1393,11 +1443,8 @@ function DialerPageInner() {
       }
 
       if (existingSessionId) {
-        // Claim the session — reassign user_id to the operator who answered
-        // and advance status to "connected". This is necessary because the
-        // inbound webhook creates sessions under a default user_id (Logan),
-        // but any operator can answer. Without claiming, note polling and
-        // live coach fail with FORBIDDEN.
+        // Claim the session — BLOCKING so ownership is guaranteed before any
+        // note polling or live coach fetches happen.
         activeSessionRef.current = existingSessionId;
         if (matchedLead) {
           setDialerSessionId(existingSessionId);
@@ -1405,13 +1452,45 @@ function DialerPageInner() {
           setManualSessionId(existingSessionId);
           setManualStatus("connected");
         }
-        fetch("/api/dialer/v1/sessions/claim-inbound", {
-          method: "POST",
-          headers: hdrs,
-          body: JSON.stringify({ sessionId: existingSessionId }),
-        }).catch(() => {});
-        // Look up the calls_log entry for disposition
-        // The inbound webhook created one linked to this session
+
+        try {
+          const claimRes = await fetch("/api/dialer/v1/sessions/claim-inbound", {
+            method: "POST",
+            headers: hdrs,
+            body: JSON.stringify({ sessionId: existingSessionId }),
+          });
+          if (claimRes.ok) {
+            const claimData = await claimRes.json();
+            console.log("[Dialer] Session claimed:", claimData);
+          } else {
+            console.warn("[Dialer] Claim-inbound returned", claimRes.status);
+          }
+        } catch (e) {
+          console.warn("[Dialer] Claim-inbound failed:", e);
+        }
+
+        // Look up the calls_log entry linked to this session for status polling
+        try {
+          const logRes = await fetch(
+            `/api/dialer/call-status?sessionId=${encodeURIComponent(existingSessionId)}`,
+            { headers: hdrs },
+          );
+          if (logRes.ok) {
+            const logData = await logRes.json();
+            if (logData.callLogId) {
+              existingCallLogId = logData.callLogId;
+              setCurrentCallLogId(logData.callLogId);
+              console.log("[Dialer] Linked callLogId:", logData.callLogId);
+            }
+          }
+        } catch {
+          console.log("[Dialer] Call log lookup failed — polling may be limited");
+        }
+
+        // Set twilio SID so status polling has a fallback
+        if (existingTwilioSid) {
+          setCurrentCallSid(existingTwilioSid);
+        }
       } else {
         // Fallback: create a new session if webhook didn't create one
         const sessRes = await fetch("/api/dialer/v1/sessions", {
@@ -1432,7 +1511,7 @@ function DialerPageInner() {
             setManualSessionId(newSessionId);
           }
           if (newSessionId) {
-            fetch(`/api/dialer/v1/sessions/${newSessionId}`, {
+            await fetch(`/api/dialer/v1/sessions/${newSessionId}`, {
               method: "PATCH",
               headers: hdrs,
               body: JSON.stringify({ status: "connected" }),

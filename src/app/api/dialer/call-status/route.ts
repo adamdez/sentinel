@@ -20,8 +20,9 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const callLogId = req.nextUrl.searchParams.get("callLogId");
+  let callLogId = req.nextUrl.searchParams.get("callLogId");
   const callSid = req.nextUrl.searchParams.get("callSid");
+  const sessionId = req.nextUrl.searchParams.get("sessionId");
 
   const result: {
     dbStatus?: string;
@@ -29,10 +30,47 @@ export async function GET(req: NextRequest) {
     twilioError?: string;
     duration?: number;
     endedAt?: string;
+    callLogId?: string;
   } = {};
 
+  // 0. If only sessionId provided, look up the callLogId from it
+  if (!callLogId && sessionId) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: logRow } = await (sb.from("calls_log") as any)
+      .select("id, disposition, duration_sec, ended_at, twilio_sid")
+      .eq("dialer_session_id", sessionId)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (logRow) {
+      callLogId = logRow.id;
+      result.callLogId = logRow.id;
+      result.dbStatus = logRow.disposition;
+      result.duration = logRow.duration_sec;
+      result.endedAt = logRow.ended_at;
+
+      // Also fetch Twilio status if we have a SID
+      if (logRow.twilio_sid && !callSid) {
+        const creds = getTwilioCredentials();
+        if (!isTwilioError(creds)) {
+          try {
+            const res = await fetch(
+              `https://api.twilio.com/2010-04-01/Accounts/${creds.sid}/Calls/${logRow.twilio_sid}.json`,
+              { headers: { Authorization: creds.authHeader } },
+            );
+            if (res.ok) {
+              const data = await res.json();
+              result.twilioStatus = data.status;
+            }
+          } catch { /* non-blocking */ }
+        }
+      }
+    }
+  }
+
   // 1. Check our database
-  if (callLogId) {
+  if (callLogId && !result.dbStatus) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { data: callLog } = await (sb.from("calls_log") as any)
       .select("disposition, duration_sec, ended_at, twilio_sid")
