@@ -383,20 +383,6 @@ function GmailPageInner() {
   const [connectError, setConnectError] = useState<string | null>(null);
   const searchParams = useSearchParams();
 
-  // Read OAuth callback results from URL params
-  useEffect(() => {
-    const err = searchParams.get("error");
-    if (err) {
-      setConnectError(decodeURIComponent(err));
-      setConnecting(false);
-      setConnectingIntake(false);
-    }
-    // Refresh status after intake connection
-    if (searchParams.get("intake_connected") === "true" || searchParams.get("connected") === "true") {
-      fetchStatus();
-    }
-  }, [searchParams, fetchStatus]);
-
   const fetchStatus = useCallback(async () => {
     if (!userId) return;
     try {
@@ -429,6 +415,20 @@ function GmailPageInner() {
       setInboxLoading(false);
     }
   }, [userId]);
+
+  // Read OAuth callback results from URL params
+  useEffect(() => {
+    const err = searchParams.get("error");
+    if (err) {
+      setConnectError(decodeURIComponent(err));
+      setConnecting(false);
+      setConnectingIntake(false);
+    }
+    // Refresh status after intake connection
+    if (searchParams.get("intake_connected") === "true" || searchParams.get("connected") === "true") {
+      fetchStatus();
+    }
+  }, [searchParams, fetchStatus]);
 
   useEffect(() => {
     fetchStatus();
