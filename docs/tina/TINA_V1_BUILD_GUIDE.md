@@ -258,10 +258,11 @@ As of 2026-03-26, Tina already has:
 - a first deterministic Schedule C draft layer that maps only the supported reviewer-final lines into a small form preview while keeping fragile items in review notes instead of forcing them into the form
 - a first package-readiness layer that explains exactly what still blocks a filing-ready package and which draft boxes or notes each blocker is tied to
 - a first CPA handoff packet layer that lays out what a reviewer would receive, which packet sections are ready, and which sections are still waiting or blocked
+- a first downloadable CPA review brief so Tina can export a human-readable packet summary instead of only showing packet status on-screen
 - tests for filing-lane logic, draft parsing, and checklist coverage
 - a standalone research-policy module for broad idea discovery vs primary-authority validation
 
-This means Tina now has real movement from `book_original` into `ai_cleanup`, then into `tax_adjustment`, then into `reviewer_final`, then into a first Schedule C draft preview, then into a package-readiness check, and now into a first CPA handoff packet manifest. The next major step is turning that packet into real downloadable artifacts and a final signoff screen so Tina can show exactly what a reviewer would export and approve.
+This means Tina now has real movement from `book_original` into `ai_cleanup`, then into `tax_adjustment`, then into `reviewer_final`, then into a first Schedule C draft preview, then into a package-readiness check, then into a CPA handoff packet manifest, and now into a first downloadable review brief. The next major step is turning that brief into richer multi-file exports and a final signoff screen so Tina can show exactly what a reviewer would approve before any filing package is treated as complete.
 
 ## First Adversarial Review Gate
 

@@ -1,5 +1,10 @@
 [
   {
+    "hash": "c92a15cf",
+    "date": "2026-03-27",
+    "message": "Phase 1-5: Special Lead Intake Queue Implementation"
+  },
+  {
     "hash": "81774d6b",
     "date": "2026-03-27",
     "message": "feat: unmissable full-width inbound call banner on every page"
@@ -118,10 +123,5 @@
     "hash": "cac0961a",
     "date": "2026-03-25",
     "message": "fix: bypass Inngest for outbound batch — call Vapi directly"
-  },
-  {
-    "hash": "5a375481",
-    "date": "2026-03-25",
-    "message": "[cursor] Overview distress box: show lead inbox tag pills + supplemental events"
   }
 ]

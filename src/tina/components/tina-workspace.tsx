@@ -382,6 +382,7 @@ export function TinaWorkspace() {
   const [scheduleCMessage, setScheduleCMessage] = useState<string | null>(null);
   const [packageReadinessMessage, setPackageReadinessMessage] = useState<string | null>(null);
   const [cpaHandoffMessage, setCpaHandoffMessage] = useState<string | null>(null);
+  const [cpaDownloadMessage, setCpaDownloadMessage] = useState<string | null>(null);
   const [authorityMessage, setAuthorityMessage] = useState<string | null>(null);
   const [openingDocumentId, setOpeningDocumentId] = useState<string | null>(null);
   const [removingDocumentId, setRemovingDocumentId] = useState<string | null>(null);
@@ -402,6 +403,7 @@ export function TinaWorkspace() {
     "idle" | "running" | "error"
   >("idle");
   const [cpaHandoffState, setCpaHandoffState] = useState<"idle" | "running" | "error">("idle");
+  const [cpaDownloadState, setCpaDownloadState] = useState<"idle" | "running" | "error">("idle");
   const recommendation = recommendTinaFilingLane(draft.profile);
   const checklist = buildTinaChecklist(draft, recommendation);
   const neededChecklist = checklist.filter((item) => item.status === "needed");
@@ -1072,6 +1074,48 @@ export function TinaWorkspace() {
       setCpaHandoffMessage(
         "Tina could not build the CPA review packet yet. Try again in a moment."
       );
+    }
+  }
+
+  async function downloadCpaPacket() {
+    setCpaDownloadState("running");
+    setCpaDownloadMessage("Tina is packing your CPA review notes into a file...");
+
+    try {
+      const headers = await sentinelAuthHeaders();
+      const res = await fetch("/api/tina/cpa-packet/export", {
+        method: "POST",
+        headers,
+        body: JSON.stringify({ draft }),
+      });
+
+      if (!res.ok) throw new Error("packet export failed");
+
+      const payload = (await res.json()) as {
+        fileName?: string;
+        mimeType?: string;
+        contents?: string;
+      };
+
+      if (!payload.fileName || !payload.mimeType || typeof payload.contents !== "string") {
+        throw new Error("missing export payload");
+      }
+
+      const blob = new Blob([payload.contents], { type: payload.mimeType });
+      const url = window.URL.createObjectURL(blob);
+      const anchor = document.createElement("a");
+      anchor.href = url;
+      anchor.download = payload.fileName;
+      document.body.appendChild(anchor);
+      anchor.click();
+      anchor.remove();
+      window.URL.revokeObjectURL(url);
+
+      setCpaDownloadState("idle");
+      setCpaDownloadMessage("Tina downloaded the CPA review notes.");
+    } catch {
+      setCpaDownloadState("error");
+      setCpaDownloadMessage("Tina could not download the CPA notes yet. Try again in a moment.");
     }
   }
 
@@ -3280,6 +3324,20 @@ export function TinaWorkspace() {
               )}
               {cpaHandoff.status === "complete" ? "Build again" : "Build CPA packet"}
             </Button>
+            <Button
+              type="button"
+              variant="outline"
+              className="border-white/10 bg-white/5 text-zinc-100 hover:bg-white/8"
+              onClick={downloadCpaPacket}
+              disabled={cpaDownloadState === "running"}
+            >
+              {cpaDownloadState === "running" ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Save className="h-4 w-4" />
+              )}
+              Download packet notes
+            </Button>
             {cpaHandoffMessage ? (
               <p
                 className={cn(
@@ -3288,6 +3346,16 @@ export function TinaWorkspace() {
                 )}
               >
                 {cpaHandoffMessage}
+              </p>
+            ) : null}
+            {cpaDownloadMessage ? (
+              <p
+                className={cn(
+                  "text-sm",
+                  cpaDownloadState === "error" ? "text-amber-200" : "text-zinc-300"
+                )}
+              >
+                {cpaDownloadMessage}
               </p>
             ) : null}
           </div>

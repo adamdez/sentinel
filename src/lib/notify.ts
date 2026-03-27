@@ -310,6 +310,27 @@ export function notifyNewInboundLead(data: {
 }
 
 /**
+ * #6b: PPL lead intake alert.
+ * Triggered instantly when a PPL lead comes in via webhook/email/API.
+ * Sends SMS to both Logan and Adam.
+ */
+export function notifyPPLLeadIntake(data: {
+  ownerName: string | null;
+  phone: string | null;
+  propertyAddress: string | null;
+  sourceProvider: string;
+  intakeLeadId: string;
+  receivedAt: string;
+}): Promise<NotifyResult> {
+  const who = data.ownerName ?? "Unknown";
+  const addr = data.propertyAddress ? ` — ${data.propertyAddress}` : "";
+  const ph = data.phone ? ` (${data.phone})` : "";
+  const time = new Date(data.receivedAt).toLocaleTimeString("en-US", { timeZone: "America/Los_Angeles" });
+
+  return sendSMS(`🎯 PPL LEAD RECEIVED!\n${who}${ph}${addr}\nProvider: ${data.sourceProvider}\nTime: ${time}\nReview & claim in Sentinel ➡️ INTAKE`);
+}
+
+/**
  * #7: Weekly health report (Monday 9am).
  * Summarizes agent fleet, pipeline velocity, intelligence usage, voice sessions.
  */
