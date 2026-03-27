@@ -220,6 +220,10 @@ export async function GET(req: NextRequest) {
           diagnostic.twilioVoiceUrl = phone.voice_url;
           diagnostic.twilioVoiceMethod = phone.voice_method;
           diagnostic.twilioCorrectWebhook = phone.voice_url?.includes("/api/twilio/inbound");
+          diagnostic.twilioSmsUrl = phone.sms_url;
+          diagnostic.twilioSmsMethod = phone.sms_method;
+          diagnostic.twilioSmsFallbackUrl = phone.sms_fallback_url;
+          diagnostic.twilioSmsCorrectWebhook = phone.sms_url?.includes("/api/twilio/sms");
         }
       }
     } catch {
