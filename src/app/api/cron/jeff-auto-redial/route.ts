@@ -200,6 +200,23 @@ export async function GET(req: NextRequest) {
         user_id: string;
       };
 
+      // Special intake suppression: Skip if lead came from intake queue and hasn't been approved
+      // (next_action = 'review' means waiting for operator approval)
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data: leadData } = await (sb.from("leads") as any)
+        .select("from_special_intake, next_action")
+        .eq("id", leadId)
+        .single();
+
+      if (leadData?.from_special_intake && leadData?.next_action !== "call") {
+        skipped.push({
+          leadId,
+          phone,
+          reason: `special_intake_awaiting_approval (next_action=${leadData?.next_action})`,
+        });
+        continue;
+      }
+
       // Skip if lead already has an in-flight call
       if (inFlightLeadIds.has(leadId)) {
         skipped.push({ leadId, phone, reason: "in-flight call" });

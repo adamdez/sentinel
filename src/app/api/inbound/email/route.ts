@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createServerClient, getOrCreateProfile } from "@/lib/supabase";
 import { fetchInboxDetails, fetchMessageDetail, refreshAccessToken } from "@/lib/gmail";
 import { normalizeInboundCandidate } from "@/lib/inbound-intake";
-import { processInboundCandidate } from "@/lib/inbound-intake-server";
+import { processInboundCandidateToIntakeQueue } from "@/lib/inbound-intake-server";
 
 async function getEmailAccessToken(req: NextRequest) {
   const sb = createServerClient();
@@ -112,15 +112,23 @@ export async function POST(req: NextRequest) {
       receivedAt: message.date ? new Date(message.date).toISOString() : null,
     });
 
-    const result = await processInboundCandidate({
-      req,
+    const result = await processInboundCandidateToIntakeQueue({
       sb,
-      authHeader: req.headers.get("authorization"),
-      actorId: user.id,
       candidate,
+      actorId: user.id,
     });
 
-    return NextResponse.json({ success: true, ...result });
+    if (result.status === "failed") {
+      return NextResponse.json({ error: result.error }, { status: 500 });
+    }
+
+    return NextResponse.json({
+      success: true,
+      intake_lead_id: result.intakeLeadId,
+      source_category: result.sourceCategory,
+      status: result.status,
+      duplicate_status: result.duplicateStatus,
+    });
   } catch (error) {
     console.error("[Inbound Email] Commit failed:", error);
     return NextResponse.json(

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@/lib/supabase";
 import { normalizeInboundCandidate } from "@/lib/inbound-intake";
-import { authorizeInboundRequest, processInboundCandidate } from "@/lib/inbound-intake-server";
+import { authorizeInboundRequest, processInboundCandidateToIntakeQueue } from "@/lib/inbound-intake-server";
 
 const MAX_INBOUND_PAYLOAD_BYTES = 256 * 1024;
 
@@ -45,15 +45,23 @@ export async function POST(req: NextRequest) {
       receivedAt: typeof body.received_at === "string" ? body.received_at : null,
     });
 
-    const result = await processInboundCandidate({
-      req,
+    const result = await processInboundCandidateToIntakeQueue({
       sb,
-      authHeader: req.headers.get("authorization"),
-      actorId: auth.userId,
       candidate,
+      actorId: auth.userId,
     });
 
-    return NextResponse.json({ success: true, ...result });
+    if (result.status === "failed") {
+      return NextResponse.json({ error: result.error }, { status: 500 });
+    }
+
+    return NextResponse.json({
+      success: true,
+      intake_lead_id: result.intakeLeadId,
+      source_category: result.sourceCategory,
+      status: result.status,
+      duplicate_status: result.duplicateStatus,
+    });
   } catch (error) {
     console.error("[Inbound Vendor] Failed:", error);
     return NextResponse.json(

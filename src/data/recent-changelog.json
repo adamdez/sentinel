@@ -1,5 +1,50 @@
 [
   {
+    "hash": "81774d6b",
+    "date": "2026-03-27",
+    "message": "feat: unmissable full-width inbound call banner on every page"
+  },
+  {
+    "hash": "705217fa",
+    "date": "2026-03-27",
+    "message": "fix: inbound calls ring browser instantly — never blocked by slow DB"
+  },
+  {
+    "hash": "d4581d61",
+    "date": "2026-03-26",
+    "message": "fix: communications stack hardening — 12 bug fixes across dialer, SMS, voice"
+  },
+  {
+    "hash": "041723d2",
+    "date": "2026-03-26",
+    "message": "feat: SMS thread creation endpoint for website Text Us form"
+  },
+  {
+    "hash": "0f72930b",
+    "date": "2026-03-26",
+    "message": "fix: exclude tina from eslint (built by Codex), add SMS webhook setup endpoint"
+  },
+  {
+    "hash": "7cbd976c",
+    "date": "2026-03-26",
+    "message": "feat: SMS webhook setup endpoint + SMS fields in disconnect-phone diagnostic"
+  },
+  {
+    "hash": "c56b07b4",
+    "date": "2026-03-26",
+    "message": "fix: inbound calls bypass Vapi — ring Logan directly, fix caller ID"
+  },
+  {
+    "hash": "0844202c",
+    "date": "2026-03-26",
+    "message": "fix: inbound call answer — attach event listeners, blocking claim, status polling"
+  },
+  {
+    "hash": "598fbf5e",
+    "date": "2026-03-25",
+    "message": "fix: remaining review issues — queue audit trail, after-hours guards, UI fixes"
+  },
+  {
     "hash": "f3f4c761",
     "date": "2026-03-25",
     "message": "fix: four critical bugs in incoming call + jeff messages handling"
@@ -78,50 +123,5 @@
     "hash": "5a375481",
     "date": "2026-03-25",
     "message": "[cursor] Overview distress box: show lead inbox tag pills + supplemental events"
-  },
-  {
-    "hash": "9bfcfda1",
-    "date": "2026-03-25",
-    "message": "fix: Vapi API rejects systemMessage — use messages array format"
-  },
-  {
-    "hash": "6489364d",
-    "date": "2026-03-25",
-    "message": "fix: voice_session INSERT failing — invalid status + nonexistent column"
-  },
-  {
-    "hash": "2f8c0fd0",
-    "date": "2026-03-25",
-    "message": "fix: clicking Jeff tab leads now loads the lead detail panel"
-  },
-  {
-    "hash": "3ffd927a",
-    "date": "2026-03-25",
-    "message": "debug: add console logging to outbound-batch Inngest function"
-  },
-  {
-    "hash": "35adc738",
-    "date": "2026-03-25",
-    "message": "fix: normalize phone to E.164 format before Vapi outbound call"
-  },
-  {
-    "hash": "5951340b",
-    "date": "2026-03-25",
-    "message": "fix: fall back to auto-cycle phones when lead_phones is empty in outbound routes"
-  },
-  {
-    "hash": "26ee49ba",
-    "date": "2026-03-25",
-    "message": "fix: use LEFT join for properties in outbound routes + allow retry of skipped Jeff leads"
-  },
-  {
-    "hash": "629ea43a",
-    "date": "2026-03-25",
-    "message": "Fix outbound call routes — fetch phones from lead_phones, not leads"
-  },
-  {
-    "hash": "d839f295",
-    "date": "2026-03-25",
-    "message": "Remove business hours guard from outbound calls and campaign dialer"
   }
 ]

@@ -8,6 +8,26 @@ import { trackedDelivery } from "@/lib/delivery-tracker";
 
 type SupabaseLike = ReturnType<typeof createServerClient>;
 
+/**
+ * Map source_vendor to intake_provider name for provider categorization.
+ * Used when writing to intake_leads table.
+ */
+function mapSourceVendorToProvider(sourceVendor: string | null | undefined): string | null {
+  if (!sourceVendor) return null;
+
+  const vendorMap: Record<string, string> = {
+    "lead_house": "Lead House",
+    "leadhouse": "Lead House",
+    "ppl_partner_a": "PPL Partner A",
+    "ppl_partner_b": "Other PPL",
+    "gmail": "Gmail Intake",
+    "website": "Website Form",
+    "webform": "Website Form",
+  };
+
+  return vendorMap[sourceVendor.toLowerCase()] ?? null;
+}
+
 export async function authorizeInboundRequest(req: NextRequest, sb: SupabaseLike) {
   const user = await requireImportUser(req.headers.get("authorization"), sb);
   if (user) return { userId: user.id, mode: "user" as const };
@@ -19,6 +39,94 @@ export async function authorizeInboundRequest(req: NextRequest, sb: SupabaseLike
   }
 
   return null;
+}
+
+/**
+ * Process an inbound candidate into the intake queue (pending review).
+ * Writes to intake_leads table instead of creating leads directly.
+ * This implements the approval gate: leads must be "claimed" by an operator.
+ */
+export async function processInboundCandidateToIntakeQueue(args: {
+  sb: SupabaseLike;
+  candidate: NormalizedInboundCandidate;
+  actorId: string | null;
+}) {
+  const { sb, candidate, actorId } = args;
+
+  // Find duplicate leads if any
+  const duplicateCache = new Map<string, Awaited<ReturnType<typeof findDuplicateCandidate>>>();
+  const record = inboundCandidateToRecord(candidate);
+  const duplicate = await findDuplicateCandidate(sb, record, duplicateCache);
+
+  // Map source vendor to provider name
+  const sourceCategory = mapSourceVendorToProvider(candidate.sourceVendor) || candidate.sourceChannel;
+
+  // Insert into intake_leads table
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: insertedIntakeLead, error: insertError } = await (sb.from("intake_leads") as any)
+    .insert({
+      raw_payload: candidate.rawPayload,
+      source_channel: candidate.sourceChannel,
+      source_vendor: candidate.sourceVendor,
+      source_category: sourceCategory,
+      intake_method: candidate.intakeMethod,
+      owner_name: candidate.ownerName,
+      owner_phone: candidate.phone,
+      owner_email: candidate.email,
+      property_address: candidate.propertyAddress,
+      property_city: candidate.propertyCity,
+      property_state: candidate.propertyState,
+      property_zip: candidate.propertyZip,
+      county: candidate.county,
+      apn: candidate.apn,
+      status: "pending_review",
+      duplicate_of_lead_id: duplicate.leadId || null,
+      duplicate_confidence: duplicate.level === "high" ? 90 : duplicate.level === "medium" ? 60 : null,
+    })
+    .select()
+    .single();
+
+  if (insertError) {
+    console.error("[Inbound Intake Queue] Failed to insert:", insertError);
+    return {
+      intakeLeadId: null,
+      status: "failed",
+      error: insertError.message,
+    };
+  }
+
+  const intakeLeadId = insertedIntakeLead?.id;
+
+  // Log the intake event
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  await (sb.from("event_log") as any).insert({
+    user_id: actorId,
+    action: "intake.queued",
+    entity_type: "intake_lead",
+    entity_id: intakeLeadId,
+    details: {
+      intake_lead_id: intakeLeadId,
+      source_channel: candidate.sourceChannel,
+      source_vendor: candidate.sourceVendor,
+      source_category: sourceCategory,
+      intake_method: candidate.intakeMethod,
+      duplicate_status: duplicate.level,
+      duplicate_of_lead_id: duplicate.leadId || null,
+      owner_name: candidate.ownerName,
+      phone: candidate.phone,
+      email: candidate.email,
+      county: candidate.county,
+      property_address: candidate.propertyAddress,
+    },
+  }).catch(() => {});
+
+  return {
+    intakeLeadId,
+    status: "queued",
+    sourceCategory,
+    duplicateStatus: duplicate.level,
+    duplicateOfLeadId: duplicate.leadId || null,
+  };
 }
 
 export async function processInboundCandidate(args: {
