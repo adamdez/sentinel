@@ -11,6 +11,9 @@ export interface ProspectRow {
   id: string;
   property_id: string;
   status: string;
+  pinned: boolean;
+  pinned_at: string | null;
+  pinned_by: string | null;
   priority: number;
   source: string;
   tags: string[];
@@ -118,6 +121,9 @@ function buildRows(leadsData: any[], propertiesMap: Record<string, any>, predict
       id: lead.id,
       property_id: lead.property_id,
       status: lead.status,
+      pinned: lead.pinned === true,
+      pinned_at: lead.pinned_at ?? null,
+      pinned_by: lead.pinned_by ?? null,
       priority: lead.priority ?? 0,
       source: lead.source ?? "unknown",
       tags: lead.tags ?? [],

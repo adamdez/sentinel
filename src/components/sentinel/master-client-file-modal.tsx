@@ -33,6 +33,7 @@ import {
 import { Button } from "@/components/ui/button";
 
 import { Badge } from "@/components/ui/badge";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
 import { cn, formatCurrency } from "@/lib/utils";
 
@@ -4395,6 +4396,8 @@ export function MasterClientFileModal({ clientFile: incomingClientFile, open, on
 
   const [reassigning, setReassigning] = useState(false);
 
+  const [pinUpdating, setPinUpdating] = useState(false);
+
 
 
   // —— Deep Crawl state ——
@@ -7959,6 +7962,51 @@ export function MasterClientFileModal({ clientFile: incomingClientFile, open, on
 
       : "Assign to Me";
 
+  const handleTogglePin = useCallback(async () => {
+    if (!clientFile?.id || pinUpdating) return;
+
+    const nextPinned = !clientFile.pinned;
+    setPinUpdating(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) {
+        toast.error("Session expired");
+        return;
+      }
+
+      const res = await fetch(`/api/leads/${clientFile.id}/pin`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({ pinned: nextPinned }),
+      });
+
+      if (!res.ok) {
+        toast.error("Failed to update pin");
+        return;
+      }
+
+      const data = await res.json().catch(() => null) as {
+        pinned?: boolean;
+        pinned_at?: string | null;
+        pinned_by?: string | null;
+      } | null;
+
+      setClientFilePatch((prev) => ({
+        ...(prev ?? {}),
+        pinned: data?.pinned ?? nextPinned,
+        pinnedAt: data?.pinned_at ?? null,
+        pinnedBy: data?.pinned_by ?? null,
+      }));
+      toast.success(nextPinned ? "Pinned to Pipeline" : "Removed from Pipeline");
+      onRefresh?.();
+    } finally {
+      setPinUpdating(false);
+    }
+  }, [clientFile?.id, clientFile?.pinned, onRefresh, pinUpdating]);
+
 
 
   return (
@@ -8132,6 +8180,38 @@ export function MasterClientFileModal({ clientFile: incomingClientFile, open, on
 
                       <Zap className="h-3 w-3" />{clientFile.compositeScore} {lbl.text}
 
+                    </div>
+
+                    <div className="flex items-center gap-1.5">
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <button
+                            type="button"
+                            aria-label={clientFile.pinned ? "Unpin from Pipeline" : "Pin to Pipeline"}
+                            aria-pressed={clientFile.pinned}
+                            onClick={handleTogglePin}
+                            disabled={pinUpdating}
+                            className={cn(
+                              "flex items-center gap-1.5 px-2.5 py-1 rounded-md border text-xs font-bold transition-colors disabled:opacity-50",
+                              clientFile.pinned
+                                ? "border-primary/30 bg-primary/12 text-primary hover:bg-primary/18"
+                                : "border-overlay-15 bg-overlay-4 text-muted-foreground hover:text-foreground hover:border-overlay-30 hover:bg-overlay-6",
+                            )}
+                          >
+                            <Pin className={cn("h-3.5 w-3.5", clientFile.pinned && "fill-current")} />
+                            {pinUpdating ? "Saving..." : clientFile.pinned ? "Unpin" : "Pin"}
+                          </button>
+                        </TooltipTrigger>
+                        <TooltipContent className="text-sm">
+                          {clientFile.pinned ? "Unpin from Pipeline" : "Pin to Pipeline"}
+                        </TooltipContent>
+                      </Tooltip>
+
+                      {clientFile.pinned && (
+                        <span className="shrink-0 text-[10px] px-1.5 py-0.5 rounded-full bg-primary/15 text-primary font-medium">
+                          Active
+                        </span>
+                      )}
                     </div>
 
                     {clientFile.prediction && (

@@ -42,6 +42,9 @@ export interface ClientFile {
   ownerPhone: string | null;
   ownerEmail: string | null;
   status: string;
+  pinned: boolean;
+  pinnedAt: string | null;
+  pinnedBy: string | null;
   assignedTo: string | null;
   source: string;
   tags: string[];
@@ -148,7 +151,7 @@ export function clientFileFromProspect(p: ProspectRow): ClientFile {
     address: p.address, city: p.city, state: p.state, zip: p.zip,
     fullAddress: buildAddress(p.address, p.city, p.state, p.zip),
     ownerName: p.owner_name, ownerPhone: p.owner_phone, ownerEmail: p.owner_email,
-    status: p.status, assignedTo: p.assigned_to, source: p.source,
+    status: p.status, pinned: p.pinned === true, pinnedAt: p.pinned_at ?? null, pinnedBy: p.pinned_by ?? null, assignedTo: p.assigned_to, source: p.source,
     tags: p.tags, notes: p.notes, promotedAt: p.promoted_at,
     lastContactAt: null, followUpDate: null,
     motivationLevel: p.motivation_level ?? null,
@@ -202,7 +205,7 @@ export function clientFileFromLead(l: LeadRow): ClientFile {
     address: l.address, city: l.city, state: l.state, zip: l.zip,
     fullAddress: buildAddress(l.address, l.city, l.state, l.zip),
     ownerName: l.ownerName, ownerPhone: l.ownerPhone, ownerEmail: l.ownerEmail,
-    status: l.status, assignedTo: l.assignedTo, source: l.source,
+    status: l.status, pinned: l.pinned === true, pinnedAt: l.pinnedAt ?? null, pinnedBy: l.pinnedBy ?? null, assignedTo: l.assignedTo, source: l.source,
     tags: l.tags, notes: l.notes, promotedAt: l.promotedAt,
     lastContactAt: l.lastContactAt, followUpDate: l.followUpDate,
     motivationLevel: l.motivationLevel,
@@ -270,7 +273,7 @@ export function clientFileFromRaw(lead: Record<string, any>, prop: Record<string
     address: prop.address ?? "", city: prop.city ?? "", state: prop.state ?? "", zip: prop.zip ?? "",
     fullAddress: buildAddress(prop.address, prop.city, prop.state, prop.zip),
     ownerName: prop.owner_name ?? "Unknown", ownerPhone: prop.owner_phone ?? null, ownerEmail: prop.owner_email ?? null,
-    status: lead.status ?? "prospect", assignedTo: lead.assigned_to ?? null,
+    status: lead.status ?? "prospect", pinned: lead.pinned === true, pinnedAt: lead.pinned_at ?? null, pinnedBy: lead.pinned_by ?? null, assignedTo: lead.assigned_to ?? null,
     source: lead.source ?? "unknown", tags: lead.tags ?? [], notes: lead.notes ?? null,
     promotedAt: lead.promoted_at ?? null, lastContactAt: lead.last_contact_at ?? null,
     followUpDate: lead.follow_up_date ?? null,
