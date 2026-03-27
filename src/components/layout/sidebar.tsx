@@ -24,6 +24,7 @@ import {
   Bug,
   Megaphone,
   Contact,
+  Inbox,
   type LucideIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -37,10 +38,11 @@ import { ShieldIcon, BannerIcon, GoldDivider } from "@/components/sentinel/psalm
 interface SidebarBadges {
   adsAlerts: number;
   reviewQueue: number;
+  intakePending: number;
 }
 
 function useSidebarBadges(): SidebarBadges {
-  const [badges, setBadges] = useState<SidebarBadges>({ adsAlerts: 0, reviewQueue: 0 });
+  const [badges, setBadges] = useState<SidebarBadges>({ adsAlerts: 0, reviewQueue: 0, intakePending: 0 });
 
   useEffect(() => {
     const fetchCounts = async () => {
@@ -54,9 +56,15 @@ function useSidebarBadges(): SidebarBadges {
         .select("id", { count: "exact", head: true })
         .eq("status", "pending");
 
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { count: intakePending } = await (supabase.from("intake_leads") as any)
+        .select("id", { count: "exact", head: true })
+        .eq("status", "pending_review");
+
       setBadges({
         adsAlerts: adsAlerts ?? 0,
         reviewQueue: reviewPending ?? 0,
+        intakePending: intakePending ?? 0,
       });
     };
 
@@ -66,6 +74,7 @@ function useSidebarBadges(): SidebarBadges {
       .channel("sidebar_badges")
       .on("postgres_changes", { event: "*", schema: "public", table: "ads_alerts" }, () => fetchCounts())
       .on("postgres_changes", { event: "*", schema: "public", table: "review_queue" }, () => fetchCounts())
+      .on("postgres_changes", { event: "*", schema: "public", table: "intake_leads" }, () => fetchCounts())
       .subscribe();
 
     return () => { supabase.removeChannel(channel); };
@@ -90,6 +99,7 @@ interface NavSection {
 const primaryItems: NavItem[] = [
   { label: "Today", href: "/dashboard", icon: CalendarCheck },
   { label: "Lead Queue", href: "/leads", icon: Users },
+  { label: "PPL Inbox", href: "/intake", icon: Inbox, badge: "intake-pending" },
   { label: "Dialer", href: "/dialer", icon: Phone },
   { label: "Dispo", href: "/dispo", icon: Handshake },
   { label: "Pipeline", href: "/pipeline", icon: KanbanSquare },
@@ -201,6 +211,14 @@ function NavLink({ item, depth = 0, badges }: { item: NavItem; depth?: number; b
       <span>{item.label}</span>
       {(() => {
         if (!item.badge || !badges) return null;
+        // Intake pending shows a count badge
+        if (item.badge === "intake-pending" && badges.intakePending > 0) {
+          return (
+            <span className="ml-auto inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-full bg-amber-500 text-xs font-bold text-black">
+              {badges.intakePending}
+            </span>
+          );
+        }
         const dot =
           item.badge === "ads-alerts" && badges.adsAlerts > 0 ? "bg-amber-400" :
           item.badge === "review-queue" && badges.reviewQueue > 0 ? "bg-violet-400" :

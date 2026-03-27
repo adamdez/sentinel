@@ -55,10 +55,11 @@ export async function POST(req: NextRequest) {
       notes,
     } = body;
 
-    // Validate required fields
-    if (!intake_lead_id || !provider_id || !owner_phone || !property_address) {
+    // Validate required fields (only intake_lead_id and provider_id)
+    // Accept incomplete data — operators can fill in missing info later
+    if (!intake_lead_id || !provider_id) {
       return NextResponse.json(
-        { error: "Missing required fields: intake_lead_id, provider_id, owner_phone, property_address" },
+        { error: "Missing required fields: intake_lead_id, provider_id" },
         { status: 400 }
       );
     }
@@ -95,17 +96,19 @@ export async function POST(req: NextRequest) {
     const sourceCategory = provider.name;
 
     // Step 1: Create or update property record (upsert via APN + county)
+    // Accept incomplete property data — address/city/state/zip are optional
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { data: property, error: propertyError } = await (sb.from("properties") as any)
       .upsert(
         {
-          apn: apn || "",
-          county: county || "",
-          address: property_address,
+          apn: apn || "TBD",
+          county: county || "Unknown",
+          address: property_address || "Address TBD",
           city: property_city || "",
           state: property_state || "WA",
           zip: property_zip || "",
           owner_name: owner_name || intakeLead.owner_name || "Unknown",
+          owner_flags: {},
         },
         {
           onConflict: "apn,county",
@@ -122,40 +125,47 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Step 2: Create or update contact record (upsert via phone)
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data: contact, error: contactError } = await (sb.from("contacts") as any)
-      .upsert(
-        {
-          phone: owner_phone,
-          first_name: (owner_name || "").split(" ")[0] || "Unknown",
-          last_name: (owner_name || "").split(" ").slice(1).join(" ") || "",
-          email: intakeLead.owner_email || null,
-          contact_type: "owner",
-          source: sourceCategory,
-        },
-        {
-          onConflict: "phone",
-        }
-      )
-      .select()
-      .single();
+    // Step 2: Create or update contact record (optional if phone provided)
+    let contact = null;
+    if (owner_phone) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const nameParts = (owner_name || "Unknown").split(" ");
+      const firstName = nameParts[0] || "Unknown";
+      const lastName = nameParts.slice(1).join(" ") || "Contact";
 
-    if (contactError || !contact) {
-      console.error("[Intake Claim] Contact creation failed:", contactError);
-      return NextResponse.json(
-        { error: "Failed to create contact record" },
-        { status: 500 }
-      );
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data: contactData, error: contactError } = await (sb.from("contacts") as any)
+        .upsert(
+          {
+            phone: owner_phone,
+            first_name: firstName,
+            last_name: lastName,
+            email: intakeLead.owner_email || null,
+            contact_type: "owner",
+            source: sourceCategory,
+          },
+          {
+            onConflict: "phone",
+          }
+        )
+        .select()
+        .single();
+
+      if (contactError) {
+        console.error("[Intake Claim] Contact creation failed:", contactError);
+        // Don't fail — contact is optional
+      }
+      contact = contactData;
     }
 
     // Step 3: Create lead record with special intake markers
+    // Status = "lead" so it appears in the Lead Queue (not "prospect" which is invisible)
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { data: lead, error: leadError } = await (sb.from("leads") as any)
       .insert({
         property_id: property.id,
-        contact_id: contact.id,
-        status: "prospect",
+        contact_id: contact?.id || null,
+        status: "lead",
         assigned_to: assign_to || null,
         source: "special_intake",
         source_category: sourceCategory,

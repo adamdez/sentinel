@@ -55,8 +55,8 @@ export function getRedirectUri(): string {
   return `${base}/api/gmail/callback`;
 }
 
-export function buildAuthUrl(userId: string): string {
-  const state = Buffer.from(JSON.stringify({ uid: userId })).toString("base64url");
+export function buildAuthUrl(userId: string, mode?: "personal" | "intake"): string {
+  const state = Buffer.from(JSON.stringify({ uid: userId, mode: mode || "personal" })).toString("base64url");
   const params = new URLSearchParams({
     client_id: process.env.GOOGLE_CLIENT_ID!,
     redirect_uri: getRedirectUri(),
@@ -267,6 +267,59 @@ export async function fetchMessageDetail(accessToken: string, message: GmailMess
     bodyText: bodies.text || payload.snippet || baseMessage.snippet,
     bodyHtml: bodies.html,
   } satisfies GmailMessageDetail;
+}
+
+// ── Message Modification ─────────────────────────────────────────────────
+
+export async function markAsRead(accessToken: string, messageId: string): Promise<boolean> {
+  const res = await fetch(`${GMAIL_API_BASE}/messages/${messageId}/modify`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ removeLabelIds: ["UNREAD"] }),
+  });
+  return res.ok;
+}
+
+export async function fetchUnreadInbox(accessToken: string, maxResults = 20): Promise<GmailMessage[]> {
+  const listRes = await fetch(
+    `${GMAIL_API_BASE}/messages?maxResults=${maxResults}&labelIds=INBOX&q=is:unread`,
+    { headers: { Authorization: `Bearer ${accessToken}` } }
+  );
+
+  if (!listRes.ok) throw new Error(`Gmail list failed: ${listRes.status}`);
+  const listData = await listRes.json();
+  if (!listData.messages?.length) return [];
+
+  const messages = await Promise.all(
+    listData.messages.map(async (m: { id: string }) => {
+      const msgRes = await fetch(
+        `${GMAIL_API_BASE}/messages/${m.id}?format=metadata&metadataHeaders=From&metadataHeaders=To&metadataHeaders=Subject&metadataHeaders=Date`,
+        { headers: { Authorization: `Bearer ${accessToken}` } }
+      );
+      if (!msgRes.ok) return null;
+      const msg = await msgRes.json();
+
+      const headers = msg.payload?.headers ?? [];
+      const getHeader = (name: string) =>
+        headers.find((h: { name: string; value: string }) => h.name.toLowerCase() === name.toLowerCase())?.value ?? "";
+
+      return {
+        id: msg.id,
+        threadId: msg.threadId,
+        from: getHeader("From"),
+        to: getHeader("To"),
+        subject: getHeader("Subject"),
+        snippet: msg.snippet ?? "",
+        date: getHeader("Date"),
+        unread: true,
+      } satisfies GmailMessage;
+    })
+  );
+
+  return messages.filter(Boolean) as GmailMessage[];
 }
 
 // ── MIME Message Builder ─────────────────────────────────────────────────

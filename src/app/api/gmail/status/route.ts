@@ -43,11 +43,17 @@ export async function GET(req: NextRequest) {
 
     const prefs = profile.preferences as Record<string, unknown> | null;
     const gmail = (prefs?.gmail ?? null) as GmailPrefs | null;
+    const intakeGmail = (prefs?.intake_gmail ?? null) as GmailPrefs | null;
 
     const result: Record<string, unknown> = {
       connected: gmail?.connected === true,
       email: gmail?.email ?? null,
       connected_at: gmail?.connected_at ?? null,
+      intake_gmail: {
+        connected: intakeGmail?.connected === true,
+        email: intakeGmail?.email ?? null,
+        connected_at: intakeGmail?.connected_at ?? null,
+      },
     };
 
     if (profile.role === "admin") {

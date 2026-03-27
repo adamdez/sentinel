@@ -64,10 +64,17 @@ interface TeamMember {
   connected_at: string | null;
 }
 
+interface IntakeGmailStatus {
+  connected: boolean;
+  email: string | null;
+  connected_at: string | null;
+}
+
 interface GmailStatus {
   connected: boolean;
   email: string | null;
   connected_at: string | null;
+  intake_gmail?: IntakeGmailStatus;
   team?: TeamMember[];
 }
 
@@ -367,6 +374,7 @@ function GmailPageInner() {
   const [messages, setMessages] = useState<GmailMessage[]>([]);
   const [inboxLoading, setInboxLoading] = useState(false);
   const [connecting, setConnecting] = useState(false);
+  const [connectingIntake, setConnectingIntake] = useState(false);
   const [composeOpen, setComposeOpen] = useState(false);
   const [activeFolder, setActiveFolder] = useState<Folder>("inbox");
   const [syncing, setSyncing] = useState(false);
@@ -375,14 +383,19 @@ function GmailPageInner() {
   const [connectError, setConnectError] = useState<string | null>(null);
   const searchParams = useSearchParams();
 
-  // Read OAuth callback errors from URL params
+  // Read OAuth callback results from URL params
   useEffect(() => {
     const err = searchParams.get("error");
     if (err) {
       setConnectError(decodeURIComponent(err));
       setConnecting(false);
+      setConnectingIntake(false);
     }
-  }, [searchParams]);
+    // Refresh status after intake connection
+    if (searchParams.get("intake_connected") === "true" || searchParams.get("connected") === "true") {
+      fetchStatus();
+    }
+  }, [searchParams, fetchStatus]);
 
   const fetchStatus = useCallback(async () => {
     if (!userId) return;
@@ -445,6 +458,29 @@ function GmailPageInner() {
     } catch (err) {
       setConnectError(err instanceof Error ? err.message : "Connection failed");
       setConnecting(false);
+    }
+  };
+
+  const handleConnectIntake = async () => {
+    if (!userId) return;
+    setConnectingIntake(true);
+    setConnectError(null);
+    try {
+      const res = await fetch("/api/gmail/connect-intake", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ user_id: userId }),
+      });
+      const data = await res.json();
+      if (data.url) {
+        window.location.href = data.url;
+      } else {
+        setConnectError(data.error || data.detail || "Failed to generate OAuth URL");
+        setConnectingIntake(false);
+      }
+    } catch (err) {
+      setConnectError(err instanceof Error ? err.message : "Connection failed");
+      setConnectingIntake(false);
     }
   };
 
@@ -542,6 +578,38 @@ function GmailPageInner() {
               <p>Scopes: gmail.send, gmail.readonly, openid, email</p>
               <p>Your data never leaves Sentinel&apos;s secure infrastructure.</p>
             </div>
+          </GlassCard>
+
+          {/* PPL Inbox Connection */}
+          <GlassCard className="max-w-lg w-full text-center p-8 mt-4">
+            <div className="flex items-center justify-center gap-2 mb-3">
+              <Inbox className="h-5 w-5 text-amber-500" />
+              <h3 className="text-lg font-semibold">PPL Inbox</h3>
+            </div>
+            <p className="text-sm text-muted-foreground mb-4">
+              Connect <strong>leads@dominionhomedeals.com</strong> to auto-pull PPL provider leads into the intake queue.
+            </p>
+            {status?.intake_gmail?.connected ? (
+              <div className="flex items-center justify-center gap-2 text-sm text-primary">
+                <CheckCircle2 className="h-4 w-4" />
+                Connected as {status.intake_gmail.email}
+              </div>
+            ) : (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleConnectIntake}
+                disabled={connectingIntake}
+                className="gap-2"
+              >
+                {connectingIntake ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <GoogleLogo className="h-4 w-4" />
+                )}
+                {connectingIntake ? "Redirecting…" : "Connect PPL Inbox"}
+              </Button>
+            )}
           </GlassCard>
         </div>
       </PageShell>
@@ -646,6 +714,46 @@ function GmailPageInner() {
               </div>
             </GlassCard>
           )}
+
+          {/* PPL Inbox Status */}
+          <GlassCard hover={false} className="p-3">
+            <h3 className="text-sm uppercase tracking-wider text-muted-foreground mb-3 flex items-center gap-1.5">
+              <Inbox className="h-3 w-3" />
+              PPL Inbox
+            </h3>
+            {status?.intake_gmail?.connected ? (
+              <div className="space-y-1.5">
+                <div className="flex items-center gap-2 text-xs">
+                  <span className="h-2 w-2 rounded-full bg-amber-500 shrink-0" />
+                  <span className="text-foreground truncate">{status.intake_gmail.email}</span>
+                  <CheckCircle2 className="h-3 w-3 text-amber-500 shrink-0" />
+                </div>
+                <p className="text-xs text-muted-foreground/60">
+                  Auto-polling approved PPL senders
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                <p className="text-xs text-muted-foreground/60">
+                  Connect leads@ to auto-pull PPL leads
+                </p>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="w-full gap-2 text-xs"
+                  onClick={handleConnectIntake}
+                  disabled={connectingIntake}
+                >
+                  {connectingIntake ? (
+                    <Loader2 className="h-3 w-3 animate-spin" />
+                  ) : (
+                    <GoogleLogo className="h-3 w-3" />
+                  )}
+                  {connectingIntake ? "Redirecting…" : "Connect PPL Inbox"}
+                </Button>
+              </div>
+            )}
+          </GlassCard>
 
           {/* Quick Templates */}
           <GlassCard hover={false} className="p-3">

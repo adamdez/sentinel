@@ -24,8 +24,9 @@ export async function GET(req: NextRequest) {
 
   try {
     const decoded = Buffer.from(state, "base64url").toString("utf8");
-    const parsed = JSON.parse(decoded) as { uid?: string };
+    const parsed = JSON.parse(decoded) as { uid?: string; mode?: string };
     const uid = parsed.uid;
+    const mode = parsed.mode || "personal";
     if (!uid) throw new Error("No uid in state payload");
 
     const tokens = await exchangeCodeForTokens(code);
@@ -52,9 +53,11 @@ export async function GET(req: NextRequest) {
     const existingPrefs =
       (profile?.preferences as Record<string, unknown>) ?? {};
 
+    // Store under "gmail" for personal, "intake_gmail" for intake mode
+    const prefsKey = mode === "intake" ? "intake_gmail" : "gmail";
     const updatedPrefs = {
       ...existingPrefs,
-      gmail: {
+      [prefsKey]: {
         connected: true,
         email: tokens.email ?? null,
         encrypted_refresh_token: encryptedRefresh,
@@ -77,14 +80,15 @@ export async function GET(req: NextRequest) {
       );
     }
 
+    const actionName = mode === "intake" ? "INTAKE_GMAIL_CONNECTED" : "GMAIL_CONNECTED";
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     await (sb.from("event_log") as any)
       .insert({
         user_id: uid,
-        action: "GMAIL_CONNECTED",
+        action: actionName,
         entity_type: "user_profile",
         entity_id: uid,
-        details: { gmail_email: tokens.email ?? "unknown" },
+        details: { gmail_email: tokens.email ?? "unknown", mode },
       })
       .then(({ error: auditErr }: { error: unknown }) => {
         if (auditErr) {
@@ -92,10 +96,11 @@ export async function GET(req: NextRequest) {
         }
       });
 
+    const redirectParam = mode === "intake" ? "intake_connected=true" : "connected=true";
     console.log(
-      `[gmail/callback] Connected for ${uid} (${tokens.email ?? "?"})`,
+      `[gmail/callback] Connected ${mode} for ${uid} (${tokens.email ?? "?"})`,
     );
-    return NextResponse.redirect(`${baseUrl}/gmail?connected=true`);
+    return NextResponse.redirect(`${baseUrl}/gmail?${redirectParam}`);
   } catch (err: unknown) {
     console.error("[gmail/callback] Error:", err);
     const msg = err instanceof Error ? err.message : "unknown";
